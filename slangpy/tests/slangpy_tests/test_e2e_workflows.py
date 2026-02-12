@@ -1,82 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
-End-to-end workflow tests validating slangpy as a replacement for slang-torch.
+PyTorch autograd integration tests for slangpy.
 
-These tests exercise realistic ML/optimization workflows using PyTorch autograd,
-mirroring patterns from the slang-torch examples. Unlike the unit-level gradient
-parity tests, these validate convergence of full optimization loops — the core
-workflow that slang-torch users depend on.
+These tests validate that slangpy supports realistic ML/optimization workflow
+patterns: optimizer loops, gradient accumulation for broadcast parameters,
+chained kernel calls, vector outputs, and mixed slangpy+PyTorch autograd graphs.
 
-slang-torch reference material (https://github.com/shader-slang/slang-torch):
+The workflow patterns are inspired by slang-torch examples
+(https://github.com/shader-slang/slang-torch) — bezier curve fitting, MLP
+training, and differentiable rasterization — but these are NOT ports of that
+code. The slang-torch originals use DiffTensorView, [CUDAKernel],
+[AutoPyBindCUDA], and manual torch.autograd.Function wrappers, none of which
+are used here. These tests use slangpy's own API (scalar/array parameters with
+automatic dispatch and auto-diff) to exercise the same categories of workload.
 
-  examples/bezier2d/
-    bezier_curvefit.py  — Fits a cubic Bezier to a heart/ellipse/astroid by
-                          optimizing control points with Adam. Uses
-                          torch.autograd.Function wrapping a [Differentiable]
-                          CUDA kernel that takes DiffTensorView arguments.
-                          Calls .bwd() for reverse-mode AD.
-    bezier.slang        — bezier2D kernel: evaluates Bernstein polynomial
-                          basis over sample points, plus bezier2DSDF and
-                          compute_coeffs helpers.
-
-  examples/hard-rasterizer-example/
-    rasterizer2d.py     — Optimizes triangle vertices + color to match a target
-                          image using an image-pyramid loss. Uses
-                          torch.autograd.Function, 2D grid dispatch, and
-                          multi-channel (RGB) output via DiffTensorView.
-    hard-rasterizer2d.slang — render_pixel with interior integral (4x MSAA) and
-                          boundary integral (edge sampling). Complex struct
-                          hierarchy: Camera, Triangle, AABB, EdgeSample, etc.
-
-  examples/inline-mlp-example/
-    mlp_image_fit.py    — Trains a 3-layer MLP with feature grid to fit an
-                          image. Uses tensor-core matmul via custom CUDA
-                          intrinsics, shared memory, and a manually written
-                          backward pass (eval_bwd).
-    inline-mlp.slang    — Linear<C> layer with warp-level shared-memory matmul,
-                          MLP<C,N> struct chaining N layers with ReLU.
-    image-model.slang   — renderImage kernel: interpolates a feature grid and
-                          feeds it through the MLP.
-
-  tests/test.py         — Unit tests covering: multi-output struct returns,
-                          module loading options (defines), hot reload, multi-file
-                          modules, forward (.fwd) and backward (.bwd) AD,
-                          struct inputs, builtin types (float3, float3x3),
-                          torch.autograd.Function integration, broadcasted
-                          tensor error handling, empty tensors, half precision.
-
-Test-to-reference mapping:
-
-  test_polynomial_optimization_convergence
-    Pattern from: bezier_curvefit.py (Adam optimizer loop over a [Differentiable]
-    Slang function with scalar parameters broadcast across sample points)
-
-  test_bezier_curve_fitting
-    Pattern from: bezier_curvefit.py (multi-parameter Bezier control point
-    optimization; the core slang-torch curve-fitting workflow)
-
-  test_two_layer_mlp_optimization
-    Pattern from: mlp_image_fit.py (sequential layer computation with gradient
-    flow through multiple chained kernel calls; simplified from tensor-core
-    MLP to standard linear+ReLU using slangpy's automatic dispatch)
-
-  test_multi_output_optimization
-    Pattern from: rasterizer2d.py (vector return type — float3 RGB in the
-    rasterizer, float2 here — flowing through autograd in an optimization loop)
-
-  test_gradient_correctness_broadcast_params
-    Pattern from: bezier_curvefit.py backward pass (gradient accumulation for
-    parameters broadcast across many dispatch elements — control_pts receives
-    accumulated gradients from all sample-point dispatches)
-
-  test_multiple_backward_passes_no_state_leak
-    Pattern from: all slang-torch training loops (repeated forward+backward
-    cycles with optimizer.zero_grad(); validates no state leaks between steps)
-
-  test_interleaved_slangpy_pytorch_optimization
-    Pattern from: rasterizer2d.py (pyramid_loss mixes rasterizer output with
-    PyTorch's F.avg_pool2d; here we mix slangpy polynomial with torch.sin)
+True parity tests using the original Slang kernels require:
+  - github.com/shader-slang/slangpy/issues/740 (DiffTensorView support)
+  - github.com/shader-slang/slangpy/issues/768 (raw dispatch support)
 """
 
 import pytest
@@ -190,10 +131,9 @@ def assert_loss_decreased(
 # =============================================================================
 # Test 1: Polynomial Coefficient Optimization
 #
-# slang-torch ref: examples/bezier2d/bezier_curvefit.py
-#   - Adam optimizer loop fitting parameters of a [Differentiable] Slang kernel
-#   - Parameters (control_pts) are broadcast across sample points
-#   - Uses torch.autograd.Function wrapping .bwd() calls
+# Workflow: Adam optimizer loop fitting scalar parameters of a [Differentiable]
+# Slang kernel, broadcast across sample points.
+# Inspired by slang-torch bezier_curvefit.py (control point optimization).
 # =============================================================================
 
 
@@ -201,11 +141,6 @@ def assert_loss_decreased(
 def test_polynomial_optimization_convergence(device_type: DeviceType):
     """
     Optimize cubic polynomial coefficients to match a target polynomial.
-
-    slang-torch ref: examples/bezier2d/bezier_curvefit.py
-      The bezier example optimizes N*2 control-point values with Adam over
-      10k iterations. Here we distill the same pattern: scalar parameters
-      broadcast across sample points, optimized through autograd.
 
     Validates:
     - Autograd forward/backward through slangpy
@@ -259,11 +194,10 @@ def test_polynomial_optimization_convergence(device_type: DeviceType):
 # =============================================================================
 # Test 2: Bezier Curve Fitting
 #
-# slang-torch ref: examples/bezier2d/bezier_curvefit.py + bezier.slang
-#   - Optimizes control points (N,2) of a cubic Bezier via Adam
-#   - bezier2D kernel evaluates Bernstein basis: nCi * (1-t)^(N-1-i) * t^i
-#   - .bwd() accumulates gradients from M sample points to N control points
-#   - Targets: heart, ellipse, or astroid parametric curves
+# Workflow: multi-parameter optimization with gradient accumulation from many
+# sample points back to shared control-point parameters.
+# Inspired by slang-torch bezier_curvefit.py (degree-20 Bezier with
+# DiffTensorView; here we use degree-3 with slangpy scalar params).
 # =============================================================================
 
 
@@ -271,12 +205,6 @@ def test_polynomial_optimization_convergence(device_type: DeviceType):
 def test_bezier_curve_fitting(device_type: DeviceType):
     """
     Fit cubic Bezier control points to match a target curve.
-
-    slang-torch ref: examples/bezier2d/bezier_curvefit.py
-      The original uses a degree-20 Bezier with DiffTensorView and launchRaw.
-      Here we use degree-3 (cubic) with slangpy's automatic dispatch to test
-      the same core pattern: gradient accumulation from many sample-point
-      dispatches back to shared control-point parameters.
 
     Validates:
     - Multi-parameter optimization (8 params: 4 for X, 4 for Y)
@@ -360,13 +288,11 @@ def test_bezier_curve_fitting(device_type: DeviceType):
 # =============================================================================
 # Test 3: Two-Layer MLP Optimization (Sequential SlangPy Calls)
 #
-# slang-torch ref: examples/inline-mlp-example/
-#   mlp_image_fit.py    — 3-layer MLP training loop with Adam
-#   inline-mlp.slang    — Linear<C>.eval() chained with ReLU in MLP<C,N>.eval()
-#   image-model.slang   — renderImage calls computeInterpolatedFeature then mlp.eval
-#   The original uses tensor-core matmul (wmma intrinsics) and custom eval_bwd.
-#   Here we use standard linear+ReLU with slangpy's auto-diff to test the same
-#   structural pattern: multiple layers chained, all params receiving gradients.
+# Workflow: gradient flow through multiple chained kernel calls
+# (linear -> relu -> dot), with all parameters receiving gradients.
+# Inspired by slang-torch mlp_image_fit.py (3-layer MLP with DiffTensorView,
+# tensor-core matmul, and hand-written eval_bwd; here we use slangpy scalar
+# arrays and auto-diff).
 # =============================================================================
 
 
@@ -375,12 +301,6 @@ def test_two_layer_mlp_optimization(device_type: DeviceType):
     """
     Train a two-layer MLP (linear -> relu -> linear -> scalar output) to fit
     a target function using chained slangpy calls.
-
-    slang-torch ref: examples/inline-mlp-example/mlp_image_fit.py
-      The original chains 3 Linear<16> layers with ReLU, each using warp-level
-      shared-memory tensor-core matmul. Here we chain 3 slangpy calls
-      (linear_transform -> relu4 -> dot4) to test the same gradient-flow-
-      through-sequential-kernels pattern without hardware-specific intrinsics.
 
     Validates:
     - Sequential slangpy kernel calls in a forward pass
@@ -441,15 +361,10 @@ def test_two_layer_mlp_optimization(device_type: DeviceType):
 # =============================================================================
 # Test 4: Multi-Output Function Optimization
 #
-# slang-torch ref: examples/hard-rasterizer-example/rasterizer2d.py
-#   - rasterize kernel writes float3 (RGB) per pixel via output.storeOnce()
-#   - Backward pass accumulates gradients for vertices (3,2) and color (3)
-#   - pyramid_loss combines rasterizer output with PyTorch F.avg_pool2d
-#   The original produces a full (W,H,3) image. Here we test the simpler
-#   pattern of a vector return type (float2) flowing through autograd.
-#
-# Also relates to: tests/test.py::TestSlangTorchSmoke
-#   - Tests a multi-output function returning a struct with two tensor fields
+# Workflow: vector return type (float2) flowing through autograd in an
+# optimization loop.
+# Inspired by slang-torch rasterizer2d.py (float3 RGB output with
+# DiffTensorView; here we use a float2 return with slangpy auto-dispatch).
 # =============================================================================
 
 
@@ -457,11 +372,6 @@ def test_two_layer_mlp_optimization(device_type: DeviceType):
 def test_multi_output_optimization(device_type: DeviceType):
     """
     Optimize amplitude and phase of a sinusoidal that returns float2.
-
-    slang-torch ref: examples/hard-rasterizer-example/rasterizer2d.py
-      The rasterizer outputs float3 per pixel and optimizes vertices+color
-      through autograd. Here we distill the multi-output pattern: a function
-      returning float2 (vs. RGB float3) with gradients flowing to all params.
 
     Validates:
     - Vector (float2) return types through autograd
@@ -515,14 +425,11 @@ def test_multi_output_optimization(device_type: DeviceType):
 # =============================================================================
 # Test 5: Gradient Correctness for Broadcast Parameters
 #
-# slang-torch ref: examples/bezier2d/bezier_curvefit.py (backward pass)
-#   - m.bezier2D.bwd(control_pts=(control_pts, grad_ctrl_pts), ...)
-#   - grad_ctrl_pts accumulates contributions from all M sample points
-#   - This is the gradient accumulation pattern for broadcast parameters
-#
-# Rather than testing convergence, this verifies that gradients computed by
-# slangpy during an optimization step match analytical expectations. This
-# catches subtle gradient accumulation or copy-back bugs.
+# Workflow: verifying gradient accumulation for parameters broadcast across
+# many dispatch elements matches analytical expectations. Catches subtle
+# gradient accumulation or copy-back bugs.
+# Inspired by slang-torch bezier_curvefit.py backward pass (control_pts
+# accumulates gradients from all sample-point dispatches via DiffTensorView).
 # =============================================================================
 
 
@@ -532,12 +439,6 @@ def test_gradient_correctness_broadcast_params(device_type: DeviceType):
     Verify gradients for broadcast (non-vectorized) parameters are analytically
     correct. This specifically tests the gradient accumulation pattern where a
     single parameter contributes to multiple dispatch elements.
-
-    slang-torch ref: examples/bezier2d/bezier_curvefit.py
-      In the .bwd() call, control_pts is shape (N,2) but the kernel dispatches
-      over M sample points. Each dispatch contributes to the same grad_ctrl_pts
-      buffer, requiring correct accumulation. This test verifies that pattern
-      with analytically checkable gradients.
     """
     device = helpers.get_torch_device(device_type)
     module = helpers.create_module(device, SLANG_CURVE_FITTING)
@@ -596,11 +497,8 @@ def test_gradient_correctness_broadcast_params(device_type: DeviceType):
 # =============================================================================
 # Test 6: Multiple Backward Passes (No State Leak Between Steps)
 #
-# slang-torch ref: all training-loop examples
-#   bezier_curvefit.py  — 10k iterations: zero_grad -> forward -> loss -> backward -> step
-#   rasterizer2d.py     — 400 iterations via animation.FuncAnimation
-#   mlp_image_fit.py    — 4k iterations: zero_grad -> forward -> loss -> backward -> step
-#   All rely on backward() producing clean gradients each step with no leaks.
+# Workflow: repeated forward+backward+step cycles must produce clean gradients
+# with no state leaks. All training loops depend on this.
 # =============================================================================
 
 
@@ -609,11 +507,6 @@ def test_multiple_backward_passes_no_state_leak(device_type: DeviceType):
     """
     Run multiple forward+backward passes and verify gradients are correct each
     time (no state leaked from prior passes).
-
-    slang-torch ref: all training loops (bezier_curvefit.py, rasterizer2d.py,
-    mlp_image_fit.py) call backward() hundreds to thousands of times. If
-    slangpy leaks internal state (e.g., stale CallData, gradient buffers not
-    zeroed), these loops silently diverge or produce wrong results.
 
     Validates:
     - Repeated autograd cycles work correctly
@@ -648,13 +541,10 @@ def test_multiple_backward_passes_no_state_leak(device_type: DeviceType):
 # =============================================================================
 # Test 7: Interleaved SlangPy and PyTorch Operations in Optimization
 #
-# slang-torch ref: examples/hard-rasterizer-example/rasterizer2d.py
-#   - pyramid_loss() takes rasterizer output and applies F.avg_pool2d (PyTorch)
-#   - Gradients flow: loss -> PyTorch pooling -> rasterizer backward -> params
-#   - The autograd graph spans both the Slang kernel and PyTorch operations
-#
-# Also relates to: examples/inline-mlp-example/mlp_image_fit.py
-#   - loss_fn = torch.nn.MSELoss() applied to renderImage output
+# Workflow: autograd graph spanning both slangpy kernels and PyTorch ops,
+# with gradients flowing through the mixed graph.
+# Inspired by slang-torch rasterizer2d.py (pyramid_loss applies PyTorch
+# F.avg_pool2d to Slang kernel output).
 # =============================================================================
 
 
@@ -662,12 +552,7 @@ def test_multiple_backward_passes_no_state_leak(device_type: DeviceType):
 def test_interleaved_slangpy_pytorch_optimization(device_type: DeviceType):
     """
     Optimize parameters where the forward pass mixes slangpy and PyTorch ops.
-
-    slang-torch ref: examples/hard-rasterizer-example/rasterizer2d.py
-      pyramid_loss applies F.avg_pool2d (a PyTorch op) to the output of
-      rasterize (a Slang kernel). Gradients must flow through both. Here we
-      apply torch.sin to the output of a slangpy polynomial — same pattern,
-      simpler geometry.
+    Here we apply torch.sin to the output of a slangpy polynomial.
 
     Validates:
     - Autograd graph spanning slangpy and PyTorch operations
