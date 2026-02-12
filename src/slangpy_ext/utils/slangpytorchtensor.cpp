@@ -440,13 +440,13 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     Shape shape = shape_from_bridge_info(info);
     Shape strides = strides_from_bridge_info(info);
 
-    // Apply broadcast stride zeroing
-    strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
-
     // Write device pointer - use interop buffer if provided, otherwise use tensor's CUDA pointer
     if (interop_buffer) {
-        // For interop, strides should be contiguous since interop buffer is contiguous
+        // For interop, strides start as contiguous since interop buffer is a contiguous copy.
+        // Broadcast stride zeroing is applied AFTER to ensure broadcast dimensions use stride 0,
+        // so all dispatch elements read from the same buffer location for broadcast parameters.
         strides = make_contiguous_strides(shape, info.element_size);
+        strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
 
         // Check if we need to bind as buffer resource or write device address
         // See slangpytensor.cpp:574 for the same pattern
@@ -464,7 +464,9 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
             shader_object->set_buffer(offsets.data, ref<Buffer>(interop_buffer));
         }
     } else {
-        // Direct CUDA pointer
+        // Direct CUDA pointer - apply broadcast stride zeroing to the original PyTorch strides
+        strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
+
         DeviceAddress address = reinterpret_cast<DeviceAddress>(info.data_ptr);
         write_value_helper(
             base_address,
@@ -510,48 +512,62 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     nb::list read_back
 ) const
 {
-    // Helper lambda to create interop buffer and copy tensor data
-    auto create_interop_buffer
+    // Helper: create interop buffer with given info. If tensor_value has data, copy from it;
+    // otherwise (e.g. backward pass output slot, primal is None) leave buffer uninitialized.
+    auto create_interop_buffer_from_tensor
         = [&](nb::object tensor_value, const TensorBridgeInfo& info, bool writable) -> ref<Buffer>
     {
-        // Calculate buffer size (numel * element_size)
         size_t buffer_size = static_cast<size_t>(info.numel) * static_cast<size_t>(info.element_size);
-
-        // Handle empty tensors - create a minimal placeholder buffer
-        if (buffer_size == 0) {
+        if (buffer_size == 0)
             buffer_size = static_cast<size_t>(info.element_size);
-        }
 
-        // Create shared buffer for interop
-        // The buffer will be accessible from both CUDA (for copy) and D3D12/Vulkan (for shader)
         ref<Buffer> interop_buffer = context->device()->create_buffer({
             .size = buffer_size,
             .struct_size = static_cast<size_t>(info.element_size),
             .usage = BufferUsage::unordered_access | BufferUsage::shader_resource | BufferUsage::shared,
             .default_state = writable ? ResourceState::unordered_access : ResourceState::shader_resource,
         });
-
-        // Copy data from PyTorch tensor to interop buffer using TorchBridge
-        // This handles non-contiguous tensors via PyTorch's copy mechanism
-        // copy_to_buffer() now throws on error with detailed message
         if (info.numel > 0 && info.data_ptr != nullptr) {
             TorchBridge::instance().copy_to_buffer(tensor_value, interop_buffer->cuda_memory(), buffer_size);
         }
-
         return interop_buffer;
     };
 
-    // Create primal interop buffer (if we have primal data)
+    // Helper: create interop buffer from shape/size only and zero it. Used when there is no
+    // tensor to copy from (e.g. backward pass output slot has grad but no primal).
+    auto create_zeroed_interop_buffer = [&](const TensorBridgeInfo& info) -> ref<Buffer>
+    {
+        size_t buffer_size = static_cast<size_t>(info.numel) * static_cast<size_t>(info.element_size);
+        if (buffer_size == 0)
+            buffer_size = static_cast<size_t>(info.element_size);
+
+        ref<Buffer> interop_buffer = context->device()->create_buffer({
+            .size = buffer_size,
+            .struct_size = static_cast<size_t>(info.element_size),
+            .usage = BufferUsage::unordered_access | BufferUsage::shader_resource | BufferUsage::shared,
+            .default_state = ResourceState::shader_resource,
+        });
+        void* cuda_ptr = interop_buffer->cuda_memory();
+        if (cuda_ptr && buffer_size > 0)
+            cuda::memset_device(static_cast<uint8_t*>(cuda_ptr), 0, buffer_size);
+        return interop_buffer;
+    };
+
+    // Create primal interop buffer (if we have primal data, or need a valid slot in backward)
     ref<Buffer> primal_interop_buffer;
     if (primal_info.data_ptr != nullptr) {
-        primal_interop_buffer = create_interop_buffer(primal_value, primal_info, m_writable);
+        primal_interop_buffer = create_interop_buffer_from_tensor(primal_value, primal_info, m_writable);
+    } else if (m_cached_binding_info.has_grad_fields && primal_info.numel > 0
+               && context->device()->supports_cuda_interop()) {
+        // Backward pass: output slot has grad but no primal. Shader still needs a valid
+        // primal buffer (DiffTensor layout). Create and zero — we have no tensor to copy from.
+        primal_interop_buffer = create_zeroed_interop_buffer(primal_info);
     }
 
     // Create grad interop buffer (if we have grad data)
     ref<Buffer> grad_interop_buffer;
     if (has_grad && grad_info.data_ptr != nullptr) {
-        // Grad tensors are typically writable (for backward pass to write gradients)
-        grad_interop_buffer = create_interop_buffer(grad_value, grad_info, true);
+        grad_interop_buffer = create_interop_buffer_from_tensor(grad_value, grad_info, true);
     }
 
     // Write tensor fields using the interop buffers
@@ -607,9 +623,10 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     size_t primal_buffer_size = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
     size_t grad_buffer_size = static_cast<size_t>(grad_info.numel) * static_cast<size_t>(grad_info.element_size);
 
-    // Primal: use cached flag. Gradient: use runtime has_grad (see ensure_binding_info_cached).
-    bool needs_primal_copyback
-        = m_cached_binding_info.needs_primal_copyback && primal_info.numel > 0 && primal_interop_buffer;
+    // Primal: use cached flag and only copy back when we have a real tensor (primal_info.data_ptr).
+    // When we created a zeroed buffer for backward output slot (no primal), do not copy back.
+    bool needs_primal_copyback = m_cached_binding_info.needs_primal_copyback && primal_info.numel > 0
+        && primal_interop_buffer && primal_info.data_ptr != nullptr;
     bool needs_grad_copyback = has_grad && grad_info.numel > 0 && grad_interop_buffer;
 
     if (needs_primal_copyback || needs_grad_copyback) {
