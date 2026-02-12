@@ -317,6 +317,14 @@ ExternalMemory::ExternalMemory(const Buffer* buffer)
 
 ExternalMemory::~ExternalMemory()
 {
+    // The mapped device pointer returned by cuExternalMemoryGetMappedBuffer must be
+    // freed with cuMemFree before destroying the external memory, otherwise the CUDA
+    // driver keeps the underlying allocation alive and we leak ~64KB+ per buffer.
+    if (m_mapped_data) {
+        SGL_CU_SCOPE(m_resource->device());
+        SGL_CU_CHECK(cuMemFree(reinterpret_cast<CUdeviceptr>(m_mapped_data)));
+        m_mapped_data = nullptr;
+    }
     destroy_external_memory(m_external_memory);
 }
 
