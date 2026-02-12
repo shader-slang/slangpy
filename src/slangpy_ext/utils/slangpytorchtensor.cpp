@@ -235,11 +235,38 @@ Shape NativeTorchTensorMarshall::get_shape(nb::object data) const
     return result;
 }
 
-void NativeTorchTensorMarshall::ensure_offsets_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const
+void NativeTorchTensorMarshall::ensure_binding_info_cached(
+    ShaderCursor cursor,
+    NativeBoundVariableRuntime* binding
+) const
 {
-    if (!m_cached_offsets.primal.is_valid) {
+    if (!m_cached_binding_info.primal.is_valid) {
         ShaderCursor field = cursor[binding->variable_name()];
-        m_cached_offsets = NativeTensorMarshall::extract_offsets(field);
+        m_cached_binding_info = NativeTensorMarshall::extract_binding_info(field);
+
+        // Compute primal copy-back flag based on binding type and access mode.
+        //
+        // For simple types (scalar/vector/matrix), the tensor is "broadcast" per-thread.
+        // Read-only inputs must NOT copy back - this would increment PyTorch's _version
+        // counter via copy_(), breaking autograd's version tracking.
+        // Writable outputs MUST copy back to return results.
+        //
+        // For tensor types (Tensor, RWTensor, etc.), copy back if marshall is writable.
+        bool is_readonly_simple_type = false;
+        if (auto vector_type = binding->vector_type()) {
+            if (auto type_refl = vector_type->type_reflection()) {
+                auto kind = type_refl->kind();
+                bool is_simple_type
+                    = (kind == TypeReflection::Kind::scalar || kind == TypeReflection::Kind::vector
+                       || kind == TypeReflection::Kind::matrix);
+                AccessType primal_access = binding->access().first;
+                bool is_readonly = (primal_access == AccessType::read || primal_access == AccessType::none);
+                is_readonly_simple_type = is_simple_type && is_readonly;
+            }
+        }
+
+        m_cached_binding_info.needs_primal_copyback = m_writable && !is_readonly_simple_type;
+        // Gradient copy-back uses runtime has_grad check (has_derivative() is false for raw tensors).
     }
 }
 
@@ -252,7 +279,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
 ) const
 {
     // Ensure cached offsets are initialized
-    ensure_offsets_cached(cursor, binding);
+    ensure_binding_info_cached(cursor, binding);
 
     // Step 1: Extract primal_value and grad_value as nb::objects
     nb::object primal_value;
@@ -328,7 +355,8 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     }
 
     ShaderObject* shader_object = cursor.shader_object();
-    void* base_address = shader_object->reserve_data(m_cached_offsets.field_offset, m_cached_offsets.field_size);
+    void* base_address
+        = shader_object->reserve_data(m_cached_binding_info.field_offset, m_cached_binding_info.field_size);
 
     // Check if we need interop (non-CUDA device backend)
     bool needs_interop = context->device()->type() != DeviceType::cuda;
@@ -349,14 +377,14 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
         );
     } else {
         // CUDA device - direct pointer access
-        if (!m_cached_offsets.has_grad_fields) {
+        if (!m_cached_binding_info.has_grad_fields) {
             // Flat structure - write directly to primal offsets
             write_torch_tensor_fields(
                 context,
                 binding,
                 shader_object,
                 base_address,
-                m_cached_offsets.primal,
+                m_cached_binding_info.primal,
                 primal_info,
                 nullptr
             );
@@ -367,30 +395,30 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 binding,
                 shader_object,
                 base_address,
-                m_cached_offsets.primal,
+                m_cached_binding_info.primal,
                 primal_info,
                 nullptr
             );
 
             // Write gradient tensors if present
-            if (has_grad && m_d_in && m_cached_offsets.grad_in.is_valid) {
+            if (has_grad && m_d_in && m_cached_binding_info.grad_in.is_valid) {
                 write_torch_tensor_fields(
                     context,
                     binding,
                     shader_object,
                     base_address,
-                    m_cached_offsets.grad_in,
+                    m_cached_binding_info.grad_in,
                     grad_info,
                     nullptr
                 );
             }
-            if (has_grad && m_d_out && m_cached_offsets.grad_out.is_valid) {
+            if (has_grad && m_d_out && m_cached_binding_info.grad_out.is_valid) {
                 write_torch_tensor_fields(
                     context,
                     binding,
                     shader_object,
                     base_address,
-                    m_cached_offsets.grad_out,
+                    m_cached_binding_info.grad_out,
                     grad_info,
                     nullptr
                 );
@@ -412,13 +440,13 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     Shape shape = shape_from_bridge_info(info);
     Shape strides = strides_from_bridge_info(info);
 
-    // Apply broadcast stride zeroing
-    strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
-
     // Write device pointer - use interop buffer if provided, otherwise use tensor's CUDA pointer
     if (interop_buffer) {
-        // For interop, strides should be contiguous since interop buffer is contiguous
+        // For interop, strides start as contiguous since interop buffer is a contiguous copy.
+        // Broadcast stride zeroing is applied AFTER to ensure broadcast dimensions use stride 0,
+        // so all dispatch elements read from the same buffer location for broadcast parameters.
         strides = make_contiguous_strides(shape, info.element_size);
+        strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
 
         // Check if we need to bind as buffer resource or write device address
         // See slangpytensor.cpp:574 for the same pattern
@@ -428,7 +456,7 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
             // a pointer, but its good to support long term.
             write_value_helper(
                 base_address,
-                offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+                offsets.data.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
                 interop_buffer->device_address()
             );
         } else {
@@ -436,11 +464,13 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
             shader_object->set_buffer(offsets.data, ref<Buffer>(interop_buffer));
         }
     } else {
-        // Direct CUDA pointer
+        // Direct CUDA pointer - apply broadcast stride zeroing to the original PyTorch strides
+        strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
+
         DeviceAddress address = reinterpret_cast<DeviceAddress>(info.data_ptr);
         write_value_helper(
             base_address,
-            offsets.data.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+            offsets.data.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
             address
         );
     }
@@ -448,7 +478,7 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     // Write shape
     write_strided_array_helper(
         base_address,
-        offsets.shape.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offsets.shape.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
         shape,
         offsets.array_stride
     );
@@ -456,13 +486,17 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     // Write strides
     write_strided_array_helper(
         base_address,
-        offsets.strides.uniform_offset - m_cached_offsets.field_offset.uniform_offset,
+        offsets.strides.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
         strides,
         offsets.array_stride
     );
 
     // Write offset (always 0 for raw tensors)
-    write_value_helper(base_address, offsets.offset.uniform_offset - m_cached_offsets.field_offset.uniform_offset, 0);
+    write_value_helper(
+        base_address,
+        offsets.offset.uniform_offset - m_cached_binding_info.field_offset.uniform_offset,
+        0
+    );
 }
 
 void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
@@ -478,59 +512,73 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     nb::list read_back
 ) const
 {
-    // Helper lambda to create interop buffer and copy tensor data
-    auto create_interop_buffer
+    // Helper: create interop buffer with given info. If tensor_value has data, copy from it;
+    // otherwise (e.g. backward pass output slot, primal is None) leave buffer uninitialized.
+    auto create_interop_buffer_from_tensor
         = [&](nb::object tensor_value, const TensorBridgeInfo& info, bool writable) -> ref<Buffer>
     {
-        // Calculate buffer size (numel * element_size)
         size_t buffer_size = static_cast<size_t>(info.numel) * static_cast<size_t>(info.element_size);
-
-        // Handle empty tensors - create a minimal placeholder buffer
-        if (buffer_size == 0) {
+        if (buffer_size == 0)
             buffer_size = static_cast<size_t>(info.element_size);
-        }
 
-        // Create shared buffer for interop
-        // The buffer will be accessible from both CUDA (for copy) and D3D12/Vulkan (for shader)
         ref<Buffer> interop_buffer = context->device()->create_buffer({
             .size = buffer_size,
             .struct_size = static_cast<size_t>(info.element_size),
             .usage = BufferUsage::unordered_access | BufferUsage::shader_resource | BufferUsage::shared,
             .default_state = writable ? ResourceState::unordered_access : ResourceState::shader_resource,
         });
-
-        // Copy data from PyTorch tensor to interop buffer using TorchBridge
-        // This handles non-contiguous tensors via PyTorch's copy mechanism
-        // copy_to_buffer() now throws on error with detailed message
         if (info.numel > 0 && info.data_ptr != nullptr) {
             TorchBridge::instance().copy_to_buffer(tensor_value, interop_buffer->cuda_memory(), buffer_size);
         }
-
         return interop_buffer;
     };
 
-    // Create primal interop buffer (if we have primal data)
+    // Helper: create interop buffer from shape/size only and zero it. Used when there is no
+    // tensor to copy from (e.g. backward pass output slot has grad but no primal).
+    auto create_zeroed_interop_buffer = [&](const TensorBridgeInfo& info) -> ref<Buffer>
+    {
+        size_t buffer_size = static_cast<size_t>(info.numel) * static_cast<size_t>(info.element_size);
+        if (buffer_size == 0)
+            buffer_size = static_cast<size_t>(info.element_size);
+
+        ref<Buffer> interop_buffer = context->device()->create_buffer({
+            .size = buffer_size,
+            .struct_size = static_cast<size_t>(info.element_size),
+            .usage = BufferUsage::unordered_access | BufferUsage::shader_resource | BufferUsage::shared,
+            .default_state = ResourceState::shader_resource,
+        });
+        void* cuda_ptr = interop_buffer->cuda_memory();
+        if (cuda_ptr && buffer_size > 0)
+            cuda::memset_device(static_cast<uint8_t*>(cuda_ptr), 0, buffer_size);
+        return interop_buffer;
+    };
+
+    // Create primal interop buffer (if we have primal data, or need a valid slot in backward)
     ref<Buffer> primal_interop_buffer;
     if (primal_info.data_ptr != nullptr) {
-        primal_interop_buffer = create_interop_buffer(primal_value, primal_info, m_writable);
+        primal_interop_buffer = create_interop_buffer_from_tensor(primal_value, primal_info, m_writable);
+    } else if (m_cached_binding_info.has_grad_fields && primal_info.numel > 0
+               && context->device()->supports_cuda_interop()) {
+        // Backward pass: output slot has grad but no primal. Shader still needs a valid
+        // primal buffer (DiffTensor layout). Create and zero — we have no tensor to copy from.
+        primal_interop_buffer = create_zeroed_interop_buffer(primal_info);
     }
 
     // Create grad interop buffer (if we have grad data)
     ref<Buffer> grad_interop_buffer;
     if (has_grad && grad_info.data_ptr != nullptr) {
-        // Grad tensors are typically writable (for backward pass to write gradients)
-        grad_interop_buffer = create_interop_buffer(grad_value, grad_info, true);
+        grad_interop_buffer = create_interop_buffer_from_tensor(grad_value, grad_info, true);
     }
 
     // Write tensor fields using the interop buffers
-    if (!m_cached_offsets.has_grad_fields) {
+    if (!m_cached_binding_info.has_grad_fields) {
         // Flat structure - write directly to primal offsets
         write_torch_tensor_fields(
             context,
             binding,
             shader_object,
             base_address,
-            m_cached_offsets.primal,
+            m_cached_binding_info.primal,
             primal_info,
             primal_interop_buffer.get()
         );
@@ -541,42 +589,44 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
             binding,
             shader_object,
             base_address,
-            m_cached_offsets.primal,
+            m_cached_binding_info.primal,
             primal_info,
             primal_interop_buffer.get()
         );
 
         // Write gradient tensors if present
-        if (has_grad && m_d_in && m_cached_offsets.grad_in.is_valid) {
+        if (has_grad && m_d_in && m_cached_binding_info.grad_in.is_valid) {
             write_torch_tensor_fields(
                 context,
                 binding,
                 shader_object,
                 base_address,
-                m_cached_offsets.grad_in,
+                m_cached_binding_info.grad_in,
                 grad_info,
                 grad_interop_buffer.get()
             );
         }
-        if (has_grad && m_d_out && m_cached_offsets.grad_out.is_valid) {
+        if (has_grad && m_d_out && m_cached_binding_info.grad_out.is_valid) {
             write_torch_tensor_fields(
                 context,
                 binding,
                 shader_object,
                 base_address,
-                m_cached_offsets.grad_out,
+                m_cached_binding_info.grad_out,
                 grad_info,
                 grad_interop_buffer.get()
             );
         }
     }
 
-    // Store interop info for post-dispatch copy-back if tensor is writable
+    // Store interop info for post-dispatch copy-back
     size_t primal_buffer_size = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
     size_t grad_buffer_size = static_cast<size_t>(grad_info.numel) * static_cast<size_t>(grad_info.element_size);
 
-    // Build calldata dict with all interop info needed for copy-back
-    bool needs_primal_copyback = m_writable && primal_info.numel > 0 && primal_interop_buffer;
+    // Primal: use cached flag and only copy back when we have a real tensor (primal_info.data_ptr).
+    // When we created a zeroed buffer for backward output slot (no primal), do not copy back.
+    bool needs_primal_copyback = m_cached_binding_info.needs_primal_copyback && primal_info.numel > 0
+        && primal_interop_buffer && primal_info.data_ptr != nullptr;
     bool needs_grad_copyback = has_grad && grad_info.numel > 0 && grad_interop_buffer;
 
     if (needs_primal_copyback || needs_grad_copyback) {

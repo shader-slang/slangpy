@@ -139,24 +139,30 @@ public:
         bool is_valid = false;            // Whether offsets have been initialized
     };
 
-    /// Cached offsets for all tensor variants (primal, grad_in, grad_out)
-    /// Public so NativeTorchTensorMarshall can reuse them
-    struct CachedOffsets {
+    /// Cached binding info for all tensor variants (primal, grad_in, grad_out)
+    /// Contains shader offsets plus copy-back decision flags.
+    /// Public so NativeTorchTensorMarshall can reuse this structure.
+    struct CachedBindingInfo {
         TensorFieldOffsets primal;    // Offsets for primal tensor fields
         TensorFieldOffsets grad_in;   // Offsets for gradient input fields (if present)
         TensorFieldOffsets grad_out;  // Offsets for gradient output fields (if present)
         bool has_grad_fields = false; // Whether tensor uses _primal wrapper (differentiated mode)
         ShaderOffset field_offset;    // Base offset of the entire field structure
         uint32_t field_size = 0;      // Total size of the field in uniform data
+
+        // Whether to copy interop buffer back to torch tensor after dispatch.
+        // Only used by NativeTorchTensorMarshall; see ensure_binding_info_cached() for details.
+        // Gradient copy-back uses runtime check instead (has_derivative() is not final at cache time).
+        bool needs_primal_copyback = false;
     };
 
     /// Extract TensorFieldOffsets from a ShaderCursor pointing to a tensor structure
     /// Public so NativeTorchTensorMarshall can reuse it
     static TensorFieldOffsets extract_tensor_field_offsets(ShaderCursor tensor_cursor);
 
-    /// Extract all cached offsets (primal, grad_in, grad_out) from a field cursor
+    /// Extract all cached binding info (primal, grad_in, grad_out) from a field cursor
     /// Public so NativeTorchTensorMarshall can reuse it
-    static CachedOffsets extract_offsets(ShaderCursor cursor);
+    static CachedBindingInfo extract_binding_info(ShaderCursor cursor);
 
 private:
     int m_dims;
@@ -165,11 +171,11 @@ private:
     ref<TypeLayoutReflection> m_element_layout;
     ref<NativeTensorMarshall> m_d_in;
     ref<NativeTensorMarshall> m_d_out;
-    mutable CachedOffsets m_cached_offsets;
+    mutable CachedBindingInfo m_cached_binding_info;
 
-    /// Initialize cached offsets if not already done
+    /// Initialize cached binding info if not already done
     /// This method is called on the first dispatch to cache reflection data for subsequent calls
-    void ensure_offsets_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const;
+    void ensure_binding_info_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const;
 
     //
     // High-Level Write Methods
