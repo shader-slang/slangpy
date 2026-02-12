@@ -332,3 +332,9 @@ PYTHON_SIGNATURES[torch.Tensor] = hash_torch_tensor
 # Register NativeTorchTensorDiffPair handlers (uses same factory as torch.Tensor)
 PYTHON_TYPES[NativeTorchTensorDiffPair] = create_torch_tensor_marshall
 PYTHON_SIGNATURES[NativeTorchTensorDiffPair] = hash_torch_diff_pair
+
+# Register DiffPair (subclass of NativeTorchTensorDiffPair, same handlers)
+from slangpy.torchintegration import DiffPair
+
+PYTHON_TYPES[DiffPair] = create_torch_tensor_marshall
+PYTHON_SIGNATURES[DiffPair] = hash_torch_diff_pair
