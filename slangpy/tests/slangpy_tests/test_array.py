@@ -264,12 +264,6 @@ float add(Val val, float val2) {
     )
 
 
-# ---------------------------------------------------------------------------
-# Tests for GitHub issue #123: complex types passing arrays to SlangPy
-# https://github.com/shader-slang/slangpy/issues/123
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_struct_with_scalar_array_field(device_type: DeviceType):
     """A struct whose field is a fixed-size array of scalars."""
@@ -441,6 +435,41 @@ int double_val(Pair p) {
     assert results.shape == (3,)
     assert results.dtype == np.int32
     assert np.array_equal(results, np.array([3, 7, 11], dtype=np.int32))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_array_of_rw_structured_buffers(device_type: DeviceType):
+    """A function parameter that is an array of RWStructuredBuffer<T>."""
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "double_buffers",
+        r"""
+void double_buffers(RWStructuredBuffer<int> buffers[4]) {
+    for (int i = 0; i < 4; i++) {
+        buffers[i][0] = buffers[i][0] * 2;
+    }
+}
+""",
+    )
+
+    buffers = []
+    for i in range(4):
+        buf = device.create_buffer(
+            element_count=1,
+            struct_size=4,
+            data=np.array([(i + 1) * 10], dtype=np.int32),
+            usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
+        )
+        buffers.append(buf)
+
+    function(buffers)
+
+    # Verify each buffer was doubled
+    for i, buf in enumerate(buffers):
+        result = np.frombuffer(buf.to_numpy(), dtype=np.int32)
+        assert result[0] == (i + 1) * 20
 
 
 if __name__ == "__main__":
