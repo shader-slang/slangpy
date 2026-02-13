@@ -91,10 +91,10 @@ def array_to_array(marshall_type: rt.SlangType, target_type: rt.SlangType):
 
 
 def _resource_element_is_unknown(resource_type: rt.SlangType) -> bool:
-    """Check if a resource type (e.g. StructuredBuffer) has an Unknown element type."""
-    return isinstance(
-        resource_type, (rt.StructuredBufferType, rt.ByteAddressBufferType)
-    ) and isinstance(resource_type.element_type, rt.UnknownType)
+    """Check if a StructuredBuffer has an Unknown element type."""
+    return isinstance(resource_type, rt.StructuredBufferType) and isinstance(
+        resource_type.element_type, rt.UnknownType
+    )
 
 
 def array_to_array_scalarconvertable(marshall_type: rt.SlangType, target_type: rt.SlangType):
