@@ -223,3 +223,182 @@ class TestTorchTensorExtraction:
         t = torch.zeros(4, 4, dtype=torch.float32)
         signature = slangpy.extract_torch_tensor_signature(t)
         assert signature == "[D2,S6]"
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+class TestTorchBridgeCopy:
+    """Test copy_to_buffer and copy_from_buffer in both native and fallback modes."""
+
+    @pytest.fixture(autouse=True)
+    def setup_bridge_mode(self, torch_bridge_mode: str):
+        """Automatically use torch_bridge_mode fixture for all tests in this class."""
+        self.mode = torch_bridge_mode
+
+    def test_copy_to_buffer_contiguous(self):
+        """Test copying a contiguous CUDA tensor to a raw CUDA buffer."""
+        from slangpy.torchintegration.bridge_fallback import copy_to_buffer
+
+        src = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32, device="cuda")
+        buf = torch.zeros(4, dtype=torch.float32, device="cuda")
+        byte_size = src.numel() * src.element_size()
+
+        copy_to_buffer(src, buf.data_ptr(), byte_size)
+        assert torch.equal(buf, src)
+
+    def test_copy_to_buffer_non_contiguous(self):
+        """Test copying a non-contiguous (transposed) CUDA tensor to a buffer."""
+        from slangpy.torchintegration.bridge_fallback import copy_to_buffer
+
+        base = torch.arange(12, dtype=torch.float32, device="cuda").reshape(3, 4)
+        src = base.T  # shape (4,3), non-contiguous
+        assert not src.is_contiguous()
+
+        buf = torch.zeros(src.numel(), dtype=torch.float32, device="cuda")
+        byte_size = src.numel() * src.element_size()
+
+        copy_to_buffer(src, buf.data_ptr(), byte_size)
+        # The buffer should contain data in C-contiguous order of the transposed view.
+        expected = src.contiguous().view(-1)
+        assert torch.equal(buf, expected)
+
+    def test_copy_from_buffer_contiguous(self):
+        """Test copying from a raw CUDA buffer into a contiguous tensor."""
+        from slangpy.torchintegration.bridge_fallback import copy_from_buffer
+
+        buf = torch.tensor([5.0, 6.0, 7.0, 8.0], dtype=torch.float32, device="cuda")
+        dest = torch.zeros(4, dtype=torch.float32, device="cuda")
+        byte_size = buf.numel() * buf.element_size()
+
+        copy_from_buffer(dest, buf.data_ptr(), byte_size)
+        assert torch.equal(dest, buf)
+
+    def test_copy_from_buffer_non_contiguous(self):
+        """Test copying from a buffer into a non-contiguous destination tensor."""
+        from slangpy.torchintegration.bridge_fallback import copy_from_buffer
+
+        buf = torch.arange(12, dtype=torch.float32, device="cuda")
+        base = torch.zeros(4, 3, dtype=torch.float32, device="cuda")
+        dest = base.T  # shape (3,4), non-contiguous
+        assert not dest.is_contiguous()
+
+        byte_size = dest.numel() * dest.element_size()
+        copy_from_buffer(dest, buf.data_ptr(), byte_size)
+
+        expected = buf.view(dest.shape)
+        assert torch.equal(dest, expected)
+
+    def test_copy_roundtrip(self):
+        """Test data survives a copy_to_buffer → copy_from_buffer round-trip."""
+        from slangpy.torchintegration.bridge_fallback import (
+            copy_from_buffer,
+            copy_to_buffer,
+        )
+
+        src = torch.randn(8, 5, dtype=torch.float32, device="cuda")
+        buf = torch.zeros(src.numel(), dtype=torch.float32, device="cuda")
+        byte_size = src.numel() * src.element_size()
+
+        copy_to_buffer(src, buf.data_ptr(), byte_size)
+
+        dest = torch.zeros_like(src)
+        copy_from_buffer(dest, buf.data_ptr(), byte_size)
+
+        assert torch.equal(dest, src)
+
+    @pytest.mark.parametrize(
+        "dtype",
+        [
+            torch.float16,
+            torch.float32,
+            torch.float64,
+            torch.int8,
+            torch.int32,
+            torch.int64,
+            torch.uint8,
+        ],
+    )
+    def test_copy_roundtrip_dtypes(self, dtype: torch.dtype):
+        """Test round-trip copy with various dtypes."""
+        from slangpy.torchintegration.bridge_fallback import (
+            copy_from_buffer,
+            copy_to_buffer,
+        )
+
+        if dtype.is_floating_point:
+            src = torch.randn(16, dtype=dtype, device="cuda")
+        else:
+            src = torch.randint(0, 100, (16,), dtype=dtype, device="cuda")
+
+        buf = torch.zeros(src.numel(), dtype=dtype, device="cuda")
+        byte_size = src.numel() * src.element_size()
+
+        copy_to_buffer(src, buf.data_ptr(), byte_size)
+        dest = torch.zeros_like(src)
+        copy_from_buffer(dest, buf.data_ptr(), byte_size)
+
+        assert torch.equal(dest, src)
+
+    def test_copy_multidimensional(self):
+        """Test round-trip copy with a multi-dimensional tensor."""
+        from slangpy.torchintegration.bridge_fallback import (
+            copy_from_buffer,
+            copy_to_buffer,
+        )
+
+        src = torch.randn(3, 4, 5, dtype=torch.float32, device="cuda")
+        buf = torch.zeros(src.numel(), dtype=torch.float32, device="cuda")
+        byte_size = src.numel() * src.element_size()
+
+        copy_to_buffer(src, buf.data_ptr(), byte_size)
+        dest = torch.zeros_like(src)
+        copy_from_buffer(dest, buf.data_ptr(), byte_size)
+
+        assert torch.equal(dest, src)
+
+    def test_copy_to_buffer_rejects_cpu_tensor(self):
+        """Test that copy_to_buffer raises for CPU tensors."""
+        from slangpy.torchintegration.bridge_fallback import copy_to_buffer
+
+        src = torch.tensor([1.0, 2.0], dtype=torch.float32)  # CPU
+        buf = torch.zeros(2, dtype=torch.float32, device="cuda")
+        with pytest.raises(RuntimeError, match="CUDA"):
+            copy_to_buffer(src, buf.data_ptr(), 8)
+
+    def test_copy_from_buffer_rejects_cpu_tensor(self):
+        """Test that copy_from_buffer raises for CPU tensors."""
+        from slangpy.torchintegration.bridge_fallback import copy_from_buffer
+
+        buf = torch.zeros(2, dtype=torch.float32, device="cuda")
+        dest = torch.zeros(2, dtype=torch.float32)  # CPU
+        with pytest.raises(RuntimeError, match="CUDA"):
+            copy_from_buffer(dest, buf.data_ptr(), 8)
+
+    def test_copy_to_buffer_rejects_small_dest(self):
+        """Test that copy_to_buffer raises when destination is too small."""
+        from slangpy.torchintegration.bridge_fallback import copy_to_buffer
+
+        src = torch.randn(100, dtype=torch.float32, device="cuda")
+        buf = torch.zeros(10, dtype=torch.float32, device="cuda")
+        with pytest.raises(RuntimeError, match="too small"):
+            copy_to_buffer(src, buf.data_ptr(), buf.numel() * buf.element_size())
+
+    def test_copy_from_buffer_rejects_small_src(self):
+        """Test that copy_from_buffer raises when source is too small."""
+        from slangpy.torchintegration.bridge_fallback import copy_from_buffer
+
+        buf = torch.zeros(10, dtype=torch.float32, device="cuda")
+        dest = torch.zeros(100, dtype=torch.float32, device="cuda")
+        with pytest.raises(RuntimeError, match="too small"):
+            copy_from_buffer(dest, buf.data_ptr(), buf.numel() * buf.element_size())
+
+    def test_copy_from_buffer_no_grad(self):
+        """Test that copy_from_buffer works on tensors with requires_grad=True."""
+        from slangpy.torchintegration.bridge_fallback import copy_from_buffer
+
+        buf = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32, device="cuda")
+        dest = torch.zeros(3, dtype=torch.float32, device="cuda", requires_grad=True)
+        byte_size = buf.numel() * buf.element_size()
+
+        # Should not raise despite requires_grad=True
+        copy_from_buffer(dest, buf.data_ptr(), byte_size)
+        assert torch.equal(dest.detach(), buf)
