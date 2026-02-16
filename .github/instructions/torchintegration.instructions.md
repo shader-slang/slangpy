@@ -37,6 +37,14 @@ The fallback cannot perform CUDA memory copies (`copy_to_buffer`/`copy_from_buff
 
 For testing, `TorchBridge::set_force_python_fallback(true)` forces fallback mode even when native is available.
 
+## Native extension development
+
+When developing the native extension, install it as editable:
+```
+cd .\src\slangpy_torch\
+pip install --editable . --no-build-isolation
+```
+
 ## File Map
 
 ### Bridge Layer (tensor metadata extraction)
