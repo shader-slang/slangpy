@@ -12,6 +12,7 @@ SlangPy is a native Python extension that provides a high-level interface for wo
 |-----------|-------------|
 | `src/sgl/` | Native C++ code (core GPU abstraction layer) |
 | `src/slangpy_ext/` | Python bindings (nanobind) |
+| `src/slangpy_torch/` | Native torch integration extension |
 | `slangpy/` | Python package implementation |
 | `slangpy/tests/` | Python tests (pytest) |
 | `tests/` | C++ tests (doctest) |
@@ -21,6 +22,12 @@ SlangPy is a native Python extension that provides a high-level interface for wo
 | `docs/` | Documentation |
 | `external/` | External C++ dependencies |
 
+## Communication Style
+- If I tell you that you are wrong, think about whether or not you think that's true and respond with facts.
+- Avoid apologizing or making conciliatory statements.
+- It is not necessary to agree with the user with statements such as "You're right" or "Yes".
+- Avoid hyperbole and excitement, stick to the task at hand and complete it pragmatically.
+
 ## Key Rules
 
 1. **New Python APIs must have tests** in `slangpy/tests/`
@@ -28,19 +35,6 @@ SlangPy is a native Python extension that provides a high-level interface for wo
 3. **Run pre-commit after completing tasks** (`pre-commit run --all-files`; re-run if it modifies files)
 4. **Use type annotations** for all Python function arguments
 5. **Minimize new dependencies** — the project has minimal external deps
-
-## Terminal Guidelines
-
-**NEVER use PowerShell piping** with build or test commands:
-```bash
-# BAD — do not do this:
-cmake --build --preset windows-msvc-debug 2>&1 | Select-Object -Last 30
-pytest slangpy/tests -v 2>&1 | Select-Object -Last 30
-
-# GOOD:
-cmake --build --preset windows-msvc-debug
-pytest slangpy/tests -v
-```
 
 ## Architecture
 
@@ -58,19 +52,6 @@ C++ types typically map to slang-rhi counterparts (e.g., `Device` wraps `rhi::ID
 - **Device**: GPU context managing resources and compute dispatch
 - **CallData**: Cached execution plans for optimized repeated calls
 - **Buffer/Texture**: GPU memory resources with Python array interface
-
-### Package Structure
-
-- `slangpy/__init__.py` re-exports the public API — check it to see what's user-facing vs internal.
-- `slangpy/slangpy/` contains additional internal implementation modules.
-- `slangpy/builtin/` contains built-in marshall implementations for standard types.
-- Bindings in `src/slangpy_ext/` use nanobind with `ref<T>` pointers (ref-counted via `Object` base class). Use `make_ref<T>(...)` to create instances. Python ↔ C++ ownership is managed via nanobind type casters registered in the binding modules.
-
-### Call Flow
-
-1. Python loads `.slang` file as Module
-2. Functions extracted via reflection
-3. Python calls trigger: argument type analysis and caching → data marshalling to GPU buffers → kernel compilation and dispatch → results copied back to Python/NumPy/PyTorch
 
 ### Error Handling
 
@@ -107,20 +88,6 @@ Debug generated shaders (PowerShell):
 ```bash
 $env:SLANGPY_PRINT_GENERATED_SHADERS="1"; pytest slangpy/tests/slangpy_tests/test_X.py -v
 ```
-
-### Test Patterns
-
-- GPU tests use a `device` fixture (typically `spy.Device()`) — look at existing tests for the pattern.
-- Tests that need `.slang` shader files place them alongside the test file or in a `shaders/` subdirectory.
-- Use `spy.Tensor.from_numpy(device, arr)` to create GPU tensors, and `.to_numpy()` to read back.
-- For new marshalls or types, add tests that exercise both the kernel generation (first call) and cached dispatch (subsequent calls).
-
-### Common Pitfalls
-
-- Forgetting to rebuild C++ after changing `src/` files — Python will use stale bindings.
-- Shader cache can mask issues; delete `.slangpy_cache/` if you suspect stale compilation.
-- Platform-specific test failures: some tests skip on CPU-only or specific GPU vendors.
-- PyTorch integration tests only run when PyTorch is installed.
 
 ## Code Style
 
@@ -168,6 +135,58 @@ Slang is a shader language based on HLSL. Key patterns used in this project:
 - Generics via `<T>`, interfaces via `interface IFoo`, conformance via `struct Foo : IFoo`
 - Differentiable functions: `[Differentiable] float foo(float x)` with `bwd_diff(foo)` for backprop
 - See `.slang` files in `slangpy/tests/` for project-specific patterns
+
+## CI System
+
+The CI uses GitHub Actions (`.github/workflows/ci.yml`) and calls `tools/ci.py`:
+
+```bash
+python tools/ci.py configure  # CMake configure
+python tools/ci.py --help     # All available commands
+```
+
+## Dependencies
+
+- Python runtime: `requirements.txt` | Dev/tests: `requirements-dev.txt`
+- C++ dependencies: `external/`
+- Testing: pytest (Python), doctest (C++)
+- Shading language: Slang
+- Formatting: `pre-commit` hooks (Black for Python, clang-format for C++)
+
+## Debugging Slang Compiler Issues
+
+Many issues in SlangPy originate from the Slang compiler itself (shader-slang/slang repo).
+
+### Local Slang Build
+
+```bash
+# 1. Query for path to built local slang (eg c:/sw/slang)
+
+# 2. Reconfigure fresh with local slang
+cmake --preset windows-msvc --fresh -DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=<slang dir> -DSGL_LOCAL_SLANG_BUILD_DIR=build/Debug
+
+# 3. build as normal
+cmake --build --preset windows-msvc-debug
+```
+
+| CMake Option | Default | Description |
+|--------|---------|-------------|
+| `SGL_LOCAL_SLANG` | OFF | Enable to use a local Slang build |
+| `SGL_LOCAL_SLANG_DIR` | `../slang` | Path to the local Slang repository |
+| `SGL_LOCAL_SLANG_BUILD_DIR` | `build/Debug` | Build directory within the Slang repo |
+
+### Workflow
+
+1. Reproduce the issue in SlangPy
+2. Clone and build Slang locally (above)
+3. Read `external/slang/CLAUDE.md`
+4. Edit Slang source → rebuild Slang → rebuild SlangPy → test
+
+## Development Tips
+
+- Use `python tools/ci.py` for most build/test tasks — handles platform-specific config
+- PyTorch integration is automatic when PyTorch is installed
+- Hot-reload is supported for shader development
 
 # The Functional API
 
@@ -285,59 +304,3 @@ To support a new Python type in the functional API:
 1. **Create a Marshall** in `slangpy/bindings/` or `slangpy/builtin/` — subclass `Marshall` and implement `resolve_types()`, `resolve_dimensionality()`, `gen_calldata()`. See existing marshalls (e.g., `TensorMarshall`) for the pattern.
 2. **Register** in `slangpy/bindings/typeregistry.py` — add entry to `PYTHON_TYPES` dict.
 3. **(Optional) Native signature** — for performance, add a type signature handler in `NativeCallDataCache` constructor (`src/slangpy_ext/utils/slangpyfunction.cpp`).
-
-## CI System
-
-The CI uses GitHub Actions (`.github/workflows/ci.yml`) and calls `tools/ci.py`:
-
-```bash
-python tools/ci.py configure  # CMake configure
-python tools/ci.py --help     # All available commands
-```
-
-## Dependencies
-
-- Python runtime: `requirements.txt` | Dev/tests: `requirements-dev.txt`
-- C++ dependencies: `external/`
-- Testing: pytest (Python), doctest (C++)
-- Shading language: Slang
-- Formatting: `pre-commit` hooks (Black for Python, clang-format for C++)
-
-## Debugging Slang Compiler Issues
-
-Many issues in SlangPy originate from the Slang compiler itself (shader-slang/slang repo).
-
-### Local Slang Build
-
-```bash
-# 1. Clone
-git clone --recursive https://github.com/shader-slang/slang.git external/slang
-
-# 2. Build
-cmake.exe --preset vs2022 -S external/slang
-cmake.exe --build external/slang/build --config Debug
-
-# 3. Rebuild SlangPy against local Slang
-rm -fr build
-SET CMAKE_ARGS="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=external/slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/Debug"
-pip.exe install .
-```
-
-| CMake Option | Default | Description |
-|--------|---------|-------------|
-| `SGL_LOCAL_SLANG` | OFF | Enable to use a local Slang build |
-| `SGL_LOCAL_SLANG_DIR` | `../slang` | Path to the local Slang repository |
-| `SGL_LOCAL_SLANG_BUILD_DIR` | `build/Debug` | Build directory within the Slang repo |
-
-### Workflow
-
-1. Reproduce the issue in SlangPy
-2. Clone and build Slang locally (above)
-3. Read `external/slang/CLAUDE.md`
-4. Edit Slang source → rebuild Slang → rebuild SlangPy → test
-
-## Development Tips
-
-- Use `python tools/ci.py` for most build/test tasks — handles platform-specific config
-- PyTorch integration is automatic when PyTorch is installed
-- Hot-reload is supported for shader development
