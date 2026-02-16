@@ -20,6 +20,13 @@ if sys.platform == "darwin":
     pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
 
 import slangpy
+from slangpy import DeviceType
+from slangpy.testing import helpers
+
+DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES.copy()
+# Metal does not support torch integration
+if DeviceType.metal in DEVICE_TYPES:
+    DEVICE_TYPES.remove(DeviceType.metal)
 
 
 class TestTorchBridgeAvailability:
@@ -240,14 +247,6 @@ class TestTorchBridgeCopy:
         """Automatically use torch_bridge_mode fixture for all tests."""
         self.mode = torch_bridge_mode
 
-    @pytest.fixture()
-    def device(self) -> slangpy.Device:
-        """Create a device that shares the CUDA context with PyTorch."""
-        from slangpy.testing import helpers
-
-        # Use CUDA device type for torch interop
-        return helpers.get_torch_device(slangpy.DeviceType.cuda)
-
     def _make_buffer(self, device: slangpy.Device, byte_size: int) -> slangpy.Buffer:
         """Create a shared buffer suitable for tensor ↔ buffer copies."""
         return device.create_buffer(
@@ -261,26 +260,32 @@ class TestTorchBridgeCopy:
     # Basic copy tests
     # ------------------------------------------------------------------
 
-    def test_copy_tensor_to_buffer(self, device: slangpy.Device):
+    @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+    def test_copy_tensor_to_buffer(self, device_type: DeviceType):
         """Test copying a contiguous CUDA tensor to a buffer."""
         import numpy as np
 
+        device = helpers.get_torch_device(device_type)
         tensor = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32, device="cuda")
         buffer = self._make_buffer(device, tensor.numel() * tensor.element_size())
 
         slangpy.copy_torch_tensor_to_buffer(tensor, buffer)
+        device.sync_to_cuda()
 
         result = np.frombuffer(buffer.to_numpy().tobytes(), dtype=np.float32)
         expected = tensor.cpu().numpy()
         assert np.allclose(result, expected)
 
-    def test_copy_buffer_to_tensor(self, device: slangpy.Device):
+    @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+    def test_copy_buffer_to_tensor(self, device_type: DeviceType):
         """Test copying from a buffer into a contiguous CUDA tensor."""
         import numpy as np
 
+        device = helpers.get_torch_device(device_type)
         test_values = np.array([5.0, 6.0, 7.0, 8.0], dtype=np.float32)
         buffer = self._make_buffer(device, test_values.nbytes)
         buffer.copy_from_numpy(test_values)
+        device.sync_to_device()
 
         tensor = torch.zeros(4, dtype=torch.float32, device="cuda")
         slangpy.copy_buffer_to_torch_tensor(buffer, tensor)
@@ -292,28 +297,34 @@ class TestTorchBridgeCopy:
     # Non-contiguous tensors
     # ------------------------------------------------------------------
 
-    def test_copy_noncontiguous_tensor_to_buffer(self, device: slangpy.Device):
+    @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+    def test_copy_noncontiguous_tensor_to_buffer(self, device_type: DeviceType):
         """Test that non-contiguous (transposed) tensors are handled correctly."""
         import numpy as np
 
+        device = helpers.get_torch_device(device_type)
         base = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32, device="cuda")
         tensor = base.T  # shape (3,2), non-contiguous
         assert not tensor.is_contiguous()
 
         buffer = self._make_buffer(device, tensor.numel() * tensor.element_size())
         slangpy.copy_torch_tensor_to_buffer(tensor, buffer)
+        device.sync_to_cuda()
 
         result = np.frombuffer(buffer.to_numpy().tobytes(), dtype=np.float32)
         expected = tensor.contiguous().cpu().numpy().flatten()
         assert np.allclose(result, expected)
 
-    def test_copy_buffer_to_noncontiguous_tensor(self, device: slangpy.Device):
+    @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+    def test_copy_buffer_to_noncontiguous_tensor(self, device_type: DeviceType):
         """Test copying from a buffer into a non-contiguous destination tensor."""
         import numpy as np
 
+        device = helpers.get_torch_device(device_type)
         test_values = np.arange(12, dtype=np.float32)
         buffer = self._make_buffer(device, test_values.nbytes)
         buffer.copy_from_numpy(test_values)
+        device.sync_to_device()
 
         base = torch.zeros(4, 3, dtype=torch.float32, device="cuda")
         tensor = base.T  # shape (3,4), non-contiguous
@@ -328,8 +339,10 @@ class TestTorchBridgeCopy:
     # Round-trip
     # ------------------------------------------------------------------
 
-    def test_roundtrip(self, device: slangpy.Device):
+    @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+    def test_roundtrip(self, device_type: DeviceType):
         """Test data survives tensor → buffer → tensor round-trip."""
+        device = helpers.get_torch_device(device_type)
         src = torch.tensor([1.5, 2.5, 3.5, 4.5, 5.5], dtype=torch.float32, device="cuda")
         buffer = self._make_buffer(device, src.numel() * src.element_size())
 
@@ -353,8 +366,10 @@ class TestTorchBridgeCopy:
             torch.uint8,
         ],
     )
-    def test_roundtrip_dtypes(self, device: slangpy.Device, dtype: torch.dtype):
+    @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+    def test_roundtrip_dtypes(self, device_type: DeviceType, dtype: torch.dtype):
         """Test round-trip with various dtypes."""
+        device = helpers.get_torch_device(device_type)
         if dtype.is_floating_point:
             src = torch.randn(16, dtype=dtype, device="cuda")
         else:
@@ -368,8 +383,10 @@ class TestTorchBridgeCopy:
 
         assert torch.equal(dst, src)
 
-    def test_roundtrip_multidimensional(self, device: slangpy.Device):
+    @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+    def test_roundtrip_multidimensional(self, device_type: DeviceType):
         """Test round-trip with a multi-dimensional tensor."""
+        device = helpers.get_torch_device(device_type)
         src = torch.randn(3, 4, 5, dtype=torch.float32, device="cuda")
         buffer = self._make_buffer(device, src.numel() * src.element_size())
 
@@ -380,8 +397,10 @@ class TestTorchBridgeCopy:
 
         assert torch.equal(dst, src)
 
-    def test_roundtrip_with_storage_offset(self, device: slangpy.Device):
+    @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+    def test_roundtrip_with_storage_offset(self, device_type: DeviceType):
         """Test round-trip on a tensor slice with non-zero storage offset."""
+        device = helpers.get_torch_device(device_type)
         base = torch.arange(20, dtype=torch.float32, device="cuda")
         src = base[5:15]  # storage_offset = 5
         assert src.storage_offset() != 0
@@ -398,16 +417,20 @@ class TestTorchBridgeCopy:
     # Error cases
     # ------------------------------------------------------------------
 
-    def test_copy_rejects_cpu_tensor(self, device: slangpy.Device):
+    @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+    def test_copy_rejects_cpu_tensor(self, device_type: DeviceType):
         """Test that copying a CPU tensor raises an error."""
+        device = helpers.get_torch_device(device_type)
         cpu_tensor = torch.tensor([1.0, 2.0], dtype=torch.float32)  # CPU
         buffer = self._make_buffer(device, cpu_tensor.numel() * cpu_tensor.element_size())
 
         with pytest.raises(RuntimeError, match="CUDA|cuda"):
             slangpy.copy_torch_tensor_to_buffer(cpu_tensor, buffer)
 
-    def test_copy_rejects_small_buffer(self, device: slangpy.Device):
+    @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+    def test_copy_rejects_small_buffer(self, device_type: DeviceType):
         """Test that copying to a buffer that is too small raises an error."""
+        device = helpers.get_torch_device(device_type)
         tensor = torch.randn(100, dtype=torch.float32, device="cuda")
         buffer = self._make_buffer(device, 10 * 4)  # only 10 floats
 
@@ -418,13 +441,16 @@ class TestTorchBridgeCopy:
     # Gradient handling
     # ------------------------------------------------------------------
 
-    def test_copy_buffer_to_grad_tensor(self, device: slangpy.Device):
+    @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+    def test_copy_buffer_to_grad_tensor(self, device_type: DeviceType):
         """Test that copy works on tensors with requires_grad=True."""
         import numpy as np
 
+        device = helpers.get_torch_device(device_type)
         test_values = np.array([1.0, 2.0, 3.0], dtype=np.float32)
         buffer = self._make_buffer(device, test_values.nbytes)
         buffer.copy_from_numpy(test_values)
+        device.sync_to_device()
 
         tensor = torch.zeros(3, dtype=torch.float32, device="cuda", requires_grad=True)
         slangpy.copy_buffer_to_torch_tensor(buffer, tensor)
