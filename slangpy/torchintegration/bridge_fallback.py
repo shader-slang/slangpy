@@ -172,7 +172,8 @@ def copy_to_buffer(tensor: torch.Tensor, dest_ptr: int, dest_size: int) -> bool:
     view = _CudaBufferView(dest_ptr, (tensor.numel(),), tensor.dtype)
     dest = torch.as_tensor(view, device=tensor.device)
     dest = dest.view(tensor.shape)
-    dest.copy_(tensor)
+    with torch.no_grad():
+        dest.copy_(tensor)
     return True
 
 
