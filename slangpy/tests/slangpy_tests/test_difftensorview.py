@@ -5,7 +5,7 @@ import sys
 import numpy as np
 from pathlib import Path
 
-from slangpy import DeviceType, Tensor, diffPair
+from slangpy import DeviceType, Tensor, diff_pair
 from slangpy.core.module import Module
 from slangpy.testing import helpers
 
@@ -96,7 +96,7 @@ def test_difftensorview_diff_square_torch(device_type: DeviceType):
     output = torch.zeros(5, device="cuda", dtype=torch.float32)
     output_grad = torch.ones(5, device="cuda", dtype=torch.float32)
 
-    module.diff_square.bwds(diffPair(x, x_grad), diffPair(output, output_grad))
+    module.diff_square.bwds(diff_pair(x, x_grad), diff_pair(output, output_grad))
     torch.cuda.synchronize()
 
     # df/dx = 2x

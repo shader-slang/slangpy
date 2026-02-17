@@ -1,10 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-try:
-    from slangpy.core.native import NativeTorchTensorDiffPair
+from typing import Any
+from slangpy.core.native import NativeTorchTensorDiffPair
 
-    def diffPair(primal, grad):
-        return NativeTorchTensorDiffPair(primal, grad)
 
-except ImportError:
-    pass
+def diff_pair(primal: Any, grad: Any) -> NativeTorchTensorDiffPair:
+    """
+    Create a differentiable tensor pair for use in backward passes.
+
+    :param primal: The primal (value) tensor.
+    :param grad: The gradient tensor.
+    :return: A NativeTorchTensorDiffPair wrapping the primal and gradient tensors.
+    """
+    return NativeTorchTensorDiffPair(primal, grad)

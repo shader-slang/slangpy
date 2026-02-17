@@ -112,7 +112,11 @@ class Marshall(NativeMarshall):
     ) -> bool:
         """
         Generate custom trampoline load code for this parameter.
-        Return True if handled (skip standard __slangpy_load), False for default behavior.
+
+        :param cgb: Code generation block to append load statements to.
+        :param binding: The bound variable being loaded.
+        :param is_entry_point: Whether the trampoline is an entry point kernel.
+        :return: True if handled (skip standard __slangpy_load), False for default behavior.
         """
         return False
 
@@ -121,7 +125,11 @@ class Marshall(NativeMarshall):
     ) -> bool:
         """
         Generate custom trampoline store code for this parameter.
-        Return True if handled (skip standard __slangpy_store), False for default behavior.
+
+        :param cgb: Code generation block to append store statements to.
+        :param binding: The bound variable being stored.
+        :param is_entry_point: Whether the trampoline is an entry point kernel.
+        :return: True if handled (skip standard __slangpy_store), False for default behavior.
         """
         return False
 

@@ -9,6 +9,7 @@
 #include "sgl/device/cuda_interop.h"
 #include "sgl/device/cuda_utils.h"
 
+#include <algorithm>
 #include <fmt/format.h>
 
 namespace sgl::slangpy {
@@ -152,7 +153,7 @@ namespace {
             tvd.strides[i] = static_cast<uint32_t>(strides[i] * info.element_size);
             tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
         }
-        tvd.dimensionCount = static_cast<uint32_t>(info.ndim);
+        tvd.dimensionCount = static_cast<uint32_t>(std::min(info.ndim, kSlangPyTensorViewMaxDim));
         return tvd;
     }
 
@@ -466,7 +467,7 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
             tvd.strides[i] = static_cast<uint32_t>(strides[i] * info.element_size);
             tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
         }
-        tvd.dimensionCount = static_cast<uint32_t>(info.ndim);
+        tvd.dimensionCount = static_cast<uint32_t>(std::min(info.ndim, kSlangPyTensorViewMaxDim));
 
         shader_object->set_data(m_cached_offsets.field_offset, &tvd, sizeof(TensorViewData));
         return;

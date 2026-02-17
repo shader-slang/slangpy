@@ -138,10 +138,14 @@ class TensorMarshall(NativeTensorMarshall):
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         return spytc.gen_calldata(self, cgb, context, binding)
 
-    def gen_trampoline_load(self, cgb, binding, is_entry_point):
+    def gen_trampoline_load(
+        self, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+    ) -> bool:
         return spytc.gen_trampoline_load(self, cgb, binding, is_entry_point)
 
-    def gen_trampoline_store(self, cgb, binding, is_entry_point):
+    def gen_trampoline_store(
+        self, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+    ) -> bool:
         return spytc.gen_trampoline_store(self, cgb, binding, is_entry_point)
 
     def build_shader_object(self, context: "BindContext", data: Any) -> "ShaderObject":
