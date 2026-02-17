@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "slangpytorchtensor.h"
+#include "slangpytensor.h"
 
 #include "sgl/device/device.h"
 #include "sgl/device/shader_object.h"
@@ -8,6 +9,7 @@
 #include "sgl/device/cuda_interop.h"
 #include "sgl/device/cuda_utils.h"
 
+#include <algorithm>
 #include <fmt/format.h>
 
 namespace sgl::slangpy {
@@ -140,6 +142,19 @@ namespace {
             strides_data[i] = strides_data[i + 1] * shape_data[i + 1];
         }
         return strides;
+    }
+
+    /// Populate a TensorViewData struct from TensorBridgeInfo + broadcast-adjusted strides
+    TensorViewData populate_tensorview_data(const TensorBridgeInfo& info, const Shape& shape, const Shape& strides)
+    {
+        TensorViewData tvd = {};
+        tvd.data = reinterpret_cast<uint64_t>(info.data_ptr);
+        for (int i = 0; i < info.ndim && i < kSlangPyTensorViewMaxDim; i++) {
+            tvd.strides[i] = static_cast<uint32_t>(strides[i] * info.element_size);
+            tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
+        }
+        tvd.dimensionCount = static_cast<uint32_t>(std::min(info.ndim, kSlangPyTensorViewMaxDim));
+        return tvd;
     }
 
 } // anonymous namespace
@@ -360,6 +375,34 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 primal_info,
                 nullptr
             );
+        } else if (m_cached_offsets.primal.is_tensorview) {
+            // DiffTensorView - write entire 112-byte struct via set_data()
+            // This avoids sub-field offset issues by writing the whole struct at once
+            Shape primal_shape = shape_from_bridge_info(primal_info);
+            Shape primal_strides = strides_from_bridge_info(primal_info);
+            primal_strides = apply_broadcast_stride_zeroing(
+                primal_strides,
+                primal_shape,
+                binding->transform(),
+                context->call_shape()
+            );
+
+            DiffTensorViewData dtv = {};
+            dtv.primal = populate_tensorview_data(primal_info, primal_shape, primal_strides);
+
+            if (has_grad) {
+                Shape grad_shape = shape_from_bridge_info(grad_info);
+                Shape grad_strides = strides_from_bridge_info(grad_info);
+                grad_strides = apply_broadcast_stride_zeroing(
+                    grad_strides,
+                    grad_shape,
+                    binding->transform(),
+                    context->call_shape()
+                );
+                dtv.diff = populate_tensorview_data(grad_info, grad_shape, grad_strides);
+            }
+
+            shader_object->set_data(m_cached_offsets.field_offset, &dtv, sizeof(DiffTensorViewData));
         } else {
             // Differentiated structure - write primal (may have null data_ptr for backward outputs)
             write_torch_tensor_fields(
@@ -415,6 +458,22 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     // Apply broadcast stride zeroing
     strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
 
+    if (offsets.is_tensorview) {
+        TensorViewData tvd = {};
+        tvd.data = reinterpret_cast<uint64_t>(info.data_ptr);
+
+        // TensorView strides are in bytes, PyTorch strides are in elements
+        for (int i = 0; i < info.ndim && i < kSlangPyTensorViewMaxDim; i++) {
+            tvd.strides[i] = static_cast<uint32_t>(strides[i] * info.element_size);
+            tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
+        }
+        tvd.dimensionCount = static_cast<uint32_t>(std::min(info.ndim, kSlangPyTensorViewMaxDim));
+
+        shader_object->set_data(m_cached_offsets.field_offset, &tvd, sizeof(TensorViewData));
+        return;
+    }
+
+    // slangpy Tensor: use field-by-field approach (needs buffer binding)
     // Write device pointer - use interop buffer if provided, otherwise use tensor's CUDA pointer
     if (interop_buffer) {
         // For interop, strides should be contiguous since interop buffer is contiguous
