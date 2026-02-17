@@ -14,21 +14,21 @@ from typing import Any, Dict, Tuple
 
 import torch
 
-# PyTorch scalar type codes (matching c10::ScalarType)
+# PyTorch scalar type codes (matching c10::ScalarType and TENSOR_BRIDGE_SCALAR_* in tensor_bridge_api.h)
 _SCALAR_TYPE_MAP: Dict[torch.dtype, int] = {
-    torch.uint8: 0,
-    torch.int8: 1,
-    torch.int16: 2,
-    torch.int32: 3,
-    torch.int64: 4,
-    torch.float16: 5,
-    torch.float32: 6,
-    torch.float64: 7,
-    torch.complex32: 8,
-    torch.complex64: 9,
-    torch.complex128: 10,
-    torch.bool: 11,
-    torch.bfloat16: 15,
+    torch.uint8: 0,  # TENSOR_BRIDGE_SCALAR_UINT8
+    torch.int8: 1,  # TENSOR_BRIDGE_SCALAR_INT8
+    torch.int16: 2,  # TENSOR_BRIDGE_SCALAR_INT16
+    torch.int32: 3,  # TENSOR_BRIDGE_SCALAR_INT32
+    torch.int64: 4,  # TENSOR_BRIDGE_SCALAR_INT64
+    torch.float16: 5,  # TENSOR_BRIDGE_SCALAR_FLOAT16
+    torch.float32: 6,  # TENSOR_BRIDGE_SCALAR_FLOAT32
+    torch.float64: 7,  # TENSOR_BRIDGE_SCALAR_FLOAT64
+    torch.complex32: 8,  # TENSOR_BRIDGE_SCALAR_COMPLEX32
+    torch.complex64: 9,  # TENSOR_BRIDGE_SCALAR_COMPLEX64
+    torch.complex128: 10,  # TENSOR_BRIDGE_SCALAR_COMPLEX128
+    torch.bool: 11,  # TENSOR_BRIDGE_SCALAR_BOOL
+    torch.bfloat16: 15,  # TENSOR_BRIDGE_SCALAR_BFLOAT16
 }
 
 
@@ -205,6 +205,26 @@ def copy_from_buffer(tensor: torch.Tensor, src_ptr: int, src_size: int) -> bool:
     with torch.no_grad():
         tensor.copy_(src)
     return True
+
+
+# Reverse mapping from c10::ScalarType code to torch.dtype
+_SCALAR_TYPE_TO_DTYPE: Dict[int, torch.dtype] = {v: k for k, v in _SCALAR_TYPE_MAP.items()}
+
+
+def create_empty_tensor(shape: list, scalar_type: int, device_index: int = 0) -> torch.Tensor:
+    """
+    Create an empty contiguous CUDA tensor.
+
+    :param shape: List of dimension sizes.
+    :param scalar_type: Scalar type code (TENSOR_BRIDGE_SCALAR_* constants, e.g. 6 for float32).
+    :param device_index: CUDA device index.
+    :return: A new empty torch.Tensor on the specified CUDA device.
+    :raises ValueError: If scalar_type is not supported.
+    """
+    dtype = _SCALAR_TYPE_TO_DTYPE.get(scalar_type)
+    if dtype is None:
+        raise ValueError(f"Unsupported scalar type code: {scalar_type}")
+    return torch.empty(shape, dtype=dtype, device=f"cuda:{device_index}")
 
 
 def _get_cuda_stream(tensor: torch.Tensor) -> int:

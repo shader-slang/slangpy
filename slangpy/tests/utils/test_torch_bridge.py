@@ -456,3 +456,86 @@ class TestTorchBridgeCopy:
         slangpy.copy_buffer_to_torch_tensor(buffer, tensor)
 
         assert torch.allclose(tensor.detach(), torch.tensor(test_values, device="cuda"))
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+class TestTorchBridgeCreateEmptyTensor:
+    """Tests for create_torch_empty_tensor via the TorchBridge.
+
+    Verifies that tensors created through the bridge (both native and
+    fallback modes) have the correct shape, dtype, and device.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_bridge_mode(self, torch_bridge_mode: str):
+        """Automatically use torch_bridge_mode fixture for all tests."""
+        self.mode = torch_bridge_mode
+
+    # TENSOR_BRIDGE_SCALAR_* codes from tensor_bridge_api.h
+    SCALAR_UINT8 = 0
+    SCALAR_INT8 = 1
+    SCALAR_INT16 = 2
+    SCALAR_INT32 = 3
+    SCALAR_INT64 = 4
+    SCALAR_FLOAT16 = 5
+    SCALAR_FLOAT32 = 6
+    SCALAR_FLOAT64 = 7
+
+    _DTYPE_PARAMS = [
+        (SCALAR_UINT8, torch.uint8),
+        (SCALAR_INT8, torch.int8),
+        (SCALAR_INT16, torch.int16),
+        (SCALAR_INT32, torch.int32),
+        (SCALAR_INT64, torch.int64),
+        (SCALAR_FLOAT16, torch.float16),
+        (SCALAR_FLOAT32, torch.float32),
+        (SCALAR_FLOAT64, torch.float64),
+    ]
+
+    def test_create_1d(self):
+        """Test creating a simple 1D float32 tensor."""
+        t = slangpy.create_torch_empty_tensor([16], self.SCALAR_FLOAT32)
+        assert isinstance(t, torch.Tensor)
+        assert t.shape == (16,)
+        assert t.dtype == torch.float32
+        assert t.is_cuda
+
+    def test_create_multidimensional(self):
+        """Test creating a multi-dimensional tensor."""
+        t = slangpy.create_torch_empty_tensor([2, 3, 4], self.SCALAR_FLOAT32)
+        assert t.shape == (2, 3, 4)
+        assert t.numel() == 24
+        assert t.is_contiguous()
+        assert t.is_cuda
+
+    def test_create_scalar(self):
+        """Test creating a 0-dimensional (scalar) tensor."""
+        t = slangpy.create_torch_empty_tensor([], self.SCALAR_FLOAT32)
+        assert t.shape == ()
+        assert t.ndim == 0
+        assert t.numel() == 1
+
+    @pytest.mark.parametrize("scalar_type,expected_dtype", _DTYPE_PARAMS)
+    def test_create_dtypes(self, scalar_type: int, expected_dtype: torch.dtype):
+        """Test that all supported scalar types produce the correct torch dtype."""
+        t = slangpy.create_torch_empty_tensor([8], scalar_type)
+        assert t.dtype == expected_dtype
+        assert t.shape == (8,)
+        assert t.is_cuda
+
+    def test_created_tensor_is_writable(self):
+        """Test that the created tensor can be written to and read back."""
+        t = slangpy.create_torch_empty_tensor([4], self.SCALAR_FLOAT32)
+        t.fill_(42.0)
+        assert torch.all(t == 42.0)
+
+    def test_metadata_roundtrip(self):
+        """Test that extract_torch_tensor_info works on a bridge-created tensor."""
+        t = slangpy.create_torch_empty_tensor([3, 5], self.SCALAR_FLOAT32)
+        info = slangpy.extract_torch_tensor_info(t)
+        assert info["shape"] == (3, 5)
+        assert info["ndim"] == 2
+        assert info["numel"] == 15
+        assert info["element_size"] == 4
+        assert info["is_cuda"] is True
+        assert info["is_contiguous"] is True
