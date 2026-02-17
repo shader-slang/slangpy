@@ -172,10 +172,11 @@ public:
         ShaderOffset field_offset;    // Base offset of the entire field structure
         uint32_t field_size = 0;      // Total size of the field in uniform data
 
-        // Whether to copy interop buffer back to torch tensor after dispatch.
-        // Only used by NativeTorchTensorMarshall; see ensure_binding_info_cached() for details.
-        // Gradient copy-back uses runtime check instead (has_derivative() is not final at cache time).
+        // Whether to copy interop buffers back to torch tensors after dispatch.
+        // Only used by NativeTorchTensorMarshall; computed in ensure_binding_info_cached()
+        // from the Slang uniform type name (Tensor/WTensor/RWTensor/DiffTensor/etc.).
         bool needs_primal_copyback = false;
+        bool needs_grad_copyback = false;
     };
 
     /// Extract TensorFieldOffsets from a ShaderCursor pointing to a tensor structure

@@ -259,29 +259,31 @@ void NativeTorchTensorMarshall::ensure_binding_info_cached(
         ShaderCursor field = cursor[binding->variable_name()];
         m_cached_binding_info = NativeTensorMarshall::extract_binding_info(field);
 
-        // Compute primal copy-back flag based on binding type and access mode.
+        // Determine copy-back flags from the Slang uniform type name.
         //
-        // For simple types (scalar/vector/matrix), the tensor is "broadcast" per-thread.
-        // Read-only inputs must NOT copy back - this would increment PyTorch's _version
-        // counter via copy_(), breaking autograd's version tracking.
-        // Writable outputs MUST copy back to return results.
+        // The Python layer determines the concrete Slang tensor type (Tensor, WTensor,
+        // RWTensor, DiffTensor, WDiffTensor, RWDiffTensor, TensorView, DiffTensorView)
+        // for each binding. This is the ground truth for writability. We read the type
+        // name here rather than re-deriving from binding access mode or vector type kind.
         //
-        // For tensor types (Tensor, RWTensor, etc.), copy back if marshall is writable.
-        bool is_readonly_simple_type = false;
-        if (auto vector_type = binding->vector_type()) {
-            if (auto type_refl = vector_type->type_reflection()) {
-                auto kind = type_refl->kind();
-                bool is_simple_type
-                    = (kind == TypeReflection::Kind::scalar || kind == TypeReflection::Kind::vector
-                       || kind == TypeReflection::Kind::matrix);
-                AccessType primal_access = binding->access().first;
-                bool is_readonly = (primal_access == AccessType::read || primal_access == AccessType::none);
-                is_readonly_simple_type = is_simple_type && is_readonly;
-            }
-        }
+        // Naming convention:
+        //   "RW" prefix → read-write (primal writable + readable, gradient rw)
+        //   "W"  prefix → write-only primal, read-only gradient
+        //   No prefix   → read-only primal, write-only gradient
+        std::string_view type_name = field.slang_type_layout()->getName();
+        bool starts_rw = type_name.size() >= 2 && type_name[0] == 'R' && type_name[1] == 'W';
+        bool starts_w = !type_name.empty() && type_name[0] == 'W' && !starts_rw;
+        bool primal_writable = starts_w || starts_rw;
 
-        m_cached_binding_info.needs_primal_copyback = m_writable && !is_readonly_simple_type;
-        // Gradient copy-back uses runtime has_grad check (has_derivative() is false for raw tensors).
+        m_cached_binding_info.needs_primal_copyback = primal_writable;
+
+        // Gradient needs copy-back when the gradient is writable (output).
+        // This happens when the primal is readable (not write-only):
+        //   DiffTensor   → read primal, write grad → copy back grad
+        //   WDiffTensor  → write primal, read grad → no grad copy-back
+        //   RWDiffTensor → rw primal, rw grad      → copy back grad
+        bool primal_readable = !starts_w;
+        m_cached_binding_info.needs_grad_copyback = m_cached_binding_info.has_grad_fields && primal_readable;
     }
 }
 
@@ -679,7 +681,8 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     // When we created a zeroed buffer for backward output slot (no primal), do not copy back.
     bool needs_primal_copyback = m_cached_binding_info.needs_primal_copyback && primal_info.numel > 0
         && primal_interop_buffer && primal_info.data_ptr != nullptr;
-    bool needs_grad_copyback = has_grad && grad_info.numel > 0 && grad_interop_buffer;
+    bool needs_grad_copyback
+        = m_cached_binding_info.needs_grad_copyback && has_grad && grad_info.numel > 0 && grad_interop_buffer;
 
     if (needs_primal_copyback || needs_grad_copyback) {
         nb::dict calldata;
