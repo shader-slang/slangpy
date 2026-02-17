@@ -158,7 +158,15 @@ namespace {
 NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_field_offsets(ShaderCursor tensor_cursor)
 {
     TensorFieldOffsets offsets;
-    offsets.data = tensor_cursor["_data"].offset();
+
+    ShaderCursor data_cursor = tensor_cursor.find_field("_data");
+    if (!data_cursor.is_valid()) {
+        offsets.is_tensorview = true;
+        offsets.is_valid = true;
+        return offsets;
+    }
+
+    offsets.data = data_cursor.offset();
     offsets.shape = tensor_cursor["_shape"].offset();
     offsets.strides = tensor_cursor["_strides"].offset();
     offsets.offset = tensor_cursor["_offset"].offset();
@@ -178,22 +186,40 @@ NativeTensorMarshall::CachedBindingInfo NativeTensorMarshall::extract_binding_in
 {
     NativeTensorMarshall::CachedBindingInfo offsets;
 
-    ShaderCursor primal_field = field.find_field("_primal");
-    if (!primal_field.is_valid()) {
+    std::string_view type_name = field.slang_type_layout()->getName();
+    bool is_diff_tensor_view = type_name.find("DiffTensorView") != std::string_view::npos;
+    bool is_diff_tensor = !is_diff_tensor_view && type_name.find("DiffTensor") != std::string_view::npos;
+
+    if (is_diff_tensor) {
+        // SlangPy's DiffTensor: _primal/_grad_in/_grad_out pattern
+        ShaderCursor primal_field = field.find_field("_primal");
+        if (primal_field.is_valid()) {
+            offsets.has_grad_fields = true;
+            offsets.primal = extract_tensor_field_offsets(primal_field);
+
+            ShaderCursor grad_in_field = field.find_field("_grad_in");
+            if (grad_in_field.is_valid()) {
+                offsets.grad_in = extract_tensor_field_offsets(grad_in_field);
+            }
+            ShaderCursor grad_out_field = field.find_field("_grad_out");
+            if (grad_out_field.is_valid()) {
+                offsets.grad_out = extract_tensor_field_offsets(grad_out_field);
+            }
+        }
+    } else if (is_diff_tensor_view) {
+        // Slang's DiffTensorView: primal/diff pattern
+        ShaderCursor primal_field = field.find_field("primal");
+        ShaderCursor diff_field = field.find_field("diff");
+        if (primal_field.is_valid() && diff_field.is_valid()) {
+            offsets.has_grad_fields = true;
+            offsets.primal = extract_tensor_field_offsets(primal_field);
+            offsets.grad_in = extract_tensor_field_offsets(diff_field);
+            offsets.grad_out = offsets.grad_in;
+        }
+    } else {
+        // Plain tensor (TensorView or Tensor)
         offsets.has_grad_fields = false;
         offsets.primal = extract_tensor_field_offsets(field);
-    } else {
-        offsets.has_grad_fields = true;
-        offsets.primal = extract_tensor_field_offsets(primal_field);
-
-        ShaderCursor grad_in_field = field.find_field("_grad_in");
-        if (grad_in_field.is_valid()) {
-            offsets.grad_in = extract_tensor_field_offsets(grad_in_field);
-        }
-        ShaderCursor grad_out_field = field.find_field("_grad_out");
-        if (grad_out_field.is_valid()) {
-            offsets.grad_out = extract_tensor_field_offsets(grad_out_field);
-        }
     }
 
     offsets.field_offset = field.offset();
@@ -573,6 +599,23 @@ void NativeTensorMarshall::write_native_tensor_fields(
     const Shape& shape = tensor->shape();
     Shape strides
         = apply_broadcast_stride_zeroing(tensor->strides(), shape, binding->transform(), context->call_shape());
+
+    if (offsets.is_tensorview) {
+        // TensorView path: build TensorViewData struct and write via set_data()
+        TensorViewData tvd = {};
+        // Device address is buffer base + byte offset
+        tvd.data = tensor->storage()->device_address() + tensor->offset() * element_stride();
+
+        const int ndim = static_cast<int>(shape.size());
+        // TensorView strides are in bytes, NativeTensor strides are in elements
+        for (int i = 0; i < ndim && i < kSlangPyTensorViewMaxDim; i++) {
+            tvd.strides[i] = static_cast<uint32_t>(strides[i] * element_stride());
+            tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
+        }
+        tvd.dimensionCount = static_cast<uint32_t>(ndim);
+        shader_object->set_data(m_cached_binding_info.field_offset, &tvd, sizeof(TensorViewData));
+        return;
+    }
 
     write_tensor_fields_from_buffer(
         shader_object,
