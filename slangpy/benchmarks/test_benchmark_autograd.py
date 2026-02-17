@@ -47,6 +47,11 @@ WARMUPS = 10
 #   4. SlangPy automatic autograd (requires_grad=True torch tensors)
 # =============================================================================
 
+RUN_PURE_TORCH_BENCHMARK = False
+RUN_SLANGTORCH_BENCHMARK = True
+RUN_SLANGPY_MANUAL_HOOK_BENCHMARK = False
+RUN_SLANGPY_AUTOMATIC_BENCHMARK = False
+
 AUTOGRAD_TENSOR_SIZE = 32
 
 
@@ -55,6 +60,8 @@ def test_autograd_pure_torch(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
 ) -> None:
     """Polynomial forward + backward using pure PyTorch ops."""
+    if not RUN_PURE_TORCH_BENCHMARK:
+        pytest.skip("Pure torch benchmark is not enabled")
     if not HAS_TORCH:
         pytest.skip("PyTorch is not installed")
 
@@ -87,6 +94,8 @@ def test_autograd_slangtorch(
     """Polynomial forward + backward using slang-torch kernels with a manual
     torch.autograd.Function, following the pattern from the slang-torch
     soft-rasterizer example."""
+    if not RUN_SLANGTORCH_BENCHMARK:
+        pytest.skip("slang-torch benchmark is not enabled")
     if not HAS_TORCH:
         pytest.skip("PyTorch is not installed")
     if not HAS_SLANGTORCH:
@@ -149,6 +158,8 @@ def test_autograd_slangpy_manual_hook(
 ) -> None:
     """Polynomial forward + backward using a SlangPy function with a manually
     written torch.autograd.Function that calls function.bwds()."""
+    if not RUN_SLANGPY_MANUAL_HOOK_BENCHMARK:
+        pytest.skip("SlangPy manual hook benchmark is not enabled")
     if not HAS_TORCH:
         pytest.skip("PyTorch is not installed")
 
@@ -160,10 +171,6 @@ def test_autograd_slangpy_manual_hook(
     b_val = 4.0
     c_val = 1.0
     n = AUTOGRAD_TENSOR_SIZE
-
-    # Pre-warm the forward call data so the slangpy function is compiled
-    x_warmup = spy.Tensor.from_numpy(device, np.random.randn(n).astype(np.float32))
-    _ = poly_func(a_val, b_val, c_val, x_warmup)
 
     class PolynomialSlangPyManual(torch.autograd.Function):
         @staticmethod
@@ -217,6 +224,8 @@ def test_autograd_slangpy_automatic(
 ) -> None:
     """Polynomial forward + backward using SlangPy's built-in automatic
     autograd integration (pass requires_grad=True torch tensors directly)."""
+    if not RUN_SLANGPY_AUTOMATIC_BENCHMARK:
+        pytest.skip("SlangPy automatic benchmark is not enabled")
     if not HAS_TORCH:
         pytest.skip("PyTorch is not installed")
 
