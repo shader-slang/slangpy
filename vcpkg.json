@@ -5,7 +5,8 @@
         "libjpeg-turbo",
         "libpng",
         "openexr",
-        "asmjit"
+        "asmjit",
+        "crashpad"
     ],
     "vcpkg-configuration": {
         "overlay-ports": [

@@ -186,34 +186,40 @@ NativeTensorMarshall::CachedOffsets NativeTensorMarshall::extract_offsets(Shader
 {
     NativeTensorMarshall::CachedOffsets offsets;
 
-    // Check for SlangPy's _primal/_grad_in/_grad_out pattern (DiffTensor)
-    ShaderCursor primal_field = field.find_field("_primal");
-    if (primal_field.is_valid()) {
-        offsets.has_grad_fields = true;
-        offsets.primal = extract_tensor_field_offsets(primal_field);
+    std::string_view type_name = field.slang_type_layout()->getName();
+    bool is_diff_tensor_view = type_name.find("DiffTensorView") != std::string_view::npos;
+    bool is_diff_tensor = !is_diff_tensor_view && type_name.find("DiffTensor") != std::string_view::npos;
 
-        ShaderCursor grad_in_field = field.find_field("_grad_in");
-        if (grad_in_field.is_valid()) {
-            offsets.grad_in = extract_tensor_field_offsets(grad_in_field);
+    if (is_diff_tensor) {
+        // SlangPy's DiffTensor: _primal/_grad_in/_grad_out pattern
+        ShaderCursor primal_field = field.find_field("_primal");
+        if (primal_field.is_valid()) {
+            offsets.has_grad_fields = true;
+            offsets.primal = extract_tensor_field_offsets(primal_field);
+
+            ShaderCursor grad_in_field = field.find_field("_grad_in");
+            if (grad_in_field.is_valid()) {
+                offsets.grad_in = extract_tensor_field_offsets(grad_in_field);
+            }
+            ShaderCursor grad_out_field = field.find_field("_grad_out");
+            if (grad_out_field.is_valid()) {
+                offsets.grad_out = extract_tensor_field_offsets(grad_out_field);
+            }
         }
-        ShaderCursor grad_out_field = field.find_field("_grad_out");
-        if (grad_out_field.is_valid()) {
-            offsets.grad_out = extract_tensor_field_offsets(grad_out_field);
+    } else if (is_diff_tensor_view) {
+        // Slang's DiffTensorView: primal/diff pattern
+        ShaderCursor primal_field = field.find_field("primal");
+        ShaderCursor diff_field = field.find_field("diff");
+        if (primal_field.is_valid() && diff_field.is_valid()) {
+            offsets.has_grad_fields = true;
+            offsets.primal = extract_tensor_field_offsets(primal_field);
+            offsets.grad_in = extract_tensor_field_offsets(diff_field);
+            offsets.grad_out = offsets.grad_in;
         }
     } else {
-        // Check for DiffTensorViewData's primal/diff pattern (no underscore prefix)
-        ShaderCursor dtv_primal_field = field.find_field("primal");
-        ShaderCursor dtv_diff_field = field.find_field("diff");
-        if (dtv_primal_field.is_valid() && dtv_diff_field.is_valid()) {
-            offsets.has_grad_fields = true;
-            offsets.primal = extract_tensor_field_offsets(dtv_primal_field);
-            // Map diff to both grad_in and grad_out (bidirectional gradient flow)
-            offsets.grad_in = extract_tensor_field_offsets(dtv_diff_field);
-            offsets.grad_out = offsets.grad_in;
-        } else {
-            offsets.has_grad_fields = false;
-            offsets.primal = extract_tensor_field_offsets(field);
-        }
+        // Plain tensor (TensorView or Tensor)
+        offsets.has_grad_fields = false;
+        offsets.primal = extract_tensor_field_offsets(field);
     }
 
     offsets.field_offset = field.offset();

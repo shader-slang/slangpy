@@ -13,7 +13,6 @@ from slangpy.reflection import (
     SlangFunction,
     SlangParameter,
     SlangType,
-    DiffTensorViewType,
 )
 from slangpy.reflection.typeresolution import ResolvedParam
 
@@ -507,11 +506,6 @@ you can find more information in the Mapping section of the documentation (https
         """
         Calculates access types based on differentiability, call mode and io type
         """
-        # DiffTensorView manages differentiation internally via load()/store().
-        # In backward mode, treat it as differentiable so its data pointers are accessible.
-        if mode == CallMode.bwds and isinstance(self.vector_type, DiffTensorViewType):
-            self.differentiable = True
-
         if mode == CallMode.prim:
             if self.differentiable:
                 if self.io_type == IOType.inout:
