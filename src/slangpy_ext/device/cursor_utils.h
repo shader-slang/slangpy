@@ -20,6 +20,18 @@
 
 namespace sgl {
 
+/// Fast check if a Python object is a numpy ndarray.
+/// Caches the type pointer on first call, then does a single pointer comparison.
+inline bool is_numpy_ndarray(nb::handle obj)
+{
+    static PyTypeObject* np_ndarray_type = []() -> PyTypeObject*
+    {
+        nb::object numpy = nb::module_::import_("numpy");
+        return (PyTypeObject*)numpy.attr("ndarray").ptr();
+    }();
+    return Py_TYPE(obj.ptr()) == np_ndarray_type;
+}
+
 /// Helper to convert from numpy type mask to slang scalar type.
 inline std::optional<TypeReflection::ScalarType> dtype_to_scalar_type(nb::dlpack::dtype dtype)
 {
@@ -720,7 +732,7 @@ private:
         }
         case TypeReflection::Kind::array: {
             // Expect numpy array or sequence for a slang array.
-            if (nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+            if (is_numpy_ndarray(nbval)) {
                 // TODO: Should be able to do better job of interpreting nb array values by reading
                 // data type and extracting individual elements.
                 auto nbarray = nb::cast<nb::ndarray<nb::numpy>>(nbval);
@@ -774,7 +786,7 @@ private:
     inline static void _write_scalar(CursorType& self, nb::object nbval)
     {
         // Avoid warning about converting from numpy array to scalar
-        if (nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+        if (is_numpy_ndarray(nbval)) {
             auto nbarray = nb::cast<nb::ndarray<nb::numpy>>(nbval);
             auto val = *reinterpret_cast<ValType*>(nbarray.data());
             self.set(val);
@@ -813,7 +825,7 @@ private:
             // A vector of the correct type - just convert it.
             auto val = nb::cast<ValType>(nbval);
             self.set(val);
-        } else if (nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+        } else if (is_numpy_ndarray(nbval)) {
             // A numpy array. Reinterpret numpy memory as vector type.
             nb::ndarray<nb::numpy, nb::ro> nbarray = nb::cast<nb::ndarray<nb::numpy, nb::ro>>(nbval);
             SGL_CHECK(is_ndarray_contiguous(nbarray), "data is not contiguous");
@@ -846,7 +858,7 @@ private:
             // A vector of the correct type - just convert it.
             auto val = nb::cast<ValType>(nbval);
             self.set(val);
-        } else if (nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+        } else if (is_numpy_ndarray(nbval)) {
             // A numpy array. Reinterpret numpy memory as vector type.
             nb::ndarray<nb::numpy, nb::ro> nbarray = nb::cast<nb::ndarray<nb::numpy, nb::ro>>(nbval);
             SGL_CHECK(is_ndarray_contiguous(nbarray), "data is not contiguous");
@@ -885,7 +897,7 @@ private:
         requires IsSpecializationOfMatrix<ValType>
     inline static void _write_matrix(CursorType& self, nb::object nbval)
     {
-        if (nb::isinstance<ValType>(nbval) || nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+        if (nb::isinstance<ValType>(nbval) || is_numpy_ndarray(nbval)) {
             // Matrix of correct type
             auto val = nb::cast<ValType>(nbval);
             self.set(val);
