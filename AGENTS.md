@@ -95,7 +95,7 @@ $env:SLANGPY_PRINT_GENERATED_SHADERS="1"; pytest slangpy/tests/slangpy_tests/tes
 - **Classes**: PascalCase | **Functions/variables**: snake_case | **Members**: `m_` prefix
 
 ### Python
-- **Classes**: PascalCase | **Functions/variables**: snake_case | **Members**: `m_` prefix
+- **Classes**: PascalCase | **Functions/variables**: snake_case | **Public Members**: no prefix | **Private Members**: `_` prefix
 - **All arguments must have type annotations**
 
 ## Documentation Style
