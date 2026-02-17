@@ -48,8 +48,8 @@ WARMUPS = 10
 # =============================================================================
 
 RUN_PURE_TORCH_BENCHMARK = False
-RUN_SLANGTORCH_BENCHMARK = True
-RUN_SLANGPY_MANUAL_HOOK_BENCHMARK = False
+RUN_SLANGTORCH_BENCHMARK = False
+RUN_SLANGPY_MANUAL_HOOK_BENCHMARK = True
 RUN_SLANGPY_AUTOMATIC_BENCHMARK = False
 
 AUTOGRAD_TENSOR_SIZE = 32
@@ -178,7 +178,8 @@ def test_autograd_slangpy_manual_hook(
             # Run the forward SlangPy kernel with plain (non-grad) tensors
             # to avoid triggering the automatic autograd path
             x_no_grad = x.detach()
-            result = poly_func(a, b, c, x_no_grad)
+            result = torch.empty_like(x)
+            poly_func(a, b, c, x_no_grad, _result=result)
             ctx.save_for_backward(x_no_grad)
             ctx.a = a
             ctx.b = b
