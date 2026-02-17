@@ -48,6 +48,11 @@ void memset_device(void* dst, uint8_t value, size_t count)
     SGL_CU_CHECK(cuMemsetD8(reinterpret_cast<CUdeviceptr>(dst), value, count));
 }
 
+void memset_device_async(void* dst, uint8_t value, size_t count, CUstream stream)
+{
+    SGL_CU_CHECK(cuMemsetD8Async(reinterpret_cast<CUdeviceptr>(dst), value, count, stream));
+}
+
 CUexternalMemory import_external_memory(const Buffer* buffer)
 {
     SGL_CU_SCOPE(buffer->device());

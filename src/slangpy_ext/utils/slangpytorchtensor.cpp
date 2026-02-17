@@ -603,7 +603,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
         });
         void* cuda_ptr = interop_buffer->cuda_memory();
         if (cuda_ptr && buffer_size > 0)
-            cuda::memset_device(static_cast<uint8_t*>(cuda_ptr), 0, buffer_size);
+            cuda::memset_device_async(static_cast<uint8_t*>(cuda_ptr), 0, buffer_size);
         return interop_buffer;
     };
 

@@ -35,6 +35,7 @@ SGL_API void memcpy_host_to_device(void* dst, const void* src, size_t count);
 SGL_API void memcpy_device_to_host(void* dst, const void* src, size_t count);
 
 SGL_API void memset_device(void* dst, uint8_t value, size_t count);
+SGL_API void memset_device_async(void* dst, uint8_t value, size_t count, CUstream stream = 0);
 
 SGL_API CUexternalMemory import_external_memory(const Buffer* buffer);
 SGL_API void destroy_external_memory(CUexternalMemory ext_mem);
