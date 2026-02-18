@@ -356,10 +356,6 @@ Device::Device(const DeviceDesc& desc)
         .cache_path = !m_module_cache_path.empty() ? std::optional(m_module_cache_path) : std::nullopt,
     });
 
-    // Set CUDA context current for standalone SlangPy (no-op for non-CUDA devices).
-    // Redundant but harmless when using PyTorch interop.
-    set_cuda_context_current();
-
     // Add device to global device list.
     {
         std::lock_guard lock(s_devices_mutex);
