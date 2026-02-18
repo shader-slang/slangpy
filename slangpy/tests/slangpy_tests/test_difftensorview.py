@@ -104,3 +104,38 @@ def test_difftensorview_diff_square_torch(device_type: DeviceType):
     assert torch.allclose(
         x_grad, expected_grad, atol=1e-5
     ), f"Expected grad {expected_grad}, got {x_grad}"
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+@pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diff_pair_is_input_flag(device_type: DeviceType):
+    """Test that is_input=False causes the kernel to read upstream gradients.
+
+    For f(x) = x^2, the local derivative is 2x. By chain rule, when the
+    upstream gradient is g, the input gradient should be g * 2x.
+
+    This test exercises the is_input flag and uses the upstream gradient
+    to test correctness.
+    """
+    module = load_module_torch(device_type)
+
+    x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device="cuda", dtype=torch.float32)
+    x_grad = torch.zeros(5, device="cuda", dtype=torch.float32)
+    output = torch.zeros(5, device="cuda", dtype=torch.float32)
+    upstream_grad = 3.0 * torch.ones(5, device="cuda", dtype=torch.float32)
+
+    # Chain rule: x_grad = upstream_grad * df/dx = 3 * 2x = 6x
+    expected_grad = upstream_grad * 2.0 * x
+
+    # is_input=True: kernel writes computed gradients into x_grad
+    # is_input=False: kernel reads upstream gradients from upstream_grad
+    input_pair = diff_pair(x, x_grad, is_input=True)
+    output_pair = diff_pair(output, upstream_grad, is_input=False)
+
+    module.diff_square.bwds(input_pair, output_pair)
+    torch.cuda.synchronize()
+
+    assert torch.allclose(
+        x_grad, expected_grad, atol=1e-5
+    ), f"Expected grad {expected_grad}, got {x_grad}"
