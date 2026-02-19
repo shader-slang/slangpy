@@ -602,8 +602,12 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
             .default_state = ResourceState::shader_resource,
         });
         void* cuda_ptr = interop_buffer->cuda_memory();
-        if (cuda_ptr && buffer_size > 0)
-            cuda::memset_device_async(static_cast<uint8_t*>(cuda_ptr), 0, buffer_size);
+        if (cuda_ptr && buffer_size > 0) {
+            CUstream stream = context->cuda_stream().is_valid()
+                ? reinterpret_cast<CUstream>(context->cuda_stream().value())
+                : nullptr;
+            cuda::memset_device_async(static_cast<uint8_t*>(cuda_ptr), 0, buffer_size, stream);
+        }
         return interop_buffer;
     };
 

@@ -7,6 +7,7 @@
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
 #include "sgl/device/fwd.h"
+#include "sgl/device/native_handle.h"
 
 #include <vector>
 #include <map>
@@ -397,10 +398,11 @@ private:
 
 class SGL_API CallContext : Object {
 public:
-    CallContext(ref<Device> device, const Shape& call_shape, CallMode call_mode)
+    CallContext(ref<Device> device, const Shape& call_shape, CallMode call_mode, NativeHandle cuda_stream)
         : m_device(std::move(device))
         , m_call_shape(call_shape)
         , m_call_mode(call_mode)
+        , m_cuda_stream(cuda_stream)
     {
     }
 
@@ -408,10 +410,13 @@ public:
     const Shape& call_shape() const { return m_call_shape; }
     CallMode call_mode() const { return m_call_mode; }
 
+    const NativeHandle& cuda_stream() const { return m_cuda_stream; }
+
 private:
     ref<Device> m_device;
     Shape m_call_shape;
     CallMode m_call_mode;
+    NativeHandle m_cuda_stream;
 };
 
 } // namespace sgl::slangpy
