@@ -84,6 +84,7 @@ jobs:
         run: |
           $buildDir = "${{ github.workspace }}\build"
           if (Test-Path $buildDir) {
+
             Write-Host "Cleaning build directory to avoid locked file issues ..."
             # Kill any lingering user processes from previous runs that may lock DLLs.
             # Use Modules to find processes with loaded DLLs from the build dir,
@@ -95,31 +96,22 @@ jobs:
               & taskkill /F /T /PID $_.Id 2>&1 | Write-Host
             }
             Start-Sleep -Seconds 3
-            # Try direct removal first.
+
+            # Try direct removal first, and on failure, move the build directory out of the way
             cmd /c "rd /s /q `"$buildDir`"" 2>$null
             if (-not (Test-Path $buildDir)) {
               Write-Host "Build directory removed successfully."
             } else {
-              # If removal failed (locked DLLs like D3D12Core.dll), rename it out of
-              # the workspace entirely so checkout cleanup won't encounter it.
               $tombstone = "${{ runner.temp }}\build_old_$([System.IO.Path]::GetRandomFileName())"
               Write-Host "Direct removal failed, renaming to $tombstone (outside workspace) ..."
               try {
                 [System.IO.Directory]::Move($buildDir, $tombstone)
                 Write-Host "Renamed successfully. Checkout can proceed."
-                # Best-effort cleanup of the renamed directory.
-                Start-Job -ScriptBlock { cmd /c "rd /s /q `"$using:tombstone`"" } | Out-Null
               } catch {
-                Write-Host "Rename also failed: $_"
-                Write-Host "Attempting per-file cleanup of unlocked files ..."
-                Get-ChildItem -Path $buildDir -Recurse -Force | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object {
-                  try { Remove-Item -Path $_.FullName -Force -ErrorAction Stop } catch {}
-                }
-                try { Remove-Item -Path $buildDir -Recurse -Force -ErrorAction Stop } catch {
-                  Write-Host "Warning: Could not fully remove build directory. Remaining locked files may cause checkout issues."
-                }
+                Write-Host "Rename also failed: $_. Locked files may cause checkout issues."
               }
             }
+
             # Clean up any stale build_old_ directories from prior runs.
             Get-ChildItem -Path "${{ runner.temp }}" -Directory -Filter "build_old_*" -ErrorAction SilentlyContinue | ForEach-Object {
               Write-Host "Cleaning stale tombstone: $($_.Name)"
