@@ -76,6 +76,51 @@ jobs:
       CI_FLAGS: ${{ matrix.flags }}
 
     steps:
+      # Kill processes that may hold locks on build artifacts (Windows self-hosted runners).
+      # D3D12/GPU DLLs can be locked by system processes that cannot be killed, so we
+      # rename the build dir out of the way and schedule it for deletion on reboot.
+      - name: Pre-checkout cleanup
+        if: runner.os == 'Windows'
+        run: |
+          $buildDir = "${{ github.workspace }}\build"
+          if (Test-Path $buildDir) {
+
+            Write-Host "Cleaning build directory to avoid locked file issues ..."
+            # Kill any lingering user processes from previous runs that may lock DLLs.
+            # Use Modules to find processes with loaded DLLs from the build dir,
+            # then taskkill /F /T to force-kill the process tree.
+            Get-Process | Where-Object {
+              try { $_.Modules.FileName -like "${{ github.workspace }}\*" } catch { $false }
+            } | ForEach-Object {
+              Write-Host "Killing process $($_.ProcessName) (PID $($_.Id)) with taskkill /F /T"
+              & taskkill /F /T /PID $_.Id 2>&1 | Write-Host
+            }
+            Start-Sleep -Seconds 3
+
+            # Try direct removal first, and on failure, move the build directory out of the way
+            cmd /c "rd /s /q `"$buildDir`"" 2>$null
+            if (-not (Test-Path $buildDir)) {
+              Write-Host "Build directory removed successfully."
+            } else {
+              $tombstone = "${{ runner.temp }}\build_old_$([System.IO.Path]::GetRandomFileName())"
+              Write-Host "Direct removal failed, renaming to $tombstone (outside workspace) ..."
+              try {
+                [System.IO.Directory]::Move($buildDir, $tombstone)
+                Write-Host "Renamed successfully. Checkout can proceed."
+              } catch {
+                Write-Host "Rename also failed: $_. Locked files may cause checkout issues."
+              }
+            }
+
+            # Clean up any stale build_old_ directories from prior runs.
+            Get-ChildItem -Path "${{ runner.temp }}" -Directory -Filter "build_old_*" -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "Cleaning stale tombstone: $($_.Name)"
+              cmd /c "rd /s /q `"$($_.FullName)`"" 2>$null
+            }
+          }
+        shell: pwsh
+        continue-on-error: true
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -205,4 +250,18 @@ jobs:
       - name: Uninstall slangpy-torch
         if: always()
         run: python -m pip uninstall slangpy-torch -y
+        continue-on-error: true
+
+      # Kill any processes that loaded DLLs from the workspace so the next job
+      # doesn't hit locked-file errors during checkout cleanup.
+      - name: Post-job process cleanup
+        if: always() && runner.os == 'Windows'
+        run: |
+          Get-Process | Where-Object {
+            try { $_.Modules.FileName -like "${{ github.workspace }}\*" } catch { $false }
+          } | ForEach-Object {
+            Write-Host "Killing leftover process $($_.ProcessName) (PID $($_.Id))"
+            & taskkill /F /T /PID $_.Id 2>&1 | Write-Host
+          }
+        shell: pwsh
         continue-on-error: true
