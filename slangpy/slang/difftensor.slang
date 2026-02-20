@@ -443,6 +443,8 @@ public extension<T: IDifferentiable, let D : int> RWDiffTensor<T, D> where T.Dif
 /*
 //TODO: DiffTensor sample
 
+Search code for 'DiffTensor sample' to find areas affected by this logic.
+
 Having real trouble getting these to work, regardless of whether using interface extensions as below, or directly extending
 the concrete DiffTensor/RWDiffTensor types. 2 problems:
 - The ElementType (added in extension above) does not exist, where the same technique worked for Tensor
