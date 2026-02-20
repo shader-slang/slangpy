@@ -76,6 +76,36 @@ jobs:
       CI_FLAGS: ${{ matrix.flags }}
 
     steps:
+      # Kill processes that may hold locks on build artifacts (Windows self-hosted runners).
+      - name: Pre-checkout cleanup
+        if: runner.os == 'Windows'
+        run: |
+          if (Test-Path "${{ github.workspace }}\build") {
+            Write-Host "Cleaning build directory to avoid locked file issues ..."
+            # Kill any lingering processes from previous runs that may lock DLLs.
+            Get-Process | Where-Object {
+              try { $_.Modules.FileName -like "${{ github.workspace }}\build\*" } catch { $false }
+            } | ForEach-Object {
+              Write-Host "Killing process $($_.ProcessName) (PID $($_.Id))"
+              Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+            }
+            Start-Sleep -Seconds 2
+            # Remove build directory with retries.
+            $retries = 3
+            for ($i = 0; $i -lt $retries; $i++) {
+              try {
+                Remove-Item -Recurse -Force "${{ github.workspace }}\build" -ErrorAction Stop
+                Write-Host "Build directory removed successfully."
+                break
+              } catch {
+                Write-Host "Attempt $($i+1)/$retries failed: $_"
+                Start-Sleep -Seconds 5
+              }
+            }
+          }
+        shell: pwsh
+        continue-on-error: true
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
