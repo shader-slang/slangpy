@@ -89,7 +89,7 @@ jobs:
             # Use Modules to find processes with loaded DLLs from the build dir,
             # then taskkill /F /T to force-kill the process tree.
             Get-Process | Where-Object {
-              try { $_.Modules.FileName -like "$buildDir\*" } catch { $false }
+              try { $_.Modules.FileName -like "${{ github.workspace }}\*" } catch { $false }
             } | ForEach-Object {
               Write-Host "Killing process $($_.ProcessName) (PID $($_.Id)) with taskkill /F /T"
               & taskkill /F /T /PID $_.Id 2>&1 | Write-Host
