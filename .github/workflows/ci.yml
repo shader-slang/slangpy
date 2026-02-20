@@ -77,30 +77,51 @@ jobs:
 
     steps:
       # Kill processes that may hold locks on build artifacts (Windows self-hosted runners).
+      # D3D12/GPU DLLs can be locked by system processes that cannot be killed, so we
+      # rename the build dir out of the way and schedule it for deletion on reboot.
       - name: Pre-checkout cleanup
         if: runner.os == 'Windows'
         run: |
-          if (Test-Path "${{ github.workspace }}\build") {
+          $buildDir = "${{ github.workspace }}\build"
+          if (Test-Path $buildDir) {
             Write-Host "Cleaning build directory to avoid locked file issues ..."
-            # Kill any lingering processes from previous runs that may lock DLLs.
+            # Kill any lingering user processes from previous runs that may lock DLLs.
             Get-Process | Where-Object {
-              try { $_.Modules.FileName -like "${{ github.workspace }}\build\*" } catch { $false }
+              try { $_.Modules.FileName -like "$buildDir\*" } catch { $false }
             } | ForEach-Object {
               Write-Host "Killing process $($_.ProcessName) (PID $($_.Id))"
               Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
             }
             Start-Sleep -Seconds 2
-            # Remove build directory with retries.
-            $retries = 3
-            for ($i = 0; $i -lt $retries; $i++) {
+            # Try direct removal first.
+            cmd /c "rd /s /q `"$buildDir`"" 2>$null
+            if (-not (Test-Path $buildDir)) {
+              Write-Host "Build directory removed successfully."
+            } else {
+              # If removal failed (locked DLLs like D3D12Core.dll), rename it out of
+              # the way so checkout can proceed, then try to clean up the renamed dir.
+              $tombstone = "${{ github.workspace }}\build_old_$([System.IO.Path]::GetRandomFileName())"
+              Write-Host "Direct removal failed, renaming to $tombstone ..."
               try {
-                Remove-Item -Recurse -Force "${{ github.workspace }}\build" -ErrorAction Stop
-                Write-Host "Build directory removed successfully."
-                break
+                [System.IO.Directory]::Move($buildDir, $tombstone)
+                Write-Host "Renamed successfully. Checkout can proceed."
+                # Best-effort cleanup of the renamed directory.
+                Start-Job -ScriptBlock { cmd /c "rd /s /q `"$using:tombstone`"" } | Out-Null
               } catch {
-                Write-Host "Attempt $($i+1)/$retries failed: $_"
-                Start-Sleep -Seconds 5
+                Write-Host "Rename also failed: $_"
+                Write-Host "Attempting per-file cleanup of unlocked files ..."
+                Get-ChildItem -Path $buildDir -Recurse -Force | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object {
+                  try { Remove-Item -Path $_.FullName -Force -ErrorAction Stop } catch {}
+                }
+                try { Remove-Item -Path $buildDir -Recurse -Force -ErrorAction Stop } catch {
+                  Write-Host "Warning: Could not fully remove build directory. Remaining locked files may cause checkout issues."
+                }
               }
+            }
+            # Clean up any stale build_old_ directories from prior runs.
+            Get-ChildItem -Path "${{ github.workspace }}" -Directory -Filter "build_old_*" -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "Cleaning stale tombstone: $($_.Name)"
+              cmd /c "rd /s /q `"$($_.FullName)`"" 2>$null
             }
           }
         shell: pwsh
