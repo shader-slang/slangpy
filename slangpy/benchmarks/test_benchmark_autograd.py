@@ -49,7 +49,7 @@ WARMUPS = 10
 # =============================================================================
 
 RUN_PURE_TORCH_BENCHMARK = False
-RUN_SLANGTORCH_BENCHMARK = True
+RUN_SLANGTORCH_BENCHMARK = False
 RUN_SLANGPY_MANUAL_HOOK_BENCHMARK = True
 RUN_SLANGPY_AUTOMATIC_BENCHMARK = False
 
