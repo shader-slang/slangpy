@@ -3,7 +3,6 @@
 implementing slangpy;
 
 #define _SLANGPY_PRIMALTENSOR_COMMON_FIELDS \
-    typealias ElementType = T; \
     public uint[D] _shape;\
     public uint[D] _strides;\
     public uint _offset;\
@@ -334,7 +333,3 @@ public extension<T : IDifferentiable, let D : int> RWPrimalTensor<T, D> where T.
     }
 }
 #endif
-
-// Note: PrimalTensor and RWPrimalTensor sample() is provided by the IDiffTensor/IRWDiffTensor
-// interface extensions in difftensor.slang, since PrimalTensor : IDiffTensor and
-// RWPrimalTensor : IRWDiffTensor.
