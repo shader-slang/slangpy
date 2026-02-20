@@ -207,6 +207,12 @@
             "configuration": "Release"
         },
         {
+            "name": "windows-msvc-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "windows-msvc",
+            "configuration": "RelWithDebInfo"
+        },
+        {
             "name": "windows-msvc-debug",
             "displayName": "Debug",
             "configurePreset": "windows-msvc",
@@ -217,6 +223,12 @@
             "displayName": "Release",
             "configurePreset": "windows-clang",
             "configuration": "Release"
+        },
+        {
+            "name": "windows-clang-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "windows-clang",
+            "configuration": "RelWithDebInfo"
         },
         {
             "name": "windows-clang-debug",
@@ -231,6 +243,12 @@
             "configuration": "Release"
         },
         {
+            "name": "windows-arm64-msvc-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "windows-arm64-msvc",
+            "configuration": "RelWithDebInfo"
+        },
+        {
             "name": "windows-arm64-msvc-debug",
             "displayName": "Debug",
             "configurePreset": "windows-arm64-msvc",
@@ -241,6 +259,12 @@
             "displayName": "Release",
             "configurePreset": "linux-clang",
             "configuration": "Release"
+        },
+        {
+            "name": "linux-clang-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "linux-clang",
+            "configuration": "RelWithDebInfo"
         },
         {
             "name": "linux-clang-debug",
@@ -255,6 +279,12 @@
             "configuration": "Release"
         },
         {
+            "name": "linux-gcc-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "linux-gcc",
+            "configuration": "RelWithDebInfo"
+        },
+        {
             "name": "linux-gcc-debug",
             "displayName": "Debug",
             "configurePreset": "linux-gcc",
@@ -267,6 +297,12 @@
             "configuration": "Release"
         },
         {
+            "name": "macos-x64-clang-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "macos-x64-clang",
+            "configuration": "RelWithDebInfo"
+        },
+        {
             "name": "macos-x64-clang-debug",
             "displayName": "Debug",
             "configurePreset": "macos-x64-clang",
@@ -277,6 +313,12 @@
             "displayName": "Release",
             "configurePreset": "macos-arm64-clang",
             "configuration": "Release"
+        },
+        {
+            "name": "macos-arm64-clang-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "macos-arm64-clang",
+            "configuration": "RelWithDebInfo"
         },
         {
             "name": "macos-arm64-clang-debug",
