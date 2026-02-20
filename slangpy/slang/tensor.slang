@@ -510,7 +510,7 @@ void _get_sample_indices(float2 uv, int2 shape, out int2 idx0, out int2 idx1, ou
     int2 texel = int2(uv * shape);
     interp = frac(uv * shape);
 
-    idx0 = texel;
+    idx0 = clamp(texel, int2(0, 0), maxidx);
     idx1 = min(texel + int2(1, 1), maxidx);
 }
 
