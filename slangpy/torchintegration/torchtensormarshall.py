@@ -113,7 +113,10 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
         full_dims = dims + len(slang_dtype.shape)
 
         # Determine writability and tensor type
-        writable = True  # Torch tensors are always potentially writable
+        # Note: writable=True here signals that the tensor CAN be written to.
+        # Actual copy-back decisions are made in C++ (ensure_binding_info_cached)
+        # based on the Slang parameter's type and access mode.
+        writable = True
         has_derivatives = d_in is not None or d_out is not None
 
         # Get the slang tensor type

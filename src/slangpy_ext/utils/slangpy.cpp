@@ -470,8 +470,11 @@ nb::object NativeCallData::exec(
     Shape call_shape = m_runtime->calculate_call_shape(m_call_dimensionality, unpacked_args, unpacked_kwargs, this);
     m_last_call_shape = call_shape;
 
+    // Extract CUDA stream handle for interop operations and command buffer submission.
+    NativeHandle cuda_stream = opts->cuda_stream();
+
     // Setup context.
-    auto context = make_ref<CallContext>(m_device, call_shape, m_call_mode);
+    auto context = make_ref<CallContext>(m_device, call_shape, m_call_mode, cuda_stream);
 
     // Allocate return value if needed.
     if (!command_encoder && m_call_mode == CallMode::prim) {
@@ -613,7 +616,6 @@ nb::object NativeCallData::exec(
     }
 
     // If CUDA stream is provided, check for valid use and sync device to the CUDA stream
-    NativeHandle cuda_stream = opts->cuda_stream();
     if (cuda_stream.is_valid()) {
         SGL_CHECK(command_encoder == nullptr, "Cannot specify a CUDA stream when appending to a command encoder.");
         SGL_CHECK(
@@ -1665,10 +1667,11 @@ SGL_PY_EXPORT(utils_slangpy)
 
     nb::class_<CallContext, Object>(slangpy, "CallContext") //
         .def(
-            nb::init<ref<Device>, const Shape&, CallMode>(),
+            nb::init<ref<Device>, const Shape&, CallMode, NativeHandle>(),
             nb::arg("device"),
             nb::arg("call_shape"),
             nb::arg("call_mode"),
+            nb::arg("cuda_stream") = NativeHandle(),
             D_NA(CallContext, CallContext)
         )
         .def_prop_ro(
