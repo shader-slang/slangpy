@@ -251,3 +251,17 @@ jobs:
         if: always()
         run: python -m pip uninstall slangpy-torch -y
         continue-on-error: true
+
+      # Kill any processes that loaded DLLs from the workspace so the next job
+      # doesn't hit locked-file errors during checkout cleanup.
+      - name: Post-job process cleanup
+        if: always() && runner.os == 'Windows'
+        run: |
+          Get-Process | Where-Object {
+            try { $_.Modules.FileName -like "${{ github.workspace }}\*" } catch { $false }
+          } | ForEach-Object {
+            Write-Host "Killing leftover process $($_.ProcessName) (PID $($_.Id))"
+            & taskkill /F /T /PID $_.Id 2>&1 | Write-Host
+          }
+        shell: pwsh
+        continue-on-error: true
