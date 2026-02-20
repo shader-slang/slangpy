@@ -52,3 +52,21 @@ void compute_double(
 
     data[idx] = data[idx] * 2.0;
 }
+
+// Generic struct with integer parameter.
+struct MyData<int N>
+{
+    float value;
+}
+
+// Generic entrypoint with integer generic parameter.
+[shader("compute")]
+[numthreads(8, 1, 1)]
+void compute_int_generic<int N>(
+    uint3 tid: SV_DispatchThreadID,
+    uniform RWStructuredBuffer<MyData<N>> output)
+{
+    MyData<N> d;
+    d.value = float(tid.x);
+    output[tid.x] = d;
+}
