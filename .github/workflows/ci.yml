@@ -86,22 +86,24 @@ jobs:
           if (Test-Path $buildDir) {
             Write-Host "Cleaning build directory to avoid locked file issues ..."
             # Kill any lingering user processes from previous runs that may lock DLLs.
+            # Use Modules to find processes with loaded DLLs from the build dir,
+            # then taskkill /F /T to force-kill the process tree.
             Get-Process | Where-Object {
               try { $_.Modules.FileName -like "$buildDir\*" } catch { $false }
             } | ForEach-Object {
-              Write-Host "Killing process $($_.ProcessName) (PID $($_.Id))"
-              Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+              Write-Host "Killing process $($_.ProcessName) (PID $($_.Id)) with taskkill /F /T"
+              & taskkill /F /T /PID $_.Id 2>&1 | Write-Host
             }
-            Start-Sleep -Seconds 2
+            Start-Sleep -Seconds 3
             # Try direct removal first.
             cmd /c "rd /s /q `"$buildDir`"" 2>$null
             if (-not (Test-Path $buildDir)) {
               Write-Host "Build directory removed successfully."
             } else {
               # If removal failed (locked DLLs like D3D12Core.dll), rename it out of
-              # the way so checkout can proceed, then try to clean up the renamed dir.
-              $tombstone = "${{ github.workspace }}\build_old_$([System.IO.Path]::GetRandomFileName())"
-              Write-Host "Direct removal failed, renaming to $tombstone ..."
+              # the workspace entirely so checkout cleanup won't encounter it.
+              $tombstone = "${{ runner.temp }}\build_old_$([System.IO.Path]::GetRandomFileName())"
+              Write-Host "Direct removal failed, renaming to $tombstone (outside workspace) ..."
               try {
                 [System.IO.Directory]::Move($buildDir, $tombstone)
                 Write-Host "Renamed successfully. Checkout can proceed."
@@ -119,7 +121,7 @@ jobs:
               }
             }
             # Clean up any stale build_old_ directories from prior runs.
-            Get-ChildItem -Path "${{ github.workspace }}" -Directory -Filter "build_old_*" -ErrorAction SilentlyContinue | ForEach-Object {
+            Get-ChildItem -Path "${{ runner.temp }}" -Directory -Filter "build_old_*" -ErrorAction SilentlyContinue | ForEach-Object {
               Write-Host "Cleaning stale tombstone: $($_.Name)"
               cmd /c "rd /s /q `"$($_.FullName)`"" 2>$null
             }
