@@ -326,3 +326,32 @@ float[FanOut] matrix_vector_generic_diff<let FanIn : int, let FanOut : int>( IDi
     }
     return result;
 }
+
+// Sample test functions
+float sample_tensor_scalar(Tensor<float, 2> src, float u, float v)
+{
+    return src.sample(float2(u, v));
+}
+
+float3 sample_tensor_vector(Tensor<float3, 2> src, float u, float v)
+{
+    return src.sample(float2(u, v));
+}
+
+float sample_rwtensor_scalar(RWTensor<float, 2> src, float u, float v)
+{
+    return src.sample(float2(u, v));
+}
+
+/*
+//TODO: DiffTensor sample
+float sample_difftensor_scalar(DiffTensor<float, 2> src, float u, float v)
+{
+    return src.sample(float2(u, v));
+}
+
+float sample_primaltensor_scalar(PrimalTensor<float, 2> src, float u, float v)
+{
+    return src.sample(float2(u, v));
+}
+*/
