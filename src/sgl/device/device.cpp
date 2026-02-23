@@ -707,7 +707,7 @@ ref<ShaderObject> Device::create_root_shader_object(const ShaderProgram* shader_
 
     // Bind the debug printer to the new shader object, if enabled.
     if (m_debug_printer)
-        m_debug_printer->bind(shader_object.get());
+        m_debug_printer->bind(ShaderCursor(shader_object.get()));
 
     return shader_object;
 }
