@@ -89,6 +89,24 @@ public interface IRWDiffTensor<T : IDifferentiable, let D : int>
     public property shape : uint[D];
 }
 
+// Extend IDiffTensor types to add their element type
+public extension<T : IDifferentiable, let D : int, TensorType : IDiffTensor<T, D>> TensorType
+    where T.Differential : IAtomicAddable
+{
+    typedef T ElementType;
+}
+public extension<T : IDifferentiable, let D : int, TensorType : IWDiffTensor<T, D>> TensorType
+    where T.Differential : IAtomicAddable
+{
+    typedef T ElementType;
+}
+public extension<T : IDifferentiable, let D : int, TensorType : IRWDiffTensor<T, D>> TensorType
+    where T.Differential : IAtomicAddable
+{
+    typedef T ElementType;
+}
+
+
 #define _SLANGPY_DIFFTENSOR_COMMON \
     public property shape : uint[D] { get { return _primal.shape; } }
 
@@ -421,3 +439,50 @@ public extension<T: IDifferentiable, let D : int> RWDiffTensor<T, D> where T.Dif
     }
 }
 #endif
+
+/*
+//TODO: DiffTensor sample
+
+Search code for 'DiffTensor sample' to find areas affected by this logic.
+
+Having real trouble getting these to work, regardless of whether using interface extensions as below, or directly extending
+the concrete DiffTensor/RWDiffTensor types. 2 problems:
+- The ElementType (added in extension above) does not exist, where the same technique worked for Tensor
+- Even if I switch to concrete types and just explicitly add the ElementType to DiffTensor/RWDiffTensor,
+  the vector version doesn't work because it says vector<T,N> is not atomic addable. However it is made atomic
+  addable by extending the ISizedArray extension of IAtomicAddable in atomics.slang.
+
+#define _SLANGPY_DIFFTENSOR_SAMPLE                                                                                     \
+    public ElementType sample(float2 uv)                                                                               \
+    {                                                                                                                  \
+        int2 _shape = int2(this.shape[1], this.shape[0]);                                                              \
+        int2 idx0, idx1;                                                                                               \
+        float2 frac;                                                                                                   \
+        _get_sample_indices(uv, _shape, idx0, idx1, frac);                                                             \
+        ElementType c00 = this.load(idx0);                                                                             \
+        ElementType c10 = this.load(int2(idx1.x, idx0.y));                                                             \
+        ElementType c01 = this.load(int2(idx0.x, idx1.y));                                                             \
+        ElementType c11 = this.load(idx1);                                                                             \
+        return _bilerp(c00, c10, c01, c11, frac);                                                                      \
+    }
+
+public extension<T : __BuiltinFloatingPointType, TensorType : IDiffTensor<T, 2>> TensorType
+{
+    _SLANGPY_DIFFTENSOR_SAMPLE
+}
+
+public extension<T : __BuiltinFloatingPointType, TensorType : IRWDiffTensor<T, 2>> TensorType
+{
+    _SLANGPY_DIFFTENSOR_SAMPLE
+}
+
+public extension<T : __BuiltinFloatingPointType, let N : int, TensorType : IDiffTensor<vector<T, N>, 2>> TensorType
+{
+    _SLANGPY_DIFFTENSOR_SAMPLE
+}
+
+public extension<T : __BuiltinFloatingPointType, let N : int, TensorType : IRWDiffTensor<vector<T, N>, 2>> TensorType
+{
+    _SLANGPY_DIFFTENSOR_SAMPLE
+}
+*/
