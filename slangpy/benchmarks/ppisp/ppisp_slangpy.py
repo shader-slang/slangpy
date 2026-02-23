@@ -5,16 +5,15 @@ SlangPy wrapper for PPISP pipeline.
 
 Based on github.com/nv-tlabs/ppisp (Apache 2.0).
 
-SlangPy's built-in autograd (TorchAutoGradHook) handles everything:
-  1. Detects tensors with requires_grad=True
-  2. Wraps ITensor params in GradOutTensor (AtomicTensor for grad accumulation)
-  3. Calls .bwds() in the backward pass automatically
-All ISP parameters (exposure, vignetting, color, CRF) AND rgb_pixel
-receive gradients — no custom autograd.Function needed.
+ISP parameters use DiffTensorView with loadUniform/loadVecUniform for
+wave-level gradient reduction in backward (same kernel as slangtorch).
+Per-pixel inputs (rgb, pixel_coord, camera/frame idx) are auto-vectorized.
+
+SlangPy's TorchAutoGradHook handles autograd integration automatically.
 
 IMPORTANT: The first call (warmup) MUST pass requires_grad=True on ALL
 differentiable tensors so SlangPy initializes its CallData with the
-correct execution path (GradOutTensor wrappers for ITensor params).
+correct execution path for DiffTensorView params.
 """
 
 import os
@@ -94,15 +93,11 @@ def _warmup(device: torch.device, spy_device: Optional["spy.Device"] = None):  #
 
 
 class PPISPSlangPy(nn.Module):
-    """PPISP pipeline using SlangPy backend with full differentiability.
+    """PPISP pipeline using SlangPy backend with DiffTensorView.
 
-    All parameters are fully differentiable through SlangPy's ITensor:
-    - exposure_params, vignetting_params, color_params, crf_params (ISP params)
-    - rgb_pixel (input RGB)
-
-    ITensor<T : IDifferentiable> has [Differentiable] get/getv methods.
-    SlangPy wraps requires_grad=True tensors in GradOutTensor (AtomicTensor)
-    for automatic gradient accumulation in the backward pass.
+    ISP parameters use DiffTensorView with wave-level gradient reduction
+    (loadUniform/loadVecUniform), matching slangtorch's backward kernel.
+    Per-pixel inputs are auto-vectorized by SlangPy for batch dispatch.
     """
 
     def __init__(self, num_cameras: int, num_frames: int,
@@ -137,9 +132,8 @@ class PPISPSlangPy(nn.Module):
                 camera_idcs: torch.Tensor, frame_idcs: torch.Tensor) -> torch.Tensor:
         module = _get_slang_module()
         # Pass all differentiable tensors directly (with requires_grad intact).
-        # SlangPy's TorchAutoGradHook intercepts these, wraps ITensor params
-        # in GradOutTensor (atomic gradient accumulation), and builds the
-        # autograd graph automatically.
+        # SlangPy's TorchAutoGradHook handles autograd for DiffTensorView
+        # params automatically.
         return module.ppisp(
             batch_size=rgb.shape[0],
             num_cameras=self.num_cameras,
