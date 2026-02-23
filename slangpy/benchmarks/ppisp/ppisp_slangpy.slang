@@ -162,13 +162,11 @@ float3 ppisp(
     ITensor<float, 3> crf_params,         // [num_cameras, 3, 4]
     float3 rgb_pixel,
     float2 pixel_coord,
-    float camera_idx_f,
-    float frame_idx_f,
+    int16_t camera_idx,
+    int frame_idx,
     float resolution_w,
     float resolution_h
 ) {
-    int camera_idx = int(camera_idx_f);
-    int frame_idx = int(frame_idx_f);
     bool has_frame = frame_idx != -1;
     bool has_camera = camera_idx != -1;
 

@@ -85,8 +85,8 @@ def _warmup(device: torch.device, spy_device: Optional["spy.Device"] = None):  #
         crf_params=torch.zeros(1, 3, 4, device=device, requires_grad=True),
         rgb_pixel=torch.zeros(1, 3, device=device, requires_grad=True),
         pixel_coord=torch.zeros(1, 2, device=device),
-        camera_idx_f=torch.zeros(1, device=device, dtype=torch.float32),
-        frame_idx_f=torch.zeros(1, device=device, dtype=torch.float32),
+        camera_idx=torch.zeros(1, device=device, dtype=torch.int16),
+        frame_idx=torch.zeros(1, device=device, dtype=torch.int32),
         resolution_w=1920.0,
         resolution_h=1080.0,
     )
@@ -150,8 +150,8 @@ class PPISPSlangPy(nn.Module):
             crf_params=self.crf_params,
             rgb_pixel=rgb,
             pixel_coord=pixel_coords,
-            camera_idx_f=camera_idcs.to(torch.float32),
-            frame_idx_f=frame_idcs.to(torch.float32),
+            camera_idx=camera_idcs,
+            frame_idx=frame_idcs,
             resolution_w=float(self.resolution_w),
             resolution_h=float(self.resolution_h),
         )
