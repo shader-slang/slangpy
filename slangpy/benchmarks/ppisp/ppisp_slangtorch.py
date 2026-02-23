@@ -51,7 +51,7 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
         resolution_w, resolution_h,
     ):
         module = _get_slang_module()
-        rgb_out = torch.zeros_like(rgb)
+        rgb_out = torch.empty_like(rgb)
 
         module.ppisp(
             batch_size=batch_size,

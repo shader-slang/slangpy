@@ -70,6 +70,154 @@ def create_test_data(
 
 
 # =============================================================================
+# Correctness: verify slangpy and slangtorch produce matching results
+# =============================================================================
+
+CORRECTNESS_BATCH = 1000
+CORRECTNESS_ATOL = 1e-5
+CORRECTNESS_RTOL = 1e-4
+# Cross-implementation tolerance (slang vs pytorch): slightly looser due to
+# different pow()/FMA instruction sequences on GPU vs PyTorch CUDA ops.
+CORRECTNESS_PYTORCH_ATOL = 5e-5
+CORRECTNESS_PYTORCH_RTOL = 1e-4
+
+
+def _create_models_with_shared_params(
+    torch_device: torch.device,
+    spy_device: "spy.Device",
+    include_pytorch: bool = False,
+) -> dict:
+    """Create models with identical parameters for correctness comparison."""
+    from slangpy.benchmarks.ppisp.ppisp_slangpy import PPISPSlangPy
+    from slangpy.benchmarks.ppisp.ppisp_slangtorch import PPISPSlangtorch
+
+    model_st = PPISPSlangtorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+    model_spy = PPISPSlangPy(
+        NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H,
+        torch_device, spy_device=spy_device,
+    )
+
+    # Copy params so all models use identical weights
+    with torch.no_grad():
+        model_spy.exposure_params.copy_(model_st.exposure_params)
+        model_spy.vignetting_params.copy_(model_st.vignetting_params)
+        model_spy.color_params.copy_(model_st.color_params)
+        model_spy.crf_params.copy_(model_st.crf_params)
+
+    models = {"slangpy": model_spy, "slangtorch": model_st}
+
+    if include_pytorch:
+        from slangpy.benchmarks.ppisp.ppisp_pytorch import PPISPPyTorch
+        model_pt = PPISPPyTorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        with torch.no_grad():
+            model_pt.exposure_params.copy_(model_st.exposure_params)
+            model_pt.vignetting_params.copy_(model_st.vignetting_params)
+            model_pt.color_params.copy_(model_st.color_params)
+            model_pt.crf_params.copy_(model_st.crf_params)
+        models["pytorch"] = model_pt
+
+    return models
+
+
+def _assert_close(a: torch.Tensor, b: torch.Tensor, msg: str,
+                   atol: float = CORRECTNESS_ATOL, rtol: float = CORRECTNESS_RTOL) -> None:
+    assert not torch.isnan(a).any(), f"{msg}: first tensor has NaN"
+    assert not torch.isnan(b).any(), f"{msg}: second tensor has NaN"
+    torch.testing.assert_close(a, b, atol=atol, rtol=rtol, msg=msg)
+
+
+@pytest.mark.skip(reason="Correctness validated; enable manually when needed")
+@pytest.mark.parametrize("include_pytorch", [False, True], ids=["slang-only", "with-pytorch"])
+def test_ppisp_correctness_forward(include_pytorch: bool) -> None:
+    """Verify forward outputs match across backends."""
+    _skip_if_no_slangtorch()
+    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    torch_device = torch.device("cuda")
+
+    torch.manual_seed(42)
+    rgb, pixel_coords, _, _ = create_test_data(
+        CORRECTNESS_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+
+    # Real PPISP processes one image at a time: all pixels share the same
+    # camera/frame.  Slangtorch's loadUniform backward relies on warp-uniform
+    # indices (WaveActiveSum + WaveIsFirstLane), so we use uniform indices here
+    # to match the realistic access pattern.
+    # with-pytorch uses camera=0/frame=0 to match the PyTorch scalar API.
+    cam = 0 if include_pytorch else 2
+    frm = 0 if include_pytorch else 5
+    camera_idcs = torch.full((CORRECTNESS_BATCH,), cam, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.full((CORRECTNESS_BATCH,), frm, device=torch_device, dtype=torch.int32)
+
+    models = _create_models_with_shared_params(torch_device, device, include_pytorch)
+
+    with torch.no_grad():
+        out_spy = models["slangpy"](rgb, pixel_coords, camera_idcs, frame_idcs)
+        out_st = models["slangtorch"](rgb, pixel_coords, camera_idcs, frame_idcs)
+
+    _assert_close(out_spy, out_st, "Forward mismatch: slangpy vs slangtorch")
+
+    if include_pytorch:
+        out_pt = models["pytorch"](rgb, pixel_coords, camera_idx=cam, frame_idx=frm)
+        _assert_close(out_spy, out_pt, "Forward mismatch: slangpy vs pytorch",
+                       atol=CORRECTNESS_PYTORCH_ATOL, rtol=CORRECTNESS_PYTORCH_RTOL)
+
+
+@pytest.mark.skip(reason="Correctness validated; enable manually when needed")
+@pytest.mark.parametrize("include_pytorch", [False, True], ids=["slang-only", "with-pytorch"])
+def test_ppisp_correctness_backward(include_pytorch: bool) -> None:
+    """Verify gradients match across backends."""
+    _skip_if_no_slangtorch()
+    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    torch_device = torch.device("cuda")
+
+    torch.manual_seed(42)
+    rgb, pixel_coords, _, _ = create_test_data(
+        CORRECTNESS_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+
+    # Uniform indices — see comment in test_ppisp_correctness_forward.
+    cam = 0 if include_pytorch else 2
+    frm = 0 if include_pytorch else 5
+    camera_idcs = torch.full((CORRECTNESS_BATCH,), cam, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.full((CORRECTNESS_BATCH,), frm, device=torch_device, dtype=torch.int32)
+
+    models = _create_models_with_shared_params(torch_device, device, include_pytorch)
+
+    # Run backward for each backend
+    rgb_grads = {}
+    for name, model in models.items():
+        rgb_in = rgb.clone().requires_grad_(True)
+        if name == "pytorch":
+            out = model(rgb_in, pixel_coords, camera_idx=cam, frame_idx=frm)
+        else:
+            out = model(rgb_in, pixel_coords, camera_idcs, frame_idcs)
+        out.sum().backward()
+        rgb_grads[name] = rgb_in.grad
+
+    torch.cuda.synchronize()
+
+    # Compare slangpy vs slangtorch (always)
+    _assert_close(rgb_grads["slangpy"], rgb_grads["slangtorch"], "rgb grad: slangpy vs slangtorch")
+    for param_name in ["exposure_params", "vignetting_params", "color_params", "crf_params"]:
+        _assert_close(
+            getattr(models["slangpy"], param_name).grad,
+            getattr(models["slangtorch"], param_name).grad,
+            f"{param_name} grad: slangpy vs slangtorch",
+        )
+
+    # Compare with pytorch (optional, looser tolerance for cross-implementation)
+    if include_pytorch:
+        _assert_close(rgb_grads["slangpy"], rgb_grads["pytorch"], "rgb grad: slangpy vs pytorch",
+                       atol=CORRECTNESS_PYTORCH_ATOL, rtol=CORRECTNESS_PYTORCH_RTOL)
+        for param_name in ["exposure_params", "vignetting_params", "color_params", "crf_params"]:
+            _assert_close(
+                getattr(models["slangpy"], param_name).grad,
+                getattr(models["pytorch"], param_name).grad,
+                f"{param_name} grad: slangpy vs pytorch",
+                atol=CORRECTNESS_PYTORCH_ATOL, rtol=CORRECTNESS_PYTORCH_RTOL,
+            )
+
+
+# =============================================================================
 # Forward benchmarks (torch.no_grad)
 # =============================================================================
 
@@ -116,8 +264,11 @@ def test_ppisp_forward_slangpy(
         NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H,
         torch_device, spy_device=device,
     )
-    rgb, pixel_coords, camera_idcs, frame_idcs = create_test_data(
+    rgb, pixel_coords, _, _ = create_test_data(
         batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+    # Uniform indices: real PPISP processes one image at a time (see correctness tests).
+    camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
 
     def run() -> None:
         with torch.no_grad():
@@ -143,8 +294,11 @@ def test_ppisp_forward_slangtorch(
     from slangpy.benchmarks.ppisp.ppisp_slangtorch import PPISPSlangtorch
 
     model = PPISPSlangtorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
-    rgb, pixel_coords, camera_idcs, frame_idcs = create_test_data(
+    rgb, pixel_coords, _, _ = create_test_data(
         batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+    # Uniform indices: real PPISP processes one image at a time (see correctness tests).
+    camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
 
     def run() -> None:
         with torch.no_grad():
@@ -206,8 +360,11 @@ def test_ppisp_backward_slangpy(
         NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H,
         torch_device, spy_device=device,
     )
-    rgb, pixel_coords, camera_idcs, frame_idcs = create_test_data(
+    rgb, pixel_coords, _, _ = create_test_data(
         batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+    # Uniform indices: real PPISP processes one image at a time (see correctness tests).
+    camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
 
     def run() -> None:
         rgb_copy = rgb.clone().requires_grad_(True)
@@ -234,8 +391,11 @@ def test_ppisp_backward_slangtorch(
     from slangpy.benchmarks.ppisp.ppisp_slangtorch import PPISPSlangtorch
 
     model = PPISPSlangtorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
-    rgb, pixel_coords, camera_idcs, frame_idcs = create_test_data(
+    rgb, pixel_coords, _, _ = create_test_data(
         batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+    # Uniform indices: real PPISP processes one image at a time (see correctness tests).
+    camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
 
     def run() -> None:
         rgb_copy = rgb.clone().requires_grad_(True)

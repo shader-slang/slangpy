@@ -51,7 +51,7 @@ static const float COLOR_PINV_BLOCKS[4][4] = {
 // ============================================================================
 
 [Differentiable]
-VignettingParams get_vignetting_params(ITensor<float, 3> vignetting_params,
+VignettingParams get_vignetting_params(IDiffTensor<float, 3> vignetting_params,
                                        int camera_idx, int channel_idx) {
     VignettingParams params;
     params.optical_center = float2(
@@ -69,7 +69,7 @@ VignettingParams get_vignetting_params(ITensor<float, 3> vignetting_params,
 // ============================================================================
 
 [Differentiable]
-float3x3 compute_homography(ITensor<float, 2> color_params, int frame_idx) {
+float3x3 compute_homography(IDiffTensor<float, 2> color_params, int frame_idx) {
     // Load 8 latent params
     float latent[8];
     [ForceUnroll]
@@ -156,16 +156,16 @@ float3 ppisp(
     uint batch_size,
     uint num_cameras,
     uint num_frames,
-    ITensor<float, 1> exposure_params,    // [num_frames]
-    ITensor<float, 3> vignetting_params,  // [num_cameras, 3, 5]
-    ITensor<float, 2> color_params,       // [num_frames, 8]
-    ITensor<float, 3> crf_params,         // [num_cameras, 3, 4]
+    IDiffTensor<float, 1> exposure_params,    // [num_frames]
+    IDiffTensor<float, 3> vignetting_params,  // [num_cameras, 3, 5]
+    IDiffTensor<float, 2> color_params,       // [num_frames, 8]
+    IDiffTensor<float, 3> crf_params,         // [num_cameras, 3, 4]
     float3 rgb_pixel,
-    float2 pixel_coord,
+    no_diff float2 pixel_coord,
     int16_t camera_idx,
     int frame_idx,
-    float resolution_w,
-    float resolution_h
+    no_diff float resolution_w,
+    no_diff float resolution_h
 ) {
     bool has_frame = frame_idx != -1;
     bool has_camera = camera_idx != -1;

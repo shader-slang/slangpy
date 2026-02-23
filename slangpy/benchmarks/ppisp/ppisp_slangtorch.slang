@@ -59,12 +59,13 @@ VignettingParams get_vignetting_params(DiffTensorView vignetting_params,
 
 [Differentiable]
 float3x3 compute_homography(DiffTensorView color_params, uint frame_idx) {
-    // Load 8 latent params
-    float latent[8];
-    [ForceUnroll]
-    for (int i = 0; i < 8; i++) {
-        latent[i] = color_params.loadUniform(uint2(frame_idx, uint(i)));
-    }
+    // Load 8 latent params as 2 vectorized reads
+    float4 latent_lo = color_params.loadVecUniform<4>(uint2(frame_idx, 0));
+    float4 latent_hi = color_params.loadVecUniform<4>(uint2(frame_idx, 4));
+    float latent[8] = {
+        latent_lo.x, latent_lo.y, latent_lo.z, latent_lo.w,
+        latent_hi.x, latent_hi.y, latent_hi.z, latent_hi.w
+    };
 
     // Map latent -> real offsets via ZCA 2x2 blocks
     float bd_r = COLOR_PINV_BLOCKS[0][0] * latent[0] + COLOR_PINV_BLOCKS[0][1] * latent[1];
@@ -196,10 +197,11 @@ void ppisp(no_diff uint batch_size,
         rgb = clamp(rgb, 0.0, 1.0);
         [ForceUnroll]
         for (uint i = 0; i < 3; i++) {
-            float toe_raw = crf_params.loadUniform(uint3(no_diff uint(camera_idx), i, 0));
-            float shoulder_raw = crf_params.loadUniform(uint3(no_diff uint(camera_idx), i, 1));
-            float gamma_raw = crf_params.loadUniform(uint3(no_diff uint(camera_idx), i, 2));
-            float center_raw = crf_params.loadUniform(uint3(no_diff uint(camera_idx), i, 3));
+            float4 crf_raw = crf_params.loadVecUniform<4>(uint3(no_diff uint(camera_idx), i, 0));
+            float toe_raw = crf_raw.x;
+            float shoulder_raw = crf_raw.y;
+            float gamma_raw = crf_raw.z;
+            float center_raw = crf_raw.w;
 
             float toe = bounded_positive(toe_raw, 0.3);
             float shoulder = bounded_positive(shoulder_raw, 0.3);
