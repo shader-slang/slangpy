@@ -205,17 +205,10 @@
             "binaryDir": "${sourceDir}/build.em",
             "toolchainFile": "$env{EMSCRIPTEN_ROOT}/cmake/Modules/Platform/Emscripten.cmake",
             "cacheVariables": {
-                "SGL_LOCAL_SLANG_RHI": "ON",
-                "SGL_LOCAL_SLANG_RHI_DIR": "${sourceDir}/../slang-rhi",
-                "SGL_LOCAL_SLANG": "ON",
-                "SGL_LOCAL_SLANG_DIR": "${sourceDir}/../slang",
-                "SGL_LOCAL_SLANG_BUILD_DIR": "build.em/Release",
                 "SGL_BUILD_TESTS": "OFF",
-                "SGL_BUILD_EXAMPLES": "OFF",
                 "SGL_BUILD_PYTHON": "OFF",
-                "CMAKE_C_FLAGS_INIT": "-fwasm-exceptions -Os",
-                "CMAKE_CXX_FLAGS_INIT": "-fwasm-exceptions -Os",
-                "CMAKE_EXE_LINKER_FLAGS": "-sASSERTIONS -sALLOW_MEMORY_GROWTH -fwasm-exceptions --export=__cpp_exception -sASYNCIFY -sUSE_GLFW=3"
+                "CMAKE_CXX_FLAGS_INIT": "-fwasm-exceptions -Os -include cstdlib",
+                "CMAKE_EXE_LINKER_FLAGS": "-sASSERTIONS -sALLOW_MEMORY_GROWTH -fwasm-exceptions --export=__cpp_exception -sUSE_GLFW=3"
             }
         }
     ],

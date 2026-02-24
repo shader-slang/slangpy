@@ -1,4 +1,5 @@
 build/
+build.em/
 external/vcpkg
 external/slang/
 tools/download
