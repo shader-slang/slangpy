@@ -10,6 +10,44 @@ from slangpy.testing import helpers
 from typing import Any
 
 
+def numpy_sample_scalar(data: np.ndarray[Any, Any], u: float, v: float) -> float:
+    """Bilinear interpolation matching Slang _get_sample_indices / _bilerp logic.
+
+    The Slang sample() does:
+        int2 shape = int2(shape[1], shape[0])   ->  (cols, rows)
+        texel = int2(uv * shape)                ->  (col, row)
+        interp = frac(uv * shape)
+    Then load(int2(col, row)) indexes data[row, col] because the vector _idx
+    overload reverses components (int2.x -> last stride, int2.y -> first stride).
+    """
+    rows = data.shape[0]
+    cols = data.shape[1]
+
+    tx = np.float32(u * cols)
+    ty = np.float32(v * rows)
+
+    ix = int(np.floor(tx))
+    iy = int(np.floor(ty))
+    fx = np.float32(tx - np.floor(tx))
+    fy = np.float32(ty - np.floor(ty))
+
+    col0 = ix
+    row0 = iy
+    col1 = min(ix + 1, cols - 1)
+    row1 = min(iy + 1, rows - 1)
+
+    # load(int2(a, b)) -> data[b, a] due to vector _idx reversal
+    c00 = np.float32(data[row0, col0])
+    c10 = np.float32(data[row0, col1])
+    c01 = np.float32(data[row1, col0])
+    c11 = np.float32(data[row1, col1])
+
+    # lerp(lerp(c00, c10, fx), lerp(c01, c11, fx), fy)
+    top = np.float32(c00 * (1 - fx) + c10 * fx)
+    bot = np.float32(c01 * (1 - fx) + c11 * fx)
+    return float(np.float32(top * (1 - fy) + bot * fy))
+
+
 def get_test_tensors(device: Device, din: int = 5, dout: int = 8, N: int = 4):
     np.random.seed(0)
 
@@ -167,6 +205,76 @@ def test_existential_type_bug(device_type: DeviceType):
 
     program = device.load_program("test_existential_bug.slang", ["build_importance_map"])
     kernel = device.create_compute_kernel(program=program)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_sample_scalar(device_type: DeviceType):
+    """Test bilinear sampling on a Tensor<float, 2>."""
+    device = helpers.get_device(device_type)
+    func = get_func(device, "sample_tensor_scalar")
+
+    np.random.seed(42)
+    data = np.random.rand(8, 6).astype(np.float32)
+    tensor = Tensor.from_numpy(device, data)
+
+    test_uvs = [(0.25, 0.35), (0.5, 0.5), (0.1, 0.9), (0.0, 0.0), (0.75, 0.125)]
+    for u, v in test_uvs:
+        result = func(tensor, u, v)
+        expected = numpy_sample_scalar(data, u, v)
+        assert (
+            abs(float(result) - float(expected)) < 1e-5
+        ), f"Sample mismatch at uv=({u},{v}): got {result}, expected {expected}"
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_rwtensor_sample_scalar(device_type: DeviceType):
+    """Test bilinear sampling on an RWTensor<float, 2>."""
+    device = helpers.get_device(device_type)
+    func = get_func(device, "sample_rwtensor_scalar")
+
+    np.random.seed(42)
+    data = np.random.rand(8, 6).astype(np.float32)
+    tensor = Tensor.from_numpy(device, data)
+
+    u, v = 0.3, 0.4
+    result = func(tensor, u, v)
+    expected = numpy_sample_scalar(data, u, v)
+    assert abs(float(result) - float(expected)) < 1e-5
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.skip("TODO: DiffTensor sample")
+def test_difftensor_sample_scalar(device_type: DeviceType):
+    """Test bilinear sampling on a DiffTensor<float, 2>."""
+    device = helpers.get_device(device_type)
+    func = get_func(device, "sample_difftensor_scalar")
+
+    np.random.seed(42)
+    data = np.random.rand(8, 6).astype(np.float32)
+    tensor = Tensor.from_numpy(device, data)
+    tensor = tensor.with_grads(None, Tensor.empty_like(tensor))
+
+    u, v = 0.3, 0.4
+    result = func(tensor, u, v)
+    expected = numpy_sample_scalar(data, u, v)
+    assert abs(float(result) - float(expected)) < 1e-5
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.skip("TODO: DiffTensor sample")
+def test_primaltensor_sample_scalar(device_type: DeviceType):
+    """Test bilinear sampling on a PrimalTensor<float, 2>."""
+    device = helpers.get_device(device_type)
+    func = get_func(device, "sample_primaltensor_scalar")
+
+    np.random.seed(42)
+    data = np.random.rand(8, 6).astype(np.float32)
+    tensor = Tensor.from_numpy(device, data)
+
+    u, v = 0.3, 0.4
+    result = func(tensor, u, v)
+    expected = numpy_sample_scalar(data, u, v)
+    assert abs(float(result) - float(expected)) < 1e-5
 
 
 if __name__ == "__main__":
