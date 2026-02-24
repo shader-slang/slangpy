@@ -18,6 +18,7 @@
 #include "utils/slangpybuffer.h"
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpyfunction.h"
+#include "utils/slangpytorchtensor.h"
 #include "utils/torch_bridge.h"
 
 #include <fmt/format.h>
@@ -438,6 +439,66 @@ void NativeBoundCallRuntime::write_raw_dispatch_data(nb::dict call_data, nb::dic
             it->second->write_raw_dispatch_data(call_data, nb::cast<nb::object>(value));
         }
     }
+}
+
+nb::object NativeCallData::find_torch_tensors_recurse(nb::object arg, nb::list& pairs, size_t& access_idx)
+{
+    auto& bridge = TorchBridge::instance();
+
+    if (nb::isinstance<nb::dict>(arg)) {
+        nb::dict d = nb::cast<nb::dict>(arg);
+        nb::dict result;
+        for (auto [k, v] : d) {
+            result[k] = find_torch_tensors_recurse(nb::borrow<nb::object>(v), pairs, access_idx);
+        }
+        return result;
+    } else if (bridge.is_tensor(arg.ptr())) {
+        // Read access from pre-built list
+        if (access_idx >= m_autograd_access_list.size()) {
+            throw std::runtime_error(
+                "Autograd access list index out of bounds — "
+                "argument structure doesn't match build-time bindings."
+            );
+        }
+        AutogradAccess access = m_autograd_access_list[access_idx++];
+
+        if (access == AutogradAccess::readwrite) {
+            throw std::runtime_error("In-place operations not supported for torch autograd.");
+        }
+
+        bool is_input = (access == AutogradAccess::read);
+        int index = static_cast<int>(pairs.size());
+        auto pair = make_ref<NativeTorchTensorDiffPair>(std::move(arg), nb::none(), index, is_input);
+        nb::object pair_obj = nb::cast(pair);
+        pairs.append(pair_obj);
+        return pair_obj;
+    } else {
+        return arg;
+    }
+}
+
+nb::list NativeCallData::find_torch_tensors(nb::list args, nb::dict kwargs)
+{
+    nb::list pairs;
+    size_t access_idx = 0;
+
+    // Walk positional args
+    size_t num_args = nb::len(args);
+    for (size_t i = 0; i < num_args; i++) {
+        args[i] = find_torch_tensors_recurse(nb::borrow<nb::object>(args[i]), pairs, access_idx);
+    }
+
+    // Walk keyword args
+    // Use a snapshot of keys to safely iterate while modifying
+    nb::list keys(kwargs.keys());
+    size_t num_keys = nb::len(keys);
+    for (size_t i = 0; i < num_keys; i++) {
+        nb::object key = keys[i];
+        nb::object val = kwargs[key];
+        kwargs[key] = find_torch_tensors_recurse(val, pairs, access_idx);
+    }
+
+    return pairs;
 }
 
 nb::object NativeCallData::call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs)
@@ -1099,6 +1160,7 @@ SGL_PY_EXPORT(utils_slangpy)
     nb::sgl_enum<AccessType>(slangpy, "AccessType");
     nb::sgl_enum<CallMode>(slangpy, "CallMode");
     nb::sgl_enum<CallDataMode>(slangpy, "CallDataMode");
+    nb::sgl_enum<AutogradAccess>(slangpy, "AutogradAccess");
 
     slangpy.def(
         "unpack_args",
@@ -1509,6 +1571,19 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::set_needs_unpack,
             nb::arg(),
             D_NA(NativeCallData, needs_unpack)
+        )
+        .def_prop_rw(
+            "autograd_access_list",
+            &NativeCallData::autograd_access_list,
+            &NativeCallData::set_autograd_access_list,
+            D_NA(NativeCallData, autograd_access_list)
+        )
+        .def(
+            "find_torch_tensors",
+            &NativeCallData::find_torch_tensors,
+            nb::arg("args"),
+            nb::arg("kwargs"),
+            D_NA(NativeCallData, find_torch_tensors)
         )
 
         .def("log", &NativeCallData::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(Logger, log))

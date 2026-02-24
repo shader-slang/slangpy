@@ -49,9 +49,9 @@ WARMUPS = 10
 # =============================================================================
 
 RUN_PURE_TORCH_BENCHMARK = False
-RUN_SLANGTORCH_BENCHMARK = True
+RUN_SLANGTORCH_BENCHMARK = False
 RUN_SLANGPY_MANUAL_HOOK_BENCHMARK = True
-RUN_SLANGPY_AUTOMATIC_BENCHMARK = False
+RUN_SLANGPY_AUTOMATIC_BENCHMARK = True
 
 AUTOGRAD_TENSOR_SIZE = 32
 
@@ -245,7 +245,6 @@ def test_autograd_slangpy_automatic(
     def run() -> None:
         result = poly_func(a_val, b_val, c_val, x)
         result.backward(torch.ones_like(result))
-        x.grad.zero_()  # type: ignore[union-attr]
 
     benchmark_python_function(
         device,

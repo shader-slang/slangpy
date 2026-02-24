@@ -421,6 +421,14 @@ class CallData(NativeCallData):
             self.debug_only_bindings = bindings
             self.runtime = BoundCallRuntime(bindings)
 
+            # Build autograd access list at build time if autograd is enabled.
+            # This flat list records the access pattern (read/write) for each tensor
+            # in the order they appear during a recursive walk of args/kwargs.
+            # At dispatch time, find_torch_tensors (C++) steps through this list
+            # as it encounters tensors, avoiding Python reflection lookups.
+            if self.torch_autograd:
+                self._build_autograd_access_list(unpacked_args, unpacked_kwargs)
+
         except BoundVariableException as e:
             if bindings is not None:
                 ref = (
@@ -478,58 +486,55 @@ class CallData(NativeCallData):
             else:
                 raise
 
-    def find_torch_tensors(
-        self, args: list[Any], kwargs: dict[str, Any]
-    ) -> list[NativeTorchTensorDiffPair]:
+    def _build_autograd_access_list(self, args: list[Any], kwargs: dict[str, Any]) -> None:
         """
-        Find all torch tensors in args/kwargs, wrap them in NativeTorchTensorDiffPair,
-        and replace the tensors in args/kwargs with the pairs.
+        Walk args/kwargs in the same recursive order as find_torch_tensors,
+        and for each torch.Tensor encountered, compute the AutogradAccess from
+        the corresponding binding. Stores the result as a flat list on self
+        (NativeCallData.autograd_access_list).
 
-        :param args: Mutable list of positional arguments (will be modified in place).
-        :param kwargs: Mutable dict of keyword arguments (will be modified in place).
-        :return: List of NativeTorchTensorDiffPair for all found tensors.
+        This runs once at build time so that dispatch-time find_torch_tensors
+        (C++) can simply step through the list without Python reflection.
         """
-        pairs: list[Any] = []
-        for i, arg in enumerate(args):
-            args[i] = self._find_torch_tensors_recurse(arg, self.runtime.args[i], pairs)
-        for k, v in kwargs.items():
-            kwargs[k] = self._find_torch_tensors_recurse(v, self.runtime.kwargs[k], pairs)
-        return pairs
-
-    def _find_torch_tensors_recurse(
-        self, arg: Any, binding: Any, pairs: list[NativeTorchTensorDiffPair]
-    ) -> Any:
         import torch
 
-        if isinstance(arg, dict):
-            return {
-                k: self._find_torch_tensors_recurse(v, binding.children[k], pairs)
-                for k, v in arg.items()
-            }
-        elif isinstance(arg, torch.Tensor):
-            # Determine if this is an input or output based on access pattern
-            is_input = False
-            if isinstance(binding.vector_type, ITensorType):
-                if binding.vector_type.access == TensorAccess.read:
-                    is_input = True
-                elif binding.vector_type.access == TensorAccess.write:
-                    is_input = False
-                elif binding.vector_type.access == TensorAccess.read_write:
-                    raise ValueError("In-place operations not supported for torch autograd.")
-            else:
-                if binding.access[0] == AccessType.read:
-                    is_input = True
-                elif binding.access[0] == AccessType.write:
-                    is_input = False
-                elif binding.access[0] == AccessType.readwrite:
-                    raise ValueError("In-place operations not supported for torch autograd.")
+        from slangpy.core.native import AutogradAccess
 
-            # Create pair with index and is_input tracking
-            pair = NativeTorchTensorDiffPair(arg, None, index=len(pairs), is_input=is_input)
-            pairs.append(pair)
-            return pair
-        else:
-            return arg
+        access_list: list[AutogradAccess] = []
+
+        def _recurse(arg: Any, binding: Any) -> None:
+            if isinstance(arg, dict):
+                for k, v in arg.items():
+                    _recurse(v, binding.children[k])
+            elif isinstance(arg, torch.Tensor):
+                if isinstance(binding.vector_type, ITensorType):
+                    ta = binding.vector_type.access
+                    if ta == TensorAccess.read:
+                        access_list.append(AutogradAccess.read)
+                    elif ta == TensorAccess.write:
+                        access_list.append(AutogradAccess.write)
+                    elif ta == TensorAccess.read_write:
+                        access_list.append(AutogradAccess.readwrite)
+                    else:
+                        access_list.append(AutogradAccess.none)
+                else:
+                    a = binding.access[0]
+                    if a == AccessType.read:
+                        access_list.append(AutogradAccess.read)
+                    elif a == AccessType.write:
+                        access_list.append(AutogradAccess.write)
+                    elif a == AccessType.readwrite:
+                        access_list.append(AutogradAccess.readwrite)
+                    else:
+                        access_list.append(AutogradAccess.none)
+
+        for i, arg in enumerate(args):
+            _recurse(arg, self.runtime.args[i])
+        for k, v in kwargs.items():
+            if k in self.runtime.kwargs:
+                _recurse(v, self.runtime.kwargs[k])
+
+        self.autograd_access_list = access_list
 
 
 def torch_autograd_hook(

@@ -758,6 +758,22 @@ public:
     /// Set whether args need unpacking.
     void set_needs_unpack(bool needs_unpack) { m_needs_unpack = needs_unpack; }
 
+    /// Get the autograd access list.
+    /// This is a flat list of AutogradAccess values precomputed at build time.
+    /// At dispatch time, find_torch_tensors steps through this list as it encounters tensors.
+    const std::vector<AutogradAccess>& autograd_access_list() const { return m_autograd_access_list; }
+
+    /// Set the autograd access list.
+    void set_autograd_access_list(const std::vector<AutogradAccess>& list) { m_autograd_access_list = list; }
+
+    /// Find all torch tensors in args/kwargs, wrap them in NativeTorchTensorDiffPair,
+    /// and replace the tensors in args/kwargs with the pairs.
+    /// Uses the precomputed autograd_access_list to determine input/output roles.
+    /// @param args Mutable list of positional arguments (modified in place).
+    /// @param kwargs Mutable dict of keyword arguments (modified in place).
+    /// @return List of NativeTorchTensorDiffPair for all found tensors.
+    nb::list find_torch_tensors(nb::list args, nb::dict kwargs);
+
     /// Set the shape of call groups when a dispatch is made.
     void set_call_group_shape(std::optional<Shape> call_group_shape)
     {
@@ -835,7 +851,11 @@ private:
     bool m_torch_integration{false};
     bool m_torch_autograd{false};
     bool m_needs_unpack{true};
+    std::vector<AutogradAccess> m_autograd_access_list;
     mutable CallDataOffsets m_cached_call_data_offsets;
+
+    /// Recursive helper for find_torch_tensors.
+    nb::object find_torch_tensors_recurse(nb::object arg, nb::list& pairs, size_t& access_idx);
 
     nb::object
     exec(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
