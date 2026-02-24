@@ -163,7 +163,6 @@ class CallData(NativeCallData):
             from slangpy.torchintegration.detection import detect_torch_tensors
 
             has_torch, autograd = detect_torch_tensors(tuple(unpacked_args), dict(unpacked_kwargs))
-            autograd = False
             if has_torch:
                 import torch
                 import slangpy.torchintegration.torchtensormarshall  # type: ignore (Registers torch.Tensor handler)
