@@ -23,10 +23,10 @@ from torch import Tensor
 # ZCA pinv blocks for color correction [Blue, Red, Green, Neutral]
 # Matches ppisp/__init__.py and tests/torch_reference.py from OSS repo
 _COLOR_PINV_BLOCK_DIAG = torch.block_diag(
-    torch.tensor([[0.0480542, -0.0043631], [-0.0043631, 0.0481283]]),   # Blue
-    torch.tensor([[0.0580570, -0.0179872], [-0.0179872, 0.0431061]]),   # Red
-    torch.tensor([[0.0433336, -0.0180537], [-0.0180537, 0.0580500]]),   # Green
-    torch.tensor([[0.0128369, -0.0034654], [-0.0034654, 0.0128158]]),   # Neutral
+    torch.tensor([[0.0480542, -0.0043631], [-0.0043631, 0.0481283]]),  # Blue
+    torch.tensor([[0.0580570, -0.0179872], [-0.0179872, 0.0431061]]),  # Red
+    torch.tensor([[0.0433336, -0.0180537], [-0.0180537, 0.0580500]]),  # Green
+    torch.tensor([[0.0128369, -0.0034654], [-0.0034654, 0.0128158]]),  # Neutral
 ).to(torch.float32)
 
 NUM_VIGNETTING_ALPHA_TERMS = 3
@@ -34,6 +34,7 @@ CRF_PARAMS_PER_CHANNEL = 4
 
 
 # -- Helpers ------------------------------------------------------------------
+
 
 def _get_homography(color_params: Tensor, frame_idx: int) -> Tensor:
     """Compute color correction homography from latent params.
@@ -66,11 +67,13 @@ def _get_homography(color_params: Tensor, frame_idx: int) -> Tensor:
     T = torch.stack([t_b, t_r, t_g], dim=1)  # [3, 3]
 
     # Skew-symmetric matrix of t_gray
-    skew = torch.stack([
-        torch.stack([torch.zeros_like(t_gray[0]), -t_gray[2], t_gray[1]]),
-        torch.stack([t_gray[2], torch.zeros_like(t_gray[0]), -t_gray[0]]),
-        torch.stack([-t_gray[1], t_gray[0], torch.zeros_like(t_gray[0])]),
-    ])
+    skew = torch.stack(
+        [
+            torch.stack([torch.zeros_like(t_gray[0]), -t_gray[2], t_gray[1]]),
+            torch.stack([t_gray[2], torch.zeros_like(t_gray[0]), -t_gray[0]]),
+            torch.stack([-t_gray[1], t_gray[0], torch.zeros_like(t_gray[0])]),
+        ]
+    )
 
     M = skew @ T
 
@@ -84,13 +87,11 @@ def _get_homography(color_params: Tensor, frame_idx: int) -> Tensor:
     n02 = (lam02 * lam02).sum()
     n12 = (lam12 * lam12).sum()
 
-    lam = torch.where(n01 >= n02,
-                      torch.where(n01 >= n12, lam01, lam12),
-                      torch.where(n02 >= n12, lam02, lam12))
+    lam = torch.where(
+        n01 >= n02, torch.where(n01 >= n12, lam01, lam12), torch.where(n02 >= n12, lam02, lam12)
+    )
 
-    S_inv = torch.tensor([[-1.0, -1.0, 1.0],
-                           [1.0, 0.0, 0.0],
-                           [0.0, 1.0, 0.0]], device=device)
+    S_inv = torch.tensor([[-1.0, -1.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], device=device)
 
     D = torch.diag(lam)
     H = T @ D @ S_inv
@@ -99,6 +100,7 @@ def _get_homography(color_params: Tensor, frame_idx: int) -> Tensor:
 
 
 # -- Pipeline stages ----------------------------------------------------------
+
 
 def apply_exposure(rgb: Tensor, exposure_params: Tensor, frame_idx: int) -> Tensor:
     """Stage 1: Exposure compensation.  rgb * 2^offset."""
@@ -183,6 +185,7 @@ def apply_crf(
 
 # -- Full pipeline wrapper ----------------------------------------------------
 
+
 def ppisp_apply_torch(
     exposure_params: Tensor,
     vignetting_params: Tensor,
@@ -218,8 +221,9 @@ def ppisp_apply_torch(
         rgb = apply_exposure(rgb, exposure_params, frame_idx)
 
     if camera_idx != -1:
-        rgb = apply_vignetting(rgb, vignetting_params, pixel_coords,
-                               resolution_w, resolution_h, camera_idx)
+        rgb = apply_vignetting(
+            rgb, vignetting_params, pixel_coords, resolution_w, resolution_h, camera_idx
+        )
 
     if frame_idx != -1:
         rgb = apply_color_correction(rgb, color_params, frame_idx)
@@ -232,12 +236,18 @@ def ppisp_apply_torch(
 
 # -- nn.Module wrapper for benchmark convenience ------------------------------
 
+
 class PPISPPyTorch(nn.Module):
     """Complete 4-stage PPISP pipeline as nn.Module (matching OSS ppisp API)."""
 
-    def __init__(self, num_cameras: int, num_frames: int,
-                 resolution_w: int = 1920, resolution_h: int = 1080,
-                 device: torch.device | str = "cuda"):
+    def __init__(
+        self,
+        num_cameras: int,
+        num_frames: int,
+        resolution_w: int = 1920,
+        resolution_h: int = 1080,
+        device: torch.device | str = "cuda",
+    ):
         super().__init__()
         self.num_cameras = num_cameras
         self.num_frames = num_frames
@@ -246,23 +256,23 @@ class PPISPPyTorch(nn.Module):
 
         self.exposure_params = nn.Parameter(torch.zeros(num_frames, device=device))
         self.vignetting_params = nn.Parameter(
-            torch.zeros(num_cameras, 3, 2 + NUM_VIGNETTING_ALPHA_TERMS, device=device))
+            torch.zeros(num_cameras, 3, 2 + NUM_VIGNETTING_ALPHA_TERMS, device=device)
+        )
 
-        self.color_params = nn.Parameter(
-            torch.zeros(num_frames, 8, device=device))
+        self.color_params = nn.Parameter(torch.zeros(num_frames, 8, device=device))
 
         # CRF init matching OSS: softplus_inverse(1.0 - min_value) for toe/shoulder/gamma
         def _sp_inv(x: float, min_val: float) -> float:
             return float(torch.log(torch.expm1(torch.tensor(max(1e-5, x - min_val)))))
 
         crf_raw = torch.zeros(CRF_PARAMS_PER_CHANNEL, device=device)
-        crf_raw[0] = _sp_inv(1.0, 0.3)   # toe
-        crf_raw[1] = _sp_inv(1.0, 0.3)   # shoulder
-        crf_raw[2] = _sp_inv(1.0, 0.1)   # gamma
-        crf_raw[3] = 0.0                  # center -> sigmoid(0) = 0.5
+        crf_raw[0] = _sp_inv(1.0, 0.3)  # toe
+        crf_raw[1] = _sp_inv(1.0, 0.3)  # shoulder
+        crf_raw[2] = _sp_inv(1.0, 0.1)  # gamma
+        crf_raw[3] = 0.0  # center -> sigmoid(0) = 0.5
         self.crf_params = nn.Parameter(
-            crf_raw.view(1, 1, CRF_PARAMS_PER_CHANNEL)
-            .repeat(num_cameras, 3, 1).contiguous())
+            crf_raw.view(1, 1, CRF_PARAMS_PER_CHANNEL).repeat(num_cameras, 3, 1).contiguous()
+        )
 
     def forward(
         self,
@@ -272,9 +282,14 @@ class PPISPPyTorch(nn.Module):
         frame_idx: int = 0,
     ) -> Tensor:
         return ppisp_apply_torch(
-            self.exposure_params, self.vignetting_params,
-            self.color_params, self.crf_params,
-            rgb, pixel_coords,
-            self.resolution_w, self.resolution_h,
-            camera_idx, frame_idx,
+            self.exposure_params,
+            self.vignetting_params,
+            self.color_params,
+            self.crf_params,
+            rgb,
+            pixel_coords,
+            self.resolution_w,
+            self.resolution_h,
+            camera_idx,
+            frame_idx,
         )

@@ -56,15 +56,22 @@ def _skip_if_no_slangtorch() -> None:
 
 
 def create_test_data(
-    batch_size: int, num_cameras: int, num_frames: int,
-    resolution_w: int, resolution_h: int, device: torch.device,
+    batch_size: int,
+    num_cameras: int,
+    num_frames: int,
+    resolution_w: int,
+    resolution_h: int,
+    device: torch.device,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Create random test data matching the PPISP API."""
     rgb = torch.rand(batch_size, 3, device=device)
-    pixel_coords = torch.stack([
-        torch.rand(batch_size, device=device) * resolution_w,
-        torch.rand(batch_size, device=device) * resolution_h,
-    ], dim=-1)
+    pixel_coords = torch.stack(
+        [
+            torch.rand(batch_size, device=device) * resolution_w,
+            torch.rand(batch_size, device=device) * resolution_h,
+        ],
+        dim=-1,
+    )
     camera_idcs = torch.randint(0, num_cameras, (batch_size,), device=device, dtype=torch.int16)
     frame_idcs = torch.randint(0, num_frames, (batch_size,), device=device, dtype=torch.int32)
     return rgb, pixel_coords, camera_idcs, frame_idcs
@@ -94,8 +101,12 @@ def _create_models_with_shared_params(
 
     model_st = PPISPSlangtorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
     model_spy = PPISPSlangPy(
-        NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H,
-        torch_device, spy_device=spy_device,
+        NUM_CAMERAS,
+        NUM_FRAMES,
+        RESOLUTION_W,
+        RESOLUTION_H,
+        torch_device,
+        spy_device=spy_device,
     )
 
     # Copy params so all models use identical weights
@@ -109,6 +120,7 @@ def _create_models_with_shared_params(
 
     if include_pytorch:
         from slangpy.benchmarks.ppisp.ppisp_pytorch import PPISPPyTorch
+
         model_pt = PPISPPyTorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
         with torch.no_grad():
             model_pt.exposure_params.copy_(model_st.exposure_params)
@@ -120,8 +132,13 @@ def _create_models_with_shared_params(
     return models
 
 
-def _assert_close(a: torch.Tensor, b: torch.Tensor, msg: str,
-                   atol: float = CORRECTNESS_ATOL, rtol: float = CORRECTNESS_RTOL) -> None:
+def _assert_close(
+    a: torch.Tensor,
+    b: torch.Tensor,
+    msg: str,
+    atol: float = CORRECTNESS_ATOL,
+    rtol: float = CORRECTNESS_RTOL,
+) -> None:
     assert not torch.isnan(a).any(), f"{msg}: first tensor has NaN"
     assert not torch.isnan(b).any(), f"{msg}: second tensor has NaN"
     torch.testing.assert_close(a, b, atol=atol, rtol=rtol, msg=msg)
@@ -137,7 +154,8 @@ def test_ppisp_correctness_forward(include_pytorch: bool) -> None:
 
     torch.manual_seed(42)
     rgb, pixel_coords, _, _ = create_test_data(
-        CORRECTNESS_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        CORRECTNESS_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
+    )
 
     # Real PPISP processes one image at a time: all pixels share the same
     # camera/frame.  Slangtorch's loadUniform backward relies on warp-uniform
@@ -159,8 +177,13 @@ def test_ppisp_correctness_forward(include_pytorch: bool) -> None:
 
     if include_pytorch:
         out_pt = models["pytorch"](rgb, pixel_coords, camera_idx=cam, frame_idx=frm)
-        _assert_close(out_spy, out_pt, "Forward mismatch: slangpy vs pytorch",
-                       atol=CORRECTNESS_PYTORCH_ATOL, rtol=CORRECTNESS_PYTORCH_RTOL)
+        _assert_close(
+            out_spy,
+            out_pt,
+            "Forward mismatch: slangpy vs pytorch",
+            atol=CORRECTNESS_PYTORCH_ATOL,
+            rtol=CORRECTNESS_PYTORCH_RTOL,
+        )
 
 
 @pytest.mark.skip(reason="Correctness validated; enable manually when needed")
@@ -173,7 +196,8 @@ def test_ppisp_correctness_backward(include_pytorch: bool) -> None:
 
     torch.manual_seed(42)
     rgb, pixel_coords, _, _ = create_test_data(
-        CORRECTNESS_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        CORRECTNESS_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
+    )
 
     # Uniform indices — see comment in test_ppisp_correctness_forward.
     cam = 0 if include_pytorch else 2
@@ -207,14 +231,20 @@ def test_ppisp_correctness_backward(include_pytorch: bool) -> None:
 
     # Compare with pytorch (optional, looser tolerance for cross-implementation)
     if include_pytorch:
-        _assert_close(rgb_grads["slangpy"], rgb_grads["pytorch"], "rgb grad: slangpy vs pytorch",
-                       atol=CORRECTNESS_PYTORCH_ATOL, rtol=CORRECTNESS_PYTORCH_RTOL)
+        _assert_close(
+            rgb_grads["slangpy"],
+            rgb_grads["pytorch"],
+            "rgb grad: slangpy vs pytorch",
+            atol=CORRECTNESS_PYTORCH_ATOL,
+            rtol=CORRECTNESS_PYTORCH_RTOL,
+        )
         for param_name in ["exposure_params", "vignetting_params", "color_params", "crf_params"]:
             _assert_close(
                 getattr(models["slangpy"], param_name).grad,
                 getattr(models["pytorch"], param_name).grad,
                 f"{param_name} grad: slangpy vs pytorch",
-                atol=CORRECTNESS_PYTORCH_ATOL, rtol=CORRECTNESS_PYTORCH_RTOL,
+                atol=CORRECTNESS_PYTORCH_ATOL,
+                rtol=CORRECTNESS_PYTORCH_RTOL,
             )
 
 
@@ -236,7 +266,8 @@ def test_ppisp_forward_pytorch(
 
     model = PPISPPyTorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
     rgb, pixel_coords, _, _ = create_test_data(
-        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
+    )
 
     def run() -> None:
         with torch.no_grad():
@@ -244,9 +275,12 @@ def test_ppisp_forward_pytorch(
         torch.cuda.synchronize()
 
     benchmark_python_function(
-        device, run,
-        iterations=ITERATIONS, sub_iterations=SUB_ITERATIONS,
-        warmup_iterations=WARMUP_ITERATIONS, sleeps=True,
+        device,
+        run,
+        iterations=ITERATIONS,
+        sub_iterations=SUB_ITERATIONS,
+        warmup_iterations=WARMUP_ITERATIONS,
+        sleeps=True,
     )
 
 
@@ -262,11 +296,16 @@ def test_ppisp_forward_slangpy(
     from slangpy.benchmarks.ppisp.ppisp_slangpy import PPISPSlangPy
 
     model = PPISPSlangPy(
-        NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H,
-        torch_device, spy_device=device,
+        NUM_CAMERAS,
+        NUM_FRAMES,
+        RESOLUTION_W,
+        RESOLUTION_H,
+        torch_device,
+        spy_device=device,
     )
     rgb, pixel_coords, _, _ = create_test_data(
-        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
+    )
     # Uniform indices: real PPISP processes one image at a time (see correctness tests).
     camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
     frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
@@ -277,9 +316,12 @@ def test_ppisp_forward_slangpy(
         torch.cuda.synchronize()
 
     benchmark_python_function(
-        device, run,
-        iterations=ITERATIONS, sub_iterations=SUB_ITERATIONS,
-        warmup_iterations=WARMUP_ITERATIONS, sleeps=True,
+        device,
+        run,
+        iterations=ITERATIONS,
+        sub_iterations=SUB_ITERATIONS,
+        warmup_iterations=WARMUP_ITERATIONS,
+        sleeps=True,
     )
 
 
@@ -296,7 +338,8 @@ def test_ppisp_forward_slangtorch(
 
     model = PPISPSlangtorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
     rgb, pixel_coords, _, _ = create_test_data(
-        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
+    )
     # Uniform indices: real PPISP processes one image at a time (see correctness tests).
     camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
     frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
@@ -307,9 +350,12 @@ def test_ppisp_forward_slangtorch(
         torch.cuda.synchronize()
 
     benchmark_python_function(
-        device, run,
-        iterations=ITERATIONS, sub_iterations=SUB_ITERATIONS,
-        warmup_iterations=WARMUP_ITERATIONS, sleeps=True,
+        device,
+        run,
+        iterations=ITERATIONS,
+        sub_iterations=SUB_ITERATIONS,
+        warmup_iterations=WARMUP_ITERATIONS,
+        sleeps=True,
     )
 
 
@@ -331,7 +377,8 @@ def test_ppisp_backward_pytorch(
 
     model = PPISPPyTorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
     rgb, pixel_coords, _, _ = create_test_data(
-        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
+    )
 
     def run() -> None:
         rgb_copy = rgb.clone().requires_grad_(True)
@@ -340,9 +387,12 @@ def test_ppisp_backward_pytorch(
         torch.cuda.synchronize()
 
     benchmark_python_function(
-        device, run,
-        iterations=ITERATIONS, sub_iterations=SUB_ITERATIONS,
-        warmup_iterations=WARMUP_ITERATIONS, sleeps=True,
+        device,
+        run,
+        iterations=ITERATIONS,
+        sub_iterations=SUB_ITERATIONS,
+        warmup_iterations=WARMUP_ITERATIONS,
+        sleeps=True,
     )
 
 
@@ -358,11 +408,16 @@ def test_ppisp_backward_slangpy(
     from slangpy.benchmarks.ppisp.ppisp_slangpy import PPISPSlangPy
 
     model = PPISPSlangPy(
-        NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H,
-        torch_device, spy_device=device,
+        NUM_CAMERAS,
+        NUM_FRAMES,
+        RESOLUTION_W,
+        RESOLUTION_H,
+        torch_device,
+        spy_device=device,
     )
     rgb, pixel_coords, _, _ = create_test_data(
-        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
+    )
     # Uniform indices: real PPISP processes one image at a time (see correctness tests).
     camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
     frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
@@ -374,9 +429,12 @@ def test_ppisp_backward_slangpy(
         torch.cuda.synchronize()
 
     benchmark_python_function(
-        device, run,
-        iterations=ITERATIONS, sub_iterations=SUB_ITERATIONS,
-        warmup_iterations=WARMUP_ITERATIONS, sleeps=True,
+        device,
+        run,
+        iterations=ITERATIONS,
+        sub_iterations=SUB_ITERATIONS,
+        warmup_iterations=WARMUP_ITERATIONS,
+        sleeps=True,
     )
 
 
@@ -393,7 +451,8 @@ def test_ppisp_backward_slangtorch(
 
     model = PPISPSlangtorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
     rgb, pixel_coords, _, _ = create_test_data(
-        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
+    )
     # Uniform indices: real PPISP processes one image at a time (see correctness tests).
     camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
     frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
@@ -405,9 +464,12 @@ def test_ppisp_backward_slangtorch(
         torch.cuda.synchronize()
 
     benchmark_python_function(
-        device, run,
-        iterations=ITERATIONS, sub_iterations=SUB_ITERATIONS,
-        warmup_iterations=WARMUP_ITERATIONS, sleeps=True,
+        device,
+        run,
+        iterations=ITERATIONS,
+        sub_iterations=SUB_ITERATIONS,
+        warmup_iterations=WARMUP_ITERATIONS,
+        sleeps=True,
     )
 
 
@@ -454,12 +516,16 @@ def test_ppisp_backward_slangpy_manual_hook(
         ) -> torch.Tensor:
             # Detach all to avoid triggering SlangPy's automatic autograd
             ctx.save_for_backward(
-                rgb.detach(), exposure.detach(), vignetting.detach(),
-                color.detach(), crf.detach(),
+                rgb.detach(),
+                exposure.detach(),
+                vignetting.detach(),
+                color.detach(),
+                crf.detach(),
             )
             result = func(
                 batch_size=rgb.shape[0],
-                num_cameras=NUM_CAMERAS, num_frames=NUM_FRAMES,
+                num_cameras=NUM_CAMERAS,
+                num_frames=NUM_FRAMES,
                 exposure_params=exposure.detach(),
                 vignetting_params=vignetting.detach(),
                 color_params=color.detach(),
@@ -475,12 +541,15 @@ def test_ppisp_backward_slangpy_manual_hook(
 
         @staticmethod
         def backward(
-            ctx: Any, grad_output: torch.Tensor,
+            ctx: Any,
+            grad_output: torch.Tensor,
         ) -> tuple[Optional[torch.Tensor], ...]:
             rgb, exposure, vignetting, color, crf = ctx.saved_tensors
             # Build diff pairs: (primal, grad_buffer, index, is_input)
             exposure_pair = NativeTorchTensorDiffPair(exposure, torch.zeros_like(exposure), 0, True)
-            vignetting_pair = NativeTorchTensorDiffPair(vignetting, torch.zeros_like(vignetting), 1, True)
+            vignetting_pair = NativeTorchTensorDiffPair(
+                vignetting, torch.zeros_like(vignetting), 1, True
+            )
             color_pair = NativeTorchTensorDiffPair(color, torch.zeros_like(color), 2, True)
             crf_pair = NativeTorchTensorDiffPair(crf, torch.zeros_like(crf), 3, True)
             rgb_pair = NativeTorchTensorDiffPair(rgb, torch.zeros_like(rgb), 4, True)
@@ -488,7 +557,8 @@ def test_ppisp_backward_slangpy_manual_hook(
 
             func.bwds(
                 batch_size=rgb.shape[0],
-                num_cameras=NUM_CAMERAS, num_frames=NUM_FRAMES,
+                num_cameras=NUM_CAMERAS,
+                num_frames=NUM_FRAMES,
                 exposure_params=exposure_pair,
                 vignetting_params=vignetting_pair,
                 color_params=color_pair,
@@ -501,23 +571,37 @@ def test_ppisp_backward_slangpy_manual_hook(
                 resolution_h=float(RESOLUTION_H),
                 _result=result_pair,
             )
-            return rgb_pair.grad, exposure_pair.grad, vignetting_pair.grad, color_pair.grad, crf_pair.grad
+            return (
+                rgb_pair.grad,
+                exposure_pair.grad,
+                vignetting_pair.grad,
+                color_pair.grad,
+                crf_pair.grad,
+            )
 
     rgb, pixel_coords, _, _ = create_test_data(
-        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
+    )
 
     def run() -> None:
         rgb_copy = rgb.clone().requires_grad_(True)
         output = PPISPManualHook.apply(
-            rgb_copy, exposure_params, vignetting_params, color_params, crf_params,
+            rgb_copy,
+            exposure_params,
+            vignetting_params,
+            color_params,
+            crf_params,
         )
         output.sum().backward()
         torch.cuda.synchronize()
 
     benchmark_python_function(
-        device, run,
-        iterations=ITERATIONS, sub_iterations=SUB_ITERATIONS,
-        warmup_iterations=WARMUP_ITERATIONS, sleeps=True,
+        device,
+        run,
+        iterations=ITERATIONS,
+        sub_iterations=SUB_ITERATIONS,
+        warmup_iterations=WARMUP_ITERATIONS,
+        sleeps=True,
     )
 
 
@@ -546,11 +630,16 @@ def test_ppisp_cpu_overhead_slangpy(
     from slangpy.benchmarks.ppisp.ppisp_slangpy import PPISPSlangPy
 
     model = PPISPSlangPy(
-        NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H,
-        torch_device, spy_device=device,
+        NUM_CAMERAS,
+        NUM_FRAMES,
+        RESOLUTION_W,
+        RESOLUTION_H,
+        torch_device,
+        spy_device=device,
     )
     rgb, pixel_coords, _, _ = create_test_data(
-        CPU_OVERHEAD_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        CPU_OVERHEAD_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
+    )
     camera_idcs = torch.zeros(CPU_OVERHEAD_BATCH, device=torch_device, dtype=torch.int16)
     frame_idcs = torch.zeros(CPU_OVERHEAD_BATCH, device=torch_device, dtype=torch.int32)
 
@@ -568,9 +657,12 @@ def test_ppisp_cpu_overhead_slangpy(
         # NO torch.cuda.synchronize() — measure CPU dispatch only
 
     benchmark_python_function(
-        device, run,
-        iterations=CPU_OVERHEAD_ITERATIONS, sub_iterations=CPU_OVERHEAD_SUB_ITERATIONS,
-        warmup_iterations=CPU_OVERHEAD_WARMUPS, sleeps=True,
+        device,
+        run,
+        iterations=CPU_OVERHEAD_ITERATIONS,
+        sub_iterations=CPU_OVERHEAD_SUB_ITERATIONS,
+        warmup_iterations=CPU_OVERHEAD_WARMUPS,
+        sleeps=True,
     )
 
 
@@ -586,7 +678,8 @@ def test_ppisp_cpu_overhead_slangtorch(
 
     model = PPISPSlangtorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
     rgb, pixel_coords, _, _ = create_test_data(
-        CPU_OVERHEAD_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+        CPU_OVERHEAD_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
+    )
     camera_idcs = torch.zeros(CPU_OVERHEAD_BATCH, device=torch_device, dtype=torch.int16)
     frame_idcs = torch.zeros(CPU_OVERHEAD_BATCH, device=torch_device, dtype=torch.int32)
 
@@ -604,9 +697,12 @@ def test_ppisp_cpu_overhead_slangtorch(
         # NO torch.cuda.synchronize() — measure CPU dispatch only
 
     benchmark_python_function(
-        device, run,
-        iterations=CPU_OVERHEAD_ITERATIONS, sub_iterations=CPU_OVERHEAD_SUB_ITERATIONS,
-        warmup_iterations=CPU_OVERHEAD_WARMUPS, sleeps=True,
+        device,
+        run,
+        iterations=CPU_OVERHEAD_ITERATIONS,
+        sub_iterations=CPU_OVERHEAD_SUB_ITERATIONS,
+        warmup_iterations=CPU_OVERHEAD_WARMUPS,
+        sleeps=True,
     )
 
 
@@ -617,6 +713,7 @@ def test_ppisp_cpu_overhead_slangtorch(
 # command buffer for precise kernel-only timing. No CPU overhead measured.
 # Not applicable to slangtorch (uses direct CUDA launch, not command buffer).
 # =============================================================================
+
 
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
 def test_ppisp_gpu_forward_slangpy(
@@ -635,10 +732,13 @@ def test_ppisp_gpu_forward_slangpy(
     func = module.ppisp
 
     rgb = torch.rand(batch_size, 3, device=torch_device)
-    pixel_coords = torch.stack([
-        torch.rand(batch_size, device=torch_device) * RESOLUTION_W,
-        torch.rand(batch_size, device=torch_device) * RESOLUTION_H,
-    ], dim=-1)
+    pixel_coords = torch.stack(
+        [
+            torch.rand(batch_size, device=torch_device) * RESOLUTION_W,
+            torch.rand(batch_size, device=torch_device) * RESOLUTION_H,
+        ],
+        dim=-1,
+    )
     camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
     frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
 
@@ -653,7 +753,8 @@ def test_ppisp_gpu_forward_slangpy(
     result = torch.empty(batch_size, 3, device=torch_device)
 
     benchmark_slang_function(
-        device, func,
+        device,
+        func,
         batch_size=batch_size,
         num_cameras=NUM_CAMERAS,
         num_frames=NUM_FRAMES,
@@ -689,10 +790,13 @@ def test_ppisp_gpu_backward_slangpy(
     func = module.ppisp
 
     rgb = torch.rand(batch_size, 3, device=torch_device)
-    pixel_coords = torch.stack([
-        torch.rand(batch_size, device=torch_device) * RESOLUTION_W,
-        torch.rand(batch_size, device=torch_device) * RESOLUTION_H,
-    ], dim=-1)
+    pixel_coords = torch.stack(
+        [
+            torch.rand(batch_size, device=torch_device) * RESOLUTION_W,
+            torch.rand(batch_size, device=torch_device) * RESOLUTION_H,
+        ],
+        dim=-1,
+    )
     camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
     frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
 
@@ -702,8 +806,12 @@ def test_ppisp_gpu_backward_slangpy(
     color_params = torch.zeros(NUM_FRAMES, 8, device=torch_device)
     crf_params = torch.zeros(NUM_CAMERAS, 3, 4, device=torch_device)
 
-    exposure_pair = NativeTorchTensorDiffPair(exposure_params, torch.zeros_like(exposure_params), 0, True)
-    vignetting_pair = NativeTorchTensorDiffPair(vignetting_params, torch.zeros_like(vignetting_params), 1, True)
+    exposure_pair = NativeTorchTensorDiffPair(
+        exposure_params, torch.zeros_like(exposure_params), 0, True
+    )
+    vignetting_pair = NativeTorchTensorDiffPair(
+        vignetting_params, torch.zeros_like(vignetting_params), 1, True
+    )
     color_pair = NativeTorchTensorDiffPair(color_params, torch.zeros_like(color_params), 2, True)
     crf_pair = NativeTorchTensorDiffPair(crf_params, torch.zeros_like(crf_params), 3, True)
     rgb_pair = NativeTorchTensorDiffPair(rgb, torch.zeros_like(rgb), 4, True)
@@ -713,7 +821,8 @@ def test_ppisp_gpu_backward_slangpy(
     result_pair = NativeTorchTensorDiffPair(None, result_grad, 5, False)
 
     benchmark_slang_function(
-        device, func.bwds,
+        device,
+        func.bwds,
         batch_size=batch_size,
         num_cameras=NUM_CAMERAS,
         num_frames=NUM_FRAMES,

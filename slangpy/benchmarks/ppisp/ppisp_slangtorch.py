@@ -45,10 +45,19 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
-        batch_size, num_cameras, num_frames,
-        exposure_params, vignetting_params, color_params, crf_params,
-        rgb, pixel_coords, camera_idcs, frame_idcs,
-        resolution_w, resolution_h,
+        batch_size,
+        num_cameras,
+        num_frames,
+        exposure_params,
+        vignetting_params,
+        color_params,
+        crf_params,
+        rgb,
+        pixel_coords,
+        camera_idcs,
+        frame_idcs,
+        resolution_w,
+        resolution_h,
     ):
         module = _get_slang_module()
         rgb_out = torch.empty_like(rgb)
@@ -70,7 +79,9 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
             resolution_h=float(resolution_h),
         ).launchRaw(blockSize=(32, 1, 1), gridSize=(div_up(batch_size, 32), 1, 1))
 
-        ctx.save_for_backward(exposure_params, vignetting_params, color_params, crf_params, rgb, rgb_out)
+        ctx.save_for_backward(
+            exposure_params, vignetting_params, color_params, crf_params, rgb, rgb_out
+        )
         ctx.batch_size = batch_size
         ctx.num_cameras = num_cameras
         ctx.num_frames = num_frames
@@ -84,7 +95,9 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        (exposure_params, vignetting_params, color_params, crf_params, rgb, rgb_out) = ctx.saved_tensors
+        (exposure_params, vignetting_params, color_params, crf_params, rgb, rgb_out) = (
+            ctx.saved_tensors
+        )
 
         grad_exposure = torch.zeros_like(exposure_params)
         grad_vignetting = torch.zeros_like(vignetting_params)
@@ -113,20 +126,33 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
         ).launchRaw(blockSize=(32, 1, 1), gridSize=(div_up(ctx.batch_size, 32), 1, 1))
 
         return (
-            None, None, None,  # batch_size, num_cameras, num_frames
-            grad_exposure, grad_vignetting, grad_color, grad_crf,
+            None,
+            None,
+            None,  # batch_size, num_cameras, num_frames
+            grad_exposure,
+            grad_vignetting,
+            grad_color,
+            grad_crf,
             grad_rgb_in,
-            None, None, None,  # pixel_coords, camera_idcs, frame_idcs
-            None, None,  # resolution_w, resolution_h
+            None,
+            None,
+            None,  # pixel_coords, camera_idcs, frame_idcs
+            None,
+            None,  # resolution_w, resolution_h
         )
 
 
 class PPISPSlangtorch(nn.Module):
     """PPISP pipeline using slangtorch backend."""
 
-    def __init__(self, num_cameras: int, num_frames: int,
-                 resolution_w: int = 1920, resolution_h: int = 1080,
-                 device: torch.device | str = "cuda"):
+    def __init__(
+        self,
+        num_cameras: int,
+        num_frames: int,
+        resolution_w: int = 1920,
+        resolution_h: int = 1080,
+        device: torch.device | str = "cuda",
+    ):
         super().__init__()
         self.num_cameras = num_cameras
         self.num_frames = num_frames
@@ -145,18 +171,29 @@ class PPISPSlangtorch(nn.Module):
         crf_raw[1] = _sp_inv(1.0, 0.3)
         crf_raw[2] = _sp_inv(1.0, 0.1)
         crf_raw[3] = 0.0
-        self.crf_params = nn.Parameter(
-            crf_raw.view(1, 1, 4).repeat(num_cameras, 3, 1).contiguous())
+        self.crf_params = nn.Parameter(crf_raw.view(1, 1, 4).repeat(num_cameras, 3, 1).contiguous())
 
         self.to(device)
 
-    def forward(self, rgb: torch.Tensor, pixel_coords: torch.Tensor,
-                camera_idcs: torch.Tensor, frame_idcs: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        rgb: torch.Tensor,
+        pixel_coords: torch.Tensor,
+        camera_idcs: torch.Tensor,
+        frame_idcs: torch.Tensor,
+    ) -> torch.Tensor:
         return PPISPSlangtorchFunction.apply(
-            rgb.shape[0], self.num_cameras, self.num_frames,
-            self.exposure_params, self.vignetting_params,
-            self.color_params, self.crf_params,
-            rgb, pixel_coords,
-            camera_idcs, frame_idcs,
-            self.resolution_w, self.resolution_h,
+            rgb.shape[0],
+            self.num_cameras,
+            self.num_frames,
+            self.exposure_params,
+            self.vignetting_params,
+            self.color_params,
+            self.crf_params,
+            rgb,
+            pixel_coords,
+            camera_idcs,
+            frame_idcs,
+            self.resolution_w,
+            self.resolution_h,
         )

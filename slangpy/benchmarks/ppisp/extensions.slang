@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 // DiffTensorView extensions for slangtorch.
 // Provides loadUniform, loadVecUniform, loadVecOnce, storeVecOnce helpers
 // with correct wave-level gradient reductions for uniform (broadcast) loads.

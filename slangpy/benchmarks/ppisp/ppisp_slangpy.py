@@ -53,10 +53,12 @@ def _get_slang_module(spy_device: Optional["spy.Device"] = None):  # noqa: F821
         )
 
     # Pass defines via a custom slang session (create_torch_device doesn't accept compiler_options)
-    session = spy_device.create_slang_session({
-        "include_paths": spy_device.slang_session.desc.compiler_options.include_paths,
-        "defines": PPISP_DEFINES,
-    })
+    session = spy_device.create_slang_session(
+        {
+            "include_paths": spy_device.slang_session.desc.compiler_options.include_paths,
+            "defines": PPISP_DEFINES,
+        }
+    )
     raw_module = session.load_module(slang_path)
     _slang_module = spy.Module(raw_module)
     return _slang_module
@@ -100,10 +102,15 @@ class PPISPSlangPy(nn.Module):
     Per-pixel inputs are auto-vectorized by SlangPy for batch dispatch.
     """
 
-    def __init__(self, num_cameras: int, num_frames: int,
-                 resolution_w: int = 1920, resolution_h: int = 1080,
-                 device: torch.device | str = "cuda",
-                 spy_device: Optional["spy.Device"] = None):  # noqa: F821
+    def __init__(
+        self,
+        num_cameras: int,
+        num_frames: int,
+        resolution_w: int = 1920,
+        resolution_h: int = 1080,
+        device: torch.device | str = "cuda",
+        spy_device: Optional["spy.Device"] = None,
+    ):  # noqa: F821
         super().__init__()
         self.num_cameras = num_cameras
         self.num_frames = num_frames
@@ -123,13 +130,17 @@ class PPISPSlangPy(nn.Module):
         crf_raw[1] = _sp_inv(1.0, 0.3)
         crf_raw[2] = _sp_inv(1.0, 0.1)
         crf_raw[3] = 0.0
-        self.crf_params = nn.Parameter(
-            crf_raw.view(1, 1, 4).repeat(num_cameras, 3, 1).contiguous())
+        self.crf_params = nn.Parameter(crf_raw.view(1, 1, 4).repeat(num_cameras, 3, 1).contiguous())
 
         _warmup(device, spy_device)
 
-    def forward(self, rgb: torch.Tensor, pixel_coords: torch.Tensor,
-                camera_idcs: torch.Tensor, frame_idcs: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        rgb: torch.Tensor,
+        pixel_coords: torch.Tensor,
+        camera_idcs: torch.Tensor,
+        frame_idcs: torch.Tensor,
+    ) -> torch.Tensor:
         module = _get_slang_module()
         # Pass all differentiable tensors directly (with requires_grad intact).
         # SlangPy's TorchAutoGradHook handles autograd for DiffTensorView

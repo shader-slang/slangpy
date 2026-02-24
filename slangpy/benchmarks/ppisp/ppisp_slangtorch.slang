@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 // Slangtorch implementation of PPISP pipeline.
 // Based on github.com/nv-tlabs/ppisp (Apache 2.0).
 //
