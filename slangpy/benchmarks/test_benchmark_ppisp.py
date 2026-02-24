@@ -13,7 +13,7 @@ import pytest
 
 import slangpy as spy
 from slangpy.testing import helpers
-from slangpy.testing.benchmark import BenchmarkPythonFunction
+from slangpy.testing.benchmark import BenchmarkPythonFunction, BenchmarkSlangFunction
 
 HAS_TORCH = False
 try:
@@ -36,6 +36,7 @@ NUM_CAMERAS = 6
 NUM_FRAMES = 200
 RESOLUTION_W = 1920
 RESOLUTION_H = 1080
+BATCH_SIZES = [100_000, 1_000_000]
 
 # Fixture parameters: 10 outer × 100 inner = 1000 total timed calls
 ITERATIONS = 10
@@ -222,7 +223,7 @@ def test_ppisp_correctness_backward(include_pytorch: bool) -> None:
 # =============================================================================
 
 
-@pytest.mark.parametrize("batch_size", [100_000, 1_000_000])
+@pytest.mark.parametrize("batch_size", BATCH_SIZES)
 def test_ppisp_forward_pytorch(
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
@@ -249,7 +250,7 @@ def test_ppisp_forward_pytorch(
     )
 
 
-@pytest.mark.parametrize("batch_size", [100_000, 1_000_000])
+@pytest.mark.parametrize("batch_size", BATCH_SIZES)
 def test_ppisp_forward_slangpy(
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
@@ -282,7 +283,7 @@ def test_ppisp_forward_slangpy(
     )
 
 
-@pytest.mark.parametrize("batch_size", [100_000, 1_000_000])
+@pytest.mark.parametrize("batch_size", BATCH_SIZES)
 def test_ppisp_forward_slangtorch(
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
@@ -317,7 +318,7 @@ def test_ppisp_forward_slangtorch(
 # =============================================================================
 
 
-@pytest.mark.parametrize("batch_size", [100_000, 1_000_000])
+@pytest.mark.parametrize("batch_size", BATCH_SIZES)
 def test_ppisp_backward_pytorch(
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
@@ -345,7 +346,7 @@ def test_ppisp_backward_pytorch(
     )
 
 
-@pytest.mark.parametrize("batch_size", [100_000, 1_000_000])
+@pytest.mark.parametrize("batch_size", BATCH_SIZES)
 def test_ppisp_backward_slangpy(
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
@@ -379,7 +380,7 @@ def test_ppisp_backward_slangpy(
     )
 
 
-@pytest.mark.parametrize("batch_size", [100_000, 1_000_000])
+@pytest.mark.parametrize("batch_size", BATCH_SIZES)
 def test_ppisp_backward_slangtorch(
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
@@ -407,6 +408,216 @@ def test_ppisp_backward_slangtorch(
         device, run,
         iterations=ITERATIONS, sub_iterations=SUB_ITERATIONS,
         warmup_iterations=WARMUP_ITERATIONS, sleeps=True,
+    )
+
+
+# =============================================================================
+# CPU dispatch overhead benchmarks (tiny batch, no GPU sync, high sub-iterations)
+#
+# Measures pure Python→GPU dispatch overhead by making GPU kernel time negligible
+# (batch_size=32) and removing torch.cuda.synchronize(). The measured time is
+# dominated by argument marshalling, CallData cache lookup, and dispatch.
+# =============================================================================
+
+CPU_OVERHEAD_BATCH = 32
+CPU_OVERHEAD_ITERATIONS = 10
+CPU_OVERHEAD_SUB_ITERATIONS = 20000
+CPU_OVERHEAD_WARMUPS = 10
+
+
+def test_ppisp_cpu_overhead_slangpy(
+    benchmark_python_function: BenchmarkPythonFunction,
+) -> None:
+    """Measure SlangPy CPU dispatch overhead for PPISP (forward + backward)."""
+    _skip_if_no_torch()
+    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    torch_device = torch.device("cuda")
+
+    from slangpy.benchmarks.ppisp.ppisp_slangpy import PPISPSlangPy
+
+    model = PPISPSlangPy(
+        NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H,
+        torch_device, spy_device=device,
+    )
+    rgb, pixel_coords, _, _ = create_test_data(
+        CPU_OVERHEAD_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+    camera_idcs = torch.zeros(CPU_OVERHEAD_BATCH, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.zeros(CPU_OVERHEAD_BATCH, device=torch_device, dtype=torch.int32)
+
+    rgb = rgb.requires_grad_(True)
+
+    # Warmup to populate grad tensors
+    out = model(rgb, pixel_coords, camera_idcs, frame_idcs)
+    out.sum().backward()
+
+    def run() -> None:
+        model.zero_grad()
+        rgb.grad.zero_()  # type: ignore[union-attr]
+        output = model(rgb, pixel_coords, camera_idcs, frame_idcs)
+        output.sum().backward()
+        # NO torch.cuda.synchronize() — measure CPU dispatch only
+
+    benchmark_python_function(
+        device, run,
+        iterations=CPU_OVERHEAD_ITERATIONS, sub_iterations=CPU_OVERHEAD_SUB_ITERATIONS,
+        warmup_iterations=CPU_OVERHEAD_WARMUPS, sleeps=True,
+    )
+
+
+def test_ppisp_cpu_overhead_slangtorch(
+    benchmark_python_function: BenchmarkPythonFunction,
+) -> None:
+    """Measure slangtorch CPU dispatch overhead for PPISP (forward + backward)."""
+    _skip_if_no_slangtorch()
+    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    torch_device = torch.device("cuda")
+
+    from slangpy.benchmarks.ppisp.ppisp_slangtorch import PPISPSlangtorch
+
+    model = PPISPSlangtorch(NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+    rgb, pixel_coords, _, _ = create_test_data(
+        CPU_OVERHEAD_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+    camera_idcs = torch.zeros(CPU_OVERHEAD_BATCH, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.zeros(CPU_OVERHEAD_BATCH, device=torch_device, dtype=torch.int32)
+
+    rgb = rgb.requires_grad_(True)
+
+    # Warmup to populate grad tensors
+    out = model(rgb, pixel_coords, camera_idcs, frame_idcs)
+    out.sum().backward()
+
+    def run() -> None:
+        model.zero_grad()
+        rgb.grad.zero_()  # type: ignore[union-attr]
+        output = model(rgb, pixel_coords, camera_idcs, frame_idcs)
+        output.sum().backward()
+        # NO torch.cuda.synchronize() — measure CPU dispatch only
+
+    benchmark_python_function(
+        device, run,
+        iterations=CPU_OVERHEAD_ITERATIONS, sub_iterations=CPU_OVERHEAD_SUB_ITERATIONS,
+        warmup_iterations=CPU_OVERHEAD_WARMUPS, sleeps=True,
+    )
+
+
+# =============================================================================
+# GPU-timed benchmarks (SlangPy only, hardware timestamp queries)
+#
+# Uses benchmark_slang_function fixture with GPU timestamp queries on the
+# command buffer for precise kernel-only timing. No CPU overhead measured.
+# Not applicable to slangtorch (uses direct CUDA launch, not command buffer).
+# =============================================================================
+
+@pytest.mark.parametrize("batch_size", BATCH_SIZES)
+def test_ppisp_gpu_forward_slangpy(
+    batch_size: int,
+    benchmark_slang_function: BenchmarkSlangFunction,
+) -> None:
+    """GPU-timed SlangPy PPISP forward pass (timestamp queries, no CPU overhead)."""
+    _skip_if_no_torch()
+    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    torch_device = torch.device("cuda")
+
+    from slangpy.benchmarks.ppisp.ppisp_slangpy import _get_slang_module, _warmup
+
+    _warmup(torch_device, device)
+    module = _get_slang_module(device)
+    func = module.ppisp
+
+    rgb = torch.rand(batch_size, 3, device=torch_device)
+    pixel_coords = torch.stack([
+        torch.rand(batch_size, device=torch_device) * RESOLUTION_W,
+        torch.rand(batch_size, device=torch_device) * RESOLUTION_H,
+    ], dim=-1)
+    camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
+
+    # ISP parameters (same shapes as PPISPSlangPy model)
+    exposure_params = torch.zeros(NUM_FRAMES, device=torch_device)
+    vignetting_params = torch.zeros(NUM_CAMERAS, 3, 5, device=torch_device)
+    color_params = torch.zeros(NUM_FRAMES, 8, device=torch_device)
+    crf_params = torch.zeros(NUM_CAMERAS, 3, 4, device=torch_device)
+
+    # Pre-allocate _result: required for _append_to (command encoder) path.
+    # Unlike immediate dispatch, _append_to does NOT auto-allocate _result.
+    result = torch.empty(batch_size, 3, device=torch_device)
+
+    benchmark_slang_function(
+        device, func,
+        batch_size=batch_size,
+        num_cameras=NUM_CAMERAS,
+        num_frames=NUM_FRAMES,
+        exposure_params=exposure_params,
+        vignetting_params=vignetting_params,
+        color_params=color_params,
+        crf_params=crf_params,
+        rgb_pixel=rgb,
+        pixel_coord=pixel_coords,
+        camera_idx=camera_idcs,
+        frame_idx=frame_idcs,
+        resolution_w=float(RESOLUTION_W),
+        resolution_h=float(RESOLUTION_H),
+        _result=result,
+    )
+
+
+@pytest.mark.parametrize("batch_size", BATCH_SIZES)
+def test_ppisp_gpu_backward_slangpy(
+    batch_size: int,
+    benchmark_slang_function: BenchmarkSlangFunction,
+) -> None:
+    """GPU-timed SlangPy PPISP backward pass (timestamp queries, no CPU overhead)."""
+    _skip_if_no_torch()
+    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    torch_device = torch.device("cuda")
+
+    from slangpy.benchmarks.ppisp.ppisp_slangpy import _get_slang_module, _warmup
+    from slangpy.core.native import NativeTorchTensorDiffPair
+
+    _warmup(torch_device, device)
+    module = _get_slang_module(device)
+    func = module.ppisp
+
+    rgb = torch.rand(batch_size, 3, device=torch_device)
+    pixel_coords = torch.stack([
+        torch.rand(batch_size, device=torch_device) * RESOLUTION_W,
+        torch.rand(batch_size, device=torch_device) * RESOLUTION_H,
+    ], dim=-1)
+    camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
+
+    # ISP parameters as diff pairs (primal + zero grad)
+    exposure_params = torch.zeros(NUM_FRAMES, device=torch_device)
+    vignetting_params = torch.zeros(NUM_CAMERAS, 3, 5, device=torch_device)
+    color_params = torch.zeros(NUM_FRAMES, 8, device=torch_device)
+    crf_params = torch.zeros(NUM_CAMERAS, 3, 4, device=torch_device)
+
+    exposure_pair = NativeTorchTensorDiffPair(exposure_params, torch.zeros_like(exposure_params), 0, True)
+    vignetting_pair = NativeTorchTensorDiffPair(vignetting_params, torch.zeros_like(vignetting_params), 1, True)
+    color_pair = NativeTorchTensorDiffPair(color_params, torch.zeros_like(color_params), 2, True)
+    crf_pair = NativeTorchTensorDiffPair(crf_params, torch.zeros_like(crf_params), 3, True)
+    rgb_pair = NativeTorchTensorDiffPair(rgb, torch.zeros_like(rgb), 4, True)
+
+    # Upstream gradient (ones)
+    result_grad = torch.ones(batch_size, 3, device=torch_device)
+    result_pair = NativeTorchTensorDiffPair(None, result_grad, 5, False)
+
+    benchmark_slang_function(
+        device, func.bwds,
+        batch_size=batch_size,
+        num_cameras=NUM_CAMERAS,
+        num_frames=NUM_FRAMES,
+        exposure_params=exposure_pair,
+        vignetting_params=vignetting_pair,
+        color_params=color_pair,
+        crf_params=crf_pair,
+        rgb_pixel=rgb_pair,
+        pixel_coord=pixel_coords,
+        camera_idx=camera_idcs,
+        frame_idx=frame_idcs,
+        resolution_w=float(RESOLUTION_W),
+        resolution_h=float(RESOLUTION_H),
+        _result=result_pair,
     )
 
 
