@@ -462,9 +462,19 @@ nb::object NativeCallData::exec(
     nb::kwargs kwargs
 )
 {
-    // Unpack args and kwargs.
-    nb::list unpacked_args = unpack_args(args);
-    nb::dict unpacked_kwargs = unpack_kwargs(kwargs);
+    // Unpack args and kwargs (skip if no args have get_this/update_this).
+    nb::list unpacked_args;
+    nb::dict unpacked_kwargs;
+    if (m_needs_unpack) {
+        unpacked_args = unpack_args(args);
+        unpacked_kwargs = unpack_kwargs(kwargs);
+    } else {
+        // Fast path: wrap args/kwargs directly without checking for get_this.
+        for (auto arg : args)
+            unpacked_args.append(arg);
+        for (auto [k, v] : kwargs)
+            unpacked_kwargs[k] = v;
+    }
 
     // Calculate call shape.
     Shape call_shape = m_runtime->calculate_call_shape(m_call_dimensionality, unpacked_args, unpacked_kwargs, this);
@@ -786,12 +796,14 @@ nb::object NativeCallData::exec(
         bvr->python_type()->read_calldata(context, bvr.get(), rb_val, rb_data);
     }
 
-    // Pack updated 'this' values back.
-    for (size_t i = 0; i < args.size(); ++i) {
-        pack_arg(args[i], unpacked_args[i]);
-    }
-    for (auto [k, v] : kwargs) {
-        pack_arg(nb::cast<nb::object>(v), unpacked_kwargs[k]);
+    // Pack updated 'this' values back (skip if no args needed unpacking).
+    if (m_needs_unpack) {
+        for (size_t i = 0; i < args.size(); ++i) {
+            pack_arg(args[i], unpacked_args[i]);
+        }
+        for (auto [k, v] : kwargs) {
+            pack_arg(nb::cast<nb::object>(v), unpacked_kwargs[k]);
+        }
     }
 
     // Handle return value based on call mode.
@@ -926,6 +938,7 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
     // Handle objects with get_this method.
     auto get_this = nb::getattr(o, "get_this", nb::none());
     if (!get_this.is_none()) {
+        builder->set_has_get_this();
         auto this_ = get_this();
         get_value_signature(builder, this_);
         return;
@@ -982,42 +995,39 @@ void NativeCallDataCache::get_args_signature(const ref<SignatureBuilder> builder
         builder->add(":");
         get_value_signature(builder, v);
     }
+
+    // Encode whether any args have get_this in the signature.
+    // This ensures cache keys are unique for calls that need unpacking vs those that don't.
+    builder->add(builder->has_get_this() ? "U" : "P");
 }
 
-nb::list unpack_args(nb::args args, std::optional<nb::list> refs)
+nb::list unpack_args(nb::args args, bool* had_unpack)
 {
     nb::list unpacked;
     for (auto arg : args) {
-        unpacked.append(unpack_arg(nb::cast<nb::object>(arg), refs));
+        unpacked.append(unpack_arg(nb::cast<nb::object>(arg), had_unpack));
     }
     return unpacked;
 }
 
-nb::dict unpack_kwargs(nb::kwargs kwargs, std::optional<nb::list> refs)
+nb::dict unpack_kwargs(nb::kwargs kwargs, bool* had_unpack)
 {
     nb::dict unpacked;
     for (const auto& [k, v] : kwargs) {
-        unpacked[k] = unpack_arg(nb::cast<nb::object>(v), refs);
+        unpacked[k] = unpack_arg(nb::cast<nb::object>(v), had_unpack);
     }
     return unpacked;
 }
 
-nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
+nb::object unpack_arg(nb::object arg, bool* had_unpack)
 {
     auto obj = arg;
 
     // If object has 'get_this', read it.
     if (nb::hasattr(obj, "get_this")) {
         obj = nb::getattr(obj, "get_this")();
-    }
-
-    // If object is a pytorch tensor, add it to refs for autograd tracking
-    if (refs.has_value()) {
-        nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
-        if (nb::try_cast(arg, pytorch_tensor)) {
-            refs->append(arg);
-            return arg;
-        }
+        if (had_unpack)
+            *had_unpack = true;
     }
 
     // Recursively unpack dictionaries.
@@ -1025,7 +1035,7 @@ nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
     if (nb::try_cast(obj, d)) {
         nb::dict res;
         for (auto [k, v] : d) {
-            res[k] = unpack_arg(nb::cast<nb::object>(v), refs);
+            res[k] = unpack_arg(nb::cast<nb::object>(v), had_unpack);
         }
         obj = res;
     }
@@ -1035,7 +1045,7 @@ nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
     if (nb::try_cast(obj, l)) {
         nb::list res;
         for (auto v : l) {
-            res.append(unpack_arg(nb::cast<nb::object>(v), refs));
+            res.append(unpack_arg(nb::cast<nb::object>(v), had_unpack));
         }
         obj = res;
     }
@@ -1094,18 +1104,10 @@ SGL_PY_EXPORT(utils_slangpy)
         "unpack_args",
         [](nb::args args)
         {
-            return unpack_args(args);
+            bool had_unpack = false;
+            nb::list result = unpack_args(args, &had_unpack);
+            return nb::make_tuple(result, had_unpack);
         },
-        "args"_a,
-        D_NA(slangpy, unpack_args)
-    );
-    slangpy.def(
-        "unpack_refs_and_args",
-        [](nb::list refs, nb::args args)
-        {
-            return unpack_args(args, refs);
-        },
-        "refs"_a,
         "args"_a,
         D_NA(slangpy, unpack_args)
     );
@@ -1113,18 +1115,10 @@ SGL_PY_EXPORT(utils_slangpy)
         "unpack_kwargs",
         [](nb::kwargs kwargs)
         {
-            return unpack_kwargs(kwargs);
+            bool had_unpack = false;
+            nb::dict result = unpack_kwargs(kwargs, &had_unpack);
+            return nb::make_tuple(result, had_unpack);
         },
-        "kwargs"_a,
-        D_NA(slangpy, unpack_kwargs)
-    );
-    slangpy.def(
-        "unpack_refs_and_kwargs",
-        [](nb::list refs, nb::kwargs kwargs)
-        {
-            return unpack_kwargs(kwargs, refs);
-        },
-        "refs"_a,
         "kwargs"_a,
         D_NA(slangpy, unpack_kwargs)
     );
@@ -1508,6 +1502,13 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::set_torch_autograd,
             nb::arg(),
             D_NA(NativeCallData, torch_autograd)
+        )
+        .def_prop_rw(
+            "needs_unpack",
+            &NativeCallData::needs_unpack,
+            &NativeCallData::set_needs_unpack,
+            nb::arg(),
+            D_NA(NativeCallData, needs_unpack)
         )
 
         .def("log", &NativeCallData::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(Logger, log))

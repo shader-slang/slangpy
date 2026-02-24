@@ -93,13 +93,18 @@ public:
 
     std::string str() const;
 
-    std::string dbg_as_string() const { return std::string((const char*)m_buffer, m_size); }
+    std::string dbg_as_string() const { return std::string(reinterpret_cast<const char*>(m_buffer), m_size); }
+
+    /// Track whether any value with get_this was encountered during signature building.
+    bool has_get_this() const { return m_has_get_this; }
+    void set_has_get_this() { m_has_get_this = true; }
 
 private:
     uint8_t m_initial_buffer[1024];
     uint8_t* m_buffer;
     size_t m_size;
     size_t m_capacity;
+    bool m_has_get_this{false};
 
     void add_bytes(const uint8_t* data, size_t size)
     {
@@ -747,6 +752,12 @@ public:
     /// Set torch autograd status.
     void set_torch_autograd(bool torch_autograd) { m_torch_autograd = torch_autograd; }
 
+    /// Get whether args need unpacking (have get_this/update_this).
+    bool needs_unpack() const { return m_needs_unpack; }
+
+    /// Set whether args need unpacking.
+    void set_needs_unpack(bool needs_unpack) { m_needs_unpack = needs_unpack; }
+
     /// Set the shape of call groups when a dispatch is made.
     void set_call_group_shape(std::optional<Shape> call_group_shape)
     {
@@ -823,6 +834,7 @@ private:
     Shape m_call_group_shape;
     bool m_torch_integration{false};
     bool m_torch_autograd{false};
+    bool m_needs_unpack{true};
     mutable CallDataOffsets m_cached_call_data_offsets;
 
     nb::object
@@ -874,9 +886,9 @@ public:
     std::optional<std::string> lookup_value_signature(nb::handle o) override { NB_OVERRIDE(lookup_value_signature, o); }
 };
 
-nb::list unpack_args(nb::args args, std::optional<nb::list> refs = std::optional<nb::list>());
-nb::dict unpack_kwargs(nb::kwargs kwargs, std::optional<nb::list> refs = std::optional<nb::list>());
-nb::object unpack_arg(nanobind::object arg, std::optional<nb::list> refs = std::optional<nb::list>());
+nb::list unpack_args(nb::args args, bool* had_unpack = nullptr);
+nb::dict unpack_kwargs(nb::kwargs kwargs, bool* had_unpack = nullptr);
+nb::object unpack_arg(nanobind::object arg, bool* had_unpack = nullptr);
 void pack_arg(nb::object arg, nb::object unpacked_arg);
 
 void hash_signature(

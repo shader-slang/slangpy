@@ -155,8 +155,9 @@ class CallData(NativeCallData):
                 self.call_data_mode = CallDataMode.global_data
 
             # Unpack args (handles IThis wrappers)
-            unpacked_args = unpack_args(*args)
-            unpacked_kwargs = unpack_kwargs(**kwargs)
+            unpacked_args, args_had_unpack = unpack_args(*args)
+            unpacked_kwargs, kwargs_had_unpack = unpack_kwargs(**kwargs)
+            self.needs_unpack = args_had_unpack or kwargs_had_unpack
 
             # If we have torch tensors, enable torch integration
             from slangpy.torchintegration.detection import detect_torch_tensors
