@@ -366,6 +366,10 @@ Device::Device(const DeviceDesc& desc)
         .cache_path = !m_module_cache_path.empty() ? std::optional(m_module_cache_path) : std::nullopt,
     });
 
+    // Set CUDA context current for standalone SlangPy (no-op for non-CUDA devices).
+    // Redundant but harmless when using PyTorch interop.
+    set_cuda_context_current();
+
     // Add device to global device list.
     {
         std::lock_guard lock(s_devices_mutex);
@@ -719,7 +723,7 @@ ref<ShaderObject> Device::create_root_shader_object(const ShaderProgram* shader_
 
     // Bind the debug printer to the new shader object, if enabled.
     if (m_debug_printer)
-        m_debug_printer->bind(shader_object.get());
+        m_debug_printer->bind(ShaderCursor(shader_object.get()));
 
     return shader_object;
 }
