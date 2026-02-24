@@ -171,6 +171,7 @@ public:
         m_py_copy_to_buffer.reset();
         m_py_copy_from_buffer.reset();
         m_py_create_empty_tensor.reset();
+        m_py_create_zeros_like.reset();
         m_cached_tensor_type = nullptr;
         m_py_torch_autograd_hook.reset();
     }
@@ -366,6 +367,28 @@ public:
         return python_create_empty_tensor(shape, ndim, scalar_type, device_index);
     }
 
+    /// Create a zero tensor with the same shape, dtype, and device as the given tensor.
+    /// Equivalent to torch.zeros_like(tensor).
+    /// @param tensor PyObject* that must be a torch.Tensor.
+    /// @return A nanobind object wrapping the new torch.Tensor.
+    /// @throws std::runtime_error on failure.
+    nb::object create_zeros_like_tensor(PyObject* tensor) const
+    {
+        if (!m_force_python_fallback && m_api) {
+            void* result = m_api->create_zeros_like(tensor);
+            if (!result) {
+                throw std::runtime_error("tensor_bridge_create_zeros_like failed");
+            }
+            return nb::steal(reinterpret_cast<PyObject*>(result));
+        }
+        return python_create_zeros_like(tensor);
+    }
+
+    /// Create a zero tensor with the same shape, dtype, and device as the given tensor.
+    /// @param h Nanobind handle to PyTorch tensor.
+    /// @return A nanobind object wrapping the new torch.Tensor.
+    nb::object create_zeros_like_tensor(nb::handle h) const { return create_zeros_like_tensor(h.ptr()); }
+
     /// Call torch autograd hook for differentiable function calls.
     /// Currently always uses Python implementation; native implementation to be added.
     /// @param function_node The function node being called.
@@ -433,6 +456,7 @@ private:
         m_py_copy_to_buffer = m_fallback_module.attr("copy_to_buffer");
         m_py_copy_from_buffer = m_fallback_module.attr("copy_from_buffer");
         m_py_create_empty_tensor = m_fallback_module.attr("create_empty_tensor");
+        m_py_create_zeros_like = m_fallback_module.attr("create_zeros_like");
 
         // Import autograd hook from calldata module
         nb::module_ calldata_module = nb::module_::import_("slangpy.core.calldata");
@@ -539,6 +563,12 @@ private:
         return m_py_create_empty_tensor(py_shape, scalar_type, device_index);
     }
 
+    nb::object python_create_zeros_like(PyObject* tensor) const
+    {
+        init_python_fallback();
+        return m_py_create_zeros_like(nb::handle(tensor));
+    }
+
     // Native API state
     const TensorBridgeAPI* m_api = nullptr;
     bool m_initialized = false;
@@ -558,6 +588,7 @@ private:
     mutable nb::object m_py_copy_to_buffer;
     mutable nb::object m_py_copy_from_buffer;
     mutable nb::object m_py_create_empty_tensor;
+    mutable nb::object m_py_create_zeros_like;
     mutable nb::object m_py_torch_autograd_hook;
 
     // Cached torch.Tensor type for fast isinstance check in fallback mode

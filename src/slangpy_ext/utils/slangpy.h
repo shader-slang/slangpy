@@ -774,6 +774,19 @@ public:
     /// @return List of NativeTorchTensorDiffPair for all found tensors.
     nb::list find_torch_tensors(nb::list args, nb::dict kwargs);
 
+    /// Run the forward kernel and prepare data for autograd.
+    /// Returns a tuple of (input_tensors, output_tensors, result, pairs).
+    /// - input_tensors: list of primal tensors from input pairs (for save_for_backward)
+    /// - output_tensors: list of primal tensors from output pairs (returned to autograd)
+    /// - result: the kernel result (or None)
+    /// - pairs: updated pairs list (with _result pair appended if needed)
+    /// @param opts Runtime options for the call.
+    /// @param args Positional arguments (containing NativeTorchTensorDiffPair objects).
+    /// @param kwargs Keyword arguments (containing NativeTorchTensorDiffPair objects).
+    /// @param pairs List of NativeTorchTensorDiffPair from find_torch_tensors.
+    /// @return Tuple of (input_tensors, output_tensors, result, pairs).
+    nb::tuple autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list args, nb::dict kwargs, nb::list pairs);
+
     /// Set the shape of call groups when a dispatch is made.
     void set_call_group_shape(std::optional<Shape> call_group_shape)
     {

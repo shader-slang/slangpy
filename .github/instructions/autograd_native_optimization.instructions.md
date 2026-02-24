@@ -12,7 +12,7 @@ The current autograd hot path bounces between C++ and Python multiple times per 
 C++ (NativeFunctionNode::call)
   → C++ (TorchBridge::call_torch_autograd_hook)
     → Python (calldata.torch_autograd_hook)              ← SLOW
-      → Python (CallData.find_torch_tensors)              ← SLOW: walks args, wraps in DiffPair
+      → C++ (NativeCallData::find_torch_tensors)          ← DONE: moved to C++
       → Python (TorchAutoGradHook.apply)                  ← unavoidable (PyTorch API)
         → Python (TorchAutoGradHook.forward)              ← SLOW: unpacking, bookkeeping
           → C++ (NativeCallData::call/exec)
@@ -21,7 +21,7 @@ C++ (NativeFunctionNode::call)
             → C++ (NativeCallData::call/exec)
 ```
 
-The Python overhead of `torch_autograd_hook`, `find_torch_tensors`, `TorchAutoGradHook.forward`, and `TorchAutoGradHook.backward` adds ~10-15μs per forward+backward cycle. Previous research has shown it is not possible (or very difficult) to fully interact with the torch autograd system from C++ — `TorchAutoGradHook.apply` must remain in Python. But everything around it can be native.
+The Python overhead of `torch_autograd_hook`, `TorchAutoGradHook.forward`, and `TorchAutoGradHook.backward` adds ~10-15μs per forward+backward cycle. Previous research has shown it is not possible (or very difficult) to fully interact with the torch autograd system from C++ — `TorchAutoGradHook.apply` must remain in Python. But everything around it can be native.
 
 ## Target Architecture
 
@@ -45,119 +45,79 @@ The only Python code involved should be:
 |------|-------------|
 | `src/slangpy_ext/utils/slangpyfunction.cpp` | `NativeFunctionNode::call` — entry point, detects `torch_autograd`, calls `TorchBridge::call_torch_autograd_hook()` |
 | `src/slangpy_ext/utils/torch_bridge.h` | `TorchBridge::call_torch_autograd_hook()` — lazily imports and calls Python `torch_autograd_hook` |
-| `slangpy/core/calldata.py` | `torch_autograd_hook()` — Python function that calls `find_torch_tensors()` then `TorchAutoGradHook.apply()` |
-| `slangpy/core/calldata.py` | `CallData.find_torch_tensors()` / `_find_torch_tensors_recurse()` — Python methods that walk args/kwargs, check access patterns, create `NativeTorchTensorDiffPair` |
+| `slangpy/core/calldata.py` | `torch_autograd_hook()` — Python function that calls native `find_torch_tensors()` then `TorchAutoGradHook.apply()` |
+| `slangpy/core/calldata.py` | `CallData._build_autograd_access_list()` — builds the flat access list at build time (once per signature) |
+| `src/slangpy_ext/utils/slangpy.h` | `NativeCallData` — has `find_torch_tensors()`, `autograd_access_list`, `is_torch_autograd()`, `runtime()`, etc. |
+| `src/slangpy_ext/utils/slangpy.cpp` | `NativeCallData::find_torch_tensors()` / `find_torch_tensors_recurse()` — C++ implementation that walks args/kwargs and creates `NativeTorchTensorDiffPair` objects |
+| `src/sgl/utils/slangpy.h` | `AutogradAccess` enum — `none`, `read`, `write`, `readwrite` |
 | `slangpy/torchintegration/autogradhook.py` | `TorchAutoGradHook` — `torch.autograd.Function` subclass with `forward()` and `backward()` doing non-trivial Python work |
-| `src/slangpy_ext/utils/slangpy.h` | `NativeCallData` — has `is_torch_autograd()`, `runtime()`, etc. |
 | `src/slangpy_ext/utils/slangpytorchtensor.h` | `NativeTorchTensorDiffPair` — pairs primal+grad tensors with `index` and `is_input` |
 | `slangpy/bindings/boundvariableruntime.py` | `BoundVariableRuntime` — Python wrapper around `NativeBoundVariableRuntime`, stores access patterns |
 
-## Implementation Steps
+## Completed Steps
 
-### Step 1: Store tensor access pattern natively at build time
+### Step 1+2: Precompute access patterns and move `find_torch_tensors` to C++ ✅
 
-**Problem:** `find_torch_tensors` in Python checks `binding.vector_type` (is it an `ITensorType`? what's its `.access`?) and `binding.access[0]`. This requires Python reflection objects. Moving `find_torch_tensors` to C++ requires this information to be available natively.
+**Design:** Instead of storing an access enum on each `NativeBoundVariableRuntime` (which would require the C++ recursive walk to mirror the binding tree structure), a flat `std::vector<AutogradAccess>` is precomputed at build time and stored on `NativeCallData`. The order of the list matches the deterministic recursive walk order through args/kwargs. At dispatch time, the C++ `find_torch_tensors` steps through the list with a simple index as it encounters tensors.
 
-**Solution:** Add a `torch_autograd_access` field to `NativeBoundVariableRuntime` — an enum value (`none`, `read`, `write`, `error_readwrite`) precomputed at build time.
+**How the access list is built (build time, Python, once per signature):**
+In `CallData.build()`, after `self.runtime = BoundCallRuntime(bindings)`, if `self.torch_autograd` is True, `_build_autograd_access_list()` is called. This walks the unpacked args/kwargs in the same recursive order as `find_torch_tensors`, checking each torch tensor's binding:
+- If `binding.vector_type` is an `ITensorType`: reads `binding.vector_type.access` (a `TensorAccess` enum)
+- Otherwise: reads `binding.access[0]` (an `AccessType` enum)
+- Maps to the corresponding `AutogradAccess` value (`read`, `write`, `readwrite`, or `none`)
+- Appends to a flat list, stored via `self.autograd_access_list = access_list`
 
-**Files:**
+**How tensors are found (dispatch time, C++, every call):**
+`NativeCallData::find_torch_tensors(nb::list args, nb::dict kwargs)` walks args then kwargs. For each element:
+- If it's a `dict`: recurse into its values
+- If it's a torch tensor (checked via `TorchBridge::is_tensor()`): read `m_autograd_access_list[access_idx++]`, create a `NativeTorchTensorDiffPair`, replace the tensor in the list/dict
+- Otherwise: leave as-is
 
-| File | Change |
-|------|--------|
-| `src/slangpy_ext/utils/slangpy.h` | Add `AutogradAccess` enum and `m_autograd_access` field + getter/setter to `NativeBoundVariableRuntime` |
-| `src/slangpy_ext/utils/slangpy.cpp` | Expose `autograd_access` property in nanobind bindings |
-| `slangpy/bindings/boundvariableruntime.py` | In `BoundVariableRuntime.__init__`, compute autograd access from `binding.vector_type` and `binding.access`, set it on the native object |
+**Files changed:**
 
-The computation logic (currently in `_find_torch_tensors_recurse`) is:
-```python
-if isinstance(binding.vector_type, ITensorType):
-    if binding.vector_type.access == TensorAccess.read:       → AutogradAccess.read
-    elif binding.vector_type.access == TensorAccess.write:    → AutogradAccess.write
-    elif binding.vector_type.access == TensorAccess.read_write: → AutogradAccess.error_readwrite
-else:
-    if binding.access[0] == AccessType.read:      → AutogradAccess.read
-    elif binding.access[0] == AccessType.write:   → AutogradAccess.write
-    elif binding.access[0] == AccessType.readwrite: → AutogradAccess.error_readwrite
-```
+| File | What was added |
+|------|---------------|
+| `src/sgl/utils/slangpy.h` | `AutogradAccess` enum with `SGL_ENUM_INFO` / `SGL_ENUM_REGISTER` |
+| `src/slangpy_ext/utils/slangpy.h` | `m_autograd_access_list` field + getter/setter on `NativeCallData`; `find_torch_tensors()` and `find_torch_tensors_recurse()` method declarations |
+| `src/slangpy_ext/utils/slangpy.cpp` | Implementation of `find_torch_tensors()` and `find_torch_tensors_recurse()`; nanobind bindings for `AutogradAccess` enum, `autograd_access_list` property, and `find_torch_tensors` method |
+| `slangpy/core/calldata.py` | `_build_autograd_access_list()` method; call in `build()` when `torch_autograd` is True; removed old Python `find_torch_tensors()` and `_find_torch_tensors_recurse()` methods (the native `NativeCallData::find_torch_tensors` on the base class is now used directly) |
 
-This runs once at build time (Python), never at dispatch time.
-
-### Step 2: Move `find_torch_tensors` to C++
-
-**Problem:** `CallData.find_torch_tensors()` and `_find_torch_tensors_recurse()` are Python methods that walk args/kwargs recursively, detect `torch.Tensor` objects, check access patterns, and create `NativeTorchTensorDiffPair` objects.
-
-**Solution:** Implement `NativeCallData::find_torch_tensors()` in C++.
-
-**Files:**
-
-| File | Change |
-|------|--------|
-| `src/slangpy_ext/utils/slangpy.h` | Add `find_torch_tensors(nb::list args, nb::dict kwargs)` method to `NativeCallData`, returning `nb::list` of `NativeTorchTensorDiffPair` |
-| `src/slangpy_ext/utils/slangpy.cpp` | Implement using `TorchBridge::is_tensor()`, `NativeBoundVariableRuntime::autograd_access()`, and `NativeTorchTensorDiffPair` construction |
-
-The C++ implementation walks `m_runtime->args()` / `m_runtime->kwargs()` in parallel with the actual args/kwargs. For each binding with children, it recurses into `dict` args. For torch tensors, it reads `autograd_access` from the binding, creates a `NativeTorchTensorDiffPair`, and replaces the tensor in the args/kwargs with the pair. Returns the list of all pairs.
-
-Key details:
-- Uses `TorchBridge::instance().is_tensor(obj)` for tensor detection (fast, ~28ns native)
-- Reads `binding->autograd_access()` for input/output determination (pure C++ field read)
-- Throws `std::runtime_error` for `AutogradAccess::error_readwrite` (same as current Python)
-- Must modify args list and kwargs dict **in place** (same semantics as current Python)
-- Must handle recursive `dict` arguments by following `binding->children()`
-
-### Step 3: Add `create_zeros_like_tensor` to TorchBridge
+### Step 3: Add `create_zeros_like_tensor` to TorchBridge ✅
 
 **Problem:** `TorchAutoGradHook.backward()` calls `torch.zeros_like(pair.primal)` to create gradient tensors. Moving backward logic to C++ requires this capability natively.
 
-**Solution:** Add `create_zeros_like_tensor()` to `TorchBridge`.
-
-**Files:**
-
-| File | Change |
-|------|--------|
-| `src/slangpy_torch/tensor_bridge_api.h` | Add `create_zeros_like` function pointer to `TensorBridgeAPI`, bump `TENSOR_BRIDGE_API_VERSION` |
-| `src/slangpy_torch/torch_bridge_impl.cpp` | Implement using `torch::zeros_like()` C++ API |
-| `src/slangpy_ext/utils/torch_bridge.h` | Add `create_zeros_like_tensor(PyObject* tensor)` method with native + fallback paths |
-| `slangpy/torchintegration/bridge_fallback.py` | Add `create_zeros_like(tensor)` Python fallback calling `torch.zeros_like()` |
+**Solution:** Added `create_zeros_like_tensor()` to `TorchBridge`.
 
 The method takes an existing tensor and returns a new zero tensor with the same shape, dtype, and device. For the native path, it uses libtorch's `torch::zeros_like()`. For the fallback, it calls `torch.zeros_like()` via cached Python function handle.
 
-**Note:** An alternative is `create_empty_tensor` (already exists) + a separate zero-fill, but `zeros_like` is a single allocation+fill that PyTorch optimizes internally.
+**Files changed:**
 
-### Step 4: Add `autograd_forward()` to NativeCallData
+| File | What was added |
+|------|---------------|
+| `src/slangpy_torch/tensor_bridge_api.h` | Added `TensorBridge_CreateZerosLikeFn` function pointer typedef, added `create_zeros_like` to `TensorBridgeAPI` struct, bumped `TENSOR_BRIDGE_API_VERSION` to 7 |
+| `src/slangpy_torch/torch_bridge_impl.cpp` | Implemented `tensor_bridge_create_zeros_like()` using `torch::zeros_like()` C++ API, added to `g_api` static |
+| `src/slangpy_ext/utils/torch_bridge.h` | Added `create_zeros_like_tensor()` public methods (PyObject* and nb::handle overloads) with native + fallback paths, `python_create_zeros_like()` private method, cached `m_py_create_zeros_like` handle |
+| `slangpy/torchintegration/bridge_fallback.py` | Added `create_zeros_like(tensor)` Python fallback calling `torch.zeros_like()` |
+
+### Step 4: Add `autograd_forward()` to NativeCallData ✅
 
 **Problem:** `TorchAutoGradHook.forward()` currently does significant Python work: separating pairs into input/output lists, calling the forward kernel, clearing tensor references, collecting output tensors.
 
-**Solution:** New C++ method `NativeCallData::autograd_forward()` encapsulating most of the forward logic.
-
-**Files:**
-
-| File | Change |
-|------|--------|
-| `src/slangpy_ext/utils/slangpy.h` | Declare `autograd_forward()` on `NativeCallData` |
-| `src/slangpy_ext/utils/slangpy.cpp` | Implement + expose via nanobind |
-
-**Method signature:**
-```cpp
-/// Run the forward kernel and prepare data for autograd.
-/// Returns a tuple of (input_tensors, output_tensors, result, pairs).
-/// - input_tensors: list of primal tensors from input pairs (for save_for_backward)
-/// - output_tensors: list of primal tensors from output pairs (returned to autograd)
-/// - result: the kernel result (or None)
-/// - pairs: updated pairs list (with _result pair appended if needed)
-nb::tuple autograd_forward(
-    ref<NativeCallRuntimeOptions> opts,
-    nb::list args,
-    nb::dict kwargs,
-    nb::list pairs
-);
-```
+**Solution:** Added C++ method `NativeCallData::autograd_forward()` encapsulating most of the forward logic.
 
 **Implementation logic** (mirrors current `TorchAutoGradHook.forward`):
 1. Separate pairs into input/output lists by checking `pair.is_input`
-2. Call `this->call(opts, args, kwargs)` to run the forward kernel
-3. Clear tensor references on all pairs via `pair.clear_tensors()`
+2. Call `this->exec(opts, nullptr, args, kwargs)` to run the forward kernel
+3. Clear tensor references on all pairs (set primal/grad to None)
 4. If result is not None and `_result` not in kwargs, create a new output `NativeTorchTensorDiffPair` for the result and append to pairs
 5. Return `(input_tensors, output_tensors, result, pairs)`
+
+**Files changed:**
+
+| File | What was added |
+|------|---------------|
+| `src/slangpy_ext/utils/slangpy.h` | Declared `autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list args, nb::dict kwargs, nb::list pairs)` returning `nb::tuple` on `NativeCallData` |
+| `src/slangpy_ext/utils/slangpy.cpp` | Implemented `autograd_forward()` — separates pairs, runs forward kernel via `exec()`, clears tensor refs, handles `_result` pair creation; exposed via nanobind binding |
 
 ### Step 5: Add `autograd_backward()` to NativeCallData
 
@@ -369,32 +329,40 @@ cmake --build --preset windows-msvc-debug
 
 ## Dependency Order
 
-Steps can be done in this order given their dependencies:
-
 ```
-Step 1 (autograd_access field)
-  └→ Step 2 (find_torch_tensors in C++) ─────────────┐
-Step 3 (create_zeros_like)                            │
-  └→ Step 5 (autograd_backward) ──────────────────────┤
-Step 4 (autograd_forward) ────────────────────────────┤
-                                                      │
-Step 6 (rewrite call_torch_autograd_hook) ←───────────┘
+Steps 1+2 (access list + find_torch_tensors in C++) ─── DONE ───┐
+Step 3 (create_zeros_like) ─────────────────────────── DONE ────┤
+  └→ Step 5 (autograd_backward) ────────────────────────────────┤
+Step 4 (autograd_forward) ─────────────────────────── DONE ────┤
+                                                                 │
+Step 6 (rewrite call_torch_autograd_hook) ←─────────────────────┘
   └→ Step 7 (simplify TorchAutoGradHook)
       └→ Step 8 (clean up calldata.py)
 ```
 
-Steps 1, 3, and 4 are independent of each other and can be done in parallel. Steps 2, 5 depend on 1 and 3 respectively. Steps 6-8 are sequential and depend on all prior steps.
+Step 5 is the next step to implement (depends on step 3 which is done). Steps 6-8 are sequential and depend on all prior steps.
 
 ## Files Changed Summary
 
+### Already changed (Steps 1-4)
+
 | File | Changes |
 |------|---------|
-| `src/slangpy_ext/utils/slangpy.h` | Add `AutogradAccess` enum to `NativeBoundVariableRuntime`, add `find_torch_tensors()` / `autograd_forward()` / `autograd_backward()` to `NativeCallData` |
-| `src/slangpy_ext/utils/slangpy.cpp` | Implement new methods, expose via nanobind |
-| `src/slangpy_ext/utils/torch_bridge.h` | Rewrite `call_torch_autograd_hook()`, add `create_zeros_like_tensor()`, cache `TorchAutoGradHook` class |
-| `src/slangpy_torch/tensor_bridge_api.h` | Add `create_zeros_like` function pointer, bump API version |
-| `src/slangpy_torch/torch_bridge_impl.cpp` | Implement `create_zeros_like` |
-| `slangpy/torchintegration/bridge_fallback.py` | Add `create_zeros_like` fallback |
+| `src/sgl/utils/slangpy.h` | Added `AutogradAccess` enum (`none`, `read`, `write`, `readwrite`) |
+| `src/slangpy_ext/utils/slangpy.h` | Added `m_autograd_access_list` + getter/setter, `find_torch_tensors()`, `find_torch_tensors_recurse()`, `autograd_forward()` to `NativeCallData` |
+| `src/slangpy_ext/utils/slangpy.cpp` | Implemented `find_torch_tensors()` / `find_torch_tensors_recurse()` / `autograd_forward()`; nanobind bindings for `AutogradAccess`, `autograd_access_list`, `find_torch_tensors`, `autograd_forward` |
+| `slangpy/core/calldata.py` | Added `_build_autograd_access_list()`; call site in `build()` after `self.runtime` is set; removed old Python `find_torch_tensors()` / `_find_torch_tensors_recurse()` |
+| `src/slangpy_torch/tensor_bridge_api.h` | Added `TensorBridge_CreateZerosLikeFn` typedef, `create_zeros_like` in `TensorBridgeAPI` struct, bumped `TENSOR_BRIDGE_API_VERSION` to 7 |
+| `src/slangpy_torch/torch_bridge_impl.cpp` | Implemented `tensor_bridge_create_zeros_like()`, added to `g_api` |
+| `src/slangpy_ext/utils/torch_bridge.h` | Added `create_zeros_like_tensor()` (PyObject* + nb::handle overloads), `python_create_zeros_like()`, cached `m_py_create_zeros_like` |
+| `slangpy/torchintegration/bridge_fallback.py` | Added `create_zeros_like()` fallback |
+
+### Still to change (Steps 5-8)
+
+| File | Changes |
+|------|---------|
+| `src/slangpy_ext/utils/slangpy.h` | Add `autograd_backward()` to `NativeCallData` |
+| `src/slangpy_ext/utils/slangpy.cpp` | Implement `autograd_backward()`, expose via nanobind |
+| `src/slangpy_ext/utils/torch_bridge.h` | Rewrite `call_torch_autograd_hook()`, cache `TorchAutoGradHook` class, remove `m_py_torch_autograd_hook` |
 | `slangpy/torchintegration/autogradhook.py` | Simplify `forward()` / `backward()` to thin wrappers |
-| `slangpy/bindings/boundvariableruntime.py` | Compute and set `autograd_access` at build time |
-| `slangpy/core/calldata.py` | Remove `find_torch_tensors()`, `_find_torch_tensors_recurse()`, `torch_autograd_hook()` |
+| `slangpy/core/calldata.py` | Remove `torch_autograd_hook()` (moved to C++ TorchBridge) |

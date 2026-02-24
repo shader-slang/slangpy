@@ -506,6 +506,47 @@ nb::object NativeCallData::call(ref<NativeCallRuntimeOptions> opts, nb::args arg
     return exec(opts, nullptr, args, kwargs);
 }
 
+nb::tuple
+NativeCallData::autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list args, nb::dict kwargs, nb::list pairs)
+{
+    // Separate pairs into input/output lists
+    nb::list input_tensors;
+    nb::list output_tensors;
+    size_t num_pairs = nb::len(pairs);
+    for (size_t i = 0; i < num_pairs; i++) {
+        auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
+        if (pair->is_input) {
+            input_tensors.append(pair->primal);
+        } else {
+            output_tensors.append(pair->primal);
+        }
+    }
+
+    // Run the forward kernel
+    // Convert args list to tuple for exec (which takes nb::args = nb::tuple)
+    nb::tuple args_tuple(args);
+    nb::object result = exec(opts, nullptr, nb::borrow<nb::args>(args_tuple), nb::borrow<nb::kwargs>(kwargs));
+
+    // Clear tensor references from pairs to avoid keeping them alive
+    for (size_t i = 0; i < num_pairs; i++) {
+        auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
+        pair->primal = nb::none();
+        pair->grad = nb::none();
+    }
+
+    // If result is a tensor and _result is not already in kwargs,
+    // create a new output pair for it
+    if (!result.is_none() && !kwargs.contains("_result")) {
+        auto new_pair = make_ref<NativeTorchTensorDiffPair>(nb::none(), nb::none(), static_cast<int>(num_pairs), false);
+        nb::object pair_obj = nb::cast(new_pair);
+        kwargs["_result"] = pair_obj;
+        pairs.append(pair_obj);
+        output_tensors.append(result);
+    }
+
+    return nb::make_tuple(input_tensors, output_tensors, result, pairs);
+}
+
 nb::object NativeCallData::append_to(
     ref<NativeCallRuntimeOptions> opts,
     CommandEncoder* command_encoder,
@@ -1584,6 +1625,15 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::arg("args"),
             nb::arg("kwargs"),
             D_NA(NativeCallData, find_torch_tensors)
+        )
+        .def(
+            "autograd_forward",
+            &NativeCallData::autograd_forward,
+            nb::arg("opts"),
+            nb::arg("args"),
+            nb::arg("kwargs"),
+            nb::arg("pairs"),
+            D_NA(NativeCallData, autograd_forward)
         )
 
         .def("log", &NativeCallData::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(Logger, log))

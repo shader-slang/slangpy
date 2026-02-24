@@ -227,6 +227,21 @@ def create_empty_tensor(shape: list, scalar_type: int, device_index: int = 0) ->
     return torch.empty(shape, dtype=dtype, device=f"cuda:{device_index}")
 
 
+def create_zeros_like(tensor: torch.Tensor) -> torch.Tensor:
+    """
+    Create a zero tensor with the same shape, dtype, and device as the given tensor.
+
+    Equivalent to torch.zeros_like(tensor).
+
+    :param tensor: PyTorch tensor to match.
+    :return: A new zero torch.Tensor with same properties.
+    :raises ValueError: If object is not a PyTorch tensor.
+    """
+    if not isinstance(tensor, torch.Tensor):
+        raise ValueError("Object is not a PyTorch tensor")
+    return torch.zeros_like(tensor)
+
+
 def _get_cuda_stream(tensor: torch.Tensor) -> int:
     """
     Get the CUDA stream pointer for the tensor's device.
