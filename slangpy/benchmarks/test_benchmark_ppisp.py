@@ -411,6 +411,116 @@ def test_ppisp_backward_slangtorch(
     )
 
 
+@pytest.mark.parametrize("batch_size", BATCH_SIZES)
+def test_ppisp_backward_slangpy_manual_hook(
+    batch_size: int,
+    benchmark_python_function: BenchmarkPythonFunction,
+) -> None:
+    """Backward using a hand-written torch.autograd.Function that calls func.bwds().
+
+    Bypasses SlangPy's automatic TorchAutoGradHook to measure the overhead of
+    the automatic autograd integration vs doing it manually.
+    """
+    _skip_if_no_torch()
+    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    torch_device = torch.device("cuda")
+
+    from typing import Any, Optional
+    from slangpy.benchmarks.ppisp.ppisp_slangpy import _get_slang_module, _warmup
+    from slangpy.core.native import NativeTorchTensorDiffPair
+
+    _warmup(torch_device, device)
+    module = _get_slang_module(device)
+    func = module.ppisp
+
+    # ISP parameters (same shapes as PPISPSlangPy model)
+    exposure_params = torch.zeros(NUM_FRAMES, device=torch_device, requires_grad=True)
+    vignetting_params = torch.zeros(NUM_CAMERAS, 3, 5, device=torch_device, requires_grad=True)
+    color_params = torch.zeros(NUM_FRAMES, 8, device=torch_device, requires_grad=True)
+    crf_params = torch.zeros(NUM_CAMERAS, 3, 4, device=torch_device, requires_grad=True)
+
+    camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
+
+    class PPISPManualHook(torch.autograd.Function):
+        @staticmethod
+        def forward(
+            ctx: Any,
+            rgb: torch.Tensor,
+            exposure: torch.Tensor,
+            vignetting: torch.Tensor,
+            color: torch.Tensor,
+            crf: torch.Tensor,
+        ) -> torch.Tensor:
+            # Detach all to avoid triggering SlangPy's automatic autograd
+            ctx.save_for_backward(
+                rgb.detach(), exposure.detach(), vignetting.detach(),
+                color.detach(), crf.detach(),
+            )
+            result = func(
+                batch_size=rgb.shape[0],
+                num_cameras=NUM_CAMERAS, num_frames=NUM_FRAMES,
+                exposure_params=exposure.detach(),
+                vignetting_params=vignetting.detach(),
+                color_params=color.detach(),
+                crf_params=crf.detach(),
+                rgb_pixel=rgb.detach(),
+                pixel_coord=pixel_coords,
+                camera_idx=camera_idcs,
+                frame_idx=frame_idcs,
+                resolution_w=float(RESOLUTION_W),
+                resolution_h=float(RESOLUTION_H),
+            )
+            return result
+
+        @staticmethod
+        def backward(
+            ctx: Any, grad_output: torch.Tensor,
+        ) -> tuple[Optional[torch.Tensor], ...]:
+            rgb, exposure, vignetting, color, crf = ctx.saved_tensors
+            # Build diff pairs: (primal, grad_buffer, index, is_input)
+            exposure_pair = NativeTorchTensorDiffPair(exposure, torch.zeros_like(exposure), 0, True)
+            vignetting_pair = NativeTorchTensorDiffPair(vignetting, torch.zeros_like(vignetting), 1, True)
+            color_pair = NativeTorchTensorDiffPair(color, torch.zeros_like(color), 2, True)
+            crf_pair = NativeTorchTensorDiffPair(crf, torch.zeros_like(crf), 3, True)
+            rgb_pair = NativeTorchTensorDiffPair(rgb, torch.zeros_like(rgb), 4, True)
+            result_pair = NativeTorchTensorDiffPair(None, grad_output, 5, False)
+
+            func.bwds(
+                batch_size=rgb.shape[0],
+                num_cameras=NUM_CAMERAS, num_frames=NUM_FRAMES,
+                exposure_params=exposure_pair,
+                vignetting_params=vignetting_pair,
+                color_params=color_pair,
+                crf_params=crf_pair,
+                rgb_pixel=rgb_pair,
+                pixel_coord=pixel_coords,
+                camera_idx=camera_idcs,
+                frame_idx=frame_idcs,
+                resolution_w=float(RESOLUTION_W),
+                resolution_h=float(RESOLUTION_H),
+                _result=result_pair,
+            )
+            return rgb_pair.grad, exposure_pair.grad, vignetting_pair.grad, color_pair.grad, crf_pair.grad
+
+    rgb, pixel_coords, _, _ = create_test_data(
+        batch_size, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device)
+
+    def run() -> None:
+        rgb_copy = rgb.clone().requires_grad_(True)
+        output = PPISPManualHook.apply(
+            rgb_copy, exposure_params, vignetting_params, color_params, crf_params,
+        )
+        output.sum().backward()
+        torch.cuda.synchronize()
+
+    benchmark_python_function(
+        device, run,
+        iterations=ITERATIONS, sub_iterations=SUB_ITERATIONS,
+        warmup_iterations=WARMUP_ITERATIONS, sleeps=True,
+    )
+
+
 # =============================================================================
 # CPU dispatch overhead benchmarks (tiny batch, no GPU sync, high sub-iterations)
 #
