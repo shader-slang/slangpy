@@ -124,7 +124,13 @@ endif()
 # CUDA
 # -----------------------------------------------------------------------------
 
-if(NOT SGL_USE_DYNAMIC_CUDA)
+if(SGL_EMSCRIPTEN OR SGL_MACOS)
+    set(SGL_HAS_CUDA OFF)
+else()
+    set(SGL_HAS_CUDA ON)
+endif()
+
+if(SGL_HAS_CUDA AND NOT SGL_USE_DYNAMIC_CUDA)
     find_package(CUDAToolkit REQUIRED)
 endif()
 

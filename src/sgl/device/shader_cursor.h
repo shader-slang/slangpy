@@ -81,7 +81,9 @@ public:
     /// returned is immediately populated, not retained. Prefer using set_data unless absolutely necessary.
     void* reserve_data(size_t size) const;
 
+#if SGL_HAS_CUDA
     void set_cuda_tensor_view(const cuda::TensorView& tensor_view) const;
+#endif
 
     void set_pointer(uint64_t pointer_value) const;
 

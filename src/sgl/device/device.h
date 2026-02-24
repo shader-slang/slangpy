@@ -713,7 +713,9 @@ public:
         m_device_close_callbacks.push_back(call_back);
     }
 
+#if SGL_HAS_CUDA
     cuda::Device* cuda_device() const { return m_cuda_device.get(); }
+#endif
 
     std::string to_string() const override;
 
@@ -767,8 +769,10 @@ private:
     ref<HotReload> m_hot_reload;
 
     bool m_supports_cuda_interop{false};
+#if SGL_HAS_CUDA
     ref<cuda::Device> m_cuda_device;
     ref<cuda::ExternalSemaphore> m_cuda_semaphore;
+#endif
 
     std::mutex m_device_children_mutex;
     std::unordered_set<DeviceChild*> m_device_children;
