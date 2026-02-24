@@ -248,6 +248,7 @@ target_compile_options(sgl
 
             # this is for ImGUI only
             -Wno-nontrivial-memcall
+            -Wno-uninitialized-const-pointer
         >
         # GCC flags.
         $<$<CXX_COMPILER_ID:GNU>:

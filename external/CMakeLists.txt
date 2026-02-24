@@ -29,6 +29,9 @@ target_link_libraries(d3d12 INTERFACE dxgi.lib d3d12.lib dxguid.lib)
 # fmt
 
 set(FMT_INSTALL OFF)
+if(SGL_EMSCRIPTEN)
+    set(FMT_OS OFF)
+endif()
 add_subdirectory(fmt)
 
 # glfw
