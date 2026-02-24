@@ -34,6 +34,13 @@ if(SGL_EMSCRIPTEN)
 endif()
 add_subdirectory(fmt)
 
+if(SGL_EMSCRIPTEN)
+    # Fix for Emscripten where free/malloc might not be visible in fmt templates.
+    # Using -include ensures stdlib.h is included in every compilation unit.
+    target_compile_options(fmt PRIVATE "-include" "stdlib.h")
+    target_compile_options(fmt INTERFACE "-include" "stdlib.h")
+endif()
+
 # glfw
 
 set(GLFW_BUILD_EXAMPLES OFF)
@@ -111,31 +118,22 @@ elseif(SGL_MACOS)
     endif()
 endif()
 
-if(NOT SGL_LOCAL_SLANG)
-    sgl_download_package(slang ${SLANG_URL})
-endif()
-
-set(SLANG_DIR ${slang_SOURCE_DIR})
-set(SLANG_INCLUDE_DIR ${slang_SOURCE_DIR}/include)
-
 if(SGL_LOCAL_SLANG)
     set(SLANG_DIR ${SGL_LOCAL_SLANG_DIR}/${SGL_LOCAL_SLANG_BUILD_DIR})
     set(SLANG_INCLUDE_DIR ${SGL_LOCAL_SLANG_DIR}/include)
+elseif(NOT SGL_EMSCRIPTEN)
+    if(NOT SGL_LOCAL_SLANG)
+        sgl_download_package(slang ${SLANG_URL})
+    endif()
+
+    set(SLANG_DIR ${slang_SOURCE_DIR})
+    set(SLANG_INCLUDE_DIR ${slang_SOURCE_DIR}/include)
 endif()
 
 # Slang library adding logic to find the exact filenames to use and copy
 function(sgl_add_library_slang)
-    # For Emscripten, we use an INTERFACE library with static libraries
-    if(SGL_EMSCRIPTEN)
-        # Get the base directory for the Slang build (SLANG_DIR is set by the parent scope)
-        set(SLANG_LIB_DIR "${SLANG_DIR}/lib")
-        set(SLANG_EXT_DIR "${SGL_LOCAL_SLANG_DIR}/${SGL_LOCAL_SLANG_BUILD_DIR}/../external")
-        
-        add_library(slang INTERFACE IMPORTED GLOBAL)
-        set_target_properties(slang PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES ${SLANG_INCLUDE_DIR}
-            INTERFACE_LINK_LIBRARIES "${SLANG_LIB_DIR}/libslang-compiler.a;${SLANG_LIB_DIR}/libcompiler-core.a;${SLANG_LIB_DIR}/libcore.a;${SLANG_EXT_DIR}/lz4/build/cmake/Release/liblz4.a;${SLANG_EXT_DIR}/miniz/Release/libminiz.a"
-        )
+    # For Emscripten, if not using a local slang, slang is provided by slang-rhi via FetchContent for now.
+    if(SGL_EMSCRIPTEN AND NOT SGL_LOCAL_SLANG)
         return()
     endif()
 
@@ -178,8 +176,8 @@ function(sgl_add_library_slang)
         set(slang_module_version "")
     endif()
 
-    add_library(slang SHARED IMPORTED GLOBAL)
     if(SGL_WINDOWS)
+        add_library(slang SHARED IMPORTED GLOBAL)
         # Windows filenames are not versioned
         set_target_properties(slang PROPERTIES
             INTERFACE_INCLUDE_DIRECTORIES ${SLANG_INCLUDE_DIR}
@@ -197,7 +195,38 @@ function(sgl_add_library_slang)
         # Note: The downloaded debug-info archive has single top-level 'bin'
         # folder that is stripped out by FetchContent.
         set(slang_resolved_debug_info "${slang_lib_base}.pdb")
+    elseif(SGL_EMSCRIPTEN)
+        # For Emscripten, define slang as a static library (potentially interface if main .a is missing)
+        get_filename_component(SLANG_CONFIG_NAME "${SGL_LOCAL_SLANG_BUILD_DIR}" NAME)
+
+        # Check for slang-compiler or slang static library
+        set(slang_lib_location "")
+        if(EXISTS ${SLANG_DIR}/lib/libslang-compiler.a)
+            set(slang_lib_location ${SLANG_DIR}/lib/libslang-compiler.a)
+        elseif(EXISTS ${SLANG_DIR}/lib/libslang.a)
+            set(slang_lib_location ${SLANG_DIR}/lib/libslang.a)
+        endif()
+
+        if(slang_lib_location)
+            add_library(slang STATIC IMPORTED GLOBAL)
+            set_target_properties(slang PROPERTIES IMPORTED_LOCATION ${slang_lib_location})
+        else()
+            add_library(slang INTERFACE IMPORTED GLOBAL)
+        endif()
+
+        set_target_properties(slang PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES ${SLANG_INCLUDE_DIR}
+        )
+
+        # Link against necessary static dependencies
+        target_link_libraries(slang INTERFACE
+            ${SLANG_DIR}/lib/libcompiler-core.a
+            ${SLANG_DIR}/lib/libcore.a
+            ${SLANG_DIR}/../external/lz4/build/cmake/${SLANG_CONFIG_NAME}/liblz4.a
+            ${SLANG_DIR}/../external/miniz/${SLANG_CONFIG_NAME}/libminiz.a
+        )
     else()
+        add_library(slang SHARED IMPORTED GLOBAL)
         # Python wheels don't support symlinks, so we need to find the actual
         # library files.
         file(REAL_PATH "${slang_lib_dir}/${slang_lib_prefix}${slang_lib_base}.${slang_lib_suffix}" slang_resolved)
@@ -221,12 +250,16 @@ function(sgl_add_library_slang)
     endif()
 endfunction()
 
-sgl_add_library_slang()
+if(NOT SGL_EMSCRIPTEN OR SGL_LOCAL_SLANG)
+    sgl_add_library_slang()
 
-# Install slang header files
-install(FILES ${SLANG_DIR}/include/slang.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(FILES ${SLANG_DIR}/include/slang-deprecated.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(FILES ${SLANG_DIR}/include/slang-image-format-defs.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    # Install slang header files
+    if(NOT SGL_EMSCRIPTEN)
+        install(FILES ${SLANG_DIR}/include/slang.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+        install(FILES ${SLANG_DIR}/include/slang-deprecated.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+        install(FILES ${SLANG_DIR}/include/slang-image-format-defs.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    endif()
+endif()
 
 # slang-rhi
 
@@ -235,23 +268,51 @@ set(SGL_LOCAL_SLANG_RHI_DIR "${CMAKE_SOURCE_DIR}/../slang-rhi" CACHE PATH "Path 
 
 set(SLANG_RHI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SLANG_RHI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(SLANG_RHI_FETCH_SLANG OFF)
 set(SLANG_RHI_ENABLE_D3D11 OFF)
+
 if(SGL_EMSCRIPTEN)
     set(SLANG_RHI_ENABLE_WGPU ON)
+    set(SLANG_RHI_ENABLE_CPU OFF)
+    set(SLANG_RHI_DAWN_URL "N/A")
+    if(SGL_LOCAL_SLANG)
+        set(SLANG_RHI_FETCH_SLANG OFF CACHE BOOL "" FORCE)
+        set(SLANG_RHI_BUILD_FROM_SLANG_REPO ON)
+    else()
+        set(SLANG_RHI_FETCH_SLANG ON CACHE BOOL "" FORCE)
+        set(SLANG_RHI_BUILD_FROM_SLANG_REPO OFF)
+    endif()
 else()
     set(SLANG_RHI_ENABLE_WGPU OFF)
+    set(SLANG_RHI_FETCH_SLANG OFF CACHE BOOL "" FORCE)
+    set(SLANG_RHI_BUILD_FROM_SLANG_REPO ON)
 endif()
-# TODO: We should rename SLANG_RHI_BUILD_FROM_SLANG_REPO to something more generic.
-# We want slang-rhi to support using a `slang` target that is provided from the outside.
-set(SLANG_RHI_BUILD_FROM_SLANG_REPO ON)
-set(SLANG_RHI_FETCH_SLANG OFF)
-set(SLANG_RHI_SLANG_INCLUDE_DIR ${SLANG_INCLUDE_DIR} CACHE STRING "" FORCE)
-set(SLANG_RHI_SLANG_BINARY_DIR ${SLANG_DIR} CACHE STRING "" FORCE)
+
+if(SLANG_INCLUDE_DIR)
+    set(SLANG_RHI_SLANG_INCLUDE_DIR ${SLANG_INCLUDE_DIR} CACHE STRING "" FORCE)
+else()
+    unset(SLANG_RHI_SLANG_INCLUDE_DIR CACHE)
+endif()
+
+if(SLANG_DIR)
+    set(SLANG_RHI_SLANG_BINARY_DIR ${SLANG_DIR} CACHE STRING "" FORCE)
+else()
+    unset(SLANG_RHI_SLANG_BINARY_DIR CACHE)
+endif()
 
 if(SGL_LOCAL_SLANG_RHI)
     add_subdirectory(${SGL_LOCAL_SLANG_RHI_DIR} ${CMAKE_BINARY_DIR}/external/slang-rhi)
     set(SLANG_RHI_SOURCE_PATH ${SGL_LOCAL_SLANG_RHI_DIR})
+elseif(SGL_EMSCRIPTEN)
+    # as emscripten slang-rhi is not yet merged into main repo
+    # we fetch it from a fork to build and test
+    FetchContent_Declare(
+        slang-rhi
+        GIT_REPOSITORY https://github.com/j8asic/slang-rhi.git
+        GIT_TAG emscripten
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(slang-rhi)
+    set(SLANG_RHI_SOURCE_PATH ${slang-rhi_SOURCE_DIR})
 else()
     add_subdirectory(slang-rhi)
     set(SLANG_RHI_SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/slang-rhi)
