@@ -78,6 +78,11 @@ void write_shader_cursor(ShaderCursor& cursor, nb::object value)
     detail::_writeconv.write(cursor, value);
 }
 
+std::function<void(ShaderCursor&, nb::object)> resolve_shader_cursor_writer(slang::TypeLayoutReflection* type_layout)
+{
+    return detail::_writeconv.resolve_writer(type_layout);
+}
+
 } // namespace sgl
 
 SGL_PY_EXPORT(device_shader_cursor)
