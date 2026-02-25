@@ -51,7 +51,7 @@ WARMUPS = 10
 RUN_PURE_TORCH_BENCHMARK = False
 RUN_SLANGTORCH_BENCHMARK = False
 RUN_SLANGPY_MANUAL_HOOK_BENCHMARK = True
-RUN_SLANGPY_AUTOMATIC_BENCHMARK = False
+RUN_SLANGPY_AUTOMATIC_BENCHMARK = True
 
 AUTOGRAD_TENSOR_SIZE = 32
 
@@ -196,14 +196,9 @@ def test_autograd_slangpy_manual_hook(
         ) -> tuple[None, None, None, Optional[torch.Tensor]]:
             (x,) = ctx.saved_tensors
             grad_x = torch.zeros_like(x)
-            # Build diff-pair tensors for the backward call:
-            #   - x is an input (read-only in forward) -> we want gradients for it
-            #   - result is an output -> we provide upstream gradients
-
             x_pair = NativeTorchTensorDiffPair(x, grad_x, 0, True)
             result_pair = NativeTorchTensorDiffPair(None, grad_output, 1, False)
             poly_func.bwds(ctx.a, ctx.b, ctx.c, x_pair, _result=result_pair)
-            # grad: Optional[torch.Tensor] = x_pair.grad  # type: ignore[assignment]
             return None, None, None, grad_x
 
     def run() -> None:
