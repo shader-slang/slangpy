@@ -419,5 +419,6 @@ if(SGL_EMSCRIPTEN)
             "-sASYNCIFY=1"
             "-sALLOW_MEMORY_GROWTH=1"
             "-sMAXIMUM_MEMORY=4GB"
+            "--no-entry"
     )
 endif()
