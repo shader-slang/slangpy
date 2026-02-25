@@ -24,12 +24,14 @@ _SCALAR_TYPE_MAP: Dict[torch.dtype, int] = {
     torch.float16: 5,  # TENSOR_BRIDGE_SCALAR_FLOAT16
     torch.float32: 6,  # TENSOR_BRIDGE_SCALAR_FLOAT32
     torch.float64: 7,  # TENSOR_BRIDGE_SCALAR_FLOAT64
-    torch.complex32: 8,  # TENSOR_BRIDGE_SCALAR_COMPLEX32
     torch.complex64: 9,  # TENSOR_BRIDGE_SCALAR_COMPLEX64
     torch.complex128: 10,  # TENSOR_BRIDGE_SCALAR_COMPLEX128
     torch.bool: 11,  # TENSOR_BRIDGE_SCALAR_BOOL
     torch.bfloat16: 15,  # TENSOR_BRIDGE_SCALAR_BFLOAT16
 }
+_complex32 = getattr(torch, "complex32", None)
+if _complex32 is not None:
+    _SCALAR_TYPE_MAP[_complex32] = 8  # TENSOR_BRIDGE_SCALAR_COMPLEX32
 
 
 def is_tensor(obj: Any) -> bool:

@@ -95,16 +95,11 @@ public:
 
     std::string dbg_as_string() const { return std::string(reinterpret_cast<const char*>(m_buffer), m_size); }
 
-    /// Track whether any value with get_this was encountered during signature building.
-    bool has_get_this() const { return m_has_get_this; }
-    void set_has_get_this() { m_has_get_this = true; }
-
 private:
     uint8_t m_initial_buffer[1024];
     uint8_t* m_buffer;
     size_t m_size;
     size_t m_capacity;
-    bool m_has_get_this{false};
 
     void add_bytes(const uint8_t* data, size_t size)
     {
@@ -944,9 +939,9 @@ public:
     std::optional<std::string> lookup_value_signature(nb::handle o) override { NB_OVERRIDE(lookup_value_signature, o); }
 };
 
-nb::list unpack_args(nb::args args, bool* had_unpack = nullptr);
-nb::dict unpack_kwargs(nb::kwargs kwargs, bool* had_unpack = nullptr);
-nb::object unpack_arg(nanobind::object arg, bool* had_unpack = nullptr);
+nb::list unpack_args(nb::args args, bool& out_had_unpack);
+nb::dict unpack_kwargs(nb::kwargs kwargs, bool& out_had_unpack);
+nb::object unpack_arg(nanobind::object arg, bool& out_had_unpack);
 void pack_arg(nb::object arg, nb::object unpacked_arg);
 
 void hash_signature(

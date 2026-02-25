@@ -7,10 +7,11 @@
 #include "sgl/device/reflection.h"
 #include "sgl/device/cursor_utils.h"
 
-// TODO: Decide if we want to disable / optimize type checks
-// currently can represent 50% of the cost of writes in
-// certain situations.
-#define SGL_ENABLE_CURSOR_TYPE_CHECKSx
+// These checks are expensive and involve re-examining reflection data, so only
+// enable in debug builds.
+#ifdef _DEBUG
+#define SGL_ENABLE_CURSOR_TYPE_CHECKS
+#endif
 
 namespace sgl {
 
