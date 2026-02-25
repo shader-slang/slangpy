@@ -110,6 +110,14 @@ public:
 
     nb::object call(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs);
 
+    /// Call the backward pass for autograd, caching the bwds CallData on the forward CallData.
+    /// This avoids the Python round-trip through function.bwds property.
+    /// @param fwds_call_data The forward-pass call data (bwds call data is cached on it).
+    /// @param args Positional arguments (containing NativeTorchTensorDiffPair objects).
+    /// @param kwargs Keyword arguments (containing NativeTorchTensorDiffPair objects).
+    /// @return Result of the backward kernel dispatch.
+    nb::object call_bwds(NativeCallData* fwds_call_data, nb::args args, nb::kwargs kwargs);
+
     void append_to(NativeCallDataCache* cache, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 
     /// Get string representation of the function node.
@@ -117,6 +125,23 @@ public:
 
     virtual ref<NativeCallData> generate_call_data(nb::args args, nb::kwargs kwargs)
     {
+        SGL_UNUSED(args);
+        SGL_UNUSED(kwargs);
+        return nullptr;
+    }
+
+    /// Generate the backward-pass call data for autograd.
+    /// Called once per forward signature, result is cached on the forward CallData.
+    /// The default implementation returns nullptr; Python overrides this to build
+    /// a CallData with call_mode=bwds.
+    /// @param fwds_call_data The forward-pass call data.
+    /// @param args Positional arguments (with DiffPair objects).
+    /// @param kwargs Keyword arguments (with DiffPair objects).
+    /// @return The backward-pass CallData.
+    virtual ref<NativeCallData>
+    generate_bwds_call_data(NativeCallData* fwds_call_data, nb::args args, nb::kwargs kwargs)
+    {
+        SGL_UNUSED(fwds_call_data);
         SGL_UNUSED(args);
         SGL_UNUSED(kwargs);
         return nullptr;
@@ -135,10 +160,15 @@ private:
 };
 
 struct PyNativeFunctionNode : NativeFunctionNode {
-    NB_TRAMPOLINE(NativeFunctionNode, 1);
+    NB_TRAMPOLINE(NativeFunctionNode, 2);
     ref<NativeCallData> generate_call_data(nb::args args, nb::kwargs kwargs) override
     {
         NB_OVERRIDE(generate_call_data, args, kwargs);
+    }
+    ref<NativeCallData>
+    generate_bwds_call_data(NativeCallData* fwds_call_data, nb::args args, nb::kwargs kwargs) override
+    {
+        NB_OVERRIDE(generate_bwds_call_data, fwds_call_data, args, kwargs);
     }
 };
 

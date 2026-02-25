@@ -136,6 +136,31 @@ std::string NativeFunctionNode::to_string() const
     );
 }
 
+nb::object NativeFunctionNode::call_bwds(NativeCallData* fwds_call_data, nb::args args, nb::kwargs kwargs)
+{
+    // Get or generate the backward-pass call data (cached on the forward call data)
+    ref<NativeCallData> bwds_cd = fwds_call_data->bwds_call_data();
+    if (!bwds_cd) {
+        bwds_cd = generate_bwds_call_data(fwds_call_data, args, kwargs);
+        fwds_call_data->set_bwds_call_data(bwds_cd);
+    }
+
+    // Gather runtime options (uniforms, cuda_stream, etc.)
+    // Note: we do NOT prepend 'this' to args here — the saved args from the
+    // forward pass already include it (it was prepended in NativeFunctionNode::call).
+    auto options = make_ref<NativeCallRuntimeOptions>();
+    gather_runtime_options(options);
+
+    // CUDA stream sync for torch integration
+    if (bwds_cd->is_torch_integration() && TorchBridge::instance().is_available()) {
+        void* stream_ptr = TorchBridge::instance().get_current_cuda_stream(0);
+        NativeHandle stream_handle(NativeHandleType::CUstream, reinterpret_cast<uint64_t>(stream_ptr));
+        options->set_cuda_stream(stream_handle);
+    }
+
+    return bwds_cd->call(options, args, kwargs);
+}
+
 } // namespace sgl::slangpy
 
 SGL_PY_EXPORT(utils_slangpy_function)
@@ -190,6 +215,22 @@ SGL_PY_EXPORT(utils_slangpy_function)
             "args"_a,
             "kwargs"_a,
             D_NA(NativeFunctionNode, generate_call_data)
+        )
+        .def(
+            "generate_bwds_call_data",
+            &NativeFunctionNode::generate_bwds_call_data,
+            "fwds_call_data"_a,
+            "args"_a,
+            "kwargs"_a,
+            D_NA(NativeFunctionNode, generate_bwds_call_data)
+        )
+        .def(
+            "_native_call_bwds",
+            &NativeFunctionNode::call_bwds,
+            "fwds_call_data"_a,
+            "args"_a,
+            "kwargs"_a,
+            D_NA(NativeFunctionNode, call_bwds)
         )
         .def(
             "read_signature",

@@ -264,6 +264,28 @@ tensor_bridge_create_empty_tensor(const int64_t* shape, int32_t ndim, int32_t sc
     }
 }
 
+// Create a zero tensor with the same shape, dtype, and device as the given tensor.
+// Equivalent to torch.zeros_like(tensor).
+// Returns a new reference to a PyObject* (torch.Tensor), or NULL on error.
+extern "C" void* tensor_bridge_create_zeros_like(void* py_obj)
+{
+    if (!py_obj)
+        return nullptr;
+
+    PyObject* obj = static_cast<PyObject*>(py_obj);
+    if (!THPVariable_Check(obj))
+        return nullptr;
+
+    try {
+        const torch::Tensor& tensor = THPVariable_Unpack(obj);
+        torch::Tensor result = torch::zeros_like(tensor);
+        PyObject* py_result = THPVariable_Wrap(std::move(result));
+        return py_result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 static const TensorBridgeAPI g_api
     = {TENSOR_BRIDGE_API_VERSION,
        sizeof(TensorBridgeInfo),
@@ -273,7 +295,8 @@ static const TensorBridgeAPI g_api
        tensor_bridge_get_current_cuda_stream,
        tensor_bridge_copy_to_buffer,
        tensor_bridge_copy_from_buffer,
-       tensor_bridge_create_empty_tensor};
+       tensor_bridge_create_empty_tensor,
+       tensor_bridge_create_zeros_like};
 
 extern "C" const TensorBridgeAPI* tensor_bridge_get_api(void)
 {

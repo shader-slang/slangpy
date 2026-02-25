@@ -179,10 +179,18 @@ typedef void* (*TensorBridge_CreateEmptyTensorFn)(
     int32_t device_index
 );
 
+// Create a zero tensor with the same shape, dtype, and device as the given tensor.
+// Equivalent to torch.zeros_like(tensor).
+// Parameters:
+//   py_tensor_obj: PyObject* that must be a torch.Tensor
+// Returns: New reference to a PyObject* (torch.Tensor) on success, NULL on error.
+//          The caller owns the returned reference.
+typedef void* (*TensorBridge_CreateZerosLikeFn)(void* py_tensor_obj);
+
 // ============================================================================
 // Version info for ABI compatibility checking
 // ============================================================================
-#define TENSOR_BRIDGE_API_VERSION 6
+#define TENSOR_BRIDGE_API_VERSION 7
 
 typedef struct TensorBridgeAPI {
     int api_version;
@@ -195,6 +203,7 @@ typedef struct TensorBridgeAPI {
     TensorBridge_CopyToBufferFn copy_to_buffer;
     TensorBridge_CopyFromBufferFn copy_from_buffer;
     TensorBridge_CreateEmptyTensorFn create_empty_tensor;
+    TensorBridge_CreateZerosLikeFn create_zeros_like;
 } TensorBridgeAPI;
 
 // Function to get the API struct (exported by the bridge module)
