@@ -245,6 +245,11 @@ private:
                 m_stack.pop_back();
                 return res;
             }
+            case TypeReflection::Kind::pointer: {
+                uint64_t ptr_value;
+                self._get_data(self._get_offset(), &ptr_value, sizeof(uint64_t));
+                return nb::cast(ptr_value);
+            }
             default:
                 break;
             }
