@@ -419,11 +419,7 @@ class CallData(NativeCallData):
             self.debug_only_bindings = bindings
             self.runtime = BoundCallRuntime(bindings)
 
-            # Build autograd access list at build time if autograd is enabled.
-            # This flat list records the access pattern (read/write) for each tensor
-            # in the order they appear during a recursive walk of args/kwargs.
-            # At dispatch time, find_torch_tensors (C++) steps through this list
-            # as it encounters tensors, avoiding Python reflection lookups.
+            # If using autograd, build list of access modes for each tensor argument.
             if self.torch_autograd:
                 self._build_autograd_access_list(unpacked_args, unpacked_kwargs)
 
@@ -491,8 +487,8 @@ class CallData(NativeCallData):
         the corresponding binding. Stores the result as a flat list on self
         (NativeCallData.autograd_access_list).
 
-        This runs once at build time so that dispatch-time find_torch_tensors
-        (C++) can simply step through the list without Python reflection.
+        This MUST be kept in sync with the logic in find_torch_tensors (C++) so the
+        order in which tensors are visited remains the same.
         """
         import torch
 
