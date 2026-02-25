@@ -767,6 +767,11 @@ nb::object NativeCallData::exec(
         current_stride *= call_grid_data[i];
     }
 
+    // Override total_threads if _threadcount was explicitly provided.
+    if (opts->has_threadcount()) {
+        total_threads = opts->threadcount();
+    }
+
     nb::list read_back;
 
     if (is_log_enabled(LogLevel::debug)) {
@@ -1574,6 +1579,12 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallRuntimeOptions::cuda_stream,
             &NativeCallRuntimeOptions::set_cuda_stream,
             D_NA(NativeCallRuntimeOptions, cuda_stream)
+        )
+        .def_prop_rw(
+            "threadcount",
+            &NativeCallRuntimeOptions::threadcount,
+            &NativeCallRuntimeOptions::set_threadcount,
+            D_NA(NativeCallRuntimeOptions, threadcount)
         );
 
     // clang-format off

@@ -642,6 +642,15 @@ public:
     /// Set ray tracing pipeline flag.
     void set_is_ray_tracing(bool is_ray_tracing) { m_is_ray_tracing = is_ray_tracing; }
 
+    /// Get the thread count override.
+    int threadcount() const { return m_threadcount; }
+
+    /// Set the thread count override.
+    void set_threadcount(int threadcount) { m_threadcount = threadcount; }
+
+    /// Check if thread count override is set.
+    bool has_threadcount() const { return m_threadcount > 0; }
+
     /// Clear internal data for garbage collection
     void garbage_collect()
     {
@@ -654,6 +663,7 @@ private:
     nb::object m_this{nb::none()};
     NativeHandle m_cuda_stream;
     bool m_is_ray_tracing{false};
+    int m_threadcount{0};
 };
 
 /// Defines the common logging functions for a given log level.

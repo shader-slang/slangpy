@@ -22,3 +22,15 @@ void diff_square(DiffTensorView<float> input, DiffTensorView<float> output)
         output.store(i, x * x);
     }
 }
+
+// CUDAKernel + Differentiable: f(x) = x^2, requires _threadcount.
+[CUDAKernel]
+[Differentiable]
+void diff_square_kernel(uint count, DiffTensorView<float> input, DiffTensorView<float> output)
+{
+    uint tid = cudaBlockIdx().x * cudaBlockDim().x + cudaThreadIdx().x;
+    if (tid >= count)
+        return;
+    float x = input.load(tid);
+    output.store(tid, x * x);
+}

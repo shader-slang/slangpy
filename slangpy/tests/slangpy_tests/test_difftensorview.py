@@ -104,3 +104,53 @@ def test_difftensorview_diff_square_torch(device_type: DeviceType):
     assert torch.allclose(
         x_grad, expected_grad, atol=1e-5
     ), f"Expected grad {expected_grad}, got {x_grad}"
+
+
+# ============================================================================
+# Tests for _threadcount with CUDAKernel + Differentiable
+# ============================================================================
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+@pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_difftensorview_kernel_forward(device_type: DeviceType):
+    """Test forward pass of CUDAKernel diff_square_kernel with _threadcount."""
+    module = load_module_torch(device_type)
+
+    x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device="cuda", dtype=torch.float32)
+    output = torch.zeros(5, device="cuda", dtype=torch.float32)
+    count = x.numel()
+
+    module.diff_square_kernel(count=count, input=x, output=output, _threadcount=count)
+    torch.cuda.synchronize()
+
+    expected = x * x
+    assert torch.allclose(output, expected), f"Expected {expected}, got {output}"
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+@pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_difftensorview_kernel_backward(device_type: DeviceType):
+    """Test backward pass of CUDAKernel diff_square_kernel: f(x) = x^2, df/dx = 2x."""
+    module = load_module_torch(device_type)
+
+    x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device="cuda", dtype=torch.float32)
+    x_grad = torch.zeros(5, device="cuda", dtype=torch.float32)
+    output = torch.zeros(5, device="cuda", dtype=torch.float32)
+    output_grad = torch.ones(5, device="cuda", dtype=torch.float32)
+    count = x.numel()
+
+    module.diff_square_kernel.bwds(
+        count=count,
+        input=diff_pair(x, x_grad),
+        output=diff_pair(output, output_grad),
+        _threadcount=count,
+    )
+    torch.cuda.synchronize()
+
+    expected_grad = 2.0 * x
+    assert torch.allclose(
+        x_grad, expected_grad, atol=1e-5
+    ), f"Expected grad {expected_grad}, got {x_grad}"

@@ -27,6 +27,7 @@ ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cac
 {
     auto options = make_ref<NativeCallRuntimeOptions>();
     gather_runtime_options(options);
+    gather_kwargs_runtime_options(options, kwargs);
 
     nb::tuple full_args;
     if (!options->get_this().is_none()) {
@@ -50,6 +51,7 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
 {
     auto options = make_ref<NativeCallRuntimeOptions>();
     gather_runtime_options(options);
+    gather_kwargs_runtime_options(options, kwargs);
 
     nb::tuple full_args;
     if (!options->get_this().is_none()) {
@@ -94,6 +96,7 @@ void NativeFunctionNode::append_to(
 {
     auto options = make_ref<NativeCallRuntimeOptions>();
     gather_runtime_options(options);
+    gather_kwargs_runtime_options(options, kwargs);
 
     nb::tuple full_args;
     if (!options->get_this().is_none()) {
@@ -103,7 +106,6 @@ void NativeFunctionNode::append_to(
     auto builder = make_ref<SignatureBuilder>();
     read_signature(builder);
     cache->get_args_signature(builder, args, kwargs);
-
 
     std::string sig = builder->str();
     NativeCallData* call_data = cache->find_call_data(sig);

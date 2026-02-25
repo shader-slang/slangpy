@@ -91,6 +91,20 @@ public:
         }
     }
 
+    /// Extract runtime options from special underscore kwargs (e.g. _threadcount).
+    static void gather_kwargs_runtime_options(ref<NativeCallRuntimeOptions> options, nb::kwargs& kwargs)
+    {
+        if (kwargs.contains("_threadcount")) {
+            int threadcount = nb::cast<int>(kwargs["_threadcount"]);
+            if (threadcount <= 0)
+                throw nb::value_error(
+                    ("_threadcount must be a positive integer, got " + std::to_string(threadcount)).c_str()
+                );
+            options->set_threadcount(threadcount);
+            nb::del(kwargs["_threadcount"]);
+        }
+    }
+
     NativeFunctionNode* parent() const { return m_parent.get(); }
 
     FunctionNodeType type() const { return m_type; }
