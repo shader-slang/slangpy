@@ -415,7 +415,9 @@ if(SGL_EMSCRIPTEN)
         PUBLIC
             "-sUSE_GLFW=3"
             "--use-port=emdawnwebgpu"
-            "-sALLOW_MEMORY_GROWTH"
             "-fwasm-exceptions"
+            "-sASYNCIFY=1"
+            "-sALLOW_MEMORY_GROWTH=1"
+            "-sMAXIMUM_MEMORY=4GB"
     )
 endif()
