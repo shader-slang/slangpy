@@ -547,6 +547,67 @@ NativeCallData::autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list ar
     return nb::make_tuple(input_tensors, output_tensors, result, pairs);
 }
 
+nb::tuple NativeCallData::autograd_backward(
+    nb::handle function_node,
+    nb::list pairs,
+    nb::list args,
+    nb::dict kwargs,
+    nb::list saved_tensors,
+    nb::tuple grad_outputs
+)
+{
+    auto& bridge = TorchBridge::instance();
+    bool is_cuda = m_device->type() == DeviceType::cuda;
+
+    // Walk pairs: restore tensors and populate gradients
+    size_t input_idx = 0;
+    size_t grad_output_idx = 0;
+    nb::list input_grads;
+
+    size_t num_pairs = nb::len(pairs);
+    for (size_t i = 0; i < num_pairs; i++) {
+        auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
+        if (pair->is_input) {
+            // Restore primal from saved tensors
+            pair->primal = nb::borrow(saved_tensors[input_idx]);
+
+            // Create gradient tensor if requires_grad
+            bool requires_grad = nb::cast<bool>(pair->primal.attr("requires_grad"));
+            if (requires_grad) {
+                pair->grad = bridge.create_zeros_like_tensor(pair->primal);
+                input_grads.append(pair->grad);
+            } else {
+                pair->grad = nb::none();
+                input_grads.append(nb::none());
+            }
+            input_idx++;
+        } else {
+            // Output pair: assign upstream gradient
+            nb::object grad_out = nb::borrow(grad_outputs[grad_output_idx]);
+            if (!grad_out.is_none()) {
+                pair->primal = nb::none();
+                pair->grad = grad_out;
+                // Non-CUDA backends need contiguous gradients
+                if (!is_cuda) {
+                    pair->grad = pair->grad.attr("contiguous")();
+                }
+            } else {
+                pair->primal = nb::none();
+                pair->grad = nb::none();
+            }
+            grad_output_idx++;
+        }
+    }
+
+    // Call function.bwds(*args, **kwargs)
+    nb::object bwds = function_node.attr("bwds");
+    nb::tuple args_tuple(args);
+    bwds(*nb::borrow<nb::args>(args_tuple), **nb::borrow<nb::kwargs>(kwargs));
+
+    // Return input gradients as tuple
+    return nb::tuple(input_grads);
+}
+
 nb::object NativeCallData::append_to(
     ref<NativeCallRuntimeOptions> opts,
     CommandEncoder* command_encoder,
@@ -1634,6 +1695,17 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::arg("kwargs"),
             nb::arg("pairs"),
             D_NA(NativeCallData, autograd_forward)
+        )
+        .def(
+            "autograd_backward",
+            &NativeCallData::autograd_backward,
+            nb::arg("function_node"),
+            nb::arg("pairs"),
+            nb::arg("args"),
+            nb::arg("kwargs"),
+            nb::arg("saved_tensors"),
+            nb::arg("grad_outputs"),
+            D_NA(NativeCallData, autograd_backward)
         )
 
         .def("log", &NativeCallData::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(Logger, log))

@@ -787,6 +787,24 @@ public:
     /// @return Tuple of (input_tensors, output_tensors, result, pairs).
     nb::tuple autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list args, nb::dict kwargs, nb::list pairs);
 
+    /// Run the backward pass: restore tensors, create gradients, call bwds kernel.
+    /// Returns tuple of input gradients (matching order of input tensors from forward).
+    /// @param function_node The FunctionNode (for calling .bwds).
+    /// @param pairs The NativeTorchTensorDiffPair list from forward.
+    /// @param args Saved args (with DiffPair placeholders).
+    /// @param kwargs Saved kwargs (with DiffPair placeholders).
+    /// @param saved_tensors Input tensors from save_for_backward.
+    /// @param grad_outputs Upstream gradients for output tensors.
+    /// @return Tuple of input gradients.
+    nb::tuple autograd_backward(
+        nb::handle function_node,
+        nb::list pairs,
+        nb::list args,
+        nb::dict kwargs,
+        nb::list saved_tensors,
+        nb::tuple grad_outputs
+    );
+
     /// Set the shape of call groups when a dispatch is made.
     void set_call_group_shape(std::optional<Shape> call_group_shape)
     {
