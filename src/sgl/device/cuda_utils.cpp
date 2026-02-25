@@ -59,6 +59,11 @@ void memset_device(void* dst, uint8_t value, size_t count)
     SGL_CU_CHECK(cuMemsetD8(reinterpret_cast<CUdeviceptr>(dst), value, count));
 }
 
+void memset_device_async(void* dst, uint8_t value, size_t count, CUstream stream)
+{
+    SGL_CU_CHECK(cuMemsetD8Async(reinterpret_cast<CUdeviceptr>(dst), value, count, stream));
+}
+
 CUexternalMemory import_external_memory(const Buffer* buffer)
 {
     SGL_CU_SCOPE(buffer->device());
@@ -328,6 +333,14 @@ ExternalMemory::ExternalMemory(const Buffer* buffer)
 
 ExternalMemory::~ExternalMemory()
 {
+    // The mapped device pointer returned by cuExternalMemoryGetMappedBuffer must be
+    // freed with cuMemFree before destroying the external memory, otherwise the CUDA
+    // driver keeps the underlying allocation alive and we leak ~64KB+ per buffer.
+    if (m_mapped_data) {
+        SGL_CU_SCOPE(m_resource->device());
+        SGL_CU_CHECK(cuMemFree(reinterpret_cast<CUdeviceptr>(m_mapped_data)));
+        m_mapped_data = nullptr;
+    }
     destroy_external_memory(m_external_memory);
 }
 

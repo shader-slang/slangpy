@@ -74,13 +74,13 @@ public:
 /// - Interop buffer handling for non-CUDA backends
 /// - Supports arbitrary dimension counts via caller-provided buffers
 ///
-/// This class shares the CachedOffsets and TensorFieldOffsets structures with
+/// This class shares the CachedBindingInfo and TensorFieldOffsets structures with
 /// NativeTensorMarshall to ensure consistent shader data layout.
 class NativeTorchTensorMarshall : public NativeMarshall {
 public:
     /// Reuse the offset structures from NativeTensorMarshall
     using TensorFieldOffsets = NativeTensorMarshall::TensorFieldOffsets;
-    using CachedOffsets = NativeTensorMarshall::CachedOffsets;
+    using CachedBindingInfo = NativeTensorMarshall::CachedBindingInfo;
 
     /// Default buffer size for shape/strides storage (covers 99%+ of tensors)
     static constexpr int32_t DEFAULT_BUFFER_CAPACITY = TENSOR_BRIDGE_DEFAULT_DIMS;
@@ -143,7 +143,7 @@ private:
     ref<TypeLayoutReflection> m_element_layout;
     ref<NativeTorchTensorMarshall> m_d_in;
     ref<NativeTorchTensorMarshall> m_d_out;
-    mutable CachedOffsets m_cached_offsets;
+    mutable CachedBindingInfo m_cached_binding_info;
     mutable int32_t m_cached_device_index{-1};
 
     /// Storage buffers for tensor shape/strides extraction.
@@ -154,8 +154,8 @@ private:
     mutable short_vector<int64_t, DEFAULT_BUFFER_CAPACITY> m_grad_shape_buffer;
     mutable short_vector<int64_t, DEFAULT_BUFFER_CAPACITY> m_grad_strides_buffer;
 
-    /// Initialize cached offsets if not already done
-    void ensure_offsets_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const;
+    /// Initialize cached binding info if not already done
+    void ensure_binding_info_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const;
 
     /// Write torch tensor fields to shader uniforms
     /// If interop_buffer is provided, uses its device address instead of tensor's CUDA pointer
