@@ -410,6 +410,8 @@ public:
     /// Returns an empty function for types that do not have a predefined write function.
     std::function<void(CursorType&, nb::object)> get_writer(slang::TypeLayoutReflection* type_layout) const
     {
+        if (!type_layout)
+            return {};
         auto kind = (TypeReflection::Kind)type_layout->getKind();
         auto type = type_layout->getType();
         if (!type)
