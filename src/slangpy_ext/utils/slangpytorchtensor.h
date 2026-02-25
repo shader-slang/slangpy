@@ -144,6 +144,7 @@ private:
     ref<NativeTorchTensorMarshall> m_d_in;
     ref<NativeTorchTensorMarshall> m_d_out;
     mutable CachedOffsets m_cached_offsets;
+    mutable int32_t m_cached_device_index{-1};
 
     /// Storage buffers for tensor shape/strides extraction.
     /// Using mutable because extraction happens in const methods.

@@ -754,8 +754,12 @@ nb::object NativeTorchTensorMarshall::create_output(CallContext* context, Native
         SGL_THROW("Unsupported scalar type for torch output tensor");
     }
 
+    if (m_cached_device_index < 0)
+        m_cached_device_index = static_cast<int32_t>(cuda::get_current_device_index());
+    int32_t device_index = m_cached_device_index;
+
     return TorchBridge::instance()
-        .create_empty_tensor(shape_vec.data(), static_cast<int32_t>(shape_vec.size()), c10_scalar_type, 0);
+        .create_empty_tensor(shape_vec.data(), static_cast<int32_t>(shape_vec.size()), c10_scalar_type, device_index);
 }
 
 nb::object
