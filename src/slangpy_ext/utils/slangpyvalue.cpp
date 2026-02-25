@@ -6,9 +6,22 @@
 
 namespace sgl {
 extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
-}
+extern std::function<void(ShaderCursor&, nb::object)>
+get_shader_cursor_writer(slang::TypeLayoutReflection* type_layout);
+} // namespace sgl
 
 namespace sgl::slangpy {
+
+void NativeValueMarshall::ensure_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const
+{
+    if (m_cached.is_valid)
+        return;
+    ShaderCursor field = cursor[binding->variable_name()]["value"];
+    m_cached.value_offset = field.offset();
+    m_cached.value_type_layout = field.slang_type_layout();
+    m_cached.writer = get_shader_cursor_writer(m_cached.value_type_layout);
+    m_cached.is_valid = true;
+}
 
 void NativeValueMarshall::write_shader_cursor_pre_dispatch(
     CallContext* context,
@@ -22,8 +35,13 @@ void NativeValueMarshall::write_shader_cursor_pre_dispatch(
     SGL_UNUSED(read_back);
     AccessType primal_access = binding->access().first;
     if (!value.is_none() && (primal_access == AccessType::read || primal_access == AccessType::readwrite)) {
-        ShaderCursor field = cursor[binding->variable_name()]["value"];
-        write_shader_cursor(field, value);
+        ensure_cached(cursor, binding);
+        ShaderCursor value_cursor(cursor.shader_object(), m_cached.value_type_layout, m_cached.value_offset);
+        if (m_cached.writer) {
+            m_cached.writer(value_cursor, value);
+        } else {
+            write_shader_cursor(value_cursor, value);
+        }
     }
 }
 

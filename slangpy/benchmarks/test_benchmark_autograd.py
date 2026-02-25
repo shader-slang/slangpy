@@ -8,6 +8,7 @@ import numpy as np
 import slangpy as spy
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkPythonFunction
+from slangpy.core.native import NativeTorchTensorDiffPair
 
 HAS_TORCH = False
 try:
@@ -48,9 +49,9 @@ WARMUPS = 10
 # =============================================================================
 
 RUN_PURE_TORCH_BENCHMARK = False
-RUN_SLANGTORCH_BENCHMARK = True
-RUN_SLANGPY_MANUAL_HOOK_BENCHMARK = False
-RUN_SLANGPY_AUTOMATIC_BENCHMARK = False
+RUN_SLANGTORCH_BENCHMARK = False
+RUN_SLANGPY_MANUAL_HOOK_BENCHMARK = True
+RUN_SLANGPY_AUTOMATIC_BENCHMARK = True
 
 AUTOGRAD_TENSOR_SIZE = 32
 
@@ -111,6 +112,9 @@ def test_autograd_slangtorch(
     c_val = 1.0
     n = AUTOGRAD_TENSOR_SIZE
 
+    x = torch.randn(n, dtype=torch.float32, device="cuda", requires_grad=True)
+    ones = torch.ones_like(x)
+
     class PolynomialSlangTorch(torch.autograd.Function):
         @staticmethod
         def forward(ctx: Any, a: float, b: float, c: float, x: torch.Tensor) -> torch.Tensor:
@@ -135,12 +139,9 @@ def test_autograd_slangtorch(
             ).launchRaw(blockSize=(32, 1, 1), gridSize=((n + 31) // 32, 1, 1))
             return None, None, None, grad_x
 
-    x = torch.randn(n, dtype=torch.float32, device="cuda", requires_grad=True)
-
     def run() -> None:
         y = PolynomialSlangTorch.apply(a_val, b_val, c_val, x)
-        y.backward(torch.ones_like(y))  # type: ignore[union-attr]
-        x.grad.zero_()  # type: ignore[union-attr]
+        y.backward(ones)  # type: ignore[union-attr]
 
     benchmark_python_function(
         device,
@@ -172,14 +173,18 @@ def test_autograd_slangpy_manual_hook(
     c_val = 1.0
     n = AUTOGRAD_TENSOR_SIZE
 
+    x = torch.randn(n, dtype=torch.float32, device="cuda", requires_grad=True)
+    ones = torch.ones_like(x)
+
     class PolynomialSlangPyManual(torch.autograd.Function):
         @staticmethod
         def forward(ctx: Any, a: float, b: float, c: float, x: torch.Tensor) -> torch.Tensor:
             # Run the forward SlangPy kernel with plain (non-grad) tensors
             # to avoid triggering the automatic autograd path
-            x_no_grad = x.detach()
-            result = poly_func(a, b, c, x_no_grad)
-            ctx.save_for_backward(x_no_grad)
+            x = x.detach()
+            result = torch.empty_like(x)
+            poly_func(a, b, c, x, _result=result)
+            ctx.save_for_backward(x)
             ctx.a = a
             ctx.b = b
             ctx.c = c
@@ -190,23 +195,15 @@ def test_autograd_slangpy_manual_hook(
             ctx: Any, grad_output: torch.Tensor
         ) -> tuple[None, None, None, Optional[torch.Tensor]]:
             (x,) = ctx.saved_tensors
-            # Build diff-pair tensors for the backward call:
-            #   - x is an input (read-only in forward) -> we want gradients for it
-            #   - result is an output -> we provide upstream gradients
-            from slangpy.core.native import NativeTorchTensorDiffPair
-
-            x_pair = NativeTorchTensorDiffPair(x, torch.zeros_like(x), 0, True)
+            grad_x = torch.zeros_like(x)
+            x_pair = NativeTorchTensorDiffPair(x, grad_x, 0, True)
             result_pair = NativeTorchTensorDiffPair(None, grad_output, 1, False)
             poly_func.bwds(ctx.a, ctx.b, ctx.c, x_pair, _result=result_pair)
-            grad: Optional[torch.Tensor] = x_pair.grad  # type: ignore[assignment]
-            return None, None, None, grad
-
-    x = torch.randn(n, dtype=torch.float32, device="cuda", requires_grad=True)
+            return None, None, None, grad_x
 
     def run() -> None:
         y = PolynomialSlangPyManual.apply(a_val, b_val, c_val, x)
-        y.backward(torch.ones_like(y))  # type: ignore[union-attr]
-        x.grad.zero_()  # type: ignore[union-attr]
+        y.backward(ones)  # type: ignore[union-attr]
 
     benchmark_python_function(
         device,
@@ -243,7 +240,6 @@ def test_autograd_slangpy_automatic(
     def run() -> None:
         result = poly_func(a_val, b_val, c_val, x)
         result.backward(torch.ones_like(result))
-        x.grad.zero_()  # type: ignore[union-attr]
 
     benchmark_python_function(
         device,
@@ -256,5 +252,5 @@ def test_autograd_slangpy_automatic(
 
 
 if __name__ == "__main__":
-    input("Press Enter to run the tests...")
+    # input("Press Enter to run the tests...")
     pytest.main([__file__, "-v", "-s"])

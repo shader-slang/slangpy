@@ -31,6 +31,21 @@ extern "C" {
 #define TENSOR_BRIDGE_DEVICE_CPU 0
 #define TENSOR_BRIDGE_DEVICE_CUDA 1
 
+// Scalar type codes (matching c10::ScalarType)
+#define TENSOR_BRIDGE_SCALAR_UINT8 0
+#define TENSOR_BRIDGE_SCALAR_INT8 1
+#define TENSOR_BRIDGE_SCALAR_INT16 2
+#define TENSOR_BRIDGE_SCALAR_INT32 3
+#define TENSOR_BRIDGE_SCALAR_INT64 4
+#define TENSOR_BRIDGE_SCALAR_FLOAT16 5
+#define TENSOR_BRIDGE_SCALAR_FLOAT32 6
+#define TENSOR_BRIDGE_SCALAR_FLOAT64 7
+#define TENSOR_BRIDGE_SCALAR_COMPLEX32 8
+#define TENSOR_BRIDGE_SCALAR_COMPLEX64 9
+#define TENSOR_BRIDGE_SCALAR_COMPLEX128 10
+#define TENSOR_BRIDGE_SCALAR_BOOL 11
+#define TENSOR_BRIDGE_SCALAR_BFLOAT16 15
+
 // ============================================================================
 // Result codes for tensor bridge API functions
 // ============================================================================
@@ -149,10 +164,33 @@ typedef int (*TensorBridge_CopyToBufferFn)(void* py_tensor_obj, void* dest_cuda_
 // Returns: TENSOR_BRIDGE_SUCCESS (0) on success, or a negative TensorBridgeResult on error
 typedef int (*TensorBridge_CopyFromBufferFn)(void* py_tensor_obj, void* src_cuda_ptr, size_t src_size);
 
+// Create an empty contiguous CUDA tensor with specified shape and scalar type.
+// Parameters:
+//   shape: Array of dimension sizes
+//   ndim: Number of dimensions
+//   scalar_type: Scalar type code (use TENSOR_BRIDGE_SCALAR_* constants)
+//   device_index: CUDA device index (0, 1, etc.)
+// Returns: New reference to a PyObject* (torch.Tensor) on success, NULL on error.
+//          The caller owns the returned reference.
+typedef void* (*TensorBridge_CreateEmptyTensorFn)(
+    const int64_t* shape,
+    int32_t ndim,
+    int32_t scalar_type,
+    int32_t device_index
+);
+
+// Create a zero tensor with the same shape, dtype, and device as the given tensor.
+// Equivalent to torch.zeros_like(tensor).
+// Parameters:
+//   py_tensor_obj: PyObject* that must be a torch.Tensor
+// Returns: New reference to a PyObject* (torch.Tensor) on success, NULL on error.
+//          The caller owns the returned reference.
+typedef void* (*TensorBridge_CreateZerosLikeFn)(void* py_tensor_obj);
+
 // ============================================================================
 // Version info for ABI compatibility checking
 // ============================================================================
-#define TENSOR_BRIDGE_API_VERSION 5
+#define TENSOR_BRIDGE_API_VERSION 7
 
 typedef struct TensorBridgeAPI {
     int api_version;
@@ -164,6 +202,8 @@ typedef struct TensorBridgeAPI {
     TensorBridge_GetCurrentCudaStreamFn get_current_cuda_stream;
     TensorBridge_CopyToBufferFn copy_to_buffer;
     TensorBridge_CopyFromBufferFn copy_from_buffer;
+    TensorBridge_CreateEmptyTensorFn create_empty_tensor;
+    TensorBridge_CreateZerosLikeFn create_zeros_like;
 } TensorBridgeAPI;
 
 // Function to get the API struct (exported by the bridge module)
