@@ -407,10 +407,8 @@ public:
     }
 
     /// Resolve a type-specialized writer function for the given type layout.
-    /// Returns an empty function for types that require recursive dispatch (struct, array, resource).
-    /// For scalar/vector/matrix types, returns the pre-specialized writer that handles
-    /// nb::cast + cursor.set() with the correct C++ type.
-    std::function<void(CursorType&, nb::object)> resolve_writer(slang::TypeLayoutReflection* type_layout) const
+    /// Returns an empty function for types that do not have a predefined write function.
+    std::function<void(CursorType&, nb::object)> get_writer(slang::TypeLayoutReflection* type_layout) const
     {
         auto kind = (TypeReflection::Kind)type_layout->getKind();
         auto type = type_layout->getType();
