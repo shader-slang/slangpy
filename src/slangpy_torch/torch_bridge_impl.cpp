@@ -238,6 +238,32 @@ extern "C" int tensor_bridge_copy_from_buffer(void* py_obj, void* src_cuda_ptr, 
     }
 }
 
+// Create an empty contiguous CUDA tensor with specified shape and scalar type.
+// Returns a new reference to a PyObject* (torch.Tensor), or NULL on error.
+extern "C" void*
+tensor_bridge_create_empty_tensor(const int64_t* shape, int32_t ndim, int32_t scalar_type, int32_t device_index)
+{
+    if (!shape && ndim > 0)
+        return nullptr;
+
+    try {
+        // Build shape vector
+        std::vector<int64_t> shape_vec(shape, shape + ndim);
+
+        auto dtype = static_cast<c10::ScalarType>(scalar_type);
+        auto options
+            = torch::TensorOptions().dtype(dtype).device(torch::kCUDA, static_cast<c10::DeviceIndex>(device_index));
+
+        torch::Tensor tensor = torch::empty(shape_vec, options);
+
+        // Convert to a Python object and return a new reference
+        PyObject* result = THPVariable_Wrap(std::move(tensor));
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 static const TensorBridgeAPI g_api
     = {TENSOR_BRIDGE_API_VERSION,
        sizeof(TensorBridgeInfo),
@@ -246,7 +272,8 @@ static const TensorBridgeAPI g_api
        tensor_bridge_get_signature,
        tensor_bridge_get_current_cuda_stream,
        tensor_bridge_copy_to_buffer,
-       tensor_bridge_copy_from_buffer};
+       tensor_bridge_copy_from_buffer,
+       tensor_bridge_create_empty_tensor};
 
 extern "C" const TensorBridgeAPI* tensor_bridge_get_api(void)
 {

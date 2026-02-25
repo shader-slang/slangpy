@@ -23,15 +23,6 @@ struct GcHelper<slangpy::NativeFunctionNode> {
 
 namespace sgl::slangpy {
 
-// Cached Python object for torch autograd hook - stored at namespace scope
-// so it can be reset during shutdown.
-static nb::object s_torch_autograd_hook;
-
-void NativeFunctionNode::static_reset()
-{
-    s_torch_autograd_hook.reset();
-}
-
 ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
 {
     auto options = make_ref<NativeCallRuntimeOptions>();
@@ -86,14 +77,9 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
 
     // If torch auto grad required, go via autograd hook
     if (call_data->is_torch_autograd()) {
-        // Lookup and call 'slangpy.core.calldata.torch_autograd_hook'
-        // Cache the function lookup to avoid repeated module imports
-        // Note: This will be made into a native call via bridge soon.
-        if (!s_torch_autograd_hook.is_valid()) {
-            nb::module_ calldata_module = nb::module_::import_("slangpy.core.calldata");
-            s_torch_autograd_hook = calldata_module.attr("torch_autograd_hook");
-        }
-        return s_torch_autograd_hook(this, call_data, options, args, kwargs);
+        // Use TorchBridge to call the autograd hook - handles caching and cleanup
+        return TorchBridge::instance()
+            .call_torch_autograd_hook(nb::cast(this), nb::cast(call_data), nb::cast(options), args, kwargs);
     } else {
         return call_data->call(options, args, kwargs);
     }

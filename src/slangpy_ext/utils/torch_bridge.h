@@ -170,7 +170,9 @@ public:
         m_py_get_current_cuda_stream.reset();
         m_py_copy_to_buffer.reset();
         m_py_copy_from_buffer.reset();
+        m_py_create_empty_tensor.reset();
         m_cached_tensor_type = nullptr;
+        m_py_torch_autograd_hook.reset();
     }
 
     /// Check if a PyObject is a torch.Tensor.
@@ -342,6 +344,48 @@ public:
         return copy_from_buffer(h.ptr(), src_cuda_ptr, src_size);
     }
 
+    /// Create an empty contiguous CUDA tensor with the given shape and scalar type.
+    /// Uses native libtorch when available, otherwise falls back to Python torch.empty().
+    /// @param shape Pointer to dimension sizes.
+    /// @param ndim Number of dimensions.
+    /// @param scalar_type c10::ScalarType enum value (e.g. 6 for float32).
+    /// @param device_index CUDA device index.
+    /// @return A nanobind object wrapping the new torch.Tensor.
+    /// @throws std::runtime_error on failure.
+    nb::object
+    create_empty_tensor(const int64_t* shape, int32_t ndim, int32_t scalar_type, int32_t device_index = 0) const
+    {
+        if (!m_force_python_fallback && m_api) {
+            void* result = m_api->create_empty_tensor(shape, ndim, scalar_type, device_index);
+            if (!result) {
+                throw std::runtime_error("tensor_bridge_create_empty_tensor failed");
+            }
+            // create_empty_tensor returns a new reference; nb::steal takes ownership
+            return nb::steal(reinterpret_cast<PyObject*>(result));
+        }
+        return python_create_empty_tensor(shape, ndim, scalar_type, device_index);
+    }
+
+    /// Call torch autograd hook for differentiable function calls.
+    /// Currently always uses Python implementation; native implementation to be added.
+    /// @param function_node The function node being called.
+    /// @param call_data The call data for the function.
+    /// @param options Runtime options for the call.
+    /// @param args Positional arguments.
+    /// @param kwargs Keyword arguments.
+    /// @return Result of the autograd hook.
+    nb::object call_torch_autograd_hook(
+        nb::handle function_node,
+        nb::handle call_data,
+        nb::handle options,
+        nb::args args,
+        nb::kwargs kwargs
+    ) const
+    {
+        init_python_fallback();
+        return m_py_torch_autograd_hook(function_node, call_data, options, args, kwargs);
+    }
+
 private:
     TorchBridge() = default;
     TorchBridge(const TorchBridge&) = delete;
@@ -388,6 +432,11 @@ private:
         m_py_get_current_cuda_stream = m_fallback_module.attr("get_current_cuda_stream");
         m_py_copy_to_buffer = m_fallback_module.attr("copy_to_buffer");
         m_py_copy_from_buffer = m_fallback_module.attr("copy_from_buffer");
+        m_py_create_empty_tensor = m_fallback_module.attr("create_empty_tensor");
+
+        // Import autograd hook from calldata module
+        nb::module_ calldata_module = nb::module_::import_("slangpy.core.calldata");
+        m_py_torch_autograd_hook = calldata_module.attr("torch_autograd_hook");
 
         m_fallback_initialized = true;
     }
@@ -478,6 +527,18 @@ private:
         return nb::cast<bool>(m_py_copy_from_buffer(nb::handle(tensor), reinterpret_cast<uintptr_t>(src), size));
     }
 
+    nb::object
+    python_create_empty_tensor(const int64_t* shape, int32_t ndim, int32_t scalar_type, int32_t device_index) const
+    {
+        init_python_fallback();
+        // Build shape list
+        nb::list py_shape;
+        for (int32_t i = 0; i < ndim; i++) {
+            py_shape.append(shape[i]);
+        }
+        return m_py_create_empty_tensor(py_shape, scalar_type, device_index);
+    }
+
     // Native API state
     const TensorBridgeAPI* m_api = nullptr;
     bool m_initialized = false;
@@ -496,6 +557,8 @@ private:
     mutable nb::object m_py_get_current_cuda_stream;
     mutable nb::object m_py_copy_to_buffer;
     mutable nb::object m_py_copy_from_buffer;
+    mutable nb::object m_py_create_empty_tensor;
+    mutable nb::object m_py_torch_autograd_hook;
 
     // Cached torch.Tensor type for fast isinstance check in fallback mode
     // This avoids calling Python functions just to check if an object is a tensor
