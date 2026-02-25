@@ -466,8 +466,9 @@ nb::object NativeCallData::exec(
     nb::list unpacked_args;
     nb::dict unpacked_kwargs;
     if (m_needs_unpack) {
-        unpacked_args = unpack_args(args);
-        unpacked_kwargs = unpack_kwargs(kwargs);
+        bool had_unpack = false;
+        unpacked_args = unpack_args(args, had_unpack);
+        unpacked_kwargs = unpack_kwargs(kwargs, had_unpack);
     } else {
         // Fast path: wrap args/kwargs directly without checking for get_this.
         for (auto arg : args)
@@ -938,7 +939,7 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
     // Handle objects with get_this method.
     auto get_this = nb::getattr(o, "get_this", nb::none());
     if (!get_this.is_none()) {
-        builder->set_has_get_this();
+        *builder << "\nunpack";
         auto this_ = get_this();
         get_value_signature(builder, this_);
         return;
@@ -995,39 +996,34 @@ void NativeCallDataCache::get_args_signature(const ref<SignatureBuilder> builder
         builder->add(":");
         get_value_signature(builder, v);
     }
-
-    // Encode whether any args have get_this in the signature.
-    // This ensures cache keys are unique for calls that need unpacking vs those that don't.
-    builder->add(builder->has_get_this() ? "U" : "P");
 }
 
-nb::list unpack_args(nb::args args, bool* had_unpack)
+nb::list unpack_args(nb::args args, bool& out_had_unpack)
 {
     nb::list unpacked;
     for (auto arg : args) {
-        unpacked.append(unpack_arg(nb::cast<nb::object>(arg), had_unpack));
+        unpacked.append(unpack_arg(nb::cast<nb::object>(arg), out_had_unpack));
     }
     return unpacked;
 }
 
-nb::dict unpack_kwargs(nb::kwargs kwargs, bool* had_unpack)
+nb::dict unpack_kwargs(nb::kwargs kwargs, bool& out_had_unpack)
 {
     nb::dict unpacked;
     for (const auto& [k, v] : kwargs) {
-        unpacked[k] = unpack_arg(nb::cast<nb::object>(v), had_unpack);
+        unpacked[k] = unpack_arg(nb::cast<nb::object>(v), out_had_unpack);
     }
     return unpacked;
 }
 
-nb::object unpack_arg(nb::object arg, bool* had_unpack)
+nb::object unpack_arg(nb::object arg, bool& out_had_unpack)
 {
     auto obj = arg;
 
     // If object has 'get_this', read it.
     if (nb::hasattr(obj, "get_this")) {
         obj = nb::getattr(obj, "get_this")();
-        if (had_unpack)
-            *had_unpack = true;
+        out_had_unpack = true;
     }
 
     // Recursively unpack dictionaries.
@@ -1035,7 +1031,7 @@ nb::object unpack_arg(nb::object arg, bool* had_unpack)
     if (nb::try_cast(obj, d)) {
         nb::dict res;
         for (auto [k, v] : d) {
-            res[k] = unpack_arg(nb::cast<nb::object>(v), had_unpack);
+            res[k] = unpack_arg(nb::cast<nb::object>(v), out_had_unpack);
         }
         obj = res;
     }
@@ -1045,7 +1041,7 @@ nb::object unpack_arg(nb::object arg, bool* had_unpack)
     if (nb::try_cast(obj, l)) {
         nb::list res;
         for (auto v : l) {
-            res.append(unpack_arg(nb::cast<nb::object>(v), had_unpack));
+            res.append(unpack_arg(nb::cast<nb::object>(v), out_had_unpack));
         }
         obj = res;
     }
@@ -1105,7 +1101,7 @@ SGL_PY_EXPORT(utils_slangpy)
         [](nb::args args)
         {
             bool had_unpack = false;
-            nb::list result = unpack_args(args, &had_unpack);
+            nb::list result = unpack_args(args, had_unpack);
             return nb::make_tuple(result, had_unpack);
         },
         "args"_a,
@@ -1116,7 +1112,7 @@ SGL_PY_EXPORT(utils_slangpy)
         [](nb::kwargs kwargs)
         {
             bool had_unpack = false;
-            nb::dict result = unpack_kwargs(kwargs, &had_unpack);
+            nb::dict result = unpack_kwargs(kwargs, had_unpack);
             return nb::make_tuple(result, had_unpack);
         },
         "kwargs"_a,
@@ -1126,7 +1122,8 @@ SGL_PY_EXPORT(utils_slangpy)
         "unpack_arg",
         [](nb::object arg)
         {
-            return unpack_arg(arg);
+            bool had_unpack = false;
+            return unpack_arg(arg, had_unpack);
         },
         "arg"_a,
         D_NA(slangpy, unpack_arg)
