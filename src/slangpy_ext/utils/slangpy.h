@@ -766,6 +766,12 @@ public:
     /// Set the autograd access list.
     void set_autograd_access_list(const std::vector<AutogradAccess>& list) { m_autograd_access_list = list; }
 
+    /// Get the cached backward-pass call data (generated on first backward call).
+    ref<NativeCallData> bwds_call_data() const { return m_bwds_call_data; }
+
+    /// Set the cached backward-pass call data.
+    void set_bwds_call_data(const ref<NativeCallData>& bwds_call_data) { m_bwds_call_data = bwds_call_data; }
+
     /// Find all torch tensors in args/kwargs, wrap them in NativeTorchTensorDiffPair,
     /// and replace the tensors in args/kwargs with the pairs.
     /// Uses the precomputed autograd_access_list to determine input/output roles.
@@ -883,6 +889,7 @@ private:
     bool m_torch_autograd{false};
     bool m_needs_unpack{true};
     std::vector<AutogradAccess> m_autograd_access_list;
+    ref<NativeCallData> m_bwds_call_data;
     mutable CallDataOffsets m_cached_call_data_offsets;
 
     /// Recursive helper for find_torch_tensors.

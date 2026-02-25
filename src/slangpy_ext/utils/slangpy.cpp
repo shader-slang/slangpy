@@ -601,10 +601,10 @@ nb::tuple NativeCallData::autograd_backward(
         }
     }
 
-    // Call function.bwds(*args, **kwargs)
-    nb::object bwds = function_node.attr("bwds");
-    nb::tuple args_tuple(args);
-    bwds(*nb::borrow<nb::args>(args_tuple), **nb::borrow<nb::kwargs>(kwargs));
+    // Call backwards pass via cached bwds call data (avoids Python round-trip through function.bwds)
+    nb::args bwds_args = nb::borrow<nb::args>(nb::tuple(args));
+    nb::kwargs bwds_kwargs = nb::borrow<nb::kwargs>(kwargs);
+    nb::cast<NativeFunctionNode*>(function_node)->call_bwds(this, bwds_args, bwds_kwargs);
 
     // Return input gradients as tuple
     return nb::tuple(input_grads);
@@ -1681,6 +1681,12 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::autograd_access_list,
             &NativeCallData::set_autograd_access_list,
             D_NA(NativeCallData, autograd_access_list)
+        )
+        .def_prop_rw(
+            "bwds_call_data",
+            &NativeCallData::bwds_call_data,
+            &NativeCallData::set_bwds_call_data,
+            D_NA(NativeCallData, bwds_call_data)
         )
         .def(
             "find_torch_tensors",
