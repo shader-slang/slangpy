@@ -1,5 +1,9 @@
 
-add_library(sgl SHARED)
+if(SGL_EMSCRIPTEN)
+    add_library(sgl STATIC)
+else()
+    add_library(sgl SHARED)
+endif()
 
 option(SGL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 
