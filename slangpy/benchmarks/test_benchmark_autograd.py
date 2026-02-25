@@ -257,5 +257,5 @@ def test_autograd_slangpy_automatic(
 
 
 if __name__ == "__main__":
-    # input("Press Enter to run the tests...")
+    input("Press Enter to run the tests...")
     pytest.main([__file__, "-v", "-s"])

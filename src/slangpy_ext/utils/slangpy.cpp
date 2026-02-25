@@ -524,6 +524,8 @@ NativeCallData::autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list ar
 
     // Run the forward kernel
     // Convert args list to tuple for exec (which takes nb::args = nb::tuple)
+    // Note: exec() may insert _result into kwargs, so check before calling exec.
+    bool had_result = kwargs.contains("_result");
     nb::tuple args_tuple(args);
     nb::object result = exec(opts, nullptr, nb::borrow<nb::args>(args_tuple), nb::borrow<nb::kwargs>(kwargs));
 
@@ -534,9 +536,9 @@ NativeCallData::autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list ar
         pair->grad = nb::none();
     }
 
-    // If result is a tensor and _result is not already in kwargs,
+    // If result is a tensor and _result was not in kwargs before exec,
     // create a new output pair for it
-    if (!result.is_none() && !kwargs.contains("_result")) {
+    if (!result.is_none() && !had_result) {
         auto new_pair = make_ref<NativeTorchTensorDiffPair>(nb::none(), nb::none(), static_cast<int>(num_pairs), false);
         nb::object pair_obj = nb::cast(new_pair);
         kwargs["_result"] = pair_obj;
