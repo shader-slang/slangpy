@@ -244,6 +244,28 @@ nb::object create_torch_empty_tensor(nb::list shape, int32_t scalar_type, int32_
         .create_empty_tensor(shape_vec.data(), static_cast<int32_t>(shape_vec.size()), scalar_type, device_index);
 }
 
+/// Create a zero tensor with the same shape, dtype, and device as the given tensor.
+/// Equivalent to torch.zeros_like(tensor).
+/// @param tensor PyTorch tensor to use as a template.
+/// @return New torch.Tensor filled with zeros, matching tensor's shape/dtype/device.
+/// @throws std::runtime_error if torch bridge is not available.
+/// @throws std::invalid_argument if object is not a PyTorch tensor.
+nb::object create_torch_zeros_like_tensor(nb::handle tensor)
+{
+    auto& bridge = TorchBridge::instance();
+    bridge.try_init();
+
+    if (!bridge.is_available()) {
+        throw std::runtime_error("Torch bridge is not available");
+    }
+
+    if (!bridge.is_tensor(tensor)) {
+        throw std::invalid_argument("Object is not a PyTorch tensor");
+    }
+
+    return bridge.create_zeros_like_tensor(tensor);
+}
+
 } // namespace sgl
 
 SGL_PY_EXPORT(utils_torch_bridge)
@@ -295,5 +317,12 @@ SGL_PY_EXPORT(utils_torch_bridge)
         "scalar_type"_a,
         "device_index"_a = 0,
         D_NA(create_torch_empty_tensor)
+    );
+
+    m.def(
+        "create_torch_zeros_like_tensor",
+        &create_torch_zeros_like_tensor,
+        "tensor"_a,
+        D_NA(create_torch_zeros_like_tensor)
     );
 }

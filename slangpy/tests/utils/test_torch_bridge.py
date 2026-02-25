@@ -539,3 +539,114 @@ class TestTorchBridgeCreateEmptyTensor:
         assert info["element_size"] == 4
         assert info["is_cuda"] is True
         assert info["is_contiguous"] is True
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+class TestTorchBridgeCreateZerosLikeTensor:
+    """Tests for create_torch_zeros_like_tensor via the TorchBridge.
+
+    Verifies that tensors created through the bridge (both native and
+    fallback modes) have the correct shape, dtype, device, and are all zeros.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_bridge_mode(self, torch_bridge_mode: str):
+        """Automatically use torch_bridge_mode fixture for all tests."""
+        self.mode = torch_bridge_mode
+
+    def test_basic_zeros_like(self):
+        """Test creating a zeros-like tensor from a simple CUDA tensor."""
+        src = torch.ones(4, 3, device="cuda", dtype=torch.float32)
+        t = slangpy.create_torch_zeros_like_tensor(src)
+        assert isinstance(t, torch.Tensor)
+        assert t.shape == src.shape
+        assert t.dtype == src.dtype
+        assert t.is_cuda
+        assert t.device == src.device
+        assert torch.all(t == 0)
+
+    def test_zeros_like_preserves_shape(self):
+        """Test that zeros_like preserves multi-dimensional shape."""
+        src = torch.randn(2, 3, 4, 5, device="cuda", dtype=torch.float32)
+        t = slangpy.create_torch_zeros_like_tensor(src)
+        assert t.shape == (2, 3, 4, 5)
+        assert t.numel() == 2 * 3 * 4 * 5
+        assert torch.all(t == 0)
+
+    def test_zeros_like_1d(self):
+        """Test zeros_like on a 1D tensor."""
+        src = torch.randn(16, device="cuda", dtype=torch.float32)
+        t = slangpy.create_torch_zeros_like_tensor(src)
+        assert t.shape == (16,)
+        assert t.ndim == 1
+        assert torch.all(t == 0)
+
+    def test_zeros_like_scalar(self):
+        """Test zeros_like on a 0-dimensional (scalar) tensor."""
+        src = torch.tensor(42.0, device="cuda", dtype=torch.float32)
+        t = slangpy.create_torch_zeros_like_tensor(src)
+        assert t.shape == ()
+        assert t.ndim == 0
+        assert t.numel() == 1
+        assert t.item() == 0.0
+
+    @pytest.mark.parametrize(
+        "dtype",
+        [
+            torch.uint8,
+            torch.int8,
+            torch.int16,
+            torch.int32,
+            torch.int64,
+            torch.float16,
+            torch.float32,
+            torch.float64,
+        ],
+    )
+    def test_zeros_like_dtypes(self, dtype: torch.dtype):
+        """Test that zeros_like preserves all supported dtypes."""
+        src = torch.ones(8, device="cuda", dtype=dtype)
+        t = slangpy.create_torch_zeros_like_tensor(src)
+        assert t.dtype == dtype
+        assert t.shape == (8,)
+        assert t.is_cuda
+        assert torch.all(t == 0)
+
+    def test_zeros_like_is_contiguous(self):
+        """Test that zeros_like always produces a contiguous tensor."""
+        src = torch.randn(4, 3, device="cuda")
+        t = slangpy.create_torch_zeros_like_tensor(src)
+        assert t.is_contiguous()
+
+    def test_zeros_like_from_noncontiguous(self):
+        """Test zeros_like from a non-contiguous source tensor."""
+        src = torch.randn(4, 3, device="cuda").T  # Transpose makes it non-contiguous
+        assert not src.is_contiguous()
+        t = slangpy.create_torch_zeros_like_tensor(src)
+        assert t.shape == src.shape
+        assert t.dtype == src.dtype
+        assert torch.all(t == 0)
+
+    def test_zeros_like_is_writable(self):
+        """Test that the created tensor can be written to and read back."""
+        src = torch.randn(4, device="cuda", dtype=torch.float32)
+        t = slangpy.create_torch_zeros_like_tensor(src)
+        t.fill_(42.0)
+        assert torch.all(t == 42.0)
+
+    def test_zeros_like_non_tensor_raises(self):
+        """Test that passing a non-tensor raises ValueError."""
+        with pytest.raises(ValueError, match="not a PyTorch tensor"):
+            slangpy.create_torch_zeros_like_tensor([1, 2, 3])
+
+    def test_metadata_roundtrip(self):
+        """Test that extract_torch_tensor_info works on a zeros-like tensor."""
+        src = torch.randn(3, 5, device="cuda", dtype=torch.float32)
+        t = slangpy.create_torch_zeros_like_tensor(src)
+        info = slangpy.extract_torch_tensor_info(t)
+        assert info["shape"] == (3, 5)
+        assert info["ndim"] == 2
+        assert info["numel"] == 15
+        assert info["element_size"] == 4
+        assert info["is_cuda"] is True
+        assert info["is_contiguous"] is True
