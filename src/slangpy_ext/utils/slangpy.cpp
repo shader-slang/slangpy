@@ -18,6 +18,7 @@
 #include "utils/slangpybuffer.h"
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpyfunction.h"
+#include "utils/slangpytorchtensor.h"
 #include "utils/torch_bridge.h"
 
 #include <fmt/format.h>
@@ -440,9 +441,173 @@ void NativeBoundCallRuntime::write_raw_dispatch_data(nb::dict call_data, nb::dic
     }
 }
 
+nb::object NativeCallData::find_torch_tensors_recurse(nb::object arg, nb::list& pairs, size_t& access_idx)
+{
+    auto& bridge = TorchBridge::instance();
+
+    if (nb::isinstance<nb::dict>(arg)) {
+        nb::dict d = nb::cast<nb::dict>(arg);
+        nb::dict result;
+        for (auto [k, v] : d) {
+            result[k] = find_torch_tensors_recurse(nb::borrow<nb::object>(v), pairs, access_idx);
+        }
+        return result;
+    } else if (bridge.is_tensor(arg.ptr())) {
+        // Read access from pre-built list
+        if (access_idx >= m_autograd_access_list.size()) {
+            throw std::runtime_error(
+                "Autograd access list index out of bounds — "
+                "argument structure doesn't match build-time bindings."
+            );
+        }
+        AutogradAccess access = m_autograd_access_list[access_idx++];
+
+        if (access == AutogradAccess::readwrite) {
+            throw std::runtime_error("In-place operations not supported for torch autograd.");
+        }
+
+        bool is_input = (access == AutogradAccess::read);
+        int index = static_cast<int>(pairs.size());
+        auto pair = make_ref<NativeTorchTensorDiffPair>(std::move(arg), nb::none(), index, is_input);
+        nb::object pair_obj = nb::cast(pair);
+        pairs.append(pair_obj);
+        return pair_obj;
+    } else {
+        return arg;
+    }
+}
+
+nb::list NativeCallData::find_torch_tensors(nb::list args, nb::dict kwargs)
+{
+    nb::list pairs;
+    size_t access_idx = 0;
+
+    // Walk positional args
+    size_t num_args = nb::len(args);
+    for (size_t i = 0; i < num_args; i++) {
+        args[i] = find_torch_tensors_recurse(nb::borrow<nb::object>(args[i]), pairs, access_idx);
+    }
+
+    // Walk keyword args
+    // Use a snapshot of keys to safely iterate while modifying
+    nb::list keys(kwargs.keys());
+    size_t num_keys = nb::len(keys);
+    for (size_t i = 0; i < num_keys; i++) {
+        nb::object key = keys[i];
+        nb::object val = kwargs[key];
+        kwargs[key] = find_torch_tensors_recurse(val, pairs, access_idx);
+    }
+
+    return pairs;
+}
+
 nb::object NativeCallData::call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs)
 {
     return exec(opts, nullptr, args, kwargs);
+}
+
+nb::tuple
+NativeCallData::autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list args, nb::dict kwargs, nb::list pairs)
+{
+    // Separate pairs into input/output lists
+    nb::list input_tensors;
+    nb::list output_tensors;
+    size_t num_pairs = nb::len(pairs);
+    for (size_t i = 0; i < num_pairs; i++) {
+        auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
+        if (pair->is_input) {
+            input_tensors.append(pair->primal);
+        } else {
+            output_tensors.append(pair->primal);
+        }
+    }
+
+    // Run the forward kernel
+    // Convert args list to tuple for exec (which takes nb::args = nb::tuple)
+    // Note: exec() may insert _result into kwargs, so check before calling exec.
+    bool had_result = kwargs.contains("_result");
+    nb::tuple args_tuple(args);
+    nb::object result = exec(opts, nullptr, nb::borrow<nb::args>(args_tuple), nb::borrow<nb::kwargs>(kwargs));
+
+    // Clear tensor references from pairs to avoid keeping them alive
+    for (size_t i = 0; i < num_pairs; i++) {
+        auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
+        pair->primal = nb::none();
+        pair->grad = nb::none();
+    }
+
+    // If result is a tensor and _result was not in kwargs before exec,
+    // create a new output pair for it
+    if (!result.is_none() && !had_result) {
+        auto new_pair = make_ref<NativeTorchTensorDiffPair>(nb::none(), nb::none(), static_cast<int>(num_pairs), false);
+        nb::object pair_obj = nb::cast(new_pair);
+        kwargs["_result"] = pair_obj;
+        pairs.append(pair_obj);
+        output_tensors.append(result);
+    }
+
+    return nb::make_tuple(input_tensors, output_tensors, result, pairs);
+}
+
+nb::tuple NativeCallData::autograd_backward(
+    nb::handle function_node,
+    nb::list pairs,
+    nb::list args,
+    nb::dict kwargs,
+    nb::list saved_tensors,
+    nb::tuple grad_outputs
+)
+{
+    auto& bridge = TorchBridge::instance();
+    bool is_cuda = m_device->type() == DeviceType::cuda;
+
+    // Walk pairs: restore tensors and populate gradients
+    size_t input_idx = 0;
+    size_t grad_output_idx = 0;
+    nb::list input_grads;
+
+    size_t num_pairs = nb::len(pairs);
+    for (size_t i = 0; i < num_pairs; i++) {
+        auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
+        if (pair->is_input) {
+            // Restore primal from saved tensors
+            pair->primal = nb::borrow(saved_tensors[input_idx]);
+
+            // Create gradient tensor if requires_grad
+            bool requires_grad = nb::cast<bool>(pair->primal.attr("requires_grad"));
+            if (requires_grad) {
+                pair->grad = bridge.create_zeros_like_tensor(pair->primal);
+                input_grads.append(pair->grad);
+            } else {
+                pair->grad = nb::none();
+                input_grads.append(nb::none());
+            }
+            input_idx++;
+        } else {
+            // Output pair: assign upstream gradient
+            nb::object grad_out = nb::borrow(grad_outputs[grad_output_idx]);
+            if (!grad_out.is_none()) {
+                pair->primal = nb::none();
+                pair->grad = grad_out;
+                // Non-CUDA backends need contiguous gradients
+                if (!is_cuda) {
+                    pair->grad = pair->grad.attr("contiguous")();
+                }
+            } else {
+                pair->primal = nb::none();
+                pair->grad = nb::none();
+            }
+            grad_output_idx++;
+        }
+    }
+
+    // Call backwards pass via cached bwds call data (avoids Python round-trip through function.bwds)
+    nb::args bwds_args = nb::borrow<nb::args>(nb::tuple(args));
+    nb::kwargs bwds_kwargs = nb::borrow<nb::kwargs>(kwargs);
+    nb::cast<NativeFunctionNode*>(function_node)->call_bwds(this, bwds_args, bwds_kwargs);
+
+    // Return input gradients as tuple
+    return nb::tuple(input_grads);
 }
 
 nb::object NativeCallData::append_to(
@@ -462,9 +627,20 @@ nb::object NativeCallData::exec(
     nb::kwargs kwargs
 )
 {
-    // Unpack args and kwargs.
-    nb::list unpacked_args = unpack_args(args);
-    nb::dict unpacked_kwargs = unpack_kwargs(kwargs);
+    // Unpack args and kwargs (skip if no args have get_this/update_this).
+    nb::list unpacked_args;
+    nb::dict unpacked_kwargs;
+    if (m_needs_unpack) {
+        bool had_unpack = false;
+        unpacked_args = unpack_args(args, had_unpack);
+        unpacked_kwargs = unpack_kwargs(kwargs, had_unpack);
+    } else {
+        // Fast path: wrap args/kwargs directly without checking for get_this.
+        for (auto arg : args)
+            unpacked_args.append(arg);
+        for (auto [k, v] : kwargs)
+            unpacked_kwargs[k] = v;
+    }
 
     // Calculate call shape.
     Shape call_shape = m_runtime->calculate_call_shape(m_call_dimensionality, unpacked_args, unpacked_kwargs, this);
@@ -788,12 +964,14 @@ nb::object NativeCallData::exec(
         bvr->python_type()->read_calldata(context, bvr.get(), rb_val, rb_data);
     }
 
-    // Pack updated 'this' values back.
-    for (size_t i = 0; i < args.size(); ++i) {
-        pack_arg(args[i], unpacked_args[i]);
-    }
-    for (auto [k, v] : kwargs) {
-        pack_arg(nb::cast<nb::object>(v), unpacked_kwargs[k]);
+    // Pack updated 'this' values back (skip if no args needed unpacking).
+    if (m_needs_unpack) {
+        for (size_t i = 0; i < args.size(); ++i) {
+            pack_arg(args[i], unpacked_args[i]);
+        }
+        for (auto [k, v] : kwargs) {
+            pack_arg(nb::cast<nb::object>(v), unpacked_kwargs[k]);
+        }
     }
 
     // Handle return value based on call mode.
@@ -928,6 +1106,7 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
     // Handle objects with get_this method.
     auto get_this = nb::getattr(o, "get_this", nb::none());
     if (!get_this.is_none()) {
+        *builder << "\nunpack";
         auto this_ = get_this();
         get_value_signature(builder, this_);
         return;
@@ -986,40 +1165,32 @@ void NativeCallDataCache::get_args_signature(const ref<SignatureBuilder> builder
     }
 }
 
-nb::list unpack_args(nb::args args, std::optional<nb::list> refs)
+nb::list unpack_args(nb::args args, bool& out_had_unpack)
 {
     nb::list unpacked;
     for (auto arg : args) {
-        unpacked.append(unpack_arg(nb::cast<nb::object>(arg), refs));
+        unpacked.append(unpack_arg(nb::cast<nb::object>(arg), out_had_unpack));
     }
     return unpacked;
 }
 
-nb::dict unpack_kwargs(nb::kwargs kwargs, std::optional<nb::list> refs)
+nb::dict unpack_kwargs(nb::kwargs kwargs, bool& out_had_unpack)
 {
     nb::dict unpacked;
     for (const auto& [k, v] : kwargs) {
-        unpacked[k] = unpack_arg(nb::cast<nb::object>(v), refs);
+        unpacked[k] = unpack_arg(nb::cast<nb::object>(v), out_had_unpack);
     }
     return unpacked;
 }
 
-nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
+nb::object unpack_arg(nb::object arg, bool& out_had_unpack)
 {
     auto obj = arg;
 
     // If object has 'get_this', read it.
     if (nb::hasattr(obj, "get_this")) {
         obj = nb::getattr(obj, "get_this")();
-    }
-
-    // If object is a pytorch tensor, add it to refs for autograd tracking
-    if (refs.has_value()) {
-        nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
-        if (nb::try_cast(arg, pytorch_tensor)) {
-            refs->append(arg);
-            return arg;
-        }
+        out_had_unpack = true;
     }
 
     // Recursively unpack dictionaries.
@@ -1027,7 +1198,7 @@ nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
     if (nb::try_cast(obj, d)) {
         nb::dict res;
         for (auto [k, v] : d) {
-            res[k] = unpack_arg(nb::cast<nb::object>(v), refs);
+            res[k] = unpack_arg(nb::cast<nb::object>(v), out_had_unpack);
         }
         obj = res;
     }
@@ -1037,7 +1208,7 @@ nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
     if (nb::try_cast(obj, l)) {
         nb::list res;
         for (auto v : l) {
-            res.append(unpack_arg(nb::cast<nb::object>(v), refs));
+            res.append(unpack_arg(nb::cast<nb::object>(v), out_had_unpack));
         }
         obj = res;
     }
@@ -1091,23 +1262,16 @@ SGL_PY_EXPORT(utils_slangpy)
     nb::sgl_enum<AccessType>(slangpy, "AccessType");
     nb::sgl_enum<CallMode>(slangpy, "CallMode");
     nb::sgl_enum<CallDataMode>(slangpy, "CallDataMode");
+    nb::sgl_enum<AutogradAccess>(slangpy, "AutogradAccess");
 
     slangpy.def(
         "unpack_args",
         [](nb::args args)
         {
-            return unpack_args(args);
+            bool had_unpack = false;
+            nb::list result = unpack_args(args, had_unpack);
+            return nb::make_tuple(result, had_unpack);
         },
-        "args"_a,
-        D_NA(slangpy, unpack_args)
-    );
-    slangpy.def(
-        "unpack_refs_and_args",
-        [](nb::list refs, nb::args args)
-        {
-            return unpack_args(args, refs);
-        },
-        "refs"_a,
         "args"_a,
         D_NA(slangpy, unpack_args)
     );
@@ -1115,18 +1279,10 @@ SGL_PY_EXPORT(utils_slangpy)
         "unpack_kwargs",
         [](nb::kwargs kwargs)
         {
-            return unpack_kwargs(kwargs);
+            bool had_unpack = false;
+            nb::dict result = unpack_kwargs(kwargs, had_unpack);
+            return nb::make_tuple(result, had_unpack);
         },
-        "kwargs"_a,
-        D_NA(slangpy, unpack_kwargs)
-    );
-    slangpy.def(
-        "unpack_refs_and_kwargs",
-        [](nb::list refs, nb::kwargs kwargs)
-        {
-            return unpack_kwargs(kwargs, refs);
-        },
-        "refs"_a,
         "kwargs"_a,
         D_NA(slangpy, unpack_kwargs)
     );
@@ -1134,7 +1290,8 @@ SGL_PY_EXPORT(utils_slangpy)
         "unpack_arg",
         [](nb::object arg)
         {
-            return unpack_arg(arg);
+            bool had_unpack = false;
+            return unpack_arg(arg, had_unpack);
         },
         "arg"_a,
         D_NA(slangpy, unpack_arg)
@@ -1510,6 +1667,52 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::set_torch_autograd,
             nb::arg(),
             D_NA(NativeCallData, torch_autograd)
+        )
+        .def_prop_rw(
+            "needs_unpack",
+            &NativeCallData::needs_unpack,
+            &NativeCallData::set_needs_unpack,
+            nb::arg(),
+            D_NA(NativeCallData, needs_unpack)
+        )
+        .def_prop_rw(
+            "autograd_access_list",
+            &NativeCallData::autograd_access_list,
+            &NativeCallData::set_autograd_access_list,
+            D_NA(NativeCallData, autograd_access_list)
+        )
+        .def_prop_rw(
+            "bwds_call_data",
+            &NativeCallData::bwds_call_data,
+            &NativeCallData::set_bwds_call_data,
+            D_NA(NativeCallData, bwds_call_data)
+        )
+        .def(
+            "find_torch_tensors",
+            &NativeCallData::find_torch_tensors,
+            nb::arg("args"),
+            nb::arg("kwargs"),
+            D_NA(NativeCallData, find_torch_tensors)
+        )
+        .def(
+            "autograd_forward",
+            &NativeCallData::autograd_forward,
+            nb::arg("opts"),
+            nb::arg("args"),
+            nb::arg("kwargs"),
+            nb::arg("pairs"),
+            D_NA(NativeCallData, autograd_forward)
+        )
+        .def(
+            "autograd_backward",
+            &NativeCallData::autograd_backward,
+            nb::arg("function_node"),
+            nb::arg("pairs"),
+            nb::arg("args"),
+            nb::arg("kwargs"),
+            nb::arg("saved_tensors"),
+            nb::arg("grad_outputs"),
+            D_NA(NativeCallData, autograd_backward)
         )
 
         .def("log", &NativeCallData::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(Logger, log))
