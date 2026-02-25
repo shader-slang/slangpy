@@ -181,7 +181,7 @@ def test_autograd_slangpy_manual_hook(
         def forward(ctx: Any, a: float, b: float, c: float, x: torch.Tensor) -> torch.Tensor:
             # Run the forward SlangPy kernel with plain (non-grad) tensors
             # to avoid triggering the automatic autograd path
-            # x = x.detach()
+            x = x.detach()
             result = torch.empty_like(x)
             poly_func(a, b, c, x, _result=result)
             ctx.save_for_backward(x)
@@ -244,7 +244,6 @@ def test_autograd_slangpy_automatic(
     def run() -> None:
         result = poly_func(a_val, b_val, c_val, x)
         result.backward(torch.ones_like(result))
-        x.grad.zero_()  # type: ignore[union-attr]
 
     benchmark_python_function(
         device,
