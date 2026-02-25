@@ -23,8 +23,8 @@ def build_test_data(module: spy.Module, call_mode: spyn.CallMode, *args: Any, **
     # Build 'unpacked' args (that handle IThis) and extract any pytorch
     # tensor references at the same time.
     tensor_refs = []
-    unpacked_args = spyn.unpack_refs_and_args(tensor_refs, *args)
-    unpacked_kwargs = spyn.unpack_refs_and_kwargs(tensor_refs, **kwargs)
+    unpacked_args, _ = spyn.unpack_args(*args)
+    unpacked_kwargs, _ = spyn.unpack_kwargs(**kwargs)
 
     # Setup context
     context = spy.bindings.BindContext(
