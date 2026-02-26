@@ -721,8 +721,14 @@ private:
         }
         case TypeReflection::Kind::constant_buffer:
         case TypeReflection::Kind::parameter_block:
+            if constexpr (requires { self.dereference(); }) {
+                // Unwrap constant buffers or parameter blocks for shader cursors
+                auto child = self.dereference();
+                write_internal(child, nbval);
+                return;
+            } else
+                SGL_THROW("constant_buffer and param_block not expected in BufferElementCursor");
         case TypeReflection::Kind::struct_: {
-            // Unwrap constant buffers or parameter blocks
             if (kind != TypeReflection::Kind::struct_)
                 type_layout = type_layout->getElementTypeLayout();
 
