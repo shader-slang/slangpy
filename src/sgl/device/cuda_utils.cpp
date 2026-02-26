@@ -16,6 +16,17 @@
 
 namespace sgl::cuda {
 
+int get_current_device_index()
+{
+    CUcontext cu_context = nullptr;
+    SGL_CU_CHECK(cuCtxGetCurrent(&cu_context));
+    SGL_CHECK(cu_context, "No active CUDA context found when trying to get current device index.");
+    CUdevice cu_device = 0;
+    SGL_CU_CHECK(cuCtxGetDevice(&cu_device));
+    SGL_CHECK(cu_device >= 0, "Failed to get current CUDA device.");
+    return static_cast<int>(cu_device);
+}
+
 void* malloc_device(size_t size)
 {
     CUdeviceptr ptr;

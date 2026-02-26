@@ -52,6 +52,26 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(CallDataMode);
 
+/// Access pattern for torch autograd tensor bindings.
+/// Precomputed at build time and stored in a flat list on NativeCallData,
+/// consumed in order during find_torch_tensors at dispatch time.
+enum class AutogradAccess {
+    none = 0,
+    read = 1,      // Tensor is an input (grad written to it in backward)
+    write = 2,     // Tensor is an output (grad read from it in backward)
+    readwrite = 3, // Error: in-place ops not supported for autograd
+};
+SGL_ENUM_INFO(
+    AutogradAccess,
+    {
+        {AutogradAccess::none, "none"},
+        {AutogradAccess::read, "read"},
+        {AutogradAccess::write, "write"},
+        {AutogradAccess::readwrite, "readwrite"},
+    }
+);
+SGL_ENUM_REGISTER(AutogradAccess);
+
 
 class SGL_API Shape {
 public:
