@@ -1,5 +1,5 @@
 name: ci-latest-slang
-run-name: "Slang branch: ${{ github.event.inputs.slang_branch || 'master' }}"
+run-name: "${{ github.event_name == 'repository_dispatch' && format('Slang PR #{0}', github.event.client_payload.slang_pr_number) || format('Slang branch: {0}', github.event.inputs.slang_branch || 'master') }}"
 
 on:
   schedule:
@@ -10,11 +10,14 @@ on:
         description: 'Slang branch'
         required: true
         default: 'master'
+  repository_dispatch:
+    types: [slang-pr-test]
 
 permissions:
   contents: read
   checks: write
   id-token: write
+  statuses: write
 
 jobs:
   build:
@@ -96,7 +99,7 @@ jobs:
         run: |
           git clone --recursive https://github.com/shader-slang/slang.git
           cd slang
-          git checkout ${{ github.event.inputs.slang_branch || 'master' }}
+          git checkout ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.slang_ref || github.event.inputs.slang_branch || 'master' }}
           git submodule update --init --recursive
 
       # Build Slang.
@@ -185,6 +188,23 @@ jobs:
         if: always()
         run: python -m pip uninstall slangpy-torch -y
         continue-on-error: true
+
+      # Post status to Slang PR (only when triggered by repository_dispatch)
+      - name: Post status to Slang PR
+        if: always() && github.event_name == 'repository_dispatch'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: 'shader-slang',
+              repo: 'slang',
+              sha: '${{ github.event.client_payload.slang_commit_sha }}',
+              state: '${{ job.status == 'success' && 'success' || 'failure' }}',
+              context: 'SlangPy Tests / ${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ matrix.config }}',
+              description: 'SlangPy compatibility tests',
+              target_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            });
 
   # Notify Slack after all matrix jobs complete
   notify:
