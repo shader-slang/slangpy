@@ -95,6 +95,28 @@ def test_method(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_overloads(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    m = helpers.create_module(device, MODULE)
+
+    layout = m.layout
+
+    res = layout.find_function_by_name("foo_ol")
+    assert res is not None
+    assert res.is_overloaded
+
+    # Look up specialization
+    specialization = res.overloads[0]
+    reflected_specialization = layout.find_function(specialization.reflection, None)
+    assert reflected_specialization is not None
+
+    # ...and make sure it did not overwrite the cache
+    re_lookup = layout.find_function_by_name("foo_ol")
+    assert re_lookup is not None
+    assert re_lookup.is_overloaded
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_generic_specialization(device_type: DeviceType):
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(device, "foo_generic<float>", MODULE)
@@ -108,6 +130,11 @@ def test_generic_specialization(device_type: DeviceType):
     assert res.full_name == "foo_generic<float>"
     assert res.parameters[0].name == "a"
     assert res.parameters[0].type == layout.scalar_type(TypeReflection.ScalarType.float32)
+
+    # Check that the specialization did not get cached under the unspecialized name
+    unspecialized = layout.find_function_by_name("foo_generic")
+    assert unspecialized is not None
+    assert unspecialized.full_name == "foo_generic"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
