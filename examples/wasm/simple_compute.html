@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SGL Simple Compute WASM</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 {
+            color: #00d4ff;
+        }
+        #output {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            min-height: 200px;
+            border: 1px solid #0f3460;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .loading { background: #0f3460; }
+        .success { background: #1b4332; border: 1px solid #2d6a4f; }
+        .error { background: #4a1515; border: 1px solid #721c1c; }
+    </style>
+</head>
+<body>
+    <h1>⚙️ SGL Simple Compute WASM</h1>
+    <div id="status" class="status loading">Loading WASM module...</div>
+    <h3>Console Output:</h3>
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+        const status = document.getElementById('status');
+        
+        var Module = {
+            onRuntimeInitialized: function() {
+                status.textContent = '✓ Simple Compute WASM module loaded successfully!';
+                status.className = 'status success';
+            },
+            print: function(text) {
+                console.log(text);
+                output.textContent += text + '\n';
+            },
+            printErr: function(text) {
+                console.error(text);
+                output.textContent += '[ERROR] ' + text + '\n';
+            }
+        };
+    </script>
+    <script src="simple-compute-wasm.js"></script>
+</body>
+</html>

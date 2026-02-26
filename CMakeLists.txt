@@ -97,6 +97,11 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(SGL_MACOS TRUE)
     set(SGL_HAS_D3D12 OFF)
     set(SGL_HAS_VULKAN ON)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set(SGL_PLATFORM "Emscripten")
+    set(SGL_EMSCRIPTEN TRUE)
+    set(SGL_HAS_D3D12 OFF)
+    set(SGL_HAS_VULKAN OFF)
 else()
     message(FATAL_ERROR "Unsupported platform!")
 endif()
@@ -119,7 +124,13 @@ endif()
 # CUDA
 # -----------------------------------------------------------------------------
 
-if(NOT SGL_USE_DYNAMIC_CUDA)
+if(SGL_EMSCRIPTEN OR SGL_MACOS)
+    set(SGL_HAS_CUDA OFF)
+else()
+    set(SGL_HAS_CUDA ON)
+endif()
+
+if(SGL_HAS_CUDA AND NOT SGL_USE_DYNAMIC_CUDA)
     find_package(CUDAToolkit REQUIRED)
 endif()
 

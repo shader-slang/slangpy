@@ -15,7 +15,9 @@
 #include <vulkan/vulkan.h>
 #endif
 
+#if SGL_HAS_CUDA
 #include <slang-rhi/cuda-driver-api.h>
+#endif
 
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
@@ -77,9 +79,11 @@ SGL_NATIVE_HANDLE(VkCommandBuffer, NativeHandleType::VkCommandBuffer);
 SGL_NATIVE_HANDLE(VkSampler, NativeHandleType::VkSampler);
 #endif // SGL_HAS_VULKAN
 
+#if SGL_HAS_CUDA
 SGL_NATIVE_HANDLE_32(CUdevice, NativeHandleType::CUdevice);
 SGL_NATIVE_HANDLE(CUcontext, NativeHandleType::CUcontext);
 SGL_NATIVE_HANDLE(CUstream, NativeHandleType::CUstream);
+#endif // SGL_HAS_CUDA
 
 #undef SGL_NATIVE_HANDLE
 #undef SGL_NATIVE_HANDLE_32

@@ -2,6 +2,8 @@
 
 #include "renderdoc.h"
 
+#ifndef SGL_EMSCRIPTEN
+
 #include "sgl/core/error.h"
 #include "sgl/core/platform.h"
 #include "sgl/core/window.h"
@@ -168,3 +170,5 @@ bool is_frame_capturing()
 }
 
 } // namespace sgl::renderdoc
+
+#endif // SGL_EMSCRIPTEN

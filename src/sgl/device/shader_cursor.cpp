@@ -544,6 +544,7 @@ void ShaderCursor::set_object(const ref<ShaderObject>& object) const
     m_shader_object->set_object(m_offset, object);
 }
 
+#if SGL_HAS_CUDA
 void ShaderCursor::set_cuda_tensor_view(const cuda::TensorView& tensor_view) const
 {
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
@@ -564,6 +565,7 @@ void ShaderCursor::set_cuda_tensor_view(const cuda::TensorView& tensor_view) con
         SGL_THROW("\"{}\" expects a valid buffer", m_type_layout->getName());
     }
 }
+#endif
 
 void ShaderCursor::set_pointer(uint64_t pointer_value) const
 {

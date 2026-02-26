@@ -8,6 +8,8 @@
 
 namespace sgl::renderdoc {
 
+#ifndef SGL_EMSCRIPTEN
+
 /**
  * \brief Check if RenderDoc is available.
  *
@@ -46,5 +48,28 @@ SGL_API bool end_frame_capture();
  * \return True if a frame is currently being captured.
  */
 SGL_API bool is_frame_capturing();
+
+#else
+
+inline bool is_available()
+{
+    return false;
+}
+
+inline bool start_frame_capture(ref<Device>, ref<Window> = nullptr)
+{
+    return false;
+}
+
+inline bool end_frame_capture()
+{
+    return false;
+}
+
+inline bool is_frame_capturing()
+{
+    return false;
+}
+#endif
 
 } // namespace sgl::renderdoc
