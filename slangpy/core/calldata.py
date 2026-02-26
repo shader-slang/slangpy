@@ -114,6 +114,21 @@ class CallData(NativeCallData):
         self.build(build_info, *args, **kwargs)
 
     def build(self, build_info: "FunctionBuildInfo", *args: Any, **kwargs: Any):
+        # The follow section explain how _thread_count is handled.
+        # Phase 1 (C++, every call): read_thread_count_kwarg() reads the value from kwargs
+        #   into opts->m_thread_count, but leaves _thread_count in kwargs so Phase 2 can
+        #   see it. The signature naturally includes "_thread_count:int" when present,
+        #   creating a separate cache entry for calls with vs. without it.
+        #
+        # Phase 2 (Python, cache miss only): pop _thread_count before the
+        #   shader binding machinery runs, since it is not a Slang parameter and would
+        #   cause a binding error if left in kwargs.
+        #
+        # Phase 3 (C++, every call): exec() uses opts->has_thread_count() / thread_count()
+        #   to set total_threads. opts was already populated in Phase 1, so exec() never
+        #   needs to look at kwargs for this value.
+        has_thread_count = "_thread_count" in kwargs
+        kwargs.pop("_thread_count", None)
 
         try:
 
@@ -241,6 +256,18 @@ class CallData(NativeCallData):
             self.call_dimensionality = calculate_call_dimensionality(bindings)
             context.call_dimensionality = self.call_dimensionality
             self.log_debug(f"  Call dimensionality: {self.call_dimensionality}")
+
+            # _thread_count is only valid when call_dimensionality is 0 (all args are whole
+            # buffers/values and the kernel manages its own thread indexing). For auto-vectorized
+            # kernels (call_dimensionality > 0) the thread count is inferred from arg shapes.
+            if has_thread_count and self.call_dimensionality > 0:
+                raise ValueError(
+                    f"_thread_count is only valid for kernels with call dimensionality 0 "
+                    f"(i.e., all parameters are passed as whole buffers/values and the kernel "
+                    f"manages its own thread indexing). This kernel has call dimensionality "
+                    f"{self.call_dimensionality}, meaning the thread count is automatically "
+                    f"inferred from the shapes of the vectorized arguments."
+                )
 
             # If necessary, create return value node once call dimensionality is known.
             create_return_value_binding(context, bindings, return_type)

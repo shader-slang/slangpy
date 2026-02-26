@@ -150,7 +150,7 @@ def test_tensorview_float2_torch(device_type: DeviceType):
     )
     output_tensor = torch.zeros(3, 2, device="cuda", dtype=torch.float32)
 
-    module.copy_tensorview_float2(input_tensor, output_tensor, _threadcount=1)
+    module.copy_tensorview_float2(input_tensor, output_tensor, _thread_count=1)
     torch.cuda.synchronize()
 
     assert torch.allclose(
@@ -171,7 +171,7 @@ def test_tensorview_float4_torch(device_type: DeviceType):
     )
     output_tensor = torch.zeros(2, 4, device="cuda", dtype=torch.float32)
 
-    module.copy_tensorview_float4(input_tensor, output_tensor, _threadcount=1)
+    module.copy_tensorview_float4(input_tensor, output_tensor, _thread_count=1)
     torch.cuda.synchronize()
 
     assert torch.allclose(
@@ -180,20 +180,20 @@ def test_tensorview_float4_torch(device_type: DeviceType):
 
 
 # ============================================================================
-# Tests for _threadcount (CUDAKernel dispatch)
+# Tests for _thread_count (CUDAKernel dispatch)
 # ============================================================================
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
 @pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_threadcount_fill_ids(device_type: DeviceType):
-    """Test _threadcount with a CUDAKernel that fills thread IDs."""
+def test_thread_count_fill_ids(device_type: DeviceType):
+    """Test _thread_count with a CUDAKernel that fills thread IDs."""
     device = helpers.get_torch_device(device_type)
     module = load_module(device)
 
     count = 64
     output = torch.zeros(count, device="cuda", dtype=torch.int32)
 
-    module.fill_thread_ids(count=count, output=output, _threadcount=count)
+    module.fill_thread_ids(count=count, output=output, _thread_count=count)
     torch.cuda.synchronize()
 
     expected = torch.arange(count, device="cuda", dtype=torch.int32)
@@ -203,8 +203,8 @@ def test_threadcount_fill_ids(device_type: DeviceType):
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
 @pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_threadcount_append_to(device_type: DeviceType):
-    """Test _threadcount goes through the append_to dispatch path."""
+def test_thread_count_append_to(device_type: DeviceType):
+    """Test _thread_count goes through the append_to dispatch path."""
     device = helpers.get_torch_device(device_type)
     module = load_module(device)
 
@@ -213,7 +213,7 @@ def test_threadcount_append_to(device_type: DeviceType):
 
     command_encoder = device.create_command_encoder()
     module.fill_thread_ids.append_to(
-        command_encoder, count=count, output=output, _threadcount=count
+        command_encoder, count=count, output=output, _thread_count=count
     )
 
     # Nothing should have executed yet
@@ -224,6 +224,23 @@ def test_threadcount_append_to(device_type: DeviceType):
 
     expected = torch.arange(count, device="cuda", dtype=torch.int32)
     assert torch.equal(output, expected), f"Expected {expected}, got {output}"
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+@pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_thread_count_error_on_auto_vectorized(device_type: DeviceType):
+    """_thread_count must not be passed to an auto-vectorized kernel (call_dimensionality > 0)."""
+    device = helpers.get_torch_device(device_type)
+    module = load_module(device)
+
+    # mark_thread(int coord, TensorView<int>) is auto-vectorized when coord is a tensor:
+    # the thread count is inferred from the shape of coord, so _thread_count is invalid.
+    coords = torch.tensor([0, 1, 2], device="cuda", dtype=torch.int32)
+    markers = torch.zeros(4, device="cuda", dtype=torch.int32)
+
+    with pytest.raises(Exception, match="_thread_count"):
+        module.mark_thread(coords, markers, _thread_count=3)
 
 
 if __name__ == "__main__":

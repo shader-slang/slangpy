@@ -107,7 +107,7 @@ def test_difftensorview_diff_square_torch(device_type: DeviceType):
 
 
 # ============================================================================
-# Tests for _threadcount with CUDAKernel + Differentiable
+# Tests for _thread_count with CUDAKernel + Differentiable
 # ============================================================================
 
 
@@ -115,14 +115,14 @@ def test_difftensorview_diff_square_torch(device_type: DeviceType):
 @pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_difftensorview_kernel_forward(device_type: DeviceType):
-    """Test forward pass of CUDAKernel diff_square_kernel with _threadcount."""
+    """Test forward pass of CUDAKernel diff_square_kernel with _thread_count."""
     module = load_module_torch(device_type)
 
     x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device="cuda", dtype=torch.float32)
     output = torch.zeros(5, device="cuda", dtype=torch.float32)
     count = x.numel()
 
-    module.diff_square_kernel(count=count, input=x, output=output, _threadcount=count)
+    module.diff_square_kernel(count=count, input=x, output=output, _thread_count=count)
     torch.cuda.synchronize()
 
     expected = x * x
@@ -146,7 +146,7 @@ def test_difftensorview_kernel_backward(device_type: DeviceType):
         count=count,
         input=diff_pair(x, x_grad),
         output=diff_pair(output, output_grad),
-        _threadcount=count,
+        _thread_count=count,
     )
     torch.cuda.synchronize()
 

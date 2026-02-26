@@ -23,7 +23,7 @@ void diff_square(DiffTensorView<float> input, DiffTensorView<float> output)
     }
 }
 
-// CUDAKernel + Differentiable: f(x) = x^2, requires _threadcount.
+// CUDAKernel + Differentiable: f(x) = x^2, requires _thread_count.
 [CUDAKernel]
 [Differentiable]
 void diff_square_kernel(uint count, DiffTensorView<float> input, DiffTensorView<float> output)

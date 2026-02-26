@@ -23,13 +23,31 @@ struct GcHelper<slangpy::NativeFunctionNode> {
 
 namespace sgl::slangpy {
 
+// Read _thread_count from kwargs into options without deleting it from kwargs.
+// _thread_count stays in kwargs so that:
+//   - get_args_signature naturally includes "_thread_count:int" when present, distinguishing
+//     calls with vs. without it as separate cache entries (no ":tc" suffix needed).
+//   - Python Phase 2 (calldata.py) can pop it directly on a cache miss.
+// The caller is responsible for deleting _thread_count from kwargs before exec on a cache hit.
+static bool read_thread_count_kwarg(ref<NativeCallRuntimeOptions> options, nb::kwargs& kwargs)
+{
+    if (!kwargs.contains("_thread_count"))
+        return false;
+    int thread_count = nb::cast<int>(kwargs["_thread_count"]);
+    if (thread_count <= 0)
+        throw nb::value_error(
+            ("_thread_count must be a positive integer, got " + std::to_string(thread_count)).c_str()
+        );
+    options->set_thread_count(thread_count);
+    return true;
+}
+
 ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
 {
     auto options = make_ref<NativeCallRuntimeOptions>();
     gather_runtime_options(options);
-    gather_kwargs_runtime_options(options, kwargs);
+    bool has_thread_count = read_thread_count_kwarg(options, kwargs);
 
-    nb::tuple full_args;
     if (!options->get_this().is_none()) {
         args = nb::cast<nb::args>(nb::make_tuple(options->get_this()) + args);
     }
@@ -41,8 +59,12 @@ ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cac
     std::string sig = builder->str();
     ref<NativeCallData> result = cache->find_call_data(sig);
     if (!result) {
+        // Cache miss: Python Phase 2 sees and pops _thread_count directly from kwargs.
         result = generate_call_data(args, kwargs);
         cache->add_call_data(sig, result);
+    } else if (has_thread_count) {
+        // Cache hit: Python didn't run, remove _thread_count so it isn't treated as a shader param.
+        nb::del(kwargs["_thread_count"]);
     }
     return result;
 }
@@ -51,9 +73,8 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
 {
     auto options = make_ref<NativeCallRuntimeOptions>();
     gather_runtime_options(options);
-    gather_kwargs_runtime_options(options, kwargs);
+    bool has_thread_count = read_thread_count_kwarg(options, kwargs);
 
-    nb::tuple full_args;
     if (!options->get_this().is_none()) {
         args = nb::cast<nb::args>(nb::make_tuple(options->get_this()) + args);
     }
@@ -66,8 +87,12 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
     ref<NativeCallData> call_data = cache->find_call_data(sig);
 
     if (!call_data) {
+        // Cache miss: Python Phase 2 sees and pops _thread_count directly from kwargs.
         call_data = generate_call_data(args, kwargs);
         cache->add_call_data(sig, call_data);
+    } else if (has_thread_count) {
+        // Cache hit: Python didn't run, remove _thread_count before exec.
+        nb::del(kwargs["_thread_count"]);
     }
 
     // If torch integration is enabled and the bridge is available, set the CUDA stream.
@@ -96,9 +121,8 @@ void NativeFunctionNode::append_to(
 {
     auto options = make_ref<NativeCallRuntimeOptions>();
     gather_runtime_options(options);
-    gather_kwargs_runtime_options(options, kwargs);
+    bool has_thread_count = read_thread_count_kwarg(options, kwargs);
 
-    nb::tuple full_args;
     if (!options->get_this().is_none()) {
         args = nb::cast<nb::args>(nb::make_tuple(options->get_this()) + args);
     }
@@ -111,8 +135,12 @@ void NativeFunctionNode::append_to(
     NativeCallData* call_data = cache->find_call_data(sig);
 
     if (call_data) {
+        // Cache hit: Python didn't run, remove _thread_count before exec.
+        if (has_thread_count)
+            nb::del(kwargs["_thread_count"]);
         call_data->append_to(options, command_encoder, args, kwargs);
     } else {
+        // Cache miss: Python Phase 2 sees and pops _thread_count directly from kwargs.
         ref<NativeCallData> new_call_data = generate_call_data(args, kwargs);
         cache->add_call_data(sig, new_call_data);
         new_call_data->append_to(options, command_encoder, args, kwargs);

@@ -32,7 +32,7 @@ void copy_tensorview_float4(TensorView<float4> input, TensorView<float4> output)
         output.store(i, input.load(i));
 }
 
-// CUDAKernel that fills thread IDs - requires _threadcount to dispatch.
+// CUDAKernel that fills thread IDs - requires _thread_count to dispatch.
 [CUDAKernel]
 void fill_thread_ids(uint count, TensorView<int> output)
 {
