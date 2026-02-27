@@ -1699,6 +1699,13 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(NativeCallData, needs_unpack)
         )
         .def_prop_rw(
+            "has_thread_count",
+            &NativeCallData::has_thread_count,
+            &NativeCallData::set_has_thread_count,
+            nb::arg(),
+            D_NA(NativeCallData, has_thread_count)
+        )
+        .def_prop_rw(
             "autograd_access_list",
             &NativeCallData::autograd_access_list,
             &NativeCallData::set_autograd_access_list,

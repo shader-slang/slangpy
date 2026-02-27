@@ -775,6 +775,12 @@ public:
     /// Set whether args need unpacking.
     void set_needs_unpack(bool needs_unpack) { m_needs_unpack = needs_unpack; }
 
+    /// Get whether this call data expects a _thread_count kwarg.
+    bool has_thread_count() const { return m_has_thread_count; }
+
+    /// Set whether this call data expects a _thread_count kwarg.
+    void set_has_thread_count(bool has_thread_count) { m_has_thread_count = has_thread_count; }
+
     /// Get the autograd access list.
     /// This is a flat list of AutogradAccess values precomputed at build time.
     /// At dispatch time, find_torch_tensors steps through this list as it encounters tensors.
@@ -905,6 +911,7 @@ private:
     bool m_torch_integration{false};
     bool m_torch_autograd{false};
     bool m_needs_unpack{true};
+    bool m_has_thread_count{false};
     std::vector<AutogradAccess> m_autograd_access_list;
     ref<NativeCallData> m_bwds_call_data;
     mutable CallDataOffsets m_cached_call_data_offsets;
