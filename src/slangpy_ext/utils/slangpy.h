@@ -642,6 +642,15 @@ public:
     /// Set ray tracing pipeline flag.
     void set_is_ray_tracing(bool is_ray_tracing) { m_is_ray_tracing = is_ray_tracing; }
 
+    /// Get the thread count override.
+    int thread_count() const { return m_thread_count; }
+
+    /// Set the thread count override.
+    void set_thread_count(int thread_count) { m_thread_count = thread_count; }
+
+    /// Check if thread count override is set.
+    bool has_thread_count() const { return m_thread_count > 0; }
+
     /// Clear internal data for garbage collection
     void garbage_collect()
     {
@@ -654,6 +663,7 @@ private:
     nb::object m_this{nb::none()};
     NativeHandle m_cuda_stream;
     bool m_is_ray_tracing{false};
+    int m_thread_count{0};
 };
 
 /// Defines the common logging functions for a given log level.
@@ -670,6 +680,18 @@ private:
     {                                                                                                                  \
         log(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::always);                               \
     }
+
+struct CallShapeInfo {
+    Shape call_shape = Shape(0, 0);
+    Shape strides = Shape(0, 0);
+    Shape call_group_shape = Shape(0, 0);
+    Shape call_group_strides = Shape(0, 0);
+    Shape call_grid_shape = Shape(0, 0);
+    Shape call_grid_strides = Shape(0, 0);
+    Shape aligned_call_shape = Shape(0, 0);
+    bool is_call_shape_unaligned{false};
+    int total_threads{0};
+};
 
 /// Contains the compute pipeline for a call, the corresponding bindings and any additional
 /// options provided by the user.
@@ -752,6 +774,12 @@ public:
 
     /// Set whether args need unpacking.
     void set_needs_unpack(bool needs_unpack) { m_needs_unpack = needs_unpack; }
+
+    /// Get whether this call data expects a _thread_count kwarg.
+    bool has_thread_count() const { return m_has_thread_count; }
+
+    /// Set whether this call data expects a _thread_count kwarg.
+    void set_has_thread_count(bool has_thread_count) { m_has_thread_count = has_thread_count; }
 
     /// Get the autograd access list.
     /// This is a flat list of AutogradAccess values precomputed at build time.
@@ -883,12 +911,19 @@ private:
     bool m_torch_integration{false};
     bool m_torch_autograd{false};
     bool m_needs_unpack{true};
+    bool m_has_thread_count{false};
     std::vector<AutogradAccess> m_autograd_access_list;
     ref<NativeCallData> m_bwds_call_data;
     mutable CallDataOffsets m_cached_call_data_offsets;
 
     /// Recursive helper for find_torch_tensors.
     nb::object find_torch_tensors_recurse(nb::object arg, nb::list& pairs, size_t& access_idx);
+
+    CallShapeInfo compute_call_shape_info(
+        const ref<NativeCallRuntimeOptions>& opts,
+        const nb::list& unpacked_args,
+        const nb::dict& unpacked_kwargs
+    );
 
     nb::object
     exec(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);

@@ -620,6 +620,123 @@ nb::object NativeCallData::append_to(
     return exec(opts, command_encoder, args, kwargs);
 }
 
+CallShapeInfo NativeCallData::compute_call_shape_info(
+    const ref<NativeCallRuntimeOptions>& opts,
+    const nb::list& unpacked_args,
+    const nb::dict& unpacked_kwargs
+)
+{
+    CallShapeInfo si;
+
+    if (opts->has_thread_count()) {
+        si.total_threads = opts->thread_count();
+        return si;
+    }
+
+    si.call_shape = m_runtime->calculate_call_shape(m_call_dimensionality, unpacked_args, unpacked_kwargs, this);
+    m_last_call_shape = si.call_shape;
+
+    const size_t num_dims = si.call_shape.size();
+
+    // Calculate strides from call_shape
+    si.strides = Shape(num_dims);
+    int* strides_data = si.strides.data();
+    int current_stride = 1;
+    for (int i = static_cast<int>(num_dims) - 1; i >= 0; --i) {
+        strides_data[i] = current_stride;
+        current_stride *= si.call_shape[i];
+    }
+
+    // Get call group shape from build info.
+    si.call_group_shape = Shape(num_dims, 1); // Initialize to all 1s (default)
+    int* call_group_data = si.call_group_shape.data();
+
+    if (m_call_group_shape.valid() && m_call_group_shape.size() > 0) {
+        const size_t src_size = m_call_group_shape.size();
+
+        if (src_size > num_dims) {
+            throw std::runtime_error(
+                fmt::format(
+                    "call_group_shape dimensionality ({}) must be <= call_shape dimensionality ({}). "
+                    "call_group_shape cannot have more dimensions than call_shape.",
+                    src_size,
+                    num_dims
+                )
+            );
+        }
+
+        const size_t padding = num_dims - src_size;
+        if (padding > 0 && is_log_enabled(LogLevel::debug)) {
+            log_debug(
+                "call_group_shape dimensionality ({}) < call_shape dimensionality ({}). "
+                "Padding call_group_shape with {} leading 1's. "
+                "Consider specifying full dimensions for better performance.",
+                src_size,
+                num_dims,
+                padding
+            );
+        }
+
+        const int* src_data = m_call_group_shape.data();
+        for (size_t i = 0; i < src_size; ++i) {
+            int val = src_data[i];
+            if (val < 1) {
+                throw std::runtime_error(
+                    fmt::format(
+                        "call_group_shape[{}] = {} is invalid. All call_group_shape elements must be >= 1.",
+                        i,
+                        val
+                    )
+                );
+            }
+            call_group_data[padding + i] = val;
+        }
+    }
+
+    // Calculate the group strides
+    si.call_group_strides = Shape(num_dims);
+    int* call_group_strides_data = si.call_group_strides.data();
+    current_stride = 1;
+    for (int i = static_cast<int>(num_dims) - 1; i >= 0; --i) {
+        call_group_strides_data[i] = current_stride;
+        current_stride *= call_group_data[i];
+    }
+
+    // Calculate the grid shape and total threads.
+    //
+    // Note: The call shape may not be call group shape aligned, in which case we
+    //       will align up the call shape. This will result in
+    //       aligned_call_shape.size - call_shape.size wasted threads. It might be
+    //       possible to create some logic to avoid waste, but a call group would
+    //       likely end up torn and representing different regions of the call shape,
+    //       which would likely defeat the purpose of using call groups for better
+    //       memory coherency and uses of shared memory.
+    si.total_threads = 1;
+    si.call_grid_shape = Shape(num_dims);
+    si.aligned_call_shape = Shape(num_dims);
+    int* call_grid_data = si.call_grid_shape.data();
+    int* aligned_call_data = si.aligned_call_shape.data();
+    const int* call_shape_data = si.call_shape.data();
+    for (size_t i = 0; i < num_dims; i++) {
+        call_grid_data[i] = (call_shape_data[i] + call_group_data[i] - 1) / call_group_data[i];
+        aligned_call_data[i] = call_grid_data[i] * call_group_data[i];
+        if (aligned_call_data[i] != call_shape_data[i])
+            si.is_call_shape_unaligned = true;
+        si.total_threads *= aligned_call_data[i];
+    }
+
+    // Calculate the grid strides
+    si.call_grid_strides = Shape(num_dims);
+    int* call_grid_strides_data = si.call_grid_strides.data();
+    current_stride = 1;
+    for (int i = static_cast<int>(num_dims) - 1; i >= 0; --i) {
+        call_grid_strides_data[i] = current_stride;
+        current_stride *= call_grid_data[i];
+    }
+
+    return si;
+}
+
 nb::object NativeCallData::exec(
     ref<NativeCallRuntimeOptions> opts,
     CommandEncoder* command_encoder,
@@ -642,9 +759,16 @@ nb::object NativeCallData::exec(
             unpacked_kwargs[k] = v;
     }
 
-    // Calculate call shape.
-    Shape call_shape = m_runtime->calculate_call_shape(m_call_dimensionality, unpacked_args, unpacked_kwargs, this);
-    m_last_call_shape = call_shape;
+    auto si = compute_call_shape_info(opts, unpacked_args, unpacked_kwargs);
+    auto& call_shape = si.call_shape;
+    auto& strides = si.strides;
+    auto& call_group_shape = si.call_group_shape;
+    auto& call_group_strides = si.call_group_strides;
+    auto& call_grid_shape = si.call_grid_shape;
+    auto& call_grid_strides = si.call_grid_strides;
+    auto& aligned_call_shape = si.aligned_call_shape;
+    auto& is_call_shape_unaligned = si.is_call_shape_unaligned;
+    int total_threads = si.total_threads;
 
     // Setup context.
     auto context = make_ref<CallContext>(m_device, call_shape, m_call_mode);
@@ -660,111 +784,6 @@ nb::object NativeCallData::exec(
             Shape call_shape_copy = call_shape;
             rv_node->populate_call_shape(call_shape_copy, output, this);
         }
-    }
-
-    // Calculate strides from call_shape
-    Shape strides(call_shape.size());
-    int* strides_data = strides.data();
-    int current_stride = 1;
-    for (int i = static_cast<int>(call_shape.size()) - 1; i >= 0; --i) {
-        strides_data[i] = current_stride;
-        current_stride *= call_shape[i];
-    }
-
-    // Get call group shape from build info.
-    // Pre-allocate to call_shape size since we know the final size will match.
-    const size_t num_dims = call_shape.size();
-    Shape call_group_shape(num_dims, 1); // Initialize to all 1s (default)
-    int* call_group_data = call_group_shape.data();
-
-    if (m_call_group_shape.valid() && m_call_group_shape.size() > 0) {
-        const size_t src_size = m_call_group_shape.size();
-
-        // Verify that call_group_shape has valid dimensions.
-        if (src_size > num_dims) {
-            throw std::runtime_error(
-                fmt::format(
-                    "call_group_shape dimensionality ({}) must be <= call_shape dimensionality ({}). "
-                    "call_group_shape cannot have more dimensions than call_shape.",
-                    src_size,
-                    num_dims
-                )
-            );
-        }
-
-        // Calculate padding offset if source is smaller than destination
-        const size_t padding = num_dims - src_size;
-        if (padding > 0 && is_log_enabled(LogLevel::debug)) {
-            log_debug(
-                "call_group_shape dimensionality ({}) < call_shape dimensionality ({}). "
-                "Padding call_group_shape with {} leading 1's. "
-                "Consider specifying full dimensions for better performance.",
-                src_size,
-                num_dims,
-                padding
-            );
-        }
-
-        // Copy source data with padding offset (leading 1s are already set)
-        const int* src_data = m_call_group_shape.data();
-        for (size_t i = 0; i < src_size; ++i) {
-            int val = src_data[i];
-            if (val < 1) {
-                throw std::runtime_error(
-                    fmt::format(
-                        "call_group_shape[{}] = {} is invalid. All call_group_shape elements must be >= 1.",
-                        i,
-                        val
-                    )
-                );
-            }
-            call_group_data[padding + i] = val;
-        }
-    }
-    // else: call_group_shape is already initialized to all 1s
-
-    // Calculate the group strides
-    Shape call_group_strides(num_dims);
-    int* call_group_strides_data = call_group_strides.data();
-    current_stride = 1;
-    for (int i = static_cast<int>(num_dims) - 1; i >= 0; --i) {
-        call_group_strides_data[i] = current_stride;
-        current_stride *= call_group_data[i];
-    }
-
-    // Calculate the grid shape and total threads.
-    //
-    // Note: The call shape may not be call group shape aligned, in which case we
-    //       will align up the call shape. This will result in
-    //       aligned_call_shape.size - call_shape.size wasted threads. It might be
-    //       possible to create some logic to avoid waste, but a call group would
-    //       likely end up torn and representing different regions of the call shape,
-    //       which would likely defeat the purpose of using call groups for better
-    //       memory coherency and uses of shared memory.
-    int total_threads = 1;
-    Shape call_grid_shape(num_dims);
-    Shape aligned_call_shape(num_dims);
-    int* call_grid_data = call_grid_shape.data();
-    int* aligned_call_data = aligned_call_shape.data();
-    const int* call_shape_data = call_shape.data();
-    bool is_call_shape_unaligned = false;
-    for (size_t i = 0; i < num_dims; i++) {
-        // When the call shape is not call group shape aligned, we will add some
-        // padding to align up.
-        call_grid_data[i] = (call_shape_data[i] + call_group_data[i] - 1) / call_group_data[i]; // ceil division
-        aligned_call_data[i] = call_grid_data[i] * call_group_data[i];
-        if (aligned_call_data[i] != call_shape_data[i])
-            is_call_shape_unaligned = true;
-        total_threads *= aligned_call_data[i];
-    }
-
-    // Calculate the grid strides
-    Shape call_grid_strides(num_dims);
-    int* call_grid_strides_data = call_grid_strides.data();
-    current_stride = 1;
-    for (int i = static_cast<int>(num_dims) - 1; i >= 0; --i) {
-        call_grid_strides_data[i] = current_stride;
-        current_stride *= call_grid_data[i];
     }
 
     nb::list read_back;
@@ -1574,6 +1593,12 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallRuntimeOptions::cuda_stream,
             &NativeCallRuntimeOptions::set_cuda_stream,
             D_NA(NativeCallRuntimeOptions, cuda_stream)
+        )
+        .def_prop_rw(
+            "thread_count",
+            &NativeCallRuntimeOptions::thread_count,
+            &NativeCallRuntimeOptions::set_thread_count,
+            D_NA(NativeCallRuntimeOptions, thread_count)
         );
 
     // clang-format off
@@ -1672,6 +1697,13 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::set_needs_unpack,
             nb::arg(),
             D_NA(NativeCallData, needs_unpack)
+        )
+        .def_prop_rw(
+            "has_thread_count",
+            &NativeCallData::has_thread_count,
+            &NativeCallData::set_has_thread_count,
+            nb::arg(),
+            D_NA(NativeCallData, has_thread_count)
         )
         .def_prop_rw(
             "autograd_access_list",

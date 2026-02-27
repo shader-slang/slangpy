@@ -23,12 +23,29 @@ struct GcHelper<slangpy::NativeFunctionNode> {
 
 namespace sgl::slangpy {
 
+// Read _thread_count from kwargs into options and remove it from kwargs.
+// _thread_count is included in the signature (kwargs are signature-scanned before this is called),
+// so calls with vs. without it are separate cache entries.
+// Only called when call_data->has_thread_count() is true (cheap bool check), so the
+// kwargs.contains() string lookup is avoided entirely on the common no-thread-count path.
+static bool read_thread_count_kwarg(ref<NativeCallRuntimeOptions> options, nb::kwargs& kwargs)
+{
+    if (!kwargs.contains("_thread_count"))
+        return false;
+    int thread_count = nb::cast<int>(kwargs["_thread_count"]);
+    if (thread_count <= 0)
+        throw nb::value_error(
+            ("_thread_count must be a positive integer, got " + std::to_string(thread_count)).c_str()
+        );
+    options->set_thread_count(thread_count);
+    return true;
+}
+
 ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
 {
     auto options = make_ref<NativeCallRuntimeOptions>();
     gather_runtime_options(options);
 
-    nb::tuple full_args;
     if (!options->get_this().is_none()) {
         args = nb::cast<nb::args>(nb::make_tuple(options->get_this()) + args);
     }
@@ -42,6 +59,8 @@ ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cac
     if (!result) {
         result = generate_call_data(args, kwargs);
         cache->add_call_data(sig, result);
+    } else if (result->has_thread_count()) {
+        nb::del(kwargs["_thread_count"]);
     }
     return result;
 }
@@ -51,7 +70,6 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
     auto options = make_ref<NativeCallRuntimeOptions>();
     gather_runtime_options(options);
 
-    nb::tuple full_args;
     if (!options->get_this().is_none()) {
         args = nb::cast<nb::args>(nb::make_tuple(options->get_this()) + args);
     }
@@ -66,6 +84,10 @@ nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, n
     if (!call_data) {
         call_data = generate_call_data(args, kwargs);
         cache->add_call_data(sig, call_data);
+    }
+    if (call_data->has_thread_count()) {
+        read_thread_count_kwarg(options, kwargs);
+        nb::del(kwargs["_thread_count"]);
     }
 
     // If torch integration is enabled and the bridge is available, set the CUDA stream.
@@ -95,7 +117,6 @@ void NativeFunctionNode::append_to(
     auto options = make_ref<NativeCallRuntimeOptions>();
     gather_runtime_options(options);
 
-    nb::tuple full_args;
     if (!options->get_this().is_none()) {
         args = nb::cast<nb::args>(nb::make_tuple(options->get_this()) + args);
     }
@@ -104,17 +125,20 @@ void NativeFunctionNode::append_to(
     read_signature(builder);
     cache->get_args_signature(builder, args, kwargs);
 
-
     std::string sig = builder->str();
     NativeCallData* call_data = cache->find_call_data(sig);
 
-    if (call_data) {
-        call_data->append_to(options, command_encoder, args, kwargs);
-    } else {
-        ref<NativeCallData> new_call_data = generate_call_data(args, kwargs);
-        cache->add_call_data(sig, new_call_data);
-        new_call_data->append_to(options, command_encoder, args, kwargs);
+    ref<NativeCallData> new_call_data_ref; // keeps new call_data alive on cache miss
+    if (!call_data) {
+        new_call_data_ref = generate_call_data(args, kwargs);
+        cache->add_call_data(sig, new_call_data_ref);
+        call_data = new_call_data_ref.get();
     }
+    if (call_data->has_thread_count()) {
+        read_thread_count_kwarg(options, kwargs);
+        nb::del(kwargs["_thread_count"]);
+    }
+    call_data->append_to(options, command_encoder, args, kwargs);
 }
 
 std::string NativeFunctionNode::to_string() const
