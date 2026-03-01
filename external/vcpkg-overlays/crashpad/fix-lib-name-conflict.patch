@@ -1,5 +1,5 @@
 diff --git a/client/BUILD.gn b/client/BUILD.gn
-index bd150ab..5cbf469 100644
+index e57e0e0c..ac64561f 100644
 --- a/client/BUILD.gn
 +++ b/client/BUILD.gn
 @@ -15,6 +15,7 @@
@@ -10,7 +10,7 @@ index bd150ab..5cbf469 100644
    sources = [
      "crashpad_client.h",
      "prune_crash_reports.cc",
-@@ -114,6 +115,7 @@ crashpad_static_library("client") {
+@@ -125,6 +126,7 @@ crashpad_static_library("client") {
  }
  
  static_library("common") {
@@ -19,22 +19,22 @@ index bd150ab..5cbf469 100644
      "annotation.cc",
      "annotation.h",
 diff --git a/handler/BUILD.gn b/handler/BUILD.gn
-index a2d6f7f..70a997e 100644
+index 9061c2cb..5fea7566 100644
 --- a/handler/BUILD.gn
 +++ b/handler/BUILD.gn
-@@ -94,6 +94,7 @@ if (crashpad_is_android) {
- }
+@@ -15,6 +15,7 @@
+ import("../build/crashpad_buildconfig.gni")
  
  static_library("common") {
 +  output_name = "vcpkg_crashpad_handler_common"
    sources = [
-     "crash_report_upload_thread.cc",
-     "crash_report_upload_thread.h",
+     "crash_report_upload_rate_limit.cc",
+     "crash_report_upload_rate_limit.h",
 diff --git a/util/BUILD.gn b/util/BUILD.gn
-index e7ff4a8..9efcb41 100644
+index ca817736..20972a22 100644
 --- a/util/BUILD.gn
 +++ b/util/BUILD.gn
-@@ -167,6 +167,7 @@ if (crashpad_is_win) {
+@@ -173,6 +173,7 @@ if (crashpad_is_win) {
  }
  
  crashpad_static_library("util") {

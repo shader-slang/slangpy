@@ -1,0 +1,18 @@
+diff --git a/build/compiler.gni b/build/compiler.gni
+index 7e2b3ce..ddaffc8 100644
+--- a/build/compiler.gni
++++ b/build/compiler.gni
+@@ -4,12 +4,4 @@
+ 
+ import("platform.gni")
+ 
+-if (mini_chromium_is_win) {
+-  declare_args() {
+-    mini_chromium_is_clang = mini_chromium_is_posix ||
+-                             mini_chromium_is_fuchsia || mini_chromium_is_win
+-  }
+-} else {
+-  mini_chromium_is_clang =
+-      mini_chromium_is_posix || mini_chromium_is_fuchsia || mini_chromium_is_win
+-}
++mini_chromium_is_clang = mini_chromium_is_posix || mini_chromium_is_fuchsia

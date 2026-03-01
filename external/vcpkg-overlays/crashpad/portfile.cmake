@@ -3,9 +3,8 @@ vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 vcpkg_from_git(
     OUT_SOURCE_PATH SOURCE_PATH
     URL https://chromium.googlesource.com/crashpad/crashpad
-    REF 7e0af1d4d45b526f01677e74a56f4a951b70517d
+    REF 28ef661295a5c38524de904077880d7c6d372dc0
     PATCHES
-        fix-linux.patch
         fix-lib-name-conflict.patch
 )
 
@@ -21,12 +20,11 @@ vcpkg_replace_string("${SOURCE_PATH}/.gn" "script_executable = \"python3\"" "scr
 if(NOT EXISTS "${SOURCE_PATH}/third_party/mini_chromium/mini_chromium/BUILD.gn")
     vcpkg_from_git(OUT_SOURCE_PATH mini_chromium
         URL "https://chromium.googlesource.com/chromium/mini_chromium"
-        REF dce72d97d1c2e9beb5e206c6a05a702269794ca3
+        REF e5a8d550e530d504c792af8ec7dbcbd3d80544df
         PATCHES
-            fix-std-20.patch
             ndk-toolchain.diff
             fix-lib-name-conflict-1.patch
-            fix-find-vs-build-tools.patch
+            fix-windows-toolchain.patch
     )
     file(REMOVE_RECURSE "${SOURCE_PATH}/third_party/mini_chromium/mini_chromium")
     file(RENAME "${mini_chromium}" "${SOURCE_PATH}/third_party/mini_chromium/mini_chromium")
@@ -143,7 +141,6 @@ install_headers("${SOURCE_PATH}/util")
 install_headers("${SOURCE_PATH}/third_party/mini_chromium/mini_chromium/base")
 install_headers("${SOURCE_PATH}/third_party/mini_chromium/mini_chromium/build")
 
-file(COPY "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/gen/build/chromeos_buildflags.h" DESTINATION "${CURRENT_PACKAGES_DIR}/include/${PORT}/build")
 file(COPY "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/gen/build/chromeos_buildflags.h.flags" DESTINATION "${CURRENT_PACKAGES_DIR}/include/${PORT}/build")
 
 # On Windows/MSVC, mirror headers into the root include directory so MSBuild integration
@@ -155,7 +152,6 @@ if(VCPKG_TARGET_IS_WINDOWS AND NOT VCPKG_TARGET_IS_MINGW)
     file(COPY "${SOURCE_PATH}/util" DESTINATION "${CURRENT_PACKAGES_DIR}/include" FILES_MATCHING PATTERN "*.h")
     file(COPY "${SOURCE_PATH}/third_party/mini_chromium/mini_chromium/base" DESTINATION "${CURRENT_PACKAGES_DIR}/include" FILES_MATCHING PATTERN "*.h")
     file(COPY "${SOURCE_PATH}/third_party/mini_chromium/mini_chromium/build" DESTINATION "${CURRENT_PACKAGES_DIR}/include" FILES_MATCHING PATTERN "*.h")
-    file(COPY "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/gen/build/chromeos_buildflags.h" DESTINATION "${CURRENT_PACKAGES_DIR}/include/build")
     file(COPY "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/gen/build/chromeos_buildflags.h.flags" DESTINATION "${CURRENT_PACKAGES_DIR}/include/build")
 endif()
 
