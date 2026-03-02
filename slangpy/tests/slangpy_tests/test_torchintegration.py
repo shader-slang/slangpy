@@ -517,5 +517,42 @@ def test_tensor_buffer_roundtrip(device_type: DeviceType):
     ), f"Round-trip mismatch: {src_tensor} vs {dst_tensor}"
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_nn_parameter_as_input(device_type: DeviceType):
+    """
+    Test that torch.nn.parameter.Parameter can be passed to a SlangPy function.
+    nn.Parameter is a subclass of torch.Tensor and should be handled transparently.
+    """
+    module = load_test_module(device_type)
+
+    a = torch.nn.parameter.Parameter(
+        torch.randn((10,), dtype=torch.float32, device=torch.device("cuda"))
+    )
+    b = torch.nn.parameter.Parameter(
+        torch.randn((10,), dtype=torch.float32, device=torch.device("cuda"))
+    )
+
+    res = module.add(a, b)
+    assert isinstance(res, torch.Tensor)
+    compare_tensors(a + b, res)
+
+
+def test_nn_parameter_signature():
+    """
+    Test that torch.nn.parameter.Parameter produces the same signature as torch.Tensor.
+    """
+    cd = NativeCallDataCache()
+
+    param = torch.nn.parameter.Parameter(torch.empty((4, 4), dtype=torch.float32).cuda())
+    tensor = torch.empty((4, 4), dtype=torch.float32).cuda()
+
+    sig_param = SignatureBuilder()
+    sig_tensor = SignatureBuilder()
+    cd.get_value_signature(sig_param, param)
+    cd.get_value_signature(sig_tensor, tensor)
+
+    assert sig_param.str == sig_tensor.str
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
