@@ -30,13 +30,9 @@ namespace sgl::slangpy {
 // kwargs.contains() string lookup is avoided entirely on the common no-thread-count path.
 static bool read_thread_count_kwarg(ref<NativeCallRuntimeOptions> options, nb::kwargs& kwargs)
 {
-    if (!kwargs.contains("_thread_count"))
-        return false;
+    SGL_ASSERT(kwargs.contains("_thread_count"));
     int thread_count = nb::cast<int>(kwargs["_thread_count"]);
-    if (thread_count <= 0)
-        throw nb::value_error(
-            ("_thread_count must be a positive integer, got " + std::to_string(thread_count)).c_str()
-        );
+    SGL_CHECK(thread_count > 0, "_thread_count must be a positive integer, got {}", thread_count);
     options->set_thread_count(thread_count);
     return true;
 }
