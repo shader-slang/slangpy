@@ -25,8 +25,9 @@ class SGL_API ShaderCursor : public CursorWriteWrappers<ShaderCursor, ShaderOffs
 public:
     ShaderCursor() = default;
 
-    ShaderCursor(ShaderObject* shader_object);
+    explicit ShaderCursor(ShaderObject* shader_object);
     ShaderCursor(ShaderObject* shader_object, bool need_dereference, slang::TypeLayoutReflection* parent_type_layout);
+    ShaderCursor(ShaderObject* shader_object, slang::TypeLayoutReflection* type_layout, ShaderOffset offset);
 
     ShaderOffset offset() const { return m_offset; }
     ShaderObject* shader_object() const { return m_shader_object; }

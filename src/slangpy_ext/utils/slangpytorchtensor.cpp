@@ -703,9 +703,6 @@ nb::object NativeTorchTensorMarshall::create_output(CallContext* context, Native
 {
     SGL_UNUSED(binding);
 
-    // Import torch and create output tensor
-    nb::module_ torch = nb::module_::import_("torch");
-
     // Build shape: call_shape + element type shape
     // Note: Unlike slangpy tensors, which can match the function's return type precisely,
     // torch tensors are scalar only and do not support vector/matrix types. To handle this,
@@ -725,40 +722,44 @@ nb::object NativeTorchTensorMarshall::create_output(CallContext* context, Native
         shape_vec.push_back(elem_shape[i]);
     }
 
-    // Get torch dtype from slang scalar type
-    // Map slang scalar type to torch dtype
+    // Map slang scalar type to c10::ScalarType code
     TypeReflection::ScalarType scalar_type = m_slang_element_type->type_reflection()->scalar_type();
-    nb::object dtype;
+    int32_t c10_scalar_type;
     switch (scalar_type) {
+    case TypeReflection::ScalarType::uint8:
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_UINT8;
+        break;
     case TypeReflection::ScalarType::int8:
-        dtype = torch.attr("int8");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_INT8;
         break;
     case TypeReflection::ScalarType::int16:
-        dtype = torch.attr("int16");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_INT16;
         break;
     case TypeReflection::ScalarType::int32:
-        dtype = torch.attr("int32");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_INT32;
         break;
     case TypeReflection::ScalarType::int64:
-        dtype = torch.attr("int64");
-        break;
-    case TypeReflection::ScalarType::uint8:
-        dtype = torch.attr("uint8");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_INT64;
         break;
     case TypeReflection::ScalarType::float16:
-        dtype = torch.attr("float16");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_FLOAT16;
         break;
     case TypeReflection::ScalarType::float32:
-        dtype = torch.attr("float32");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_FLOAT32;
         break;
     case TypeReflection::ScalarType::float64:
-        dtype = torch.attr("float64");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_FLOAT64;
         break;
     default:
         SGL_THROW("Unsupported scalar type for torch output tensor");
     }
 
-    return torch.attr("empty")(nb::cast(shape_vec), "dtype"_a = dtype, "device"_a = "cuda");
+    if (m_cached_device_index < 0)
+        m_cached_device_index = static_cast<int32_t>(cuda::get_current_device_index());
+    int32_t device_index = m_cached_device_index;
+
+    return TorchBridge::instance()
+        .create_empty_tensor(shape_vec.data(), static_cast<int32_t>(shape_vec.size()), c10_scalar_type, device_index);
 }
 
 nb::object

@@ -75,6 +75,20 @@ public interface IRWTensor<T, let D : int> : IBaseTensor<T, D>
     }
 }
 
+// Extend ITensor types to add their element type
+public extension <T, let D: int, TensorType: ITensor<T, D>> TensorType
+{
+    typedef T ElementType;
+}
+public extension<T, let D : int, TensorType : IWTensor<T, D>> TensorType
+{
+    typedef T ElementType;
+}
+public extension<T, let D : int, TensorType : IRWTensor<T, D>> TensorType
+{
+    typedef T ElementType;
+}
+
 #define _SLANGPY_TENSOR_COMMON_FIELDS \
     public uint[D] _shape;\
     public uint[D] _strides;\
@@ -489,3 +503,56 @@ public extension<T, let D : int> RWTensor<T, D>
     }
 }
 #endif
+
+void _get_sample_indices(float2 uv, int2 shape, out int2 idx0, out int2 idx1, out float2 interp)
+{
+    int2 maxidx = shape - 1;
+    int2 texel = int2(uv * shape);
+    interp = frac(uv * shape);
+
+    idx0 = clamp(texel, int2(0, 0), maxidx);
+    idx1 = min(texel + int2(1, 1), maxidx);
+}
+
+T _bilerp<T: __BuiltinFloatingPointType>(T c00, T c10, T c01, T c11, float2 interp)
+{
+    return lerp(lerp(c00, c10, (T)interp.x), lerp(c01, c11, (T)interp.x), (T)interp.y);
+}
+vector<T,N> _bilerp<T: __BuiltinFloatingPointType, let N : int>(vector<T, N> c00, vector<T, N> c10, vector<T, N> c01, vector<T, N> c11, float2 interp)
+{
+    return lerp(lerp(c00, c10, (T)interp.x), lerp(c01, c11, (T)interp.x), (T)interp.y);
+}
+
+#define _SLANGPY_TENSOR_SAMPLE                                                                                         \
+    public ElementType sample(float2 uv)                                                                               \
+    {                                                                                                                  \
+        int2 shape = int2(shape[1], shape[0]);                                                                         \
+        int2 idx0, idx1;                                                                                               \
+        float2 frac;                                                                                                   \
+        _get_sample_indices(uv, shape, idx0, idx1, frac);                                                              \
+        ElementType c00 = load(idx0);                                                                                  \
+        ElementType c10 = load(int2(idx1.x, idx0.y));                                                                  \
+        ElementType c01 = load(int2(idx0.x, idx1.y));                                                                  \
+        ElementType c11 = load(idx1);                                                                                  \
+        return _bilerp(c00, c10, c01, c11, frac);                                                                      \
+    }
+
+public extension<T : __BuiltinFloatingPointType, TensorType: ITensor<T,2>> TensorType
+{
+    _SLANGPY_TENSOR_SAMPLE
+}
+
+public extension<T : __BuiltinFloatingPointType, let N : int, TensorType: ITensor<vector<T,N>, 2>> TensorType
+{
+    _SLANGPY_TENSOR_SAMPLE
+}
+
+public extension<T : __BuiltinFloatingPointType, TensorType : IRWTensor<T, 2>> TensorType
+{
+    _SLANGPY_TENSOR_SAMPLE
+}
+
+public extension<T : __BuiltinFloatingPointType, let N : int, TensorType : IRWTensor<vector<T, N>, 2>> TensorType
+{
+    _SLANGPY_TENSOR_SAMPLE
+}

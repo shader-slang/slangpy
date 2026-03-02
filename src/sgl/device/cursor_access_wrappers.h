@@ -7,10 +7,11 @@
 #include "sgl/device/reflection.h"
 #include "sgl/device/cursor_utils.h"
 
-// TODO: Decide if we want to disable / optimize type checks
-// currently can represent 50% of the cost of writes in
-// certain situations.
+// These checks are expensive and involve re-examining reflection data, so only
+// enable in debug builds.
+#ifdef _DEBUG
 #define SGL_ENABLE_CURSOR_TYPE_CHECKS
+#endif
 
 namespace sgl {
 
@@ -135,7 +136,7 @@ public:
 #ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
         cursor_utils::check_scalar(_get_slang_type_layout(), size, cpu_scalar_type);
 #else
-        SGL_UNUSED(scalar_type);
+        SGL_UNUSED(cpu_scalar_type);
 #endif
         size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);
         size_t element_size = _get_slang_type_layout()->getSize();
@@ -334,6 +335,9 @@ public:
     {
 #ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
         cursor_utils::check_vector(_get_slang_type_layout(), size, cpu_scalar_type, dimension);
+#else
+        SGL_UNUSED(dimension);
+        SGL_UNUSED(cpu_scalar_type);
 #endif
         _get_array_or_vector(data, size, cpu_scalar_type, dimension);
     }
@@ -352,6 +356,10 @@ public:
             _get_slang_type_layout()->getElementTypeLayout()->getElementTypeLayout()->getSize()
         );
         cursor_utils::check_matrix(_get_slang_type_layout(), size, cpu_scalar_type, rows, cols);
+#else
+        SGL_UNUSED(cpu_scalar_type);
+        SGL_UNUSED(cols);
+        SGL_UNUSED(rows);
 #endif
 
         if (rows > 1) {
