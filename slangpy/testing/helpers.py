@@ -213,7 +213,9 @@ def get_device(
     )
 
     if use_cache and cache_key in DEVICE_CACHE:
-        return DEVICE_CACHE[cache_key]
+        device = DEVICE_CACHE[cache_key]
+        device.set_cuda_context_current()  # Ensure CUDA context is current for cached devices
+        return device
 
     device = Device(
         type=type,

@@ -156,6 +156,57 @@ The choice of backend significantly impacts performance:
 
 - **Graphics Backends (D3D12/Vulkan)**: Useful when graphics features are required, but expect substantially worse performance due to context switching overhead. Consider whether the graphics features are truly necessary for your use case.
 
+TensorView Compatibility (slangtorch)
+-------------------------------------
+
+SlangPy provides PyTorch tensor support via its own ``Tensor*`` types (``Tensor<T,N>``,
+``RWTensor<T,N>``, ``DiffTensor<T,N>``, etc.). However, `slangtorch <https://github.com/shader-slang/slang-torch>`_
+uses ``TensorView<T>`` and ``DiffTensorView<T>`` for tensor interop.
+
+SlangPy supports backward compatibility for code originally written for slangtorch, allowing
+``torch.Tensor`` arguments to bind to ``TensorView<T>`` parameters in Slang functions.
+
+.. warning::
+
+    **TensorView is not recommended for new code.** This feature exists only for backward
+    compatibility with existing slangtorch code. For new projects, use SlangPy's native
+    ``Tensor*`` types which offer better cross-platform support and integration.
+
+.. note::
+
+    ``TensorView<T>`` is CUDA-only. It will not work with Vulkan or D3D12 backends.
+
+Example usage with existing slangtorch-style Slang code:
+
+.. code-block::
+
+    // slangtorch-style function using TensorView
+    void copy_tensor(TensorView<float> input, TensorView<float> output)
+    {
+        for (uint i = 0; i < input.size(0); i++)
+            output.store(i, input.load(i));
+    }
+
+.. code-block:: python
+
+    import slangpy as spy
+    import torch
+
+    device = spy.create_torch_device(type=spy.DeviceType.cuda)
+    module = spy.Module.load_from_file(device, "example.slang")
+
+    # torch.Tensor arguments bind directly to TensorView<T> parameters
+    input_tensor = torch.tensor([1.0, 2.0, 3.0], device="cuda", dtype=torch.float32)
+    output_tensor = torch.zeros(3, device="cuda", dtype=torch.float32)
+
+    module.copy_tensor(input_tensor, output_tensor)
+
+Key differences between SlangPy's ``Tensor<T,N>`` and ``TensorView<T>``:
+
+- ``Tensor<T,N>`` has compile-time dimensions (N); ``TensorView<T>`` has runtime dimensions
+- ``Tensor<T,N>`` works on all backends; ``TensorView<T>`` is CUDA-only
+- For new code, prefer SlangPy's native ``Tensor*`` types for better cross-platform support
+
 Summary
 -------
 
@@ -165,5 +216,6 @@ PyTorch integration with SlangPy is seamless and automatic. This example covered
 - Automatic detection of PyTorch tensors - no special module types required
 - Use of PyTorch's `.backward()` process to track an auto-grad graph and backpropagate gradients
 - Performance considerations when choosing between CUDA and graphics backends
+- TensorView compatibility for code migrating from slangtorch
 
 The CUDA backend is recommended for best performance, while graphics backends provide access to additional GPU features at the cost of some performance overhead.

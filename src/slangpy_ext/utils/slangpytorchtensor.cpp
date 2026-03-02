@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "slangpytorchtensor.h"
+#include "slangpytensor.h"
 
 #include "sgl/device/device.h"
 #include "sgl/device/shader_object.h"
@@ -8,6 +9,7 @@
 #include "sgl/device/cuda_interop.h"
 #include "sgl/device/cuda_utils.h"
 
+#include <algorithm>
 #include <fmt/format.h>
 
 namespace sgl::slangpy {
@@ -140,6 +142,19 @@ namespace {
             strides_data[i] = strides_data[i + 1] * shape_data[i + 1];
         }
         return strides;
+    }
+
+    /// Populate a TensorViewData struct from TensorBridgeInfo + broadcast-adjusted strides
+    TensorViewData populate_tensorview_data(const TensorBridgeInfo& info, const Shape& shape, const Shape& strides)
+    {
+        TensorViewData tvd = {};
+        tvd.data = reinterpret_cast<uint64_t>(info.data_ptr);
+        for (int i = 0; i < info.ndim && i < kSlangPyTensorViewMaxDim; i++) {
+            tvd.strides[i] = static_cast<uint32_t>(strides[i] * info.element_size);
+            tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
+        }
+        tvd.dimensionCount = static_cast<uint32_t>(std::min(info.ndim, kSlangPyTensorViewMaxDim));
+        return tvd;
     }
 
 } // anonymous namespace
@@ -360,6 +375,34 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 primal_info,
                 nullptr
             );
+        } else if (m_cached_offsets.primal.is_tensorview) {
+            // DiffTensorView - write entire 112-byte struct via set_data()
+            // This avoids sub-field offset issues by writing the whole struct at once
+            Shape primal_shape = shape_from_bridge_info(primal_info);
+            Shape primal_strides = strides_from_bridge_info(primal_info);
+            primal_strides = apply_broadcast_stride_zeroing(
+                primal_strides,
+                primal_shape,
+                binding->transform(),
+                context->call_shape()
+            );
+
+            DiffTensorViewData dtv = {};
+            dtv.primal = populate_tensorview_data(primal_info, primal_shape, primal_strides);
+
+            if (has_grad) {
+                Shape grad_shape = shape_from_bridge_info(grad_info);
+                Shape grad_strides = strides_from_bridge_info(grad_info);
+                grad_strides = apply_broadcast_stride_zeroing(
+                    grad_strides,
+                    grad_shape,
+                    binding->transform(),
+                    context->call_shape()
+                );
+                dtv.diff = populate_tensorview_data(grad_info, grad_shape, grad_strides);
+            }
+
+            shader_object->set_data(m_cached_offsets.field_offset, &dtv, sizeof(DiffTensorViewData));
         } else {
             // Differentiated structure - write primal (may have null data_ptr for backward outputs)
             write_torch_tensor_fields(
@@ -415,6 +458,22 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     // Apply broadcast stride zeroing
     strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
 
+    if (offsets.is_tensorview) {
+        TensorViewData tvd = {};
+        tvd.data = reinterpret_cast<uint64_t>(info.data_ptr);
+
+        // TensorView strides are in bytes, PyTorch strides are in elements
+        for (int i = 0; i < info.ndim && i < kSlangPyTensorViewMaxDim; i++) {
+            tvd.strides[i] = static_cast<uint32_t>(strides[i] * info.element_size);
+            tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
+        }
+        tvd.dimensionCount = static_cast<uint32_t>(std::min(info.ndim, kSlangPyTensorViewMaxDim));
+
+        shader_object->set_data(m_cached_offsets.field_offset, &tvd, sizeof(TensorViewData));
+        return;
+    }
+
+    // slangpy Tensor: use field-by-field approach (needs buffer binding)
     // Write device pointer - use interop buffer if provided, otherwise use tensor's CUDA pointer
     if (interop_buffer) {
         // For interop, strides should be contiguous since interop buffer is contiguous
@@ -644,9 +703,6 @@ nb::object NativeTorchTensorMarshall::create_output(CallContext* context, Native
 {
     SGL_UNUSED(binding);
 
-    // Import torch and create output tensor
-    nb::module_ torch = nb::module_::import_("torch");
-
     // Build shape: call_shape + element type shape
     // Note: Unlike slangpy tensors, which can match the function's return type precisely,
     // torch tensors are scalar only and do not support vector/matrix types. To handle this,
@@ -666,40 +722,44 @@ nb::object NativeTorchTensorMarshall::create_output(CallContext* context, Native
         shape_vec.push_back(elem_shape[i]);
     }
 
-    // Get torch dtype from slang scalar type
-    // Map slang scalar type to torch dtype
+    // Map slang scalar type to c10::ScalarType code
     TypeReflection::ScalarType scalar_type = m_slang_element_type->type_reflection()->scalar_type();
-    nb::object dtype;
+    int32_t c10_scalar_type;
     switch (scalar_type) {
+    case TypeReflection::ScalarType::uint8:
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_UINT8;
+        break;
     case TypeReflection::ScalarType::int8:
-        dtype = torch.attr("int8");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_INT8;
         break;
     case TypeReflection::ScalarType::int16:
-        dtype = torch.attr("int16");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_INT16;
         break;
     case TypeReflection::ScalarType::int32:
-        dtype = torch.attr("int32");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_INT32;
         break;
     case TypeReflection::ScalarType::int64:
-        dtype = torch.attr("int64");
-        break;
-    case TypeReflection::ScalarType::uint8:
-        dtype = torch.attr("uint8");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_INT64;
         break;
     case TypeReflection::ScalarType::float16:
-        dtype = torch.attr("float16");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_FLOAT16;
         break;
     case TypeReflection::ScalarType::float32:
-        dtype = torch.attr("float32");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_FLOAT32;
         break;
     case TypeReflection::ScalarType::float64:
-        dtype = torch.attr("float64");
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_FLOAT64;
         break;
     default:
         SGL_THROW("Unsupported scalar type for torch output tensor");
     }
 
-    return torch.attr("empty")(nb::cast(shape_vec), "dtype"_a = dtype, "device"_a = "cuda");
+    if (m_cached_device_index < 0)
+        m_cached_device_index = static_cast<int32_t>(cuda::get_current_device_index());
+    int32_t device_index = m_cached_device_index;
+
+    return TorchBridge::instance()
+        .create_empty_tensor(shape_vec.data(), static_cast<int32_t>(shape_vec.size()), c10_scalar_type, device_index);
 }
 
 nb::object

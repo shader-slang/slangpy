@@ -27,6 +27,10 @@
 
 namespace sgl::cuda {
 
+/// Get the CUDA device index from the current CUDA context.
+/// Returns 0 if no CUDA context is active.
+SGL_API int get_current_device_index();
+
 SGL_API void* malloc_device(size_t size);
 SGL_API void free_device(void* ptr);
 

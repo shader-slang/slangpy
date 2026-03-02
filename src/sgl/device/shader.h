@@ -188,6 +188,9 @@ struct SlangCompilerOptions {
 
     /// The file name prefix for the intermediate source output.
     std::string dump_intermediates_prefix;
+
+    /// Enable experimental Slang features (required for neural module).
+    bool enable_experimental_features{false};
 };
 
 /// Slang link options.

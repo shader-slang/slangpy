@@ -216,14 +216,8 @@ def test_vec3_call_with_buffers(device_type: DeviceType):
 
     kernel_eval_polynomial.bwds(a, b, res)
 
-    # TODO: https://github.com/shader-slang/slangpy/issues/118
-    # We use ByteAddressBuffer to store the out grads, however, in the shader code, we use
-    # `sizeof(T)` to calculate the offset of each element, which is wrong because sizeof(T)
-    # is not guaranteed to be aligned on metal target. So we will just read the raw data back.
-    # The WAR solution is to provide a element_stride to shader. Slang will add intrinsic to
-    # calculate the aligned stride in shader code.
-    a_grad_data = a.grad.storage.to_numpy().view(np.float32)[0 : 32 * 3].reshape(-1, 3)
-    b_grad_data = b.grad.storage.to_numpy().view(np.float32)[0 : 32 * 3].reshape(-1, 3)
+    a_grad_data = helpers.read_tensor_from_numpy(a.grad).reshape(-1, 3)
+    b_grad_data = helpers.read_tensor_from_numpy(b.grad).reshape(-1, 3)
 
     exprected_grad = python_eval_polynomial_a_deriv(a_data, b_data)
     assert np.allclose(a_grad_data, exprected_grad)
@@ -289,14 +283,7 @@ def test_vec3_call_with_buffers_soa(device_type: DeviceType):
     a_z_grad_data = a_z.grad.storage.to_numpy().view(np.float32).reshape(-1, 1)
 
     a_grad_data = np.column_stack((a_x_grad_data, a_y_grad_data, a_z_grad_data))
-
-    # TODO: https://github.com/shader-slang/slangpy/issues/118
-    # We use ByteAddressBuffer to store the out grads, however, in the shader code, we use
-    # `sizeof(T)` to calculate the offset of each element, which is wrong because sizeof(T)
-    # is not guaranteed to be aligned on metal target. So we will just read the raw data back.
-    # The WAR solution is to provide a element_stride to shader. Slang will add intrinsic to
-    # calculate the aligned stride in shader code.
-    b_grad_data = b.grad.storage.to_numpy().view(np.float32)[0 : 32 * 3]
+    b_grad_data = helpers.read_tensor_from_numpy(b.grad).reshape(-1, 3)
 
     exprected_grad = python_eval_polynomial_a_deriv(a_data, b_data)
     assert np.allclose(a_grad_data, exprected_grad)

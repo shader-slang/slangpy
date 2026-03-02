@@ -8,7 +8,12 @@ from slangpy import ModifierID
 from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.codegen import CodeGen
 from slangpy.bindings.typeregistry import get_or_create_type
-from slangpy.reflection import SlangField, SlangFunction, SlangParameter, SlangType
+from slangpy.reflection import (
+    SlangField,
+    SlangFunction,
+    SlangParameter,
+    SlangType,
+)
 from slangpy.reflection.typeresolution import ResolvedParam
 
 
