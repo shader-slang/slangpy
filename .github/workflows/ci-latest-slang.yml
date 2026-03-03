@@ -166,6 +166,15 @@ jobs:
         if: contains(matrix.flags, 'unit-test')
         run: python tools/ci.py unit-test-python --parallel
 
+      # Slang integration tests (slangpy-based tests maintained in the slang repo)
+      - name: Slang integration tests
+        if: contains(matrix.flags, 'unit-test')
+        run: |
+          if [ -d "slang/tests/integration/slangpy" ]; then
+            python -m pytest slang/tests/integration/slangpy/ -ra -v
+          fi
+        shell: bash
+
       # Test Examples
       - name: Test Examples
         if: contains(matrix.flags, 'test-examples')
