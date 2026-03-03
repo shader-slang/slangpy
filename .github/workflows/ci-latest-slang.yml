@@ -167,13 +167,14 @@ jobs:
         run: python tools/ci.py unit-test-python --parallel
 
       # Slang integration tests (slangpy-based tests maintained in the slang repo)
-      - name: Slang integration tests
+      - name: Detect slang integration tests
+        id: detect-slang-integration
         if: contains(matrix.flags, 'unit-test')
-        run: |
-          if [ -d "slang/tests/integration/slangpy" ]; then
-            python -m pytest slang/tests/integration/slangpy/ -ra -v
-          fi
-        shell: bash
+        run: python -c "import pathlib, os; f=open(os.environ['GITHUB_OUTPUT'],'a'); f.write('has_tests=true\n' if pathlib.Path('slang/tests/integration/slangpy').is_dir() else 'has_tests=false\n'); f.close()"
+
+      - name: Slang integration tests
+        if: steps.detect-slang-integration.outputs.has_tests == 'true'
+        run: python -m pytest slang/tests/integration/slangpy/ -ra -v
 
       # Test Examples
       - name: Test Examples
