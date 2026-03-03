@@ -96,6 +96,7 @@ jobs:
 
       # Checkout Slang.
       - name: Checkout Slang
+        shell: bash
         run: |
           git clone https://github.com/shader-slang/slang.git
           cd slang
