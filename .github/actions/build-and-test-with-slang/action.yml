@@ -171,6 +171,15 @@ runs:
       shell: ${{ inputs.shell }}
       run: python tools/ci.py unit-test-python --parallel
 
+    # Slang integration tests (slangpy-based tests maintained in the slang repo)
+    - name: Slang integration tests
+      if: contains(inputs.flags, 'unit-test')
+      shell: bash
+      run: |
+        if [ -d "slang/tests/integration/slangpy" ]; then
+          python -m pytest slang/tests/integration/slangpy/ -ra -v
+        fi
+
     # Test Examples
     - name: Test Examples
       if: contains(inputs.flags, 'test-examples')
