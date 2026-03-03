@@ -118,6 +118,27 @@ int inc(int val) {
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_vectorize_float_array(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "double_it",
+        r"""
+float double_it(float x) {
+    return x * 2.0;
+}
+""",
+    )
+
+    results = function([1.5, 2.5, 3.5, 4.5], _result="numpy")
+    assert isinstance(results, np.ndarray)
+    assert results.shape == (4,)
+    assert results.dtype == np.float32
+    assert np.allclose(results, np.array([3.0, 5.0, 7.0, 9.0], dtype=np.float32))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_array(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
