@@ -51,6 +51,12 @@ def compare_tensors(a: torch.Tensor, b: torch.Tensor):
     assert err < 1e-4, f"Tensor deviates by {err} from reference"
 
 
+@pytest.fixture(autouse=True)
+def setup_bridge_mode(torch_bridge_mode: str):
+    """Automatically use torch_bridge_mode fixture for all tests in this class."""
+    pass
+
+
 @pytest.mark.parametrize(
     "pair",
     [

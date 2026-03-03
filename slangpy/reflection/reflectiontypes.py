@@ -1011,6 +1011,63 @@ class ITensorType(SlangType):
         return f"{prefix}Tensor<{element_type.full_name}, {dims}>"
 
 
+class TensorViewType(SlangType):
+    """Represents Slang's TensorView<T> type for CUDA tensor interop."""
+
+    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        args = program.get_resolved_generic_args(refl)
+        assert args is not None
+        assert len(args) == 1  # Only element type, no dims
+        assert isinstance(args[0], SlangType)
+
+        super().__init__(program, refl, element_type=args[0], local_shape=Shape())
+        self._element_type: SlangType = args[0]
+
+    @property
+    def dtype(self) -> SlangType:
+        return self._element_type
+
+    @property
+    def is_generic(self) -> bool:
+        return isinstance(self._element_type, UnknownType) or self._element_type.is_generic
+
+    @staticmethod
+    def build_tensorview_name(element_type: SlangType) -> str:
+        return f"TensorView<{element_type.full_name}>"
+
+
+class DiffTensorViewType(SlangType):
+    """Represents Slang's DiffTensorView<T> type for differentiable CUDA tensor interop."""
+
+    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
+        args = program.get_resolved_generic_args(refl)
+        assert args is not None
+        assert len(args) >= 1  # Element type T, and optionally wrapper type A
+        assert isinstance(args[0], SlangType)
+
+        super().__init__(program, refl, element_type=args[0], local_shape=Shape())
+        self._element_type: SlangType = args[0]
+        self._wrapper_type: Optional[SlangType] = (
+            args[1] if len(args) > 1 and isinstance(args[1], SlangType) else None
+        )
+
+    @property
+    def dtype(self) -> SlangType:
+        return self._element_type
+
+    @property
+    def wrapper_type(self) -> Optional[SlangType]:
+        return self._wrapper_type
+
+    @property
+    def is_generic(self) -> bool:
+        return isinstance(self._element_type, UnknownType) or self._element_type.is_generic
+
+    @staticmethod
+    def build_difftensorview_name(element_type: SlangType) -> str:
+        return f"DiffTensorView<{element_type.full_name}>"
+
+
 class UnhandledType(SlangType):
     """
     Represents an unhandled type.
@@ -1522,6 +1579,16 @@ class SlangProgramLayout:
         slang_type = self.find_type_by_name(tensor_name)
         return cast(ITensorType, slang_type)
 
+    def tensorview_type(self, element_type: SlangType) -> Optional[SlangType]:
+        """Get a TensorView type for the given element type."""
+        name = TensorViewType.build_tensorview_name(element_type)
+        return self.find_type_by_name(name)
+
+    def difftensorview_type(self, element_type: SlangType) -> Optional[SlangType]:
+        """Get a DiffTensorView type for the given element type."""
+        name = DiffTensorViewType.build_difftensorview_name(element_type)
+        return self.find_type_by_name(name)
+
     def _get_or_create_type(self, refl: TypeReflection):
         existing = self._types_by_reflection.get(refl)
         if existing is not None:
@@ -1784,3 +1851,7 @@ TYPE_OVERRIDES["WPrimalTensor"] = ITensorType
 TYPE_OVERRIDES["RWPrimalTensor"] = ITensorType
 
 TYPE_OVERRIDES["AtomicTensor"] = ITensorType
+
+TYPE_OVERRIDES["TensorView"] = TensorViewType
+
+TYPE_OVERRIDES["DiffTensorView"] = DiffTensorViewType
