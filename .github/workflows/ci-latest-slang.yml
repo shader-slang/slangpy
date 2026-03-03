@@ -96,17 +96,20 @@ jobs:
 
       # Checkout Slang.
       - name: Checkout Slang
-        shell: bash
+        if: github.event_name != 'repository_dispatch'
+        run: |
+          git clone --recursive https://github.com/shader-slang/slang.git
+          cd slang
+          git checkout ${{ github.event.inputs.slang_branch || 'master' }}
+          git submodule update --init --recursive
+
+      - name: Checkout Slang (PR)
+        if: github.event_name == 'repository_dispatch'
         run: |
           git clone https://github.com/shader-slang/slang.git
           cd slang
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            # Fetch the PR head ref (works for both fork and non-fork PRs)
-            git fetch origin pull/${{ github.event.client_payload.slang_pr_number }}/head
-            git checkout FETCH_HEAD
-          else
-            git checkout ${{ github.event.inputs.slang_branch || 'master' }}
-          fi
+          git fetch origin pull/${{ github.event.client_payload.slang_pr_number }}/head
+          git checkout FETCH_HEAD
           git submodule update --init --recursive
 
       # Build Slang.
