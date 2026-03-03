@@ -199,20 +199,29 @@ jobs:
         run: python -m pip uninstall slangpy-torch -y
         continue-on-error: true
 
-      # Post status to Slang PR (only when triggered by repository_dispatch)
+  # Post aggregate status to Slang PR after all matrix jobs complete
+  report-status:
+    runs-on: ubuntu-latest
+    needs: build
+    if: always() && github.event_name == 'repository_dispatch'
+    steps:
       - name: Post status to Slang PR
-        if: always() && github.event_name == 'repository_dispatch'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.SLANG_STATUS_TOKEN }}
           script: |
+            const result = '${{ needs.build.result }}';
+            const state = result === 'success' ? 'success' : 'failure';
+            const description = result === 'success'
+              ? 'All SlangPy tests passed'
+              : `SlangPy tests ${result}`;
             await github.rest.repos.createCommitStatus({
               owner: 'shader-slang',
               repo: 'slang',
               sha: '${{ github.event.client_payload.slang_commit_sha }}',
-              state: '${{ job.status == 'success' && 'success' || 'failure' }}',
-              context: 'SlangPy Tests / ${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ matrix.config }}',
-              description: 'SlangPy compatibility tests',
+              state,
+              context: 'SlangPy Tests',
+              description,
               target_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
             });
 
