@@ -404,9 +404,23 @@ class FunctionNode(NativeFunctionNode):
         return self.call(*args, **kwargs)
 
     def generate_call_data(self, args: Any, kwargs: Any):
+        """
+        Called from NativeFunctionNode::call to generate/build the kernel
+        the first time a function is called with a given set of arguments.
+        """
         from .calldata import CallData
 
         return CallData(self, *args, **kwargs)
+
+    def generate_bwds_call_data(self, fwds_call_data: Any, args: Any, kwargs: Any):
+        """
+        Used by native auto-grad hook to generate call data for backwards pass
+        the first time it is needed, after which it is cached on the fwds call data.
+        """
+        from .calldata import CallData
+
+        bwds_node = FunctionNodeBwds(self)
+        return CallData(bwds_node, *args, **kwargs)
 
     def call_group_shape(self, call_group_shape: Shape):
         """

@@ -7,6 +7,7 @@
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
 #include "sgl/device/fwd.h"
+#include "sgl/device/native_handle.h"
 
 #include <vector>
 #include <map>
@@ -51,6 +52,26 @@ SGL_ENUM_INFO(
     }
 );
 SGL_ENUM_REGISTER(CallDataMode);
+
+/// Access pattern for torch autograd tensor bindings.
+/// Precomputed at build time and stored in a flat list on NativeCallData,
+/// consumed in order during find_torch_tensors at dispatch time.
+enum class AutogradAccess {
+    none = 0,
+    read = 1,      // Tensor is an input (grad written to it in backward)
+    write = 2,     // Tensor is an output (grad read from it in backward)
+    readwrite = 3, // Error: in-place ops not supported for autograd
+};
+SGL_ENUM_INFO(
+    AutogradAccess,
+    {
+        {AutogradAccess::none, "none"},
+        {AutogradAccess::read, "read"},
+        {AutogradAccess::write, "write"},
+        {AutogradAccess::readwrite, "readwrite"},
+    }
+);
+SGL_ENUM_REGISTER(AutogradAccess);
 
 
 class SGL_API Shape {
@@ -397,10 +418,11 @@ private:
 
 class SGL_API CallContext : Object {
 public:
-    CallContext(ref<Device> device, const Shape& call_shape, CallMode call_mode)
+    CallContext(ref<Device> device, const Shape& call_shape, CallMode call_mode, NativeHandle cuda_stream)
         : m_device(std::move(device))
         , m_call_shape(call_shape)
         , m_call_mode(call_mode)
+        , m_cuda_stream(cuda_stream)
     {
     }
 
@@ -408,10 +430,13 @@ public:
     const Shape& call_shape() const { return m_call_shape; }
     CallMode call_mode() const { return m_call_mode; }
 
+    const NativeHandle& cuda_stream() const { return m_cuda_stream; }
+
 private:
     ref<Device> m_device;
     Shape m_call_shape;
     CallMode m_call_mode;
+    NativeHandle m_cuda_stream;
 };
 
 } // namespace sgl::slangpy

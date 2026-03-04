@@ -30,6 +30,16 @@ ShaderCursor::ShaderCursor(ShaderObject* shader_object)
     SGL_ASSERT(m_offset.is_valid());
 }
 
+ShaderCursor::ShaderCursor(ShaderObject* shader_object, slang::TypeLayoutReflection* type_layout, ShaderOffset offset)
+    : m_type_layout(type_layout)
+    , m_shader_object(shader_object)
+    , m_offset(offset)
+{
+    SGL_ASSERT(m_type_layout);
+    SGL_ASSERT(m_shader_object);
+    SGL_ASSERT(m_offset.is_valid());
+}
+
 ShaderCursor::ShaderCursor(
     ShaderObject* shader_object,
     bool need_dereference,
