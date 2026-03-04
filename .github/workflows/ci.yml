@@ -4,23 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "LICENSES/**"
-      - "LICENSE"
-      - "**.md"
-      - .github/workflows/wheels.yml
-      - .github/workflows/ci-gcp.yml
-      - .github/workflows/ci-latest-slang.yml
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "LICENSES/**"
-      - "LICENSE"
-      - "**.md"
-      - .github/workflows/wheels.yml
-      - .github/workflows/ci-gcp.yml
-      - .github/workflows/ci-latest-slang.yml
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -31,7 +16,46 @@ permissions:
   id-token: write
 
 jobs:
+  filter:
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.filter.outputs.should-run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: "2"
+      - id: filter
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch origin ${{ github.base_ref }}
+            BASE=origin/${{ github.base_ref }}
+          else
+            BASE=HEAD^1
+          fi
+
+          shouldRun=true
+          if files="$(git diff --name-only $BASE...HEAD)"; then
+            IGNORE_PATTERN='^(LICENSES/|LICENSE$|\.github/workflows/(wheels|ci-gcp|ci-latest-slang)\.yml$)'
+            if [[ "${{ github.event_name }}" == "push" ]]; then
+              IGNORE_PATTERN='^(docs/|LICENSES/|LICENSE$|\.github/workflows/(wheels|ci-gcp|ci-latest-slang)\.yml$)'
+            fi
+            # Also always ignore markdown files
+            IGNORE_PATTERN="${IGNORE_PATTERN}|\.md$"
+            if echo "$files" | grep -qvE "$IGNORE_PATTERN"; then
+              shouldRun=true
+            else
+              echo "Only ignored files changed, skipping build"
+              shouldRun=false
+            fi
+          else
+            echo "Git diff failed, conservatively running build"
+            shouldRun=true
+          fi
+          echo "should-run=$shouldRun" >> $GITHUB_OUTPUT
+
   build:
+    needs: filter
+    if: needs.filter.outputs.should-run == 'true'
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
