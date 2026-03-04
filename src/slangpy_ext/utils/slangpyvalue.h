@@ -4,10 +4,13 @@
 
 #include <vector>
 #include <map>
+#include <functional>
 
 #include "nanobind.h"
 
 #include "utils/slangpy.h"
+
+#include <slang.h>
 
 namespace sgl::slangpy {
 
@@ -24,6 +27,20 @@ public:
         nb::object value,
         nb::list read_back
     ) const override;
+
+private:
+    /// Cached data for fast-path value writing, populated on first dispatch.
+    struct CachedValueWrite {
+        ShaderOffset value_offset;                                ///< Offset to the "value" sub-field.
+        slang::TypeLayoutReflection* value_type_layout = nullptr; ///< Type layout for "value" field.
+        std::function<void(ShaderCursor&, nb::object)> writer;    ///< Pre-resolved writer fn.
+        bool is_valid = false;
+    };
+
+    mutable CachedValueWrite m_cached;
+
+    /// Populate m_cached on first call by resolving the cursor path and writer function.
+    void ensure_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const;
 
 
     /// Dispatch data is just the value.

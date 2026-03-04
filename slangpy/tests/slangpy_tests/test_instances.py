@@ -104,6 +104,45 @@ def test_this_interface(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_packed_vs_unpacked_cache(device_type: DeviceType):
+    """Passing a plain dict vs a class with get_this returning the same dict
+    should produce identical results but land in different cache entries."""
+    m = load_module(device_type)
+    Particle = m.Particle
+
+    # Build two identical SOA dicts
+    def make_soa_dict() -> dict:
+        return {
+            "position": Tensor.empty(m.device, dtype=float2, shape=(1,)),
+            "velocity": float2(1, 0),
+            "size": 0.5,
+            "material": {"color": float3(1, 1, 1), "emission": float3(0, 0, 0)},
+        }
+
+    dict_arg = make_soa_dict()
+    this_arg = ThisType(make_soa_dict())
+
+    # Call with plain dict
+    Particle_reset_dict = Particle.reset.bind(dict_arg)
+    Particle_reset_dict(float2(1, 2), float2(3, 4))
+
+    # Call with get_this wrapper
+    Particle_reset_this = Particle.reset.bind(this_arg)
+    Particle_reset_this(float2(1, 2), float2(3, 4))
+
+    # Both should produce the same position data
+    dict_pos = dict_arg["position"].storage.to_numpy().view(dtype=np.float32)
+    this_pos = this_arg.data["position"].storage.to_numpy().view(dtype=np.float32)
+    assert np.array_equal(dict_pos, this_pos)
+
+    # But the two calls should have generated different cached call data
+    # (the get_this wrapper adds "\nunpack" to the signature)
+    cd_dict = Particle_reset_dict.debug_build_call_data(float2(1, 2), float2(3, 4))
+    cd_this = Particle_reset_this.debug_build_call_data(float2(1, 2), float2(3, 4))
+    assert cd_dict is not cd_this
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_this_interface_soa(device_type: DeviceType):
     m = load_module(device_type)
     assert m is not None

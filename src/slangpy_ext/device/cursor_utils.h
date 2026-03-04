@@ -406,6 +406,28 @@ public:
         matrix_case(float4x4, float32);
     }
 
+    /// Resolve a type-specialized writer function for the given type layout.
+    /// Returns an empty function for types that do not have a predefined write function.
+    std::function<void(CursorType&, nb::object)> get_writer(slang::TypeLayoutReflection* type_layout) const
+    {
+        if (!type_layout)
+            return {};
+        auto kind = (TypeReflection::Kind)type_layout->getKind();
+        auto type = type_layout->getType();
+        if (!type)
+            return {};
+        switch (kind) {
+        case TypeReflection::Kind::scalar:
+            return m_write_scalar[(int)type->getScalarType()];
+        case TypeReflection::Kind::vector:
+            return m_write_vector[(int)type->getScalarType()][type->getColumnCount()];
+        case TypeReflection::Kind::matrix:
+            return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()];
+        default:
+            return {};
+        }
+    }
+
     /// Virtual for writing none-basic value types.
     virtual bool write_value(CursorType& self, nb::object nbval)
     {
