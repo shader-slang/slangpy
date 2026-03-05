@@ -19,7 +19,7 @@ env:
   CIBW_ARCHS_LINUX: auto64
   CIBW_TEST_COMMAND: "python -c \"import slangpy\""
   # zip required for vcpkg, rest for glfw
-  CIBW_BEFORE_ALL_LINUX: yum install -y zip wayland-devel libxkbcommon-devel libXcursor-devel libXi-devel libXinerama-devel libXrandr-devel
+  CIBW_BEFORE_ALL_LINUX: yum install -y zip wayland-devel libxkbcommon-devel libXcursor-devel libXi-devel libXinerama-devel libXrandr-devel ninja-build perl-IPC-Cmd
   # make sure slangpy wheel is build with testing data + corrected project directory
   CIBW_ENVIRONMENT: BUILD_RELEASE_WHEEL=1
   MACOSX_DEPLOYMENT_TARGET: 14.0

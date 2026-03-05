@@ -12,7 +12,7 @@ env:
   CIBW_ARCHS_WINDOWS: auto64
   CIBW_ARCHS_LINUX: auto64
   CIBW_TEST_COMMAND: "python -c \"import slangpy\""
-  CIBW_BEFORE_ALL_LINUX: yum install -y zip wayland-devel libxkbcommon-devel libXcursor-devel libXi-devel libXinerama-devel libXrandr-devel
+  CIBW_BEFORE_ALL_LINUX: yum install -y zip wayland-devel libxkbcommon-devel libXcursor-devel libXi-devel libXinerama-devel libXrandr-devel ninja-build perl-IPC-Cmd
   CIBW_ENVIRONMENT: BUILD_RELEASE_WHEEL=1 SLANGPY_DEV_SUFFIX=$SLANGPY_DEV_SUFFIX
   MACOSX_DEPLOYMENT_TARGET: 14.0
   BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
