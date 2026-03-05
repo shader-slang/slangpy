@@ -1,5 +1,5 @@
 name: ci-latest-slang
-run-name: "Slang branch: ${{ github.event.inputs.slang_branch || 'master' }}"
+run-name: "${{ github.event_name == 'repository_dispatch' && format('Slang PR #{0}', github.event.client_payload.slang_pr_number) || format('Slang branch: {0}', github.event.inputs.slang_branch || 'master') }}"
 
 on:
   schedule:
@@ -10,11 +10,14 @@ on:
         description: 'Slang branch'
         required: true
         default: 'master'
+  repository_dispatch:
+    types: [slang-pr-test]
 
 permissions:
   contents: read
   checks: write
   id-token: write
+  statuses: write
 
 jobs:
   build:
@@ -93,10 +96,20 @@ jobs:
 
       # Checkout Slang.
       - name: Checkout Slang
+        if: github.event_name != 'repository_dispatch'
         run: |
           git clone --recursive https://github.com/shader-slang/slang.git
           cd slang
           git checkout ${{ github.event.inputs.slang_branch || 'master' }}
+          git submodule update --init --recursive
+
+      - name: Checkout Slang (PR)
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          git clone https://github.com/shader-slang/slang.git
+          cd slang
+          git fetch origin pull/${{ github.event.client_payload.slang_pr_number }}/head
+          git checkout FETCH_HEAD
           git submodule update --init --recursive
 
       # Build Slang.
@@ -185,6 +198,32 @@ jobs:
         if: always()
         run: python -m pip uninstall slangpy-torch -y
         continue-on-error: true
+
+  # Post aggregate status to Slang PR after all matrix jobs complete
+  report-status:
+    runs-on: ubuntu-latest
+    needs: build
+    if: always() && github.event_name == 'repository_dispatch'
+    steps:
+      - name: Post status to Slang PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.SLANG_STATUS_TOKEN }}
+          script: |
+            const result = '${{ needs.build.result }}';
+            const state = result === 'success' ? 'success' : 'failure';
+            const description = result === 'success'
+              ? 'All SlangPy tests passed'
+              : `SlangPy tests ${result}`;
+            await github.rest.repos.createCommitStatus({
+              owner: 'shader-slang',
+              repo: 'slang',
+              sha: '${{ github.event.client_payload.slang_commit_sha }}',
+              state,
+              context: 'SlangPy Tests',
+              description,
+              target_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            });
 
   # Notify Slack after all matrix jobs complete
   notify:
