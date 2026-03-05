@@ -9,6 +9,8 @@ env:
   CIBW_BUILD_VERBOSITY: 1
   CIBW_SKIP: "*-musllinux*"
   CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_34
+  CIBW_ARCHS_WINDOWS: auto64
+  CIBW_ARCHS_LINUX: auto64
   CIBW_TEST_COMMAND: "python -c \"import slangpy\""
   CIBW_BEFORE_ALL_LINUX: yum install -y zip wayland-devel libxkbcommon-devel libXcursor-devel libXi-devel libXinerama-devel libXrandr-devel
   CIBW_ENVIRONMENT: BUILD_RELEASE_WHEEL=1 SLANGPY_DEV_SUFFIX=$SLANGPY_DEV_SUFFIX
@@ -49,17 +51,6 @@ jobs:
         shell: bash
         run: echo "SLANGPY_DEV_SUFFIX=dev0+g${GITHUB_SHA::7}" >> $GITHUB_ENV
 
-      - name: Set CIBW_ARCHS
-        shell: bash
-        run: |
-          if [ "${{ matrix.os }}" = "macos" ]; then
-            echo "CIBW_ARCHS=arm64" >> $GITHUB_ENV
-          elif [ "${{ matrix.os }}" = "windows" ]; then
-            echo "CIBW_ARCHS=AMD64" >> $GITHUB_ENV
-          else
-            echo "CIBW_ARCHS=${{ matrix.platform }}" >> $GITHUB_ENV
-          fi
-
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==3.0.0rc1
 
@@ -71,7 +62,6 @@ jobs:
       - name: Build wheels
         env:
           CIBW_BUILD: ${{ matrix.python }}-*
-          CIBW_ARCHS: ${{ matrix.platform }}
         run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels artifact
