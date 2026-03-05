@@ -113,5 +113,46 @@ def test_generic_entrypoint_invalid_type(device_type: spy.DeviceType):
         generic_entry.specialize([spy.SpecializationArg.from_type("NonExistentType")])
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_generic_entrypoint_int_generic_param(device_type: spy.DeviceType):
+    """Test that entry_point() works for generic compute shaders with integer generic parameters."""
+    device = helpers.get_device(type=device_type)
+
+    module = device.load_module("test_generic_entrypoint.slang")
+
+    # This should not raise - previously failed with untranslated nanobind exception
+    generic_entry = module.entry_point("compute_int_generic")
+
+    # Specialize with an integer expression
+    specialized = generic_entry.specialize([spy.SpecializationArg.from_expr("4")])
+
+    # Link and create kernel
+    program = device.link_program(modules=[module], entry_points=[specialized])
+    kernel = device.create_compute_kernel(program)
+
+    # Dispatch and verify results
+    output_data = np.zeros(8, dtype=np.float32)
+    buffer = device.create_buffer(
+        data=output_data,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    kernel.dispatch(thread_count=[8, 1, 1], output=buffer)
+    result = buffer.to_numpy().view(np.float32)
+    expected = np.arange(8, dtype=np.float32)
+    assert np.allclose(result, expected), f"Expected {expected}, got {result}"
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_generic_entrypoint_int_generic_entry_points(device_type: spy.DeviceType):
+    """Test that entry_points property works with generic compute shaders with integer generic parameters."""
+    device = helpers.get_device(type=device_type)
+
+    module = device.load_module("test_generic_entrypoint.slang")
+
+    # This should not raise
+    eps = module.entry_points
+    assert len(eps) > 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
