@@ -29,6 +29,8 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             git fetch origin ${{ github.base_ref }}
             BASE=origin/${{ github.base_ref }}
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            BASE=${{ github.event.before }}
           else
             BASE=HEAD^1
           fi
