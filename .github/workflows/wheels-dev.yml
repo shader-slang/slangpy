@@ -49,6 +49,17 @@ jobs:
         shell: bash
         run: echo "SLANGPY_DEV_SUFFIX=dev0+g${GITHUB_SHA::7}" >> $GITHUB_ENV
 
+      - name: Set CIBW_ARCHS
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "macos" ]; then
+            echo "CIBW_ARCHS=arm64" >> $GITHUB_ENV
+          elif [ "${{ matrix.os }}" = "windows" ]; then
+            echo "CIBW_ARCHS=AMD64" >> $GITHUB_ENV
+          else
+            echo "CIBW_ARCHS=${{ matrix.platform }}" >> $GITHUB_ENV
+          fi
+
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==3.0.0rc1
 
