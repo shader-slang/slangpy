@@ -114,6 +114,7 @@ class CallData(NativeCallData):
         self.build(build_info, *args, **kwargs)
 
     def build(self, build_info: "FunctionBuildInfo", *args: Any, **kwargs: Any):
+        self.has_thread_count = "_thread_count" in kwargs
 
         try:
 
@@ -155,6 +156,7 @@ class CallData(NativeCallData):
             # Unpack args (handles IThis wrappers)
             unpacked_args, args_had_unpack = unpack_args(*args)
             unpacked_kwargs, kwargs_had_unpack = unpack_kwargs(**kwargs)
+            unpacked_kwargs.pop("_thread_count", None)  # not a Slang parameter
             self.needs_unpack = args_had_unpack or kwargs_had_unpack
 
             # If we have torch tensors, enable torch integration
@@ -241,6 +243,16 @@ class CallData(NativeCallData):
             self.call_dimensionality = calculate_call_dimensionality(bindings)
             context.call_dimensionality = self.call_dimensionality
             self.log_debug(f"  Call dimensionality: {self.call_dimensionality}")
+
+            # _thread_count is only valid when call_dimensionality is 0
+            if self.has_thread_count and self.call_dimensionality > 0:
+                raise ValueError(
+                    f"_thread_count is only valid for kernels with call dimensionality 0 "
+                    f"(i.e., all parameters are passed as whole buffers/values and the kernel "
+                    f"manages its own thread indexing). This kernel has call dimensionality "
+                    f"{self.call_dimensionality}, meaning the thread count is automatically "
+                    f"inferred from the shapes of the vectorized arguments."
+                )
 
             # If necessary, create return value node once call dimensionality is known.
             create_return_value_binding(context, bindings, return_type)

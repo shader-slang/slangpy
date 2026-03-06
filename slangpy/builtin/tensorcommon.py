@@ -17,6 +17,7 @@ from slangpy.reflection import (
     EXPERIMENTAL_VECTORIZATION,
     ResourceType,
     TensorAccess,
+    VectorType,
 )
 import slangpy.reflection.vectorize as spyvec
 
@@ -87,10 +88,17 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
         if isinstance(tensorview_element, UnknownType) or tensorview_element.is_generic:
             resolved_element = self_element_type
         elif not types_equal(self_element_type, tensorview_element):
-            raise TypeError(
-                f"Cannot bind tensor with dtype {self_element_type.full_name} "
-                f"to TensorView<{tensorview_element.full_name}>"
-            )
+            # Allow scalar tensor dtype to bind to TensorView<VectorType>
+            # e.g., float32 tensor -> TensorView<float2>
+            if isinstance(tensorview_element, VectorType) and types_equal(
+                self_element_type, tensorview_element.scalar_type
+            ):
+                resolved_element = tensorview_element
+            else:
+                raise TypeError(
+                    f"Cannot bind tensor with dtype {self_element_type.full_name} "
+                    f"to TensorView<{tensorview_element.full_name}>"
+                )
         else:
             resolved_element = tensorview_element
 
@@ -106,10 +114,17 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
         if isinstance(dtv_element, UnknownType) or dtv_element.is_generic:
             resolved_element = self_element_type
         elif not types_equal(self_element_type, dtv_element):
-            raise TypeError(
-                f"Cannot bind tensor with dtype {self_element_type.full_name} "
-                f"to DiffTensorView<{dtv_element.full_name}>"
-            )
+            # Allow scalar tensor dtype to bind to DiffTensorView<VectorType>
+            # e.g., float32 tensor -> DiffTensorView<float2>
+            if isinstance(dtv_element, VectorType) and types_equal(
+                self_element_type, dtv_element.scalar_type
+            ):
+                resolved_element = dtv_element
+            else:
+                raise TypeError(
+                    f"Cannot bind tensor with dtype {self_element_type.full_name} "
+                    f"to DiffTensorView<{dtv_element.full_name}>"
+                )
         else:
             resolved_element = dtv_element
 

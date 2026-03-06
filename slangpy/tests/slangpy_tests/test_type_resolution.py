@@ -1232,6 +1232,13 @@ TESTS = [
     ("func_tensorview_generic", _Tensor("float", 1, True), "TensorView<float>", 1),
     ("func_tensorview_generic", _Tensor("int", 2, True), "TensorView<int>", 2),
 
+    # TensorView<float2> / <float4>: scalar float tensor should resolve to vector TensorView
+    ("func_tensorview_float2", _TorchTensor("float", 2), "TensorView<float2>", 1),
+    ("func_tensorview_float4", _TorchTensor("float", 2), "TensorView<float4>", 1),
+    # Non-float scalar should not resolve to TensorView<float2/float4>
+    ("func_tensorview_float2", _TorchTensor("int", 2), None, None),
+    ("func_tensorview_float4", _TorchTensor("int", 2), None, None),
+
     # DiffTensorView type resolution tests (CUDA-only, requires PyTorch)
     # NativeTorchTensorDiffPair should resolve to DiffTensorView<T>
     ("func_difftensorview_float", _TorchTensorDiffPair("float", 1), "DiffTensorView<float>", 1),
