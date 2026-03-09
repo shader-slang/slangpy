@@ -19,24 +19,97 @@ permissions:
   id-token: write
   statuses: write
 
+concurrency:
+  group: ${{ github.event_name == 'repository_dispatch' && format('slang-pr-{0}', github.event.client_payload.slang_pr_number) || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
+  # Determine build matrix. For repository_dispatch (Slang PR testing),
+  # only run Linux and Windows Release. Nightly/manual runs use full matrix.
+  setup-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - name: Set matrix
+        id: set
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            matrix=$(cat <<'EOF'
+          {
+            "include": [
+              {
+                "os": "windows", "platform": "x86_64", "compiler": "msvc",
+                "config": "Release", "python": "3.10",
+                "flags": "unit-test,test-examples,crashpad",
+                "runs-on": { "group": "nvrgfx", "labels": ["Windows", "X64"] }
+              },
+              {
+                "os": "linux", "platform": "x86_64", "compiler": "gcc",
+                "config": "Release", "python": "3.10",
+                "flags": "unit-test,test-examples,crashpad",
+                "runs-on": { "group": "nvrgfx", "labels": ["Linux", "X64"] }
+              }
+            ]
+          }
+          EOF
+          )
+          else
+            matrix=$(cat <<'EOF'
+          {
+            "os": ["windows", "linux", "macos"],
+            "config": ["Debug", "Release"],
+            "python": ["3.10"],
+            "include": [
+              {
+                "os": "windows", "platform": "x86_64", "compiler": "msvc",
+                "config": "Debug", "python": "3.10",
+                "flags": "unit-test,crashpad",
+                "runs-on": { "group": "nvrgfx", "labels": ["Windows", "X64"] }
+              },
+              {
+                "os": "windows", "platform": "x86_64", "compiler": "msvc",
+                "config": "Release", "python": "3.10",
+                "flags": "unit-test,test-examples,crashpad",
+                "runs-on": { "group": "nvrgfx", "labels": ["Windows", "X64"] }
+              },
+              {
+                "os": "linux", "platform": "x86_64", "compiler": "gcc",
+                "config": "Debug", "python": "3.10",
+                "flags": "unit-test,crashpad",
+                "runs-on": { "group": "nvrgfx", "labels": ["Linux", "X64"] }
+              },
+              {
+                "os": "linux", "platform": "x86_64", "compiler": "gcc",
+                "config": "Release", "python": "3.10",
+                "flags": "unit-test,test-examples,crashpad",
+                "runs-on": { "group": "nvrgfx", "labels": ["Linux", "X64"] }
+              },
+              {
+                "os": "macos", "platform": "aarch64", "compiler": "clang",
+                "config": "Debug", "python": "3.10",
+                "flags": "unit-test,crashpad",
+                "runs-on": "macos-latest"
+              },
+              {
+                "os": "macos", "platform": "aarch64", "compiler": "clang",
+                "config": "Release", "python": "3.10",
+                "flags": "unit-test,test-examples,crashpad",
+                "runs-on": "macos-latest"
+              }
+            ]
+          }
+          EOF
+          )
+          fi
+          echo "matrix=$(echo "$matrix" | jq -c .)" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: setup-matrix
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
-      matrix:
-        os: [windows, linux, macos]
-        config: [Debug, Release]
-        python: ["3.10"]
-        include:
-          # Builds running on self-hosted runners
-          - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
-          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
-          # Builds running on GitHub hosted runners
-          - { os: macos, platform: aarch64, compiler: clang, config: Debug, flags: "unit-test,crashpad", runs-on: macos-latest }
-          - { os: macos, platform: aarch64, compiler: clang, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: macos-latest }
+      matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
 
     env:
       # Environment variables used by ci.py
