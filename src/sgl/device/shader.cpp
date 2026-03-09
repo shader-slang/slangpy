@@ -296,6 +296,8 @@ void SlangSession::create_session(SlangSessionBuild& build)
     // https://github.com/shader-slang/slang/issues/8166
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30856"));
     // TODO: Globally disable warning 41012.
+    // Example: entry point 'foo' uses additional capabilities that are not part of the specified profile 'unknown'.
+    // This warning happens on CUDA because we're not properly setting the target profile (i.e. "cuda_sm_x_x").
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("41012"));
 
     // Set warnings.
