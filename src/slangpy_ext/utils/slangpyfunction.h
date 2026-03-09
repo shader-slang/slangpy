@@ -91,6 +91,7 @@ public:
         }
     }
 
+
     NativeFunctionNode* parent() const { return m_parent.get(); }
 
     FunctionNodeType type() const { return m_type; }

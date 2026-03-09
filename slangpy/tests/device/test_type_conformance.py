@@ -90,7 +90,6 @@ def test_type_conformance(device_type: spy.DeviceType):
     )
 
 
-@pytest.mark.skip("Slang bug https://github.com/shader-slang/slang/issues/10371")
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_type_conformance_module_cache(device_type: spy.DeviceType, tmpdir: str):
 
@@ -180,4 +179,4 @@ def test_type_conformance_module_cache(device_type: spy.DeviceType, tmpdir: str)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "-s", "-k", "test_type_conformance_module_cache"])
+    pytest.main([__file__, "-v", "-s"])
