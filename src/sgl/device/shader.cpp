@@ -295,6 +295,8 @@ void SlangSession::create_session(SlangSessionBuild& build)
     // This is a workaround for an issue in the Slang compiler:
     // https://github.com/shader-slang/slang/issues/8166
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30856"));
+    // TODO: Globally disable warning 41012.
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("41012"));
 
     // Set warnings.
     for (const auto& warning : options.enable_warnings)
