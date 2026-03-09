@@ -24,103 +24,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Determine build matrix. For repository_dispatch (Slang PR testing),
-  # only run Linux and Windows Release. Nightly/manual runs use full matrix.
-  setup-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set.outputs.matrix }}
-    steps:
-      - name: Set matrix
-        id: set
-        run: |
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            matrix=$(cat <<'EOF'
-          {
-            "include": [
-              {
-                "os": "windows", "platform": "x86_64", "compiler": "msvc",
-                "config": "Release", "python": "3.10",
-                "flags": "unit-test,test-examples,crashpad",
-                "runs-on": { "group": "nvrgfx", "labels": ["Windows", "X64"] }
-              },
-              {
-                "os": "linux", "platform": "x86_64", "compiler": "gcc",
-                "config": "Release", "python": "3.10",
-                "flags": "unit-test,test-examples,crashpad",
-                "runs-on": { "group": "nvrgfx", "labels": ["Linux", "X64"] }
-              }
-            ]
-          }
-          EOF
-          )
-          else
-            matrix=$(cat <<'EOF'
-          {
-            "os": ["windows", "linux", "macos"],
-            "config": ["Debug", "Release"],
-            "python": ["3.10"],
-            "include": [
-              {
-                "os": "windows", "platform": "x86_64", "compiler": "msvc",
-                "config": "Debug", "python": "3.10",
-                "flags": "unit-test,header-validation,crashpad",
-                "runs-on": { "group": "nvrgfx", "labels": ["Windows", "X64"] }
-              },
-              {
-                "os": "windows", "platform": "x86_64", "compiler": "msvc",
-                "config": "Release", "python": "3.10",
-                "flags": "unit-test,test-examples,crashpad",
-                "runs-on": { "group": "nvrgfx", "labels": ["Windows", "X64"] }
-              },
-              {
-                "os": "linux", "platform": "x86_64", "compiler": "gcc",
-                "config": "Debug", "python": "3.10",
-                "flags": "unit-test,header-validation,coverage,crashpad",
-                "runs-on": { "group": "nvrgfx", "labels": ["Linux", "X64"] }
-              },
-              {
-                "os": "linux", "platform": "x86_64", "compiler": "gcc",
-                "config": "Release", "python": "3.10",
-                "flags": "unit-test,test-examples,crashpad",
-                "runs-on": { "group": "nvrgfx", "labels": ["Linux", "X64"] }
-              },
-              {
-                "os": "macos", "platform": "aarch64", "compiler": "clang",
-                "config": "Debug", "python": "3.10",
-                "flags": "unit-test,header-validation,crashpad",
-                "runs-on": "macos-latest"
-              },
-              {
-                "os": "macos", "platform": "aarch64", "compiler": "clang",
-                "config": "Release", "python": "3.10",
-                "flags": "unit-test,test-examples,crashpad",
-                "runs-on": "macos-latest"
-              }
-            ]
-          }
-          EOF
-          )
-          fi
-          echo "matrix=$(echo "$matrix" | jq -c .)" >> "$GITHUB_OUTPUT"
-
+  # Full matrix for nightly and manual runs.
   build:
-    needs: setup-matrix
+    if: github.event_name != 'repository_dispatch'
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
+      matrix:
+        os: [windows, linux, macos]
+        config: [Debug, Release]
+        python: ["3.10"]
+        include:
+          - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,header-validation,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,header-validation,coverage,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
+          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
+          - { os: macos, platform: aarch64, compiler: clang, config: Debug, flags: "unit-test,header-validation,crashpad", runs-on: macos-latest }
+          - { os: macos, platform: aarch64, compiler: clang, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: macos-latest }
 
     env:
-      # Environment variables used by ci.py
       CI_OS: ${{ matrix.os }}
       CI_PLATFORM: ${{ matrix.platform }}
       CI_COMPILER: ${{ matrix.compiler }}
       CI_CONFIG: ${{ matrix.config }}
       CI_PYTHON: ${{ matrix.python }}
       CI_FLAGS: ${{ matrix.flags }}
-
-      # Path to the built slang compiler
       SLANG_PATH: ${{ github.workspace }}/slang/build/${{ matrix.config }}/bin
 
     steps:
@@ -129,153 +57,59 @@ jobs:
           submodules: recursive
           lfs: true
 
-      - name: Cleanup submodules # Fix for https://github.com/actions/checkout/issues/358
-        run: |
-          git submodule foreach --recursive git clean -ffdx
-          git submodule foreach --recursive git reset --hard
-
-      # Setup Linux.
-      - name: Setup Linux
-        if: startsWith(matrix.os, 'linux') && contains(matrix.runs-on, 'ubuntu-')
-        run: |
-          sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
-
-      # Setup Python.
-      - name: Setup Python ${{ matrix.python }}
-        uses: actions/setup-python@v5
+      - uses: ./.github/actions/build-and-test-with-slang
         with:
-          python-version: ${{ matrix.python }}
+          os: ${{ matrix.os }}
+          platform: ${{ matrix.platform }}
+          compiler: ${{ matrix.compiler }}
+          config: ${{ matrix.config }}
+          python: ${{ matrix.python }}
+          flags: ${{ matrix.flags }}
+          slang-checkout-mode: branch
+          slang-branch: ${{ github.event.inputs.slang_branch || 'master' }}
 
-      # Setup Python environment.
-      - name: Setup Python environment
-        run: |
-          python -m pip install -r requirements-dev.txt
-          python -m pip install -r samples/requirements.txt
-          python -m pip install pytest-github-actions-annotate-failures
+  # Reduced matrix for Slang PR testing (repository_dispatch).
+  # Only Linux and Windows Release — Debug and macOS covered by nightly.
+  build-pr:
+    if: github.event_name == 'repository_dispatch'
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, python: "3.10", flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
+          - { os: linux, platform: x86_64, compiler: gcc, config: Release, python: "3.10", flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
 
-      # Setup PyTorch environment
-      - name: Setup PyTorch environment
-        if: runner.os != 'macos' && contains(matrix.flags, 'unit-test')
-        run: |
-          python -m pip install torch==2.8.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+    env:
+      CI_OS: ${{ matrix.os }}
+      CI_PLATFORM: ${{ matrix.platform }}
+      CI_COMPILER: ${{ matrix.compiler }}
+      CI_CONFIG: ${{ matrix.config }}
+      CI_PYTHON: ${{ matrix.python }}
+      CI_FLAGS: ${{ matrix.flags }}
+      SLANG_PATH: ${{ github.workspace }}/slang/build/${{ matrix.config }}/bin
 
-      # Setup MSVC.
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-
-      # Setup CMake/Ninja.
-      - name: Setup CMake/Ninja
-        uses: lukka/get-cmake@latest
-
-      # Checkout Slang.
-      - name: Checkout Slang
-        if: github.event_name != 'repository_dispatch'
-        run: |
-          git clone --recursive https://github.com/shader-slang/slang.git
-          cd slang
-          git checkout ${{ github.event.inputs.slang_branch || 'master' }}
-          git submodule update --init --recursive
-
-      - name: Checkout Slang (PR)
-        if: github.event_name == 'repository_dispatch'
-        run: |
-          git clone https://github.com/shader-slang/slang.git
-          cd slang
-          git fetch origin pull/${{ github.event.client_payload.slang_pr_number }}/head
-          git checkout FETCH_HEAD
-          git submodule update --init --recursive
-
-      # Build Slang.
-      - name: Build Slang
-        run: |
-          cd slang
-          mkdir build
-          cmake -B build --preset default
-          cmake --build build --config ${{ matrix.config }} --parallel
-
-      # Setup.
-      - name: Setup
-        run: python tools/ci.py setup
-
-      # Setup vcpkg caching.
-      # Only run on hosted runners.
-      # For self-hosted runners, we use a local cache directory.
-      - name: Set vcpkg cache directory
-        if: startsWith(matrix.runs-on, 'ubuntu-') || startsWith(matrix.runs-on, 'macos-') || startsWith(matrix.runs-on, 'windows-')
-        run: |
-          echo "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}/vcpkg-cache" >> $GITHUB_ENV
-          mkdir -p ${{ github.workspace }}/vcpkg-cache
-      - name: Setup vcpkg caching
-        if: startsWith(matrix.runs-on, 'ubuntu-') || startsWith(matrix.runs-on, 'macos-') || startsWith(matrix.runs-on, 'windows-')
-        uses: actions/cache@v4
+    steps:
+      - uses: actions/checkout@v4
         with:
-          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: vcpkg-cache-${{ runner.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ hashFiles('vcpkg.json', 'external/vcpkg-triplets/**') }}
+          submodules: recursive
+          lfs: true
 
-      # Configure.
-      - name: Configure
-        run: python tools/ci.py --cmake-args="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/${{ matrix.config }}" configure
-
-      # Build.
-      - name: Build
-        run: python tools/ci.py build
-
-      # Install slangpy-torch extension (requires MSVC on Windows, PyTorch installed)
-      - name: Install slangpy-torch
-        if: runner.os != 'macos' && contains(matrix.flags, 'unit-test')
-        run: python tools/ci.py install-slangpy-torch
-
-      # Typing Checks (Python)
-      - name: Typing Checks (Python)
-        run: python tools/ci.py typing-check-python
-
-      # Unit Tests (C++)
-      - name: Unit Tests (C++)
-        if: contains(matrix.flags, 'unit-test')
-        run: python tools/ci.py unit-test-cpp
-
-      # Unit Tests (Python)
-      - name: Unit Tests (Python)
-        if: contains(matrix.flags, 'unit-test')
-        run: python tools/ci.py unit-test-python --parallel
-
-      # Test Examples
-      - name: Test Examples
-        if: contains(matrix.flags, 'test-examples')
-        run: python tools/ci.py test-examples -p
-
-      # Upload Crashpad Reports
-      - name: Upload Crashpad Reports
-        if: always() && contains(matrix.flags, 'crashpad')
-        uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/build-and-test-with-slang
         with:
-          name: crash-reports-${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ matrix.config }}
-          path: .crashpad/reports/
-          if-no-files-found: ignore
-
-      # Generate Coverage Report
-      - name: Generate Coverage Report
-        if: contains(matrix.flags, 'coverage')
-        run: python tools/ci.py coverage-report
-
-      # Coverage Report
-      - name: Coverage Report
-        uses: actions/upload-artifact@v4
-        if: contains(matrix.flags, 'coverage')
-        with:
-          name: coverage-report
-          path: reports/coverage.html
-
-      # Cleanup slangpy-torch
-      - name: Uninstall slangpy-torch
-        if: always()
-        run: python -m pip uninstall slangpy-torch -y
-        continue-on-error: true
+          os: ${{ matrix.os }}
+          platform: ${{ matrix.platform }}
+          compiler: ${{ matrix.compiler }}
+          config: ${{ matrix.config }}
+          python: ${{ matrix.python }}
+          flags: ${{ matrix.flags }}
+          slang-checkout-mode: pr
+          slang-pr-number: ${{ github.event.client_payload.slang_pr_number }}
 
   # Post aggregate status to Slang PR after all matrix jobs complete
   report-status:
     runs-on: ubuntu-latest
-    needs: build
+    needs: build-pr
     if: always() && github.event_name == 'repository_dispatch'
     steps:
       - name: Post status to Slang PR
@@ -283,7 +117,7 @@ jobs:
         with:
           github-token: ${{ secrets.SLANG_STATUS_TOKEN }}
           script: |
-            const result = '${{ needs.build.result }}';
+            const result = '${{ needs.build-pr.result }}';
             const state = result === 'success' ? 'success' : 'failure';
             const description = result === 'success'
               ? 'All SlangPy tests passed'
