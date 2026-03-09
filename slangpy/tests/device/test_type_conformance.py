@@ -179,4 +179,4 @@ def test_type_conformance_module_cache(device_type: spy.DeviceType, tmpdir: str)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "-s", "-k", "test_type_conformance_module_cache"])
+    pytest.main([__file__, "-v", "-s"])
