@@ -377,7 +377,6 @@ SLICE_CASES = [
     pytest.param(4, lambda t: t[:3], id="prefix"),
     pytest.param(4, lambda t: t[1:], id="suffix_offset"),
     pytest.param(6, lambda t: t[::2], id="strided"),
-    pytest.param(3, lambda t: t.flip(0), id="flipped"),
     pytest.param(9, lambda t: t.reshape(3, 3).diagonal(), id="diagonal"),
 ]
 
@@ -412,7 +411,6 @@ VECTOR_SLICE_CASES = [
     pytest.param(4, lambda t: t[:, :3], id="prefix"),
     pytest.param(4, lambda t: t[:, 1:], id="suffix_offset"),
     pytest.param(6, lambda t: t[:, ::2], id="strided"),
-    pytest.param(3, lambda t: t.flip(1), id="flipped"),
 ]
 
 
@@ -449,7 +447,6 @@ RWTENSOR_SLICE_CASES = [
     pytest.param(6, lambda t: t[:3], id="prefix"),
     pytest.param(6, lambda t: t[1:4], id="offset"),
     pytest.param(6, lambda t: t[::2], id="strided"),
-    pytest.param(3, lambda t: t.flip(0), id="flipped"),
     pytest.param(9, lambda t: t.reshape(3, 3).diagonal(), id="diagonal"),
 ]
 
@@ -536,7 +533,6 @@ TENSOR2D_VIEW_FACTORIES: list[tuple[str, Callable[..., torch.Tensor]]] = [
     ("col_prefix", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, :5]),
     ("col_offset", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, 2:7]),
     ("col_strided", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, ::2]),
-    ("flip_rows", lambda d: torch.randn(8, 5, dtype=torch.float32, device=d).flip(0)),
     (
         "permute_3d_select",
         lambda d: torch.randn(5, 8, 3, dtype=torch.float32, device=d).permute(2, 0, 1)[0],

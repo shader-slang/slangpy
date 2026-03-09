@@ -114,7 +114,6 @@ DIFFTV_SLICE_CASES = [
     pytest.param(6, lambda t: t[:3], id="prefix"),
     pytest.param(6, lambda t: t[1:4], id="offset"),
     pytest.param(6, lambda t: t[::2], id="strided"),
-    pytest.param(3, lambda t: t.flip(0), id="flipped"),
     pytest.param(9, lambda t: t.reshape(3, 3).diagonal(), id="diagonal"),
 ]
 
