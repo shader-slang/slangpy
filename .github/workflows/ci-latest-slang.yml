@@ -64,7 +64,7 @@ jobs:
               {
                 "os": "windows", "platform": "x86_64", "compiler": "msvc",
                 "config": "Debug", "python": "3.10",
-                "flags": "unit-test,crashpad",
+                "flags": "unit-test,header-validation,crashpad",
                 "runs-on": { "group": "nvrgfx", "labels": ["Windows", "X64"] }
               },
               {
@@ -76,7 +76,7 @@ jobs:
               {
                 "os": "linux", "platform": "x86_64", "compiler": "gcc",
                 "config": "Debug", "python": "3.10",
-                "flags": "unit-test,crashpad",
+                "flags": "unit-test,header-validation,coverage,crashpad",
                 "runs-on": { "group": "nvrgfx", "labels": ["Linux", "X64"] }
               },
               {
@@ -88,7 +88,7 @@ jobs:
               {
                 "os": "macos", "platform": "aarch64", "compiler": "clang",
                 "config": "Debug", "python": "3.10",
-                "flags": "unit-test,crashpad",
+                "flags": "unit-test,header-validation,crashpad",
                 "runs-on": "macos-latest"
               },
               {
