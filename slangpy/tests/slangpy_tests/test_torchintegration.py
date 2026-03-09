@@ -406,6 +406,102 @@ def test_parameter_slice(
     compare_tensors(res, expected)
 
 
+VECTOR_SLICE_CASES = [
+    pytest.param(4, lambda t: t[:, :3], id="prefix"),
+    pytest.param(4, lambda t: t[:, 1:], id="suffix_offset"),
+    pytest.param(6, lambda t: t[:, ::2], id="strided"),
+]
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("source_cols,slicer", VECTOR_SLICE_CASES)
+def test_vector_parameter_slice(
+    device_type: DeviceType,
+    source_cols: int,
+    slicer: Callable[[torch.Tensor], torch.Tensor],
+):
+    """
+    Test that sliced PyTorch tensors can be passed as float3 vector parameters.
+
+    The trailing dimension of the view maps to float3 components. Covers prefix
+    (zero offset), suffix (non-zero offset), and strided (non-contiguous) slices.
+    """
+    module = load_test_module(device_type)
+
+    batch = 5
+    a = torch.rand(batch, source_cols, dtype=torch.float32, device=torch.device("cuda"))
+    b = torch.rand(batch, source_cols, dtype=torch.float32, device=torch.device("cuda"))
+
+    a_sliced = slicer(a)
+    b_sliced = slicer(b)
+    assert a_sliced.shape == (batch, 3)
+
+    res = module.add_vectors(a_sliced, b_sliced)
+    assert isinstance(res, torch.Tensor)
+
+    compare_tensors(res, a_sliced + b_sliced)
+
+
+RWTENSOR_SLICE_CASES = [
+    pytest.param(6, lambda t: t[:3], id="prefix"),
+    pytest.param(6, lambda t: t[1:4], id="offset"),
+    pytest.param(6, lambda t: t[::2], id="strided"),
+]
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("full_size,slicer", RWTENSOR_SLICE_CASES)
+def test_rwtensor_slice_writeback(
+    device_type: DeviceType,
+    full_size: int,
+    slicer: Callable[[torch.Tensor], torch.Tensor],
+):
+    """
+    Test that write-back to a sliced RWTensor correctly updates only the
+    sliced region of the underlying tensor.
+
+    A sentinel-filled tensor is sliced, the slice is passed as RWTensor output,
+    and we verify that only the sliced positions are overwritten.
+    """
+    module = load_test_module(device_type)
+
+    input_data = torch.tensor([10.0, 20.0, 30.0], dtype=torch.float32, device=torch.device("cuda"))
+
+    sentinel = -1.0
+    output_full = torch.full(
+        (full_size,), sentinel, dtype=torch.float32, device=torch.device("cuda")
+    )
+    output_slice = slicer(output_full)
+    assert output_slice.shape == (3,)
+
+    module.copy_tensor(input_data, output_slice)
+
+    expected_full = torch.full_like(output_full, sentinel)
+    slicer(expected_full)[:] = input_data
+    compare_tensors(output_full, expected_full)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_tensor_noncontiguous(device_type: DeviceType):
+    """
+    Test that non-contiguous (transposed) torch tensors work correctly when
+    bound to Tensor<float,2> / WTensor<float,2> parameters.
+    """
+    module = load_test_module(device_type)
+
+    a_base = torch.randn(5, 8, dtype=torch.float32, device=torch.device("cuda"))
+    b_base = torch.randn(5, 8, dtype=torch.float32, device=torch.device("cuda"))
+
+    a = a_base.t()  # (8, 5), non-contiguous
+    b = b_base.t()
+    assert not a.is_contiguous()
+
+    res = torch.empty(8, 5, dtype=torch.float32, device=torch.device("cuda"))
+    module.add_tensors(a, b, res)
+
+    compare_tensors(res, a + b)
+
+
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_copy_tensor_to_buffer(device_type: DeviceType):
     """

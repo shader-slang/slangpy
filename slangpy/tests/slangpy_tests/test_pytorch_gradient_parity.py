@@ -747,6 +747,60 @@ def test_sliced_tensor_array_gradient_parity(
     compare_gradients("Sliced array param 'b' gradient", b_test.grad, b_control.grad)
 
 
+SLANG_VECTOR_DOT = """
+[Differentiable]
+float dot_vectors(float3 a, float3 b) {
+    return dot(a, b);
+}
+"""
+
+VECTOR_GRAD_SLICE_CASES = [
+    pytest.param(4, lambda t: t[:, :3], id="prefix"),
+    pytest.param(4, lambda t: t[:, 1:], id="suffix_offset"),
+    pytest.param(6, lambda t: t[:, ::2], id="strided"),
+]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("source_cols,slicer", VECTOR_GRAD_SLICE_CASES)
+def test_sliced_vector_gradient_parity(
+    device_type: DeviceType,
+    source_cols: int,
+    slicer: Callable[[torch.Tensor], torch.Tensor],
+):
+    """
+    Test gradient parity for sliced tensors passed as float3 vector parameters.
+
+    Creates (batch, source_cols) tensors, slices to (batch, 3), and passes them
+    to a Slang function taking float3. Covers prefix (zero offset), suffix
+    (non-zero offset), and strided (non-contiguous) slices.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_VECTOR_DOT)
+
+    batch_size = 16
+
+    torch.manual_seed(42)
+    a_control = torch.randn(batch_size, source_cols, device="cuda", requires_grad=True)
+    b_control = torch.randn(batch_size, source_cols, device="cuda", requires_grad=True)
+
+    # Control: pure PyTorch dot product on slices
+    result_control = (slicer(a_control) * slicer(b_control)).sum(dim=-1)
+    result_control.sum().backward()
+
+    # Test: SlangPy dot_vectors on the same slices
+    a_test = a_control.clone().detach().requires_grad_(True)
+    b_test = b_control.clone().detach().requires_grad_(True)
+
+    result_test = slang_module.dot_vectors(slicer(a_test), slicer(b_test))
+    result_test.sum().backward()
+
+    assert a_control.grad is not None and a_test.grad is not None
+    assert b_control.grad is not None and b_test.grad is not None
+    compare_gradients("Sliced vector param 'a' gradient", a_test.grad, a_control.grad)
+    compare_gradients("Sliced vector param 'b' gradient", b_test.grad, b_control.grad)
+
+
 # =============================================================================
 # Multi-Kernel Sequence Tests
 # =============================================================================
