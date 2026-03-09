@@ -251,5 +251,41 @@ def test_pass_numpy_float3s_noncontiguous(device_type: DeviceType):
     assert np.allclose(res, expected)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_pass_numpy_flipped(device_type: DeviceType):
+    """Test that flipped (negative-stride) numpy arrays work correctly."""
+
+    module = load_test_module(device_type)
+
+    a = np.random.rand(4, 4).astype(np.float32)
+    b = np.random.rand(4, 4).astype(np.float32)
+
+    a_flip = np.flip(a, 0)  # (4, 4), negative stride on axis 0
+    b_flip = np.flip(b, 0)
+    assert a_flip.strides[0] < 0
+
+    res = module.add_floats.return_type(np.ndarray)(a_flip, b_flip)
+    expected = a_flip + b_flip
+
+    assert np.allclose(res, expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_pass_numpy_broadcast(device_type: DeviceType):
+    """Test that zero-stride (broadcast) numpy arrays work correctly."""
+
+    module = load_test_module(device_type)
+
+    a_base = np.random.rand(1, 4).astype(np.float32)
+    a = np.broadcast_to(a_base, (3, 4))
+    b = np.random.rand(3, 4).astype(np.float32)
+    assert not a.flags["C_CONTIGUOUS"]
+
+    res = module.add_floats.return_type(np.ndarray)(a, b)
+    expected = a + b
+
+    assert np.allclose(res, expected)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

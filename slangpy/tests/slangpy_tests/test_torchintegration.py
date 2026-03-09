@@ -377,6 +377,8 @@ SLICE_CASES = [
     pytest.param(4, lambda t: t[:3], id="prefix"),
     pytest.param(4, lambda t: t[1:], id="suffix_offset"),
     pytest.param(6, lambda t: t[::2], id="strided"),
+    pytest.param(3, lambda t: t.flip(0), id="flipped"),
+    pytest.param(9, lambda t: t.reshape(3, 3).diagonal(), id="diagonal"),
 ]
 
 
@@ -410,6 +412,7 @@ VECTOR_SLICE_CASES = [
     pytest.param(4, lambda t: t[:, :3], id="prefix"),
     pytest.param(4, lambda t: t[:, 1:], id="suffix_offset"),
     pytest.param(6, lambda t: t[:, ::2], id="strided"),
+    pytest.param(3, lambda t: t.flip(1), id="flipped"),
 ]
 
 
@@ -446,6 +449,8 @@ RWTENSOR_SLICE_CASES = [
     pytest.param(6, lambda t: t[:3], id="prefix"),
     pytest.param(6, lambda t: t[1:4], id="offset"),
     pytest.param(6, lambda t: t[::2], id="strided"),
+    pytest.param(3, lambda t: t.flip(0), id="flipped"),
+    pytest.param(9, lambda t: t.reshape(3, 3).diagonal(), id="diagonal"),
 ]
 
 
@@ -531,6 +536,11 @@ TENSOR2D_VIEW_FACTORIES: list[tuple[str, Callable[..., torch.Tensor]]] = [
     ("col_prefix", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, :5]),
     ("col_offset", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, 2:7]),
     ("col_strided", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, ::2]),
+    ("flip_rows", lambda d: torch.randn(8, 5, dtype=torch.float32, device=d).flip(0)),
+    (
+        "permute_3d_select",
+        lambda d: torch.randn(5, 8, 3, dtype=torch.float32, device=d).permute(2, 0, 1)[0],
+    ),
 ]
 
 
@@ -583,6 +593,69 @@ def test_wtensor_transpose_writeback(device_type: DeviceType):
 
     module.add_tensors(a, b, res)
 
+    compare_tensors(res, a + b)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_parameter_broadcast(device_type: DeviceType):
+    """
+    Test float[3] params with zero-stride (expand) broadcast input.
+
+    A single row of 3 values is broadcast to (batch, 3) via expand, giving
+    stride 0 in the batch dimension. Every batch invocation reads the same values.
+    """
+    module = load_test_module(device_type)
+
+    dev = torch.device("cuda")
+    batch = 10
+    scale = torch.rand(batch, dtype=torch.float32, device=dev)
+    values_single = torch.rand(3, dtype=torch.float32, device=dev)
+    values = values_single.unsqueeze(0).expand(batch, -1)
+    assert values.stride(0) == 0
+
+    res = module.scaled_sum(scale, values)
+    expected = scale * values_single.sum()
+    compare_tensors(res, expected)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_vector_parameter_broadcast(device_type: DeviceType):
+    """
+    Test float3 params with zero-stride (expand) broadcast input.
+
+    One input has stride 0 in the batch dim (same float3 for every row),
+    while the other varies per row.
+    """
+    module = load_test_module(device_type)
+
+    dev = torch.device("cuda")
+    batch = 5
+    a_single = torch.rand(1, 3, dtype=torch.float32, device=dev)
+    a = a_single.expand(batch, -1)
+    b = torch.rand(batch, 3, dtype=torch.float32, device=dev)
+    assert a.stride(0) == 0
+
+    res = module.add_vectors(a, b)
+    compare_tensors(res, a + b)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_tensor_view_broadcast(device_type: DeviceType):
+    """
+    Test Tensor<float,2> with zero-stride (expand) broadcast on row dimension.
+
+    One input has a single row broadcast to fill all rows (stride 0 on dim 0).
+    """
+    module = load_test_module(device_type)
+
+    dev = torch.device("cuda")
+    a_single = torch.randn(1, 5, dtype=torch.float32, device=dev)
+    a = a_single.expand(8, -1)
+    b = torch.randn(8, 5, dtype=torch.float32, device=dev)
+    assert a.stride(0) == 0 and not a.is_contiguous()
+
+    res = torch.empty(8, 5, dtype=torch.float32, device=dev)
+    module.add_tensors(a, b, res)
     compare_tensors(res, a + b)
 
 

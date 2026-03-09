@@ -705,6 +705,8 @@ ARRAY_SLICE_CASES = [
     pytest.param(4, lambda t: t[:, :3], id="prefix"),
     pytest.param(4, lambda t: t[:, 1:], id="suffix_offset"),
     pytest.param(6, lambda t: t[:, ::2], id="strided"),
+    pytest.param(3, lambda t: t.flip(1), id="flipped"),
+    pytest.param(9, lambda t: t.reshape(t.shape[0], 3, 3).diagonal(dim1=1, dim2=2), id="diagonal"),
 ]
 
 
@@ -758,6 +760,8 @@ VECTOR_GRAD_SLICE_CASES = [
     pytest.param(4, lambda t: t[:, :3], id="prefix"),
     pytest.param(4, lambda t: t[:, 1:], id="suffix_offset"),
     pytest.param(6, lambda t: t[:, ::2], id="strided"),
+    pytest.param(3, lambda t: t.flip(1), id="flipped"),
+    pytest.param(9, lambda t: t.reshape(t.shape[0], 3, 3).diagonal(dim1=1, dim2=2), id="diagonal"),
 ]
 
 
