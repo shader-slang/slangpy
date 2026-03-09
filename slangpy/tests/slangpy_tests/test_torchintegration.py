@@ -3,6 +3,8 @@
 import pytest
 import sys
 
+from typing import Callable
+
 from slangpy import DeviceType, Device, Module
 from slangpy.core.native import NativeCallDataCache, SignatureBuilder
 from slangpy.testing import helpers
@@ -369,6 +371,39 @@ def test_empty_tensor_null_data_ptr(device_type: DeviceType):
     # Verify tensors are still empty
     assert input_tensor.numel() == 0
     assert output_tensor.numel() == 0
+
+
+SLICE_CASES = [
+    pytest.param(4, lambda t: t[:3], id="prefix"),
+    pytest.param(4, lambda t: t[1:], id="suffix_offset"),
+    pytest.param(6, lambda t: t[::2], id="strided"),
+]
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("source_size,slicer", SLICE_CASES)
+def test_parameter_slice(
+    device_type: DeviceType, source_size: int, slicer: Callable[[torch.Tensor], torch.Tensor]
+):
+    """
+    Test that sliced PyTorch tensors can be passed as fixed-size array parameters.
+
+    Covers prefix slices (zero offset, contiguous), suffix slices (non-zero
+    offset, contiguous), and strided slices (non-contiguous).
+    """
+    module = load_test_module(device_type)
+
+    scale = torch.rand(10, dtype=torch.float32, device=torch.device("cuda"))
+    values = torch.rand(source_size, dtype=torch.float32, device=torch.device("cuda"))
+
+    sliced = slicer(values)
+    assert sliced.shape == (3,), f"Slice should produce 3 elements, got {sliced.shape}"
+
+    res = module.scaled_sum(scale, sliced)
+    assert isinstance(res, torch.Tensor)
+
+    expected = scale * sliced.sum()
+    compare_tensors(res, expected)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)

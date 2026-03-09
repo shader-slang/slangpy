@@ -689,6 +689,64 @@ def test_strided_slice_different_ops(device_type: DeviceType):
     compare_gradients("Linear2 weight gradient", linear2_test.weight.grad, linear2.weight.grad)
 
 
+SLANG_ARRAY_DOT = """
+[Differentiable]
+float dot3(float[3] a, float[3] b) {
+    float result = 0.0f;
+    for (int i = 0; i < 3; i++) {
+        result += a[i] * b[i];
+    }
+    return result;
+}
+"""
+
+
+ARRAY_SLICE_CASES = [
+    pytest.param(4, lambda t: t[:, :3], id="prefix"),
+    pytest.param(4, lambda t: t[:, 1:], id="suffix_offset"),
+    pytest.param(6, lambda t: t[:, ::2], id="strided"),
+]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("source_cols,slicer", ARRAY_SLICE_CASES)
+def test_sliced_tensor_array_gradient_parity(
+    device_type: DeviceType, source_cols: int, slicer: Callable[[torch.Tensor], torch.Tensor]
+):
+    """
+    Test gradient parity for sliced tensors passed as fixed-size array parameters.
+
+    Creates (batch, source_cols) tensors, slices to (batch, 3), and passes them
+    to a Slang function taking float[3]. Covers prefix (zero offset), suffix
+    (non-zero offset), and strided (non-contiguous) slices. Verifies that
+    gradients for the full tensors match PyTorch.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_ARRAY_DOT)
+
+    batch_size = 16
+
+    torch.manual_seed(42)
+    a_control = torch.randn(batch_size, source_cols, device="cuda", requires_grad=True)
+    b_control = torch.randn(batch_size, source_cols, device="cuda", requires_grad=True)
+
+    # Control: pure PyTorch element-wise dot product on slices
+    result_control = (slicer(a_control) * slicer(b_control)).sum(dim=-1)
+    result_control.sum().backward()
+
+    # Test: SlangPy dot3 on the same slices
+    a_test = a_control.clone().detach().requires_grad_(True)
+    b_test = b_control.clone().detach().requires_grad_(True)
+
+    result_test = slang_module.dot3(slicer(a_test), slicer(b_test))
+    result_test.sum().backward()
+
+    assert a_control.grad is not None and a_test.grad is not None
+    assert b_control.grad is not None and b_test.grad is not None
+    compare_gradients("Sliced array param 'a' gradient", a_test.grad, a_control.grad)
+    compare_gradients("Sliced array param 'b' gradient", b_test.grad, b_control.grad)
+
+
 # =============================================================================
 # Multi-Kernel Sequence Tests
 # =============================================================================
