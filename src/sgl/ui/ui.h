@@ -10,13 +10,42 @@
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/formats.h"
+#include "sgl/math/vector_types.h"
 
 #include <map>
+#include <span>
+#include <unordered_map>
 
 struct ImGuiContext;
 struct ImFont;
 
 namespace sgl::ui {
+
+struct DrawCommand {
+    float4 clip_rect;
+    uint32_t elem_count;
+    uint32_t idx_offset;
+    uint32_t vtx_offset;
+    uintptr_t texture_id;
+};
+
+struct DrawList {
+    uintptr_t vertex_data;
+    uint32_t vertex_count;
+    uintptr_t index_data;
+    uint32_t index_count;
+    std::span<const DrawCommand> commands;
+};
+
+struct DrawData {
+    float2 display_pos;
+    float2 display_size;
+    float2 framebuffer_scale;
+    std::span<const DrawList> draw_lists;
+    uint32_t total_vtx_count;
+    uint32_t total_idx_count;
+    uint32_t index_size;
+};
 
 class SGL_API Context : public Object {
     SGL_OBJECT(Context)
@@ -44,6 +73,15 @@ public:
     /// \param texture Texture to render to
     /// \param command_encoder Command encoder to encode commands to
     void end_frame(Texture* texture, CommandEncoder* command_encoder);
+
+    /// Render externally marshaled draw data to the provided texture view.
+    void render_draw_data(const DrawData& draw_data, TextureView* texture_view, CommandEncoder* command_encoder);
+
+    /// Render externally marshaled draw data to the provided texture.
+    void render_draw_data(const DrawData& draw_data, Texture* texture, CommandEncoder* command_encoder);
+
+    /// Return the raw value that should be written into ``ImTextureID``.
+    uintptr_t texture_id(Texture* texture) const;
 
     /// Pass a keyboard event to the UI context.
     /// \param event Keyboard event
@@ -79,6 +117,9 @@ private:
     ref<InputLayout> m_input_layout;
 
     std::map<std::string, ImFont*> m_fonts;
+    mutable std::unordered_map<uintptr_t, ref<Texture>> m_registered_textures;
+    mutable std::unordered_map<Texture*, uintptr_t> m_texture_to_id;
+    mutable uintptr_t m_next_texture_id{1};
 
     std::map<Format, ref<RenderPipeline>> m_pipelines;
 };

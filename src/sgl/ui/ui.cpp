@@ -20,6 +20,8 @@
 #include <imgui.h>
 #include <cmrc/cmrc.hpp>
 
+#include <algorithm>
+#include <cstring>
 #include <unordered_map>
 
 CMRC_DECLARE(sgl_data);
@@ -488,6 +490,145 @@ void Context::end_frame(Texture* texture, CommandEncoder* command_encoder)
 {
     // TODO(slang-rhi) use default_view once it is available
     end_frame(texture->create_view({}), command_encoder);
+}
+
+void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_view, CommandEncoder* command_encoder)
+{
+    SGL_CHECK_NOT_NULL(texture_view);
+    SGL_CHECK_NOT_NULL(command_encoder);
+
+    if (!m_device->has_feature(Feature::rasterization))
+        return;
+    if (draw_data.draw_lists.empty() || draw_data.total_vtx_count == 0 || draw_data.total_idx_count == 0)
+        return;
+
+    const bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
+    const float fb_width = draw_data.display_size.x * draw_data.framebuffer_scale.x;
+    const float fb_height = draw_data.display_size.y * draw_data.framebuffer_scale.y;
+    if (fb_width <= 0.f || fb_height <= 0.f)
+        return;
+
+    ref<Buffer>& vertex_buffer = m_vertex_buffers[m_frame_index];
+    ref<Buffer>& index_buffer = m_index_buffers[m_frame_index];
+    m_frame_index = (m_frame_index + 1) % FRAME_COUNT;
+
+    if (!vertex_buffer || vertex_buffer->size() < draw_data.total_vtx_count * sizeof(ImDrawVert)) {
+        vertex_buffer = m_device->create_buffer({
+            .size = draw_data.total_vtx_count * sizeof(ImDrawVert) + 128 * 1024,
+            .memory_type = MemoryType::upload,
+            .usage = BufferUsage::vertex_buffer,
+            .label = "imgui vertex buffer",
+        });
+    }
+    if (!index_buffer || index_buffer->size() < draw_data.total_idx_count * draw_data.index_size) {
+        index_buffer = m_device->create_buffer({
+            .size = draw_data.total_idx_count * draw_data.index_size + 1024,
+            .memory_type = MemoryType::upload,
+            .usage = BufferUsage::index_buffer,
+            .label = "imgui index buffer",
+        });
+    }
+
+    ImDrawVert* vertices = vertex_buffer->map<ImDrawVert>();
+    uint8_t* indices = index_buffer->map<uint8_t>();
+    for (const DrawList& draw_list : draw_data.draw_lists) {
+        std::memcpy(
+            vertices,
+            reinterpret_cast<const void*>(draw_list.vertex_data),
+            draw_list.vertex_count * sizeof(ImDrawVert)
+        );
+        std::memcpy(
+            indices,
+            reinterpret_cast<const void*>(draw_list.index_data),
+            draw_list.index_count * draw_data.index_size
+        );
+        vertices += draw_list.vertex_count;
+        indices += draw_list.index_count * draw_data.index_size;
+    }
+    vertex_buffer->unmap();
+    index_buffer->unmap();
+
+    auto pass_encoder = command_encoder->begin_render_pass({
+        .color_attachments = {
+            {
+                .view = texture_view,
+                .load_op = LoadOp::load,
+                .store_op = StoreOp::store,
+            },
+        },
+    });
+    ShaderObject* shader_object = pass_encoder->bind_pipeline(get_pipeline(texture_view->desc().format));
+    ShaderCursor shader_cursor = ShaderCursor(shader_object);
+    shader_cursor["sampler"] = m_sampler;
+    shader_cursor["scale"] = 2.f / float2(draw_data.display_size.x, -draw_data.display_size.y);
+    shader_cursor["offset"] = float2(-1.f, 1.f);
+    shader_cursor["is_srgb_format"] = is_srgb_format;
+    ShaderOffset texture_offset = shader_cursor["texture"].offset();
+
+    RenderState render_state = {
+        .viewports = {Viewport::from_size(fb_width, fb_height)},
+        .scissor_rects = {ScissorRect{}},
+        .vertex_buffers = {vertex_buffer},
+        .index_buffer = index_buffer,
+        .index_format = draw_data.index_size == 2 ? IndexFormat::uint16 : IndexFormat::uint32,
+    };
+
+    uint32_t vertex_offset = 0;
+    uint32_t index_offset = 0;
+    for (const DrawList& draw_list : draw_data.draw_lists) {
+        for (const DrawCommand& cmd : draw_list.commands) {
+            const float clip_min_x = (cmd.clip_rect.x - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
+            const float clip_min_y = (cmd.clip_rect.y - draw_data.display_pos.y) * draw_data.framebuffer_scale.y;
+            const float clip_max_x = (cmd.clip_rect.z - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
+            const float clip_max_y = (cmd.clip_rect.w - draw_data.display_pos.y) * draw_data.framebuffer_scale.y;
+            if (clip_max_x <= clip_min_x || clip_max_y <= clip_min_y)
+                continue;
+
+            render_state.scissor_rects[0] = ScissorRect{
+                .min_x = uint32_t(std::max(clip_min_x, 0.f)),
+                .min_y = uint32_t(std::max(clip_min_y, 0.f)),
+                .max_x = uint32_t(std::min(clip_max_x, fb_width)),
+                .max_y = uint32_t(std::min(clip_max_y, fb_height)),
+            };
+
+            ref<Texture> texture;
+            auto it = m_registered_textures.find(cmd.texture_id);
+            if (it != m_registered_textures.end())
+                texture = it->second;
+            else
+                texture = ref<Texture>(reinterpret_cast<Texture*>(cmd.texture_id));
+            shader_object->set_texture(texture_offset, texture);
+            pass_encoder->set_render_state(render_state);
+            pass_encoder->draw_indexed({
+                .vertex_count = cmd.elem_count,
+                .start_vertex_location = cmd.vtx_offset + vertex_offset,
+                .start_index_location = cmd.idx_offset + index_offset,
+            });
+        }
+        index_offset += draw_list.index_count;
+        vertex_offset += draw_list.vertex_count;
+    }
+    pass_encoder->end();
+}
+
+void Context::render_draw_data(const DrawData& draw_data, Texture* texture, CommandEncoder* command_encoder)
+{
+    SGL_CHECK_NOT_NULL(texture);
+    render_draw_data(draw_data, texture->create_view({}), command_encoder);
+}
+
+uintptr_t Context::texture_id(Texture* texture) const
+{
+    SGL_CHECK_NOT_NULL(texture);
+
+    auto it = m_texture_to_id.find(texture);
+    if (it != m_texture_to_id.end())
+        return it->second;
+
+    const uintptr_t id = m_next_texture_id++;
+    m_registered_textures.emplace(id, ref<Texture>(texture));
+    m_texture_to_id.emplace(texture, id);
+    return id;
 }
 
 bool Context::handle_keyboard_event(const KeyboardEvent& event)
