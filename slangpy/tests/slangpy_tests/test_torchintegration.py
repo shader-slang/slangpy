@@ -482,21 +482,120 @@ def test_rwtensor_slice_writeback(
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_tensor_noncontiguous(device_type: DeviceType):
+def test_vector_parameter_transpose(device_type: DeviceType):
     """
-    Test that non-contiguous (transposed) torch tensors work correctly when
-    bound to Tensor<float,2> / WTensor<float,2> parameters.
+    Test that transposed (non-contiguous) tensors work as float3 vector params.
+
+    Creates (3, batch) tensors and transposes to (batch, 3). The trailing
+    dimension that maps to float3 has non-unit stride from the transpose.
     """
     module = load_test_module(device_type)
 
-    a_base = torch.randn(5, 8, dtype=torch.float32, device=torch.device("cuda"))
-    b_base = torch.randn(5, 8, dtype=torch.float32, device=torch.device("cuda"))
-
-    a = a_base.t()  # (8, 5), non-contiguous
-    b = b_base.t()
+    batch = 5
+    dev = torch.device("cuda")
+    a = torch.rand(3, batch, dtype=torch.float32, device=dev).t()
+    b = torch.rand(3, batch, dtype=torch.float32, device=dev).t()
     assert not a.is_contiguous()
 
-    res = torch.empty(8, 5, dtype=torch.float32, device=torch.device("cuda"))
+    res = module.add_vectors(a, b)
+    assert isinstance(res, torch.Tensor)
+
+    compare_tensors(res, a + b)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_array_parameter_transpose(device_type: DeviceType):
+    """
+    Test that transposed tensors work as float[3] fixed-size array params.
+
+    Creates (3, batch) tensors and transposes to (batch, 3). The trailing
+    dimension that maps to float[3] has non-unit stride.
+    """
+    module = load_test_module(device_type)
+
+    batch = 10
+    dev = torch.device("cuda")
+    scale = torch.rand(batch, dtype=torch.float32, device=dev)
+    values = torch.rand(3, batch, dtype=torch.float32, device=dev).t()
+    assert not values.is_contiguous()
+
+    res = module.scaled_sum(scale, values)
+    assert isinstance(res, torch.Tensor)
+
+    expected = scale * values.sum(dim=-1)
+    compare_tensors(res, expected)
+
+
+ARRAY5_SLICE_CASES = [
+    pytest.param(6, lambda t: t[:5], id="prefix"),
+    pytest.param(6, lambda t: t[1:], id="offset"),
+    pytest.param(10, lambda t: t[::2], id="strided"),
+]
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("source_size,slicer", ARRAY5_SLICE_CASES)
+def test_array5_parameter_slice(
+    device_type: DeviceType,
+    source_size: int,
+    slicer: Callable[[torch.Tensor], torch.Tensor],
+):
+    """
+    Test that sliced tensors work as float[5] fixed-size array params.
+
+    Verifies that the same marshalling path works for array sizes other
+    than 3, covering prefix, offset, and strided slices.
+    """
+    module = load_test_module(device_type)
+
+    dev = torch.device("cuda")
+    a = torch.rand(source_size, dtype=torch.float32, device=dev)
+    b = torch.rand(source_size, dtype=torch.float32, device=dev)
+
+    a_sliced = slicer(a)
+    b_sliced = slicer(b)
+    assert a_sliced.shape == (5,)
+
+    res = module.add_arrays(a_sliced, b_sliced)
+    assert isinstance(res, torch.Tensor)
+
+    compare_tensors(res, a_sliced + b_sliced)
+
+
+TENSOR2D_VIEW_FACTORIES: list[tuple[str, Callable[..., torch.Tensor]]] = [
+    ("transpose", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d).t()),
+    ("col_prefix", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, :5]),
+    ("col_offset", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, 2:7]),
+    ("col_strided", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, ::2]),
+]
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "name,view_factory",
+    TENSOR2D_VIEW_FACTORIES,
+    ids=[name for name, _ in TENSOR2D_VIEW_FACTORIES],
+)
+def test_tensor_view(
+    device_type: DeviceType,
+    name: str,
+    view_factory: Callable[[torch.device], torch.Tensor],
+):
+    """
+    Test that non-contiguous 2D tensor views work correctly when bound to
+    Tensor<float,2> / WTensor<float,2> parameters.
+
+    Covers transposed, column-sliced (prefix and offset), and column-strided
+    views, all of which produce non-contiguous memory layouts.
+    """
+    module = load_test_module(device_type)
+
+    dev = torch.device("cuda")
+    a = view_factory(dev)
+    b = view_factory(dev)
+    assert not a.is_contiguous()
+
+    res = torch.empty(a.shape, dtype=torch.float32, device=dev)
     module.add_tensors(a, b, res)
 
     compare_tensors(res, a + b)
