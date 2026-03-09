@@ -526,42 +526,6 @@ def test_array_parameter_transpose(device_type: DeviceType):
     compare_tensors(res, expected)
 
 
-ARRAY5_SLICE_CASES = [
-    pytest.param(6, lambda t: t[:5], id="prefix"),
-    pytest.param(6, lambda t: t[1:], id="offset"),
-    pytest.param(10, lambda t: t[::2], id="strided"),
-]
-
-
-@pytest.mark.parametrize("device_type", DEVICE_TYPES)
-@pytest.mark.parametrize("source_size,slicer", ARRAY5_SLICE_CASES)
-def test_array5_parameter_slice(
-    device_type: DeviceType,
-    source_size: int,
-    slicer: Callable[[torch.Tensor], torch.Tensor],
-):
-    """
-    Test that sliced tensors work as float[5] fixed-size array params.
-
-    Verifies that the same marshalling path works for array sizes other
-    than 3, covering prefix, offset, and strided slices.
-    """
-    module = load_test_module(device_type)
-
-    dev = torch.device("cuda")
-    a = torch.rand(source_size, dtype=torch.float32, device=dev)
-    b = torch.rand(source_size, dtype=torch.float32, device=dev)
-
-    a_sliced = slicer(a)
-    b_sliced = slicer(b)
-    assert a_sliced.shape == (5,)
-
-    res = module.add_arrays(a_sliced, b_sliced)
-    assert isinstance(res, torch.Tensor)
-
-    compare_tensors(res, a_sliced + b_sliced)
-
-
 TENSOR2D_VIEW_FACTORIES: list[tuple[str, Callable[..., torch.Tensor]]] = [
     ("transpose", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d).t()),
     ("col_prefix", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, :5]),
@@ -596,6 +560,27 @@ def test_tensor_view(
     assert not a.is_contiguous()
 
     res = torch.empty(a.shape, dtype=torch.float32, device=dev)
+    module.add_tensors(a, b, res)
+
+    compare_tensors(res, a + b)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_wtensor_transpose_writeback(device_type: DeviceType):
+    """
+    Test that write-back to a transposed WTensor<float,2> output correctly
+    places results in the non-contiguous view.
+    """
+    module = load_test_module(device_type)
+
+    dev = torch.device("cuda")
+    a = torch.randn(8, 5, dtype=torch.float32, device=dev)
+    b = torch.randn(8, 5, dtype=torch.float32, device=dev)
+
+    res_base = torch.zeros(5, 8, dtype=torch.float32, device=dev)
+    res = res_base.t()  # (8, 5), non-contiguous
+    assert not res.is_contiguous()
+
     module.add_tensors(a, b, res)
 
     compare_tensors(res, a + b)

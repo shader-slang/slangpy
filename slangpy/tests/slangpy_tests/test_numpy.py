@@ -213,5 +213,43 @@ def test_numpy_matrix_as_result(device_type: DeviceType):
             assert np.allclose(res, (np.arange(1, N + 1) + 2.0).reshape(R, C))
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_pass_numpy_noncontiguous(device_type: DeviceType):
+    """Test that non-contiguous numpy arrays (strided slices) work correctly."""
+
+    module = load_test_module(device_type)
+
+    a_full = np.random.rand(4, 4).astype(np.float32)
+    b_full = np.random.rand(4, 4).astype(np.float32)
+
+    a = a_full[::2, :]  # (2, 4), non-contiguous
+    b = b_full[::2, :]
+    assert not a.flags["C_CONTIGUOUS"]
+
+    res = module.add_floats.return_type(np.ndarray)(a, b)
+    expected = a + b
+
+    assert np.allclose(res, expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_pass_numpy_float3s_noncontiguous(device_type: DeviceType):
+    """Test that non-contiguous numpy arrays work with float3 vector params."""
+
+    module = load_test_module(device_type)
+
+    a_full = np.random.rand(4, 4, 3).astype(np.float32)
+    b_full = np.random.rand(4, 4, 3).astype(np.float32)
+
+    a = a_full[::2, :, :]  # (2, 4, 3), non-contiguous
+    b = b_full[::2, :, :]
+    assert not a.flags["C_CONTIGUOUS"]
+
+    res = module.add_float3s.return_type(np.ndarray)(a, b)
+    expected = a + b
+
+    assert np.allclose(res, expected)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
