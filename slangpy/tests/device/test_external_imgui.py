@@ -10,7 +10,11 @@ from slangpy.testing import helpers
 imgui_bundle = pytest.importorskip("imgui_bundle")
 imgui = imgui_bundle.imgui
 
-from slangpy.ui.imgui_bundle import create_imgui_context, render_imgui_draw_data, sync_draw_data_textures
+from slangpy.ui.imgui_bundle import (
+    create_imgui_context,
+    render_imgui_draw_data,
+    sync_draw_data_textures,
+)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

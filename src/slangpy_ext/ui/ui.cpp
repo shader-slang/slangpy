@@ -49,30 +49,34 @@ MarshaledDrawData marshal_draw_data(nb::handle draw_data_obj)
 
         for (nb::handle cmd_handle : cmd_buffer) {
             nb::object clip_rect = cmd_handle.attr("clip_rect");
-            list_commands.push_back(ui::DrawCommand{
-                .clip_rect = float4(
-                    nb::cast<float>(clip_rect.attr("x")),
-                    nb::cast<float>(clip_rect.attr("y")),
-                    nb::cast<float>(clip_rect.attr("z")),
-                    nb::cast<float>(clip_rect.attr("w"))
-                ),
-                .elem_count = nb::cast<uint32_t>(cmd_handle.attr("elem_count")),
-                .idx_offset = nb::cast<uint32_t>(cmd_handle.attr("idx_offset")),
-                .vtx_offset = nb::cast<uint32_t>(cmd_handle.attr("vtx_offset")),
-                .texture_id = nb::cast<uintptr_t>(cmd_handle.attr("get_tex_id")()),
-            });
+            list_commands.push_back(
+                ui::DrawCommand{
+                    .clip_rect = float4(
+                        nb::cast<float>(clip_rect.attr("x")),
+                        nb::cast<float>(clip_rect.attr("y")),
+                        nb::cast<float>(clip_rect.attr("z")),
+                        nb::cast<float>(clip_rect.attr("w"))
+                    ),
+                    .elem_count = nb::cast<uint32_t>(cmd_handle.attr("elem_count")),
+                    .idx_offset = nb::cast<uint32_t>(cmd_handle.attr("idx_offset")),
+                    .vtx_offset = nb::cast<uint32_t>(cmd_handle.attr("vtx_offset")),
+                    .texture_id = nb::cast<uintptr_t>(cmd_handle.attr("get_tex_id")()),
+                }
+            );
         }
 
         nb::object vtx_buffer = cmd_list_handle.attr("vtx_buffer");
         nb::object idx_buffer = cmd_list_handle.attr("idx_buffer");
 
-        result.draw_lists.push_back(ui::DrawList{
-            .vertex_data = nb::cast<uintptr_t>(vtx_buffer.attr("data_address")()),
-            .vertex_count = nb::cast<uint32_t>(vtx_buffer.attr("size")()),
-            .index_data = nb::cast<uintptr_t>(idx_buffer.attr("data_address")()),
-            .index_count = nb::cast<uint32_t>(idx_buffer.attr("size")()),
-            .commands = std::span<const ui::DrawCommand>(list_commands.data(), list_commands.size()),
-        });
+        result.draw_lists.push_back(
+            ui::DrawList{
+                .vertex_data = nb::cast<uintptr_t>(vtx_buffer.attr("data_address")()),
+                .vertex_count = nb::cast<uint32_t>(vtx_buffer.attr("size")()),
+                .index_data = nb::cast<uintptr_t>(idx_buffer.attr("data_address")()),
+                .index_count = nb::cast<uint32_t>(idx_buffer.attr("size")()),
+                .commands = std::span<const ui::DrawCommand>(list_commands.data(), list_commands.size()),
+            }
+        );
     }
 
     nb::object display_pos = draw_data_obj.attr("display_pos");

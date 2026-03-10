@@ -10,7 +10,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import slangpy as spy
-from slangpy.ui.imgui_bundle import create_imgui_context, render_imgui_draw_data, sync_draw_data_textures
+from slangpy.ui.imgui_bundle import (
+    create_imgui_context,
+    render_imgui_draw_data,
+    sync_draw_data_textures,
+)
 from imgui_bundle import imgui
 
 
