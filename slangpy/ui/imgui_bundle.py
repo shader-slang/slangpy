@@ -191,6 +191,7 @@ def sync_draw_data_textures(
 
     from imgui_bundle import imgui
 
+    font_tex = imgui.get_io().fonts.tex_data
     textures: List[spy.Texture] = []
     for idx, tex in enumerate(draw_data.textures):
         status = tex.status
@@ -214,7 +215,8 @@ def sync_draw_data_textures(
                 )
                 texture.copy_from_numpy(pixels)
                 tex.set_status(imgui.ImTextureStatus.ok)
-                tex.destroy_pixels()
+                if font_tex is None or tex.unique_id != font_tex.unique_id:
+                    tex.destroy_pixels()
                 continue
 
         if status == imgui.ImTextureStatus.destroyed:
@@ -231,7 +233,8 @@ def sync_draw_data_textures(
         )
         tex.set_tex_id(ui_context.texture_id(texture))
         tex.set_status(imgui.ImTextureStatus.ok)
-        tex.destroy_pixels()
+        if font_tex is None or tex.unique_id != font_tex.unique_id:
+            tex.destroy_pixels()
         textures.append(texture)
     return textures
 
@@ -255,6 +258,8 @@ def create_imgui_context(width: int, height: int) -> Any:
     io.backend_flags |= imgui.BackendFlags_.renderer_has_textures
 
     io.fonts.add_font_default()
+    if io.fonts.tex_data is not None:
+        io.fonts.tex_data.get_pixels_array()
     return ctx
 
 
