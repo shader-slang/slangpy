@@ -14,6 +14,7 @@
 #include "sgl/device/cursor_access_wrappers.h"
 
 #include <string_view>
+#include <type_traits>
 
 namespace sgl {
 
@@ -69,6 +70,7 @@ public:
     template<typename T>
     void get(T& value) const;
 
+    /// Set a value that implements the write_to_cursor interface.
     template<typename T>
         requires(HasWriteToCursor<T, BufferElementCursor>)
     void set(const T& value)
@@ -76,8 +78,17 @@ public:
         value.write_to_cursor(*this);
     }
 
+    /// Set an enum value by converting it to its underlying integer type.
     template<typename T>
-        requires(!HasWriteToCursor<T, BufferElementCursor>)
+        requires(std::is_enum_v<T>)
+    void set(const T& value)
+    {
+        set(static_cast<std::underlying_type_t<T>>(value));
+    }
+
+    /// Set a plain data value by writing its bytes directly.
+    template<typename T>
+        requires(!HasWriteToCursor<T, BufferElementCursor> && !std::is_enum_v<T>)
     void set(const T& value);
 
     void _set_offset(size_t new_offset) { m_offset = new_offset; }
