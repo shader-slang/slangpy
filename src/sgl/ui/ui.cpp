@@ -577,27 +577,30 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
     uint32_t index_offset = 0;
     for (const DrawList& draw_list : draw_data.draw_lists) {
         for (const DrawCommand& cmd : draw_list.commands) {
-            const float clip_min_x = (cmd.clip_rect.x - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
-            const float clip_min_y = (cmd.clip_rect.y - draw_data.display_pos.y) * draw_data.framebuffer_scale.y;
-            const float clip_max_x = (cmd.clip_rect.z - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
-            const float clip_max_y = (cmd.clip_rect.w - draw_data.display_pos.y) * draw_data.framebuffer_scale.y;
+            const float raw_clip_min_x = (cmd.clip_rect.x - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
+            const float raw_clip_min_y = (cmd.clip_rect.y - draw_data.display_pos.y) * draw_data.framebuffer_scale.y;
+            const float raw_clip_max_x = (cmd.clip_rect.z - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
+            const float raw_clip_max_y = (cmd.clip_rect.w - draw_data.display_pos.y) * draw_data.framebuffer_scale.y;
+
+            const float clip_min_x = std::clamp(raw_clip_min_x, 0.f, fb_width);
+            const float clip_min_y = std::clamp(raw_clip_min_y, 0.f, fb_height);
+            const float clip_max_x = std::clamp(raw_clip_max_x, 0.f, fb_width);
+            const float clip_max_y = std::clamp(raw_clip_max_y, 0.f, fb_height);
             if (clip_max_x <= clip_min_x || clip_max_y <= clip_min_y)
                 continue;
 
             render_state.scissor_rects[0] = ScissorRect{
-                .min_x = uint32_t(std::max(clip_min_x, 0.f)),
-                .min_y = uint32_t(std::max(clip_min_y, 0.f)),
-                .max_x = uint32_t(std::min(clip_max_x, fb_width)),
-                .max_y = uint32_t(std::min(clip_max_y, fb_height)),
+                .min_x = uint32_t(clip_min_x),
+                .min_y = uint32_t(clip_min_y),
+                .max_x = uint32_t(clip_max_x),
+                .max_y = uint32_t(clip_max_y),
             };
 
-            ref<Texture> texture;
             auto it = m_registered_textures.find(cmd.texture_id);
-            if (it != m_registered_textures.end())
-                texture = it->second;
-            else
-                texture = ref<Texture>(reinterpret_cast<Texture*>(cmd.texture_id));
-            shader_object->set_texture(texture_offset, texture);
+            if (it == m_registered_textures.end())
+                SGL_THROW("Unknown ImTextureID in draw data: {}", cmd.texture_id);
+
+            shader_object->set_texture(texture_offset, it->second);
             pass_encoder->set_render_state(render_state);
             pass_encoder->draw_indexed({
                 .vertex_count = cmd.elem_count,
@@ -629,6 +632,23 @@ uintptr_t Context::texture_id(Texture* texture) const
     m_registered_textures.emplace(id, ref<Texture>(texture));
     m_texture_to_id.emplace(texture, id);
     return id;
+}
+
+ref<Texture> Context::get_texture(uintptr_t texture_id) const
+{
+    auto it = m_registered_textures.find(texture_id);
+    return it == m_registered_textures.end() ? ref<Texture>() : it->second;
+}
+
+bool Context::release_texture(uintptr_t texture_id) const
+{
+    auto it = m_registered_textures.find(texture_id);
+    if (it == m_registered_textures.end())
+        return false;
+
+    m_texture_to_id.erase(it->second.get());
+    m_registered_textures.erase(it);
+    return true;
 }
 
 bool Context::handle_keyboard_event(const KeyboardEvent& event)

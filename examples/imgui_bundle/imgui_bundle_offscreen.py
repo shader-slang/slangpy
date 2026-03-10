@@ -111,7 +111,7 @@ def main():
     build_ui(ui_context.texture_id(checker_texture))
     imgui.render()
     draw_data = imgui.get_draw_data()
-    synced_textures = sync_draw_data_textures(device, ui_context, draw_data)
+    sync_draw_data_textures(device, ui_context, draw_data)
 
     encoder = device.create_command_encoder()
     encoder.clear_texture_uint(render_target, clear_value=spy.uint4(16, 20, 26, 255))

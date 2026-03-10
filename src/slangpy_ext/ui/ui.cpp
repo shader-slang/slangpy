@@ -41,6 +41,8 @@ MarshaledDrawData marshal_draw_data(nb::handle draw_data_obj)
     const size_t cmd_list_count = nb::len(cmd_lists);
     result.commands.reserve(cmd_list_count);
     result.draw_lists.reserve(cmd_list_count);
+    uint32_t total_vtx_count = 0;
+    uint32_t total_idx_count = 0;
 
     for (nb::handle cmd_list_handle : cmd_lists) {
         nb::object cmd_buffer = cmd_list_handle.attr("cmd_buffer");
@@ -68,12 +70,17 @@ MarshaledDrawData marshal_draw_data(nb::handle draw_data_obj)
         nb::object vtx_buffer = cmd_list_handle.attr("vtx_buffer");
         nb::object idx_buffer = cmd_list_handle.attr("idx_buffer");
 
+        const uint32_t vertex_count = nb::cast<uint32_t>(vtx_buffer.attr("size")());
+        const uint32_t index_count = nb::cast<uint32_t>(idx_buffer.attr("size")());
+        total_vtx_count += vertex_count;
+        total_idx_count += index_count;
+
         result.draw_lists.push_back(
             ui::DrawList{
                 .vertex_data = nb::cast<uintptr_t>(vtx_buffer.attr("data_address")()),
-                .vertex_count = nb::cast<uint32_t>(vtx_buffer.attr("size")()),
+                .vertex_count = vertex_count,
                 .index_data = nb::cast<uintptr_t>(idx_buffer.attr("data_address")()),
-                .index_count = nb::cast<uint32_t>(idx_buffer.attr("size")()),
+                .index_count = index_count,
                 .commands = std::span<const ui::DrawCommand>(list_commands.data(), list_commands.size()),
             }
         );
@@ -96,8 +103,8 @@ MarshaledDrawData marshal_draw_data(nb::handle draw_data_obj)
         .framebuffer_scale
         = float2(nb::cast<float>(framebuffer_scale.attr("x")), nb::cast<float>(framebuffer_scale.attr("y"))),
         .draw_lists = std::span<const ui::DrawList>(result.draw_lists.data(), result.draw_lists.size()),
-        .total_vtx_count = nb::cast<uint32_t>(draw_data_obj.attr("total_vtx_count")),
-        .total_idx_count = nb::cast<uint32_t>(draw_data_obj.attr("total_idx_count")),
+        .total_vtx_count = total_vtx_count,
+        .total_idx_count = total_idx_count,
         .index_size = index_size,
     };
     return result;
@@ -151,6 +158,15 @@ SGL_PY_EXPORT(ui)
             "command_encoder"_a
         )
         .def("texture_id", &ui::Context::texture_id, "texture"_a)
+        .def(
+            "get_texture",
+            [](const ui::Context& self, uintptr_t texture_id)
+            {
+                return self.get_texture(texture_id);
+            },
+            "texture_id"_a
+        )
+        .def("release_texture", &ui::Context::release_texture, "texture_id"_a)
         .def("handle_keyboard_event", &ui::Context::handle_keyboard_event, "event"_a, D(Context, handle_keyboard_event))
         .def("handle_mouse_event", &ui::Context::handle_mouse_event, "event"_a, D(Context, handle_mouse_event))
         .def_prop_ro("screen", &ui::Context::screen, D(Context, screen));

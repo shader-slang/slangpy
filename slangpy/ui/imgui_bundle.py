@@ -18,6 +18,7 @@ _MOUSE_BUTTON_MAP: Optional[Dict[int, int]] = None
 
 
 def _get_key_map() -> Dict[int, Any]:
+    """Build the slangpy-to-ImGui key mapping used by keyboard forwarding."""
     global _KEY_MAP
     if _KEY_MAP is not None:
         return _KEY_MAP
@@ -31,11 +32,22 @@ def _get_key_map() -> Dict[int, Any]:
 
     # Names that differ between spy.KeyCode and imgui.Key.
     _REMAP: Dict[str, str] = {
-        "key0": "_0", "key1": "_1", "key2": "_2", "key3": "_3", "key4": "_4",
-        "key5": "_5", "key6": "_6", "key7": "_7", "key8": "_8", "key9": "_9",
-        "left": "left_arrow", "right": "right_arrow",
-        "up": "up_arrow", "down": "down_arrow",
-        "left_control": "left_ctrl", "right_control": "right_ctrl",
+        "key0": "_0",
+        "key1": "_1",
+        "key2": "_2",
+        "key3": "_3",
+        "key4": "_4",
+        "key5": "_5",
+        "key6": "_6",
+        "key7": "_7",
+        "key8": "_8",
+        "key9": "_9",
+        "left": "left_arrow",
+        "right": "right_arrow",
+        "up": "up_arrow",
+        "down": "down_arrow",
+        "left_control": "left_ctrl",
+        "right_control": "right_ctrl",
         "keypad_del": "keypad_decimal",
     }
 
@@ -89,7 +101,10 @@ def handle_keyboard_event(event: spy.KeyboardEvent) -> bool:
     io.add_key_event(imgui.Key.mod_ctrl, event.has_modifier(spy.KeyModifier.ctrl))
     io.add_key_event(imgui.Key.mod_alt, event.has_modifier(spy.KeyModifier.alt))
 
-    if event.type == spy.KeyboardEventType.key_press or event.type == spy.KeyboardEventType.key_release:
+    if (
+        event.type == spy.KeyboardEventType.key_press
+        or event.type == spy.KeyboardEventType.key_release
+    ):
         imgui_key = _get_key_map().get(event.key.value, imgui.Key.none)
         io.add_key_event(imgui_key, event.type == spy.KeyboardEventType.key_press)
     elif event.type == spy.KeyboardEventType.input:
@@ -117,8 +132,9 @@ def handle_mouse_event(event: spy.MouseEvent) -> bool:
     io.add_key_event(imgui.Key.mod_alt, event.has_modifier(spy.KeyModifier.alt))
 
     if event.type == spy.MouseEventType.button_down or event.type == spy.MouseEventType.button_up:
-        btn = _get_mouse_button_map().get(event.button.value, 0)
-        io.add_mouse_button_event(btn, event.type == spy.MouseEventType.button_down)
+        btn = _get_mouse_button_map().get(event.button.value)
+        if btn is not None:
+            io.add_mouse_button_event(btn, event.type == spy.MouseEventType.button_down)
     elif event.type == spy.MouseEventType.move:
         io.add_mouse_pos_event(event.pos.x, event.pos.y)
     elif event.type == spy.MouseEventType.scroll:
@@ -159,14 +175,17 @@ def sync_draw_data_textures(
     """
     Upload font/image atlas textures referenced in *draw_data* to the GPU.
 
-    Each texture in ``draw_data.textures`` is uploaded as an RGBA8 texture and
-    registered with *ui_context* so that the renderer can resolve ``ImTextureID``
-    values during rendering.
+    Processes external Dear ImGui texture requests and keeps the UI texture
+    registry in sync with ``draw_data.textures``.
+
+    New textures are uploaded once, incremental updates reuse the existing GPU
+    texture, and ``want_destroy`` entries release the corresponding registration
+    from *ui_context*.
 
     :param device: GPU device used to create texture resources.
     :param ui_context: The slangpy UI context that owns texture ID mappings.
     :param draw_data: The ``imgui.DrawData`` object returned by ``imgui.get_draw_data()``.
-    :return: A list of the created GPU textures (kept alive for the caller).
+    :return: A list of textures created during this call.
     """
     import slangpy as spy
 
@@ -174,6 +193,33 @@ def sync_draw_data_textures(
 
     textures: List[spy.Texture] = []
     for idx, tex in enumerate(draw_data.textures):
+        status = tex.status
+        texture_id = tex.get_tex_id()
+
+        if status == imgui.ImTextureStatus.ok:
+            continue
+
+        if status == imgui.ImTextureStatus.want_destroy:
+            if texture_id:
+                ui_context.release_texture(texture_id)
+                tex.set_tex_id(0)
+            tex.set_status(imgui.ImTextureStatus.destroyed)
+            continue
+
+        if status == imgui.ImTextureStatus.want_updates and texture_id:
+            texture = ui_context.get_texture(texture_id)
+            if texture is not None:
+                pixels = tex.get_pixels_array().reshape(
+                    (tex.height, tex.width, tex.bytes_per_pixel)
+                )
+                texture.copy_from_numpy(pixels)
+                tex.set_status(imgui.ImTextureStatus.ok)
+                tex.destroy_pixels()
+                continue
+
+        if status == imgui.ImTextureStatus.destroyed:
+            continue
+
         pixels = tex.get_pixels_array().reshape((tex.height, tex.width, tex.bytes_per_pixel))
         texture = device.create_texture(
             format=spy.Format.rgba8_unorm,
@@ -185,6 +231,7 @@ def sync_draw_data_textures(
         )
         tex.set_tex_id(ui_context.texture_id(texture))
         tex.set_status(imgui.ImTextureStatus.ok)
+        tex.destroy_pixels()
         textures.append(texture)
     return textures
 

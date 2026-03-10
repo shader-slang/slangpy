@@ -75,13 +75,31 @@ public:
     void end_frame(Texture* texture, CommandEncoder* command_encoder);
 
     /// Render externally marshaled draw data to the provided texture view.
+    /// @param draw_data Externally marshaled Dear ImGui draw data.
+    /// @param texture_view Texture view to render to.
+    /// @param command_encoder Command encoder used to record the render pass.
     void render_draw_data(const DrawData& draw_data, TextureView* texture_view, CommandEncoder* command_encoder);
 
     /// Render externally marshaled draw data to the provided texture.
+    /// @param draw_data Externally marshaled Dear ImGui draw data.
+    /// @param texture Texture to render to.
+    /// @param command_encoder Command encoder used to record the render pass.
     void render_draw_data(const DrawData& draw_data, Texture* texture, CommandEncoder* command_encoder);
 
     /// Return the raw value that should be written into ``ImTextureID``.
+    /// @param texture Texture to register with the UI context.
+    /// @return Stable integer identifier suitable for ``ImTextureID``.
     uintptr_t texture_id(Texture* texture) const;
+
+    /// Resolve a registered texture by its ``ImTextureID`` value.
+    /// @param texture_id Identifier previously returned by ``texture_id()``.
+    /// @return The registered texture, or ``nullptr`` if the ID is unknown.
+    ref<Texture> get_texture(uintptr_t texture_id) const;
+
+    /// Release a texture previously registered with ``texture_id()``.
+    /// @param texture_id Identifier previously returned by ``texture_id()``.
+    /// @return ``true`` if a registered texture was released.
+    bool release_texture(uintptr_t texture_id) const;
 
     /// Pass a keyboard event to the UI context.
     /// \param event Keyboard event
