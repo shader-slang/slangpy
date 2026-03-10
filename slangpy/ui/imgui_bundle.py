@@ -4,10 +4,151 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
     import slangpy as spy
+
+# ---------------------------------------------------------------------------
+# Internal key mapping (lazy-initialised on first use)
+# ---------------------------------------------------------------------------
+
+_KEY_MAP: Optional[Dict[int, Any]] = None
+_MOUSE_BUTTON_MAP: Optional[Dict[int, int]] = None
+
+
+def _get_key_map() -> Dict[int, Any]:
+    global _KEY_MAP
+    if _KEY_MAP is not None:
+        return _KEY_MAP
+
+    import slangpy as spy
+
+    from imgui_bundle import imgui
+
+    K = spy.KeyCode
+    IK = imgui.Key
+
+    # Names that differ between spy.KeyCode and imgui.Key.
+    _REMAP: Dict[str, str] = {
+        "key0": "_0", "key1": "_1", "key2": "_2", "key3": "_3", "key4": "_4",
+        "key5": "_5", "key6": "_6", "key7": "_7", "key8": "_8", "key9": "_9",
+        "left": "left_arrow", "right": "right_arrow",
+        "up": "up_arrow", "down": "down_arrow",
+        "left_control": "left_ctrl", "right_control": "right_ctrl",
+        "keypad_del": "keypad_decimal",
+    }
+
+    _KEY_MAP = {}
+    for name, key in K.__members__.items():
+        imgui_name = _REMAP.get(name, name)
+        if imgui_name in IK.__members__:
+            _KEY_MAP[key.value] = IK[imgui_name]
+
+    return _KEY_MAP
+
+
+def _get_mouse_button_map() -> Dict[int, int]:
+    """Map slangpy MouseButton values to imgui mouse button indices."""
+    global _MOUSE_BUTTON_MAP
+    if _MOUSE_BUTTON_MAP is not None:
+        return _MOUSE_BUTTON_MAP
+
+    import slangpy as spy
+
+    from imgui_bundle import imgui
+
+    _MOUSE_BUTTON_MAP = {
+        spy.MouseButton.left.value: imgui.MouseButton_.left.value,
+        spy.MouseButton.middle.value: imgui.MouseButton_.middle.value,
+        spy.MouseButton.right.value: imgui.MouseButton_.right.value,
+    }
+    return _MOUSE_BUTTON_MAP
+
+
+# ---------------------------------------------------------------------------
+# Public event-forwarding helpers
+# ---------------------------------------------------------------------------
+
+
+def handle_keyboard_event(event: spy.KeyboardEvent) -> bool:
+    """
+    Forward a slangpy keyboard event to the current imgui context.
+
+    :param event: The keyboard event from ``AppWindow.on_keyboard_event``.
+    :return: ``True`` if ImGui wants to capture keyboard input (caller should
+             skip its own keyboard handling).
+    """
+    import slangpy as spy
+
+    from imgui_bundle import imgui
+
+    io = imgui.get_io()
+
+    io.add_key_event(imgui.Key.mod_shift, event.has_modifier(spy.KeyModifier.shift))
+    io.add_key_event(imgui.Key.mod_ctrl, event.has_modifier(spy.KeyModifier.ctrl))
+    io.add_key_event(imgui.Key.mod_alt, event.has_modifier(spy.KeyModifier.alt))
+
+    if event.type == spy.KeyboardEventType.key_press or event.type == spy.KeyboardEventType.key_release:
+        imgui_key = _get_key_map().get(event.key.value, imgui.Key.none)
+        io.add_key_event(imgui_key, event.type == spy.KeyboardEventType.key_press)
+    elif event.type == spy.KeyboardEventType.input:
+        io.add_input_characters_utf8(chr(event.codepoint))
+
+    return io.want_capture_keyboard
+
+
+def handle_mouse_event(event: spy.MouseEvent) -> bool:
+    """
+    Forward a slangpy mouse event to the current imgui context.
+
+    :param event: The mouse event from ``AppWindow.on_mouse_event``.
+    :return: ``True`` if ImGui wants to capture mouse input (caller should
+             skip its own mouse handling).
+    """
+    import slangpy as spy
+
+    from imgui_bundle import imgui
+
+    io = imgui.get_io()
+
+    io.add_key_event(imgui.Key.mod_shift, event.has_modifier(spy.KeyModifier.shift))
+    io.add_key_event(imgui.Key.mod_ctrl, event.has_modifier(spy.KeyModifier.ctrl))
+    io.add_key_event(imgui.Key.mod_alt, event.has_modifier(spy.KeyModifier.alt))
+
+    if event.type == spy.MouseEventType.button_down or event.type == spy.MouseEventType.button_up:
+        btn = _get_mouse_button_map().get(event.button.value, 0)
+        io.add_mouse_button_event(btn, event.type == spy.MouseEventType.button_down)
+    elif event.type == spy.MouseEventType.move:
+        io.add_mouse_pos_event(event.pos.x, event.pos.y)
+    elif event.type == spy.MouseEventType.scroll:
+        io.add_mouse_wheel_event(event.scroll.x, event.scroll.y)
+
+    return io.want_capture_mouse
+
+
+def begin_frame(width: int, height: int, delta_time: float = 1.0 / 60.0) -> None:
+    """
+    Begin a new imgui_bundle frame with the given display dimensions.
+
+    Call this once per frame *before* issuing any ImGui widget calls and
+    *after* forwarding input events.
+
+    :param width: Display width in pixels.
+    :param height: Display height in pixels.
+    :param delta_time: Time elapsed since the previous frame, in seconds.
+    """
+    from imgui_bundle import imgui
+
+    io = imgui.get_io()
+    io.display_size = imgui.ImVec2(width, height)
+    io.delta_time = delta_time
+    imgui.new_frame()
+
+
+# ---------------------------------------------------------------------------
+# Texture and rendering helpers
+# ---------------------------------------------------------------------------
 
 
 def sync_draw_data_textures(
