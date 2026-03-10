@@ -219,6 +219,13 @@ def sync_draw_data_textures(
                 f"draw_data.textures[{i}] is missing required attributes: {', '.join(missing)}"
             )
 
+    _BPP_TO_FORMAT = {
+        1: spy.Format.r8_unorm,
+        2: spy.Format.rg8_unorm,
+        # 3 (RGB) is not supported; GPUs lack a native RGB8_UNORM texture format.
+        4: spy.Format.rgba8_unorm,
+    }
+
     font_tex = imgui.get_io().fonts.tex_data
     textures: List[spy.Texture] = []
     for idx, tex in enumerate(draw_textures):
@@ -238,8 +245,13 @@ def sync_draw_data_textures(
         if status == imgui.ImTextureStatus.want_updates and texture_id:
             texture = ui_context.get_texture(texture_id)
             if texture is not None:
+                bpp = tex.bytes_per_pixel
+                if bpp not in _BPP_TO_FORMAT:
+                    raise ValueError(
+                        f"Unsupported bytes_per_pixel={bpp} for texture update at index {idx}"
+                    )
                 pixels = tex.get_pixels_array().reshape(
-                    (tex.height, tex.width, tex.bytes_per_pixel)
+                    (tex.height, tex.width, bpp)
                 )
                 texture.copy_from_numpy(pixels)
                 tex.set_status(imgui.ImTextureStatus.ok)
@@ -250,9 +262,14 @@ def sync_draw_data_textures(
         if status == imgui.ImTextureStatus.destroyed:
             continue
 
-        pixels = tex.get_pixels_array().reshape((tex.height, tex.width, tex.bytes_per_pixel))
+        bpp = tex.bytes_per_pixel
+        if bpp not in _BPP_TO_FORMAT:
+            raise ValueError(
+                f"Unsupported bytes_per_pixel={bpp} for texture at index {idx}"
+            )
+        pixels = tex.get_pixels_array().reshape((tex.height, tex.width, bpp))
         texture = device.create_texture(
-            format=spy.Format.rgba8_unorm,
+            format=_BPP_TO_FORMAT[bpp],
             width=tex.width,
             height=tex.height,
             usage=spy.TextureUsage.shader_resource,
