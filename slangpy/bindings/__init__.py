@@ -7,6 +7,8 @@ from slangpy.bindings.boundvariable import (
     BoundVariable,
     BoundCall,
     BoundVariableException,
+    is_direct_bind_eligible,
+    is_direct_bind_recursive,
 )
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime, BoundCallRuntime
 from slangpy.bindings.codegen import CodeGen, CodeGenBlock

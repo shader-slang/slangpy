@@ -28,16 +28,26 @@ public:
         nb::list read_back
     ) const override;
 
+    /// When true, the Slang type is a raw value (no "value" sub-field).
+    /// When false (default), the type has a "value" sub-field (e.g. ValueType<T>).
+    bool direct_bind() const { return m_direct_bind; }
+
+    /// Set the direct_bind flag.
+    void set_direct_bind(bool direct_bind) { m_direct_bind = direct_bind; }
+
 private:
     /// Cached data for fast-path value writing, populated on first dispatch.
     struct CachedValueWrite {
-        ShaderOffset value_offset;                                ///< Offset to the "value" sub-field.
-        slang::TypeLayoutReflection* value_type_layout = nullptr; ///< Type layout for "value" field.
+        ShaderOffset value_offset;                                ///< Offset to the value field.
+        slang::TypeLayoutReflection* value_type_layout = nullptr; ///< Type layout for value field.
         std::function<void(ShaderCursor&, nb::object)> writer;    ///< Pre-resolved writer fn.
         bool is_valid = false;
     };
 
     mutable CachedValueWrite m_cached;
+
+    /// Whether the Slang type is raw (no "value" sub-field).
+    bool m_direct_bind{false};
 
     /// Populate m_cached on first call by resolving the cursor path and writer function.
     void ensure_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const;

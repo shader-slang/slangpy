@@ -4,8 +4,9 @@ from typing import Any, Optional, cast
 from slangpy.core.native import Shape, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
-from slangpy.bindings import PYTHON_TYPES, BindContext, BoundVariable
+from slangpy.bindings import PYTHON_TYPES, BindContext, BoundVariable, is_direct_bind_recursive
 from slangpy.reflection import SlangProgramLayout, SlangType, UnknownType, StructType, InterfaceType
+from slangpy.core.native import AccessType
 
 from .value import ValueMarshall
 import slangpy.reflection.vectorize as spyvec
@@ -76,6 +77,33 @@ class StructMarshall(ValueMarshall):
         )
 
     # A struct type should get a dictionary, and just return that for raw dispatch
+
+    def gen_trampoline_load(
+        self, cgb: "CodeGenBlock", binding: "BoundVariable", is_entry_point: bool
+    ) -> bool:
+        if not is_direct_bind_recursive(binding):
+            return False
+        data_name = (
+            f"_param_{binding.variable_name}"
+            if binding.create_param_block
+            else f"{'__calldata__' if is_entry_point else 'call_data'}.{binding.variable_name}"
+        )
+        cgb.append_statement(f"{binding.variable_name} = {data_name}")
+        return True
+
+    def gen_trampoline_store(
+        self, cgb: "CodeGenBlock", binding: "BoundVariable", is_entry_point: bool
+    ) -> bool:
+        if not is_direct_bind_recursive(binding):
+            return False
+        if binding.access[0] in (AccessType.write, AccessType.readwrite):
+            data_name = (
+                f"_param_{binding.variable_name}"
+                if binding.create_param_block
+                else f"{'__calldata__' if is_entry_point else 'call_data'}.{binding.variable_name}"
+            )
+            cgb.append_statement(f"{data_name} = {binding.variable_name}")
+        return True
 
     def create_dispatchdata(self, data: Any) -> Any:
         if isinstance(data, dict):

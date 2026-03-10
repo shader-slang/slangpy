@@ -16,7 +16,7 @@ void NativeValueMarshall::ensure_cached(ShaderCursor cursor, NativeBoundVariable
 {
     if (m_cached.is_valid)
         return;
-    ShaderCursor field = cursor[binding->variable_name()]["value"];
+    ShaderCursor field = m_direct_bind ? cursor[binding->variable_name()] : cursor[binding->variable_name()]["value"];
     m_cached.value_offset = field.offset();
     m_cached.value_type_layout = field.slang_type_layout();
     m_cached.writer = get_shader_cursor_writer(m_cached.value_type_layout);
@@ -63,5 +63,11 @@ SGL_PY_EXPORT(utils_slangpy_value)
                 new (&self) NativeValueMarshall();
             },
             D_NA(NativeValueMarshall, NativeValueMarshall)
+        )
+        .def_prop_rw(
+            "direct_bind",
+            &NativeValueMarshall::direct_bind,
+            &NativeValueMarshall::set_direct_bind,
+            D_NA(NativeValueMarshall, direct_bind)
         );
 }

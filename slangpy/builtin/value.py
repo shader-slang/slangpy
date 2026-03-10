@@ -15,6 +15,7 @@ from slangpy.bindings import (
     BoundVariable,
     BoundVariableRuntime,
     CodeGenBlock,
+    is_direct_bind_eligible,
 )
 from slangpy.reflection.reflectiontypes import (
     BOOL_TYPES,
@@ -95,9 +96,35 @@ class ValueMarshall(NativeValueMarshall):
         name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             assert binding.vector_type is not None
-            cgb.type_alias(f"_t_{name}", f"ValueType<{binding.vector_type.full_name}>")
+            if is_direct_bind_eligible(binding):
+                self.direct_bind = True
+                cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
+            else:
+                cgb.type_alias(f"_t_{name}", f"ValueType<{binding.vector_type.full_name}>")
         else:
             cgb.type_alias(f"_t_{name}", f"NoneType")
+
+    def gen_trampoline_load(
+        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+    ) -> bool:
+        if not is_direct_bind_eligible(binding):
+            return False
+        if binding.access[0] not in (AccessType.read, AccessType.readwrite):
+            return False
+        if is_entry_point:
+            data_name = f"__calldata__.{binding.variable_name}"
+        else:
+            data_name = f"call_data.{binding.variable_name}"
+        cgb.append_statement(f"{binding.variable_name} = {data_name}")
+        return True
+
+    def gen_trampoline_store(
+        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+    ) -> bool:
+        if not is_direct_bind_eligible(binding):
+            return False
+        # ValueMarshall is read-only — suppress the default store
+        return True
 
     # Call data just returns the primal
     def create_calldata(
@@ -105,6 +132,8 @@ class ValueMarshall(NativeValueMarshall):
     ) -> Any:
         access = binding.access
         if access[0] in [AccessType.read, AccessType.readwrite]:
+            if self.direct_bind:
+                return data
             return {"value": data}
 
     # Values just return themselves for raw dispatch
@@ -314,7 +343,11 @@ class VectorMarshall(ValueMarshall):
         if access[0] in [AccessType.read, AccessType.readwrite]:
             st = cast(kfr.VectorType, self.slang_type)
             et = cast(SlangType, st.element_type)
-            cgb.type_alias(f"_t_{name}", f"VectorValueType<{et.full_name},{st.num_elements}>")
+            if is_direct_bind_eligible(binding):
+                self.direct_bind = True
+                cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
+            else:
+                cgb.type_alias(f"_t_{name}", f"VectorValueType<{et.full_name},{st.num_elements}>")
         else:
             cgb.type_alias(f"_t_{name}", f"NoneType")
 

@@ -18,6 +18,7 @@ from slangpy.bindings import (
     CodeGenBlock,
     ReturnContext,
     get_or_create_type,
+    is_direct_bind_eligible,
 )
 from slangpy.builtin.value import slang_type_to_return_type
 from slangpy.reflection.reflectiontypes import SlangType
@@ -111,6 +112,7 @@ class ValueRefMarshall(Marshall):
     def __init__(self, layout: kfr.SlangProgramLayout, value_type: kfr.SlangType):
         super().__init__(layout)
         self.value_type = value_type
+        self._direct_bind = False
 
         st = layout.find_type_by_name(f"ValueRef<{value_type.full_name}>")
         if st is None:
@@ -155,10 +157,50 @@ class ValueRefMarshall(Marshall):
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         assert binding.vector_type is not None
-        if access[0] == AccessType.read:
-            cgb.type_alias(f"_t_{name}", f"ValueRef<{binding.vector_type.full_name}>")
+        if is_direct_bind_eligible(binding):
+            self._direct_bind = True
+            if access[0] == AccessType.read:
+                cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
+            else:
+                cgb.type_alias(
+                    f"_t_{name}",
+                    f"RWStructuredBuffer<{binding.vector_type.full_name}>",
+                )
         else:
-            cgb.type_alias(f"_t_{name}", f"RWValueRef<{binding.vector_type.full_name}>")
+            if access[0] == AccessType.read:
+                cgb.type_alias(f"_t_{name}", f"ValueRef<{binding.vector_type.full_name}>")
+            else:
+                cgb.type_alias(f"_t_{name}", f"RWValueRef<{binding.vector_type.full_name}>")
+
+    def gen_trampoline_load(
+        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+    ) -> bool:
+        if not is_direct_bind_eligible(binding):
+            return False
+        if binding.access[0] == AccessType.none:
+            return False
+        if is_entry_point:
+            data_name = f"__calldata__.{binding.variable_name}"
+        else:
+            data_name = f"call_data.{binding.variable_name}"
+        if binding.access[0] == AccessType.read:
+            cgb.append_statement(f"{binding.variable_name} = {data_name}")
+        else:
+            cgb.append_statement(f"{binding.variable_name} = {data_name}[0]")
+        return True
+
+    def gen_trampoline_store(
+        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+    ) -> bool:
+        if not is_direct_bind_eligible(binding):
+            return False
+        if binding.access[0] in (AccessType.write, AccessType.readwrite):
+            if is_entry_point:
+                data_name = f"__calldata__.{binding.variable_name}"
+            else:
+                data_name = f"call_data.{binding.variable_name}"
+            cgb.append_statement(f"{data_name}[0] = {binding.variable_name}")
+        return True
 
     # Call data just returns the primal
     def create_calldata(
@@ -167,7 +209,9 @@ class ValueRefMarshall(Marshall):
         access = binding.access
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
-        if access[0] == AccessType.read:
+        if self._direct_bind and access[0] == AccessType.read:
+            return data.value
+        elif access[0] == AccessType.read:
             return {"value": data.value}
         else:
             if isinstance(binding.vector_type, (kfr.StructType, kfr.ArrayType)):
@@ -182,6 +226,8 @@ class ValueRefMarshall(Marshall):
                 if access[0] != AccessType.write:
                     cursor[0].write(data.value)
                     cursor.apply()
+                if self._direct_bind:
+                    return buffer
                 return {"value": buffer}
             else:
                 if isinstance(self.value_type, kfr.SlangType):
@@ -189,14 +235,15 @@ class ValueRefMarshall(Marshall):
                 else:
                     npdata = self.value_type.to_numpy(data.value)
                 npdata = npdata.view(dtype=np.uint8)
-                return {
-                    "value": context.device.create_buffer(
-                        element_count=1,
-                        struct_size=npdata.size,
-                        data=npdata,
-                        usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
-                    )
-                }
+                buffer = context.device.create_buffer(
+                    element_count=1,
+                    struct_size=npdata.size,
+                    data=npdata,
+                    usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
+                )
+                if self._direct_bind:
+                    return buffer
+                return {"value": buffer}
 
     # Value ref just passes its value for raw dispatch
     def create_dispatchdata(self, data: Any) -> Any:
@@ -212,12 +259,13 @@ class ValueRefMarshall(Marshall):
     ) -> None:
         access = binding.access
         if access[0] in [AccessType.write, AccessType.readwrite]:
-            assert isinstance(result["value"], Buffer)
+            buffer = result if self._direct_bind else result["value"]
+            assert isinstance(buffer, Buffer)
             if isinstance(binding.vector_type, (kfr.StructType, kfr.ArrayType)):
-                cursor = BufferCursor(binding.vector_type.buffer_layout.reflection, result["value"])
+                cursor = BufferCursor(binding.vector_type.buffer_layout.reflection, buffer)
                 data.value = cursor[0].read()
             else:
-                npdata = result["value"].to_numpy()
+                npdata = buffer.to_numpy()
                 if isinstance(self.value_type, kfr.SlangType):
                     data.value = numpy_to_slang_value(self.value_type, npdata)
                 else:

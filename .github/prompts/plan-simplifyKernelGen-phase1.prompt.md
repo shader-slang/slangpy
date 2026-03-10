@@ -1,5 +1,7 @@
 ## Phase 1: Direct Type Marshalling
 
+**Status**: Prim-mode complete (Steps 1.1–1.7, 1.9). Step 1.8 (autodiff derivative fields) deferred.
+
 **Goal**: For dim-0, non-composite arguments, emit the raw Slang type in CallData and use direct assignment in the trampoline — eliminating `ValueType<T>` wrappers, `__slangpy_load`/`__slangpy_store` indirection, mapping constants, and `Context.map()` calls.
 
 **Parent plan**: [plan-simplifyKernelGen.prompt.md](plan-simplifyKernelGen.prompt.md)

@@ -383,6 +383,18 @@ def gen_trampoline_load(
     self: ITensorMarshall, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
 ) -> bool:
     if not isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
+        # For ITensorType at dim-0, use direct assignment (struct copy)
+        if (
+            isinstance(binding.vector_type, ITensorType)
+            and binding.call_dimensionality is not None
+            and binding.call_dimensionality == 0
+        ):
+            if is_entry_point:
+                data_name = f"__calldata__.{binding.variable_name}"
+            else:
+                data_name = f"call_data.{binding.variable_name}"
+            cgb.append_statement(f"{binding.variable_name} = {data_name}")
+            return True
         return False
     if is_entry_point:
         data_name = f"__calldata__.{binding.variable_name}"
@@ -396,5 +408,12 @@ def gen_trampoline_store(
     self: ITensorMarshall, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
 ) -> bool:
     if not isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
+        # For ITensorType at dim-0, suppress default store
+        if (
+            isinstance(binding.vector_type, ITensorType)
+            and binding.call_dimensionality is not None
+            and binding.call_dimensionality == 0
+        ):
+            return True
         return False
     return True

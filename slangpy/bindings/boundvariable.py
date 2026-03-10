@@ -145,6 +145,91 @@ class BoundCall:
             arg.finalize_mappings(context)
 
 
+# Cache of direct-bind-eligible marshall types (populated on first call).
+_DIRECT_BIND_TYPES: Optional[tuple[type, ...]] = None
+
+
+def _get_direct_bind_types() -> tuple[type, ...]:
+    """Lazily import and cache the set of marshall types eligible for direct binding."""
+    global _DIRECT_BIND_TYPES
+    if _DIRECT_BIND_TYPES is None:
+        from slangpy.builtin.value import (
+            ValueMarshall,
+            ScalarMarshall,
+            VectorMarshall,
+            MatrixMarshall,
+        )
+        from slangpy.builtin.array import ArrayMarshall
+        from slangpy.builtin.valueref import ValueRefMarshall
+
+        _DIRECT_BIND_TYPES = (
+            ValueMarshall,
+            ScalarMarshall,
+            VectorMarshall,
+            MatrixMarshall,
+            ArrayMarshall,
+            ValueRefMarshall,
+        )
+    return _DIRECT_BIND_TYPES
+
+
+def is_direct_bind_eligible(binding: "BoundVariable") -> bool:
+    """Check if a leaf binding can use direct type marshalling (no ValueType wrapper).
+
+    Eligible when:
+    - dim-0 (call_dimensionality == 0, not None)
+    - not composite (no children)
+    - not using a ParameterBlock (PackedArg)
+    - not inside a non-direct-bind composite (struct children path)
+    - marshall is a known direct-eligible type
+
+    :param binding: The bound variable to check.
+    :return: True if the variable can use direct binding.
+    """
+    if binding.call_dimensionality is None or binding.call_dimensionality != 0:
+        return False
+    if binding.children:
+        return False
+    if getattr(binding, "create_param_block", False):
+        return False
+    if getattr(binding, "_force_no_direct_bind", False):
+        return False
+    return isinstance(binding.python, _get_direct_bind_types())
+
+
+def is_direct_bind_recursive(binding: "BoundVariable") -> bool:
+    """Check if a binding (leaf or composite) can use direct type marshalling.
+
+    For leaves, delegates to :func:`is_direct_bind_eligible`.
+    For composites (dicts bound to structs), returns True only if dim-0 and every
+    child is recursively direct-bind eligible, and the vector_type is a concrete
+    Slang struct (not UnknownType).
+
+    :param binding: The bound variable to check.
+    :return: True if the variable (and all its children) can use direct binding.
+    """
+    # If this binding is inside a non-direct-bind struct, it must not use direct binding
+    if getattr(binding, "_force_no_direct_bind", False):
+        return False
+
+    if binding.children is None:
+        return is_direct_bind_eligible(binding)
+
+    if binding.call_dimensionality is None or binding.call_dimensionality != 0:
+        return False
+
+    if getattr(binding, "create_param_block", False):
+        return False
+
+    # Must have a concrete struct type (not UnknownType)
+    from slangpy.reflection import UnknownType
+
+    if binding.vector_type is None or isinstance(binding.vector_type, UnknownType):
+        return False
+
+    return all(is_direct_bind_recursive(child) for child in binding.children.values())
+
+
 class BoundVariable:
     """
     Node in a built signature tree, maintains a pairing of python+slang marshall,
@@ -540,55 +625,85 @@ you can find more information in the Mapping section of the documentation (https
             # todo: fwds
             self.access = (AccessType.none, AccessType.none)
 
+    def _set_direct_bind_on_children(self) -> None:
+        """Recursively set direct_bind flag on all leaf children's NativeValueMarshall."""
+        if self.children is None:
+            from slangpy.core.native import NativeValueMarshall
+
+            if isinstance(self.python, NativeValueMarshall):
+                self.python.direct_bind = True
+            return
+        for child in self.children.values():
+            child._set_direct_bind_on_children()
+
     def gen_call_data_code(self, cg: CodeGen, context: BindContext, depth: int = 0):
         if self.children is not None:
             cgb = cg.call_data_structs
 
-            cgb.begin_struct(f"_t_{self.variable_name}")
+            if is_direct_bind_recursive(self):
+                # Direct-bind: emit raw type alias and set direct_bind on children
+                assert self.vector_type is not None
+                cgb.type_alias(f"_t_{self.variable_name}", self.vector_type.full_name)
+                self._set_direct_bind_on_children()
+            else:
+                cgb.begin_struct(f"_t_{self.variable_name}")
 
-            for field, variable in self.children.items():
-                variable.gen_call_data_code(cg, context, depth + 1)
+                # Children inside a non-direct-bind struct must not use direct
+                # binding — the struct's __slangpy_load/store expect wrapper types.
+                for variable in self.children.values():
+                    variable._force_no_direct_bind = True
 
-            for var in self.children.values():
-                cgb.declare(f"_t_{var.variable_name}", var.variable_name)
+                for field, variable in self.children.items():
+                    variable.gen_call_data_code(cg, context, depth + 1)
 
-            assert self.vector_type is not None
-            context_decl = f"ContextND<{self.call_dimensionality}> context"
-            value_decl = f"{self.vector_type.full_name} value"
-            prefix = "[Differentiable]" if self.access[1] != AccessType.none else ""
+                for var in self.children.values():
+                    cgb.declare(f"_t_{var.variable_name}", var.variable_name)
 
-            if self.access[0] in (AccessType.read, AccessType.readwrite):
-                cgb.empty_line()
-                cgb.append_line(f"{prefix} void __slangpy_load({context_decl}, out {value_decl})")
-                cgb.begin_block()
-                for field, var in self.children.items():
-                    cgb.append_statement(
-                        f"{var.variable_name}.__slangpy_load(context.map(_m_{var.variable_name}),value.{field})"
+                assert self.vector_type is not None
+                context_decl = f"ContextND<{self.call_dimensionality}> context"
+                value_decl = f"{self.vector_type.full_name} value"
+                prefix = "[Differentiable]" if self.access[1] != AccessType.none else ""
+
+                if self.access[0] in (AccessType.read, AccessType.readwrite):
+                    cgb.empty_line()
+                    cgb.append_line(
+                        f"{prefix} void __slangpy_load({context_decl}, out {value_decl})"
                     )
-                cgb.end_block()
+                    cgb.begin_block()
+                    for field, var in self.children.items():
+                        cgb.append_statement(
+                            f"{var.variable_name}.__slangpy_load(context.map(_m_{var.variable_name}),value.{field})"
+                        )
+                    cgb.end_block()
 
-            if self.access[0] in (AccessType.write, AccessType.readwrite):
-                cgb.empty_line()
-                cgb.append_line(f"{prefix} void __slangpy_store({context_decl}, in {value_decl})")
-                cgb.begin_block()
-                for field, var in self.children.items():
-                    cgb.append_statement(
-                        f"{var.variable_name}.__slangpy_store(context.map(_m_{var.variable_name}),value.{field})"
+                if self.access[0] in (AccessType.write, AccessType.readwrite):
+                    cgb.empty_line()
+                    cgb.append_line(
+                        f"{prefix} void __slangpy_store({context_decl}, in {value_decl})"
                     )
-                cgb.end_block()
+                    cgb.begin_block()
+                    for field, var in self.children.items():
+                        cgb.append_statement(
+                            f"{var.variable_name}.__slangpy_store(context.map(_m_{var.variable_name}),value.{field})"
+                        )
+                    cgb.end_block()
 
-            cgb.end_struct()
+                cgb.end_struct()
 
         else:
             # Generate call data
             self.python.gen_calldata(cg.call_data_structs, context, self)
 
-        if len(self.vector_mapping) > 0:
-            cg.call_data_structs.append_statement(
-                f"static const int[] _m_{self.variable_name} = {{ {','.join([str(x) for x in self.vector_mapping.as_tuple()])} }}"
-            )
-        else:
-            cg.call_data_structs.append_statement(f"static const int _m_{self.variable_name} = 0")
+        # Skip mapping constants for direct-bind variables (they bypass __slangpy_load/store)
+        if not is_direct_bind_recursive(self):
+            if len(self.vector_mapping) > 0:
+                cg.call_data_structs.append_statement(
+                    f"static const int[] _m_{self.variable_name} = {{ {','.join([str(x) for x in self.vector_mapping.as_tuple()])} }}"
+                )
+            else:
+                cg.call_data_structs.append_statement(
+                    f"static const int _m_{self.variable_name} = 0"
+                )
 
         if depth == 0:
             if self.create_param_block:
