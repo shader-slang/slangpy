@@ -27,9 +27,9 @@ except ImportError:
     pass
 
 SLEEPS = True
-ITERATIONS = 10
+ITERATIONS = 100
 SUB_ITERATIONS = 20000
-WARMUPS = 10
+WARMUPS = 1000
 
 # ITERATIONS = 1
 # SUB_ITERATIONS = 1
@@ -49,7 +49,7 @@ WARMUPS = 10
 # =============================================================================
 
 RUN_PURE_TORCH_BENCHMARK = False
-RUN_SLANGTORCH_BENCHMARK = False
+RUN_SLANGTORCH_BENCHMARK = True
 RUN_SLANGPY_MANUAL_HOOK_BENCHMARK = True
 RUN_SLANGPY_AUTOMATIC_BENCHMARK = True
 

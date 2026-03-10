@@ -431,6 +431,9 @@ class CallData(NativeCallData):
             self.debug_only_bindings = bindings
             self.runtime = BoundCallRuntime(bindings)
 
+            # Store the code as its useful for debugging
+            self.code = code
+
             # If using autograd, build list of access modes for each tensor argument.
             if self.torch_autograd:
                 self._build_autograd_access_list(unpacked_args, unpacked_kwargs)
