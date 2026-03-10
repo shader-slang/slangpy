@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
@@ -191,9 +192,36 @@ def sync_draw_data_textures(
 
     from imgui_bundle import imgui
 
+    if not hasattr(draw_data, "textures"):
+        raise TypeError("draw_data must expose a 'textures' iterable")
+
+    draw_textures = draw_data.textures
+    if not isinstance(draw_textures, Iterable):
+        raise TypeError("draw_data.textures must be iterable")
+
+    required_texture_attrs = (
+        "get_tex_id",
+        "status",
+        "get_pixels_array",
+        "height",
+        "width",
+        "bytes_per_pixel",
+        "set_status",
+        "set_tex_id",
+        "destroy_pixels",
+    )
+    draw_textures = list(draw_textures)
+    if draw_textures:
+        missing = [name for name in required_texture_attrs if not hasattr(draw_textures[0], name)]
+        if missing:
+            raise TypeError(
+                "draw_data.textures elements must expose the imgui texture interface; "
+                f"missing attributes: {', '.join(missing)}"
+            )
+
     font_tex = imgui.get_io().fonts.tex_data
     textures: List[spy.Texture] = []
-    for idx, tex in enumerate(draw_data.textures):
+    for idx, tex in enumerate(draw_textures):
         status = tex.status
         texture_id = tex.get_tex_id()
 
@@ -259,6 +287,7 @@ def create_imgui_context(width: int, height: int) -> Any:
 
     io.fonts.add_font_default()
     if io.fonts.tex_data is not None:
+        # Accessing the pixel array forces Dear ImGui to build the font atlas.
         io.fonts.tex_data.get_pixels_array()
     return ctx
 

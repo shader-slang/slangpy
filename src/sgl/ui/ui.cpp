@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <unordered_map>
 
 CMRC_DECLARE(sgl_data);
@@ -244,7 +245,6 @@ static std::string utf32_to_utf8(uint32_t utf32)
     }
     return utf8;
 }
-
 
 Context::Context(ref<Device> device)
     : m_device(std::move(device))
@@ -501,6 +501,8 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
         return;
     if (draw_data.draw_lists.empty() || draw_data.total_vtx_count == 0 || draw_data.total_idx_count == 0)
         return;
+    if (draw_data.index_size != 2 && draw_data.index_size != 4)
+        SGL_THROW("Unsupported ImGui draw data index size: {}", draw_data.index_size);
 
     const bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
     const float fb_width = draw_data.display_size.x * draw_data.framebuffer_scale.x;
@@ -508,42 +510,123 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
     if (fb_width <= 0.f || fb_height <= 0.f)
         return;
 
+    uint64_t total_vtx_count = 0;
+    uint64_t total_idx_count = 0;
+    for (const DrawList& draw_list : draw_data.draw_lists) {
+        total_vtx_count += draw_list.vertex_count;
+        total_idx_count += draw_list.index_count;
+    }
+    if (total_vtx_count != draw_data.total_vtx_count) {
+        SGL_THROW(
+            "ImGui draw data vertex count mismatch: reported={} actual={}",
+            draw_data.total_vtx_count,
+            total_vtx_count
+        );
+    }
+    if (total_idx_count != draw_data.total_idx_count) {
+        SGL_THROW(
+            "ImGui draw data index count mismatch: reported={} actual={}",
+            draw_data.total_idx_count,
+            total_idx_count
+        );
+    }
+
+    const size_t max_size = std::numeric_limits<size_t>::max();
+    if (draw_data.total_vtx_count > max_size / sizeof(ImDrawVert)) {
+        SGL_THROW(
+            "ImGui draw data vertex buffer size overflow: count={} stride={}",
+            draw_data.total_vtx_count,
+            sizeof(ImDrawVert)
+        );
+    }
+    if (draw_data.total_idx_count > max_size / draw_data.index_size) {
+        SGL_THROW(
+            "ImGui draw data index buffer size overflow: count={} stride={}",
+            draw_data.total_idx_count,
+            draw_data.index_size
+        );
+    }
+    const size_t required_vertex_bytes = size_t(draw_data.total_vtx_count) * sizeof(ImDrawVert);
+    const size_t required_index_bytes = size_t(draw_data.total_idx_count) * draw_data.index_size;
+
     ref<Buffer>& vertex_buffer = m_vertex_buffers[m_frame_index];
     ref<Buffer>& index_buffer = m_index_buffers[m_frame_index];
     m_frame_index = (m_frame_index + 1) % FRAME_COUNT;
 
-    if (!vertex_buffer || vertex_buffer->size() < draw_data.total_vtx_count * sizeof(ImDrawVert)) {
+    if (!vertex_buffer || vertex_buffer->size() < required_vertex_bytes) {
         vertex_buffer = m_device->create_buffer({
-            .size = draw_data.total_vtx_count * sizeof(ImDrawVert) + 128 * 1024,
+            .size = required_vertex_bytes + 128 * 1024,
             .memory_type = MemoryType::upload,
             .usage = BufferUsage::vertex_buffer,
             .label = "imgui vertex buffer",
         });
     }
-    if (!index_buffer || index_buffer->size() < draw_data.total_idx_count * draw_data.index_size) {
+    if (!index_buffer || index_buffer->size() < required_index_bytes) {
         index_buffer = m_device->create_buffer({
-            .size = draw_data.total_idx_count * draw_data.index_size + 1024,
+            .size = required_index_bytes + 1024,
             .memory_type = MemoryType::upload,
             .usage = BufferUsage::index_buffer,
             .label = "imgui index buffer",
         });
     }
 
+    if (vertex_buffer->size() < required_vertex_bytes || index_buffer->size() < required_index_bytes)
+        SGL_THROW("Allocated ImGui upload buffers are smaller than the validated draw data");
+
     ImDrawVert* vertices = vertex_buffer->map<ImDrawVert>();
     uint8_t* indices = index_buffer->map<uint8_t>();
+    size_t remaining_vertex_bytes = required_vertex_bytes;
+    size_t remaining_index_bytes = required_index_bytes;
+    uint32_t remaining_vertex_count = draw_data.total_vtx_count;
+    uint32_t remaining_index_count = draw_data.total_idx_count;
     for (const DrawList& draw_list : draw_data.draw_lists) {
-        std::memcpy(
-            vertices,
-            reinterpret_cast<const void*>(draw_list.vertex_data),
-            draw_list.vertex_count * sizeof(ImDrawVert)
-        );
-        std::memcpy(
-            indices,
-            reinterpret_cast<const void*>(draw_list.index_data),
-            draw_list.index_count * draw_data.index_size
-        );
+        if (draw_list.vertex_count > remaining_vertex_count || draw_list.index_count > remaining_index_count) {
+            vertex_buffer->unmap();
+            index_buffer->unmap();
+            SGL_THROW("ImGui draw list exceeds validated aggregate buffer capacity");
+        }
+
+        if (draw_list.vertex_count > max_size / sizeof(ImDrawVert)) {
+            vertex_buffer->unmap();
+            index_buffer->unmap();
+            SGL_THROW(
+                "ImGui draw list vertex buffer size overflow: count={} stride={}",
+                draw_list.vertex_count,
+                sizeof(ImDrawVert)
+            );
+        }
+        if (draw_list.index_count > max_size / draw_data.index_size) {
+            vertex_buffer->unmap();
+            index_buffer->unmap();
+            SGL_THROW(
+                "ImGui draw list index buffer size overflow: count={} stride={}",
+                draw_list.index_count,
+                draw_data.index_size
+            );
+        }
+        const size_t draw_list_vertex_bytes = size_t(draw_list.vertex_count) * sizeof(ImDrawVert);
+        const size_t draw_list_index_bytes = size_t(draw_list.index_count) * draw_data.index_size;
+
+        if (draw_list_vertex_bytes > remaining_vertex_bytes || draw_list_index_bytes > remaining_index_bytes) {
+            vertex_buffer->unmap();
+            index_buffer->unmap();
+            SGL_THROW("ImGui draw list copy would overflow the upload buffers");
+        }
+        if ((draw_list.vertex_count != 0 && draw_list.vertex_data == 0)
+            || (draw_list.index_count != 0 && draw_list.index_data == 0)) {
+            vertex_buffer->unmap();
+            index_buffer->unmap();
+            SGL_THROW("ImGui draw list contains null buffer data");
+        }
+
+        std::memcpy(vertices, reinterpret_cast<const void*>(draw_list.vertex_data), draw_list_vertex_bytes);
+        std::memcpy(indices, reinterpret_cast<const void*>(draw_list.index_data), draw_list_index_bytes);
         vertices += draw_list.vertex_count;
-        indices += draw_list.index_count * draw_data.index_size;
+        indices += draw_list_index_bytes;
+        remaining_vertex_count -= draw_list.vertex_count;
+        remaining_index_count -= draw_list.index_count;
+        remaining_vertex_bytes -= draw_list_vertex_bytes;
+        remaining_index_bytes -= draw_list_index_bytes;
     }
     vertex_buffer->unmap();
     index_buffer->unmap();
@@ -577,6 +660,11 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
     uint32_t index_offset = 0;
     for (const DrawList& draw_list : draw_data.draw_lists) {
         for (const DrawCommand& cmd : draw_list.commands) {
+            if (cmd.idx_offset > draw_list.index_count || cmd.elem_count > draw_list.index_count - cmd.idx_offset)
+                SGL_THROW("ImGui draw command index range exceeds its draw list");
+            if (cmd.vtx_offset > draw_list.vertex_count)
+                SGL_THROW("ImGui draw command vertex offset exceeds its draw list");
+
             const float raw_clip_min_x = (cmd.clip_rect.x - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
             const float raw_clip_min_y = (cmd.clip_rect.y - draw_data.display_pos.y) * draw_data.framebuffer_scale.y;
             const float raw_clip_max_x = (cmd.clip_rect.z - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
@@ -600,12 +688,18 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
             if (it == m_registered_textures.end())
                 SGL_THROW("Unknown ImTextureID in draw data: {}", cmd.texture_id);
 
+            const uint64_t draw_vertex_offset = uint64_t(cmd.vtx_offset) + uint64_t(vertex_offset);
+            const uint64_t draw_index_offset = uint64_t(cmd.idx_offset) + uint64_t(index_offset);
+            const uint64_t draw_index_end = draw_index_offset + uint64_t(cmd.elem_count);
+            if (draw_vertex_offset > draw_data.total_vtx_count || draw_index_end > draw_data.total_idx_count)
+                SGL_THROW("ImGui draw command would read beyond the uploaded draw buffers");
+
             shader_object->set_texture(texture_offset, it->second);
             pass_encoder->set_render_state(render_state);
             pass_encoder->draw_indexed({
                 .vertex_count = cmd.elem_count,
-                .start_vertex_location = cmd.vtx_offset + vertex_offset,
-                .start_index_location = cmd.idx_offset + index_offset,
+                .start_vertex_location = narrow_cast<uint32_t>(draw_vertex_offset),
+                .start_index_location = narrow_cast<uint32_t>(draw_index_offset),
             });
         }
         index_offset += draw_list.index_count;

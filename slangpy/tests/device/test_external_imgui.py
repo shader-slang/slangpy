@@ -139,21 +139,33 @@ def test_begin_frame_and_event_forwarding(device_type: spy.DeviceType):
         def __init__(self, value: int):
             self.value = value
 
-    # Forward mouse events: move, button press/release, and scroll.
-    handle_mouse_event(_MouseEvent(spy.MouseEventType.move, pos=(50, 40)))
-    handle_mouse_event(_MouseEvent(spy.MouseEventType.button_down, button=spy.MouseButton.left))
-    handle_mouse_event(_MouseEvent(spy.MouseEventType.button_up, button=spy.MouseButton.left))
-    handle_mouse_event(_MouseEvent(spy.MouseEventType.button_down, button=_UnknownMouseButton(99)))
-    handle_mouse_event(_MouseEvent(spy.MouseEventType.scroll, scroll=(0, 1)))
+    io = imgui.get_io()
 
-    # Forward keyboard events: key press, character input, key release.
+    # Queue move and keyboard input first. In this binding, a queued mouse-button
+    # press suppresses observable key-down state until a later frame.
+    handle_mouse_event(_MouseEvent(spy.MouseEventType.move, pos=(50, 40)))
     kb_result = handle_keyboard_event(_KbEvent(spy.KeyboardEventType.key_press, key=spy.KeyCode.a))
     assert isinstance(kb_result, bool)
     handle_keyboard_event(_KbEvent(spy.KeyboardEventType.input, codepoint=ord("A")))
-    handle_keyboard_event(_KbEvent(spy.KeyboardEventType.key_release, key=spy.KeyCode.a))
 
-    # Use begin_frame (under test) instead of calling imgui.new_frame() directly.
+    # imgui_bundle applies queued input events during new_frame(), so validate the
+    # forwarded state immediately after begin_frame() and before widget creation.
     begin_frame(width, height)
+    assert (io.mouse_pos.x, io.mouse_pos.y) == (50.0, 40.0)
+    assert isinstance(kb_result, bool)
+    assert imgui.is_key_down(imgui.Key.a) is True
+    imgui.render()
+
+    # Queue button and scroll input for the next frame and validate the mouse state
+    # before rendering any widgets.
+    handle_mouse_event(_MouseEvent(spy.MouseEventType.button_down, button=spy.MouseButton.left))
+    handle_mouse_event(_MouseEvent(spy.MouseEventType.button_down, button=_UnknownMouseButton(99)))
+    handle_mouse_event(_MouseEvent(spy.MouseEventType.scroll, scroll=(0, 1)))
+    begin_frame(width, height)
+    assert bool(io.mouse_down[imgui.MouseButton_.left.value]) is True
+
+    handle_mouse_event(_MouseEvent(spy.MouseEventType.button_up, button=spy.MouseButton.left))
+    handle_keyboard_event(_KbEvent(spy.KeyboardEventType.key_release, key=spy.KeyCode.a))
 
     imgui.set_next_window_pos((4, 4))
     imgui.set_next_window_size((140, 90))
@@ -212,13 +224,96 @@ def test_sync_draw_data_textures_reuses_and_releases(device_type: spy.DeviceType
     assert draw_texture.get_tex_id() == texture_id
     assert ui_context.get_texture(texture_id) is not None
 
+    class _FakeGpuTexture:
+        def __init__(self):
+            self.updated_pixels = None
+
+        def copy_from_numpy(self, pixels: np.ndarray):
+            self.updated_pixels = np.array(pixels, copy=True)
+
+    class _FakeUiContext:
+        def __init__(self, texture_id: int, texture: _FakeGpuTexture):
+            self.texture_id_value = texture_id
+            self.texture = texture
+
+        def get_texture(self, candidate_texture_id: int):
+            if candidate_texture_id == self.texture_id_value:
+                return self.texture
+            return None
+
+        def release_texture(self, _: int) -> bool:
+            return False
+
+        def texture_id(self, _: object) -> int:
+            return self.texture_id_value
+
+    class _FakeDrawTexture:
+        def __init__(self, texture_id: int):
+            self.status = imgui.ImTextureStatus.want_updates
+            self.height = 1
+            self.width = 1
+            self.bytes_per_pixel = 4
+            self.unique_id = 123456
+            self._texture_id = texture_id
+            self.pixels = np.array([[[255, 0, 0, 255]]], dtype=np.uint8)
+
+        def get_tex_id(self) -> int:
+            return self._texture_id
+
+        def get_pixels_array(self) -> np.ndarray:
+            return self.pixels.reshape(-1)
+
+        def set_status(self, status: imgui.ImTextureStatus) -> None:
+            self.status = status
+
+        def set_tex_id(self, texture_id: int) -> None:
+            self._texture_id = texture_id
+
+        def destroy_pixels(self) -> None:
+            pass
+
+    class _FakeDrawData:
+        def __init__(self, texture: _FakeDrawTexture):
+            self.textures = [texture]
+
+    fake_texture = _FakeGpuTexture()
+    fake_ui_context = _FakeUiContext(texture_id, fake_texture)
+    fake_draw_texture = _FakeDrawTexture(texture_id)
+    updated_textures = sync_draw_data_textures(
+        device, fake_ui_context, _FakeDrawData(fake_draw_texture)
+    )
+    assert updated_textures == []
+    assert fake_draw_texture.get_tex_id() == texture_id
+    assert fake_ui_context.get_texture(texture_id) is not None
+    assert fake_texture.updated_pixels is not None
+    assert np.array_equal(
+        fake_texture.updated_pixels[0, 0], np.array([255, 0, 0, 255], dtype=np.uint8)
+    )
+    assert fake_ui_context.release_texture(texture_id) is False
+
     draw_texture.set_status(imgui.ImTextureStatus.want_destroy)
     sync_draw_data_textures(device, ui_context, draw_data)
 
     assert draw_texture.get_tex_id() == 0
-    assert draw_texture.status == imgui.ImTextureStatus.destroyed
     assert ui_context.get_texture(texture_id) is None
     assert ui_context.release_texture(texture_id) is False
+
+    class _MissingTextures:
+        pass
+
+    with pytest.raises(TypeError, match="draw_data must expose a 'textures' iterable"):
+        sync_draw_data_textures(None, None, _MissingTextures())  # type: ignore[arg-type]
+
+    class _BadTexture:
+        status = imgui.ImTextureStatus.ok
+
+    class _BadDrawData:
+        textures = [_BadTexture()]
+
+    with pytest.raises(
+        TypeError, match="draw_data.textures elements must expose the imgui texture interface"
+    ):
+        sync_draw_data_textures(None, None, _BadDrawData())  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":
