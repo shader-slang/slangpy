@@ -211,12 +211,12 @@ def sync_draw_data_textures(
         "destroy_pixels",
     )
     draw_textures = list(draw_textures)
-    if draw_textures:
-        missing = [name for name in required_texture_attrs if not hasattr(draw_textures[0], name)]
+    for i, tex in enumerate(draw_textures):
+        missing = [name for name in required_texture_attrs if not hasattr(tex, name)]
         if missing:
             raise TypeError(
                 "draw_data.textures elements must expose the imgui texture interface; "
-                f"missing attributes: {', '.join(missing)}"
+                f"draw_data.textures[{i}] is missing required attributes: {', '.join(missing)}"
             )
 
     font_tex = imgui.get_io().fonts.tex_data

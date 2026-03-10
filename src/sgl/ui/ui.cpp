@@ -499,8 +499,6 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
 
     if (!m_device->has_feature(Feature::rasterization))
         return;
-    if (draw_data.draw_lists.empty() || draw_data.total_vtx_count == 0 || draw_data.total_idx_count == 0)
-        return;
     if (draw_data.index_size != 2 && draw_data.index_size != 4)
         SGL_THROW("Unsupported ImGui draw data index size: {}", draw_data.index_size);
 
@@ -530,6 +528,8 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
             total_idx_count
         );
     }
+    if (draw_data.draw_lists.empty() && draw_data.total_vtx_count == 0 && draw_data.total_idx_count == 0)
+        return;
 
     const size_t max_size = std::numeric_limits<size_t>::max();
     if (draw_data.total_vtx_count > max_size / sizeof(ImDrawVert)) {
@@ -631,6 +631,55 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
     vertex_buffer->unmap();
     index_buffer->unmap();
 
+    // Pre-validate all draw commands before starting the render pass.
+    uint32_t pre_vertex_offset = 0;
+    uint32_t pre_index_offset = 0;
+    for (const DrawList& draw_list : draw_data.draw_lists) {
+        for (const DrawCommand& cmd : draw_list.commands) {
+            if (cmd.idx_offset > draw_list.index_count || cmd.elem_count > draw_list.index_count - cmd.idx_offset)
+                SGL_THROW("ImGui draw command index range exceeds its draw list");
+            if (cmd.vtx_offset > draw_list.vertex_count)
+                SGL_THROW("ImGui draw command vertex offset exceeds its draw list");
+
+            if (m_registered_textures.find(cmd.texture_id) == m_registered_textures.end())
+                SGL_THROW("Unknown ImTextureID in draw data: {}", cmd.texture_id);
+
+            const uint64_t draw_vertex_offset = uint64_t(cmd.vtx_offset) + uint64_t(pre_vertex_offset);
+            const uint64_t draw_index_offset = uint64_t(cmd.idx_offset) + uint64_t(pre_index_offset);
+            const uint64_t draw_index_end = draw_index_offset + uint64_t(cmd.elem_count);
+            if (draw_vertex_offset > draw_data.total_vtx_count || draw_index_end > draw_data.total_idx_count)
+                SGL_THROW("ImGui draw command would read beyond the uploaded draw buffers");
+
+            // Validate that each index references a valid vertex.
+            if (cmd.elem_count > 0 && draw_list.index_data != 0) {
+                const uint8_t* idx_base = reinterpret_cast<const uint8_t*>(draw_list.index_data);
+                for (uint32_t ei = 0; ei < cmd.elem_count; ++ei) {
+                    uint32_t index_val;
+                    if (draw_data.index_size == 2) {
+                        uint16_t idx16;
+                        std::memcpy(&idx16, idx_base + (cmd.idx_offset + ei) * 2, sizeof(idx16));
+                        index_val = idx16;
+                    } else {
+                        std::memcpy(&index_val, idx_base + (cmd.idx_offset + ei) * 4, sizeof(index_val));
+                    }
+                    if (index_val + cmd.vtx_offset >= draw_list.vertex_count) {
+                        SGL_THROW(
+                            "ImGui draw command references out-of-bounds vertex: "
+                            "index[{}]={} + vtx_offset={} >= vertex_count={}",
+                            ei,
+                            index_val,
+                            cmd.vtx_offset,
+                            draw_list.vertex_count
+                        );
+                    }
+                }
+            }
+        }
+        pre_index_offset += draw_list.index_count;
+        pre_vertex_offset += draw_list.vertex_count;
+    }
+
+
     auto pass_encoder = command_encoder->begin_render_pass({
         .color_attachments = {
             {
@@ -660,11 +709,6 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
     uint32_t index_offset = 0;
     for (const DrawList& draw_list : draw_data.draw_lists) {
         for (const DrawCommand& cmd : draw_list.commands) {
-            if (cmd.idx_offset > draw_list.index_count || cmd.elem_count > draw_list.index_count - cmd.idx_offset)
-                SGL_THROW("ImGui draw command index range exceeds its draw list");
-            if (cmd.vtx_offset > draw_list.vertex_count)
-                SGL_THROW("ImGui draw command vertex offset exceeds its draw list");
-
             const float raw_clip_min_x = (cmd.clip_rect.x - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
             const float raw_clip_min_y = (cmd.clip_rect.y - draw_data.display_pos.y) * draw_data.framebuffer_scale.y;
             const float raw_clip_max_x = (cmd.clip_rect.z - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
@@ -685,14 +729,8 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
             };
 
             auto it = m_registered_textures.find(cmd.texture_id);
-            if (it == m_registered_textures.end())
-                SGL_THROW("Unknown ImTextureID in draw data: {}", cmd.texture_id);
-
             const uint64_t draw_vertex_offset = uint64_t(cmd.vtx_offset) + uint64_t(vertex_offset);
             const uint64_t draw_index_offset = uint64_t(cmd.idx_offset) + uint64_t(index_offset);
-            const uint64_t draw_index_end = draw_index_offset + uint64_t(cmd.elem_count);
-            if (draw_vertex_offset > draw_data.total_vtx_count || draw_index_end > draw_data.total_idx_count)
-                SGL_THROW("ImGui draw command would read beyond the uploaded draw buffers");
 
             shader_object->set_texture(texture_offset, it->second);
             pass_encoder->set_render_state(render_state);
