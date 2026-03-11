@@ -184,8 +184,6 @@ class CallData(NativeCallData):
 
                 self.torch_integration = True
                 self.torch_autograd = autograd
-                if return_type is None:
-                    return_type = torch.Tensor
 
             # Setup context
             context = BindContext(
@@ -255,6 +253,19 @@ class CallData(NativeCallData):
                 )
 
             # If necessary, create return value node once call dimensionality is known.
+            # When torch integration is active and call_dimensionality > 0, default to
+            # torch.Tensor so the result is directly usable with PyTorch. For 0D calls
+            # (scalar results), leave return_type as None so the normal ValueRef default
+            # applies — a 0D tensor would contain zero-length arrays that crash the Slang
+            # compiler during type legalization on non-CUDA targets.
+            if (
+                self.torch_integration
+                and return_type is None
+                and self.call_dimensionality > 0
+            ):
+                import torch
+
+                return_type = torch.Tensor
             create_return_value_binding(context, bindings, return_type)
 
             # Calculate final mappings for bindings that only have known vector type.
