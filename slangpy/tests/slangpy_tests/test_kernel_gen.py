@@ -664,5 +664,116 @@ float weighted_sum(S s, float scale) { return (s.x + s.y) * scale; }
     assert_contains(code, "struct _t_s")
 
 
+# ===========================================================================
+# Review coverage — binding flag verification tests
+# ===========================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_writable_valueref_not_direct_bind(device_type: spy.DeviceType):
+    """Writable ValueRef (inout) must not be direct-bind — needs buffer read/write."""
+    device = helpers.get_device(device_type)
+    src = "void inc(inout int v) { v += 1; }"
+    func = helpers.create_function_from_module(device, "inc", src)
+    vr = ValueRef(5)
+    cd = func.debug_build_call_data(vr)
+    bindings = cd.debug_only_bindings
+    v_binding = bindings.args[0]
+    assert v_binding.direct_bind is False
+    assert v_binding.call_dimensionality == 0
+    code = cd.code
+    assert_contains(code, "RWValueRef<int>")
+    assert_not_contains(code, "typealias _t_v = int;")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_result_binding_not_direct_bind(device_type: spy.DeviceType):
+    """Auto-created _result (writable ValueRef) must not be direct-bind."""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(
+        device, "add", "int add(int a, int b) { return a + b; }"
+    )
+    cd = func.debug_build_call_data(1, 2)
+    result_binding = cd.debug_only_bindings.kwargs["_result"]
+    assert result_binding.direct_bind is False
+    assert result_binding.call_dimensionality == 0
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_struct_all_scalars_binding_flag(device_type: spy.DeviceType):
+    """All-scalar struct at dim-0 should have direct_bind=True (and so should children)."""
+    device = helpers.get_device(device_type)
+    src = """
+struct S { float x; float y; };
+float sum(S s) { return s.x + s.y; }
+"""
+    func = helpers.create_function_from_module(device, "sum", src)
+    cd = func.debug_build_call_data({"_type": "S", "x": 1.0, "y": 2.0})
+    bindings = cd.debug_only_bindings
+    s = bindings.args[0]
+    assert s.direct_bind is True
+    assert s.children["x"].direct_bind is True
+    assert s.children["y"].direct_bind is True
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_struct_with_wanghash_child_not_direct_bind(device_type: spy.DeviceType):
+    """Struct with a WangHashArg child must NOT be direct-bind."""
+    device = helpers.get_device(device_type)
+    src = """
+struct S { uint3 seed; float scale; };
+float apply(S s) { return float(s.seed.x) * s.scale; }
+"""
+    func = helpers.create_function_from_module(device, "apply", src)
+    cd = func.debug_build_call_data({"_type": "S", "seed": WangHashArg(3), "scale": 1.0})
+    bindings = cd.debug_only_bindings
+    s = bindings.args[0]
+    assert s.direct_bind is False
+    # scale child should still be direct-bind individually
+    assert s.children["scale"].direct_bind is True
+    code = cd.code
+    assert_contains(code, "struct _t_s")
+    assert_not_contains(code, "typealias _t_s = S;")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_wanghasharg_binding_flag(device_type: spy.DeviceType):
+    """WangHashArg (no can_direct_bind override) should have direct_bind=False."""
+    device = helpers.get_device(device_type)
+    src = "uint3 rng(uint3 input) { return input; }"
+    func = helpers.create_function_from_module(device, "rng", src)
+    cd = func.debug_build_call_data(WangHashArg(3))
+    bindings = cd.debug_only_bindings
+    assert bindings.args[0].direct_bind is False
+    assert bindings.args[0].call_dimensionality == 0
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_phase1_functional_valueref_read_input(device_type: spy.DeviceType):
+    """Dispatch with a read-only ValueRef input — verifies direct-bind ValueRef pipeline end-to-end."""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(
+        device, "double_it", "float double_it(float v) { return v * 2; }"
+    )
+    result = func(ValueRef(7.0))
+    assert abs(result - 14.0) < 1e-5
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_bwds_primal_binding_flags(device_type: spy.DeviceType):
+    """In bwds mode, primal args (access[0]=read) should have direct_bind=True."""
+    device = helpers.get_device(device_type)
+    src = """
+[Differentiable]
+float polynomial(float a, float b) { return a * a + b + 1; }
+"""
+    func = helpers.create_function_from_module(device, "polynomial", src)
+    cd = func.bwds.debug_build_call_data(5.0, 10.0, 26.0)
+    bindings = cd.debug_only_bindings
+    # Primal args in bwds mode → access[0]=read → direct_bind should be True
+    assert bindings.args[0].direct_bind is True  # 'a'
+    assert bindings.args[1].direct_bind is True  # 'b'
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-vs"])

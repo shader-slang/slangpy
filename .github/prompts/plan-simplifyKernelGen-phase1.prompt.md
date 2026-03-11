@@ -173,6 +173,24 @@ The old `self._direct_bind` attribute was **removed** — all checks now use `bi
 
 2952 passed / 0 failed in `slangpy/tests/slangpy_tests`. 6 pre-existing failures in `slangpy/tests/device/` (raytracing pipeline, type conformance cache — unrelated).
 
+### Review Notes
+
+**Issues to address before merge:**
+
+1. **`StructMarshall.can_direct_bind` children branch is dead code.** `calculate_direct_bind()` handles composites directly (when `self.children is not None`) and never calls the marshall's `can_direct_bind`. The `if binding.children is not None:` branch in `StructMarshall.can_direct_bind` is unreachable. Fix: remove the children branch or have `calculate_direct_bind` delegate to the marshall for composites.
+
+2. **Composite direct-bind should gate on read-only access.** Add `and self.access[0] == AccessType.read` to the composite branch in `calculate_direct_bind()` (matching `ValueRefMarshall` pattern). Without this, a writable dim-0 composite would be incorrectly marked direct-bind.
+
+3. **Dead `binding.direct_bind` checks in writable ValueRef paths** ([valueref.py](slangpy/builtin/valueref.py) lines ~215, ~230, ~248). Since `can_direct_bind` rejects non-read access, these branches are unreachable. Remove or add `assert not binding.direct_bind` to make the invariant explicit.
+
+4. **Overly defensive `hasattr` guard** in `calculate_direct_bind()` — `hasattr(self.python, "can_direct_bind")` is unnecessary since `Marshall` base class always defines this method.
+
+5. **Benchmark file** — `test_benchmark_autograd.py` has accidental local changes that should be reverted.
+
+6. **C++ improvements** — Add debug assertion in `NativeValueMarshall::ensure_cached` verifying cached `direct_bind` matches binding's; consider making `NativeBoundVariableRuntime.direct_bind` read-only in nanobind.
+
+**Missing tests to add:** Writable ValueRef inout, `_result` binding flag, all-scalar struct binding flag, struct+WangHashArg child, WangHashArg binding flag, functional read-only ValueRef, bwds binding flags. See parent plan for full table.
+
 ### Design Decisions
 
 **`direct_bind` lives on `NativeBoundVariableRuntime`, not `NativeValueMarshall`.** The original implementation stored `m_direct_bind` on the marshall itself (`NativeValueMarshall`), but marshalls are shared across calls while bindings are per-call. Moving the flag to the binding makes it immutable per-call and eliminates mutable state on shared marshall instances.

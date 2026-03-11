@@ -21,6 +21,7 @@ void NativeValueMarshall::ensure_cached(ShaderCursor cursor, NativeBoundVariable
     m_cached.value_offset = field.offset();
     m_cached.value_type_layout = field.slang_type_layout();
     m_cached.writer = get_shader_cursor_writer(m_cached.value_type_layout);
+    m_cached.direct_bind = binding->direct_bind();
     m_cached.is_valid = true;
 }
 

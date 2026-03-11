@@ -212,8 +212,7 @@ class ValueRefMarshall(Marshall):
                 if access[0] != AccessType.write:
                     cursor[0].write(data.value)
                     cursor.apply()
-                if binding.direct_bind:
-                    return buffer
+                assert not binding.direct_bind
                 return {"value": buffer}
             else:
                 if isinstance(self.value_type, kfr.SlangType):
@@ -227,8 +226,7 @@ class ValueRefMarshall(Marshall):
                     data=npdata,
                     usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
                 )
-                if binding.direct_bind:
-                    return buffer
+                assert not binding.direct_bind
                 return {"value": buffer}
 
     # Value ref just passes its value for raw dispatch
@@ -245,7 +243,8 @@ class ValueRefMarshall(Marshall):
     ) -> None:
         access = binding.access
         if access[0] in [AccessType.write, AccessType.readwrite]:
-            buffer = result if binding.direct_bind else result["value"]
+            assert not binding.direct_bind
+            buffer = result["value"]
             assert isinstance(buffer, Buffer)
             if isinstance(binding.vector_type, (kfr.StructType, kfr.ArrayType)):
                 cursor = BufferCursor(binding.vector_type.buffer_layout.reflection, buffer)

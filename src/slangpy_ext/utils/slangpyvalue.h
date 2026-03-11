@@ -34,6 +34,7 @@ private:
         ShaderOffset value_offset;                                ///< Offset to the value field.
         slang::TypeLayoutReflection* value_type_layout = nullptr; ///< Type layout for value field.
         std::function<void(ShaderCursor&, nb::object)> writer;    ///< Pre-resolved writer fn.
+        bool direct_bind{false};                                  ///< direct_bind value used when populating cache.
         bool is_valid = false;
     };
 

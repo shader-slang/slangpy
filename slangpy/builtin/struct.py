@@ -78,7 +78,14 @@ class StructMarshall(ValueMarshall):
 
     def can_direct_bind(self, binding: "BoundVariable") -> bool:
         if binding.children is not None:
-            return all(child.direct_bind for child in binding.children.values())
+            return (
+                binding.call_dimensionality is not None
+                and binding.call_dimensionality == 0
+                and not getattr(binding, "create_param_block", False)
+                and binding.vector_type is not None
+                and binding.access[0] == AccessType.read
+                and all(child.direct_bind for child in binding.children.values())
+            )
         return can_direct_bind_common(binding)
 
     # A struct type should get a dictionary, and just return that for raw dispatch

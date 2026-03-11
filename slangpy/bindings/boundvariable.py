@@ -512,17 +512,8 @@ you can find more information in the Mapping section of the documentation (https
         if self.children is not None:
             for child in self.children.values():
                 child.calculate_direct_bind()
-            if (
-                self.call_dimensionality is not None
-                and self.call_dimensionality == 0
-                and not getattr(self, "create_param_block", False)
-                and self.vector_type is not None
-                and all(child.direct_bind for child in self.children.values())
-            ):
-                self.direct_bind = True
-        else:
-            if self.python is not None and hasattr(self.python, "can_direct_bind"):
-                self.direct_bind = self.python.can_direct_bind(self)
+        if self.python is not None and hasattr(self.python, "can_direct_bind"):
+            self.direct_bind = self.python.can_direct_bind(self)
 
     def get_input_list(self, args: list["BoundVariable"]):
         """

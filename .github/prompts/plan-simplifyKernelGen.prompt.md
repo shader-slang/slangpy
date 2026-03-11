@@ -133,3 +133,33 @@ pre-commit run --all-files
 - Phase 2 targets both `entry_point` (CUDA) and `global_data` (Vulkan/D3D12) modes
 - Autograd (bwds mode) is included in simplification, but implemented after prim mode within each phase
 - WangHashArg explicitly excluded from direct binding (needs per-thread `thread_id` computation)
+
+---
+
+### Code Review Notes (PR #862)
+
+**Bugs / concerns found:**
+
+1. **Benchmark file changes are accidental** — `test_benchmark_autograd.py` has local tuning changes (ITERATIONS 10→100, WARMUPS 10→1000, RUN_SLANGTORCH_BENCHMARK False→True) that should be reverted before merge.
+
+2. **Composite `calculate_direct_bind` doesn't consult the marshall** — When `self.children is not None`, `calculate_direct_bind()` hard-codes eligibility criteria and never calls `self.python.can_direct_bind(self)`. This auto-opts-in composites if all children pass, preventing a marshall from rejecting. The `StructMarshall.can_direct_bind` children branch is dead code as a result. Either have composites delegate to the marshall, or remove the dead code from `StructMarshall.can_direct_bind`.
+
+3. **Composite direct-bind doesn't gate on read-only access** — `calculate_direct_bind`'s composite branch doesn't check `self.access[0] == AccessType.read`. A writable composite at dim-0 could be marked direct-bind, but no `__slangpy_store` is generated for the raw type alias. `ValueRefMarshall` correctly gates on read-only — composites should too.
+
+4. **Dead code in `ValueRefMarshall.create_calldata`/`read_calldata`** — `if binding.direct_bind` checks in writable code paths are unreachable since `can_direct_bind` rejects non-read access. Remove or assert.
+
+5. **C++ cache safety** — `NativeValueMarshall::ensure_cached` caches the `direct_bind` cursor path on first dispatch but has no assertion that subsequent calls use the same `direct_bind` value. Safe in current architecture (each call signature gets its own marshall), but fragile. Consider adding `SGL_ASSERT(m_cached.direct_bind == binding->direct_bind())` for debug builds.
+
+6. **`set_direct_bind` exposed as read-write nanobind property** — After first dispatch, mutating `direct_bind` invalidates the cached cursor offset silently. Consider making it read-only in the nanobind binding.
+
+**Missing test coverage (high priority):**
+
+| Test | Purpose |
+|------|---------|
+| Writable `ValueRef` `inout` param → `direct_bind=False` | Guards access-check logic in `ValueRefMarshall.can_direct_bind` |
+| `_result` auto-created binding → `direct_bind=False` flag | Binding-level assertion, not just codegen |
+| All-scalar struct → `direct_bind=True` binding flag | Struct direct-bind logic verified at binding level |
+| Struct with WangHashArg child → composite NOT direct-bind | Mixed non-eligible child in composite |
+| WangHashArg → `direct_bind=False` binding flag | Type without `can_direct_bind` override |
+| Functional GPU test: read-only `ValueRef` input | End-to-end direct-bind ValueRef pipeline |
+| Bwds mode binding flags on primal args | Verify access-tuple indexing in backwards mode |
