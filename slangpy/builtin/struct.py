@@ -84,30 +84,20 @@ class StructMarshall(ValueMarshall):
     # A struct type should get a dictionary, and just return that for raw dispatch
 
     def gen_trampoline_load(
-        self, cgb: "CodeGenBlock", binding: "BoundVariable", is_entry_point: bool
+        self, cgb: "CodeGenBlock", binding: "BoundVariable", data_name: str, value_name: str
     ) -> bool:
         if not binding.direct_bind:
             return False
-        data_name = (
-            f"_param_{binding.variable_name}"
-            if binding.create_param_block
-            else f"{'__calldata__' if is_entry_point else 'call_data'}.{binding.variable_name}"
-        )
-        cgb.append_statement(f"{binding.variable_name} = {data_name}")
+        cgb.append_statement(f"{value_name} = {data_name}")
         return True
 
     def gen_trampoline_store(
-        self, cgb: "CodeGenBlock", binding: "BoundVariable", is_entry_point: bool
+        self, cgb: "CodeGenBlock", binding: "BoundVariable", data_name: str, value_name: str
     ) -> bool:
         if not binding.direct_bind:
             return False
         if binding.access[0] in (AccessType.write, AccessType.readwrite):
-            data_name = (
-                f"_param_{binding.variable_name}"
-                if binding.create_param_block
-                else f"{'__calldata__' if is_entry_point else 'call_data'}.{binding.variable_name}"
-            )
-            cgb.append_statement(f"{data_name} = {binding.variable_name}")
+            cgb.append_statement(f"{data_name} = {value_name}")
         return True
 
     def create_dispatchdata(self, data: Any) -> Any:

@@ -520,21 +520,9 @@ you can find more information in the Mapping section of the documentation (https
                 and all(child.direct_bind for child in self.children.values())
             ):
                 self.direct_bind = True
-            else:
-                # Parent is not direct-bind — children must use wrapper types
-                # so the parent's generated __slangpy_load/store can call theirs.
-                for child in self.children.values():
-                    child._clear_direct_bind()
         else:
             if self.python is not None and hasattr(self.python, "can_direct_bind"):
                 self.direct_bind = self.python.can_direct_bind(self)
-
-    def _clear_direct_bind(self) -> None:
-        """Recursively clear direct_bind on this node and all descendants."""
-        self.direct_bind = False
-        if self.children is not None:
-            for child in self.children.values():
-                child._clear_direct_bind()
 
     def get_input_list(self, args: list["BoundVariable"]):
         """
@@ -626,6 +614,11 @@ you can find more information in the Mapping section of the documentation (https
                     )
                     cgb.begin_block()
                     for field, var in self.children.items():
+                        gen_load = getattr(var.python, "gen_trampoline_load", None)
+                        if gen_load is not None and gen_load(
+                            cgb, var, var.variable_name, f"value.{field}"
+                        ):
+                            continue
                         cgb.append_statement(
                             f"{var.variable_name}.__slangpy_load(context.map(_m_{var.variable_name}),value.{field})"
                         )

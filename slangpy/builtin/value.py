@@ -107,21 +107,17 @@ class ValueMarshall(NativeValueMarshall):
             cgb.type_alias(f"_t_{name}", f"NoneType")
 
     def gen_trampoline_load(
-        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str
     ) -> bool:
         if not binding.direct_bind:
             return False
         if binding.access[0] not in (AccessType.read, AccessType.readwrite):
             return False
-        if is_entry_point:
-            data_name = f"__calldata__.{binding.variable_name}"
-        else:
-            data_name = f"call_data.{binding.variable_name}"
-        cgb.append_statement(f"{binding.variable_name} = {data_name}")
+        cgb.append_statement(f"{value_name} = {data_name}")
         return True
 
     def gen_trampoline_store(
-        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str
     ) -> bool:
         if not binding.direct_bind:
             return False

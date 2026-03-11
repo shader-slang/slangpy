@@ -212,14 +212,14 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
         return spytc.gen_calldata(self, cgb, context, binding)
 
     def gen_trampoline_load(
-        self, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: BoundVariable, data_name: str, value_name: str
     ) -> bool:
-        return spytc.gen_trampoline_load(self, cgb, binding, is_entry_point)
+        return spytc.gen_trampoline_load(self, cgb, binding, data_name, value_name)
 
     def gen_trampoline_store(
-        self, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: BoundVariable, data_name: str, value_name: str
     ) -> bool:
-        return spytc.gen_trampoline_store(self, cgb, binding, is_entry_point)
+        return spytc.gen_trampoline_store(self, cgb, binding, data_name, value_name)
 
     def build_shader_object(self, context: BindContext, data: torch.Tensor) -> ShaderObject:
         """Build shader object for dispatch."""

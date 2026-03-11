@@ -174,33 +174,25 @@ class ValueRefMarshall(Marshall):
                 cgb.type_alias(f"_t_{name}", f"RWValueRef<{binding.vector_type.full_name}>")
 
     def gen_trampoline_load(
-        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str
     ) -> bool:
         if not binding.direct_bind:
             return False
         if binding.access[0] == AccessType.none:
             return False
-        if is_entry_point:
-            data_name = f"__calldata__.{binding.variable_name}"
-        else:
-            data_name = f"call_data.{binding.variable_name}"
         if binding.access[0] == AccessType.read:
-            cgb.append_statement(f"{binding.variable_name} = {data_name}")
+            cgb.append_statement(f"{value_name} = {data_name}")
         else:
-            cgb.append_statement(f"{binding.variable_name} = {data_name}[0]")
+            cgb.append_statement(f"{value_name} = {data_name}[0]")
         return True
 
     def gen_trampoline_store(
-        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str
     ) -> bool:
         if not binding.direct_bind:
             return False
         if binding.access[0] in (AccessType.write, AccessType.readwrite):
-            if is_entry_point:
-                data_name = f"__calldata__.{binding.variable_name}"
-            else:
-                data_name = f"call_data.{binding.variable_name}"
-            cgb.append_statement(f"{data_name}[0] = {binding.variable_name}")
+            cgb.append_statement(f"{data_name}[0] = {value_name}")
         return True
 
     # Call data just returns the primal

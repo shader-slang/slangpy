@@ -500,8 +500,8 @@ def test_gate_struct_mixed_fields_codegen(device_type: spy.DeviceType):
     """Struct with one tensor field and one scalar field.
 
     The struct is NOT direct-bind because child x is vectorized (dim-1).
-    Child y (scalar) has direct_bind cleared by _clear_direct_bind, so it
-    uses ValueType<float> wrapper — required for the parent's __slangpy_load.
+    Child y (scalar) keeps direct_bind=True — gen_call_data_code emits
+    direct assignment (value.y = y) instead of y.__slangpy_load(...).
     """
     device = helpers.get_device(device_type)
     src = """
@@ -517,8 +517,10 @@ void apply(S s, float scale) {}
     assert_contains(code, "__slangpy_load")
     assert_contains(code, "struct _t_s")
     assert_not_contains(code, "typealias _t_s = S;")
-    # Child y should use ValueType wrapper (cleared by _clear_direct_bind)
-    assert_contains(code, "ValueType<float>")
+    # Child y is direct-bind: raw type alias, direct assignment in __slangpy_load
+    assert_contains(code, "typealias _t_y = float;")
+    assert_contains(code, "value.y = y;")
+    assert_not_contains(code, "ValueType<float>")
     # Child x should use tensor type
     assert_contains(code, "Tensor<float, 1>")
     # Scalar arg 'scale' is independent — should still be direct-bind
@@ -542,9 +544,10 @@ void apply(S s, float scale) {}
     bindings = cd.debug_only_bindings
     s_binding = bindings.args[0]
     assert s_binding.direct_bind is False, "struct 's' should NOT be direct_bind"
-    # Both children should have direct_bind=False (cleared by _clear_direct_bind)
+    # Child x is a tensor (dim-1), not direct-bind
     assert s_binding.children["x"].direct_bind is False
-    assert s_binding.children["y"].direct_bind is False
+    # Child y is a scalar (dim-0), keeps its direct_bind status
+    assert s_binding.children["y"].direct_bind is True
     # 'scale' is independent scalar — should be direct_bind
     assert bindings.args[1].direct_bind is True
 
@@ -626,28 +629,20 @@ float tensor_read(Tensor<float,1> t) {
 
 
 # ===========================================================================
-# _clear_direct_bind necessity — demonstrates the compile error without it
+# Mixed direct-bind children in non-direct-bind struct — validates that
+# gen_call_data_code correctly uses direct assignment for direct-bind
+# children and __slangpy_load for non-direct-bind children.
 # ===========================================================================
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_clear_direct_bind_prevents_compile_error(device_type: spy.DeviceType):
-    """Demonstrate that _clear_direct_bind is necessary.
+def test_mixed_children_direct_bind_codegen(device_type: spy.DeviceType):
+    """Validate code gen for struct with mixed direct-bind / non-direct-bind children.
 
-    Without _clear_direct_bind, a scalar child inside a non-direct-bind struct
-    would keep direct_bind=True. This makes it emit a raw typealias (e.g.,
-    ``typealias _t_y = float;``) instead of ``ValueType<float>``. But the
-    parent struct's ``__slangpy_load`` calls ``y.__slangpy_load(...)`` — which
-    doesn't exist on raw ``float``. The result is a Slang compile error:
-
-    - ``undefined identifier '_m_y'`` (mapping constant skipped)
-    - ``'__slangpy_load' is not a member of 'float'``
-
-    This test monkey-patches _clear_direct_bind to a no-op and verifies the
-    compile error occurs, then checks normal behavior succeeds.
+    Scalar child y gets direct assignment (value.y = y) inside __slangpy_load.
+    Tensor child x goes through __slangpy_load with context mapping.
+    Both patterns coexist in the same generated struct.
     """
-    from slangpy.bindings.boundvariable import BoundVariable
-
     device = helpers.get_device(device_type)
     src = """
 struct S {
@@ -657,21 +652,16 @@ struct S {
 float weighted_sum(S s, float scale) { return (s.x + s.y) * scale; }
 """
     tensor_x = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
-
-    # With _clear_direct_bind disabled: compile should fail
-    original_clear = BoundVariable._clear_direct_bind
-    try:
-        BoundVariable._clear_direct_bind = lambda self: None  # type: ignore[assignment]
-        func_broken = helpers.create_function_from_module(device, "weighted_sum", src)
-        # with pytest.raises(ValueError, match="__slangpy_load"):
-        func_broken.debug_build_call_data({"_type": "S", "x": tensor_x, "y": 1.0}, 2.0)
-    finally:
-        BoundVariable._clear_direct_bind = original_clear  # type: ignore[assignment]
-
-    # With _clear_direct_bind intact: should succeed
-    func_ok = helpers.create_function_from_module(device, "weighted_sum", src)
-    cd = func_ok.debug_build_call_data({"_type": "S", "x": tensor_x, "y": 1.0}, 2.0)
-    assert cd.code is not None
+    code = generate_code(device, "weighted_sum", src, {"_type": "S", "x": tensor_x, "y": 1.0}, 2.0)
+    # Child y uses raw type and direct assignment
+    assert_contains(code, "typealias _t_y = float;")
+    assert_contains(code, "value.y = y;")
+    # No mapping constant for y (direct-bind skips it)
+    assert_not_contains(code, "_m_y")
+    # Child x uses tensor wrapper with __slangpy_load
+    assert_contains(code, "x.__slangpy_load(context.map(_m_x),value.x)")
+    # The struct itself is not direct-bind
+    assert_contains(code, "struct _t_s")
 
 
 if __name__ == "__main__":
