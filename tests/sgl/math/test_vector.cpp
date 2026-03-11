@@ -33,7 +33,7 @@ TEST_CASE("int_formatter")
     CHECK_EQ(fmt::format("{:08X}", test0), "{0000000C, 00000022}");
 }
 
-TEST_CASE("comparison")
+TEST_CASE("std::less")
 {
     std::vector<int2> vec{{-1, -1}, {-1, +1}, {+1, -1}, {+1, +1}, {-2, -2}, {-2, +2}, {+2, -2}, {+2, +2}};
 
@@ -46,6 +46,54 @@ TEST_CASE("comparison")
             CHECK(std::less<int2>{}(vec[i], vec[j]));
         }
     }
+}
+
+TEST_CASE("equality_comparison")
+{
+    CHECK(float3(1, 2, 3) == float3(1, 2, 3));
+    CHECK_FALSE(float3(1, 2, 3) == float3(1, 2, 4));
+    CHECK_FALSE(float3(1, 2, 3) != float3(1, 2, 3));
+    CHECK(float3(1, 2, 3) != float3(1, 3, 3));
+}
+
+TEST_CASE("lexicographic_comparison")
+{
+    CHECK(float3(1, 2, 3) < float3(1, 2, 4));
+    CHECK(float3(1, 2, 3) < float3(2, 0, 0));
+    CHECK_FALSE(float3(1, 2, 3) < float3(1, 2, 3));
+    CHECK_FALSE(float3(2, 0, 0) < float3(1, 9, 9));
+
+    CHECK(float3(1, 2, 4) > float3(1, 2, 3));
+    CHECK_FALSE(float3(1, 2, 3) > float3(1, 2, 3));
+
+    CHECK(float3(1, 2, 3) <= float3(1, 2, 3));
+    CHECK(float3(1, 2, 3) <= float3(1, 2, 4));
+    CHECK_FALSE(float3(1, 2, 4) <= float3(1, 2, 3));
+
+    CHECK(float3(1, 2, 3) >= float3(1, 2, 3));
+    CHECK(float3(1, 2, 4) >= float3(1, 2, 3));
+    CHECK_FALSE(float3(1, 2, 3) >= float3(1, 2, 4));
+}
+
+TEST_CASE("component_wise_comparisons")
+{
+    using namespace math;
+
+    CHECK(equal(float3(1, 2, 3), float3(1, 3, 3)) == bool3(true, false, true));
+    CHECK(not_equal(float3(1, 2, 3), float3(1, 3, 3)) == bool3(false, true, false));
+
+    CHECK(less_than(float3(1, 2, 3), float3(2, 2, 2)) == bool3(true, false, false));
+    CHECK(greater_than(float3(1, 2, 3), float3(2, 2, 2)) == bool3(false, false, true));
+    CHECK(less_equal(float3(1, 2, 3), float3(2, 2, 2)) == bool3(true, true, false));
+    CHECK(greater_equal(float3(1, 2, 3), float3(2, 2, 2)) == bool3(false, true, true));
+
+    // vector-scalar overloads
+    CHECK(equal(float3(1, 2, 3), 2.f) == bool3(false, true, false));
+    CHECK(less_than(float3(1, 2, 3), 2.f) == bool3(true, false, false));
+
+    // scalar-vector overloads
+    CHECK(equal(2.f, float3(1, 2, 3)) == bool3(false, true, false));
+    CHECK(greater_than(2.f, float3(1, 2, 3)) == bool3(true, false, false));
 }
 
 TEST_SUITE_END();

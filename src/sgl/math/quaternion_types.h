@@ -72,6 +72,20 @@ struct quat {
     const value_type& operator[](size_t i) const { return (&x)[i]; }
 };
 
+/// Equality operator.
+template<typename T>
+[[nodiscard]] constexpr bool operator==(const quat<T>& lhs, const quat<T>& rhs)
+{
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
+}
+
+/// Inequality operator.
+template<typename T>
+[[nodiscard]] constexpr bool operator!=(const quat<T>& lhs, const quat<T>& rhs)
+{
+    return !(lhs == rhs);
+}
+
 using quatf = quat<float>;
 
 } // namespace sgl::math

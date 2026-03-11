@@ -453,7 +453,7 @@ template<integral T, int N>
 
 // clang-format off
 /* <<<PYMACRO
-def print_binary_operator(op, concept):
+def print_logic_operator(op, concept):
     print(f"""/// Binary {op} operator
 template<{concept} T, int N>
 [[nodiscard]] constexpr auto operator{op}(const vector<T, N>& lhs, const vector<T, N>& rhs)
@@ -483,14 +483,8 @@ template<{concept} T, int N>
 }}
 """)
 
-print_binary_operator("||", "boolean")
-print_binary_operator("&&", "boolean")
-print_binary_operator("==", "typename")
-print_binary_operator("!=", "typename")
-print_binary_operator("<", "arithmetic")
-print_binary_operator(">", "arithmetic")
-print_binary_operator("<=", "arithmetic")
-print_binary_operator(">=", "arithmetic")
+print_logic_operator("||", "boolean")
+print_logic_operator("&&", "boolean")
 >>> */
 /// Binary || operator
 template<boolean T, int N>
@@ -548,9 +542,55 @@ template<boolean T, int N>
     return vector<T, N>(lhs) && rhs;
 }
 
-/// Binary == operator
+/* <<<PYMACROEND>>> */
+// clang-format on
+
+// ----------------------------------------------------------------------------
+// Component-wise comparison
+// ----------------------------------------------------------------------------
+
+// clang-format off
+/* <<<PYMACRO
+def print_componentwise_cmp(name, op, concept):
+    print(f"""/// Component-wise {name}.
+template<{concept} T, int N>
+[[nodiscard]] constexpr auto {name}(const vector<T, N>& lhs, const vector<T, N>& rhs)
+{{
+    if constexpr (N == 1)
+        return bool1{{lhs.x {op} rhs.x}};
+    else if constexpr (N == 2)
+        return bool2{{lhs.x {op} rhs.x, lhs.y {op} rhs.y}};
+    else if constexpr (N == 3)
+        return bool3{{lhs.x {op} rhs.x, lhs.y {op} rhs.y, lhs.z {op} rhs.z}};
+    else if constexpr (N == 4)
+        return bool4{{lhs.x {op} rhs.x, lhs.y {op} rhs.y, lhs.z {op} rhs.z, lhs.w {op} rhs.w}};
+}}
+
+/// Component-wise {name} (vector-scalar).
+template<{concept} T, int N>
+[[nodiscard]] constexpr auto {name}(const vector<T, N>& lhs, T rhs)
+{{
+    return {name}(lhs, vector<T, N>(rhs));
+}}
+
+/// Component-wise {name} (scalar-vector).
+template<{concept} T, int N>
+[[nodiscard]] constexpr auto {name}(T lhs, const vector<T, N>& rhs)
+{{
+    return {name}(vector<T, N>(lhs), rhs);
+}}
+""")
+
+print_componentwise_cmp("equal", "==", "typename")
+print_componentwise_cmp("not_equal", "!=", "typename")
+print_componentwise_cmp("less_than", "<", "arithmetic")
+print_componentwise_cmp("greater_than", ">", "arithmetic")
+print_componentwise_cmp("less_equal", "<=", "arithmetic")
+print_componentwise_cmp("greater_equal", ">=", "arithmetic")
+>>> */
+/// Component-wise equal.
 template<typename T, int N>
-[[nodiscard]] constexpr auto operator==(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto equal(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x == rhs.x};
@@ -562,23 +602,23 @@ template<typename T, int N>
         return bool4{lhs.x == rhs.x, lhs.y == rhs.y, lhs.z == rhs.z, lhs.w == rhs.w};
 }
 
-/// Binary == operator
+/// Component-wise equal (vector-scalar).
 template<typename T, int N>
-[[nodiscard]] constexpr auto operator==(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto equal(const vector<T, N>& lhs, T rhs)
 {
-    return lhs == vector<T, N>(rhs);
+    return equal(lhs, vector<T, N>(rhs));
 }
 
-/// Binary == operator
+/// Component-wise equal (scalar-vector).
 template<typename T, int N>
-[[nodiscard]] constexpr auto operator==(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto equal(T lhs, const vector<T, N>& rhs)
 {
-    return vector<T, N>(lhs) == rhs;
+    return equal(vector<T, N>(lhs), rhs);
 }
 
-/// Binary != operator
+/// Component-wise not_equal.
 template<typename T, int N>
-[[nodiscard]] constexpr auto operator!=(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto not_equal(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x != rhs.x};
@@ -590,23 +630,23 @@ template<typename T, int N>
         return bool4{lhs.x != rhs.x, lhs.y != rhs.y, lhs.z != rhs.z, lhs.w != rhs.w};
 }
 
-/// Binary != operator
+/// Component-wise not_equal (vector-scalar).
 template<typename T, int N>
-[[nodiscard]] constexpr auto operator!=(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto not_equal(const vector<T, N>& lhs, T rhs)
 {
-    return lhs != vector<T, N>(rhs);
+    return not_equal(lhs, vector<T, N>(rhs));
 }
 
-/// Binary != operator
+/// Component-wise not_equal (scalar-vector).
 template<typename T, int N>
-[[nodiscard]] constexpr auto operator!=(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto not_equal(T lhs, const vector<T, N>& rhs)
 {
-    return vector<T, N>(lhs) != rhs;
+    return not_equal(vector<T, N>(lhs), rhs);
 }
 
-/// Binary < operator
+/// Component-wise less_than.
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator<(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto less_than(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x < rhs.x};
@@ -618,23 +658,23 @@ template<arithmetic T, int N>
         return bool4{lhs.x < rhs.x, lhs.y < rhs.y, lhs.z < rhs.z, lhs.w < rhs.w};
 }
 
-/// Binary < operator
+/// Component-wise less_than (vector-scalar).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator<(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto less_than(const vector<T, N>& lhs, T rhs)
 {
-    return lhs < vector<T, N>(rhs);
+    return less_than(lhs, vector<T, N>(rhs));
 }
 
-/// Binary < operator
+/// Component-wise less_than (scalar-vector).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator<(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto less_than(T lhs, const vector<T, N>& rhs)
 {
-    return vector<T, N>(lhs) < rhs;
+    return less_than(vector<T, N>(lhs), rhs);
 }
 
-/// Binary > operator
+/// Component-wise greater_than.
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator>(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto greater_than(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x > rhs.x};
@@ -646,23 +686,23 @@ template<arithmetic T, int N>
         return bool4{lhs.x > rhs.x, lhs.y > rhs.y, lhs.z > rhs.z, lhs.w > rhs.w};
 }
 
-/// Binary > operator
+/// Component-wise greater_than (vector-scalar).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator>(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto greater_than(const vector<T, N>& lhs, T rhs)
 {
-    return lhs > vector<T, N>(rhs);
+    return greater_than(lhs, vector<T, N>(rhs));
 }
 
-/// Binary > operator
+/// Component-wise greater_than (scalar-vector).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator>(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto greater_than(T lhs, const vector<T, N>& rhs)
 {
-    return vector<T, N>(lhs) > rhs;
+    return greater_than(vector<T, N>(lhs), rhs);
 }
 
-/// Binary <= operator
+/// Component-wise less_equal.
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator<=(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto less_equal(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x <= rhs.x};
@@ -674,23 +714,23 @@ template<arithmetic T, int N>
         return bool4{lhs.x <= rhs.x, lhs.y <= rhs.y, lhs.z <= rhs.z, lhs.w <= rhs.w};
 }
 
-/// Binary <= operator
+/// Component-wise less_equal (vector-scalar).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator<=(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto less_equal(const vector<T, N>& lhs, T rhs)
 {
-    return lhs <= vector<T, N>(rhs);
+    return less_equal(lhs, vector<T, N>(rhs));
 }
 
-/// Binary <= operator
+/// Component-wise less_equal (scalar-vector).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator<=(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto less_equal(T lhs, const vector<T, N>& rhs)
 {
-    return vector<T, N>(lhs) <= rhs;
+    return less_equal(vector<T, N>(lhs), rhs);
 }
 
-/// Binary >= operator
+/// Component-wise greater_equal.
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator>=(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto greater_equal(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x >= rhs.x};
@@ -702,18 +742,18 @@ template<arithmetic T, int N>
         return bool4{lhs.x >= rhs.x, lhs.y >= rhs.y, lhs.z >= rhs.z, lhs.w >= rhs.w};
 }
 
-/// Binary >= operator
+/// Component-wise greater_equal (vector-scalar).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator>=(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto greater_equal(const vector<T, N>& lhs, T rhs)
 {
-    return lhs >= vector<T, N>(rhs);
+    return greater_equal(lhs, vector<T, N>(rhs));
 }
 
-/// Binary >= operator
+/// Component-wise greater_equal (scalar-vector).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto operator>=(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto greater_equal(T lhs, const vector<T, N>& rhs)
 {
-    return vector<T, N>(lhs) >= rhs;
+    return greater_equal(vector<T, N>(lhs), rhs);
 }
 
 /* <<<PYMACROEND>>> */
@@ -1761,39 +1801,6 @@ template<typename T, int N>
 }
 
 } // namespace sgl::math
-
-// Specialize std::less to allow using vectors as key in std::map for example.
-template<typename T, int N>
-struct std::less<::sgl::math::vector<T, N>> {
-    constexpr bool operator()(const ::sgl::math::vector<T, N>& lhs, const ::sgl::math::vector<T, N>& rhs) const
-    {
-        for (int i = 0; i < N; ++i)
-            if (lhs[i] != rhs[i])
-                return lhs[i] < rhs[i];
-        return false;
-    }
-};
-
-template<typename T, int N>
-struct std::equal_to<::sgl::math::vector<T, N>> {
-    constexpr bool operator()(const ::sgl::math::vector<T, N>& lhs, const ::sgl::math::vector<T, N>& rhs) const
-    {
-        for (int i = 0; i < N; ++i)
-            if (lhs[i] != rhs[i])
-                return false;
-        return true;
-    }
-};
-template<typename T, int N>
-struct std::not_equal_to<::sgl::math::vector<T, N>> {
-    constexpr bool operator()(const ::sgl::math::vector<T, N>& lhs, const ::sgl::math::vector<T, N>& rhs) const
-    {
-        for (int i = 0; i < N; ++i)
-            if (lhs[i] == rhs[i])
-                return false;
-        return true;
-    }
-};
 
 template<typename T, int N>
 struct std::hash<::sgl::math::vector<T, N>> {

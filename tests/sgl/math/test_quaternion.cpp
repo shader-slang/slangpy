@@ -17,13 +17,13 @@ bool almost_equal(T a, T b, T epsilon = T(1e-5))
 template<typename T, int N>
 bool almost_equal(math::vector<T, N> a, math::vector<T, N> b, T epsilon = T(1e-5))
 {
-    return all(abs(a - b) < math::vector<T, N>(epsilon));
+    return all(less_than(abs(a - b), epsilon));
 }
 
 template<typename T>
 bool almost_equal(math::quat<T> a, math::quat<T> b, T epsilon = T(1e-5))
 {
-    return all(math::vector<T, 4>(b.x - a.x, b.y - a.y, b.z - a.z, b.w - a.w) < math::vector<T, 4>(epsilon));
+    return almost_equal(math::vector<T, 4>(a.x, a.y, a.z, a.w), math::vector<T, 4>(b.x, b.y, b.z, b.w), epsilon);
 }
 
 template<typename T>
@@ -37,10 +37,6 @@ bool almost_equal_orientation(math::quat<T> a, math::quat<T> b, T epsilon = T(1e
 #define CHECK_ALMOST_EQ(a, b) CHECK_MESSAGE(almost_equal(a, b), fmt::format("{} != {}", a, b))
 #define CHECK_ALMOST_EQ_EPS(a, b, eps) CHECK_MESSAGE(almost_equal(a, b, eps), fmt::format("{} != {}", a, b))
 #define CHECK_ALMOST_EQ_ORIENTATION(a, b) CHECK_MESSAGE(almost_equal_orientation(a, b), fmt::format("{} != {}", a, b))
-
-#define CHECK_EQ_VECTOR(a, b) CHECK_MESSAGE(all(a == b), fmt::format("{} != {}", a, b))
-#define CHECK_EQ_QUAT(a, b) CHECK_MESSAGE(all(a == b), fmt::format("{} != {}", a, b))
-
 
 TEST_CASE("constructors")
 {
@@ -98,14 +94,14 @@ TEST_CASE("operators")
     {
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2 = +q1;
-        CHECK_EQ_QUAT(q2, quatf(1.f, 2.f, 3.f, 4.f));
+        CHECK(q2 == quatf(1.f, 2.f, 3.f, 4.f));
     }
 
     // Unary - operator
     {
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2 = -q1;
-        CHECK_EQ_QUAT(q2, quatf(-1.f, -2.f, -3.f, -4.f));
+        CHECK(q2 == quatf(-1.f, -2.f, -3.f, -4.f));
     }
 
     // Binary + operator
@@ -113,11 +109,11 @@ TEST_CASE("operators")
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2(2.f, 3.f, 4.f, 5.f);
         quatf q3 = q1 + q2;
-        CHECK_EQ_QUAT(q3, quatf(3.f, 5.f, 7.f, 9.f));
+        CHECK(q3 == quatf(3.f, 5.f, 7.f, 9.f));
         quatf q4 = q1 + 2.f;
-        CHECK_EQ_QUAT(q4, quatf(3.f, 4.f, 5.f, 6.f));
+        CHECK(q4 == quatf(3.f, 4.f, 5.f, 6.f));
         quatf q5 = 2.f + q1;
-        CHECK_EQ_QUAT(q5, quatf(3.f, 4.f, 5.f, 6.f));
+        CHECK(q5 == quatf(3.f, 4.f, 5.f, 6.f));
     }
 
     // Binary - operator
@@ -125,45 +121,56 @@ TEST_CASE("operators")
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2(2.f, 3.f, 4.f, 5.f);
         quatf q3 = q1 - q2;
-        CHECK_EQ_QUAT(q3, quatf(-1.f, -1.f, -1.f, -1.f));
+        CHECK(q3 == quatf(-1.f, -1.f, -1.f, -1.f));
         quatf q4 = q1 - 2.f;
-        CHECK_EQ_QUAT(q4, quatf(-1.f, 0.f, 1.f, 2.f));
+        CHECK(q4 == quatf(-1.f, 0.f, 1.f, 2.f));
         quatf q5 = 2.f - q1;
-        CHECK_EQ_QUAT(q5, quatf(1.f, 0.f, -1.f, -2.f));
+        CHECK(q5 == quatf(1.f, 0.f, -1.f, -2.f));
     }
 
     // Binary * operator
     {
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2 = q1 * 2.f;
-        CHECK_EQ_QUAT(q2, quatf(2.f, 4.f, 6.f, 8.f));
+        CHECK(q2 == quatf(2.f, 4.f, 6.f, 8.f));
         quatf q3 = 3.f * q1;
-        CHECK_EQ_QUAT(q3, quatf(3.f, 6.f, 9.f, 12.f));
+        CHECK(q3 == quatf(3.f, 6.f, 9.f, 12.f));
     }
 
     // Binary / operator
     {
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2 = q1 / 2.f;
-        CHECK_EQ_QUAT(q2, quatf(0.5f, 1.f, 1.5f, 2.f));
+        CHECK(q2 == quatf(0.5f, 1.f, 1.5f, 2.f));
     }
 
     // Binary == operator
     {
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2(1.f, 2.f, 3.f, 4.f);
-        CHECK_EQ_VECTOR((q1 == q2), bool4(true, true, true, true));
+        CHECK(q1 == q2);
         quatf q3(1.f, 2.f, 3.f, 5.f);
-        CHECK_EQ_VECTOR((q1 == q3), bool4(true, true, true, false));
+        CHECK_FALSE(q1 == q3);
     }
 
     // Binary != operator
     {
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2(1.f, 2.f, 3.f, 4.f);
-        CHECK_EQ_VECTOR((q1 != q2), bool4(false, false, false, false));
+        CHECK_FALSE(q1 != q2);
         quatf q3(1.f, 2.f, 3.f, 5.f);
-        CHECK_EQ_VECTOR((q1 != q3), bool4(false, false, false, true));
+        CHECK(q1 != q3);
+    }
+
+    // Component-wise equal / not_equal
+    {
+        quatf q1(1.f, 2.f, 3.f, 4.f);
+        quatf q2(1.f, 2.f, 3.f, 4.f);
+        CHECK(equal(q1, q2) == bool4(true, true, true, true));
+        quatf q3(1.f, 2.f, 3.f, 5.f);
+        CHECK(equal(q1, q3) == bool4(true, true, true, false));
+        CHECK(not_equal(q1, q2) == bool4(false, false, false, false));
+        CHECK(not_equal(q1, q3) == bool4(false, false, false, true));
     }
 }
 
@@ -174,7 +181,7 @@ TEST_CASE("multiply")
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2(2.f, 3.f, 4.f, 5.f);
         quatf q3 = mul(q1, q2);
-        CHECK_EQ_QUAT(q3, quatf(12.f, 24.f, 30.f, 0.f));
+        CHECK(q3 == quatf(12.f, 24.f, 30.f, 0.f));
     }
 
     // Quaternion / vector multiplication
@@ -182,7 +189,7 @@ TEST_CASE("multiply")
         quatf q1(2.f, 3.f, 4.f, 5.f);
         float3 v1(2.f, 3.f, 4.f);
         float3 v2 = mul(q1, v1);
-        CHECK_EQ_VECTOR(v2, float3(2.f, 3.f, 4.f));
+        CHECK(v2 == float3(2.f, 3.f, 4.f));
     }
 }
 
@@ -191,23 +198,23 @@ TEST_CASE("float_checks")
     // isfinite
     {
         quatf q1(0.f, 0.f, 0.f, 0.f);
-        CHECK_EQ_VECTOR(isfinite(q1), bool4(true, true, true, true));
+        CHECK(isfinite(q1) == bool4(true, true, true, true));
         quatf q2(std::numeric_limits<float>::infinity(), 0.f, 0.f, std::numeric_limits<float>::infinity());
-        CHECK_EQ_VECTOR(isfinite(q2), bool4(false, true, true, false));
+        CHECK(isfinite(q2) == bool4(false, true, true, false));
     }
     // isinf
     {
         quatf q1(0.f, 0.f, 0.f, 0.f);
-        CHECK_EQ_VECTOR(isinf(q1), bool4(false, false, false, false));
+        CHECK(isinf(q1) == bool4(false, false, false, false));
         quatf q2(std::numeric_limits<float>::infinity(), 0.f, 0.f, std::numeric_limits<float>::infinity());
-        CHECK_EQ_VECTOR(isinf(q2), bool4(true, false, false, true));
+        CHECK(isinf(q2) == bool4(true, false, false, true));
     }
     // isnan
     {
         quatf q1(0.f, 0.f, 0.f, 0.f);
-        CHECK_EQ_VECTOR(isnan(q1), bool4(false, false, false, false));
+        CHECK(isnan(q1) == bool4(false, false, false, false));
         quatf q2(std::numeric_limits<float>::quiet_NaN(), 0.f, 0.f, std::numeric_limits<float>::quiet_NaN());
-        CHECK_EQ_VECTOR(isnan(q2), bool4(true, false, false, true));
+        CHECK(isnan(q2) == bool4(true, false, false, true));
     }
 }
 
@@ -226,7 +233,7 @@ TEST_CASE("functions")
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2(2.f, 3.f, 4.f, 5.f);
         quatf q3 = cross(q1, q2);
-        CHECK_EQ_QUAT(q3, quatf(12.f, 24.f, 30.f, 0.f));
+        CHECK(q3 == quatf(12.f, 24.f, 30.f, 0.f));
     }
 
     // length
@@ -240,21 +247,21 @@ TEST_CASE("functions")
     {
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2 = normalize(q1);
-        CHECK_EQ_QUAT(q2, q1 * (1.f / sqrtf(30.f)));
+        CHECK(q2 == q1 * (1.f / sqrtf(30.f)));
     }
 
     // conjugate
     {
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2 = conjugate(q1);
-        CHECK_EQ_QUAT(q2, quatf(-1.f, -2.f, -3.f, 4.f));
+        CHECK(q2 == quatf(-1.f, -2.f, -3.f, 4.f));
     }
 
     // inverse
     {
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2 = inverse(q1);
-        CHECK_EQ_QUAT(q2, quatf(-1.f / 30.f, -2.f / 30.f, -3.f / 30.f, 4.f / 30.f));
+        CHECK(q2 == quatf(-1.f / 30.f, -2.f / 30.f, -3.f / 30.f, 4.f / 30.f));
     }
 
     // lerp
@@ -262,7 +269,7 @@ TEST_CASE("functions")
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2(2.f, 3.f, 4.f, 5.f);
         quatf q3 = lerp(q1, q2, 0.5f);
-        CHECK_EQ_QUAT(q3, quatf(1.5f, 2.5f, 3.5f, 4.5f));
+        CHECK(q3 == quatf(1.5f, 2.5f, 3.5f, 4.5f));
     }
 }
 

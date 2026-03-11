@@ -80,6 +80,9 @@ void bind_quaternion_type(nb::module_& m, const char* name)
 
     // Operators
 
+    quat.def(nb::self == nb::self);
+    quat.def(nb::self != nb::self);
+
     quat.def(+nb::self);
     quat.def(-nb::self);
 
@@ -96,10 +99,29 @@ void bind_quaternion_type(nb::module_& m, const char* name)
 
     quat.def(nb::self / value_type());
 
-    quat.def(nb::self == nb::self);
-    quat.def(nb::self != nb::self);
+    // Intrinsics
 
-    // Multiplication
+#define WRAP_INTRINSIC_X(name)                                                                                         \
+    [](const T& x)                                                                                                     \
+    {                                                                                                                  \
+        return name(x);                                                                                                \
+    },                                                                                                                 \
+        "x"_a
+#define WRAP_INTRINSIC_XY(name)                                                                                        \
+    [](const T& x, const T& y)                                                                                         \
+    {                                                                                                                  \
+        return name(x, y);                                                                                             \
+    },                                                                                                                 \
+        "x"_a, "y"_a
+#define WRAP_INTRINSIC_XYS(name)                                                                                       \
+    [](const T& x, const T& y, value_type s)                                                                           \
+    {                                                                                                                  \
+        return name(x, y, s);                                                                                          \
+    },                                                                                                                 \
+        "x"_a, "y"_a, "s"_a
+
+    m.def("equal", WRAP_INTRINSIC_XY(equal));
+    m.def("not_equal", WRAP_INTRINSIC_XY(not_equal));
 
     m.def(
         "mul",
@@ -129,27 +151,6 @@ void bind_quaternion_type(nb::module_& m, const char* name)
         "q"_a,
         "v"_a
     );
-
-    // Intrinsics
-
-#define WRAP_INTRINSIC_X(name)                                                                                         \
-    [](const T& x)                                                                                                     \
-    {                                                                                                                  \
-        return name(x);                                                                                                \
-    },                                                                                                                 \
-        "x"_a
-#define WRAP_INTRINSIC_XY(name)                                                                                        \
-    [](const T& x, const T& y)                                                                                         \
-    {                                                                                                                  \
-        return name(x, y);                                                                                             \
-    },                                                                                                                 \
-        "x"_a, "y"_a
-#define WRAP_INTRINSIC_XYS(name)                                                                                       \
-    [](const T& x, const T& y, value_type s)                                                                           \
-    {                                                                                                                  \
-        return name(x, y, s);                                                                                          \
-    },                                                                                                                 \
-        "x"_a, "y"_a, "s"_a
 
     m.def("isfinite", WRAP_INTRINSIC_X(isfinite));
     m.def("isinf", WRAP_INTRINSIC_X(isinf));

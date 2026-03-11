@@ -119,6 +119,13 @@ void bind_vector_type(nb::module_& m, const char* name)
 
     // Operators
 
+    vec.def(nb::self == nb::self);
+    vec.def(nb::self != nb::self);
+    vec.def(nb::self < nb::self);
+    vec.def(nb::self > nb::self);
+    vec.def(nb::self <= nb::self);
+    vec.def(nb::self >= nb::self);
+
     if constexpr (arithmetic<value_type> && !boolean<value_type>) {
         vec.def(+nb::self);
         vec.def(-nb::self);
@@ -196,48 +203,6 @@ void bind_vector_type(nb::module_& m, const char* name)
         vec.def(nb::self ^= value_type());
     }
 
-    if constexpr (boolean<value_type>) {
-        // vec.def(nb::self || nb::self);
-        // vec.def(nb::self || value_type());
-        // vec.def(value_type() || nb::self);
-        // vec.def(nb::self && nb::self);
-        // vec.def(nb::self && value_type());
-        // vec.def(value_type() && nb::self);
-
-        // The vector comparisons operators use component-wise comparisons.
-        // In order to compare lists of vectors in Python, we need to
-        // implement the `bool` operator, which returns `True` if all
-        // components are `True`.
-        vec.def(
-            "__bool__",
-            [](const T& self)
-            {
-                return all(self);
-            }
-        );
-    }
-
-    vec.def(nb::self == nb::self);
-    vec.def(nb::self == value_type());
-    vec.def(value_type() == nb::self);
-    vec.def(nb::self != nb::self);
-    vec.def(nb::self != value_type());
-    vec.def(value_type() != nb::self);
-
-    if constexpr (arithmetic<value_type> && !boolean<value_type>) {
-        vec.def(nb::self < nb::self);
-        vec.def(nb::self < value_type());
-        vec.def(value_type() < nb::self);
-        vec.def(nb::self > nb::self);
-        vec.def(nb::self > value_type());
-        vec.def(value_type() > nb::self);
-        vec.def(nb::self <= nb::self);
-        vec.def(nb::self <= value_type());
-        vec.def(value_type() <= nb::self);
-        vec.def(nb::self >= nb::self);
-        vec.def(nb::self >= value_type());
-        vec.def(value_type() >= nb::self);
-    }
 
     // Intrinsics
 
@@ -282,6 +247,18 @@ void bind_vector_type(nb::module_& m, const char* name)
             "true_value"_a,
             "false_value"_a
         );
+
+        // Component-wise comparisons
+
+        m.def("equal", WRAP_INTRINSIC_XY(equal));
+        m.def("not_equal", WRAP_INTRINSIC_XY(not_equal));
+
+        if constexpr (arithmetic<value_type>) {
+            m.def("less_than", WRAP_INTRINSIC_XY(less_than));
+            m.def("greater_than", WRAP_INTRINSIC_XY(greater_than));
+            m.def("less_equal", WRAP_INTRINSIC_XY(less_equal));
+            m.def("greater_equal", WRAP_INTRINSIC_XY(greater_equal));
+        }
 
         // Basic functions
 
