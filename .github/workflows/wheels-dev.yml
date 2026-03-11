@@ -1,8 +1,6 @@
 name: wheels-dev
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 env:
@@ -12,7 +10,7 @@ env:
   CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_34
   CIBW_TEST_COMMAND: "python -c \"import slangpy\""
   CIBW_BEFORE_ALL_LINUX: yum install -y zip wayland-devel libxkbcommon-devel libXcursor-devel libXi-devel libXinerama-devel libXrandr-devel ninja-build perl-IPC-Cmd kernel-headers perl-FindBin perl-Time-Piece perl-lib clang
-  CIBW_ENVIRONMENT: BUILD_RELEASE_WHEEL=1 SLANGPY_DEV_SUFFIX=$SLANGPY_DEV_SUFFIX
+  CIBW_ENVIRONMENT: "BUILD_RELEASE_WHEEL=1"
   MACOSX_DEPLOYMENT_TARGET: 14.0
   BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
   P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
@@ -24,6 +22,8 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     timeout-minutes: 120
     strategy:
+      fail-fast: false
+      # max-parallel: unlimited — GitHub will queue jobs based on runner availability
       matrix:
         os: [windows, linux, macos]
         platform: [x86_64, aarch64]
@@ -33,28 +33,60 @@ jobs:
           - { os: macos, platform: x86_64 }
         include:
           - { os: windows, runs-on: [windows-latest] }
-          - { os: linux, runs-on: [ubuntu-latest] }
+          - { os: linux, platform: x86_64, runs-on: [ubuntu-latest] }
+          - { os: linux, platform: aarch64, runs-on: [ubuntu-24.04-arm] }
           - { os: macos, runs-on: [macos-latest] }
 
     steps:
-      - name: Set up QEMU
-        if: matrix.os == 'linux' && matrix.platform == 'aarch64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
       - uses: actions/checkout@v4
         with:
           submodules: recursive
           lfs: true
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Compute dev version suffix
+      - name: Cache cibuildwheel virtualenv
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/cibuildwheel
+            ~/Library/Caches/cibuildwheel
+            ~\AppData\Local\pypa\cibuildwheel\Cache
+          key: cibuildwheel-virtualenv-20.31.2
+
+      - name: Pre-download virtualenv.pyz
         shell: bash
-        run: echo "SLANGPY_DEV_SUFFIX=dev0+g${GITHUB_SHA::7}" >> $GITHUB_ENV
+        run: |
+          mkdir -p ~/.cache/cibuildwheel ~/Library/Caches/cibuildwheel
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            mkdir -p "$HOME/AppData/Local/pypa/cibuildwheel/Cache"
+            CACHE_DIR="$HOME/AppData/Local/pypa/cibuildwheel/Cache"
+          elif [ "${{ matrix.os }}" = "macos" ]; then
+            CACHE_DIR="$HOME/Library/Caches/cibuildwheel"
+          else
+            CACHE_DIR="$HOME/.cache/cibuildwheel"
+          fi
+          VENV_FILE="$CACHE_DIR/virtualenv-20.31.2.pyz"
+          if [ ! -f "$VENV_FILE" ]; then
+            echo "Downloading virtualenv.pyz to $VENV_FILE"
+            curl -L --retry 5 --retry-delay 2 -o "$VENV_FILE" "https://github.com/pypa/get-virtualenv/blob/20.31.2/public/virtualenv.pyz?raw=true"
+          else
+            echo "virtualenv.pyz already cached at $VENV_FILE"
+          fi
+
+      - name: Compute dev version
+        shell: bash
+        run: |
+          MAJOR=$(grep '#define SGL_VERSION_MAJOR' src/sgl/sgl.h | awk '{print $3}')
+          MINOR=$(grep '#define SGL_VERSION_MINOR' src/sgl/sgl.h | awk '{print $3}')
+          NEXT_MINOR=$((MINOR + 1))
+          # Count commits since last version change in sgl.h (resets on version bump)
+          LAST_VER_COMMIT=$(git log -1 --format=%H -- src/sgl/sgl.h)
+          DEV_N=$(git rev-list --count ${LAST_VER_COMMIT}..HEAD)
+          echo "SLANGPY_VERSION_OVERRIDE=${MAJOR}.${NEXT_MINOR}.0.dev${DEV_N}" >> $GITHUB_ENV
 
       - name: Set CIBW_ARCHS
         shell: bash
@@ -78,6 +110,7 @@ jobs:
       - name: Build wheels
         env:
           CIBW_BUILD: ${{ matrix.python }}-*
+          CIBW_ENVIRONMENT: "BUILD_RELEASE_WHEEL=1 SLANGPY_VERSION_OVERRIDE=${{ env.SLANGPY_VERSION_OVERRIDE }}"
         run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels artifact
@@ -86,28 +119,30 @@ jobs:
           name: wheels-dev-${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.python }}
           path: ./wheelhouse/*.whl
 
-  slangpy_torch:
+  slangpy_torch_sdist:
     name: Build slangpy-torch sdist
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
           lfs: true
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install build tools
-        run: python -m pip install build twine
+        run: python -m pip install build
 
       - name: Patch dev version
         shell: bash
         run: |
-          SHA7=$(echo $GITHUB_SHA | cut -c1-7)
-          sed -i "s/^version = .*/version = \"0.7.0.dev0+g${SHA7}\"/" src/slangpy_torch/pyproject.toml
+          BASE_VER=$(grep '^version = ' src/slangpy_torch/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          LAST_VER_COMMIT=$(git log -1 --format=%H -- src/sgl/sgl.h)
+          DEV_N=$(git rev-list --count ${LAST_VER_COMMIT}..HEAD)
+          sed -i "s/^version = .*/version = \"${BASE_VER}.dev${DEV_N}\"/" src/slangpy_torch/pyproject.toml
 
       - name: Build sdist
         working-directory: src/slangpy_torch
@@ -119,10 +154,141 @@ jobs:
           name: slangpy-torch-sdist
           path: src/slangpy_torch/dist/*.tar.gz
 
+  slangpy_torch_wheels_linux:
+    name: "slangpy-torch-${{ matrix.combo.cuda }} (${{ matrix.os.name }}, torch${{ matrix.combo.torch }}, py${{ matrix.python }})"
+    runs-on: ${{ matrix.os.runs-on }}
+    container: "nvidia/cuda:${{ matrix.combo.cuda-ver }}-devel-ubuntu22.04"
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+        combo:
+          # Add new torch+CUDA combos here as needed
+          - { cuda: "cu124", cuda-ver: "12.4.1", torch: "2.6.0" }
+          - { cuda: "cu126", cuda-ver: "12.6.3", torch: "2.7.0" }
+          - { cuda: "cu128", cuda-ver: "12.8.1", torch: "2.7.0" }
+        os:
+          - { name: linux-x86, runs-on: ubuntu-latest }
+          # linux-aarch64 excluded: PyTorch has no CUDA aarch64 wheels on pip
+
+    steps:
+      - name: Install prerequisites
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y git git-lfs software-properties-common curl
+          add-apt-repository -y ppa:deadsnakes/ppa
+          apt-get update
+          apt-get install -y python${{ matrix.python }} python${{ matrix.python }}-venv python${{ matrix.python }}-dev
+          update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${{ matrix.python }} 1
+          curl -sS https://bootstrap.pypa.io/get-pip.py | python3
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+          fetch-depth: 0
+
+      - name: Patch package name and version
+        run: |
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+          CUDA="${{ matrix.combo.cuda }}"
+          BASE_VER=$(grep '^version = ' src/slangpy_torch/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          LAST_VER_COMMIT=$(git log -1 --format=%H -- src/sgl/sgl.h)
+          DEV_N=$(git rev-list --count ${LAST_VER_COMMIT}..HEAD)
+          DEV_VER="${BASE_VER}.dev${DEV_N}"
+          sed -i "s/^name = .*/name = \"slangpy-torch-${CUDA}\"/" src/slangpy_torch/pyproject.toml
+          sed -i "s/^version = .*/version = \"${DEV_VER}\"/" src/slangpy_torch/pyproject.toml
+          sed -i "s/name=\"slangpy-torch\"/name=\"slangpy-torch-${CUDA}\"/" src/slangpy_torch/setup.py
+          sed -i "s/version=\"0.1.0\"/version=\"${DEV_VER}\"/" src/slangpy_torch/setup.py
+
+      - name: Install PyTorch
+        run: python3 -m pip install torch==${{ matrix.combo.torch }} --index-url https://download.pytorch.org/whl/${{ matrix.combo.cuda }}
+
+      - name: Install build deps
+        run: python3 -m pip install setuptools wheel
+
+      - name: Build wheel
+        working-directory: src/slangpy_torch
+        run: python3 -m pip wheel --no-build-isolation --no-deps -w dist .
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: slangpy-torch-${{ matrix.combo.cuda }}-${{ matrix.combo.torch }}-py${{ matrix.python }}-${{ matrix.os.name }}
+          path: src/slangpy_torch/dist/*.whl
+
+  slangpy_torch_wheels_windows:
+    name: "slangpy-torch-${{ matrix.combo.cuda }} (windows, torch${{ matrix.combo.torch }}, py${{ matrix.python }})"
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+        combo:
+          - { cuda: "cu124", cuda-ver: "12.4.0", torch: "2.6.0" }
+          - { cuda: "cu126", cuda-ver: "12.6.0", torch: "2.7.0" }
+          - { cuda: "cu128", cuda-ver: "12.8.0", torch: "2.7.0" }
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install CUDA toolkit
+        uses: Jimver/cuda-toolkit@v0.2.22
+        with:
+          cuda: ${{ matrix.combo.cuda-ver }}
+          method: network
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Patch package name and version
+        shell: bash
+        run: |
+          CUDA="${{ matrix.combo.cuda }}"
+          BASE_VER=$(grep '^version = ' src/slangpy_torch/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          LAST_VER_COMMIT=$(git log -1 --format=%H -- src/sgl/sgl.h)
+          DEV_N=$(git rev-list --count ${LAST_VER_COMMIT}..HEAD)
+          DEV_VER="${BASE_VER}.dev${DEV_N}"
+          sed -i "s/^name = .*/name = \"slangpy-torch-${CUDA}\"/" src/slangpy_torch/pyproject.toml
+          sed -i "s/^version = .*/version = \"${DEV_VER}\"/" src/slangpy_torch/pyproject.toml
+          sed -i "s/name=\"slangpy-torch\"/name=\"slangpy-torch-${CUDA}\"/" src/slangpy_torch/setup.py
+          sed -i "s/version=\"0.1.0\"/version=\"${DEV_VER}\"/" src/slangpy_torch/setup.py
+
+      - name: Install PyTorch
+        run: pip install torch==${{ matrix.combo.torch }} --index-url https://download.pytorch.org/whl/${{ matrix.combo.cuda }}
+
+      - name: Install build deps
+        run: pip install setuptools wheel
+
+      - name: Build wheel
+        working-directory: src/slangpy_torch
+        run: pip wheel --no-build-isolation --no-deps -w dist .
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: slangpy-torch-${{ matrix.combo.cuda }}-${{ matrix.combo.torch }}-py${{ matrix.python }}-windows
+          path: src/slangpy_torch/dist/*.whl
+
   upload_artifactory:
     name: Upload dev wheels to Artifactory
-    runs-on: ubuntu-latest
-    needs: [wheels, slangpy_torch]
+    runs-on: { group: nvrgfx, labels: [Linux, X64] }
+    needs: [wheels, slangpy_torch_sdist, slangpy_torch_wheels_linux, slangpy_torch_wheels_windows]
+    if: always()
 
     steps:
       - uses: actions/download-artifact@v4
@@ -135,17 +301,29 @@ jobs:
           name: slangpy-torch-sdist
           path: artifacts/slangpy-torch
 
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: slangpy-torch-cu*
+          path: artifacts/slangpy-torch-wheels
+          merge-multiple: true
+
       - name: Collect artifacts
         run: |
           mkdir -p dist/
           find artifacts/ -name "*.whl" -o -name "*.tar.gz" | xargs -I{} cp {} dist/
-
-      - name: Install twine
-        run: pip install twine
+          echo "=== Artifacts to upload ==="
+          ls -la dist/
 
       - name: Upload to Artifactory
-        env:
-          TWINE_USERNAME: ${{ secrets.NV_ARTIFACTORY_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.NV_ARTIFACTORY_PASSWORD }}
-          TWINE_REPOSITORY_URL: https://artifactory.nvidia.com/artifactory/api/pypi/sw-slangpy-pypi-local
-        run: twine upload dist/*.whl
+        run: |
+          if [ -z "$(ls dist/ 2>/dev/null)" ]; then
+            echo "No artifacts to upload, skipping."
+            exit 0
+          fi
+          python3 -m venv /tmp/twine-env
+          /tmp/twine-env/bin/pip install "twine>=6.1,<7"
+          /tmp/twine-env/bin/twine upload dist/*.whl dist/*.tar.gz \
+            --repository-url https://artifactory.nvidia.com/artifactory/api/pypi/sw-slangpy-pypi-local/ \
+            -u "${{ secrets.NV_ARTIFACTORY_USERNAME }}" \
+            -p "${{ secrets.NV_ARTIFACTORY_PASSWORD }}" \
+            --verbose
