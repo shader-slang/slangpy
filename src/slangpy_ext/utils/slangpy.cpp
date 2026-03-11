@@ -330,9 +330,11 @@ void NativeBoundVariableRuntime::write_raw_dispatch_data(nb::dict call_data, nb:
 
 nb::object NativeBoundVariableRuntime::read_output(CallContext* context, nb::object data)
 {
-    SGL_CHECK(!m_children, "Internal error: read_output should only be called on leaf nodes.");
-    if (m_access.first == AccessType::write || m_access.first == AccessType::readwrite) {
-        return m_python_type->read_output(context, this, data);
+    // Note: variables with children don't read_output directly - it is handled by their children.
+    if (!m_children) {
+        if (m_access.first == AccessType::write || m_access.first == AccessType::readwrite) {
+            return m_python_type->read_output(context, this, data);
+        }
     }
     return nb::none();
 }
