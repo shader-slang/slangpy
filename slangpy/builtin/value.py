@@ -125,16 +125,6 @@ class ValueMarshall(NativeValueMarshall):
         # ValueMarshall is read-only — suppress the default store
         return True
 
-    # Call data just returns the primal
-    def create_calldata(
-        self, context: CallContext, binding: "BoundVariableRuntime", data: Any
-    ) -> Any:
-        access = binding.access
-        if access[0] in [AccessType.read, AccessType.readwrite]:
-            if binding.direct_bind:
-                return data
-            return {"value": data}
-
     # Values just return themselves for raw dispatch
     def create_dispatchdata(self, data: Any) -> Any:
         return data

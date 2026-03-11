@@ -154,7 +154,7 @@ def can_direct_bind_common(binding: "BoundVariable") -> bool:
     :param binding: The bound variable to check.
     :return: True if the common prerequisites for direct binding are met.
     """
-    if binding.call_dimensionality is None or binding.call_dimensionality != 0:
+    if binding.call_dimensionality != 0:
         return False
     if binding.children:
         return False

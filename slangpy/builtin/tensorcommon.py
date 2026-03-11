@@ -386,18 +386,13 @@ def gen_trampoline_load(
     data_name: str,
     value_name: str,
 ) -> bool:
-    if not isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
-        # For ITensorType at dim-0, use direct assignment (struct copy)
-        if (
-            isinstance(binding.vector_type, ITensorType)
-            and binding.call_dimensionality is not None
-            and binding.call_dimensionality == 0
-        ):
-            cgb.append_statement(f"{value_name} = {data_name}")
-            return True
-        return False
-    cgb.append_statement(f"{value_name} = {data_name}")
-    return True
+    if isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
+        cgb.append_statement(f"{value_name} = {data_name}")
+        return True
+    if isinstance(binding.vector_type, ITensorType) and binding.call_dimensionality == 0:
+        cgb.append_statement(f"{value_name} = {data_name}")
+        return True
+    return False
 
 
 def gen_trampoline_store(
@@ -407,13 +402,8 @@ def gen_trampoline_store(
     data_name: str,
     value_name: str,
 ) -> bool:
-    if not isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
-        # For ITensorType at dim-0, suppress default store
-        if (
-            isinstance(binding.vector_type, ITensorType)
-            and binding.call_dimensionality is not None
-            and binding.call_dimensionality == 0
-        ):
-            return True
-        return False
-    return True
+    if isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
+        return True
+    if isinstance(binding.vector_type, ITensorType) and binding.call_dimensionality == 0:
+        return True
+    return False
