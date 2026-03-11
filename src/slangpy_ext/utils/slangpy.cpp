@@ -330,25 +330,11 @@ void NativeBoundVariableRuntime::write_raw_dispatch_data(nb::dict call_data, nb:
 
 nb::object NativeBoundVariableRuntime::read_output(CallContext* context, nb::object data)
 {
-    if (m_children) {
-        // We have children, so read the output for each child and store in a dictionary.
-        nb::dict res;
-        for (const auto& [name, child_ref] : *m_children) {
-            if (res.contains(name.c_str())) {
-                if (child_ref) {
-                    nb::object child_data = data[child_ref->m_variable_name.c_str()];
-                    res[name.c_str()] = child_ref->read_output(context, child_data);
-                }
-            }
-        }
-        return res;
-    } else {
-        // We are a leaf node, so read the output if the variable was writable.
-        if (m_access.first == AccessType::write || m_access.first == AccessType::readwrite) {
-            return m_python_type->read_output(context, this, data);
-        }
-        return nb::none();
+    SGL_CHECK(!m_children, "Internal error: read_output should only be called on leaf nodes.");
+    if (m_access.first == AccessType::write || m_access.first == AccessType::readwrite) {
+        return m_python_type->read_output(context, this, data);
     }
+    return nb::none();
 }
 
 Shape NativeBoundCallRuntime::calculate_call_shape(
