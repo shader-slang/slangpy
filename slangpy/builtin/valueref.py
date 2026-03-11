@@ -150,7 +150,11 @@ class ValueRefMarshall(Marshall):
         return len(self.value_type.shape) - len(vector_target_type.shape)
 
     def can_direct_bind(self, binding: "BoundVariable") -> bool:
-        return can_direct_bind_common(binding)
+        if not can_direct_bind_common(binding):
+            return False
+        if binding.access[0] != AccessType.read:
+            return False
+        return True
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
@@ -160,13 +164,8 @@ class ValueRefMarshall(Marshall):
         assert access[1] == AccessType.none
         assert binding.vector_type is not None
         if binding.direct_bind:
-            if access[0] == AccessType.read:
-                cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
-            else:
-                cgb.type_alias(
-                    f"_t_{name}",
-                    f"RWStructuredBuffer<{binding.vector_type.full_name}>",
-                )
+            assert access[0] == AccessType.read
+            cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
         else:
             if access[0] == AccessType.read:
                 cgb.type_alias(f"_t_{name}", f"ValueRef<{binding.vector_type.full_name}>")
@@ -178,12 +177,8 @@ class ValueRefMarshall(Marshall):
     ) -> bool:
         if not binding.direct_bind:
             return False
-        if binding.access[0] == AccessType.none:
-            return False
-        if binding.access[0] == AccessType.read:
-            cgb.append_statement(f"{value_name} = {data_name}")
-        else:
-            cgb.append_statement(f"{value_name} = {data_name}[0]")
+        assert binding.access[0] == AccessType.read
+        cgb.append_statement(f"{value_name} = {data_name}")
         return True
 
     def gen_trampoline_store(
@@ -191,8 +186,6 @@ class ValueRefMarshall(Marshall):
     ) -> bool:
         if not binding.direct_bind:
             return False
-        if binding.access[0] in (AccessType.write, AccessType.readwrite):
-            cgb.append_statement(f"{data_name}[0] = {value_name}")
         return True
 
     # Call data just returns the primal

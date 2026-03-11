@@ -112,8 +112,9 @@ class ValueMarshall(NativeValueMarshall):
         if not binding.direct_bind:
             return False
         if binding.access[0] not in (AccessType.read, AccessType.readwrite):
-            return False
-        cgb.append_statement(f"{value_name} = {data_name}")
+            cgb.append_statement(f"{value_name} = {{}}")
+        else:
+            cgb.append_statement(f"{value_name} = {data_name}")
         return True
 
     def gen_trampoline_store(

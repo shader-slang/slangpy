@@ -88,17 +88,14 @@ class StructMarshall(ValueMarshall):
     ) -> bool:
         if not binding.direct_bind:
             return False
-        cgb.append_statement(f"{value_name} = {data_name}")
-        return True
+        return super().gen_trampoline_load(cgb, binding, data_name, value_name)
 
     def gen_trampoline_store(
         self, cgb: "CodeGenBlock", binding: "BoundVariable", data_name: str, value_name: str
     ) -> bool:
         if not binding.direct_bind:
             return False
-        if binding.access[0] in (AccessType.write, AccessType.readwrite):
-            cgb.append_statement(f"{data_name} = {value_name}")
-        return True
+        return super().gen_trampoline_store(cgb, binding, data_name, value_name)
 
     def create_dispatchdata(self, data: Any) -> Any:
         if isinstance(data, dict):

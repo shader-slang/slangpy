@@ -631,6 +631,11 @@ you can find more information in the Mapping section of the documentation (https
                     )
                     cgb.begin_block()
                     for field, var in self.children.items():
+                        gen_store = getattr(var.python, "gen_trampoline_store", None)
+                        if gen_store is not None and gen_store(
+                            cgb, var, var.variable_name, f"value.{field}"
+                        ):
+                            continue
                         cgb.append_statement(
                             f"{var.variable_name}.__slangpy_store(context.map(_m_{var.variable_name}),value.{field})"
                         )
