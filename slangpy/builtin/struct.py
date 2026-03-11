@@ -4,7 +4,7 @@ from typing import Any, Optional, cast
 from slangpy.core.native import Shape, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
-from slangpy.bindings import PYTHON_TYPES, BindContext, BoundVariable, is_direct_bind_recursive
+from slangpy.bindings import PYTHON_TYPES, BindContext, BoundVariable, can_direct_bind_common
 from slangpy.reflection import SlangProgramLayout, SlangType, UnknownType, StructType, InterfaceType
 from slangpy.core.native import AccessType
 
@@ -76,12 +76,17 @@ class StructMarshall(ValueMarshall):
             cast(int, binding.children[name].call_dimensionality) for name in self._fields.keys()
         )
 
+    def can_direct_bind(self, binding: "BoundVariable") -> bool:
+        if binding.children is not None:
+            return all(child.direct_bind for child in binding.children.values())
+        return can_direct_bind_common(binding)
+
     # A struct type should get a dictionary, and just return that for raw dispatch
 
     def gen_trampoline_load(
         self, cgb: "CodeGenBlock", binding: "BoundVariable", is_entry_point: bool
     ) -> bool:
-        if not is_direct_bind_recursive(binding):
+        if not binding.direct_bind:
             return False
         data_name = (
             f"_param_{binding.variable_name}"
@@ -94,7 +99,7 @@ class StructMarshall(ValueMarshall):
     def gen_trampoline_store(
         self, cgb: "CodeGenBlock", binding: "BoundVariable", is_entry_point: bool
     ) -> bool:
-        if not is_direct_bind_recursive(binding):
+        if not binding.direct_bind:
             return False
         if binding.access[0] in (AccessType.write, AccessType.readwrite):
             data_name = (

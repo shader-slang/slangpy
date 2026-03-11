@@ -152,6 +152,16 @@ def calculate_differentiability(context: BindContext, call: BoundCall):
         arg.calculate_differentiability(context)
 
 
+def calculate_direct_binding(call: BoundCall):
+    """
+    Calculate direct binding eligibility for all variables.
+    """
+    for arg in call.args:
+        arg.calculate_direct_bind()
+    for arg in call.kwargs.values():
+        arg.calculate_direct_bind()
+
+
 def calculate_call_dimensionality(signature: BoundCall) -> int:
     """
     Calculate the dimensionality of the call

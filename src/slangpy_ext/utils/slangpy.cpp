@@ -1543,7 +1543,13 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeBoundVariableRuntime::write_raw_dispatch_data,
             D_NA(NativeBoundVariableRuntime, write_raw_dispatch_data)
         )
-        .def("read_output", &NativeBoundVariableRuntime::read_output, D_NA(NativeBoundVariableRuntime, read_output));
+        .def("read_output", &NativeBoundVariableRuntime::read_output, D_NA(NativeBoundVariableRuntime, read_output))
+        .def_prop_rw(
+            "direct_bind",
+            &NativeBoundVariableRuntime::direct_bind,
+            &NativeBoundVariableRuntime::set_direct_bind,
+            D_NA(NativeBoundVariableRuntime, direct_bind)
+        );
 
     nb::class_<NativeBoundCallRuntime, Object>(slangpy, "NativeBoundCallRuntime") //
         .def(nb::init<>(), D_NA(NativeBoundCallRuntime, NativeBoundCallRuntime))

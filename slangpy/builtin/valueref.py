@@ -18,7 +18,7 @@ from slangpy.bindings import (
     CodeGenBlock,
     ReturnContext,
     get_or_create_type,
-    is_direct_bind_eligible,
+    can_direct_bind_common,
 )
 from slangpy.builtin.value import slang_type_to_return_type
 from slangpy.reflection.reflectiontypes import SlangType
@@ -112,7 +112,6 @@ class ValueRefMarshall(Marshall):
     def __init__(self, layout: kfr.SlangProgramLayout, value_type: kfr.SlangType):
         super().__init__(layout)
         self.value_type = value_type
-        self._direct_bind = False
 
         st = layout.find_type_by_name(f"ValueRef<{value_type.full_name}>")
         if st is None:
@@ -150,6 +149,9 @@ class ValueRefMarshall(Marshall):
     ):
         return len(self.value_type.shape) - len(vector_target_type.shape)
 
+    def can_direct_bind(self, binding: "BoundVariable") -> bool:
+        return can_direct_bind_common(binding)
+
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
         access = binding.access
@@ -157,8 +159,7 @@ class ValueRefMarshall(Marshall):
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         assert binding.vector_type is not None
-        if is_direct_bind_eligible(binding):
-            self._direct_bind = True
+        if binding.direct_bind:
             if access[0] == AccessType.read:
                 cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
             else:
@@ -175,7 +176,7 @@ class ValueRefMarshall(Marshall):
     def gen_trampoline_load(
         self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
     ) -> bool:
-        if not is_direct_bind_eligible(binding):
+        if not binding.direct_bind:
             return False
         if binding.access[0] == AccessType.none:
             return False
@@ -192,7 +193,7 @@ class ValueRefMarshall(Marshall):
     def gen_trampoline_store(
         self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
     ) -> bool:
-        if not is_direct_bind_eligible(binding):
+        if not binding.direct_bind:
             return False
         if binding.access[0] in (AccessType.write, AccessType.readwrite):
             if is_entry_point:
@@ -209,7 +210,7 @@ class ValueRefMarshall(Marshall):
         access = binding.access
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
-        if self._direct_bind and access[0] == AccessType.read:
+        if binding.direct_bind and access[0] == AccessType.read:
             return data.value
         elif access[0] == AccessType.read:
             return {"value": data.value}
@@ -226,7 +227,7 @@ class ValueRefMarshall(Marshall):
                 if access[0] != AccessType.write:
                     cursor[0].write(data.value)
                     cursor.apply()
-                if self._direct_bind:
+                if binding.direct_bind:
                     return buffer
                 return {"value": buffer}
             else:
@@ -241,7 +242,7 @@ class ValueRefMarshall(Marshall):
                     data=npdata,
                     usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
                 )
-                if self._direct_bind:
+                if binding.direct_bind:
                     return buffer
                 return {"value": buffer}
 
@@ -259,7 +260,7 @@ class ValueRefMarshall(Marshall):
     ) -> None:
         access = binding.access
         if access[0] in [AccessType.write, AccessType.readwrite]:
-            buffer = result if self._direct_bind else result["value"]
+            buffer = result if binding.direct_bind else result["value"]
             assert isinstance(buffer, Buffer)
             if isinstance(binding.vector_type, (kfr.StructType, kfr.ArrayType)):
                 cursor = BufferCursor(binding.vector_type.buffer_layout.reflection, buffer)

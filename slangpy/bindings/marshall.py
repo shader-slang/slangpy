@@ -133,6 +133,17 @@ class Marshall(NativeMarshall):
         """
         return False
 
+    def can_direct_bind(self, binding: "BoundVariable") -> bool:
+        """
+        Whether this marshall supports direct binding for the given variable.
+        Direct binding emits raw Slang types instead of ValueType wrappers.
+        Default: False. Override in subclasses to opt in.
+
+        :param binding: The bound variable to check.
+        :return: True if this marshall supports direct binding for this variable.
+        """
+        return False
+
     def reduce_type(self, context: BindContext, dimensions: int) -> "SlangType":
         """
         Get the slang type for this variable when a given number of dimensions

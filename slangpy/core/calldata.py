@@ -266,6 +266,9 @@ class CallData(NativeCallData):
             # Calculate differentiability of all variables.
             calculate_differentiability(context, bindings)
 
+            # Calculate direct binding eligibility for all variables.
+            calculate_direct_binding(bindings)
+
             # Generate code.
             codegen = CodeGen()
             generate_code(context, build_info, bindings, codegen)
