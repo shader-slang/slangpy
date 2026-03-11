@@ -128,9 +128,8 @@ def test_gate_scalar_uses_valuetype(device_type: spy.DeviceType):
     assert_contains(code, "typealias _t_a = int;", "typealias _t_b = int;")
     # Trampoline uses direct assignment, no __slangpy_load
     assert_trampoline_has(code, "a = __calldata__.a;", "b = __calldata__.b;")
-    # _result is auto-created as RWValueRef — now uses RWStructuredBuffer
-    assert_not_contains(code, "RWValueRef<int>")
-    assert_contains(code, "RWStructuredBuffer<int>")
+    # _result is auto-created as writable RWValueRef (not direct-bind)
+    assert_contains(code, "RWValueRef<int>")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -202,11 +201,12 @@ def test_gate_valueref_read_uses_wrapper(device_type: spy.DeviceType):
         "float read_val(float v) { return v; }",
         ValueRef(1.0),
     )
-    # Read-only ValueRef now uses raw type alias, not ValueRef<float>
-    assert_not_contains(code, "ValueRef<float>")
+    # Read-only ValueRef uses raw type alias (direct-bind)
     assert_contains(code, "typealias _t_v = float;")
     # Direct assignment in trampoline
     assert_trampoline_has(code, "v = __calldata__.v;")
+    # _result (writable) still uses RWValueRef wrapper
+    assert_contains(code, "RWValueRef<float>")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -219,11 +219,10 @@ def test_gate_valueref_write_uses_wrapper(device_type: spy.DeviceType):
         1,
         2,
     )
-    # Auto-created _result uses RWStructuredBuffer instead of RWValueRef
-    assert_not_contains(code, "RWValueRef<int>")
-    assert_contains(code, "RWStructuredBuffer<int>")
-    # Trampoline uses buffer load/store
-    assert_trampoline_has(code, "_result = __calldata__._result[0];")
+    # Auto-created _result uses RWValueRef (writable, not direct-bind)
+    assert_contains(code, "RWValueRef<int>")
+    # Trampoline uses __slangpy_store via wrapper
+    assert_contains(code, "__slangpy_store")
 
 
 # -- Step 1.7: Mapping constants and context.map --
@@ -244,8 +243,9 @@ def test_gate_mapping_constants_present(device_type: spy.DeviceType):
         code,
         "static const int _m_a = 0",
         "static const int _m_b = 0",
-        "static const int _m__result = 0",
     )
+    # _result is NOT direct-bind (writable ValueRef), so it keeps mapping constant
+    assert_contains(code, "static const int _m__result = 0")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

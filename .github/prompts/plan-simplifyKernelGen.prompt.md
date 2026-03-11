@@ -39,8 +39,8 @@ The implementation was refactored from global predicate functions (`is_direct_bi
 | 1.1 | ✅ Done | `Marshall.can_direct_bind(binding)` virtual method (default `False`). Shared `can_direct_bind_common(binding)` helper. `BoundVariable.calculate_direct_bind()` depth-first tree pass. `calculate_direct_binding(call)` in `callsignature.py`. |
 | 1.2 | ✅ Done | `ValueMarshall`: `can_direct_bind` overrides. `gen_calldata`, `gen_trampoline_load/store`, `create_calldata` read `binding.direct_bind`. |
 | 1.3 | ✅ Done | `VectorMarshall`: `gen_calldata` emits raw `typealias` (e.g., `vector<float,3>`). Inherits trampoline load/store and `can_direct_bind` from `ValueMarshall`. |
-| 1.4 | ✅ Done | `StructMarshall`/`BoundVariable`: `can_direct_bind` checks all children. `gen_call_data_code` uses `self.direct_bind`. Non-direct-bind composites clear children's `direct_bind` via `_clear_direct_bind()`. |
-| 1.5 | ✅ Done | `ValueRefMarshall`: `can_direct_bind` override. All methods read `binding.direct_bind`. |
+| 1.4 | ✅ Done | `StructMarshall`/`BoundVariable`: `can_direct_bind` checks all children. `gen_call_data_code` uses `self.direct_bind`. Non-direct-bind composites let children retain their `direct_bind` status; `gen_call_data_code` delegates to children's `gen_trampoline_load/store`. |
+| 1.5 | ✅ Done | `ValueRefMarshall`: `can_direct_bind` requires read-only access. Writable value refs (including auto-created `_result`) use wrapper path (`RWValueRef<T>`). |
 | 1.6 | ✅ Done | Tensor dim-0: `gen_trampoline_load/store` extended for `ITensorType` at dim-0 (direct struct assignment). |
 | 1.7 | ✅ Done | Mapping constants (`static const int _m_{name}`) skipped when `self.direct_bind`. |
 | 1.8 | ⬜ Deferred | Autodiff/bwds mode still uses wrapper types. |
@@ -55,13 +55,13 @@ The implementation was refactored from global predicate functions (`is_direct_bi
 | `src/slangpy_ext/utils/slangpyvalue.h` | `m_direct_bind`, `direct_bind()`, `set_direct_bind()` **removed** from `NativeValueMarshall` |
 | `src/slangpy_ext/utils/slangpyvalue.cpp` | `ensure_cached` reads `binding->direct_bind()`; nanobind `direct_bind` property **removed** from `NativeValueMarshall` |
 | `slangpy/bindings/marshall.py` | `can_direct_bind(binding)` virtual method (default `False`) |
-| `slangpy/bindings/boundvariable.py` | `can_direct_bind_common()`, `BoundVariable.direct_bind`, `calculate_direct_bind()`, `_clear_direct_bind()`. Removed: `is_direct_bind_eligible`, `is_direct_bind_recursive`, `_set_direct_bind_on_children`, `_force_no_direct_bind`, `_DIRECT_BIND_TYPES`. |
+| `slangpy/bindings/boundvariable.py` | `can_direct_bind_common()`, `BoundVariable.direct_bind`, `calculate_direct_bind()`. Removed: `is_direct_bind_eligible`, `is_direct_bind_recursive`, `_set_direct_bind_on_children`, `_force_no_direct_bind`, `_DIRECT_BIND_TYPES`, `_clear_direct_bind()`. |
 | `slangpy/bindings/boundvariableruntime.py` | `self.direct_bind = source.direct_bind` propagation |
 | `slangpy/bindings/__init__.py` | Exports `can_direct_bind_common` (removed old predicate exports) |
 | `slangpy/core/callsignature.py` | `calculate_direct_binding(call)` function |
 | `slangpy/core/calldata.py` | `calculate_direct_binding(bindings)` call after `calculate_differentiability` |
 | `slangpy/builtin/value.py` | `can_direct_bind`, `gen_calldata`, `gen_trampoline_load/store`, `create_calldata` use `binding.direct_bind` |
-| `slangpy/builtin/valueref.py` | `can_direct_bind`, all methods use `binding.direct_bind`. Removed `self._direct_bind`. |
+| `slangpy/builtin/valueref.py` | `can_direct_bind` (read-only only), all methods use `binding.direct_bind`. Removed `self._direct_bind`. |
 | `slangpy/builtin/struct.py` | `can_direct_bind`, `gen_trampoline_load/store` use `binding.direct_bind` |
 | `slangpy/builtin/tensorcommon.py` | `gen_trampoline_load/store` extended for `ITensorType` (unchanged in refactor) |
 | `slangpy/tests/slangpy_tests/test_kernel_gen.py` | All Phase 1 tests |
@@ -129,7 +129,7 @@ pre-commit run --all-files
 ### Key Decisions
 
 - Phase 1 changes both `gen_calldata` and trampoline load/store (TensorView-complete pattern, not partial)
-- All dim-0 non-composite types are eligible, including tensors and value refs
+- All dim-0 non-composite types are eligible, excluding writable value refs (which need buffer logic)
 - Phase 2 targets both `entry_point` (CUDA) and `global_data` (Vulkan/D3D12) modes
 - Autograd (bwds mode) is included in simplification, but implemented after prim mode within each phase
 - WangHashArg explicitly excluded from direct binding (needs per-thread `thread_id` computation)

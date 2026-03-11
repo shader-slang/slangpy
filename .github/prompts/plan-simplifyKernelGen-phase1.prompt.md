@@ -19,7 +19,7 @@ Direct binding eligibility is determined by a **marshall-driven `can_direct_bind
 | `Marshall.can_direct_bind(binding)` | `slangpy/bindings/marshall.py` | Virtual method (default `False`). Marshalls override to opt in. |
 | `can_direct_bind_common(binding)` | `slangpy/bindings/boundvariable.py` | Shared eligibility checks (dim-0, no children, no param block). Marshalls call this then add type-specific logic. |
 | `BoundVariable.direct_bind` | `slangpy/bindings/boundvariable.py` | Boolean attribute set by `calculate_direct_bind()`. Consumed by `gen_call_data_code`, `gen_calldata`, `gen_trampoline_load/store`, `create_calldata`. |
-| `BoundVariable.calculate_direct_bind()` | `slangpy/bindings/boundvariable.py` | Depth-first tree pass. Leaves delegate to `marshall.can_direct_bind()`. Composites require all children to be direct-bind AND dim-0 with a concrete vector type. If composite is NOT direct-bind, recursively clears children via `_clear_direct_bind()`. |
+| `BoundVariable.calculate_direct_bind()` | `slangpy/bindings/boundvariable.py` | Depth-first tree pass. Leaves delegate to `marshall.can_direct_bind()`. Composites require all children to be direct-bind AND dim-0 with a concrete vector type. Children retain their individual `direct_bind` status regardless of the parent's eligibility. |
 | `calculate_direct_binding(call)` | `slangpy/core/callsignature.py` | Top-level function iterating `call.args` + `call.kwargs.values()`, calling `arg.calculate_direct_bind()`. |
 | `NativeBoundVariableRuntime.direct_bind` | `slangpy.h` / `boundvariableruntime.py` | C++ member + Python propagation. Read by `NativeValueMarshall::ensure_cached` to gate `["value"]` sub-field navigation. |
 
@@ -44,7 +44,7 @@ At dispatch time, `NativeValueMarshall::ensure_cached()` reads `binding->direct_
 When `calculate_direct_bind()` visits a composite node:
 1. Recurse children first (depth-first)
 2. If all children have `direct_bind == True` AND the composite is dim-0 with a concrete vector type → set `self.direct_bind = True`
-3. Otherwise → call `_clear_direct_bind()` on all children, forcing them to use wrapper types. This is necessary because the parent's generated `__slangpy_load`/`__slangpy_store` expects children to have wrapper types (e.g., `ValueType<float>`). A child emitting raw `float` inside a parent that emits `__slangpy_load` would produce invalid Slang.
+3. Otherwise → the composite is NOT direct-bind, but children **retain** their individual `direct_bind` status. Inside the parent's generated `__slangpy_load`/`__slangpy_store`, `gen_call_data_code` delegates to each child's `gen_trampoline_load`/`gen_trampoline_store` — direct-bind children get direct assignment (e.g., `value.y = y;`) while non-direct-bind children use the standard `__slangpy_load(context.map(...))` path. This allows mixed direct-bind / non-direct-bind children within the same struct.
 
 ---
 
@@ -57,7 +57,7 @@ A shared helper `can_direct_bind_common(binding)` in `boundvariable.py` provides
 - `not binding.children` (not composite/dict)
 - `not getattr(binding, "create_param_block", False)` (excludes `PackedArg`)
 
-Marshall subclasses call `can_direct_bind_common(binding)` and optionally add type-specific logic. `StructMarshall` has its own implementation: if it has children, all children must have `direct_bind == True`; otherwise it delegates to `can_direct_bind_common`.
+Marshall subclasses call `can_direct_bind_common(binding)` and optionally add type-specific logic. `StructMarshall` has its own implementation: if it has children, all children must have `direct_bind == True`; otherwise it delegates to `can_direct_bind_common`. `ValueRefMarshall` additionally requires `binding.access[0] == AccessType.read` — writable value refs need buffer read/write logic that is incompatible with direct binding.
 
 ---
 
@@ -98,14 +98,12 @@ The `m_direct_bind` / `direct_bind` / `set_direct_bind` members were **removed**
 **Implemented.** In [slangpy/builtin/struct.py](slangpy/builtin/struct.py):
 
 - `can_direct_bind(binding)`: if `binding.children is not None`, returns `True` only if all children have `direct_bind == True`. Otherwise delegates to `can_direct_bind_common(binding)`.
-- `gen_trampoline_load`: when `binding.direct_bind`, emits `{name} = {data_name}` and returns `True`
-- `gen_trampoline_store`: when `binding.direct_bind`, emits `{data_name} = {name}` for writable and returns `True`
+- `gen_trampoline_load`: when `binding.direct_bind`, delegates to `ValueMarshall.gen_trampoline_load` (emits `{name} = {data_name}`) and returns `True`. Direct-bind structs are read-only, like other value types.
+- `gen_trampoline_store`: when `binding.direct_bind`, delegates to `ValueMarshall.gen_trampoline_store` (suppresses store for read-only). Returns `True`.
 
 In [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py), `gen_call_data_code`:
 - When `self.direct_bind`, emits `typealias _t_{name} = {vector_type.full_name}` (raw struct type) — skipping inline struct generation, `__slangpy_load`/`__slangpy_store`, and child type aliases.
-- When NOT `self.direct_bind`, uses the standard children path with inline struct.
-
-Children inside non-direct-bind composites have their `direct_bind` cleared by `_clear_direct_bind()` during `calculate_direct_bind`. This ensures children use wrapper types compatible with the parent's `__slangpy_load`/`__slangpy_store`.
+- When NOT `self.direct_bind`, uses the standard children path with inline struct. Children **retain** their individual `direct_bind` status — `gen_call_data_code` calls each child's `gen_trampoline_load`/`gen_trampoline_store`, which emit direct assignment for direct-bind children and fall through to `__slangpy_load`/`__slangpy_store` for non-direct-bind children.
 
 ---
 
@@ -113,12 +111,15 @@ Children inside non-direct-bind composites have their `direct_bind` cleared by `
 
 **Implemented.** In [slangpy/builtin/valueref.py](slangpy/builtin/valueref.py):
 
-- `can_direct_bind(binding)`: calls `can_direct_bind_common(binding)`
-- `gen_calldata`: when `binding.direct_bind`, read-only emits raw type, writable emits `RWStructuredBuffer<T>`
-- `gen_trampoline_load/store`: when `binding.direct_bind`, read-only does direct assignment, writable does `[0]` indexing
-- `create_calldata` / `read_calldata`: when `binding.direct_bind`, skip `{"value": ...}` wrapper
+- `can_direct_bind(binding)`: calls `can_direct_bind_common(binding)` AND requires `binding.access[0] == AccessType.read`. Writable value refs are NOT direct-bind eligible because they need buffer allocation and readback logic that requires the wrapper path.
+- `gen_calldata`: when `binding.direct_bind`, emits raw type alias (read-only only). Non-direct-bind uses `ValueRef<T>` / `RWValueRef<T>` as before.
+- `gen_trampoline_load`: when `binding.direct_bind`, emits direct assignment. Non-direct-bind falls through.
+- `gen_trampoline_store`: when `binding.direct_bind`, returns `True` (suppress store for read-only). Non-direct-bind falls through.
+- `create_calldata` / `read_calldata`: when `binding.direct_bind` AND read-only, returns raw value / skips readback.
 
 The old `self._direct_bind` attribute was **removed** — all checks now use `binding.direct_bind`.
+
+**Implication for `_result`:** Auto-created return values are writable `ValueRef` instances. Since writable value refs are not direct-bind eligible, `_result` uses `RWValueRef<T>` with `__slangpy_store`, mapping constants, and the standard wrapper path. This is a deliberate constraint — writable value refs inside structs would prevent the struct from being direct-bind eligible, which is the correct behavior since the struct's `__slangpy_load`/`__slangpy_store` must exist to handle the buffer operations.
 
 ---
 
@@ -157,7 +158,7 @@ The old `self._direct_bind` attribute was **removed** — all checks now use `bi
 | `src/slangpy_ext/utils/slangpyvalue.h` | `m_direct_bind`, `direct_bind()`, `set_direct_bind()` **removed** from `NativeValueMarshall` |
 | `src/slangpy_ext/utils/slangpyvalue.cpp` | `ensure_cached` reads `binding->direct_bind()` instead of `m_direct_bind`; nanobind `direct_bind` property **removed** from `NativeValueMarshall` |
 | `slangpy/bindings/marshall.py` | `can_direct_bind(binding)` virtual method (default `False`) |
-| `slangpy/bindings/boundvariable.py` | `can_direct_bind_common()`, `BoundVariable.direct_bind` attribute, `BoundVariable.calculate_direct_bind()`, `BoundVariable._clear_direct_bind()`. Old functions removed: `is_direct_bind_eligible`, `is_direct_bind_recursive`, `_set_direct_bind_on_children`, `_force_no_direct_bind`, `_DIRECT_BIND_TYPES`. |
+| `slangpy/bindings/boundvariable.py` | `can_direct_bind_common()`, `BoundVariable.direct_bind` attribute, `BoundVariable.calculate_direct_bind()`. Old functions removed: `is_direct_bind_eligible`, `is_direct_bind_recursive`, `_set_direct_bind_on_children`, `_force_no_direct_bind`, `_DIRECT_BIND_TYPES`, `_clear_direct_bind()`. |
 | `slangpy/bindings/boundvariableruntime.py` | `self.direct_bind = source.direct_bind` propagation |
 | `slangpy/bindings/__init__.py` | Exports `can_direct_bind_common` (removed `is_direct_bind_eligible`, `is_direct_bind_recursive`) |
 | `slangpy/core/callsignature.py` | `calculate_direct_binding(call)` function |
@@ -180,4 +181,6 @@ The old `self._direct_bind` attribute was **removed** — all checks now use `bi
 
 **Single `calculate_direct_bind` pass replaces repeated predicate calls.** The original `is_direct_bind_eligible` / `is_direct_bind_recursive` were called multiple times per variable during code gen. The new design computes `direct_bind` once in a single tree pass after `calculate_differentiability`, and consumers simply read the boolean.
 
-**`_clear_direct_bind` replaces `_force_no_direct_bind`.** When a composite struct is NOT direct-bind-eligible (e.g., has vectorized children), its children must NOT use direct binding either — the parent's generated `__slangpy_load`/`__slangpy_store` expects children to have wrapper types. The old implementation set `_force_no_direct_bind = True` on children during code gen. The new implementation clears `direct_bind` recursively during the `calculate_direct_bind` pass itself, before code gen runs.
+**Children retain `direct_bind` in non-direct-bind composites.** When a composite struct is NOT direct-bind-eligible (e.g., has vectorized children), children **retain** their individual `direct_bind` status. The parent's `gen_call_data_code` delegates to each child's `gen_trampoline_load`/`gen_trampoline_store` — direct-bind children emit direct assignment (e.g., `value.y = y;`) within the parent's `__slangpy_load`, while non-direct-bind children use the standard `__slangpy_load(context.map(...))` path. The old `_clear_direct_bind()` / `_force_no_direct_bind` approach was removed.
+
+**Writable ValueRef excluded from direct binding.** Writable value refs require buffer allocation, GPU readback, and `__slangpy_store` indirection. Only read-only value refs (`access[0] == AccessType.read`) are direct-bind eligible. This means auto-created `_result` (which is writable) always uses the `RWValueRef<T>` wrapper path.
