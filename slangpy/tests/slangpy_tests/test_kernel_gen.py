@@ -596,7 +596,7 @@ float tensor_read(Tensor<float,1> t) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_gate_tensor_dim0_binding_flags(device_type: spy.DeviceType):
-    """Tensor at dim-0 has direct_bind=False (tensor marshalls don't opt in)."""
+    """Tensor at dim-0 has direct_bind=True (consistent with other dim-0 types)."""
     device = helpers.get_device(device_type)
     src = """
 float tensor_read(Tensor<float,1> t) {
@@ -608,8 +608,7 @@ float tensor_read(Tensor<float,1> t) {
     cd = func.debug_build_call_data(tensor)
     bindings = cd.debug_only_bindings
     t_binding = bindings.args[0]
-    # Tensor marshalls don't implement can_direct_bind — direct_bind stays False
-    assert t_binding.direct_bind is False
+    assert t_binding.direct_bind is True
     assert t_binding.call_dimensionality == 0
 
 

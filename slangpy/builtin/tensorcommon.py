@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional, Protocol
-from slangpy.bindings import BoundVariable, BindContext, CodeGenBlock
+from slangpy.bindings import BoundVariable, BindContext, CodeGenBlock, can_direct_bind_common
 from slangpy.core.native import CallMode, AccessType
 from slangpy.reflection import (
     SlangType,
@@ -379,6 +379,12 @@ def gen_calldata(
     cgb.type_alias(f"_t_{binding.variable_name}", type_name)
 
 
+def can_direct_bind(self: ITensorMarshall, binding: BoundVariable) -> bool:
+    if not can_direct_bind_common(binding):
+        return False
+    return isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType, ITensorType))
+
+
 def gen_trampoline_load(
     self: ITensorMarshall,
     cgb: CodeGenBlock,
@@ -386,13 +392,10 @@ def gen_trampoline_load(
     data_name: str,
     value_name: str,
 ) -> bool:
-    if isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
-        cgb.append_statement(f"{value_name} = {data_name}")
-        return True
-    if isinstance(binding.vector_type, ITensorType) and binding.call_dimensionality == 0:
-        cgb.append_statement(f"{value_name} = {data_name}")
-        return True
-    return False
+    if not binding.direct_bind:
+        return False
+    cgb.append_statement(f"{value_name} = {data_name}")
+    return True
 
 
 def gen_trampoline_store(
@@ -402,8 +405,6 @@ def gen_trampoline_store(
     data_name: str,
     value_name: str,
 ) -> bool:
-    if isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
-        return True
-    if isinstance(binding.vector_type, ITensorType) and binding.call_dimensionality == 0:
-        return True
-    return False
+    if not binding.direct_bind:
+        return False
+    return True

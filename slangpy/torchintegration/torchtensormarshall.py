@@ -207,6 +207,9 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
         """Resolve dimensionality during vectorization."""
         return spytc.resolve_dimensionality(self, context, binding, vector_target_type)
 
+    def can_direct_bind(self, binding: BoundVariable) -> bool:
+        return spytc.can_direct_bind(self, binding)
+
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         """Generate call data code for the kernel."""
         return spytc.gen_calldata(self, cgb, context, binding)
