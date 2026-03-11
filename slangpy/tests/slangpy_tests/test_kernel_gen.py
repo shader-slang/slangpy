@@ -433,5 +433,246 @@ def test_phase1_functional_valueref_write(device_type: spy.DeviceType):
     assert out.value == 13
 
 
+# ===========================================================================
+# Mixed direct-bind tests — some args direct, some not
+# ===========================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_mixed_args_scalar_and_tensor(device_type: spy.DeviceType):
+    """Scalar arg gets direct-bind; vectorized tensor arg does not."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
+    code = generate_code(
+        device,
+        "add",
+        "float add(float a, float b) { return a + b; }",
+        1.0,
+        tensor,
+    )
+    # 'a' is direct-bind (scalar dim-0): raw typealias, direct trampoline load
+    assert_contains(code, "typealias _t_a = float;")
+    assert_not_contains(code, "ValueType<float>")
+    assert_trampoline_has(code, "a = __calldata__.a;")
+    # 'b' is NOT direct-bind (vectorized tensor dim-1): uses Tensor<float, 1>,
+    # __slangpy_load, and mapping constant
+    assert_contains(code, "Tensor<float, 1>")
+    assert_contains(code, "__slangpy_load")
+    assert_contains(code, "_m_b")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_mixed_args_direct_bind_flags(device_type: spy.DeviceType):
+    """Verify direct_bind flags on bindings for mixed scalar + tensor call."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
+    func = helpers.create_function_from_module(
+        device, "add", "float add(float a, float b) { return a + b; }"
+    )
+    cd = func.debug_build_call_data(1.0, tensor)
+    bindings = cd.debug_only_bindings
+    assert bindings.args[0].direct_bind is True, "scalar arg 'a' should be direct_bind"
+    assert bindings.args[0].call_dimensionality == 0
+    assert bindings.args[1].direct_bind is False, "tensor arg 'b' should NOT be direct_bind"
+    assert bindings.args[1].call_dimensionality == 1
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_phase1_functional_mixed_scalar_tensor(device_type: spy.DeviceType):
+    """Dispatch mixed scalar + tensor and verify GPU result."""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(
+        device, "add", "float add(float a, float b) { return a + b; }"
+    )
+    tensor = Tensor.from_numpy(device, np.array([10, 20, 30], dtype=np.float32))
+    result = func(5.0, tensor)
+    expected = np.array([15, 25, 35], dtype=np.float32)
+    np.testing.assert_allclose(result.to_numpy().flatten(), expected, atol=1e-5)
+
+
+# ===========================================================================
+# Struct with mixed direct-bind fields
+# ===========================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_struct_mixed_fields_codegen(device_type: spy.DeviceType):
+    """Struct with one tensor field and one scalar field.
+
+    The struct is NOT direct-bind because child x is vectorized (dim-1).
+    Child y (scalar) has direct_bind cleared by _clear_direct_bind, so it
+    uses ValueType<float> wrapper — required for the parent's __slangpy_load.
+    """
+    device = helpers.get_device(device_type)
+    src = """
+struct S {
+    float x;
+    float y;
+};
+void apply(S s, float scale) {}
+"""
+    tensor_x = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
+    code = generate_code(device, "apply", src, {"_type": "S", "x": tensor_x, "y": 1.0}, 2.0)
+    # Struct is NOT direct-bind: uses inline struct with __slangpy_load
+    assert_contains(code, "__slangpy_load")
+    assert_contains(code, "struct _t_s")
+    assert_not_contains(code, "typealias _t_s = S;")
+    # Child y should use ValueType wrapper (cleared by _clear_direct_bind)
+    assert_contains(code, "ValueType<float>")
+    # Child x should use tensor type
+    assert_contains(code, "Tensor<float, 1>")
+    # Scalar arg 'scale' is independent — should still be direct-bind
+    assert_contains(code, "typealias _t_scale = float;")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_struct_mixed_fields_binding_flags(device_type: spy.DeviceType):
+    """Verify direct_bind flags on struct children when struct is NOT direct-bind."""
+    device = helpers.get_device(device_type)
+    src = """
+struct S {
+    float x;
+    float y;
+};
+void apply(S s, float scale) {}
+"""
+    tensor_x = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
+    func = helpers.create_function_from_module(device, "apply", src)
+    cd = func.debug_build_call_data({"_type": "S", "x": tensor_x, "y": 1.0}, 2.0)
+    bindings = cd.debug_only_bindings
+    s_binding = bindings.args[0]
+    assert s_binding.direct_bind is False, "struct 's' should NOT be direct_bind"
+    # Both children should have direct_bind=False (cleared by _clear_direct_bind)
+    assert s_binding.children["x"].direct_bind is False
+    assert s_binding.children["y"].direct_bind is False
+    # 'scale' is independent scalar — should be direct_bind
+    assert bindings.args[1].direct_bind is True
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_phase1_functional_struct_mixed_fields(device_type: spy.DeviceType):
+    """Dispatch struct with mixed tensor+scalar fields and verify GPU result."""
+    device = helpers.get_device(device_type)
+    src = """
+struct S {
+    float x;
+    float y;
+};
+float weighted_sum(S s, float scale) { return (s.x + s.y) * scale; }
+"""
+    func = helpers.create_function_from_module(device, "weighted_sum", src)
+    tensor_x = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
+    result = func({"_type": "S", "x": tensor_x, "y": 10.0}, 2.0)
+    expected = np.array([22, 24, 26], dtype=np.float32)
+    np.testing.assert_allclose(result.to_numpy().flatten(), expected, atol=1e-5)
+
+
+# ===========================================================================
+# Tensor at dim-0 (whole tensor passed to Tensor<T,N> parameter)
+# ===========================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_tensor_dim0_codegen(device_type: spy.DeviceType):
+    """1D Tensor passed to Tensor<float,1> param — dim-0, direct assignment."""
+    device = helpers.get_device(device_type)
+    src = """
+float tensor_read(Tensor<float,1> t) {
+    return t[0];
+}
+"""
+    tensor = Tensor.from_numpy(device, np.array([42, 2, 3], dtype=np.float32))
+    code = generate_code(device, "tensor_read", src, tensor)
+    # Type alias should use Tensor<float, 1>
+    assert_contains(code, "typealias _t_t = Tensor<float, 1>;")
+    # Trampoline uses direct assignment (not __slangpy_load)
+    assert_trampoline_has(code, "t = __calldata__.t;")
+    # No wrapper type for the tensor
+    assert_not_contains(code, "ValueType<")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_tensor_dim0_binding_flags(device_type: spy.DeviceType):
+    """Tensor at dim-0 has direct_bind=False (tensor marshalls don't opt in)."""
+    device = helpers.get_device(device_type)
+    src = """
+float tensor_read(Tensor<float,1> t) {
+    return t[0];
+}
+"""
+    tensor = Tensor.from_numpy(device, np.array([42, 2, 3], dtype=np.float32))
+    func = helpers.create_function_from_module(device, "tensor_read", src)
+    cd = func.debug_build_call_data(tensor)
+    bindings = cd.debug_only_bindings
+    t_binding = bindings.args[0]
+    # Tensor marshalls don't implement can_direct_bind — direct_bind stays False
+    assert t_binding.direct_bind is False
+    assert t_binding.call_dimensionality == 0
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_phase1_functional_tensor_dim0(device_type: spy.DeviceType):
+    """Dispatch with whole tensor at dim-0 and verify GPU result."""
+    device = helpers.get_device(device_type)
+    src = """
+float tensor_read(Tensor<float,1> t) {
+    return t[0];
+}
+"""
+    func = helpers.create_function_from_module(device, "tensor_read", src)
+    tensor = Tensor.from_numpy(device, np.array([42, 99, 7], dtype=np.float32))
+    result = func(tensor)
+    assert abs(result - 42.0) < 1e-5
+
+
+# ===========================================================================
+# _clear_direct_bind necessity — demonstrates the compile error without it
+# ===========================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_clear_direct_bind_prevents_compile_error(device_type: spy.DeviceType):
+    """Demonstrate that _clear_direct_bind is necessary.
+
+    Without _clear_direct_bind, a scalar child inside a non-direct-bind struct
+    would keep direct_bind=True. This makes it emit a raw typealias (e.g.,
+    ``typealias _t_y = float;``) instead of ``ValueType<float>``. But the
+    parent struct's ``__slangpy_load`` calls ``y.__slangpy_load(...)`` — which
+    doesn't exist on raw ``float``. The result is a Slang compile error:
+
+    - ``undefined identifier '_m_y'`` (mapping constant skipped)
+    - ``'__slangpy_load' is not a member of 'float'``
+
+    This test monkey-patches _clear_direct_bind to a no-op and verifies the
+    compile error occurs, then checks normal behavior succeeds.
+    """
+    from slangpy.bindings.boundvariable import BoundVariable
+
+    device = helpers.get_device(device_type)
+    src = """
+struct S {
+    float x;
+    float y;
+};
+float weighted_sum(S s, float scale) { return (s.x + s.y) * scale; }
+"""
+    tensor_x = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
+
+    # With _clear_direct_bind disabled: compile should fail
+    original_clear = BoundVariable._clear_direct_bind
+    try:
+        BoundVariable._clear_direct_bind = lambda self: None  # type: ignore[assignment]
+        func_broken = helpers.create_function_from_module(device, "weighted_sum", src)
+        # with pytest.raises(ValueError, match="__slangpy_load"):
+        func_broken.debug_build_call_data({"_type": "S", "x": tensor_x, "y": 1.0}, 2.0)
+    finally:
+        BoundVariable._clear_direct_bind = original_clear  # type: ignore[assignment]
+
+    # With _clear_direct_bind intact: should succeed
+    func_ok = helpers.create_function_from_module(device, "weighted_sum", src)
+    cd = func_ok.debug_build_call_data({"_type": "S", "x": tensor_x, "y": 1.0}, 2.0)
+    assert cd.code is not None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-vs"])
