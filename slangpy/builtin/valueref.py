@@ -159,18 +159,17 @@ class ValueRefMarshall(Marshall):
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
         access = binding.access
-        name = binding.variable_name
         assert access[0] != AccessType.none
         assert access[1] == AccessType.none
         assert binding.vector_type is not None
         if binding.direct_bind:
             assert access[0] == AccessType.read
-            cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
+            binding.gen_calldata_type_name(cgb, binding.vector_type.full_name)
         else:
             if access[0] == AccessType.read:
-                cgb.type_alias(f"_t_{name}", f"ValueRef<{binding.vector_type.full_name}>")
+                binding.gen_calldata_type_name(cgb, f"ValueRef<{binding.vector_type.full_name}>")
             else:
-                cgb.type_alias(f"_t_{name}", f"RWValueRef<{binding.vector_type.full_name}>")
+                binding.gen_calldata_type_name(cgb, f"RWValueRef<{binding.vector_type.full_name}>")
 
     def gen_trampoline_load(
         self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str

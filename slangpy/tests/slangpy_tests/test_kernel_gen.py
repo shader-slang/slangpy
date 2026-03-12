@@ -123,9 +123,9 @@ def test_gate_scalar_uses_valuetype(device_type: spy.DeviceType):
         1,
         2,
     )
-    # Scalars now use direct binding: typealias to raw type, no ValueType wrapper
+    # Scalars now use direct binding: type used directly in CallData, no ValueType wrapper
     assert_not_contains(code, "ValueType<int>")
-    assert_contains(code, "typealias _t_a = int;", "typealias _t_b = int;")
+    assert_not_contains(code, "typealias _t_a", "typealias _t_b")
     # Trampoline uses direct assignment, no __slangpy_load
     assert_trampoline_has(code, "a = __calldata__.a;", "b = __calldata__.b;")
     # _result is auto-created as writable RWValueRef (not direct-bind)
@@ -143,7 +143,7 @@ def test_gate_float_scalar_uses_valuetype(device_type: spy.DeviceType):
         2.0,
     )
     assert_not_contains(code, "ValueType<float>")
-    assert_contains(code, "typealias _t_x = float;", "typealias _t_y = float;")
+    assert_not_contains(code, "typealias _t_x", "typealias _t_y")
 
 
 # -- Step 1.3: Vector / Matrix / Array direct binding --
@@ -160,7 +160,8 @@ def test_gate_vector_uses_vectorvaluetype(device_type: spy.DeviceType):
         1.0,
     )
     assert_not_contains(code, "VectorValueType<float,3>")
-    assert_contains(code, "typealias _t_v = vector<float,3>;")
+    assert_not_contains(code, "typealias _t_v")
+    assert_contains(code, "vector<float,3> v;")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -173,7 +174,8 @@ def test_gate_matrix_uses_valuetype(device_type: spy.DeviceType):
         spy.math.float4x4.identity(),
     )
     assert_not_contains(code, "ValueType<matrix<float,4,4>>")
-    assert_contains(code, "typealias _t_m = matrix<float,4,4>;")
+    assert_not_contains(code, "typealias _t_m")
+    assert_contains(code, "matrix<float,4,4> m;")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -186,7 +188,7 @@ def test_gate_array_dim0_uses_valuetype(device_type: spy.DeviceType):
         [1.0, 2.0, 3.0, 4.0],
     )
     assert_not_contains(code, "ValueType<")
-    assert_contains(code, "typealias _t_a = ")
+    assert_not_contains(code, "typealias _t_a")
 
 
 # -- Step 1.5: ValueRef direct binding --
@@ -201,8 +203,9 @@ def test_gate_valueref_read_uses_wrapper(device_type: spy.DeviceType):
         "float read_val(float v) { return v; }",
         ValueRef(1.0),
     )
-    # Read-only ValueRef uses raw type alias (direct-bind)
-    assert_contains(code, "typealias _t_v = float;")
+    # Read-only ValueRef uses raw type directly (direct-bind)
+    assert_not_contains(code, "typealias _t_v")
+    assert_contains(code, "float v;")
     # Direct assignment in trampoline
     assert_trampoline_has(code, "v = __calldata__.v;")
     # _result (writable) still uses RWValueRef wrapper
@@ -276,9 +279,10 @@ struct S {
 float sum(S s) { return s.x + s.y; }
 """
     code = generate_code(device, "sum", src, {"_type": "S", "x": 1.0, "y": 2.0})
-    # Direct-bind struct: uses raw type alias, no inline struct with __slangpy_load
+    # Direct-bind struct: uses raw type directly, no inline struct with __slangpy_load
     assert_not_contains(code, "__slangpy_load")
-    assert_contains(code, "typealias _t_s = S;")
+    assert_not_contains(code, "typealias _t_s")
+    assert_contains(code, "S s;")
     # Direct assignment in trampoline
     assert_trampoline_has(code, "s = __calldata__.s;")
 
@@ -328,8 +332,8 @@ def test_gate_wanghasharg_uses_wrapper(device_type: spy.DeviceType):
     src = "uint3 rng(uint3 input) { return input; }"
     code = generate_code(device, "rng", src, WangHashArg(3))
     assert_contains(code, "WangHashArg<")
-    # WangHashArg uses wrapper type. Check the type alias is present.
-    assert_contains(code, "_t_input")
+    # WangHashArg uses wrapper type — field declaration present in CallData
+    assert_contains(code, "input")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -450,8 +454,8 @@ def test_gate_mixed_args_scalar_and_tensor(device_type: spy.DeviceType):
         1.0,
         tensor,
     )
-    # 'a' is direct-bind (scalar dim-0): raw typealias, direct trampoline load
-    assert_contains(code, "typealias _t_a = float;")
+    # 'a' is direct-bind (scalar dim-0): type used directly, direct trampoline load
+    assert_not_contains(code, "typealias _t_a")
     assert_not_contains(code, "ValueType<float>")
     assert_trampoline_has(code, "a = __calldata__.a;")
     # 'b' is NOT direct-bind (vectorized tensor dim-1): uses Tensor<float, 1>,
@@ -517,14 +521,16 @@ void apply(S s, float scale) {}
     assert_contains(code, "__slangpy_load")
     assert_contains(code, "struct _t_s")
     assert_not_contains(code, "typealias _t_s = S;")
-    # Child y is direct-bind: raw type alias, direct assignment in __slangpy_load
-    assert_contains(code, "typealias _t_y = float;")
+    # Child y is direct-bind: type used directly, direct assignment in __slangpy_load
+    assert_not_contains(code, "typealias _t_y")
+    assert_contains(code, "float y;")
     assert_contains(code, "value.y = y;")
     assert_not_contains(code, "ValueType<float>")
     # Child x should use tensor type
     assert_contains(code, "Tensor<float, 1>")
     # Scalar arg 'scale' is independent — should still be direct-bind
-    assert_contains(code, "typealias _t_scale = float;")
+    assert_not_contains(code, "typealias _t_scale")
+    assert_contains(code, "float scale;")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -586,8 +592,9 @@ float tensor_read(Tensor<float,1> t) {
 """
     tensor = Tensor.from_numpy(device, np.array([42, 2, 3], dtype=np.float32))
     code = generate_code(device, "tensor_read", src, tensor)
-    # Type alias should use Tensor<float, 1>
-    assert_contains(code, "typealias _t_t = Tensor<float, 1>;")
+    # Type should use Tensor<float, 1> directly (no typealias)
+    assert_not_contains(code, "typealias _t_t")
+    assert_contains(code, "Tensor<float, 1> t;")
     # Trampoline uses direct assignment (not __slangpy_load)
     assert_trampoline_has(code, "t = __calldata__.t;")
     # No wrapper type for the tensor
@@ -653,7 +660,8 @@ float weighted_sum(S s, float scale) { return (s.x + s.y) * scale; }
     tensor_x = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
     code = generate_code(device, "weighted_sum", src, {"_type": "S", "x": tensor_x, "y": 1.0}, 2.0)
     # Child y uses raw type and direct assignment
-    assert_contains(code, "typealias _t_y = float;")
+    assert_not_contains(code, "typealias _t_y")
+    assert_contains(code, "float y;")
     assert_contains(code, "value.y = y;")
     # No mapping constant for y (direct-bind skips it)
     assert_not_contains(code, "_m_y")
@@ -793,10 +801,10 @@ def test_gate_2d_tensor_to_vector_codegen(device_type: spy.DeviceType):
     )
     # v is vectorized dim-1: tensor wrapping a vector type
     assert_contains(code, "__slangpy_load")
-    assert_contains(code, "_t_v")
     assert_contains(code, "_m_v")
-    # s is scalar dim-0: direct-bind
-    assert_contains(code, "typealias _t_s = float;")
+    # s is scalar dim-0: direct-bind, type used directly
+    assert_not_contains(code, "typealias _t_s")
+    assert_contains(code, "float s;")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -960,7 +968,6 @@ half[NumChannels] tensor_test_channels<let NumChannels : int>(half[NumChannels] 
     # data is vectorized (trailing dim consumed by array): __slangpy_load present
     assert_contains(code, "__slangpy_load")
     assert_contains(code, "_m_data")
-    assert_contains(code, "_t_data")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -1034,8 +1041,9 @@ float dot_lookup(float3 v, Tensor<float,1> weights) {
     # v: vectorized dim-1 (2D→float3), uses __slangpy_load
     assert_contains(code, "_m_v")
     assert_contains(code, "__slangpy_load")
-    # weights: dim-0 direct-bind (Tensor<float,1> param), uses typealias + direct assignment
-    assert_contains(code, "typealias _t_weights = Tensor<float, 1>;")
+    # weights: dim-0 direct-bind (Tensor<float,1> param), type used directly + direct assignment
+    assert_not_contains(code, "typealias _t_weights")
+    assert_contains(code, "Tensor<float, 1> weights;")
     assert_trampoline_has(code, "weights = __calldata__.weights;")
 
 
@@ -1107,8 +1115,9 @@ float compute(Outer o) { return (o.inner.x + o.inner.y) * o.scale; }
         src,
         {"_type": "Outer", "inner": {"_type": "Inner", "x": 1.0, "y": 2.0}, "scale": 3.0},
     )
-    # All-scalar nested struct at dim-0: direct-bind → raw typealias
-    assert_contains(code, "typealias _t_o = Outer;")
+    # All-scalar nested struct at dim-0: direct-bind → type used directly
+    assert_not_contains(code, "typealias _t_o")
+    assert_contains(code, "Outer o;")
     assert_not_contains(code, "__slangpy_load")
     assert_not_contains(code, "struct _t_o")
     assert_trampoline_has(code, "o = __calldata__.o;")
@@ -1179,8 +1188,9 @@ float3 apply(S s) { return s.pos * s.scale; }
         src,
         {"_type": "S", "pos": spy.math.float3(1, 2, 3), "scale": 2.0},
     )
-    # All-scalar struct with vector field at dim-0: direct-bind → raw typealias
-    assert_contains(code, "typealias _t_s = S;")
+    # All-scalar struct with vector field at dim-0: direct-bind → type used directly
+    assert_not_contains(code, "typealias _t_s")
+    assert_contains(code, "S s;")
     assert_not_contains(code, "__slangpy_load")
     assert_trampoline_has(code, "s = __calldata__.s;")
 
@@ -1240,7 +1250,8 @@ float4x4 apply(S s) { return s.m * s.scale; }
         src,
         {"_type": "S", "m": spy.math.float4x4.identity(), "scale": 2.0},
     )
-    assert_contains(code, "typealias _t_s = S;")
+    assert_not_contains(code, "typealias _t_s")
+    assert_contains(code, "S s;")
     assert_not_contains(code, "__slangpy_load")
     assert_trampoline_has(code, "s = __calldata__.s;")
 
@@ -1286,7 +1297,8 @@ int sum_inner(Foo foo) {
         src,
         {"_type": "Foo", "vals": [1, 2, 3, 4]},
     )
-    assert_contains(code, "typealias _t_foo = Foo;")
+    assert_not_contains(code, "typealias _t_foo")
+    assert_contains(code, "Foo foo;")
     assert_not_contains(code, "__slangpy_load")
     assert_trampoline_has(code, "foo = __calldata__.foo;")
 
@@ -1364,7 +1376,8 @@ float compute(Top t) { return t.mid.bot.v * float(t.mid.c) * t.s; }
             "s": 4.0,
         },
     )
-    assert_contains(code, "typealias _t_t = Top;")
+    assert_not_contains(code, "typealias _t_t")
+    assert_contains(code, "Top t;")
     assert_not_contains(code, "__slangpy_load")
     assert_not_contains(code, "struct _t_t")
     assert_trampoline_has(code, "t = __calldata__.t;")
@@ -1469,9 +1482,11 @@ float compute(Outer o) { return (o.inner.x + o.inner.y) * o.s; }
     assert_contains(code, "struct _t_o")
     assert_contains(code, "__slangpy_load")
     assert_not_contains(code, "typealias _t_o = Outer;")
-    # Scalar children retain direct-bind: raw type aliases
-    assert_contains(code, "typealias _t_y = float;")
-    assert_contains(code, "typealias _t_s = float;")
+    # Scalar children retain direct-bind: types used directly
+    assert_not_contains(code, "typealias _t_y")
+    assert_contains(code, "float y;")
+    assert_not_contains(code, "typealias _t_s")
+    assert_contains(code, "float s;")
     # Direct assignment for scalar children within __slangpy_load
     assert_contains(code, "value.y = y;")
     # Tensor child uses standard path
@@ -1572,7 +1587,8 @@ int sum_inner(Outer outer) {
             ],
         },
     )
-    assert_contains(code, "typealias _t_outer = Outer;")
+    assert_not_contains(code, "typealias _t_outer")
+    assert_contains(code, "Outer outer;")
     assert_not_contains(code, "__slangpy_load")
     assert_trampoline_has(code, "outer = __calldata__.outer;")
 
@@ -1623,8 +1639,8 @@ struct S {
 S make_struct(int a, int b) { return { a, b }; }
 """
     code = generate_code(device, "make_struct", src, 4, 5)
-    # Scalar inputs are direct-bind
-    assert_contains(code, "typealias _t_a = int;", "typealias _t_b = int;")
+    # Scalar inputs are direct-bind, types used directly
+    assert_not_contains(code, "typealias _t_a", "typealias _t_b")
     # _result is writable → NOT direct-bind → uses wrapper
     assert_contains(code, "__slangpy_store")
     assert_contains(code, "_m__result")
@@ -1695,8 +1711,9 @@ float3 apply(S st) { return st.v * st.s; }
     assert_contains(code, "struct _t_st")
     assert_contains(code, "__slangpy_load")
     assert_not_contains(code, "typealias _t_st = S;")
-    # Scalar child s retains direct-bind
-    assert_contains(code, "typealias _t_s = float;")
+    # Scalar child s retains direct-bind — type used directly, no alias
+    assert_not_contains(code, "typealias _t_s")
+    assert_contains(code, "float s;")
     assert_contains(code, "value.s = s;")
     # Tensor child v uses standard path
     assert_contains(code, "_m_v")
@@ -1719,6 +1736,104 @@ float3 apply(S st) { return st.v * st.s; }
     result = func({"_type": "S", "v": tensor_v, "s": 2.0})
     expected = data * 2.0
     np.testing.assert_allclose(result.to_numpy().reshape(expected.shape), expected, atol=1e-5)
+
+
+# ===========================================================================
+# Long type name heuristic — typealias emitted for names > MAX_INLINE_TYPE_LEN
+# ===========================================================================
+
+# Struct name that is deliberately longer than MAX_INLINE_TYPE_LEN (60 chars).
+# 70 chars:
+_LONG_STRUCT_NAME = "MyVeryLongStructNameThatExceedsSixtyCharactersForTesting12345"
+assert len(_LONG_STRUCT_NAME) > 60
+
+_SHORT_STRUCT_NAME = "S"
+assert len(_SHORT_STRUCT_NAME) <= 60
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_long_struct_name_gets_typealias(device_type: spy.DeviceType):
+    """A direct-bind struct with a name > 60 chars should emit a typealias."""
+    device = helpers.get_device(device_type)
+    src = f"""
+struct {_LONG_STRUCT_NAME} {{
+    float x;
+    float y;
+}};
+float sum({_LONG_STRUCT_NAME} s) {{ return s.x + s.y; }}
+"""
+    code = generate_code(
+        device,
+        "sum",
+        src,
+        {"_type": _LONG_STRUCT_NAME, "x": 1.0, "y": 2.0},
+    )
+    # Long name → typealias _t_s emitted, CallData field declared as _t_s
+    assert_contains(code, f"typealias _t_s = {_LONG_STRUCT_NAME};")
+    assert_contains(code, "_t_s s;")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_short_struct_name_inlined(device_type: spy.DeviceType):
+    """A direct-bind struct with a short name should NOT emit a typealias."""
+    device = helpers.get_device(device_type)
+    src = f"""
+struct {_SHORT_STRUCT_NAME} {{
+    float x;
+    float y;
+}};
+float sum({_SHORT_STRUCT_NAME} s) {{ return s.x + s.y; }}
+"""
+    code = generate_code(
+        device,
+        "sum",
+        src,
+        {"_type": _SHORT_STRUCT_NAME, "x": 1.0, "y": 2.0},
+    )
+    # Short name → no typealias, raw type inlined
+    assert_not_contains(code, "typealias _t_s")
+    assert_contains(code, f"{_SHORT_STRUCT_NAME} s;")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_long_scalar_type_name_gets_typealias(device_type: spy.DeviceType):
+    """A non-direct-bind arg whose wrapper type name exceeds 60 chars gets a typealias."""
+    device = helpers.get_device(device_type)
+    src = f"""
+struct {_LONG_STRUCT_NAME} {{
+    float x;
+    float y;
+}};
+{_LONG_STRUCT_NAME} identity({_LONG_STRUCT_NAME} s) {{ return s; }}
+"""
+    # Pass as a ValueRef so _result is writable → uses wrapper, and the wrapper
+    # type name for _result will include the long struct name.
+    code = generate_code(
+        device,
+        "identity",
+        src,
+        {"_type": _LONG_STRUCT_NAME, "x": 1.0, "y": 2.0},
+    )
+    # The _result binding uses RWValueRef<LongName> which exceeds 60 chars
+    result_type = f"RWValueRef<{_LONG_STRUCT_NAME}>"
+    assert len(result_type) > 60, f"Expected >60 chars, got {len(result_type)}"
+    assert_contains(code, f"typealias _t__result = {result_type};")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_phase1_functional_long_struct_name(device_type: spy.DeviceType):
+    """End-to-end dispatch with a struct whose name exceeds 60 chars."""
+    device = helpers.get_device(device_type)
+    src = f"""
+struct {_LONG_STRUCT_NAME} {{
+    float x;
+    float y;
+}};
+float sum({_LONG_STRUCT_NAME} s) {{ return s.x + s.y; }}
+"""
+    func = helpers.create_function_from_module(device, "sum", src)
+    result = func({"_type": _LONG_STRUCT_NAME, "x": 3.0, "y": 7.0})
+    assert abs(result - 10.0) < 1e-5
 
 
 if __name__ == "__main__":

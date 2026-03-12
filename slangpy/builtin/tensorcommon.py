@@ -376,7 +376,7 @@ def gen_calldata(
             access=access,
             tensor_type=tensor_type,
         )
-    cgb.type_alias(f"_t_{binding.variable_name}", type_name)
+    binding.gen_calldata_type_name(cgb, type_name)
 
 
 def can_direct_bind(self: ITensorMarshall, binding: BoundVariable) -> bool:
