@@ -19,54 +19,176 @@ void compute_main(int3 tid: SV_DispatchThreadID, uniform uint3 _thread_count, un
 
 ### Phase Plans
 
-- [Phase 1: Direct Type Marshalling](plan-simplifyKernelGen-phase1.prompt.md) — **implemented (prim-mode)**
-- [Phase 2: Eliminate CallData Struct](plan-simplifyKernelGen-phase2.prompt.md)
-- [Phase 3: Direct Compute Kernel Invocation](plan-simplifyKernelGen-phase3.prompt.md)
+- [Phase 1: Direct Type Marshalling](plan-simplifyKernelGen-phase1.prompt.md) — **✅ merged (PR #863)**
+- [Phase 2: Eliminate CallData Struct](plan-simplifyKernelGen-phase2.prompt.md) — **not started**
+- [Phase 3: Direct Compute Kernel Invocation](plan-simplifyKernelGen-phase3.prompt.md) — **not started**
 
 ---
 
-### Phase 1 Progress
+### Phase 1 Summary (Complete — PR #863)
 
-Phase 1 prim-mode direct binding is complete. Steps 1.1–1.7, 1.9 are implemented and passing. Step 1.8 (autodiff/bwds) is deferred.
+Phase 1 introduced **direct binding**: dim-0 arguments that can be bound using raw Slang types instead of `ValueType<T>` wrappers, eliminating `__slangpy_load`/`__slangpy_store` indirection, `Context.map()` calls, and mapping constants for eligible arguments. PR #863 was merged to `main` on 2026-03-11 (+2,044 / −122 lines, 18 files changed, squash-merged).
 
-The implementation was refactored from global predicate functions (`is_direct_bind_eligible`, `is_direct_bind_recursive`) with mutable marshall state (`_force_no_direct_bind`, `_set_direct_bind_on_children`) to a marshall-driven `can_direct_bind` property + single depth-first `calculate_direct_bind` pass on the `BoundVariable` tree, following the `calculate_differentiability` pattern.
+#### What Phase 1 Changed
 
-**What was done:**
+**Architecture**: A marshall-driven `can_direct_bind(binding)` virtual method (default `False`) combined with a single depth-first `calculate_direct_bind()` pass on the `BoundVariable` tree. This follows the same pattern as `calculate_differentiability`. The `direct_bind` boolean is stored on `BoundVariable` (Python) and propagated to `NativeBoundVariableRuntime` (C++).
+
+**Eligibility**: A variable is direct-bind eligible if:
+- `call_dimensionality == 0` (not vectorized)
+- Not composite with children (unless all children are also direct-bind AND the composite is dim-0 with a concrete Slang struct type and read-only access)
+- Not a param block (`PackedArg`)
+- The marshall opts in via `can_direct_bind()` override
+- For `ValueRefMarshall`: `access[0] == AccessType.read` (writable value refs need buffer logic)
+
+**Code generation effects** — when `binding.direct_bind == True`:
+- `gen_calldata` emits `typealias _t_{name} = {raw_slang_type}` instead of `ValueType<T>` / `VectorValueType<T,N>` / `ValueRef<T>`
+- `gen_trampoline_load` emits `{value_name} = {data_name};` (direct assignment) instead of `{data_name}.__slangpy_load(context.map(_m_{name}), {name})`
+- `gen_trampoline_store` returns `True` (suppresses store for read-only types)
+- Mapping constants (`static const int _m_{name} = 0`) are skipped
+- `create_calldata` returns the raw value instead of `{"value": data}`
+
+**C++ fast path**: `NativeValueMarshall::ensure_cached` reads `binding->direct_bind()` to decide cursor navigation — `cursor[variable_name]` for direct-bind vs `cursor[variable_name]["value"]` for wrapper path.
+
+**Composite (struct/dict) handling**: When `calculate_direct_bind()` visits a composite, it recurses children first. If all children are direct-bind AND the composite is dim-0 with a concrete vector type and read-only access → the composite itself is direct-bind (emits raw `typealias`). Otherwise the composite is NOT direct-bind, but children **retain** their individual `direct_bind` status — the parent's `__slangpy_load`/`__slangpy_store` body uses `gen_trampoline_load`/`gen_trampoline_store` for each child, so direct-bind children get direct assignment (e.g., `value.y = y;`) while non-direct-bind children use `__slangpy_load(context.map(...))`.
+
+**API changes to `gen_trampoline_load`/`gen_trampoline_store`**: Signature changed from `(cgb, binding, is_entry_point)` → `(cgb, binding, data_name, value_name)`. The caller now computes `data_name` (e.g., `__calldata__.x` or `call_data.x`) and `value_name` (e.g., `x` or `value.x`), allowing these methods to work both at the root trampoline level and inside composite `__slangpy_load`/`__slangpy_store` bodies.
+
+**`read_output` fix** (C++): `NativeBoundVariableRuntime::read_output` was simplified — composites no longer attempt to read output directly (it is handled by their children). The old composite branch had a logic error (checking `res.contains(name)` before insertion).
+
+#### Control Flow (post-Phase 1)
+
+```
+CallData.build()
+  → calculate_differentiability(context, bindings)
+  → calculate_direct_binding(bindings)           ← Phase 1
+  → generate_code(...)
+      → gen_call_data_code()    — reads binding.direct_bind
+      → gen_trampoline()        — reads binding.direct_bind
+  → BoundCallRuntime(bindings)  — propagates binding.direct_bind to C++ runtime
+```
+
+At dispatch time, `NativeValueMarshall::ensure_cached()` reads `binding->direct_bind()` to decide cursor navigation:
+- `direct_bind == false`: `cursor[variable_name]["value"]` (wrapper path)
+- `direct_bind == true`: `cursor[variable_name]` (raw type path)
+
+#### Implemented Steps
 
 | Step | Status | Summary |
 |------|--------|---------|
-| 1.2a | ✅ Done | C++ fast path: `NativeValueMarshall::ensure_cached` reads `binding->direct_bind()` from `NativeBoundVariableRuntime` to gate `["value"]` sub-field navigation. `m_direct_bind` **removed** from `NativeValueMarshall` — flag lives on `NativeBoundVariableRuntime`. |
-| 1.1 | ✅ Done | `Marshall.can_direct_bind(binding)` virtual method (default `False`). Shared `can_direct_bind_common(binding)` helper. `BoundVariable.calculate_direct_bind()` depth-first tree pass. `calculate_direct_binding(call)` in `callsignature.py`. |
-| 1.2 | ✅ Done | `ValueMarshall`: `can_direct_bind` overrides. `gen_calldata`, `gen_trampoline_load/store`, `create_calldata` read `binding.direct_bind`. |
-| 1.3 | ✅ Done | `VectorMarshall`: `gen_calldata` emits raw `typealias` (e.g., `vector<float,3>`). Inherits trampoline load/store and `can_direct_bind` from `ValueMarshall`. |
-| 1.4 | ✅ Done | `StructMarshall`/`BoundVariable`: `can_direct_bind` checks all children. `gen_call_data_code` uses `self.direct_bind`. Non-direct-bind composites let children retain their `direct_bind` status; `gen_call_data_code` delegates to children's `gen_trampoline_load/store`. |
-| 1.5 | ✅ Done | `ValueRefMarshall`: `can_direct_bind` requires read-only access. Writable value refs (including auto-created `_result`) use wrapper path (`RWValueRef<T>`). |
-| 1.6 | ✅ Done | Tensor dim-0: `gen_trampoline_load/store` extended for `ITensorType` at dim-0 (direct struct assignment). |
+| 1.1 | ✅ Done | `Marshall.can_direct_bind(binding)` virtual method. `can_direct_bind_common(binding)` helper. `BoundVariable.calculate_direct_bind()` depth-first tree pass. `calculate_direct_binding(call)` in `callsignature.py`. |
+| 1.2 | ✅ Done | `ValueMarshall`: `can_direct_bind`, `gen_calldata`, `gen_trampoline_load/store` read `binding.direct_bind`. |
+| 1.2a | ✅ Done | C++ fast path: `NativeValueMarshall::ensure_cached` reads `binding->direct_bind()` from `NativeBoundVariableRuntime`. `m_direct_bind` **removed** from `NativeValueMarshall`. |
+| 1.3 | ✅ Done | `VectorMarshall`/`MatrixMarshall`/`ArrayMarshall`: inherit from `ValueMarshall`. `VectorMarshall.gen_calldata` emits raw vector type (e.g., `vector<float,3>`). |
+| 1.4 | ✅ Done | `StructMarshall`: `can_direct_bind` checks all children. `BoundVariable.gen_call_data_code` uses `self.direct_bind`. Non-direct-bind composites delegate to children's `gen_trampoline_load/store`. |
+| 1.5 | ✅ Done | `ValueRefMarshall`: `can_direct_bind` requires `access[0] == AccessType.read`. Writable value refs (including auto-created `_result`) use `RWValueRef<T>`. |
+| 1.6 | ✅ Done | Tensor dim-0: `can_direct_bind` added to `tensorcommon.py`. `gen_trampoline_load/store` extended for dim-0 tensors (`ITensorType`, `TensorViewType`, `DiffTensorViewType`). |
 | 1.7 | ✅ Done | Mapping constants (`static const int _m_{name}`) skipped when `self.direct_bind`. |
-| 1.8 | ⬜ Deferred | Autodiff/bwds mode still uses wrapper types. |
-| 1.9 | ✅ Done | 21 tests (×3 device types = 63 cases): 16 code-gen assertion tests + 5 functional GPU dispatch tests. All pass on d3d12/vulkan/cuda. |
+| 1.8 | ⬜ Deferred | Autodiff derivative fields still use `ValueType` wrappers. Bwds primals use direct bind. |
+| 1.9 | ✅ Done | 77 tests (×3 device types = 231 cases). All pass on d3d12/vulkan/cuda. |
 
-**Files modified:**
+#### Files Modified (PR #863)
 
 | File | Changes |
 |------|---------|
-| `src/slangpy_ext/utils/slangpy.h` | `m_direct_bind` member, getter/setter on `NativeBoundVariableRuntime` |
-| `src/slangpy_ext/utils/slangpy.cpp` | Nanobind `direct_bind` property on `NativeBoundVariableRuntime` |
-| `src/slangpy_ext/utils/slangpyvalue.h` | `m_direct_bind`, `direct_bind()`, `set_direct_bind()` **removed** from `NativeValueMarshall` |
-| `src/slangpy_ext/utils/slangpyvalue.cpp` | `ensure_cached` reads `binding->direct_bind()`; nanobind `direct_bind` property **removed** from `NativeValueMarshall` |
-| `slangpy/bindings/marshall.py` | `can_direct_bind(binding)` virtual method (default `False`) |
-| `slangpy/bindings/boundvariable.py` | `can_direct_bind_common()`, `BoundVariable.direct_bind`, `calculate_direct_bind()`. Removed: `is_direct_bind_eligible`, `is_direct_bind_recursive`, `_set_direct_bind_on_children`, `_force_no_direct_bind`, `_DIRECT_BIND_TYPES`, `_clear_direct_bind()`. |
-| `slangpy/bindings/boundvariableruntime.py` | `self.direct_bind = source.direct_bind` propagation |
-| `slangpy/bindings/__init__.py` | Exports `can_direct_bind_common` (removed old predicate exports) |
-| `slangpy/core/callsignature.py` | `calculate_direct_binding(call)` function |
-| `slangpy/core/calldata.py` | `calculate_direct_binding(bindings)` call after `calculate_differentiability` |
-| `slangpy/builtin/value.py` | `can_direct_bind`, `gen_calldata`, `gen_trampoline_load/store`, `create_calldata` use `binding.direct_bind` |
-| `slangpy/builtin/valueref.py` | `can_direct_bind` (read-only only), all methods use `binding.direct_bind`. Removed `self._direct_bind`. |
-| `slangpy/builtin/struct.py` | `can_direct_bind`, `gen_trampoline_load/store` use `binding.direct_bind` |
-| `slangpy/builtin/tensorcommon.py` | `gen_trampoline_load/store` extended for `ITensorType` (unchanged in refactor) |
-| `slangpy/tests/slangpy_tests/test_kernel_gen.py` | All Phase 1 tests |
+| `src/slangpy_ext/utils/slangpy.h` | `m_direct_bind` member, `direct_bind()`, `set_direct_bind()` on `NativeBoundVariableRuntime` |
+| `src/slangpy_ext/utils/slangpy.cpp` | Nanobind `direct_bind` r/w property on `NativeBoundVariableRuntime`. `read_output` composite branch simplified. |
+| `src/slangpy_ext/utils/slangpyvalue.h` | `CachedValueWrite.direct_bind` field added. `m_direct_bind`/`direct_bind()`/`set_direct_bind()` **removed** from `NativeValueMarshall`. |
+| `src/slangpy_ext/utils/slangpyvalue.cpp` | `ensure_cached` reads `binding->direct_bind()` for cursor path; caches `direct_bind` value. |
+| `slangpy/bindings/marshall.py` | `can_direct_bind(binding)` virtual method (default `False`). `gen_trampoline_load/store` signature changed to `(cgb, binding, data_name, value_name)`. |
+| `slangpy/bindings/boundvariable.py` | `can_direct_bind_common()` helper. `BoundVariable.direct_bind` attribute. `BoundVariable.calculate_direct_bind()` method. `gen_call_data_code` handles direct-bind composites (raw typealias) and delegates to children's `gen_trampoline_load/store`. Mapping constant emission gated on `not self.direct_bind`. |
+| `slangpy/bindings/boundvariableruntime.py` | `self.direct_bind = source.direct_bind` propagation to C++ runtime. |
+| `slangpy/bindings/__init__.py` | Exports `can_direct_bind_common`. |
+| `slangpy/core/callsignature.py` | `calculate_direct_binding(call)` function. Trampoline code gen refactored: `data_name` computed before `gen_trampoline_load` call. Store path moved after `data_name` computation. |
+| `slangpy/core/calldata.py` | `calculate_direct_binding(bindings)` call after `calculate_differentiability`. `self.code = code` stored for debugging. |
+| `slangpy/builtin/value.py` | `can_direct_bind`, `gen_trampoline_load`, `gen_trampoline_store` added. `gen_calldata` gates on `binding.direct_bind`. |
+| `slangpy/builtin/valueref.py` | `can_direct_bind` (read-only gate), `gen_trampoline_load`, `gen_trampoline_store` added. `gen_calldata`, `create_calldata`, `read_calldata` gate on `binding.direct_bind`. `self._direct_bind` removed. |
+| `slangpy/builtin/struct.py` | `can_direct_bind` (children check + `AccessType.read` gate). `gen_trampoline_load`, `gen_trampoline_store` delegate to `ValueMarshall` when direct-bind. |
+| `slangpy/builtin/tensor.py` | `can_direct_bind` delegates to `tensorcommon`. `gen_trampoline_load/store` signature updated. |
+| `slangpy/builtin/tensorcommon.py` | `can_direct_bind()` function added. `gen_trampoline_load/store` signature changed, condition changed from `isinstance(vector_type, TensorViewType)` to `binding.direct_bind`. |
+| `slangpy/torchintegration/torchtensormarshall.py` | `can_direct_bind` delegates to `tensorcommon`. `gen_trampoline_load/store` signature updated. |
+| `slangpy/benchmarks/test_benchmark_autograd.py` | Removed accidental blank line (1-line whitespace change). |
+| `slangpy/tests/slangpy_tests/test_kernel_gen.py` | New file: 77 tests covering all Phase 1 scenarios. |
 
-**Test results:** 2952 passed / 0 failed in `slangpy/tests/slangpy_tests`. 6 pre-existing failures in `slangpy/tests/device/` (raytracing pipeline, type conformance cache — unrelated).
+#### Test Coverage Summary
+
+The test file (`test_kernel_gen.py`) provides 77 test functions × 3 device types = 231 parametrized cases covering:
+
+**Code-gen assertion tests** (`test_gate_*`): Verify generated Slang code patterns — type aliases, trampoline load/store statements, mapping constants, wrapper types, `__slangpy_load`/`__slangpy_store` presence/absence.
+
+**Binding flag tests**: Verify `direct_bind`, `call_dimensionality`, and `vector_type` on `BoundVariable` instances for: scalars, vectors, tensors (dim-0 and vectorized), structs (all-scalar, mixed, nested, deeply nested), writable ValueRef, auto-created `_result`, WangHashArg, bwds primal args.
+
+**Functional GPU dispatch tests** (`test_phase1_functional_*`): End-to-end dispatch verifying correct GPU results for: scalar add/mul, vector scale, struct sum, ValueRef write, mixed scalar+tensor, mixed struct fields, tensor dim-0, 2D/3D tensor→vector, 2D tensor→scalar, 2D tensor→array, nested/deeply-nested structs, struct with matrix/vector/array fields, struct return types, struct with vectorized 2D tensor child.
+
+**Negative gates** (`test_gate_*_keeps_*`): Verify types that are NOT direct-bind eligible remain using wrappers: WangHashArg, vectorized scalar (dim > 0), vectorized dict.
+
+**Helper infrastructure**: `assert_contains`, `assert_not_contains`, `assert_trampoline_has`, `generate_code`, `generate_bwds_code`.
+
+#### Known Issues (from review, not yet addressed)
+
+1. **`set_direct_bind` exposed as read-write nanobind property** — After first dispatch, mutating `direct_bind` would invalidate the cached cursor offset. Consider making it read-only.
+
+2. **C++ cache safety** — `NativeValueMarshall::ensure_cached` caches `direct_bind` but has no debug assertion verifying it matches on subsequent calls.
+
+3. **Dead `binding.direct_bind` checks in writable ValueRef paths** — `create_calldata` and `read_calldata` in `valueref.py` have `assert not binding.direct_bind` in writable code paths (reachable only as assertions, since `can_direct_bind` rejects non-read access).
+
+---
+
+### What Phase 2 Needs to Know
+
+Phase 2 builds on Phase 1's `direct_bind` infrastructure. Key context for implementation:
+
+**Current kernel structure** (post-Phase 1, for `int add(int a, int b)` with args `(1, 2)`):
+```slang
+import "module";
+import "slangpy";
+// CallData struct with per-arg type aliases and mapping constants
+struct CallData {
+    typealias _t_a = int;         // Phase 1: raw type (was ValueType<int>)
+    _t_a a;
+    typealias _t_b = int;         // Phase 1: raw type (was ValueType<int>)
+    _t_b b;
+    typealias _t__result = RWValueRef<int>;  // writable _result still wrapped
+    _t__result _result;
+    static const int _m__result = 0;         // mapping constant only for _result
+    uint3 _thread_count;
+    // ... shape arrays if call_data_len > 0 ...
+};
+void _trampoline(CallData call_data /*or __calldata__ on CUDA*/) {
+    int a;
+    a = call_data.a;              // Phase 1: direct assignment (was __slangpy_load)
+    int b;
+    b = call_data.b;              // Phase 1: direct assignment
+    int _result;
+    _result = add(a, b);
+    call_data._result.__slangpy_store(__slangpy_context__.map(_m__result), _result);
+}
+[shader("compute")] [numthreads(32,1,1)]
+void compute_main(..., uniform CallData call_data) {
+    // thread bounds check, context construction
+    _trampoline(call_data);
+}
+```
+
+**Phase 2 goal**: Eliminate the `CallData` struct entirely when ALL args are direct-bind eligible. Pass args as individual `uniform` parameters on the entry point. Inline the function call into `compute_main` (skip trampoline for prim mode).
+
+**Blocking issue for Phase 2**: Auto-created `_result` is a writable `ValueRef` → NOT direct-bind (needs `RWValueRef<T>` wrapper with buffer). Phase 2 must either:
+- Accept that `_result` prevents full CallData elimination for functions with return values, and use a hybrid approach (direct args + `_result` in CallData or as a separate `RWStructuredBuffer` entry point param), OR
+- Add a new code path for `_result` that emits `uniform RWStructuredBuffer<T> _result` as an entry point param with `_result[0] = ...` for the store
+
+**Key files for Phase 2**:
+- `slangpy/core/callsignature.py` — `generate_code()` builds the trampoline and compute_main
+- `slangpy/core/calldata.py` — `CallData.build()` orchestrates the pipeline
+- `slangpy/bindings/codegen.py` — `CodeGen` class manages `call_data_structs` block
+- `src/slangpy_ext/utils/slangpy.cpp` — `NativeCallData::exec()` dispatches; cursor navigation for uniforms
+
+**`BoundVariable.direct_bind`** is already computed for all args by Phase 1. Phase 2 can check `all(arg.direct_bind for arg in all_args)` to decide whether to use the direct-args path.
+
+**Entry point parameter precedent**: See `slangpy/tests/device/test_pipeline_utils.slang` — manually written compute shaders already use individual `uniform` entry point params on all backends (CUDA, Vulkan, D3D12).
+
+**Design decisions deferred to Phase 2**:
+- Whether to support hybrid kernels (some args as entry-point params, some in CallData) or only all-or-nothing
+- Handle entry-point parameter size limits (CUDA ~4KB root constants, D3D12 64 DWORD root signature limit)
+- Whether to inline the function call directly in compute_main for prim mode, or keep a simplified trampoline
 
 ---
 
@@ -82,31 +204,27 @@ Before implementing any phase, add **gating tests** to [slangpy/tests/slangpy_te
 - Named `test_gate_*` for easy identification
 - WangHashArg and dict/composite tests serve as "negative gates" — they remain passing after simplification
 
-**Test infrastructure additions:**
+**Test infrastructure** (already present in `test_kernel_gen.py`):
 ```python
-def assert_contains(code: str, *patterns: str) -> None:
-    for p in patterns:
-        assert p in code, f"Expected pattern not found: {p}"
-
-def assert_not_contains(code: str, *patterns: str) -> None:
-    for p in patterns:
-        assert p not in code, f"Unexpected pattern found: {p}"
-
-def generate_bwds_code(device, func_name, module_source, *args, **kwargs) -> str:
-    func = helpers.create_function_from_module(device, func_name, module_source)
-    cd = func.bwds.debug_build_call_data(*args, **kwargs)
-    if PRINT_TEST_KERNEL_GEN:
-        print(cd.code)
-    return cd.code
+def assert_contains(code: str, *patterns: str) -> None
+def assert_not_contains(code: str, *patterns: str) -> None
+def assert_trampoline_has(code: str, *stmts: str) -> None
+def generate_code(device, func_name, module_source, *args, **kwargs) -> str
+def generate_bwds_code(device, func_name, module_source, *args, **kwargs) -> str
 ```
 
-**Summary of all gating tests by phase:**
+**Phase 2 gating tests to add** (assert CURRENT behavior, will break on implementation):
 
-| Phase | Gating Tests (break on implementation) | Negative Gates (must stay passing) |
-|-------|---------------------------------------|-----------------------------------|
-| 1 | 12 tests: scalar/float/vector/matrix/valueref-read/valueref-write/array/mapping-constants/context-map/struct-slangpy-load/bwds-scalar/bwds-trampoline | 3 tests: wanghasharg/vectorized-scalar/vectorized-dict |
-| 2 | 7 tests: calldata-struct/calldata-uniform/thread-count/context-from-calldata/trampoline-present/trampoline-calls/kernel-calls-trampoline | 1 test: wanghasharg-forces-calldata |
-| 3 | 1 test: compute-shader-generates-wrapper | — |
+| Test | Asserts (current behavior) | Breaks when |
+|------|---------------------------|-------------|
+| `test_gate_calldata_struct_present` | `struct CallData` present | Step 2.1 |
+| `test_gate_calldata_uniform_param` | `uniform CallData call_data` in `compute_main` | Step 2.2 |
+| `test_gate_thread_count_in_calldata` | `call_data._thread_count` in kernel body | Step 2.4 |
+| `test_gate_context_from_calldata` | `Context __slangpy_context__` present | Step 2.4 |
+| `test_gate_trampoline_present_for_prim` | `void _trampoline(` present | Step 2.5 |
+| `test_gate_trampoline_calls_function` | `_result = add(a, b)` inside trampoline | Step 2.5 |
+| `test_gate_kernel_calls_trampoline` | `_trampoline(` inside `compute_main` | Step 2.5 |
+| `test_gate_wanghasharg_forces_calldata` (negative) | `struct CallData` present with non-eligible arg | Must stay passing |
 
 ---
 
@@ -133,33 +251,3 @@ pre-commit run --all-files
 - Phase 2 targets both `entry_point` (CUDA) and `global_data` (Vulkan/D3D12) modes
 - Autograd (bwds mode) is included in simplification, but implemented after prim mode within each phase
 - WangHashArg explicitly excluded from direct binding (needs per-thread `thread_id` computation)
-
----
-
-### Code Review Notes (PR #862)
-
-**Bugs / concerns found:**
-
-1. **Benchmark file changes are accidental** — `test_benchmark_autograd.py` has local tuning changes (ITERATIONS 10→100, WARMUPS 10→1000, RUN_SLANGTORCH_BENCHMARK False→True) that should be reverted before merge.
-
-2. **Composite `calculate_direct_bind` doesn't consult the marshall** — When `self.children is not None`, `calculate_direct_bind()` hard-codes eligibility criteria and never calls `self.python.can_direct_bind(self)`. This auto-opts-in composites if all children pass, preventing a marshall from rejecting. The `StructMarshall.can_direct_bind` children branch is dead code as a result. Either have composites delegate to the marshall, or remove the dead code from `StructMarshall.can_direct_bind`.
-
-3. **Composite direct-bind doesn't gate on read-only access** — `calculate_direct_bind`'s composite branch doesn't check `self.access[0] == AccessType.read`. A writable composite at dim-0 could be marked direct-bind, but no `__slangpy_store` is generated for the raw type alias. `ValueRefMarshall` correctly gates on read-only — composites should too.
-
-4. **Dead code in `ValueRefMarshall.create_calldata`/`read_calldata`** — `if binding.direct_bind` checks in writable code paths are unreachable since `can_direct_bind` rejects non-read access. Remove or assert.
-
-5. **C++ cache safety** — `NativeValueMarshall::ensure_cached` caches the `direct_bind` cursor path on first dispatch but has no assertion that subsequent calls use the same `direct_bind` value. Safe in current architecture (each call signature gets its own marshall), but fragile. Consider adding `SGL_ASSERT(m_cached.direct_bind == binding->direct_bind())` for debug builds.
-
-6. **`set_direct_bind` exposed as read-write nanobind property** — After first dispatch, mutating `direct_bind` invalidates the cached cursor offset silently. Consider making it read-only in the nanobind binding.
-
-**Missing test coverage (high priority):**
-
-| Test | Purpose |
-|------|---------|
-| Writable `ValueRef` `inout` param → `direct_bind=False` | Guards access-check logic in `ValueRefMarshall.can_direct_bind` |
-| `_result` auto-created binding → `direct_bind=False` flag | Binding-level assertion, not just codegen |
-| All-scalar struct → `direct_bind=True` binding flag | Struct direct-bind logic verified at binding level |
-| Struct with WangHashArg child → composite NOT direct-bind | Mixed non-eligible child in composite |
-| WangHashArg → `direct_bind=False` binding flag | Type without `can_direct_bind` override |
-| Functional GPU test: read-only `ValueRef` input | End-to-end direct-bind ValueRef pipeline |
-| Bwds mode binding flags on primal args | Verify access-tuple indexing in backwards mode |
