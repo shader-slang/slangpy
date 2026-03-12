@@ -218,6 +218,12 @@ void bind_vector_type(nb::module_& m, const char* name)
         return name(x, y);                                                                                             \
     },                                                                                                                 \
         "x"_a, "y"_a
+#define WRAP_INTRINSIC_XY_TYPED(T1, T2, name)                                                                          \
+    [](const T1& x, const T2& y)                                                                                       \
+    {                                                                                                                  \
+        return name(x, y);                                                                                             \
+    },                                                                                                                 \
+        "x"_a, "y"_a
 #define WRAP_INTRINSIC_YX(name)                                                                                        \
     [](const T& y, const T& x)                                                                                         \
     {                                                                                                                  \
@@ -251,13 +257,25 @@ void bind_vector_type(nb::module_& m, const char* name)
         // Component-wise comparisons
 
         m.def("eq", WRAP_INTRINSIC_XY(eq));
+        m.def("eq", WRAP_INTRINSIC_XY_TYPED(T, value_type, eq));
+        m.def("eq", WRAP_INTRINSIC_XY_TYPED(value_type, T, eq));
         m.def("ne", WRAP_INTRINSIC_XY(ne));
+        m.def("ne", WRAP_INTRINSIC_XY_TYPED(T, value_type, ne));
+        m.def("ne", WRAP_INTRINSIC_XY_TYPED(value_type, T, ne));
 
         if constexpr (arithmetic<value_type>) {
             m.def("lt", WRAP_INTRINSIC_XY(lt));
+            m.def("lt", WRAP_INTRINSIC_XY_TYPED(T, value_type, lt));
+            m.def("lt", WRAP_INTRINSIC_XY_TYPED(value_type, T, lt));
             m.def("gt", WRAP_INTRINSIC_XY(gt));
+            m.def("gt", WRAP_INTRINSIC_XY_TYPED(T, value_type, gt));
+            m.def("gt", WRAP_INTRINSIC_XY_TYPED(value_type, T, gt));
             m.def("le", WRAP_INTRINSIC_XY(le));
+            m.def("le", WRAP_INTRINSIC_XY_TYPED(T, value_type, le));
+            m.def("le", WRAP_INTRINSIC_XY_TYPED(value_type, T, le));
             m.def("ge", WRAP_INTRINSIC_XY(ge));
+            m.def("ge", WRAP_INTRINSIC_XY_TYPED(T, value_type, ge));
+            m.def("ge", WRAP_INTRINSIC_XY_TYPED(value_type, T, ge));
         }
 
         // Basic functions
