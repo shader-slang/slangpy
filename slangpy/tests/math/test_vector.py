@@ -133,26 +133,26 @@ def test_float4_binary_ops():
 
 
 def test_uint4_logical_ops():
-    assert (uint4(1, 2, 3, 4) == uint4(1, 2, 3, 4)) == True
-    assert (uint4(1, 2, 3, 4) == uint4(2, 3, 4, 5)) == False
-    assert (uint4(1, 2, 3, 4) == uint4(3, 4, 5, 6)) == False
-    assert (uint4(1, 2, 3, 4) == uint4(4, 5, 6, 7)) == False
+    assert uint4(1, 2, 3, 4) == uint4(1, 2, 3, 4)
+    assert not uint4(1, 2, 3, 4) == uint4(2, 3, 4, 5)
+    assert not uint4(1, 2, 3, 4) == uint4(3, 4, 5, 6)
+    assert not uint4(1, 2, 3, 4) == uint4(4, 5, 6, 7)
 
-    assert (uint4(1, 2, 3, 4) != uint4(1, 2, 3, 4)) == False
-    assert (uint4(1, 2, 3, 4) != uint4(2, 3, 4, 5)) == True
-    assert (uint4(1, 2, 3, 4) != uint4(3, 4, 5, 6)) == True
-    assert (uint4(1, 2, 3, 4) != uint4(4, 5, 6, 7)) == True
+    assert not uint4(1, 2, 3, 4) != uint4(1, 2, 3, 4)
+    assert uint4(1, 2, 3, 4) != uint4(2, 3, 4, 5)
+    assert uint4(1, 2, 3, 4) != uint4(3, 4, 5, 6)
+    assert uint4(1, 2, 3, 4) != uint4(4, 5, 6, 7)
 
 
 def test_uint4_comparison_ops():
     # Lexicographic comparison
-    assert (uint4(1, 2, 3, 4) < uint4(1, 2, 3, 5)) == True
-    assert (uint4(1, 2, 3, 4) < uint4(2, 0, 0, 0)) == True
-    assert (uint4(1, 2, 3, 4) < uint4(1, 2, 3, 4)) == False
-    assert (uint4(1, 2, 3, 4) > uint4(1, 2, 3, 3)) == True
-    assert (uint4(1, 2, 3, 4) > uint4(1, 2, 3, 4)) == False
-    assert (uint4(1, 2, 3, 4) <= uint4(1, 2, 3, 4)) == True
-    assert (uint4(1, 2, 3, 4) >= uint4(1, 2, 3, 4)) == True
+    assert uint4(1, 2, 3, 4) < uint4(1, 2, 3, 5)
+    assert uint4(1, 2, 3, 4) < uint4(2, 0, 0, 0)
+    assert not uint4(1, 2, 3, 4) < uint4(1, 2, 3, 4)
+    assert uint4(1, 2, 3, 4) > uint4(1, 2, 3, 3)
+    assert not uint4(1, 2, 3, 4) > uint4(1, 2, 3, 4)
+    assert uint4(1, 2, 3, 4) <= uint4(1, 2, 3, 4)
+    assert uint4(1, 2, 3, 4) >= uint4(1, 2, 3, 4)
 
 
 def test_componentwise_comparisons():
