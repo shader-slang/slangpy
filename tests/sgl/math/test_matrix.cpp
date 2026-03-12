@@ -10,18 +10,16 @@ TEST_SUITE_BEGIN("matrix");
 template<typename T, int N>
 bool almost_equal(math::vector<T, N> a, math::vector<T, N> b, T epsilon = T(1e-5))
 {
-    return all(abs(a - b) < math::vector<T, N>(epsilon));
+    return all(lt(abs(a - b), epsilon));
 }
 
 template<typename T>
 bool almost_equal(math::quat<T> a, math::quat<T> b, T epsilon = T(1e-5))
 {
-    return all(math::vector<T, 4>(b.x - a.x, b.y - a.y, b.z - a.z, b.w - a.w) < math::vector<T, 4>(epsilon));
+    return almost_equal(math::vector<T, 4>(a.x, a.y, a.z, a.w), math::vector<T, 4>(b.x, b.y, b.z, b.w), epsilon);
 }
 
 #define CHECK_ALMOST_EQ(a, b) CHECK_MESSAGE(almost_equal(a, b), fmt::format("{} != {}", a, b))
-
-#define CHECK_EQ_VECTOR(a, b) CHECK_MESSAGE(all(a == b), fmt::format("{} != {}", a, b))
 
 // Helper for constructing matrices row-by-row without clang-format screwing up the formatting
 #define ROW(...) __VA_ARGS__
@@ -31,37 +29,37 @@ TEST_CASE("constructors")
     // Default constructor
     {
         float4x4 m;
-        CHECK_EQ_VECTOR(m[0], float4(1, 0, 0, 0));
-        CHECK_EQ_VECTOR(m[1], float4(0, 1, 0, 0));
-        CHECK_EQ_VECTOR(m[2], float4(0, 0, 1, 0));
-        CHECK_EQ_VECTOR(m[3], float4(0, 0, 0, 1));
+        CHECK(m[0] == float4(1, 0, 0, 0));
+        CHECK(m[1] == float4(0, 1, 0, 0));
+        CHECK(m[2] == float4(0, 0, 1, 0));
+        CHECK(m[3] == float4(0, 0, 0, 1));
     }
 
     // Initializer list constructor
     {
         float4x4 m({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
-        CHECK_EQ_VECTOR(m[0], float4(1, 2, 3, 4));
-        CHECK_EQ_VECTOR(m[1], float4(5, 6, 7, 8));
-        CHECK_EQ_VECTOR(m[2], float4(9, 10, 11, 12));
-        CHECK_EQ_VECTOR(m[3], float4(13, 14, 15, 16));
+        CHECK(m[0] == float4(1, 2, 3, 4));
+        CHECK(m[1] == float4(5, 6, 7, 8));
+        CHECK(m[2] == float4(9, 10, 11, 12));
+        CHECK(m[3] == float4(13, 14, 15, 16));
     }
 
     // Identity
     {
         float4x4 m = float4x4::identity();
-        CHECK_EQ_VECTOR(m[0], float4(1, 0, 0, 0));
-        CHECK_EQ_VECTOR(m[1], float4(0, 1, 0, 0));
-        CHECK_EQ_VECTOR(m[2], float4(0, 0, 1, 0));
-        CHECK_EQ_VECTOR(m[3], float4(0, 0, 0, 1));
+        CHECK(m[0] == float4(1, 0, 0, 0));
+        CHECK(m[1] == float4(0, 1, 0, 0));
+        CHECK(m[2] == float4(0, 0, 1, 0));
+        CHECK(m[3] == float4(0, 0, 0, 1));
     }
 
     // Zeros
     {
         float4x4 m = float4x4::zeros();
-        CHECK_EQ_VECTOR(m[0], float4(0, 0, 0, 0));
-        CHECK_EQ_VECTOR(m[1], float4(0, 0, 0, 0));
-        CHECK_EQ_VECTOR(m[2], float4(0, 0, 0, 0));
-        CHECK_EQ_VECTOR(m[3], float4(0, 0, 0, 0));
+        CHECK(m[0] == float4(0, 0, 0, 0));
+        CHECK(m[1] == float4(0, 0, 0, 0));
+        CHECK(m[2] == float4(0, 0, 0, 0));
+        CHECK(m[3] == float4(0, 0, 0, 0));
     }
 }
 
@@ -71,10 +69,10 @@ TEST_CASE("multilply")
     {
         float4x4 m({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
         float4x4 m2 = m * 2.f;
-        CHECK_EQ_VECTOR(m2[0], float4(2, 4, 6, 8));
-        CHECK_EQ_VECTOR(m2[1], float4(10, 12, 14, 16));
-        CHECK_EQ_VECTOR(m2[2], float4(18, 20, 22, 24));
-        CHECK_EQ_VECTOR(m2[3], float4(26, 28, 30, 32));
+        CHECK(m2[0] == float4(2, 4, 6, 8));
+        CHECK(m2[1] == float4(10, 12, 14, 16));
+        CHECK(m2[2] == float4(18, 20, 22, 24));
+        CHECK(m2[3] == float4(26, 28, 30, 32));
     }
 
     // Matrix/matrix multiplication
@@ -82,10 +80,10 @@ TEST_CASE("multilply")
         float4x4 m1({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
         float4x4 m2({-1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12, -13, -14, -15, -16});
         float4x4 m3 = mul(m1, m2);
-        CHECK_EQ_VECTOR(m3[0], float4(-90, -100, -110, -120));
-        CHECK_EQ_VECTOR(m3[1], float4(-202, -228, -254, -280));
-        CHECK_EQ_VECTOR(m3[2], float4(-314, -356, -398, -440));
-        CHECK_EQ_VECTOR(m3[3], float4(-426, -484, -542, -600));
+        CHECK(m3[0] == float4(-90, -100, -110, -120));
+        CHECK(m3[1] == float4(-202, -228, -254, -280));
+        CHECK(m3[2] == float4(-314, -356, -398, -440));
+        CHECK(m3[3] == float4(-426, -484, -542, -600));
     }
 
     // Matrix/vector multiplication
@@ -93,7 +91,7 @@ TEST_CASE("multilply")
         float4x4 m({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
         float4 v(1, 2, 3, 4);
         float4 v2 = mul(m, v);
-        CHECK_EQ_VECTOR(v2, float4(30, 70, 110, 150));
+        CHECK(v2 == float4(30, 70, 110, 150));
     }
 
     // Vector/matrix multiplication
@@ -101,7 +99,7 @@ TEST_CASE("multilply")
         float4x4 m({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
         float4 v(1, 2, 3, 4);
         float4 v2 = mul(v, m);
-        CHECK_EQ_VECTOR(v2, float4(90, 100, 110, 120));
+        CHECK(v2 == float4(90, 100, 110, 120));
     }
 }
 
@@ -110,7 +108,7 @@ TEST_CASE("transform_point")
     float4x4 m({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
     float3 v(1, 2, 3);
     float3 v2 = transform_point(m, v);
-    CHECK_EQ_VECTOR(v2, float3(18, 46, 74));
+    CHECK(v2 == float3(18, 46, 74));
 }
 
 TEST_CASE("transform_vector")
@@ -120,7 +118,7 @@ TEST_CASE("transform_vector")
         float3x3 m({1, 2, 3, 4, 5, 6, 7, 8, 9});
         float3 v(1, 2, 3);
         float3 v2 = transform_vector(m, v);
-        CHECK_EQ_VECTOR(v2, float3(14, 32, 50));
+        CHECK(v2 == float3(14, 32, 50));
     }
 
     // 4x4
@@ -128,7 +126,7 @@ TEST_CASE("transform_vector")
         float4x4 m({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
         float3 v(1, 2, 3);
         float3 v2 = transform_vector(m, v);
-        CHECK_EQ_VECTOR(v2, float3(14, 38, 62));
+        CHECK(v2 == float3(14, 38, 62));
     }
 }
 
@@ -138,19 +136,19 @@ TEST_CASE("transpose")
     {
         float3x3 m({1, 2, 3, 4, 5, 6, 7, 8, 9});
         float3x3 m2 = transpose(m);
-        CHECK_EQ_VECTOR(m2[0], float3(1, 4, 7));
-        CHECK_EQ_VECTOR(m2[1], float3(2, 5, 8));
-        CHECK_EQ_VECTOR(m2[2], float3(3, 6, 9));
+        CHECK(m2[0] == float3(1, 4, 7));
+        CHECK(m2[1] == float3(2, 5, 8));
+        CHECK(m2[2] == float3(3, 6, 9));
     }
 
     // 4x4
     {
         float4x4 m({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16});
         float4x4 m2 = transpose(m);
-        CHECK_EQ_VECTOR(m2[0], float4(1, 5, 9, 13));
-        CHECK_EQ_VECTOR(m2[1], float4(2, 6, 10, 14));
-        CHECK_EQ_VECTOR(m2[2], float4(3, 7, 11, 15));
-        CHECK_EQ_VECTOR(m2[3], float4(4, 8, 12, 16));
+        CHECK(m2[0] == float4(1, 5, 9, 13));
+        CHECK(m2[1] == float4(2, 6, 10, 14));
+        CHECK(m2[2] == float4(3, 7, 11, 15));
+        CHECK(m2[3] == float4(4, 8, 12, 16));
     }
 }
 
@@ -431,19 +429,19 @@ TEST_CASE("matrix_from_coefficients")
     {
         const float values[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
         float3x3 m = math::matrix_from_coefficients<float, 3, 3>(values);
-        CHECK_EQ_VECTOR(m[0], float3(1, 2, 3));
-        CHECK_EQ_VECTOR(m[1], float3(4, 5, 6));
-        CHECK_EQ_VECTOR(m[2], float3(7, 8, 9));
+        CHECK(m[0] == float3(1, 2, 3));
+        CHECK(m[1] == float3(4, 5, 6));
+        CHECK(m[2] == float3(7, 8, 9));
     }
 
     // 4x4
     {
         const float values[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         float4x4 m = math::matrix_from_coefficients<float, 4, 4>(values);
-        CHECK_EQ_VECTOR(m[0], float4(1, 2, 3, 4));
-        CHECK_EQ_VECTOR(m[1], float4(5, 6, 7, 8));
-        CHECK_EQ_VECTOR(m[2], float4(9, 10, 11, 12));
-        CHECK_EQ_VECTOR(m[3], float4(13, 14, 15, 16));
+        CHECK(m[0] == float4(1, 2, 3, 4));
+        CHECK(m[1] == float4(5, 6, 7, 8));
+        CHECK(m[2] == float4(9, 10, 11, 12));
+        CHECK(m[3] == float4(13, 14, 15, 16));
     }
 }
 
@@ -452,17 +450,17 @@ TEST_CASE("matrix_from_columns")
     // 2x4
     {
         math::matrix<float, 2, 4> m = math::matrix_from_columns(float2(1, 2), float2(3, 4), float2(5, 6), float2(7, 8));
-        CHECK_EQ_VECTOR(m[0], float4(1, 3, 5, 7));
-        CHECK_EQ_VECTOR(m[1], float4(2, 4, 6, 8));
+        CHECK(m[0] == float4(1, 3, 5, 7));
+        CHECK(m[1] == float4(2, 4, 6, 8));
     }
 
     // 4x2
     {
         math::matrix<float, 4, 2> m = math::matrix_from_columns(float4(1, 2, 3, 4), float4(5, 6, 7, 8));
-        CHECK_EQ_VECTOR(m[0], float2(1, 5));
-        CHECK_EQ_VECTOR(m[1], float2(2, 6));
-        CHECK_EQ_VECTOR(m[2], float2(3, 7));
-        CHECK_EQ_VECTOR(m[3], float2(4, 8));
+        CHECK(m[0] == float2(1, 5));
+        CHECK(m[1] == float2(2, 6));
+        CHECK(m[2] == float2(3, 7));
+        CHECK(m[3] == float2(4, 8));
     }
 
     // 4x4
@@ -473,10 +471,10 @@ TEST_CASE("matrix_from_columns")
             float4(9, 10, 11, 12),
             float4(13, 14, 15, 16)
         );
-        CHECK_EQ_VECTOR(m[0], float4(1, 5, 9, 13));
-        CHECK_EQ_VECTOR(m[1], float4(2, 6, 10, 14));
-        CHECK_EQ_VECTOR(m[2], float4(3, 7, 11, 15));
-        CHECK_EQ_VECTOR(m[3], float4(4, 8, 12, 16));
+        CHECK(m[0] == float4(1, 5, 9, 13));
+        CHECK(m[1] == float4(2, 6, 10, 14));
+        CHECK(m[2] == float4(3, 7, 11, 15));
+        CHECK(m[3] == float4(4, 8, 12, 16));
     }
 }
 
@@ -485,18 +483,18 @@ TEST_CASE("matrix_from_diagonal")
     // 3x3
     {
         float3x3 m = math::matrix_from_diagonal(float3(1, 2, 3));
-        CHECK_EQ_VECTOR(m[0], float3(1, 0, 0));
-        CHECK_EQ_VECTOR(m[1], float3(0, 2, 0));
-        CHECK_EQ_VECTOR(m[2], float3(0, 0, 3));
+        CHECK(m[0] == float3(1, 0, 0));
+        CHECK(m[1] == float3(0, 2, 0));
+        CHECK(m[2] == float3(0, 0, 3));
     }
 
     // 4x4
     {
         float4x4 m = math::matrix_from_diagonal(float4(1, 2, 3, 4));
-        CHECK_EQ_VECTOR(m[0], float4(1, 0, 0, 0));
-        CHECK_EQ_VECTOR(m[1], float4(0, 2, 0, 0));
-        CHECK_EQ_VECTOR(m[2], float4(0, 0, 3, 0));
-        CHECK_EQ_VECTOR(m[3], float4(0, 0, 0, 4));
+        CHECK(m[0] == float4(1, 0, 0, 0));
+        CHECK(m[1] == float4(0, 2, 0, 0));
+        CHECK(m[2] == float4(0, 0, 3, 0));
+        CHECK(m[3] == float4(0, 0, 0, 4));
     }
 }
 
@@ -521,10 +519,10 @@ TEST_CASE("ortho")
 TEST_CASE("matrix_from_translation")
 {
     float4x4 m = math::matrix_from_translation(float3(1, 2, 3));
-    CHECK_EQ_VECTOR(m[0], float4(1, 0, 0, 1));
-    CHECK_EQ_VECTOR(m[1], float4(0, 1, 0, 2));
-    CHECK_EQ_VECTOR(m[2], float4(0, 0, 1, 3));
-    CHECK_EQ_VECTOR(m[3], float4(0, 0, 0, 1));
+    CHECK(m[0] == float4(1, 0, 0, 1));
+    CHECK(m[1] == float4(0, 1, 0, 2));
+    CHECK(m[2] == float4(0, 0, 1, 3));
+    CHECK(m[3] == float4(0, 0, 0, 1));
 }
 
 TEST_CASE("matrix_from_rotation")
@@ -842,9 +840,9 @@ TEST_CASE("scale_2d")
 TEST_CASE("matrix_from_translation_2d")
 {
     float3x3 m = math::matrix_from_translation_2d(float2(1, 2));
-    CHECK_EQ_VECTOR(m[0], float3(1, 0, 1));
-    CHECK_EQ_VECTOR(m[1], float3(0, 1, 2));
-    CHECK_EQ_VECTOR(m[2], float3(0, 0, 1));
+    CHECK(m[0] == float3(1, 0, 1));
+    CHECK(m[1] == float3(0, 1, 2));
+    CHECK(m[2] == float3(0, 0, 1));
 }
 
 TEST_CASE("matrix_from_rotation_2d")
@@ -908,23 +906,23 @@ TEST_CASE("rotate_2d_vs_matrix_multiplication")
     // mul(matrix, matrix_from_rotation_2d(angle))
 
     // Test with various starting matrices
-    float3x3 test_matrices[]
-        = {// Identity matrix
-           float3x3::identity(),
+    float3x3 test_matrices[] = {
+        // Identity matrix
+        float3x3::identity(),
 
-           // Translation matrix
-           math::matrix_from_translation_2d(float2(5.f, 3.f)),
+        // Translation matrix
+        math::matrix_from_translation_2d(float2(5.f, 3.f)),
 
-           // Scaling matrix
-           math::matrix_from_scaling_2d(float2(2.f, 0.5f)),
+        // Scaling matrix
+        math::matrix_from_scaling_2d(float2(2.f, 0.5f)),
 
-           // Complex transformation matrix
-           float3x3({
-               ROW(2, 1, 4),
-               ROW(-1, 3, 7),
-               ROW(0, 0, 1),
-           })
-        };
+        // Complex transformation matrix
+        float3x3({
+            ROW(2, 1, 4),
+            ROW(-1, 3, 7),
+            ROW(0, 0, 1),
+        }),
+    };
 
     float angles[] = {0.f, math::radians(30.f), math::radians(90.f), math::radians(-45.f), math::radians(180.f)};
 

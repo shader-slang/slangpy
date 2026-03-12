@@ -1,0 +1,192 @@
+name: Build and test SlangPy with Slang
+description: Checks out SlangPy, builds Slang from source, builds SlangPy against it, and runs tests.
+
+inputs:
+  os:
+    required: true
+  platform:
+    required: true
+  compiler:
+    required: true
+  config:
+    required: true
+  python:
+    required: true
+  flags:
+    required: true
+  slang-checkout-mode:
+    description: "'branch' for nightly/manual, 'pr' for repository_dispatch"
+    required: true
+  slang-branch:
+    description: "Slang branch to checkout (branch mode)"
+    default: "master"
+  slang-pr-number:
+    description: "Slang PR number to checkout (pr mode)"
+    default: ""
+  shell:
+    description: "Shell to use for run steps (bash on Linux/macOS, pwsh on Windows)"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Cleanup submodules # Fix for https://github.com/actions/checkout/issues/358
+      shell: ${{ inputs.shell }}
+      run: |
+        git submodule foreach --recursive git clean -ffdx
+        git submodule foreach --recursive git reset --hard
+
+    # Setup Linux.
+    - name: Setup Linux
+      if: startsWith(inputs.os, 'linux')
+      shell: bash
+      run: |
+        sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
+
+    # Setup Python.
+    - name: Setup Python ${{ inputs.python }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python }}
+
+    # Setup Python environment.
+    - name: Setup Python environment
+      shell: ${{ inputs.shell }}
+      run: |
+        python -m pip install -r requirements-dev.txt
+        python -m pip install -r samples/requirements.txt
+        python -m pip install pytest-github-actions-annotate-failures
+
+    # Setup PyTorch environment
+    - name: Setup PyTorch environment
+      if: runner.os != 'macos' && contains(inputs.flags, 'unit-test')
+      shell: ${{ inputs.shell }}
+      run: |
+        python -m pip install torch==2.8.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+    # Setup MSVC.
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+
+    # Setup CMake/Ninja.
+    - name: Setup CMake/Ninja
+      uses: lukka/get-cmake@latest
+
+    # Checkout Slang (branch mode).
+    - name: Checkout Slang
+      if: inputs.slang-checkout-mode == 'branch'
+      shell: ${{ inputs.shell }}
+      run: |
+        git clone --recursive https://github.com/shader-slang/slang.git
+        cd slang
+        git checkout ${{ inputs.slang-branch }}
+        git submodule update --init --recursive
+
+    # Checkout Slang (PR mode).
+    - name: Checkout Slang (PR)
+      if: inputs.slang-checkout-mode == 'pr'
+      shell: ${{ inputs.shell }}
+      run: |
+        git clone https://github.com/shader-slang/slang.git
+        cd slang
+        git fetch origin pull/${{ inputs.slang-pr-number }}/head
+        git checkout FETCH_HEAD
+        git submodule update --init --recursive
+
+    # Build Slang.
+    - name: Build Slang
+      shell: ${{ inputs.shell }}
+      run: |
+        cd slang
+        mkdir build
+        cmake -B build --preset default
+        cmake --build build --config ${{ inputs.config }} --parallel
+
+    # Setup.
+    - name: Setup
+      shell: ${{ inputs.shell }}
+      run: python tools/ci.py setup
+
+    # Setup vcpkg caching (GitHub-hosted runners only).
+    # For self-hosted runners, a local cache directory is used.
+    - name: Set vcpkg cache directory
+      if: runner.environment == 'github-hosted'
+      shell: bash
+      run: |
+        echo "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}/vcpkg-cache" >> $GITHUB_ENV
+        mkdir -p ${{ github.workspace }}/vcpkg-cache
+    - name: Setup vcpkg caching
+      if: runner.environment == 'github-hosted'
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/vcpkg-cache
+        key: vcpkg-cache-${{ runner.os }}-${{ inputs.platform }}-${{ inputs.compiler }}-${{ hashFiles('vcpkg.json', 'external/vcpkg-triplets/**') }}
+
+    # Configure.
+    - name: Configure
+      shell: ${{ inputs.shell }}
+      run: python tools/ci.py --cmake-args="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/${{ inputs.config }}" configure
+
+    # Build.
+    - name: Build
+      shell: ${{ inputs.shell }}
+      run: python tools/ci.py build
+
+    # Install slangpy-torch extension (requires MSVC on Windows, PyTorch installed)
+    - name: Install slangpy-torch
+      if: runner.os != 'macos' && contains(inputs.flags, 'unit-test')
+      shell: ${{ inputs.shell }}
+      run: python tools/ci.py install-slangpy-torch
+
+    # Typing Checks (Python)
+    - name: Typing Checks (Python)
+      shell: ${{ inputs.shell }}
+      run: python tools/ci.py typing-check-python
+
+    # Unit Tests (C++)
+    - name: Unit Tests (C++)
+      if: contains(inputs.flags, 'unit-test')
+      shell: ${{ inputs.shell }}
+      run: python tools/ci.py unit-test-cpp
+
+    # Unit Tests (Python)
+    - name: Unit Tests (Python)
+      if: contains(inputs.flags, 'unit-test')
+      shell: ${{ inputs.shell }}
+      run: python tools/ci.py unit-test-python --parallel
+
+    # Test Examples
+    - name: Test Examples
+      if: contains(inputs.flags, 'test-examples')
+      shell: ${{ inputs.shell }}
+      run: python tools/ci.py test-examples -p
+
+    # Upload Crashpad Reports
+    - name: Upload Crashpad Reports
+      if: always() && contains(inputs.flags, 'crashpad')
+      uses: actions/upload-artifact@v4
+      with:
+        name: crash-reports-${{ inputs.os }}-${{ inputs.platform }}-${{ inputs.compiler }}-${{ inputs.config }}
+        path: .crashpad/reports/
+        if-no-files-found: ignore
+
+    # Generate Coverage Report
+    - name: Generate Coverage Report
+      if: contains(inputs.flags, 'coverage')
+      shell: ${{ inputs.shell }}
+      run: python tools/ci.py coverage-report
+
+    # Coverage Report
+    - name: Coverage Report
+      uses: actions/upload-artifact@v4
+      if: contains(inputs.flags, 'coverage')
+      with:
+        name: coverage-report
+        path: reports/coverage.html
+
+    # Cleanup slangpy-torch
+    - name: Uninstall slangpy-torch
+      if: always()
+      shell: ${{ inputs.shell }}
+      run: python -m pip uninstall slangpy-torch -y
+      continue-on-error: true
