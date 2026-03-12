@@ -18,6 +18,9 @@ namespace sgl::math {
  * - Math operators are element-wise (e.g. +, -, *, /)
  * - Free standing functions for vector operations (e.g. dot(), cross(), etc.)
  *
+ * Exception: Comparison operators (==, !=, <, etc.) return a single bool for
+ * STL compatibility. Use equal(), not_equal(), etc. for component-wise comparisons.
+ *
  * \tparam T Scalar type
  * \tparam N Number of elements (1-4)
  */
