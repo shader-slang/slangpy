@@ -382,7 +382,7 @@ void CommandEncoder::copy_texture(
     rhi::SubresourceRange dst_sr = detail::to_rhi(dst_subresource_range);
     rhi::SubresourceRange src_sr = detail::to_rhi(src_subresource_range);
 
-    if (all(extent == uint3(-1)))
+    if (extent == uint3(-1))
         extent = src->get_mip_size(src_sr.mip) - src_offset;
 
     m_rhi_command_encoder->copyTexture(
@@ -419,7 +419,7 @@ void CommandEncoder::copy_texture(
     rhi::SubresourceRange dst_sr = {dst_layer, 1, dst_mip, 1};
     rhi::SubresourceRange src_sr = {src_layer, 1, src_mip, 1};
 
-    if (all(extent == uint3(-1)))
+    if (extent == uint3(-1))
         extent = src->get_mip_size(src_sr.mip) - src_offset;
 
     m_rhi_command_encoder->copyTexture(
