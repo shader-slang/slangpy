@@ -1773,7 +1773,10 @@ float sum({_LONG_STRUCT_NAME} s) {{ return s.x + s.y; }}
     )
     # Long name → typealias _t_s emitted, CallData field declared as _t_s
     assert_contains(code, f"typealias _t_s = {_LONG_STRUCT_NAME};")
-    assert_contains(code, "_t_s s;")
+    # Typealias used in entry-point param or CallData field
+    assert (
+        "_t_s s;" in code or "uniform _t_s s" in code
+    ), "Expected typealias usage (_t_s s; or uniform _t_s s) not found"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

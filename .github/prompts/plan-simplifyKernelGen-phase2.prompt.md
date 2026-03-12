@@ -179,7 +179,7 @@ Bwds gates:
 | Test | Status |
 |------|--------|
 | `test_gate_scalar_uses_valuetype` | ✅ Passing — asserts fast-path trampoline with `__in_` prefix params |
-| `test_gate_bwds_scalar_uses_valuetype` | ❌ Failing — bwds trampoline missing `no_diff` annotations (Step 2.4 pending) |
+| `test_gate_bwds_scalar_uses_valuetype` | ✅ Passing — bwds trampoline has `no_diff` on all params (Step 2.4 done) |
 
 ---
 
@@ -282,21 +282,23 @@ When `call_mode == prim` — on **both** fast and fallback paths:
 
 ---
 
-### Step 2.4: Trampoline with individual params for bwds mode
+### Step 2.4: Trampoline with individual params for bwds mode ✅
 
-**Status: IN PROGRESS** — Fast-path trampoline takes individual params but is missing `no_diff` annotations. The bwds test (`test_gate_bwds_scalar_uses_valuetype`) fails because `bwd_diff(_trampoline)` receives plain `float` params but Slang expects `DifferentialPair<float>` for differentiable params. Need to use `_gen_trampoline_argument()` from `boundvariable.py` to emit proper `no_diff in`/`inout` annotations.
+**Status: DONE** — Fast-path trampoline takes individual params with `no_diff` on all params. All 3 device types pass.
 
 When `call_mode == bwds`:
 
 - Still generate a `[Differentiable]` trampoline function.
-- **Fast path**: Trampoline takes individual params instead of a struct. Use `_gen_trampoline_argument()` from [boundvariable.py](slangpy/bindings/boundvariable.py#L691) (currently dead code) to generate the signature — it already handles `in`/`out`/`inout` and `no_diff` annotations:
+- **Fast path**: Trampoline takes individual params instead of a struct. All params get `no_diff` — entry-point uniforms are never differentiable. Differentiation happens through local variable assignments inside the trampoline body, matching the struct-based approach where `CallData` was implicitly non-differentiable. No `in`/`out`/`inout` modifiers are added — `compute_main` passes its uniforms straight through:
   ```slang
   [Differentiable]
-  void _trampoline(Context __slangpy_context__, no_diff in int a, no_diff in int b, ...)
+  void _trampoline(Context __slangpy_context__, no_diff float __in_a, no_diff float __in_b, no_diff NoneType __in__result)
   ```
   `compute_main` calls `bwd_diff(_trampoline)(__slangpy_context__, a, b, _result)` passing entry-point param names directly.
 - **Fallback path**: Trampoline reads from global `ParameterBlock<CallData> call_data` as it does today (on all backends). `compute_main` calls `bwd_diff(_trampoline)(__slangpy_context__, call_data)`.
-- Non-differentiable arguments (int, bool, etc.) get `no_diff` prefix automatically via `_gen_trampoline_argument()`. This may need to be added to additional integer or non-differentiable trampoline arguments to make the generated shader compile under Slang's autodiff rules.
+- `_gen_trampoline_argument()` in `boundvariable.py` remains unused dead code — the inline generation in `callsignature.py` is simpler and avoids the `in`/`out`/`inout` modifiers that caused Slang autodiff errors.
+
+**Key insight**: Adding `in`/`out`/`inout` modifiers to trampoline params caused Slang autodiff issues (e.g., `out` params get reversed to `in` by `bwd_diff`, changing arity). The trampoline params are just pass-through uniforms — all data flow logic (loads, stores, differentiation) is handled internally via local variables.
 
 ---
 
@@ -368,12 +370,12 @@ Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligi
 1. **Step 2.0** ✅ — Gating tests (baseline documentation)
 2. **Step 2.1** ✅ — Fast/fallback determination + size query
 3. **Step 2.2 + 2.5** ✅ — Code gen + C++ dispatch for entry-point params + `CallDataMode` removal (landed together)
-4. **Step 2.4** 🔧 — Bwds trampoline with individual params (fast path) — missing `no_diff` annotations
+4. **Step 2.4** ✅ — Bwds trampoline with individual params (fast path) — `no_diff` on all params
 5. **Step 2.3** — Trampoline elimination for prim mode (both paths)
 6. **Step 2.6** — `_result` as `RWStructuredBuffer<T>` for all-direct-bind case
 7. **Step 2.7** — Post-implementation tests + functional tests
 
-**Note:** Implementation order deviated from original plan — Steps 2.2 + 2.5 were done before 2.3 (trampoline elimination), combined with `CallDataMode` removal. Step 2.4 is partially done (trampoline takes individual params but missing `no_diff` annotations for bwds mode).
+**Note:** Implementation order deviated from original plan — Steps 2.2 + 2.5 were done before 2.3 (trampoline elimination), combined with `CallDataMode` removal. Step 2.4 done — all trampoline params use `no_diff` without IO modifiers.
 
 ---
 
@@ -382,9 +384,9 @@ Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligi
 | File | Changes |
 |------|---------|
 | [slangpy/core/calldata.py](slangpy/core/calldata.py) | ✅ `use_direct_args` flag, size threshold check, `CallDataMode` removed |
-| [slangpy/core/callsignature.py](slangpy/core/callsignature.py) | ✅ Entry-point params, fast/fallback code paths, `is_entry_point` branch removed. Trampoline still generated (Step 2.3 pending). Bwds missing `no_diff` (Step 2.4 pending). |
+| [slangpy/core/callsignature.py](slangpy/core/callsignature.py) | ✅ Entry-point params, fast/fallback code paths, `is_entry_point` branch removed. Trampoline still generated (Step 2.3 pending). Bwds `no_diff` on all trampoline params (Step 2.4 done). |
 | [slangpy/bindings/codegen.py](slangpy/bindings/codegen.py) | ✅ `skip_call_data` flag, `entry_point_params` list |
-| [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py) | ✅ `gen_call_data_code` depth-0 entry-point path. `_gen_trampoline_argument()` not yet used (Step 2.4 pending). |
+| [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py) | ✅ `gen_call_data_code` depth-0 entry-point path. `_gen_trampoline_argument()` unused — inline generation in `callsignature.py` used instead. |
 | [slangpy/bindings/marshall.py](slangpy/bindings/marshall.py) | ✅ `use_direct_args` field on `BindContext`, `CallDataMode` removed |
 | [src/slangpy_ext/utils/slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp) | ✅ `use_direct_args` binding; `bind_call_data` fast path via `find_entry_point(0)`, `CallDataMode` branches removed |
 | [src/slangpy_ext/utils/slangpy.h](src/slangpy_ext/utils/slangpy.h) | ✅ `m_use_direct_args` on `NativeCallData`; `m_call_data_mode` removed |

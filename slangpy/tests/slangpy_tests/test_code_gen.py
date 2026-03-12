@@ -45,13 +45,15 @@ def assert_not_contains(code: str, *patterns: str) -> None:
 
 
 def assert_trampoline_has(code: str, *stmts: str) -> None:
-    """Assert trampoline contains statements (tolerates call_data vs __calldata__)."""
+    """Assert trampoline contains statements (tolerates call_data vs __calldata__ vs __in_)."""
     for s in stmts:
         if "__calldata__." in s:
             alt = s.replace("__calldata__.", "call_data.")
+            # Fast path: x = __in_x; instead of x = __calldata__.x;
+            alt2 = s.replace(" = __calldata__.", " = __in_")
             assert (
-                s in code or alt in code
-            ), f"Expected trampoline statement not found: {s} (or {alt})"
+                s in code or alt in code or alt2 in code
+            ), f"Expected trampoline statement not found: {s} (or {alt} or {alt2})"
         else:
             assert s in code, f"Expected trampoline statement not found: {s}"
 
@@ -720,7 +722,10 @@ float sum({_LONG_STRUCT_NAME} s) {{ return s.x + s.y; }}
         device, "sum", long_src, {"_type": _LONG_STRUCT_NAME, "x": 1.0, "y": 2.0}
     )
     assert_contains(code_long, f"typealias _t_s = {_LONG_STRUCT_NAME};")
-    assert_contains(code_long, "_t_s s;")
+    # Typealias used in entry-point param or CallData field
+    assert (
+        "_t_s s;" in code_long or "uniform _t_s s" in code_long
+    ), "Expected typealias usage (_t_s s; or uniform _t_s s) not found"
 
     # --- Short name → no typealias ---
     short_src = f"""
