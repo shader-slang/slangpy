@@ -253,19 +253,24 @@ class CallData(NativeCallData):
                 )
 
             # If necessary, create return value node once call dimensionality is known.
-            # When torch integration is active and call_dimensionality > 0, default to
-            # torch.Tensor so the result is directly usable with PyTorch. For 0D calls
-            # (scalar results), leave return_type as None so the normal ValueRef default
-            # applies — a 0D tensor would contain zero-length arrays that crash the Slang
-            # compiler during type legalization on non-CUDA targets.
-            if (
-                self.torch_integration
-                and return_type is None
-                and self.call_dimensionality > 0
-            ):
-                import torch
+            # When torch integration is active, default to torch.Tensor so the
+            # result is directly usable with PyTorch — EXCEPT for 0D calls that
+            # return a pure scalar (e.g. float). A 0D torch.Tensor for a scalar
+            # return produces zero-length arrays that crash the Slang compiler
+            # during type legalization on non-CUDA targets. Vector/matrix/array
+            # returns (shape has inner dimensions) are fine as 0D torch.Tensors.
+            if self.torch_integration and return_type is None:
+                result_node = bindings.kwargs.get("_result")
+                is_scalar_return = (
+                    self.call_dimensionality == 0
+                    and result_node is not None
+                    and result_node.vector_type is not None
+                    and len(result_node.vector_type.shape) == 0
+                )
+                if not is_scalar_return:
+                    import torch
 
-                return_type = torch.Tensor
+                    return_type = torch.Tensor
             create_return_value_binding(context, bindings, return_type)
 
             # Calculate final mappings for bindings that only have known vector type.
