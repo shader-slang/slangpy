@@ -1836,5 +1836,79 @@ float sum({_LONG_STRUCT_NAME} s) {{ return s.x + s.y; }}
     assert abs(result - 10.0) < 1e-5
 
 
+# ===========================================================================
+# Phase 2 gating tests — assert CURRENT behaviour, will break as Phase 2
+# steps are implemented. See plan-simplifyKernelGen-phase2.prompt.md
+# ===========================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_p2_calldata_struct_present(device_type: spy.DeviceType):
+    """struct CallData is emitted for simple scalar call. Breaks at Step 2.2."""
+    device = helpers.get_device(device_type)
+    code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
+    assert_contains(code, "struct CallData")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_p2_calldata_uniform_param(device_type: spy.DeviceType):
+    """CallData is passed to kernel via uniform param (CUDA) or ParameterBlock (others). Breaks at Step 2.2."""
+    device = helpers.get_device(device_type)
+    code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
+    # CUDA uses entry-point param; D3D12/Vulkan use ParameterBlock at module scope
+    has_uniform = "uniform CallData call_data" in code
+    has_param_block = "ParameterBlock<CallData> call_data" in code
+    assert (
+        has_uniform or has_param_block
+    ), "Expected 'uniform CallData call_data' or 'ParameterBlock<CallData> call_data'"
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_p2_thread_count_in_calldata(device_type: spy.DeviceType):
+    """_thread_count accessed via call_data. prefix. Breaks at Step 2.2."""
+    device = helpers.get_device(device_type)
+    code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
+    assert_contains(code, "call_data._thread_count")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_p2_trampoline_present_for_prim(device_type: spy.DeviceType):
+    """Prim-mode kernel has a _trampoline function. Breaks at Step 2.3."""
+    device = helpers.get_device(device_type)
+    code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
+    assert_contains(code, "void _trampoline(")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_p2_kernel_calls_trampoline(device_type: spy.DeviceType):
+    """compute_main calls _trampoline(). Breaks at Step 2.3."""
+    device = helpers.get_device(device_type)
+    code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
+    # Extract compute_main body and check it calls _trampoline
+    main_idx = code.index("void compute_main(")
+    main_body = code[main_idx:]
+    assert "_trampoline(__slangpy_context__" in main_body
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_p2_sv_group_id_present(device_type: spy.DeviceType):
+    """SV_GroupID present in compute_main signature even for dim-0. Breaks at Step 2.2."""
+    device = helpers.get_device(device_type)
+    code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
+    assert_contains(code, "SV_GroupID")
+
+
+# -- Phase 2 negative gate — must REMAIN passing after Phase 2 --
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_gate_p2_wanghasharg_keeps_load(device_type: spy.DeviceType):
+    """Non-direct-bind WangHashArg still uses __slangpy_load after Phase 2."""
+    device = helpers.get_device(device_type)
+    src = "uint3 rng(uint3 input) { return input; }"
+    code = generate_code(device, "rng", src, WangHashArg(3))
+    assert_contains(code, "__slangpy_load")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-vs"])
