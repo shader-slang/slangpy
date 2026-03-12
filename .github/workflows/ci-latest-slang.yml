@@ -65,6 +65,7 @@ jobs:
           config: ${{ matrix.config }}
           python: ${{ matrix.python }}
           flags: ${{ matrix.flags }}
+          shell: ${{ matrix.os == 'windows' && 'pwsh' || 'bash' }}
           slang-checkout-mode: branch
           slang-branch: ${{ github.event.inputs.slang_branch || 'master' }}
 
@@ -103,6 +104,7 @@ jobs:
           config: ${{ matrix.config }}
           python: ${{ matrix.python }}
           flags: ${{ matrix.flags }}
+          shell: ${{ matrix.os == 'windows' && 'pwsh' || 'bash' }}
           slang-checkout-mode: pr
           slang-pr-number: ${{ github.event.client_payload.slang_pr_number }}
 
