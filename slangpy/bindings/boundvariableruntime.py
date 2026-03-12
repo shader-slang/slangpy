@@ -54,6 +54,9 @@ class BoundVariableRuntime(NativeBoundVariableRuntime):
         #: Call dimensionality of variable.
         self.call_dimensionality = source.call_dimensionality
 
+        #: Whether this variable uses direct binding.
+        self.direct_bind = source.direct_bind
+
         # Temp data stored / updated each call.
         self.shape = Shape(None)
 

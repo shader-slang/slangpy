@@ -152,6 +152,16 @@ def calculate_differentiability(context: BindContext, call: BoundCall):
         arg.calculate_differentiability(context)
 
 
+def calculate_direct_binding(call: BoundCall):
+    """
+    Calculate direct binding eligibility for all variables.
+    """
+    for arg in call.args:
+        arg.calculate_direct_bind()
+    for arg in call.kwargs.values():
+        arg.calculate_direct_bind()
+
+
 def calculate_call_dimensionality(signature: BoundCall) -> int:
     """
     Calculate the dimensionality of the call
@@ -368,22 +378,22 @@ def generate_code(
         assert x.vector_type is not None
         cg.trampoline.declare(x.vector_type.full_name, x.variable_name)
     for x in root_params:
+        if is_entry_point:
+            data_name = (
+                f"_param_{x.variable_name}"
+                if x.create_param_block
+                else f"__calldata__.{x.variable_name}"
+            )
+        else:
+            data_name = (
+                f"_param_{x.variable_name}"
+                if x.create_param_block
+                else f"call_data.{x.variable_name}"
+            )
         gen_load = getattr(x.python, "gen_trampoline_load", None)
-        if gen_load is not None and gen_load(cg.trampoline, x, is_entry_point):
+        if gen_load is not None and gen_load(cg.trampoline, x, data_name, x.variable_name):
             continue
         if x.access[0] == AccessType.read or x.access[0] == AccessType.readwrite:
-            if is_entry_point:
-                data_name = (
-                    f"_param_{x.variable_name}"
-                    if x.create_param_block
-                    else f"__calldata__.{x.variable_name}"
-                )
-            else:
-                data_name = (
-                    f"_param_{x.variable_name}"
-                    if x.create_param_block
-                    else f"call_data.{x.variable_name}"
-                )
             cg.trampoline.append_statement(
                 f"{data_name}.__slangpy_load(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
             )
@@ -419,11 +429,6 @@ def generate_code(
             or x.access[0] == AccessType.readwrite
             or x.access[1] == AccessType.read
         ):
-            gen_store = getattr(x.python, "gen_trampoline_store", None)
-            if gen_store is not None and gen_store(cg.trampoline, x, is_entry_point):
-                continue
-            if not x.python.is_writable:
-                raise BoundVariableException(f"Cannot read back value for non-writable type", x)
             if is_entry_point:
                 data_name = (
                     f"_param_{x.variable_name}"
@@ -436,6 +441,11 @@ def generate_code(
                     if x.create_param_block
                     else f"call_data.{x.variable_name}"
                 )
+            gen_store = getattr(x.python, "gen_trampoline_store", None)
+            if gen_store is not None and gen_store(cg.trampoline, x, data_name, x.variable_name):
+                continue
+            if not x.python.is_writable:
+                raise BoundVariableException(f"Cannot read back value for non-writable type", x)
             cg.trampoline.append_statement(
                 f"{data_name}.__slangpy_store(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
             )

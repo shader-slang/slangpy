@@ -295,6 +295,10 @@ void SlangSession::create_session(SlangSessionBuild& build)
     // This is a workaround for an issue in the Slang compiler:
     // https://github.com/shader-slang/slang/issues/8166
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30856"));
+    // TODO: Globally disable warning 41012.
+    // Example: entry point 'foo' uses additional capabilities that are not part of the specified profile 'unknown'.
+    // This warning happens on CUDA because we're not properly setting the target profile (i.e. "cuda_sm_x_x").
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("41012"));
 
     // Set warnings.
     for (const auto& warning : options.enable_warnings)
@@ -874,9 +878,10 @@ std::vector<ref<SlangEntryPoint>> SlangModule::entry_points() const
     std::vector<ref<SlangEntryPoint>> entry_points;
     for (SlangInt32 i = 0; i < m_data->slang_module->getDefinedEntryPointCount(); ++i) {
         Slang::ComPtr<slang::IEntryPoint> slang_entry_point;
-        m_data->slang_module->getDefinedEntryPoint(i, slang_entry_point.writeRef());
+        SGL_CATCH_INTERNAL_SLANG_ERROR(m_data->slang_module->getDefinedEntryPoint(i, slang_entry_point.writeRef()););
 
-        slang::EntryPointLayout* layout = slang_entry_point->getLayout()->getEntryPointByIndex(0);
+        slang::EntryPointLayout* layout;
+        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = slang_entry_point->getLayout()->getEntryPointByIndex(0););
         std::string name = layout->getNameOverride() ? layout->getNameOverride() : layout->getName();
 
         entry_points.push_back(entry_point(name));
@@ -905,7 +910,9 @@ ref<SlangEntryPoint> SlangModule::entry_point(std::string_view name, std::span<T
 bool SlangModule::has_entry_point(std::string_view name) const
 {
     Slang::ComPtr<slang::IEntryPoint> slang_entry_point;
-    m_data->slang_module->findEntryPointByName(std::string{name}.c_str(), slang_entry_point.writeRef());
+    SGL_CATCH_INTERNAL_SLANG_ERROR(
+        m_data->slang_module->findEntryPointByName(std::string{name}.c_str(), slang_entry_point.writeRef());
+    );
     return slang_entry_point != nullptr;
 }
 
@@ -964,7 +971,9 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
 
         // Simple case with no type conformances simply finds the entry point from its module.
         Slang::ComPtr<slang::IEntryPoint> slang_entry_point;
-        slang_module->findEntryPointByName(std::string{desc.name}.c_str(), slang_entry_point.writeRef());
+        SGL_CATCH_INTERNAL_SLANG_ERROR(
+            slang_module->findEntryPointByName(std::string{desc.name}.c_str(), slang_entry_point.writeRef());
+        );
         if (!slang_entry_point)
             SGL_THROW("Entry point \"{}\" not found", desc.name);
         data->slang_entry_point = std::move(slang_entry_point);
@@ -973,7 +982,9 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
 
         // Find the input entry point
         Slang::ComPtr<slang::IEntryPoint> slang_entry_point;
-        slang_module->findEntryPointByName(std::string{desc.name}.c_str(), slang_entry_point.writeRef());
+        SGL_CATCH_INTERNAL_SLANG_ERROR(
+            slang_module->findEntryPointByName(std::string{desc.name}.c_str(), slang_entry_point.writeRef());
+        );
         if (!slang_entry_point)
             SGL_THROW("Entry point \"{}\" not found", desc.name);
 
@@ -1009,7 +1020,8 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
 
         std::vector<Slang::ComPtr<slang::ITypeConformance>> slang_type_conformances(desc.type_conformances.size());
         std::vector<slang::IComponentType*> slang_component_types(desc.type_conformances.size() + 1);
-        slang::ProgramLayout* layout = slang_module->getLayout();
+        slang::ProgramLayout* layout;
+        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = slang_module->getLayout());
 
         // Create a slang type conformance component for each type conformance entry.
         for (size_t i = 0; i < desc.type_conformances.size(); ++i) {
@@ -1054,7 +1066,8 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
 
     // If we have specialization arguments, specialize the entry point.
     if (!desc.specialization_args.empty()) {
-        slang::ProgramLayout* layout = slang_module->getLayout();
+        slang::ProgramLayout* layout;
+        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = slang_module->getLayout());
 
         // Build the slang specialization args from our descriptors.
         std::vector<slang::SpecializationArg> slang_spec_args;
@@ -1081,11 +1094,14 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
         // Specialize the entry point.
         Slang::ComPtr<slang::IComponentType> specialized_entry_point;
         Slang::ComPtr<ISlangBlob> diagnostics;
-        SlangResult result = data->slang_entry_point->specialize(
-            slang_spec_args.data(),
-            narrow_cast<SlangInt>(slang_spec_args.size()),
-            specialized_entry_point.writeRef(),
-            diagnostics.writeRef()
+        SlangResult result;
+        SGL_CATCH_INTERNAL_SLANG_ERROR(
+            result = data->slang_entry_point->specialize(
+                slang_spec_args.data(),
+                narrow_cast<SlangInt>(slang_spec_args.size()),
+                specialized_entry_point.writeRef(),
+                diagnostics.writeRef()
+            )
         );
         report_diagnostics(diagnostics);
         SGL_CHECK(SLANG_SUCCEEDED(result), "Failed to specialize generic entry point \"{}\"", desc.name);
@@ -1095,7 +1111,8 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
     }
 
     // Read name and stage from the entry point.
-    slang::EntryPointLayout* layout = data->slang_entry_point->getLayout()->getEntryPointByIndex(0);
+    slang::EntryPointLayout* layout;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(layout = data->slang_entry_point->getLayout()->getEntryPointByIndex(0););
     data->name = layout->getNameOverride() ? layout->getNameOverride() : layout->getName();
     data->stage = static_cast<ShaderStage>(layout->getStage());
 
@@ -1170,7 +1187,9 @@ ref<SlangEntryPoint> SlangEntryPoint::specialize(std::span<SpecializationArg> sp
 
 ref<const EntryPointLayout> SlangEntryPoint::layout() const
 {
-    return EntryPointLayout::from_slang(ref(this), m_data->slang_entry_point->getLayout()->getEntryPointByIndex(0));
+    slang::EntryPointLayout* ep_layout;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(ep_layout = m_data->slang_entry_point->getLayout()->getEntryPointByIndex(0););
+    return EntryPointLayout::from_slang(ref(this), ep_layout);
 }
 
 std::string SlangEntryPoint::to_string() const
