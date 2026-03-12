@@ -414,12 +414,16 @@ def generate_code(
     if use_direct_args:
         # Fast path: trampoline takes individual calldata-typed params.
         # Use __in_ prefix for param names to avoid collision with local variable names.
+        # All params are no_diff — entry-point uniforms are never differentiable.
+        # Differentiation happens through local variable assignments inside the trampoline,
+        # matching the struct-based approach where CallData was implicitly non-differentiable.
         trampoline_params = ["Context __slangpy_context__"]
         for x in root_params:
             if x.create_param_block:
                 continue  # param blocks handled via _param_ at module scope
             assert x.calldata_type_name is not None
-            trampoline_params.append(f"{x.calldata_type_name} __in_{x.variable_name}")
+            arg_def = f"no_diff {x.calldata_type_name} __in_{x.variable_name}"
+            trampoline_params.append(arg_def)
         cg.trampoline.append_line(f"void {trampoline_fn}({', '.join(trampoline_params)})")
     else:
         # Fallback: trampoline reads from global ParameterBlock<CallData> call_data

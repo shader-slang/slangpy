@@ -159,14 +159,14 @@ void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, ...) {
 
 Tests added to [slangpy/tests/slangpy_tests/test_kernel_gen.py](slangpy/tests/slangpy_tests/test_kernel_gen.py). All 21 parametrized cases (7 tests × 3 device types) pass.
 
-| Test | Source | Args | Asserts (current) | Breaks when |
-|------|--------|------|--------------------|-------------|
-| `test_gate_p2_calldata_struct_present` | `int add(int a, int b)` | `(1, 2)` | `struct CallData` in code | Step 2.2 |
-| `test_gate_p2_calldata_uniform_param` | same | same | `uniform CallData call_data` (CUDA) or `ParameterBlock<CallData> call_data` (D3D12/Vulkan) | Step 2.2 |
-| `test_gate_p2_thread_count_in_calldata` | same | same | `call_data._thread_count` | Step 2.2 |
-| `test_gate_p2_trampoline_present_for_prim` | same | same | `void _trampoline(` present | Step 2.3 |
-| `test_gate_p2_kernel_calls_trampoline` | same | same | `_trampoline(` in `compute_main` body | Step 2.3 |
-| `test_gate_p2_sv_group_id_present` | same | same | `SV_GroupID` in `compute_main` signature | Step 2.2 |
+| Test | Source | Args | Original assertion | Status |
+|------|--------|------|--------------------|--------|
+| `test_gate_p2_calldata_struct_present` | `int add(int a, int b)` | `(1, 2)` | `struct CallData` in code | ✅ Flipped — now asserts `struct CallData` ABSENT (Step 2.2 done) |
+| `test_gate_p2_calldata_uniform_param` | same | same | `uniform CallData call_data` or `ParameterBlock<CallData>` | ✅ Flipped — now asserts both ABSENT (Step 2.2 done) |
+| `test_gate_p2_thread_count_in_calldata` | same | same | `call_data._thread_count` | ✅ Flipped — now asserts ABSENT (Step 2.2 done) |
+| `test_gate_p2_trampoline_present_for_prim` | same | same | `void _trampoline(` present | Still asserts present (Step 2.3 pending) |
+| `test_gate_p2_kernel_calls_trampoline` | same | same | `_trampoline(` in `compute_main` body | Still asserts present (Step 2.3 pending) |
+| `test_gate_p2_sv_group_id_present` | same | same | `SV_GroupID` in `compute_main` signature | ✅ Flipped — now asserts ABSENT for dim-0 calls (Step 2.2 done) |
 
 Negative gates (must stay passing after Phase 2):
 
@@ -174,7 +174,12 @@ Negative gates (must stay passing after Phase 2):
 |------|---------|
 | `test_gate_p2_wanghasharg_keeps_load` | Non-direct-bind arg still uses `__slangpy_load` |
 
-**Note:** `test_gate_p2_calldata_uniform_param` checks for either `uniform CallData call_data` (CUDA entry-point param) or `ParameterBlock<CallData> call_data` (D3D12/Vulkan module-scope), since the current `CallDataMode` distinction means different backends emit different patterns.
+Bwds gates:
+
+| Test | Status |
+|------|--------|
+| `test_gate_scalar_uses_valuetype` | ✅ Passing — asserts fast-path trampoline with `__in_` prefix params |
+| `test_gate_bwds_scalar_uses_valuetype` | ❌ Failing — bwds trampoline missing `no_diff` annotations (Step 2.4 pending) |
 
 ---
 
@@ -212,7 +217,9 @@ In [slangpy/core/calldata.py](slangpy/core/calldata.py), after `calculate_direct
 
 ---
 
-### Step 2.2: Code generation — entry-point params (fast path)
+### Step 2.2: Code generation — entry-point params (fast path) ✅
+
+**Status: DONE**
 
 In [slangpy/core/callsignature.py](slangpy/core/callsignature.py) `generate_code()`, when `use_direct_args == True`:
 
@@ -255,6 +262,8 @@ See [slangpy/tests/device/test_pipeline_utils.slang](slangpy/tests/device/test_p
 
 ### Step 2.3: Trampoline elimination for prim mode
 
+**Status: NOT STARTED** — Trampoline is still generated for prim mode on both paths. The load/call/store sequence needs to be inlined into `compute_main`.
+
 When `call_mode == prim` — on **both** fast and fallback paths:
 
 - Don't generate the `_trampoline` function.
@@ -275,6 +284,8 @@ When `call_mode == prim` — on **both** fast and fallback paths:
 
 ### Step 2.4: Trampoline with individual params for bwds mode
 
+**Status: IN PROGRESS** — Fast-path trampoline takes individual params but is missing `no_diff` annotations. The bwds test (`test_gate_bwds_scalar_uses_valuetype`) fails because `bwd_diff(_trampoline)` receives plain `float` params but Slang expects `DifferentialPair<float>` for differentiable params. Need to use `_gen_trampoline_argument()` from `boundvariable.py` to emit proper `no_diff in`/`inout` annotations.
+
 When `call_mode == bwds`:
 
 - Still generate a `[Differentiable]` trampoline function.
@@ -289,7 +300,9 @@ When `call_mode == bwds`:
 
 ---
 
-### Step 2.5: C++ dispatch changes
+### Step 2.5: C++ dispatch changes ✅
+
+**Status: DONE** — `CallDataMode` enum fully removed. Fast path uses `find_entry_point(0)` on all backends. Fallback path uses global `ParameterBlock<CallData>` on all backends.
 
 In [src/slangpy_ext/utils/slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp), store `m_use_direct_args` on `NativeCallData` (received from Python `CallData`). Also add to [slangpy.h](src/slangpy_ext/utils/slangpy.h).
 
@@ -310,6 +323,8 @@ Modify `bind_call_data` lambda in `exec()`:
 
 ### Step 2.6: `_result` handling
 
+**Status: NOT STARTED**
+
 Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligible (needs `RWValueRef<T>` wrapper with buffer logic). Phase 2 handles this differently on the two paths:
 
 **Fast path**: `_result` is emitted as `uniform RWValueRef<int> _result` on the entry point. In prim mode, the inlined code stores via `_result.__slangpy_store(...)`. In the all-direct-bind case where Context is omitted, add a new code path: emit `uniform RWStructuredBuffer<T> _result` with `_result[0] = value` for the store. This requires `ValueRefMarshall` to support writable direct-bind for the entry-point-param case specifically, using `RWStructuredBuffer<T>` instead of `RWValueRef<T>`.
@@ -321,6 +336,8 @@ Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligi
 ---
 
 ### Step 2.7: Tests
+
+**Status: NOT STARTED**
 
 **Post-implementation tests** — should pass AFTER Phase 2 is complete:
 
@@ -350,13 +367,13 @@ Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligi
 
 1. **Step 2.0** ✅ — Gating tests (baseline documentation)
 2. **Step 2.1** ✅ — Fast/fallback determination + size query
-3. **Step 2.3** — Trampoline elimination for prim mode (both paths). This is independent of entry-point param work and provides immediate value.
-4. **Step 2.2 + 2.5** — Code gen + C++ dispatch for entry-point params (must land together — Slang layout and C++ cursor navigation must agree)
-5. **Step 2.4** — Bwds trampoline with individual params (fast path)
+3. **Step 2.2 + 2.5** ✅ — Code gen + C++ dispatch for entry-point params + `CallDataMode` removal (landed together)
+4. **Step 2.4** 🔧 — Bwds trampoline with individual params (fast path) — missing `no_diff` annotations
+5. **Step 2.3** — Trampoline elimination for prim mode (both paths)
 6. **Step 2.6** — `_result` as `RWStructuredBuffer<T>` for all-direct-bind case
 7. **Step 2.7** — Post-implementation tests + functional tests
 
-Steps 2.3 (trampoline) and 2.2/2.5 (entry-point params) are independent axes and can be done in either order. Starting with 2.3 is recommended because it's simpler and touches fewer files.
+**Note:** Implementation order deviated from original plan — Steps 2.2 + 2.5 were done before 2.3 (trampoline elimination), combined with `CallDataMode` removal. Step 2.4 is partially done (trampoline takes individual params but missing `no_diff` annotations for bwds mode).
 
 ---
 
@@ -364,17 +381,23 @@ Steps 2.3 (trampoline) and 2.2/2.5 (entry-point params) are independent axes and
 
 | File | Changes |
 |------|---------|
-| [slangpy/core/calldata.py](slangpy/core/calldata.py) | `use_direct_args` flag, size threshold check, remove `CallDataMode` usage |
-| [slangpy/core/callsignature.py](slangpy/core/callsignature.py) | `generate_code()` — inline load/call/store, entry-point params, Context gating, remove `is_entry_point` branch |
-| [slangpy/bindings/codegen.py](slangpy/bindings/codegen.py) | `skip_call_data` flag, `entry_point_params` list |
-| [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py) | `gen_call_data_code` depth-0 entry-point path; `_gen_trampoline_argument()` usage |
-| [src/slangpy_ext/utils/slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp) | ✅ `use_direct_args` binding; `bind_call_data` fast path via `find_entry_point(0)`, remove `CallDataMode` branches |
-| [src/slangpy_ext/utils/slangpy.h](src/slangpy_ext/utils/slangpy.h) | ✅ `m_use_direct_args` on `NativeCallData`; remove `m_call_data_mode` |
+| [slangpy/core/calldata.py](slangpy/core/calldata.py) | ✅ `use_direct_args` flag, size threshold check, `CallDataMode` removed |
+| [slangpy/core/callsignature.py](slangpy/core/callsignature.py) | ✅ Entry-point params, fast/fallback code paths, `is_entry_point` branch removed. Trampoline still generated (Step 2.3 pending). Bwds missing `no_diff` (Step 2.4 pending). |
+| [slangpy/bindings/codegen.py](slangpy/bindings/codegen.py) | ✅ `skip_call_data` flag, `entry_point_params` list |
+| [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py) | ✅ `gen_call_data_code` depth-0 entry-point path. `_gen_trampoline_argument()` not yet used (Step 2.4 pending). |
+| [slangpy/bindings/marshall.py](slangpy/bindings/marshall.py) | ✅ `use_direct_args` field on `BindContext`, `CallDataMode` removed |
+| [src/slangpy_ext/utils/slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp) | ✅ `use_direct_args` binding; `bind_call_data` fast path via `find_entry_point(0)`, `CallDataMode` branches removed |
+| [src/slangpy_ext/utils/slangpy.h](src/slangpy_ext/utils/slangpy.h) | ✅ `m_use_direct_args` on `NativeCallData`; `m_call_data_mode` removed |
 | [src/sgl/device/device.h](src/sgl/device/device.h) | ✅ `max_entry_point_uniform_size` on `DeviceLimits` |
 | [src/sgl/device/device.cpp](src/sgl/device/device.cpp) | ✅ Per-backend defaults for `max_entry_point_uniform_size` |
 | [src/slangpy_ext/device/device.cpp](src/slangpy_ext/device/device.cpp) | ✅ Python binding for `max_entry_point_uniform_size` |
-| [src/sgl/utils/slangpy.h](src/sgl/utils/slangpy.h) | Remove `CallDataMode` enum definition |
-| [slangpy/tests/slangpy_tests/test_kernel_gen.py](slangpy/tests/slangpy_tests/test_kernel_gen.py) | ✅ Gating tests + Step 2.1 tests; post-implementation tests |
+| [src/sgl/utils/slangpy.h](src/sgl/utils/slangpy.h) | ✅ `CallDataMode` enum removed |
+| [slangpy/core/dispatchdata.py](slangpy/core/dispatchdata.py) | ✅ `CallDataMode` removed |
+| [slangpy/core/packedarg.py](slangpy/core/packedarg.py) | ✅ `CallDataMode` removed |
+| [slangpy/core/function.py](slangpy/core/function.py) | ✅ `CallDataMode` removed from imports |
+| [slangpy/slangpy/__init__.pyi](slangpy/slangpy/__init__.pyi) | ✅ `CallDataMode` class and `call_data_mode` property removed |
+| [slangpy/tests/slangpy_tests/test_type_resolution.py](slangpy/tests/slangpy_tests/test_type_resolution.py) | ✅ `CallDataMode` removed from `BindContext` creation |
+| [slangpy/tests/slangpy_tests/test_kernel_gen.py](slangpy/tests/slangpy_tests/test_kernel_gen.py) | ✅ Gating tests + Step 2.1 tests updated for new behavior; post-implementation tests (Step 2.7) pending |
 
 ---
 

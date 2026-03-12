@@ -263,6 +263,7 @@ class CallData(NativeCallData):
             inline_size = calculate_inline_uniform_size(bindings, self.call_dimensionality)
             threshold = build_info.module.device.info.limits.max_entry_point_uniform_size
             self.use_direct_args = inline_size <= threshold
+            # self.use_direct_args = False
             self.log_debug(
                 f"  Inline uniform size: {inline_size} bytes, "
                 f"threshold: {threshold} bytes, "
