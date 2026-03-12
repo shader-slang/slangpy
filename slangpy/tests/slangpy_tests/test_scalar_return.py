@@ -18,7 +18,7 @@ import sys
 import pytest
 import numpy as np
 
-from slangpy import DeviceType, ValueRef
+from slangpy import DeviceType
 from slangpy.testing import helpers
 
 SCALAR_RETURN_SOURCE = """
@@ -83,9 +83,9 @@ def test_vectorized_return_with_tensor_input_no_torch(device_type: DeviceType):
 
     data = Tensor.from_numpy(device, np.array([1.0, 2.0, 3.0], dtype=np.float32))
     result = module.elementwise_double(data)
-    assert not isinstance(result, (int, float)), (
-        f"Expected a tensor-like return for vectorized call, got {type(result)}"
-    )
+    assert not isinstance(
+        result, (int, float)
+    ), f"Expected a tensor-like return for vectorized call, got {type(result)}"
     result_np = np.asarray(result.to_numpy()).flatten()
     np.testing.assert_allclose(result_np, [2.0, 4.0, 6.0])
 
@@ -94,27 +94,22 @@ def test_vectorized_return_with_tensor_input_no_torch(device_type: DeviceType):
 # Torch tests
 # ---------------------------------------------------------------------------
 
-if sys.platform == "darwin":
-    pytest.skip("PyTorch CUDA interop not available on macOS", allow_module_level=True)
-
 try:
     import torch
 
-    HAS_TORCH = True
+    _HAS_TORCH_CUDA = torch.cuda.is_available() and sys.platform != "darwin"
 except ImportError:
-    HAS_TORCH = False
+    _HAS_TORCH_CUDA = False
 
-if not HAS_TORCH:
-    pytest.skip("PyTorch not installed", allow_module_level=True)
+_requires_torch_cuda = pytest.mark.skipif(
+    not _HAS_TORCH_CUDA,
+    reason="Requires PyTorch with CUDA (not available on macOS)",
+)
 
-if not torch.cuda.is_available():
-    pytest.skip("CUDA not available", allow_module_level=True)
-
-TORCH_DEVICE_TYPES = [
-    dt for dt in helpers.DEFAULT_DEVICE_TYPES if dt != DeviceType.metal
-]
+TORCH_DEVICE_TYPES = [dt for dt in helpers.DEFAULT_DEVICE_TYPES if dt != DeviceType.metal]
 
 
+@_requires_torch_cuda
 @pytest.mark.parametrize("device_type", TORCH_DEVICE_TYPES)
 def test_scalar_return_with_torch_tensor_input(device_type: DeviceType):
     """Regression test for #827: a torch tensor input with a scalar-returning
@@ -137,6 +132,7 @@ def test_scalar_return_with_torch_tensor_input(device_type: DeviceType):
     assert result == pytest.approx(20.0), f"Expected 20.0, got {result}"
 
 
+@_requires_torch_cuda
 @pytest.mark.parametrize("device_type", TORCH_DEVICE_TYPES)
 def test_vectorized_return_with_torch_tensor_input(device_type: DeviceType):
     """When a scalar function is vectorized over a torch tensor (call_dimensionality > 0),
@@ -147,15 +143,14 @@ def test_vectorized_return_with_torch_tensor_input(device_type: DeviceType):
     data = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32, device="cuda")
     result = module.elementwise_double(data)
 
-    assert isinstance(result, torch.Tensor), (
-        f"Expected torch.Tensor return for vectorized call, got {type(result)}"
-    )
+    assert isinstance(
+        result, torch.Tensor
+    ), f"Expected torch.Tensor return for vectorized call, got {type(result)}"
     expected = torch.tensor([2.0, 4.0, 6.0], dtype=torch.float32, device="cuda")
-    assert torch.allclose(result.cpu(), expected.cpu()), (
-        f"Expected {expected}, got {result}"
-    )
+    assert torch.allclose(result.cpu(), expected.cpu()), f"Expected {expected}, got {result}"
 
 
+@_requires_torch_cuda
 @pytest.mark.parametrize("device_type", TORCH_DEVICE_TYPES)
 def test_scalar_return_torch_scalars_only(device_type: DeviceType):
     """Pure scalar call where torch is imported but no torch tensors are passed.
@@ -168,10 +163,11 @@ def test_scalar_return_torch_scalars_only(device_type: DeviceType):
     assert result == pytest.approx(7.0), f"Expected 7.0, got {result}"
 
 
+@_requires_torch_cuda
 @pytest.mark.parametrize("device_type", TORCH_DEVICE_TYPES)
-def test_scalar_return_with_torch_itensor_multiple_calls(device_type: DeviceType):
+def test_scalar_return_with_torch_repeated_calls(device_type: DeviceType):
     """Calling a scalar-returning function with a torch tensor multiple times
-    should not crash or leak (quick smoke test for repeated invocations)."""
+    should not crash (crash-only regression, not a leak test)."""
     device = helpers.get_torch_device(device_type)
     module = helpers.create_module(device, SCALAR_RETURN_SOURCE)
 
@@ -179,9 +175,9 @@ def test_scalar_return_with_torch_itensor_multiple_calls(device_type: DeviceType
     for i in range(4):
         result = module.read_element(data=data, idx=float(i))
         expected = data[i].item()
-        assert result == pytest.approx(expected), (
-            f"Iteration {i}: expected {expected}, got {result}"
-        )
+        assert result == pytest.approx(
+            expected
+        ), f"Iteration {i}: expected {expected}, got {result}"
 
 
 if __name__ == "__main__":
