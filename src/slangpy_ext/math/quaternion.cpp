@@ -120,8 +120,8 @@ void bind_quaternion_type(nb::module_& m, const char* name)
     },                                                                                                                 \
         "x"_a, "y"_a, "s"_a
 
-    m.def("equal", WRAP_INTRINSIC_XY(equal));
-    m.def("not_equal", WRAP_INTRINSIC_XY(not_equal));
+    m.def("eq", WRAP_INTRINSIC_XY(eq));
+    m.def("ne", WRAP_INTRINSIC_XY(ne));
 
     m.def(
         "mul",

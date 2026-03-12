@@ -25,7 +25,7 @@ namespace sgl::math {
  * Quaternions are stored as (x, y, z, w) to make them better for interop with the GPU.
  *
  * Comparison operators (==, !=, <, etc.) return a single bool for
- * STL compatibility. Use equal(), not_equal(), etc. for component-wise comparisons.
+ * STL compatibility. Use eq(), ne(), etc. for component-wise comparisons.
  *
  * \tparam T Scalar type
  */

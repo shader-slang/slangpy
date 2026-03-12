@@ -103,16 +103,16 @@ template<typename T>
 // Comparison (component-wise)
 // ----------------------------------------------------------------------------
 
-/// Component-wise equal.
+/// Component-wise == comparison.
 template<typename T>
-[[nodiscard]] constexpr vector<bool, 4> equal(const quat<T>& lhs, const quat<T>& rhs)
+[[nodiscard]] constexpr vector<bool, 4> eq(const quat<T>& lhs, const quat<T>& rhs)
 {
     return bool4{lhs.x == rhs.x, lhs.y == rhs.y, lhs.z == rhs.z, lhs.w == rhs.w};
 }
 
-/// Component-wise not_equal.
+/// Component-wise != comparison.
 template<typename T>
-[[nodiscard]] constexpr vector<bool, 4> not_equal(const quat<T>& lhs, const quat<T>& rhs)
+[[nodiscard]] constexpr vector<bool, 4> ne(const quat<T>& lhs, const quat<T>& rhs)
 {
     return bool4{lhs.x != rhs.x, lhs.y != rhs.y, lhs.z != rhs.z, lhs.w != rhs.w};
 }

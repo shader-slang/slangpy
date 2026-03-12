@@ -10,7 +10,7 @@ TEST_SUITE_BEGIN("matrix");
 template<typename T, int N>
 bool almost_equal(math::vector<T, N> a, math::vector<T, N> b, T epsilon = T(1e-5))
 {
-    return all(less_than(abs(a - b), epsilon));
+    return all(lt(abs(a - b), epsilon));
 }
 
 template<typename T>

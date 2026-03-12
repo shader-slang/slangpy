@@ -17,7 +17,7 @@ bool almost_equal(T a, T b, T epsilon = T(1e-5))
 template<typename T, int N>
 bool almost_equal(math::vector<T, N> a, math::vector<T, N> b, T epsilon = T(1e-5))
 {
-    return all(less_than(abs(a - b), epsilon));
+    return all(lt(abs(a - b), epsilon));
 }
 
 template<typename T>
@@ -162,15 +162,15 @@ TEST_CASE("operators")
         CHECK(q1 != q3);
     }
 
-    // Component-wise equal / not_equal
+    // Component-wise == / !=
     {
         quatf q1(1.f, 2.f, 3.f, 4.f);
         quatf q2(1.f, 2.f, 3.f, 4.f);
-        CHECK(equal(q1, q2) == bool4(true, true, true, true));
+        CHECK(eq(q1, q2) == bool4(true, true, true, true));
         quatf q3(1.f, 2.f, 3.f, 5.f);
-        CHECK(equal(q1, q3) == bool4(true, true, true, false));
-        CHECK(not_equal(q1, q2) == bool4(false, false, false, false));
-        CHECK(not_equal(q1, q3) == bool4(false, false, false, true));
+        CHECK(eq(q1, q3) == bool4(true, true, true, false));
+        CHECK(ne(q1, q2) == bool4(false, false, false, false));
+        CHECK(ne(q1, q3) == bool4(false, false, false, true));
     }
 }
 

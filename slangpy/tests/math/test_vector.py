@@ -156,12 +156,12 @@ def test_uint4_comparison_ops():
 
 
 def test_componentwise_comparisons():
-    assert math.equal(float3(1, 2, 3), float3(1, 3, 3)) == bool3(True, False, True)
-    assert math.not_equal(float3(1, 2, 3), float3(1, 3, 3)) == bool3(False, True, False)
-    assert math.less_than(float3(1, 2, 3), float3(2, 2, 2)) == bool3(True, False, False)
-    assert math.greater_than(float3(1, 2, 3), float3(2, 2, 2)) == bool3(False, False, True)
-    assert math.less_equal(float3(1, 2, 3), float3(2, 2, 2)) == bool3(True, True, False)
-    assert math.greater_equal(float3(1, 2, 3), float3(2, 2, 2)) == bool3(False, True, True)
+    assert math.eq(float3(1, 2, 3), float3(1, 3, 3)) == bool3(True, False, True)
+    assert math.ne(float3(1, 2, 3), float3(1, 3, 3)) == bool3(False, True, False)
+    assert math.lt(float3(1, 2, 3), float3(2, 2, 2)) == bool3(True, False, False)
+    assert math.gt(float3(1, 2, 3), float3(2, 2, 2)) == bool3(False, False, True)
+    assert math.le(float3(1, 2, 3), float3(2, 2, 2)) == bool3(True, True, False)
+    assert math.ge(float3(1, 2, 3), float3(2, 2, 2)) == bool3(False, True, True)
 
 
 def test_element_types():

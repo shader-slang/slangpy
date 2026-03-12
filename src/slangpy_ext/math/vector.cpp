@@ -250,14 +250,14 @@ void bind_vector_type(nb::module_& m, const char* name)
 
         // Component-wise comparisons
 
-        m.def("equal", WRAP_INTRINSIC_XY(equal));
-        m.def("not_equal", WRAP_INTRINSIC_XY(not_equal));
+        m.def("eq", WRAP_INTRINSIC_XY(eq));
+        m.def("ne", WRAP_INTRINSIC_XY(ne));
 
         if constexpr (arithmetic<value_type>) {
-            m.def("less_than", WRAP_INTRINSIC_XY(less_than));
-            m.def("greater_than", WRAP_INTRINSIC_XY(greater_than));
-            m.def("less_equal", WRAP_INTRINSIC_XY(less_equal));
-            m.def("greater_equal", WRAP_INTRINSIC_XY(greater_equal));
+            m.def("lt", WRAP_INTRINSIC_XY(lt));
+            m.def("gt", WRAP_INTRINSIC_XY(gt));
+            m.def("le", WRAP_INTRINSIC_XY(le));
+            m.def("ge", WRAP_INTRINSIC_XY(ge));
         }
 
         // Basic functions

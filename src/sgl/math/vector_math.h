@@ -552,7 +552,7 @@ template<boolean T, int N>
 // clang-format off
 /* <<<PYMACRO
 def print_componentwise_cmp(name, op, concept):
-    print(f"""/// Component-wise {name}.
+    print(f"""/// Component-wise {op} comparison.
 template<{concept} T, int N>
 [[nodiscard]] constexpr auto {name}(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {{
@@ -566,14 +566,14 @@ template<{concept} T, int N>
         return bool4{{lhs.x {op} rhs.x, lhs.y {op} rhs.y, lhs.z {op} rhs.z, lhs.w {op} rhs.w}};
 }}
 
-/// Component-wise {name} (vector-scalar).
+/// Component-wise {op} comparison (vector-scalar).
 template<{concept} T, int N>
 [[nodiscard]] constexpr auto {name}(const vector<T, N>& lhs, T rhs)
 {{
     return {name}(lhs, vector<T, N>(rhs));
 }}
 
-/// Component-wise {name} (scalar-vector).
+/// Component-wise {op} comparison (scalar-vector).
 template<{concept} T, int N>
 [[nodiscard]] constexpr auto {name}(T lhs, const vector<T, N>& rhs)
 {{
@@ -581,16 +581,16 @@ template<{concept} T, int N>
 }}
 """)
 
-print_componentwise_cmp("equal", "==", "typename")
-print_componentwise_cmp("not_equal", "!=", "typename")
-print_componentwise_cmp("less_than", "<", "arithmetic")
-print_componentwise_cmp("greater_than", ">", "arithmetic")
-print_componentwise_cmp("less_equal", "<=", "arithmetic")
-print_componentwise_cmp("greater_equal", ">=", "arithmetic")
+print_componentwise_cmp("eq", "==", "typename")
+print_componentwise_cmp("ne", "!=", "typename")
+print_componentwise_cmp("lt", "<", "arithmetic")
+print_componentwise_cmp("gt", ">", "arithmetic")
+print_componentwise_cmp("le", "<=", "arithmetic")
+print_componentwise_cmp("ge", ">=", "arithmetic")
 >>> */
-/// Component-wise equal.
+/// Component-wise == comparison.
 template<typename T, int N>
-[[nodiscard]] constexpr auto equal(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto eq(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x == rhs.x};
@@ -602,23 +602,23 @@ template<typename T, int N>
         return bool4{lhs.x == rhs.x, lhs.y == rhs.y, lhs.z == rhs.z, lhs.w == rhs.w};
 }
 
-/// Component-wise equal (vector-scalar).
+/// Component-wise == comparison (vector-scalar).
 template<typename T, int N>
-[[nodiscard]] constexpr auto equal(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto eq(const vector<T, N>& lhs, T rhs)
 {
-    return equal(lhs, vector<T, N>(rhs));
+    return eq(lhs, vector<T, N>(rhs));
 }
 
-/// Component-wise equal (scalar-vector).
+/// Component-wise == comparison (scalar-vector).
 template<typename T, int N>
-[[nodiscard]] constexpr auto equal(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto eq(T lhs, const vector<T, N>& rhs)
 {
-    return equal(vector<T, N>(lhs), rhs);
+    return eq(vector<T, N>(lhs), rhs);
 }
 
-/// Component-wise not_equal.
+/// Component-wise != comparison.
 template<typename T, int N>
-[[nodiscard]] constexpr auto not_equal(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto ne(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x != rhs.x};
@@ -630,23 +630,23 @@ template<typename T, int N>
         return bool4{lhs.x != rhs.x, lhs.y != rhs.y, lhs.z != rhs.z, lhs.w != rhs.w};
 }
 
-/// Component-wise not_equal (vector-scalar).
+/// Component-wise != comparison (vector-scalar).
 template<typename T, int N>
-[[nodiscard]] constexpr auto not_equal(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto ne(const vector<T, N>& lhs, T rhs)
 {
-    return not_equal(lhs, vector<T, N>(rhs));
+    return ne(lhs, vector<T, N>(rhs));
 }
 
-/// Component-wise not_equal (scalar-vector).
+/// Component-wise != comparison (scalar-vector).
 template<typename T, int N>
-[[nodiscard]] constexpr auto not_equal(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto ne(T lhs, const vector<T, N>& rhs)
 {
-    return not_equal(vector<T, N>(lhs), rhs);
+    return ne(vector<T, N>(lhs), rhs);
 }
 
-/// Component-wise less_than.
+/// Component-wise < comparison.
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto less_than(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto lt(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x < rhs.x};
@@ -658,23 +658,23 @@ template<arithmetic T, int N>
         return bool4{lhs.x < rhs.x, lhs.y < rhs.y, lhs.z < rhs.z, lhs.w < rhs.w};
 }
 
-/// Component-wise less_than (vector-scalar).
+/// Component-wise < comparison (vector-scalar).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto less_than(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto lt(const vector<T, N>& lhs, T rhs)
 {
-    return less_than(lhs, vector<T, N>(rhs));
+    return lt(lhs, vector<T, N>(rhs));
 }
 
-/// Component-wise less_than (scalar-vector).
+/// Component-wise < comparison (scalar-vector).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto less_than(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto lt(T lhs, const vector<T, N>& rhs)
 {
-    return less_than(vector<T, N>(lhs), rhs);
+    return lt(vector<T, N>(lhs), rhs);
 }
 
-/// Component-wise greater_than.
+/// Component-wise > comparison.
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto greater_than(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto gt(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x > rhs.x};
@@ -686,23 +686,23 @@ template<arithmetic T, int N>
         return bool4{lhs.x > rhs.x, lhs.y > rhs.y, lhs.z > rhs.z, lhs.w > rhs.w};
 }
 
-/// Component-wise greater_than (vector-scalar).
+/// Component-wise > comparison (vector-scalar).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto greater_than(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto gt(const vector<T, N>& lhs, T rhs)
 {
-    return greater_than(lhs, vector<T, N>(rhs));
+    return gt(lhs, vector<T, N>(rhs));
 }
 
-/// Component-wise greater_than (scalar-vector).
+/// Component-wise > comparison (scalar-vector).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto greater_than(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto gt(T lhs, const vector<T, N>& rhs)
 {
-    return greater_than(vector<T, N>(lhs), rhs);
+    return gt(vector<T, N>(lhs), rhs);
 }
 
-/// Component-wise less_equal.
+/// Component-wise <= comparison.
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto less_equal(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto le(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x <= rhs.x};
@@ -714,23 +714,23 @@ template<arithmetic T, int N>
         return bool4{lhs.x <= rhs.x, lhs.y <= rhs.y, lhs.z <= rhs.z, lhs.w <= rhs.w};
 }
 
-/// Component-wise less_equal (vector-scalar).
+/// Component-wise <= comparison (vector-scalar).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto less_equal(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto le(const vector<T, N>& lhs, T rhs)
 {
-    return less_equal(lhs, vector<T, N>(rhs));
+    return le(lhs, vector<T, N>(rhs));
 }
 
-/// Component-wise less_equal (scalar-vector).
+/// Component-wise <= comparison (scalar-vector).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto less_equal(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto le(T lhs, const vector<T, N>& rhs)
 {
-    return less_equal(vector<T, N>(lhs), rhs);
+    return le(vector<T, N>(lhs), rhs);
 }
 
-/// Component-wise greater_equal.
+/// Component-wise >= comparison.
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto greater_equal(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto ge(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     if constexpr (N == 1)
         return bool1{lhs.x >= rhs.x};
@@ -742,18 +742,18 @@ template<arithmetic T, int N>
         return bool4{lhs.x >= rhs.x, lhs.y >= rhs.y, lhs.z >= rhs.z, lhs.w >= rhs.w};
 }
 
-/// Component-wise greater_equal (vector-scalar).
+/// Component-wise >= comparison (vector-scalar).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto greater_equal(const vector<T, N>& lhs, T rhs)
+[[nodiscard]] constexpr auto ge(const vector<T, N>& lhs, T rhs)
 {
-    return greater_equal(lhs, vector<T, N>(rhs));
+    return ge(lhs, vector<T, N>(rhs));
 }
 
-/// Component-wise greater_equal (scalar-vector).
+/// Component-wise >= comparison (scalar-vector).
 template<arithmetic T, int N>
-[[nodiscard]] constexpr auto greater_equal(T lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto ge(T lhs, const vector<T, N>& rhs)
 {
-    return greater_equal(vector<T, N>(lhs), rhs);
+    return ge(vector<T, N>(lhs), rhs);
 }
 
 /* <<<PYMACROEND>>> */
