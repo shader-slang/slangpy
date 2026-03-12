@@ -269,6 +269,17 @@ class CallData(NativeCallData):
             # Calculate direct binding eligibility for all variables.
             calculate_direct_binding(bindings)
 
+            # Determine fast path (entry-point params) vs fallback (ParameterBlock<CallData>).
+            # Sum inline-uniform byte size and compare against per-device threshold.
+            inline_size = calculate_inline_uniform_size(bindings, self.call_dimensionality)
+            threshold = build_info.module.device.info.limits.max_entry_point_uniform_size
+            self.use_direct_args = inline_size <= threshold
+            self.log_debug(
+                f"  Inline uniform size: {inline_size} bytes, "
+                f"threshold: {threshold} bytes, "
+                f"use_direct_args: {self.use_direct_args}"
+            )
+
             # Generate code.
             codegen = CodeGen()
             generate_code(context, build_info, bindings, codegen)

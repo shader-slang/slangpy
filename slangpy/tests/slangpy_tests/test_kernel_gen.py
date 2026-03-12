@@ -1910,5 +1910,126 @@ def test_gate_p2_wanghasharg_keeps_load(device_type: spy.DeviceType):
     assert_contains(code, "__slangpy_load")
 
 
+# ===========================================================================
+# Step 2.1 tests — fast vs fallback path determination
+# ===========================================================================
+
+
+def build_call_data(
+    device: spy.Device, func_name: str, module_source: str, *args: Any, **kwargs: Any
+) -> Any:
+    """Build CallData and return the full CallData object."""
+    func = helpers.create_function_from_module(device, func_name, module_source)
+    return func.debug_build_call_data(*args, **kwargs)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_step21_scalar_uses_direct_args(device_type: spy.DeviceType):
+    """Simple scalar call has small inline-uniform size → use_direct_args=True."""
+    device = helpers.get_device(device_type)
+    cd = build_call_data(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
+    # Two ints (4+4) + RWValueRef for _result (descriptor, ~0 inline) + uint3 _thread_count (12)
+    # Should be well under any backend's threshold
+    assert cd.use_direct_args is True
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_step21_threshold_property_positive(device_type: spy.DeviceType):
+    """Device has a positive max_entry_point_uniform_size threshold."""
+    device = helpers.get_device(device_type)
+    threshold = device.info.limits.max_entry_point_uniform_size
+    assert threshold > 0
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_step21_vector_uses_direct_args(device_type: spy.DeviceType):
+    """float3 args are small enough for direct args."""
+    device = helpers.get_device(device_type)
+    cd = build_call_data(
+        device,
+        "scale",
+        "float3 scale(float3 v, float s) { return v * s; }",
+        spy.math.float3(1, 2, 3),
+        2.0,
+    )
+    assert cd.use_direct_args is True
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_step21_struct_uses_direct_args(device_type: spy.DeviceType):
+    """All-scalar struct dict has small inline-uniform size."""
+    device = helpers.get_device(device_type)
+    src = """
+struct S { float x; float y; };
+float sum(S s) { return s.x + s.y; }
+"""
+    cd = build_call_data(device, "sum", src, {"_type": "S", "x": 1.0, "y": 2.0})
+    assert cd.use_direct_args is True
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_step21_tensor_uses_direct_args(device_type: spy.DeviceType):
+    """Tensor args contribute descriptor-only (0 inline bytes) → direct args."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.from_numpy(device, np.array([1.0, 2.0, 3.0], dtype=np.float32))
+    cd = build_call_data(
+        device,
+        "sum_all",
+        "float sum_all(float x) { return x; }",
+        tensor,
+    )
+    assert cd.use_direct_args is True
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_step21_many_float4x4_may_exceed_vulkan(device_type: spy.DeviceType):
+    """Many float4x4 params may exceed Vulkan's 128-byte threshold.
+
+    8 × float4x4 = 8 × 64 bytes = 512 bytes inline + 12 bytes _thread_count = 524 bytes.
+    This exceeds Vulkan (128) and D3D12 (256) but not CUDA (4096).
+    """
+    device = helpers.get_device(device_type)
+    src = """
+float4x4 sum8(float4x4 a, float4x4 b, float4x4 c, float4x4 d,
+              float4x4 e, float4x4 f, float4x4 g, float4x4 h) {
+    return a + b + c + d + e + f + g + h;
+}
+"""
+    identity = spy.math.float4x4.identity()
+    cd = build_call_data(
+        device,
+        "sum8",
+        src,
+        identity,
+        identity,
+        identity,
+        identity,
+        identity,
+        identity,
+        identity,
+        identity,
+    )
+    threshold = device.info.limits.max_entry_point_uniform_size
+    if threshold >= 524:
+        assert cd.use_direct_args is True
+    else:
+        assert cd.use_direct_args is False
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_step21_wanghasharg_uses_direct_args(device_type: spy.DeviceType):
+    """WangHashArg (non-direct-bind) still counts its inline-uniform size.
+    Its wrapper type has a small inline footprint, so use_direct_args should be True.
+    """
+    device = helpers.get_device(device_type)
+    cd = build_call_data(
+        device,
+        "rng",
+        "uint3 rng(uint3 input) { return input; }",
+        WangHashArg(3),
+    )
+    assert cd.use_direct_args is True
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-vs"])

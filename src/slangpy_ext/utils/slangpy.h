@@ -788,6 +788,12 @@ public:
     /// Set whether this call data expects a _thread_count kwarg.
     void set_has_thread_count(bool has_thread_count) { m_has_thread_count = has_thread_count; }
 
+    /// Get whether this call uses direct entry-point parameters (fast path).
+    bool use_direct_args() const { return m_use_direct_args; }
+
+    /// Set whether this call uses direct entry-point parameters (fast path).
+    void set_use_direct_args(bool use_direct_args) { m_use_direct_args = use_direct_args; }
+
     /// Get the autograd access list.
     /// This is a flat list of AutogradAccess values precomputed at build time.
     /// At dispatch time, find_torch_tensors steps through this list as it encounters tensors.
@@ -919,6 +925,7 @@ private:
     bool m_torch_autograd{false};
     bool m_needs_unpack{true};
     bool m_has_thread_count{false};
+    bool m_use_direct_args{false};
     std::vector<AutogradAccess> m_autograd_access_list;
     ref<NativeCallData> m_bwds_call_data;
     mutable CallDataOffsets m_cached_call_data_offsets;

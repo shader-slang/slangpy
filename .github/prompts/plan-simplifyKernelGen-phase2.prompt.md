@@ -153,14 +153,16 @@ void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, ...) {
 
 ---
 
-### Step 2.0: Gating tests
+### Step 2.0: Gating tests ✅
 
-Add tests to [slangpy/tests/slangpy_tests/test_kernel_gen.py](slangpy/tests/slangpy_tests/test_kernel_gen.py) asserting current behavior. These document the baseline and will intentionally break as steps are implemented.
+**Status: DONE**
+
+Tests added to [slangpy/tests/slangpy_tests/test_kernel_gen.py](slangpy/tests/slangpy_tests/test_kernel_gen.py). All 21 parametrized cases (7 tests × 3 device types) pass.
 
 | Test | Source | Args | Asserts (current) | Breaks when |
 |------|--------|------|--------------------|-------------|
 | `test_gate_p2_calldata_struct_present` | `int add(int a, int b)` | `(1, 2)` | `struct CallData` in code | Step 2.2 |
-| `test_gate_p2_calldata_uniform_param` | same | same | `uniform CallData call_data` in `compute_main` | Step 2.2 |
+| `test_gate_p2_calldata_uniform_param` | same | same | `uniform CallData call_data` (CUDA) or `ParameterBlock<CallData> call_data` (D3D12/Vulkan) | Step 2.2 |
 | `test_gate_p2_thread_count_in_calldata` | same | same | `call_data._thread_count` | Step 2.2 |
 | `test_gate_p2_trampoline_present_for_prim` | same | same | `void _trampoline(` present | Step 2.3 |
 | `test_gate_p2_kernel_calls_trampoline` | same | same | `_trampoline(` in `compute_main` body | Step 2.3 |
@@ -171,6 +173,8 @@ Negative gates (must stay passing after Phase 2):
 | Test | Asserts |
 |------|---------|
 | `test_gate_p2_wanghasharg_keeps_load` | Non-direct-bind arg still uses `__slangpy_load` |
+
+**Note:** `test_gate_p2_calldata_uniform_param` checks for either `uniform CallData call_data` (CUDA entry-point param) or `ParameterBlock<CallData> call_data` (D3D12/Vulkan module-scope), since the current `CallDataMode` distinction means different backends emit different patterns.
 
 ---
 

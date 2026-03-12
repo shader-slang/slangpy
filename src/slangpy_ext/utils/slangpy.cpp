@@ -1702,6 +1702,13 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(NativeCallData, has_thread_count)
         )
         .def_prop_rw(
+            "use_direct_args",
+            &NativeCallData::use_direct_args,
+            &NativeCallData::set_use_direct_args,
+            nb::arg(),
+            D_NA(NativeCallData, use_direct_args)
+        )
+        .def_prop_rw(
             "autograd_access_list",
             &NativeCallData::autograd_access_list,
             &NativeCallData::set_autograd_access_list,

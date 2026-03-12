@@ -162,6 +162,39 @@ def calculate_direct_binding(call: BoundCall):
         arg.calculate_direct_bind()
 
 
+def calculate_inline_uniform_size(call: BoundCall, call_dimensionality: int) -> int:
+    """
+    Calculate the total inline-uniform byte size for all depth-0 bound variables,
+    plus metadata fields (_thread_count, shape arrays).
+
+    Resource types (StructuredBuffer, Texture2D, etc.) contribute 0 bytes to inline
+    uniform size since they are bound as descriptors.  PackedArg / ParameterBlock
+    types are excluded from this accounting since they stay as ParameterBlock<T>.
+
+    :param call: The bound call containing all args/kwargs.
+    :param call_dimensionality: The call dimensionality (determines shape array count).
+    :return: Total inline-uniform size in bytes.
+    """
+    total = 0
+
+    for node in call.values():
+        # PackedArg types use ParameterBlock — excluded from inline accounting
+        if node.create_param_block:
+            continue
+        if node.vector_type is not None:
+            total += node.vector_type.uniform_layout.size
+        # If vector_type is None (shouldn't happen after binding), skip safely
+
+    # _thread_count: uint3 = 12 bytes
+    total += 12
+
+    # Shape arrays: _grid_stride, _grid_dim, _call_dim — each is int[call_dimensionality]
+    if call_dimensionality > 0:
+        total += call_dimensionality * 4 * 3  # 3 arrays × N × sizeof(int)
+
+    return total
+
+
 def calculate_call_dimensionality(signature: BoundCall) -> int:
     """
     Calculate the dimensionality of the call
