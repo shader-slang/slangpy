@@ -312,7 +312,7 @@ jobs:
     name: Upload dev wheels to Artifactory
     runs-on: { group: nvrgfx, labels: [Linux, X64] }
     needs: [wheels, slangpy_torch_sdist, slangpy_torch_wheels_linux, slangpy_torch_wheels_windows]
-    if: ${{ !cancelled() && !failure() }}
+    if: success()
 
     steps:
       - name: Clean workspace
@@ -341,26 +341,10 @@ jobs:
           echo "=== Artifacts to upload ==="
           ls -la dist/
 
-      - name: Upload slangpy wheels + slangpy-torch sdist via twine
-        env:
-          TWINE_USERNAME: ${{ secrets.NV_ARTIFACTORY_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.NV_ARTIFACTORY_PASSWORD }}
-        run: |
-          # Only slangpy binary wheels and slangpy-torch sdist go into the PyPI simple index.
-          # slangpy-torch binary wheels are intentionally excluded here so they don't appear
-          # in simple/ — users must use the find-links pages to get the right torch variant.
-          PYPI_FILES=$(find dist/ \( -name "slangpy-*.whl" -o -name "slangpy_torch-*.tar.gz" \))
-          if [ -z "$PYPI_FILES" ]; then
-            echo "No PyPI artifacts to upload, skipping."
-          else
-            python3 -m venv /tmp/twine-env
-            /tmp/twine-env/bin/pip install "twine>=6.1,<7"
-            /tmp/twine-env/bin/twine upload $PYPI_FILES \
-              --repository-url https://artifactory.nvidia.com/artifactory/api/pypi/sw-slangpy-pypi-local/ \
-              --verbose
-          fi
-
       - name: Upload slangpy-torch binary wheels to generic storage
+        env:
+          ARTIFACTORY_USERNAME: ${{ secrets.NV_ARTIFACTORY_USERNAME }}
+          ARTIFACTORY_PASSWORD: ${{ secrets.NV_ARTIFACTORY_PASSWORD }}
         run: |
           # Upload torch-versioned wheels directly to whl-binaries/ (not the PyPI path)
           # so they only appear in find-links pages, not the simple index.
@@ -373,22 +357,23 @@ jobs:
             torch_ver="${major}.${minor}.${patch}"
             dest="${BASE}/whl-binaries/torch-${torch_ver}+cu128/${fname}"
             echo "Uploading ${fname} -> ${dest}"
-            curl -sf -u "${{ secrets.NV_ARTIFACTORY_USERNAME }}:${{ secrets.NV_ARTIFACTORY_PASSWORD }}" \
+            curl -sf -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_PASSWORD}" \
               -T "$whl" "$dest"
           done
 
       - name: Generate and upload find-links pages
+        env:
+          ARTIFACTORY_USERNAME: ${{ secrets.NV_ARTIFACTORY_USERNAME }}
+          ARTIFACTORY_PASSWORD: ${{ secrets.NV_ARTIFACTORY_PASSWORD }}
         run: |
+          BASE="https://artifactory.nvidia.com/artifactory/sw-slangpy-pypi-local"
+
+          # Generate one HTML find-links page per torch version
           python3 << 'PYEOF'
-          import os, re, base64, urllib.request
+          import os, re
           from collections import defaultdict
 
           BASE = "https://artifactory.nvidia.com/artifactory/sw-slangpy-pypi-local"
-          creds = base64.b64encode(
-              b"${{ secrets.NV_ARTIFACTORY_USERNAME }}:${{ secrets.NV_ARTIFACTORY_PASSWORD }}"
-          ).decode()
-          headers = {"Authorization": f"Basic {creds}"}
-
           by_torch = defaultdict(list)
           for fname in sorted(os.listdir("dist")):
               m = re.search(r'\+torch(\d+)', fname)
@@ -408,11 +393,35 @@ jobs:
                   url = f"{BASE}/whl-binaries/torch-{torch_ver}+cu128/{fname}"
                   lines.append(f'<a href="{url}">{fname}</a><br/>')
               lines.append("</body></html>")
-              data = "\n".join(lines).encode()
-              put = urllib.request.Request(
-                  f"{BASE}/whl/{page_name}", data=data, method="PUT",
-                  headers={**headers, "Content-Type": "text/html"},
-              )
-              resp = urllib.request.urlopen(put)
-              print(f"Uploaded {page_name} ({len(fnames)} wheels) -> {resp.status}")
+              with open(page_name, "w") as f:
+                  f.write("\n".join(lines))
+              print(f"Generated {page_name} ({len(fnames)} wheels)")
           PYEOF
+
+          # Upload with curl (same mechanism that works for whl-binaries/)
+          for page in torch-*.html; do
+            [ -f "$page" ] || continue
+            curl -sf -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_PASSWORD}" \
+              -T "$page" "${BASE}/whl/${page}"
+            echo "Uploaded ${page}"
+          done
+
+      - name: Upload slangpy wheels + slangpy-torch sdist via twine
+        env:
+          TWINE_USERNAME: ${{ secrets.NV_ARTIFACTORY_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.NV_ARTIFACTORY_PASSWORD }}
+        run: |
+          # PyPI upload is intentionally last — torch wheels and find-links pages
+          # must exist before slangpy/sdist are discoverable by users.
+          # Only slangpy binary wheels and slangpy-torch sdist go into the PyPI simple index.
+          # slangpy-torch binary wheels are excluded so users must use find-links pages.
+          PYPI_FILES=$(find dist/ \( -name "slangpy-*.whl" -o -name "slangpy_torch-*.tar.gz" \))
+          if [ -z "$PYPI_FILES" ]; then
+            echo "No PyPI artifacts to upload, skipping."
+          else
+            python3 -m venv /tmp/twine-env
+            /tmp/twine-env/bin/pip install "twine>=6.1,<7"
+            /tmp/twine-env/bin/twine upload $PYPI_FILES \
+              --repository-url https://artifactory.nvidia.com/artifactory/api/pypi/sw-slangpy-pypi-local/ \
+              --verbose
+          fi
