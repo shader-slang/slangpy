@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import TYPE_CHECKING, Any, Optional
 
-from slangpy.core.native import AccessType, CallMode, CallDataMode
+from slangpy.core.native import AccessType, CallMode
 from slangpy.core.function import PipelineType
 
 import slangpy.bindings.typeregistry as tr
@@ -278,8 +278,8 @@ def generate_code(
     """
     nodes: list[BoundVariable] = []
 
-    # Check if we're using entry point call data mode
-    is_entry_point = context.call_data_mode == CallDataMode.entry_point
+    # Check if we're using direct entry-point params (fast path)
+    use_direct_args = context.use_direct_args
 
     # Generate the header
     cg.add_import("slangpy")
@@ -368,22 +368,36 @@ def generate_code(
     cg.constants.dec_indent()
     cg.constants.append_statement("}")
 
+    # Set up code gen mode for direct args vs CallData struct
+    if use_direct_args:
+        cg.skip_call_data = True
+
     # Generate call data inputs if vector call
     if call_data_len > 0:
-        # A group can be thought of as a "window" looking at a
-        # portion of the entire call shape. Grid here refers to the
-        # N dimensional call shape being broken up into some number of N
-        # dimensional "window"s / groups.
-        cg.call_data.append_statement(f"int[{call_data_len}] _grid_stride")
-        cg.call_data.append_statement(f"int[{call_data_len}] _grid_dim")
-        # We use the call shape dimensions to detect cases when the call shape
-        # and the call group shape are not aligned. When a thread's call id
-        # falls outside the call shape, we need it to return early. This is
-        # similar to the default linear case when the call shape size is not
-        # 32 thread aligned.
-        cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
+        if use_direct_args:
+            # Fast path: shape arrays as individual entry-point params
+            cg.entry_point_params.append(f"uniform int[{call_data_len}] _grid_stride")
+            cg.entry_point_params.append(f"uniform int[{call_data_len}] _grid_dim")
+            cg.entry_point_params.append(f"uniform int[{call_data_len}] _call_dim")
+        else:
+            # Fallback: shape arrays inside CallData struct
+            # A group can be thought of as a "window" looking at a
+            # portion of the entire call shape. Grid here refers to the
+            # N dimensional call shape being broken up into some number of N
+            # dimensional "window"s / groups.
+            cg.call_data.append_statement(f"int[{call_data_len}] _grid_stride")
+            cg.call_data.append_statement(f"int[{call_data_len}] _grid_dim")
+            # We use the call shape dimensions to detect cases when the call shape
+            # and the call group shape are not aligned. When a thread's call id
+            # falls outside the call shape, we need it to return early. This is
+            # similar to the default linear case when the call shape size is not
+            # 32 thread aligned.
+            cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
 
-    cg.call_data.append_statement(f"uint3 _thread_count")
+    if use_direct_args:
+        cg.entry_point_params.append("uniform uint3 _thread_count")
+    else:
+        cg.call_data.append_statement("uint3 _thread_count")
 
     # Generate call data definitions for all inputs to the kernel
     for node in signature.values():
@@ -397,12 +411,18 @@ def generate_code(
     if context.call_mode != CallMode.prim:
         cg.trampoline.append_line("[Differentiable]")
 
-    # For entry point mode, add CallData as a parameter to the trampoline function
-    if is_entry_point:
-        cg.trampoline.append_line(
-            f"void {trampoline_fn}(Context __slangpy_context__, CallData __calldata__)"
-        )
+    if use_direct_args:
+        # Fast path: trampoline takes individual calldata-typed params.
+        # Use __in_ prefix for param names to avoid collision with local variable names.
+        trampoline_params = ["Context __slangpy_context__"]
+        for x in root_params:
+            if x.create_param_block:
+                continue  # param blocks handled via _param_ at module scope
+            assert x.calldata_type_name is not None
+            trampoline_params.append(f"{x.calldata_type_name} __in_{x.variable_name}")
+        cg.trampoline.append_line(f"void {trampoline_fn}({', '.join(trampoline_params)})")
     else:
+        # Fallback: trampoline reads from global ParameterBlock<CallData> call_data
         cg.trampoline.append_line(f"void {trampoline_fn}(Context __slangpy_context__)")
     cg.trampoline.begin_block()
 
@@ -411,11 +431,9 @@ def generate_code(
         assert x.vector_type is not None
         cg.trampoline.declare(x.vector_type.full_name, x.variable_name)
     for x in root_params:
-        if is_entry_point:
+        if use_direct_args:
             data_name = (
-                f"_param_{x.variable_name}"
-                if x.create_param_block
-                else f"__calldata__.{x.variable_name}"
+                f"_param_{x.variable_name}" if x.create_param_block else f"__in_{x.variable_name}"
             )
         else:
             data_name = (
@@ -462,11 +480,11 @@ def generate_code(
             or x.access[0] == AccessType.readwrite
             or x.access[1] == AccessType.read
         ):
-            if is_entry_point:
+            if use_direct_args:
                 data_name = (
                     f"_param_{x.variable_name}"
                     if x.create_param_block
-                    else f"__calldata__.{x.variable_name}"
+                    else f"__in_{x.variable_name}"
                 )
             else:
                 data_name = (
@@ -495,18 +513,26 @@ def generate_code(
             cg.kernel.append_line("[numthreads(32, 1, 1)]")
         # Note: While flat_call_thread_id is 3-dimensional, we consider it "flat" and 1-dimensional because of the
         #       true call group shape of [x, 1, 1] and only use the first dimension for the call thread id.
-        if is_entry_point:
-            cg.kernel.append_line(
-                "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex, uniform CallData call_data)"
-            )
+        if use_direct_args:
+            # Fast path: build compute_main signature with individual entry-point params
+            sig_parts = ["int3 flat_call_thread_id: SV_DispatchThreadID"]
+            # Only include SV_GroupID/SV_GroupIndex when call_data_len > 0
+            # (they feed init_thread_local_call_shape_info which isn't called otherwise)
+            if call_data_len > 0:
+                sig_parts.append("int3 flat_call_group_id: SV_GroupID")
+                sig_parts.append("int flat_call_group_thread_id: SV_GroupIndex")
+            sig_parts.extend(cg.entry_point_params)
+            cg.kernel.append_line(f"void compute_main({', '.join(sig_parts)})")
         else:
+            # Fallback: no uniform params (reads from global ParameterBlock<CallData>)
             cg.kernel.append_line(
                 "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex)"
             )
     elif build_info.pipeline_type == PipelineType.ray_tracing:
         cg.kernel.append_line('[shader("raygen")]')
-        if is_entry_point:
-            cg.kernel.append_line("void raygen_main(uniform CallData call_data)")
+        if use_direct_args:
+            sig_parts = list(cg.entry_point_params)
+            cg.kernel.append_line(f"void raygen_main({', '.join(sig_parts)})")
         else:
             cg.kernel.append_line("void raygen_main()")
     else:
@@ -517,7 +543,13 @@ def generate_code(
     if build_info.pipeline_type == PipelineType.ray_tracing:
         cg.kernel.append_statement("int3 flat_call_thread_id = DispatchRaysIndex();")
 
-    cg.kernel.append_statement("if (any(flat_call_thread_id >= call_data._thread_count)) return")
+    # Bounds check — use _thread_count directly in fast path, call_data._thread_count in fallback
+    if use_direct_args:
+        cg.kernel.append_statement("if (any(flat_call_thread_id >= _thread_count)) return")
+    else:
+        cg.kernel.append_statement(
+            "if (any(flat_call_thread_id >= call_data._thread_count)) return"
+        )
 
     # Loads / initializes call id
     context_args = "flat_call_thread_id"
@@ -525,20 +557,22 @@ def generate_code(
     # Call init_thread_local_call_shape_info to initialize the call shape info. See
     # definition in callshape.slang.
     if call_data_len > 0:
+        # In fast path, shape arrays are direct entry-point params; in fallback, prefixed with call_data.
+        grid_prefix = "" if use_direct_args else "call_data."
         if build_info.pipeline_type == PipelineType.compute:
             cg.kernel.append_line(
                 f"""
     if (!init_thread_local_call_shape_info(flat_call_group_thread_id,
-        flat_call_group_id, flat_call_thread_id, call_data._grid_stride,
-        call_data._grid_dim, call_data._call_dim))
+        flat_call_group_id, flat_call_thread_id, {grid_prefix}_grid_stride,
+        {grid_prefix}_grid_dim, {grid_prefix}_call_dim))
         return;"""
             )
         elif build_info.pipeline_type == PipelineType.ray_tracing:
             cg.kernel.append_line(
                 f"""
     if (!init_thread_local_call_shape_info(0,
-        uint3(0), flat_call_thread_id, call_data._grid_stride,
-        call_data._grid_dim, call_data._call_dim))
+        uint3(0), flat_call_thread_id, {grid_prefix}_grid_stride,
+        {grid_prefix}_grid_dim, {grid_prefix}_call_dim))
         return;"""
             )
         context_args += ", CallShapeInfo::get_call_id().shape"
@@ -550,9 +584,16 @@ def generate_code(
     if context.call_mode == CallMode.bwds:
         fn = f"bwd_diff({fn})"
 
-    if is_entry_point:
-        cg.kernel.append_statement(f"{fn}(__slangpy_context__, call_data)")
+    if use_direct_args:
+        # Fast path: pass individual entry-point param names to the trampoline
+        trampoline_args = ["__slangpy_context__"]
+        for x in root_params:
+            if x.create_param_block:
+                continue  # param blocks are at module scope
+            trampoline_args.append(x.variable_name)
+        cg.kernel.append_statement(f"{fn}({', '.join(trampoline_args)})")
     else:
+        # Fallback: trampoline reads from global call_data
         cg.kernel.append_statement(f"{fn}(__slangpy_context__)")
 
     cg.kernel.end_block()

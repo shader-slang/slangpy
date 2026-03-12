@@ -47,14 +47,17 @@ def assert_not_contains(code: str, *patterns: str) -> None:
 
 
 def assert_trampoline_has(code: str, *stmts: str) -> None:
-    """Assert trampoline contains statements, insensitive to call_data vs __calldata__ prefix."""
+    """Assert trampoline contains statements, insensitive to call_data vs __calldata__ vs __in_ prefix."""
     for s in stmts:
-        # Replace __calldata__ with both options for matching
+        # Replace __calldata__ with all three options for matching
         if "__calldata__." in s:
-            alt = s.replace("__calldata__.", "call_data.")
+            alt_cd = s.replace("__calldata__.", "call_data.")
+            # For fast path: __calldata__.X → __in_X (entry-point param prefix)
+            # Extract variable name after __calldata__. and before any trailing char
+            alt_in = s.replace("__calldata__.", "__in_")
             assert (
-                s in code or alt in code
-            ), f"Expected trampoline statement not found: {s} (or {alt})"
+                s in code or alt_cd in code or alt_in in code
+            ), f"Expected trampoline statement not found: {s} (or {alt_cd} or {alt_in})"
         else:
             assert s in code, f"Expected trampoline statement not found: {s}"
 
@@ -1843,32 +1846,35 @@ float sum({_LONG_STRUCT_NAME} s) {{ return s.x + s.y; }}
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_gate_p2_calldata_struct_present(device_type: spy.DeviceType):
-    """struct CallData is emitted for simple scalar call. Breaks at Step 2.2."""
+def test_gate_p2_calldata_struct_absent_fast_path(device_type: spy.DeviceType):
+    """Fast path (use_direct_args=True): no struct CallData emitted. Step 2.2 done."""
     device = helpers.get_device(device_type)
     code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
-    assert_contains(code, "struct CallData")
+    assert_not_contains(code, "struct CallData")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_gate_p2_calldata_uniform_param(device_type: spy.DeviceType):
-    """CallData is passed to kernel via uniform param (CUDA) or ParameterBlock (others). Breaks at Step 2.2."""
+def test_gate_p2_individual_uniform_params(device_type: spy.DeviceType):
+    """Fast path: individual uniform params instead of unified CallData. Step 2.2 done."""
     device = helpers.get_device(device_type)
     code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
-    # CUDA uses entry-point param; D3D12/Vulkan use ParameterBlock at module scope
-    has_uniform = "uniform CallData call_data" in code
-    has_param_block = "ParameterBlock<CallData> call_data" in code
-    assert (
-        has_uniform or has_param_block
-    ), "Expected 'uniform CallData call_data' or 'ParameterBlock<CallData> call_data'"
+    assert_contains(code, "uniform uint3 _thread_count")
+    assert_contains(code, "uniform int a")
+    assert_contains(code, "uniform int b")
+    assert_not_contains(code, "uniform CallData call_data")
+    assert_not_contains(code, "ParameterBlock<CallData> call_data")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_gate_p2_thread_count_in_calldata(device_type: spy.DeviceType):
-    """_thread_count accessed via call_data. prefix. Breaks at Step 2.2."""
+def test_gate_p2_thread_count_direct(device_type: spy.DeviceType):
+    """Fast path: _thread_count accessed directly, not via call_data prefix. Step 2.2 done."""
     device = helpers.get_device(device_type)
     code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
-    assert_contains(code, "call_data._thread_count")
+    assert_not_contains(code, "call_data._thread_count")
+    # Extract compute_main body and check _thread_count used directly
+    main_idx = code.index("void compute_main(")
+    main_body = code[main_idx:]
+    assert ">= _thread_count)" in main_body
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -1891,11 +1897,11 @@ def test_gate_p2_kernel_calls_trampoline(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_gate_p2_sv_group_id_present(device_type: spy.DeviceType):
-    """SV_GroupID present in compute_main signature even for dim-0. Breaks at Step 2.2."""
+def test_gate_p2_sv_group_id_absent_dim0(device_type: spy.DeviceType):
+    """Fast path dim-0: SV_GroupID not needed. Step 2.2 done."""
     device = helpers.get_device(device_type)
     code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
-    assert_contains(code, "SV_GroupID")
+    assert_not_contains(code, "SV_GroupID")
 
 
 # -- Phase 2 negative gate — must REMAIN passing after Phase 2 --

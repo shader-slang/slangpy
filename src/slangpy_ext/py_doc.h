@@ -10748,14 +10748,6 @@ static const char *__doc_sgl_slangpy_CallContext_m_call_shape = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallContext_m_device = R"doc()doc";
 
-static const char *__doc_sgl_slangpy_CallDataMode = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_entry_point = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_global_data = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_info = R"doc()doc";
-
 static const char *__doc_sgl_slangpy_CallMode = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallMode_bwds = R"doc()doc";

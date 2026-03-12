@@ -809,107 +809,165 @@ nb::object NativeCallData::exec(
 
     auto bind_call_data = [&](ShaderCursor cursor)
     {
-        // On first call, cache all field indices and offsets to avoid repeated string lookups
-        if (!m_cached_call_data_offsets.is_valid) {
-            // Get the call data cursor using string lookup (first call only)
-            ShaderCursor call_data_cursor;
-            if (m_call_data_mode == CallDataMode::entry_point) {
-                ShaderCursor entry_point_cursor = cursor.find_entry_point(0);
-                call_data_cursor = entry_point_cursor.find_field("call_data");
-                m_cached_call_data_offsets.call_data_field_index = entry_point_cursor.find_field_index("call_data");
-            } else {
-                call_data_cursor = cursor.find_field("call_data");
-                m_cached_call_data_offsets.call_data_field_index = cursor.find_field_index("call_data");
+        if (m_use_direct_args) {
+            // ---- Fast path: individual entry-point params ----
+            ShaderCursor ep = cursor.find_entry_point(0);
+
+            // On first call, cache field offsets for metadata fields
+            if (!m_cached_call_data_offsets.is_valid) {
+                m_cached_call_data_offsets.thread_count = ep.find_field("_thread_count").offset();
+                m_cached_call_data_offsets.field_offset = ep.offset();
+                m_cached_call_data_offsets.field_size
+                    = (uint32_t)ep.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                if (call_shape.size() > 0) {
+                    m_cached_call_data_offsets.call_dim = ep.find_field("_call_dim").offset();
+                    m_cached_call_data_offsets.grid_stride = ep.find_field("_grid_stride").offset();
+                    m_cached_call_data_offsets.grid_dim = ep.find_field("_grid_dim").offset();
+                    m_cached_call_data_offsets.array_stride = (int)ep.find_field("_call_dim")
+                                                                  .slang_type_layout()
+                                                                  ->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                }
+                m_cached_call_data_offsets.is_valid = true;
             }
 
-            // Cache whether call_data needs dereference
-            m_cached_call_data_offsets.call_data_is_reference = call_data_cursor.is_reference();
+            // Reserve memory block for all entry-point uniform fields
+            ShaderObject* shader_object = ep.shader_object();
+            void* base_address = shader_object->reserve_data(
+                m_cached_call_data_offsets.field_offset,
+                m_cached_call_data_offsets.field_size
+            );
+
+            if (call_shape.size() > 0) {
+                // Write shape arrays using cached offsets
+                write_strided_array_helper(
+                    base_address,
+                    m_cached_call_data_offsets.call_dim.uniform_offset
+                        - m_cached_call_data_offsets.field_offset.uniform_offset,
+                    call_shape.data(),
+                    call_shape.size(),
+                    m_cached_call_data_offsets.array_stride
+                );
+
+                write_strided_array_helper(
+                    base_address,
+                    m_cached_call_data_offsets.grid_stride.uniform_offset
+                        - m_cached_call_data_offsets.field_offset.uniform_offset,
+                    call_grid_strides.data(),
+                    call_grid_strides.size(),
+                    m_cached_call_data_offsets.array_stride
+                );
+
+                write_strided_array_helper(
+                    base_address,
+                    m_cached_call_data_offsets.grid_dim.uniform_offset
+                        - m_cached_call_data_offsets.field_offset.uniform_offset,
+                    call_grid_shape.data(),
+                    call_grid_shape.size(),
+                    m_cached_call_data_offsets.array_stride
+                );
+            }
+
+            // Write thread count
+            uint3 thread_count_value(total_threads, 1, 1);
+            write_value_helper(
+                base_address,
+                m_cached_call_data_offsets.thread_count.uniform_offset
+                    - m_cached_call_data_offsets.field_offset.uniform_offset,
+                thread_count_value
+            );
+
+            // Pass entry-point cursor as call_data_cursor — marshalls navigate ep[var_name]
+            m_runtime->write_shader_cursor_pre_dispatch(context, cursor, ep, unpacked_args, unpacked_kwargs, read_back);
+        } else {
+            // ---- Fallback path: ParameterBlock<CallData> at module scope (all backends) ----
+            // On first call, cache all field indices and offsets
+            if (!m_cached_call_data_offsets.is_valid) {
+                ShaderCursor call_data_cursor = cursor.find_field("call_data");
+                m_cached_call_data_offsets.call_data_field_index = cursor.find_field_index("call_data");
+
+                // Cache whether call_data needs dereference
+                m_cached_call_data_offsets.call_data_is_reference = call_data_cursor.is_reference();
+                if (m_cached_call_data_offsets.call_data_is_reference)
+                    call_data_cursor = call_data_cursor.dereference();
+
+                // Cache all field offsets
+                m_cached_call_data_offsets.call_dim = call_data_cursor.find_field("_call_dim").offset();
+                m_cached_call_data_offsets.grid_stride = call_data_cursor.find_field("_grid_stride").offset();
+                m_cached_call_data_offsets.grid_dim = call_data_cursor.find_field("_grid_dim").offset();
+                m_cached_call_data_offsets.thread_count = call_data_cursor.find_field("_thread_count").offset();
+                m_cached_call_data_offsets.field_offset = call_data_cursor.offset();
+                m_cached_call_data_offsets.field_size
+                    = (uint32_t)call_data_cursor.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                if (m_cached_call_data_offsets.call_dim.is_valid()) {
+                    m_cached_call_data_offsets.array_stride = (int)call_data_cursor.find_field("_call_dim")
+                                                                  .slang_type_layout()
+                                                                  ->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                }
+                m_cached_call_data_offsets.is_valid = true;
+            }
+
+            // Fast path: use cached field index to find call_data cursor
+            ShaderCursor call_data_cursor = cursor.get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
+
+            // Dereference the cursor if needed (using cached result)
             if (m_cached_call_data_offsets.call_data_is_reference)
                 call_data_cursor = call_data_cursor.dereference();
 
-            // Cache all field offsets
-            m_cached_call_data_offsets.call_dim = call_data_cursor.find_field("_call_dim").offset();
-            m_cached_call_data_offsets.grid_stride = call_data_cursor.find_field("_grid_stride").offset();
-            m_cached_call_data_offsets.grid_dim = call_data_cursor.find_field("_grid_dim").offset();
-            m_cached_call_data_offsets.thread_count = call_data_cursor.find_field("_thread_count").offset();
-            m_cached_call_data_offsets.field_offset = call_data_cursor.offset();
-            m_cached_call_data_offsets.field_size
-                = (uint32_t)call_data_cursor.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
-            if (m_cached_call_data_offsets.call_dim.is_valid()) {
-                m_cached_call_data_offsets.array_stride = (int)call_data_cursor.find_field("_call_dim")
-                                                              .slang_type_layout()
-                                                              ->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+            // Reserve memory block for all call data fields
+            ShaderObject* shader_object = call_data_cursor.shader_object();
+            void* base_address = shader_object->reserve_data(
+                m_cached_call_data_offsets.field_offset,
+                m_cached_call_data_offsets.field_size
+            );
+
+            if (call_shape.size() > 0) {
+                // Write arrays using cached offsets and direct memory access
+                write_strided_array_helper(
+                    base_address,
+                    m_cached_call_data_offsets.call_dim.uniform_offset
+                        - m_cached_call_data_offsets.field_offset.uniform_offset,
+                    call_shape.data(),
+                    call_shape.size(),
+                    m_cached_call_data_offsets.array_stride
+                );
+
+                write_strided_array_helper(
+                    base_address,
+                    m_cached_call_data_offsets.grid_stride.uniform_offset
+                        - m_cached_call_data_offsets.field_offset.uniform_offset,
+                    call_grid_strides.data(),
+                    call_grid_strides.size(),
+                    m_cached_call_data_offsets.array_stride
+                );
+
+                write_strided_array_helper(
+                    base_address,
+                    m_cached_call_data_offsets.grid_dim.uniform_offset
+                        - m_cached_call_data_offsets.field_offset.uniform_offset,
+                    call_grid_shape.data(),
+                    call_grid_shape.size(),
+                    m_cached_call_data_offsets.array_stride
+                );
             }
-            m_cached_call_data_offsets.is_valid = true;
-        }
 
-        // Fast path: use cached field index to find call_data cursor
-        ShaderCursor call_data_cursor;
-        if (m_call_data_mode == CallDataMode::entry_point) {
-            call_data_cursor
-                = cursor.find_entry_point(0).get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
-        } else {
-            call_data_cursor = cursor.get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
-        }
-
-        // Dereference the cursor if needed (using cached result)
-        if (m_cached_call_data_offsets.call_data_is_reference)
-            call_data_cursor = call_data_cursor.dereference();
-
-        // Reserve memory block for all call data fields
-        ShaderObject* shader_object = call_data_cursor.shader_object();
-        void* base_address = shader_object->reserve_data(
-            m_cached_call_data_offsets.field_offset,
-            m_cached_call_data_offsets.field_size
-        );
-
-        if (call_shape.size() > 0) {
-            // Write arrays using cached offsets and direct memory access
-            write_strided_array_helper(
+            // Write thread count
+            uint3 thread_count_value(total_threads, 1, 1);
+            write_value_helper(
                 base_address,
-                m_cached_call_data_offsets.call_dim.uniform_offset
+                m_cached_call_data_offsets.thread_count.uniform_offset
                     - m_cached_call_data_offsets.field_offset.uniform_offset,
-                call_shape.data(),
-                call_shape.size(),
-                m_cached_call_data_offsets.array_stride
+                thread_count_value
             );
 
-            write_strided_array_helper(
-                base_address,
-                m_cached_call_data_offsets.grid_stride.uniform_offset
-                    - m_cached_call_data_offsets.field_offset.uniform_offset,
-                call_grid_strides.data(),
-                call_grid_strides.size(),
-                m_cached_call_data_offsets.array_stride
-            );
-
-            write_strided_array_helper(
-                base_address,
-                m_cached_call_data_offsets.grid_dim.uniform_offset
-                    - m_cached_call_data_offsets.field_offset.uniform_offset,
-                call_grid_shape.data(),
-                call_grid_shape.size(),
-                m_cached_call_data_offsets.array_stride
+            m_runtime->write_shader_cursor_pre_dispatch(
+                context,
+                cursor,
+                call_data_cursor,
+                unpacked_args,
+                unpacked_kwargs,
+                read_back
             );
         }
-
-        // Write thread count
-        uint3 thread_count_value(total_threads, 1, 1);
-        write_value_helper(
-            base_address,
-            m_cached_call_data_offsets.thread_count.uniform_offset
-                - m_cached_call_data_offsets.field_offset.uniform_offset,
-            thread_count_value
-        );
-
-        m_runtime->write_shader_cursor_pre_dispatch(
-            context,
-            cursor,
-            call_data_cursor,
-            unpacked_args,
-            unpacked_kwargs,
-            read_back
-        );
 
         nb::list uniforms = opts->uniforms();
         if (uniforms) {
@@ -1268,7 +1326,6 @@ SGL_PY_EXPORT(utils_slangpy)
 
     nb::sgl_enum<AccessType>(slangpy, "AccessType");
     nb::sgl_enum<CallMode>(slangpy, "CallMode");
-    nb::sgl_enum<CallDataMode>(slangpy, "CallDataMode");
     nb::sgl_enum<AutogradAccess>(slangpy, "AutogradAccess");
 
     slangpy.def(
@@ -1628,12 +1685,6 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::call_mode,
             &NativeCallData::set_call_mode,
             D_NA(NativeCallData, call_mode)
-        )
-        .def_prop_rw(
-            "call_data_mode",
-            &NativeCallData::call_data_mode,
-            &NativeCallData::set_call_data_mode,
-            D_NA(NativeCallData, call_data_mode)
         )
         .def_prop_ro("last_call_shape", &NativeCallData::last_call_shape, D_NA(NativeCallData, last_call_shape))
         .def_prop_rw(

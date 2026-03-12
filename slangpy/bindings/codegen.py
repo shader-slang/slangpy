@@ -129,6 +129,12 @@ class CodeGen:
         #: Additional parameter blocks
         self.parameter_blocks: list[str] = []
 
+        #: When True, skip emitting struct CallData (fast path: entry-point params).
+        self.skip_call_data: bool = False
+
+        #: Individual uniform entry-point parameter declarations (fast path).
+        self.entry_point_params: list[str] = []
+
         # legacy
         self.input_load_store = CodeGenBlock(self)
 
@@ -193,10 +199,11 @@ class CodeGen:
         Generate the final code for the kernel.
         """
 
-        self.call_data.end_block()
+        if not self.skip_call_data:
+            self.call_data.end_block()
 
-        if use_param_block_for_call_data:
-            self.call_data.append_statement("ParameterBlock<CallData> call_data")
+            if use_param_block_for_call_data:
+                self.call_data.append_statement("ParameterBlock<CallData> call_data")
 
         all_code: list[str] = []
         if header:
@@ -214,9 +221,10 @@ class CodeGen:
         if call_data_structs:
             all_code = all_code + self.call_data_structs.code
             all_code.append("\n")
-        if call_data:
+        if call_data and not self.skip_call_data:
             all_code = all_code + self.call_data.code
             all_code.append("\n")
+        if call_data:
             all_code = all_code + self.parameter_blocks
             all_code.append("\n")
         if snippets:

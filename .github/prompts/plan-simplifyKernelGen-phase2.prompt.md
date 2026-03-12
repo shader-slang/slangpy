@@ -178,7 +178,9 @@ Negative gates (must stay passing after Phase 2):
 
 ---
 
-### Step 2.1: Determine fast vs fallback path
+### Step 2.1: Determine fast vs fallback path ✅
+
+**Status: DONE**
 
 In [slangpy/core/calldata.py](slangpy/core/calldata.py), after `calculate_direct_binding(bindings)`:
 
@@ -188,6 +190,25 @@ In [slangpy/core/calldata.py](slangpy/core/calldata.py), after `calculate_direct
 4. **Store** `use_direct_args` on the `CallData` instance and propagate to C++ `NativeCallData`.
 
 `PackedArg` / param-block types are excluded from this accounting — they stay as `ParameterBlock<T>` regardless.
+
+**Implementation details:**
+
+- `DeviceLimits.max_entry_point_uniform_size` added to C++ struct ([device.h](src/sgl/device/device.h)) with per-backend defaults: Vulkan=128, D3D12=256, CUDA=4096 bytes ([device.cpp](src/sgl/device/device.cpp)).
+- `calculate_inline_uniform_size()` added to [callsignature.py](slangpy/core/callsignature.py) — sums `vector_type.uniform_layout.size` for each depth-0 bound variable (skipping `PackedArg`), plus 12 bytes for `_thread_count` and `call_dimensionality * 4 * 3` for shape arrays.
+- `use_direct_args` property added to `NativeCallData` C++ class ([slangpy.h](src/slangpy_ext/utils/slangpy.h)) with Python binding.
+- `CallData.__init__()` in [calldata.py](slangpy/core/calldata.py) sets `self.use_direct_args = inline_size <= threshold` after `calculate_direct_binding()`.
+
+**Tests** (7 tests × 3 device types = 21 parametrized cases, all pass):
+
+| Test | Asserts |
+|------|---------|
+| `test_step21_scalar_uses_direct_args` | Simple `int add(int,int)` with `(1,2)` → `use_direct_args=True` |
+| `test_step21_threshold_property_positive` | `device.info.limits.max_entry_point_uniform_size > 0` |
+| `test_step21_vector_uses_direct_args` | `float3` args → `use_direct_args=True` |
+| `test_step21_struct_uses_direct_args` | All-scalar struct dict → `use_direct_args=True` |
+| `test_step21_tensor_uses_direct_args` | Tensor (descriptor-only, 0 inline bytes) → `use_direct_args=True` |
+| `test_step21_many_float4x4_may_exceed_vulkan` | 8×float4x4 (524 bytes) exceeds Vulkan/D3D12 thresholds, not CUDA |
+| `test_step21_wanghasharg_uses_direct_args` | Non-direct-bind WangHashArg with small inline size → `use_direct_args=True` |
 
 ---
 
@@ -327,9 +348,9 @@ Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligi
 
 ### Implementation Order
 
-1. **Step 2.0** — Gating tests (baseline documentation)
-2. **Step 2.3** — Trampoline elimination for prim mode (both paths). This is independent of entry-point param work and provides immediate value.
-3. **Step 2.1** — Fast/fallback determination + size query
+1. **Step 2.0** ✅ — Gating tests (baseline documentation)
+2. **Step 2.1** ✅ — Fast/fallback determination + size query
+3. **Step 2.3** — Trampoline elimination for prim mode (both paths). This is independent of entry-point param work and provides immediate value.
 4. **Step 2.2 + 2.5** — Code gen + C++ dispatch for entry-point params (must land together — Slang layout and C++ cursor navigation must agree)
 5. **Step 2.4** — Bwds trampoline with individual params (fast path)
 6. **Step 2.6** — `_result` as `RWStructuredBuffer<T>` for all-direct-bind case
@@ -347,10 +368,13 @@ Steps 2.3 (trampoline) and 2.2/2.5 (entry-point params) are independent axes and
 | [slangpy/core/callsignature.py](slangpy/core/callsignature.py) | `generate_code()` — inline load/call/store, entry-point params, Context gating, remove `is_entry_point` branch |
 | [slangpy/bindings/codegen.py](slangpy/bindings/codegen.py) | `skip_call_data` flag, `entry_point_params` list |
 | [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py) | `gen_call_data_code` depth-0 entry-point path; `_gen_trampoline_argument()` usage |
-| [src/slangpy_ext/utils/slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp) | `bind_call_data` fast path via `find_entry_point(0)`, remove `CallDataMode` branches |
-| [src/slangpy_ext/utils/slangpy.h](src/slangpy_ext/utils/slangpy.h) | `m_use_direct_args` on `NativeCallData`, remove `m_call_data_mode` |
+| [src/slangpy_ext/utils/slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp) | ✅ `use_direct_args` binding; `bind_call_data` fast path via `find_entry_point(0)`, remove `CallDataMode` branches |
+| [src/slangpy_ext/utils/slangpy.h](src/slangpy_ext/utils/slangpy.h) | ✅ `m_use_direct_args` on `NativeCallData`; remove `m_call_data_mode` |
+| [src/sgl/device/device.h](src/sgl/device/device.h) | ✅ `max_entry_point_uniform_size` on `DeviceLimits` |
+| [src/sgl/device/device.cpp](src/sgl/device/device.cpp) | ✅ Per-backend defaults for `max_entry_point_uniform_size` |
+| [src/slangpy_ext/device/device.cpp](src/slangpy_ext/device/device.cpp) | ✅ Python binding for `max_entry_point_uniform_size` |
 | [src/sgl/utils/slangpy.h](src/sgl/utils/slangpy.h) | Remove `CallDataMode` enum definition |
-| [slangpy/tests/slangpy_tests/test_kernel_gen.py](slangpy/tests/slangpy_tests/test_kernel_gen.py) | Gating + post-implementation tests |
+| [slangpy/tests/slangpy_tests/test_kernel_gen.py](slangpy/tests/slangpy_tests/test_kernel_gen.py) | ✅ Gating tests + Step 2.1 tests; post-implementation tests |
 
 ---
 

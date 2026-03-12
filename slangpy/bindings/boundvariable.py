@@ -685,6 +685,10 @@ you can find more information in the Mapping section of the documentation (https
             ), f"calldata_type_name not set for '{self.variable_name}'"
             if self.create_param_block:
                 cg.add_parameter_block(self.calldata_type_name, "_param_" + self.variable_name)
+            elif cg.skip_call_data:
+                cg.entry_point_params.append(
+                    f"uniform {self.calldata_type_name} {self.variable_name}"
+                )
             else:
                 cg.call_data.declare(self.calldata_type_name, self.variable_name)
 

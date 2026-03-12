@@ -9,7 +9,6 @@ from slangpy.core.callsignature import *
 from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
 from slangpy.core.native import (
     CallMode,
-    CallDataMode,
     NativeCallData,
     unpack_args,
     unpack_kwargs,
@@ -144,15 +143,6 @@ class CallData(NativeCallData):
             self.layout = build_info.module.layout
             self.call_mode = build_info.call_mode
 
-            # Set call data mode based on device and pipeline type
-            if (
-                build_info.module.device.info.type == DeviceType.cuda
-                and build_info.pipeline_type == PipelineType.compute
-            ):
-                self.call_data_mode = CallDataMode.entry_point
-            else:
-                self.call_data_mode = CallDataMode.global_data
-
             # Unpack args (handles IThis wrappers)
             unpacked_args, args_had_unpack = unpack_args(*args)
             unpacked_kwargs, kwargs_had_unpack = unpack_kwargs(**kwargs)
@@ -193,7 +183,6 @@ class CallData(NativeCallData):
                 self.call_mode,
                 build_info.module.device_module,
                 build_info.options,
-                self.call_data_mode,
             )
 
             # Build the unbound signature from inputs
@@ -280,6 +269,9 @@ class CallData(NativeCallData):
                 f"use_direct_args: {self.use_direct_args}"
             )
 
+            # Propagate use_direct_args to context for code generation
+            context.use_direct_args = self.use_direct_args
+
             # Generate code.
             codegen = CodeGen()
             generate_code(context, build_info, bindings, codegen)
@@ -296,7 +288,7 @@ class CallData(NativeCallData):
                 snippets=True,
                 call_data_structs=True,
                 constants=True,
-                use_param_block_for_call_data=context.call_data_mode == CallDataMode.global_data,
+                use_param_block_for_call_data=not self.use_direct_args,
             )
 
             # Optionally write the shader to a file for debugging.

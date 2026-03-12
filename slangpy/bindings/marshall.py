@@ -3,7 +3,7 @@
 
 from typing import TYPE_CHECKING, Any
 
-from slangpy.core.native import CallMode, CallDataMode, NativeMarshall
+from slangpy.core.native import CallMode, NativeMarshall
 
 from slangpy.bindings.codegen import CodeGenBlock
 
@@ -24,7 +24,6 @@ class BindContext:
         call_mode: CallMode,
         device_module: "SlangModule",
         options: dict[str, Any],
-        call_data_mode: CallDataMode,
     ):
         super().__init__()
 
@@ -37,8 +36,8 @@ class BindContext:
         #: Call mode (prim/bwds/fwds).
         self.call_mode = call_mode
 
-        #: Call data mode (global_data/entry_point).
-        self.call_data_mode = call_data_mode
+        #: Whether to use direct entry-point params (fast path) vs ParameterBlock<CallData> (fallback).
+        self.use_direct_args = False
 
         #: SGL module.
         self.device_module = device_module
