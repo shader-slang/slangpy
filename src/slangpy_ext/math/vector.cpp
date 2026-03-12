@@ -410,6 +410,7 @@ void bind_vector_type(nb::module_& m, const char* name)
 
 #undef WRAP_INTRINSIC_X
 #undef WRAP_INTRINSIC_XY
+#undef WRAP_INTRINSIC_XY_TYPED
 #undef WRAP_INTRINSIC_YX
 }
 
