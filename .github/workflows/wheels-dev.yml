@@ -79,7 +79,7 @@ jobs:
           VENV_FILE="$CACHE_DIR/virtualenv-20.31.2.pyz"
           if [ ! -f "$VENV_FILE" ]; then
             echo "Downloading virtualenv.pyz to $VENV_FILE"
-            curl -fL --retry 5 --retry-delay 2 -o "$VENV_FILE" "https://github.com/pypa/get-virtualenv/blob/20.31.2/public/virtualenv.pyz?raw=true"
+            curl -fL --retry 5 --retry-delay 2 -o "$VENV_FILE" "https://raw.githubusercontent.com/pypa/get-virtualenv/20.31.2/public/virtualenv.pyz"
             if [ ! -s "$VENV_FILE" ]; then
               echo "Downloaded file is empty or missing, removing"
               rm -f "$VENV_FILE"
