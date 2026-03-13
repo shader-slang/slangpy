@@ -339,29 +339,26 @@ Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligi
 
 ### Step 2.7: Tests
 
-**Status: NOT STARTED**
+**Status: PARTIAL** — Tests for completed Phase 2 steps added to [test_code_gen.py](slangpy/tests/slangpy_tests/test_code_gen.py). Remaining tests for Step 2.3 (trampoline elimination) and Step 2.6 (`_result` as `RWStructuredBuffer`) will be added when those steps are implemented.
 
-**Post-implementation tests** — should pass AFTER Phase 2 is complete:
+**Tests added** (in [test_code_gen.py](slangpy/tests/slangpy_tests/test_code_gen.py), tests 35–38, 40):
 
-| Test | Verifies |
-|------|----------|
-| `test_phase2_no_calldata_struct` | `struct CallData` absent for eligible call |
-| `test_phase2_uniform_params_on_entry` | Individual `uniform` params on `compute_main` |
-| `test_phase2_no_trampoline_prim` | No `void _trampoline(` for prim-mode calls |
-| `test_phase2_inline_call` | Function call inlined directly in `compute_main` |
-| `test_phase2_thread_count_as_uniform` | `uniform uint3 _thread_count` as entry-point param |
-| `test_phase2_no_context_all_direct` | No `Context __slangpy_context__` when all args direct-bind |
-| `test_phase2_context_kept_non_direct` | `Context` present when some args use `__slangpy_load` |
-| `test_phase2_bwds_trampoline_individual` | Bwds trampoline has individual params with `no_diff` |
-| `test_phase2_bwds_bwd_diff_call` | `bwd_diff(_trampoline)(ctx, a, b, ...)` in kernel |
-| `test_phase2_no_sv_group_when_dim0` | No `SV_GroupID`/`SV_GroupIndex` when `call_data_len == 0` |
-| `test_phase2_sv_group_when_vectorized` | `SV_GroupID`/`SV_GroupIndex` present when `call_data_len > 0` |
-| `test_phase2_fallback_keeps_calldata` | Force fallback → `struct CallData` still emitted |
-| `test_phase2_fallback_no_trampoline_prim` | Even fallback path eliminates trampoline in prim mode |
-| `test_phase2_functional_scalar_add` | `add(1, 2) == 3` end-to-end dispatch |
-| `test_phase2_functional_bwds` | Backward pass correct gradients |
-| `test_phase2_functional_vectorized` | Vectorized call (shapes) with entry-point params |
-| `test_phase2_functional_mixed_direct` | Mix of direct-bind + non-direct-bind args |
+| Test | Verifies | Merges from test_kernel_gen.py |
+|------|----------|-------------------------------|
+| `test_entrypoint_params_scalar_dim0` (#35) | Fast path: no `struct CallData`, individual `uniform` params, `_thread_count` direct, `SV_GroupID` absent at dim-0, `use_entrypoint_args=True` | `test_gate_p2_calldata_struct_absent_fast_path`, `test_gate_p2_individual_uniform_params`, `test_gate_p2_thread_count_direct`, `test_gate_p2_sv_group_id_absent_dim0`, `test_step21_scalar_uses_entrypoint_args` |
+| `test_entrypoint_params_vectorized` (#36) | Vectorized fast path: shape arrays as entry-point params, `SV_GroupID`/`SV_GroupIndex` present, no `struct CallData` | (new — covers vectorized entry-point param path) |
+| `test_entrypoint_params_non_direct_bind` (#37) | Non-direct-bind arg (WangHashArg) on fast path: no `struct CallData`, wrapper type used, `__slangpy_load`/`Context` present | `test_gate_p2_wanghasharg_keeps_load`, `test_step21_wanghasharg_uses_entrypoint_args` |
+| `test_bwds_entrypoint_no_diff_params` (#38) | Bwds fast path: trampoline params have `no_diff` and `__in_` prefix, `bwd_diff(_trampoline)` passes individual args, `[Differentiable]` before trampoline | (new — covers Step 2.4 bwds trampoline) |
+| `test_fallback_calldata_large_params` (#40) | Fallback path: 8×float4x4 exceeds threshold → `ParameterBlock<CallData>`, `call_data._thread_count`; CUDA stays fast path | `test_step21_many_float4x4_may_exceed_vulkan` (adds codegen assertions) |
+
+**Post-implementation tests** — to be added when remaining steps are complete:
+
+| Test | Verifies | Blocked on |
+|------|----------|------------|
+| `test_phase2_no_trampoline_prim` | No `void _trampoline(` for prim-mode calls | Step 2.3 |
+| `test_phase2_inline_call` | Function call inlined directly in `compute_main` | Step 2.3 |
+| `test_phase2_no_context_all_direct` | No `Context __slangpy_context__` when all args direct-bind | Step 2.3 |
+| `test_phase2_fallback_no_trampoline_prim` | Even fallback path eliminates trampoline in prim mode | Step 2.3 |
 
 ---
 
@@ -399,7 +396,8 @@ Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligi
 | [slangpy/core/function.py](slangpy/core/function.py) | ✅ `CallDataMode` removed from imports |
 | [slangpy/slangpy/__init__.pyi](slangpy/slangpy/__init__.pyi) | ✅ `CallDataMode` class and `call_data_mode` property removed |
 | [slangpy/tests/slangpy_tests/test_type_resolution.py](slangpy/tests/slangpy_tests/test_type_resolution.py) | ✅ `CallDataMode` removed from `BindContext` creation |
-| [slangpy/tests/slangpy_tests/test_kernel_gen.py](slangpy/tests/slangpy_tests/test_kernel_gen.py) | ✅ Gating tests + Step 2.1 tests updated for new behavior; post-implementation tests (Step 2.7) pending |
+| [slangpy/tests/slangpy_tests/test_kernel_gen.py](slangpy/tests/slangpy_tests/test_kernel_gen.py) | ✅ Gating tests + Step 2.1 tests updated for new behavior |
+| [slangpy/tests/slangpy_tests/test_code_gen.py](slangpy/tests/slangpy_tests/test_code_gen.py) | ✅ Phase 2 tests 35–38, 40 added (Step 2.7 partial) |
 
 ---
 
@@ -602,7 +600,7 @@ If a writable dim-0 leaf binding gets `direct_bind=True`, `ValueMarshall.gen_tra
 
 [test_code_gen.py](slangpy/tests/slangpy_tests/test_code_gen.py) has no test that forces `use_entrypoint_args=False` (e.g., by exceeding `max_entry_point_uniform_size`) and asserts the `ParameterBlock<CallData>` codegen. The `test_step21_many_float4x4_may_exceed_vulkan` in `test_kernel_gen.py` checks the flag but not the generated code.
 
-**DO NOT FIX**: Reason: Step 2.7 will add comprehensive post-implementation tests including `test_phase2_fallback_keeps_calldata` and `test_phase2_fallback_no_trampoline_prim`.
+**FIXED**: Added `test_fallback_calldata_large_params` (#40) in `test_code_gen.py` — asserts `ParameterBlock<CallData>` codegen on Vulkan/D3D12 and fast-path codegen on CUDA.
 
 **27. No test for writable `inout` struct at dim-0**
 
