@@ -4,7 +4,6 @@ from enum import Enum
 
 from slangpy.core.native import (
     CallMode,
-    CallDataMode,
     SignatureBuilder,
     NativeCallRuntimeOptions,
     NativeFunctionNode,
