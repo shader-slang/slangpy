@@ -154,6 +154,7 @@ class DiffPairMarshall(Marshall):
                 deriv_target,
             )
         )
+        binding.calldata_type_name = f"_t_{name}"
 
     def get_type(self, prim: PrimType):
         return (

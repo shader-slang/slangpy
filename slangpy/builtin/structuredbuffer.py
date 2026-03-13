@@ -85,24 +85,24 @@ class BufferMarshall(NativeBufferMarshall):
         if isinstance(binding.vector_type, StructuredBufferType):
             assert binding.vector_type.element_type is not None
             if binding.vector_type.writable:
-                cgb.type_alias(
-                    f"_t_{name}",
+                binding.gen_calldata_type_name(
+                    cgb,
                     f"RWStructuredBufferType<{binding.vector_type.element_type.full_name}>",
                 )
             else:
-                cgb.type_alias(
-                    f"_t_{name}",
+                binding.gen_calldata_type_name(
+                    cgb,
                     f"StructuredBufferType<{binding.vector_type.element_type.full_name}>",
                 )
         elif isinstance(binding.vector_type, ByteAddressBufferType):
             if binding.vector_type.writable:
-                cgb.type_alias(f"_t_{name}", f"RWByteAddressBufferType")
+                binding.gen_calldata_type_name(cgb, "RWByteAddressBufferType")
             else:
-                cgb.type_alias(f"_t_{name}", f"ByteAddressBufferType")
+                binding.gen_calldata_type_name(cgb, "ByteAddressBufferType")
         elif isinstance(binding.vector_type, PointerType):
             # To bind as a pointer, use the 'ValueType', which just like the buffer wrappers
             # has a 'value' field that refers to the actual buffer (in this case as a pointer)
-            cgb.type_alias(f"_t_{name}", f"ValueType<{binding.vector_type.full_name}>")
+            binding.gen_calldata_type_name(cgb, f"ValueType<{binding.vector_type.full_name}>")
         else:
             raise ValueError(
                 "Raw buffers can not be vectorized. If you need vectorized buffers, see the Tensor slangpy type"

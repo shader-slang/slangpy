@@ -23,6 +23,11 @@ namespace sgl::math {
  * w^2 + x^2 + y^2 + z^2 = 1
  *
  * Quaternions are stored as (x, y, z, w) to make them better for interop with the GPU.
+ *
+ * Comparison operators (==, !=, <, etc.) return a single bool for
+ * STL compatibility. Use eq(), ne(), etc. for component-wise comparisons.
+ *
+ * \tparam T Scalar type
  */
 template<typename T>
 struct quat {
@@ -71,6 +76,20 @@ struct quat {
     value_type& operator[](size_t i) { return (&x)[i]; }
     const value_type& operator[](size_t i) const { return (&x)[i]; }
 };
+
+/// Equality operator.
+template<typename T>
+[[nodiscard]] constexpr bool operator==(const quat<T>& lhs, const quat<T>& rhs)
+{
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
+}
+
+/// Inequality operator.
+template<typename T>
+[[nodiscard]] constexpr bool operator!=(const quat<T>& lhs, const quat<T>& rhs)
+{
+    return !(lhs == rhs);
+}
 
 using quatf = quat<float>;
 

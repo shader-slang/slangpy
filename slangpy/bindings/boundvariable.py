@@ -6,7 +6,7 @@ from slangpy.core.native import AccessType, CallMode, Shape, NativeMarshall
 
 from slangpy import ModifierID
 from slangpy.bindings.marshall import BindContext
-from slangpy.bindings.codegen import CodeGen
+from slangpy.bindings.codegen import CodeGen, CodeGenBlock
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import (
     SlangField,
@@ -15,6 +15,11 @@ from slangpy.reflection import (
     SlangType,
 )
 from slangpy.reflection.typeresolution import ResolvedParam
+
+#: Type names longer than this threshold get a ``typealias _t_{name}`` alias
+#: to keep the generated ``CallData`` struct readable. Shorter names are
+#: inlined directly.
+MAX_INLINE_TYPE_LEN = 60
 
 
 class BoundVariableException(Exception):
@@ -199,6 +204,9 @@ class BoundVariable:
         #: Whether this variable uses direct binding (raw Slang type, no wrapper).
         self.direct_bind = False
 
+        #: The resolved Slang type name for this variable's CallData field.
+        self.calldata_type_name: Optional[str] = None
+
         #: Call dimensionality of this variable.
         self.call_dimensionality = None
 
@@ -271,6 +279,23 @@ class BoundVariable:
             return self.name
         else:
             return f"arg{self.python_pos_arg_index}"
+
+    def gen_calldata_type_name(self, cgb: CodeGenBlock, type_name: str) -> None:
+        """Record the Slang type name for this variable's CallData field.
+
+        If the type name exceeds ``MAX_INLINE_TYPE_LEN``, a
+        ``typealias _t_{name}`` is emitted and the alias is stored.
+        Otherwise the raw type name is stored directly.
+
+        :param cgb: The code-gen block to write the type alias to (if needed).
+        :param type_name: The resolved Slang type name.
+        """
+        if len(type_name) > MAX_INLINE_TYPE_LEN:
+            alias = f"_t_{self.variable_name}"
+            cgb.type_alias(alias, type_name)
+            self.calldata_type_name = alias
+        else:
+            self.calldata_type_name = type_name
 
     def bind(
         self,
@@ -581,17 +606,21 @@ you can find more information in the Mapping section of the documentation (https
             cgb = cg.call_data_structs
 
             if self.direct_bind:
-                # Direct-bind: emit raw type alias
+                # Direct-bind: use raw type name directly
                 assert self.vector_type is not None
-                cgb.type_alias(f"_t_{self.variable_name}", self.vector_type.full_name)
+                self.gen_calldata_type_name(cgb, self.vector_type.full_name)
             else:
-                cgb.begin_struct(f"_t_{self.variable_name}")
+                struct_name = f"_t_{self.variable_name}"
+                cgb.begin_struct(struct_name)
 
                 for field, variable in self.children.items():
                     variable.gen_call_data_code(cg, context, depth + 1)
 
                 for var in self.children.values():
-                    cgb.declare(f"_t_{var.variable_name}", var.variable_name)
+                    assert (
+                        var.calldata_type_name is not None
+                    ), f"calldata_type_name not set for '{var.variable_name}'"
+                    cgb.declare(var.calldata_type_name, var.variable_name)
 
                 assert self.vector_type is not None
                 context_decl = f"ContextND<{self.call_dimensionality}> context"
@@ -633,6 +662,7 @@ you can find more information in the Mapping section of the documentation (https
                     cgb.end_block()
 
                 cgb.end_struct()
+                self.calldata_type_name = struct_name
 
         else:
             # Generate call data
@@ -650,10 +680,13 @@ you can find more information in the Mapping section of the documentation (https
                 )
 
         if depth == 0:
+            assert (
+                self.calldata_type_name is not None
+            ), f"calldata_type_name not set for '{self.variable_name}'"
             if self.create_param_block:
-                cg.add_parameter_block(f"_t_{self.variable_name}", "_param_" + self.variable_name)
+                cg.add_parameter_block(self.calldata_type_name, "_param_" + self.variable_name)
             else:
-                cg.call_data.declare(f"_t_{self.variable_name}", self.variable_name)
+                cg.call_data.declare(self.calldata_type_name, self.variable_name)
 
     def _gen_trampoline_argument(self):
         assert self.vector_type is not None

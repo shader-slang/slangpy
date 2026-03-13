@@ -50,12 +50,12 @@ class DescriptorMarshall(NativeDescriptorMarshall):
         name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             assert binding.vector_type is not None
-            cgb.type_alias(
-                f"_t_{name}",
+            binding.gen_calldata_type_name(
+                cgb,
                 binding.vector_type.full_name.replace("DescriptorHandle", "DescriptorType"),
             )
         else:
-            cgb.type_alias(f"_t_{name}", f"NoneType")
+            binding.gen_calldata_type_name(cgb, "NoneType")
 
     def reduce_type(self, context: BindContext, dimensions: int) -> kfr.SlangType:
         if dimensions == 0:
