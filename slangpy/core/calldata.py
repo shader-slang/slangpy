@@ -261,13 +261,13 @@ class CallData(NativeCallData):
 
             # Determine fast path (entry-point params) vs fallback (ParameterBlock<CallData>).
             # Sum inline-uniform byte size and compare against per-device threshold.
-            inline_size = calculate_inline_uniform_size(bindings, self.call_dimensionality)
+            inline_size = estimate_entrypoint_arguments_size(bindings, self.call_dimensionality)
             threshold = build_info.module.device.info.limits.max_entry_point_uniform_size
-            use_direct_args = inline_size <= threshold
+            use_entrypoint_args = inline_size <= threshold
             self.log_debug(
                 f"  Inline uniform size: {inline_size} bytes, "
                 f"threshold: {threshold} bytes, "
-                f"use_direct_args: {use_direct_args}"
+                f"use_entrypoint_args: {use_entrypoint_args}"
             )
 
             # Until https://github.com/shader-slang/slang-rhi/pull/676, Vk RTP can't use entry point args
@@ -275,13 +275,13 @@ class CallData(NativeCallData):
                 build_info.pipeline_type == PipelineType.ray_tracing
                 and build_info.module.device.info.type == DeviceType.vulkan
             ):
-                use_direct_args = False
+                use_entrypoint_args = False
 
             # Try building the shader. If direct args compilation fails (the
             # threshold is only an approximate heuristic), fall back to
             # ParameterBlock<CallData>.
             try:
-                self.use_direct_args = use_direct_args
+                self.use_entrypoint_args = use_entrypoint_args
                 self._try_build_shader(
                     context,
                     build_info,
@@ -289,13 +289,13 @@ class CallData(NativeCallData):
                     type_conformances,
                 )
             except RuntimeError as e:
-                if not use_direct_args:
+                if not use_entrypoint_args:
                     raise
                 self.log_debug(
                     f"  Direct args compilation failed ({e}), "
                     "retrying with ParameterBlock<CallData>"
                 )
-                self.use_direct_args = False
+                self.use_entrypoint_args = False
                 self._try_build_shader(
                     context,
                     build_info,
@@ -386,7 +386,7 @@ class CallData(NativeCallData):
         :param bindings: Bound call with resolved variables.
         :param type_conformances: Type conformances for entry point.
         """
-        context.use_direct_args = self.use_direct_args
+        context.use_entrypoint_args = self.use_entrypoint_args
 
         # Generate code.
         codegen = CodeGen()
@@ -404,7 +404,7 @@ class CallData(NativeCallData):
             snippets=True,
             call_data_structs=True,
             constants=True,
-            use_param_block_for_call_data=not context.use_direct_args,
+            use_param_block_for_call_data=not context.use_entrypoint_args,
         )
 
         # Optionally write the shader to a file for debugging.

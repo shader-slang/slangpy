@@ -37,7 +37,7 @@ class BindContext:
         self.call_mode = call_mode
 
         #: Whether to use direct entry-point params (fast path) vs ParameterBlock<CallData> (fallback).
-        self.use_direct_args = False
+        self.use_entrypoint_args = False
 
         #: SGL module.
         self.device_module = device_module

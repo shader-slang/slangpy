@@ -1851,7 +1851,7 @@ float sum({_LONG_STRUCT_NAME} s) {{ return s.x + s.y; }}
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_gate_p2_calldata_struct_absent_fast_path(device_type: spy.DeviceType):
-    """Fast path (use_direct_args=True): no struct CallData emitted. Step 2.2 done."""
+    """Fast path (use_entrypoint_args=True): no struct CallData emitted. Step 2.2 done."""
     device = helpers.get_device(device_type)
     code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
     assert_not_contains(code, "struct CallData")
@@ -1934,13 +1934,13 @@ def build_call_data(
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_step21_scalar_uses_direct_args(device_type: spy.DeviceType):
-    """Simple scalar call has small inline-uniform size → use_direct_args=True."""
+def test_step21_scalar_uses_entrypoint_args(device_type: spy.DeviceType):
+    """Simple scalar call has small inline-uniform size → use_entrypoint_args=True."""
     device = helpers.get_device(device_type)
     cd = build_call_data(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
     # Two ints (4+4) + RWValueRef for _result (descriptor, ~0 inline) + uint3 _thread_count (12)
     # Should be well under any backend's threshold
-    assert cd.use_direct_args is True
+    assert cd.use_entrypoint_args is True
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -1952,7 +1952,7 @@ def test_step21_threshold_property_positive(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_step21_vector_uses_direct_args(device_type: spy.DeviceType):
+def test_step21_vector_uses_entrypoint_args(device_type: spy.DeviceType):
     """float3 args are small enough for direct args."""
     device = helpers.get_device(device_type)
     cd = build_call_data(
@@ -1962,11 +1962,11 @@ def test_step21_vector_uses_direct_args(device_type: spy.DeviceType):
         spy.math.float3(1, 2, 3),
         2.0,
     )
-    assert cd.use_direct_args is True
+    assert cd.use_entrypoint_args is True
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_step21_struct_uses_direct_args(device_type: spy.DeviceType):
+def test_step21_struct_uses_entrypoint_args(device_type: spy.DeviceType):
     """All-scalar struct dict has small inline-uniform size."""
     device = helpers.get_device(device_type)
     src = """
@@ -1974,11 +1974,11 @@ struct S { float x; float y; };
 float sum(S s) { return s.x + s.y; }
 """
     cd = build_call_data(device, "sum", src, {"_type": "S", "x": 1.0, "y": 2.0})
-    assert cd.use_direct_args is True
+    assert cd.use_entrypoint_args is True
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_step21_tensor_uses_direct_args(device_type: spy.DeviceType):
+def test_step21_tensor_uses_entrypoint_args(device_type: spy.DeviceType):
     """Tensor args contribute descriptor-only (0 inline bytes) → direct args."""
     device = helpers.get_device(device_type)
     tensor = Tensor.from_numpy(device, np.array([1.0, 2.0, 3.0], dtype=np.float32))
@@ -1988,7 +1988,7 @@ def test_step21_tensor_uses_direct_args(device_type: spy.DeviceType):
         "float sum_all(float x) { return x; }",
         tensor,
     )
-    assert cd.use_direct_args is True
+    assert cd.use_entrypoint_args is True
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -2021,15 +2021,15 @@ float4x4 sum8(float4x4 a, float4x4 b, float4x4 c, float4x4 d,
     )
     threshold = device.info.limits.max_entry_point_uniform_size
     if threshold >= 524:
-        assert cd.use_direct_args is True
+        assert cd.use_entrypoint_args is True
     else:
-        assert cd.use_direct_args is False
+        assert cd.use_entrypoint_args is False
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_step21_wanghasharg_uses_direct_args(device_type: spy.DeviceType):
+def test_step21_wanghasharg_uses_entrypoint_args(device_type: spy.DeviceType):
     """WangHashArg (non-direct-bind) still counts its inline-uniform size.
-    Its wrapper type has a small inline footprint, so use_direct_args should be True.
+    Its wrapper type has a small inline footprint, so use_entrypoint_args should be True.
     """
     device = helpers.get_device(device_type)
     cd = build_call_data(
@@ -2038,7 +2038,7 @@ def test_step21_wanghasharg_uses_direct_args(device_type: spy.DeviceType):
         "uint3 rng(uint3 input) { return input; }",
         WangHashArg(3),
     )
-    assert cd.use_direct_args is True
+    assert cd.use_entrypoint_args is True
 
 
 if __name__ == "__main__":

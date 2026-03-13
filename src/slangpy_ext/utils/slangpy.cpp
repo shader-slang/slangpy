@@ -861,7 +861,7 @@ nb::object NativeCallData::exec(
 
     auto bind_call_data = [&](ShaderCursor cursor)
     {
-        if (m_use_direct_args) {
+        if (m_use_entrypoint_args) {
             // ---- Fast path: individual entry-point params ----
             ShaderCursor ep = cursor.find_entry_point(0);
 
@@ -1705,11 +1705,11 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(NativeCallData, has_thread_count)
         )
         .def_prop_rw(
-            "use_direct_args",
-            &NativeCallData::use_direct_args,
-            &NativeCallData::set_use_direct_args,
+            "use_entrypoint_args",
+            &NativeCallData::use_entrypoint_args,
+            &NativeCallData::set_use_entrypoint_args,
             nb::arg(),
-            D_NA(NativeCallData, use_direct_args)
+            D_NA(NativeCallData, use_entrypoint_args)
         )
         .def_prop_rw(
             "autograd_access_list",

@@ -191,8 +191,8 @@ In [slangpy/core/calldata.py](slangpy/core/calldata.py), after `calculate_direct
 
 1. **Query a runtime per-device threshold** for max entry-point parameter inline-uniform size. This is a property of the device/backend — large for D3D12/CUDA (thousands of bytes), potentially as low as 128–256 bytes on Vulkan.
 2. **Accumulate inline-uniform byte size** of each bound variable's `calldata_type_name`, plus `_thread_count` (12 bytes) and shape arrays (`call_data_len * 3 * sizeof(int)` for `_grid_stride`, `_grid_dim`, `_call_dim`). **Resource types** (`RWStructuredBuffer`, `Texture2D`, `TensorView`, etc.) don't count — they are bound as descriptors, not inline data.
-3. **Decision**: If total size ≤ threshold → `self.use_direct_args = True` (fast path). Otherwise → `self.use_direct_args = False` (fallback path — current behavior).
-4. **Store** `use_direct_args` on the `CallData` instance and propagate to C++ `NativeCallData`.
+3. **Decision**: If total size ≤ threshold → `self.use_entrypoint_args = True` (fast path). Otherwise → `self.use_entrypoint_args = False` (fallback path — current behavior).
+4. **Store** `use_entrypoint_args` on the `CallData` instance and propagate to C++ `NativeCallData`.
 
 `PackedArg` / param-block types are excluded from this accounting — they stay as `ParameterBlock<T>` regardless.
 
@@ -200,20 +200,20 @@ In [slangpy/core/calldata.py](slangpy/core/calldata.py), after `calculate_direct
 
 - `DeviceLimits.max_entry_point_uniform_size` added to C++ struct ([device.h](src/sgl/device/device.h)) with per-backend defaults: Vulkan=128, D3D12=256, CUDA=4096 bytes ([device.cpp](src/sgl/device/device.cpp)).
 - `calculate_inline_uniform_size()` added to [callsignature.py](slangpy/core/callsignature.py) — sums `vector_type.uniform_layout.size` for each depth-0 bound variable (skipping `PackedArg`), plus 12 bytes for `_thread_count` and `call_dimensionality * 4 * 3` for shape arrays.
-- `use_direct_args` property added to `NativeCallData` C++ class ([slangpy.h](src/slangpy_ext/utils/slangpy.h)) with Python binding.
-- `CallData.__init__()` in [calldata.py](slangpy/core/calldata.py) sets `self.use_direct_args = inline_size <= threshold` after `calculate_direct_binding()`.
+- `use_entrypoint_args` property added to `NativeCallData` C++ class ([slangpy.h](src/slangpy_ext/utils/slangpy.h)) with Python binding.
+- `CallData.__init__()` in [calldata.py](slangpy/core/calldata.py) sets `self.use_entrypoint_args = inline_size <= threshold` after `calculate_direct_binding()`.
 
 **Tests** (7 tests × 3 device types = 21 parametrized cases, all pass):
 
 | Test | Asserts |
 |------|---------|
-| `test_step21_scalar_uses_direct_args` | Simple `int add(int,int)` with `(1,2)` → `use_direct_args=True` |
+| `test_step21_scalar_uses_entrypoint_args` | Simple `int add(int,int)` with `(1,2)` → `use_entrypoint_args=True` |
 | `test_step21_threshold_property_positive` | `device.info.limits.max_entry_point_uniform_size > 0` |
-| `test_step21_vector_uses_direct_args` | `float3` args → `use_direct_args=True` |
-| `test_step21_struct_uses_direct_args` | All-scalar struct dict → `use_direct_args=True` |
-| `test_step21_tensor_uses_direct_args` | Tensor (descriptor-only, 0 inline bytes) → `use_direct_args=True` |
+| `test_step21_vector_uses_entrypoint_args` | `float3` args → `use_entrypoint_args=True` |
+| `test_step21_struct_uses_entrypoint_args` | All-scalar struct dict → `use_entrypoint_args=True` |
+| `test_step21_tensor_uses_entrypoint_args` | Tensor (descriptor-only, 0 inline bytes) → `use_entrypoint_args=True` |
 | `test_step21_many_float4x4_may_exceed_vulkan` | 8×float4x4 (524 bytes) exceeds Vulkan/D3D12 thresholds, not CUDA |
-| `test_step21_wanghasharg_uses_direct_args` | Non-direct-bind WangHashArg with small inline size → `use_direct_args=True` |
+| `test_step21_wanghasharg_uses_entrypoint_args` | Non-direct-bind WangHashArg with small inline size → `use_entrypoint_args=True` |
 
 ---
 
@@ -221,16 +221,16 @@ In [slangpy/core/calldata.py](slangpy/core/calldata.py), after `calculate_direct
 
 **Status: DONE**
 
-In [slangpy/core/callsignature.py](slangpy/core/callsignature.py) `generate_code()`, when `use_direct_args == True`:
+In [slangpy/core/callsignature.py](slangpy/core/callsignature.py) `generate_code()`, when `use_entrypoint_args == True`:
 
 **CodeGen changes** in [slangpy/bindings/codegen.py](slangpy/bindings/codegen.py):
 - Add a `skip_call_data` flag to `CodeGen.__init__`. When `True`, don't emit `struct CallData` / `begin_block()` and gate `end_block()` in `finish()`.
 - Add `self.entry_point_params: list[str] = []` to collect individual uniform param declarations.
 - `finish()` ignores the `call_data` block and `use_param_block_for_call_data` when `skip_call_data` is set.
 
-**CallData struct elimination**: Set `cg.skip_call_data = True` when `use_direct_args`. No `struct CallData` emitted.
+**CallData struct elimination**: Set `cg.skip_call_data = True` when `use_entrypoint_args`. No `struct CallData` emitted.
 
-**`gen_call_data_code` change** in [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py): At `depth == 0`, when `use_direct_args`, append to `cg.entry_point_params` instead of `cg.call_data.declare(...)`. The `call_data_structs` block (type aliases, wrapper structs, mapping constants) still gets emitted at module scope.
+**`gen_call_data_code` change** in [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py): At `depth == 0`, when `use_entrypoint_args`, append to `cg.entry_point_params` instead of `cg.call_data.declare(...)`. The `call_data_structs` block (type aliases, wrapper structs, mapping constants) still gets emitted at module scope.
 
 **`_thread_count` and shape arrays**: Instead of `cg.call_data.append_statement("uint3 _thread_count")`, append to `cg.entry_point_params`. Same for `_grid_stride`, `_grid_dim`, `_call_dim` when `call_data_len > 0`.
 
@@ -254,7 +254,7 @@ Drop `SV_GroupID` and `SV_GroupIndex` when `call_data_len == 0` — they feed `i
 
 **Shape info init**: Changes from `call_data._grid_stride` etc. to just `_grid_stride`, `_grid_dim`, `_call_dim`.
 
-**Fallback path** (`use_direct_args == False`): `struct CallData` is emitted with `ParameterBlock<CallData> call_data` at module scope on ALL backends (including CUDA). The old `CallDataMode` distinction between `entry_point` (CUDA) and `global_data` (non-CUDA) is removed — `ParameterBlock` works on CUDA, and in practice CUDA will never hit the fallback due to its large (~4KB) inline-uniform limit.
+**Fallback path** (`use_entrypoint_args == False`): `struct CallData` is emitted with `ParameterBlock<CallData> call_data` at module scope on ALL backends (including CUDA). The old `CallDataMode` distinction between `entry_point` (CUDA) and `global_data` (non-CUDA) is removed — `ParameterBlock` works on CUDA, and in practice CUDA will never hit the fallback due to its large (~4KB) inline-uniform limit.
 
 See [slangpy/tests/device/test_pipeline_utils.slang](slangpy/tests/device/test_pipeline_utils.slang) for examples of manually-written compute shaders that use entry point parameters on all backends (CUDA, Vulkan, D3D12).
 
@@ -306,11 +306,11 @@ When `call_mode == bwds`:
 
 **Status: DONE** — `CallDataMode` enum fully removed. Fast path uses `find_entry_point(0)` on all backends. Fallback path uses global `ParameterBlock<CallData>` on all backends.
 
-In [src/slangpy_ext/utils/slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp), store `m_use_direct_args` on `NativeCallData` (received from Python `CallData`). Also add to [slangpy.h](src/slangpy_ext/utils/slangpy.h).
+In [src/slangpy_ext/utils/slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp), store `m_use_entrypoint_args` on `NativeCallData` (received from Python `CallData`). Also add to [slangpy.h](src/slangpy_ext/utils/slangpy.h).
 
 Modify `bind_call_data` lambda in `exec()`:
 
-**Fast path** (`m_use_direct_args == true`):
+**Fast path** (`m_use_entrypoint_args == true`):
 - All backends: Navigate via `cursor.find_entry_point(0)`. This is the entry-point cursor.
 - Write `_thread_count` as an entry-point param: `entry_point_cursor["_thread_count"]`.
 - Write shape arrays as entry-point params: `entry_point_cursor["_grid_stride"]`, etc.
@@ -318,7 +318,7 @@ Modify `bind_call_data` lambda in `exec()`:
 - Cache entry-point param field indices on first call (analogous to existing `m_cached_call_data_offsets`).
 - The `reserve_data` + raw-pointer optimization for `_thread_count` and shape arrays may not work for individual entry-point params at disjoint offsets. Use cursor-based writes for these metadata fields (they're small, performance impact minimal), or check if `reserve_data` still works across the entry-point shader object.
 
-**Fallback path** (`m_use_direct_args == false`):
+**Fallback path** (`m_use_entrypoint_args == false`):
 - All backends: Navigate to global `call_data` field via `cursor.find_field("call_data")`, dereference (it's a `ParameterBlock`), write struct data. The old `CallDataMode` branch (CUDA using `find_entry_point(0)` for call_data) is removed. Remove `m_call_data_mode`, `CallDataMode` enum, and all associated branches from `slangpy.h`, `slangpy.cpp`, `calldata.py`, and `callsignature.py`.
 
 ---
@@ -333,7 +333,7 @@ Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligi
 
 **Fallback path**: `_result` stays as `RWValueRef<T>` inside `CallData`, same as current behavior.
 
-**Implementation note**: The `RWStructuredBuffer<T>` approach for `_result` is only used when `use_direct_args == True` AND all other args are direct-bind (so Context can be omitted). When non-direct-bind args are present, Context exists and `_result` can continue to use `RWValueRef<T>.__slangpy_store(context, value)`.
+**Implementation note**: The `RWStructuredBuffer<T>` approach for `_result` is only used when `use_entrypoint_args == True` AND all other args are direct-bind (so Context can be omitted). When non-direct-bind args are present, Context exists and `_result` can continue to use `RWValueRef<T>.__slangpy_store(context, value)`.
 
 ---
 
@@ -383,13 +383,13 @@ Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligi
 
 | File | Changes |
 |------|---------|
-| [slangpy/core/calldata.py](slangpy/core/calldata.py) | ✅ `use_direct_args` flag, size threshold check, `CallDataMode` removed |
+| [slangpy/core/calldata.py](slangpy/core/calldata.py) | ✅ `use_entrypoint_args` flag, size threshold check, `CallDataMode` removed |
 | [slangpy/core/callsignature.py](slangpy/core/callsignature.py) | ✅ Entry-point params, fast/fallback code paths, `is_entry_point` branch removed. Trampoline still generated (Step 2.3 pending). Bwds `no_diff` on all trampoline params (Step 2.4 done). |
 | [slangpy/bindings/codegen.py](slangpy/bindings/codegen.py) | ✅ `skip_call_data` flag, `entry_point_params` list |
 | [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py) | ✅ `gen_call_data_code` depth-0 entry-point path. `_gen_trampoline_argument()` unused — inline generation in `callsignature.py` used instead. |
-| [slangpy/bindings/marshall.py](slangpy/bindings/marshall.py) | ✅ `use_direct_args` field on `BindContext`, `CallDataMode` removed |
-| [src/slangpy_ext/utils/slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp) | ✅ `use_direct_args` binding; `bind_call_data` fast path via `find_entry_point(0)`, `CallDataMode` branches removed |
-| [src/slangpy_ext/utils/slangpy.h](src/slangpy_ext/utils/slangpy.h) | ✅ `m_use_direct_args` on `NativeCallData`; `m_call_data_mode` removed |
+| [slangpy/bindings/marshall.py](slangpy/bindings/marshall.py) | ✅ `use_entrypoint_args` field on `BindContext`, `CallDataMode` removed |
+| [src/slangpy_ext/utils/slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp) | ✅ `use_entrypoint_args` binding; `bind_call_data` fast path via `find_entry_point(0)`, `CallDataMode` branches removed |
+| [src/slangpy_ext/utils/slangpy.h](src/slangpy_ext/utils/slangpy.h) | ✅ `m_use_entrypoint_args` on `NativeCallData`; `m_call_data_mode` removed |
 | [src/sgl/device/device.h](src/sgl/device/device.h) | ✅ `max_entry_point_uniform_size` on `DeviceLimits` |
 | [src/sgl/device/device.cpp](src/sgl/device/device.cpp) | ✅ Per-backend defaults for `max_entry_point_uniform_size` |
 | [src/slangpy_ext/device/device.cpp](src/slangpy_ext/device/device.cpp) | ✅ Python binding for `max_entry_point_uniform_size` |
@@ -462,10 +462,10 @@ Extract into sub-functions:
 
 Additionally, the duplicated `data_name` computation at ~L449 and ~L497 should be extracted:
 ```python
-def _data_name(x: BoundVariable, use_direct_args: bool) -> str:
+def _data_name(x: BoundVariable, use_entrypoint_args: bool) -> str:
     if x.create_param_block:
         return f"_param_{x.variable_name}"
-    return f"__in_{x.variable_name}" if use_direct_args else f"call_data.{x.variable_name}"
+    return f"__in_{x.variable_name}" if use_entrypoint_args else f"call_data.{x.variable_name}"
 ```
 
 **DO NOT FIX** Reason: This is a complex change and will be deferred to a later step.
@@ -489,9 +489,9 @@ Fast path → `write_uniforms(ep)`, fallback → `write_uniforms(call_data_curso
 
 **6. `_try_build_shader` parameter pattern in calldata.py**
 
-Takes `use_direct_args` parameter then immediately sets `self.use_direct_args` and `context.use_direct_args`. The method never reads the flag except to store it.
+Takes `use_entrypoint_args` parameter then immediately sets `self.use_entrypoint_args` and `context.use_entrypoint_args`. The method never reads the flag except to store it.
 
-**FIXED**: Caller sets `self.use_direct_args` before calling; `_try_build_shader` reads `self.use_direct_args` and sets `context.use_direct_args`. Parameter removed.
+**FIXED**: Caller sets `self.use_entrypoint_args` before calling; `_try_build_shader` reads `self.use_entrypoint_args` and sets `context.use_entrypoint_args`. Parameter removed.
 
 ---
 
@@ -592,15 +592,15 @@ If a writable dim-0 leaf binding gets `direct_bind=True`, `ValueMarshall.gen_tra
 
 **DO NOT FIX**: Reason: `CodeGen` is already a shared state bag consumed by multiple modules. Adding a comment is fine but not blocking.
 
-**25. `direct_bind` and `use_direct_args` exposed as read-write in `.pyi` stubs**
+**25. `direct_bind` and `use_entrypoint_args` exposed as read-write in `.pyi` stubs**
 
-[__init__.pyi](slangpy/slangpy/__init__.pyi) exposes `direct_bind` on `NativeBoundVariableRuntime` and `use_direct_args` on `NativeCallData` with setters. Mutating these after first dispatch could invalidate cached cursor offsets in `NativeValueMarshall::ensure_cached`.
+[__init__.pyi](slangpy/slangpy/__init__.pyi) exposes `direct_bind` on `NativeBoundVariableRuntime` and `use_entrypoint_args` on `NativeCallData` with setters. Mutating these after first dispatch could invalidate cached cursor offsets in `NativeValueMarshall::ensure_cached`.
 
 **DO NOT FIX**: Reason: These are set during `CallData` construction before first dispatch. The cached `NativeCallData` is per-signature, so a new signature gets a fresh instance. Post-construction mutation would require going through `debug_build_call_data` which rebuilds everything. Not a practical concern.
 
 **26. No fallback-path codegen test in `test_code_gen.py`**
 
-[test_code_gen.py](slangpy/tests/slangpy_tests/test_code_gen.py) has no test that forces `use_direct_args=False` (e.g., by exceeding `max_entry_point_uniform_size`) and asserts the `ParameterBlock<CallData>` codegen. The `test_step21_many_float4x4_may_exceed_vulkan` in `test_kernel_gen.py` checks the flag but not the generated code.
+[test_code_gen.py](slangpy/tests/slangpy_tests/test_code_gen.py) has no test that forces `use_entrypoint_args=False` (e.g., by exceeding `max_entry_point_uniform_size`) and asserts the `ParameterBlock<CallData>` codegen. The `test_step21_many_float4x4_may_exceed_vulkan` in `test_kernel_gen.py` checks the flag but not the generated code.
 
 **DO NOT FIX**: Reason: Step 2.7 will add comprehensive post-implementation tests including `test_phase2_fallback_keeps_calldata` and `test_phase2_fallback_no_trampoline_prim`.
 

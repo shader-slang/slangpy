@@ -162,14 +162,14 @@ def calculate_direct_binding(call: BoundCall):
         arg.calculate_direct_bind()
 
 
-def calculate_inline_uniform_size(call: BoundCall, call_dimensionality: int) -> int:
+def estimate_entrypoint_arguments_size(call: BoundCall, call_dimensionality: int) -> int:
     """
-    Calculate the total inline-uniform byte size for all depth-0 bound variables,
-    plus metadata fields (_thread_count, shape arrays).
+    Estimate the required entry point uniform byte size if the bound call where
+    to bind all depth-0 bound variables and plus metadata fields
+    (_thread_count, shape arrays) directly as entry point arguments.
 
-    Resource types (StructuredBuffer, Texture2D, etc.) contribute 0 bytes to inline
-    uniform size since they are bound as descriptors.  PackedArg / ParameterBlock
-    types are excluded from this accounting since they stay as ParameterBlock<T>.
+    Note: This is currently an estimate, as the actual calculation really needs to
+    take into account descriptors etc.
 
     :param call: The bound call containing all args/kwargs.
     :param call_dimensionality: The call dimensionality (determines shape array count).
@@ -278,7 +278,7 @@ def generate_code(
     """
 
     # Check if we're using direct entry-point params (fast path)
-    use_direct_args = context.use_direct_args
+    use_entrypoint_args = context.use_entrypoint_args
 
     # Generate the header
     cg.add_import("slangpy")
@@ -368,12 +368,12 @@ def generate_code(
     cg.constants.append_statement("}")
 
     # Set up code gen mode for direct args vs CallData struct
-    if use_direct_args:
+    if use_entrypoint_args:
         cg.skip_call_data = True
 
     # Generate call data inputs if vector call
     if call_data_len > 0:
-        if use_direct_args:
+        if use_entrypoint_args:
             # Fast path: shape arrays as individual entry-point params
             cg.entry_point_params.append(f"uniform int[{call_data_len}] _grid_stride")
             cg.entry_point_params.append(f"uniform int[{call_data_len}] _grid_dim")
@@ -393,7 +393,7 @@ def generate_code(
             # 32 thread aligned.
             cg.call_data.append_statement(f"int[{call_data_len}] _call_dim")
 
-    if use_direct_args:
+    if use_entrypoint_args:
         cg.entry_point_params.append("uniform uint3 _thread_count")
     else:
         cg.call_data.append_statement("uint3 _thread_count")
@@ -410,7 +410,7 @@ def generate_code(
     if context.call_mode != CallMode.prim:
         cg.trampoline.append_line("[Differentiable]")
 
-    if use_direct_args:
+    if use_entrypoint_args:
         # Fast path: trampoline takes individual calldata-typed params.
         # Use __in_ prefix for param names to avoid collision with local variable names.
         # All params are no_diff — entry-point uniforms are never differentiable.
@@ -434,7 +434,7 @@ def generate_code(
         assert x.vector_type is not None
         cg.trampoline.declare(x.vector_type.full_name, x.variable_name)
     for x in root_params:
-        if use_direct_args:
+        if use_entrypoint_args:
             data_name = (
                 f"_param_{x.variable_name}" if x.create_param_block else f"__in_{x.variable_name}"
             )
@@ -483,7 +483,7 @@ def generate_code(
             or x.access[0] == AccessType.readwrite
             or x.access[1] == AccessType.read
         ):
-            if use_direct_args:
+            if use_entrypoint_args:
                 data_name = (
                     f"_param_{x.variable_name}"
                     if x.create_param_block
@@ -516,7 +516,7 @@ def generate_code(
             cg.kernel.append_line("[numthreads(32, 1, 1)]")
         # Note: While flat_call_thread_id is 3-dimensional, we consider it "flat" and 1-dimensional because of the
         #       true call group shape of [x, 1, 1] and only use the first dimension for the call thread id.
-        if use_direct_args:
+        if use_entrypoint_args:
             # Fast path: build compute_main signature with individual entry-point params
             sig_parts = ["int3 flat_call_thread_id: SV_DispatchThreadID"]
             # Only include SV_GroupID/SV_GroupIndex when call_data_len > 0
@@ -533,7 +533,7 @@ def generate_code(
             )
     elif build_info.pipeline_type == PipelineType.ray_tracing:
         cg.kernel.append_line('[shader("raygen")]')
-        if use_direct_args:
+        if use_entrypoint_args:
             sig_parts = list(cg.entry_point_params)
             cg.kernel.append_line(f"void raygen_main({', '.join(sig_parts)})")
         else:
@@ -547,7 +547,7 @@ def generate_code(
         cg.kernel.append_statement("int3 flat_call_thread_id = DispatchRaysIndex();")
 
     # Bounds check — use _thread_count directly in fast path, call_data._thread_count in fallback
-    if use_direct_args:
+    if use_entrypoint_args:
         cg.kernel.append_statement("if (any(flat_call_thread_id >= _thread_count)) return")
     else:
         cg.kernel.append_statement(
@@ -561,7 +561,7 @@ def generate_code(
     # definition in callshape.slang.
     if call_data_len > 0:
         # In fast path, shape arrays are direct entry-point params; in fallback, prefixed with call_data.
-        grid_prefix = "" if use_direct_args else "call_data."
+        grid_prefix = "" if use_entrypoint_args else "call_data."
         if build_info.pipeline_type == PipelineType.compute:
             cg.kernel.append_line(
                 f"""
@@ -587,7 +587,7 @@ def generate_code(
     if context.call_mode == CallMode.bwds:
         fn = f"bwd_diff({fn})"
 
-    if use_direct_args:
+    if use_entrypoint_args:
         # Fast path: pass individual entry-point param names to the trampoline
         trampoline_args = ["__slangpy_context__"]
         for x in root_params:
