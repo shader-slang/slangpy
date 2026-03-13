@@ -105,7 +105,8 @@ int add(int a, int b) {
 """
     device = helpers.get_device(device_type)
     code = generate_code(device, "add", src, 1, 2)
-    print(code)
+    if PRINT_TEST_KERNEL_GEN:
+        print(code)
     assert "add" in code
 
 

@@ -19,6 +19,7 @@ from slangpy import (
     SlangLinkOptions,
     NativeHandle,
     DeviceType,
+    TypeConformance,
     is_torch_bridge_using_fallback,
 )
 from slangpy.bindings import (
@@ -112,7 +113,7 @@ class CallData(NativeCallData):
         build_info = func.calc_build_info()
         self.build(build_info, *args, **kwargs)
 
-    def build(self, build_info: "FunctionBuildInfo", *args: Any, **kwargs: Any):
+    def build(self, build_info: "FunctionBuildInfo", *args: Any, **kwargs: Any) -> None:
         self.has_thread_count = "_thread_count" in kwargs
 
         try:
@@ -269,29 +270,37 @@ class CallData(NativeCallData):
                 f"use_direct_args: {use_direct_args}"
             )
 
+            # Until https://github.com/shader-slang/slang-rhi/pull/676, Vk RTP can't use entry point args
+            if (
+                build_info.pipeline_type == PipelineType.ray_tracing
+                and build_info.module.device.info.type == DeviceType.vulkan
+            ):
+                use_direct_args = False
+
             # Try building the shader. If direct args compilation fails (the
             # threshold is only an approximate heuristic), fall back to
             # ParameterBlock<CallData>.
             try:
+                self.use_direct_args = use_direct_args
                 self._try_build_shader(
                     context,
                     build_info,
                     bindings,
                     type_conformances,
-                    use_direct_args=use_direct_args,
                 )
-            except Exception as e:
+            except RuntimeError as e:
                 if not use_direct_args:
                     raise
                 self.log_debug(
-                    "  Direct args compilation failed, " "retrying with ParameterBlock<CallData>"
+                    f"  Direct args compilation failed ({e}), "
+                    "retrying with ParameterBlock<CallData>"
                 )
+                self.use_direct_args = False
                 self._try_build_shader(
                     context,
                     build_info,
                     bindings,
                     type_conformances,
-                    use_direct_args=False,
                 )
 
             # Store the bindings and runtime for later use.
@@ -364,23 +373,20 @@ class CallData(NativeCallData):
         context: BindContext,
         build_info: "FunctionBuildInfo",
         bindings: BoundCall,
-        type_conformances: Any,
-        use_direct_args: bool,
+        type_conformances: list["TypeConformance"],
     ) -> None:
         """
         Generate shader code and build the pipeline.
 
-        Sets self.use_direct_args, self.pipeline, self.device, self.code,
+        Sets self.pipeline, self.device, self.code,
         and optionally self.shader_table.
 
         :param context: Binding context.
         :param build_info: Function build information.
         :param bindings: Bound call with resolved variables.
         :param type_conformances: Type conformances for entry point.
-        :param use_direct_args: If True, use entry-point params; otherwise ParameterBlock<CallData>.
         """
-        self.use_direct_args = use_direct_args
-        context.use_direct_args = use_direct_args
+        context.use_direct_args = self.use_direct_args
 
         # Generate code.
         codegen = CodeGen()
@@ -398,7 +404,7 @@ class CallData(NativeCallData):
             snippets=True,
             call_data_structs=True,
             constants=True,
-            use_param_block_for_call_data=not use_direct_args,
+            use_param_block_for_call_data=not context.use_direct_args,
         )
 
         # Optionally write the shader to a file for debugging.
@@ -447,9 +453,7 @@ class CallData(NativeCallData):
 
         # Hash the code to get a unique identifier for the module.
         # We add type conformances to the start of the code to ensure that the hash is unique
-        code_minus_header = (
-            "[CallData]\n" + str(build_info.type_conformances) + code[len(codegen.header) :]
-        )
+        code_minus_header = str(build_info.type_conformances) + code[len(codegen.header) :]
         hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
 
         # Check if we've already built this module.

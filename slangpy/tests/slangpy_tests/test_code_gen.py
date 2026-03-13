@@ -13,7 +13,7 @@ Functional dispatch tests are included only for scenarios that are not covered
 by other test files (``test_simple_function_call.py``, ``test_tensor.py``, etc.).
 """
 
-from typing import Any, Tuple
+from typing import Any
 
 import numpy as np
 import os
@@ -60,7 +60,7 @@ def assert_trampoline_has(code: str, *stmts: str) -> None:
 
 def generate_code_and_bindings(
     device: spy.Device, func_name: str, module_source: str, *args: Any, **kwargs: Any
-) -> Tuple[str, Any]:
+) -> tuple[str, Any]:
     """Generate code and return ``(code_str, bindings)`` from a single ``debug_build_call_data`` call."""
     func = helpers.create_function_from_module(device, func_name, module_source)
     cd = func.debug_build_call_data(*args, **kwargs)
@@ -71,7 +71,7 @@ def generate_code_and_bindings(
 
 def generate_bwds_code_and_bindings(
     device: spy.Device, func_name: str, module_source: str, *args: Any, **kwargs: Any
-) -> Tuple[str, Any]:
+) -> tuple[str, Any]:
     """Generate backwards-mode code and return ``(code_str, bindings)``."""
     func = helpers.create_function_from_module(device, func_name, module_source)
     cd = func.bwds.debug_build_call_data(*args, **kwargs)

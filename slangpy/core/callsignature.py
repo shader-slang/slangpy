@@ -55,7 +55,7 @@ def is_generic_vector(type: TypeReflection) -> bool:
     try:
         if type.scalar_type != TypeReflection.Kind.none and type.col_count > 0:  # @IgnoreException
             return False
-    except:
+    except Exception:
         return True
     return True
 
@@ -247,7 +247,7 @@ def is_slangpy_vector(type: Any) -> bool:
     )
 
 
-def generate_constants(build_info: "FunctionBuildInfo", cg: CodeGen):
+def generate_constants(build_info: "FunctionBuildInfo", cg: CodeGen) -> None:
     if build_info.constants is not None:
         for k, v in build_info.constants.items():
             if isinstance(v, bool):
@@ -272,11 +272,10 @@ def generate_code(
     build_info: "FunctionBuildInfo",
     signature: BoundCall,
     cg: CodeGen,
-):
+) -> None:
     """
-    Generate a list of call data nodes that will be used to generate the call
+    Generate Slang kernel code for the given function call signature.
     """
-    nodes: list[BoundVariable] = []
 
     # Check if we're using direct entry-point params (fast path)
     use_direct_args = context.use_direct_args

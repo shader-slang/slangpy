@@ -807,6 +807,58 @@ nb::object NativeCallData::exec(
         );
     }
 
+    auto write_uniforms = [&](ShaderCursor target, ShaderCursor root_cursor)
+    {
+        // Reserve memory block for all uniform fields
+        ShaderObject* shader_object = target.shader_object();
+        void* base_address = shader_object->reserve_data(
+            m_cached_call_data_offsets.field_offset,
+            m_cached_call_data_offsets.field_size
+        );
+
+        if (call_shape.size() > 0) {
+            // Write shape arrays using cached offsets
+            write_strided_array_helper(
+                base_address,
+                m_cached_call_data_offsets.call_dim.uniform_offset
+                    - m_cached_call_data_offsets.field_offset.uniform_offset,
+                call_shape.data(),
+                call_shape.size(),
+                m_cached_call_data_offsets.array_stride
+            );
+
+            write_strided_array_helper(
+                base_address,
+                m_cached_call_data_offsets.grid_stride.uniform_offset
+                    - m_cached_call_data_offsets.field_offset.uniform_offset,
+                call_grid_strides.data(),
+                call_grid_strides.size(),
+                m_cached_call_data_offsets.array_stride
+            );
+
+            write_strided_array_helper(
+                base_address,
+                m_cached_call_data_offsets.grid_dim.uniform_offset
+                    - m_cached_call_data_offsets.field_offset.uniform_offset,
+                call_grid_shape.data(),
+                call_grid_shape.size(),
+                m_cached_call_data_offsets.array_stride
+            );
+        }
+
+        // Write thread count
+        uint3 thread_count_value(total_threads, 1, 1);
+        write_value_helper(
+            base_address,
+            m_cached_call_data_offsets.thread_count.uniform_offset
+                - m_cached_call_data_offsets.field_offset.uniform_offset,
+            thread_count_value
+        );
+
+        m_runtime
+            ->write_shader_cursor_pre_dispatch(context, root_cursor, target, unpacked_args, unpacked_kwargs, read_back);
+    };
+
     auto bind_call_data = [&](ShaderCursor cursor)
     {
         if (m_use_direct_args) {
@@ -830,54 +882,7 @@ nb::object NativeCallData::exec(
                 m_cached_call_data_offsets.is_valid = true;
             }
 
-            // Reserve memory block for all entry-point uniform fields
-            ShaderObject* shader_object = ep.shader_object();
-            void* base_address = shader_object->reserve_data(
-                m_cached_call_data_offsets.field_offset,
-                m_cached_call_data_offsets.field_size
-            );
-
-            if (call_shape.size() > 0) {
-                // Write shape arrays using cached offsets
-                write_strided_array_helper(
-                    base_address,
-                    m_cached_call_data_offsets.call_dim.uniform_offset
-                        - m_cached_call_data_offsets.field_offset.uniform_offset,
-                    call_shape.data(),
-                    call_shape.size(),
-                    m_cached_call_data_offsets.array_stride
-                );
-
-                write_strided_array_helper(
-                    base_address,
-                    m_cached_call_data_offsets.grid_stride.uniform_offset
-                        - m_cached_call_data_offsets.field_offset.uniform_offset,
-                    call_grid_strides.data(),
-                    call_grid_strides.size(),
-                    m_cached_call_data_offsets.array_stride
-                );
-
-                write_strided_array_helper(
-                    base_address,
-                    m_cached_call_data_offsets.grid_dim.uniform_offset
-                        - m_cached_call_data_offsets.field_offset.uniform_offset,
-                    call_grid_shape.data(),
-                    call_grid_shape.size(),
-                    m_cached_call_data_offsets.array_stride
-                );
-            }
-
-            // Write thread count
-            uint3 thread_count_value(total_threads, 1, 1);
-            write_value_helper(
-                base_address,
-                m_cached_call_data_offsets.thread_count.uniform_offset
-                    - m_cached_call_data_offsets.field_offset.uniform_offset,
-                thread_count_value
-            );
-
-            // Pass entry-point cursor as call_data_cursor — marshalls navigate ep[var_name]
-            m_runtime->write_shader_cursor_pre_dispatch(context, cursor, ep, unpacked_args, unpacked_kwargs, read_back);
+            write_uniforms(ep, cursor);
         } else {
             // ---- Fallback path: ParameterBlock<CallData> at module scope (all backends) ----
             // On first call, cache all field indices and offsets
@@ -906,67 +911,14 @@ nb::object NativeCallData::exec(
                 m_cached_call_data_offsets.is_valid = true;
             }
 
-            // Fast path: use cached field index to find call_data cursor
+            // Use cached field index to find call_data cursor
             ShaderCursor call_data_cursor = cursor.get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
 
             // Dereference the cursor if needed (using cached result)
             if (m_cached_call_data_offsets.call_data_is_reference)
                 call_data_cursor = call_data_cursor.dereference();
 
-            // Reserve memory block for all call data fields
-            ShaderObject* shader_object = call_data_cursor.shader_object();
-            void* base_address = shader_object->reserve_data(
-                m_cached_call_data_offsets.field_offset,
-                m_cached_call_data_offsets.field_size
-            );
-
-            if (call_shape.size() > 0) {
-                // Write arrays using cached offsets and direct memory access
-                write_strided_array_helper(
-                    base_address,
-                    m_cached_call_data_offsets.call_dim.uniform_offset
-                        - m_cached_call_data_offsets.field_offset.uniform_offset,
-                    call_shape.data(),
-                    call_shape.size(),
-                    m_cached_call_data_offsets.array_stride
-                );
-
-                write_strided_array_helper(
-                    base_address,
-                    m_cached_call_data_offsets.grid_stride.uniform_offset
-                        - m_cached_call_data_offsets.field_offset.uniform_offset,
-                    call_grid_strides.data(),
-                    call_grid_strides.size(),
-                    m_cached_call_data_offsets.array_stride
-                );
-
-                write_strided_array_helper(
-                    base_address,
-                    m_cached_call_data_offsets.grid_dim.uniform_offset
-                        - m_cached_call_data_offsets.field_offset.uniform_offset,
-                    call_grid_shape.data(),
-                    call_grid_shape.size(),
-                    m_cached_call_data_offsets.array_stride
-                );
-            }
-
-            // Write thread count
-            uint3 thread_count_value(total_threads, 1, 1);
-            write_value_helper(
-                base_address,
-                m_cached_call_data_offsets.thread_count.uniform_offset
-                    - m_cached_call_data_offsets.field_offset.uniform_offset,
-                thread_count_value
-            );
-
-            m_runtime->write_shader_cursor_pre_dispatch(
-                context,
-                cursor,
-                call_data_cursor,
-                unpacked_args,
-                unpacked_kwargs,
-                read_back
-            );
+            write_uniforms(call_data_cursor, cursor);
         }
 
         nb::list uniforms = opts->uniforms();
