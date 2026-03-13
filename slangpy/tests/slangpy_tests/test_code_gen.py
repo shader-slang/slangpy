@@ -1110,6 +1110,8 @@ def test_entrypoint_params_scalar_dim0(device_type: spy.DeviceType):
     test_gate_p2_individual_uniform_params, test_gate_p2_thread_count_direct,
     test_gate_p2_sv_group_id_absent_dim0, test_step21_scalar_uses_entrypoint_args.
     """
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
     code, bindings, cd = build_call_data_full(
         device, "add", "int add(int a, int b) { return a + b; }", 1, 2
@@ -1145,6 +1147,8 @@ def test_entrypoint_params_vectorized(device_type: spy.DeviceType):
     _call_dim) as uniform params, SV_GroupID/SV_GroupIndex present when
     call_data_len > 0, no struct CallData.
     """
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
     tensor = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
     code, bindings, cd = build_call_data_full(
@@ -1182,6 +1186,8 @@ def test_entrypoint_params_non_direct_bind(device_type: spy.DeviceType):
     Merges: test_gate_p2_wanghasharg_keeps_load,
     test_step21_wanghasharg_uses_entrypoint_args.
     """
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
     code, bindings, cd = build_call_data_full(
         device, "rng", "uint3 rng(uint3 input) { return input; }", WangHashArg(3)
@@ -1212,6 +1218,8 @@ def test_bwds_entrypoint_no_diff_params(device_type: spy.DeviceType):
     '__in_' prefix, bwd_diff(_trampoline) call passes individual arg names,
     [Differentiable] before trampoline.
     """
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
     src = """
 [Differentiable]
