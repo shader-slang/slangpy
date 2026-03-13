@@ -16,7 +16,7 @@ Move these small, self-contained pieces first:
 - **In [callsignature.py](slangpy/core/callsignature.py)**: Add `from slangpy.core.generator import KernelGenException, generate_constants` and delete the moved code. Keep a re-export of `KernelGenException` so any external consumer of the wildcard import from [calldata.py](slangpy/core/calldata.py#L8) continues to work.
 - **In [dispatchdata.py](slangpy/core/dispatchdata.py#L7)**: Change `from slangpy.core.callsignature import generate_constants` → `from slangpy.core.generator import generate_constants`.
 
-**Verify**: `pytest slangpy/tests -v` — all tests pass, no import errors.
+**Verify**: `pytest slangpy/tests/slangpy_tests -v` — all tests pass, no import errors.
 
 **DONE**: Created `slangpy/core/generator.py` with `KernelGenException`, `_is_slangpy_vector`, `generate_constants`. Replaced definitions in `callsignature.py` with re-exports. Updated `dispatchdata.py` import. 4999 passed, 5 pre-existing failures (raytrace d3d12, type conformance cache).
 
@@ -48,24 +48,42 @@ Move `BoundVariable.gen_call_data_code` (lines 604–693 of [boundvariable.py](s
 
 ---
 
-### Step 3: Decompose `generate_code` into sub-functions and move to `generator.py`
+### Step 3a: Extract pure-computation helpers in-place in `callsignature.py`
 
-This is the main step. Move `generate_code` (lines 271–603 of [callsignature.py](slangpy/core/callsignature.py#L271-L603)) into `generator.py` and split it into clearly-named sub-functions. Each function has a docstring describing what Slang code it emits.
+Extract the two helpers that do **no codegen** — pure calculation/validation only:
 
-The decomposition:
+- **Extract** `_validate_and_compute_group_shape(build_info, call_data_len) -> tuple[int, list[int], list[int]]` from lines [293–340](slangpy/core/callsignature.py#L293-L340). Returns `(call_group_size, call_group_strides, call_group_shape_vector)`.
+- **Extract** `_data_name(x, use_entrypoint_args) -> str` — deduplicate the two inline occurrences at lines [449](slangpy/core/callsignature.py#L449) and [497](slangpy/core/callsignature.py#L497) into a single helper. Returns `__in_{name}`, `call_data.{name}`, or `_param_{name}`.
 
-| New function | Source lines | What it emits |
-|---|---|---|
-| `_validate_and_compute_group_shape(build_info, call_data_len) -> tuple[int, list[int], list[int]]` | [293–340](slangpy/core/callsignature.py#L293-L340) | Nothing — pure validation. Returns `(call_group_size, call_group_strides, call_group_shape_vector)`. |
-| `_emit_link_time_constants(cg, build_info, call_data_len, call_group_size, call_group_strides, call_group_shape_vector)` | [342–371](slangpy/core/callsignature.py#L342-L371) | `export static const int call_data_len = ...`, group stride/shape arrays. Also calls `generate_constants()`. |
-| `_emit_shape_and_metadata_params(cg, call_data_len, use_entrypoint_args)` | [373–403](slangpy/core/callsignature.py#L373-L403) | `_grid_stride`, `_grid_dim`, `_call_dim`, `_thread_count` — as entry-point params (fast) or `CallData` fields (fallback). |
-| `_emit_call_data_definitions(cg, context, signature)` | [405–406](slangpy/core/callsignature.py#L405-L406) | Per-variable call data (wrapper structs, type aliases, mapping constants). Calls `gen_call_data_code` on each node. |
-| `_data_name(x, use_entrypoint_args) -> str` | Duplicated at [449](slangpy/core/callsignature.py#L449) and [497](slangpy/core/callsignature.py#L497) | Helper: returns `__in_{name}`, `call_data.{name}`, or `_param_{name}`. |
-| `_emit_trampoline(cg, context, build_info, signature, root_params, use_entrypoint_args)` | [408–500](slangpy/core/callsignature.py#L408-L500) | `[Differentiable] void _trampoline(...)` — param declarations, loads, function call, stores. |
-| `_emit_entry_point_signature(cg, build_info, call_data_len, call_group_size, use_entrypoint_args)` | [503–541](slangpy/core/callsignature.py#L503-L541) | `[shader("compute")] [numthreads(...)] void compute_main(...)` or `[shader("raygen")] void raygen_main(...)`. |
-| `_emit_kernel_body(cg, context, build_info, root_params, call_data_len, use_entrypoint_args)` | [543–603](slangpy/core/callsignature.py#L543-L603) | Bounds check, `init_thread_local_call_shape_info`, Context construction, trampoline call. |
+Leave both in `callsignature.py` as module-private functions. `generate_code` calls them.
 
-The top-level `generate_code` becomes a ~30-line orchestrator that calls these in order:
+**Verify**: `pytest slangpy/tests/slangpy_tests -v` — all tests pass.
+
+---
+
+### Step 3b: Extract "setup" emission functions in-place in `callsignature.py`
+
+Extract the three functions that emit the top section of the generated kernel:
+
+- **Extract** `_emit_link_time_constants(cg, build_info, call_data_len, call_group_size, call_group_strides, call_group_shape_vector)` from lines [342–371](slangpy/core/callsignature.py#L342-L371). Emits `export static const int call_data_len = ...`, group stride/shape arrays; calls `generate_constants()`.
+- **Extract** `_emit_shape_and_metadata_params(cg, call_data_len, use_entrypoint_args)` from lines [373–403](slangpy/core/callsignature.py#L373-L403). Emits `_grid_stride`, `_grid_dim`, `_call_dim`, `_thread_count` — as entry-point params (fast path) or `CallData` fields (fallback).
+- **Extract** `_emit_call_data_definitions(cg, context, signature)` from lines [405–406](slangpy/core/callsignature.py#L405-L406). Emits per-variable call data (wrapper structs, type aliases, mapping constants) by calling `gen_call_data_code` on each node.
+
+Leave all three in `callsignature.py`. `generate_code` calls them.
+
+**Verify**: `pytest slangpy/tests/slangpy_tests -v` — all tests pass. Run `$env:SLANGPY_PRINT_GENERATED_SHADERS="1"; pytest slangpy/tests/slangpy_tests/test_code_gen.py -v` and capture output as the baseline for Step 3c and 3d.
+
+---
+
+### Step 3c: Extract "body" emission functions in-place in `callsignature.py`
+
+Extract the remaining three functions that emit the entry point and kernel body:
+
+- **Extract** `_emit_trampoline(cg, context, build_info, root_params, use_entrypoint_args)` from lines [408–500](slangpy/core/callsignature.py#L408-L500). Emits `[Differentiable] void _trampoline(...)` — param declarations, loads, function call, stores.
+- **Extract** `_emit_entry_point_signature(cg, build_info, call_data_len, call_group_size, use_entrypoint_args)` from lines [503–541](slangpy/core/callsignature.py#L503-L541). Emits `[shader("compute")] [numthreads(...)] void compute_main(...)` or `[shader("raygen")] void raygen_main(...)`.
+- **Extract** `_emit_kernel_body(cg, context, build_info, root_params, call_data_len, use_entrypoint_args)` from lines [543–603](slangpy/core/callsignature.py#L543-L603). Emits bounds check, `init_thread_local_call_shape_info`, Context construction, trampoline call.
+
+At this point `generate_code` is reduced to the ~30-line orchestrator below. Still in `callsignature.py`.
 
 ```python
 def generate_code(context, build_info, signature, cg):
@@ -92,10 +110,19 @@ def generate_code(context, build_info, signature, cg):
     cg.kernel.end_block()
 ```
 
-- **In [callsignature.py](slangpy/core/callsignature.py)**: Delete `generate_code` and add `from slangpy.core.generator import generate_code` (or let the existing wildcard import consumer in [calldata.py](slangpy/core/calldata.py) point to `generator` instead).
-- **Update [calldata.py](slangpy/core/calldata.py#L8)**: Change `from slangpy.core.callsignature import *` to explicit imports: binding-pipeline functions from `callsignature`, and `generate_code`, `KernelGenException` from `generator`. This eliminates the wildcard import, making dependencies explicit.
+**Verify**: `pytest slangpy/tests/slangpy_tests -v` — all tests pass. Re-run `$env:SLANGPY_PRINT_GENERATED_SHADERS="1"; pytest slangpy/tests/slangpy_tests/test_code_gen.py -v` and confirm output is byte-identical to the Step 3b baseline.
 
-**Verify**: `pytest slangpy/tests -v` — all tests pass. `$env:SLANGPY_PRINT_GENERATED_SHADERS="1"; pytest slangpy/tests/slangpy_tests/test_code_gen.py -v` — generated code unchanged.
+---
+
+### Step 3d: Move all codegen symbols from `callsignature.py` to `generator.py` and fix imports
+
+Now that everything is neatly decomposed, do the pure mechanical move:
+
+- **Move** all seven `_emit_*`/`_validate_*`/`_data_name` private helpers and the `generate_code` orchestrator from `callsignature.py` into `generator.py`.
+- **In [callsignature.py](slangpy/core/callsignature.py)**: Delete the moved code; add `from slangpy.core.generator import generate_code` re-export so any consumer that imports `generate_code` from `callsignature` continues to work.
+- **Update [calldata.py](slangpy/core/calldata.py#L8)**: Replace `from slangpy.core.callsignature import *` with explicit imports — binding-pipeline functions from `callsignature`, and `generate_code`, `KernelGenException` from `generator`. This eliminates the wildcard import, making dependencies explicit.
+
+**Verify**: `pytest slangpy/tests/slangpy_tests -v` — all tests pass. Re-run `$env:SLANGPY_PRINT_GENERATED_SHADERS="1"; pytest slangpy/tests/slangpy_tests/test_code_gen.py -v` — output byte-identical to Step 3b baseline.
 
 ---
 
@@ -150,16 +177,14 @@ This is documentation-only, no functional changes.
 At each step:
 ```bash
 cmake --build --preset windows-msvc-debug
-pytest slangpy/tests -v
+pytest slangpy/tests/slangpy_tests -v
 pre-commit run --all-files
 ```
 
-After Step 3 specifically, also verify generated shader output is unchanged:
+After Step 3b specifically, capture generated shader output as a baseline; re-run after 3c and 3d to confirm byte-identical output:
 ```powershell
 $env:SLANGPY_PRINT_GENERATED_SHADERS="1"; pytest slangpy/tests/slangpy_tests/test_code_gen.py -v
 ```
-
-Compare output before/after to confirm byte-identical generated Slang code.
 
 ---
 
