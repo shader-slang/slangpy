@@ -3,6 +3,8 @@
 import pytest
 import sys
 
+from typing import Callable
+
 from slangpy import DeviceType, Device, Module
 from slangpy.core.native import NativeCallDataCache, SignatureBuilder
 from slangpy.testing import helpers
@@ -369,6 +371,288 @@ def test_empty_tensor_null_data_ptr(device_type: DeviceType):
     # Verify tensors are still empty
     assert input_tensor.numel() == 0
     assert output_tensor.numel() == 0
+
+
+SLICE_CASES = [
+    pytest.param(4, lambda t: t[:3], id="prefix"),
+    pytest.param(4, lambda t: t[1:], id="suffix_offset"),
+    pytest.param(6, lambda t: t[::2], id="strided"),
+    pytest.param(9, lambda t: t.reshape(3, 3).diagonal(), id="diagonal"),
+]
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("source_size,slicer", SLICE_CASES)
+def test_parameter_slice(
+    device_type: DeviceType, source_size: int, slicer: Callable[[torch.Tensor], torch.Tensor]
+):
+    """
+    Test that sliced PyTorch tensors can be passed as fixed-size array parameters.
+
+    Covers prefix slices (zero offset, contiguous), suffix slices (non-zero
+    offset, contiguous), and strided slices (non-contiguous).
+    """
+    module = load_test_module(device_type)
+
+    scale = torch.rand(10, dtype=torch.float32, device=torch.device("cuda"))
+    values = torch.rand(source_size, dtype=torch.float32, device=torch.device("cuda"))
+
+    sliced = slicer(values)
+    assert sliced.shape == (3,), f"Slice should produce 3 elements, got {sliced.shape}"
+
+    res = module.scaled_sum(scale, sliced)
+    assert isinstance(res, torch.Tensor)
+
+    expected = scale * sliced.sum()
+    compare_tensors(res, expected)
+
+
+VECTOR_SLICE_CASES = [
+    pytest.param(4, lambda t: t[:, :3], id="prefix"),
+    pytest.param(4, lambda t: t[:, 1:], id="suffix_offset"),
+    pytest.param(6, lambda t: t[:, ::2], id="strided"),
+]
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("source_cols,slicer", VECTOR_SLICE_CASES)
+def test_vector_parameter_slice(
+    device_type: DeviceType,
+    source_cols: int,
+    slicer: Callable[[torch.Tensor], torch.Tensor],
+):
+    """
+    Test that sliced PyTorch tensors can be passed as float3 vector parameters.
+
+    The trailing dimension of the view maps to float3 components. Covers prefix
+    (zero offset), suffix (non-zero offset), and strided (non-contiguous) slices.
+    """
+    module = load_test_module(device_type)
+
+    batch = 5
+    a = torch.rand(batch, source_cols, dtype=torch.float32, device=torch.device("cuda"))
+    b = torch.rand(batch, source_cols, dtype=torch.float32, device=torch.device("cuda"))
+
+    a_sliced = slicer(a)
+    b_sliced = slicer(b)
+    assert a_sliced.shape == (batch, 3)
+
+    res = module.add_vectors(a_sliced, b_sliced)
+    assert isinstance(res, torch.Tensor)
+
+    compare_tensors(res, a_sliced + b_sliced)
+
+
+RWTENSOR_SLICE_CASES = [
+    pytest.param(6, lambda t: t[:3], id="prefix"),
+    pytest.param(6, lambda t: t[1:4], id="offset"),
+    pytest.param(6, lambda t: t[::2], id="strided"),
+    pytest.param(9, lambda t: t.reshape(3, 3).diagonal(), id="diagonal"),
+]
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("full_size,slicer", RWTENSOR_SLICE_CASES)
+def test_rwtensor_slice_writeback(
+    device_type: DeviceType,
+    full_size: int,
+    slicer: Callable[[torch.Tensor], torch.Tensor],
+):
+    """
+    Test that write-back to a sliced RWTensor correctly updates only the
+    sliced region of the underlying tensor.
+
+    A sentinel-filled tensor is sliced, the slice is passed as RWTensor output,
+    and we verify that only the sliced positions are overwritten.
+    """
+    module = load_test_module(device_type)
+
+    input_data = torch.tensor([10.0, 20.0, 30.0], dtype=torch.float32, device=torch.device("cuda"))
+
+    sentinel = -1.0
+    output_full = torch.full(
+        (full_size,), sentinel, dtype=torch.float32, device=torch.device("cuda")
+    )
+    output_slice = slicer(output_full)
+    assert output_slice.shape == (3,)
+
+    module.copy_tensor(input_data, output_slice)
+
+    expected_full = torch.full_like(output_full, sentinel)
+    slicer(expected_full)[:] = input_data
+    compare_tensors(output_full, expected_full)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_vector_parameter_transpose(device_type: DeviceType):
+    """
+    Test that transposed (non-contiguous) tensors work as float3 vector params.
+
+    Creates (3, batch) tensors and transposes to (batch, 3). The trailing
+    dimension that maps to float3 has non-unit stride from the transpose.
+    """
+    module = load_test_module(device_type)
+
+    batch = 5
+    dev = torch.device("cuda")
+    a = torch.rand(3, batch, dtype=torch.float32, device=dev).t()
+    b = torch.rand(3, batch, dtype=torch.float32, device=dev).t()
+    assert not a.is_contiguous()
+
+    res = module.add_vectors(a, b)
+    assert isinstance(res, torch.Tensor)
+
+    compare_tensors(res, a + b)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_array_parameter_transpose(device_type: DeviceType):
+    """
+    Test that transposed tensors work as float[3] fixed-size array params.
+
+    Creates (3, batch) tensors and transposes to (batch, 3). The trailing
+    dimension that maps to float[3] has non-unit stride.
+    """
+    module = load_test_module(device_type)
+
+    batch = 10
+    dev = torch.device("cuda")
+    scale = torch.rand(batch, dtype=torch.float32, device=dev)
+    values = torch.rand(3, batch, dtype=torch.float32, device=dev).t()
+    assert not values.is_contiguous()
+
+    res = module.scaled_sum(scale, values)
+    assert isinstance(res, torch.Tensor)
+
+    expected = scale * values.sum(dim=-1)
+    compare_tensors(res, expected)
+
+
+TENSOR2D_VIEW_FACTORIES: list[tuple[str, Callable[..., torch.Tensor]]] = [
+    ("transpose", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d).t()),
+    ("col_prefix", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, :5]),
+    ("col_offset", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, 2:7]),
+    ("col_strided", lambda d: torch.randn(5, 8, dtype=torch.float32, device=d)[:, ::2]),
+    (
+        "permute_3d_select",
+        lambda d: torch.randn(5, 8, 3, dtype=torch.float32, device=d).permute(2, 0, 1)[0],
+    ),
+]
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "name,view_factory",
+    TENSOR2D_VIEW_FACTORIES,
+    ids=[name for name, _ in TENSOR2D_VIEW_FACTORIES],
+)
+def test_tensor_view(
+    device_type: DeviceType,
+    name: str,
+    view_factory: Callable[[torch.device], torch.Tensor],
+):
+    """
+    Test that non-contiguous 2D tensor views work correctly when bound to
+    Tensor<float,2> / WTensor<float,2> parameters.
+
+    Covers transposed, column-sliced (prefix and offset), and column-strided
+    views, all of which produce non-contiguous memory layouts.
+    """
+    module = load_test_module(device_type)
+
+    dev = torch.device("cuda")
+    a = view_factory(dev)
+    b = view_factory(dev)
+    assert not a.is_contiguous()
+
+    res = torch.empty(a.shape, dtype=torch.float32, device=dev)
+    module.add_tensors(a, b, res)
+
+    compare_tensors(res, a + b)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_wtensor_transpose_writeback(device_type: DeviceType):
+    """
+    Test that write-back to a transposed WTensor<float,2> output correctly
+    places results in the non-contiguous view.
+    """
+    module = load_test_module(device_type)
+
+    dev = torch.device("cuda")
+    a = torch.randn(8, 5, dtype=torch.float32, device=dev)
+    b = torch.randn(8, 5, dtype=torch.float32, device=dev)
+
+    res_base = torch.zeros(5, 8, dtype=torch.float32, device=dev)
+    res = res_base.t()  # (8, 5), non-contiguous
+    assert not res.is_contiguous()
+
+    module.add_tensors(a, b, res)
+
+    compare_tensors(res, a + b)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_parameter_broadcast(device_type: DeviceType):
+    """
+    Test float[3] params with zero-stride (expand) broadcast input.
+
+    A single row of 3 values is broadcast to (batch, 3) via expand, giving
+    stride 0 in the batch dimension. Every batch invocation reads the same values.
+    """
+    module = load_test_module(device_type)
+
+    dev = torch.device("cuda")
+    batch = 10
+    scale = torch.rand(batch, dtype=torch.float32, device=dev)
+    values_single = torch.rand(3, dtype=torch.float32, device=dev)
+    values = values_single.unsqueeze(0).expand(batch, -1)
+    assert values.stride(0) == 0
+
+    res = module.scaled_sum(scale, values)
+    expected = scale * values_single.sum()
+    compare_tensors(res, expected)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_vector_parameter_broadcast(device_type: DeviceType):
+    """
+    Test float3 params with zero-stride (expand) broadcast input.
+
+    One input has stride 0 in the batch dim (same float3 for every row),
+    while the other varies per row.
+    """
+    module = load_test_module(device_type)
+
+    dev = torch.device("cuda")
+    batch = 5
+    a_single = torch.rand(1, 3, dtype=torch.float32, device=dev)
+    a = a_single.expand(batch, -1)
+    b = torch.rand(batch, 3, dtype=torch.float32, device=dev)
+    assert a.stride(0) == 0
+
+    res = module.add_vectors(a, b)
+    compare_tensors(res, a + b)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_tensor_view_broadcast(device_type: DeviceType):
+    """
+    Test Tensor<float,2> with zero-stride (expand) broadcast on row dimension.
+
+    One input has a single row broadcast to fill all rows (stride 0 on dim 0).
+    """
+    module = load_test_module(device_type)
+
+    dev = torch.device("cuda")
+    a_single = torch.randn(1, 5, dtype=torch.float32, device=dev)
+    a = a_single.expand(8, -1)
+    b = torch.randn(8, 5, dtype=torch.float32, device=dev)
+    assert a.stride(0) == 0 and not a.is_contiguous()
+
+    res = torch.empty(8, 5, dtype=torch.float32, device=dev)
+    module.add_tensors(a, b, res)
+    compare_tensors(res, a + b)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)

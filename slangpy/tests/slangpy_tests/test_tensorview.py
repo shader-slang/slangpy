@@ -4,6 +4,7 @@ import pytest
 import sys
 import numpy as np
 from pathlib import Path
+from typing import Any
 
 from slangpy import DeviceType, Tensor
 from slangpy.core.module import Module
@@ -241,6 +242,83 @@ def test_thread_count_error_on_auto_vectorized(device_type: DeviceType):
 
     with pytest.raises(Exception, match="_thread_count"):
         module.mark_thread(coords, markers, _thread_count=3)
+
+
+# ============================================================================
+# Non-contiguous / sliced tensor tests
+# ============================================================================
+TENSORVIEW_SLICE_CASES = [
+    pytest.param(6, lambda t: t[:3], id="prefix"),
+    pytest.param(6, lambda t: t[1:4], id="offset"),
+    pytest.param(6, lambda t: t[::2], id="strided"),
+    pytest.param(9, lambda t: t.reshape(3, 3).diagonal(), id="diagonal"),
+]
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+@pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("source_size,slicer", TENSORVIEW_SLICE_CASES)
+def test_tensorview_sliced_input(device_type: DeviceType, source_size: int, slicer: Any):
+    """Test that TensorView correctly reads from a sliced (possibly non-contiguous) input."""
+    device = helpers.get_torch_device(device_type)
+    module = load_module(device)
+
+    input_full = torch.arange(1.0, source_size + 1.0, device="cuda", dtype=torch.float32)
+    input_sliced = slicer(input_full)
+    output = torch.zeros(3, device="cuda", dtype=torch.float32)
+
+    module.copy_tensorview(input_sliced, output)
+    torch.cuda.synchronize()
+
+    assert torch.allclose(output, input_sliced), f"Expected {input_sliced}, got {output}"
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+@pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("full_size,slicer", TENSORVIEW_SLICE_CASES)
+def test_tensorview_sliced_output(device_type: DeviceType, full_size: int, slicer: Any):
+    """Test that TensorView write-back correctly targets only the sliced region."""
+    device = helpers.get_torch_device(device_type)
+    module = load_module(device)
+
+    input_data = torch.tensor([10.0, 20.0, 30.0], device="cuda", dtype=torch.float32)
+
+    sentinel = -1.0
+    output_full = torch.full((full_size,), sentinel, device="cuda", dtype=torch.float32)
+    output_sliced = slicer(output_full)
+
+    module.copy_tensorview(input_data, output_sliced)
+    torch.cuda.synchronize()
+
+    expected_full = torch.full_like(output_full, sentinel)
+    slicer(expected_full)[:] = input_data
+    assert torch.allclose(
+        output_full, expected_full
+    ), f"Expected {expected_full}, got {output_full}"
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+@pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("source_size,slicer", TENSORVIEW_SLICE_CASES)
+def test_tensorview_add_sliced(device_type: DeviceType, source_size: int, slicer: Any):
+    """Test add_tensorview with sliced input tensors."""
+    device = helpers.get_torch_device(device_type)
+    module = load_module(device)
+
+    a_full = torch.arange(1.0, source_size + 1.0, device="cuda", dtype=torch.float32)
+    b_full = torch.arange(10.0, 10.0 + source_size, device="cuda", dtype=torch.float32)
+    a_sliced = slicer(a_full)
+    b_sliced = slicer(b_full)
+    output = torch.zeros(3, device="cuda", dtype=torch.float32)
+
+    module.add_tensorview(a_sliced, b_sliced, output)
+    torch.cuda.synchronize()
+
+    expected = a_sliced + b_sliced
+    assert torch.allclose(output, expected), f"Expected {expected}, got {output}"
 
 
 if __name__ == "__main__":
