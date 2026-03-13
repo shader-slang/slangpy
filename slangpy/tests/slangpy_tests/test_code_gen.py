@@ -80,6 +80,28 @@ def generate_bwds_code_and_bindings(
     return cd.code, cd.debug_only_bindings
 
 
+def build_call_data_full(
+    device: spy.Device, func_name: str, module_source: str, *args: Any, **kwargs: Any
+) -> tuple[str, Any, Any]:
+    """Build CallData and return ``(code_str, bindings, call_data)``."""
+    func = helpers.create_function_from_module(device, func_name, module_source)
+    cd = func.debug_build_call_data(*args, **kwargs)
+    if PRINT_CODE:
+        print(cd.code)
+    return cd.code, cd.debug_only_bindings, cd
+
+
+def build_bwds_call_data_full(
+    device: spy.Device, func_name: str, module_source: str, *args: Any, **kwargs: Any
+) -> tuple[str, Any, Any]:
+    """Build bwds CallData and return ``(code_str, bindings, call_data)``."""
+    func = helpers.create_function_from_module(device, func_name, module_source)
+    cd = func.bwds.debug_build_call_data(*args, **kwargs)
+    if PRINT_CODE:
+        print(cd.code)
+    return cd.code, cd.debug_only_bindings, cd
+
+
 # ===========================================================================
 # Codegen + binding flag tests (1–21)
 # ===========================================================================
@@ -1068,6 +1090,210 @@ int sum_inner(Outer outer) {
         }
     )
     assert result == 100
+
+
+# ===========================================================================
+# Phase 2 — entry-point params (35–38, 40)
+# ===========================================================================
+
+
+# 35 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_entrypoint_params_scalar_dim0(device_type: spy.DeviceType):
+    """Fast path: scalar dim-0 uses individual uniform entry-point params.
+
+    Verifies: no struct CallData, no ParameterBlock, individual uniform params
+    for a/b/_thread_count, _thread_count used directly in bounds check,
+    SV_GroupID absent (dim-0 has no shape arrays), use_entrypoint_args=True.
+
+    Merges: test_gate_p2_calldata_struct_absent_fast_path,
+    test_gate_p2_individual_uniform_params, test_gate_p2_thread_count_direct,
+    test_gate_p2_sv_group_id_absent_dim0, test_step21_scalar_uses_entrypoint_args.
+    """
+    device = helpers.get_device(device_type)
+    code, bindings, cd = build_call_data_full(
+        device, "add", "int add(int a, int b) { return a + b; }", 1, 2
+    )
+
+    # --- fast path flag ---
+    assert cd.use_entrypoint_args is True
+
+    # --- no CallData struct or ParameterBlock ---
+    assert_not_contains(code, "struct CallData", "ParameterBlock<CallData>", "uniform CallData")
+
+    # --- individual uniform params on compute_main ---
+    assert_contains(code, "uniform uint3 _thread_count")
+    assert_contains(code, "uniform int a")
+    assert_contains(code, "uniform int b")
+
+    # --- _thread_count used directly in bounds check ---
+    assert_not_contains(code, "call_data._thread_count")
+    main_idx = code.index("void compute_main(")
+    main_body = code[main_idx:]
+    assert ">= _thread_count)" in main_body
+
+    # --- SV_GroupID absent for dim-0 (no shape arrays) ---
+    assert_not_contains(code, "SV_GroupID")
+
+
+# 36 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_entrypoint_params_vectorized(device_type: spy.DeviceType):
+    """Fast path vectorized: shape arrays as entry-point params, SV_GroupID present.
+
+    Verifies: use_entrypoint_args=True, shape arrays (_grid_stride, _grid_dim,
+    _call_dim) as uniform params, SV_GroupID/SV_GroupIndex present when
+    call_data_len > 0, no struct CallData.
+    """
+    device = helpers.get_device(device_type)
+    tensor = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
+    code, bindings, cd = build_call_data_full(
+        device, "add", "float add(float a, float b) { return a + b; }", 1.0, tensor
+    )
+
+    # --- fast path ---
+    assert cd.use_entrypoint_args is True
+
+    # --- no CallData ---
+    assert_not_contains(code, "struct CallData")
+
+    # --- SV_GroupID/SV_GroupIndex present (call_data_len > 0) ---
+    assert_contains(code, "SV_GroupID", "SV_GroupIndex")
+
+    # --- shape arrays as entry-point params ---
+    assert_contains(
+        code, "uniform int[1] _grid_stride", "uniform int[1] _grid_dim", "uniform int[1] _call_dim"
+    )
+
+    # --- shape arrays NOT prefixed with call_data. in kernel body ---
+    assert_not_contains(
+        code, "call_data._grid_stride", "call_data._grid_dim", "call_data._call_dim"
+    )
+
+
+# 37 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_entrypoint_params_non_direct_bind(device_type: spy.DeviceType):
+    """Fast path with non-direct-bind arg: no CallData, wrapper used, Context present.
+
+    WangHashArg is NOT direct-bind but still goes as an entry-point param on the
+    fast path. __slangpy_load and Context are present because the wrapper needs them.
+
+    Merges: test_gate_p2_wanghasharg_keeps_load,
+    test_step21_wanghasharg_uses_entrypoint_args.
+    """
+    device = helpers.get_device(device_type)
+    code, bindings, cd = build_call_data_full(
+        device, "rng", "uint3 rng(uint3 input) { return input; }", WangHashArg(3)
+    )
+
+    # --- fast path despite non-direct-bind ---
+    assert cd.use_entrypoint_args is True
+
+    # --- non-direct-bind binding ---
+    assert bindings.args[0].direct_bind is False
+
+    # --- wrapper type used ---
+    assert_contains(code, "WangHashArg<")
+
+    # --- __slangpy_load and Context present ---
+    assert_contains(code, "__slangpy_load", "Context")
+
+    # --- no CallData struct ---
+    assert_not_contains(code, "struct CallData")
+
+
+# 38 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_bwds_entrypoint_no_diff_params(device_type: spy.DeviceType):
+    """Bwds fast path: trampoline params have no_diff, bwd_diff call passes individuals.
+
+    Verifies: use_entrypoint_args=True, trampoline params have 'no_diff' and
+    '__in_' prefix, bwd_diff(_trampoline) call passes individual arg names,
+    [Differentiable] before trampoline.
+    """
+    device = helpers.get_device(device_type)
+    src = """
+[Differentiable]
+float polynomial(float a, float b) {
+    return a * a + b + 1;
+}
+"""
+    code, bindings, cd = build_bwds_call_data_full(device, "polynomial", src, 5.0, 10.0, 26.0)
+
+    # --- fast path ---
+    assert cd.use_entrypoint_args is True
+
+    # --- trampoline params have no_diff and __in_ prefix ---
+    assert_contains(code, "no_diff")
+    assert_contains(code, "__in_a")
+    assert_contains(code, "__in_b")
+
+    # --- [Differentiable] before trampoline ---
+    diff_idx = code.index("[Differentiable]")
+    trampoline_idx = code.index("void _trampoline")
+    assert diff_idx < trampoline_idx
+
+    # --- bwd_diff call passes individual args (not just context) ---
+    main_idx = code.index("void compute_main(")
+    main_body = code[main_idx:]
+    assert "bwd_diff(_trampoline)(__slangpy_context__" in main_body
+    # Should have more than just the context arg
+    bwd_call_start = main_body.index("bwd_diff(_trampoline)(")
+    bwd_call_end = main_body.index(")", bwd_call_start + len("bwd_diff(_trampoline)("))
+    bwd_call_args = main_body[bwd_call_start:bwd_call_end]
+    assert ", a," in bwd_call_args or ", a)" in bwd_call_args
+
+    # --- no struct CallData ---
+    assert_not_contains(code, "struct CallData")
+
+
+# 40 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_fallback_calldata_large_params(device_type: spy.DeviceType):
+    """Fallback path: many float4x4 params exceed threshold → ParameterBlock<CallData>.
+
+    8 × float4x4 = 512 bytes + 12 bytes _thread_count = 524 bytes.
+    Exceeds Vulkan (128) and D3D12 (256); CUDA (4096) stays on fast path.
+    Asserts codegen patterns match the expected path.
+
+    Merges: test_step21_many_float4x4_may_exceed_vulkan (adds codegen assertions).
+    """
+    device = helpers.get_device(device_type)
+    src = """
+float4x4 sum8(float4x4 a, float4x4 b, float4x4 c, float4x4 d,
+              float4x4 e, float4x4 f, float4x4 g, float4x4 h) {
+    return a + b + c + d + e + f + g + h;
+}
+"""
+    identity = spy.math.float4x4.identity()
+    code, bindings, cd = build_call_data_full(
+        device,
+        "sum8",
+        src,
+        identity,
+        identity,
+        identity,
+        identity,
+        identity,
+        identity,
+        identity,
+        identity,
+    )
+
+    threshold = device.info.limits.max_entry_point_uniform_size
+    if threshold >= 524:
+        # CUDA: fast path — no CallData, individual uniform params
+        assert cd.use_entrypoint_args is True
+        assert_not_contains(code, "struct CallData")
+        assert_contains(code, "uniform uint3 _thread_count")
+    else:
+        # Vulkan/D3D12: fallback — struct CallData + ParameterBlock
+        assert cd.use_entrypoint_args is False
+        assert_contains(code, "struct CallData")
+        assert_contains(code, "ParameterBlock<CallData> call_data")
+        assert_contains(code, "call_data._thread_count")
+        assert_not_contains(code, "uniform uint3 _thread_count")
 
 
 if __name__ == "__main__":
