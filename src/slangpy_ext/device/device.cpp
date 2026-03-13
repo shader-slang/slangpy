@@ -306,6 +306,11 @@ SGL_PY_EXPORT(device_device)
             "max_shader_visible_samplers",
             &DeviceLimits::max_shader_visible_samplers,
             D(DeviceLimits, max_shader_visible_samplers)
+        )
+        .def_ro(
+            "max_entry_point_uniform_size",
+            &DeviceLimits::max_entry_point_uniform_size,
+            D(DeviceLimits, max_entry_point_uniform_size)
         );
 
     nb::class_<DeviceInfo>(m, "DeviceInfo", D(DeviceInfo))

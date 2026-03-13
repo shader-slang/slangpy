@@ -34,7 +34,6 @@ def build_test_data(module: spy.Module, call_mode: spyn.CallMode, *args: Any, **
         {
             "strict_broadcasting": False,
         },
-        spyn.CallDataMode.global_data,
     )
 
     return context, spy.bindings.BoundCall(context, *unpacked_args, **unpacked_kwargs)

@@ -2634,6 +2634,8 @@ static const char *__doc_sgl_DeviceLimits_max_compute_threads_per_group = R"doc(
 
 static const char *__doc_sgl_DeviceLimits_max_framebuffer_dimensions = R"doc(Maximum framebuffer dimensions.)doc";
 
+static const char *__doc_sgl_DeviceLimits_max_entry_point_uniform_size = R"doc(Maximum size in bytes of inline-uniform data for entry-point parameters.)doc";
+
 static const char *__doc_sgl_DeviceLimits_max_shader_visible_samplers = R"doc(Maximum samplers visible in a shader stage.)doc";
 
 static const char *__doc_sgl_DeviceLimits_max_texture_dimension_1d = R"doc(Maximum dimension for 1D textures.)doc";
@@ -10835,14 +10837,6 @@ static const char *__doc_sgl_slangpy_CallContext_m_call_shape = R"doc()doc";
 static const char *__doc_sgl_slangpy_CallContext_m_cuda_stream = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallContext_m_device = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_entry_point = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_global_data = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_info = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallMode = R"doc()doc";
 
