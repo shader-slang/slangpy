@@ -278,9 +278,15 @@ class BoundVariable:
             return f"arg{self.python_pos_arg_index}"
 
     def gen_calldata_type_name(self, cgb: CodeGenBlock, type_name: str) -> None:
+        """Record the Slang type name for this variable's CallData field."""
         from slangpy.core.generator import gen_calldata_type_name
 
         gen_calldata_type_name(self, cgb, type_name)
+
+    def gen_call_data_code(self, cg: CodeGen, context: BindContext, depth: int = 0):
+        from slangpy.core.generator import gen_call_data_code
+
+        gen_call_data_code(self, cg, context, depth)
 
     def bind(
         self,
@@ -585,11 +591,6 @@ you can find more information in the Mapping section of the documentation (https
         else:
             # todo: fwds
             self.access = (AccessType.none, AccessType.none)
-
-    def gen_call_data_code(self, cg: CodeGen, context: BindContext, depth: int = 0):
-        from slangpy.core.generator import gen_call_data_code
-
-        gen_call_data_code(self, cg, context, depth)
 
     def __str__(self) -> str:
         return self._recurse_str(0)
