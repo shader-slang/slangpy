@@ -1,0 +1,70 @@
+version = 1
+SPDX-PackageName = "Slang Graphics Library"
+SPDX-PackageSupplier = "The Khronos Group, Inc."
+SPDX-PackageDownloadLocation = "https://github.com/shader-slang/slangpy"
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = ["2024 NVIDIA CORPORATION & AFFILIATES", "2024 The Khronos Group, Inc."]
+SPDX-License-Identifier = "Apache-2.0 WITH LLVM-exception"
+
+[[annotations]]
+path = "external/include/tinyexr.h"
+precedence = "aggregate"
+SPDX-FileCopyrightText = ["2014-2021 Syoyo Fujita and many contributors", "2002, 2004 Industrial Light & Magic, a division of Lucas Digital Ltd. LLC"]
+SPDX-License-Identifier = "BSD-3-Clause"
+
+[[annotations]]
+path = ["src/sgl/core/struct.cpp", "src/sgl/core/bitmap.h"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2017 Wenzel Jakob <wenzel.jakob@epfl.ch>"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "src/sgl/stl/bit.h"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2020-2020 Martin Moene"
+SPDX-License-Identifier = "BSL-1.0"
+
+[[annotations]]
+path = "cmake/FindCUDAToolkit.cmake"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2007-2009 Scientific Computing and Imaging Institute, University of Utah"
+SPDX-License-Identifier = "BSD-3-Clause"
+
+[[annotations]]
+path = "examples/window/draw.slang"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2011 Ashima Arts"
+SPDX-License-Identifier = "Apache-2.0 OR MIT"
+
+[[annotations]]
+path = "tools/run_clang_format.py"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2017 Guillaume Papin"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "external/include/argparse/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2019-2022 Pranav Srinivas Kumar <pranav.srinivas.kumar@gmail.com> and other contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "external/include/BS_thread_pool.hpp"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Barak Shoshany <baraksh@gmail.com>"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "external/include/renderdoc_app.h"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2019-2024 Baldur Karlsson"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["CODE_OF_CONDUCT.md", "README.md"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2024 The Khronos Group, Inc."
+SPDX-License-Identifier = "CC-BY-4.0"
