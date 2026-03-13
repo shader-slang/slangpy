@@ -277,6 +277,10 @@ class CallData(NativeCallData):
             ):
                 use_entrypoint_args = False
 
+            # Disable for Metal until I can figure out how entry point args work properly
+            if build_info.module.device.info.type == DeviceType.metal:
+                use_entrypoint_args = False
+
             # Try building the shader. If direct args compilation fails (the
             # threshold is only an approximate heuristic), fall back to
             # ParameterBlock<CallData>.
