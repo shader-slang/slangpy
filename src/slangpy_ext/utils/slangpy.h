@@ -12,6 +12,8 @@
 #include "sgl/core/macros.h"
 #include "sgl/core/fwd.h"
 #include "sgl/core/object.h"
+#include "sgl/core/short_vector.h"
+#include "sgl/core/static_vector.h"
 #include "sgl/device/fwd.h"
 #include "sgl/device/shader_cursor.h"
 #include "sgl/device/shader_object.h"
@@ -19,6 +21,71 @@
 #include "utils/torch_bridge.h"
 
 namespace sgl::slangpy {
+
+/// Transparent hash functor for std::string / std::string_view heterogeneous lookup.
+struct StringHash {
+    using is_transparent = void;
+    size_t operator()(std::string_view sv) const { return std::hash<std::string_view>{}(sv); }
+    size_t operator()(const std::string& s) const { return std::hash<std::string_view>{}(s); }
+};
+
+/// Transparent equality functor for std::string / std::string_view heterogeneous lookup.
+struct StringEqual {
+    using is_transparent = void;
+    bool operator()(std::string_view a, std::string_view b) const { return a == b; }
+};
+
+/// Stack-allocated signature buffer (non-Object, non-ref-counted).
+/// Used in the hot dispatch path to avoid heap-allocating a SignatureBuilder.
+/// Backed by short_vector<uint8_t, 1024> for inline SBO with heap fallback.
+class SignatureBuffer {
+public:
+    SignatureBuffer() = default;
+
+    // Non-copyable, non-movable (stack-only usage)
+    SignatureBuffer(const SignatureBuffer&) = delete;
+    SignatureBuffer& operator=(const SignatureBuffer&) = delete;
+
+    void add(const std::string& value) { add_bytes(reinterpret_cast<const uint8_t*>(value.data()), value.length()); }
+    void add(const char* value) { add_bytes(reinterpret_cast<const uint8_t*>(value), strlen(value)); }
+
+    void add(uint32_t value)
+    {
+        static constexpr char hex[] = "0123456789abcdef";
+        uint8_t buf[8];
+        for (int i = 0; i < 8; ++i)
+            buf[7 - i] = static_cast<uint8_t>(hex[(value >> (i * 4)) & 0xF]);
+        add_bytes(buf, 8);
+    }
+
+    void add(uint64_t value)
+    {
+        static constexpr char hex[] = "0123456789abcdef";
+        uint8_t buf[16];
+        for (int i = 0; i < 16; ++i)
+            buf[15 - i] = static_cast<uint8_t>(hex[(value >> (i * 4)) & 0xF]);
+        add_bytes(buf, 16);
+    }
+
+    template<typename T>
+    SignatureBuffer& operator<<(const T& v)
+    {
+        add(v);
+        return *this;
+    }
+
+    std::string_view view() const { return {reinterpret_cast<const char*>(m_buf.data()), m_buf.size()}; }
+
+private:
+    short_vector<uint8_t, 1024> m_buf;
+
+    void add_bytes(const uint8_t* data, size_t sz)
+    {
+        size_t old_size = m_buf.size();
+        m_buf.resize(old_size + sz);
+        memcpy(m_buf.data() + old_size, data, sz);
+    }
+};
 
 /// Helper function to convert Shape to nb::list efficiently (avoids std::vector allocation)
 inline nb::list shape_to_list(const Shape& shape)
@@ -61,31 +128,22 @@ private:
     ref<NativeCallData> m_context;
 };
 
-/// Used during calculation of slangpy signature
+/// Used during calculation of slangpy signature.
+/// Thin Object wrapper around SignatureBuffer for Python binding compatibility.
 class SignatureBuilder : public Object {
     SGL_OBJECT(SignatureBuilder)
 public:
-    SignatureBuilder()
-    {
-        m_buffer = m_initial_buffer;
-        m_size = 0;
-        m_capacity = sizeof(m_initial_buffer);
-    }
-    ~SignatureBuilder()
-    {
-        if (m_buffer != m_initial_buffer)
-            delete[] m_buffer;
-    }
+    SignatureBuilder() = default;
 
-    void add(const std::string& value);
-    void add(const char* value);
-    void add(const uint32_t value);
-    void add(const uint64_t value);
+    void add(const std::string& value) { m_buf.add(value); }
+    void add(const char* value) { m_buf.add(value); }
+    void add(const uint32_t value) { m_buf.add(value); }
+    void add(const uint64_t value) { m_buf.add(value); }
 
     template<typename T>
     SignatureBuilder& operator<<(const T& value)
     {
-        add(value);
+        m_buf.add(value);
         return *this;
     }
 
@@ -93,27 +151,15 @@ public:
 
     std::string str() const;
 
-    std::string dbg_as_string() const { return std::string(reinterpret_cast<const char*>(m_buffer), m_size); }
+    std::string_view view() const { return m_buf.view(); }
+
+    std::string dbg_as_string() const { return std::string(m_buf.view()); }
+
+    /// Access the underlying buffer (for callers that accept either type).
+    SignatureBuffer& buffer() { return m_buf; }
 
 private:
-    uint8_t m_initial_buffer[1024];
-    uint8_t* m_buffer;
-    size_t m_size;
-    size_t m_capacity;
-
-    void add_bytes(const uint8_t* data, size_t size)
-    {
-        if (m_size + size > m_capacity) {
-            m_capacity = std::max(m_capacity * 2, m_size + size);
-            uint8_t* new_buffer = new uint8_t[m_capacity];
-            memcpy(new_buffer, m_buffer, m_size);
-            if (m_buffer != m_initial_buffer)
-                delete[] m_buffer;
-            m_buffer = new_buffer;
-        }
-        memcpy(m_buffer + m_size, data, size);
-        m_size += size;
-    };
+    SignatureBuffer m_buf;
 };
 
 /// Base class for types that can be passed to a slang function. Use of
@@ -131,6 +177,10 @@ public:
 
     virtual void read_signature(SignatureBuilder* builder) const { builder->add(m_signature); }
 
+    /// Write signature into a stack-allocated SignatureBuffer (hot path).
+    /// Non-virtual: delegates to the virtual read_signature(SignatureBuilder*) via a temporary wrapper.
+    /// For NativeObject base class, we can write directly without the virtual call.
+    void read_signature_fast(SignatureBuffer& builder) const { builder.add(m_signature); }
 
 private:
     std::string m_signature;
@@ -599,13 +649,14 @@ public:
     }
 
     /// Calculate the overall call shape by combining the shapes of all arguments.
-    Shape calculate_call_shape(int call_dimensionality, nb::list args, nb::dict kwargs, NativeCallData* error_context);
+    /// args can be nb::list or nb::tuple (nb::args); both support [idx] and nb::len().
+    Shape calculate_call_shape(int call_dimensionality, nb::object args, nb::dict kwargs, NativeCallData* error_context);
 
     void write_shader_cursor_pre_dispatch(
         CallContext* context,
         ShaderCursor root_cursor,
         ShaderCursor call_data_cursor,
-        nb::list args,
+        nb::object args,
         nb::dict kwargs,
         nb::list read_back
     );
@@ -622,55 +673,83 @@ private:
     std::map<std::string, ref<NativeBoundVariableRuntime>> m_kwargs;
 };
 
+/// Lightweight, stack-allocated runtime options. Single source of truth for all fields.
+/// Used directly on the hot dispatch path (no heap allocation).
+/// NativeCallRuntimeOptions wraps this for Python binding / ref-counted usage.
+struct RuntimeOptions {
+    nb::object this_obj; // Default null handle — check with is_valid(), not is_none()
+    NativeHandle cuda_stream;
+    bool is_ray_tracing{false};
+    int thread_count{0};
+
+    // Inline storage for uniforms (most calls have 0-2, max 4)
+    static_vector<nb::object, 4> uniforms;
+
+    bool has_thread_count() const { return thread_count > 0; }
+};
+
+/// Ref-counted wrapper around RuntimeOptions for Python binding and torch autograd paths.
 class NativeCallRuntimeOptions : Object {
     SGL_OBJECT(NativeCallRuntimeOptions)
 public:
-    /// Get the uniforms.
+    /// Get the uniforms as a Python list (constructs on demand for Python compat).
     nb::list uniforms() const { return m_uniforms; }
 
-    /// Set the uniforms.
+    /// Set the uniforms from a Python list.
     void set_uniforms(const nb::list& uniforms) { m_uniforms = uniforms; }
 
     /// Get this
-    nb::object get_this() const { return m_this; }
+    nb::object get_this() const { return m_opts.this_obj.is_valid() ? m_opts.this_obj : nb::none(); }
 
     /// Set this
-    void set_this(const nb::object& this_) { m_this = this_; }
+    void set_this(const nb::object& this_) { m_opts.this_obj = this_; }
 
     /// Get the CUDA stream.
-    NativeHandle cuda_stream() const { return m_cuda_stream; }
+    NativeHandle cuda_stream() const { return m_opts.cuda_stream; }
 
     /// Set the CUDA stream.
-    void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
+    void set_cuda_stream(NativeHandle cuda_stream) { m_opts.cuda_stream = cuda_stream; }
 
     /// Get ray tracing pipeline flag.
-    bool is_ray_tracing() const { return m_is_ray_tracing; }
+    bool is_ray_tracing() const { return m_opts.is_ray_tracing; }
 
     /// Set ray tracing pipeline flag.
-    void set_is_ray_tracing(bool is_ray_tracing) { m_is_ray_tracing = is_ray_tracing; }
+    void set_is_ray_tracing(bool is_ray_tracing) { m_opts.is_ray_tracing = is_ray_tracing; }
 
     /// Get the thread count override.
-    int thread_count() const { return m_thread_count; }
+    int thread_count() const { return m_opts.thread_count; }
 
     /// Set the thread count override.
-    void set_thread_count(int thread_count) { m_thread_count = thread_count; }
+    void set_thread_count(int thread_count) { m_opts.thread_count = thread_count; }
 
     /// Check if thread count override is set.
-    bool has_thread_count() const { return m_thread_count > 0; }
+    bool has_thread_count() const { return m_opts.has_thread_count(); }
+
+    /// Access the underlying RuntimeOptions.
+    RuntimeOptions& opts() { return m_opts; }
+    const RuntimeOptions& opts() const { return m_opts; }
+
+    /// Convert from RuntimeOptions (for torch autograd path).
+    static ref<NativeCallRuntimeOptions> from_runtime_options(const RuntimeOptions& rt)
+    {
+        auto opts = make_ref<NativeCallRuntimeOptions>();
+        opts->m_opts = rt;
+        // Copy uniforms to the Python list for Python-side access
+        for (const auto& u : rt.uniforms)
+            opts->m_uniforms.append(u);
+        return opts;
+    }
 
     /// Clear internal data for garbage collection
     void garbage_collect()
     {
         m_uniforms.clear();
-        m_this = nb::none();
+        m_opts.this_obj = nb::object();
     }
 
 private:
-    nb::list m_uniforms;
-    nb::object m_this{nb::none()};
-    NativeHandle m_cuda_stream;
-    bool m_is_ray_tracing{false};
-    int m_thread_count{0};
+    RuntimeOptions m_opts;
+    nb::list m_uniforms; // Python-facing list for uniforms (kept in sync via gather_runtime_options)
 };
 
 /// Defines the common logging functions for a given log level.
@@ -855,9 +934,16 @@ public:
     const Shape& call_group_shape() const { return m_call_group_shape; }
 
     /// Call the compute kernel with the provided arguments and keyword arguments.
+    nb::object call(RuntimeOptions& opts, nb::args args, nb::kwargs kwargs);
+
+    /// Python-facing overload (unwraps NativeCallRuntimeOptions).
     nb::object call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs);
 
     /// Append the compute kernel to a command encoder with the provided arguments and keyword arguments.
+    nb::object
+    append_to(RuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
+
+    /// Python-facing overload (unwraps NativeCallRuntimeOptions).
     nb::object
     append_to(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 
@@ -922,22 +1008,19 @@ private:
     std::vector<AutogradAccess> m_autograd_access_list;
     ref<NativeCallData> m_bwds_call_data;
     mutable CallDataOffsets m_cached_call_data_offsets;
+    mutable ref<CallContext> m_cached_context;
 
     /// Recursive helper for find_torch_tensors.
     nb::object find_torch_tensors_recurse(nb::object arg, nb::list& pairs, size_t& access_idx);
 
-    CallShapeInfo compute_call_shape_info(
-        const ref<NativeCallRuntimeOptions>& opts,
-        const nb::list& unpacked_args,
-        const nb::dict& unpacked_kwargs
-    );
+    CallShapeInfo
+    compute_call_shape_info(RuntimeOptions& opts, const nb::object& unpacked_args, const nb::dict& unpacked_kwargs);
 
-    nb::object
-    exec(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
+    nb::object exec(RuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 };
 #undef SGL_LOG_FUNC_FAMILY
 
-typedef std::function<bool(const ref<SignatureBuilder>& builder, nb::handle)> BuildSignatureFunc;
+typedef std::function<bool(SignatureBuffer& builder, nb::handle)> BuildSignatureFunc;
 
 /// Native side of system for caching call data info for given function signatures.
 class NativeCallDataCache : Object {
@@ -946,11 +1029,23 @@ class NativeCallDataCache : Object {
 public:
     NativeCallDataCache();
 
-    void get_value_signature(const ref<SignatureBuilder> builder, nb::handle o);
+    /// Python-facing wrappers (delegate to the SignatureBuffer implementations via SignatureBuilder::buffer()).
+    void get_value_signature(const ref<SignatureBuilder> builder, nb::handle o)
+    {
+        get_value_signature(builder->buffer(), o);
+    }
 
-    void get_args_signature(const ref<SignatureBuilder> builder, nb::args args, nb::kwargs kwargs);
+    void get_args_signature(const ref<SignatureBuilder> builder, nb::args args, nb::kwargs kwargs)
+    {
+        get_args_signature(builder->buffer(), args, kwargs);
+    }
 
-    ref<NativeCallData> find_call_data(const std::string& signature)
+    /// Core implementations operating on SignatureBuffer (used by both Python and C++ hot paths).
+    void get_value_signature(SignatureBuffer& builder, nb::handle o);
+    void get_args_signature(SignatureBuffer& builder, nb::args args, nb::kwargs kwargs);
+
+    /// Transparent string_view lookup (no std::string allocation on cache hit).
+    ref<NativeCallData> find_call_data(std::string_view signature)
     {
         auto it = m_cache.find(signature);
         if (it != m_cache.end()) {
@@ -959,9 +1054,10 @@ public:
         return nullptr;
     }
 
-    void add_call_data(const std::string& signature, const ref<NativeCallData>& call_data)
+    /// Store call data (cache miss only — takes ownership of std::string key).
+    void add_call_data(std::string signature, const ref<NativeCallData>& call_data)
     {
-        m_cache[signature] = call_data;
+        m_cache[std::move(signature)] = call_data;
     }
 
     virtual std::optional<std::string> lookup_value_signature(nb::handle o)
@@ -971,7 +1067,7 @@ public:
     }
 
 private:
-    std::unordered_map<std::string, ref<NativeCallData>> m_cache;
+    std::unordered_map<std::string, ref<NativeCallData>, StringHash, StringEqual> m_cache;
     std::unordered_map<std::type_index, BuildSignatureFunc> m_type_signature_table;
 };
 

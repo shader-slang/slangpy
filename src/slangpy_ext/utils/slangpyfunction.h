@@ -52,6 +52,13 @@ public:
 
     void read_signature(SignatureBuilder* builder) const override
     {
+        // Delegate to the SignatureBuffer implementation via the builder's buffer.
+        read_signature_fast(builder->buffer());
+    }
+
+    /// Write signature into a stack-allocated SignatureBuffer (hot path, non-virtual).
+    void read_signature_fast(SignatureBuffer& builder) const
+    {
         switch (m_type) {
         case sgl::slangpy::FunctionNodeType::uniforms:
         case sgl::slangpy::FunctionNodeType::this_:
@@ -59,32 +66,45 @@ public:
             break;
         default:
             // Any other type affects kernel so adds to signature.
-            NativeObject::read_signature(builder);
-            *builder << "\n";
+            NativeObject::read_signature_fast(builder);
+            builder << "\n";
             break;
         }
         if (m_parent) {
-            m_parent->read_signature(builder);
+            m_parent->read_signature_fast(builder);
         }
     }
 
+    /// Python-facing overload: fills RuntimeOptions inside NativeCallRuntimeOptions,
+    /// then syncs the Python uniforms list.
     void gather_runtime_options(ref<NativeCallRuntimeOptions> options) const
     {
+        gather_runtime_options(options->opts());
+        // Sync the Python uniforms list from the RuntimeOptions inline array.
+        nb::list uniforms = options->uniforms();
+        uniforms.clear();
+        for (const auto& u : options->opts().uniforms)
+            uniforms.append(u);
+    }
+
+    /// Core implementation operating on RuntimeOptions (used by both Python and C++ hot paths).
+    void gather_runtime_options(RuntimeOptions& opts) const
+    {
         if (m_parent) {
-            m_parent->gather_runtime_options(options);
+            m_parent->gather_runtime_options(opts);
         }
         switch (m_type) {
         case sgl::slangpy::FunctionNodeType::this_:
-            options->set_this(m_data);
+            opts.this_obj = m_data;
             break;
         case sgl::slangpy::FunctionNodeType::uniforms:
-            options->uniforms().append(m_data);
+            opts.uniforms.push_back(m_data);
             break;
         case sgl::slangpy::FunctionNodeType::cuda_stream:
-            options->set_cuda_stream(nb::cast<NativeHandle>(m_data));
+            opts.cuda_stream = nb::cast<NativeHandle>(m_data);
             break;
         case sgl::slangpy::FunctionNodeType::ray_tracing:
-            options->set_is_ray_tracing(true);
+            opts.is_ray_tracing = true;
             break;
         default:
             break;
