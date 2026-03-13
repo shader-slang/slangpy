@@ -86,5 +86,62 @@ def test_tensor_coercion_trailing_dim_into_array_element(device_type: DeviceType
     assert np.allclose(y_np.astype(np.float32), (x_np.astype(np.float32) * 2.0), atol=1e-3)
 
 
+VECTOR_ARRAY_MODULE = r"""
+import "slangpy";
+
+[Differentiable]
+float2[6] return_vector_array(int coord) {
+    float2 outputs[6];
+    for (int i = 0; i < 6; ++i) {
+        outputs[i] = float2(coord, coord + i);
+    }
+    return outputs;
+}
+"""
+
+
+def _expected_vector_array(n: int) -> np.ndarray:
+    expected = np.zeros((n, 6, 2), dtype=np.float32)
+    for c in range(n):
+        for i in range(6):
+            expected[c, i] = [c, c + i]
+    return expected
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_return_array_of_vectors_tensor(device_type: DeviceType):
+    """Regression test for https://github.com/shader-slang/slangpy/issues/638"""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "return_vector_array", VECTOR_ARRAY_MODULE)
+    result = func(coord=spy.grid((13,)))
+    result_np = result.to_numpy()
+    assert result_np.shape == (13, 6, 2)
+    np.testing.assert_allclose(result_np, _expected_vector_array(13))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_return_array_of_vectors_numpy(device_type: DeviceType):
+    """Regression test for https://github.com/shader-slang/slangpy/issues/638"""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "return_vector_array", VECTOR_ARRAY_MODULE)
+    result = func(coord=spy.grid((13,)), _result="numpy")
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (13, 6, 2)
+    np.testing.assert_allclose(result, _expected_vector_array(13))
+
+
+@pytest.mark.parametrize("device_type", [DeviceType.cuda])
+def test_return_array_of_vectors_torch(device_type: DeviceType):
+    """Regression test for https://github.com/shader-slang/slangpy/issues/638"""
+    torch = pytest.importorskip("torch")
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "return_vector_array", VECTOR_ARRAY_MODULE)
+    coord = torch.arange(13, dtype=torch.int32, device="cuda")
+    result = func(coord=coord)
+    assert isinstance(result, torch.Tensor)
+    assert result.shape == torch.Size([13, 6, 2])
+    np.testing.assert_allclose(result.cpu().numpy(), _expected_vector_array(13))
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
