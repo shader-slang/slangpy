@@ -107,9 +107,26 @@ public:
         return root;
     }
 
+    /// Get the cached call data cache pointer.
+    NativeCallDataCache* cache() const { return m_cache.get(); }
+
+    /// Set the call data cache pointer (called from Python Function.__init__).
+    void set_cache(NativeCallDataCache* cache) { m_cache = ref<NativeCallDataCache>(cache); }
+
+    /// Resolve the cache by walking to the root node.
+    NativeCallDataCache* resolve_cache()
+    {
+        NativeFunctionNode* root = find_root();
+        return root->cache();
+    }
+
     ref<NativeCallData> build_call_data(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs);
 
     nb::object call(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs);
+
+    /// Full call implementation that handles _result type override, _append_to,
+    /// error formatting, and delegates to call(). Registered as __call__ in nanobind.
+    nb::object full_call(nb::args args, nb::kwargs kwargs);
 
     /// Call the backward pass for autograd, caching the bwds CallData on the forward CallData.
     /// This avoids the Python round-trip through function.bwds property.
@@ -158,6 +175,7 @@ private:
     ref<NativeFunctionNode> m_parent;
     FunctionNodeType m_type;
     nb::object m_data;
+    ref<NativeCallDataCache> m_cache;
 };
 
 struct PyNativeFunctionNode : NativeFunctionNode {
