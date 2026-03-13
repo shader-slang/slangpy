@@ -169,6 +169,7 @@ public:
     {
         m_parent = nullptr;
         m_data = nb::none();
+        m_cache = nullptr;
     }
 
 private:
