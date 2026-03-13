@@ -212,7 +212,7 @@ class TextureMarshall(NativeTextureMarshall):
         name = binding.variable_name
 
         if access == AccessType.none:
-            cgb.type_alias(f"_t_{name}", f"NoneType")
+            binding.gen_calldata_type_name(cgb, "NoneType")
             return
 
         if binding.call_dimensionality == 0:
@@ -223,23 +223,25 @@ class TextureMarshall(NativeTextureMarshall):
                 raise ValueError(
                     f"Cannot bind texture view {name} with usage {binding.vector_type.usage}"
                 )
-            cgb.type_alias(f"_t_{name}", binding.vector_type.full_name.replace("<", "Type<", 1))
+            binding.gen_calldata_type_name(
+                cgb, binding.vector_type.full_name.replace("<", "Type<", 1)
+            )
         elif binding.call_dimensionality == self.texture_dims:
             # If broadcast is the same shape as the texture, this is loading from pixels, so use the
             # type required to support the required access
             if access == AccessType.read:
                 # Read access can be either shader resource or UAV, so just bind the correct type
                 # for this resource view
-                cgb.type_alias(
-                    f"_t_{name}",
+                binding.gen_calldata_type_name(
+                    cgb,
                     self.build_accessor_name(self.usage, self.slang_element_type),
                 )
             else:
                 # Write access requires a UAV so check it and bind RW type
                 if not has_uav(self.usage):
                     raise ValueError(f"Cannot write to read-only texture {name}")
-                cgb.type_alias(
-                    f"_t_{name}",
+                binding.gen_calldata_type_name(
+                    cgb,
                     self.build_accessor_name(
                         TextureUsage.unordered_access, self.slang_element_type
                     ),
@@ -373,9 +375,8 @@ class SamplerMarshall(Marshall):
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
-        name = binding.variable_name
         assert isinstance(binding.vector_type, refl.SamplerStateType)
-        cgb.type_alias(f"_t_{name}", f"SamplerStateType")
+        binding.gen_calldata_type_name(cgb, "SamplerStateType")
 
     # Call data just returns the primal
     def create_calldata(

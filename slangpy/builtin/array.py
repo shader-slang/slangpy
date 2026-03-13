@@ -115,7 +115,6 @@ class ArrayMarshall(ValueMarshall):
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
         access = binding.access
-        name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             if binding.call_dimensionality == 0:
                 # If not vectorizing, fallback to use of basic type as it works well
@@ -125,9 +124,11 @@ class ArrayMarshall(ValueMarshall):
                 # If vectorizing, utilize the value type.
                 st = cast(kfr.ArrayType, self.slang_type)
                 et = cast(SlangType, st.element_type)
-                cgb.type_alias(f"_t_{name}", f"Array1DValueType<{et.full_name},{st.num_elements}>")
+                binding.gen_calldata_type_name(
+                    cgb, f"Array1DValueType<{et.full_name},{st.num_elements}>"
+                )
         else:
-            cgb.type_alias(f"_t_{name}", f"NoneType")
+            binding.gen_calldata_type_name(cgb, "NoneType")
 
     def build_shader_object(self, context: "BindContext", data: Any) -> "ShaderObject":
         if len(self.concrete_shape) != 1:
