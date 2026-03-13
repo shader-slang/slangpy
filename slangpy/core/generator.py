@@ -5,6 +5,8 @@ from slangpy.bindings.codegen import CodeGen, CodeGenBlock
 from slangpy.core.native import AccessType, CallMode
 
 if TYPE_CHECKING:
+    from slangpy.bindings.boundvariable import BoundVariable
+    from slangpy.bindings.marshall import BindContext
     from slangpy.core.function import FunctionBuildInfo
     from slangpy.bindings.boundvariable import BoundVariable, BoundCall
     from slangpy.bindings.marshall import BindContext
@@ -50,9 +52,7 @@ def generate_constants(build_info: "FunctionBuildInfo", cg: CodeGen) -> None:
                 )
 
 
-def gen_calldata_type_name(
-    binding: "BoundVariable", cgb: CodeGenBlock, type_name: str
-) -> None:
+def gen_calldata_type_name(binding: "BoundVariable", cgb: CodeGenBlock, type_name: str) -> None:
     """Record the Slang type name for this variable's CallData field.
 
     If the type name exceeds ``MAX_INLINE_TYPE_LEN``, a
@@ -115,9 +115,7 @@ def gen_call_data_code(
 
             if binding.access[0] in (AccessType.read, AccessType.readwrite):
                 cgb.empty_line()
-                cgb.append_line(
-                    f"{prefix} void __slangpy_load({context_decl}, out {value_decl})"
-                )
+                cgb.append_line(f"{prefix} void __slangpy_load({context_decl}, out {value_decl})")
                 cgb.begin_block()
                 for field, var in binding.children.items():
                     gen_load = getattr(var.python, "gen_trampoline_load", None)
@@ -132,9 +130,7 @@ def gen_call_data_code(
 
             if binding.access[0] in (AccessType.write, AccessType.readwrite):
                 cgb.empty_line()
-                cgb.append_line(
-                    f"{prefix} void __slangpy_store({context_decl}, in {value_decl})"
-                )
+                cgb.append_line(f"{prefix} void __slangpy_store({context_decl}, in {value_decl})")
                 cgb.begin_block()
                 for field, var in binding.children.items():
                     gen_store = getattr(var.python, "gen_trampoline_store", None)
@@ -261,9 +257,7 @@ def _emit_link_time_constants(
     cg.constants.dec_indent()
     cg.constants.append_statement("}")
 
-    cg.constants.append_line(
-        f"export static const int[call_data_len] call_group_shape_vector = {{"
-    )
+    cg.constants.append_line(f"export static const int[call_data_len] call_group_shape_vector = {{")
     cg.constants.inc_indent()
     if call_group_size != 1:
         for i in range(call_data_len):
@@ -420,9 +414,7 @@ def _emit_trampoline(
             if gen_store is not None and gen_store(cg.trampoline, x, data_name, x.variable_name):
                 continue
             if not x.python.is_writable:
-                raise BoundVariableException(
-                    f"Cannot read back value for non-writable type", x
-                )
+                raise BoundVariableException(f"Cannot read back value for non-writable type", x)
             cg.trampoline.append_statement(
                 f"{data_name}.__slangpy_store(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
             )

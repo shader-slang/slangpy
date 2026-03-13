@@ -16,10 +16,7 @@ from slangpy.reflection import (
 )
 from slangpy.reflection.typeresolution import ResolvedParam
 
-#: Type names longer than this threshold get a ``typealias _t_{name}`` alias
-#: to keep the generated ``CallData`` struct readable. Shorter names are
-#: inlined directly.
-MAX_INLINE_TYPE_LEN = 60
+from slangpy.core.generator import MAX_INLINE_TYPE_LEN  # noqa: F401
 
 
 class BoundVariableException(Exception):

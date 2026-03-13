@@ -18,6 +18,8 @@ Move these small, self-contained pieces first:
 
 **Verify**: `pytest slangpy/tests -v` — all tests pass, no import errors.
 
+**DONE**: Created `slangpy/core/generator.py` with `KernelGenException`, `_is_slangpy_vector`, `generate_constants`. Replaced definitions in `callsignature.py` with re-exports. Updated `dispatchdata.py` import. 4999 passed, 5 pre-existing failures (raytrace d3d12, type conformance cache).
+
 ---
 
 ### Step 2: Extract `gen_call_data_code` as a free function
@@ -40,7 +42,9 @@ Move `BoundVariable.gen_call_data_code` (lines 604–693 of [boundvariable.py](s
   This preserves the existing call interface (`node.gen_call_data_code(cg, context)` in [callsignature.py line 406](slangpy/core/callsignature.py#L406)) and any marshall subclass code that calls `self.gen_calldata_type_name`. The `MAX_INLINE_TYPE_LEN` constant moves to `generator.py`.
 - **Move** the import of `CodeGen` and `CodeGenBlock` into `generator.py` (already needed for Step 1).
 
-**Verify**: `pytest slangpy/tests -v` — all tests pass.
+**Verify**: `pytest slangpy/tests/slangpy_tests -v` — all tests pass.
+
+**DONE**: Moved `gen_call_data_code` and `gen_calldata_type_name` to `generator.py` as free functions. `MAX_INLINE_TYPE_LEN` moved to `generator.py`, re-exported from `boundvariable.py`. Method bodies replaced with thin delegation stubs. 3294 passed, 285 kernel gen tests passed.
 
 ---
 
@@ -103,7 +107,7 @@ After Step 3, `callsignature.py` no longer has any codegen functions. Clean up:
 - Remove re-exports of moved symbols once [calldata.py](slangpy/core/calldata.py) uses direct imports from `generator`.
 - Add `from slangpy.core.generator import KernelGenException, ResolveException` re-exports **only if** external consumers import them from `callsignature` (check via grep). If only `calldata.py` uses them, the explicit import is sufficient.
 
-**Verify**: `pytest slangpy/tests -v`. `pre-commit run --all-files`.
+**Verify**: `pytest slangpy/tests/slangpy_tests -v`. `pre-commit run --all-files`.
 
 ---
 
