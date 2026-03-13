@@ -9,7 +9,9 @@
 #include "sgl/device/command.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/device.h"
+#if SGL_HAS_CUDA
 #include "sgl/device/cuda_interop.h"
+#endif
 
 namespace sgl {
 
@@ -163,6 +165,7 @@ void* ShaderObject::reserve_data(const ShaderOffset& offset, size_t size)
     return res;
 }
 
+#if SGL_HAS_CUDA
 void ShaderObject::set_cuda_tensor_view_buffer(
     const ShaderOffset& offset,
     const cuda::TensorView& tensor_view,
@@ -193,5 +196,6 @@ void ShaderObject::get_cuda_interop_buffers(std::vector<ref<cuda::InteropBuffer>
     cuda_interop_buffers
         .insert(cuda_interop_buffers.end(), m_cuda_interop_buffers.begin(), m_cuda_interop_buffers.end());
 }
+#endif
 
 } // namespace sgl

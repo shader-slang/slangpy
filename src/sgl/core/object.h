@@ -14,8 +14,12 @@
 extern "C" {
 struct _object;
 typedef _object PyObject;
+#if SGL_EMSCRIPTEN
 typedef int64_t Py_ssize_t_;
+#else
+typedef intptr_t Py_ssize_t_;
 static_assert(sizeof(Py_ssize_t_) == sizeof(size_t));
+#endif
 };
 
 /// Enable/disable object lifetime tracking.
