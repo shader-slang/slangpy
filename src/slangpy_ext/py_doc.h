@@ -1152,6 +1152,8 @@ static const char *__doc_sgl_BufferElementCursor_operator_assign = R"doc()doc";
 
 static const char *__doc_sgl_BufferElementCursor_read_data = R"doc()doc";
 
+static const char *__doc_sgl_BufferElementCursor_reinterpret = R"doc(Reinterpret the current cursor using a different type layout.)doc";
+
 static const char *__doc_sgl_BufferElementCursor_set = R"doc()doc";
 
 static const char *__doc_sgl_BufferElementCursor_set_2 = R"doc()doc";
@@ -6650,6 +6652,8 @@ static const char *__doc_sgl_ShaderCursor_operator_array = R"doc()doc";
 static const char *__doc_sgl_ShaderCursor_operator_array_2 = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_ShaderCursor_reinterpret = R"doc(Reinterpret the current cursor using a different type layout.)doc";
 
 static const char *__doc_sgl_ShaderCursor_reserve_data =
 R"doc(Reserves a block of memory within the shader object's internal data

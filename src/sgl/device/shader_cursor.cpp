@@ -67,6 +67,15 @@ ShaderCursor::ShaderCursor(
     }
 }
 
+ShaderCursor ShaderCursor::reinterpret(slang::TypeLayoutReflection* new_layout) const
+{
+    ShaderCursor shader_cursor;
+    shader_cursor.m_type_layout = new_layout;
+    shader_cursor.m_shader_object = m_shader_object;
+    shader_cursor.m_offset = m_offset;
+    return shader_cursor;
+}
+
 std::string ShaderCursor::to_string() const
 {
     return "ShaderCursor()";
