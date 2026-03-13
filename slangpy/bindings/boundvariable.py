@@ -163,7 +163,7 @@ def can_direct_bind_common(binding: "BoundVariable") -> bool:
         return False
     if binding.children:
         return False
-    if getattr(binding, "create_param_block", False):
+    if binding.create_param_block:
         return False
     return True
 
@@ -691,19 +691,6 @@ you can find more information in the Mapping section of the documentation (https
                 )
             else:
                 cg.call_data.declare(self.calldata_type_name, self.variable_name)
-
-    def _gen_trampoline_argument(self):
-        assert self.vector_type is not None
-        arg_def = f"{self.vector_type.full_name} {self.variable_name}"
-        if self.io_type == IOType.inout:
-            arg_def = f"inout {arg_def}"
-        elif self.io_type == IOType.out:
-            arg_def = f"out {arg_def}"
-        elif self.io_type == IOType.inn:
-            arg_def = f"in {arg_def}"
-        if self.no_diff or not self.differentiable:
-            arg_def = f"no_diff {arg_def}"
-        return arg_def
 
     def __str__(self) -> str:
         return self._recurse_str(0)

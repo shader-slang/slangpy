@@ -274,20 +274,20 @@ Device::Device(const DeviceDesc& desc)
     );
     m_info.limits.max_shader_visible_samplers = rhi_device_info.limits.maxShaderVisibleSamplers;
 
-    // Set conservative default for max entry-point uniform (push constant / root constant) size.
-    // The RHI doesn't expose this directly, so we use per-backend defaults.
+    // TODO: These are known safe limits based on API spec, but could be increased based on
+    // platform (eg early Vk==128, CUDA 12.1+ supports 32k etc). Either this or the relevant
+    // information needs to be exposed by slang-rhi.
     switch (m_desc.type) {
     case DeviceType::vulkan:
         // Vulkan spec minimum maxPushConstantsSize is 128 bytes.
         m_info.limits.max_entry_point_uniform_size = 128;
         break;
     case DeviceType::d3d12:
-        // D3D12 root signature allows 64 DWORDs (256 bytes) total for root constants,
-        // shared with root descriptors. Use a conservative 256.
+        // D3D12 root signature allows 64 DWORDs
         m_info.limits.max_entry_point_uniform_size = 256;
         break;
     case DeviceType::cuda:
-        // CUDA kernel parameter block limit is typically 4KB.
+        // CUDA kernel parameter block limit pre 12.1 is 4KB.
         m_info.limits.max_entry_point_uniform_size = 4096;
         break;
     default:

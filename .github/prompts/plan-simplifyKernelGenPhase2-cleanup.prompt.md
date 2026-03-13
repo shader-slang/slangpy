@@ -435,13 +435,13 @@ In [slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp) `bind_call_data`, the fast-p
 
 [test_benchmark_autograd.py](slangpy/benchmarks/test_benchmark_autograd.py) changes `ITERATIONS` 10→100, `WARMUPS` 10→1000, `RUN_SLANGTORCH_BENCHMARK` False→True. This will make CI benchmarks 10–100× slower. Revert to original values.
 
-**FIX**: Restore changes to original values.
+**FIXED**: Restored `ITERATIONS=10`, `WARMUPS=10`, `RUN_SLANGTORCH_BENCHMARK=False`.
 
 **3. Overly broad `except Exception` in calldata.py fallback**
 
 [calldata.py](slangpy/core/calldata.py): The fallback from fast path to `ParameterBlock<CallData>` catches `except Exception`, which swallows `TypeError`, `KeyError`, `AttributeError`, etc. The caught exception `e` is never logged.
 
-**Fix**: Narrow to the specific compilation exception (RunTimeError) Log `str(e)` in the debug message.
+**FIXED**: Narrowed to `except RuntimeError as e` and included `str(e)` in the debug message.
 
 ---
 
@@ -485,13 +485,13 @@ auto write_uniforms = [&](ShaderCursor target) {
 
 Fast path → `write_uniforms(ep)`, fallback → `write_uniforms(call_data_cursor)`.
 
-**FIX**: Create helper as above.
+**FIXED**: Extracted `write_uniforms` lambda taking `(ShaderCursor target, ShaderCursor root_cursor)`. Fast path calls `write_uniforms(ep, cursor)`, fallback calls `write_uniforms(call_data_cursor, cursor)`.
 
 **6. `_try_build_shader` parameter pattern in calldata.py**
 
 Takes `use_direct_args` parameter then immediately sets `self.use_direct_args` and `context.use_direct_args`. The method never reads the flag except to store it.
 
-**Fix**: Have the caller set these directly before calling, remove the parameter.
+**FIXED**: Caller sets `self.use_direct_args` before calling; `_try_build_shader` reads `self.use_direct_args` and sets `context.use_direct_args`. Parameter removed.
 
 ---
 
@@ -499,7 +499,7 @@ Takes `use_direct_args` parameter then immediately sets `self.use_direct_args` a
 
 **7. Unconditional `print(code)` in test_kernel_gen.py L107** — should be guarded by `PRINT_TEST_KERNEL_GEN` env var.
 
-**FIX**: Wrap in `if os.getenv("PRINT_TEST_KERNEL_GEN"):` and add `import os` at the top.
+**FIXED**: Guarded with `if PRINT_TEST_KERNEL_GEN:` (existing module-level flag).
 
 **8. Test duplication** — ~30 tests near-identical between test_kernel_gen.py and test_code_gen.py. The merged tests in test_code_gen.py should replace the originals.
 
@@ -507,23 +507,23 @@ Takes `use_direct_args` parameter then immediately sets `self.use_direct_args` a
 
 **9. Unused `nodes` variable** — [callsignature.py L278](slangpy/core/callsignature.py): `nodes: list[BoundVariable] = []` declared but never used.
 
-**FIX**: If not needed it can be deleted
+**FIXED**: Deleted unused variable.
 
 **10. Stale docstring** — [callsignature.py L275](slangpy/core/callsignature.py): Says "Generate a list of call data nodes" — doesn't match what the function does.
 
-**FIX**: Update docstring to reflect current behavior.
+**FIXED**: Updated to "Generate Slang kernel code for the given function call signature."
 
 **11. Missing return type annotations** — `generate_code()`, `generate_constants()`, `CallData.build()` all need `-> None`.
 
-**FIX**: Add `-> None` return type annotations to these methods.
+**FIXED**: Added `-> None` to `generate_code()`, `generate_constants()`, `CallData.build()`, and `_try_build_shader()`.
 
 **12. `type_conformances: Any`** — [calldata.py](slangpy/core/calldata.py) should be `list[TypeConformance]`.
 
-**FIX**: Change type annotation to `list[TypeConformance]` and import `TypeConformance` from `slangpy.core.typeconformance`.
+**FIXED**: Changed to `list["TypeConformance"]` and added `TypeConformance` to the `from slangpy import (...)` block.
 
 **13. Bare `except:`** — [callsignature.py L59](slangpy/core/callsignature.py): `is_generic_vector` catches all exceptions including `SystemExit`. Use `except Exception:`.
 
-**FIX**: Change to `except Exception:` and log the exception for debugging.
+**FIXED**: Changed to `except Exception:`.
 
 **14. Typo: `santized_module`** — [calldata.py](slangpy/core/calldata.py): Missing 'i'. Pre-existing.
 
@@ -539,8 +539,75 @@ Takes `use_direct_args` parameter then immediately sets `self.use_direct_args` a
 
 **17. Hash salt `"[CallData]\n"`** — emitted even when CallData struct is absent. Cosmetic.
 
-**FIX**: Can be removed or left as-is, low impact.
+**FIXED**: Removed `"[CallData]\n"` prefix from hash salt.
 
 **18. `Tuple` import in test_code_gen.py** — should use lowercase `tuple[...]` for consistency.
 
-**FIX**: Change to `tuple[...]` and remove `from typing import Tuple`.
+**FIXED**: Changed to `tuple[...]` and removed `Tuple` from typing import.
+
+---
+
+#### Additional Findings (subagent review, March 2026)
+
+**19. Latent correctness bug — `can_direct_bind_common()` missing write-access guard**
+
+[boundvariable.py](slangpy/bindings/boundvariable.py) `can_direct_bind_common()` does not check whether the binding has write access. This creates an inconsistency:
+
+- `ValueRefMarshall.can_direct_bind()` explicitly rejects writable bindings — correct
+- `StructMarshall.can_direct_bind()` with children checks `access[0] == AccessType.read` — correct
+- `StructMarshall.can_direct_bind()` without children falls through to `can_direct_bind_common()` — **missing access check**
+- `ValueMarshall.can_direct_bind()` delegates entirely to `can_direct_bind_common()` — safe in practice (`ValueMarshall.is_writable = False`) but fragile
+
+If a writable dim-0 leaf binding gets `direct_bind=True`, `ValueMarshall.gen_trampoline_store()` returns `True` without emitting store code, silently dropping writes.
+
+**DO NOT FIX**: Reasion: This logic is subtle but correct, based on the desired behaviour.
+
+**20. Dead `_gen_trampoline_argument()` method**
+
+[boundvariable.py](slangpy/bindings/boundvariable.py) `_gen_trampoline_argument()` is never called anywhere in the codebase. The inline generation in [callsignature.py](slangpy/core/callsignature.py) replaced it.
+
+**FIXED**: Deleted the method.
+
+**21. Redundant `hasattr` guard in `calculate_direct_bind()`**
+
+[boundvariable.py](slangpy/bindings/boundvariable.py) `calculate_direct_bind()` uses `hasattr(self.python, "can_direct_bind")`, which is always `True` because `Marshall` base class defines `can_direct_bind()`. Simplify to `if self.python is not None:`.
+
+**DO NOT FIX**: Reason: For marshalls that inherit directly from NativeMarshall, this is not necessarily true.
+
+**22. Unnecessary `getattr` in `can_direct_bind_common()`**
+
+[boundvariable.py](slangpy/bindings/boundvariable.py) `can_direct_bind_common()` uses `getattr(binding, "create_param_block", False)`. `BoundVariable.__init__()` always sets `create_param_block`, so `binding.create_param_block` suffices.
+
+**FIXED**: Replaced `getattr(binding, "create_param_block", False)` with `binding.create_param_block`.
+
+**23. Wasteful `CodeGen.call_data` initialization when `skip_call_data=True`**
+
+[codegen.py](slangpy/bindings/codegen.py) `__init__` unconditionally calls `self.call_data.append_line("struct CallData")` and `begin_block()`, even when `skip_call_data=True`. The block is never serialized so there's no output impact, but it allocates a dangling block object.
+
+**DO NOT FIX**: Reason: Harmless — the block is never emitted. Restructuring `__init__` to conditionally skip initialization adds complexity for no functional benefit.
+
+**24. `entry_point_params` ownership pattern undocumented**
+
+[codegen.py](slangpy/bindings/codegen.py) collects `entry_point_params` via `boundvariable.py`, but [callsignature.py](slangpy/core/callsignature.py) reads and emits them. This cross-module ownership pattern is unconventional and lacks a comment explaining the flow.
+
+**DO NOT FIX**: Reason: `CodeGen` is already a shared state bag consumed by multiple modules. Adding a comment is fine but not blocking.
+
+**25. `direct_bind` and `use_direct_args` exposed as read-write in `.pyi` stubs**
+
+[__init__.pyi](slangpy/slangpy/__init__.pyi) exposes `direct_bind` on `NativeBoundVariableRuntime` and `use_direct_args` on `NativeCallData` with setters. Mutating these after first dispatch could invalidate cached cursor offsets in `NativeValueMarshall::ensure_cached`.
+
+**DO NOT FIX**: Reason: These are set during `CallData` construction before first dispatch. The cached `NativeCallData` is per-signature, so a new signature gets a fresh instance. Post-construction mutation would require going through `debug_build_call_data` which rebuilds everything. Not a practical concern.
+
+**26. No fallback-path codegen test in `test_code_gen.py`**
+
+[test_code_gen.py](slangpy/tests/slangpy_tests/test_code_gen.py) has no test that forces `use_direct_args=False` (e.g., by exceeding `max_entry_point_uniform_size`) and asserts the `ParameterBlock<CallData>` codegen. The `test_step21_many_float4x4_may_exceed_vulkan` in `test_kernel_gen.py` checks the flag but not the generated code.
+
+**DO NOT FIX**: Reason: Step 2.7 will add comprehensive post-implementation tests including `test_phase2_fallback_keeps_calldata` and `test_phase2_fallback_no_trampoline_prim`.
+
+**27. No test for writable `inout` struct at dim-0**
+
+No test verifies the behavior of a writable (inout) dim-0 struct with all-scalar fields. This is the scenario where Fix 19 would prevent silent write loss.
+
+**Fix**: Add after Fix 19 is applied —test a writable dim-0 struct dict to confirm `direct_bind=False`.
+
+**Status: NOT FIXED** — blocked on Fix 19.
