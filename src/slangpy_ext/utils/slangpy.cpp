@@ -96,43 +96,15 @@ std::string NativeSlangType::to_string() const
     }
 }
 
-static constexpr std::array<char, 16> HEX_CHARS
-    = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-
-void SignatureBuilder::add(const std::string& value)
-{
-    add_bytes((const uint8_t*)value.data(), (int)value.length());
-}
-void SignatureBuilder::add(const char* value)
-{
-    add_bytes((const uint8_t*)value, (int)strlen(value));
-}
-void SignatureBuilder::add(const uint32_t value)
-{
-    uint8_t buffer[8];
-    for (int i = 0; i < 8; ++i) {
-        buffer[7 - i] = HEX_CHARS[(value >> (i * 4)) & 0xF];
-    }
-    add_bytes(buffer, 8);
-}
-void SignatureBuilder::add(const uint64_t value)
-{
-    uint8_t buffer[16];
-    for (int i = 0; i < 16; ++i) {
-        buffer[15 - i] = HEX_CHARS[(value >> (i * 4)) & 0xF];
-    }
-    add_bytes(buffer, 16);
-}
-
-
 nb::bytes SignatureBuilder::bytes() const
 {
-    return nb::bytes(m_buffer, m_size);
+    auto sv = m_buf.view();
+    return nb::bytes(sv.data(), sv.size());
 }
 
 std::string SignatureBuilder::str() const
 {
-    return std::string(reinterpret_cast<const char*>(m_buffer), m_size);
+    return std::string(m_buf.view());
 }
 
 void NativeMarshall::write_shader_cursor_pre_dispatch(
@@ -341,7 +313,7 @@ nb::object NativeBoundVariableRuntime::read_output(CallContext* context, nb::obj
 
 Shape NativeBoundCallRuntime::calculate_call_shape(
     int call_dimensionality,
-    nb::list args,
+    nb::object args,
     nb::dict kwargs,
     NativeCallData* error_context
 )
@@ -354,7 +326,8 @@ Shape NativeBoundCallRuntime::calculate_call_shape(
     }
 
     // Populate call shape for each positional argument.
-    for (size_t idx = 0; idx < args.size(); ++idx) {
+    size_t num_args = nb::len(args);
+    for (size_t idx = 0; idx < num_args; ++idx) {
         m_args[idx]->populate_call_shape(call_shape, args[idx], error_context);
     }
 
@@ -374,14 +347,15 @@ void NativeBoundCallRuntime::write_shader_cursor_pre_dispatch(
     CallContext* context,
     ShaderCursor root_cursor,
     ShaderCursor call_data_cursor,
-    nb::list args,
+    nb::object args,
     nb::dict kwargs,
     nb::list read_back
 
 )
 {
     // Write call data for each positional argument.
-    for (size_t idx = 0; idx < args.size(); ++idx) {
+    size_t num_args = nb::len(args);
+    for (size_t idx = 0; idx < num_args; ++idx) {
         auto cursor = m_args[idx]->is_param_block() ? root_cursor : call_data_cursor;
         m_args[idx]->write_shader_cursor_pre_dispatch(context, cursor, args[idx], read_back);
     }
@@ -489,9 +463,14 @@ nb::list NativeCallData::find_torch_tensors(nb::list args, nb::dict kwargs)
     return pairs;
 }
 
-nb::object NativeCallData::call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs)
+nb::object NativeCallData::call(RuntimeOptions& opts, nb::args args, nb::kwargs kwargs)
 {
     return exec(opts, nullptr, args, kwargs);
+}
+
+nb::object NativeCallData::call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs)
+{
+    return call(opts->opts(), args, kwargs);
 }
 
 nb::tuple
@@ -515,7 +494,7 @@ NativeCallData::autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list ar
     // Note: exec() may insert _result into kwargs, so check before calling exec.
     bool had_result = kwargs.contains("_result");
     nb::tuple args_tuple(args);
-    nb::object result = exec(opts, nullptr, nb::borrow<nb::args>(args_tuple), nb::borrow<nb::kwargs>(kwargs));
+    nb::object result = exec(opts->opts(), nullptr, nb::borrow<nb::args>(args_tuple), nb::borrow<nb::kwargs>(kwargs));
 
     // Clear tensor references from pairs to avoid keeping them alive
     for (size_t i = 0; i < num_pairs; i++) {
@@ -599,7 +578,7 @@ nb::tuple NativeCallData::autograd_backward(
 }
 
 nb::object NativeCallData::append_to(
-    ref<NativeCallRuntimeOptions> opts,
+    RuntimeOptions& opts,
     CommandEncoder* command_encoder,
     nb::args args,
     nb::kwargs kwargs
@@ -608,16 +587,26 @@ nb::object NativeCallData::append_to(
     return exec(opts, command_encoder, args, kwargs);
 }
 
+nb::object NativeCallData::append_to(
+    ref<NativeCallRuntimeOptions> opts,
+    CommandEncoder* command_encoder,
+    nb::args args,
+    nb::kwargs kwargs
+)
+{
+    return append_to(opts->opts(), command_encoder, args, kwargs);
+}
+
 CallShapeInfo NativeCallData::compute_call_shape_info(
-    const ref<NativeCallRuntimeOptions>& opts,
-    const nb::list& unpacked_args,
+    RuntimeOptions& opts,
+    const nb::object& unpacked_args,
     const nb::dict& unpacked_kwargs
 )
 {
     CallShapeInfo si;
 
-    if (opts->has_thread_count()) {
-        si.total_threads = opts->thread_count();
+    if (opts.has_thread_count()) {
+        si.total_threads = opts.thread_count;
         return si;
     }
 
@@ -726,25 +715,25 @@ CallShapeInfo NativeCallData::compute_call_shape_info(
 }
 
 nb::object NativeCallData::exec(
-    ref<NativeCallRuntimeOptions> opts,
+    RuntimeOptions& opts,
     CommandEncoder* command_encoder,
     nb::args args,
     nb::kwargs kwargs
 )
 {
     // Unpack args and kwargs (skip if no args have get_this/update_this).
-    nb::list unpacked_args;
+    // On the fast path (no unpack needed), avoid creating Python list/dict copies
+    // by using args (nb::tuple) and kwargs (nb::dict) directly.
+    nb::object unpacked_args;
     nb::dict unpacked_kwargs;
     if (m_needs_unpack) {
         bool had_unpack = false;
         unpacked_args = unpack_args(args, had_unpack);
         unpacked_kwargs = unpack_kwargs(kwargs, had_unpack);
     } else {
-        // Fast path: wrap args/kwargs directly without checking for get_this.
-        for (auto arg : args)
-            unpacked_args.append(arg);
-        for (auto [k, v] : kwargs)
-            unpacked_kwargs[k] = v;
+        // Fast path: borrow args/kwargs directly — zero allocation.
+        unpacked_args = nb::borrow<nb::object>(args);
+        unpacked_kwargs = nb::borrow<nb::dict>(kwargs);
     }
 
     auto si = compute_call_shape_info(opts, unpacked_args, unpacked_kwargs);
@@ -759,10 +748,14 @@ nb::object NativeCallData::exec(
     int total_threads = si.total_threads;
 
     // Extract CUDA stream handle for interop operations and command buffer submission.
-    NativeHandle cuda_stream = opts->cuda_stream();
+    NativeHandle cuda_stream = opts.cuda_stream;
 
-    // Setup context.
-    auto context = make_ref<CallContext>(m_device, call_shape, m_call_mode, cuda_stream);
+    // Setup context (reuse cached context to avoid heap allocation on repeat calls).
+    if (!m_cached_context)
+        m_cached_context = make_ref<CallContext>(m_device, call_shape, m_call_mode, cuda_stream);
+    else
+        m_cached_context->reinitialize(call_shape, cuda_stream);
+    auto& context = m_cached_context;
 
     // Allocate return value if needed.
     if (!command_encoder && m_call_mode == CallMode::prim) {
@@ -777,7 +770,7 @@ nb::object NativeCallData::exec(
         }
     }
 
-    nb::list read_back;
+    nb::list read_back; // TODO: This allocates a Python list every call. Lazy init requires changing virtual signatures.
 
     if (is_log_enabled(LogLevel::debug)) {
         log_debug("Dispatching {}", m_debug_name);
@@ -911,14 +904,11 @@ nb::object NativeCallData::exec(
             read_back
         );
 
-        nb::list uniforms = opts->uniforms();
-        if (uniforms) {
-            for (auto u : uniforms) {
-                if (nb::isinstance<nb::dict>(u)) {
-                    write_shader_cursor(cursor, nb::cast<nb::dict>(u));
-                } else {
-                    write_shader_cursor(cursor, nb::cast<nb::dict>(u(this)));
-                }
+        for (const auto& u : opts.uniforms) {
+            if (nb::isinstance<nb::dict>(u)) {
+                write_shader_cursor(cursor, nb::cast<nb::dict>(u));
+            } else {
+                write_shader_cursor(cursor, nb::cast<nb::dict>(u(this)));
             }
         }
     };
@@ -930,7 +920,7 @@ nb::object NativeCallData::exec(
         command_encoder = temp_command_encoder.get();
     }
 
-    bool is_ray_tracing = opts->is_ray_tracing();
+    bool is_ray_tracing = opts.is_ray_tracing;
 
     if (!is_ray_tracing) {
         ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
@@ -995,7 +985,7 @@ NativeCallDataCache::NativeCallDataCache()
 {
     m_cache.reserve(1024);
 
-    m_type_signature_table[typeid(Texture)] = [](const ref<SignatureBuilder>& builder, nb::handle o)
+    m_type_signature_table[typeid(Texture)] = [](SignatureBuffer& builder, nb::handle o)
     {
         auto tex = nb::cast<Texture*>(o);
 
@@ -1011,12 +1001,12 @@ NativeCallDataCache::NativeCallDataCache()
             (int)tex->desc().format,
             (int)tex->desc().array_length
         );
-        builder->add(temp);
+        builder.add(temp);
 
         return true;
     };
 
-    m_type_signature_table[typeid(Buffer)] = [](const ref<SignatureBuilder>& builder, nb::handle o)
+    m_type_signature_table[typeid(Buffer)] = [](SignatureBuffer& builder, nb::handle o)
     {
         auto buffer = nb::cast<Buffer*>(o);
 
@@ -1024,13 +1014,13 @@ NativeCallDataCache::NativeCallDataCache()
         // a bit slower for this use case. (over 4x).
         char temp[256];
         std::snprintf(temp, sizeof(temp), "[%d]", (int)buffer->desc().usage);
-        builder->add(temp);
+        builder.add(temp);
 
         return true;
     };
 }
 
-void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builder, nb::handle o)
+void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::handle o)
 {
     // Get python type.
     auto type = o.type();
@@ -1038,15 +1028,16 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
     // Check if this is a bound native type, in which case we can hopefully do fast things!
     bool is_bound_type = nb::type_check(type);
     if (is_bound_type) {
-
-        // Get C++ type info, and attempt to cast to a slangpy native object
         const auto& type_info = nb::type_info(type);
 
         // If we have a native object, can directly request the signature.
+        // Use read_signature_fast for C++ objects (no Python override).
+        // For Python subclasses, the fixed signature is set via set_slangpy_signature,
+        // so read_signature_fast (which reads m_signature) is safe for all NativeObjects.
         const NativeObject* native_object;
         if (nb::try_cast<const NativeObject*>(o, native_object)) {
-            *builder << type_info.name() << "\n";
-            native_object->read_signature(builder);
+            builder << type_info.name() << "\n";
+            native_object->read_signature_fast(builder);
             return;
         }
 
@@ -1061,26 +1052,26 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
 
     // Fast path for basic Python types (int/float) here.
     if (nb::isinstance<int>(o)) {
-        *builder << "int\n";
+        builder << "int\n";
         return;
     }
     if (nb::isinstance<float>(o)) {
-        *builder << "float\n";
+        builder << "float\n";
         return;
     }
     if (nb::isinstance<bool>(o)) {
-        *builder << "bool\n";
+        builder << "bool\n";
         return;
     }
     if (nb::isinstance<nb::str>(o)) {
-        *builder << "string\n";
+        builder << "string\n";
         return;
     }
 
     // Python tuple/list
     nb::tuple tuple;
     if (nb::try_cast<nb::tuple>(o, tuple)) {
-        *builder << "tuple\n";
+        builder << "tuple\n";
         for (const auto& i : tuple) {
             get_value_signature(builder, i);
         }
@@ -1088,32 +1079,30 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
     }
     nb::list list;
     if (nb::try_cast<nb::list>(o, list)) {
-        *builder << "list\n";
+        builder << "list\n";
         for (const auto& i : list) {
             get_value_signature(builder, i);
         }
         return;
     }
 
-    // Fast path: Signature for pytorch tensors via torch bridge (~15ns native, ~50ns fallback)
-    // Only check if torch is available to avoid any cost when torch isn't installed.
-    // get_signature() returns 0 on success, non-zero on failure (does not throw)
+    // Fast path: Signature for pytorch tensors via torch bridge
     if (TorchBridge::instance().is_available()) {
         char buffer[64];
         if (TorchBridge::instance().get_signature(o, buffer, sizeof(buffer)) == 0) {
-            *builder << "torch\n" << buffer;
+            builder << "torch\n" << buffer;
             return;
         }
     }
 
     // Add type name.
     auto type_name = nb::str(nb::getattr(o.type(), "__name__"));
-    *builder << type_name.c_str() << "\n";
+    builder << type_name.c_str() << "\n";
 
     // Handle objects with get_this method.
     auto get_this = nb::getattr(o, "get_this", nb::none());
     if (!get_this.is_none()) {
-        *builder << "\nunpack";
+        builder << "\nunpack";
         auto this_ = get_this();
         get_value_signature(builder, this_);
         return;
@@ -1121,26 +1110,22 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
 
     // If x has signature attribute, use it.
     if (nb::hasattr(o, "slangpy_signature")) {
-
         auto slangpy_sig = nb::getattr(o, "slangpy_signature");
-        *builder << nb::str(slangpy_sig).c_str() << "\n";
+        builder << nb::str(slangpy_sig).c_str() << "\n";
         return;
     }
-
 
     // If x is a dictionary get signature of its children.
     nb::dict dict;
     if (nb::try_cast(o, dict)) {
-        *builder << "\n";
+        builder << "\n";
         for (const auto& [k, v] : dict) {
             nb::str key(k);
-            *builder << key.c_str() << ":";
+            builder << key.c_str() << ":";
 
             nb::str _type;
             if (strcmp(key.c_str(), "_type") == 0 && nb::try_cast<nb::str>(v, _type)) {
-                // If the dictionary contains a _type key with string value,
-                // we have to encode the value directly, as it affects type resolution
-                *builder << _type.c_str() << "\n";
+                builder << _type.c_str() << "\n";
             } else {
                 get_value_signature(builder, v);
             }
@@ -1151,23 +1136,23 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
     // Use value_to_id function.
     std::optional<std::string> s = lookup_value_signature(o);
     if (s.has_value()) {
-        *builder << *s;
+        builder << s->c_str();
     }
-    *builder << "\n";
+    builder << "\n";
 }
 
-void NativeCallDataCache::get_args_signature(const ref<SignatureBuilder> builder, nb::args args, nb::kwargs kwargs)
+void NativeCallDataCache::get_args_signature(SignatureBuffer& builder, nb::args args, nb::kwargs kwargs)
 {
-    builder->add("args\n");
+    builder.add("args\n");
     for (const auto& arg : args) {
-        builder->add("N:");
+        builder.add("N:");
         get_value_signature(builder, arg);
     }
 
-    builder->add("kwargs\n");
+    builder.add("kwargs\n");
     for (const auto& [k, v] : kwargs) {
-        builder->add(nb::str(k).c_str());
-        builder->add(":");
+        builder.add(nb::str(k).c_str());
+        builder.add(":");
         get_value_signature(builder, v);
     }
 }
@@ -1252,9 +1237,9 @@ void pack_arg(nanobind::object arg, nanobind::object unpacked_arg)
 std::string get_value_signature(nb::handle o)
 {
     static NativeCallDataCache cache;
-    auto builder = make_ref<SignatureBuilder>();
+    SignatureBuffer builder;
     cache.get_value_signature(builder, o);
-    return builder->str();
+    return std::string(builder.view());
 }
 
 } // namespace sgl::slangpy
@@ -1651,7 +1636,9 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def(
             "call",
-            &NativeCallData::call,
+            static_cast<nb::object (NativeCallData::*)(ref<NativeCallRuntimeOptions>, nb::args, nb::kwargs)>(
+                &NativeCallData::call
+            ),
             nb::arg("opts"),
             nb::arg("args"),
             nb::arg("kwargs"),
@@ -1659,7 +1646,9 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def(
             "append_to",
-            &NativeCallData::append_to,
+            static_cast<nb::object (NativeCallData::*)(ref<NativeCallRuntimeOptions>, CommandEncoder*, nb::args, nb::kwargs)>(
+                &NativeCallData::append_to
+            ),
             nb::arg("opts"),
             nb::arg("command_buffer"),
             nb::arg("args"),
@@ -1761,14 +1750,18 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def(
             "get_value_signature",
-            &NativeCallDataCache::get_value_signature,
+            static_cast<void (NativeCallDataCache::*)(const ref<SignatureBuilder>, nb::handle)>(
+                &NativeCallDataCache::get_value_signature
+            ),
             "builder"_a,
             "o"_a,
             D_NA(NativeCallDataCache, get_value_signature)
         )
         .def(
             "get_args_signature",
-            &NativeCallDataCache::get_args_signature,
+            static_cast<void (NativeCallDataCache::*)(const ref<SignatureBuilder>, nb::args, nb::kwargs)>(
+                &NativeCallDataCache::get_args_signature
+            ),
             "builder"_a,
             "args"_a,
             "kwargs"_a,

@@ -432,6 +432,13 @@ public:
 
     const NativeHandle& cuda_stream() const { return m_cuda_stream; }
 
+    /// Reinitialize the context for reuse (avoids heap allocation on cached path).
+    void reinitialize(const Shape& call_shape, NativeHandle cuda_stream)
+    {
+        m_call_shape = call_shape;
+        m_cuda_stream = cuda_stream;
+    }
+
 private:
     ref<Device> m_device;
     Shape m_call_shape;
