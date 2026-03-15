@@ -533,6 +533,12 @@ public:
     /// Set the call dimensionality.
     void set_call_dimensionality(int call_dimensionality) { m_call_dimensionality = call_dimensionality; }
 
+    /// Whether this variable uses direct binding (raw Slang type, no wrapper).
+    bool direct_bind() const { return m_direct_bind; }
+
+    /// Set the direct_bind flag.
+    void set_direct_bind(bool direct_bind) { m_direct_bind = direct_bind; }
+
     /// Recursively populate the overall kernel call shape.
     void populate_call_shape(Shape& call_shape, nb::object value, NativeCallData* error_context);
 
@@ -560,6 +566,7 @@ private:
     int m_call_dimensionality{0};
     ref<NativeSlangType> m_vector_type;
     bool m_is_param_block{false};
+    bool m_direct_bind{false};
 };
 
 /// Binding information for a call to a compute kernel. Includes a set of positional

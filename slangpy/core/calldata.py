@@ -266,6 +266,9 @@ class CallData(NativeCallData):
             # Calculate differentiability of all variables.
             calculate_differentiability(context, bindings)
 
+            # Calculate direct binding eligibility for all variables.
+            calculate_direct_binding(bindings)
+
             # Generate code.
             codegen = CodeGen()
             generate_code(context, build_info, bindings, codegen)
@@ -430,6 +433,9 @@ class CallData(NativeCallData):
             # Store the bindings and runtime for later use.
             self.debug_only_bindings = bindings
             self.runtime = BoundCallRuntime(bindings)
+
+            # Store the code as its useful for debugging
+            self.code = code
 
             # If using autograd, build list of access modes for each tensor argument.
             if self.torch_autograd:

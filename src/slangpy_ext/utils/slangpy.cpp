@@ -330,25 +330,13 @@ void NativeBoundVariableRuntime::write_raw_dispatch_data(nb::dict call_data, nb:
 
 nb::object NativeBoundVariableRuntime::read_output(CallContext* context, nb::object data)
 {
-    if (m_children) {
-        // We have children, so read the output for each child and store in a dictionary.
-        nb::dict res;
-        for (const auto& [name, child_ref] : *m_children) {
-            if (res.contains(name.c_str())) {
-                if (child_ref) {
-                    nb::object child_data = data[child_ref->m_variable_name.c_str()];
-                    res[name.c_str()] = child_ref->read_output(context, child_data);
-                }
-            }
-        }
-        return res;
-    } else {
-        // We are a leaf node, so read the output if the variable was writable.
+    // Note: variables with children don't read_output directly - it is handled by their children.
+    if (!m_children) {
         if (m_access.first == AccessType::write || m_access.first == AccessType::readwrite) {
             return m_python_type->read_output(context, this, data);
         }
-        return nb::none();
     }
+    return nb::none();
 }
 
 Shape NativeBoundCallRuntime::calculate_call_shape(
@@ -1543,7 +1531,13 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeBoundVariableRuntime::write_raw_dispatch_data,
             D_NA(NativeBoundVariableRuntime, write_raw_dispatch_data)
         )
-        .def("read_output", &NativeBoundVariableRuntime::read_output, D_NA(NativeBoundVariableRuntime, read_output));
+        .def("read_output", &NativeBoundVariableRuntime::read_output, D_NA(NativeBoundVariableRuntime, read_output))
+        .def_prop_rw(
+            "direct_bind",
+            &NativeBoundVariableRuntime::direct_bind,
+            &NativeBoundVariableRuntime::set_direct_bind,
+            D_NA(NativeBoundVariableRuntime, direct_bind)
+        );
 
     nb::class_<NativeBoundCallRuntime, Object>(slangpy, "NativeBoundCallRuntime") //
         .def(nb::init<>(), D_NA(NativeBoundCallRuntime, NativeBoundCallRuntime))
