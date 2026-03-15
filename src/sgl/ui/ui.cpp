@@ -532,12 +532,16 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
         return;
 
     const size_t max_size = std::numeric_limits<size_t>::max();
-    if (draw_data.total_vtx_count > max_size / sizeof(ImDrawVert)) {
-        SGL_THROW(
-            "ImGui draw data vertex buffer size overflow: count={} stride={}",
-            draw_data.total_vtx_count,
-            sizeof(ImDrawVert)
-        );
+    constexpr bool vertex_count_overflow_possible
+        = std::numeric_limits<uint32_t>::max() > std::numeric_limits<size_t>::max() / sizeof(ImDrawVert);
+    if constexpr (vertex_count_overflow_possible) {
+        if (draw_data.total_vtx_count > max_size / sizeof(ImDrawVert)) {
+            SGL_THROW(
+                "ImGui draw data vertex buffer size overflow: count={} stride={}",
+                draw_data.total_vtx_count,
+                sizeof(ImDrawVert)
+            );
+        }
     }
     if (draw_data.total_idx_count > max_size / draw_data.index_size) {
         SGL_THROW(
@@ -586,14 +590,16 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
             SGL_THROW("ImGui draw list exceeds validated aggregate buffer capacity");
         }
 
-        if (draw_list.vertex_count > max_size / sizeof(ImDrawVert)) {
-            vertex_buffer->unmap();
-            index_buffer->unmap();
-            SGL_THROW(
-                "ImGui draw list vertex buffer size overflow: count={} stride={}",
-                draw_list.vertex_count,
-                sizeof(ImDrawVert)
-            );
+        if constexpr (vertex_count_overflow_possible) {
+            if (draw_list.vertex_count > max_size / sizeof(ImDrawVert)) {
+                vertex_buffer->unmap();
+                index_buffer->unmap();
+                SGL_THROW(
+                    "ImGui draw list vertex buffer size overflow: count={} stride={}",
+                    draw_list.vertex_count,
+                    sizeof(ImDrawVert)
+                );
+            }
         }
         if (draw_list.index_count > max_size / draw_data.index_size) {
             vertex_buffer->unmap();

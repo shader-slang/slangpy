@@ -250,9 +250,7 @@ def sync_draw_data_textures(
                     raise ValueError(
                         f"Unsupported bytes_per_pixel={bpp} for texture update at index {idx}"
                     )
-                pixels = tex.get_pixels_array().reshape(
-                    (tex.height, tex.width, bpp)
-                )
+                pixels = tex.get_pixels_array().reshape((tex.height, tex.width, bpp))
                 texture.copy_from_numpy(pixels)
                 tex.set_status(imgui.ImTextureStatus.ok)
                 if font_tex is None or tex.unique_id != font_tex.unique_id:
@@ -264,9 +262,7 @@ def sync_draw_data_textures(
 
         bpp = tex.bytes_per_pixel
         if bpp not in _BPP_TO_FORMAT:
-            raise ValueError(
-                f"Unsupported bytes_per_pixel={bpp} for texture at index {idx}"
-            )
+            raise ValueError(f"Unsupported bytes_per_pixel={bpp} for texture at index {idx}")
         pixels = tex.get_pixels_array().reshape((tex.height, tex.width, bpp))
         texture = device.create_texture(
             format=_BPP_TO_FORMAT[bpp],
