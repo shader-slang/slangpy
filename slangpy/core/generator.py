@@ -296,6 +296,12 @@ def _emit_type_and_struct(
             binding.calldata_type_name = struct_name
     else:
         binding.python.gen_calldata(cg.call_data_structs, context, binding)
+        if binding.calldata_type_name is None:
+            raise KernelGenException(
+                f"Marshall '{type(binding.python).__name__}' did not set "
+                f"calldata_type_name for '{binding.variable_name}' in gen_calldata(). "
+                f"Ensure gen_calldata calls binding.gen_calldata_type_name()."
+            )
 
 
 def _emit_mapping_constants(binding: "BoundVariable", cg: CodeGen) -> None:
