@@ -889,7 +889,8 @@ std::vector<ref<SlangEntryPoint>> SlangModule::entry_points() const
     return entry_points;
 }
 
-ref<SlangEntryPoint> SlangModule::entry_point(std::string_view name, std::span<TypeConformance> type_conformances) const
+ref<SlangEntryPoint>
+SlangModule::entry_point(std::string_view name, std::span<const TypeConformance> type_conformances) const
 {
     SlangEntryPointDesc desc;
     desc.name = name;
@@ -1168,7 +1169,7 @@ ref<SlangEntryPoint> SlangEntryPoint::with_name(const std::string& name) const
     return ep;
 }
 
-ref<SlangEntryPoint> SlangEntryPoint::specialize(std::span<SpecializationArg> specialization_args) const
+ref<SlangEntryPoint> SlangEntryPoint::specialize(std::span<const SpecializationArg> specialization_args) const
 {
     SlangEntryPointDesc desc = m_desc;
     desc.specialization_args.assign(specialization_args.begin(), specialization_args.end());
