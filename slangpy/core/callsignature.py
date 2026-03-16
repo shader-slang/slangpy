@@ -32,7 +32,11 @@ class ResolveException(Exception):
         self.message = message
 
 
-from slangpy.core.generator import KernelGenException, generate_constants, generate_code  # noqa: F401
+from slangpy.core.generator import (
+    KernelGenException,
+    generate_constants,
+    generate_code,
+)  # noqa: F401
 
 
 # This detects if a type is a vector with its length defined by a generic
