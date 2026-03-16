@@ -8,11 +8,13 @@ from typing import TYPE_CHECKING, Any
 from slangpy.core.callsignature import *
 from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
 from slangpy.core.native import (
+    AccessType,
     CallMode,
     NativeCallData,
     unpack_args,
     unpack_kwargs,
 )
+from slangpy.core.function import PipelineType
 
 from slangpy import (
     SlangCompileError,
@@ -408,7 +410,6 @@ class CallData(NativeCallData):
             snippets=True,
             call_data_structs=True,
             constants=True,
-            use_param_block_for_call_data=not context.use_entrypoint_args,
         )
 
         # Optionally write the shader to a file for debugging.
