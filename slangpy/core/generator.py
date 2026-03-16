@@ -22,6 +22,58 @@ class KernelGenException(Exception):
         self.message = message
 
 
+# ---------------------------------------------------------------------------
+# Access-tuple helpers
+# ---------------------------------------------------------------------------
+# BoundVariable.access is a (primal, derivative) tuple of AccessType.
+# These predicates give readable names to the index lookups.
+
+
+def _is_readable(b: "BoundVariable") -> bool:
+    """True when the primal value is read (read or readwrite)."""
+    return b.access[0] in (AccessType.read, AccessType.readwrite)
+
+
+def _is_writable(b: "BoundVariable") -> bool:
+    """True when the primal value is written (write or readwrite)."""
+    return b.access[0] in (AccessType.write, AccessType.readwrite)
+
+
+def _is_differentiable(b: "BoundVariable") -> bool:
+    """True when the derivative access is anything other than none."""
+    return b.access[1] != AccessType.none
+
+
+def _grad_is_readable(b: "BoundVariable") -> bool:
+    """True when the derivative/gradient is read back."""
+    return b.access[1] == AccessType.read
+
+
+# ---------------------------------------------------------------------------
+# Shared trampoline dispatch helper
+# ---------------------------------------------------------------------------
+
+
+def _try_custom_gen(
+    var: "BoundVariable",
+    method: str,
+    cgb: CodeGenBlock,
+    data_name: str,
+    value_expr: str,
+) -> bool:
+    """Try calling a marshall-specific ``gen_trampoline_load`` or ``gen_trampoline_store``.
+
+    Returns True if the marshall handled code generation, False otherwise.
+    """
+    fn = getattr(var.python, method, None)
+    return fn is not None and fn(cgb, var, data_name, value_expr)
+
+
+# ---------------------------------------------------------------------------
+# Misc helpers
+# ---------------------------------------------------------------------------
+
+
 def _is_slangpy_vector(type: Any) -> bool:
     return (
         hasattr(type, "element_type")
@@ -29,6 +81,11 @@ def _is_slangpy_vector(type: Any) -> bool:
         and len(type.shape) == 1
         and type.shape[0] <= 4
     )
+
+
+# ---------------------------------------------------------------------------
+# Call-data code generation
+# ---------------------------------------------------------------------------
 
 
 def _emit_user_constants(build_info: "FunctionBuildInfo", cg: CodeGen) -> None:
@@ -61,12 +118,8 @@ def _emit_user_constants(build_info: "FunctionBuildInfo", cg: CodeGen) -> None:
                 )
 
 
-def generate_constants(build_info: "FunctionBuildInfo", cg: CodeGen) -> None:
-    """Compatibility wrapper for legacy imports.
-
-    The preferred internal implementation name is ``_emit_user_constants``.
-    """
-    _emit_user_constants(build_info, cg)
+#: Compatibility alias for legacy imports.
+generate_constants = _emit_user_constants
 
 
 def gen_calldata_type_name(binding: "BoundVariable", cgb: CodeGenBlock, type_name: str) -> None:
@@ -101,8 +154,7 @@ def _emit_field_load(
         a.__slangpy_load(context.map(_m_a), value.a); // use field load method
         value.a = a; // direct-bind load (no __slangpy_load method)
     """
-    gen_load = getattr(var.python, "gen_trampoline_load", None)
-    if gen_load is not None and gen_load(cgb, var, var.variable_name, f"value.{field}"):
+    if _try_custom_gen(var, "gen_trampoline_load", cgb, var.variable_name, f"value.{field}"):
         return
     cgb.append_statement(
         f"{var.variable_name}.__slangpy_load(context.map(_m_{var.variable_name}),value.{field})"
@@ -123,8 +175,7 @@ def _emit_field_store(
     :param var: The bound variable representing the field to store.
     :param field: The name of the field being stored (used for generating the value reference and error messages).
     """
-    gen_store = getattr(var.python, "gen_trampoline_store", None)
-    if gen_store is not None and gen_store(cgb, var, var.variable_name, f"value.{field}"):
+    if _try_custom_gen(var, "gen_trampoline_store", cgb, var.variable_name, f"value.{field}"):
         return
     cgb.append_statement(
         f"{var.variable_name}.__slangpy_store(context.map(_m_{var.variable_name}),value.{field})"
@@ -155,7 +206,7 @@ def _emit_composite_load_func(
     assert binding.vector_type is not None
     context_decl = f"ContextND<{binding.call_dimensionality}> context"
     value_decl = f"{binding.vector_type.full_name} value"
-    prefix = "[Differentiable]" if binding.access[1] != AccessType.none else ""
+    prefix = "[Differentiable]" if _is_differentiable(binding) else ""
     cgb.empty_line()
     cgb.append_line(f"{prefix} void __slangpy_load({context_decl}, out {value_decl})")
     cgb.begin_block()
@@ -183,7 +234,7 @@ def _emit_composite_store_func(
     assert binding.vector_type is not None
     context_decl = f"ContextND<{binding.call_dimensionality}> context"
     value_decl = f"{binding.vector_type.full_name} value"
-    prefix = "[Differentiable]" if binding.access[1] != AccessType.none else ""
+    prefix = "[Differentiable]" if _is_differentiable(binding) else ""
     cgb.empty_line()
     cgb.append_line(f"{prefix} void __slangpy_store({context_decl}, in {value_decl})")
     cgb.begin_block()
@@ -192,24 +243,17 @@ def _emit_composite_store_func(
     cgb.end_block()
 
 
-def _emit_call_data_code(
-    binding: "BoundVariable", cg: CodeGen, context: "BindContext", depth: int = 0
+def _emit_type_and_struct(
+    binding: "BoundVariable", cg: CodeGen, context: "BindContext", depth: int
 ) -> None:
-    """Emit Slang call-data type declarations and mapping constants.
+    """Emit the type declaration for a single binding.
 
-    For struct/dict variables, emits a ``_t_{name}`` struct with ``__slangpy_load``
-    and ``__slangpy_store`` methods. For leaf variables, delegates to the marshall's
-    ``gen_calldata``.
+    For composite (struct/dict) variables, emits a ``_t_{name}`` struct with
+    ``__slangpy_load`` / ``__slangpy_store`` methods and recurses into children.
+    For leaf variables, delegates to the marshall's ``gen_calldata``.
 
-    At depth 0, will append the variable declaration to either:
-    - a parameter block (if ``create_param_block`` is True - for pre-built shader objects)
-    - the entry point parameters (if using entry-point args)
-    - the CallData struct (fallback path)
+    Example composite output::
 
-    A composite type declaration ``foo``::
-
-        // The composite struct, with load/store methods that recursively call into
-        // child fields.
         struct _t_foo {
             ChildType a;
             ChildType b;
@@ -217,93 +261,105 @@ def _emit_call_data_code(
             void __slangpy_store(ContextND<2> context, in Foo value) { ... }
         }
 
-    A leaf argument may declare a type alias if it can not be directly bound ::
+    Example leaf output::
 
         typealias _t_foo = int;
-
-    May also generate mapping constants for vectorized variables:
-
-        static const int[] _m_foo = {0,1,2};
-
-    The composite load/store functions will generate load/store code for each child field.
-
-    :param binding: The bound variable to emit code for.
-    :param cg: The active CodeGen object.
-    :param context: The bind context for the current call.
-    :param depth: Recursion depth (0 = root, >0 = struct field).
     """
-    from slangpy.bindings.boundvariable import BoundVariableException
-
     if binding.children is not None:
         cgb = cg.call_data_structs
 
         if binding.direct_bind:
-            # Direct-bind: use raw type name directly
             assert binding.vector_type is not None
             gen_calldata_type_name(binding, cgb, binding.vector_type.full_name)
         else:
             struct_name = f"_t_{binding.variable_name}"
             cgb.begin_struct(struct_name)
 
-            # Generate call data for child fields (recursively)
-            # Note: These are added as separate structs, not inside the parent struct.
+            # Recurse into children (emitted as separate structs, not nested).
             for field, variable in binding.children.items():
                 _emit_call_data_code(variable, cg, context, depth + 1)
 
-            # Member variables of composite struct
+            # Member variables
             for var in binding.children.values():
                 assert (
                     var.calldata_type_name is not None
                 ), f"calldata_type_name not set for '{var.variable_name}'"
                 cgb.declare(var.calldata_type_name, var.variable_name)
 
-            # Load/store methods in struct body.
-            if binding.access[0] in (AccessType.read, AccessType.readwrite):
+            # Load/store methods
+            if _is_readable(binding):
                 _emit_composite_load_func(cgb, binding)
-            if binding.access[0] in (AccessType.write, AccessType.readwrite):
+            if _is_writable(binding):
                 _emit_composite_store_func(cgb, binding)
 
             cgb.end_struct()
             binding.calldata_type_name = struct_name
-
     else:
-        # Generate call data
         binding.python.gen_calldata(cg.call_data_structs, context, binding)
 
-    # Mapping constants
-    if not binding.direct_bind:
-        if len(binding.vector_mapping) > 0:
-            cg.call_data_structs.append_statement(
-                f"static const int[] _m_{binding.variable_name} = {{ {','.join([str(x) for x in binding.vector_mapping.as_tuple()])} }}"
-            )
-        else:
-            cg.call_data_structs.append_statement(
-                f"static const int _m_{binding.variable_name} = 0"
-            )
 
-    # At depth 0, declare the variable in the appropriate place
-    if depth == 0:
-        assert (
-            binding.calldata_type_name is not None
-        ), f"calldata_type_name not set for '{binding.variable_name}'"
-        if binding.create_param_block:
-            cg.add_parameter_block(binding.calldata_type_name, "_param_" + binding.variable_name)
-        elif cg.skip_call_data:
-            cg.entry_point_params.append(
-                f"uniform {binding.calldata_type_name} {binding.variable_name}"
-            )
-        else:
-            cg.call_data.declare(binding.calldata_type_name, binding.variable_name)
+def _emit_mapping_constants(binding: "BoundVariable", cg: CodeGen) -> None:
+    """Emit the vectorization mapping constant for a single binding.
+
+    Example output::
+
+        static const int[] _m_foo = {0,1,2};   // vectorized
+        static const int _m_foo = 0;            // scalar
+    """
+    if binding.direct_bind:
+        return
+    if len(binding.vector_mapping) > 0:
+        cg.call_data_structs.append_statement(
+            f"static const int[] _m_{binding.variable_name}"
+            f" = {{ {','.join([str(x) for x in binding.vector_mapping.as_tuple()])} }}"
+        )
+    else:
+        cg.call_data_structs.append_statement(f"static const int _m_{binding.variable_name} = 0")
 
 
-def gen_call_data_code(
+def _emit_root_declaration(binding: "BoundVariable", cg: CodeGen) -> None:
+    """At depth 0, declare the variable in the appropriate destination.
+
+    Chooses between a parameter block, an entry-point uniform, or a
+    CallData struct field depending on the binding configuration.
+    """
+    assert (
+        binding.calldata_type_name is not None
+    ), f"calldata_type_name not set for '{binding.variable_name}'"
+    if binding.create_param_block:
+        cg.add_parameter_block(binding.calldata_type_name, "_param_" + binding.variable_name)
+    elif cg.skip_call_data:
+        cg.entry_point_params.append(
+            f"uniform {binding.calldata_type_name} {binding.variable_name}"
+        )
+    else:
+        cg.call_data.declare(binding.calldata_type_name, binding.variable_name)
+
+
+def _emit_call_data_code(
     binding: "BoundVariable", cg: CodeGen, context: "BindContext", depth: int = 0
 ) -> None:
-    """Compatibility wrapper for method-style call sites.
+    """Emit Slang call-data type declarations, mapping constants, and
+    root-level variable declarations for a single binding.
 
-    The preferred internal implementation name is ``_emit_call_data_code``.
+    Orchestrates three sub-steps:
+    1. Type/struct declaration (``_emit_type_and_struct``)
+    2. Mapping constants (``_emit_mapping_constants``)
+    3. Root declaration at depth 0 (``_emit_root_declaration``)
+
+    :param binding: The bound variable to emit code for.
+    :param cg: The active CodeGen object.
+    :param context: The bind context for the current call.
+    :param depth: Recursion depth (0 = root, >0 = struct field).
     """
-    _emit_call_data_code(binding, cg, context, depth)
+    _emit_type_and_struct(binding, cg, context, depth)
+    _emit_mapping_constants(binding, cg)
+    if depth == 0:
+        _emit_root_declaration(binding, cg)
+
+
+#: Compatibility alias for legacy imports.
+gen_call_data_code = _emit_call_data_code
 
 
 # ---------------------------------------------------------------------------
@@ -478,10 +534,9 @@ def _emit_trampoline_loads(
     """
     for x in root_params:
         data_name = _data_name(x, use_entrypoint_args)
-        gen_load = getattr(x.python, "gen_trampoline_load", None)
-        if gen_load is not None and gen_load(cgb, x, data_name, x.variable_name):
+        if _try_custom_gen(x, "gen_trampoline_load", cgb, data_name, x.variable_name):
             continue
-        if x.access[0] == AccessType.read or x.access[0] == AccessType.readwrite:
+        if _is_readable(x):
             cgb.append_statement(
                 f"{data_name}.__slangpy_load(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
             )
@@ -503,14 +558,9 @@ def _emit_trampoline_stores(
     from slangpy.bindings.boundvariable import BoundVariableException
 
     for x in root_params:
-        if (
-            x.access[0] == AccessType.write
-            or x.access[0] == AccessType.readwrite
-            or x.access[1] == AccessType.read
-        ):
+        if _is_writable(x) or _grad_is_readable(x):
             data_name = _data_name(x, use_entrypoint_args)
-            gen_store = getattr(x.python, "gen_trampoline_store", None)
-            if gen_store is not None and gen_store(cgb, x, data_name, x.variable_name):
+            if _try_custom_gen(x, "gen_trampoline_store", cgb, data_name, x.variable_name):
                 continue
             if not x.python.is_writable:
                 raise BoundVariableException(f"Cannot read back value for non-writable type", x)
@@ -632,9 +682,12 @@ def _emit_entry_point_signature(
             sig_parts.extend(cg.entry_point_params)
             cg.kernel.append_line(f"void compute_main({', '.join(sig_parts)})")
         else:
-            cg.kernel.append_line(
-                "void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID, int3 flat_call_group_id: SV_GroupID, int flat_call_group_thread_id: SV_GroupIndex)"
-            )
+            sig_parts = [
+                "int3 flat_call_thread_id: SV_DispatchThreadID",
+                "int3 flat_call_group_id: SV_GroupID",
+                "int flat_call_group_thread_id: SV_GroupIndex",
+            ]
+            cg.kernel.append_line(f"void compute_main({', '.join(sig_parts)})")
     elif build_info.pipeline_type == PipelineType.ray_tracing:
         cg.kernel.append_line('[shader("raygen")]')
         if use_entrypoint_args:
@@ -682,23 +735,20 @@ def _emit_kernel_body(
     # a coordinate in the call shape, and stores the call shape info in thread-local storage
     context_args = "flat_call_thread_id"
     if call_data_len > 0:
-        grid_prefix = "" if use_entrypoint_args else "call_data."
+        gp = "" if use_entrypoint_args else "call_data."
         if build_info.pipeline_type == PipelineType.compute:
-            cg.kernel.append_line(
-                f"""
-    if (!init_thread_local_call_shape_info(flat_call_group_thread_id,
-        flat_call_group_id, flat_call_thread_id, {grid_prefix}_grid_stride,
-        {grid_prefix}_grid_dim, {grid_prefix}_call_dim))
-        return;"""
-            )
+            thread_arg = "flat_call_group_thread_id"
+            group_arg = "flat_call_group_id"
         elif build_info.pipeline_type == PipelineType.ray_tracing:
-            cg.kernel.append_line(
-                f"""
-    if (!init_thread_local_call_shape_info(0,
-        uint3(0), flat_call_thread_id, {grid_prefix}_grid_stride,
-        {grid_prefix}_grid_dim, {grid_prefix}_call_dim))
-        return;"""
-            )
+            thread_arg = "0"
+            group_arg = "uint3(0)"
+        else:
+            raise RuntimeError(f"Unknown pipeline type: {build_info.pipeline_type}")
+        cg.kernel.append_statement(
+            f"if (!init_thread_local_call_shape_info("
+            f"{thread_arg}, {group_arg}, flat_call_thread_id, "
+            f"{gp}_grid_stride, {gp}_grid_dim, {gp}_call_dim)) return"
+        )
         context_args += ", CallShapeInfo::get_call_id().shape"
 
     # Define the core context.
