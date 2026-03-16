@@ -33,8 +33,6 @@ Blitter::~Blitter() { }
 
 void Blitter::blit(CommandEncoder* command_encoder, TextureView* dst, TextureView* src, TextureFilteringMode filter)
 {
-    SGL_UNUSED(filter);
-
     SGL_CHECK_NOT_NULL(command_encoder);
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK_NOT_NULL(src);
