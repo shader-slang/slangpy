@@ -410,7 +410,6 @@ class CallData(NativeCallData):
             snippets=True,
             call_data_structs=True,
             constants=True,
-            use_param_block_for_call_data=not context.use_entrypoint_args,
         )
 
         # Optionally write the shader to a file for debugging.
