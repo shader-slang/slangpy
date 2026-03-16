@@ -37,6 +37,20 @@ PRINT_TEST_KERNEL_GEN = os.getenv("PRINT_TEST_KERNEL_GEN", "0") == "1"
 def assert_contains(code: str, *patterns: str) -> None:
     """Assert all patterns appear in generated code."""
     for p in patterns:
+        if p in code:
+            continue
+
+        # Compatibility for Step 2.3: prim-mode local variable declarations now
+        # use __tmp_ prefixed names to avoid colliding with entry-point params.
+        # Example: "vector<float,3> v;" -> "vector<float,3> __tmp_v;"
+        if p.endswith(";") and "(" not in p and ")" not in p and "." not in p and " = " not in p:
+            decl = p[:-1].rstrip()
+            if " " in decl:
+                type_name, var_name = decl.rsplit(" ", 1)
+                alt_tmp_decl = f"{type_name} __tmp_{var_name};"
+                if alt_tmp_decl in code:
+                    continue
+
         assert p in code, f"Expected pattern not found: {p}"
 
 
@@ -47,17 +61,29 @@ def assert_not_contains(code: str, *patterns: str) -> None:
 
 
 def assert_trampoline_has(code: str, *stmts: str) -> None:
-    """Assert trampoline contains statements, insensitive to call_data vs __calldata__ vs __in_ prefix."""
+    """Assert generated load statements across old/new kernel-generation variants.
+
+    Accepts legacy trampoline statements and their modern equivalents:
+    - ``a = __calldata__.a;`` (legacy)
+    - ``a = call_data.a;`` (fallback)
+    - ``__tmp_a = a;`` (fast path with inline body)
+    - ``__tmp_a = call_data.a;`` (fallback with inline body)
+    """
     for s in stmts:
         # Replace __calldata__ with all three options for matching
         if "__calldata__." in s:
             alt_cd = s.replace("__calldata__.", "call_data.")
-            # For fast path: __calldata__.X → __in_X (entry-point param prefix)
-            # Extract variable name after __calldata__. and before any trailing char
-            alt_in = s.replace("__calldata__.", "__in_")
-            assert (
-                s in code or alt_cd in code or alt_in in code
-            ), f"Expected trampoline statement not found: {s} (or {alt_cd} or {alt_in})"
+            # For fast path: a = __calldata__.a; -> __tmp_a = a;
+            alt_tmp = s
+            if " = __calldata__." in s and s.endswith(";"):
+                lhs = s.split(" = __calldata__.", 1)[0].strip()
+                rhs = s.split(" = __calldata__.", 1)[1][:-1].strip()
+                alt_tmp = f"__tmp_{lhs} = {rhs};"
+            alt_tmp_cd = alt_tmp.replace(" = ", " = call_data.", 1) if alt_tmp != s else s
+            assert s in code or alt_cd in code or alt_tmp in code or alt_tmp_cd in code, (
+                "Expected generated statement not found: "
+                f"{s} (or {alt_cd} or {alt_tmp} or {alt_tmp_cd})"
+            )
         else:
             assert s in code, f"Expected trampoline statement not found: {s}"
 
@@ -1883,21 +1909,22 @@ def test_gate_p2_thread_count_direct(device_type: spy.DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_gate_p2_trampoline_present_for_prim(device_type: spy.DeviceType):
-    """Prim-mode kernel has a _trampoline function. Breaks at Step 2.3."""
+    """Prim-mode kernel has no _trampoline function after Step 2.3."""
     device = helpers.get_device(device_type)
     code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
-    assert_contains(code, "void _trampoline(")
+    assert_not_contains(code, "void _trampoline(")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_gate_p2_kernel_calls_trampoline(device_type: spy.DeviceType):
-    """compute_main calls _trampoline(). Breaks at Step 2.3."""
+    """Prim-mode compute_main inlines call sequence after Step 2.3."""
     device = helpers.get_device(device_type)
     code = generate_code(device, "add", "int add(int a, int b) { return a + b; }", 1, 2)
-    # Extract compute_main body and check it calls _trampoline
+    # Extract compute_main body and check it no longer calls _trampoline.
     main_idx = code.index("void compute_main(")
     main_body = code[main_idx:]
-    assert "_trampoline(__slangpy_context__" in main_body
+    assert "_trampoline(" not in main_body
+    assert "add(__tmp_a, __tmp_b);" in main_body
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

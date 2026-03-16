@@ -35,6 +35,20 @@ PRINT_CODE = os.getenv("PRINT_TEST_KERNEL_GEN", "0") == "1"
 def assert_contains(code: str, *patterns: str) -> None:
     """Assert all patterns appear in generated code."""
     for p in patterns:
+        if p in code:
+            continue
+
+        # Compatibility for Step 2.3: prim-mode local variable declarations now
+        # use __tmp_ prefixed names to avoid colliding with entry-point params.
+        # Example: "vector<float,3> v;" -> "vector<float,3> __tmp_v;"
+        if p.endswith(";") and "(" not in p and ")" not in p and "." not in p and " = " not in p:
+            decl = p[:-1].rstrip()
+            if " " in decl:
+                type_name, var_name = decl.rsplit(" ", 1)
+                alt_tmp_decl = f"{type_name} __tmp_{var_name};"
+                if alt_tmp_decl in code:
+                    continue
+
         assert p in code, f"Expected pattern not found: {p}"
 
 
@@ -45,15 +59,28 @@ def assert_not_contains(code: str, *patterns: str) -> None:
 
 
 def assert_trampoline_has(code: str, *stmts: str) -> None:
-    """Assert trampoline contains statements (tolerates call_data vs __calldata__ vs __in_)."""
+    """Assert generated load statements across old/new kernel-generation variants.
+
+    Accepts legacy trampoline statements and their modern equivalents:
+    - ``a = __calldata__.a;`` (legacy)
+    - ``a = call_data.a;`` (fallback)
+    - ``__tmp_a = a;`` (fast path with inline body)
+    - ``__tmp_a = call_data.a;`` (fallback with inline body)
+    """
     for s in stmts:
         if "__calldata__." in s:
-            alt = s.replace("__calldata__.", "call_data.")
-            # Fast path: x = __in_x; instead of x = __calldata__.x;
-            alt2 = s.replace(" = __calldata__.", " = __in_")
-            assert (
-                s in code or alt in code or alt2 in code
-            ), f"Expected trampoline statement not found: {s} (or {alt} or {alt2})"
+            alt_cd = s.replace("__calldata__.", "call_data.")
+            # For fast path: a = __calldata__.a; -> __tmp_a = a;
+            alt_tmp = s
+            if " = __calldata__." in s and s.endswith(";"):
+                lhs = s.split(" = __calldata__.", 1)[0].strip()
+                rhs = s.split(" = __calldata__.", 1)[1][:-1].strip()
+                alt_tmp = f"__tmp_{lhs} = {rhs};"
+            alt_tmp_cd = alt_tmp.replace(" = ", " = call_data.", 1) if alt_tmp != s else s
+            assert s in code or alt_cd in code or alt_tmp in code or alt_tmp_cd in code, (
+                "Expected generated statement not found: "
+                f"{s} (or {alt_cd} or {alt_tmp} or {alt_tmp_cd})"
+            )
         else:
             assert s in code, f"Expected trampoline statement not found: {s}"
 
@@ -1232,10 +1259,14 @@ float polynomial(float a, float b) {
     # --- fast path ---
     assert cd.use_entrypoint_args is True
 
-    # --- trampoline params have no_diff and __in_ prefix ---
+    # --- trampoline params have no_diff; bare name (Step 2.3) or __in_ prefix (legacy) ---
     assert_contains(code, "no_diff")
-    assert_contains(code, "__in_a")
-    assert_contains(code, "__in_b")
+    assert (
+        "no_diff float a" in code or "__in_a" in code
+    ), "Expected trampoline param for 'a' (no_diff float a or __in_a)"
+    assert (
+        "no_diff float b" in code or "__in_b" in code
+    ), "Expected trampoline param for 'b' (no_diff float b or __in_b)"
 
     # --- [Differentiable] before trampoline ---
     diff_idx = code.index("[Differentiable]")

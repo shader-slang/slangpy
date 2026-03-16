@@ -4,6 +4,8 @@
 
 **Parent plan**: [plan-simplifyKernelGen.prompt.md](plan-simplifyKernelGen.prompt.md)
 
+**Status**: Steps 2.0–2.2 and 2.4 complete. Step 2.3 (trampoline elimination for prim mode) not started. Code generation logic has been extracted from `callsignature.py` into [generator.py](slangpy/core/generator.py) (see [plan-extractCodegenToGenerator.prompt.md](plan-extractCodegenToGenerator.prompt.md)).
+
 ---
 
 ### Key Architectural Decisions
@@ -24,9 +26,23 @@ These decisions correct several assumptions in the original plan:
 
 6. **C++ dispatch changes are isolated to `NativeCallData::exec`.** Marshalls receive a `ShaderCursor` pointing to wherever their data lives — they don't care whether it's inside a `CallData` struct or an entry-point param. In the fast path, `m_runtime->write_shader_cursor_pre_dispatch()` receives the entry-point cursor directly. No marshall code changes needed.
 
-7. **`CallDataMode` is eliminated.** The `global_data` vs `entry_point` distinction is removed entirely. On the fast path, all backends use entry-point params uniformly. On the fallback path, all backends use `ParameterBlock<CallData>` — CUDA supports `ParameterBlock` and in practice will never hit the fallback (CUDA's inline-uniform limit is ~4KB). This removes the `CallDataMode` enum, the CUDA-specific `is_entry_point` codegen branch in `callsignature.py`, and the corresponding C++ branch in `slangpy.cpp`.
+7. **`CallDataMode` is eliminated.** The `global_data` vs `entry_point` distinction is removed entirely. On the fast path, all backends use entry-point params uniformly. On the fallback path, all backends use `ParameterBlock<CallData>` — CUDA supports `ParameterBlock` and in practice will never hit the fallback (CUDA's inline-uniform limit is ~4KB). This removes the `CallDataMode` enum, the CUDA-specific `is_entry_point` codegen branch in `callsignature.py`/`generator.py`, and the corresponding C++ branch in `slangpy.cpp`.
 
 8. **`PackedArg` / param-block types are unchanged.** They stay as `ParameterBlock<T>` at module scope, orthogonal to Phase 2.
+
+---
+
+### Code Organization (post-extraction)
+
+All code generation logic now lives in [generator.py](slangpy/core/generator.py). [callsignature.py](slangpy/core/callsignature.py) retains binding-pipeline functions (`specialize`, `bind`, `calculate_*`, `estimate_entrypoint_arguments_size`, etc.) and re-exports `generate_code`, `generate_constants`, `KernelGenException` from `generator.py` for backward compatibility.
+
+| File | Role |
+|------|------|
+| [generator.py](slangpy/core/generator.py) | All code emission: `generate_code()`, `_emit_trampoline()`, `_emit_entry_point_signature()`, `_emit_kernel_body()`, `_emit_shape_and_metadata_params()`, `_emit_link_time_constants()`, `_emit_call_data_definitions()`, `_emit_trampoline_loads/stores()`, `_data_name()`, `_validate_and_compute_group_shape()`, `gen_call_data_code()`, `gen_calldata_type_name()`, `KernelGenException` |
+| [callsignature.py](slangpy/core/callsignature.py) | Binding pipeline: `specialize()`, `bind()`, `apply_explicit_vectorization()`, `apply_implicit_vectorization()`, `finalize_mappings()`, `calculate_differentiability()`, `calculate_direct_binding()`, `estimate_entrypoint_arguments_size()`, `calculate_call_dimensionality()`, `create_return_value_binding()` |
+| [calldata.py](slangpy/core/calldata.py) | `CallData` class orchestrating build pipeline; wildcard-imports from `callsignature.py` |
+| [codegen.py](slangpy/bindings/codegen.py) | `CodeGen` class with `skip_call_data`, `entry_point_params` attributes |
+| [boundvariable.py](slangpy/bindings/boundvariable.py) | `BoundVariable` methods delegate to `gen_call_data_code()` and `gen_calldata_type_name()` in `generator.py` |
 
 ---
 
@@ -199,7 +215,7 @@ In [slangpy/core/calldata.py](slangpy/core/calldata.py), after `calculate_direct
 **Implementation details:**
 
 - `DeviceLimits.max_entry_point_uniform_size` added to C++ struct ([device.h](src/sgl/device/device.h)) with per-backend defaults: Vulkan=128, D3D12=256, CUDA=4096 bytes ([device.cpp](src/sgl/device/device.cpp)).
-- `calculate_inline_uniform_size()` added to [callsignature.py](slangpy/core/callsignature.py) — sums `vector_type.uniform_layout.size` for each depth-0 bound variable (skipping `PackedArg`), plus 12 bytes for `_thread_count` and `call_dimensionality * 4 * 3` for shape arrays.
+- `estimate_entrypoint_arguments_size()` in [callsignature.py](slangpy/core/callsignature.py) — sums `vector_type.uniform_layout.size` for each depth-0 bound variable (skipping `PackedArg`), plus 12 bytes for `_thread_count` and `call_dimensionality * 4 * 3` for shape arrays.
 - `use_entrypoint_args` property added to `NativeCallData` C++ class ([slangpy.h](src/slangpy_ext/utils/slangpy.h)) with Python binding.
 - `CallData.__init__()` in [calldata.py](slangpy/core/calldata.py) sets `self.use_entrypoint_args = inline_size <= threshold` after `calculate_direct_binding()`.
 
@@ -221,20 +237,20 @@ In [slangpy/core/calldata.py](slangpy/core/calldata.py), after `calculate_direct
 
 **Status: DONE**
 
-In [slangpy/core/callsignature.py](slangpy/core/callsignature.py) `generate_code()`, when `use_entrypoint_args == True`:
+In [generator.py](slangpy/core/generator.py) `generate_code()` (line 778), when `use_entrypoint_args == True`:
 
 **CodeGen changes** in [slangpy/bindings/codegen.py](slangpy/bindings/codegen.py):
-- Add a `skip_call_data` flag to `CodeGen.__init__`. When `True`, don't emit `struct CallData` / `begin_block()` and gate `end_block()` in `finish()`.
-- Add `self.entry_point_params: list[str] = []` to collect individual uniform param declarations.
+- `self.skip_call_data: bool = False` — when `True`, don't emit `struct CallData` / `begin_block()` and gate `end_block()` in `finish()`.
+- `self.entry_point_params: list[str] = []` — collects individual uniform param declarations.
 - `finish()` ignores the `call_data` block and `use_param_block_for_call_data` when `skip_call_data` is set.
 
-**CallData struct elimination**: Set `cg.skip_call_data = True` when `use_entrypoint_args`. No `struct CallData` emitted.
+**CallData struct elimination**: `generate_code()` sets `cg.skip_call_data = True` when `use_entrypoint_args`. No `struct CallData` emitted.
 
-**`gen_call_data_code` change** in [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py): At `depth == 0`, when `use_entrypoint_args`, append to `cg.entry_point_params` instead of `cg.call_data.declare(...)`. The `call_data_structs` block (type aliases, wrapper structs, mapping constants) still gets emitted at module scope.
+**`_emit_call_data_code`** in [generator.py](slangpy/core/generator.py#L345): At `depth == 0`, when `use_entrypoint_args`, appends to `cg.entry_point_params` instead of `cg.call_data.declare(...)`. The `call_data_structs` block (type aliases, wrapper structs, mapping constants) still gets emitted at module scope.
 
-**`_thread_count` and shape arrays**: Instead of `cg.call_data.append_statement("uint3 _thread_count")`, append to `cg.entry_point_params`. Same for `_grid_stride`, `_grid_dim`, `_call_dim` when `call_data_len > 0`.
+**`_thread_count` and shape arrays**: `_emit_shape_and_metadata_params()` ([generator.py](slangpy/core/generator.py#L466)) appends to `cg.entry_point_params` instead of `cg.call_data`. Same for `_grid_stride`, `_grid_dim`, `_call_dim` when `call_data_len > 0`.
 
-**Entry-point signature**: `compute_main` signature becomes:
+**Entry-point signature**: `_emit_entry_point_signature()` ([generator.py](slangpy/core/generator.py#L652)) emits `compute_main` signature as:
 ```slang
 void compute_main(
     int3 flat_call_thread_id: SV_DispatchThreadID,
@@ -268,7 +284,7 @@ When `call_mode == prim` — on **both** fast and fallback paths:
 
 - Don't generate the `_trampoline` function.
 - Inline the load/call/store sequence directly into `compute_main` after the bounds check and (if needed) Context construction.
-- The load/call/store codegen reuses the same logic currently in [callsignature.py lines 378–449](slangpy/core/callsignature.py#L378-L449), but emitted into `cg.kernel` instead of `cg.trampoline` with adjusted `data_name`:
+- The load/call/store codegen reuses the same logic currently in `_emit_trampoline_loads()` ([generator.py](slangpy/core/generator.py#L528)) and `_emit_trampoline_stores()` ([generator.py](slangpy/core/generator.py#L551)), but emitted into `cg.kernel` instead of `cg.trampoline` with adjusted `data_name` from `_data_name()` ([generator.py](slangpy/core/generator.py#L513)):
 
 | Path | `data_name` for non-param-block args |
 |------|-------------------------------------|
@@ -277,6 +293,11 @@ When `call_mode == prim` — on **both** fast and fallback paths:
 | Param blocks | `_param_{x.variable_name}` (unchanged) |
 
 **Context construction**: Needed only when any arg is non-direct-bind (i.e., calls `__slangpy_load`/`__slangpy_store`). When all args satisfy `direct_bind == True`, skip Context construction entirely — no `Context __slangpy_context__` declaration, no `import "slangpy"`.
+
+**Key functions to modify in [generator.py](slangpy/core/generator.py)**:
+- `_emit_trampoline()` (line 578): gate on `call_mode != prim` — only emit for bwds mode.
+- `_emit_kernel_body()` (line 708): when prim mode, inline the load/call/store sequence directly instead of calling `_trampoline()`.
+- `generate_code()` (line 778): skip `_emit_trampoline()` call when prim mode.
 
 **Note**: The trampoline elimination does NOT depend on `direct_bind`. Even non-direct-bind args with `__slangpy_load` work inline in `compute_main` — the `__slangpy_load` call just needs the data reference and a `Context` value, both available in `compute_main`.
 
@@ -288,7 +309,7 @@ When `call_mode == prim` — on **both** fast and fallback paths:
 
 When `call_mode == bwds`:
 
-- Still generate a `[Differentiable]` trampoline function.
+- Still generate a `[Differentiable]` trampoline function via `_emit_trampoline()` ([generator.py](slangpy/core/generator.py#L578)).
 - **Fast path**: Trampoline takes individual params instead of a struct. All params get `no_diff` — entry-point uniforms are never differentiable. Differentiation happens through local variable assignments inside the trampoline body, matching the struct-based approach where `CallData` was implicitly non-differentiable. No `in`/`out`/`inout` modifiers are added — `compute_main` passes its uniforms straight through:
   ```slang
   [Differentiable]
@@ -296,7 +317,7 @@ When `call_mode == bwds`:
   ```
   `compute_main` calls `bwd_diff(_trampoline)(__slangpy_context__, a, b, _result)` passing entry-point param names directly.
 - **Fallback path**: Trampoline reads from global `ParameterBlock<CallData> call_data` as it does today (on all backends). `compute_main` calls `bwd_diff(_trampoline)(__slangpy_context__, call_data)`.
-- `_gen_trampoline_argument()` in `boundvariable.py` remains unused dead code — the inline generation in `callsignature.py` is simpler and avoids the `in`/`out`/`inout` modifiers that caused Slang autodiff errors.
+- `_gen_trampoline_argument()` in `boundvariable.py` remains unused dead code — the inline generation in `_emit_trampoline()` ([generator.py](slangpy/core/generator.py#L578)) is simpler and avoids the `in`/`out`/`inout` modifiers that caused Slang autodiff errors.
 
 **Key insight**: Adding `in`/`out`/`inout` modifiers to trampoline params caused Slang autodiff issues (e.g., `out` params get reversed to `in` by `bwd_diff`, changing arity). The trampoline params are just pass-through uniforms — all data flow logic (loads, stores, differentiation) is handled internally via local variables.
 
@@ -383,10 +404,11 @@ Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligi
 
 | File | Changes |
 |------|---------|
+| [slangpy/core/generator.py](slangpy/core/generator.py) | ✅ All code generation logic extracted here from `callsignature.py`. `generate_code()` orchestrator (line 778), `_emit_trampoline()` (line 578), `_emit_entry_point_signature()` (line 652), `_emit_kernel_body()` (line 708), `_emit_shape_and_metadata_params()` (line 466), `_emit_link_time_constants()` (line 424), `_emit_call_data_definitions()` (line 503), `_emit_trampoline_loads/stores()`, `_data_name()`, `_validate_and_compute_group_shape()`, `gen_call_data_code()`, `gen_calldata_type_name()`, `KernelGenException`. Entry-point params fast/fallback code paths. Bwds `no_diff` on all trampoline params (Step 2.4). Trampoline still generated for prim mode (Step 2.3 pending). |
 | [slangpy/core/calldata.py](slangpy/core/calldata.py) | ✅ `use_entrypoint_args` flag, size threshold check, `CallDataMode` removed |
-| [slangpy/core/callsignature.py](slangpy/core/callsignature.py) | ✅ Entry-point params, fast/fallback code paths, `is_entry_point` branch removed. Trampoline still generated (Step 2.3 pending). Bwds `no_diff` on all trampoline params (Step 2.4 done). |
+| [slangpy/core/callsignature.py](slangpy/core/callsignature.py) | ✅ Binding-pipeline functions only (`specialize`, `bind`, `calculate_*`, `estimate_entrypoint_arguments_size`). Re-exports `generate_code`, `generate_constants`, `KernelGenException` from `generator.py`. |
 | [slangpy/bindings/codegen.py](slangpy/bindings/codegen.py) | ✅ `skip_call_data` flag, `entry_point_params` list |
-| [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py) | ✅ `gen_call_data_code` depth-0 entry-point path. `_gen_trampoline_argument()` unused — inline generation in `callsignature.py` used instead. |
+| [slangpy/bindings/boundvariable.py](slangpy/bindings/boundvariable.py) | ✅ `gen_call_data_code` and `gen_calldata_type_name` delegate to `generator.py`. `_gen_trampoline_argument()` unused dead code. |
 | [slangpy/bindings/marshall.py](slangpy/bindings/marshall.py) | ✅ `use_entrypoint_args` field on `BindContext`, `CallDataMode` removed |
 | [src/slangpy_ext/utils/slangpy.cpp](src/slangpy_ext/utils/slangpy.cpp) | ✅ `use_entrypoint_args` binding; `bind_call_data` fast path via `find_entry_point(0)`, `CallDataMode` branches removed |
 | [src/slangpy_ext/utils/slangpy.h](src/slangpy_ext/utils/slangpy.h) | ✅ `m_use_entrypoint_args` on `NativeCallData`; `m_call_data_mode` removed |
@@ -394,7 +416,7 @@ Auto-created `_result` is a writable `ValueRef`, currently NOT direct-bind eligi
 | [src/sgl/device/device.cpp](src/sgl/device/device.cpp) | ✅ Per-backend defaults for `max_entry_point_uniform_size` |
 | [src/slangpy_ext/device/device.cpp](src/slangpy_ext/device/device.cpp) | ✅ Python binding for `max_entry_point_uniform_size` |
 | [src/sgl/utils/slangpy.h](src/sgl/utils/slangpy.h) | ✅ `CallDataMode` enum removed |
-| [slangpy/core/dispatchdata.py](slangpy/core/dispatchdata.py) | ✅ `CallDataMode` removed |
+| [slangpy/core/dispatchdata.py](slangpy/core/dispatchdata.py) | ✅ `CallDataMode` removed; imports `generate_constants` from `generator.py` |
 | [slangpy/core/packedarg.py](slangpy/core/packedarg.py) | ✅ `CallDataMode` removed |
 | [slangpy/core/function.py](slangpy/core/function.py) | ✅ `CallDataMode` removed from imports |
 | [slangpy/slangpy/__init__.pyi](slangpy/slangpy/__init__.pyi) | ✅ `CallDataMode` class and `call_data_mode` property removed |
