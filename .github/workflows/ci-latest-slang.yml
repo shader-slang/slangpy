@@ -1,5 +1,5 @@
 name: ci-latest-slang
-run-name: "${{ github.event_name == 'repository_dispatch' && format('Slang PR #{0}', github.event.client_payload.slang_pr_number) || format('Slang branch: {0}', github.event.inputs.slang_branch || 'master') }}"
+run-name: "${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.slang_pr_number && format('Slang PR #{0}', github.event.client_payload.slang_pr_number) || format('Slang ref: {0}', github.event.client_payload.slang_ref || github.event.client_payload.slang_commit_sha)) || format('Slang branch: {0}', github.event.inputs.slang_branch || 'master') }}"
 
 on:
   schedule:
@@ -20,7 +20,7 @@ permissions:
   statuses: write
 
 concurrency:
-  group: ${{ github.event_name == 'repository_dispatch' && format('slang-pr-{0}', github.event.client_payload.slang_pr_number) || github.run_id }}
+  group: ${{ github.event_name == 'repository_dispatch' && format('slang-{0}', github.event.client_payload.slang_pr_number || github.event.client_payload.slang_commit_sha) || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -105,8 +105,10 @@ jobs:
           python: ${{ matrix.python }}
           flags: ${{ matrix.flags }}
           shell: ${{ matrix.os == 'windows' && 'pwsh' || 'bash' }}
-          slang-checkout-mode: pr
+          slang-checkout-mode: ${{ github.event.client_payload.slang_checkout_mode || 'pr' }}
           slang-pr-number: ${{ github.event.client_payload.slang_pr_number }}
+          slang-ref: ${{ github.event.client_payload.slang_ref }}
+          slang-repo: ${{ github.event.client_payload.slang_checkout_repo || 'shader-slang/slang' }}
 
   # Post aggregate status to Slang PR after all matrix jobs complete
   report-status:
