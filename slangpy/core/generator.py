@@ -463,6 +463,62 @@ def _data_name(x: "BoundVariable", use_entrypoint_args: bool) -> str:
         return f"call_data.{x.variable_name}"
 
 
+def _emit_trampoline_loads(
+    cgb: CodeGenBlock,
+    root_params: list["BoundVariable"],
+    use_entrypoint_args: bool,
+) -> None:
+    """Emit ``__slangpy_load`` calls for each readable trampoline parameter.
+
+    For each parameter, either delegates to a marshall-specific
+    ``gen_trampoline_load`` or emits a standard load call::
+
+        __in_x.__slangpy_load(__slangpy_context__.map(_m_x), x); // slangpy load
+        x = __in_x; // direct-bind load (no __slangpy_load method)
+    """
+    for x in root_params:
+        data_name = _data_name(x, use_entrypoint_args)
+        gen_load = getattr(x.python, "gen_trampoline_load", None)
+        if gen_load is not None and gen_load(cgb, x, data_name, x.variable_name):
+            continue
+        if x.access[0] == AccessType.read or x.access[0] == AccessType.readwrite:
+            cgb.append_statement(
+                f"{data_name}.__slangpy_load(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
+            )
+
+
+def _emit_trampoline_stores(
+    cgb: CodeGenBlock,
+    root_params: list["BoundVariable"],
+    use_entrypoint_args: bool,
+) -> None:
+    """Emit ``__slangpy_store`` calls for each writable trampoline parameter.
+
+    For each parameter that is written or whose gradient is read, either
+    delegates to a marshall-specific ``gen_trampoline_store`` or emits a
+    standard store call::
+
+        __in_x.__slangpy_store(__slangpy_context__.map(_m_x), x);
+    """
+    from slangpy.bindings.boundvariable import BoundVariableException
+
+    for x in root_params:
+        if (
+            x.access[0] == AccessType.write
+            or x.access[0] == AccessType.readwrite
+            or x.access[1] == AccessType.read
+        ):
+            data_name = _data_name(x, use_entrypoint_args)
+            gen_store = getattr(x.python, "gen_trampoline_store", None)
+            if gen_store is not None and gen_store(cgb, x, data_name, x.variable_name):
+                continue
+            if not x.python.is_writable:
+                raise BoundVariableException(f"Cannot read back value for non-writable type", x)
+            cgb.append_statement(
+                f"{data_name}.__slangpy_store(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
+            )
+
+
 def _emit_trampoline(
     cg: CodeGen,
     context: "BindContext",
@@ -483,8 +539,6 @@ def _emit_trampoline(
         [Differentiable]
         void _trampoline(Context __slangpy_context__)
     """
-    from slangpy.bindings.boundvariable import BoundVariableException
-
     if context.call_mode != CallMode.prim:
         cg.trampoline.append_line("[Differentiable]")
 
@@ -506,21 +560,15 @@ def _emit_trampoline(
         cg.trampoline.declare(x.vector_type.full_name, x.variable_name)
 
     # Load inputs from call data
-    for x in root_params:
-        data_name = _data_name(x, use_entrypoint_args)
-        gen_load = getattr(x.python, "gen_trampoline_load", None)
-        if gen_load is not None and gen_load(cg.trampoline, x, data_name, x.variable_name):
-            continue
-        if x.access[0] == AccessType.read or x.access[0] == AccessType.readwrite:
-            cg.trampoline.append_statement(
-                f"{data_name}.__slangpy_load(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
-            )
+    _emit_trampoline_loads(cg.trampoline, root_params, use_entrypoint_args)
 
-    # Emit function call
+    # Emit the 'result=' bit if function has a return value.
     cg.trampoline.append_indent()
     if any(x.variable_name == "_result" for x in root_params):
         cg.trampoline.append_code("_result = ")
 
+    # Generate the function call prefix, with some special casing for constructors
+    # and type method calls.
     func_name = build_info.name
     if func_name == "$init":
         results = [x for x in root_params if x.variable_name == "_result"]
@@ -530,6 +578,7 @@ def _emit_trampoline(
     elif len(root_params) > 0 and root_params[0].variable_name == "_this":
         func_name = f"_this.{func_name}"
 
+    # Emit the function call itself, passing in parameters other than _result and _this.
     normal_params = [
         x for x in root_params if x.variable_name != "_result" and x.variable_name != "_this"
     ]
@@ -538,21 +587,7 @@ def _emit_trampoline(
     )
 
     # Store outputs back to call data
-    for x in root_params:
-        if (
-            x.access[0] == AccessType.write
-            or x.access[0] == AccessType.readwrite
-            or x.access[1] == AccessType.read
-        ):
-            data_name = _data_name(x, use_entrypoint_args)
-            gen_store = getattr(x.python, "gen_trampoline_store", None)
-            if gen_store is not None and gen_store(cg.trampoline, x, data_name, x.variable_name):
-                continue
-            if not x.python.is_writable:
-                raise BoundVariableException(f"Cannot read back value for non-writable type", x)
-            cg.trampoline.append_statement(
-                f"{data_name}.__slangpy_store(__slangpy_context__.map(_m_{x.variable_name}), {x.variable_name})"
-            )
+    _emit_trampoline_stores(cg.trampoline, root_params, use_entrypoint_args)
 
     cg.trampoline.end_block()
     cg.trampoline.append_line("")
