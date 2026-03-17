@@ -276,9 +276,7 @@ class CallData(NativeCallData):
             # and on optix, numPayloadValues (dependent on entry point params size) must be <= 32. For
             # now just disable for RTP. Both fail on dispatch, so simple compilation test isn't enough
             # to catch it.
-            if (
-                build_info.pipeline_type == PipelineType.ray_tracing
-            ):
+            if build_info.pipeline_type == PipelineType.ray_tracing:
                 use_entrypoint_args = False
 
             # Disable for Metal until I can figure out how entry point args work properly
