@@ -272,10 +272,12 @@ class CallData(NativeCallData):
                 f"use_entrypoint_args: {use_entrypoint_args}"
             )
 
-            # Until https://github.com/shader-slang/slang-rhi/pull/676, Vk RTP can't use entry point args
+            # Until https://github.com/shader-slang/slang-rhi/pull/676, Vk RTP can't use entry point args,
+            # and on optix, numPayloadValues (dependent on entry point params size) must be <= 32. For
+            # now just disable for RTP. Both fail on dispatch, so simple compilation test isn't enough
+            # to catch it.
             if (
                 build_info.pipeline_type == PipelineType.ray_tracing
-                and build_info.module.device.info.type == DeviceType.vulkan
             ):
                 use_entrypoint_args = False
 

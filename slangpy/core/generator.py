@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import TYPE_CHECKING, Any
+import warnings
 
 from slangpy.bindings.codegen import CodeGen, CodeGenBlock
 from slangpy.core.native import AccessType, CallMode
@@ -296,12 +297,15 @@ def _emit_type_and_struct(
             binding.calldata_type_name = struct_name
     else:
         binding.python.gen_calldata(cg.call_data_structs, context, binding)
+
         if binding.calldata_type_name is None:
-            raise KernelGenException(
+            warnings.warn(
                 f"Marshall '{type(binding.python).__name__}' did not set "
                 f"calldata_type_name for '{binding.variable_name}' in gen_calldata(). "
-                f"Ensure gen_calldata calls binding.gen_calldata_type_name()."
+                f"Ensure gen_calldata calls binding.gen_calldata_type_name(). "
+                f"Defaulting to python marshall slang type name '{binding.python.slang_type.full_name}'.",
             )
+            binding.calldata_type_name = binding.python.slang_type.full_name
 
 
 def _emit_mapping_constants(binding: "BoundVariable", cg: CodeGen) -> None:
