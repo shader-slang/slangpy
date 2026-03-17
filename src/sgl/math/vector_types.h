@@ -18,6 +18,9 @@ namespace sgl::math {
  * - Math operators are element-wise (e.g. +, -, *, /)
  * - Free standing functions for vector operations (e.g. dot(), cross(), etc.)
  *
+ * Exception: Comparison operators (==, !=, <, etc.) return a single bool for
+ * STL compatibility. Use eq(), ne(), etc. for component-wise comparisons.
+ *
  * \tparam T Scalar type
  * \tparam N Number of elements (1-4)
  */
@@ -286,6 +289,57 @@ struct vector<T, 4> {
 
 #include "vector_swizzle_4.inl"
 };
+
+/// Equality operator.
+template<typename T, int N>
+[[nodiscard]] constexpr bool operator==(const vector<T, N>& lhs, const vector<T, N>& rhs)
+{
+    for (int i = 0; i < N; ++i)
+        if (lhs[i] != rhs[i])
+            return false;
+    return true;
+}
+
+/// Inequality operator.
+template<typename T, int N>
+[[nodiscard]] constexpr bool operator!=(const vector<T, N>& lhs, const vector<T, N>& rhs)
+{
+    return !(lhs == rhs);
+}
+
+/// Lexicographic less-than operator.
+template<arithmetic T, int N>
+[[nodiscard]] constexpr bool operator<(const vector<T, N>& lhs, const vector<T, N>& rhs)
+{
+    for (int i = 0; i < N; ++i) {
+        if (lhs[i] < rhs[i])
+            return true;
+        if (rhs[i] < lhs[i])
+            return false;
+    }
+    return false;
+}
+
+/// Lexicographic greater-than operator.
+template<arithmetic T, int N>
+[[nodiscard]] constexpr bool operator>(const vector<T, N>& lhs, const vector<T, N>& rhs)
+{
+    return rhs < lhs;
+}
+
+/// Lexicographic less-or-equal operator.
+template<arithmetic T, int N>
+[[nodiscard]] constexpr bool operator<=(const vector<T, N>& lhs, const vector<T, N>& rhs)
+{
+    return !(rhs < lhs);
+}
+
+/// Lexicographic greater-or-equal operator.
+template<arithmetic T, int N>
+[[nodiscard]] constexpr bool operator>=(const vector<T, N>& lhs, const vector<T, N>& rhs)
+{
+    return !(lhs < rhs);
+}
 
 using bool1 = vector<bool, 1>;
 using bool2 = vector<bool, 2>;

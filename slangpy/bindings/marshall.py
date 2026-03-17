@@ -3,7 +3,7 @@
 
 from typing import TYPE_CHECKING, Any
 
-from slangpy.core.native import CallMode, CallDataMode, NativeMarshall
+from slangpy.core.native import CallMode, NativeMarshall
 
 from slangpy.bindings.codegen import CodeGenBlock
 
@@ -24,7 +24,6 @@ class BindContext:
         call_mode: CallMode,
         device_module: "SlangModule",
         options: dict[str, Any],
-        call_data_mode: CallDataMode,
     ):
         super().__init__()
 
@@ -37,8 +36,8 @@ class BindContext:
         #: Call mode (prim/bwds/fwds).
         self.call_mode = call_mode
 
-        #: Call data mode (global_data/entry_point).
-        self.call_data_mode = call_data_mode
+        #: Whether to use direct entry-point params (fast path) vs ParameterBlock<CallData> (fallback).
+        self.use_entrypoint_args = False
 
         #: SGL module.
         self.device_module = device_module
@@ -108,28 +107,47 @@ class Marshall(NativeMarshall):
         return super().gen_calldata(cgb, context, binding)
 
     def gen_trampoline_load(
-        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str
     ) -> bool:
         """
-        Generate custom trampoline load code for this parameter.
+        Generate custom load code for this parameter.
+
+        Works universally for both root-level trampoline parameters and
+        children inside composite ``__slangpy_load`` bodies.
 
         :param cgb: Code generation block to append load statements to.
         :param binding: The bound variable being loaded.
-        :param is_entry_point: Whether the trampoline is an entry point kernel.
+        :param data_name: Expression referencing the stored data (e.g. ``call_data.x`` or ``x``).
+        :param value_name: Expression referencing the destination value (e.g. ``x`` or ``value.x``).
         :return: True if handled (skip standard __slangpy_load), False for default behavior.
         """
         return False
 
     def gen_trampoline_store(
-        self, cgb: CodeGenBlock, binding: "BoundVariable", is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str
     ) -> bool:
         """
-        Generate custom trampoline store code for this parameter.
+        Generate custom store code for this parameter.
+
+        Works universally for both root-level trampoline parameters and
+        children inside composite ``__slangpy_store`` bodies.
 
         :param cgb: Code generation block to append store statements to.
         :param binding: The bound variable being stored.
-        :param is_entry_point: Whether the trampoline is an entry point kernel.
+        :param data_name: Expression referencing the stored data (e.g. ``call_data.x`` or ``x``).
+        :param value_name: Expression referencing the source value (e.g. ``x`` or ``value.x``).
         :return: True if handled (skip standard __slangpy_store), False for default behavior.
+        """
+        return False
+
+    def can_direct_bind(self, binding: "BoundVariable") -> bool:
+        """
+        Whether this marshall supports direct binding for the given variable.
+        Direct binding emits raw Slang types instead of ValueType wrappers.
+        Default: False. Override in subclasses to opt in.
+
+        :param binding: The bound variable to check.
+        :return: True if this marshall supports direct binding for this variable.
         """
         return False
 

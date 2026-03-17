@@ -43,16 +43,6 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(CallMode);
 
-enum class CallDataMode { global_data, entry_point };
-SGL_ENUM_INFO(
-    CallDataMode,
-    {
-        {CallDataMode::global_data, "global_data"},
-        {CallDataMode::entry_point, "entry_point"},
-    }
-);
-SGL_ENUM_REGISTER(CallDataMode);
-
 /// Access pattern for torch autograd tensor bindings.
 /// Precomputed at build time and stored in a flat list on NativeCallData,
 /// consumed in order during find_torch_tensors at dispatch time.

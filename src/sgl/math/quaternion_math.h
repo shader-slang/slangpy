@@ -99,16 +99,20 @@ template<typename T>
     return quat<T>{lhs.x / rhs, lhs.y / rhs, lhs.z / rhs, lhs.w / rhs};
 }
 
-/// Binary == operator
+// ----------------------------------------------------------------------------
+// Comparison (component-wise)
+// ----------------------------------------------------------------------------
+
+/// Component-wise == comparison.
 template<typename T>
-[[nodiscard]] constexpr vector<bool, 4> operator==(const quat<T>& lhs, const quat<T>& rhs)
+[[nodiscard]] constexpr vector<bool, 4> eq(const quat<T>& lhs, const quat<T>& rhs)
 {
     return bool4{lhs.x == rhs.x, lhs.y == rhs.y, lhs.z == rhs.z, lhs.w == rhs.w};
 }
 
-/// Binary != operator
+/// Component-wise != comparison.
 template<typename T>
-[[nodiscard]] constexpr vector<bool, 4> operator!=(const quat<T>& lhs, const quat<T>& rhs)
+[[nodiscard]] constexpr vector<bool, 4> ne(const quat<T>& lhs, const quat<T>& rhs)
 {
     return bool4{lhs.x != rhs.x, lhs.y != rhs.y, lhs.z != rhs.z, lhs.w != rhs.w};
 }
@@ -172,7 +176,7 @@ template<typename T>
 }
 
 // ----------------------------------------------------------------------------
-// Geometryic functions
+// Geometric functions
 // ----------------------------------------------------------------------------
 
 /// dot
@@ -443,22 +447,6 @@ template<typename T>
 }
 
 } // namespace sgl::math
-
-template<typename T>
-struct std::equal_to<::sgl::math::quat<T>> {
-    constexpr bool operator()(const ::sgl::math::quat<T>& lhs, const ::sgl::math::quat<T>& rhs) const
-    {
-        return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
-    }
-};
-
-template<typename T>
-struct std::not_equal_to<::sgl::math::quat<T>> {
-    constexpr bool operator()(const ::sgl::math::quat<T>& lhs, const ::sgl::math::quat<T>& rhs) const
-    {
-        return lhs.x != rhs.x || lhs.y != rhs.y || lhs.z != rhs.z || lhs.w != rhs.w;
-    }
-};
 
 template<typename T>
 struct std::hash<::sgl::math::quat<T>> {

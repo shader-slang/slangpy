@@ -533,6 +533,12 @@ public:
     /// Set the call dimensionality.
     void set_call_dimensionality(int call_dimensionality) { m_call_dimensionality = call_dimensionality; }
 
+    /// Whether this variable uses direct binding (raw Slang type, no wrapper).
+    bool direct_bind() const { return m_direct_bind; }
+
+    /// Set the direct_bind flag.
+    void set_direct_bind(bool direct_bind) { m_direct_bind = direct_bind; }
+
     /// Recursively populate the overall kernel call shape.
     void populate_call_shape(Shape& call_shape, nb::object value, NativeCallData* error_context);
 
@@ -560,6 +566,7 @@ private:
     int m_call_dimensionality{0};
     ref<NativeSlangType> m_vector_type;
     bool m_is_param_block{false};
+    bool m_direct_bind{false};
 };
 
 /// Binding information for a call to a compute kernel. Includes a set of positional
@@ -736,12 +743,6 @@ public:
     /// Set the call mode (primitive/forward/backward).
     void set_call_mode(CallMode call_mode) { m_call_mode = call_mode; }
 
-    /// Get the call data mode (global_data/entry_point).
-    CallDataMode call_data_mode() const { return m_call_data_mode; }
-
-    /// Set the call data mode (global_data/entry_point).
-    void set_call_data_mode(CallDataMode call_data_mode) { m_call_data_mode = call_data_mode; }
-
     /// Get the shape of the last call (useful for debugging).
     const Shape& last_call_shape() const { return m_last_call_shape; }
 
@@ -780,6 +781,12 @@ public:
 
     /// Set whether this call data expects a _thread_count kwarg.
     void set_has_thread_count(bool has_thread_count) { m_has_thread_count = has_thread_count; }
+
+    /// Get whether this call uses direct entry-point parameters (fast path).
+    bool use_entrypoint_args() const { return m_use_entrypoint_args; }
+
+    /// Set whether this call uses direct entry-point parameters (fast path).
+    void set_use_entrypoint_args(bool use_entrypoint_args) { m_use_entrypoint_args = use_entrypoint_args; }
 
     /// Get the autograd access list.
     /// This is a flat list of AutogradAccess values precomputed at build time.
@@ -888,10 +895,10 @@ private:
         ShaderOffset grid_stride;
         ShaderOffset grid_dim;
         ShaderOffset thread_count;
-        ShaderOffset field_offset; // Base offset of the call_data structure
+        ShaderOffset field_offset; // Base offset of the call_data structure (or entry-point)
         uint32_t field_size = 0;   // Total size of the call_data in uniform data
         int array_stride = 0;      // Stride for array elements
-        // Cached information for navigating to call_data field
+        // Cached information for navigating to call_data field (fallback path)
         int32_t call_data_field_index = -1;  // Field index for "call_data" lookup
         bool call_data_is_reference = false; // Whether call_data needs dereference
         bool is_valid = false;               // Whether offsets have been initialized
@@ -903,7 +910,6 @@ private:
     int m_call_dimensionality{0};
     ref<NativeBoundCallRuntime> m_runtime;
     CallMode m_call_mode{CallMode::prim};
-    CallDataMode m_call_data_mode{CallDataMode::global_data};
     Shape m_last_call_shape;
     std::string m_debug_name;
     ref<Logger> m_logger;
@@ -912,6 +918,7 @@ private:
     bool m_torch_autograd{false};
     bool m_needs_unpack{true};
     bool m_has_thread_count{false};
+    bool m_use_entrypoint_args{false};
     std::vector<AutogradAccess> m_autograd_access_list;
     ref<NativeCallData> m_bwds_call_data;
     mutable CallDataOffsets m_cached_call_data_offsets;

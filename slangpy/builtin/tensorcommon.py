@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional, Protocol
-from slangpy.bindings import BoundVariable, BindContext, CodeGenBlock
+from slangpy.bindings import BoundVariable, BindContext, CodeGenBlock, can_direct_bind_common
 from slangpy.core.native import CallMode, AccessType
 from slangpy.reflection import (
     SlangType,
@@ -376,25 +376,35 @@ def gen_calldata(
             access=access,
             tensor_type=tensor_type,
         )
-    cgb.type_alias(f"_t_{binding.variable_name}", type_name)
+    binding.gen_calldata_type_name(cgb, type_name)
+
+
+def can_direct_bind(self: ITensorMarshall, binding: BoundVariable) -> bool:
+    if not can_direct_bind_common(binding):
+        return False
+    return isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType, ITensorType))
 
 
 def gen_trampoline_load(
-    self: ITensorMarshall, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+    self: ITensorMarshall,
+    cgb: CodeGenBlock,
+    binding: BoundVariable,
+    data_name: str,
+    value_name: str,
 ) -> bool:
-    if not isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
+    if not binding.direct_bind:
         return False
-    if is_entry_point:
-        data_name = f"__calldata__.{binding.variable_name}"
-    else:
-        data_name = f"call_data.{binding.variable_name}"
-    cgb.append_statement(f"{binding.variable_name} = {data_name}")
+    cgb.append_statement(f"{value_name} = {data_name}")
     return True
 
 
 def gen_trampoline_store(
-    self: ITensorMarshall, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+    self: ITensorMarshall,
+    cgb: CodeGenBlock,
+    binding: BoundVariable,
+    data_name: str,
+    value_name: str,
 ) -> bool:
-    if not isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
+    if not binding.direct_bind:
         return False
     return True

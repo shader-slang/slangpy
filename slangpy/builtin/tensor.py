@@ -135,18 +135,21 @@ class TensorMarshall(NativeTensorMarshall):
     ):
         return spytc.resolve_dimensionality(self, context, binding, vector_target_type)
 
+    def can_direct_bind(self, binding: BoundVariable) -> bool:
+        return spytc.can_direct_bind(self, binding)
+
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         return spytc.gen_calldata(self, cgb, context, binding)
 
     def gen_trampoline_load(
-        self, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: BoundVariable, data_name: str, value_name: str
     ) -> bool:
-        return spytc.gen_trampoline_load(self, cgb, binding, is_entry_point)
+        return spytc.gen_trampoline_load(self, cgb, binding, data_name, value_name)
 
     def gen_trampoline_store(
-        self, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: BoundVariable, data_name: str, value_name: str
     ) -> bool:
-        return spytc.gen_trampoline_store(self, cgb, binding, is_entry_point)
+        return spytc.gen_trampoline_store(self, cgb, binding, data_name, value_name)
 
     def build_shader_object(self, context: "BindContext", data: Any) -> "ShaderObject":
         so = context.device.create_shader_object(self.slang_type.uniform_layout.reflection)

@@ -185,6 +185,12 @@ struct DeviceLimits {
 
     /// Maximum samplers visible in a shader stage.
     uint32_t max_shader_visible_samplers;
+
+    /// Maximum size in bytes of inline-uniform data for entry-point parameters.
+    /// On Vulkan this corresponds to push constant size (minimum 128 bytes).
+    /// On D3D12 this corresponds to root constant space (~256 bytes).
+    /// On CUDA this corresponds to the kernel parameter block (~4096 bytes).
+    uint32_t max_entry_point_uniform_size;
 };
 
 struct DeviceInfo {

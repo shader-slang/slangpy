@@ -330,25 +330,13 @@ void NativeBoundVariableRuntime::write_raw_dispatch_data(nb::dict call_data, nb:
 
 nb::object NativeBoundVariableRuntime::read_output(CallContext* context, nb::object data)
 {
-    if (m_children) {
-        // We have children, so read the output for each child and store in a dictionary.
-        nb::dict res;
-        for (const auto& [name, child_ref] : *m_children) {
-            if (res.contains(name.c_str())) {
-                if (child_ref) {
-                    nb::object child_data = data[child_ref->m_variable_name.c_str()];
-                    res[name.c_str()] = child_ref->read_output(context, child_data);
-                }
-            }
-        }
-        return res;
-    } else {
-        // We are a leaf node, so read the output if the variable was writable.
+    // Note: variables with children don't read_output directly - it is handled by their children.
+    if (!m_children) {
         if (m_access.first == AccessType::write || m_access.first == AccessType::readwrite) {
             return m_python_type->read_output(context, this, data);
         }
-        return nb::none();
     }
+    return nb::none();
 }
 
 Shape NativeBoundCallRuntime::calculate_call_shape(
@@ -819,64 +807,17 @@ nb::object NativeCallData::exec(
         );
     }
 
-    auto bind_call_data = [&](ShaderCursor cursor)
+    auto write_uniforms = [&](ShaderCursor target, ShaderCursor root_cursor)
     {
-        // On first call, cache all field indices and offsets to avoid repeated string lookups
-        if (!m_cached_call_data_offsets.is_valid) {
-            // Get the call data cursor using string lookup (first call only)
-            ShaderCursor call_data_cursor;
-            if (m_call_data_mode == CallDataMode::entry_point) {
-                ShaderCursor entry_point_cursor = cursor.find_entry_point(0);
-                call_data_cursor = entry_point_cursor.find_field("call_data");
-                m_cached_call_data_offsets.call_data_field_index = entry_point_cursor.find_field_index("call_data");
-            } else {
-                call_data_cursor = cursor.find_field("call_data");
-                m_cached_call_data_offsets.call_data_field_index = cursor.find_field_index("call_data");
-            }
-
-            // Cache whether call_data needs dereference
-            m_cached_call_data_offsets.call_data_is_reference = call_data_cursor.is_reference();
-            if (m_cached_call_data_offsets.call_data_is_reference)
-                call_data_cursor = call_data_cursor.dereference();
-
-            // Cache all field offsets
-            m_cached_call_data_offsets.call_dim = call_data_cursor.find_field("_call_dim").offset();
-            m_cached_call_data_offsets.grid_stride = call_data_cursor.find_field("_grid_stride").offset();
-            m_cached_call_data_offsets.grid_dim = call_data_cursor.find_field("_grid_dim").offset();
-            m_cached_call_data_offsets.thread_count = call_data_cursor.find_field("_thread_count").offset();
-            m_cached_call_data_offsets.field_offset = call_data_cursor.offset();
-            m_cached_call_data_offsets.field_size
-                = (uint32_t)call_data_cursor.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
-            if (m_cached_call_data_offsets.call_dim.is_valid()) {
-                m_cached_call_data_offsets.array_stride = (int)call_data_cursor.find_field("_call_dim")
-                                                              .slang_type_layout()
-                                                              ->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
-            }
-            m_cached_call_data_offsets.is_valid = true;
-        }
-
-        // Fast path: use cached field index to find call_data cursor
-        ShaderCursor call_data_cursor;
-        if (m_call_data_mode == CallDataMode::entry_point) {
-            call_data_cursor
-                = cursor.find_entry_point(0).get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
-        } else {
-            call_data_cursor = cursor.get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
-        }
-
-        // Dereference the cursor if needed (using cached result)
-        if (m_cached_call_data_offsets.call_data_is_reference)
-            call_data_cursor = call_data_cursor.dereference();
-
-        // Reserve memory block for all call data fields
-        ShaderObject* shader_object = call_data_cursor.shader_object();
+        // Reserve memory block for all uniform fields
+        ShaderObject* shader_object = target.shader_object();
         void* base_address = shader_object->reserve_data(
             m_cached_call_data_offsets.field_offset,
             m_cached_call_data_offsets.field_size
         );
 
         if (call_shape.size() > 0) {
-            // Write arrays using cached offsets and direct memory access
+            // Write shape arrays using cached offsets
             write_strided_array_helper(
                 base_address,
                 m_cached_call_data_offsets.call_dim.uniform_offset
@@ -914,14 +855,71 @@ nb::object NativeCallData::exec(
             thread_count_value
         );
 
-        m_runtime->write_shader_cursor_pre_dispatch(
-            context,
-            cursor,
-            call_data_cursor,
-            unpacked_args,
-            unpacked_kwargs,
-            read_back
-        );
+        m_runtime
+            ->write_shader_cursor_pre_dispatch(context, root_cursor, target, unpacked_args, unpacked_kwargs, read_back);
+    };
+
+    auto bind_call_data = [&](ShaderCursor cursor)
+    {
+        if (m_use_entrypoint_args) {
+            // ---- Fast path: individual entry-point params ----
+            ShaderCursor ep = cursor.find_entry_point(0);
+
+            // On first call, cache field offsets for metadata fields
+            if (!m_cached_call_data_offsets.is_valid) {
+                m_cached_call_data_offsets.thread_count = ep.find_field("_thread_count").offset();
+                m_cached_call_data_offsets.field_offset = ep.offset();
+                m_cached_call_data_offsets.field_size
+                    = (uint32_t)ep.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                if (call_shape.size() > 0) {
+                    m_cached_call_data_offsets.call_dim = ep.find_field("_call_dim").offset();
+                    m_cached_call_data_offsets.grid_stride = ep.find_field("_grid_stride").offset();
+                    m_cached_call_data_offsets.grid_dim = ep.find_field("_grid_dim").offset();
+                    m_cached_call_data_offsets.array_stride = (int)ep.find_field("_call_dim")
+                                                                  .slang_type_layout()
+                                                                  ->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                }
+                m_cached_call_data_offsets.is_valid = true;
+            }
+
+            write_uniforms(ep, cursor);
+        } else {
+            // ---- Fallback path: ParameterBlock<CallData> at module scope (all backends) ----
+            // On first call, cache all field indices and offsets
+            if (!m_cached_call_data_offsets.is_valid) {
+                ShaderCursor call_data_cursor = cursor.find_field("call_data");
+                m_cached_call_data_offsets.call_data_field_index = cursor.find_field_index("call_data");
+
+                // Cache whether call_data needs dereference
+                m_cached_call_data_offsets.call_data_is_reference = call_data_cursor.is_reference();
+                if (m_cached_call_data_offsets.call_data_is_reference)
+                    call_data_cursor = call_data_cursor.dereference();
+
+                // Cache all field offsets
+                m_cached_call_data_offsets.call_dim = call_data_cursor.find_field("_call_dim").offset();
+                m_cached_call_data_offsets.grid_stride = call_data_cursor.find_field("_grid_stride").offset();
+                m_cached_call_data_offsets.grid_dim = call_data_cursor.find_field("_grid_dim").offset();
+                m_cached_call_data_offsets.thread_count = call_data_cursor.find_field("_thread_count").offset();
+                m_cached_call_data_offsets.field_offset = call_data_cursor.offset();
+                m_cached_call_data_offsets.field_size
+                    = (uint32_t)call_data_cursor.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                if (m_cached_call_data_offsets.call_dim.is_valid()) {
+                    m_cached_call_data_offsets.array_stride = (int)call_data_cursor.find_field("_call_dim")
+                                                                  .slang_type_layout()
+                                                                  ->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                }
+                m_cached_call_data_offsets.is_valid = true;
+            }
+
+            // Use cached field index to find call_data cursor
+            ShaderCursor call_data_cursor = cursor.get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
+
+            // Dereference the cursor if needed (using cached result)
+            if (m_cached_call_data_offsets.call_data_is_reference)
+                call_data_cursor = call_data_cursor.dereference();
+
+            write_uniforms(call_data_cursor, cursor);
+        }
 
         nb::list uniforms = opts->uniforms();
         if (uniforms) {
@@ -1280,7 +1278,6 @@ SGL_PY_EXPORT(utils_slangpy)
 
     nb::sgl_enum<AccessType>(slangpy, "AccessType");
     nb::sgl_enum<CallMode>(slangpy, "CallMode");
-    nb::sgl_enum<CallDataMode>(slangpy, "CallDataMode");
     nb::sgl_enum<AutogradAccess>(slangpy, "AutogradAccess");
 
     slangpy.def(
@@ -1543,7 +1540,13 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeBoundVariableRuntime::write_raw_dispatch_data,
             D_NA(NativeBoundVariableRuntime, write_raw_dispatch_data)
         )
-        .def("read_output", &NativeBoundVariableRuntime::read_output, D_NA(NativeBoundVariableRuntime, read_output));
+        .def("read_output", &NativeBoundVariableRuntime::read_output, D_NA(NativeBoundVariableRuntime, read_output))
+        .def_prop_rw(
+            "direct_bind",
+            &NativeBoundVariableRuntime::direct_bind,
+            &NativeBoundVariableRuntime::set_direct_bind,
+            D_NA(NativeBoundVariableRuntime, direct_bind)
+        );
 
     nb::class_<NativeBoundCallRuntime, Object>(slangpy, "NativeBoundCallRuntime") //
         .def(nb::init<>(), D_NA(NativeBoundCallRuntime, NativeBoundCallRuntime))
@@ -1635,12 +1638,6 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::set_call_mode,
             D_NA(NativeCallData, call_mode)
         )
-        .def_prop_rw(
-            "call_data_mode",
-            &NativeCallData::call_data_mode,
-            &NativeCallData::set_call_data_mode,
-            D_NA(NativeCallData, call_data_mode)
-        )
         .def_prop_ro("last_call_shape", &NativeCallData::last_call_shape, D_NA(NativeCallData, last_call_shape))
         .def_prop_rw(
             "debug_name",
@@ -1706,6 +1703,13 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::set_has_thread_count,
             nb::arg(),
             D_NA(NativeCallData, has_thread_count)
+        )
+        .def_prop_rw(
+            "use_entrypoint_args",
+            &NativeCallData::use_entrypoint_args,
+            &NativeCallData::set_use_entrypoint_args,
+            nb::arg(),
+            D_NA(NativeCallData, use_entrypoint_args)
         )
         .def_prop_rw(
             "autograd_access_list",

@@ -31,9 +31,10 @@ public:
 private:
     /// Cached data for fast-path value writing, populated on first dispatch.
     struct CachedValueWrite {
-        ShaderOffset value_offset;                                ///< Offset to the "value" sub-field.
-        slang::TypeLayoutReflection* value_type_layout = nullptr; ///< Type layout for "value" field.
+        ShaderOffset value_offset;                                ///< Offset to the value field.
+        slang::TypeLayoutReflection* value_type_layout = nullptr; ///< Type layout for value field.
         std::function<void(ShaderCursor&, nb::object)> writer;    ///< Pre-resolved writer fn.
+        bool direct_bind{false};                                  ///< direct_bind value used when populating cache.
         bool is_valid = false;
     };
 
