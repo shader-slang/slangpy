@@ -84,6 +84,7 @@ private:
         auto operator<=>(const ProgramKey&) const = default;
     };
 
+    std::string key_hash(const ProgramKey& key);
     std::string generate_defines(const ProgramKey& key);
     ref<ShaderProgram> get_render_program(ProgramKey key);
     ref<RenderPipeline> get_render_pipeline(ProgramKey key);
