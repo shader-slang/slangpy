@@ -13,6 +13,8 @@
 
 #include "sgl/math/vector.h"
 
+#include "sgl/core/crypto.h"
+
 namespace sgl {
 
 Blitter::Blitter(Device* device)
@@ -212,6 +214,13 @@ inline std::string Blitter::generate_defines(const ProgramKey& key)
     );
 }
 
+std::string Blitter::key_hash(const ProgramKey& key)
+{
+    SHA1 sha1;
+    sha1.update(&key, sizeof(key));
+    return sha1.hex_digest();
+}
+
 ref<ShaderProgram> Blitter::get_render_program(ProgramKey key)
 {
     // Render programs can be reused for different destination formats as long as the kind/channel count matches.
@@ -221,7 +230,7 @@ ref<ShaderProgram> Blitter::get_render_program(ProgramKey key)
     if (it != m_render_program_cache.end())
         return it->second;
 
-    std::string name = fmt::format("blit-render-{}", m_render_program_cache.size());
+    std::string name = fmt::format("blit-render-{}", key_hash(key));
     std::string source = generate_defines(key) + m_device->slang_session()->load_source("sgl/device/blit.slang");
 
     ref<SlangModule> module = m_device->slang_session()->load_module_from_source(name, source);
@@ -265,7 +274,7 @@ ref<ShaderProgram> Blitter::get_compute_program(ProgramKey key)
     if (it != m_compute_program_cache.end())
         return it->second;
 
-    std::string name = fmt::format("blit-compute-{}", m_compute_pipeline_cache.size());
+    std::string name = fmt::format("blit-compute-{}", key_hash(key));
     std::string source = generate_defines(key) + m_device->slang_session()->load_source("sgl/device/blit.slang");
 
     ref<SlangModule> module = m_device->slang_session()->load_module_from_source(name, source);
