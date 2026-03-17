@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional, Protocol
+from slangpy import DeviceType
 from slangpy.bindings import BoundVariable, BindContext, CodeGenBlock, can_direct_bind_common
 from slangpy.core.native import CallMode, AccessType
 from slangpy.reflection import (
@@ -139,20 +140,6 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
             raise TypeError(
                 f"Can't pass a read-only tensor to a writable tensor ({bound_type.full_name})"
             )
-
-        # Gradients need binding if using a DiffTensor, or an IDiffTensor in non-primitive pass
-        grads_used = bound_type.tensor_type == TensorType.difftensor or (
-            bound_type.tensor_type == TensorType.idifftensor and context.call_mode != CallMode.prim
-        )
-        if grads_used:
-            if bound_type.has_grad_in and self.d_in is None:
-                raise TypeError(
-                    f"Can't pass tensor without input gradient to one that requires it ({bound_type.full_name})"
-                )
-            if bound_type.has_grad_out and self.d_out is None:
-                raise TypeError(
-                    f"Can't pass tensor without output gradient to one that requires it ({bound_type.full_name})"
-                )
 
         # Select appropriate tensor type:
         # ITensor -> Tensor
