@@ -252,14 +252,14 @@ class Tensor(NativeTensor):
         """
         Creates a new tensor with the same shape and element type as the given tensor, without initializing the data.
         """
-        return Tensor.empty(other.storage.device, other.shape, other.dtype)
+        return Tensor.empty(other.storage.device, other.shape, other.dtype, other.usage)
 
     @staticmethod
     def zeros_like(other: Tensor) -> Tensor:
         """
         Creates a zero-initialized tensor with the same shape and element type as the given tensor.
         """
-        return Tensor.zeros(other.storage.device, other.shape, other.dtype)
+        return Tensor.zeros(other.storage.device, other.shape, other.dtype, other.usage)
 
     @staticmethod
     def load_from_image(
