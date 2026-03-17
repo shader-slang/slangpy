@@ -518,7 +518,7 @@ def test_tensor_buffer_roundtrip(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_null_grad_issue_difftensor(device_type: DeviceType):
+def test_null_grad_difftensor(device_type: DeviceType):
 
     src = """
 import slangpy;
@@ -548,7 +548,7 @@ void forward(uint index, DiffTensor<float, 1> x, WDiffTensor<float, 1> y)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_null_grad_issue_idifftensor(device_type: DeviceType):
+def test_null_grad_idifftensor(device_type: DeviceType):
 
     src = """
 import slangpy;
