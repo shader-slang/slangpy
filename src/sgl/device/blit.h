@@ -6,6 +6,7 @@
 #include "sgl/device/types.h"
 
 #include "sgl/core/object.h"
+#include "sgl/core/hash.h"
 
 #include "sgl/math/vector_types.h"
 
@@ -82,9 +83,20 @@ private:
         uint32_t dst_channel_count;
 
         auto operator<=>(const ProgramKey&) const = default;
+
+        size_t hash() const
+        {
+            return sgl::hash(
+                static_cast<uint32_t>(src_layout),
+                static_cast<uint32_t>(src_kind),
+                src_channel_count,
+                static_cast<uint32_t>(dst_format),
+                static_cast<uint32_t>(dst_kind),
+                dst_channel_count
+            );
+        }
     };
 
-    std::string key_hash(const ProgramKey& key);
     std::string generate_defines(const ProgramKey& key);
     ref<ShaderProgram> get_render_program(ProgramKey key);
     ref<RenderPipeline> get_render_pipeline(ProgramKey key);
