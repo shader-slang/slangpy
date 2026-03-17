@@ -497,15 +497,12 @@ nb::object NativeCallData::call(ref<NativeCallRuntimeOptions> opts, nb::args arg
 nb::tuple
 NativeCallData::autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list args, nb::dict kwargs, nb::list pairs)
 {
-    // Separate pairs into input/output lists
-    nb::list input_tensors;
+    // Collect output tensors (for return to autograd) and count inputs
     nb::list output_tensors;
     size_t num_pairs = nb::len(pairs);
     for (size_t i = 0; i < num_pairs; i++) {
         auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
-        if (pair->is_input) {
-            input_tensors.append(pair->primal);
-        } else {
+        if (!pair->is_input) {
             output_tensors.append(pair->primal);
         }
     }
@@ -517,6 +514,26 @@ NativeCallData::autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list ar
     nb::tuple args_tuple(args);
     nb::object result = exec(opts, nullptr, nb::borrow<nb::args>(args_tuple), nb::borrow<nb::kwargs>(kwargs));
 
+    // If result is a tensor and _result was not in kwargs before exec,
+    // create a new output pair for it
+    if (!result.is_none() && !had_result) {
+        auto new_pair = make_ref<NativeTorchTensorDiffPair>(result, nb::none(), static_cast<int>(num_pairs), false);
+        nb::object pair_obj = nb::cast(new_pair);
+        kwargs["_result"] = pair_obj;
+        pairs.append(pair_obj);
+        output_tensors.append(result);
+        num_pairs++;
+    }
+
+    // Build list of ALL tensors (inputs and outputs) for save_for_backward.
+    // Slang's backward pass replays the forward internally, so output primals
+    // must be saved and restored as well.
+    nb::list all_tensors;
+    for (size_t i = 0; i < num_pairs; i++) {
+        auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
+        all_tensors.append(pair->primal);
+    }
+
     // Clear tensor references from pairs to avoid keeping them alive
     for (size_t i = 0; i < num_pairs; i++) {
         auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
@@ -524,17 +541,7 @@ NativeCallData::autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list ar
         pair->grad = nb::none();
     }
 
-    // If result is a tensor and _result was not in kwargs before exec,
-    // create a new output pair for it
-    if (!result.is_none() && !had_result) {
-        auto new_pair = make_ref<NativeTorchTensorDiffPair>(nb::none(), nb::none(), static_cast<int>(num_pairs), false);
-        nb::object pair_obj = nb::cast(new_pair);
-        kwargs["_result"] = pair_obj;
-        pairs.append(pair_obj);
-        output_tensors.append(result);
-    }
-
-    return nb::make_tuple(input_tensors, output_tensors, result, pairs);
+    return nb::make_tuple(all_tensors, output_tensors, result, pairs);
 }
 
 nb::tuple NativeCallData::autograd_backward(
@@ -549,18 +556,21 @@ nb::tuple NativeCallData::autograd_backward(
     auto& bridge = TorchBridge::instance();
     bool is_cuda = m_device->type() == DeviceType::cuda;
 
-    // Walk pairs: restore tensors and populate gradients
-    size_t input_idx = 0;
+    // Walk pairs: restore tensors and populate gradients.
+    // saved_tensors contains ALL primals (inputs and outputs) in pair order,
+    // because Slang's backward pass replays the forward internally and needs
+    // output primals to be bound.
     size_t grad_output_idx = 0;
     nb::list input_grads;
 
     size_t num_pairs = nb::len(pairs);
     for (size_t i = 0; i < num_pairs; i++) {
         auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
-        if (pair->is_input) {
-            // Restore primal from saved tensors
-            pair->primal = nb::borrow(saved_tensors[input_idx]);
 
+        // Restore primal from saved tensors (all primals saved in pair order)
+        pair->primal = nb::borrow(saved_tensors[i]);
+
+        if (pair->is_input) {
             // Create gradient tensor if requires_grad
             bool requires_grad = nb::cast<bool>(pair->primal.attr("requires_grad"));
             if (requires_grad) {
@@ -570,19 +580,16 @@ nb::tuple NativeCallData::autograd_backward(
                 pair->grad = nb::none();
                 input_grads.append(nb::none());
             }
-            input_idx++;
         } else {
             // Output pair: assign upstream gradient
             nb::object grad_out = nb::borrow(grad_outputs[grad_output_idx]);
             if (!grad_out.is_none()) {
-                pair->primal = nb::none();
                 pair->grad = grad_out;
                 // Non-CUDA backends need contiguous gradients
                 if (!is_cuda) {
                     pair->grad = pair->grad.attr("contiguous")();
                 }
             } else {
-                pair->primal = nb::none();
                 pair->grad = nb::none();
             }
             grad_output_idx++;

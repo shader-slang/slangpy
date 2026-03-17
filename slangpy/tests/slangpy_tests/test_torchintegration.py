@@ -3,7 +3,7 @@
 import pytest
 import sys
 
-from slangpy import DeviceType, Device, Module
+from slangpy import DeviceType, Device, Module, grid
 from slangpy.core.native import NativeCallDataCache, SignatureBuilder
 from slangpy.testing import helpers
 
@@ -515,6 +515,66 @@ def test_tensor_buffer_roundtrip(device_type: DeviceType):
     assert torch.allclose(
         src_tensor, dst_tensor
     ), f"Round-trip mismatch: {src_tensor} vs {dst_tensor}"
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_null_grad_issue_difftensor(device_type: DeviceType):
+
+    src = """
+import slangpy;
+
+[Differentiable]
+void forward(uint index, DiffTensor<float, 1> x, WDiffTensor<float, 1> y)
+{
+    float x_i = x[index];
+    y[index] = x_i * x_i * x_i;
+}
+"""
+    import torch
+    import torch.nn as nn
+
+    device = helpers.get_torch_device(device_type)
+    module = helpers.create_module(device, src)
+
+    loss_fn = nn.MSELoss()
+    targets = torch.ones(size=(4,), dtype=torch.float32, device="cuda")
+
+    x = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32, device="cuda", requires_grad=True)
+    y = torch.zeros(size=(4,), dtype=torch.float32, device="cuda", requires_grad=True)
+
+    module.forward(index=grid(shape=(4,)), x=x, y=y)
+    loss = loss_fn(y, targets)
+    loss.backward()
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_null_grad_issue_idifftensor(device_type: DeviceType):
+
+    src = """
+import slangpy;
+
+[Differentiable]
+void forward(uint index, IDiffTensor<float, 1> x, IWDiffTensor<float, 1> y)
+{
+    float x_i = x[index];
+    y[index] = x_i * x_i * x_i;
+}
+"""
+    import torch
+    import torch.nn as nn
+
+    device = helpers.get_torch_device(device_type)
+    module = helpers.create_module(device, src)
+
+    loss_fn = nn.MSELoss()
+    targets = torch.ones(size=(4,), dtype=torch.float32, device="cuda")
+
+    x = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32, device="cuda", requires_grad=True)
+    y = torch.zeros(size=(4,), dtype=torch.float32, device="cuda", requires_grad=True)
+
+    module.forward(index=grid(shape=(4,)), x=x, y=y)
+    loss = loss_fn(y, targets)
+    loss.backward()
 
 
 if __name__ == "__main__":
