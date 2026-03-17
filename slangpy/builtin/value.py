@@ -96,15 +96,14 @@ class ValueMarshall(NativeValueMarshall):
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
         access = binding.access
-        name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             assert binding.vector_type is not None
             if binding.direct_bind:
-                cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
+                binding.gen_calldata_type_name(cgb, binding.vector_type.full_name)
             else:
-                cgb.type_alias(f"_t_{name}", f"ValueType<{binding.vector_type.full_name}>")
+                binding.gen_calldata_type_name(cgb, f"ValueType<{binding.vector_type.full_name}>")
         else:
-            cgb.type_alias(f"_t_{name}", f"NoneType")
+            binding.gen_calldata_type_name(cgb, "NoneType")
 
     def gen_trampoline_load(
         self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str
@@ -328,16 +327,17 @@ class VectorMarshall(ValueMarshall):
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
         access = binding.access
-        name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             st = cast(kfr.VectorType, self.slang_type)
             et = cast(SlangType, st.element_type)
             if binding.direct_bind:
-                cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
+                binding.gen_calldata_type_name(cgb, binding.vector_type.full_name)
             else:
-                cgb.type_alias(f"_t_{name}", f"VectorValueType<{et.full_name},{st.num_elements}>")
+                binding.gen_calldata_type_name(
+                    cgb, f"VectorValueType<{et.full_name},{st.num_elements}>"
+                )
         else:
-            cgb.type_alias(f"_t_{name}", f"NoneType")
+            binding.gen_calldata_type_name(cgb, "NoneType")
 
     def build_shader_object(self, context: "BindContext", data: Any) -> "slangpy.ShaderObject":
         unpacked = unpack_arg(data)

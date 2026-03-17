@@ -29,9 +29,8 @@ class AccelerationStructureMarshall(Marshall):
 
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
-        name = binding.variable_name
         assert isinstance(binding.vector_type, kfr.RaytracingAccelerationStructureType)
-        cgb.type_alias(f"_t_{name}", f"RaytracingAccelerationStructureType")
+        binding.gen_calldata_type_name(cgb, "RaytracingAccelerationStructureType")
 
     # Call data just returns the primal
     def create_calldata(

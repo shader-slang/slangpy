@@ -6,7 +6,7 @@ from slangpy.core.native import AccessType, CallMode, Shape, NativeMarshall
 
 from slangpy import ModifierID
 from slangpy.bindings.marshall import BindContext
-from slangpy.bindings.codegen import CodeGen
+from slangpy.bindings.codegen import CodeGen, CodeGenBlock
 from slangpy.bindings.typeregistry import get_or_create_type
 from slangpy.reflection import (
     SlangField,
@@ -15,6 +15,8 @@ from slangpy.reflection import (
     SlangType,
 )
 from slangpy.reflection.typeresolution import ResolvedParam
+
+from slangpy.core.generator import MAX_INLINE_TYPE_LEN  # noqa: F401
 
 
 class BoundVariableException(Exception):
@@ -158,7 +160,7 @@ def can_direct_bind_common(binding: "BoundVariable") -> bool:
         return False
     if binding.children:
         return False
-    if getattr(binding, "create_param_block", False):
+    if binding.create_param_block:
         return False
     return True
 
@@ -198,6 +200,9 @@ class BoundVariable:
 
         #: Whether this variable uses direct binding (raw Slang type, no wrapper).
         self.direct_bind = False
+
+        #: The resolved Slang type name for this variable's CallData field.
+        self.calldata_type_name: Optional[str] = None
 
         #: Call dimensionality of this variable.
         self.call_dimensionality = None
@@ -271,6 +276,17 @@ class BoundVariable:
             return self.name
         else:
             return f"arg{self.python_pos_arg_index}"
+
+    def gen_calldata_type_name(self, cgb: CodeGenBlock, type_name: str) -> None:
+        """Record the Slang type name for this variable's CallData field."""
+        from slangpy.core.generator import gen_calldata_type_name
+
+        gen_calldata_type_name(self, cgb, type_name)
+
+    def gen_call_data_code(self, cg: CodeGen, context: BindContext, depth: int = 0):
+        from slangpy.core.generator import gen_call_data_code
+
+        gen_call_data_code(self, cg, context, depth)
 
     def bind(
         self,
@@ -575,98 +591,6 @@ you can find more information in the Mapping section of the documentation (https
         else:
             # todo: fwds
             self.access = (AccessType.none, AccessType.none)
-
-    def gen_call_data_code(self, cg: CodeGen, context: BindContext, depth: int = 0):
-        if self.children is not None:
-            cgb = cg.call_data_structs
-
-            if self.direct_bind:
-                # Direct-bind: emit raw type alias
-                assert self.vector_type is not None
-                cgb.type_alias(f"_t_{self.variable_name}", self.vector_type.full_name)
-            else:
-                cgb.begin_struct(f"_t_{self.variable_name}")
-
-                for field, variable in self.children.items():
-                    variable.gen_call_data_code(cg, context, depth + 1)
-
-                for var in self.children.values():
-                    cgb.declare(f"_t_{var.variable_name}", var.variable_name)
-
-                assert self.vector_type is not None
-                context_decl = f"ContextND<{self.call_dimensionality}> context"
-                value_decl = f"{self.vector_type.full_name} value"
-                prefix = "[Differentiable]" if self.access[1] != AccessType.none else ""
-
-                if self.access[0] in (AccessType.read, AccessType.readwrite):
-                    cgb.empty_line()
-                    cgb.append_line(
-                        f"{prefix} void __slangpy_load({context_decl}, out {value_decl})"
-                    )
-                    cgb.begin_block()
-                    for field, var in self.children.items():
-                        gen_load = getattr(var.python, "gen_trampoline_load", None)
-                        if gen_load is not None and gen_load(
-                            cgb, var, var.variable_name, f"value.{field}"
-                        ):
-                            continue
-                        cgb.append_statement(
-                            f"{var.variable_name}.__slangpy_load(context.map(_m_{var.variable_name}),value.{field})"
-                        )
-                    cgb.end_block()
-
-                if self.access[0] in (AccessType.write, AccessType.readwrite):
-                    cgb.empty_line()
-                    cgb.append_line(
-                        f"{prefix} void __slangpy_store({context_decl}, in {value_decl})"
-                    )
-                    cgb.begin_block()
-                    for field, var in self.children.items():
-                        gen_store = getattr(var.python, "gen_trampoline_store", None)
-                        if gen_store is not None and gen_store(
-                            cgb, var, var.variable_name, f"value.{field}"
-                        ):
-                            continue
-                        cgb.append_statement(
-                            f"{var.variable_name}.__slangpy_store(context.map(_m_{var.variable_name}),value.{field})"
-                        )
-                    cgb.end_block()
-
-                cgb.end_struct()
-
-        else:
-            # Generate call data
-            self.python.gen_calldata(cg.call_data_structs, context, self)
-
-        # Skip mapping constants for direct-bind variables (they bypass __slangpy_load/store)
-        if not self.direct_bind:
-            if len(self.vector_mapping) > 0:
-                cg.call_data_structs.append_statement(
-                    f"static const int[] _m_{self.variable_name} = {{ {','.join([str(x) for x in self.vector_mapping.as_tuple()])} }}"
-                )
-            else:
-                cg.call_data_structs.append_statement(
-                    f"static const int _m_{self.variable_name} = 0"
-                )
-
-        if depth == 0:
-            if self.create_param_block:
-                cg.add_parameter_block(f"_t_{self.variable_name}", "_param_" + self.variable_name)
-            else:
-                cg.call_data.declare(f"_t_{self.variable_name}", self.variable_name)
-
-    def _gen_trampoline_argument(self):
-        assert self.vector_type is not None
-        arg_def = f"{self.vector_type.full_name} {self.variable_name}"
-        if self.io_type == IOType.inout:
-            arg_def = f"inout {arg_def}"
-        elif self.io_type == IOType.out:
-            arg_def = f"out {arg_def}"
-        elif self.io_type == IOType.inn:
-            arg_def = f"in {arg_def}"
-        if self.no_diff or not self.differentiable:
-            arg_def = f"no_diff {arg_def}"
-        return arg_def
 
     def __str__(self) -> str:
         return self._recurse_str(0)

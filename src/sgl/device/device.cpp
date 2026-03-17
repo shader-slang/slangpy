@@ -274,6 +274,27 @@ Device::Device(const DeviceDesc& desc)
     );
     m_info.limits.max_shader_visible_samplers = rhi_device_info.limits.maxShaderVisibleSamplers;
 
+    // TODO: These are known safe limits based on API spec, but could be increased based on
+    // platform (eg early Vk==128, CUDA 12.1+ supports 32k etc). Either this or the relevant
+    // information needs to be exposed by slang-rhi.
+    switch (m_desc.type) {
+    case DeviceType::vulkan:
+        // Vulkan spec minimum maxPushConstantsSize is 128 bytes.
+        m_info.limits.max_entry_point_uniform_size = 128;
+        break;
+    case DeviceType::d3d12:
+        // D3D12 root signature allows 64 DWORDs
+        m_info.limits.max_entry_point_uniform_size = 256;
+        break;
+    case DeviceType::cuda:
+        // CUDA kernel parameter block limit pre 12.1 is 4KB.
+        m_info.limits.max_entry_point_uniform_size = 4096;
+        break;
+    default:
+        m_info.limits.max_entry_point_uniform_size = 128;
+        break;
+    }
+
     // Get supported shader model.
     const std::vector<std::pair<ShaderModel, const char*>> available_shader_models = {
         {ShaderModel::sm_6_7, "sm_6_7"},
