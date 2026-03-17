@@ -1393,6 +1393,8 @@ def test_threshold_property_positive(device_type: spy.DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vector_uses_entrypoint_args(device_type: spy.DeviceType):
     """float3 args are small enough for entry-point params."""
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
     _, _, cd = build_call_data_full(
         device,
@@ -1408,6 +1410,8 @@ def test_vector_uses_entrypoint_args(device_type: spy.DeviceType):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_struct_uses_entrypoint_args(device_type: spy.DeviceType):
     """All-scalar struct dict has small inline-uniform size."""
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
     src = """
 struct S { float x; float y; };
@@ -1421,6 +1425,8 @@ float sum(S s) { return s.x + s.y; }
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_tensor_uses_entrypoint_args(device_type: spy.DeviceType):
     """Tensor args contribute descriptor-only (0 inline bytes) → entry-point params."""
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
     tensor = Tensor.from_numpy(device, np.array([1.0, 2.0, 3.0], dtype=np.float32))
     _, _, cd = build_call_data_full(

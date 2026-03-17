@@ -86,14 +86,7 @@ private:
 
         size_t hash() const
         {
-            return sgl::hash(
-                static_cast<uint32_t>(src_layout),
-                static_cast<uint32_t>(src_kind),
-                src_channel_count,
-                static_cast<uint32_t>(dst_format),
-                static_cast<uint32_t>(dst_kind),
-                dst_channel_count
-            );
+            return sgl::hash(src_layout, src_kind, src_channel_count, dst_format, dst_kind, dst_channel_count);
         }
     };
 
