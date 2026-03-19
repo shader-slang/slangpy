@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import TYPE_CHECKING, Any
+import warnings
 
 from slangpy.bindings.codegen import CodeGen, CodeGenBlock
 from slangpy.core.native import AccessType, CallMode
@@ -11,8 +12,8 @@ if TYPE_CHECKING:
     from slangpy.bindings.boundvariable import BoundVariable, BoundCall
 
 #: Type names longer than this threshold get a ``typealias _t_{name}`` alias
-#: to keep the generated ``CallData`` struct readable. Shorter names are
-#: inlined directly.
+#: to keep generated entry-point params and ``CallData`` fields readable.
+#: Shorter names are inlined directly.
 MAX_INLINE_TYPE_LEN = 60
 
 
@@ -50,7 +51,7 @@ def _grad_is_readable(b: "BoundVariable") -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Shared trampoline dispatch helper
+# Shared load/store dispatch helper
 # ---------------------------------------------------------------------------
 
 
@@ -296,12 +297,15 @@ def _emit_type_and_struct(
             binding.calldata_type_name = struct_name
     else:
         binding.python.gen_calldata(cg.call_data_structs, context, binding)
+
         if binding.calldata_type_name is None:
-            raise KernelGenException(
+            warnings.warn(
                 f"Marshall '{type(binding.python).__name__}' did not set "
                 f"calldata_type_name for '{binding.variable_name}' in gen_calldata(). "
-                f"Ensure gen_calldata calls binding.gen_calldata_type_name()."
+                f"Ensure gen_calldata calls binding.gen_calldata_type_name(). "
+                f"Defaulting to python marshall slang type name '{binding.python.slang_type.full_name}'.",
             )
+            binding.calldata_type_name = binding.python.slang_type.full_name
 
 
 def _emit_mapping_constants(binding: "BoundVariable", cg: CodeGen) -> None:
@@ -511,18 +515,93 @@ def _emit_call_data_definitions(
 
 
 def _data_name(x: "BoundVariable", use_entrypoint_args: bool) -> str:
-    """Return the Slang name used to access a variable's call data in the trampoline.
+    """Return the Slang name used to read/write a variable's data.
+
+    Used by both the bwds trampoline body and the prim inlined kernel body.
 
     - ``_param_{name}`` for param-block variables (both paths).
-    - ``__in_{name}`` in the fast (entry-point-args) path.
+    - ``{name}`` in the fast (entry-point-args) path.
     - ``call_data.{name}`` in the fallback path.
     """
     if x.create_param_block:
         return f"_param_{x.variable_name}"
     elif use_entrypoint_args:
-        return f"__in_{x.variable_name}"
+        return x.variable_name
     else:
         return f"call_data.{x.variable_name}"
+
+
+def _tmp_name(x: "BoundVariable") -> str:
+    """Return the local temporary variable name used for loaded values."""
+    return f"__tmp_{x.variable_name}"
+
+
+def _emit_load_call_store_sequence(
+    cgb: CodeGenBlock,
+    build_info: "FunctionBuildInfo",
+    root_params: list["BoundVariable"],
+    use_entrypoint_args: bool,
+    context_name: str,
+) -> None:
+    """Emit local declarations, load/call/store sequence into ``cgb``.
+
+    This is shared by the bwds trampoline body and the prim inlined kernel body.
+    """
+    from slangpy.bindings.boundvariable import BoundVariableException
+
+    # Declare local temporaries for each parameter to avoid collisions with
+    # entry-point parameter names on the fast path.
+    for x in root_params:
+        assert x.vector_type is not None
+        cgb.declare(x.vector_type.full_name, _tmp_name(x))
+
+    # Load inputs from call data / entry-point params into temporaries.
+    for x in root_params:
+        data_name = _data_name(x, use_entrypoint_args)
+        value_name = _tmp_name(x)
+        if _try_custom_gen(x, "gen_trampoline_load", cgb, data_name, value_name):
+            continue
+        if _is_readable(x):
+            cgb.append_statement(
+                f"{data_name}.__slangpy_load({context_name}.map(_m_{x.variable_name}), {value_name})"
+            )
+
+    # Emit the 'result=' bit if function has a return value.
+    cgb.append_indent()
+    if any(x.variable_name == "_result" for x in root_params):
+        cgb.append_code(
+            f"{_tmp_name(next(x for x in root_params if x.variable_name == '_result'))} = "
+        )
+
+    # Generate the function call prefix, with some special casing for constructors
+    # and type method calls.
+    func_name = build_info.name
+    if func_name == "$init":
+        results = [x for x in root_params if x.variable_name == "_result"]
+        assert len(results) == 1
+        assert results[0].vector_type is not None
+        func_name = results[0].vector_type.full_name
+    elif len(root_params) > 0 and root_params[0].variable_name == "_this":
+        func_name = f"{_tmp_name(root_params[0])}.{func_name}"
+
+    # Emit the function call itself, passing in parameters other than _result and _this.
+    normal_params = [
+        x for x in root_params if x.variable_name != "_result" and x.variable_name != "_this"
+    ]
+    cgb.append_code(f"{func_name}(" + ", ".join(_tmp_name(x) for x in normal_params) + ");\n")
+
+    # Store outputs back to call data.
+    for x in root_params:
+        if _is_writable(x) or _grad_is_readable(x):
+            data_name = _data_name(x, use_entrypoint_args)
+            value_name = _tmp_name(x)
+            if _try_custom_gen(x, "gen_trampoline_store", cgb, data_name, value_name):
+                continue
+            if not x.python.is_writable:
+                raise BoundVariableException(f"Cannot read back value for non-writable type", x)
+            cgb.append_statement(
+                f"{data_name}.__slangpy_store({context_name}.map(_m_{x.variable_name}), {value_name})"
+            )
 
 
 def _emit_trampoline_loads(
@@ -535,8 +614,12 @@ def _emit_trampoline_loads(
     For each parameter, either delegates to a marshall-specific
     ``gen_trampoline_load`` or emits a standard load call::
 
-        __in_x.__slangpy_load(__slangpy_context__.map(_m_x), x); // slangpy load
-        x = __in_x; // direct-bind load (no __slangpy_load method)
+        data_name.__slangpy_load(__slangpy_context__.map(_m_x), x); // slangpy load
+        x = data_name; // direct-bind load (no __slangpy_load method)
+
+    .. note:: Only used by the bwds trampoline. Prim mode uses
+       ``_emit_load_call_store_sequence`` which writes to ``__tmp_``
+       local temporaries instead.
     """
     for x in root_params:
         data_name = _data_name(x, use_entrypoint_args)
@@ -559,7 +642,11 @@ def _emit_trampoline_stores(
     delegates to a marshall-specific ``gen_trampoline_store`` or emits a
     standard store call::
 
-        __in_x.__slangpy_store(__slangpy_context__.map(_m_x), x);
+        data_name.__slangpy_store(__slangpy_context__.map(_m_x), x);
+
+    .. note:: Only used by the bwds trampoline. Prim mode uses
+       ``_emit_load_call_store_sequence`` which writes to ``__tmp_``
+       local temporaries instead.
     """
     from slangpy.bindings.boundvariable import BoundVariableException
 
@@ -582,13 +669,16 @@ def _emit_trampoline(
     root_params: list["BoundVariable"],
     use_entrypoint_args: bool,
 ) -> None:
-    """Emit the ``_trampoline`` helper function.
+    """Emit the ``_trampoline`` helper function (bwds mode only).
+
+    In prim mode the trampoline is eliminated and the load/call/store
+    sequence is inlined directly into ``compute_main``.
 
     Fast path signature::
 
         [Differentiable]
         void _trampoline(Context __slangpy_context__,
-                         no_diff MyType __in_param0, ...)
+                         no_diff MyType param0, ...)
 
     Fallback signature::
 
@@ -604,46 +694,19 @@ def _emit_trampoline(
             if x.create_param_block:
                 continue
             assert x.calldata_type_name is not None
-            trampoline_params.append(f"no_diff {x.calldata_type_name} __in_{x.variable_name}")
+            trampoline_params.append(f"no_diff {x.calldata_type_name} {x.variable_name}")
         cg.trampoline.append_line(f"void _trampoline({', '.join(trampoline_params)})")
     else:
         cg.trampoline.append_line("void _trampoline(Context __slangpy_context__)")
     cg.trampoline.begin_block()
 
-    # Declare local variables for each parameter
-    for x in root_params:
-        assert x.vector_type is not None
-        cg.trampoline.declare(x.vector_type.full_name, x.variable_name)
-
-    # Load inputs from call data
-    _emit_trampoline_loads(cg.trampoline, root_params, use_entrypoint_args)
-
-    # Emit the 'result=' bit if function has a return value.
-    cg.trampoline.append_indent()
-    if any(x.variable_name == "_result" for x in root_params):
-        cg.trampoline.append_code("_result = ")
-
-    # Generate the function call prefix, with some special casing for constructors
-    # and type method calls.
-    func_name = build_info.name
-    if func_name == "$init":
-        results = [x for x in root_params if x.variable_name == "_result"]
-        assert len(results) == 1
-        assert results[0].vector_type is not None
-        func_name = results[0].vector_type.full_name
-    elif len(root_params) > 0 and root_params[0].variable_name == "_this":
-        func_name = f"_this.{func_name}"
-
-    # Emit the function call itself, passing in parameters other than _result and _this.
-    normal_params = [
-        x for x in root_params if x.variable_name != "_result" and x.variable_name != "_this"
-    ]
-    cg.trampoline.append_code(
-        f"{func_name}(" + ", ".join(x.variable_name for x in normal_params) + ");\n"
+    _emit_load_call_store_sequence(
+        cg.trampoline,
+        build_info,
+        root_params,
+        use_entrypoint_args,
+        "__slangpy_context__",
     )
-
-    # Store outputs back to call data
-    _emit_trampoline_stores(cg.trampoline, root_params, use_entrypoint_args)
 
     cg.trampoline.end_block()
     cg.trampoline.append_line("")
@@ -712,16 +775,19 @@ def _emit_kernel_body(
     root_params: list["BoundVariable"],
     call_data_len: int,
     use_entrypoint_args: bool,
+    need_trampoline: bool,
 ) -> None:
     """Emit the body of the compute/raygen entry-point function.
 
-    Emits the bounds check, ``init_thread_local_call_shape_info``, Context
-    construction, and the trampoline call::
+    Emits the bounds check, ``init_thread_local_call_shape_info``, and Context
+    construction. Then either inlines the load/call/store sequence (prim mode)
+    or calls the differentiable trampoline (bwds mode)::
 
         if (any(flat_call_thread_id >= _thread_count)) return;
         if (!init_thread_local_call_shape_info(...)) return;
         Context __slangpy_context__ = {flat_call_thread_id, ...};
-        _trampoline(__slangpy_context__, ...);
+        // prim: inline __tmp_a = a; ... result = func(...); ...
+        // bwds: bwd_diff(_trampoline)(__slangpy_context__, ...);
     """
     from slangpy.core.function import PipelineType
 
@@ -757,22 +823,38 @@ def _emit_kernel_body(
         )
         context_args += ", CallShapeInfo::get_call_id().shape"
 
-    # Define the core context.
-    cg.kernel.append_statement(f"Context __slangpy_context__ = {{{context_args}}}")
+    needs_context = context.call_mode == CallMode.bwds or any(
+        not x.direct_bind for x in root_params
+    )
 
-    # Emit the trampoline call, passing the context and any entry-point args (if using them).
-    fn = "_trampoline"
-    if context.call_mode == CallMode.bwds:
-        fn = f"bwd_diff({fn})"
-    if use_entrypoint_args:
-        trampoline_args = ["__slangpy_context__"]
-        for x in root_params:
-            if x.create_param_block:
-                continue
-            trampoline_args.append(x.variable_name)
-        cg.kernel.append_statement(f"{fn}({', '.join(trampoline_args)})")
+    if needs_context:
+        # Define the core context.
+        cg.kernel.append_statement(f"Context __slangpy_context__ = {{{context_args}}}")
+
+    if need_trampoline:
+        # Calling via trampoline (should only ever kick in for bwds in practice)
+        if context.call_mode == CallMode.bwds:
+            fn = "bwd_diff(_trampoline)"
+        else:
+            fn = "_trampoline"
+        if use_entrypoint_args:
+            trampoline_args = ["__slangpy_context__"]
+            for x in root_params:
+                if x.create_param_block:
+                    continue
+                trampoline_args.append(x.variable_name)
+            cg.kernel.append_statement(f"{fn}({', '.join(trampoline_args)})")
+        else:
+            cg.kernel.append_statement(f"{fn}(__slangpy_context__)")
     else:
-        cg.kernel.append_statement(f"{fn}(__slangpy_context__)")
+        # Inline load/call/store directly in compute_main.
+        _emit_load_call_store_sequence(
+            cg.kernel,
+            build_info,
+            root_params,
+            use_entrypoint_args,
+            "__slangpy_context__",
+        )
 
 
 def generate_code(
@@ -806,8 +888,19 @@ def generate_code(
 
     root_params = sorted(signature.values(), key=lambda x: x.param_index)
 
-    _emit_trampoline(cg, context, build_info, root_params, use_entrypoint_args)
+    # Currently we assume a trampoline is always needed for bwds. Technically, this is only needed if
+    # there are none-direct-bind parameters (i.e. need calls to __slangpy_load/__slangpy_store that may
+    # internally accumulate gradients). However to make this work we'd also need to analyse the function
+    # arguments to calculate the correct bwds call signature, based on parameter differentiability.
+    need_trampoline = context.call_mode != CallMode.prim
+
+    if need_trampoline:
+        _emit_trampoline(cg, context, build_info, root_params, use_entrypoint_args)
+
     _emit_entry_point_signature(cg, build_info, call_data_len, call_group_size, use_entrypoint_args)
+
     cg.kernel.begin_block()
-    _emit_kernel_body(cg, context, build_info, root_params, call_data_len, use_entrypoint_args)
+    _emit_kernel_body(
+        cg, context, build_info, root_params, call_data_len, use_entrypoint_args, need_trampoline
+    )
     cg.kernel.end_block()
