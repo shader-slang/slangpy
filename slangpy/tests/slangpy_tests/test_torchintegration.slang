@@ -92,3 +92,12 @@ void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
     for (uint i = 0; i < input.shape[0]; i++)
         output[i] = input[i];
 }
+
+[Differentiable]
+float scaled_sum(float scale, float[3] values) {
+    float result = 0.0f;
+    for (int i = 0; i < 3; i++) {
+        result += values[i] * scale;
+    }
+    return result;
+}
