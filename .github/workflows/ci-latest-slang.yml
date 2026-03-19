@@ -1,5 +1,5 @@
 name: ci-latest-slang
-run-name: "${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.slang_pr_number && format('Slang PR #{0}', github.event.client_payload.slang_pr_number) || format('Slang ref: {0}', github.event.client_payload.slang_ref || github.event.client_payload.slang_commit_sha)) || format('Slang branch: {0}', github.event.inputs.slang_branch || 'master') }}"
+run-name: "${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.slang_pr_number && format('Slang PR #{0}: {1} ({2})', github.event.client_payload.slang_pr_number, github.event.client_payload.slang_pr_title || '?', github.event.client_payload.slang_pr_author || '?') || format('Slang ref: {0}', github.event.client_payload.slang_ref || github.event.client_payload.slang_commit_sha)) || format('Slang branch: {0}', github.event.inputs.slang_branch || 'master') }}"
 
 on:
   schedule:
