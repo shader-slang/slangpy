@@ -8,20 +8,20 @@ from typing import TYPE_CHECKING, Any
 from slangpy.core.callsignature import *
 from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
 from slangpy.core.native import (
+    AccessType,
     CallMode,
-    CallDataMode,
     NativeCallData,
     unpack_args,
     unpack_kwargs,
-    NativeCallRuntimeOptions,
-    NativeTorchTensorDiffPair,
 )
+from slangpy.core.function import PipelineType
 
 from slangpy import (
     SlangCompileError,
     SlangLinkOptions,
     NativeHandle,
     DeviceType,
+    TypeConformance,
     is_torch_bridge_using_fallback,
 )
 from slangpy.bindings import (
@@ -115,7 +115,8 @@ class CallData(NativeCallData):
         build_info = func.calc_build_info()
         self.build(build_info, *args, **kwargs)
 
-    def build(self, build_info: "FunctionBuildInfo", *args: Any, **kwargs: Any):
+    def build(self, build_info: "FunctionBuildInfo", *args: Any, **kwargs: Any) -> None:
+        self.has_thread_count = "_thread_count" in kwargs
 
         try:
 
@@ -145,18 +146,11 @@ class CallData(NativeCallData):
             self.layout = build_info.module.layout
             self.call_mode = build_info.call_mode
 
-            # Set call data mode based on device and pipeline type
-            if (
-                build_info.module.device.info.type == DeviceType.cuda
-                and build_info.pipeline_type == PipelineType.compute
-            ):
-                self.call_data_mode = CallDataMode.entry_point
-            else:
-                self.call_data_mode = CallDataMode.global_data
-
             # Unpack args (handles IThis wrappers)
-            unpacked_args = unpack_args(*args)
-            unpacked_kwargs = unpack_kwargs(**kwargs)
+            unpacked_args, args_had_unpack = unpack_args(*args)
+            unpacked_kwargs, kwargs_had_unpack = unpack_kwargs(**kwargs)
+            unpacked_kwargs.pop("_thread_count", None)  # not a Slang parameter
+            self.needs_unpack = args_had_unpack or kwargs_had_unpack
 
             # If we have torch tensors, enable torch integration
             from slangpy.torchintegration.detection import detect_torch_tensors
@@ -192,7 +186,6 @@ class CallData(NativeCallData):
                 self.call_mode,
                 build_info.module.device_module,
                 build_info.options,
-                self.call_data_mode,
             )
 
             # Build the unbound signature from inputs
@@ -243,6 +236,16 @@ class CallData(NativeCallData):
             context.call_dimensionality = self.call_dimensionality
             self.log_debug(f"  Call dimensionality: {self.call_dimensionality}")
 
+            # _thread_count is only valid when call_dimensionality is 0
+            if self.has_thread_count and self.call_dimensionality > 0:
+                raise ValueError(
+                    f"_thread_count is only valid for kernels with call dimensionality 0 "
+                    f"(i.e., all parameters are passed as whole buffers/values and the kernel "
+                    f"manages its own thread indexing). This kernel has call dimensionality "
+                    f"{self.call_dimensionality}, meaning the thread count is automatically "
+                    f"inferred from the shapes of the vectorized arguments."
+                )
+
             # If necessary, create return value node once call dimensionality is known.
             create_return_value_binding(context, bindings, return_type)
 
@@ -255,170 +258,64 @@ class CallData(NativeCallData):
             # Calculate differentiability of all variables.
             calculate_differentiability(context, bindings)
 
-            # Generate code.
-            codegen = CodeGen()
-            generate_code(context, build_info, bindings, codegen)
-            for link in build_info.module.link:
-                codegen.add_import(link.name)
-            code = codegen.finish(
-                call_data=True,
-                input_load_store=True,
-                header=True,
-                kernel=True,
-                imports=True,
-                trampoline=True,
-                context=True,
-                snippets=True,
-                call_data_structs=True,
-                constants=True,
-                use_param_block_for_call_data=context.call_data_mode == CallDataMode.global_data,
+            # Calculate direct binding eligibility for all variables.
+            calculate_direct_binding(bindings)
+
+            # Determine fast path (entry-point params) vs fallback (ParameterBlock<CallData>).
+            # Sum inline-uniform byte size and compare against per-device threshold.
+            inline_size = estimate_entrypoint_arguments_size(bindings, self.call_dimensionality)
+            threshold = build_info.module.device.info.limits.max_entry_point_uniform_size
+            use_entrypoint_args = inline_size <= threshold
+            self.log_debug(
+                f"  Inline uniform size: {inline_size} bytes, "
+                f"threshold: {threshold} bytes, "
+                f"use_entrypoint_args: {use_entrypoint_args}"
             )
 
-            # Optionally write the shader to a file for debugging.
-            sanitized = ""
-            if _DUMP_GENERATED_SHADERS or _DUMP_SLANG_INTERMEDIATES:
-                os.makedirs(".temp", exist_ok=True)
-                santized_module = re.sub(r"[<>, ./:]", "_", build_info.module.name)
-                sanitized = re.sub(r"[:<>, ./:]", "_", build_info.name)
-                santized_module = santized_module[:50]
-                sanitized = sanitized[:50]
-                fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}"
-                # Some platforms have path length limits that are easily exceeded with nested generics
-                # Be a good citizen here and limit the length of what we generate
-                length_limit = 200
-                if len(fn) > length_limit:
-                    fn = fn[:length_limit]
-                fn += "-" + hashlib.sha256(code.encode()).hexdigest()[0:8]
-                fn = fn + ".slang"
+            # Until https://github.com/shader-slang/slang-rhi/pull/676, Vk RTP can't use entry point args,
+            # and on optix, numPayloadValues (dependent on entry point params size) must be <= 32. For
+            # now just disable for RTP. Both fail on dispatch, so simple compilation test isn't enough
+            # to catch it.
+            if build_info.pipeline_type == PipelineType.ray_tracing:
+                use_entrypoint_args = False
 
-                # with open(fn,"r") as f:
-                #    code = f.read()
-                with open(
-                    fn,
-                    "w",
-                ) as f:
-                    f.write("/*\n")
-                    f.write(bound_call_table(bindings))
-                    f.write("\n*/\n")
-                    f.write(code)
+            # Disable for Metal until I can figure out how entry point args work properly
+            if build_info.module.device.info.type == DeviceType.metal:
+                use_entrypoint_args = False
 
-            # Optionally print the shader to the terminal for AI analysis.
-            if _PRINT_GENERATED_SHADERS:
-                print("=" * 80)
-                print(f"GENERATED SHADER: {build_info.module.name}::{build_info.name}")
-                if self.call_mode == CallMode.bwds:
-                    print("MODE: Backwards")
-                else:
-                    print("MODE: Forward")
-                print("=" * 80)
-                print("/* BINDINGS:")
-                print(bound_call_table(bindings))
-                print("*/")
-                print(code)
-                print("=" * 80)
-                print(f"END SHADER: {build_info.module.name}::{build_info.name}")
-                print("=" * 80)
-                print()
-
-            # Hash the code to get a unique identifier for the module.
-            # We add type conformances to the start of the code to ensure that the hash is unique
-            code_minus_header = (
-                "[CallData]\n" + str(build_info.type_conformances) + code[len(codegen.header) :]
-            )
-            hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
-
-            # Check if we've already built this module.
-            if hash in build_info.module.pipeline_cache:
-                # Get pipeline from cache if we have
-                self.pipeline = build_info.module.pipeline_cache[hash]
-                # Get shader table from cache if the pipeline is a raytracing pipeline
-                if build_info.pipeline_type == PipelineType.ray_tracing:
-                    self.shader_table = build_info.module.shader_table_cache[hash]
-                self.device = build_info.module.device
-                self.log_debug(f"  Found cached pipeline with hash {hash}")
-
-            else:
-                # Build new module and link it with the one that contains the function being called.
-                self.log_debug(f"  Building new pipeline with hash {hash}")
-                session = build_info.module.session
-                device = session.device
-                module = session.load_module_from_source(hash, code)
-                opts = SlangLinkOptions()
-                opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
-                opts.dump_intermediates_prefix = sanitized
-                if build_info.pipeline_type == PipelineType.compute:
-                    # Create compute pipeline
-                    ep = module.entry_point(f"compute_main", type_conformances)
-                    program = session.link_program(
-                        [module, build_info.module.device_module] + build_info.module.link,
-                        [ep],
-                        opts,
-                    )
-                    self.pipeline = device.create_compute_pipeline(
-                        program,
-                        defer_target_compilation=True,
-                        label=f"{build_info.module.name}_{build_info.name}_compute_call",
-                    )
-                    build_info.module.pipeline_cache[hash] = self.pipeline
-                elif build_info.pipeline_type == PipelineType.ray_tracing:
-                    # Create ray tracing pipeline
-                    eps = [module.entry_point(f"raygen_main", type_conformances)]
-                    hit_group_names: list[str] = []
-                    for hit_group in build_info.ray_tracing_hit_groups:
-                        hit_group_names.append(hit_group.hit_group_name)
-                        if hit_group.closest_hit_entry_point != "":
-                            eps.append(
-                                build_info.module.device_module.entry_point(
-                                    hit_group.closest_hit_entry_point
-                                )
-                            )
-                        if hit_group.any_hit_entry_point != "":
-                            eps.append(
-                                build_info.module.device_module.entry_point(
-                                    hit_group.any_hit_entry_point
-                                )
-                            )
-                        if hit_group.intersection_entry_point != "":
-                            eps.append(
-                                build_info.module.device_module.entry_point(
-                                    hit_group.intersection_entry_point
-                                )
-                            )
-                    for miss_entry_point in build_info.ray_tracing_miss_entry_points:
-                        eps.append(build_info.module.device_module.entry_point(miss_entry_point))
-
-                    program = session.link_program(
-                        [module, build_info.module.device_module] + build_info.module.link,
-                        eps,
-                        opts,
-                    )
-                    self.pipeline = device.create_ray_tracing_pipeline(
-                        program,
-                        hit_groups=build_info.ray_tracing_hit_groups,
-                        max_recursion=build_info.ray_tracing_max_recursion,
-                        max_ray_payload_size=build_info.ray_tracing_max_ray_payload_size,
-                        max_attribute_size=build_info.ray_tracing_max_attribute_size,
-                        flags=build_info.ray_tracing_flags,
-                        defer_target_compilation=True,
-                        label=f"{build_info.module.name}_{build_info.name}_rt_call",
-                    )
-                    build_info.module.pipeline_cache[hash] = self.pipeline
-                    self.shader_table = device.create_shader_table(
-                        program,
-                        ray_gen_entry_points=["raygen_main"],
-                        miss_entry_points=build_info.ray_tracing_miss_entry_points,
-                        hit_group_names=hit_group_names,
-                        callable_entry_points=build_info.ray_tracing_callable_entry_points,
-                    )
-                    build_info.module.shader_table_cache[hash] = self.shader_table
-                else:
-                    raise RuntimeError("Unknown pipeline type")
-                self.device = device
-                self.log_debug(f"  Build succesful")
+            # Try building the shader. If direct args compilation fails (the
+            # threshold is only an approximate heuristic), fall back to
+            # ParameterBlock<CallData>.
+            try:
+                self.use_entrypoint_args = use_entrypoint_args
+                self._try_build_shader(
+                    context,
+                    build_info,
+                    bindings,
+                    type_conformances,
+                )
+            except RuntimeError as e:
+                if not use_entrypoint_args:
+                    raise
+                self.log_debug(
+                    f"  Direct args compilation failed ({e}), "
+                    "retrying with ParameterBlock<CallData>"
+                )
+                self.use_entrypoint_args = False
+                self._try_build_shader(
+                    context,
+                    build_info,
+                    bindings,
+                    type_conformances,
+                )
 
             # Store the bindings and runtime for later use.
             self.debug_only_bindings = bindings
             self.runtime = BoundCallRuntime(bindings)
+
+            # If using autograd, build list of access modes for each tensor argument.
+            if self.torch_autograd:
+                self._build_autograd_access_list(unpacked_args, unpacked_kwargs)
 
         except BoundVariableException as e:
             if bindings is not None:
@@ -477,93 +374,231 @@ class CallData(NativeCallData):
             else:
                 raise
 
-    def find_torch_tensors(
-        self, args: list[Any], kwargs: dict[str, Any]
-    ) -> list[NativeTorchTensorDiffPair]:
+    def _try_build_shader(
+        self,
+        context: BindContext,
+        build_info: "FunctionBuildInfo",
+        bindings: BoundCall,
+        type_conformances: list["TypeConformance"],
+    ) -> None:
         """
-        Find all torch tensors in args/kwargs, wrap them in NativeTorchTensorDiffPair,
-        and replace the tensors in args/kwargs with the pairs.
+        Generate shader code and build the pipeline.
 
-        :param args: Mutable list of positional arguments (will be modified in place).
-        :param kwargs: Mutable dict of keyword arguments (will be modified in place).
-        :return: List of NativeTorchTensorDiffPair for all found tensors.
+        Sets self.pipeline, self.device, self.code,
+        and optionally self.shader_table.
+
+        :param context: Binding context.
+        :param build_info: Function build information.
+        :param bindings: Bound call with resolved variables.
+        :param type_conformances: Type conformances for entry point.
         """
-        pairs: list[Any] = []
-        for i, arg in enumerate(args):
-            args[i] = self._find_torch_tensors_recurse(arg, self.runtime.args[i], pairs)
-        for k, v in kwargs.items():
-            kwargs[k] = self._find_torch_tensors_recurse(v, self.runtime.kwargs[k], pairs)
-        return pairs
+        context.use_entrypoint_args = self.use_entrypoint_args
 
-    def _find_torch_tensors_recurse(
-        self, arg: Any, binding: Any, pairs: list[NativeTorchTensorDiffPair]
-    ) -> Any:
+        # Generate code.
+        codegen = CodeGen()
+        generate_code(context, build_info, bindings, codegen)
+        for link in build_info.module.link:
+            codegen.add_import(link.name)
+        code = codegen.finish(
+            call_data=True,
+            input_load_store=True,
+            header=True,
+            kernel=True,
+            imports=True,
+            trampoline=True,
+            context=True,
+            snippets=True,
+            call_data_structs=True,
+            constants=True,
+        )
+
+        # Optionally write the shader to a file for debugging.
+        sanitized = ""
+        if _DUMP_GENERATED_SHADERS or _DUMP_SLANG_INTERMEDIATES:
+            os.makedirs(".temp", exist_ok=True)
+            santized_module = re.sub(r"[<>, ./:\\]", "_", build_info.module.name)
+            sanitized = re.sub(r"[:<>, ./:\\]", "_", build_info.name)
+            santized_module = santized_module[:50]
+            sanitized = sanitized[:50]
+            fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}"
+            # Some platforms have path length limits that are easily exceeded with nested generics
+            # Be a good citizen here and limit the length of what we generate
+            length_limit = 200
+            if len(fn) > length_limit:
+                fn = fn[:length_limit]
+            fn += "-" + hashlib.sha256(code.encode()).hexdigest()[0:8]
+            fn = fn + ".slang"
+
+            with open(
+                fn,
+                "w",
+            ) as f:
+                f.write("/*\n")
+                f.write(bound_call_table(bindings))
+                f.write("\n*/\n")
+                f.write(code)
+
+        # Optionally print the shader to the terminal for AI analysis.
+        if _PRINT_GENERATED_SHADERS:
+            print("=" * 80)
+            print(f"GENERATED SHADER: {build_info.module.name}::{build_info.name}")
+            if self.call_mode == CallMode.bwds:
+                print("MODE: Backwards")
+            else:
+                print("MODE: Forward")
+            print("=" * 80)
+            print("/* BINDINGS:")
+            print(bound_call_table(bindings))
+            print("*/")
+            print(code)
+            print("=" * 80)
+            print(f"END SHADER: {build_info.module.name}::{build_info.name}")
+            print("=" * 80)
+            print()
+
+        # Hash the code to get a unique identifier for the module.
+        # We add type conformances to the start of the code to ensure that the hash is unique
+        code_minus_header = str(build_info.type_conformances) + code[len(codegen.header) :]
+        hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
+
+        # Check if we've already built this module.
+        if hash in build_info.module.pipeline_cache:
+            # Get pipeline from cache if we have
+            self.pipeline = build_info.module.pipeline_cache[hash]
+            # Get shader table from cache if the pipeline is a raytracing pipeline
+            if build_info.pipeline_type == PipelineType.ray_tracing:
+                self.shader_table = build_info.module.shader_table_cache[hash]
+            self.device = build_info.module.device
+            self.log_debug(f"  Found cached pipeline with hash {hash}")
+
+        else:
+            # Build new module and link it with the one that contains the function being called.
+            self.log_debug(f"  Building new pipeline with hash {hash}")
+            session = build_info.module.session
+            device = session.device
+            module = session.load_module_from_source(hash, code)
+            opts = SlangLinkOptions()
+            opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
+            opts.dump_intermediates_prefix = sanitized
+            if build_info.pipeline_type == PipelineType.compute:
+                # Create compute pipeline
+                ep = module.entry_point(f"compute_main", type_conformances)
+                program = session.link_program(
+                    [module, build_info.module.device_module] + build_info.module.link,
+                    [ep],
+                    opts,
+                )
+                self.pipeline = device.create_compute_pipeline(
+                    program,
+                    defer_target_compilation=True,
+                    label=f"{build_info.module.name}_{build_info.name}_compute_call",
+                )
+                build_info.module.pipeline_cache[hash] = self.pipeline
+            elif build_info.pipeline_type == PipelineType.ray_tracing:
+                # Create ray tracing pipeline
+                eps = [module.entry_point(f"raygen_main", type_conformances)]
+                hit_group_names: list[str] = []
+                for hit_group in build_info.ray_tracing_hit_groups:
+                    hit_group_names.append(hit_group.hit_group_name)
+                    if hit_group.closest_hit_entry_point != "":
+                        eps.append(
+                            build_info.module.device_module.entry_point(
+                                hit_group.closest_hit_entry_point
+                            )
+                        )
+                    if hit_group.any_hit_entry_point != "":
+                        eps.append(
+                            build_info.module.device_module.entry_point(
+                                hit_group.any_hit_entry_point
+                            )
+                        )
+                    if hit_group.intersection_entry_point != "":
+                        eps.append(
+                            build_info.module.device_module.entry_point(
+                                hit_group.intersection_entry_point
+                            )
+                        )
+                for miss_entry_point in build_info.ray_tracing_miss_entry_points:
+                    eps.append(build_info.module.device_module.entry_point(miss_entry_point))
+
+                program = session.link_program(
+                    [module, build_info.module.device_module] + build_info.module.link,
+                    eps,
+                    opts,
+                )
+                self.pipeline = device.create_ray_tracing_pipeline(
+                    program,
+                    hit_groups=build_info.ray_tracing_hit_groups,
+                    max_recursion=build_info.ray_tracing_max_recursion,
+                    max_ray_payload_size=build_info.ray_tracing_max_ray_payload_size,
+                    max_attribute_size=build_info.ray_tracing_max_attribute_size,
+                    flags=build_info.ray_tracing_flags,
+                    defer_target_compilation=True,
+                    label=f"{build_info.module.name}_{build_info.name}_rt_call",
+                )
+                build_info.module.pipeline_cache[hash] = self.pipeline
+                self.shader_table = device.create_shader_table(
+                    program,
+                    ray_gen_entry_points=["raygen_main"],
+                    miss_entry_points=build_info.ray_tracing_miss_entry_points,
+                    hit_group_names=hit_group_names,
+                    callable_entry_points=build_info.ray_tracing_callable_entry_points,
+                )
+                build_info.module.shader_table_cache[hash] = self.shader_table
+            else:
+                raise RuntimeError("Unknown pipeline type")
+            self.device = device
+            self.log_debug(f"  Build succesful")
+
+        # Store the code as it's useful for debugging
+        self.code = code
+
+    def _build_autograd_access_list(self, args: list[Any], kwargs: dict[str, Any]) -> None:
+        """
+        Walk args/kwargs in the same recursive order as find_torch_tensors,
+        and for each torch.Tensor encountered, compute the AutogradAccess from
+        the corresponding binding. Stores the result as a flat list on self
+        (NativeCallData.autograd_access_list).
+
+        This MUST be kept in sync with the logic in find_torch_tensors (C++) so the
+        order in which tensors are visited remains the same.
+        """
         import torch
 
-        if isinstance(arg, dict):
-            return {
-                k: self._find_torch_tensors_recurse(v, binding.children[k], pairs)
-                for k, v in arg.items()
-            }
-        elif isinstance(arg, torch.Tensor):
-            # Determine if this is an input or output based on access pattern
-            is_input = False
-            if isinstance(binding.vector_type, ITensorType):
-                if binding.vector_type.access == TensorAccess.read:
-                    is_input = True
-                elif binding.vector_type.access == TensorAccess.write:
-                    is_input = False
-                elif binding.vector_type.access == TensorAccess.read_write:
-                    raise ValueError("In-place operations not supported for torch autograd.")
-            else:
-                if binding.access[0] == AccessType.read:
-                    is_input = True
-                elif binding.access[0] == AccessType.write:
-                    is_input = False
-                elif binding.access[0] == AccessType.readwrite:
-                    raise ValueError("In-place operations not supported for torch autograd.")
+        from slangpy.core.native import AutogradAccess
 
-            # Create pair with index and is_input tracking
-            pair = NativeTorchTensorDiffPair(arg, None, index=len(pairs), is_input=is_input)
-            pairs.append(pair)
-            return pair
-        else:
-            return arg
+        access_list: list[AutogradAccess] = []
 
+        def _recurse(arg: Any, binding: Any) -> None:
+            if isinstance(arg, dict):
+                for k, v in arg.items():
+                    _recurse(v, binding.children[k])
+            elif isinstance(arg, torch.Tensor):
+                if isinstance(binding.vector_type, ITensorType):
+                    ta = binding.vector_type.access
+                    if ta == TensorAccess.read:
+                        access_list.append(AutogradAccess.read)
+                    elif ta == TensorAccess.write:
+                        access_list.append(AutogradAccess.write)
+                    elif ta == TensorAccess.read_write:
+                        access_list.append(AutogradAccess.readwrite)
+                    else:
+                        access_list.append(AutogradAccess.none)
+                else:
+                    a = binding.access[0]
+                    if a == AccessType.read:
+                        access_list.append(AutogradAccess.read)
+                    elif a == AccessType.write:
+                        access_list.append(AutogradAccess.write)
+                    elif a == AccessType.readwrite:
+                        access_list.append(AutogradAccess.readwrite)
+                    else:
+                        access_list.append(AutogradAccess.none)
 
-def torch_autograd_hook(
-    function: "FunctionNode",
-    forwards: "CallData",
-    options: NativeCallRuntimeOptions,
-    args: tuple[Any],
-    kwargs: dict[str, Any],
-) -> Any:
-    """
-    Call the kernel with torch integration.
-    Handles CUDA stream synchronization and autograd integration when torch_autograd is True.
+        for i, arg in enumerate(args):
+            _recurse(arg, self.runtime.args[i])
+        for k, v in kwargs.items():
+            if k in self.runtime.kwargs:
+                _recurse(v, self.runtime.kwargs[k])
 
-    The backwards CallData is generated lazily during the backward pass when actual
-    gradient tensors are available, rather than being pre-generated at forward time.
-
-    :param function: The FunctionNode used to generate backwards CallData in backward pass.
-    :param forwards: The forwards CallData for the kernel.
-    :param options: Runtime options including CUDA stream.
-    :param args: Positional arguments to the kernel.
-    :param kwargs: Keyword arguments to the kernel.
-    :return: The result of the kernel call.
-    """
-    from slangpy.torchintegration.autogradhook import TorchAutoGradHook
-
-    # Convert args to mutable list and find/replace torch tensors with diff pairs
-    args_list = list(args)
-    pairs = forwards.find_torch_tensors(args_list, kwargs)
-
-    # Extract input tensors (primals of input pairs) for autograd tracking
-    inputs = [pair.primal for pair in pairs if pair.is_input]
-
-    results = TorchAutoGradHook.apply(
-        (function, forwards, options, args_list, kwargs, pairs), *inputs
-    )
-    if results is not None and len(results) > 0:
-        return results[-1]
-    return None
+        self.autograd_access_list = access_list

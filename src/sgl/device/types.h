@@ -69,6 +69,7 @@ enum class Feature : uint32_t {
     realtime_clock = static_cast<uint32_t>(rhi::Feature::RealtimeClock),
     cooperative_vector = static_cast<uint32_t>(rhi::Feature::CooperativeVector),
     cooperative_matrix = static_cast<uint32_t>(rhi::Feature::CooperativeMatrix),
+    cooperative_matrix2 = static_cast<uint32_t>(rhi::Feature::CooperativeMatrix2),
     sm_5_1 = static_cast<uint32_t>(rhi::Feature::SM_5_1),
     sm_6_0 = static_cast<uint32_t>(rhi::Feature::SM_6_0),
     sm_6_1 = static_cast<uint32_t>(rhi::Feature::SM_6_1),
@@ -90,6 +91,8 @@ enum class Feature : uint32_t {
     wave_ops = static_cast<uint32_t>(rhi::Feature::WaveOps),
     mesh_shader = static_cast<uint32_t>(rhi::Feature::MeshShader),
     pointer = static_cast<uint32_t>(rhi::Feature::Pointer),
+    float8 = static_cast<uint32_t>(rhi::Feature::Float8),
+    bfloat16 = static_cast<uint32_t>(rhi::Feature::Bfloat16),
     // D3D12 specific features
     conservative_rasterization1 = static_cast<uint32_t>(rhi::Feature::ConservativeRasterization1),
     conservative_rasterization2 = static_cast<uint32_t>(rhi::Feature::ConservativeRasterization2),
@@ -100,6 +103,8 @@ enum class Feature : uint32_t {
     shader_resource_min_lod = static_cast<uint32_t>(rhi::Feature::ShaderResourceMinLod),
     // Metal specific features
     argument_buffer_tier2 = static_cast<uint32_t>(rhi::Feature::ArgumentBufferTier2),
+    // CUDA specific features
+    atomic_bfloat16 = static_cast<uint32_t>(rhi::Feature::AtomicBfloat16),
 
     count,
 };
@@ -140,6 +145,7 @@ SGL_ENUM_INFO(
         {Feature::realtime_clock, "realtime_clock"},
         {Feature::cooperative_vector, "cooperative_vector"},
         {Feature::cooperative_matrix, "cooperative_matrix"},
+        {Feature::cooperative_matrix2, "cooperative_matrix2"},
         {Feature::sm_5_1, "sm_5_1"},
         {Feature::sm_6_0, "sm_6_0"},
         {Feature::sm_6_1, "sm_6_1"},
@@ -161,6 +167,8 @@ SGL_ENUM_INFO(
         {Feature::wave_ops, "wave_ops"},
         {Feature::mesh_shader, "mesh_shader"},
         {Feature::pointer, "pointer"},
+        {Feature::float8, "float8"},
+        {Feature::bfloat16, "bfloat16"},
         {Feature::conservative_rasterization1, "conservative_rasterization1"},
         {Feature::conservative_rasterization2, "conservative_rasterization2"},
         {Feature::conservative_rasterization3, "conservative_rasterization3"},
@@ -168,6 +176,7 @@ SGL_ENUM_INFO(
         {Feature::programmable_sample_positions2, "programmable_sample_positions2"},
         {Feature::shader_resource_min_lod, "shader_resource_min_lod"},
         {Feature::argument_buffer_tier2, "argument_buffer_tier2"},
+        {Feature::atomic_bfloat16, "atomic_bfloat16"},
     }
 );
 SGL_ENUM_REGISTER(Feature);

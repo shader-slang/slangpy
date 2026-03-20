@@ -93,7 +93,7 @@ public:
 
     std::string str() const;
 
-    std::string dbg_as_string() const { return std::string((const char*)m_buffer, m_size); }
+    std::string dbg_as_string() const { return std::string(reinterpret_cast<const char*>(m_buffer), m_size); }
 
 private:
     uint8_t m_initial_buffer[1024];
@@ -533,6 +533,12 @@ public:
     /// Set the call dimensionality.
     void set_call_dimensionality(int call_dimensionality) { m_call_dimensionality = call_dimensionality; }
 
+    /// Whether this variable uses direct binding (raw Slang type, no wrapper).
+    bool direct_bind() const { return m_direct_bind; }
+
+    /// Set the direct_bind flag.
+    void set_direct_bind(bool direct_bind) { m_direct_bind = direct_bind; }
+
     /// Recursively populate the overall kernel call shape.
     void populate_call_shape(Shape& call_shape, nb::object value, NativeCallData* error_context);
 
@@ -560,6 +566,7 @@ private:
     int m_call_dimensionality{0};
     ref<NativeSlangType> m_vector_type;
     bool m_is_param_block{false};
+    bool m_direct_bind{false};
 };
 
 /// Binding information for a call to a compute kernel. Includes a set of positional
@@ -642,6 +649,15 @@ public:
     /// Set ray tracing pipeline flag.
     void set_is_ray_tracing(bool is_ray_tracing) { m_is_ray_tracing = is_ray_tracing; }
 
+    /// Get the thread count override.
+    int thread_count() const { return m_thread_count; }
+
+    /// Set the thread count override.
+    void set_thread_count(int thread_count) { m_thread_count = thread_count; }
+
+    /// Check if thread count override is set.
+    bool has_thread_count() const { return m_thread_count > 0; }
+
     /// Clear internal data for garbage collection
     void garbage_collect()
     {
@@ -654,6 +670,7 @@ private:
     nb::object m_this{nb::none()};
     NativeHandle m_cuda_stream;
     bool m_is_ray_tracing{false};
+    int m_thread_count{0};
 };
 
 /// Defines the common logging functions for a given log level.
@@ -670,6 +687,18 @@ private:
     {                                                                                                                  \
         log(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::always);                               \
     }
+
+struct CallShapeInfo {
+    Shape call_shape = Shape(0, 0);
+    Shape strides = Shape(0, 0);
+    Shape call_group_shape = Shape(0, 0);
+    Shape call_group_strides = Shape(0, 0);
+    Shape call_grid_shape = Shape(0, 0);
+    Shape call_grid_strides = Shape(0, 0);
+    Shape aligned_call_shape = Shape(0, 0);
+    bool is_call_shape_unaligned{false};
+    int total_threads{0};
+};
 
 /// Contains the compute pipeline for a call, the corresponding bindings and any additional
 /// options provided by the user.
@@ -714,12 +743,6 @@ public:
     /// Set the call mode (primitive/forward/backward).
     void set_call_mode(CallMode call_mode) { m_call_mode = call_mode; }
 
-    /// Get the call data mode (global_data/entry_point).
-    CallDataMode call_data_mode() const { return m_call_data_mode; }
-
-    /// Set the call data mode (global_data/entry_point).
-    void set_call_data_mode(CallDataMode call_data_mode) { m_call_data_mode = call_data_mode; }
-
     /// Get the shape of the last call (useful for debugging).
     const Shape& last_call_shape() const { return m_last_call_shape; }
 
@@ -746,6 +769,77 @@ public:
 
     /// Set torch autograd status.
     void set_torch_autograd(bool torch_autograd) { m_torch_autograd = torch_autograd; }
+
+    /// Get whether args need unpacking (have get_this/update_this).
+    bool needs_unpack() const { return m_needs_unpack; }
+
+    /// Set whether args need unpacking.
+    void set_needs_unpack(bool needs_unpack) { m_needs_unpack = needs_unpack; }
+
+    /// Get whether this call data expects a _thread_count kwarg.
+    bool has_thread_count() const { return m_has_thread_count; }
+
+    /// Set whether this call data expects a _thread_count kwarg.
+    void set_has_thread_count(bool has_thread_count) { m_has_thread_count = has_thread_count; }
+
+    /// Get whether this call uses direct entry-point parameters (fast path).
+    bool use_entrypoint_args() const { return m_use_entrypoint_args; }
+
+    /// Set whether this call uses direct entry-point parameters (fast path).
+    void set_use_entrypoint_args(bool use_entrypoint_args) { m_use_entrypoint_args = use_entrypoint_args; }
+
+    /// Get the autograd access list.
+    /// This is a flat list of AutogradAccess values precomputed at build time.
+    /// At dispatch time, find_torch_tensors steps through this list as it encounters tensors.
+    const std::vector<AutogradAccess>& autograd_access_list() const { return m_autograd_access_list; }
+
+    /// Set the autograd access list.
+    void set_autograd_access_list(const std::vector<AutogradAccess>& list) { m_autograd_access_list = list; }
+
+    /// Get the cached backward-pass call data (generated on first backward call).
+    ref<NativeCallData> bwds_call_data() const { return m_bwds_call_data; }
+
+    /// Set the cached backward-pass call data.
+    void set_bwds_call_data(const ref<NativeCallData>& bwds_call_data) { m_bwds_call_data = bwds_call_data; }
+
+    /// Find all torch tensors in args/kwargs, wrap them in NativeTorchTensorDiffPair,
+    /// and replace the tensors in args/kwargs with the pairs.
+    /// Uses the precomputed autograd_access_list to determine input/output roles.
+    /// @param args Mutable list of positional arguments (modified in place).
+    /// @param kwargs Mutable dict of keyword arguments (modified in place).
+    /// @return List of NativeTorchTensorDiffPair for all found tensors.
+    nb::list find_torch_tensors(nb::list args, nb::dict kwargs);
+
+    /// Run the forward kernel and prepare data for autograd.
+    /// Returns a tuple of (input_tensors, output_tensors, result, pairs).
+    /// - input_tensors: list of primal tensors from input pairs (for save_for_backward)
+    /// - output_tensors: list of primal tensors from output pairs (returned to autograd)
+    /// - result: the kernel result (or None)
+    /// - pairs: updated pairs list (with _result pair appended if needed)
+    /// @param opts Runtime options for the call.
+    /// @param args Positional arguments (containing NativeTorchTensorDiffPair objects).
+    /// @param kwargs Keyword arguments (containing NativeTorchTensorDiffPair objects).
+    /// @param pairs List of NativeTorchTensorDiffPair from find_torch_tensors.
+    /// @return Tuple of (input_tensors, output_tensors, result, pairs).
+    nb::tuple autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list args, nb::dict kwargs, nb::list pairs);
+
+    /// Run the backward pass: restore tensors, create gradients, call bwds kernel.
+    /// Returns tuple of input gradients (matching order of input tensors from forward).
+    /// @param function_node The FunctionNode (for calling .bwds).
+    /// @param pairs The NativeTorchTensorDiffPair list from forward.
+    /// @param args Saved args (with DiffPair placeholders).
+    /// @param kwargs Saved kwargs (with DiffPair placeholders).
+    /// @param saved_tensors Input tensors from save_for_backward.
+    /// @param grad_outputs Upstream gradients for output tensors.
+    /// @return Tuple of input gradients.
+    nb::tuple autograd_backward(
+        nb::handle function_node,
+        nb::list pairs,
+        nb::list args,
+        nb::dict kwargs,
+        nb::list saved_tensors,
+        nb::tuple grad_outputs
+    );
 
     /// Set the shape of call groups when a dispatch is made.
     void set_call_group_shape(std::optional<Shape> call_group_shape)
@@ -801,10 +895,10 @@ private:
         ShaderOffset grid_stride;
         ShaderOffset grid_dim;
         ShaderOffset thread_count;
-        ShaderOffset field_offset; // Base offset of the call_data structure
+        ShaderOffset field_offset; // Base offset of the call_data structure (or entry-point)
         uint32_t field_size = 0;   // Total size of the call_data in uniform data
         int array_stride = 0;      // Stride for array elements
-        // Cached information for navigating to call_data field
+        // Cached information for navigating to call_data field (fallback path)
         int32_t call_data_field_index = -1;  // Field index for "call_data" lookup
         bool call_data_is_reference = false; // Whether call_data needs dereference
         bool is_valid = false;               // Whether offsets have been initialized
@@ -816,14 +910,27 @@ private:
     int m_call_dimensionality{0};
     ref<NativeBoundCallRuntime> m_runtime;
     CallMode m_call_mode{CallMode::prim};
-    CallDataMode m_call_data_mode{CallDataMode::global_data};
     Shape m_last_call_shape;
     std::string m_debug_name;
     ref<Logger> m_logger;
     Shape m_call_group_shape;
     bool m_torch_integration{false};
     bool m_torch_autograd{false};
+    bool m_needs_unpack{true};
+    bool m_has_thread_count{false};
+    bool m_use_entrypoint_args{false};
+    std::vector<AutogradAccess> m_autograd_access_list;
+    ref<NativeCallData> m_bwds_call_data;
     mutable CallDataOffsets m_cached_call_data_offsets;
+
+    /// Recursive helper for find_torch_tensors.
+    nb::object find_torch_tensors_recurse(nb::object arg, nb::list& pairs, size_t& access_idx);
+
+    CallShapeInfo compute_call_shape_info(
+        const ref<NativeCallRuntimeOptions>& opts,
+        const nb::list& unpacked_args,
+        const nb::dict& unpacked_kwargs
+    );
 
     nb::object
     exec(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
@@ -874,9 +981,9 @@ public:
     std::optional<std::string> lookup_value_signature(nb::handle o) override { NB_OVERRIDE(lookup_value_signature, o); }
 };
 
-nb::list unpack_args(nb::args args, std::optional<nb::list> refs = std::optional<nb::list>());
-nb::dict unpack_kwargs(nb::kwargs kwargs, std::optional<nb::list> refs = std::optional<nb::list>());
-nb::object unpack_arg(nanobind::object arg, std::optional<nb::list> refs = std::optional<nb::list>());
+nb::list unpack_args(nb::args args, bool& out_had_unpack);
+nb::dict unpack_kwargs(nb::kwargs kwargs, bool& out_had_unpack);
+nb::object unpack_arg(nanobind::object arg, bool& out_had_unpack);
 void pack_arg(nb::object arg, nb::object unpacked_arg);
 
 void hash_signature(

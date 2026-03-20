@@ -10,26 +10,28 @@ Note: The fallback path is slower than the native path but provides
 identical functionality.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 import torch
 
-# PyTorch scalar type codes (matching c10::ScalarType)
+# PyTorch scalar type codes (matching c10::ScalarType and TENSOR_BRIDGE_SCALAR_* in tensor_bridge_api.h)
 _SCALAR_TYPE_MAP: Dict[torch.dtype, int] = {
-    torch.uint8: 0,
-    torch.int8: 1,
-    torch.int16: 2,
-    torch.int32: 3,
-    torch.int64: 4,
-    torch.float16: 5,
-    torch.float32: 6,
-    torch.float64: 7,
-    torch.complex32: 8,
-    torch.complex64: 9,
-    torch.complex128: 10,
-    torch.bool: 11,
-    torch.bfloat16: 15,
+    torch.uint8: 0,  # TENSOR_BRIDGE_SCALAR_UINT8
+    torch.int8: 1,  # TENSOR_BRIDGE_SCALAR_INT8
+    torch.int16: 2,  # TENSOR_BRIDGE_SCALAR_INT16
+    torch.int32: 3,  # TENSOR_BRIDGE_SCALAR_INT32
+    torch.int64: 4,  # TENSOR_BRIDGE_SCALAR_INT64
+    torch.float16: 5,  # TENSOR_BRIDGE_SCALAR_FLOAT16
+    torch.float32: 6,  # TENSOR_BRIDGE_SCALAR_FLOAT32
+    torch.float64: 7,  # TENSOR_BRIDGE_SCALAR_FLOAT64
+    torch.complex64: 9,  # TENSOR_BRIDGE_SCALAR_COMPLEX64
+    torch.complex128: 10,  # TENSOR_BRIDGE_SCALAR_COMPLEX128
+    torch.bool: 11,  # TENSOR_BRIDGE_SCALAR_BOOL
+    torch.bfloat16: 15,  # TENSOR_BRIDGE_SCALAR_BFLOAT16
 }
+_complex32 = getattr(torch, "complex32", None)
+if _complex32 is not None:
+    _SCALAR_TYPE_MAP[_complex32] = 8  # TENSOR_BRIDGE_SCALAR_COMPLEX32
 
 
 def is_tensor(obj: Any) -> bool:
@@ -99,21 +101,66 @@ def get_current_cuda_stream(device_index: int) -> int:
     return stream.cuda_stream
 
 
+# ---------------------------------------------------------------------------
+# __cuda_array_interface__ helper for copy_to/from_buffer
+# ---------------------------------------------------------------------------
+
+
+class _CudaBufferView:
+    """Lightweight wrapper exposing a raw CUDA pointer via ``__cuda_array_interface__``.
+
+    PyTorch's ``torch.as_tensor()`` can consume any object that implements the
+    `CUDA Array Interface <https://numba.readthedocs.io/en/stable/cuda/cuda_array_interface.html>`_,
+    creating a zero-copy tensor view over the memory. This avoids any direct
+    dependency on ``ctypes``/``cudaMemcpy`` and delegates all data movement to
+    PyTorch itself.
+    """
+
+    # Mapping from torch dtype to NumPy-style typestr used by __cuda_array_interface__.
+    _TYPESTR: Dict[torch.dtype, str] = {
+        torch.uint8: "|u1",
+        torch.int8: "|i1",
+        torch.int16: "<i2",
+        torch.int32: "<i4",
+        torch.int64: "<i8",
+        torch.float16: "<f2",
+        torch.float32: "<f4",
+        torch.float64: "<f8",
+        torch.bfloat16: "<V2",  # no NumPy equivalent; 2-byte opaque
+    }
+
+    def __init__(
+        self,
+        ptr: int,
+        shape: Tuple[int, ...],
+        dtype: torch.dtype,
+    ):
+        typestr = self._TYPESTR.get(dtype)
+        if typestr is None:
+            raise RuntimeError(f"Unsupported dtype for CUDA array interface: {dtype}")
+        self.__cuda_array_interface__ = {
+            "shape": shape,
+            "typestr": typestr,
+            "data": (ptr, False),
+            "version": 3,
+            "strides": None,  # C-contiguous
+        }
+
+
 def copy_to_buffer(tensor: torch.Tensor, dest_ptr: int, dest_size: int) -> bool:
     """
     Copy tensor data to a CUDA buffer.
 
-    Handles non-contiguous tensors by making a contiguous copy first.
-
-    Note: This fallback implementation requires the native slangpy_torch package
-    for CUDA memory copy operations. The Python fallback is primarily intended
-    for metadata extraction (shape, dtype, etc.) rather than memory operations.
+    Handles non-contiguous tensors automatically via ``Tensor.copy_()``.
+    A zero-copy view of the destination pointer is created through the
+    ``__cuda_array_interface__`` protocol so that PyTorch manages all
+    data movement internally.
 
     :param tensor: Source PyTorch CUDA tensor.
     :param dest_ptr: Destination CUDA pointer as integer.
     :param dest_size: Size in bytes of destination buffer.
     :return: True on success.
-    :raises RuntimeError: Always raises - CUDA memory copy requires native support.
+    :raises RuntimeError: If tensor is not on CUDA or buffer is too small.
     """
     if not tensor.is_cuda:
         raise RuntimeError("Tensor must be on CUDA device")
@@ -123,29 +170,28 @@ def copy_to_buffer(tensor: torch.Tensor, dest_ptr: int, dest_size: int) -> bool:
     if byte_size > dest_size:
         raise RuntimeError(f"Destination buffer too small: {dest_size} < {byte_size}")
 
-    # CUDA memory copy operations require native support
-    # The Python fallback cannot safely perform raw CUDA memory copies
-    raise RuntimeError(
-        "copy_to_buffer requires native slangpy_torch support. "
-        "Install slangpy_torch for CUDA memory copy operations."
-    )
+    # Create a zero-copy tensor view backed by the destination CUDA pointer.
+    view = _CudaBufferView(dest_ptr, (tensor.numel(),), tensor.dtype)
+    dest = torch.as_tensor(view, device=tensor.device)
+    dest = dest.view(tensor.shape)
+    with torch.no_grad():
+        dest.copy_(tensor)
+    return True
 
 
 def copy_from_buffer(tensor: torch.Tensor, src_ptr: int, src_size: int) -> bool:
     """
     Copy data from a CUDA buffer to a tensor.
 
-    Handles non-contiguous tensors.
-
-    Note: This fallback implementation requires the native slangpy_torch package
-    for CUDA memory copy operations. The Python fallback is primarily intended
-    for metadata extraction (shape, dtype, etc.) rather than memory operations.
+    Handles non-contiguous destination tensors automatically via
+    ``Tensor.copy_()``. A zero-copy view of the source pointer is
+    created through the ``__cuda_array_interface__`` protocol.
 
     :param tensor: Destination PyTorch CUDA tensor.
     :param src_ptr: Source CUDA pointer as integer.
     :param src_size: Size in bytes of source buffer.
     :return: True on success.
-    :raises RuntimeError: Always raises - CUDA memory copy requires native support.
+    :raises RuntimeError: If tensor is not on CUDA or buffer is too small.
     """
     if not tensor.is_cuda:
         raise RuntimeError("Tensor must be on CUDA device")
@@ -154,12 +200,48 @@ def copy_from_buffer(tensor: torch.Tensor, src_ptr: int, src_size: int) -> bool:
     if byte_size > src_size:
         raise RuntimeError(f"Source buffer too small: {src_size} < {byte_size}")
 
-    # CUDA memory copy operations require native support
-    # The Python fallback cannot safely perform raw CUDA memory copies
-    raise RuntimeError(
-        "copy_from_buffer requires native slangpy_torch support. "
-        "Install slangpy_torch for CUDA memory copy operations."
-    )
+    # Create a zero-copy tensor view backed by the source CUDA pointer.
+    view = _CudaBufferView(src_ptr, (tensor.numel(),), tensor.dtype)
+    src = torch.as_tensor(view, device=tensor.device)
+    src = src.view(tensor.shape)
+    with torch.no_grad():
+        tensor.copy_(src)
+    return True
+
+
+# Reverse mapping from c10::ScalarType code to torch.dtype
+_SCALAR_TYPE_TO_DTYPE: Dict[int, torch.dtype] = {v: k for k, v in _SCALAR_TYPE_MAP.items()}
+
+
+def create_empty_tensor(shape: list, scalar_type: int, device_index: int = 0) -> torch.Tensor:
+    """
+    Create an empty contiguous CUDA tensor.
+
+    :param shape: List of dimension sizes.
+    :param scalar_type: Scalar type code (TENSOR_BRIDGE_SCALAR_* constants, e.g. 6 for float32).
+    :param device_index: CUDA device index.
+    :return: A new empty torch.Tensor on the specified CUDA device.
+    :raises ValueError: If scalar_type is not supported.
+    """
+    dtype = _SCALAR_TYPE_TO_DTYPE.get(scalar_type)
+    if dtype is None:
+        raise ValueError(f"Unsupported scalar type code: {scalar_type}")
+    return torch.empty(shape, dtype=dtype, device=f"cuda:{device_index}")
+
+
+def create_zeros_like(tensor: torch.Tensor) -> torch.Tensor:
+    """
+    Create a zero tensor with the same shape, dtype, and device as the given tensor.
+
+    Equivalent to torch.zeros_like(tensor).
+
+    :param tensor: PyTorch tensor to match.
+    :return: A new zero torch.Tensor with same properties.
+    :raises ValueError: If object is not a PyTorch tensor.
+    """
+    if not isinstance(tensor, torch.Tensor):
+        raise ValueError("Object is not a PyTorch tensor")
+    return torch.zeros_like(tensor)
 
 
 def _get_cuda_stream(tensor: torch.Tensor) -> int:

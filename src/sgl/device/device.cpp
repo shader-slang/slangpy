@@ -277,6 +277,27 @@ Device::Device(const DeviceDesc& desc)
     );
     m_info.limits.max_shader_visible_samplers = rhi_device_info.limits.maxShaderVisibleSamplers;
 
+    // TODO: These are known safe limits based on API spec, but could be increased based on
+    // platform (eg early Vk==128, CUDA 12.1+ supports 32k etc). Either this or the relevant
+    // information needs to be exposed by slang-rhi.
+    switch (m_desc.type) {
+    case DeviceType::vulkan:
+        // Vulkan spec minimum maxPushConstantsSize is 128 bytes.
+        m_info.limits.max_entry_point_uniform_size = 128;
+        break;
+    case DeviceType::d3d12:
+        // D3D12 root signature allows 64 DWORDs
+        m_info.limits.max_entry_point_uniform_size = 256;
+        break;
+    case DeviceType::cuda:
+        // CUDA kernel parameter block limit pre 12.1 is 4KB.
+        m_info.limits.max_entry_point_uniform_size = 4096;
+        break;
+    default:
+        m_info.limits.max_entry_point_uniform_size = 128;
+        break;
+    }
+
     // Get supported shader model.
     const std::vector<std::pair<ShaderModel, const char*>> available_shader_models = {
         {ShaderModel::sm_6_7, "sm_6_7"},
@@ -358,6 +379,10 @@ Device::Device(const DeviceDesc& desc)
         .add_default_include_paths = true,
         .cache_path = !m_module_cache_path.empty() ? std::optional(m_module_cache_path) : std::nullopt,
     });
+
+    // Set CUDA context current for standalone SlangPy (no-op for non-CUDA devices).
+    // Redundant but harmless when using PyTorch interop.
+    set_cuda_context_current();
 
     // Add device to global device list.
     {
@@ -710,7 +735,7 @@ ref<ShaderObject> Device::create_root_shader_object(const ShaderProgram* shader_
 
     // Bind the debug printer to the new shader object, if enabled.
     if (m_debug_printer)
-        m_debug_printer->bind(shader_object.get());
+        m_debug_printer->bind(ShaderCursor(shader_object.get()));
 
     return shader_object;
 }

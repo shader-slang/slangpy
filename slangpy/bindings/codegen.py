@@ -129,6 +129,12 @@ class CodeGen:
         #: Additional parameter blocks
         self.parameter_blocks: list[str] = []
 
+        #: When True, skip emitting struct CallData (fast path: entry-point params).
+        self.skip_call_data: bool = False
+
+        #: Individual uniform entry-point parameter declarations (fast path).
+        self.entry_point_params: list[str] = []
+
         # legacy
         self.input_load_store = CodeGenBlock(self)
 
@@ -167,6 +173,8 @@ class CodeGen:
         """
         Add an import to the kernel.
         """
+        # Use forward slashes for cross-platform compatibility
+        import_name = import_name.replace("\\", "/")
         if not import_name in self.imports:
             self.imports.append(import_name)
 
@@ -185,16 +193,20 @@ class CodeGen:
         snippets: bool = False,
         call_data_structs: bool = False,
         constants: bool = False,
-        use_param_block_for_call_data: bool = False,
+        use_param_block_for_call_data: bool = True,
     ):
         """
         Generate the final code for the kernel.
         """
 
-        self.call_data.end_block()
+        if not self.skip_call_data:
+            self.call_data.end_block()
 
-        if use_param_block_for_call_data:
-            self.call_data.append_statement("ParameterBlock<CallData> call_data")
+            # TODO: Remove 'use_param_block_for_call_data'
+            # This is only set to false for raw dispatch on cuda. Once it's retired, we will always bind
+            # call_data as a parameter block unless it is skipped.
+            if use_param_block_for_call_data:
+                self.call_data.append_statement("ParameterBlock<CallData> call_data")
 
         all_code: list[str] = []
         if header:
@@ -212,9 +224,10 @@ class CodeGen:
         if call_data_structs:
             all_code = all_code + self.call_data_structs.code
             all_code.append("\n")
-        if call_data:
+        if call_data and not self.skip_call_data:
             all_code = all_code + self.call_data.code
             all_code.append("\n")
+        if call_data:
             all_code = all_code + self.parameter_blocks
             all_code.append("\n")
         if snippets:
