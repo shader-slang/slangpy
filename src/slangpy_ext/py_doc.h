@@ -218,6 +218,8 @@ static const char *__doc_sgl_AccelerationStructureDesc = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureDesc_2 = R"doc()doc";
 
+static const char *__doc_sgl_AccelerationStructureDesc_kind = R"doc()doc";
+
 static const char *__doc_sgl_AccelerationStructureDesc_label = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureDesc_size = R"doc()doc";
@@ -295,6 +297,16 @@ static const char *__doc_sgl_AccelerationStructureInstanceList_to_string = R"doc
 static const char *__doc_sgl_AccelerationStructureInstanceList_write = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureInstanceList_write_2 = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_bottom_level = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_info = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_top_level = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_unknown = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureQueryDesc = R"doc()doc";
 
@@ -834,6 +846,8 @@ static const char *__doc_sgl_Blitter_ProgramKey_dst_channel_count = R"doc()doc";
 static const char *__doc_sgl_Blitter_ProgramKey_dst_format = R"doc()doc";
 
 static const char *__doc_sgl_Blitter_ProgramKey_dst_kind = R"doc()doc";
+
+static const char *__doc_sgl_Blitter_ProgramKey_hash = R"doc()doc";
 
 static const char *__doc_sgl_Blitter_ProgramKey_operator_le = R"doc()doc";
 
@@ -2632,9 +2646,14 @@ static const char *__doc_sgl_DeviceLimits_max_compute_thread_group_size = R"doc(
 
 static const char *__doc_sgl_DeviceLimits_max_compute_threads_per_group = R"doc(Maximum number of threads per thread group.)doc";
 
-static const char *__doc_sgl_DeviceLimits_max_framebuffer_dimensions = R"doc(Maximum framebuffer dimensions.)doc";
+static const char *__doc_sgl_DeviceLimits_max_entry_point_uniform_size =
+R"doc(Maximum size in bytes of inline-uniform data for entry-point
+parameters. On Vulkan this corresponds to push constant size (minimum
+128 bytes). On D3D12 this corresponds to root constant space (~256
+bytes). On CUDA this corresponds to the kernel parameter block (~4096
+bytes).)doc";
 
-static const char *__doc_sgl_DeviceLimits_max_entry_point_uniform_size = R"doc(Maximum size in bytes of inline-uniform data for entry-point parameters.)doc";
+static const char *__doc_sgl_DeviceLimits_max_framebuffer_dimensions = R"doc(Maximum framebuffer dimensions.)doc";
 
 static const char *__doc_sgl_DeviceLimits_max_shader_visible_samplers = R"doc(Maximum samplers visible in a shader stage.)doc";
 
@@ -8024,6 +8043,8 @@ static const char *__doc_sgl_TypeConformance_id = R"doc(Unique id per type for a
 
 static const char *__doc_sgl_TypeConformance_interface_name = R"doc(Name of the interface.)doc";
 
+static const char *__doc_sgl_TypeConformance_operator_le = R"doc()doc";
+
 static const char *__doc_sgl_TypeConformance_to_string = R"doc()doc";
 
 static const char *__doc_sgl_TypeConformance_type_name = R"doc(Name of the concrete type.)doc";
@@ -9068,6 +9089,8 @@ static const char *__doc_sgl_find_enum_info_adl_72 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_73 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_74 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_75 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
@@ -10936,8 +10959,6 @@ static const char *__doc_sgl_slangpy_find_enum_info_adl = R"doc()doc";
 static const char *__doc_sgl_slangpy_find_enum_info_adl_2 = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_find_enum_info_adl_3 = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_find_enum_info_adl_4 = R"doc()doc";
 
 static const char *__doc_sgl_static_ref_cast = R"doc()doc";
 

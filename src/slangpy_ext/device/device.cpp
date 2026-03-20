@@ -772,10 +772,15 @@ SGL_PY_EXPORT(device_device)
     );
     device.def(
         "create_acceleration_structure",
-        [](Device* self, size_t size, std::string label)
+        [](Device* self, AccelerationStructureKind kind, size_t size, std::string label)
         {
-            return self->create_acceleration_structure({.size = size, .label = std::move(label)});
+            return self->create_acceleration_structure({
+                .kind = kind,
+                .size = size,
+                .label = std::move(label),
+            });
         },
+        "kind"_a = AccelerationStructureDesc().kind,
         "size"_a = AccelerationStructureDesc().size,
         "label"_a = AccelerationStructureDesc().label,
         D(Device, create_acceleration_structure)

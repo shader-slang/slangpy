@@ -129,6 +129,7 @@ AccelerationStructure::AccelerationStructure(ref<Device> device, AccelerationStr
     , m_desc(std::move(desc))
 {
     rhi::AccelerationStructureDesc rhi_desc{
+        .kind = static_cast<rhi::AccelerationStructureKind>(desc.kind),
         .size = m_desc.size,
         .label = m_desc.label.c_str(),
     };
