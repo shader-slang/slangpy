@@ -610,6 +610,7 @@ class RayContext:
         )
 
         blas = ctx.device.create_acceleration_structure(
+            kind=spy.AccelerationStructureKind.bottom_level,
             size=blas_buffer.size,
             label="blas",
         )
@@ -655,6 +656,7 @@ class RayContext:
         )
 
         tlas = self.ctx.device.create_acceleration_structure(
+            kind=spy.AccelerationStructureKind.top_level,
             size=tlas_sizes.acceleration_structure_size,
             label="tlas",
         )
