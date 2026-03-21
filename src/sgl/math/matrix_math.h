@@ -824,9 +824,16 @@ struct std::hash<::sgl::math::matrix<T, R, C>> {
     constexpr size_t operator()(const ::sgl::math::matrix<T, R, C>& m) const
     {
         size_t result = 0;
+<<<<<<< HEAD
         for (int r = 0; r < R; ++r)
             for (int c = 0; c < C; ++c)
                 result ^= std::hash<T>()(m[r][c]) + 0x9e3779b9 + (result << 6) + (result >> 2);
+=======
+        for (int r = 0; r < R; ++r) {
+            for (int c = 0; c < C; ++c)
+                result ^= std::hash<T>()(m[r][c]) + 0x9e3779b9 + (result << 6) + (result >> 2);
+        }
+>>>>>>> 04a048d5 (Added hashing to matrix and quaternion)
         return result;
     }
 };

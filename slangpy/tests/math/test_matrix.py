@@ -20,6 +20,24 @@ def test_shape_and_element_types():
                 assert floatval.shape == (rows, cols)
 
 
+def test_matrix_hashing():
+    m1 = spy.float3x3.identity()
+    m2 = spy.float3x3.identity()
+    assert m1 == m2
+    assert hash(m1) == hash(m2)
+
+
+def test_matrix_dict_key_usage():
+    cache = {}
+
+    key1 = spy.float2x2([1.0, 2.0, 3.0, 4.0])
+    key2 = spy.float2x2([1.0, 2.0, 3.0, 4.0])
+
+    cache[key1] = "matrix_value"
+    assert key2 in cache
+    assert cache[key2] == "matrix_value"
+
+
 class TestMatrixMulFunction:
     """Test spy.math.mul() function for all valid matrix-matrix combinations."""
 
