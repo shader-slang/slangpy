@@ -9,22 +9,20 @@ def test_shape_and_element_types():
     assert spy.quatf(1, 2, 3, 4).shape == (4,)
 
 
-def test_quaternion_hashing():
-    q1 = spy.quatf(1.0, 2.0, 3.0, 4.0)
-    q2 = spy.quatf(1.0, 2.0, 3.0, 4.0)
-    assert q1 == q2
-    assert hash(q1) == hash(q2)
+def test_hashing():
+    """Test value-based hash semantics for quaternion types."""
+    # Equal values must produce equal hashes and map to the same dict key.
+    for a, b in [
+        (spy.quatf(1, 2, 3, 4), spy.quatf(1, 2, 3, 4)),
+        (spy.quatf(0.5, 0.5, 0.5, 0.5), spy.quatf(0.5, 0.5, 0.5, 0.5)),
+    ]:
+        assert a == b
+        assert hash(a) == hash(b)
+        d = {a: "x"}
+        assert b in d
 
-
-def test_quaternion_dict_key_usage():
-    cache = {}
-
-    key1 = spy.quatf(0.5, 0.5, 0.5, 0.5)
-    key2 = spy.quatf(0.5, 0.5, 0.5, 0.5)
-
-    cache[key1] = "quat_value"
-    assert key2 in cache
-    assert cache[key2] == "quat_value"
+    # Distinct values must act as distinct dict keys.
+    assert len({spy.quatf(1, 0, 0, 0): 0, spy.quatf(0, 1, 0, 0): 0}) == 2
 
 
 if __name__ == "__main__":

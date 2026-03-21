@@ -20,22 +20,31 @@ def test_shape_and_element_types():
                 assert floatval.shape == (rows, cols)
 
 
-def test_matrix_hashing():
-    m1 = spy.float3x3.identity()
-    m2 = spy.float3x3.identity()
-    assert m1 == m2
-    assert hash(m1) == hash(m2)
+def test_hashing():
+    """Test value-based hash semantics for all matrix types."""
+    vals = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]
+    for type_name in [
+        "float2x2",
+        "float2x3",
+        "float2x4",
+        "float3x2",
+        "float3x3",
+        "float3x4",
+        "float4x2",
+        "float4x3",
+        "float4x4",
+    ]:
+        cls = getattr(spy, type_name)
+        rows, cols = cls().shape
+        a = cls(vals[: rows * cols])
+        b = cls(vals[: rows * cols])
+        assert a == b
+        assert hash(a) == hash(b)
+        d = {a: "x"}
+        assert b in d
 
-
-def test_matrix_dict_key_usage():
-    cache = {}
-
-    key1 = spy.float2x2([1.0, 2.0, 3.0, 4.0])
-    key2 = spy.float2x2([1.0, 2.0, 3.0, 4.0])
-
-    cache[key1] = "matrix_value"
-    assert key2 in cache
-    assert cache[key2] == "matrix_value"
+    # Distinct values must act as distinct dict keys.
+    assert len({spy.float4x4.identity(): 0, spy.float4x4.zeros(): 0}) == 2
 
 
 class TestMatrixMulFunction:
