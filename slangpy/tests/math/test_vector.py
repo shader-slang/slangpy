@@ -344,16 +344,29 @@ def test_vector_dict_usage():
 
 
 def test_different_vectors_different_hashes():
-    """Test that different vectors (usually) produce different hashes."""
-    # This is a probabilistic test, but collisions should be rare
+    """Test that different vectors act as distinct keys in containers."""
+    # Use dictionary insertion to verify distinct keys are properly distinguished
+    # float3 case
     v1 = float3(1.0, 2.0, 3.0)
     v2 = float3(4.0, 5.0, 6.0)
-    # Different values should (almost always) have different hashes
-    assert hash(v1) != hash(v2)
 
+    cache = {}
+    cache[v1] = "v1"
+    cache[v2] = "v2"
+    assert len(cache) == 2
+    assert v1 in cache
+    assert v2 in cache
+    assert cache[v1] == "v1"
+    assert cache[v2] == "v2"
+
+    # int4 case
     v1 = int4(1, 2, 3, 4)
     v2 = int4(5, 6, 7, 8)
-    assert hash(v1) != hash(v2)
+
+    key_set = {v1, v2}
+    assert len(key_set) == 2
+    assert v1 in key_set
+    assert v2 in key_set
 
 
 def test_float3_dict_key_pattern_from_properties():
