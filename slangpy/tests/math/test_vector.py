@@ -210,5 +210,161 @@ def test_shapes():
     assert bool4(True, False, True, False).shape == (4,)
 
 
+def test_float_vector_hashing():
+    """Test that equal float vectors produce equal hashes."""
+    # float2
+    v1 = float2(1.0, 2.0)
+    v2 = float2(1.0, 2.0)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+    # float3
+    v1 = float3(1.0, 2.0, 3.0)
+    v2 = float3(1.0, 2.0, 3.0)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+    # float4
+    v1 = float4(1.0, 2.0, 3.0, 4.0)
+    v2 = float4(1.0, 2.0, 3.0, 4.0)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+
+def test_int_vector_hashing():
+    """Test that equal int vectors produce equal hashes."""
+    # int2
+    v1 = int2(10, 20)
+    v2 = int2(10, 20)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+    # int3
+    v1 = int3(10, 20, 30)
+    v2 = int3(10, 20, 30)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+    # int4
+    v1 = int4(10, 20, 30, 40)
+    v2 = int4(10, 20, 30, 40)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+
+def test_uint_vector_hashing():
+    """Test that equal uint vectors produce equal hashes."""
+    # uint2
+    v1 = uint2(10, 20)
+    v2 = uint2(10, 20)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+    # uint3
+    v1 = uint3(10, 20, 30)
+    v2 = uint3(10, 20, 30)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+    # uint4
+    v1 = uint4(10, 20, 30, 40)
+    v2 = uint4(10, 20, 30, 40)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+
+def test_bool_vector_hashing():
+    """Test that equal bool vectors produce equal hashes."""
+    # bool2
+    v1 = bool2(True, False)
+    v2 = bool2(True, False)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+    # bool3
+    v1 = bool3(True, False, True)
+    v2 = bool3(True, False, True)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+    # bool4
+    v1 = bool4(True, False, True, False)
+    v2 = bool4(True, False, True, False)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+
+def test_float16_vector_hashing():
+    """Test that equal float16_t vectors produce equal hashes."""
+    # float16_t2
+    v1 = float16_t2(1.0, 2.0)
+    v2 = float16_t2(1.0, 2.0)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+    # float16_t3
+    v1 = float16_t3(1.0, 2.0, 3.0)
+    v2 = float16_t3(1.0, 2.0, 3.0)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+    # float16_t4
+    v1 = float16_t4(1.0, 2.0, 3.0, 4.0)
+    v2 = float16_t4(1.0, 2.0, 3.0, 4.0)
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+
+
+def test_vector_dict_usage():
+    """Test that vectors can be used as dictionary keys."""
+    cache = {}
+
+    # Test with float3
+    key1 = float3(0.5, 0.5, 0.5)
+    key2 = float3(0.5, 0.5, 0.5)
+    cache[key1] = "test_value"
+    assert key2 in cache
+    assert cache[key2] == "test_value"
+
+    # Test with int2
+    cache = {}
+    key1 = int2(42, 100)
+    key2 = int2(42, 100)
+    cache[key1] = "another_value"
+    assert key2 in cache
+    assert cache[key2] == "another_value"
+
+    # Test with bool4
+    cache = {}
+    key1 = bool4(True, False, True, True)
+    key2 = bool4(True, False, True, True)
+    cache[key1] = "bool_value"
+    assert key2 in cache
+    assert cache[key2] == "bool_value"
+
+
+def test_different_vectors_different_hashes():
+    """Test that different vectors (usually) produce different hashes."""
+    # This is a probabilistic test, but collisions should be rare
+    v1 = float3(1.0, 2.0, 3.0)
+    v2 = float3(4.0, 5.0, 6.0)
+    # Different values should (almost always) have different hashes
+    assert hash(v1) != hash(v2)
+
+    v1 = int4(1, 2, 3, 4)
+    v2 = int4(5, 6, 7, 8)
+    assert hash(v1) != hash(v2)
+
+
+def test_float3_dict_key_pattern_from_properties():
+    """Regression test matching the historical float3 dict-key pattern."""
+    cache = {}
+
+    assert float3(0.5) not in cache
+    cache[float3(0.5)] = "{0.5, 0.5, 0.5}:test"
+    assert float3(0.5) in cache
+    assert cache[float3(0.5)] == "{0.5, 0.5, 0.5}:test"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
