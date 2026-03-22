@@ -15,7 +15,14 @@ namespace sgl {
 
 class DebugLogger : public rhi::IDebugCallback {
 public:
-    DebugLogger()
+    DebugLogger(
+        LogLevel layer_log_level = LogLevel::none,
+        LogLevel driver_log_level = LogLevel::none,
+        LogLevel slang_log_level = LogLevel::none
+    )
+        : m_layer_log_level(layer_log_level)
+        , m_driver_log_level(driver_log_level)
+        , m_slang_log_level(slang_log_level)
     {
         m_logger = Logger::create(Logger::get().level(), "rhi", false);
         m_logger->use_same_outputs(Logger::get());
@@ -37,17 +44,26 @@ public:
             break;
         }
         const char* source_str = "";
+        LogLevel threshold = LogLevel::none;
         switch (source) {
         case rhi::DebugMessageSource::Layer:
             source_str = "layer";
+            threshold = m_layer_log_level;
             break;
         case rhi::DebugMessageSource::Driver:
             source_str = "driver";
+            threshold = m_driver_log_level;
             break;
         case rhi::DebugMessageSource::Slang:
             source_str = "slang";
+            threshold = m_slang_log_level;
             break;
         }
+
+        // Exit if the message log level is below the threshold for its source.
+        if (level < threshold)
+            return;
+
         std::string msg = fmt::format("{}: {}", source_str, message);
         m_logger->log(level, msg);
 
@@ -77,14 +93,11 @@ public:
         return result;
     }
 
-    static DebugLogger& get()
-    {
-        static DebugLogger instance;
-        return instance;
-    }
-
 private:
     ref<Logger> m_logger;
+    LogLevel m_layer_log_level;
+    LogLevel m_driver_log_level;
+    LogLevel m_slang_log_level;
 
     std::mutex m_mutex;
     std::atomic<size_t> m_message_count{0};

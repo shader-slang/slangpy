@@ -2357,11 +2357,13 @@ static const char *__doc_sgl_DebugLogger = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_DebugLogger = R"doc()doc";
 
-static const char *__doc_sgl_DebugLogger_get = R"doc()doc";
-
 static const char *__doc_sgl_DebugLogger_get_messages = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_handleMessage = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_driver_log_level = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_layer_log_level = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_m_logger = R"doc()doc";
 
@@ -2370,6 +2372,8 @@ static const char *__doc_sgl_DebugLogger_m_message_count = R"doc()doc";
 static const char *__doc_sgl_DebugLogger_m_messages = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_m_mutex = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_slang_log_level = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_message_count = R"doc()doc";
 
@@ -2578,6 +2582,8 @@ static const char *__doc_sgl_DeviceDesc_bindless_options = R"doc()doc";
 
 static const char *__doc_sgl_DeviceDesc_compiler_options = R"doc(Compiler options (used for default slang session).)doc";
 
+static const char *__doc_sgl_DeviceDesc_debug_layers_log_level = R"doc(Debug layers log level (only applicable if debug layers are enabled).)doc";
+
 static const char *__doc_sgl_DeviceDesc_enable_aftermath = R"doc(Enable NVIDIA Aftermath.)doc";
 
 static const char *__doc_sgl_DeviceDesc_enable_compilation_reports = R"doc(Enable compilation reports.)doc";
@@ -2605,6 +2611,10 @@ static const char *__doc_sgl_DeviceDesc_label = R"doc(Debug label)doc";
 static const char *__doc_sgl_DeviceDesc_module_cache_path =
 R"doc(Path to the module cache directory (optional). If a relative path is
 used, the cache is stored in the application data directory.)doc";
+
+static const char *__doc_sgl_DeviceDesc_rhi_validation_log_level =
+R"doc(RHI validation layer log level (only applicable if RHI validation is
+enabled).)doc";
 
 static const char *__doc_sgl_DeviceDesc_shader_cache_path =
 R"doc(Path to the shader and pipeline cache directory (optional). If a
@@ -2956,6 +2966,8 @@ static const char *__doc_sgl_Device_create_texture_view = R"doc()doc";
 
 static const char *__doc_sgl_Device_cuda_device = R"doc()doc";
 
+static const char *__doc_sgl_Device_debug_logger = R"doc()doc";
+
 static const char *__doc_sgl_Device_debug_printer = R"doc()doc";
 
 static const char *__doc_sgl_Device_desc = R"doc()doc";
@@ -3043,6 +3055,8 @@ static const char *__doc_sgl_Device_m_closed = R"doc()doc";
 static const char *__doc_sgl_Device_m_cuda_device = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_cuda_semaphore = R"doc()doc";
+
+static const char *__doc_sgl_Device_m_debug_logger = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_debug_printer = R"doc()doc";
 
@@ -12172,6 +12186,10 @@ static const char *__doc_sgl_ui_operator_iand_2 = R"doc()doc";
 static const char *__doc_sgl_ui_operator_ior = R"doc()doc";
 
 static const char *__doc_sgl_ui_operator_ior_2 = R"doc()doc";
+
+static const char *__doc_std_hash = R"doc()doc";
+
+static const char *__doc_std_hash_operator_call = R"doc()doc";
 
 static const char *__doc_std_numeric_limits = R"doc()doc";
 

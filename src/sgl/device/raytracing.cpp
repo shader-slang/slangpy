@@ -134,7 +134,8 @@ AccelerationStructure::AccelerationStructure(ref<Device> device, AccelerationStr
         .label = m_desc.label.c_str(),
     };
     SLANG_RHI_CALL(
-        m_device->rhi_device()->createAccelerationStructure(rhi_desc, m_rhi_acceleration_structure.writeRef())
+        m_device->rhi_device()->createAccelerationStructure(rhi_desc, m_rhi_acceleration_structure.writeRef()),
+        m_device
     );
 }
 
@@ -275,7 +276,7 @@ ShaderTable::ShaderTable(ref<Device> device, ShaderTableDesc desc)
         .program = desc.program->rhi_shader_program(),
     };
 
-    SLANG_RHI_CALL(m_device->rhi_device()->createShaderTable(rhi_desc, m_rhi_shader_table.writeRef()));
+    SLANG_RHI_CALL(m_device->rhi_device()->createShaderTable(rhi_desc, m_rhi_shader_table.writeRef()), m_device);
 }
 
 ShaderTable::~ShaderTable() { }
