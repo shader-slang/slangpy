@@ -28,6 +28,8 @@ public:
         m_logger->use_same_outputs(Logger::get());
     }
 
+    virtual ~DebugLogger() = default;
+
     virtual SLANG_NO_THROW void SLANG_MCALL
     handleMessage(rhi::DebugMessageType type, rhi::DebugMessageSource source, const char* message)
     {
