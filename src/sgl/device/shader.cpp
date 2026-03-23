@@ -232,12 +232,20 @@ void SlangSession::recreate_session()
 {
     SGL_CHECK_NOT_NULL(m_device);
 
+    // Invalidate all standalone component types (from specialize/link/compose).
+    for (auto ct : m_standalone_component_types) {
+        ct->_invalidate();
+    }
+
     SlangSessionBuild build;
 
     // Build everything first.
     create_session(build);
     for (auto module : m_registered_modules) {
         module->load(build);
+    }
+    for (auto tc : m_registered_type_conformances) {
+        tc->rebuild(build);
     }
     for (auto program : m_registered_programs) {
         program->link(build);
@@ -247,6 +255,9 @@ void SlangSession::recreate_session()
     m_data = build.session;
     for (auto module : m_registered_modules) {
         module->store_built_data(build);
+    }
+    for (auto tc : m_registered_type_conformances) {
+        tc->store_built_data(build);
     }
     for (auto program : m_registered_programs) {
         program->store_built_data(build);
@@ -682,7 +693,9 @@ SlangSession::create_composite_component_type(std::span<const ref<SlangComponent
     report_diagnostics(diagnostics);
     SGL_CHECK(composite, "Failed to create composite component type");
 
-    return make_ref<SlangComponentType>(ref<SlangSession>(this), std::move(composite));
+    auto result = make_ref<SlangComponentType>(ref<SlangSession>(this), std::move(composite));
+    _register_standalone_component_type(result.get());
+    return result;
 }
 
 slang::TypeReflection* SlangSession::find_type_by_name(std::string_view name) const
@@ -740,6 +753,28 @@ void SlangSession::_unregister_module(SlangModule* module)
     auto existing = std::find(m_registered_modules.begin(), m_registered_modules.end(), module);
     SGL_ASSERT(existing != m_registered_modules.end());
     m_registered_modules.erase(existing);
+}
+
+void SlangSession::_register_type_conformance(SlangTypeConformance* tc)
+{
+    SGL_ASSERT(m_registered_type_conformances.count(tc) == 0);
+    m_registered_type_conformances.insert(tc);
+}
+
+void SlangSession::_unregister_type_conformance(SlangTypeConformance* tc)
+{
+    SGL_ASSERT(m_registered_type_conformances.count(tc) == 1);
+    m_registered_type_conformances.erase(tc);
+}
+
+void SlangSession::_register_standalone_component_type(SlangComponentType* ct)
+{
+    m_standalone_component_types.insert(ct);
+}
+
+void SlangSession::_unregister_standalone_component_type(SlangComponentType* ct)
+{
+    m_standalone_component_types.erase(ct);
 }
 
 std::string SlangSession::to_string() const
@@ -884,7 +919,12 @@ SlangComponentType::SlangComponentType(
 {
 }
 
-SlangComponentType::~SlangComponentType() = default;
+SlangComponentType::~SlangComponentType()
+{
+    // If this was a standalone component type (from specialize/link/compose),
+    // unregister from the session's tracking set.
+    m_session->_unregister_standalone_component_type(this);
+}
 
 ref<const ProgramLayout> SlangComponentType::layout(int target_index) const
 {
@@ -936,7 +976,9 @@ ref<SlangComponentType> SlangComponentType::specialize(std::span<const Specializ
     SGL_CHECK(SLANG_SUCCEEDED(result), "Failed to specialize component type");
     SGL_CHECK(specialized, "Failed to specialize component type");
 
-    return make_ref<SlangComponentType>(m_session, std::move(specialized));
+    auto ct = make_ref<SlangComponentType>(m_session, std::move(specialized));
+    m_session->_register_standalone_component_type(ct.get());
+    return ct;
 }
 
 ref<SlangComponentType> SlangComponentType::link() const
@@ -947,7 +989,9 @@ ref<SlangComponentType> SlangComponentType::link() const
     report_diagnostics(diagnostics);
     SGL_CHECK(linked, "Failed to link component type");
 
-    return make_ref<SlangComponentType>(m_session, std::move(linked));
+    auto ct = make_ref<SlangComponentType>(m_session, std::move(linked));
+    m_session->_register_standalone_component_type(ct.get());
+    return ct;
 }
 
 ref<SlangComponentType> SlangComponentType::link_with_options(const SlangLinkOptions& link_options) const
@@ -984,7 +1028,9 @@ ref<SlangComponentType> SlangComponentType::link_with_options(const SlangLinkOpt
     report_diagnostics(diagnostics);
     SGL_CHECK(linked, "Failed to link component type");
 
-    return make_ref<SlangComponentType>(m_session, std::move(linked));
+    auto ct = make_ref<SlangComponentType>(m_session, std::move(linked));
+    m_session->_register_standalone_component_type(ct.get());
+    return ct;
 }
 
 uint32_t SlangComponentType::specialization_param_count() const
@@ -1451,6 +1497,58 @@ SlangTypeConformance::SlangTypeConformance(
     : SlangComponentType(std::move(session), std::move(component_type))
     , m_conformance(std::move(conformance))
 {
+    m_session->_register_type_conformance(this);
+}
+
+SlangTypeConformance::~SlangTypeConformance()
+{
+    m_session->_unregister_type_conformance(this);
+}
+
+void SlangTypeConformance::rebuild(SlangSessionBuild& build) const
+{
+    slang::ISession* slang_session = build.session->slang_session;
+
+    // Look up types by searching all loaded modules in the build session.
+    slang::TypeReflection* type = nullptr;
+    slang::TypeReflection* interface_type = nullptr;
+    for (const auto& [module_ptr, module_data] : build.modules) {
+        slang::ProgramLayout* layout;
+        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = module_data->slang_module->getLayout());
+        if (!type)
+            type = layout->findTypeByName(m_conformance.type_name.c_str());
+        if (!interface_type)
+            interface_type = layout->findTypeByName(m_conformance.interface_name.c_str());
+        if (type && interface_type)
+            break;
+    }
+    SGL_CHECK(type, "Type \"{}\" not found during hot reload", m_conformance.type_name);
+    SGL_CHECK(interface_type, "Interface type \"{}\" not found during hot reload", m_conformance.interface_name);
+
+    Slang::ComPtr<slang::ITypeConformance> slang_conformance;
+    Slang::ComPtr<ISlangBlob> diagnostics;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(slang_session->createTypeConformanceComponentType(
+        type,
+        interface_type,
+        slang_conformance.writeRef(),
+        m_conformance.id,
+        diagnostics.writeRef()
+    ));
+    report_diagnostics(diagnostics);
+    SGL_CHECK(
+        slang_conformance,
+        "Failed to rebuild type conformance for type \"{}\" and interface \"{}\"",
+        m_conformance.type_name,
+        m_conformance.interface_name
+    );
+
+    build.type_conformances[this] = Slang::ComPtr<slang::IComponentType>(slang_conformance.get());
+}
+
+void SlangTypeConformance::store_built_data(SlangSessionBuild& build)
+{
+    m_component_type = build.type_conformances[this];
+    m_valid = true;
 }
 
 std::string SlangTypeConformance::to_string() const
@@ -1616,7 +1714,9 @@ void ShaderProgram::_unregister_pipeline(Pipeline* pipeline)
 
 ref<SlangComponentType> ShaderProgram::linked_component_type() const
 {
-    return make_ref<SlangComponentType>(ref<SlangSession>(m_session.get()), m_data->linked_program);
+    auto ct = make_ref<SlangComponentType>(ref<SlangSession>(m_session.get()), m_data->linked_program);
+    m_session->_register_standalone_component_type(ct.get());
+    return ct;
 }
 
 std::string ShaderProgram::to_string() const

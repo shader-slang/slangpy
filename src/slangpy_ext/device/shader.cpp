@@ -205,6 +205,12 @@ SGL_PY_EXPORT(device_shader)
     // SlangComponentType must be registered before its subclasses.
     nb::class_<SlangComponentType, Object>(m, "SlangComponentType", D(SlangComponentType))
         .def_prop_ro("session", &SlangComponentType::session, "The session this component type belongs to.")
+        .def_prop_ro(
+            "is_valid",
+            &SlangComponentType::is_valid,
+            "True if the underlying slang component type is still valid. Standalone component types become invalid "
+            "after hot reload."
+        )
         .def(
             "component_type_layout",
             &SlangComponentType::layout,

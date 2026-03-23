@@ -231,6 +231,7 @@ struct SlangSessionBuild {
     std::map<const SlangModule*, ref<SlangModuleData>> modules;
     std::map<const ShaderProgram*, ref<ShaderProgramData>> programs;
     std::map<const SlangEntryPoint*, ref<SlangEntryPointData>> entry_points;
+    std::map<const SlangTypeConformance*, Slang::ComPtr<slang::IComponentType>> type_conformances;
 };
 
 /// Descriptor for slang session initialization.
@@ -336,11 +337,15 @@ public:
 
     std::string to_string() const override;
 
-    // Internal functions to link programs+modules to their owning session
+    // Internal functions to link programs+modules+type conformances to their owning session
     void _register_program(ShaderProgram* program);
     void _unregister_program(ShaderProgram* program);
     void _register_module(SlangModule* module);
     void _unregister_module(SlangModule* module);
+    void _register_type_conformance(SlangTypeConformance* tc);
+    void _unregister_type_conformance(SlangTypeConformance* tc);
+    void _register_standalone_component_type(SlangComponentType* ct);
+    void _unregister_standalone_component_type(SlangComponentType* ct);
 
     // Internal access to the built session data.
     ref<SlangSessionData> _data() { return m_data; }
@@ -363,6 +368,13 @@ private:
 
     /// All created sgl programs (via link_program)
     std::set<ShaderProgram*> m_registered_programs;
+
+    /// All created type conformances (via create_type_conformance).
+    std::set<SlangTypeConformance*> m_registered_type_conformances;
+
+    /// All standalone component types (from specialize/link/compose) that should be
+    /// invalidated on hot reload.
+    std::set<SlangComponentType*> m_standalone_component_types;
 
     void update_module_cache_and_dependencies();
     bool write_module_to_cache(slang::IModule* module);
@@ -430,6 +442,10 @@ public:
     /// The session this component type belongs to.
     SlangSession* session() const { return m_session; }
 
+    /// Returns true if the underlying slang component type is still valid.
+    /// Standalone component types (from specialize/link/compose) become invalid after hot reload.
+    bool is_valid() const { return m_valid; }
+
     /// Get the layout for this component type.
     ref<const ProgramLayout> layout(int target_index = 0) const;
 
@@ -453,9 +469,13 @@ public:
 
     std::string to_string() const override;
 
+    /// Called by SlangSession::recreate_session() to invalidate standalone component types.
+    void _invalidate() { m_valid = false; }
+
 protected:
     breakable_ref<SlangSession> m_session;
     Slang::ComPtr<slang::IComponentType> m_component_type;
+    bool m_valid{true};
 };
 
 struct SlangModuleDesc {
@@ -616,9 +636,16 @@ public:
         Slang::ComPtr<slang::IComponentType> component_type,
         TypeConformance conformance
     );
+    ~SlangTypeConformance();
 
     /// The type conformance descriptor.
     const TypeConformance& conformance() const { return m_conformance; }
+
+    /// Rebuilds this type conformance during a session rebuild.
+    void rebuild(SlangSessionBuild& build) const;
+
+    /// Stores built data after a successful rebuild.
+    void store_built_data(SlangSessionBuild& build);
 
     std::string to_string() const override;
 

@@ -5,6 +5,7 @@ import numpy as np
 
 import slangpy as spy
 from slangpy.testing import helpers
+from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -295,6 +296,157 @@ def test_specialize_generic_entry_point_addone(device_type: spy.DeviceType):
     result = buffer.to_numpy().view(np.float32)
     expected = input_data + 1.0
     assert np.allclose(result, expected), f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# Hot reload tests
+# --------------------------------------------------------------------------
+
+COMPONENT_TYPE_SOURCE = """
+interface ITransform {
+    float apply(float x);
+}
+
+struct ScaleBy2 : ITransform {
+    float apply(float x) { return x * 2.0; }
+}
+
+struct AddOne : ITransform {
+    float apply(float x) { return x + 1.0; }
+}
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void compute_main(
+    uint3 tid: SV_DispatchThreadID,
+    uniform RWStructuredBuffer<float> data,
+    uniform uint count)
+{
+    uint idx = tid.x;
+    if (idx >= count)
+        return;
+    data[idx] = data[idx] + 1.0;
+}
+"""
+
+
+def _create_session(device: spy.Device) -> spy.SlangSession:
+    return device.create_slang_session(
+        compiler_options={
+            "include_paths": device.slang_session.desc.compiler_options.include_paths,
+        }
+    )
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_type_conformance_survives_hot_reload(test_id: str, device_type: spy.DeviceType):
+    """Test that SlangTypeConformance survives hot reload."""
+    device = helpers.get_device(type=device_type, use_cache=False)
+    session = _create_session(device)
+    module = session.load_module_from_source(
+        module_name=f"tc_reload_{test_id}",
+        source=COMPONENT_TYPE_SOURCE,
+    )
+
+    conformance = session.create_type_conformance("ScaleBy2", "ITransform")
+    assert conformance.is_valid
+    assert conformance.conformance.type_name == "ScaleBy2"
+    assert conformance.conformance.interface_name == "ITransform"
+
+    # Force hot reload.
+    device.reload_all_programs()
+
+    # Type conformance should still be valid after reload.
+    assert conformance.is_valid
+    assert conformance.conformance.type_name == "ScaleBy2"
+    assert conformance.conformance.interface_name == "ITransform"
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_standalone_component_type_invalid_after_hot_reload(
+    test_id: str, device_type: spy.DeviceType
+):
+    """Test that standalone SlangComponentType from link/compose is invalidated after hot reload."""
+    device = helpers.get_device(type=device_type, use_cache=False)
+    session = _create_session(device)
+    module = session.load_module_from_source(
+        module_name=f"ct_reload_{test_id}",
+        source=COMPONENT_TYPE_SOURCE,
+    )
+
+    entry_point = module.entry_point("compute_main")
+
+    # Create composite and link — these are standalone component types.
+    composite = session.create_composite_component_type([module, entry_point])
+    linked = composite.link()
+
+    assert composite.is_valid
+    assert linked.is_valid
+
+    # Force hot reload.
+    device.reload_all_programs()
+
+    # Standalone component types should be invalidated.
+    assert not composite.is_valid
+    assert not linked.is_valid
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_program_with_type_conformance_survives_hot_reload(
+    test_id: str, device_type: spy.DeviceType
+):
+    """Test that programs using type conformances survive hot reload."""
+    device = helpers.get_device(type=device_type, use_cache=False)
+    session = _create_session(device)
+    module = session.load_module_from_source(
+        module_name=f"prog_tc_reload_{test_id}",
+        source=COMPONENT_TYPE_SOURCE,
+    )
+
+    entry_point = module.entry_point("compute_main")
+    program = session.link_program(modules=[module], entry_points=[entry_point])
+    kernel = device.create_compute_kernel(program)
+
+    # Dispatch before reload.
+    input_data = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    buffer = device.create_buffer(
+        data=input_data,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    kernel.dispatch(thread_count=[4, 1, 1], data=buffer, count=4)
+    result = buffer.to_numpy().view(np.float32)
+    assert np.allclose(result, input_data + 1.0)
+
+    # Force hot reload.
+    device.reload_all_programs()
+
+    # Program should still work after reload.
+    buffer = device.create_buffer(
+        data=input_data,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    kernel.dispatch(thread_count=[4, 1, 1], data=buffer, count=4)
+    result = buffer.to_numpy().view(np.float32)
+    assert np.allclose(result, input_data + 1.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_component_type_is_valid_default(device_type: spy.DeviceType):
+    """Test that is_valid returns True for freshly created component types."""
+    device = helpers.get_device(type=device_type)
+    module = device.load_module("test_component_type.slang")
+
+    assert module.is_valid
+
+    entry_point = module.entry_point("compute_main")
+    assert entry_point.is_valid
+
+    session = module.session
+    conformance = session.create_type_conformance("ScaleBy2", "ITransform")
+    assert conformance.is_valid
+
+    composite = session.create_composite_component_type([module, entry_point])
+    assert composite.is_valid
 
 
 if __name__ == "__main__":
