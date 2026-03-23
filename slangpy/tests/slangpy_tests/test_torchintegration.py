@@ -641,6 +641,8 @@ def test_nn_module_parameter_gradient(device_type: DeviceType):
     result.backward(torch.ones_like(result))
     assert x.grad is not None
     assert bias.grad is not None
+    compare_tensors(x.grad, torch.ones_like(x))
+    compare_tensors(bias.grad, torch.ones_like(bias))
 
 
 if __name__ == "__main__":
