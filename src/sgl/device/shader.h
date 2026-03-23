@@ -323,6 +323,15 @@ public:
     /// @param components The component types to compose.
     ref<SlangComponentType> create_composite_component_type(std::span<const ref<SlangComponentType>> components);
 
+    /// Search all registered modules for a type by name.
+    /// @param name The fully-qualified type name to look up.
+    /// @return The slang type reflection, or nullptr if not found.
+    slang::TypeReflection* find_type_by_name(std::string_view name) const;
+
+    /// Return the dependency file paths for all loaded modules in the session.
+    /// This includes transitive dependencies loaded by the Slang compiler.
+    std::vector<std::filesystem::path> all_module_dependency_paths() const;
+
     slang::ISession* get_slang_session() const { return m_data->slang_session; }
 
     std::string to_string() const override;
@@ -498,6 +507,14 @@ public:
     {
         return ProgramLayout::from_slang(ref(this), m_data->slang_module->getLayout());
     }
+
+    /// Find a type by name in this module's layout.
+    /// @param name The fully-qualified type name to look up.
+    /// @return The slang type reflection, or nullptr if not found.
+    slang::TypeReflection* find_type_by_name(std::string_view name) const;
+
+    /// Return the file paths of all dependencies of this module.
+    std::vector<std::filesystem::path> dependency_file_paths() const;
 
     /// Build and return vector of all current entry points in the module.
     std::vector<ref<SlangEntryPoint>> entry_points() const;

@@ -102,35 +102,24 @@ void HotReload::recreate_all_sessions()
 void HotReload::update_watched_paths_for_session(SlangSession* session)
 {
     // Iterate over all the dependencies of all modules in the session.
-    slang::ISession* slang_session = session->get_slang_session();
-    SlangInt module_count = slang_session->getLoadedModuleCount();
-    for (SlangInt module_index = 0; module_index < module_count; module_index++) {
-        slang::IModule* slang_module = slang_session->getLoadedModule(module_index);
-        SlangInt32 dependency_count = slang_module->getDependencyFileCount();
-        for (SlangInt32 dependency_index = 0; dependency_index < dependency_count; dependency_index++) {
-            {
-                // Get the dependency as an FS path, verify it is absolute and turn into directory path.
-                const char* path = slang_module->getDependencyFilePath(dependency_index);
-                if (path) {
-                    std::filesystem::path abs_path = path;
-                    if (!abs_path.is_absolute()) {
-                        // IModule::getDependencyFilePath can return relative file paths for shaders
-                        // that are in the current working directory.
-                        // If the path is not absolute, we also try to resolve it against cwd to turn it into
-                        // absolute path. The returned path can also be a non-file, e.g. for string modules.
-                        if (!std::filesystem::exists(abs_path))
-                            continue;
-                        abs_path = std::filesystem::absolute(abs_path);
-                    }
-                    abs_path = abs_path.parent_path().make_preferred();
+    for (const std::filesystem::path& dep_path : session->all_module_dependency_paths()) {
+        // Get the dependency as an FS path, verify it is absolute and turn into directory path.
+        std::filesystem::path abs_path = dep_path;
+        if (!abs_path.is_absolute()) {
+            // IModule::getDependencyFilePath can return relative file paths for shaders
+            // that are in the current working directory.
+            // If the path is not absolute, we also try to resolve it against cwd to turn it into
+            // absolute path. The returned path can also be a non-file, e.g. for string modules.
+            if (!std::filesystem::exists(abs_path))
+                continue;
+            abs_path = std::filesystem::absolute(abs_path);
+        }
+        abs_path = abs_path.parent_path().make_preferred();
 
-                    // If not already monitoring this path, add a watch for it.
-                    if (!m_watched_paths.contains(abs_path)) {
-                        m_file_system_watcher->add_watch({.directory = abs_path});
-                        m_watched_paths.insert(abs_path);
-                    }
-                }
-            }
+        // If not already monitoring this path, add a watch for it.
+        if (!m_watched_paths.contains(abs_path)) {
+            m_file_system_watcher->add_watch({.directory = abs_path});
+            m_watched_paths.insert(abs_path);
         }
     }
 }

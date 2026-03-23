@@ -278,6 +278,11 @@ SGL_PY_EXPORT(device_shader)
             &SlangSession::create_composite_component_type,
             "components"_a,
             "Create a composite component type from a list of component types."
+        )
+        .def(
+            "all_module_dependency_paths",
+            &SlangSession::all_module_dependency_paths,
+            "Return the dependency file paths for all loaded modules in the session."
         );
 
     nb::class_<SlangModule, SlangComponentType>(m, "SlangModule", D(SlangModule))
@@ -286,6 +291,11 @@ SGL_PY_EXPORT(device_shader)
         .def_prop_ro("layout", &SlangModule::layout, D(SlangModule, layout))
         .def_prop_ro("entry_points", &SlangModule::entry_points, D(SlangModule, entry_points))
         .def_prop_ro("module_decl", &SlangModule::module_decl, D(SlangModule, module_decl))
+        .def_prop_ro(
+            "dependency_file_paths",
+            &SlangModule::dependency_file_paths,
+            "Return the file paths of all dependencies of this module."
+        )
         .def(
             "entry_point",
             &SlangModule::entry_point,

@@ -634,22 +634,9 @@ SlangSession::create_type_conformance(std::string_view type_name, std::string_vi
 {
     slang::ISession* slang_session = m_data->slang_session;
 
-    // Search all registered modules to find the types by name.
-    SGL_CHECK(!m_registered_modules.empty(), "No modules loaded; cannot resolve type names for type conformance");
-
-    slang::TypeReflection* type = nullptr;
-    slang::TypeReflection* interface_type = nullptr;
-    for (auto* module : m_registered_modules) {
-        slang::ProgramLayout* layout;
-        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = module->slang_module()->getLayout());
-        if (!type)
-            type = layout->findTypeByName(std::string(type_name).c_str());
-        if (!interface_type)
-            interface_type = layout->findTypeByName(std::string(interface_name).c_str());
-        if (type && interface_type)
-            break;
-    }
+    slang::TypeReflection* type = find_type_by_name(type_name);
     SGL_CHECK(type, "Type \"{}\" not found", type_name);
+    slang::TypeReflection* interface_type = find_type_by_name(interface_name);
     SGL_CHECK(interface_type, "Interface type \"{}\" not found", interface_name);
 
     Slang::ComPtr<slang::ITypeConformance> slang_conformance;
@@ -696,6 +683,36 @@ SlangSession::create_composite_component_type(std::span<const ref<SlangComponent
     SGL_CHECK(composite, "Failed to create composite component type");
 
     return make_ref<SlangComponentType>(ref<SlangSession>(this), std::move(composite));
+}
+
+slang::TypeReflection* SlangSession::find_type_by_name(std::string_view name) const
+{
+    SGL_CHECK(!m_registered_modules.empty(), "No modules loaded; cannot resolve type name \"{}\"", name);
+
+    std::string name_str(name);
+    for (auto* module : m_registered_modules) {
+        slang::TypeReflection* type = module->find_type_by_name(name);
+        if (type)
+            return type;
+    }
+    return nullptr;
+}
+
+std::vector<std::filesystem::path> SlangSession::all_module_dependency_paths() const
+{
+    std::vector<std::filesystem::path> result;
+    slang::ISession* slang_session = m_data->slang_session;
+    SlangInt module_count = slang_session->getLoadedModuleCount();
+    for (SlangInt module_index = 0; module_index < module_count; module_index++) {
+        slang::IModule* slang_module = slang_session->getLoadedModule(module_index);
+        SlangInt32 dependency_count = slang_module->getDependencyFileCount();
+        for (SlangInt32 dependency_index = 0; dependency_index < dependency_count; dependency_index++) {
+            const char* path = slang_module->getDependencyFilePath(dependency_index);
+            if (path)
+                result.emplace_back(path);
+        }
+    }
+    return result;
 }
 
 void SlangSession::_register_program(ShaderProgram* program)
@@ -1074,6 +1091,25 @@ void SlangModule::populate_build_data(SlangSessionBuild& build_data)
     build_data.modules[this] = m_data;
     for (auto ep : m_registered_entry_points)
         ep->populate_build_data(build_data);
+}
+
+slang::TypeReflection* SlangModule::find_type_by_name(std::string_view name) const
+{
+    slang::ProgramLayout* layout;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(layout = m_data->slang_module->getLayout());
+    return layout->findTypeByName(std::string(name).c_str());
+}
+
+std::vector<std::filesystem::path> SlangModule::dependency_file_paths() const
+{
+    std::vector<std::filesystem::path> result;
+    SlangInt32 count = m_data->slang_module->getDependencyFileCount();
+    for (SlangInt32 i = 0; i < count; i++) {
+        const char* path = m_data->slang_module->getDependencyFilePath(i);
+        if (path)
+            result.emplace_back(path);
+    }
+    return result;
 }
 
 std::vector<ref<SlangEntryPoint>> SlangModule::entry_points() const

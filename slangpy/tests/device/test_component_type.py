@@ -212,9 +212,7 @@ def test_composite_with_type_conformance(device_type: spy.DeviceType):
     entry_point = module.entry_point("compute_main")
 
     # Compose module + entry_point + conformance.
-    composite = session.create_composite_component_type(
-        [module, entry_point, conformance]
-    )
+    composite = session.create_composite_component_type([module, entry_point, conformance])
     assert composite is not None
     assert isinstance(composite, spy.SlangComponentType)
 
@@ -258,9 +256,7 @@ def test_specialize_generic_entry_point_and_dispatch(device_type: spy.DeviceType
     generic_entry = module.entry_point("compute_generic")
 
     # Specialize with ScaleBy2.
-    specialized_entry = generic_entry.specialize(
-        [spy.SpecializationArg.from_type("ScaleBy2")]
-    )
+    specialized_entry = generic_entry.specialize([spy.SpecializationArg.from_type("ScaleBy2")])
 
     program = device.link_program(modules=[module], entry_points=[specialized_entry])
     kernel = device.create_compute_kernel(program)
@@ -284,9 +280,7 @@ def test_specialize_generic_entry_point_addone(device_type: spy.DeviceType):
     module = device.load_module("test_component_type.slang")
 
     generic_entry = module.entry_point("compute_generic")
-    specialized_entry = generic_entry.specialize(
-        [spy.SpecializationArg.from_type("AddOne")]
-    )
+    specialized_entry = generic_entry.specialize([spy.SpecializationArg.from_type("AddOne")])
 
     program = device.link_program(modules=[module], entry_points=[specialized_entry])
     kernel = device.create_compute_kernel(program)
