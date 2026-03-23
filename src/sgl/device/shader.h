@@ -348,6 +348,95 @@ private:
     void create_session(SlangSessionBuild& build);
 };
 
+/// Kind of specialization argument (mirrors slang::SpecializationArg::Kind).
+enum class SpecializationArgKind {
+    unknown, ///< An invalid specialization argument.
+    type,    ///< Specialize with a type.
+    expr,    ///< Specialize with an expression (e.g., integer constant).
+};
+
+SGL_ENUM_INFO(
+    SpecializationArgKind,
+    {
+        {SpecializationArgKind::unknown, "unknown"},
+        {SpecializationArgKind::type, "type"},
+        {SpecializationArgKind::expr, "expr"},
+    }
+);
+SGL_ENUM_REGISTER(SpecializationArgKind);
+
+/// \brief Specialization argument for generic entrypoints.
+/// Mirrors slang::SpecializationArg but uses string values for Python compatibility.
+struct SGL_API SpecializationArg {
+    SpecializationArgKind kind{SpecializationArgKind::type};
+    /// Type name (for SpecializationArgKind::type) or expression string (for SpecializationArgKind::expr).
+    std::string value;
+
+    SpecializationArg() = default;
+    SpecializationArg(SpecializationArgKind kind, std::string_view value)
+        : kind(kind)
+        , value(value)
+    {
+    }
+
+    /// Create a type specialization argument.
+    static SpecializationArg from_type(std::string_view type_name)
+    {
+        return SpecializationArg(SpecializationArgKind::type, type_name);
+    }
+
+    /// Create an expression specialization argument.
+    static SpecializationArg from_expr(std::string_view expr)
+    {
+        return SpecializationArg(SpecializationArgKind::expr, expr);
+    }
+
+    std::string to_string() const;
+};
+
+/// \brief Base class wrapping a Slang IComponentType.
+///
+/// Mirrors the Slang IComponentType interface, providing access to layout,
+/// specialization, and linking. SlangModule, SlangEntryPoint, and
+/// SlangTypeConformance inherit from this class. Composite and linked
+/// component types are returned directly as SlangComponentType instances.
+class SGL_API SlangComponentType : public Object {
+    SGL_OBJECT(SlangComponentType)
+public:
+    SlangComponentType(breakable_ref<SlangSession> session, Slang::ComPtr<slang::IComponentType> component_type);
+    virtual ~SlangComponentType();
+
+    /// The session this component type belongs to.
+    SlangSession* session() const { return m_session; }
+
+    /// Get the layout for this component type.
+    ref<const ProgramLayout> layout(int target_index = 0) const;
+
+    /// Specialize this component type with the given arguments.
+    ref<SlangComponentType> specialize(std::span<const SpecializationArg> specialization_args) const;
+
+    /// Link this component type, producing a linked component type.
+    ref<SlangComponentType> link() const;
+
+    /// Link this component type with the given options.
+    ref<SlangComponentType> link_with_options(const SlangLinkOptions& link_options) const;
+
+    /// Number of specialization parameters.
+    uint32_t specialization_param_count() const;
+
+    /// Number of entry points in this component type.
+    uint32_t entry_point_count() const;
+
+    /// Raw access to the underlying slang IComponentType.
+    slang::IComponentType* slang_component_type() const { return m_component_type; }
+
+    std::string to_string() const override;
+
+protected:
+    breakable_ref<SlangSession> m_session;
+    Slang::ComPtr<slang::IComponentType> m_component_type;
+};
+
 struct SlangModuleDesc {
     /// Required module name
     std::string module_name;
@@ -434,52 +523,6 @@ private:
     ref<SlangModuleData> m_data;
 
     mutable std::set<SlangEntryPoint*> m_registered_entry_points;
-};
-
-/// Kind of specialization argument (mirrors slang::SpecializationArg::Kind).
-enum class SpecializationArgKind {
-    unknown, ///< An invalid specialization argument.
-    type,    ///< Specialize with a type.
-    expr,    ///< Specialize with an expression (e.g., integer constant).
-};
-
-SGL_ENUM_INFO(
-    SpecializationArgKind,
-    {
-        {SpecializationArgKind::unknown, "unknown"},
-        {SpecializationArgKind::type, "type"},
-        {SpecializationArgKind::expr, "expr"},
-    }
-);
-SGL_ENUM_REGISTER(SpecializationArgKind);
-
-/// \brief Specialization argument for generic entrypoints.
-/// Mirrors slang::SpecializationArg but uses string values for Python compatibility.
-struct SGL_API SpecializationArg {
-    SpecializationArgKind kind{SpecializationArgKind::type};
-    /// Type name (for SpecializationArgKind::type) or expression string (for SpecializationArgKind::expr).
-    std::string value;
-
-    SpecializationArg() = default;
-    SpecializationArg(SpecializationArgKind kind, std::string_view value)
-        : kind(kind)
-        , value(value)
-    {
-    }
-
-    /// Create a type specialization argument.
-    static SpecializationArg from_type(std::string_view type_name)
-    {
-        return SpecializationArg(SpecializationArgKind::type, type_name);
-    }
-
-    /// Create an expression specialization argument.
-    static SpecializationArg from_expr(std::string_view expr)
-    {
-        return SpecializationArg(SpecializationArgKind::expr, expr);
-    }
-
-    std::string to_string() const;
 };
 
 struct SlangEntryPointDesc {

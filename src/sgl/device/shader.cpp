@@ -785,6 +785,139 @@ std::string SlangSessionData::resolve_module_name(std::string_view module_name) 
     return std::string{module_name};
 }
 
+// ----------------------------------------------------------------------------
+// SlangComponentType
+// ----------------------------------------------------------------------------
+
+SlangComponentType::SlangComponentType(
+    breakable_ref<SlangSession> session,
+    Slang::ComPtr<slang::IComponentType> component_type
+)
+    : m_session(std::move(session))
+    , m_component_type(std::move(component_type))
+{
+}
+
+SlangComponentType::~SlangComponentType() = default;
+
+ref<const ProgramLayout> SlangComponentType::layout(int target_index) const
+{
+    slang::ProgramLayout* slang_layout;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(slang_layout = m_component_type->getLayout(target_index));
+    return ProgramLayout::from_slang(ref(this), slang_layout);
+}
+
+ref<SlangComponentType> SlangComponentType::specialize(std::span<const SpecializationArg> specialization_args) const
+{
+    // Use this component type's own layout for type resolution.
+    slang::ProgramLayout* component_layout;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(component_layout = m_component_type->getLayout());
+
+    // Build slang specialization args from our descriptors.
+    std::vector<slang::SpecializationArg> slang_spec_args;
+    slang_spec_args.reserve(specialization_args.size());
+
+    for (const SpecializationArg& arg : specialization_args) {
+        slang::SpecializationArg slang_arg;
+        switch (arg.kind) {
+        case SpecializationArgKind::type: {
+            slang::TypeReflection* type = component_layout->findTypeByName(arg.value.c_str());
+            SGL_CHECK(type, "Specialization type \"{}\" not found", arg.value);
+            slang_arg = slang::SpecializationArg::fromType(type);
+            break;
+        }
+        case SpecializationArgKind::expr:
+            slang_arg = slang::SpecializationArg::fromExpr(arg.value.c_str());
+            break;
+        case SpecializationArgKind::unknown:
+            SGL_THROW("Invalid specialization argument: kind is 'unknown'");
+        }
+        slang_spec_args.push_back(slang_arg);
+    }
+
+    Slang::ComPtr<slang::IComponentType> specialized;
+    Slang::ComPtr<ISlangBlob> diagnostics;
+    SlangResult result;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(
+        result = m_component_type->specialize(
+            slang_spec_args.data(),
+            narrow_cast<SlangInt>(slang_spec_args.size()),
+            specialized.writeRef(),
+            diagnostics.writeRef()
+        )
+    );
+    report_diagnostics(diagnostics);
+    SGL_CHECK(SLANG_SUCCEEDED(result), "Failed to specialize component type");
+    SGL_CHECK(specialized, "Failed to specialize component type");
+
+    return make_ref<SlangComponentType>(m_session, std::move(specialized));
+}
+
+ref<SlangComponentType> SlangComponentType::link() const
+{
+    Slang::ComPtr<slang::IComponentType> linked;
+    Slang::ComPtr<ISlangBlob> diagnostics;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(m_component_type->link(linked.writeRef(), diagnostics.writeRef()));
+    report_diagnostics(diagnostics);
+    SGL_CHECK(linked, "Failed to link component type");
+
+    return make_ref<SlangComponentType>(m_session, std::move(linked));
+}
+
+ref<SlangComponentType> SlangComponentType::link_with_options(const SlangLinkOptions& link_options) const
+{
+    CompilerOptionEntries link_option_entries;
+
+    if (link_options.floating_point_mode)
+        link_option_entries.add(slang::CompilerOptionName::FloatingPointMode, int(*link_options.floating_point_mode));
+    if (link_options.debug_info)
+        link_option_entries.add(slang::CompilerOptionName::DebugInformation, int(*link_options.debug_info));
+    if (link_options.optimization)
+        link_option_entries.add(slang::CompilerOptionName::Optimization, int(*link_options.optimization));
+    if (link_options.downstream_args) {
+        for (const auto& arg : *link_options.downstream_args)
+            link_option_entries.add(slang::CompilerOptionName::DownstreamArgs, "dxc", arg);
+    }
+    if (link_options.dump_intermediates)
+        link_option_entries.add(slang::CompilerOptionName::DumpIntermediates, *link_options.dump_intermediates);
+    if (link_options.dump_intermediates_prefix)
+        link_option_entries.add(
+            slang::CompilerOptionName::DumpIntermediatePrefix,
+            *link_options.dump_intermediates_prefix
+        );
+
+    Slang::ComPtr<slang::IComponentType> linked;
+    Slang::ComPtr<ISlangBlob> diagnostics;
+    auto slang_link_option_entries = link_option_entries.slang_entries();
+    SGL_CATCH_INTERNAL_SLANG_ERROR(m_component_type->linkWithOptions(
+        linked.writeRef(),
+        narrow_cast<uint32_t>(slang_link_option_entries.size()),
+        slang_link_option_entries.data(),
+        diagnostics.writeRef()
+    ));
+    report_diagnostics(diagnostics);
+    SGL_CHECK(linked, "Failed to link component type");
+
+    return make_ref<SlangComponentType>(m_session, std::move(linked));
+}
+
+uint32_t SlangComponentType::specialization_param_count() const
+{
+    return narrow_cast<uint32_t>(m_component_type->getSpecializationParamCount());
+}
+
+uint32_t SlangComponentType::entry_point_count() const
+{
+    slang::ProgramLayout* slang_layout;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(slang_layout = m_component_type->getLayout());
+    return narrow_cast<uint32_t>(slang_layout->getEntryPointCount());
+}
+
+std::string SlangComponentType::to_string() const
+{
+    return fmt::format("SlangComponentType(entry_point_count={})", entry_point_count());
+}
+
 SlangModule::SlangModule(ref<SlangSession> session, const SlangModuleDesc& desc)
     : m_session(std::move(session))
     , m_desc(desc)
