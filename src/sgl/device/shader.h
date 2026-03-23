@@ -319,6 +319,10 @@ public:
     ref<SlangTypeConformance>
     create_type_conformance(std::string_view type_name, std::string_view interface_name, int32_t id_override = -1);
 
+    /// Create a composite component type from a list of component types.
+    /// @param components The component types to compose.
+    ref<SlangComponentType> create_composite_component_type(std::span<const ref<SlangComponentType>> components);
+
     slang::ISession* get_slang_session() const { return m_data->slang_session; }
 
     std::string to_string() const override;

@@ -669,6 +669,28 @@ SlangSession::create_type_conformance(std::string_view type_name, std::string_vi
     );
 }
 
+ref<SlangComponentType>
+SlangSession::create_composite_component_type(std::span<const ref<SlangComponentType>> components)
+{
+    std::vector<slang::IComponentType*> slang_components;
+    slang_components.reserve(components.size());
+    for (const auto& c : components)
+        slang_components.push_back(c->slang_component_type());
+
+    Slang::ComPtr<slang::IComponentType> composite;
+    Slang::ComPtr<ISlangBlob> diagnostics;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(m_data->slang_session->createCompositeComponentType(
+        slang_components.data(),
+        narrow_cast<SlangInt>(slang_components.size()),
+        composite.writeRef(),
+        diagnostics.writeRef()
+    ));
+    report_diagnostics(diagnostics);
+    SGL_CHECK(composite, "Failed to create composite component type");
+
+    return make_ref<SlangComponentType>(ref<SlangSession>(this), std::move(composite));
+}
+
 void SlangSession::_register_program(ShaderProgram* program)
 {
     SGL_ASSERT(m_registered_programs.count(program) == 0);
