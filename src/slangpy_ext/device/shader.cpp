@@ -202,6 +202,39 @@ SGL_PY_EXPORT(device_shader)
     using sgl::SlangSession;
     using sgl::SlangEntryPoint;
 
+    // SlangComponentType must be registered before its subclasses.
+    nb::class_<SlangComponentType, Object>(m, "SlangComponentType", D(SlangComponentType))
+        .def_prop_ro("session", &SlangComponentType::session, "The session this component type belongs to.")
+        .def(
+            "component_type_layout",
+            &SlangComponentType::layout,
+            "target_index"_a = 0,
+            "Get the layout for this component type."
+        )
+        .def(
+            "specialize_component_type",
+            &SlangComponentType::specialize,
+            "specialization_args"_a,
+            "Specialize this component type with the given arguments."
+        )
+        .def("link", &SlangComponentType::link, "Link this component type, producing a linked component type.")
+        .def(
+            "link_with_options",
+            &SlangComponentType::link_with_options,
+            "link_options"_a,
+            "Link this component type with the given options."
+        )
+        .def_prop_ro(
+            "specialization_param_count",
+            &SlangComponentType::specialization_param_count,
+            "Number of specialization parameters."
+        )
+        .def_prop_ro(
+            "entry_point_count",
+            &SlangComponentType::entry_point_count,
+            "Number of entry points in this component type."
+        );
+
     nb::class_<SlangSession, Object>(m, "SlangSession", D(SlangSession))
         .def_prop_ro("device", &SlangSession::device, D(SlangSession, device))
         .def_prop_ro("desc", &SlangSession::desc, D(SlangSession, desc))
@@ -231,10 +264,23 @@ SGL_PY_EXPORT(device_shader)
             "link_options"_a.none() = nb::none(),
             D(SlangSession, load_program)
         )
-        .def("load_source", &SlangSession::load_source, "module_name"_a, D(SlangSession, load_source));
+        .def("load_source", &SlangSession::load_source, "module_name"_a, D(SlangSession, load_source))
+        .def(
+            "create_type_conformance",
+            &SlangSession::create_type_conformance,
+            "type_name"_a,
+            "interface_name"_a,
+            "id_override"_a = -1,
+            "Create a type conformance component type."
+        )
+        .def(
+            "create_composite_component_type",
+            &SlangSession::create_composite_component_type,
+            "components"_a,
+            "Create a composite component type from a list of component types."
+        );
 
-    nb::class_<SlangModule, Object>(m, "SlangModule", D(SlangModule))
-        .def_prop_ro("session", &SlangModule::session, D(SlangModule, session))
+    nb::class_<SlangModule, SlangComponentType>(m, "SlangModule", D(SlangModule))
         .def_prop_ro("name", &SlangModule::name, D(SlangModule, name))
         .def_prop_ro("path", &SlangModule::path, D(SlangModule, path))
         .def_prop_ro("layout", &SlangModule::layout, D(SlangModule, layout))
@@ -248,7 +294,7 @@ SGL_PY_EXPORT(device_shader)
             D(SlangModule, entry_point)
         );
 
-    nb::class_<SlangEntryPoint, Object>(m, "SlangEntryPoint", D(SlangEntryPoint))
+    nb::class_<SlangEntryPoint, SlangComponentType>(m, "SlangEntryPoint", D(SlangEntryPoint))
         .def_prop_ro("name", &SlangEntryPoint::name, D(SlangEntryPoint, name))
         .def_prop_ro("stage", &SlangEntryPoint::stage, D(SlangEntryPoint, stage))
         .def_prop_ro("layout", &SlangEntryPoint::layout, D(SlangEntryPoint, layout))
@@ -256,7 +302,19 @@ SGL_PY_EXPORT(device_shader)
         .def("with_name", &SlangEntryPoint::with_name, "new_name"_a, D(SlangEntryPoint, with_name))
         .def("specialize", &SlangEntryPoint::specialize, "specialization_args"_a);
 
+    nb::class_<SlangTypeConformance, SlangComponentType>(
+        m,
+        "SlangTypeConformance",
+        "Wraps a Slang type conformance component type."
+    )
+        .def_prop_ro("conformance", &SlangTypeConformance::conformance, "The type conformance descriptor.");
+
     nb::class_<ShaderProgram, DeviceChild>(m, "ShaderProgram", D(ShaderProgram))
         .def_prop_ro("layout", &ShaderProgram::layout, D(ShaderProgram, layout))
-        .def_prop_ro("reflection", &ShaderProgram::reflection, D(ShaderProgram, reflection));
+        .def_prop_ro("reflection", &ShaderProgram::reflection, D(ShaderProgram, reflection))
+        .def_prop_ro(
+            "linked_component_type",
+            &ShaderProgram::linked_component_type,
+            "Get the linked program as a SlangComponentType for generic inspection."
+        );
 }
