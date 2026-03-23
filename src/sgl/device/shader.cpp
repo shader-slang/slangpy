@@ -634,15 +634,22 @@ SlangSession::create_type_conformance(std::string_view type_name, std::string_vi
 {
     slang::ISession* slang_session = m_data->slang_session;
 
-    // Use the session's first loaded module layout to resolve types.
-    // We need a ProgramLayout to call findTypeByName.
+    // Search all registered modules to find the types by name.
     SGL_CHECK(!m_registered_modules.empty(), "No modules loaded; cannot resolve type names for type conformance");
-    slang::ProgramLayout* layout;
-    SGL_CATCH_INTERNAL_SLANG_ERROR(layout = m_registered_modules.front()->slang_module()->getLayout());
 
-    slang::TypeReflection* type = layout->findTypeByName(std::string(type_name).c_str());
+    slang::TypeReflection* type = nullptr;
+    slang::TypeReflection* interface_type = nullptr;
+    for (auto* module : m_registered_modules) {
+        slang::ProgramLayout* layout;
+        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = module->slang_module()->getLayout());
+        if (!type)
+            type = layout->findTypeByName(std::string(type_name).c_str());
+        if (!interface_type)
+            interface_type = layout->findTypeByName(std::string(interface_name).c_str());
+        if (type && interface_type)
+            break;
+    }
     SGL_CHECK(type, "Type \"{}\" not found", type_name);
-    slang::TypeReflection* interface_type = layout->findTypeByName(std::string(interface_name).c_str());
     SGL_CHECK(interface_type, "Interface type \"{}\" not found", interface_name);
 
     Slang::ComPtr<slang::ITypeConformance> slang_conformance;
