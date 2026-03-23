@@ -119,10 +119,6 @@ Introduce a `SlangComponentType` base class in SGL that mirrors Slang's `ICompon
 - `create_composite_component_type(components)` → `SlangComponentType`
 - `create_type_conformance(type_name, interface_name, id_override)` → `SlangTypeConformance`
 
-### Step 2.6: Update stubs (`__init__.pyi`)
-- Add `SlangComponentType`, `SlangTypeConformance` to stub file
-- Update `SlangModule`, `SlangEntryPoint` inheritance
-
 ---
 
 ## Phase 3: Tests
