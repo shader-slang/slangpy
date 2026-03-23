@@ -1571,6 +1571,11 @@ void ShaderProgram::_unregister_pipeline(Pipeline* pipeline)
     m_registered_pipelines.erase(pipeline);
 }
 
+ref<SlangComponentType> ShaderProgram::linked_component_type() const
+{
+    return make_ref<SlangComponentType>(ref<SlangSession>(m_session.get()), m_data->linked_program);
+}
+
 std::string ShaderProgram::to_string() const
 {
     return fmt::format(

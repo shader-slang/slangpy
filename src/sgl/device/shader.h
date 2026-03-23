@@ -652,6 +652,9 @@ public:
 
     rhi::IShaderProgram* rhi_shader_program() const { return m_data->rhi_shader_program; }
 
+    /// Get the linked program as a SlangComponentType for generic inspection.
+    ref<SlangComponentType> linked_component_type() const;
+
     virtual std::string to_string() const override;
 
     void _register_pipeline(Pipeline* pipeline);
