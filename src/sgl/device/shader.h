@@ -533,7 +533,7 @@ struct SlangEntryPointData : Object {
     std::string name;
     ShaderStage stage;
 };
-class SGL_API SlangEntryPoint : public Object {
+class SGL_API SlangEntryPoint : public SlangComponentType {
     SGL_OBJECT(SlangEntryPoint)
 public:
     SlangEntryPoint(ref<SlangModule> module, const SlangEntryPointDesc& desc);

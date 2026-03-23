@@ -1082,7 +1082,8 @@ std::string SlangModule::to_string() const
 
 
 SlangEntryPoint::SlangEntryPoint(ref<SlangModule> module, const SlangEntryPointDesc& desc)
-    : m_module(module)
+    : SlangComponentType(ref<SlangSession>(module->session()), nullptr)
+    , m_module(module)
     , m_desc(desc)
 {
     m_module->_register_entry_point(this);
@@ -1258,6 +1259,7 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
 void SlangEntryPoint::store_built_data(SlangSessionBuild& build_data)
 {
     m_data = build_data.entry_points[this];
+    m_component_type = m_data->slang_entry_point;
 }
 
 void SlangEntryPoint::populate_build_data(SlangSessionBuild& build_data)
