@@ -577,5 +577,71 @@ void forward(uint index, IDiffTensor<float, 1> x, IWDiffTensor<float, 1> y)
     loss.backward()
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_nn_parameter_as_input(device_type: DeviceType):
+    """
+    Test that torch.nn.parameter.Parameter can be passed to a SlangPy function.
+    nn.Parameter is a subclass of torch.Tensor and should be handled transparently.
+    """
+    import torch.nn as nn
+
+    module = load_test_module(device_type)
+
+    a = nn.Parameter(torch.randn((10,), dtype=torch.float32, device="cuda"))
+    b = nn.Parameter(torch.randn((10,), dtype=torch.float32, device="cuda"))
+
+    res = module.add(a, b)
+    assert isinstance(res, torch.Tensor)
+    compare_tensors(a + b, res)
+
+    # Gradients should flow back through nn.Parameter
+    res.backward(torch.ones_like(res))
+    assert a.grad is not None
+    assert b.grad is not None
+    compare_tensors(a.grad, torch.ones_like(a))
+    compare_tensors(b.grad, torch.ones_like(b))
+
+
+def test_nn_parameter_signature():
+    """
+    Test that torch.nn.parameter.Parameter produces the same signature as torch.Tensor.
+    """
+    cd = NativeCallDataCache()
+
+    param = torch.nn.parameter.Parameter(torch.empty((4, 4), dtype=torch.float32).cuda())
+    tensor = torch.empty((4, 4), dtype=torch.float32).cuda()
+
+    sig_param = SignatureBuilder()
+    sig_tensor = SignatureBuilder()
+    cd.get_value_signature(sig_param, param)
+    cd.get_value_signature(sig_tensor, tensor)
+
+    assert sig_param.str == sig_tensor.str
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_nn_module_parameter_gradient(device_type: DeviceType):
+    """
+    Test that nn.Parameter from an nn.Module can be passed to slangpy functions
+    with gradients flowing back into the module (typical training use-case).
+    """
+    import torch.nn as nn
+
+    module = load_test_module(device_type)
+
+    # Simulate a typical use-case: module parameters fed into a slangpy kernel
+    linear = nn.Linear(10, 10, bias=True, device="cuda", dtype=torch.float32)
+    bias = linear.bias  # nn.Parameter, shape (10,)
+
+    x = torch.randn((10,), dtype=torch.float32, device="cuda", requires_grad=True)
+
+    result = module.add(x, bias)
+    assert isinstance(result, torch.Tensor)
+
+    result.backward(torch.ones_like(result))
+    assert x.grad is not None
+    assert bias.grad is not None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
