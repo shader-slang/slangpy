@@ -87,41 +87,51 @@ ref<ShaderObject> ShaderObject::get_object(const ShaderOffset& offset)
 void ShaderObject::set_object(const ShaderOffset& offset, const ref<ShaderObject>& object)
 {
     SLANG_RHI_CALL(
-        m_shader_object->setObject(rhi_shader_offset(offset), object ? object->rhi_shader_object() : nullptr)
+        m_shader_object->setObject(rhi_shader_offset(offset), object ? object->rhi_shader_object() : nullptr),
+        m_device
     );
 }
 
 void ShaderObject::set_buffer(const ShaderOffset& offset, const ref<Buffer>& buffer)
 {
     SLANG_RHI_CALL(
-        m_shader_object->setBinding(rhi_shader_offset(offset), rhi::Binding(buffer ? buffer->rhi_buffer() : nullptr))
+        m_shader_object->setBinding(rhi_shader_offset(offset), rhi::Binding(buffer ? buffer->rhi_buffer() : nullptr)),
+        m_device
     );
 }
 
 void ShaderObject::set_buffer_view(const ShaderOffset& offset, const ref<BufferView>& buffer_view)
 {
-    SLANG_RHI_CALL(m_shader_object->setBinding(
-        rhi_shader_offset(offset),
-        rhi::Binding(
-            buffer_view->buffer()->rhi_buffer(),
-            rhi::BufferRange{buffer_view->range().offset, buffer_view->range().size}
-        )
-    ));
+    SLANG_RHI_CALL(
+        m_shader_object->setBinding(
+            rhi_shader_offset(offset),
+            rhi::Binding(
+                buffer_view->buffer()->rhi_buffer(),
+                rhi::BufferRange{buffer_view->range().offset, buffer_view->range().size}
+            )
+        ),
+        m_device
+    );
 }
 
 void ShaderObject::set_texture(const ShaderOffset& offset, const ref<Texture>& texture)
 {
     SLANG_RHI_CALL(
-        m_shader_object->setBinding(rhi_shader_offset(offset), rhi::Binding(texture ? texture->rhi_texture() : nullptr))
+        m_shader_object
+            ->setBinding(rhi_shader_offset(offset), rhi::Binding(texture ? texture->rhi_texture() : nullptr)),
+        m_device
     );
 }
 
 void ShaderObject::set_texture_view(const ShaderOffset& offset, const ref<TextureView>& texture_view)
 {
-    SLANG_RHI_CALL(m_shader_object->setBinding(
-        rhi_shader_offset(offset),
-        rhi::Binding(texture_view ? texture_view->rhi_texture_view() : nullptr)
-    ));
+    SLANG_RHI_CALL(
+        m_shader_object->setBinding(
+            rhi_shader_offset(offset),
+            rhi::Binding(texture_view ? texture_view->rhi_texture_view() : nullptr)
+        ),
+        m_device
+    );
 }
 
 void ShaderObject::set_sampler(const ShaderOffset& offset, const ref<Sampler>& sampler)
@@ -131,7 +141,9 @@ void ShaderObject::set_sampler(const ShaderOffset& offset, const ref<Sampler>& s
     if (m_device->type() == DeviceType::cuda)
         return;
     SLANG_RHI_CALL(
-        m_shader_object->setBinding(rhi_shader_offset(offset), rhi::Binding(sampler ? sampler->rhi_sampler() : nullptr))
+        m_shader_object
+            ->setBinding(rhi_shader_offset(offset), rhi::Binding(sampler ? sampler->rhi_sampler() : nullptr)),
+        m_device
     );
 }
 
@@ -140,26 +152,32 @@ void ShaderObject::set_acceleration_structure(
     const ref<AccelerationStructure>& acceleration_structure
 )
 {
-    SLANG_RHI_CALL(m_shader_object->setBinding(
-        rhi_shader_offset(offset),
-        rhi::Binding(acceleration_structure ? acceleration_structure->rhi_acceleration_structure() : nullptr)
-    ));
+    SLANG_RHI_CALL(
+        m_shader_object->setBinding(
+            rhi_shader_offset(offset),
+            rhi::Binding(acceleration_structure ? acceleration_structure->rhi_acceleration_structure() : nullptr)
+        ),
+        m_device
+    );
 }
 
 void ShaderObject::set_descriptor_handle(const ShaderOffset& offset, const DescriptorHandle& handle)
 {
-    SLANG_RHI_CALL(m_shader_object->setDescriptorHandle(rhi_shader_offset(offset), rhi_descriptor_handle(handle)));
+    SLANG_RHI_CALL(
+        m_shader_object->setDescriptorHandle(rhi_shader_offset(offset), rhi_descriptor_handle(handle)),
+        m_device
+    );
 }
 
 void ShaderObject::set_data(const ShaderOffset& offset, const void* data, size_t size)
 {
-    SLANG_RHI_CALL(m_shader_object->setData(rhi_shader_offset(offset), data, size));
+    SLANG_RHI_CALL(m_shader_object->setData(rhi_shader_offset(offset), data, size), m_device);
 }
 
 void* ShaderObject::reserve_data(const ShaderOffset& offset, size_t size)
 {
     void* res;
-    SLANG_RHI_CALL(m_shader_object->reserveData(rhi_shader_offset(offset), size, &res));
+    SLANG_RHI_CALL(m_shader_object->reserveData(rhi_shader_offset(offset), size, &res), m_device);
     return res;
 }
 

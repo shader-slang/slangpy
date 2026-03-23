@@ -820,6 +820,18 @@ bool lex_lt(const matrix<T, R, C>& lhs, const matrix<T, R, C>& rhs)
 } // namespace sgl::math
 
 template<typename T, int R, int C>
+struct std::hash<::sgl::math::matrix<T, R, C>> {
+    constexpr size_t operator()(const ::sgl::math::matrix<T, R, C>& m) const
+    {
+        size_t result = 0;
+        for (int r = 0; r < R; ++r)
+            for (int c = 0; c < C; ++c)
+                result ^= std::hash<T>()(m[r][c]) + 0x9e3779b9 + (result << 6) + (result >> 2);
+        return result;
+    }
+};
+
+template<typename T, int R, int C>
 struct fmt::formatter<sgl::math::matrix<T, R, C>> : formatter<typename sgl::math::matrix<T, R, C>::row_type> {
     using row_type = typename sgl::math::matrix<T, R, C>::row_type;
 

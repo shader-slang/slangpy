@@ -68,6 +68,7 @@ int main()
         });
 
         ref<AccelerationStructure> blas = device->create_acceleration_structure({
+            .kind = AccelerationStructureKind::bottom_level,
             .size = blas_sizes.acceleration_structure_size,
             .label = "blas",
         });
@@ -105,6 +106,7 @@ int main()
         });
 
         ref<AccelerationStructure> tlas = device->create_acceleration_structure({
+            .kind = AccelerationStructureKind::top_level,
             .size = tlas_sizes.acceleration_structure_size,
             .label = "tlas",
         });

@@ -193,7 +193,7 @@ class CodeGen:
         snippets: bool = False,
         call_data_structs: bool = False,
         constants: bool = False,
-        use_param_block_for_call_data: bool = False,
+        use_param_block_for_call_data: bool = True,
     ):
         """
         Generate the final code for the kernel.
@@ -202,6 +202,9 @@ class CodeGen:
         if not self.skip_call_data:
             self.call_data.end_block()
 
+            # TODO: Remove 'use_param_block_for_call_data'
+            # This is only set to false for raw dispatch on cuda. Once it's retired, we will always bind
+            # call_data as a parameter block unless it is skipped.
             if use_param_block_for_call_data:
                 self.call_data.append_statement("ParameterBlock<CallData> call_data")
 

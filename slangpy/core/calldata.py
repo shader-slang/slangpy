@@ -8,11 +8,13 @@ from typing import TYPE_CHECKING, Any
 from slangpy.core.callsignature import *
 from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
 from slangpy.core.native import (
+    AccessType,
     CallMode,
     NativeCallData,
     unpack_args,
     unpack_kwargs,
 )
+from slangpy.core.function import PipelineType
 
 from slangpy import (
     SlangCompileError,
@@ -270,11 +272,11 @@ class CallData(NativeCallData):
                 f"use_entrypoint_args: {use_entrypoint_args}"
             )
 
-            # Until https://github.com/shader-slang/slang-rhi/pull/676, Vk RTP can't use entry point args
-            if (
-                build_info.pipeline_type == PipelineType.ray_tracing
-                and build_info.module.device.info.type == DeviceType.vulkan
-            ):
+            # Until https://github.com/shader-slang/slang-rhi/pull/676, Vk RTP can't use entry point args,
+            # and on optix, numPayloadValues (dependent on entry point params size) must be <= 32. For
+            # now just disable for RTP. Both fail on dispatch, so simple compilation test isn't enough
+            # to catch it.
+            if build_info.pipeline_type == PipelineType.ray_tracing:
                 use_entrypoint_args = False
 
             # Disable for Metal until I can figure out how entry point args work properly
@@ -408,7 +410,6 @@ class CallData(NativeCallData):
             snippets=True,
             call_data_structs=True,
             constants=True,
-            use_param_block_for_call_data=not context.use_entrypoint_args,
         )
 
         # Optionally write the shader to a file for debugging.

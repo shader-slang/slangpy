@@ -1099,19 +1099,19 @@ TESTS = [
     ("func_irwdifftensor", _Tensor("int", 2, False), None, None),
     ("func_irwdifftensor", _Tensor("int", 2, True), None, None),
 
-    # Diff tensors require grads so these should all fail
-    ("func_DiffTensor", _Tensor("float", 2, False), None, None),
-    ("func_DiffTensor", _Tensor("float", 2, True), None, None),
+    # Diff tensors have grads but we are allowing them to be null during primal pass
+    ("func_DiffTensor", _Tensor("float", 2, False), "DiffTensor<float,2>", 2),
+    ("func_DiffTensor", _Tensor("float", 2, True), "DiffTensor<float,2>", 2),
     ("func_WDiffTensor", _Tensor("float", 2, False), None, None),
-    ("func_WDiffTensor", _Tensor("float", 2, True), None, None),
+    ("func_WDiffTensor", _Tensor("float", 2, True), "WDiffTensor<float,2>", 2),
     ("func_rwdifftensor", _Tensor("float", 2, False), None, None),
-    ("func_rwdifftensor", _Tensor("float", 2, True), None, None),
+    ("func_rwdifftensor", _Tensor("float", 2, True), "RWDiffTensor<float,2>", 2),
 
-    # Diff tensors with the wrong grads should also fail!
-    ("func_DiffTensor", _Tensor("float", 2, True, True, False), None, None),
-    ("func_WDiffTensor", _Tensor("float", 2, True, False, True), None, None),
-    ("func_rwdifftensor", _Tensor("float", 2, True, False, True), None, None),
-    ("func_rwdifftensor", _Tensor("float", 2, True, True, False), None, None),
+    # For same reason, having the wrong grads is still valid (it just means they'll get null grads)
+    ("func_DiffTensor", _Tensor("float", 2, True, True, False), "DiffTensor<float,2>", 2),
+    ("func_WDiffTensor", _Tensor("float", 2, True, False, True), "WDiffTensor<float,2>", 2),
+    ("func_rwdifftensor", _Tensor("float", 2, True, False, True), "RWDiffTensor<float,2>", 2),
+    ("func_rwdifftensor", _Tensor("float", 2, True, True, False), "RWDiffTensor<float,2>", 2),
 
     # Diff tensors with the correct grads should also pass!
     ("func_DiffTensor", _Tensor("float", 2, True, False, True), "DiffTensor<float,2>", 2),

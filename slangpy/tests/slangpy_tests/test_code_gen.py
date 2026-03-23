@@ -44,18 +44,17 @@ def assert_not_contains(code: str, *patterns: str) -> None:
         assert p not in code, f"Unexpected pattern found: {p}"
 
 
-def assert_trampoline_has(code: str, *stmts: str) -> None:
-    """Assert trampoline contains statements (tolerates call_data vs __calldata__ vs __in_)."""
-    for s in stmts:
-        if "__calldata__." in s:
-            alt = s.replace("__calldata__.", "call_data.")
-            # Fast path: x = __in_x; instead of x = __calldata__.x;
-            alt2 = s.replace(" = __calldata__.", " = __in_")
-            assert (
-                s in code or alt in code or alt2 in code
-            ), f"Expected trampoline statement not found: {s} (or {alt} or {alt2})"
-        else:
-            assert s in code, f"Expected trampoline statement not found: {s}"
+def assert_load_statement(code: str, *var_names: str) -> None:
+    """Assert that load statements exist for the given variables.
+
+    Handles both code paths:
+    - Fast path (entry-point params): ``__tmp_x = x;``
+    - Fallback path (ParameterBlock<CallData>): ``__tmp_x = call_data.x;``
+    """
+    for name in var_names:
+        fast = f"__tmp_{name} = {name};"
+        fallback = f"__tmp_{name} = call_data.{name};"
+        assert fast in code or fallback in code, f"Expected load for '{name}': {fast} or {fallback}"
 
 
 def generate_code_and_bindings(
@@ -125,8 +124,8 @@ def test_scalar_direct_bind(device_type: spy.DeviceType):
     # Scalars use raw type directly, no wrapper
     assert_not_contains(code, "ValueType<int>")
     assert_not_contains(code, "typealias _t_a", "typealias _t_b")
-    # Direct assignment in trampoline
-    assert_trampoline_has(code, "a = __calldata__.a;", "b = __calldata__.b;")
+    # Direct assignment — loaded into __tmp_ locals
+    assert_load_statement(code, "a", "b")
     # _result is auto-created writable RWValueRef
     assert_contains(code, "RWValueRef<int>")
     assert_contains(code, "__slangpy_store")
@@ -159,7 +158,7 @@ def test_vector_direct_bind(device_type: spy.DeviceType):
 
     assert_not_contains(code, "VectorValueType<float,3>")
     assert_not_contains(code, "typealias _t_v")
-    assert_contains(code, "vector<float,3> v;")
+    assert_contains(code, "vector<float,3> __tmp_v;")
 
     assert bindings.args[0].direct_bind is True
     assert bindings.args[0].call_dimensionality == 0
@@ -180,7 +179,7 @@ def test_matrix_direct_bind(device_type: spy.DeviceType):
 
     assert_not_contains(code, "ValueType<matrix<float,4,4>>")
     assert_not_contains(code, "typealias _t_m")
-    assert_contains(code, "matrix<float,4,4> m;")
+    assert_contains(code, "matrix<float,4,4> __tmp_m;")
 
     assert bindings.args[0].direct_bind is True
     assert bindings.args[0].call_dimensionality == 0
@@ -218,8 +217,8 @@ def test_valueref_read_direct_bind(device_type: spy.DeviceType):
     )
 
     assert_not_contains(code, "typealias _t_v")
-    assert_contains(code, "float v;")
-    assert_trampoline_has(code, "v = __calldata__.v;")
+    assert_contains(code, "float __tmp_v;")
+    assert_load_statement(code, "v")
     assert_contains(code, "RWValueRef<float>")
 
     assert bindings.args[0].direct_bind is True
@@ -264,8 +263,8 @@ float sum(S s) { return s.x + s.y; }
     # Direct-bind struct — raw type, no __slangpy_load
     assert_not_contains(code, "__slangpy_load")
     assert_not_contains(code, "typealias _t_s")
-    assert_contains(code, "S s;")
-    assert_trampoline_has(code, "s = __calldata__.s;")
+    assert_contains(code, "S __tmp_s;")
+    assert_load_statement(code, "s")
 
     s = bindings.args[0]
     assert s.direct_bind is True
@@ -277,14 +276,11 @@ float sum(S s) { return s.x + s.y; }
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize(
     "variant",
-    ["vector_field", "array_field"],
-    ids=["vector_field", "array_field"],
+    ["vector_field", "array_field", "matrix_field"],
+    ids=["vector_field", "array_field", "matrix_field"],
 )
 def test_struct_composite_fields_direct_bind(device_type: spy.DeviceType, variant: str):
-    """Struct with composite field (vector / array) all dim-0 → direct-bind.
-
-    Merges: struct_with_vector_fields, struct_with_array_field codegen+binding tests.
-    """
+    """Struct with composite field (vector / array / matrix) all dim-0 → direct-bind."""
     device = helpers.get_device(device_type)
 
     if variant == "vector_field":
@@ -298,7 +294,7 @@ float3 apply(S s) { return s.pos * s.scale; }
         arg = {"_type": "S", "pos": spy.math.float3(1, 2, 3), "scale": 2.0}
         func_name = "apply"
         child_name = "pos"
-    else:
+    elif variant == "array_field":
         src = """
 struct Foo {
     int vals[4];
@@ -314,14 +310,25 @@ int sum_inner(Foo foo) {
         arg = {"_type": "Foo", "vals": [1, 2, 3, 4]}
         func_name = "sum_inner"
         child_name = "vals"
+    else:
+        src = """
+struct S {
+    float4x4 m;
+    float scale;
+};
+float4x4 apply(S s) { return s.m * s.scale; }
+"""
+        arg = {"_type": "S", "m": spy.math.float4x4.identity(), "scale": 2.0}
+        func_name = "apply"
+        child_name = "m"
 
     code, bindings = generate_code_and_bindings(device, func_name, src, arg)
 
     # Struct is direct-bind — raw type, no __slangpy_load
     assert_not_contains(code, "__slangpy_load")
-    param_name = "s" if variant == "vector_field" else "foo"
+    param_name = "foo" if variant == "array_field" else "s"
     assert_not_contains(code, f"typealias _t_{param_name}")
-    assert_trampoline_has(code, f"{param_name} = __calldata__.{param_name};")
+    assert_load_statement(code, param_name)
 
     s = bindings.args[0]
     assert s.direct_bind is True
@@ -359,10 +366,10 @@ float compute(Top t) { return t.mid.bot.v * float(t.mid.c) * t.s; }
     code, bindings = generate_code_and_bindings(device, "compute", src, arg)
 
     assert_not_contains(code, "typealias _t_t")
-    assert_contains(code, "Top t;")
+    assert_contains(code, "Top __tmp_t;")
     assert_not_contains(code, "__slangpy_load")
     assert_not_contains(code, "struct _t_t")
-    assert_trampoline_has(code, "t = __calldata__.t;")
+    assert_load_statement(code, "t")
 
     t = bindings.args[0]
     assert t.direct_bind is True
@@ -409,7 +416,7 @@ void apply(S s, float scale) {}
     assert_contains(code, "x.__slangpy_load(context.map(_m_x),value.x)")
     # Independent scalar arg 'scale' — direct-bind
     assert_not_contains(code, "typealias _t_scale")
-    assert_contains(code, "float scale;")
+    assert_contains(code, "float __tmp_scale;")
 
     # Binding flags
     s = bindings.args[0]
@@ -539,7 +546,7 @@ def test_mixed_scalar_and_tensor(device_type: spy.DeviceType):
     # 'a' direct-bind
     assert_not_contains(code, "typealias _t_a")
     assert_not_contains(code, "ValueType<float>")
-    assert_trampoline_has(code, "a = __calldata__.a;")
+    assert_load_statement(code, "a")
     # 'b' NOT direct-bind (vectorized tensor)
     assert_contains(code, "Tensor<float, 1>")
     assert_contains(code, "__slangpy_load")
@@ -568,8 +575,8 @@ float tensor_read(Tensor<float,1> t) {
     code, bindings = generate_code_and_bindings(device, "tensor_read", src, tensor)
 
     assert_not_contains(code, "typealias _t_t")
-    assert_contains(code, "Tensor<float, 1> t;")
-    assert_trampoline_has(code, "t = __calldata__.t;")
+    assert_contains(code, "Tensor<float, 1> __tmp_t;")
+    assert_load_statement(code, "t")
     assert_not_contains(code, "ValueType<")
 
     t = bindings.args[0]
@@ -593,7 +600,7 @@ def test_2d_tensor_to_vector(device_type: spy.DeviceType):
     assert_contains(code, "__slangpy_load")
     assert_contains(code, "_m_v")
     assert_not_contains(code, "typealias _t_s")
-    assert_contains(code, "float s;")
+    assert_contains(code, "float __tmp_s;")
 
     v = bindings.args[0]
     assert v.call_dimensionality == 1
@@ -703,8 +710,8 @@ float dot_lookup(float3 v, Tensor<float,1> weights) {
     assert_contains(code, "__slangpy_load")
     # weights: dim-0 direct-bind
     assert_not_contains(code, "typealias _t_weights")
-    assert_contains(code, "Tensor<float, 1> weights;")
-    assert_trampoline_has(code, "weights = __calldata__.weights;")
+    assert_contains(code, "Tensor<float, 1> __tmp_weights;")
+    assert_load_statement(code, "weights")
 
     v = bindings.args[0]
     assert v.call_dimensionality == 1
@@ -761,7 +768,7 @@ float sum({_SHORT_STRUCT_NAME} s) {{ return s.x + s.y; }}
         device, "sum", short_src, {"_type": _SHORT_STRUCT_NAME, "x": 1.0, "y": 2.0}
     )
     assert_not_contains(code_short, "typealias _t_s")
-    assert_contains(code_short, f"{_SHORT_STRUCT_NAME} s;")
+    assert_contains(code_short, f"{_SHORT_STRUCT_NAME} __tmp_s;")
 
     # --- Long wrapper name for _result ---
     identity_src = f"""
@@ -1232,10 +1239,10 @@ float polynomial(float a, float b) {
     # --- fast path ---
     assert cd.use_entrypoint_args is True
 
-    # --- trampoline params have no_diff and __in_ prefix ---
+    # --- trampoline params have no_diff ---
     assert_contains(code, "no_diff")
-    assert_contains(code, "__in_a")
-    assert_contains(code, "__in_b")
+    assert_contains(code, "no_diff float a")
+    assert_contains(code, "no_diff float b")
 
     # --- [Differentiable] before trampoline ---
     diff_idx = code.index("[Differentiable]")
@@ -1302,6 +1309,186 @@ float4x4 sum8(float4x4 a, float4x4 b, float4x4 c, float4x4 d,
         assert_contains(code, "ParameterBlock<CallData> call_data")
         assert_contains(code, "call_data._thread_count")
         assert_not_contains(code, "uniform uint3 _thread_count")
+
+
+# ===========================================================================
+# Prim-mode trampoline elimination (41–42)
+# ===========================================================================
+
+
+# 41 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_prim_no_trampoline(device_type: spy.DeviceType):
+    """Prim mode: no _trampoline function, call inlined in compute_main."""
+    device = helpers.get_device(device_type)
+    code, _ = generate_code_and_bindings(
+        device, "add", "int add(int a, int b) { return a + b; }", 1, 2
+    )
+    # No trampoline function generated
+    assert_not_contains(code, "void _trampoline(")
+    # compute_main does NOT call _trampoline — it inlines the call
+    main_idx = code.index("void compute_main(")
+    main_body = code[main_idx:]
+    assert "_trampoline(" not in main_body
+    assert "add(__tmp_a, __tmp_b);" in main_body
+
+
+# 42 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_struct_array_of_structs_codegen(device_type: spy.DeviceType):
+    """Struct with array-of-structs field: Outer{Inner items[4]} — all dim-0, direct-bind."""
+    device = helpers.get_device(device_type)
+    src = """
+struct Inner {
+    int x;
+};
+struct Outer {
+    Inner items[4];
+};
+int sum_inner(Outer outer) {
+    int s = 0;
+    for (int i = 0; i < 4; i++) {
+        s += outer.items[i].x;
+    }
+    return s;
+}
+"""
+    code, bindings = generate_code_and_bindings(
+        device,
+        "sum_inner",
+        src,
+        {
+            "_type": "Outer",
+            "items": [
+                {"_type": "Inner", "x": 10},
+                {"_type": "Inner", "x": 20},
+                {"_type": "Inner", "x": 30},
+                {"_type": "Inner", "x": 40},
+            ],
+        },
+    )
+    assert_not_contains(code, "typealias _t_outer")
+    assert_contains(code, "Outer __tmp_outer;")
+    assert_not_contains(code, "__slangpy_load")
+    assert_load_statement(code, "outer")
+
+    assert bindings.args[0].direct_bind is True
+
+
+# ===========================================================================
+# Additional use_entrypoint_args coverage (43–46)
+# ===========================================================================
+
+
+# 43 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_threshold_property_positive(device_type: spy.DeviceType):
+    """Device has a positive max_entry_point_uniform_size threshold."""
+    device = helpers.get_device(device_type)
+    threshold = device.info.limits.max_entry_point_uniform_size
+    assert threshold > 0
+
+
+# 44 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_vector_uses_entrypoint_args(device_type: spy.DeviceType):
+    """float3 args are small enough for entry-point params."""
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
+    device = helpers.get_device(device_type)
+    _, _, cd = build_call_data_full(
+        device,
+        "scale",
+        "float3 scale(float3 v, float s) { return v * s; }",
+        spy.math.float3(1, 2, 3),
+        2.0,
+    )
+    assert cd.use_entrypoint_args is True
+
+
+# 45 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_struct_uses_entrypoint_args(device_type: spy.DeviceType):
+    """All-scalar struct dict has small inline-uniform size."""
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
+    device = helpers.get_device(device_type)
+    src = """
+struct S { float x; float y; };
+float sum(S s) { return s.x + s.y; }
+"""
+    _, _, cd = build_call_data_full(device, "sum", src, {"_type": "S", "x": 1.0, "y": 2.0})
+    assert cd.use_entrypoint_args is True
+
+
+# 46 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_uses_entrypoint_args(device_type: spy.DeviceType):
+    """Tensor args contribute descriptor-only (0 inline bytes) → entry-point params."""
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
+    device = helpers.get_device(device_type)
+    tensor = Tensor.from_numpy(device, np.array([1.0, 2.0, 3.0], dtype=np.float32))
+    _, _, cd = build_call_data_full(
+        device,
+        "sum_all",
+        "float sum_all(float x) { return x; }",
+        tensor,
+    )
+    assert cd.use_entrypoint_args is True
+
+
+# ===========================================================================
+# Additional functional dispatch tests (47–49)
+# ===========================================================================
+
+
+# 47 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dispatch_valueref_read(device_type: spy.DeviceType):
+    """Dispatch with a read-only ValueRef input — direct-bind pipeline end-to-end."""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(
+        device, "double_it", "float double_it(float v) { return v * 2; }"
+    )
+    result = func(ValueRef(7.0))
+    assert abs(result - 14.0) < 1e-5
+
+
+# 48 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dispatch_struct_return(device_type: spy.DeviceType):
+    """Dispatch struct return and verify result is dict with correct values."""
+    device = helpers.get_device(device_type)
+    src = """
+struct S {
+    int x;
+    int y;
+};
+S make_struct(int a, int b) { return { a, b }; }
+"""
+    func = helpers.create_function_from_module(device, "make_struct", src)
+    result = func(4, 5)
+    assert isinstance(result, dict)
+    assert result["x"] == 4
+    assert result["y"] == 5
+
+
+# 49 ------------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dispatch_long_struct_name(device_type: spy.DeviceType):
+    """End-to-end dispatch with a struct whose name exceeds 60 chars."""
+    device = helpers.get_device(device_type)
+    src = f"""
+struct {_LONG_STRUCT_NAME} {{
+    float x;
+    float y;
+}};
+float sum({_LONG_STRUCT_NAME} s) {{ return s.x + s.y; }}
+"""
+    func = helpers.create_function_from_module(device, "sum", src)
+    result = func({"_type": _LONG_STRUCT_NAME, "x": 3.0, "y": 7.0})
+    assert abs(result - 10.0) < 1e-5
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ import os
 import re
 from typing import TYPE_CHECKING, Any, Optional
 
-from slangpy.core.callsignature import generate_constants
+from slangpy.core.generator import generate_constants
 from slangpy.core.enums import IOType
 from slangpy.core.native import CallMode, pack_arg, unpack_arg
 from slangpy.core.calldata import _DUMP_SLANG_INTERMEDIATES, _DUMP_GENERATED_SHADERS

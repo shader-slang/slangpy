@@ -33,8 +33,6 @@ Blitter::~Blitter() { }
 
 void Blitter::blit(CommandEncoder* command_encoder, TextureView* dst, TextureView* src, TextureFilteringMode filter)
 {
-    SGL_UNUSED(filter);
-
     SGL_CHECK_NOT_NULL(command_encoder);
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK_NOT_NULL(src);
@@ -68,7 +66,6 @@ void Blitter::blit(CommandEncoder* command_encoder, TextureView* dst, TextureVie
     uint32_t src_mip = src->subresource_range().mip;
 
     uint2 dst_size = dst_texture->get_mip_size(dst_mip).xy();
-    uint2 src_size = src_texture->get_mip_size(src_mip).xy();
 
     auto determine_texture_data_kind = [](const FormatInfo& format_info) -> TextureDataKind
     {
@@ -221,7 +218,7 @@ ref<ShaderProgram> Blitter::get_render_program(ProgramKey key)
     if (it != m_render_program_cache.end())
         return it->second;
 
-    std::string name = fmt::format("blit-render-{}", m_render_program_cache.size());
+    std::string name = fmt::format("sgl-device-blit-render-{}", key.hash());
     std::string source = generate_defines(key) + m_device->slang_session()->load_source("sgl/device/blit.slang");
 
     ref<SlangModule> module = m_device->slang_session()->load_module_from_source(name, source);
@@ -265,7 +262,7 @@ ref<ShaderProgram> Blitter::get_compute_program(ProgramKey key)
     if (it != m_compute_program_cache.end())
         return it->second;
 
-    std::string name = fmt::format("blit-compute-{}", m_compute_pipeline_cache.size());
+    std::string name = fmt::format("sgl-device-blit-compute-{}", key.hash());
     std::string source = generate_defines(key) + m_device->slang_session()->load_source("sgl/device/blit.slang");
 
     ref<SlangModule> module = m_device->slang_session()->load_module_from_source(name, source);
