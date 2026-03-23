@@ -919,7 +919,7 @@ std::string SlangComponentType::to_string() const
 }
 
 SlangModule::SlangModule(ref<SlangSession> session, const SlangModuleDesc& desc)
-    : m_session(std::move(session))
+    : SlangComponentType(std::move(session), nullptr)
     , m_desc(desc)
 {
     m_session->_register_module(this);
@@ -995,6 +995,7 @@ void SlangModule::load(SlangSessionBuild& build_data) const
 void SlangModule::store_built_data(SlangSessionBuild& build_data)
 {
     m_data = build_data.modules[this];
+    m_component_type = m_data->slang_module;
     for (auto ep : m_registered_entry_points)
         ep->store_built_data(build_data);
 }

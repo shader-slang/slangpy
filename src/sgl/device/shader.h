@@ -456,7 +456,7 @@ struct SlangModuleData : Object {
     std::filesystem::path path;
 };
 
-class SGL_API SlangModule : public Object {
+class SGL_API SlangModule : public SlangComponentType {
     SGL_OBJECT(SlangModule)
 public:
     SlangModule(ref<SlangSession> session, const SlangModuleDesc& desc);
@@ -473,9 +473,6 @@ public:
 
     /// Repopulates a build structure with reference to internal m_data ptr.
     void populate_build_data(SlangSessionBuild& build_data);
-
-    /// The session from which this module was built.
-    SlangSession* session() const { return m_session; }
 
     /// Descriptor that holds all data required to create this module.
     const SlangModuleDesc& desc() const { return m_desc; }
@@ -512,13 +509,11 @@ public:
     /// Unlinks the session reference for modules that are referred to by the session to avoid ref loops.
     void break_strong_reference_to_session() { m_session.break_strong_reference(); }
 
-
     void _register_entry_point(SlangEntryPoint* entry_point) const;
     void _unregister_entry_point(SlangEntryPoint* entry_point) const;
     ref<SlangModuleData> _data() { return m_data; }
 
 private:
-    breakable_ref<SlangSession> m_session;
     SlangModuleDesc m_desc;
     ref<SlangModuleData> m_data;
 
