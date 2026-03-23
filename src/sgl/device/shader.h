@@ -221,6 +221,7 @@ struct SlangSessionData;
 struct SlangModuleData;
 struct SlangEntryPointData;
 struct ShaderProgramData;
+class SlangTypeConformance;
 
 /// Intermediate structure used during a build that stores new session, module,
 /// program and entry point information. This is populated during a build, then
@@ -310,6 +311,13 @@ public:
 
     /// Load the source code for a given module.
     std::string load_source(std::string_view module_name);
+
+    /// Create a type conformance component type.
+    /// @param type_name Name of the concrete type.
+    /// @param interface_name Name of the interface.
+    /// @param id_override Optional unique id for the conformance (-1 for auto).
+    ref<SlangTypeConformance>
+    create_type_conformance(std::string_view type_name, std::string_view interface_name, int32_t id_override = -1);
 
     slang::ISession* get_slang_session() const { return m_data->slang_session; }
 
@@ -572,6 +580,29 @@ private:
     ref<SlangModule> m_module;
     SlangEntryPointDesc m_desc;
     ref<SlangEntryPointData> m_data;
+};
+
+/// \brief Wraps a Slang type conformance component type.
+///
+/// Created via SlangSession::create_type_conformance(). Represents the
+/// conformance of a concrete type to an interface, used to narrow the set
+/// of types when composing shader programs.
+class SGL_API SlangTypeConformance : public SlangComponentType {
+    SGL_OBJECT(SlangTypeConformance)
+public:
+    SlangTypeConformance(
+        ref<SlangSession> session,
+        Slang::ComPtr<slang::IComponentType> component_type,
+        TypeConformance conformance
+    );
+
+    /// The type conformance descriptor.
+    const TypeConformance& conformance() const { return m_conformance; }
+
+    std::string to_string() const override;
+
+private:
+    TypeConformance m_conformance;
 };
 
 struct ShaderProgramDesc {

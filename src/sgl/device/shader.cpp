@@ -629,6 +629,46 @@ std::string SlangSession::load_source(std::string_view module_name)
     SGL_THROW("Failed to load source for module \"{}\"", module_name);
 }
 
+ref<SlangTypeConformance>
+SlangSession::create_type_conformance(std::string_view type_name, std::string_view interface_name, int32_t id_override)
+{
+    slang::ISession* slang_session = m_data->slang_session;
+
+    // Use the session's first loaded module layout to resolve types.
+    // We need a ProgramLayout to call findTypeByName.
+    SGL_CHECK(!m_registered_modules.empty(), "No modules loaded; cannot resolve type names for type conformance");
+    slang::ProgramLayout* layout;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(layout = m_registered_modules.front()->slang_module()->getLayout());
+
+    slang::TypeReflection* type = layout->findTypeByName(std::string(type_name).c_str());
+    SGL_CHECK(type, "Type \"{}\" not found", type_name);
+    slang::TypeReflection* interface_type = layout->findTypeByName(std::string(interface_name).c_str());
+    SGL_CHECK(interface_type, "Interface type \"{}\" not found", interface_name);
+
+    Slang::ComPtr<slang::ITypeConformance> slang_conformance;
+    Slang::ComPtr<ISlangBlob> diagnostics;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(slang_session->createTypeConformanceComponentType(
+        type,
+        interface_type,
+        slang_conformance.writeRef(),
+        id_override,
+        diagnostics.writeRef()
+    ));
+    report_diagnostics(diagnostics);
+    SGL_CHECK(
+        slang_conformance,
+        "Failed to create type conformance for type \"{}\" and interface \"{}\"",
+        type_name,
+        interface_name
+    );
+
+    return make_ref<SlangTypeConformance>(
+        ref(this),
+        Slang::ComPtr<slang::IComponentType>(slang_conformance.get()),
+        TypeConformance(interface_name, type_name, id_override)
+    );
+}
+
 void SlangSession::_register_program(ShaderProgram* program)
 {
     SGL_ASSERT(m_registered_programs.count(program) == 0);
@@ -1332,6 +1372,29 @@ ref<const EntryPointLayout> SlangEntryPoint::layout() const
 std::string SlangEntryPoint::to_string() const
 {
     return fmt::format("SlangEntryPoint(name=\"{}\", stage={})", m_data->name, m_data->stage);
+}
+
+// ----------------------------------------------------------------------------
+// SlangTypeConformance
+// ----------------------------------------------------------------------------
+
+SlangTypeConformance::SlangTypeConformance(
+    ref<SlangSession> session,
+    Slang::ComPtr<slang::IComponentType> component_type,
+    TypeConformance conformance
+)
+    : SlangComponentType(std::move(session), std::move(component_type))
+    , m_conformance(std::move(conformance))
+{
+}
+
+std::string SlangTypeConformance::to_string() const
+{
+    return fmt::format(
+        "SlangTypeConformance(interface=\"{}\", type=\"{}\")",
+        m_conformance.interface_name,
+        m_conformance.type_name
+    );
 }
 
 ShaderProgram::ShaderProgram(ref<Device> device, ref<SlangSession> session, const ShaderProgramDesc& desc)
