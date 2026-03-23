@@ -55,7 +55,7 @@ class SlangSession;
 
 class SlangModule;
 class SlangComponentType;
-class SlangGlobalScope;
+class SlangTypeConformance;
 class SlangEntryPoint;
 
 class ShaderProgram;
