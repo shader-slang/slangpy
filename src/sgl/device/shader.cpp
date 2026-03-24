@@ -30,7 +30,34 @@ namespace sgl {
 // Helpers
 // ----------------------------------------------------------------------------
 
-inline void report_diagnostics(ISlangBlob* diagnostics);
+/// Filter specific messages from slang diagnostics.
+/// This is mainly a workaround for the annoying warnings from NVAPI.
+/// Ideally to solve that case, slang should have diagnostic pragmas.
+inline std::string filter_diagnostics(const char* diagnostics)
+{
+    static std::regex re("^.*nvHLSLExtns.h.*\\n.*\\n.*\\^~+\\n", std::regex::ECMAScript);
+    std::string result = diagnostics;
+    result = std::regex_replace(result, re, "");
+    return result;
+}
+
+/// Append slang diagnostics to a string if not null.
+inline std::string append_diagnostics(std::string msg, ISlangBlob* diagnostics)
+{
+    if (diagnostics)
+        msg += fmt::format("\n{}", filter_diagnostics(static_cast<const char*>(diagnostics->getBufferPointer())));
+    return msg;
+}
+
+/// Report slang diagnostics to log if not null.
+inline void report_diagnostics(ISlangBlob* diagnostics)
+{
+    if (diagnostics) {
+        std::string filtered = filter_diagnostics(static_cast<const char*>(diagnostics->getBufferPointer()));
+        if (!filtered.empty())
+            log_warn("Slang compiler warnings:\n{}", filtered);
+    }
+}
 
 /// Single point for calling slang's createCompositeComponentType.
 /// Both SlangSession::create_composite_component_type() and ShaderProgram::link()
@@ -186,35 +213,6 @@ private:
 // ----------------------------------------------------------------------------
 // SlangSession
 // ----------------------------------------------------------------------------
-
-/// Filter specific messages from slang diagnostics.
-/// This is mainly a workaround for the annoying warnings from NVAPI.
-/// Ideally to solve that case, slang should have diagnostic pragmas.
-inline std::string filter_diagnostics(const char* diagnostics)
-{
-    static std::regex re("^.*nvHLSLExtns.h.*\\n.*\\n.*\\^~+\\n", std::regex::ECMAScript);
-    std::string result = diagnostics;
-    result = std::regex_replace(result, re, "");
-    return result;
-}
-
-/// Append slang diagnostics to a string if not null.
-inline std::string append_diagnostics(std::string msg, ISlangBlob* diagnostics)
-{
-    if (diagnostics)
-        msg += fmt::format("\n{}", filter_diagnostics(static_cast<const char*>(diagnostics->getBufferPointer())));
-    return msg;
-}
-
-/// Report slang diagnostics to log if not null.
-inline void report_diagnostics(ISlangBlob* diagnostics)
-{
-    if (diagnostics) {
-        std::string filtered = filter_diagnostics(static_cast<const char*>(diagnostics->getBufferPointer()));
-        if (!filtered.empty())
-            log_warn("Slang compiler warnings:\n{}", filtered);
-    }
-}
 
 SlangSession::SlangSession(ref<Device> device, SlangSessionDesc desc)
     : m_device(std::move(device))
