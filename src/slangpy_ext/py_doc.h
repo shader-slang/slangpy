@@ -218,6 +218,8 @@ static const char *__doc_sgl_AccelerationStructureDesc = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureDesc_2 = R"doc()doc";
 
+static const char *__doc_sgl_AccelerationStructureDesc_kind = R"doc()doc";
+
 static const char *__doc_sgl_AccelerationStructureDesc_label = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureDesc_size = R"doc()doc";
@@ -295,6 +297,16 @@ static const char *__doc_sgl_AccelerationStructureInstanceList_to_string = R"doc
 static const char *__doc_sgl_AccelerationStructureInstanceList_write = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureInstanceList_write_2 = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_bottom_level = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_info = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_top_level = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_unknown = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureQueryDesc = R"doc()doc";
 
@@ -834,6 +846,8 @@ static const char *__doc_sgl_Blitter_ProgramKey_dst_channel_count = R"doc()doc";
 static const char *__doc_sgl_Blitter_ProgramKey_dst_format = R"doc()doc";
 
 static const char *__doc_sgl_Blitter_ProgramKey_dst_kind = R"doc()doc";
+
+static const char *__doc_sgl_Blitter_ProgramKey_hash = R"doc()doc";
 
 static const char *__doc_sgl_Blitter_ProgramKey_operator_le = R"doc()doc";
 
@@ -2345,11 +2359,13 @@ static const char *__doc_sgl_DebugLogger = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_DebugLogger = R"doc()doc";
 
-static const char *__doc_sgl_DebugLogger_get = R"doc()doc";
-
 static const char *__doc_sgl_DebugLogger_get_messages = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_handleMessage = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_driver_log_level = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_layer_log_level = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_m_logger = R"doc()doc";
 
@@ -2358,6 +2374,8 @@ static const char *__doc_sgl_DebugLogger_m_message_count = R"doc()doc";
 static const char *__doc_sgl_DebugLogger_m_messages = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_m_mutex = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_slang_log_level = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_message_count = R"doc()doc";
 
@@ -2566,6 +2584,8 @@ static const char *__doc_sgl_DeviceDesc_bindless_options = R"doc()doc";
 
 static const char *__doc_sgl_DeviceDesc_compiler_options = R"doc(Compiler options (used for default slang session).)doc";
 
+static const char *__doc_sgl_DeviceDesc_debug_layers_log_level = R"doc(Debug layers log level (only applicable if debug layers are enabled).)doc";
+
 static const char *__doc_sgl_DeviceDesc_enable_aftermath = R"doc(Enable NVIDIA Aftermath.)doc";
 
 static const char *__doc_sgl_DeviceDesc_enable_compilation_reports = R"doc(Enable compilation reports.)doc";
@@ -2593,6 +2613,10 @@ static const char *__doc_sgl_DeviceDesc_label = R"doc(Debug label)doc";
 static const char *__doc_sgl_DeviceDesc_module_cache_path =
 R"doc(Path to the module cache directory (optional). If a relative path is
 used, the cache is stored in the application data directory.)doc";
+
+static const char *__doc_sgl_DeviceDesc_rhi_validation_log_level =
+R"doc(RHI validation layer log level (only applicable if RHI validation is
+enabled).)doc";
 
 static const char *__doc_sgl_DeviceDesc_shader_cache_path =
 R"doc(Path to the shader and pipeline cache directory (optional). If a
@@ -2633,6 +2657,13 @@ static const char *__doc_sgl_DeviceLimits_max_compute_dispatch_thread_groups = R
 static const char *__doc_sgl_DeviceLimits_max_compute_thread_group_size = R"doc(Maximum dimensions of a thread group.)doc";
 
 static const char *__doc_sgl_DeviceLimits_max_compute_threads_per_group = R"doc(Maximum number of threads per thread group.)doc";
+
+static const char *__doc_sgl_DeviceLimits_max_entry_point_uniform_size =
+R"doc(Maximum size in bytes of inline-uniform data for entry-point
+parameters. On Vulkan this corresponds to push constant size (minimum
+128 bytes). On D3D12 this corresponds to root constant space (~256
+bytes). On CUDA this corresponds to the kernel parameter block (~4096
+bytes).)doc";
 
 static const char *__doc_sgl_DeviceLimits_max_framebuffer_dimensions = R"doc(Maximum framebuffer dimensions.)doc";
 
@@ -2937,6 +2968,8 @@ static const char *__doc_sgl_Device_create_texture_view = R"doc()doc";
 
 static const char *__doc_sgl_Device_cuda_device = R"doc()doc";
 
+static const char *__doc_sgl_Device_debug_logger = R"doc()doc";
+
 static const char *__doc_sgl_Device_debug_printer = R"doc()doc";
 
 static const char *__doc_sgl_Device_desc = R"doc()doc";
@@ -3025,6 +3058,8 @@ static const char *__doc_sgl_Device_m_cuda_device = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_cuda_semaphore = R"doc()doc";
 
+static const char *__doc_sgl_Device_m_debug_logger = R"doc()doc";
+
 static const char *__doc_sgl_Device_m_debug_printer = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_desc = R"doc()doc";
@@ -3068,6 +3103,15 @@ static const char *__doc_sgl_Device_m_supports_cuda_interop = R"doc()doc";
 static const char *__doc_sgl_Device_native_handles = R"doc(Get the native device handles.)doc";
 
 static const char *__doc_sgl_Device_on_hot_reload = R"doc(Called by hot reload system after reload occurs, to trigger the hooks.)doc";
+
+static const char *__doc_sgl_Device_pop_cuda_context =
+R"doc(Pop the CUDA context from the current thread's context stack. For non-
+CUDA devices, this is a no-op.)doc";
+
+static const char *__doc_sgl_Device_push_cuda_context =
+R"doc(Push the device's CUDA context onto the current thread's context
+stack. Must be paired with pop_cuda_context(). For non-CUDA devices,
+this is a no-op.)doc";
 
 static const char *__doc_sgl_Device_read_buffer_data =
 R"doc(Read buffer data to host memory. \note This will wait until the data
@@ -3137,6 +3181,10 @@ clean shutdown with all resources released properly.)doc";
 static const char *__doc_sgl_Device_rhi_device = R"doc()doc";
 
 static const char *__doc_sgl_Device_rhi_graphics_queue = R"doc()doc";
+
+static const char *__doc_sgl_Device_set_cuda_context_current =
+R"doc(Set the device's CUDA context as current on this thread. For non-CUDA
+devices, this is a no-op.)doc";
 
 static const char *__doc_sgl_Device_shader_cache_stats = R"doc(Shader cache statistics.)doc";
 
@@ -3355,6 +3403,8 @@ static const char *__doc_sgl_Feature_acceleration_structure_spheres = R"doc()doc
 
 static const char *__doc_sgl_Feature_argument_buffer_tier2 = R"doc()doc";
 
+static const char *__doc_sgl_Feature_atomic_bfloat16 = R"doc()doc";
+
 static const char *__doc_sgl_Feature_atomic_float = R"doc()doc";
 
 static const char *__doc_sgl_Feature_atomic_half = R"doc()doc";
@@ -3362,6 +3412,8 @@ static const char *__doc_sgl_Feature_atomic_half = R"doc()doc";
 static const char *__doc_sgl_Feature_atomic_int64 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_barycentrics = R"doc()doc";
+
+static const char *__doc_sgl_Feature_bfloat16 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_bindless = R"doc()doc";
 
@@ -3379,6 +3431,8 @@ static const char *__doc_sgl_Feature_conservative_rasterization3 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_cooperative_matrix = R"doc()doc";
 
+static const char *__doc_sgl_Feature_cooperative_matrix2 = R"doc()doc";
+
 static const char *__doc_sgl_Feature_cooperative_vector = R"doc()doc";
 
 static const char *__doc_sgl_Feature_count = R"doc()doc";
@@ -3386,6 +3440,8 @@ static const char *__doc_sgl_Feature_count = R"doc()doc";
 static const char *__doc_sgl_Feature_custom_border_color = R"doc()doc";
 
 static const char *__doc_sgl_Feature_double = R"doc()doc";
+
+static const char *__doc_sgl_Feature_float8 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_fragment_shading_rate = R"doc()doc";
 
@@ -6590,6 +6646,8 @@ static const char *__doc_sgl_ShaderCursor_ShaderCursor_2 = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_ShaderCursor_3 = R"doc()doc";
 
+static const char *__doc_sgl_ShaderCursor_ShaderCursor_4 = R"doc()doc";
+
 static const char *__doc_sgl_ShaderCursor_dereference = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_find_element = R"doc()doc";
@@ -6962,6 +7020,8 @@ downstream compiler.)doc";
 static const char *__doc_sgl_SlangCompilerOptions_dump_intermediates = R"doc(When set will dump the intermediate source output.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_dump_intermediates_prefix = R"doc(The file name prefix for the intermediate source output.)doc";
+
+static const char *__doc_sgl_SlangCompilerOptions_enable_experimental_features = R"doc(Enable experimental Slang features (required for neural module).)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_enable_warnings = R"doc(Specifies a list of warnings to enable (warning codes or names).)doc";
 
@@ -7636,6 +7696,8 @@ static const char *__doc_sgl_TextureLoader_Options_usage =
 R"doc(Resource usage flags for the texture. ``TextureUsage::render_target``
 will be added automatically if ``generate_mips`` is true.)doc";
 
+static const char *__doc_sgl_TextureLoader_Options_ya_handling = R"doc(Strategy for handling YA (greyscale + alpha) bitmaps.)doc";
+
 static const char *__doc_sgl_TextureLoader_TextureLoader = R"doc()doc";
 
 static const char *__doc_sgl_TextureLoader_class_name = R"doc()doc";
@@ -7998,6 +8060,8 @@ static const char *__doc_sgl_TypeConformance_TypeConformance_2 = R"doc()doc";
 static const char *__doc_sgl_TypeConformance_id = R"doc(Unique id per type for an interface (optional).)doc";
 
 static const char *__doc_sgl_TypeConformance_interface_name = R"doc(Name of the interface.)doc";
+
+static const char *__doc_sgl_TypeConformance_operator_le = R"doc()doc";
 
 static const char *__doc_sgl_TypeConformance_to_string = R"doc()doc";
 
@@ -8564,6 +8628,16 @@ static const char *__doc_sgl_Window_width = R"doc(The width of the window in pix
 
 static const char *__doc_sgl_Window_window_handle = R"doc(The native window handle.)doc";
 
+static const char *__doc_sgl_YAHandling =
+R"doc(Strategy for handling YA (greyscale + alpha) bitmaps during texture
+loading.)doc";
+
+static const char *__doc_sgl_YAHandling_expand_to_rgba = R"doc()doc";
+
+static const char *__doc_sgl_YAHandling_info = R"doc()doc";
+
+static const char *__doc_sgl_YAHandling_preserve_as_rg = R"doc()doc";
+
 static const char *__doc_sgl_align_to = R"doc(Align an integer value to the given alignment.)doc";
 
 static const char *__doc_sgl_breakable_ref = R"doc()doc";
@@ -8756,6 +8830,10 @@ static const char *__doc_sgl_cuda_external_memory_get_mapped_buffer = R"doc()doc
 
 static const char *__doc_sgl_cuda_free_device = R"doc()doc";
 
+static const char *__doc_sgl_cuda_get_current_device_index =
+R"doc(Get the CUDA device index from the current CUDA context. Returns 0 if
+no CUDA context is active.)doc";
+
 static const char *__doc_sgl_cuda_import_external_memory = R"doc()doc";
 
 static const char *__doc_sgl_cuda_import_external_semaphore = R"doc()doc";
@@ -8769,6 +8847,8 @@ static const char *__doc_sgl_cuda_memcpy_device_to_host = R"doc()doc";
 static const char *__doc_sgl_cuda_memcpy_host_to_device = R"doc()doc";
 
 static const char *__doc_sgl_cuda_memset_device = R"doc()doc";
+
+static const char *__doc_sgl_cuda_memset_device_async = R"doc()doc";
 
 static const char *__doc_sgl_cuda_signal_external_semaphore = R"doc()doc";
 
@@ -9025,6 +9105,10 @@ static const char *__doc_sgl_find_enum_info_adl_71 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_72 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_73 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_74 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_75 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
@@ -9316,6 +9400,14 @@ static const char *__doc_sgl_math_dot = R"doc(dot)doc";
 
 static const char *__doc_sgl_math_dot_2 = R"doc(dot)doc";
 
+static const char *__doc_sgl_math_eq = R"doc(Component-wise == comparison.)doc";
+
+static const char *__doc_sgl_math_eq_2 = R"doc(Component-wise == comparison.)doc";
+
+static const char *__doc_sgl_math_eq_3 = R"doc(Component-wise == comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_eq_4 = R"doc(Component-wise == comparison (scalar-vector).)doc";
+
 static const char *__doc_sgl_math_euler_angles =
 R"doc(Extract the euler angles in radians from a quaternion (pitch as x, yaw
 as y, roll as z).)doc";
@@ -9456,6 +9548,18 @@ static const char *__doc_sgl_math_frac_3 = R"doc()doc";
 
 static const char *__doc_sgl_math_frac_4 = R"doc(frac)doc";
 
+static const char *__doc_sgl_math_ge = R"doc(Component-wise >= comparison.)doc";
+
+static const char *__doc_sgl_math_ge_2 = R"doc(Component-wise >= comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_ge_3 = R"doc(Component-wise >= comparison (scalar-vector).)doc";
+
+static const char *__doc_sgl_math_gt = R"doc(Component-wise > comparison.)doc";
+
+static const char *__doc_sgl_math_gt_2 = R"doc(Component-wise > comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_gt_3 = R"doc(Component-wise > comparison (scalar-vector).)doc";
+
 static const char *__doc_sgl_math_inverse = R"doc(Compute inverse of a 2x2 matrix.)doc";
 
 static const char *__doc_sgl_math_inverse_2 = R"doc(Compute inverse of a 3x3 matrix.)doc";
@@ -9499,6 +9603,12 @@ static const char *__doc_sgl_math_isnan_4 = R"doc()doc";
 static const char *__doc_sgl_math_isnan_5 = R"doc()doc";
 
 static const char *__doc_sgl_math_isnan_6 = R"doc(isnan)doc";
+
+static const char *__doc_sgl_math_le = R"doc(Component-wise <= comparison.)doc";
+
+static const char *__doc_sgl_math_le_2 = R"doc(Component-wise <= comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_le_3 = R"doc(Component-wise <= comparison (scalar-vector).)doc";
 
 static const char *__doc_sgl_math_length = R"doc(length)doc";
 
@@ -9547,6 +9657,12 @@ static const char *__doc_sgl_math_log2_2 = R"doc()doc";
 static const char *__doc_sgl_math_log2_3 = R"doc()doc";
 
 static const char *__doc_sgl_math_log2_4 = R"doc(log2)doc";
+
+static const char *__doc_sgl_math_lt = R"doc(Component-wise < comparison.)doc";
+
+static const char *__doc_sgl_math_lt_2 = R"doc(Component-wise < comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_lt_3 = R"doc(Component-wise < comparison (scalar-vector).)doc";
 
 static const char *__doc_sgl_math_matrix =
 R"doc(Matrix type with row-major storage.
@@ -9697,6 +9813,14 @@ static const char *__doc_sgl_math_mul_4 = R"doc(Multiply quaternion with another
 
 static const char *__doc_sgl_math_mul_5 = R"doc(Multiply quaternion and 3 component vector.)doc";
 
+static const char *__doc_sgl_math_ne = R"doc(Component-wise != comparison.)doc";
+
+static const char *__doc_sgl_math_ne_2 = R"doc(Component-wise != comparison.)doc";
+
+static const char *__doc_sgl_math_ne_3 = R"doc(Component-wise != comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_ne_4 = R"doc(Component-wise != comparison (scalar-vector).)doc";
+
 static const char *__doc_sgl_math_none = R"doc()doc";
 
 static const char *__doc_sgl_math_none_2 = R"doc()doc";
@@ -9753,25 +9877,13 @@ static const char *__doc_sgl_math_operator_div_3 = R"doc(Binary / operator)doc";
 
 static const char *__doc_sgl_math_operator_div_4 = R"doc(Binary / operator)doc";
 
-static const char *__doc_sgl_math_operator_eq = R"doc(Binary == operator)doc";
+static const char *__doc_sgl_math_operator_eq = R"doc(Equality operator.)doc";
 
-static const char *__doc_sgl_math_operator_eq_2 = R"doc(Binary == operator)doc";
+static const char *__doc_sgl_math_operator_eq_2 = R"doc(Equality operator.)doc";
 
-static const char *__doc_sgl_math_operator_eq_3 = R"doc(Binary == operator)doc";
+static const char *__doc_sgl_math_operator_ge = R"doc(Lexicographic greater-or-equal operator.)doc";
 
-static const char *__doc_sgl_math_operator_eq_4 = R"doc(Binary == operator)doc";
-
-static const char *__doc_sgl_math_operator_ge = R"doc(Binary >= operator)doc";
-
-static const char *__doc_sgl_math_operator_ge_2 = R"doc(Binary >= operator)doc";
-
-static const char *__doc_sgl_math_operator_ge_3 = R"doc(Binary >= operator)doc";
-
-static const char *__doc_sgl_math_operator_gt = R"doc(Binary > operator)doc";
-
-static const char *__doc_sgl_math_operator_gt_2 = R"doc(Binary > operator)doc";
-
-static const char *__doc_sgl_math_operator_gt_3 = R"doc(Binary > operator)doc";
+static const char *__doc_sgl_math_operator_gt = R"doc(Lexicographic greater-than operator.)doc";
 
 static const char *__doc_sgl_math_operator_h = R"doc(h suffix for "half float" literals.)doc";
 
@@ -9821,11 +9933,7 @@ static const char *__doc_sgl_math_operator_land_2 = R"doc(Binary && operator)doc
 
 static const char *__doc_sgl_math_operator_land_3 = R"doc(Binary && operator)doc";
 
-static const char *__doc_sgl_math_operator_le = R"doc(Binary <= operator)doc";
-
-static const char *__doc_sgl_math_operator_le_2 = R"doc(Binary <= operator)doc";
-
-static const char *__doc_sgl_math_operator_le_3 = R"doc(Binary <= operator)doc";
+static const char *__doc_sgl_math_operator_le = R"doc(Lexicographic less-or-equal operator.)doc";
 
 static const char *__doc_sgl_math_operator_lnot = R"doc(Unary not operator)doc";
 
@@ -9841,11 +9949,7 @@ static const char *__doc_sgl_math_operator_lshift_2 = R"doc(Binary << operator)d
 
 static const char *__doc_sgl_math_operator_lshift_3 = R"doc(Binary << operator)doc";
 
-static const char *__doc_sgl_math_operator_lt = R"doc(Binary < operator)doc";
-
-static const char *__doc_sgl_math_operator_lt_2 = R"doc(Binary < operator)doc";
-
-static const char *__doc_sgl_math_operator_lt_3 = R"doc(Binary < operator)doc";
+static const char *__doc_sgl_math_operator_lt = R"doc(Lexicographic less-than operator.)doc";
 
 static const char *__doc_sgl_math_operator_mod = R"doc(Binary % operator)doc";
 
@@ -9865,13 +9969,9 @@ static const char *__doc_sgl_math_operator_mul_5 = R"doc(Binary * operator)doc";
 
 static const char *__doc_sgl_math_operator_mul_6 = R"doc(Binary * operator)doc";
 
-static const char *__doc_sgl_math_operator_ne = R"doc(Binary != operator)doc";
+static const char *__doc_sgl_math_operator_ne = R"doc(Inequality operator.)doc";
 
-static const char *__doc_sgl_math_operator_ne_2 = R"doc(Binary != operator)doc";
-
-static const char *__doc_sgl_math_operator_ne_3 = R"doc(Binary != operator)doc";
-
-static const char *__doc_sgl_math_operator_ne_4 = R"doc(Binary != operator)doc";
+static const char *__doc_sgl_math_operator_ne_2 = R"doc(Inequality operator.)doc";
 
 static const char *__doc_sgl_math_operator_rshift = R"doc(Binary >> operator)doc";
 
@@ -9926,7 +10026,13 @@ imaginary units.
 The quaternion is normalized if: w^2 + x^2 + y^2 + z^2 = 1
 
 Quaternions are stored as (x, y, z, w) to make them better for interop
-with the GPU.)doc";
+with the GPU.
+
+Comparison operators (==, !=, <, etc.) return a single bool for STL
+compatibility. Use eq(), ne(), etc. for component-wise comparisons.
+
+Template parameter ``T``:
+    Scalar type)doc";
 
 static const char *__doc_sgl_math_quat_from_angle_axis =
 R"doc(Build a quaternion from an angle and a normalized axis.
@@ -10156,6 +10262,10 @@ R"doc(Vector type.
 The semantics are aligned with Slang: - Math operators are element-
 wise (e.g. +, -, *, /) - Free standing functions for vector operations
 (e.g. dot(), cross(), etc.)
+
+Exception: Comparison operators (==, !=, <, etc.) return a single bool
+for STL compatibility. Use eq(), ne(), etc. for component-wise
+comparisons.
 
 Template parameter ``T``:
     Scalar type
@@ -10734,6 +10844,21 @@ static const char *__doc_sgl_slangpy_AccessType_readwrite = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_AccessType_write = R"doc()doc";
 
+static const char *__doc_sgl_slangpy_AutogradAccess =
+R"doc(Access pattern for torch autograd tensor bindings. Precomputed at
+build time and stored in a flat list on NativeCallData, consumed in
+order during find_torch_tensors at dispatch time.)doc";
+
+static const char *__doc_sgl_slangpy_AutogradAccess_info = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_AutogradAccess_none = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_AutogradAccess_read = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_AutogradAccess_readwrite = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_AutogradAccess_write = R"doc()doc";
+
 static const char *__doc_sgl_slangpy_CallContext = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallContext_CallContext = R"doc()doc";
@@ -10742,21 +10867,17 @@ static const char *__doc_sgl_slangpy_CallContext_call_mode = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallContext_call_shape = R"doc()doc";
 
+static const char *__doc_sgl_slangpy_CallContext_cuda_stream = R"doc()doc";
+
 static const char *__doc_sgl_slangpy_CallContext_device = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallContext_m_call_mode = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallContext_m_call_shape = R"doc()doc";
 
+static const char *__doc_sgl_slangpy_CallContext_m_cuda_stream = R"doc()doc";
+
 static const char *__doc_sgl_slangpy_CallContext_m_device = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_entry_point = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_global_data = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_info = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallMode = R"doc()doc";
 
@@ -12069,6 +12190,10 @@ static const char *__doc_sgl_ui_operator_iand_2 = R"doc()doc";
 static const char *__doc_sgl_ui_operator_ior = R"doc()doc";
 
 static const char *__doc_sgl_ui_operator_ior_2 = R"doc()doc";
+
+static const char *__doc_std_hash = R"doc()doc";
+
+static const char *__doc_std_hash_operator_call = R"doc()doc";
 
 static const char *__doc_std_numeric_limits = R"doc()doc";
 

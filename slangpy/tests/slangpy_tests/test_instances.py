@@ -416,7 +416,7 @@ def test_custom_instance_list(device_type: DeviceType):
     # Get particl data
     data = particles._data["position"].data
     for i in range(0, len(data)):
-        assert data[i] == 10
+        assert data[i] == float2(10)
 
 
 class ExtendedInstanceList(InstanceList):

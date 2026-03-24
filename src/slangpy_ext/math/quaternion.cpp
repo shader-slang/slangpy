@@ -77,8 +77,18 @@ void bind_quaternion_type(nb::module_& m, const char* name)
     };
     quat.def("__repr__", to_string_);
     quat.def("__str__", to_string_);
+    quat.def(
+        "__hash__",
+        [](const T& self)
+        {
+            return std::hash<T>()(self);
+        }
+    );
 
     // Operators
+
+    quat.def(nb::self == nb::self);
+    quat.def(nb::self != nb::self);
 
     quat.def(+nb::self);
     quat.def(-nb::self);
@@ -96,10 +106,29 @@ void bind_quaternion_type(nb::module_& m, const char* name)
 
     quat.def(nb::self / value_type());
 
-    quat.def(nb::self == nb::self);
-    quat.def(nb::self != nb::self);
+    // Intrinsics
 
-    // Multiplication
+#define WRAP_INTRINSIC_X(name)                                                                                         \
+    [](const T& x)                                                                                                     \
+    {                                                                                                                  \
+        return name(x);                                                                                                \
+    },                                                                                                                 \
+        "x"_a
+#define WRAP_INTRINSIC_XY(name)                                                                                        \
+    [](const T& x, const T& y)                                                                                         \
+    {                                                                                                                  \
+        return name(x, y);                                                                                             \
+    },                                                                                                                 \
+        "x"_a, "y"_a
+#define WRAP_INTRINSIC_XYS(name)                                                                                       \
+    [](const T& x, const T& y, value_type s)                                                                           \
+    {                                                                                                                  \
+        return name(x, y, s);                                                                                          \
+    },                                                                                                                 \
+        "x"_a, "y"_a, "s"_a
+
+    m.def("eq", WRAP_INTRINSIC_XY(eq));
+    m.def("ne", WRAP_INTRINSIC_XY(ne));
 
     m.def(
         "mul",
@@ -129,27 +158,6 @@ void bind_quaternion_type(nb::module_& m, const char* name)
         "q"_a,
         "v"_a
     );
-
-    // Intrinsics
-
-#define WRAP_INTRINSIC_X(name)                                                                                         \
-    [](const T& x)                                                                                                     \
-    {                                                                                                                  \
-        return name(x);                                                                                                \
-    },                                                                                                                 \
-        "x"_a
-#define WRAP_INTRINSIC_XY(name)                                                                                        \
-    [](const T& x, const T& y)                                                                                         \
-    {                                                                                                                  \
-        return name(x, y);                                                                                             \
-    },                                                                                                                 \
-        "x"_a, "y"_a
-#define WRAP_INTRINSIC_XYS(name)                                                                                       \
-    [](const T& x, const T& y, value_type s)                                                                           \
-    {                                                                                                                  \
-        return name(x, y, s);                                                                                          \
-    },                                                                                                                 \
-        "x"_a, "y"_a, "s"_a
 
     m.def("isfinite", WRAP_INTRINSIC_X(isfinite));
     m.def("isinf", WRAP_INTRINSIC_X(isinf));

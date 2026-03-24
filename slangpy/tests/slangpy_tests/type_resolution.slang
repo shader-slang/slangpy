@@ -486,6 +486,14 @@ void func_tensorview_generic<T>(TensorView<T> a)
 {
     return;
 }
+void func_tensorview_float2(TensorView<float2> a)
+{
+    return;
+}
+void func_tensorview_float4(TensorView<float4> a)
+{
+    return;
+}
 void func_difftensorview_float(DiffTensorView<float> a)
 {
     return;

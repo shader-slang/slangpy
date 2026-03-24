@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional, Protocol
-from slangpy.bindings import BoundVariable, BindContext, CodeGenBlock
+from slangpy import DeviceType
+from slangpy.bindings import BoundVariable, BindContext, CodeGenBlock, can_direct_bind_common
 from slangpy.core.native import CallMode, AccessType
 from slangpy.reflection import (
     SlangType,
@@ -17,6 +18,7 @@ from slangpy.reflection import (
     EXPERIMENTAL_VECTORIZATION,
     ResourceType,
     TensorAccess,
+    VectorType,
 )
 import slangpy.reflection.vectorize as spyvec
 
@@ -87,10 +89,17 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
         if isinstance(tensorview_element, UnknownType) or tensorview_element.is_generic:
             resolved_element = self_element_type
         elif not types_equal(self_element_type, tensorview_element):
-            raise TypeError(
-                f"Cannot bind tensor with dtype {self_element_type.full_name} "
-                f"to TensorView<{tensorview_element.full_name}>"
-            )
+            # Allow scalar tensor dtype to bind to TensorView<VectorType>
+            # e.g., float32 tensor -> TensorView<float2>
+            if isinstance(tensorview_element, VectorType) and types_equal(
+                self_element_type, tensorview_element.scalar_type
+            ):
+                resolved_element = tensorview_element
+            else:
+                raise TypeError(
+                    f"Cannot bind tensor with dtype {self_element_type.full_name} "
+                    f"to TensorView<{tensorview_element.full_name}>"
+                )
         else:
             resolved_element = tensorview_element
 
@@ -106,10 +115,17 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
         if isinstance(dtv_element, UnknownType) or dtv_element.is_generic:
             resolved_element = self_element_type
         elif not types_equal(self_element_type, dtv_element):
-            raise TypeError(
-                f"Cannot bind tensor with dtype {self_element_type.full_name} "
-                f"to DiffTensorView<{dtv_element.full_name}>"
-            )
+            # Allow scalar tensor dtype to bind to DiffTensorView<VectorType>
+            # e.g., float32 tensor -> DiffTensorView<float2>
+            if isinstance(dtv_element, VectorType) and types_equal(
+                self_element_type, dtv_element.scalar_type
+            ):
+                resolved_element = dtv_element
+            else:
+                raise TypeError(
+                    f"Cannot bind tensor with dtype {self_element_type.full_name} "
+                    f"to DiffTensorView<{dtv_element.full_name}>"
+                )
         else:
             resolved_element = dtv_element
 
@@ -125,18 +141,22 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
                 f"Can't pass a read-only tensor to a writable tensor ({bound_type.full_name})"
             )
 
-        # Gradients need binding if using a DiffTensor, or an IDiffTensor in non-primitive pass
-        grads_used = bound_type.tensor_type == TensorType.difftensor or (
-            bound_type.tensor_type == TensorType.idifftensor and context.call_mode != CallMode.prim
-        )
-        if grads_used:
+        # Technically this check is unnecesary - a user only need bind gradients if they intend to write to them. However
+        # it's a very difficult error for a user to spot if they accidentally don't provide a gradients buffer. As a sensible
+        # middle ground, assume that if a user is providing tensor types that support gradients in a backwards pass, the
+        # intention is to write to them.
+        grads_used = (
+            bound_type.tensor_type == TensorType.difftensor
+            or bound_type.tensor_type == TensorType.idifftensor
+        ) and context.call_mode != CallMode.prim
+        if grads_used and context.device.desc.type != DeviceType.cuda:
             if bound_type.has_grad_in and self.d_in is None:
                 raise TypeError(
-                    f"Can't pass tensor without input gradient to one that requires it ({bound_type.full_name})"
+                    f"On none-cuda platforms, {bound_type.full_name} requires a tensor with an associated input gradient"
                 )
             if bound_type.has_grad_out and self.d_out is None:
                 raise TypeError(
-                    f"Can't pass tensor without output gradient to one that requires it ({bound_type.full_name})"
+                    f"On none-cuda platforms, {bound_type.full_name} requires a tensor with an associated output gradient"
                 )
 
         # Select appropriate tensor type:
@@ -361,25 +381,35 @@ def gen_calldata(
             access=access,
             tensor_type=tensor_type,
         )
-    cgb.type_alias(f"_t_{binding.variable_name}", type_name)
+    binding.gen_calldata_type_name(cgb, type_name)
+
+
+def can_direct_bind(self: ITensorMarshall, binding: BoundVariable) -> bool:
+    if not can_direct_bind_common(binding):
+        return False
+    return isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType, ITensorType))
 
 
 def gen_trampoline_load(
-    self: ITensorMarshall, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+    self: ITensorMarshall,
+    cgb: CodeGenBlock,
+    binding: BoundVariable,
+    data_name: str,
+    value_name: str,
 ) -> bool:
-    if not isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
+    if not binding.direct_bind:
         return False
-    if is_entry_point:
-        data_name = f"__calldata__.{binding.variable_name}"
-    else:
-        data_name = f"call_data.{binding.variable_name}"
-    cgb.append_statement(f"{binding.variable_name} = {data_name}")
+    cgb.append_statement(f"{value_name} = {data_name}")
     return True
 
 
 def gen_trampoline_store(
-    self: ITensorMarshall, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+    self: ITensorMarshall,
+    cgb: CodeGenBlock,
+    binding: BoundVariable,
+    data_name: str,
+    value_name: str,
 ) -> bool:
-    if not isinstance(binding.vector_type, (TensorViewType, DiffTensorViewType)):
+    if not binding.direct_bind:
         return False
     return True
