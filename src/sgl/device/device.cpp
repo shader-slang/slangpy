@@ -713,10 +713,11 @@ ref<SlangModule> Device::load_module_from_source(
 ref<ShaderProgram> Device::link_program(
     std::vector<ref<SlangModule>> modules,
     std::vector<ref<SlangEntryPoint>> entry_points,
-    std::optional<SlangLinkOptions> link_options
+    std::optional<SlangLinkOptions> link_options,
+    std::span<const TypeConformance> type_conformances
 )
 {
-    return m_slang_session->link_program(std::move(modules), std::move(entry_points), link_options);
+    return m_slang_session->link_program(std::move(modules), std::move(entry_points), link_options, type_conformances);
 }
 
 ref<ShaderProgram> Device::load_program(

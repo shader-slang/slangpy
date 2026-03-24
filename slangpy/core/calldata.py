@@ -482,11 +482,12 @@ class CallData(NativeCallData):
             opts.dump_intermediates_prefix = sanitized
             if build_info.pipeline_type == PipelineType.compute:
                 # Create compute pipeline
-                ep = module.entry_point(f"compute_main", type_conformances)
+                ep = module.entry_point(f"compute_main")
                 program = session.link_program(
                     [module, build_info.module.device_module] + build_info.module.link,
                     [ep],
                     opts,
+                    type_conformances=type_conformances,
                 )
                 self.pipeline = device.create_compute_pipeline(
                     program,
@@ -496,7 +497,7 @@ class CallData(NativeCallData):
                 build_info.module.pipeline_cache[hash] = self.pipeline
             elif build_info.pipeline_type == PipelineType.ray_tracing:
                 # Create ray tracing pipeline
-                eps = [module.entry_point(f"raygen_main", type_conformances)]
+                eps = [module.entry_point(f"raygen_main")]
                 hit_group_names: list[str] = []
                 for hit_group in build_info.ray_tracing_hit_groups:
                     hit_group_names.append(hit_group.hit_group_name)
@@ -525,6 +526,7 @@ class CallData(NativeCallData):
                     [module, build_info.module.device_module] + build_info.module.link,
                     eps,
                     opts,
+                    type_conformances=type_conformances,
                 )
                 self.pipeline = device.create_ray_tracing_pipeline(
                     program,

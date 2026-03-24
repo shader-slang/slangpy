@@ -7089,8 +7089,6 @@ static const char *__doc_sgl_SlangEntryPointDesc_name = R"doc()doc";
 
 static const char *__doc_sgl_SlangEntryPointDesc_specialization_args = R"doc(Specialization arguments for generic entrypoints.)doc";
 
-static const char *__doc_sgl_SlangEntryPointDesc_type_conformances = R"doc()doc";
-
 static const char *__doc_sgl_SlangEntryPoint_SlangEntryPoint = R"doc()doc";
 
 static const char *__doc_sgl_SlangEntryPoint_class_name = R"doc()doc";

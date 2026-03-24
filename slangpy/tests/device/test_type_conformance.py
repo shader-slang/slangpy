@@ -16,8 +16,10 @@ def test_type_conformance(device_type: spy.DeviceType):
 
     def run(conformances: Sequence[Union[tuple[str, str], tuple[str, str, int]]]):
         module = device.load_module("test_type_conformance.slang")
-        entry_point = module.entry_point("compute_main", type_conformances=conformances)  # type: ignore (TYPINGTODO: type_conformances has implicit conversion)
-        program = device.link_program(modules=[module], entry_points=[entry_point])
+        entry_point = module.entry_point("compute_main")
+        program = device.link_program(
+            modules=[module], entry_points=[entry_point], type_conformances=conformances
+        )
         kernel = device.create_compute_kernel(program)
         result = device.create_buffer(
             element_count=4, struct_size=4, usage=spy.BufferUsage.unordered_access
@@ -27,7 +29,7 @@ def test_type_conformance(device_type: spy.DeviceType):
 
     # Conforming to non-existing interface type must raise an exception.
     with pytest.raises(RuntimeError, match='Interface type "IUnknown" not found'):
-        run(conformances=[("IUnknown", "Unknown")])
+        run(conformances=[("IUnknown", "Foo1")])
 
     # Conforming to non-existing type must raise an exception.
     with pytest.raises(RuntimeError, match='Type "Unknown" not found'):
@@ -104,8 +106,10 @@ def test_type_conformance_module_cache(device_type: spy.DeviceType, tmpdir: str)
 
         def run(conformances: Sequence[Union[tuple[str, str], tuple[str, str, int]]]):
             module = device.load_module("test_type_conformance_module_cache.slang")
-            entry_point = module.entry_point("compute_main_2", type_conformances=conformances)  # type: ignore (TYPINGTODO: type_conformances has implicit conversion)
-            program = device.link_program(modules=[module], entry_points=[entry_point])
+            entry_point = module.entry_point("compute_main_2")
+            program = device.link_program(
+                modules=[module], entry_points=[entry_point], type_conformances=conformances
+            )
             kernel = device.create_compute_kernel(program)
             result = device.create_buffer(
                 element_count=4, struct_size=4, usage=spy.BufferUsage.unordered_access
@@ -115,7 +119,7 @@ def test_type_conformance_module_cache(device_type: spy.DeviceType, tmpdir: str)
 
         # Conforming to non-existing interface type must raise an exception.
         with pytest.raises(RuntimeError, match='Interface type "IUnknown" not found'):
-            run(conformances=[("IUnknown", "Unknown")])
+            run(conformances=[("IUnknown", "Foo1")])
 
         # Conforming to non-existing type must raise an exception.
         with pytest.raises(RuntimeError, match='Type "Unknown" not found'):

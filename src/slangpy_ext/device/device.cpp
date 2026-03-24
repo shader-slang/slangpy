@@ -933,6 +933,7 @@ SGL_PY_EXPORT(device_device)
         "modules"_a,
         "entry_points"_a,
         "link_options"_a.none() = nb::none(),
+        "type_conformances"_a = std::span<TypeConformance>{},
         D(Device, link_program)
     );
     device.def(

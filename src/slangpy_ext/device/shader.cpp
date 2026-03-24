@@ -259,6 +259,7 @@ SGL_PY_EXPORT(device_shader)
             "modules"_a,
             "entry_points"_a,
             "link_options"_a.none() = nb::none(),
+            "type_conformances"_a = std::span<TypeConformance>{},
             D(SlangSession, link_program)
         )
         .def(
@@ -302,13 +303,7 @@ SGL_PY_EXPORT(device_shader)
             &SlangModule::dependency_file_paths,
             "Return the file paths of all dependencies of this module."
         )
-        .def(
-            "entry_point",
-            &SlangModule::entry_point,
-            "name"_a,
-            "type_conformances"_a = std::span<TypeConformance>(),
-            D(SlangModule, entry_point)
-        );
+        .def("entry_point", &SlangModule::entry_point, "name"_a, D(SlangModule, entry_point));
 
     nb::class_<SlangEntryPoint, SlangComponentType>(m, "SlangEntryPoint", D(SlangEntryPoint))
         .def_prop_ro("name", &SlangEntryPoint::name, D(SlangEntryPoint, name))

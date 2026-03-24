@@ -84,7 +84,7 @@ class DispatchData:
             if any(
                 [reflection.name == x.name for x in build_info.module.device_module.entry_points]
             ):
-                ep = build_info.module.device_module.entry_point(reflection.name, type_conformances)
+                ep = build_info.module.device_module.entry_point(reflection.name)
 
             # Due to current slang crash, fail if entry point exists and we're trying to set thread group size.
             if ep is not None and thread_group_size is not None:
@@ -188,7 +188,7 @@ void {reflection.name}_entrypoint({params}) {{
 
                 # Get entry point if one wasn't specified
                 if ep is None:
-                    ep = module.entry_point(f"{reflection.name}_entrypoint", type_conformances)
+                    ep = module.entry_point(f"{reflection.name}_entrypoint")
 
                 # Link the program
                 opts = SlangLinkOptions()
@@ -198,6 +198,7 @@ void {reflection.name}_entrypoint({params}) {{
                     [module, build_info.module.device_module] + build_info.module.link,
                     [ep],
                     opts,
+                    type_conformances=type_conformances,
                 )
                 self.compute_pipeline = device.create_compute_pipeline(
                     program,

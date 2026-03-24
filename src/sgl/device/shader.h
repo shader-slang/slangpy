@@ -297,7 +297,8 @@ public:
     ref<ShaderProgram> link_program(
         std::vector<ref<SlangModule>> modules,
         std::vector<ref<SlangEntryPoint>> entry_points,
-        std::optional<SlangLinkOptions> link_options = {}
+        std::optional<SlangLinkOptions> link_options = {},
+        std::span<const TypeConformance> type_conformances = {}
     );
 
     /// Load a program from a given module with a set of entry
@@ -539,11 +540,8 @@ public:
     /// Build and return vector of all current entry points in the module.
     std::vector<ref<SlangEntryPoint>> entry_points() const;
 
-    /// Get an entry point, optionally applying type conformances to it.
-    ref<SlangEntryPoint> entry_point(
-        std::string_view name,
-        std::span<const TypeConformance> type_conformances = std::span<const TypeConformance>()
-    ) const;
+    /// Get an entry point by name.
+    ref<SlangEntryPoint> entry_point(std::string_view name) const;
     bool has_entry_point(std::string_view name) const;
 
     /// Get root decl ref for this module
@@ -571,7 +569,6 @@ private:
 
 struct SlangEntryPointDesc {
     std::string name;
-    std::vector<TypeConformance> type_conformances;
     /// Specialization arguments for generic entrypoints.
     std::vector<SpecializationArg> specialization_args;
 };
@@ -647,6 +644,9 @@ public:
     /// Stores built data after a successful rebuild.
     void store_built_data(SlangSessionBuild& build);
 
+    /// Populates a build structure with the current type conformance data.
+    void populate_build_data(SlangSessionBuild& build) const;
+
     std::string to_string() const override;
 
 private:
@@ -656,6 +656,7 @@ private:
 struct ShaderProgramDesc {
     std::vector<ref<SlangModule>> modules;
     std::vector<ref<SlangEntryPoint>> entry_points;
+    std::vector<ref<SlangTypeConformance>> type_conformances;
     std::optional<SlangLinkOptions> link_options;
     std::string label;
 };

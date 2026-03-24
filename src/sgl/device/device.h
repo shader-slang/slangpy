@@ -488,7 +488,8 @@ public:
     ref<ShaderProgram> link_program(
         std::vector<ref<SlangModule>> modules,
         std::vector<ref<SlangEntryPoint>> entry_points,
-        std::optional<SlangLinkOptions> link_options = {}
+        std::optional<SlangLinkOptions> link_options = {},
+        std::span<const TypeConformance> type_conformances = {}
     );
 
     ref<ShaderProgram> load_program(
