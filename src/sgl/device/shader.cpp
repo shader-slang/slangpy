@@ -868,16 +868,23 @@ void SlangModule::load(SlangSessionBuild& build_data) const
         // Apply type conformances if specified
         std::vector<Slang::ComPtr<slang::ITypeConformance>> slang_type_conformances;
         if (!desc.type_conformances.empty()) {
-            // Get layout for type lookup (use first source module's layout)
+            // First create the composite without type conformances to get a unified layout.
+            // This allows type lookups to find types from any source module.
+            Slang::ComPtr<slang::IComponentType> temp_composite;
+            Slang::ComPtr<ISlangBlob> diagnostics;
+            SGL_CATCH_INTERNAL_SLANG_ERROR(session_data->slang_session->createCompositeComponentType(
+                components.data(),
+                components.size(),
+                temp_composite.writeRef(),
+                diagnostics.writeRef()
+            ));
+            report_diagnostics(diagnostics);
+            SGL_CHECK(temp_composite, "Failed to create temporary composite for type lookup");
+
+            // Use the composite's layout for type lookups.
             slang::ProgramLayout* layout = nullptr;
-            for (const auto& source_mod : desc.source_modules) {
-                const SlangModuleData* source_data = build_data.modules[source_mod.get()].get();
-                if (source_data->slang_module) {
-                    SGL_CATCH_INTERNAL_SLANG_ERROR(layout = source_data->slang_module->getLayout());
-                    break;
-                }
-            }
-            SGL_CHECK(layout, "Cannot apply type conformances: no source module has a layout");
+            SGL_CATCH_INTERNAL_SLANG_ERROR(layout = temp_composite->getLayout());
+            SGL_CHECK(layout, "Cannot apply type conformances: composite has no layout");
 
             for (const TypeConformance& c : desc.type_conformances) {
                 slang::TypeReflection* interface_type = layout->findTypeByName(c.interface_name.c_str());
@@ -886,7 +893,6 @@ void SlangModule::load(SlangSessionBuild& build_data) const
                 SGL_CHECK(type, "Type \"{}\" not found", c.type_name);
 
                 Slang::ComPtr<slang::ITypeConformance> type_conformance;
-                Slang::ComPtr<ISlangBlob> diagnostics;
                 SGL_CATCH_INTERNAL_SLANG_ERROR(session_data->slang_session->createTypeConformanceComponentType(
                     type,
                     interface_type,
@@ -1103,7 +1109,12 @@ SlangModule::create_entry_point(std::string_view name, std::span<const TypeConfo
         // Search source modules for the entry point
         for (const auto& source_mod : m_desc.source_modules) {
             if (source_mod->has_entry_point(name)) {
-                auto ep = make_ref<SlangEntryPoint>(ref(const_cast<SlangModule*>(source_mod.get())), desc);
+                // Pass 'this' (composed module) as the type lookup module
+                auto ep = make_ref<SlangEntryPoint>(
+                    ref(const_cast<SlangModule*>(source_mod.get())),
+                    desc,
+                    ref(const_cast<SlangModule*>(this))
+                );
                 ep->init(build);
                 ep->store_built_data(build);
                 return ep;
@@ -1116,7 +1127,9 @@ SlangModule::create_entry_point(std::string_view name, std::span<const TypeConfo
     Slang::ComPtr<slang::IEntryPoint> slang_ep;
     m_data->slang_module->findEntryPointByName(std::string{name}.c_str(), slang_ep.writeRef());
     if (slang_ep) {
-        auto ep = make_ref<SlangEntryPoint>(ref(const_cast<SlangModule*>(this)), desc);
+        // For regular modules, type_lookup_module is the same as the defining module
+        auto ep
+            = make_ref<SlangEntryPoint>(ref(const_cast<SlangModule*>(this)), desc, ref(const_cast<SlangModule*>(this)));
         ep->init(build);
         ep->store_built_data(build);
         return ep;
@@ -1180,8 +1193,13 @@ std::string SlangModule::to_string() const
 }
 
 
-SlangEntryPoint::SlangEntryPoint(ref<SlangModule> module, const SlangEntryPointDesc& desc)
+SlangEntryPoint::SlangEntryPoint(
+    ref<SlangModule> module,
+    const SlangEntryPointDesc& desc,
+    ref<SlangModule> type_lookup_module
+)
     : m_module(module)
+    , m_type_lookup_module(type_lookup_module)
     , m_desc(desc)
 {
     m_module->_register_entry_point(this);
@@ -1254,8 +1272,15 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
 
         std::vector<Slang::ComPtr<slang::ITypeConformance>> slang_type_conformances(desc.type_conformances.size());
         std::vector<slang::IComponentType*> slang_component_types(desc.type_conformances.size() + 1);
+
+        // Get layout for type lookups from the type_lookup_module (composed module if available).
+        SlangModule* lookup_module = type_lookup_module();
+        SlangModuleData* lookup_data = build_data.modules[lookup_module].get();
         slang::ProgramLayout* layout;
-        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = slang_module->getLayout());
+        SGL_CATCH_INTERNAL_SLANG_ERROR(
+            layout = lookup_data->slang_component_type ? lookup_data->slang_component_type->getLayout()
+                                                       : lookup_data->slang_module->getLayout()
+        );
 
         // Create a slang type conformance component for each type conformance entry.
         for (size_t i = 0; i < desc.type_conformances.size(); ++i) {
@@ -1300,8 +1325,14 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
 
     // If we have specialization arguments, specialize the entry point.
     if (!desc.specialization_args.empty()) {
+        // Get layout for type lookups from the type_lookup_module (composed module if available).
+        SlangModule* lookup_module = type_lookup_module();
+        SlangModuleData* lookup_data = build_data.modules[lookup_module].get();
         slang::ProgramLayout* layout;
-        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = slang_module->getLayout());
+        SGL_CATCH_INTERNAL_SLANG_ERROR(
+            layout = lookup_data->slang_component_type ? lookup_data->slang_component_type->getLayout()
+                                                       : lookup_data->slang_module->getLayout()
+        );
 
         // Build the slang specialization args from our descriptors.
         std::vector<slang::SpecializationArg> slang_spec_args;
@@ -1371,12 +1402,15 @@ ref<SlangEntryPoint> SlangEntryPoint::rename(const std::string& new_name)
 
     SlangEntryPointDesc desc = m_desc;
     desc.name = new_name;
-    auto ep = make_ref<SlangEntryPoint>(m_module, desc);
+    auto ep = make_ref<SlangEntryPoint>(m_module, desc, m_type_lookup_module);
 
-    // Setup build containing just the session and this module, then build and store the entry point.
+    // Setup build containing the session and relevant modules.
     SlangSessionBuild build_data;
     build_data.session = m_module->session()->_data();
     build_data.modules[m_module.get()] = m_module->_data();
+    // Include the type lookup module if different from the defining module.
+    if (m_type_lookup_module.get() != m_module.get())
+        build_data.modules[m_type_lookup_module.get()] = m_type_lookup_module->_data();
     ep->init(build_data);
     ep->store_built_data(build_data);
 
@@ -1390,12 +1424,15 @@ ref<SlangEntryPoint> SlangEntryPoint::with_name(const std::string& name) const
 
     SlangEntryPointDesc desc = m_desc;
     desc.name = name;
-    auto ep = make_ref<SlangEntryPoint>(m_module, desc);
+    auto ep = make_ref<SlangEntryPoint>(m_module, desc, m_type_lookup_module);
 
-    // Setup build containing just the session and this module, then build and store the entry point.
+    // Setup build containing the session and relevant modules.
     SlangSessionBuild build_data;
     build_data.session = m_module->session()->_data();
     build_data.modules[m_module.get()] = m_module->_data();
+    // Include the type lookup module if different from the defining module.
+    if (m_type_lookup_module.get() != m_module.get())
+        build_data.modules[m_type_lookup_module.get()] = m_type_lookup_module->_data();
     ep->init(build_data);
     ep->store_built_data(build_data);
 
@@ -1407,12 +1444,15 @@ ref<SlangEntryPoint> SlangEntryPoint::specialize(std::span<const SpecializationA
     SlangEntryPointDesc desc = m_desc;
     desc.specialization_args.assign(specialization_args.begin(), specialization_args.end());
 
-    auto ep = make_ref<SlangEntryPoint>(m_module, desc);
+    auto ep = make_ref<SlangEntryPoint>(m_module, desc, m_type_lookup_module);
 
-    // Setup build containing just the session and this module, then build and store the entry point.
+    // Setup build containing the session and relevant modules.
     SlangSessionBuild build_data;
     build_data.session = m_module->session()->_data();
     build_data.modules[m_module.get()] = m_module->_data();
+    // Include the type lookup module if different from the defining module.
+    if (m_type_lookup_module.get() != m_module.get())
+        build_data.modules[m_type_lookup_module.get()] = m_type_lookup_module->_data();
     ep->init(build_data);
     ep->store_built_data(build_data);
 

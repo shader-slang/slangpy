@@ -533,7 +533,7 @@ struct SlangEntryPointData : Object {
 class SGL_API SlangEntryPoint : public Object {
     SGL_OBJECT(SlangEntryPoint)
 public:
-    SlangEntryPoint(ref<SlangModule> module, const SlangEntryPointDesc& desc);
+    SlangEntryPoint(ref<SlangModule> module, const SlangEntryPointDesc& desc, ref<SlangModule> type_lookup_module);
     ~SlangEntryPoint();
 
     /// Inits slang entry point and outputs the resulting SlangEntryPointData in current build info.
@@ -546,6 +546,11 @@ public:
     void populate_build_data(SlangSessionBuild& build);
 
     SlangModule* module() const { return m_module; }
+
+    /// Returns the module to use for type lookups (type conformances, specialization args).
+    /// When entry point is from a composed module, returns the composed module.
+    /// Otherwise returns the defining module.
+    SlangModule* type_lookup_module() const { return m_type_lookup_module.get(); }
 
     const std::string& name() const { return m_data->name; }
     const SlangEntryPointDesc& desc() const { return m_desc; }
@@ -567,6 +572,8 @@ public:
 
 private:
     ref<SlangModule> m_module;
+    /// Optional module for type lookups (composed module when entry point is from a composed module).
+    ref<SlangModule> m_type_lookup_module;
     SlangEntryPointDesc m_desc;
     ref<SlangEntryPointData> m_data;
 };
