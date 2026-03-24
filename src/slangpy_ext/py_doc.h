@@ -6887,6 +6887,8 @@ static const char *__doc_sgl_ShaderProgramDesc_link_options = R"doc()doc";
 
 static const char *__doc_sgl_ShaderProgramDesc_modules = R"doc()doc";
 
+static const char *__doc_sgl_ShaderProgramDesc_type_conformances = R"doc()doc";
+
 static const char *__doc_sgl_ShaderProgram_ShaderProgram = R"doc()doc";
 
 static const char *__doc_sgl_ShaderProgram_ShaderProgram_2 = R"doc()doc";
@@ -6902,6 +6904,8 @@ static const char *__doc_sgl_ShaderProgram_layout = R"doc()doc";
 static const char *__doc_sgl_ShaderProgram_link =
 R"doc(Links program and outputs the resulting ShaderProgramData to current
 build info.)doc";
+
+static const char *__doc_sgl_ShaderProgram_linked_component_type = R"doc(Get the linked program as a SlangComponentType for generic inspection.)doc";
 
 static const char *__doc_sgl_ShaderProgram_m_data = R"doc()doc";
 
@@ -7051,6 +7055,51 @@ names, or "all" to indicate all warnings).)doc";
 
 static const char *__doc_sgl_SlangComponentType = R"doc()doc";
 
+static const char *__doc_sgl_SlangComponentType_2 =
+R"doc(Base class wrapping a Slang IComponentType.
+
+Mirrors the Slang IComponentType interface, providing access to
+layout, specialization, and linking. SlangModule, SlangEntryPoint, and
+SlangTypeConformance inherit from this class. Composite and linked
+component types are returned directly as SlangComponentType instances.)doc";
+
+static const char *__doc_sgl_SlangComponentType_SlangComponentType = R"doc()doc";
+
+static const char *__doc_sgl_SlangComponentType_class_name = R"doc()doc";
+
+static const char *__doc_sgl_SlangComponentType_entry_point_count = R"doc(Number of entry points in this component type.)doc";
+
+static const char *__doc_sgl_SlangComponentType_invalidate =
+R"doc(Called by SlangSession::recreate_session() to invalidate standalone
+component types.)doc";
+
+static const char *__doc_sgl_SlangComponentType_is_valid =
+R"doc(Returns true if the underlying slang component type is still valid.
+Standalone component types (from specialize/link/compose) become
+invalid after hot reload.)doc";
+
+static const char *__doc_sgl_SlangComponentType_layout = R"doc(Get the layout for this component type.)doc";
+
+static const char *__doc_sgl_SlangComponentType_link = R"doc(Link this component type, producing a linked component type.)doc";
+
+static const char *__doc_sgl_SlangComponentType_link_with_options = R"doc(Link this component type with the given options.)doc";
+
+static const char *__doc_sgl_SlangComponentType_m_component_type = R"doc()doc";
+
+static const char *__doc_sgl_SlangComponentType_m_session = R"doc()doc";
+
+static const char *__doc_sgl_SlangComponentType_m_valid = R"doc()doc";
+
+static const char *__doc_sgl_SlangComponentType_session = R"doc(The session this component type belongs to.)doc";
+
+static const char *__doc_sgl_SlangComponentType_slang_component_type = R"doc(Raw access to the underlying slang IComponentType.)doc";
+
+static const char *__doc_sgl_SlangComponentType_specialization_param_count = R"doc(Number of specialization parameters.)doc";
+
+static const char *__doc_sgl_SlangComponentType_specialize = R"doc(Specialize this component type with the given arguments.)doc";
+
+static const char *__doc_sgl_SlangComponentType_to_string = R"doc()doc";
+
 static const char *__doc_sgl_SlangDebugInfoLevel = R"doc(Slang debug info levels.)doc";
 
 static const char *__doc_sgl_SlangDebugInfoLevel_info = R"doc()doc";
@@ -7143,8 +7192,6 @@ static const char *__doc_sgl_SlangFloatingPointMode_info = R"doc()doc";
 
 static const char *__doc_sgl_SlangFloatingPointMode_precise = R"doc()doc";
 
-static const char *__doc_sgl_SlangGlobalScope = R"doc()doc";
-
 static const char *__doc_sgl_SlangLinkOptions =
 R"doc(Slang link options. These can optionally be set when linking a shader
 program.)doc";
@@ -7213,11 +7260,22 @@ static const char *__doc_sgl_SlangModule_class_name = R"doc()doc";
 
 static const char *__doc_sgl_SlangModule_data = R"doc()doc";
 
+static const char *__doc_sgl_SlangModule_dependency_file_paths = R"doc(Return the file paths of all dependencies of this module.)doc";
+
 static const char *__doc_sgl_SlangModule_desc = R"doc(Descriptor that holds all data required to create this module.)doc";
 
-static const char *__doc_sgl_SlangModule_entry_point = R"doc(Get an entry point, optionally applying type conformances to it.)doc";
+static const char *__doc_sgl_SlangModule_entry_point = R"doc(Get an entry point by name.)doc";
 
 static const char *__doc_sgl_SlangModule_entry_points = R"doc(Build and return vector of all current entry points in the module.)doc";
+
+static const char *__doc_sgl_SlangModule_find_type_by_name =
+R"doc(Find a type by name in this module's layout.
+
+Parameter ``name``:
+    The fully-qualified type name to look up.
+
+Returns:
+    The slang type reflection, or nullptr if not found.)doc";
 
 static const char *__doc_sgl_SlangModule_has_entry_point = R"doc()doc";
 
@@ -7232,8 +7290,6 @@ static const char *__doc_sgl_SlangModule_m_data = R"doc()doc";
 static const char *__doc_sgl_SlangModule_m_desc = R"doc()doc";
 
 static const char *__doc_sgl_SlangModule_m_registered_entry_points = R"doc()doc";
-
-static const char *__doc_sgl_SlangModule_m_session = R"doc()doc";
 
 static const char *__doc_sgl_SlangModule_module_decl = R"doc(Get root decl ref for this module)doc";
 
@@ -7250,8 +7306,6 @@ a string.)doc";
 static const char *__doc_sgl_SlangModule_populate_build_data = R"doc(Repopulates a build structure with reference to internal m_data ptr.)doc";
 
 static const char *__doc_sgl_SlangModule_register_entry_point = R"doc()doc";
-
-static const char *__doc_sgl_SlangModule_session = R"doc(The session from which this module was built.)doc";
 
 static const char *__doc_sgl_SlangModule_slang_module = R"doc(Internal slang module.)doc";
 
@@ -7295,6 +7349,8 @@ static const char *__doc_sgl_SlangSessionBuild_programs = R"doc()doc";
 
 static const char *__doc_sgl_SlangSessionBuild_session = R"doc()doc";
 
+static const char *__doc_sgl_SlangSessionBuild_type_conformances = R"doc()doc";
+
 static const char *__doc_sgl_SlangSessionData = R"doc(Internal data stored once the slang session has been created.)doc";
 
 static const char *__doc_sgl_SlangSessionData_2 = R"doc(Internal data stored once the slang session has been created.)doc";
@@ -7331,15 +7387,47 @@ static const char *__doc_sgl_SlangSessionDesc_compiler_options = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_SlangSession = R"doc()doc";
 
+static const char *__doc_sgl_SlangSession_all_module_dependency_paths =
+R"doc(Return the dependency file paths for all loaded modules in the
+session. This includes transitive dependencies loaded by the Slang
+compiler.)doc";
+
 static const char *__doc_sgl_SlangSession_class_name = R"doc()doc";
 
+static const char *__doc_sgl_SlangSession_create_composite_component_type =
+R"doc(Create a composite component type from a list of component types.
+
+Parameter ``components``:
+    The component types to compose.)doc";
+
 static const char *__doc_sgl_SlangSession_create_session = R"doc()doc";
+
+static const char *__doc_sgl_SlangSession_create_type_conformance =
+R"doc(Create a type conformance component type.
+
+Parameter ``type_name``:
+    Name of the concrete type.
+
+Parameter ``interface_name``:
+    Name of the interface.
+
+Parameter ``id_override``:
+    Optional unique id for the conformance (-1 for auto).)doc";
 
 static const char *__doc_sgl_SlangSession_data = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_desc = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_device = R"doc()doc";
+
+static const char *__doc_sgl_SlangSession_find_type_by_name =
+R"doc(Search all registered modules for a type by name.
+
+Parameter ``name``:
+    The fully-qualified type name to look up.
+
+Returns:
+    The slang type reflection, or nullptr if not found.)doc";
 
 static const char *__doc_sgl_SlangSession_get_slang_session = R"doc()doc";
 
@@ -7370,6 +7458,12 @@ load_module). Note: this is a vector, as order of creation matters.)doc";
 
 static const char *__doc_sgl_SlangSession_m_registered_programs = R"doc(All created sgl programs (via link_program))doc";
 
+static const char *__doc_sgl_SlangSession_m_registered_type_conformances = R"doc(All created type conformances (via create_type_conformance).)doc";
+
+static const char *__doc_sgl_SlangSession_m_standalone_component_types =
+R"doc(All standalone component types (from specialize/link/compose) that
+should be invalidated on hot reload.)doc";
+
 static const char *__doc_sgl_SlangSession_recreate_session =
 R"doc(Fully recreates this session and any loaded modules or linked
 programs.)doc";
@@ -7378,15 +7472,55 @@ static const char *__doc_sgl_SlangSession_register_module = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_register_program = R"doc()doc";
 
+static const char *__doc_sgl_SlangSession_register_standalone_component_type = R"doc()doc";
+
+static const char *__doc_sgl_SlangSession_register_type_conformance = R"doc()doc";
+
 static const char *__doc_sgl_SlangSession_to_string = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_unregister_module = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_unregister_program = R"doc()doc";
 
+static const char *__doc_sgl_SlangSession_unregister_standalone_component_type = R"doc()doc";
+
+static const char *__doc_sgl_SlangSession_unregister_type_conformance = R"doc()doc";
+
 static const char *__doc_sgl_SlangSession_update_module_cache_and_dependencies = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_write_module_to_cache = R"doc()doc";
+
+static const char *__doc_sgl_SlangTypeConformance = R"doc()doc";
+
+static const char *__doc_sgl_SlangTypeConformance_2 =
+R"doc(Wraps a Slang type conformance component type.
+
+Created via SlangSession::create_type_conformance(). Represents the
+conformance of a concrete type to an interface, used to narrow the set
+of types when composing shader programs.)doc";
+
+static const char *__doc_sgl_SlangTypeConformance_3 =
+R"doc(Wraps a Slang type conformance component type.
+
+Created via SlangSession::create_type_conformance(). Represents the
+conformance of a concrete type to an interface, used to narrow the set
+of types when composing shader programs.)doc";
+
+static const char *__doc_sgl_SlangTypeConformance_SlangTypeConformance = R"doc()doc";
+
+static const char *__doc_sgl_SlangTypeConformance_class_name = R"doc()doc";
+
+static const char *__doc_sgl_SlangTypeConformance_conformance = R"doc(The type conformance descriptor.)doc";
+
+static const char *__doc_sgl_SlangTypeConformance_m_conformance = R"doc()doc";
+
+static const char *__doc_sgl_SlangTypeConformance_populate_build_data = R"doc(Populates a build structure with the current type conformance data.)doc";
+
+static const char *__doc_sgl_SlangTypeConformance_rebuild = R"doc(Rebuilds this type conformance during a session rebuild.)doc";
+
+static const char *__doc_sgl_SlangTypeConformance_store_built_data = R"doc(Stores built data after a successful rebuild.)doc";
+
+static const char *__doc_sgl_SlangTypeConformance_to_string = R"doc()doc";
 
 static const char *__doc_sgl_SpecializationArg =
 R"doc(Specialization argument for generic entrypoints. Mirrors
