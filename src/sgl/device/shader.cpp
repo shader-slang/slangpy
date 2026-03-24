@@ -10,7 +10,6 @@
 #include "sgl/device/slang_utils.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/hot_reload.h"
-#include "sgl/device/reflection.h"
 
 #include "sgl/core/type_utils.h"
 #include "sgl/core/platform.h"
@@ -21,6 +20,7 @@
 
 #include <slang.h>
 
+#include <atomic>
 #include <random>
 #include <regex>
 
@@ -192,7 +192,7 @@ private:
 /// Ideally to solve that case, slang should have diagnostic pragmas.
 inline std::string filter_diagnostics(const char* diagnostics)
 {
-    std::regex re("^.*nvHLSLExtns.h.*\\n.*\\n.*\\^~+\\n", std::regex::ECMAScript);
+    static std::regex re("^.*nvHLSLExtns.h.*\\n.*\\n.*\\^~+\\n", std::regex::ECMAScript);
     std::string result = diagnostics;
     result = std::regex_replace(result, re, "");
     return result;
@@ -679,7 +679,7 @@ ref<ShaderProgram> SlangSession::load_program(
     ref<SlangModule> module = load_module(module_name);
     std::vector<ref<SlangModule>> modules{module};
     // TODO improve the way we generate unique names for additional sources
-    static uint32_t id = 0;
+    static std::atomic<uint32_t> id{0};
     if (additional_source)
         modules.push_back(load_module_from_source(fmt::format("additional_source_{}", id++), *additional_source));
     std::vector<ref<SlangEntryPoint>> entry_points;
@@ -1060,6 +1060,9 @@ ref<SlangComponentType> SlangComponentType::link_with_options(const SlangLinkOpt
         link_option_entries.add(slang::CompilerOptionName::DebugInformation, int(*link_options.debug_info));
     if (link_options.optimization)
         link_option_entries.add(slang::CompilerOptionName::Optimization, int(*link_options.optimization));
+    // TODO: Downstream args are hardcoded to "dxc" here because SlangComponentType
+    // doesn't have access to the device type. This is incorrect for non-D3D12 backends.
+    // See ShaderProgram::link() for the correct device-type-aware handling.
     if (link_options.downstream_args) {
         for (const auto& arg : *link_options.downstream_args)
             link_option_entries.add(slang::CompilerOptionName::DownstreamArgs, "dxc", arg);
@@ -1140,7 +1143,7 @@ void SlangModule::load(SlangSessionBuild& build_data) const
         }
     } else {
         // TODO workaround: slang doesn't like loading the same source twice
-        static uint32_t id = 0;
+        static std::atomic<uint32_t> id{0};
         std::string source_str = fmt::format("// {}\n{}", id++, desc.source);
 
         SGL_CATCH_INTERNAL_SLANG_ERROR(
@@ -1386,27 +1389,13 @@ void SlangEntryPoint::populate_build_data(SlangSessionBuild& build_data)
 
 ref<SlangEntryPoint> SlangEntryPoint::rename(const std::string& new_name)
 {
-    Slang::ComPtr<slang::IComponentType> renamed_entry_point;
-    SLANG_CALL(m_data->slang_entry_point->renameEntryPoint(new_name.c_str(), renamed_entry_point.writeRef()));
-
-    SlangEntryPointDesc desc = m_desc;
-    desc.name = new_name;
-    auto ep = make_ref<SlangEntryPoint>(m_module, desc);
-
-    // Setup build containing just the session and this module, then build and store the entry point.
-    SlangSessionBuild build_data;
-    build_data.session = m_module->session()->_data();
-    build_data.modules[m_module.get()] = m_module->_data();
-    ep->init(build_data);
-    ep->store_built_data(build_data);
-
-    return ep;
+    return with_name(new_name);
 }
 
 ref<SlangEntryPoint> SlangEntryPoint::with_name(const std::string& name) const
 {
-    Slang::ComPtr<slang::IComponentType> new_entry_point;
-    SLANG_CALL(m_data->slang_entry_point->renameEntryPoint(name.c_str(), new_entry_point.writeRef()));
+    Slang::ComPtr<slang::IComponentType> renamed_entry_point;
+    SLANG_CALL(m_data->slang_entry_point->renameEntryPoint(name.c_str(), renamed_entry_point.writeRef()));
 
     SlangEntryPointDesc desc = m_desc;
     desc.name = name;
@@ -1579,7 +1568,6 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
 
     // Setup link options.
     CompilerOptionEntries link_option_entries;
-    std::string downstream_args;
     if (desc.link_options) {
         const SlangLinkOptions& link_options = desc.link_options.value();
 
@@ -1618,7 +1606,7 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
             slang_link_option_entries.data(),
             diagnostics.writeRef()
         ));
-        if (!composed_program) {
+        if (!linked_program) {
             std::string msg = append_diagnostics("Failed to link program", diagnostics);
             throw SlangCompileError(msg);
         }
