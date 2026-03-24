@@ -67,7 +67,7 @@ def test_load_module_from_source(test_id: str, device_type: spy.DeviceType):
 
         [shader("compute")]
         [numthreads(1, 1, 1)]
-        void main(uint3 tid: SV_DispatchThreadID, Foo foo) { }
+        void main(uint3 tid: SV_DispatchThreadID, uniform Foo foo) { }
     """,
     )
     assert len(module.entry_points) == 1
