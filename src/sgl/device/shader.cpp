@@ -531,8 +531,9 @@ ref<SlangModule> SlangSession::compose_modules(
 )
 {
     // Validate all modules belong to this session
-    for (const auto& mod : modules) {
-        SGL_CHECK(mod->session() == this, "Module \"{}\" belongs to a different session.", mod->name());
+    for (const auto& module : modules) {
+        SGL_CHECK(module != nullptr, "Modules must not be null.");
+        SGL_CHECK(module->session() == this, "Module \"{}\" belongs to a different session.", module->name());
     }
 
     SlangModuleDesc desc;
@@ -548,10 +549,18 @@ ref<ShaderProgram> SlangSession::link_program(
     std::optional<SlangLinkOptions> link_options
 )
 {
-    for (const auto& module : modules)
-        SGL_CHECK(module->session() == this, "All modules must belong to this session.");
-    for (const auto& entry_point : entry_points)
-        SGL_CHECK(entry_point->module()->session() == this, "All entry points must belong to this session.");
+    for (const auto& module : modules) {
+        SGL_CHECK(module != nullptr, "Modules must not be null.");
+        SGL_CHECK(module->session() == this, "Module \"{}\" belongs to a different session.", module->name());
+    }
+    for (const auto& entry_point : entry_points) {
+        SGL_CHECK(entry_point != nullptr, "Entry points must not be null.");
+        SGL_CHECK(
+            entry_point->module()->session() == this,
+            "Entry points \"{}\" belongs to a different session.",
+            entry_point->name()
+        );
+    }
 
     // Link NVAPI module if available.
     if (SGL_HAS_NVAPI && m_device->type() == DeviceType::d3d12)
@@ -785,14 +794,9 @@ SlangModule::SlangModule(ref<SlangSession> session, const SlangModuleDesc& desc)
     : m_session(std::move(session))
     , m_desc(desc)
 {
-    // Validate source modules belong to the same session
-    for (const auto& mod : m_desc.source_modules) {
-        SGL_CHECK(
-            mod->session() == m_session.get(),
-            "Source module \"{}\" belongs to a different session.",
-            mod->name()
-        );
-    }
+    for (const auto& mod : m_desc.source_modules)
+        SGL_ASSERT(mod->session() == m_session.get());
+
     m_session->_register_module(this);
 }
 
@@ -815,15 +819,15 @@ void SlangModule::load(SlangSessionBuild& build_data) const
 
     if (desc.is_composed()) {
         // Composed module: recursively load source modules, then create composite
-        for (const auto& source_mod : desc.source_modules) {
-            source_mod->load(build_data);
+        for (const auto& module : desc.source_modules) {
+            module->load(build_data);
         }
 
         // Collect component types from source modules.
         // Use composite if present (for nested composed modules), otherwise slang_module.
         std::vector<slang::IComponentType*> components;
-        for (const auto& source_mod : desc.source_modules) {
-            const SlangModuleData* source_data = build_data.modules[source_mod.get()].get();
+        for (const auto& module : desc.source_modules) {
+            const SlangModuleData* source_data = build_data.modules[module.get()].get();
             if (source_data->slang_component_type)
                 components.push_back(source_data->slang_component_type.get());
             else
@@ -892,8 +896,6 @@ void SlangModule::load(SlangSessionBuild& build_data) const
         // Store composed module info.
         data->slang_component_type = std::move(composite);
         data->name = desc.module_name;
-        data->path = ""; // Composed modules don't have a single source path
-
     } else {
         // Regular module: load from file or source
         Timer timer;
@@ -997,10 +999,10 @@ std::vector<ref<SlangEntryPoint>> SlangModule::entry_points() const
 
     if (is_composed()) {
         // Composed module: collect entry points from all source modules
-        for (const auto& source_mod : m_desc.source_modules) {
-            for (const auto& ep : source_mod->entry_points()) {
+        for (const auto& module : m_desc.source_modules) {
+            for (const auto& ep : module->entry_points()) {
                 if (seen_names.insert(std::string(ep->name())).second)
-                    result.push_back(ep);
+                    result.push_back(create_entry_point(ep->name()));
             }
         }
     } else {
@@ -1026,16 +1028,6 @@ std::vector<ref<SlangEntryPoint>> SlangModule::entry_points() const
 ref<SlangEntryPoint>
 SlangModule::entry_point(std::string_view name, std::span<const TypeConformance> type_conformances) const
 {
-    // Fast path: no type conformances, search cached entry points.
-    if (type_conformances.empty()) {
-        for (const auto& ep : entry_points()) {
-            if (ep->name() == name)
-                return ep;
-        }
-        SGL_THROW("Entry point \"{}\" not found in module or linked modules", name);
-    }
-
-    // Slow path: type conformances require building a specialized entry point.
     return create_entry_point(name, type_conformances);
 }
 
@@ -1043,8 +1035,8 @@ bool SlangModule::has_entry_point(std::string_view name) const
 {
     if (is_composed()) {
         // Search source modules
-        for (const auto& source_mod : m_desc.source_modules) {
-            if (source_mod->has_entry_point(name))
+        for (const auto& module : m_desc.source_modules) {
+            if (module->has_entry_point(name))
                 return true;
         }
         return false;
@@ -1072,11 +1064,26 @@ SlangModule::create_entry_point(std::string_view name, std::span<const TypeConfo
 
     if (is_composed()) {
         // Search source modules for the entry point
-        for (const auto& source_mod : m_desc.source_modules) {
-            if (source_mod->has_entry_point(name)) {
-                // Use 'this' (composed module) as the type lookup module
-                desc.type_lookup_module = ref(const_cast<SlangModule*>(this));
-                auto ep = make_ref<SlangEntryPoint>(ref(const_cast<SlangModule*>(source_mod.get())), desc);
+        for (const auto& module : m_desc.source_modules) {
+            if (module->has_entry_point(name)) {
+                // Resolve to the actual defining (non-composed) module.
+                // module may itself be composed, so follow the chain.
+                ref<SlangModule> defining_mod = module;
+                while (defining_mod->is_composed()) {
+                    bool found = false;
+                    for (const auto& inner_mod : defining_mod->desc().source_modules) {
+                        if (inner_mod->has_entry_point(name)) {
+                            defining_mod = inner_mod;
+                            found = true;
+                            break;
+                        }
+                    }
+                    SGL_CHECK(found, "Entry point \"{}\" not found in nested composed module", name);
+                }
+
+                // Use the defining module for both construction and type lookups.
+                desc.type_lookup_module = ref(const_cast<SlangModule*>(defining_mod.get()));
+                auto ep = make_ref<SlangEntryPoint>(ref(const_cast<SlangModule*>(defining_mod.get())), desc);
                 ep->init(build);
                 ep->store_built_data(build);
                 return ep;
