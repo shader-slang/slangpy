@@ -10,7 +10,6 @@
 #include "sgl/device/slang_utils.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/hot_reload.h"
-#include "sgl/device/reflection.h"
 
 #include "sgl/core/type_utils.h"
 #include "sgl/core/platform.h"
@@ -163,33 +162,19 @@ private:
 // SlangSession
 // ----------------------------------------------------------------------------
 
-/// Filter specific messages from slang diagnostics.
-/// This is mainly a workaround for the annoying warnings from NVAPI.
-/// Ideally to solve that case, slang should have diagnostic pragmas.
-inline std::string filter_diagnostics(const char* diagnostics)
-{
-    std::regex re("^.*nvHLSLExtns.h.*\\n.*\\n.*\\^~+\\n", std::regex::ECMAScript);
-    std::string result = diagnostics;
-    result = std::regex_replace(result, re, "");
-    return result;
-}
-
 /// Append slang diagnostics to a string if not null.
 inline std::string append_diagnostics(std::string msg, ISlangBlob* diagnostics)
 {
     if (diagnostics)
-        msg += fmt::format("\n{}", filter_diagnostics(static_cast<const char*>(diagnostics->getBufferPointer())));
+        msg += fmt::format("\n{}", static_cast<const char*>(diagnostics->getBufferPointer()));
     return msg;
 }
 
 /// Report slang diagnostics to log if not null.
 inline void report_diagnostics(ISlangBlob* diagnostics)
 {
-    if (diagnostics) {
-        std::string filtered = filter_diagnostics(static_cast<const char*>(diagnostics->getBufferPointer()));
-        if (!filtered.empty())
-            log_warn("Slang compiler warnings:\n{}", filtered);
-    }
+    if (diagnostics)
+        log_warn("Slang compiler warnings:\n{}", static_cast<const char*>(diagnostics->getBufferPointer()));
 }
 
 SlangSession::SlangSession(ref<Device> device, SlangSessionDesc desc)
@@ -503,12 +488,9 @@ void SlangSession::create_session(SlangSessionBuild& build)
     build.session = std::move(data);
 }
 
-ref<SlangModule> SlangSession::load_module(std::string_view module_name)
+ref<SlangModule> SlangSession::create_module(SlangModuleDesc desc)
 {
-    SlangModuleDesc desc;
-    desc.module_name = module_name;
-
-    ref<SlangModule> module = make_ref<SlangModule>(ref(this), desc);
+    ref<SlangModule> module = make_ref<SlangModule>(ref(this), std::move(desc));
 
     // Setup build info with just this session in and load/store the module.
     SlangSessionBuild build;
@@ -522,6 +504,13 @@ ref<SlangModule> SlangSession::load_module(std::string_view module_name)
     return module;
 }
 
+ref<SlangModule> SlangSession::load_module(std::string_view module_name)
+{
+    SlangModuleDesc desc;
+    desc.module_name = module_name;
+    return create_module(std::move(desc));
+}
+
 ref<SlangModule> SlangSession::load_module_from_source(
     std::string_view module_name,
     std::string_view source,
@@ -532,19 +521,7 @@ ref<SlangModule> SlangSession::load_module_from_source(
     desc.module_name = module_name;
     desc.source = source;
     desc.path = path;
-
-    ref<SlangModule> module = make_ref<SlangModule>(ref(this), desc);
-
-    // Setup build info with just this session in and load/store the module.
-    SlangSessionBuild build;
-    build.session = m_data;
-    module->load(build);
-    module->store_built_data(build);
-
-    // Update cache of loaded modules.
-    update_module_cache_and_dependencies();
-
-    return module;
+    return create_module(std::move(desc));
 }
 
 ref<SlangModule> SlangSession::compose_modules(
@@ -562,19 +539,7 @@ ref<SlangModule> SlangSession::compose_modules(
     desc.module_name = name;
     desc.source_modules = std::move(modules);
     desc.type_conformances = std::vector<TypeConformance>{type_conformances.begin(), type_conformances.end()};
-
-    ref<SlangModule> module = make_ref<SlangModule>(ref(this), desc);
-
-    // Setup build info with this session and load/store the composed module.
-    SlangSessionBuild build;
-    build.session = m_data;
-    module->load(build);
-    module->store_built_data(build);
-
-    // Update cache of loaded modules.
-    update_module_cache_and_dependencies();
-
-    return module;
+    return create_module(std::move(desc));
 }
 
 ref<ShaderProgram> SlangSession::link_program(
@@ -1216,7 +1181,7 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
         // Simple case with no type conformances simply finds the entry point from its module.
         Slang::ComPtr<slang::IEntryPoint> slang_entry_point;
         SGL_CATCH_INTERNAL_SLANG_ERROR(
-            slang_module->findEntryPointByName(std::string{desc.name}.c_str(), slang_entry_point.writeRef());
+            slang_module->findEntryPointByName(desc.name.c_str(), slang_entry_point.writeRef());
         );
         if (!slang_entry_point)
             SGL_THROW("Entry point \"{}\" not found", desc.name);
@@ -1227,7 +1192,7 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
         // Find the input entry point
         Slang::ComPtr<slang::IEntryPoint> slang_entry_point;
         SGL_CATCH_INTERNAL_SLANG_ERROR(
-            slang_module->findEntryPointByName(std::string{desc.name}.c_str(), slang_entry_point.writeRef());
+            slang_module->findEntryPointByName(desc.name.c_str(), slang_entry_point.writeRef());
         );
         if (!slang_entry_point)
             SGL_THROW("Entry point \"{}\" not found", desc.name);
@@ -1385,6 +1350,17 @@ void SlangEntryPoint::populate_build_data(SlangSessionBuild& build_data)
     build_data.entry_points[this] = m_data;
 }
 
+SlangSessionBuild SlangEntryPoint::create_build_context() const
+{
+    SlangSessionBuild build_data;
+    build_data.session = m_module->session()->_data();
+    build_data.modules[m_module.get()] = m_module->_data();
+    // Include the type lookup module if different from the defining module.
+    if (m_desc.type_lookup_module.get() != m_module.get())
+        build_data.modules[m_desc.type_lookup_module.get()] = m_desc.type_lookup_module->_data();
+    return build_data;
+}
+
 ref<SlangEntryPoint> SlangEntryPoint::rename(const std::string& new_name)
 {
     Slang::ComPtr<slang::IComponentType> renamed_entry_point;
@@ -1394,13 +1370,7 @@ ref<SlangEntryPoint> SlangEntryPoint::rename(const std::string& new_name)
     desc.name = new_name;
     auto ep = make_ref<SlangEntryPoint>(m_module, desc);
 
-    // Setup build containing the session and relevant modules.
-    SlangSessionBuild build_data;
-    build_data.session = m_module->session()->_data();
-    build_data.modules[m_module.get()] = m_module->_data();
-    // Include the type lookup module if different from the defining module.
-    if (m_desc.type_lookup_module.get() != m_module.get())
-        build_data.modules[m_desc.type_lookup_module.get()] = m_desc.type_lookup_module->_data();
+    auto build_data = create_build_context();
     ep->init(build_data);
     ep->store_built_data(build_data);
 
@@ -1416,13 +1386,7 @@ ref<SlangEntryPoint> SlangEntryPoint::with_name(const std::string& name) const
     desc.name = name;
     auto ep = make_ref<SlangEntryPoint>(m_module, desc);
 
-    // Setup build containing the session and relevant modules.
-    SlangSessionBuild build_data;
-    build_data.session = m_module->session()->_data();
-    build_data.modules[m_module.get()] = m_module->_data();
-    // Include the type lookup module if different from the defining module.
-    if (m_desc.type_lookup_module.get() != m_module.get())
-        build_data.modules[m_desc.type_lookup_module.get()] = m_desc.type_lookup_module->_data();
+    auto build_data = create_build_context();
     ep->init(build_data);
     ep->store_built_data(build_data);
 
@@ -1436,13 +1400,7 @@ ref<SlangEntryPoint> SlangEntryPoint::specialize(std::span<const SpecializationA
 
     auto ep = make_ref<SlangEntryPoint>(m_module, desc);
 
-    // Setup build containing the session and relevant modules.
-    SlangSessionBuild build_data;
-    build_data.session = m_module->session()->_data();
-    build_data.modules[m_module.get()] = m_module->_data();
-    // Include the type lookup module if different from the defining module.
-    if (m_desc.type_lookup_module.get() != m_module.get())
-        build_data.modules[m_desc.type_lookup_module.get()] = m_desc.type_lookup_module->_data();
+    auto build_data = create_build_context();
     ep->init(build_data);
     ep->store_built_data(build_data);
 
@@ -1563,7 +1521,7 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
             slang_link_option_entries.data(),
             diagnostics.writeRef()
         ));
-        if (!composed_program) {
+        if (!linked_program) {
             std::string msg = append_diagnostics("Failed to link program", diagnostics);
             throw SlangCompileError(msg);
         }

@@ -90,11 +90,11 @@ SGL_ENUM_REGISTER(SlangFloatingPointMode);
 enum class SlangDebugInfoLevel {
     /// No debug information.
     none = SLANG_DEBUG_INFO_LEVEL_NONE,
-    /// Emit as little debug information as possible, while still supporting stack trackes.
+    /// Emit as little debug information as possible, while still supporting stack traces.
     minimal = SLANG_DEBUG_INFO_LEVEL_MINIMAL,
     /// Emit whatever is the standard level of debug information for each target.
     standard = SLANG_DEBUG_INFO_LEVEL_STANDARD,
-    /// Emit as much debug infromation as possible for each target.
+    /// Emit as much debug information as possible for each target.
     maximal = SLANG_DEBUG_INFO_LEVEL_MAXIMAL,
 };
 
@@ -218,6 +218,7 @@ struct SlangLinkOptions {
 };
 
 struct SlangSessionData;
+struct SlangModuleDesc;
 struct SlangModuleData;
 struct SlangEntryPointData;
 struct ShaderProgramData;
@@ -354,6 +355,9 @@ private:
     void update_module_cache_and_dependencies();
     bool write_module_to_cache(slang::IModule* module);
     void create_session(SlangSessionBuild& build);
+
+    /// Helper to create a module, updating cache afterwards.
+    ref<SlangModule> create_module(SlangModuleDesc desc);
 };
 
 struct SlangModuleDesc {
@@ -569,6 +573,9 @@ public:
     virtual std::string to_string() const override;
 
 private:
+    /// Helper to create a build context for entry point operations.
+    SlangSessionBuild create_build_context() const;
+
     ref<SlangModule> m_module;
     SlangEntryPointDesc m_desc;
     ref<SlangEntryPointData> m_data;
