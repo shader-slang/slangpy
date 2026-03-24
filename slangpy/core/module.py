@@ -65,11 +65,9 @@ class Module:
         self.link = list(dict.fromkeys([x.module if isinstance(x, Module) else x for x in link]))
 
         #: Reflection / layout information for the module.
-        # Link the user- and device module together so we can reflect combined types
-        # This should be solved by the combined object API in the future
         module_list = [self.slangpy_device_module, self.device_module] + self.link
-        combined_program = device_module.session.link_program(module_list, [])
-        self.layout = SlangProgramLayout(combined_program.layout)
+        composite = device_module.session.create_composite_component_type(module_list)
+        self.layout = SlangProgramLayout(composite.component_type_layout())
 
         self.call_data_cache = CallDataCache()
         self.dispatch_data_cache: dict[str, "DispatchData"] = {}
@@ -203,10 +201,10 @@ class Module:
         """
         Called by device when the module is hot reloaded.
         """
-        # Relink combined program
+        # Recreate composite for updated layout
         module_list = [self.slangpy_device_module, self.device_module] + self.link
-        combined_program = self.device_module.session.link_program(module_list, [])
-        self.layout.on_hot_reload(combined_program.layout)
+        composite = self.device_module.session.create_composite_component_type(module_list)
+        self.layout.on_hot_reload(composite.component_type_layout())
 
         # Clear all caches
         self.call_data_cache = CallDataCache()
