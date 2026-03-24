@@ -70,6 +70,7 @@ class Module:
         self.layout = SlangProgramLayout(composed.layout)
 
         # Store link modules (excluding slangpy)
+        # TODO: We should remove this, but some applications currently still rely on this.
         self.link = list(dict.fromkeys(link_slang_modules))
 
         self.call_data_cache = CallDataCache()
