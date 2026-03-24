@@ -1109,12 +1109,9 @@ SlangModule::create_entry_point(std::string_view name, std::span<const TypeConfo
         // Search source modules for the entry point
         for (const auto& source_mod : m_desc.source_modules) {
             if (source_mod->has_entry_point(name)) {
-                // Pass 'this' (composed module) as the type lookup module
-                auto ep = make_ref<SlangEntryPoint>(
-                    ref(const_cast<SlangModule*>(source_mod.get())),
-                    desc,
-                    ref(const_cast<SlangModule*>(this))
-                );
+                // Use 'this' (composed module) as the type lookup module
+                desc.type_lookup_module = ref(const_cast<SlangModule*>(this));
+                auto ep = make_ref<SlangEntryPoint>(ref(const_cast<SlangModule*>(source_mod.get())), desc);
                 ep->init(build);
                 ep->store_built_data(build);
                 return ep;
@@ -1128,8 +1125,8 @@ SlangModule::create_entry_point(std::string_view name, std::span<const TypeConfo
     m_data->slang_module->findEntryPointByName(std::string{name}.c_str(), slang_ep.writeRef());
     if (slang_ep) {
         // For regular modules, type_lookup_module is the same as the defining module
-        auto ep
-            = make_ref<SlangEntryPoint>(ref(const_cast<SlangModule*>(this)), desc, ref(const_cast<SlangModule*>(this)));
+        desc.type_lookup_module = ref(const_cast<SlangModule*>(this));
+        auto ep = make_ref<SlangEntryPoint>(ref(const_cast<SlangModule*>(this)), desc);
         ep->init(build);
         ep->store_built_data(build);
         return ep;
@@ -1193,13 +1190,8 @@ std::string SlangModule::to_string() const
 }
 
 
-SlangEntryPoint::SlangEntryPoint(
-    ref<SlangModule> module,
-    const SlangEntryPointDesc& desc,
-    ref<SlangModule> type_lookup_module
-)
+SlangEntryPoint::SlangEntryPoint(ref<SlangModule> module, const SlangEntryPointDesc& desc)
     : m_module(module)
-    , m_type_lookup_module(type_lookup_module)
     , m_desc(desc)
 {
     m_module->_register_entry_point(this);
@@ -1274,8 +1266,7 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
         std::vector<slang::IComponentType*> slang_component_types(desc.type_conformances.size() + 1);
 
         // Get layout for type lookups from the type_lookup_module (composed module if available).
-        SlangModule* lookup_module = type_lookup_module();
-        SlangModuleData* lookup_data = build_data.modules[lookup_module].get();
+        SlangModuleData* lookup_data = build_data.modules[m_desc.type_lookup_module].get();
         slang::ProgramLayout* layout;
         SGL_CATCH_INTERNAL_SLANG_ERROR(
             layout = lookup_data->slang_component_type ? lookup_data->slang_component_type->getLayout()
@@ -1326,8 +1317,7 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
     // If we have specialization arguments, specialize the entry point.
     if (!desc.specialization_args.empty()) {
         // Get layout for type lookups from the type_lookup_module (composed module if available).
-        SlangModule* lookup_module = type_lookup_module();
-        SlangModuleData* lookup_data = build_data.modules[lookup_module].get();
+        SlangModuleData* lookup_data = build_data.modules[m_desc.type_lookup_module].get();
         slang::ProgramLayout* layout;
         SGL_CATCH_INTERNAL_SLANG_ERROR(
             layout = lookup_data->slang_component_type ? lookup_data->slang_component_type->getLayout()
@@ -1402,15 +1392,15 @@ ref<SlangEntryPoint> SlangEntryPoint::rename(const std::string& new_name)
 
     SlangEntryPointDesc desc = m_desc;
     desc.name = new_name;
-    auto ep = make_ref<SlangEntryPoint>(m_module, desc, m_type_lookup_module);
+    auto ep = make_ref<SlangEntryPoint>(m_module, desc);
 
     // Setup build containing the session and relevant modules.
     SlangSessionBuild build_data;
     build_data.session = m_module->session()->_data();
     build_data.modules[m_module.get()] = m_module->_data();
     // Include the type lookup module if different from the defining module.
-    if (m_type_lookup_module.get() != m_module.get())
-        build_data.modules[m_type_lookup_module.get()] = m_type_lookup_module->_data();
+    if (m_desc.type_lookup_module.get() != m_module.get())
+        build_data.modules[m_desc.type_lookup_module.get()] = m_desc.type_lookup_module->_data();
     ep->init(build_data);
     ep->store_built_data(build_data);
 
@@ -1424,15 +1414,15 @@ ref<SlangEntryPoint> SlangEntryPoint::with_name(const std::string& name) const
 
     SlangEntryPointDesc desc = m_desc;
     desc.name = name;
-    auto ep = make_ref<SlangEntryPoint>(m_module, desc, m_type_lookup_module);
+    auto ep = make_ref<SlangEntryPoint>(m_module, desc);
 
     // Setup build containing the session and relevant modules.
     SlangSessionBuild build_data;
     build_data.session = m_module->session()->_data();
     build_data.modules[m_module.get()] = m_module->_data();
     // Include the type lookup module if different from the defining module.
-    if (m_type_lookup_module.get() != m_module.get())
-        build_data.modules[m_type_lookup_module.get()] = m_type_lookup_module->_data();
+    if (m_desc.type_lookup_module.get() != m_module.get())
+        build_data.modules[m_desc.type_lookup_module.get()] = m_desc.type_lookup_module->_data();
     ep->init(build_data);
     ep->store_built_data(build_data);
 
@@ -1444,15 +1434,15 @@ ref<SlangEntryPoint> SlangEntryPoint::specialize(std::span<const SpecializationA
     SlangEntryPointDesc desc = m_desc;
     desc.specialization_args.assign(specialization_args.begin(), specialization_args.end());
 
-    auto ep = make_ref<SlangEntryPoint>(m_module, desc, m_type_lookup_module);
+    auto ep = make_ref<SlangEntryPoint>(m_module, desc);
 
     // Setup build containing the session and relevant modules.
     SlangSessionBuild build_data;
     build_data.session = m_module->session()->_data();
     build_data.modules[m_module.get()] = m_module->_data();
     // Include the type lookup module if different from the defining module.
-    if (m_type_lookup_module.get() != m_module.get())
-        build_data.modules[m_type_lookup_module.get()] = m_type_lookup_module->_data();
+    if (m_desc.type_lookup_module.get() != m_module.get())
+        build_data.modules[m_desc.type_lookup_module.get()] = m_desc.type_lookup_module->_data();
     ep->init(build_data);
     ep->store_built_data(build_data);
 
