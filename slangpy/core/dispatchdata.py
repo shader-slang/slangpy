@@ -218,12 +218,15 @@ void {reflection.name}_entrypoint({params}) {{
         **kwargs: dict[str, Any],
     ) -> None:
 
-        # Merge uniforms
+        # Merge uniforms and collect writer tuples
         uniforms: dict[str, Any] = {}
+        writers: list[tuple] = []
         if opts.uniforms is not None:
             for u in opts.uniforms:
                 if isinstance(u, dict):
                     uniforms.update(u)
+                elif isinstance(u, tuple):
+                    writers.append(u)
                 else:
                     uniforms.update(u(self))  # type: ignore (need to work out native dispatch)
         uniforms.update(vars)
@@ -245,6 +248,8 @@ void {reflection.name}_entrypoint({params}) {{
         compute_pass = command_encoder.begin_compute_pass()
         cursor = ShaderCursor(compute_pass.bind_pipeline(self.compute_pipeline))
         cursor.write(uniforms)
+        for fn, args, wkwargs in writers:
+            fn(cursor, *args, **wkwargs)
         cursor.find_entry_point(0).write(call_data)
         compute_pass.dispatch(thread_count)
         compute_pass.end()
