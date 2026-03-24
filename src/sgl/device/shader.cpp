@@ -23,6 +23,7 @@
 
 #include <random>
 #include <regex>
+#include <set>
 
 namespace sgl {
 
@@ -546,6 +547,36 @@ ref<SlangModule> SlangSession::load_module_from_source(
     return module;
 }
 
+ref<SlangModule> SlangSession::compose_modules(
+    std::string_view name,
+    std::vector<ref<SlangModule>> modules,
+    std::span<const TypeConformance> type_conformances
+)
+{
+    // Validate all modules belong to this session
+    for (const auto& mod : modules) {
+        SGL_CHECK(mod->session() == this, "Module \"{}\" belongs to a different session.", mod->name());
+    }
+
+    SlangModuleDesc desc;
+    desc.module_name = name;
+    desc.source_modules = std::move(modules);
+    desc.type_conformances = std::vector<TypeConformance>{type_conformances.begin(), type_conformances.end()};
+
+    ref<SlangModule> module = make_ref<SlangModule>(ref(this), desc);
+
+    // Setup build info with this session and load/store the composed module.
+    SlangSessionBuild build;
+    build.session = m_data;
+    module->load(build);
+    module->store_built_data(build);
+
+    // Update cache of loaded modules.
+    update_module_cache_and_dependencies();
+
+    return module;
+}
+
 ref<ShaderProgram> SlangSession::link_program(
     std::vector<ref<SlangModule>> modules,
     std::vector<ref<SlangEntryPoint>> entry_points,
@@ -789,73 +820,167 @@ SlangModule::SlangModule(ref<SlangSession> session, const SlangModuleDesc& desc)
     : m_session(std::move(session))
     , m_desc(desc)
 {
+    // Validate source modules belong to the same session
+    for (const auto& mod : m_desc.source_modules) {
+        SGL_CHECK(
+            mod->session() == m_session.get(),
+            "Source module \"{}\" belongs to a different session.",
+            mod->name()
+        );
+    }
     m_session->_register_module(this);
 }
 
 SlangModule::~SlangModule()
 {
+    m_cached_layout.reset();
     m_session->_unregister_module(this);
 }
 
 void SlangModule::load(SlangSessionBuild& build_data) const
 {
-    Timer timer;
-    Slang::ComPtr<ISlangBlob> diagnostics;
-    slang::IModule* slang_module;
+    // Idempotency guard: skip if already loaded in this build.
+    if (build_data.modules.count(this))
+        return;
 
     const SlangModuleDesc& desc = m_desc;
     const SlangSessionData* session_data = build_data.session.get();
 
-    // Load module either from resolved name or source depending on whether source specified
-    if (!desc.source.has_value()) {
-        std::string resolved_name = session_data->resolve_module_name(desc.module_name);
-        SGL_CATCH_INTERNAL_SLANG_ERROR(
-            slang_module = session_data->slang_session->loadModule(resolved_name.c_str(), diagnostics.writeRef());
-        );
-        if (!slang_module) {
-            std::string msg
-                = append_diagnostics(fmt::format("Failed to load slang module \"{}\"", desc.module_name), diagnostics);
-            throw SlangCompileError(msg);
-        }
-    } else {
-        // TODO workaround: slang doesn't like loading the same source twice
-        static uint32_t id = 0;
-        std::string source_str = fmt::format("// {}\n{}", id++, desc.source);
-
-        SGL_CATCH_INTERNAL_SLANG_ERROR(
-            slang_module = session_data->slang_session->loadModuleFromSourceString(
-                std::string{desc.module_name}.c_str(),
-                desc.path ? desc.path->string().c_str() : nullptr,
-                source_str.c_str(),
-                diagnostics.writeRef()
-            )
-        );
-        if (!slang_module) {
-            std::string msg = append_diagnostics(
-                fmt::format("Failed to load slang module \"{}\" from source", desc.module_name),
-                diagnostics
-            );
-            throw SlangCompileError(msg);
-        }
-    }
-
-    report_diagnostics(diagnostics);
-    log_debug("Loading slang module \"{}\" took {}", desc.module_name, string::format_duration(timer.elapsed_s()));
-
-
     auto data = make_ref<SlangModuleData>();
 
-    // Store initialized module info.
-    data->slang_module = slang_module;
-    data->name = slang_module->getName();
-    data->path = slang_module->getFilePath() ? slang_module->getFilePath() : "";
+    if (desc.is_composed()) {
+        // Composed module: recursively load source modules, then create composite
+        for (const auto& source_mod : desc.source_modules) {
+            source_mod->load(build_data);
+        }
+
+        // Collect component types from source modules.
+        // Use composite if present (for nested composed modules), otherwise slang_module.
+        std::vector<slang::IComponentType*> components;
+        for (const auto& source_mod : desc.source_modules) {
+            const SlangModuleData* source_data = build_data.modules[source_mod.get()].get();
+            if (source_data->slang_component_type)
+                components.push_back(source_data->slang_component_type.get());
+            else
+                components.push_back(source_data->slang_module);
+        }
+
+        // Apply type conformances if specified
+        std::vector<Slang::ComPtr<slang::ITypeConformance>> slang_type_conformances;
+        if (!desc.type_conformances.empty()) {
+            // Get layout for type lookup (use first source module's layout)
+            slang::ProgramLayout* layout = nullptr;
+            for (const auto& source_mod : desc.source_modules) {
+                const SlangModuleData* source_data = build_data.modules[source_mod.get()].get();
+                if (source_data->slang_module) {
+                    SGL_CATCH_INTERNAL_SLANG_ERROR(layout = source_data->slang_module->getLayout());
+                    break;
+                }
+            }
+            SGL_CHECK(layout, "Cannot apply type conformances: no source module has a layout");
+
+            for (const TypeConformance& c : desc.type_conformances) {
+                slang::TypeReflection* interface_type = layout->findTypeByName(c.interface_name.c_str());
+                SGL_CHECK(interface_type, "Interface type \"{}\" not found", c.interface_name);
+                slang::TypeReflection* type = layout->findTypeByName(c.type_name.c_str());
+                SGL_CHECK(type, "Type \"{}\" not found", c.type_name);
+
+                Slang::ComPtr<slang::ITypeConformance> type_conformance;
+                Slang::ComPtr<ISlangBlob> diagnostics;
+                SGL_CATCH_INTERNAL_SLANG_ERROR(session_data->slang_session->createTypeConformanceComponentType(
+                    type,
+                    interface_type,
+                    type_conformance.writeRef(),
+                    c.id,
+                    diagnostics.writeRef()
+                ));
+                report_diagnostics(diagnostics);
+                SGL_CHECK(
+                    type_conformance,
+                    "Failed to create type conformance for interface \"{}\" and type \"{}\"",
+                    c.interface_name,
+                    c.type_name
+                );
+                slang_type_conformances.push_back(type_conformance);
+                components.push_back(type_conformance.get());
+            }
+        }
+
+        // Create composite component type
+        Slang::ComPtr<slang::IComponentType> composite;
+        Slang::ComPtr<ISlangBlob> diagnostics;
+        SGL_CATCH_INTERNAL_SLANG_ERROR(session_data->slang_session->createCompositeComponentType(
+            components.data(),
+            components.size(),
+            composite.writeRef(),
+            diagnostics.writeRef()
+        ));
+        report_diagnostics(diagnostics);
+        SGL_CHECK(composite, "Failed to create composite component type for composed module");
+
+        // Store composed module info.
+        data->slang_component_type = std::move(composite);
+        data->name = desc.module_name;
+        data->path = ""; // Composed modules don't have a single source path
+
+    } else {
+        // Regular module: load from file or source
+        Timer timer;
+        Slang::ComPtr<ISlangBlob> diagnostics;
+        slang::IModule* slang_module;
+
+        // Load module either from resolved name or source depending on whether source specified
+        if (!desc.source.has_value()) {
+            std::string resolved_name = session_data->resolve_module_name(desc.module_name);
+            SGL_CATCH_INTERNAL_SLANG_ERROR(
+                slang_module = session_data->slang_session->loadModule(resolved_name.c_str(), diagnostics.writeRef());
+            );
+            if (!slang_module) {
+                std::string msg = append_diagnostics(
+                    fmt::format("Failed to load slang module \"{}\"", desc.module_name),
+                    diagnostics
+                );
+                throw SlangCompileError(msg);
+            }
+        } else {
+            // TODO workaround: slang doesn't like loading the same source twice
+            static uint32_t id = 0;
+            std::string source_str = fmt::format("// {}\n{}", id++, desc.source);
+
+            SGL_CATCH_INTERNAL_SLANG_ERROR(
+                slang_module = session_data->slang_session->loadModuleFromSourceString(
+                    std::string{desc.module_name}.c_str(),
+                    desc.path ? desc.path->string().c_str() : nullptr,
+                    source_str.c_str(),
+                    diagnostics.writeRef()
+                )
+            );
+            if (!slang_module) {
+                std::string msg = append_diagnostics(
+                    fmt::format("Failed to load slang module \"{}\" from source", desc.module_name),
+                    diagnostics
+                );
+                throw SlangCompileError(msg);
+            }
+        }
+
+        report_diagnostics(diagnostics);
+        log_debug("Loading slang module \"{}\" took {}", desc.module_name, string::format_duration(timer.elapsed_s()));
+
+        // Store initialized module info.
+        data->slang_module = slang_module;
+        data->name = slang_module->getName();
+        data->path = slang_module->getFilePath() ? slang_module->getFilePath() : "";
+    }
 
     // Output the built module.
     build_data.modules[this] = std::move(data);
 
-    // Build all registered entry points.
-    for (auto entry_point : m_registered_entry_points) {
-        entry_point->init(build_data);
+    // Build all registered entry points (only for non-composed modules).
+    if (!desc.is_composed()) {
+        for (auto entry_point : m_registered_entry_points) {
+            entry_point->init(build_data);
+        }
     }
 }
 
@@ -864,62 +989,153 @@ void SlangModule::store_built_data(SlangSessionBuild& build_data)
     m_data = build_data.modules[this];
     for (auto ep : m_registered_entry_points)
         ep->store_built_data(build_data);
+    // Invalidate cached layout
+    m_cached_layout.reset();
 }
 
-void SlangModule::populate_build_data(SlangSessionBuild& build_data)
+void SlangModule::populate_build_data(SlangSessionBuild& build_data) const
 {
     build_data.modules[this] = m_data;
+    for (const auto& module : m_desc.source_modules)
+        module->populate_build_data(build_data);
     for (auto ep : m_registered_entry_points)
         ep->populate_build_data(build_data);
 }
 
+ref<const ProgramLayout> SlangModule::layout() const
+{
+    if (m_cached_layout)
+        return m_cached_layout;
+
+    if (m_data->slang_component_type) {
+        // Composed module: use the composite's layout
+        m_cached_layout
+            = ProgramLayout::from_slang(ref(const_cast<SlangModule*>(this)), m_data->slang_component_type->getLayout());
+    } else {
+        // Regular module: use the slang module's layout
+        m_cached_layout
+            = ProgramLayout::from_slang(ref(const_cast<SlangModule*>(this)), m_data->slang_module->getLayout());
+    }
+    return m_cached_layout;
+}
+
 std::vector<ref<SlangEntryPoint>> SlangModule::entry_points() const
 {
-    std::vector<ref<SlangEntryPoint>> entry_points;
-    for (SlangInt32 i = 0; i < m_data->slang_module->getDefinedEntryPointCount(); ++i) {
-        Slang::ComPtr<slang::IEntryPoint> slang_entry_point;
-        SGL_CATCH_INTERNAL_SLANG_ERROR(m_data->slang_module->getDefinedEntryPoint(i, slang_entry_point.writeRef()););
+    std::vector<ref<SlangEntryPoint>> result;
+    std::set<std::string> seen_names;
 
-        slang::EntryPointLayout* layout;
-        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = slang_entry_point->getLayout()->getEntryPointByIndex(0););
-        std::string name = layout->getNameOverride() ? layout->getNameOverride() : layout->getName();
+    if (is_composed()) {
+        // Composed module: collect entry points from all source modules
+        for (const auto& source_mod : m_desc.source_modules) {
+            for (const auto& ep : source_mod->entry_points()) {
+                if (seen_names.insert(std::string(ep->name())).second)
+                    result.push_back(ep);
+            }
+        }
+    } else {
+        // Regular module: collect from primary module
+        for (SlangInt32 i = 0; i < m_data->slang_module->getDefinedEntryPointCount(); ++i) {
+            Slang::ComPtr<slang::IEntryPoint> slang_entry_point;
+            SGL_CATCH_INTERNAL_SLANG_ERROR(
+                m_data->slang_module->getDefinedEntryPoint(i, slang_entry_point.writeRef());
+            );
 
-        entry_points.push_back(entry_point(name));
+            slang::EntryPointLayout* ep_layout;
+            SGL_CATCH_INTERNAL_SLANG_ERROR(ep_layout = slang_entry_point->getLayout()->getEntryPointByIndex(0););
+            std::string name = ep_layout->getNameOverride() ? ep_layout->getNameOverride() : ep_layout->getName();
+
+            if (seen_names.insert(name).second)
+                result.push_back(create_entry_point(name));
+        }
     }
-    return entry_points;
+
+    return result;
 }
 
 ref<SlangEntryPoint>
 SlangModule::entry_point(std::string_view name, std::span<const TypeConformance> type_conformances) const
 {
-    SlangEntryPointDesc desc;
-    desc.name = name;
-    desc.type_conformances.assign(type_conformances.begin(), type_conformances.end());
+    // Fast path: no type conformances, search cached entry points.
+    if (type_conformances.empty()) {
+        for (const auto& ep : entry_points()) {
+            if (ep->name() == name)
+                return ep;
+        }
+        SGL_THROW("Entry point \"{}\" not found in module or linked modules", name);
+    }
 
-    auto entry_point = make_ref<SlangEntryPoint>(ref(const_cast<SlangModule*>(this)), desc);
-
-    // Setup build containing just the session and this module, then build and store the entry point.
-    SlangSessionBuild build;
-    build.session = session()->_data();
-    build.modules[this] = m_data;
-    entry_point->init(build);
-    entry_point->store_built_data(build);
-
-    return entry_point;
+    // Slow path: type conformances require building a specialized entry point.
+    return create_entry_point(name, type_conformances);
 }
 
 bool SlangModule::has_entry_point(std::string_view name) const
 {
-    Slang::ComPtr<slang::IEntryPoint> slang_entry_point;
-    SGL_CATCH_INTERNAL_SLANG_ERROR(
-        m_data->slang_module->findEntryPointByName(std::string{name}.c_str(), slang_entry_point.writeRef());
-    );
-    return slang_entry_point != nullptr;
+    if (is_composed()) {
+        // Search source modules
+        for (const auto& source_mod : m_desc.source_modules) {
+            if (source_mod->has_entry_point(name))
+                return true;
+        }
+        return false;
+    } else {
+        // Regular module
+        for (const auto& ep : entry_points()) {
+            if (ep->name() == name)
+                return true;
+        }
+    }
+    return false;
+}
+
+ref<SlangEntryPoint>
+SlangModule::create_entry_point(std::string_view name, std::span<const TypeConformance> type_conformances) const
+{
+    SlangEntryPointDesc desc;
+    desc.name = name;
+    desc.type_conformances.assign(type_conformances.begin(), type_conformances.end());
+
+    // Build a full context with all module data.
+    SlangSessionBuild build;
+    build.session = session()->_data();
+    populate_build_data(build);
+
+    if (is_composed()) {
+        // Search source modules for the entry point
+        for (const auto& source_mod : m_desc.source_modules) {
+            if (source_mod->has_entry_point(name)) {
+                auto ep = make_ref<SlangEntryPoint>(ref(const_cast<SlangModule*>(source_mod.get())), desc);
+                ep->init(build);
+                ep->store_built_data(build);
+                return ep;
+            }
+        }
+        SGL_THROW("Entry point \"{}\" not found in composed module", name);
+    }
+
+    // Regular module: search primary module
+    Slang::ComPtr<slang::IEntryPoint> slang_ep;
+    m_data->slang_module->findEntryPointByName(std::string{name}.c_str(), slang_ep.writeRef());
+    if (slang_ep) {
+        auto ep = make_ref<SlangEntryPoint>(ref(const_cast<SlangModule*>(this)), desc);
+        ep->init(build);
+        ep->store_built_data(build);
+        return ep;
+    }
+
+    SGL_THROW("Entry point \"{}\" not found in module", name);
 }
 
 ref<const DeclReflection> SlangModule::module_decl() const
 {
+    SGL_CHECK(!is_composed(), "module_decl() is not supported for composed modules (no single module to reflect)");
     return detail::from_slang(ref(this), m_data->slang_module->getModuleReflection());
+}
+
+slang::IComponentType* SlangModule::slang_component_type() const
+{
+    if (m_data->slang_component_type)
+        return m_data->slang_component_type.get();
+    return m_data->slang_module;
 }
 
 void SlangModule::_register_entry_point(SlangEntryPoint* entry_point) const
@@ -934,16 +1150,33 @@ void SlangModule::_unregister_entry_point(SlangEntryPoint* entry_point) const
 
 std::string SlangModule::to_string() const
 {
-    return fmt::format(
-        "SlangModule(\n"
-        "  name = {},\n"
-        "  path = {},\n"
-        "  entry_points = {}\n"
-        ")",
-        m_data->name,
-        m_data->path,
-        string::indent(string::list_to_string(entry_points()))
-    );
+    if (is_composed()) {
+        std::vector<std::string> source_names;
+        for (const auto& mod : m_desc.source_modules)
+            source_names.push_back(mod->name());
+
+        return fmt::format(
+            "SlangModule(\n"
+            "  name = {},\n"
+            "  source_modules = [{}],\n"
+            "  entry_points = {}\n"
+            ")",
+            m_data->name,
+            fmt::join(source_names, ", "),
+            string::indent(string::list_to_string(entry_points()))
+        );
+    } else {
+        return fmt::format(
+            "SlangModule(\n"
+            "  name = {},\n"
+            "  path = {},\n"
+            "  entry_points = {}\n"
+            ")",
+            m_data->name,
+            m_data->path,
+            string::indent(string::list_to_string(entry_points()))
+        );
+    }
 }
 
 
@@ -1223,9 +1456,21 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
     Slang::ComPtr<slang::IComponentType> composed_program;
     {
         std::vector<slang::IComponentType*> component_types;
+        std::set<slang::IComponentType*> seen_components;
+
+        auto add_component = [&](slang::IComponentType* comp)
+        {
+            if (seen_components.insert(comp).second)
+                component_types.push_back(comp);
+        };
+
         for (const auto& module : desc.modules) {
+            // For composed modules, add the composite; for regular modules, add the slang_module
             const SlangModuleData* module_data = build_data.modules[module.get()];
-            component_types.push_back(module_data->slang_module);
+            if (module_data->slang_component_type)
+                add_component(module_data->slang_component_type.get());
+            else
+                add_component(module_data->slang_module);
         }
 
         for (const auto& entry_point : desc.entry_points) {

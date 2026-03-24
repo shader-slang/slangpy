@@ -928,6 +928,14 @@ SGL_PY_EXPORT(device_device)
         D(Device, load_module_from_source)
     );
     device.def(
+        "compose_modules",
+        &Device::compose_modules,
+        "name"_a,
+        "modules"_a,
+        "type_conformances"_a = std::span<const TypeConformance>{},
+        D(Device, compose_modules)
+    );
+    device.def(
         "link_program",
         &Device::link_program,
         "modules"_a,
