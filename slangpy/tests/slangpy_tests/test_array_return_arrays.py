@@ -97,6 +97,15 @@ float2[6] return_vector_array(int coord) {
     }
     return outputs;
 }
+
+[Differentiable]
+float2[4] scale_vector_array(float2[4] input, float scale) {
+    float2 outputs[4];
+    for (int i = 0; i < 4; ++i) {
+        outputs[i] = input[i] * scale;
+    }
+    return outputs;
+}
 """
 
 
@@ -141,6 +150,71 @@ def test_return_array_of_vectors_torch(device_type: DeviceType):
     assert isinstance(result, torch.Tensor)
     assert result.shape == torch.Size([13, 6, 2])
     np.testing.assert_allclose(result.cpu().numpy(), _expected_vector_array(13))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_input_array_of_vectors_scalar_call(device_type: DeviceType):
+    """Pass array-of-vectors as Python list input (scalar call, no vectorization)."""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "scale_vector_array", VECTOR_ARRAY_MODULE)
+    input_val = [[1, 2], [3, 4], [5, 6], [7, 8]]
+    result = func(input=input_val, scale=2.0)
+    assert isinstance(result, list)
+    expected = [[2, 4], [6, 8], [10, 12], [14, 16]]
+    for i in range(4):
+        assert list(result[i]) == expected[i]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_result_preallocated_array_of_vectors(device_type: DeviceType):
+    """Write array-of-vector result into a pre-allocated Tensor."""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "return_vector_array", VECTOR_ARRAY_MODULE)
+    result_tensor = Tensor.empty(device, shape=(13, 6, 2), dtype=float)
+    func(coord=spy.grid((13,)), _result=result_tensor)
+    result_np = result_tensor.to_numpy()
+    assert result_np.shape == (13, 6, 2)
+    np.testing.assert_allclose(result_np, _expected_vector_array(13))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_input_array_of_vectors_numpy(device_type: DeviceType):
+    """Pass array-of-vectors as numpy input and return numpy result."""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "scale_vector_array", VECTOR_ARRAY_MODULE)
+    input_np = np.array([[1, 2], [3, 4], [5, 6], [7, 8]], dtype=np.float32)
+    result = func(input=input_np, scale=2.0, _result="numpy")
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (4, 2)
+    np.testing.assert_allclose(result, input_np * 2.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_diff_array_of_vectors_bwds(device_type: DeviceType):
+    """Backward pass through a differentiable function returning array-of-vectors."""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(
+        device, "scale_vector_array", VECTOR_ARRAY_MODULE
+    ).return_type(Tensor)
+
+    # Input tensor (batch=8, array=4, vector=2) with gradients
+    input_np = np.ones((8, 4, 2), dtype=np.float32) * 2.0
+    input_t = Tensor.from_numpy(device, input_np).with_grads()
+
+    # Forward: output = input * scale
+    result = func(input=input_t, scale=3.0)
+    result_np = result.to_numpy()
+    assert result_np.shape == (8, 4, 2)
+    np.testing.assert_allclose(result_np, input_np * 3.0)
+
+    # Backward: d_result = all ones
+    result_w_grads = result.with_grads()
+    result_w_grads.grad.storage.copy_from_numpy(np.ones((8, 4, 2), dtype=np.float32))
+    func.bwds(input=input_t, scale=3.0, _result=result_w_grads)
+
+    # d(output)/d(input) = scale = 3.0
+    input_grad = input_t.grad.to_numpy()
+    np.testing.assert_allclose(input_grad, np.full((8, 4, 2), 3.0))
 
 
 if __name__ == "__main__":

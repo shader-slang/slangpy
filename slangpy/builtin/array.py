@@ -77,6 +77,19 @@ class ArrayMarshall(ValueMarshall):
         if as_array is not None:
             return [as_array]
 
+        # Support array-of-scalar-array matching array-of-vector
+        # e.g. float[4][2] (Python list [[1,2],[3,4],...]) -> float2[4]
+        if (
+            isinstance(bound_type, kfr.ArrayType)
+            and isinstance(bound_type.element_type, kfr.VectorType)
+            and st.num_elements == bound_type.num_elements
+        ):
+            as_vector = spyvec.array_to_vector_scalarconvertable(
+                cast(kfr.SlangType, st.element_type), bound_type.element_type
+            )
+            if as_vector is not None:
+                return [bound_type]
+
         # Support element being of unknown type, but binding to a known struct type.
         if (
             isinstance(self_element_type, kfr.UnknownType)

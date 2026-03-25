@@ -5,6 +5,7 @@ from slangpy.bindings import BoundVariable, BindContext, CodeGenBlock, can_direc
 from slangpy.core.native import CallMode, AccessType
 from slangpy.reflection import (
     SlangType,
+    ScalarType,
     ITensorType,
     TensorType,
     TensorViewType,
@@ -252,6 +253,16 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
     as_vector = spyvec.scalar_to_sized_vector(self_element_type, bound_type)
     if as_vector is not None:
         return [as_vector]
+
+    # Tensor of scalars can load arrays of vectors of known size
+    # e.g. float tensor -> float2[4] parameter
+    if isinstance(self_element_type, ScalarType) and isinstance(bound_type, ArrayType):
+        if isinstance(bound_type.element_type, VectorType):
+            as_inner_vector = spyvec.scalar_to_sized_vector(
+                self_element_type, bound_type.element_type
+            )
+            if as_inner_vector is not None:
+                return [bound_type]
 
     # Handle ambiguous case vectorizing against generic array type
     as_generic_array_candidates = spyvec.container_to_generic_array_candidates(
