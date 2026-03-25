@@ -933,6 +933,13 @@ nb::object NativeCallData::exec(
             for (auto u : uniforms) {
                 if (nb::isinstance<nb::dict>(u)) {
                     write_shader_cursor(cursor, nb::cast<nb::dict>(u));
+                } else if (nb::isinstance<nb::tuple>(u)) {
+                    // Writer tuple: (fn, args, kwargs)
+                    nb::tuple t = nb::cast<nb::tuple>(u);
+                    nb::object fn = t[0];
+                    nb::tuple args = nb::cast<nb::tuple>(t[1]);
+                    nb::dict kwargs = nb::cast<nb::dict>(t[2]);
+                    fn(nb::cast(cursor), *args, **kwargs);
                 } else {
                     write_shader_cursor(cursor, nb::cast<nb::dict>(u(this)));
                 }
