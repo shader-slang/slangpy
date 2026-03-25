@@ -61,7 +61,7 @@ ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cac
     return result;
 }
 
-nb::object NativeFunctionNode::call(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
+nb::object NativeFunctionNode::invoke(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
 {
     auto options = make_ref<NativeCallRuntimeOptions>();
     gather_runtime_options(options);
@@ -181,10 +181,10 @@ nb::object NativeFunctionNode::call_bwds(NativeCallData* fwds_call_data, nb::arg
     return bwds_cd->call(options, args, kwargs);
 }
 
-nb::object NativeFunctionNode::full_call(nb::args args, nb::kwargs kwargs)
+nb::object NativeFunctionNode::call(nb::args args, nb::kwargs kwargs)
 {
     NativeCallDataCache* cache = resolve_cache();
-    SGL_CHECK(cache, "NativeFunctionNode::full_call: no cache found (was set_cache called on root?)");
+    SGL_CHECK(cache, "NativeFunctionNode::call: no cache found (was set_cache called on root?)");
 
     // Handle _result as type or string → delegate to Python self.return_type(resval).call(...)
     if (kwargs.contains("_result")) {
@@ -222,7 +222,7 @@ nb::object NativeFunctionNode::full_call(nb::args args, nb::kwargs kwargs)
 
     // Fast path: call with error formatting
     try {
-        return call(cache, args, kwargs);
+        return invoke(cache, args, kwargs);
     } catch (const NativeBoundVariableException& e) {
         // Format the error table by calling back into Python (error path only)
         nb::module_ logging_mod = nb::module_::import_("slangpy.core.logging");
@@ -270,8 +270,7 @@ SGL_PY_EXPORT(utils_slangpy_function)
         .def_prop_ro("_native_type", &NativeFunctionNode::type)
         .def_prop_ro("_native_data", &NativeFunctionNode::data)
         .def("_find_native_root", &NativeFunctionNode::find_root, D_NA(NativeFunctionNode, find_root))
-        .def("_native_set_cache", &NativeFunctionNode::set_cache, "cache"_a, D_NA(NativeFunctionNode, set_cache))
-        .def_prop_ro("_native_cache", &NativeFunctionNode::cache)
+        .def_prop_rw("_native_cache", &NativeFunctionNode::cache, &NativeFunctionNode::set_cache)
         .def(
             "_native_build_call_data",
             &NativeFunctionNode::build_call_data,
@@ -280,8 +279,15 @@ SGL_PY_EXPORT(utils_slangpy_function)
             "kwargs"_a,
             D_NA(NativeFunctionNode, build_call_data)
         )
-        .def("_native_call", &NativeFunctionNode::call, "cache"_a, "args"_a, "kwargs"_a, D_NA(NativeFunctionNode, call))
-        .def("__call__", &NativeFunctionNode::full_call)
+        .def(
+            "_native_invoke",
+            &NativeFunctionNode::invoke,
+            "cache"_a,
+            "args"_a,
+            "kwargs"_a,
+            D_NA(NativeFunctionNode, invoke)
+        )
+        .def("__call__", &NativeFunctionNode::call)
         .def(
             "_native_append_to",
             &NativeFunctionNode::append_to,

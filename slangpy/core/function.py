@@ -603,10 +603,7 @@ class Function(FunctionNode):
         self.slangpy_signature = "\n".join(lines)
 
         # Store native cache pointer for fast C++ call path
-        self._native_set_cache(module.call_data_cache)
-
-        # Track this function so hot reload can update its cache pointer
-        module._all_functions.add(self)
+        self._native_cache = module.call_data_cache
 
     def _populate_build_info(self, info: FunctionBuildInfo):
         info.name = self.name

@@ -177,6 +177,7 @@ class Module:
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
             res = Function(module=self, func=slang_function, struct=None, options=self.options)
+            self._all_functions.add(res)
             return res
 
     def require_function(self, name: str):
@@ -212,7 +213,7 @@ class Module:
         # Create new cache and update all tracked Function objects
         self.call_data_cache = CallDataCache()
         for func in self._all_functions:
-            func._native_set_cache(self.call_data_cache)
+            func._native_cache = self.call_data_cache
 
         # Clear all caches
         self.dispatch_data_cache = {}
@@ -234,6 +235,7 @@ class Module:
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
             res = Function(module=self, func=slang_function, struct=None, options=self.options)
+            self._all_functions.add(res)
             self._attr_cache[name] = res
             return res
 
