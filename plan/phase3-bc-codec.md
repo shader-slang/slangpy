@@ -48,7 +48,7 @@ enum class BCEncodeQuality { fastest, normal, production, highest };
 struct BCEncodeOptions {
     BCEncodeQuality quality = BCEncodeQuality::normal;
     bool generate_mipmaps = false;
-    MipFilter mip_filter = BoxFilter{};  // MipFilter = std::variant<BoxFilter, KaiserFilter, MitchellFilter>, defined in bitmap.h
+    ResamplingFilter mip_filter = BoxFilter{};  // ResamplingFilter = std::variant<BoxFilter, KaiserFilter, MitchellFilter>, defined in bitmap.h
     uint32_t channel_weights[4] = {1, 1, 1, 1}; // BC7 only: RGBA error weights passed to bc7enc_compress_block_params::m_weights. Ignored by rgbcx (BC1-5).
     bool has_alpha = true;       // BC7 only: if false, bc7enc sets m_force_alpha=false allowing more bits for color. Ignored by other formats.
     bool prefer_nvtt = true;     // Use NVTT3 if available

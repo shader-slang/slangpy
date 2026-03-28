@@ -2,7 +2,7 @@
 
 Add CPU image resampling and mipmap generation to `Bitmap`. This is independent of BC codec and external deps — can be done in parallel with Phase 1.
 
-## 2a. MipFilter Types
+## 2a. ResamplingFilter Types
 
 Add to `src/sgl/core/bitmap.h`:
 
@@ -19,7 +19,7 @@ struct MitchellFilter {
     float c = 1.0f / 3.0f;
 };
 
-using MipFilter = std::variant<BoxFilter, KaiserFilter, MitchellFilter>;
+using ResamplingFilter = std::variant<BoxFilter, KaiserFilter, MitchellFilter>;
 ```
 
 Uses `std::variant` so each filter type carries only its own parameters. Adding a new filter later is just a new struct + variant alternative + `std::visit` case — the compiler catches any unhandled filters.
@@ -31,18 +31,18 @@ Add to `Bitmap`:
 /// Resample to arbitrary resolution using a separable filter.
 /// Boundary condition: clamp (samples outside the image edge repeat the border pixel).
 ref<Bitmap> resample(uint32_t width, uint32_t height,
-                     MipFilter filter = BoxFilter{}) const;
+                     ResamplingFilter filter = BoxFilter{}) const;
 
 /// Convenience: resample to half resolution (rounding down, min 1×1).
-ref<Bitmap> generate_mip(MipFilter filter = BoxFilter{}) const;
+ref<Bitmap> generate_mip(ResamplingFilter filter = BoxFilter{}) const;
 
 /// Convenience: generate full mip chain from next level down to 1×1 (excludes source).
-std::vector<ref<Bitmap>> generate_mip_chain(MipFilter filter = BoxFilter{}) const;
+std::vector<ref<Bitmap>> generate_mip_chain(ResamplingFilter filter = BoxFilter{}) const;
 ```
 
 `generate_mip()` and `generate_mip_chain()` are thin wrappers over `resample()`:
 ```cpp
-ref<Bitmap> Bitmap::generate_mip(MipFilter filter) const {
+ref<Bitmap> Bitmap::generate_mip(ResamplingFilter filter) const {
     return resample(std::max(1u, width() / 2), std::max(1u, height() / 2), filter);
 }
 ```
@@ -93,7 +93,7 @@ When downsampling, the filter radius is scaled by `src_res / dst_res` (low-pass 
 - **sRGB linearization**: if `srgb_gamma() == true` and the component type is uint8, the implementation internally converts to linear float32, resamples, then converts back to sRGB uint8. This ensures correct filtering — averaging in sRGB space is mathematically wrong because the transfer function is nonlinear (dark regions get biased darker). For float formats, data is assumed already linear and resampled directly. This matches Mitsuba 3's expectation (which only resamples float data, requiring manual conversion), but is more convenient since our primary use case is sRGB uint8 source images.
 
 **Relevant files:**
-- `src/sgl/core/bitmap.h` — Add `MipFilter` variant type, `resample()`, and mip method declarations
+- `src/sgl/core/bitmap.h` — Add `ResamplingFilter` variant type, `resample()`, and mip method declarations
 - `src/sgl/core/bitmap.cpp` — Add resampling and mipmap generation implementations
 
 ## 2c. Mipmap Tests
