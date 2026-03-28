@@ -50,7 +50,7 @@ Phases 1 and 2 are independent and can be done in parallel. Phase 3 depends on b
 - `src/sgl/core/bc_types.h` (new) — BCFormat, BCImage, BCMutableImage, BCEncodeOptions, BCCompressedImage, utility functions
 - `src/sgl/core/bc_codec.h` (new) — BCCodec class declaration
 - `src/sgl/core/bc_codec.cpp` (new) — SW backend (NVTT3 dynamic loading added in Phase 5)
-- `src/sgl/core/bitmap.h` — Add `MipFilter` enum, `generate_mip()` / `generate_mip_chain()` declarations
+- `src/sgl/core/bitmap.h` — Add `MipFilter` variant type (`BoxFilter`, `KaiserFilter`, `MitchellFilter`), `generate_mip()` / `generate_mip_chain()` declarations
 - `src/sgl/core/bitmap.cpp` — Add mipmap generation implementations
 - `src/sgl/CMakeLists.txt` — Add bc_types.h/bc_codec.h/bc_codec.cpp, link bcdec/bc7enc
 - `tests/sgl/core/test_bitmap_mipmap.cpp` (new) — Bitmap mipmap unit tests (doctest)
@@ -75,8 +75,8 @@ Phases 1 and 2 are independent and can be done in parallel. Phase 3 depends on b
 - **BC6H encoding requires NVTT3** — no SW fallback (would need Compressonator or custom impl)
 - **BC2 SW encoding** — custom implementation composing rgbcx BC1 + explicit 4-bit alpha quantization
 - **Mipmap generation lives in `Bitmap`** — `generate_mip()` / `generate_mip_chain()` methods on `Bitmap`, reusable beyond BC encoding. Implemented in its own phase (Phase 2) with dedicated tests.
-- **`MipFilter` enum in `bitmap.h`** — not BC-specific; renamed from `BCMipFilter` since it's a Bitmap feature
-- **Mipmap filters** — box (fast default), Kaiser (higher quality), Mitchell (good general-purpose)
+- **`MipFilter` is a `std::variant<BoxFilter, KaiserFilter, MitchellFilter>`** — each filter struct carries its own parameters (e.g., `MitchellFilter{.b, .c}`, `KaiserFilter{.alpha, .width}`). Type-safe, extensible, dispatched via `std::visit`. Default is `BoxFilter{}`. Chosen over an enum (no way to pass parameters) and a tagged struct (fields meaningless for wrong filter type).
+- **Mipmap filters** — box (fast default), Kaiser (higher quality, configurable `alpha`/`width`), Mitchell (good general-purpose, configurable `b`/`c`)
 - **Channel weights** — `uint32_t[4]` in `BCEncodeOptions`, mapped to `bc7enc_compress_block_params::m_weights`. Only used for BC7 encoding. Ignored for BC1-5 (rgbcx does not support per-channel weights).
 - **Alpha hint** — `has_alpha` in `BCEncodeOptions`; only affects BC7 encoding (`bc7enc_compress_block_params::m_force_alpha`). Ignored for other formats.
 - **Utility functions in `bc_types.h`** — `bc_format_bytes_per_block`, `bc_compressed_size`, `bc_mip_count`
