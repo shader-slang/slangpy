@@ -4,7 +4,7 @@ Add CPU-based BC1-7 block compression encoding and decoding to SGL, with a softw
 
 ## TL;DR
 
-New `BCCodec` class in `sgl/core/bc_codec.h/.cpp` providing encode/decode for BC1-7 formats. Types defined in `sgl/core/bc_types.h` (separated for reuse by `Bitmap` and other consumers). Decoding uses bcdec (header-only). Encoding uses rgbcx (BC1-5) + bc7enc (BC7) for SW, with NVTT3 loaded at runtime as an optional accelerated backend for all formats including BC6H. CPU mipmap generation (box, Kaiser, and Mitchell filters) is added to `Bitmap`. C++ tests cover the codec.
+New `BCCodec` class in `sgl/core/bc_codec.h/.cpp` providing encode/decode for BC1-7 formats. Types defined in `sgl/core/bc_types.h` (separated for reuse by `Bitmap` and other consumers). Decoding uses bcdec (header-only). Encoding uses rgbcx (BC1-5) + bc7enc (BC7) for SW, with NVTT3 loaded at runtime as an optional accelerated backend for all formats including BC6H. CPU mipmap generation (box, Kaiser, and Mitchell filters) is added to `Bitmap` in a standalone phase with its own tests. C++ tests cover the codec.
 
 ## Format Support Matrix
 
@@ -30,9 +30,61 @@ Add bcdec, rgbcx, and bc7enc as vendored external dependencies.
 **Relevant files:**
 - `external/CMakeLists.txt` — Follow the `lmdb` pattern: `add_library(bcdec INTERFACE)` + `target_include_directories(bcdec INTERFACE bcdec)`, and `add_library(bc7enc STATIC)` + source list + warning suppression.
 
-## Phase 2: Core C++ Implementation
+## Phase 2: Bitmap Mipmap Generation
 
-### 2a. Image Types
+Add CPU mipmap generation to `Bitmap`. This is independent of BC codec and external deps — can be done in parallel with Phase 1.
+
+### 2a. MipFilter Enum
+
+Add to `src/sgl/core/bitmap.h`:
+
+```
+enum class MipFilter { box, kaiser, mitchell };
+```
+
+### 2b. Mipmap Methods
+
+Add to `Bitmap`:
+```
+ref<Bitmap> generate_mip(MipFilter filter = MipFilter::box) const;
+std::vector<ref<Bitmap>> generate_mip_chain(MipFilter filter = MipFilter::box) const;
+```
+
+- `generate_mip()` — returns a new `Bitmap` at half resolution (rounding down, min 1×1)
+- `generate_mip_chain()` — returns the full chain from the next level down to 1×1 (does NOT include the source level)
+- Box filter: average 2×2 pixel neighborhoods
+- Kaiser filter: wider kernel with Kaiser window (precomputed weights)
+- Mitchell filter: Mitchell-Netravali bicubic (B=1/3, C=1/3) — good general-purpose default
+- Supports all `Bitmap::ComponentType` values (uint8, float16, float32, etc.)
+- Handles odd dimensions correctly (last row/column averaged with fewer samples)
+
+**Relevant files:**
+- `src/sgl/core/bitmap.h` — Add `MipFilter` enum and method declarations
+- `src/sgl/core/bitmap.cpp` — Add mipmap generation implementations
+
+### 2c. Mipmap Tests
+
+Create `tests/sgl/core/test_bitmap_mipmap.cpp` following the existing doctest pattern.
+
+**Test cases:**
+1. **generate_mip dimensions** — 64×64→32×32, 63×63→31×31, 1×1→1×1, 4×3→2×1
+2. **generate_mip_chain length** — 64×64 produces 6 levels (32², 16², 8², 4², 2², 1×1)
+3. **generate_mip_chain dimensions** — verify each level is half the previous (rounding down)
+4. **Box filter correctness** — 2×2 solid color → 1×1 same color; 2×2 black/white checkerboard → 1×1 mid-gray
+5. **All filters produce valid output** — box, Kaiser, Mitchell on 64×64 uint8 RGBA, verify no crashes and correct dimensions
+6. **Component types** — verify mipmap works for uint8, float16, float32
+7. **Channel counts** — verify mipmap works for 1, 2, 3, 4 channel images
+8. **Non-power-of-2** — 100×60 mip chain, verify all levels have correct dimensions
+9. **1×N and N×1 images** — verify chain terminates at 1×1
+10. **sRGB flag preservation** — verify `srgb_gamma()` is preserved across mip levels
+
+**Relevant files:**
+- `tests/sgl/core/test_bitmap_mipmap.cpp` (new)
+- `tests/CMakeLists.txt` — Add to `target_sources(sgl_tests ...)` (tests are NOT auto-discovered)
+
+## Phase 3: BC Codec Implementation
+
+### 3a. Image Types
 
 Define lightweight non-owning views into CPU pixel data in `src/sgl/core/bc_types.h`:
 
@@ -58,7 +110,7 @@ struct BCMutableImage {
 
 No `Bitmap` overloads on `BCCodec` — callers construct `BCImage`/`BCMutableImage` themselves. A free helper `bc_image_from_bitmap(const Bitmap&) -> BCImage` is provided for convenience.
 
-### 2b. Encode/Decode Options & Result Types
+### 3b. Encode/Decode Options & Result Types
 
 All types in this section go into `src/sgl/core/bc_types.h`.
 
@@ -74,12 +126,10 @@ enum class BCFormat {
 };
 
 enum class BCEncodeQuality { fastest, normal, production, highest };
-enum class BCMipFilter { box, kaiser, mitchell };
-
 struct BCEncodeOptions {
     BCEncodeQuality quality = BCEncodeQuality::normal;
     bool generate_mipmaps = false;
-    BCMipFilter mip_filter = BCMipFilter::box;
+    MipFilter mip_filter = MipFilter::box;  // MipFilter defined in bitmap.h
     uint32_t channel_weights[4] = {1, 1, 1, 1}; // BC7 only: RGBA error weights passed to bc7enc_compress_block_params::m_weights. Ignored by rgbcx (BC1-5).
     bool has_alpha = true;       // BC7 only: if false, bc7enc sets m_force_alpha=false allowing more bits for color. Ignored by other formats.
     bool prefer_nvtt = true;     // Use NVTT3 if available
@@ -105,7 +155,7 @@ Utility functions (in `bc_types.h`):
 
 sRGB format variants (e.g., `bc1_unorm_srgb`) are metadata only — encoding/decoding operates on raw byte values. The sRGB tag is preserved in `BCCompressedImage::format` and passed through to GPU texture creation, but no gamma conversion is performed.
 
-### 2c. BCCodec Class
+### 3c. BCCodec Class
 
 Defined in `src/sgl/core/bc_codec.h`:
 
@@ -137,7 +187,7 @@ private:
 };
 ```
 
-### 2d. SW Backend Implementation (`bc_codec.cpp`)
+### 3d. SW Backend Implementation (`bc_codec.cpp`)
 
 **Block size constants** (defined in `bc_codec.cpp`):
 - BC1/BC4: 8 bytes per 4×4 block
@@ -169,26 +219,9 @@ private:
 - BC6H: error — requires NVTT3
 - BC7: `bc7enc_compress_block()`
 
-**Mipmap generation:**
+`BCCodec::encode()` with `generate_mipmaps=true` calls `Bitmap::generate_mip_chain()` (from Phase 2) on the source, then encodes each level.
 
-Mipmap generation is implemented as a `Bitmap` method rather than being internal to `BCCodec`. This makes it reusable for non-BC use cases.
-
-Add to `Bitmap`:
-```
-ref<Bitmap> generate_mip(BCMipFilter filter = BCMipFilter::box) const;
-std::vector<ref<Bitmap>> generate_mip_chain(BCMipFilter filter = BCMipFilter::box) const;
-```
-
-- Box filter: average 2×2 pixel neighborhoods
-- Kaiser filter: wider kernel with Kaiser window (precomputed weights)
-- Mitchell filter: Mitchell-Netravali bicubic (B=1/3, C=1/3) — good general-purpose default
-- `BCCodec::encode()` with `generate_mipmaps=true` calls `generate_mip_chain()` on the source, then encodes each level.
-
-**Relevant files:**
-- `src/sgl/core/bitmap.h` — Add `generate_mip()` / `generate_mip_chain()` declarations
-- `src/sgl/core/bitmap.cpp` — Add mipmap generation implementations
-
-### 2e. CMake Integration
+### 3e. CMake Integration
 
 - Add `core/bc_types.h`, `core/bc_codec.h` and `core/bc_codec.cpp` to `src/sgl/CMakeLists.txt` source list
 - Link `sgl` against `bcdec` (INTERFACE) and `bc7enc` (PRIVATE)
@@ -200,7 +233,7 @@ std::vector<ref<Bitmap>> generate_mip_chain(BCMipFilter filter = BCMipFilter::bo
 - `src/sgl/core/bc_codec.h` — BCCodec class declaration (new)
 - `src/sgl/core/bc_codec.cpp` — Implementation (new)
 
-### 2f. C++ Tests
+### 3f. C++ Tests
 
 Create `tests/sgl/core/test_bc_codec.cpp` following the existing doctest pattern (see `test_dds_file.cpp`).
 
@@ -211,20 +244,19 @@ Create `tests/sgl/core/test_bc_codec.cpp` following the existing doctest pattern
 4. **Roundtrip larger image** — Encode/decode a 64×64 gradient image per format, compute PSNR and verify it exceeds a minimum threshold
 5. **Non-multiple-of-4 sizes** — Encode a 13×7 image, verify block padding handled correctly
 6. **Small images** — 1×1, 2×2, 3×3, 4×4
-7. **Mipmap generation** — Encode 64×64 with mipmaps, verify correct level count (7) and per-level dimensions
-8. **Mipmap filters** — Verify box, Kaiser, and Mitchell all produce valid output (no crashes, reasonable dimensions)
-9. **Quality levels** — Encode at fastest/highest, verify both produce valid output
-10. **Channel weights** — Encode BC7 with non-uniform weights, verify no crash (quality difference is visual; other formats ignore weights)
-11. **has_alpha hint** — Encode BC7 with `has_alpha=false`, verify valid output (only meaningful for BC7)
-12. **can_encode/can_decode** — Verify correct reporting (BC6H encode → false without NVTT3, all decode → true)
-13. **BC6H encode error** — Verify encoding BC6H without NVTT3 raises an appropriate error
-14. **Decode output format** — Verify BC4→1ch uint8, BC5→2ch uint8, BC6H→3ch float16, others→4ch RGBA uint8
+7. **Encode with mipmaps** — Encode 64×64 with `generate_mipmaps=true`, verify correct level count (7) and per-level compressed dimensions
+8. **Quality levels** — Encode at fastest/highest, verify both produce valid output
+9. **Channel weights** — Encode BC7 with non-uniform weights, verify no crash (quality difference is visual; other formats ignore weights)
+10. **has_alpha hint** — Encode BC7 with `has_alpha=false`, verify valid output (only meaningful for BC7)
+11. **can_encode/can_decode** — Verify correct reporting (BC6H encode → false without NVTT3, all decode → true)
+12. **BC6H encode error** — Verify encoding BC6H without NVTT3 raises an appropriate error
+13. **Decode output format** — Verify BC4→1ch uint8, BC5→2ch uint8, BC6H→3ch float16, others→4ch RGBA uint8
 
 **Relevant files:**
 - `tests/sgl/core/test_bc_codec.cpp` (new)
 - `tests/CMakeLists.txt` — New test file must be explicitly added to `target_sources(sgl_tests ...)` (tests are NOT auto-discovered)
 
-## Phase 3: Finalize
+## Phase 4: Finalize
 
 1. **Run pre-commit** — `pre-commit run --all-files`
 2. **Build and test** — `cmake --build --preset windows-msvc-debug && python tools/ci.py unit-test-cpp`
@@ -232,11 +264,11 @@ Create `tests/sgl/core/test_bc_codec.cpp` following the existing doctest pattern
 
 Note: No Python bindings in this phase. The BC codec is C++ only.
 
-## Phase 4: NVTT3 Dynamic Loading
+## Phase 5: NVTT3 Dynamic Loading
 
 Optional accelerated backend for all formats including BC6H encoding. Added after SW path is working end-to-end.
 
-### 4a. NVTT3 Dynamic Loading (`bc_codec.cpp`, private implementation)
+### 5a. NVTT3 Dynamic Loading (`bc_codec.cpp`, private implementation)
 
 Follow the RenderDoc dynamic loading pattern from `src/sgl/utils/renderdoc.cpp`:
 
@@ -272,7 +304,7 @@ Follow the RenderDoc dynamic loading pattern from `src/sgl/utils/renderdoc.cpp`:
 - `bc6h_ufloat` → `NVTT_Format_BC6U`, `bc6h_sfloat` → `NVTT_Format_BC6S`
 - `bc7_unorm` / `bc7_unorm_srgb` → `NVTT_Format_BC7`
 
-### 4b. NVTT3 Tests
+### 5b. NVTT3 Tests
 
 - **NVTT3 backend** (conditional) — If NVTT3 is available, test BC6H encoding, test that NVTT3 backend produces valid output for all formats
 - Add conditional C++ test cases in `test_bc_codec.cpp` that check `is_nvtt_available()` and skip if unavailable
@@ -280,14 +312,16 @@ Follow the RenderDoc dynamic loading pattern from `src/sgl/utils/renderdoc.cpp`:
 ## Dependency Graph
 
 ```
-Phase 1 (external deps + licensing)
+Phase 1 (external deps + licensing)    Phase 2 (Bitmap mipmap + tests)
+              ↓                                     ↓
+Phase 3a-3b (bc_types.h) → Phase 3c (bc_codec.h) → Phase 3d (bc_codec.cpp) → Phase 3e (CMake) → Phase 3f (C++ tests)
   ↓
-Phase 2a-2b (bc_types.h) → Phase 2c (bc_codec.h) → Phase 2d (bc_codec.cpp) → Phase 2e (CMake) → Phase 2f (C++ tests)
+Phase 4 (finalize) — build + test + pre-commit
   ↓
-Phase 3 (finalize) — build + test + pre-commit
-  ↓
-Phase 4 (NVTT3) — optional, adds accelerated backend + BC6H encode
+Phase 5 (NVTT3) — optional, adds accelerated backend + BC6H encode
 ```
+
+Phases 1 and 2 are independent and can be done in parallel. Phase 3 depends on both.
 
 ## Relevant files (summary)
 
@@ -297,19 +331,20 @@ Phase 4 (NVTT3) — optional, adds accelerated backend + BC6H encode
 - `LICENSES/` — Add license texts for bcdec and bc7enc_rdo
 - `src/sgl/core/bc_types.h` (new) — BCFormat, BCImage, BCMutableImage, BCEncodeOptions, BCCompressedImage, utility functions
 - `src/sgl/core/bc_codec.h` (new) — BCCodec class declaration
-- `src/sgl/core/bc_codec.cpp` (new) — SW backend (NVTT3 dynamic loading added in Phase 4)
-- `src/sgl/core/bitmap.h` — Add `generate_mip()` / `generate_mip_chain()` declarations
+- `src/sgl/core/bc_codec.cpp` (new) — SW backend (NVTT3 dynamic loading added in Phase 5)
+- `src/sgl/core/bitmap.h` — Add `MipFilter` enum, `generate_mip()` / `generate_mip_chain()` declarations
 - `src/sgl/core/bitmap.cpp` — Add mipmap generation implementations
 - `src/sgl/CMakeLists.txt` — Add bc_types.h/bc_codec.h/bc_codec.cpp, link bcdec/bc7enc
-- `tests/sgl/core/test_bc_codec.cpp` (new) — C++ unit tests (doctest)
-- `tests/CMakeLists.txt` — Add `test_bc_codec.cpp` to `target_sources(sgl_tests ...)`
+- `tests/sgl/core/test_bitmap_mipmap.cpp` (new) — Bitmap mipmap unit tests (doctest)
+- `tests/sgl/core/test_bc_codec.cpp` (new) — BC codec unit tests (doctest)
+- `tests/CMakeLists.txt` — Add both test files to `target_sources(sgl_tests ...)`
 - `src/sgl/device/formats.h` — Referenced for `Format` enum (BCFormat↔Format conversion helpers)
-- `src/sgl/core/platform.h` — Referenced for `load_shared_library()` (used in Phase 4)
+- `src/sgl/core/platform.h` — Referenced for `load_shared_library()` (used in Phase 5)
 
 ## Verification
 
 1. `cmake --preset windows-msvc --fresh && cmake --build --preset windows-msvc-debug` — builds cleanly
-2. `python tools/ci.py unit-test-cpp` — C++ tests pass (including test_bc_codec)
+2. `python tools/ci.py unit-test-cpp` — C++ tests pass (including test_bitmap_mipmap and test_bc_codec)
 3. Without NVTT3 DLL: BC1-5/BC7 encode+decode works, BC6H encode raises clear error
 4. With NVTT3 DLL placed alongside sgl: all formats work, `is_nvtt_available` returns True
 5. `pre-commit run --all-files` — passes (re-run if it modifies files)
@@ -321,7 +356,8 @@ Phase 4 (NVTT3) — optional, adds accelerated backend + BC6H encode
 - **BC1a dropped** — no distinct `BCFormat` for BC1a. BC1a is not a separate GPU format (no `Format::bc1a_*` in the RHI). The BC1 format inherently supports the 3-color + transparent black mode; this is a decode-time interpretation, not an encode-time format choice.
 - **BC6H encoding requires NVTT3** — no SW fallback (would need Compressonator or custom impl)
 - **BC2 SW encoding** — custom implementation composing rgbcx BC1 + explicit 4-bit alpha quantization
-- **Mipmap generation lives in `Bitmap`** — `generate_mip()` / `generate_mip_chain()` methods on `Bitmap`, reusable beyond BC encoding
+- **Mipmap generation lives in `Bitmap`** — `generate_mip()` / `generate_mip_chain()` methods on `Bitmap`, reusable beyond BC encoding. Implemented in its own phase (Phase 2) with dedicated tests.
+- **`MipFilter` enum in `bitmap.h`** — not BC-specific; renamed from `BCMipFilter` since it's a Bitmap feature
 - **Mipmap filters** — box (fast default), Kaiser (higher quality), Mitchell (good general-purpose)
 - **Channel weights** — `uint32_t[4]` in `BCEncodeOptions`, mapped to `bc7enc_compress_block_params::m_weights`. Only used for BC7 encoding. Ignored for BC1-5 (rgbcx does not support per-channel weights).
 - **Alpha hint** — `has_alpha` in `BCEncodeOptions`; only affects BC7 encoding (`bc7enc_compress_block_params::m_force_alpha`). Ignored for other formats.
