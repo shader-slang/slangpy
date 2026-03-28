@@ -13,7 +13,12 @@ def make_float32_bitmap(
     srgb_gamma: bool = False,
 ) -> Bitmap:
     """Create a float32 bitmap filled with a constant value."""
-    pixel_format = {1: Bitmap.PixelFormat.y, 2: Bitmap.PixelFormat.rg, 3: Bitmap.PixelFormat.rgb, 4: Bitmap.PixelFormat.rgba}[channels]
+    pixel_format = {
+        1: Bitmap.PixelFormat.y,
+        2: Bitmap.PixelFormat.rg,
+        3: Bitmap.PixelFormat.rgb,
+        4: Bitmap.PixelFormat.rgba,
+    }[channels]
     if channels == 1:
         data = np.full((height, width), value, dtype=np.float32)
     else:
