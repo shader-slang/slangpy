@@ -12,6 +12,20 @@ SGL_PY_EXPORT(core_bitmap)
 {
     using namespace sgl;
 
+    nb::class_<BoxFilter>(m, "BoxFilter", D(BoxFilter)).def(nb::init<>());
+
+    nb::class_<KaiserFilter>(m, "KaiserFilter", D(KaiserFilter))
+        .def(nb::init<>())
+        .def(nb::init<float, float>(), "alpha"_a = 4.0f, "width"_a = 3.0f)
+        .def_rw("alpha", &KaiserFilter::alpha)
+        .def_rw("width", &KaiserFilter::width);
+
+    nb::class_<MitchellFilter>(m, "MitchellFilter", D(MitchellFilter))
+        .def(nb::init<>())
+        .def(nb::init<float, float>(), "b"_a = 1.0f / 3.0f, "c"_a = 1.0f / 3.0f)
+        .def_rw("b", &MitchellFilter::b)
+        .def_rw("c", &MitchellFilter::c);
+
     nb::class_<Bitmap, Object> bitmap(m, "Bitmap", D(Bitmap));
 
     nb::sgl_enum<Bitmap::PixelFormat>(bitmap, "PixelFormat", D(Bitmap, PixelFormat));
@@ -220,6 +234,9 @@ SGL_PY_EXPORT(core_bitmap)
             "srgb_gamma"_a.none() = nb::none(),
             D(Bitmap, convert)
         )
+        .def("resample", &Bitmap::resample, "width"_a, "height"_a, "filter"_a = BoxFilter{}, D(Bitmap, resample))
+        .def("generate_mip", &Bitmap::generate_mip, "filter"_a = BoxFilter{}, D(Bitmap, generate_mip))
+        .def("generate_mip_chain", &Bitmap::generate_mip_chain, "filter"_a = BoxFilter{}, D(Bitmap, generate_mip_chain))
         .def(
             "write",
             nb::overload_cast<const std::filesystem::path&, Bitmap::FileFormat, int>(&Bitmap::write, nb::const_),

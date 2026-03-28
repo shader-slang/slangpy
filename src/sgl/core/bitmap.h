@@ -52,14 +52,39 @@ derivative works thereof, in binary and source code form.
 #include "sgl/core/stream.h"
 #include "sgl/core/data_struct.h"
 
+#include <cmath>
 #include <filesystem>
 #include <future>
 #include <memory>
 #include <span>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace sgl {
+
+struct SGL_API BoxFilter {
+    float radius() const { return 0.5f; }
+    float eval(float x) const { return std::abs(x) <= 0.5f ? 1.0f : 0.0f; }
+};
+
+struct SGL_API KaiserFilter {
+    float alpha = 4.0f;
+    float width = 3.0f;
+
+    float radius() const { return width; }
+    float eval(float x) const;
+};
+
+struct SGL_API MitchellFilter {
+    float b = 1.0f / 3.0f;
+    float c = 1.0f / 3.0f;
+
+    float radius() const { return 2.0f; }
+    float eval(float x) const;
+};
+
+using ResamplingFilter = std::variant<BoxFilter, KaiserFilter, MitchellFilter>;
 
 class SGL_API Bitmap : public Object {
     SGL_OBJECT(Bitmap)
@@ -242,6 +267,19 @@ public:
     ref<Bitmap> convert(PixelFormat pixel_format, ComponentType component_type, bool srgb_gamma) const;
 
     void convert(Bitmap* target) const;
+
+    /// Resample to arbitrary resolution using a separable filter.
+    /// Boundary condition: clamp (samples outside the image edge repeat the border pixel).
+    /// Only supports float16 and float32 component types.
+    ref<Bitmap> resample(uint32_t width, uint32_t height, ResamplingFilter filter = BoxFilter{}) const;
+
+    /// Convenience: resample to half resolution (rounding down, min 1x1).
+    /// Only supports float16 and float32 component types.
+    ref<Bitmap> generate_mip(ResamplingFilter filter = BoxFilter{}) const;
+
+    /// Convenience: generate full mip chain from next level down to 1x1 (excludes source).
+    /// Only supports float16 and float32 component types.
+    std::vector<ref<Bitmap>> generate_mip_chain(ResamplingFilter filter = BoxFilter{}) const;
 
     /// Equality operator.
     bool operator==(const Bitmap& other) const;

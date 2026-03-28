@@ -56,6 +56,7 @@ derivative works thereof, in binary and source code form.
 #include "sgl/core/type_utils.h"
 
 #include "sgl/math/scalar_types.h"
+#include "sgl/math/colorspace.h"
 
 #include "sgl/stl/bit.h"
 
@@ -2361,5 +2362,223 @@ void Bitmap::write_exr(Stream* stream, int quality) const
 }
 
 #endif // SGL_HAS_OPENEXR
+
+// ---------------------------------------------------------------------------
+// Resampling filter implementations
+// ---------------------------------------------------------------------------
+
+namespace {
+
+    float bessel_i0(float x)
+    {
+        float ax = std::abs(x);
+        if (ax < 3.75f) {
+            float t = x / 3.75f;
+            t = t * t;
+            return 1.0f
+                + t
+                * (3.5156229f
+                   + t * (3.0899424f + t * (1.2067492f + t * (0.2659732f + t * (0.0360768f + t * 0.0045813f)))));
+        } else {
+            float t = 3.75f / ax;
+            return (std::exp(ax) / std::sqrt(ax))
+                * (0.39894228f
+                   + t
+                       * (0.01328592f
+                          + t
+                              * (0.00225319f
+                                 + t
+                                     * (-0.00157565f
+                                        + t
+                                            * (0.00916281f
+                                               + t
+                                                   * (-0.02057706f
+                                                      + t * (0.02635537f + t * (-0.01647633f + t * 0.00392377f))))))));
+        }
+    }
+
+    float sinc(float x)
+    {
+        if (std::abs(x) < 1e-7f)
+            return 1.0f;
+        float px = float(M_PI) * x;
+        return std::sin(px) / px;
+    }
+
+    struct FilterWeightEntry {
+        int32_t start;
+        std::vector<float> weights;
+    };
+
+    std::vector<FilterWeightEntry>
+    compute_filter_weights(uint32_t src_size, uint32_t dst_size, const ResamplingFilter& filter)
+    {
+        float ratio = static_cast<float>(src_size) / static_cast<float>(dst_size);
+        float scale = std::max(1.0f, ratio);
+        float radius = std::visit(
+                           [&](const auto& f)
+                           {
+                               return f.radius();
+                           },
+                           filter
+                       )
+            * scale;
+
+        std::vector<FilterWeightEntry> entries(dst_size);
+        for (uint32_t i = 0; i < dst_size; ++i) {
+            float center = (static_cast<float>(i) + 0.5f) * ratio - 0.5f;
+            int32_t start = static_cast<int32_t>(std::floor(center - radius));
+            int32_t end = static_cast<int32_t>(std::ceil(center + radius));
+
+            auto& e = entries[i];
+            e.start = start;
+            int32_t count = end - start + 1;
+            e.weights.resize(count);
+
+            float weight_sum = 0.0f;
+            for (int32_t k = 0; k < count; ++k) {
+                float w = std::visit(
+                    [&](const auto& f)
+                    {
+                        return f.eval((static_cast<float>(start + k) - center) / scale);
+                    },
+                    filter
+                );
+                e.weights[k] = w;
+                weight_sum += w;
+            }
+            if (weight_sum > 0.0f) {
+                float inv = 1.0f / weight_sum;
+                for (auto& w : e.weights)
+                    w *= inv;
+            }
+        }
+        return entries;
+    }
+
+} // anonymous namespace
+
+float KaiserFilter::eval(float x) const
+{
+    if (std::abs(x) >= width)
+        return 0.0f;
+    float t = x / width;
+    return sinc(x) * bessel_i0(alpha * std::sqrt(std::max(0.0f, 1.0f - t * t))) / bessel_i0(alpha);
+}
+
+float MitchellFilter::eval(float x) const
+{
+    x = std::abs(x);
+    float x2 = x * x;
+    float x3 = x2 * x;
+    if (x < 1.0f) {
+        return ((12.0f - 9.0f * b - 6.0f * c) * x3 + (-18.0f + 12.0f * b + 6.0f * c) * x2 + (6.0f - 2.0f * b)) / 6.0f;
+    } else if (x < 2.0f) {
+        return ((-b - 6.0f * c) * x3 + (6.0f * b + 30.0f * c) * x2 + (-12.0f * b - 48.0f * c) * x
+                + (8.0f * b + 24.0f * c))
+            / 6.0f;
+    }
+    return 0.0f;
+}
+
+// ---------------------------------------------------------------------------
+// Resample / mipmap generation
+// ---------------------------------------------------------------------------
+
+ref<Bitmap> Bitmap::resample(uint32_t dst_width, uint32_t dst_height, ResamplingFilter filter) const
+{
+    SGL_CHECK(dst_width > 0 && dst_height > 0, "Target dimensions must be positive.");
+    SGL_CHECK(!empty(), "Cannot resample an empty bitmap.");
+    SGL_CHECK(
+        m_component_type == ComponentType::float16 || m_component_type == ComponentType::float32,
+        "resample() only supports float16 and float32 component types. Convert the bitmap first."
+    );
+
+    uint32_t src_w = m_width;
+    uint32_t src_h = m_height;
+    uint32_t channels = channel_count();
+    size_t comp_size = DataStruct::type_size(m_component_type);
+    size_t total_src = static_cast<size_t>(src_w) * src_h * channels;
+    size_t total_inter = static_cast<size_t>(dst_width) * src_h * channels;
+    size_t total_dst = static_cast<size_t>(dst_width) * dst_height * channels;
+
+    // Work in float32 for precision, even for float16 inputs.
+    std::vector<float> src_float(total_src);
+    if (m_component_type == ComponentType::float16) {
+        const math::float16_t* src = data_as<math::float16_t>();
+        for (size_t i = 0; i < total_src; ++i)
+            src_float[i] = static_cast<float>(src[i]);
+    } else {
+        std::memcpy(src_float.data(), m_data.get(), total_src * sizeof(float));
+    }
+
+    // Horizontal pass.
+    auto h_weights = compute_filter_weights(src_w, dst_width, filter);
+    std::vector<float> intermediate(total_inter, 0.0f);
+
+    for (uint32_t y = 0; y < src_h; ++y) {
+        for (uint32_t x = 0; x < dst_width; ++x) {
+            const auto& fw = h_weights[x];
+            for (int32_t k = 0; k < static_cast<int32_t>(fw.weights.size()); ++k) {
+                int32_t sx = std::clamp(fw.start + k, 0, static_cast<int32_t>(src_w) - 1);
+                float w = fw.weights[k];
+                size_t src_idx = (static_cast<size_t>(y) * src_w + sx) * channels;
+                size_t dst_idx = (static_cast<size_t>(y) * dst_width + x) * channels;
+                for (uint32_t c = 0; c < channels; ++c)
+                    intermediate[dst_idx + c] += src_float[src_idx + c] * w;
+            }
+        }
+    }
+
+    // Vertical pass.
+    auto v_weights = compute_filter_weights(src_h, dst_height, filter);
+    std::vector<float> dst_float(total_dst, 0.0f);
+
+    for (uint32_t y = 0; y < dst_height; ++y) {
+        const auto& fw = v_weights[y];
+        for (uint32_t x = 0; x < dst_width; ++x) {
+            for (int32_t k = 0; k < static_cast<int32_t>(fw.weights.size()); ++k) {
+                int32_t sy = std::clamp(fw.start + k, 0, static_cast<int32_t>(src_h) - 1);
+                float w = fw.weights[k];
+                size_t src_idx = (static_cast<size_t>(sy) * dst_width + x) * channels;
+                size_t dst_idx = (static_cast<size_t>(y) * dst_width + x) * channels;
+                for (uint32_t c = 0; c < channels; ++c)
+                    dst_float[dst_idx + c] += intermediate[src_idx + c] * w;
+            }
+        }
+    }
+
+    // Write output.
+    ref<Bitmap> result
+        = make_ref<Bitmap>(m_pixel_format, m_component_type, dst_width, dst_height, channels, channel_names());
+    result->set_srgb_gamma(m_srgb_gamma);
+
+    if (m_component_type == ComponentType::float16) {
+        math::float16_t* dst = result->data_as<math::float16_t>();
+        for (size_t i = 0; i < total_dst; ++i)
+            dst[i] = math::float16_t(dst_float[i]);
+    } else {
+        std::memcpy(result->data(), dst_float.data(), total_dst * sizeof(float));
+    }
+
+    return result;
+}
+
+ref<Bitmap> Bitmap::generate_mip(ResamplingFilter filter) const
+{
+    return resample(std::max(1u, m_width / 2), std::max(1u, m_height / 2), filter);
+}
+
+std::vector<ref<Bitmap>> Bitmap::generate_mip_chain(ResamplingFilter filter) const
+{
+    std::vector<ref<Bitmap>> chain;
+    ref<Bitmap> current(const_cast<Bitmap*>(this));
+    while (current->width() > 1 || current->height() > 1) {
+        ref<Bitmap> mip = current->generate_mip(filter);
+        chain.push_back(mip);
+        current = mip;
+    }
+    return chain;
+}
 
 } // namespace sgl

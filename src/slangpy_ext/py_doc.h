@@ -667,6 +667,14 @@ static const char *__doc_sgl_Bitmap_detect_file_format = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_empty = R"doc(True if bitmap is empty.)doc";
 
+static const char *__doc_sgl_Bitmap_generate_mip =
+R"doc(Convenience: resample to half resolution (rounding down, min 1x1).
+Only supports float16 and float32 component types.)doc";
+
+static const char *__doc_sgl_Bitmap_generate_mip_chain =
+R"doc(Convenience: generate full mip chain from next level down to 1x1
+(excludes source). Only supports float16 and float32 component types.)doc";
+
 static const char *__doc_sgl_Bitmap_has_alpha = R"doc(Returns true if the bitmap has an alpha channel.)doc";
 
 static const char *__doc_sgl_Bitmap_height = R"doc(The height of the bitmap in pixels.)doc";
@@ -718,6 +726,11 @@ static const char *__doc_sgl_Bitmap_read_stb = R"doc()doc";
 static const char *__doc_sgl_Bitmap_read_tga = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_rebuild_pixel_struct = R"doc()doc";
+
+static const char *__doc_sgl_Bitmap_resample =
+R"doc(Resample to arbitrary resolution using a separable filter. Boundary
+condition: clamp (samples outside the image edge repeat the border
+pixel). Only supports float16 and float32 component types.)doc";
 
 static const char *__doc_sgl_Bitmap_set_srgb_gamma =
 R"doc(Set the sRGB gamma flag. Note that this does not convert the pixel
@@ -1009,6 +1022,12 @@ Returns:
 static const char *__doc_sgl_BlockAllocator_reset =
 R"doc(Reset the allocator, rebuilding the free list from all pages (NOT
 thread safe).)doc";
+
+static const char *__doc_sgl_BoxFilter = R"doc()doc";
+
+static const char *__doc_sgl_BoxFilter_eval = R"doc()doc";
+
+static const char *__doc_sgl_BoxFilter_radius = R"doc()doc";
 
 static const char *__doc_sgl_Buffer = R"doc()doc";
 
@@ -4358,6 +4377,16 @@ static const char *__doc_sgl_InputSlotClass_per_instance = R"doc()doc";
 
 static const char *__doc_sgl_InputSlotClass_per_vertex = R"doc()doc";
 
+static const char *__doc_sgl_KaiserFilter = R"doc()doc";
+
+static const char *__doc_sgl_KaiserFilter_alpha = R"doc()doc";
+
+static const char *__doc_sgl_KaiserFilter_eval = R"doc()doc";
+
+static const char *__doc_sgl_KaiserFilter_radius = R"doc()doc";
+
+static const char *__doc_sgl_KaiserFilter_width = R"doc()doc";
+
 static const char *__doc_sgl_Kernel = R"doc()doc";
 
 static const char *__doc_sgl_Kernel_2 = R"doc()doc";
@@ -5222,6 +5251,16 @@ static const char *__doc_sgl_MemoryType_info = R"doc()doc";
 static const char *__doc_sgl_MemoryType_read_back = R"doc()doc";
 
 static const char *__doc_sgl_MemoryType_upload = R"doc()doc";
+
+static const char *__doc_sgl_MitchellFilter = R"doc()doc";
+
+static const char *__doc_sgl_MitchellFilter_b = R"doc()doc";
+
+static const char *__doc_sgl_MitchellFilter_c = R"doc()doc";
+
+static const char *__doc_sgl_MitchellFilter_eval = R"doc()doc";
+
+static const char *__doc_sgl_MitchellFilter_radius = R"doc()doc";
 
 static const char *__doc_sgl_ModifierID = R"doc()doc";
 
