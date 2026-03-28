@@ -44,10 +44,9 @@ Phases 1 and 2 are independent and can be done in parallel. Phase 3 depends on b
 
 ## Relevant files (summary)
 
-- `external/bcdec/bcdec.h` (new, vendored) — Header-only BC decoder
+- `external/include/bcdec.h` (new, vendored) — Header-only BC decoder (no CMake target, already on include path)
 - `external/bc7enc/rgbcx.h`, `rgbcx.cpp`, `bc7enc.h`, `bc7enc.cpp` (new, vendored) — SW BC encoders
-- `external/CMakeLists.txt` — Add bcdec + bc7enc targets
-- `LICENSES/` — Add license texts for bcdec and bc7enc_rdo
+- `external/CMakeLists.txt` — Add bc7enc static library target
 - `src/sgl/core/bc_types.h` (new) — BCFormat, BCImage, BCMutableImage, BCEncodeOptions, BCCompressedImage, utility functions
 - `src/sgl/core/bc_codec.h` (new) — BCCodec class declaration
 - `src/sgl/core/bc_codec.cpp` (new) — SW backend (NVTT3 dynamic loading added in Phase 5)
