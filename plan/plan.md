@@ -23,7 +23,7 @@ New `BCCodec` class in `sgl/core/bc_codec.h/.cpp` providing encode/decode for BC
 | Phase | Description | Details |
 |-------|-------------|---------|
 | 1 | External Dependencies | [phase1-external-deps.md](plan/phase1-external-deps.md) |
-| 2 | Bitmap Mipmap Generation | [phase2-bitmap-mipmap.md](plan/phase2-bitmap-mipmap.md) |
+| 2 | Bitmap Resample & Mipmap Generation | [phase2-bitmap-mipmap.md](plan/phase2-bitmap-mipmap.md) |
 | 3 | BC Codec Implementation | [phase3-bc-codec.md](plan/phase3-bc-codec.md) |
 | 4 | Finalize | [phase4-finalize.md](plan/phase4-finalize.md) |
 | 5 | NVTT3 Dynamic Loading | [phase5-nvtt3.md](plan/phase5-nvtt3.md) |
@@ -31,7 +31,7 @@ New `BCCodec` class in `sgl/core/bc_codec.h/.cpp` providing encode/decode for BC
 ## Dependency Graph
 
 ```
-Phase 1 (external deps + licensing)    Phase 2 (Bitmap mipmap + tests)
+Phase 1 (external deps + licensing)    Phase 2 (Bitmap resample + mipmap + tests)
               ↓                                     ↓
 Phase 3a-3b (bc_types.h) → Phase 3c (bc_codec.h) → Phase 3d (bc_codec.cpp) → Phase 3e (CMake) → Phase 3f (C++ tests)
   ↓
@@ -50,8 +50,8 @@ Phases 1 and 2 are independent and can be done in parallel. Phase 3 depends on b
 - `src/sgl/core/bc_types.h` (new) — BCFormat, BCImage, BCMutableImage, BCEncodeOptions, BCCompressedImage, utility functions
 - `src/sgl/core/bc_codec.h` (new) — BCCodec class declaration
 - `src/sgl/core/bc_codec.cpp` (new) — SW backend (NVTT3 dynamic loading added in Phase 5)
-- `src/sgl/core/bitmap.h` — Add `MipFilter` variant type (`BoxFilter`, `KaiserFilter`, `MitchellFilter`), `generate_mip()` / `generate_mip_chain()` declarations
-- `src/sgl/core/bitmap.cpp` — Add mipmap generation implementations
+- `src/sgl/core/bitmap.h` — Add `MipFilter` variant type (`BoxFilter`, `KaiserFilter`, `MitchellFilter`), `resample()` / `generate_mip()` / `generate_mip_chain()` declarations
+- `src/sgl/core/bitmap.cpp` — Add resampling and mipmap generation implementations
 - `src/sgl/CMakeLists.txt` — Add bc_types.h/bc_codec.h/bc_codec.cpp, link bcdec/bc7enc
 - `tests/sgl/core/test_bitmap_mipmap.cpp` (new) — Bitmap mipmap unit tests (doctest)
 - `tests/sgl/core/test_bc_codec.cpp` (new) — BC codec unit tests (doctest)
@@ -74,7 +74,7 @@ Phases 1 and 2 are independent and can be done in parallel. Phase 3 depends on b
 - **BC1a dropped** — no distinct `BCFormat` for BC1a. BC1a is not a separate GPU format (no `Format::bc1a_*` in the RHI). The BC1 format inherently supports the 3-color + transparent black mode; this is a decode-time interpretation, not an encode-time format choice.
 - **BC6H encoding requires NVTT3** — no SW fallback (would need Compressonator or custom impl)
 - **BC2 SW encoding** — custom implementation composing rgbcx BC1 + explicit 4-bit alpha quantization
-- **Mipmap generation lives in `Bitmap`** — `generate_mip()` / `generate_mip_chain()` methods on `Bitmap`, reusable beyond BC encoding. Implemented in its own phase (Phase 2) with dedicated tests.
+- **Resample + mipmap generation lives in `Bitmap`** — `resample()` is the general-purpose method; `generate_mip()` / `generate_mip_chain()` are thin wrappers. Separable 2-pass implementation (horizontal then vertical) with precomputed weights, similar to Mitsuba 3's `Resampler`. Boundary condition is clamp only (sufficient for textures and BC encoding; more modes can be added later). Implemented in Phase 2 with dedicated tests.
 - **`MipFilter` is a `std::variant<BoxFilter, KaiserFilter, MitchellFilter>`** — each filter struct carries its own parameters (e.g., `MitchellFilter{.b, .c}`, `KaiserFilter{.alpha, .width}`). Type-safe, extensible, dispatched via `std::visit`. Default is `BoxFilter{}`. Chosen over an enum (no way to pass parameters) and a tagged struct (fields meaningless for wrong filter type).
 - **Mipmap filters** — box (fast default), Kaiser (higher quality, configurable `alpha`/`width`), Mitchell (good general-purpose, configurable `b`/`c`)
 - **Channel weights** — `uint32_t[4]` in `BCEncodeOptions`, mapped to `bc7enc_compress_block_params::m_weights`. Only used for BC7 encoding. Ignored for BC1-5 (rgbcx does not support per-channel weights).
@@ -82,7 +82,8 @@ Phases 1 and 2 are independent and can be done in parallel. Phase 3 depends on b
 - **Utility functions in `bc_types.h`** — `bc_format_bytes_per_block`, `bc_compressed_size`, `bc_mip_count`
 - **`bc_compressed_size` uses ceiling division** — `((w+3)/4) * ((h+3)/4) * bpb`, not `>>2` (bcdec's macros truncate, which is wrong for non-multiple-of-4 sizes)
 - **`BCFormat` enum** defined in `bc_types.h` — avoids core→device dependency; conversion helpers provided for interop with RHI `Format`
-- **sRGB is metadata only** — no gamma conversion performed; sRGB tag preserved in BCFormat and passed through to texture creation
+- **sRGB is metadata only (BC codec)** — no gamma conversion performed in BC encode/decode; sRGB tag preserved in BCFormat and passed through to texture creation
+- **sRGB linearization in mipmap generation** — `generate_mip()`/`generate_mip_chain()` automatically linearize sRGB uint8 data before filtering and re-encode to sRGB afterward. Filtering in sRGB space produces incorrect results (nonlinear transfer function biases dark regions). Float formats are assumed already linear. Inspired by Mitsuba 3, which requires float input for resampling — we handle the conversion internally for convenience.
 - **Decode output matches format** — BC4→1ch uint8, BC5→2ch uint8, BC6H→3ch float16 (via `bcdec_bc6h_half()`, lossless), others→4ch RGBA uint8
 - **`BCComponentType` = `DataStruct::Type`** — reuses the existing type enum from `data_struct.h` (same as Bitmap's ComponentType), not `DataType` from `data_type.h`
 - **`BCCodec` does not inherit from `Object`** — uses pimpl pattern (`std::unique_ptr<Impl>`) for NVTT3 state. No reference counting needed.
