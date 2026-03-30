@@ -25,12 +25,15 @@
 #include "sgl/core/data_struct.h"
 #include "sgl/core/data_type.h"
 #include "sgl/core/static_vector.h"
+#include "sgl/core/short_vector.h"
 
 #include "sgl/math/float16.h"
 
 #include "sgl/device/cuda_interop.h"
 
+#ifndef SLANGPY_SKIP_PY_DOC_INCLUDE
 #include "py_doc.h"
+#endif
 
 #include <span>
 
@@ -139,6 +142,8 @@ struct type_caster<std::span<T>> {
 template<typename T, std::size_t N>
 struct type_caster<sgl::static_vector<T, N>> : list_caster<sgl::static_vector<T, N>, T> { };
 
+template<typename T, std::size_t N>
+struct type_caster<sgl::short_vector<T, N>> : list_caster<sgl::short_vector<T, N>, T> { };
 
 NAMESPACE_END(detail)
 

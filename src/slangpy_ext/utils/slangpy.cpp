@@ -18,6 +18,8 @@
 #include "utils/slangpybuffer.h"
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpyfunction.h"
+#include "utils/slangpytorchtensor.h"
+#include "utils/torch_bridge.h"
 
 #include <fmt/format.h>
 
@@ -159,11 +161,7 @@ void NativeMarshall::store_readback(
     read_back.append(nb::make_tuple(binding, value, data));
 }
 
-void NativeBoundVariableRuntime::populate_call_shape(
-    std::vector<int>& call_shape,
-    nb::object value,
-    NativeCallData* error_context
-)
+void NativeBoundVariableRuntime::populate_call_shape(Shape& call_shape, nb::object value, NativeCallData* error_context)
 {
     if (m_children) {
         // We have children, so load each child value and recurse down the tree.
@@ -193,9 +191,14 @@ void NativeBoundVariableRuntime::populate_call_shape(
         // and set every corresponding dimension to 1 so it is broadcast.
         if (m_python_type->concrete_shape().valid())
             m_shape = m_python_type->concrete_shape();
-        else if (m_python_type->match_call_shape())
-            m_shape = Shape(std::vector<int>(tf.size(), 1));
-        else {
+        else if (m_python_type->match_call_shape()) {
+            Shape ones(tf.size());
+            int* ones_data = ones.data();
+            for (size_t i = 0; i < tf.size(); ++i) {
+                ones_data[i] = 1;
+            }
+            m_shape = ones;
+        } else {
             NativePackedArg* packed_arg = nullptr;
             auto src_value = value;
             if (nb::try_cast<NativePackedArg*>(value, packed_arg))
@@ -327,25 +330,13 @@ void NativeBoundVariableRuntime::write_raw_dispatch_data(nb::dict call_data, nb:
 
 nb::object NativeBoundVariableRuntime::read_output(CallContext* context, nb::object data)
 {
-    if (m_children) {
-        // We have children, so read the output for each child and store in a dictionary.
-        nb::dict res;
-        for (const auto& [name, child_ref] : *m_children) {
-            if (res.contains(name.c_str())) {
-                if (child_ref) {
-                    nb::object child_data = data[child_ref->m_variable_name.c_str()];
-                    res[name.c_str()] = child_ref->read_output(context, child_data);
-                }
-            }
-        }
-        return res;
-    } else {
-        // We are a leaf node, so read the output if the variable was writable.
+    // Note: variables with children don't read_output directly - it is handled by their children.
+    if (!m_children) {
         if (m_access.first == AccessType::write || m_access.first == AccessType::readwrite) {
             return m_python_type->read_output(context, this, data);
         }
-        return nb::none();
     }
+    return nb::none();
 }
 
 Shape NativeBoundCallRuntime::calculate_call_shape(
@@ -356,7 +347,11 @@ Shape NativeBoundCallRuntime::calculate_call_shape(
 )
 {
     // Setup initial call shape of correct dimensionality, with all dimensions set to 1.
-    std::vector<int> call_shape(call_dimensionality, 1);
+    Shape call_shape(static_cast<size_t>(call_dimensionality));
+    int* call_shape_data = call_shape.data();
+    for (int i = 0; i < call_dimensionality; ++i) {
+        call_shape_data[i] = 1;
+    }
 
     // Populate call shape for each positional argument.
     for (size_t idx = 0; idx < args.size(); ++idx) {
@@ -372,7 +367,7 @@ Shape NativeBoundCallRuntime::calculate_call_shape(
     }
 
     // Return finalized shape.
-    return Shape(call_shape);
+    return call_shape;
 }
 
 void NativeBoundCallRuntime::write_shader_cursor_pre_dispatch(
@@ -434,9 +429,180 @@ void NativeBoundCallRuntime::write_raw_dispatch_data(nb::dict call_data, nb::dic
     }
 }
 
+nb::object NativeCallData::find_torch_tensors_recurse(nb::object arg, nb::list& pairs, size_t& access_idx)
+{
+    auto& bridge = TorchBridge::instance();
+
+    if (nb::isinstance<nb::dict>(arg)) {
+        nb::dict d = nb::cast<nb::dict>(arg);
+        nb::dict result;
+        for (auto [k, v] : d) {
+            result[k] = find_torch_tensors_recurse(nb::borrow<nb::object>(v), pairs, access_idx);
+        }
+        return result;
+    } else if (bridge.is_tensor(arg.ptr())) {
+        // Read access from pre-built list
+        if (access_idx >= m_autograd_access_list.size()) {
+            throw std::runtime_error(
+                "Autograd access list index out of bounds — "
+                "argument structure doesn't match build-time bindings."
+            );
+        }
+        AutogradAccess access = m_autograd_access_list[access_idx++];
+
+        if (access == AutogradAccess::readwrite) {
+            throw std::runtime_error("In-place operations not supported for torch autograd.");
+        }
+
+        bool is_input = (access == AutogradAccess::read);
+        int index = static_cast<int>(pairs.size());
+        auto pair = make_ref<NativeTorchTensorDiffPair>(std::move(arg), nb::none(), index, is_input);
+        nb::object pair_obj = nb::cast(pair);
+        pairs.append(pair_obj);
+        return pair_obj;
+    } else {
+        return arg;
+    }
+}
+
+nb::list NativeCallData::find_torch_tensors(nb::list args, nb::dict kwargs)
+{
+    nb::list pairs;
+    size_t access_idx = 0;
+
+    // Walk positional args
+    size_t num_args = nb::len(args);
+    for (size_t i = 0; i < num_args; i++) {
+        args[i] = find_torch_tensors_recurse(nb::borrow<nb::object>(args[i]), pairs, access_idx);
+    }
+
+    // Walk keyword args
+    // Use a snapshot of keys to safely iterate while modifying
+    nb::list keys(kwargs.keys());
+    size_t num_keys = nb::len(keys);
+    for (size_t i = 0; i < num_keys; i++) {
+        nb::object key = keys[i];
+        nb::object val = kwargs[key];
+        kwargs[key] = find_torch_tensors_recurse(val, pairs, access_idx);
+    }
+
+    return pairs;
+}
+
 nb::object NativeCallData::call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs)
 {
     return exec(opts, nullptr, args, kwargs);
+}
+
+nb::tuple
+NativeCallData::autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list args, nb::dict kwargs, nb::list pairs)
+{
+    // Collect output tensors (for return to autograd) and count inputs
+    nb::list output_tensors;
+    size_t num_pairs = nb::len(pairs);
+    for (size_t i = 0; i < num_pairs; i++) {
+        auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
+        if (!pair->is_input) {
+            output_tensors.append(pair->primal);
+        }
+    }
+
+    // Run the forward kernel
+    // Convert args list to tuple for exec (which takes nb::args = nb::tuple)
+    // Note: exec() may insert _result into kwargs, so check before calling exec.
+    bool had_result = kwargs.contains("_result");
+    nb::tuple args_tuple(args);
+    nb::object result = exec(opts, nullptr, nb::borrow<nb::args>(args_tuple), nb::borrow<nb::kwargs>(kwargs));
+
+    // If result is a tensor and _result was not in kwargs before exec,
+    // create a new output pair for it
+    if (!result.is_none() && !had_result) {
+        auto new_pair = make_ref<NativeTorchTensorDiffPair>(result, nb::none(), static_cast<int>(num_pairs), false);
+        nb::object pair_obj = nb::cast(new_pair);
+        kwargs["_result"] = pair_obj;
+        pairs.append(pair_obj);
+        output_tensors.append(result);
+        num_pairs++;
+    }
+
+    // Build list of ALL tensors (inputs and outputs) for save_for_backward.
+    // Slang's backward pass replays the forward internally, so output primals
+    // must be saved and restored as well.
+    nb::list all_tensors;
+    for (size_t i = 0; i < num_pairs; i++) {
+        auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
+        all_tensors.append(pair->primal);
+    }
+
+    // Clear tensor references from pairs to avoid keeping them alive
+    for (size_t i = 0; i < num_pairs; i++) {
+        auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
+        pair->primal = nb::none();
+        pair->grad = nb::none();
+    }
+
+    return nb::make_tuple(all_tensors, output_tensors, result, pairs);
+}
+
+nb::tuple NativeCallData::autograd_backward(
+    nb::handle function_node,
+    nb::list pairs,
+    nb::list args,
+    nb::dict kwargs,
+    nb::list saved_tensors,
+    nb::tuple grad_outputs
+)
+{
+    auto& bridge = TorchBridge::instance();
+    bool is_cuda = m_device->type() == DeviceType::cuda;
+
+    // Walk pairs: restore tensors and populate gradients.
+    // saved_tensors contains ALL primals (inputs and outputs) in pair order,
+    // because Slang's backward pass replays the forward internally and needs
+    // output primals to be bound.
+    size_t grad_output_idx = 0;
+    nb::list input_grads;
+
+    size_t num_pairs = nb::len(pairs);
+    for (size_t i = 0; i < num_pairs; i++) {
+        auto* pair = nb::cast<NativeTorchTensorDiffPair*>(pairs[i]);
+
+        // Restore primal from saved tensors (all primals saved in pair order)
+        pair->primal = nb::borrow(saved_tensors[i]);
+
+        if (pair->is_input) {
+            // Create gradient tensor if requires_grad
+            bool requires_grad = nb::cast<bool>(pair->primal.attr("requires_grad"));
+            if (requires_grad) {
+                pair->grad = bridge.create_zeros_like_tensor(pair->primal);
+                input_grads.append(pair->grad);
+            } else {
+                pair->grad = nb::none();
+                input_grads.append(nb::none());
+            }
+        } else {
+            // Output pair: assign upstream gradient
+            nb::object grad_out = nb::borrow(grad_outputs[grad_output_idx]);
+            if (!grad_out.is_none()) {
+                pair->grad = grad_out;
+                // Non-CUDA backends need contiguous gradients
+                if (!is_cuda) {
+                    pair->grad = pair->grad.attr("contiguous")();
+                }
+            } else {
+                pair->grad = nb::none();
+            }
+            grad_output_idx++;
+        }
+    }
+
+    // Call backwards pass via cached bwds call data (avoids Python round-trip through function.bwds)
+    nb::args bwds_args = nb::borrow<nb::args>(nb::tuple(args));
+    nb::kwargs bwds_kwargs = nb::borrow<nb::kwargs>(kwargs);
+    nb::cast<NativeFunctionNode*>(function_node)->call_bwds(this, bwds_args, bwds_kwargs);
+
+    // Return input gradients as tuple
+    return nb::tuple(input_grads);
 }
 
 nb::object NativeCallData::append_to(
@@ -449,125 +615,87 @@ nb::object NativeCallData::append_to(
     return exec(opts, command_encoder, args, kwargs);
 }
 
-nb::object NativeCallData::exec(
-    ref<NativeCallRuntimeOptions> opts,
-    CommandEncoder* command_encoder,
-    nb::args args,
-    nb::kwargs kwargs
+CallShapeInfo NativeCallData::compute_call_shape_info(
+    const ref<NativeCallRuntimeOptions>& opts,
+    const nb::list& unpacked_args,
+    const nb::dict& unpacked_kwargs
 )
 {
-    // Unpack args and kwargs.
-    nb::list unpacked_args = unpack_args(args);
-    nb::dict unpacked_kwargs = unpack_kwargs(kwargs);
+    CallShapeInfo si;
 
-    // Calculate call shape.
-    Shape call_shape = m_runtime->calculate_call_shape(m_call_dimensionality, unpacked_args, unpacked_kwargs, this);
-    m_last_call_shape = call_shape;
-
-    // Setup context.
-    auto context = make_ref<CallContext>(m_device, call_shape, m_call_mode);
-
-    // Allocate return value if needed.
-    if (!command_encoder && m_call_mode == CallMode::prim) {
-        ref<NativeBoundVariableRuntime> rv_node = m_runtime->find_kwarg("_result");
-        if (rv_node && (!kwargs.contains("_result") || kwargs["_result"].is_none())) {
-            nb::object output = rv_node->python_type()->create_output(context, rv_node.get());
-            kwargs["_result"] = output;
-            unpacked_kwargs["_result"] = output;
-            std::vector<int> call_shape_vec(call_shape.data(), call_shape.data() + call_shape.size());
-            rv_node->populate_call_shape(call_shape_vec, output, this);
-        }
+    if (opts->has_thread_count()) {
+        si.total_threads = opts->thread_count();
+        return si;
     }
 
-    // Calculate strides from call_shape without allocating temporary vector
-    std::vector<int> strides;
-    strides.reserve(call_shape.size());
+    si.call_shape = m_runtime->calculate_call_shape(m_call_dimensionality, unpacked_args, unpacked_kwargs, this);
+    m_last_call_shape = si.call_shape;
+
+    const size_t num_dims = si.call_shape.size();
+
+    // Calculate strides from call_shape
+    si.strides = Shape(num_dims);
+    int* strides_data = si.strides.data();
     int current_stride = 1;
-    for (int i = (int)call_shape.size() - 1; i >= 0; --i) {
-        strides.push_back(current_stride);
-        current_stride *= call_shape[i];
+    for (int i = static_cast<int>(num_dims) - 1; i >= 0; --i) {
+        strides_data[i] = current_stride;
+        current_stride *= si.call_shape[i];
     }
-    std::reverse(strides.begin(), strides.end());
 
-    // Get call group shape from build info
-    std::vector<int> call_group_shape;
+    // Get call group shape from build info.
+    si.call_group_shape = Shape(num_dims, 1); // Initialize to all 1s (default)
+    int* call_group_data = si.call_group_shape.data();
 
     if (m_call_group_shape.valid() && m_call_group_shape.size() > 0) {
-        // Similar to call_shape, this will be recieved with the first dimension
-        // as the right most element, ex: [..., z, y, x].
-        call_group_shape.assign(m_call_group_shape.data(), m_call_group_shape.data() + m_call_group_shape.size());
+        const size_t src_size = m_call_group_shape.size();
 
-        // Verify that call_group_shape has valid dimensions and values.
-        // Our check above should have already validated that
-        // call_group_shape.size() > 0.
-        if (call_group_shape.size() > call_shape.size()) {
+        if (src_size > num_dims) {
             throw std::runtime_error(
                 fmt::format(
                     "call_group_shape dimensionality ({}) must be <= call_shape dimensionality ({}). "
                     "call_group_shape cannot have more dimensions than call_shape.",
-                    call_group_shape.size(),
-                    call_shape.size()
+                    src_size,
+                    num_dims
                 )
             );
-        } else if (call_group_shape.size() < call_shape.size()) {
-            // Call group shape size is less than the call shape size so we need to
-            // pad the call group shape with 1's to account for the missing dimensions.
-            // However, inserting at the front of the vector will be inefficient, so
-            // log a debug message, giving users a chance to correct their calls.
-            if (is_log_enabled(LogLevel::debug)) {
-                log_debug(
-                    "call_group_shape dimensionality ({}) < call_shape dimensionality ({}). "
-                    "Padding call_group_shape with {} leading 1's. "
-                    "Consider specifying full dimensions for better performance.",
-                    call_group_shape.size(),
-                    call_shape.size(),
-                    call_shape.size() - call_group_shape.size()
-                );
-            }
-
-            for (size_t i = 0; i < (call_shape.size() - call_group_shape.size()); ++i) {
-                // Insert 1's for the dimensions we were not given
-                call_group_shape.insert(call_group_shape.begin(), 1);
-            }
         }
 
-        // Verify that all elements of call_group_shape are >= 1
-        for (size_t i = 0; i < call_group_shape.size(); ++i) {
-            if (call_group_shape[i] < 1) {
+        const size_t padding = num_dims - src_size;
+        if (padding > 0 && is_log_enabled(LogLevel::debug)) {
+            log_debug(
+                "call_group_shape dimensionality ({}) < call_shape dimensionality ({}). "
+                "Padding call_group_shape with {} leading 1's. "
+                "Consider specifying full dimensions for better performance.",
+                src_size,
+                num_dims,
+                padding
+            );
+        }
+
+        const int* src_data = m_call_group_shape.data();
+        for (size_t i = 0; i < src_size; ++i) {
+            int val = src_data[i];
+            if (val < 1) {
                 throw std::runtime_error(
                     fmt::format(
                         "call_group_shape[{}] = {} is invalid. All call_group_shape elements must be >= 1.",
                         i,
-                        call_group_shape[i]
+                        val
                     )
                 );
             }
-        }
-    } else {
-
-        // We already know the size/dimensionality of all the shape and
-        // stride vectors at this point. Use reserve() to preallocate
-        // to the exact size required for efficiency.
-        call_group_shape.reserve(call_shape.size());
-
-        // Default to making the call group shape all 1's. This will force the
-        // grid shape to be identical to the call shape giving us linear
-        // dispatches by default when a call group shape is not specified.
-        // In this case, conceptually all thread's have their own "group" even
-        // though they will still be executed in groups of 32.
-        for (size_t i = 0; i < call_shape.size(); i++) {
-            call_group_shape.push_back(1);
+            call_group_data[padding + i] = val;
         }
     }
 
     // Calculate the group strides
-    short_vector<int, 32> call_group_strides;
+    si.call_group_strides = Shape(num_dims);
+    int* call_group_strides_data = si.call_group_strides.data();
     current_stride = 1;
-    for (auto it = call_group_shape.rbegin(); it != call_group_shape.rend(); ++it) {
-        call_group_strides.push_back(current_stride);
-        current_stride *= *it;
+    for (int i = static_cast<int>(num_dims) - 1; i >= 0; --i) {
+        call_group_strides_data[i] = current_stride;
+        current_stride *= call_group_data[i];
     }
-    std::reverse(call_group_strides.begin(), call_group_strides.end());
 
     // Calculate the grid shape and total threads.
     //
@@ -578,28 +706,83 @@ nb::object NativeCallData::exec(
     //       likely end up torn and representing different regions of the call shape,
     //       which would likely defeat the purpose of using call groups for better
     //       memory coherency and uses of shared memory.
-    int total_threads = 1;
-    short_vector<int, 32> call_grid_shape;
-    short_vector<int, 32> aligned_call_shape;
-    bool is_call_shape_unaligned = false;
-    for (size_t i = 0; i < call_shape.size(); i++) {
-        // When the call shape is not call group shape aligned, we will add some
-        // padding to align up.
-        call_grid_shape.push_back((int)std::ceil((float)call_shape[i] / (float)call_group_shape[i]));
-        aligned_call_shape.push_back(call_grid_shape.back() * call_group_shape[i]);
-        if (aligned_call_shape[i] != call_shape[i])
-            is_call_shape_unaligned = true;
-        total_threads *= aligned_call_shape.back();
+    si.total_threads = 1;
+    si.call_grid_shape = Shape(num_dims);
+    si.aligned_call_shape = Shape(num_dims);
+    int* call_grid_data = si.call_grid_shape.data();
+    int* aligned_call_data = si.aligned_call_shape.data();
+    const int* call_shape_data = si.call_shape.data();
+    for (size_t i = 0; i < num_dims; i++) {
+        call_grid_data[i] = (call_shape_data[i] + call_group_data[i] - 1) / call_group_data[i];
+        aligned_call_data[i] = call_grid_data[i] * call_group_data[i];
+        if (aligned_call_data[i] != call_shape_data[i])
+            si.is_call_shape_unaligned = true;
+        si.total_threads *= aligned_call_data[i];
     }
 
     // Calculate the grid strides
-    short_vector<int, 32> call_grid_strides;
+    si.call_grid_strides = Shape(num_dims);
+    int* call_grid_strides_data = si.call_grid_strides.data();
     current_stride = 1;
-    for (auto it = call_grid_shape.end() - 1; it >= call_grid_shape.begin(); --it) {
-        call_grid_strides.push_back(current_stride);
-        current_stride *= *it;
+    for (int i = static_cast<int>(num_dims) - 1; i >= 0; --i) {
+        call_grid_strides_data[i] = current_stride;
+        current_stride *= call_grid_data[i];
     }
-    std::reverse(call_grid_strides.begin(), call_grid_strides.end());
+
+    return si;
+}
+
+nb::object NativeCallData::exec(
+    ref<NativeCallRuntimeOptions> opts,
+    CommandEncoder* command_encoder,
+    nb::args args,
+    nb::kwargs kwargs
+)
+{
+    // Unpack args and kwargs (skip if no args have get_this/update_this).
+    nb::list unpacked_args;
+    nb::dict unpacked_kwargs;
+    if (m_needs_unpack) {
+        bool had_unpack = false;
+        unpacked_args = unpack_args(args, had_unpack);
+        unpacked_kwargs = unpack_kwargs(kwargs, had_unpack);
+    } else {
+        // Fast path: wrap args/kwargs directly without checking for get_this.
+        for (auto arg : args)
+            unpacked_args.append(arg);
+        for (auto [k, v] : kwargs)
+            unpacked_kwargs[k] = v;
+    }
+
+    auto si = compute_call_shape_info(opts, unpacked_args, unpacked_kwargs);
+    auto& call_shape = si.call_shape;
+    auto& strides = si.strides;
+    auto& call_group_shape = si.call_group_shape;
+    auto& call_group_strides = si.call_group_strides;
+    auto& call_grid_shape = si.call_grid_shape;
+    auto& call_grid_strides = si.call_grid_strides;
+    auto& aligned_call_shape = si.aligned_call_shape;
+    auto& is_call_shape_unaligned = si.is_call_shape_unaligned;
+    int total_threads = si.total_threads;
+
+    // Extract CUDA stream handle for interop operations and command buffer submission.
+    NativeHandle cuda_stream = opts->cuda_stream();
+
+    // Setup context.
+    auto context = make_ref<CallContext>(m_device, call_shape, m_call_mode, cuda_stream);
+
+    // Allocate return value if needed.
+    if (!command_encoder && m_call_mode == CallMode::prim) {
+        ref<NativeBoundVariableRuntime> rv_node = m_runtime->find_kwarg("_result");
+        if (rv_node && (!kwargs.contains("_result") || kwargs["_result"].is_none())) {
+            nb::object output = rv_node->python_type()->create_output(context, rv_node.get());
+            kwargs["_result"] = output;
+            unpacked_kwargs["_result"] = output;
+            // Make a mutable copy of call_shape for populate_call_shape
+            Shape call_shape_copy = call_shape;
+            rv_node->populate_call_shape(call_shape_copy, output, this);
+        }
+    }
 
     nb::list read_back;
 
@@ -623,7 +806,6 @@ nb::object NativeCallData::exec(
     }
 
     // If CUDA stream is provided, check for valid use and sync device to the CUDA stream
-    NativeHandle cuda_stream = opts->cuda_stream();
     if (cuda_stream.is_valid()) {
         SGL_CHECK(command_encoder == nullptr, "Cannot specify a CUDA stream when appending to a command encoder.");
         SGL_CHECK(
@@ -632,64 +814,17 @@ nb::object NativeCallData::exec(
         );
     }
 
-    auto bind_call_data = [&](ShaderCursor cursor)
+    auto write_uniforms = [&](ShaderCursor target, ShaderCursor root_cursor)
     {
-        // On first call, cache all field indices and offsets to avoid repeated string lookups
-        if (!m_cached_call_data_offsets.is_valid) {
-            // Get the call data cursor using string lookup (first call only)
-            ShaderCursor call_data_cursor;
-            if (m_call_data_mode == CallDataMode::entry_point) {
-                ShaderCursor entry_point_cursor = cursor.find_entry_point(0);
-                call_data_cursor = entry_point_cursor.find_field("call_data");
-                m_cached_call_data_offsets.call_data_field_index = entry_point_cursor.find_field_index("call_data");
-            } else {
-                call_data_cursor = cursor.find_field("call_data");
-                m_cached_call_data_offsets.call_data_field_index = cursor.find_field_index("call_data");
-            }
-
-            // Cache whether call_data needs dereference
-            m_cached_call_data_offsets.call_data_is_reference = call_data_cursor.is_reference();
-            if (m_cached_call_data_offsets.call_data_is_reference)
-                call_data_cursor = call_data_cursor.dereference();
-
-            // Cache all field offsets
-            m_cached_call_data_offsets.call_dim = call_data_cursor.find_field("_call_dim").offset();
-            m_cached_call_data_offsets.grid_stride = call_data_cursor.find_field("_grid_stride").offset();
-            m_cached_call_data_offsets.grid_dim = call_data_cursor.find_field("_grid_dim").offset();
-            m_cached_call_data_offsets.thread_count = call_data_cursor.find_field("_thread_count").offset();
-            m_cached_call_data_offsets.field_offset = call_data_cursor.offset();
-            m_cached_call_data_offsets.field_size
-                = (uint32_t)call_data_cursor.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
-            if (m_cached_call_data_offsets.call_dim.is_valid()) {
-                m_cached_call_data_offsets.array_stride = (int)call_data_cursor.find_field("_call_dim")
-                                                              .slang_type_layout()
-                                                              ->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
-            }
-            m_cached_call_data_offsets.is_valid = true;
-        }
-
-        // Fast path: use cached field index to find call_data cursor
-        ShaderCursor call_data_cursor;
-        if (m_call_data_mode == CallDataMode::entry_point) {
-            call_data_cursor
-                = cursor.find_entry_point(0).get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
-        } else {
-            call_data_cursor = cursor.get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
-        }
-
-        // Dereference the cursor if needed (using cached result)
-        if (m_cached_call_data_offsets.call_data_is_reference)
-            call_data_cursor = call_data_cursor.dereference();
-
-        // Reserve memory block for all call data fields
-        ShaderObject* shader_object = call_data_cursor.shader_object();
+        // Reserve memory block for all uniform fields
+        ShaderObject* shader_object = target.shader_object();
         void* base_address = shader_object->reserve_data(
             m_cached_call_data_offsets.field_offset,
             m_cached_call_data_offsets.field_size
         );
 
         if (call_shape.size() > 0) {
-            // Write arrays using cached offsets and direct memory access
+            // Write shape arrays using cached offsets
             write_strided_array_helper(
                 base_address,
                 m_cached_call_data_offsets.call_dim.uniform_offset
@@ -727,20 +862,84 @@ nb::object NativeCallData::exec(
             thread_count_value
         );
 
-        m_runtime->write_shader_cursor_pre_dispatch(
-            context,
-            cursor,
-            call_data_cursor,
-            unpacked_args,
-            unpacked_kwargs,
-            read_back
-        );
+        m_runtime
+            ->write_shader_cursor_pre_dispatch(context, root_cursor, target, unpacked_args, unpacked_kwargs, read_back);
+    };
+
+    auto bind_call_data = [&](ShaderCursor cursor)
+    {
+        if (m_use_entrypoint_args) {
+            // ---- Fast path: individual entry-point params ----
+            ShaderCursor ep = cursor.find_entry_point(0);
+
+            // On first call, cache field offsets for metadata fields
+            if (!m_cached_call_data_offsets.is_valid) {
+                m_cached_call_data_offsets.thread_count = ep.find_field("_thread_count").offset();
+                m_cached_call_data_offsets.field_offset = ep.offset();
+                m_cached_call_data_offsets.field_size
+                    = (uint32_t)ep.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                if (call_shape.size() > 0) {
+                    m_cached_call_data_offsets.call_dim = ep.find_field("_call_dim").offset();
+                    m_cached_call_data_offsets.grid_stride = ep.find_field("_grid_stride").offset();
+                    m_cached_call_data_offsets.grid_dim = ep.find_field("_grid_dim").offset();
+                    m_cached_call_data_offsets.array_stride = (int)ep.find_field("_call_dim")
+                                                                  .slang_type_layout()
+                                                                  ->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                }
+                m_cached_call_data_offsets.is_valid = true;
+            }
+
+            write_uniforms(ep, cursor);
+        } else {
+            // ---- Fallback path: ParameterBlock<CallData> at module scope (all backends) ----
+            // On first call, cache all field indices and offsets
+            if (!m_cached_call_data_offsets.is_valid) {
+                ShaderCursor call_data_cursor = cursor.find_field("call_data");
+                m_cached_call_data_offsets.call_data_field_index = cursor.find_field_index("call_data");
+
+                // Cache whether call_data needs dereference
+                m_cached_call_data_offsets.call_data_is_reference = call_data_cursor.is_reference();
+                if (m_cached_call_data_offsets.call_data_is_reference)
+                    call_data_cursor = call_data_cursor.dereference();
+
+                // Cache all field offsets
+                m_cached_call_data_offsets.call_dim = call_data_cursor.find_field("_call_dim").offset();
+                m_cached_call_data_offsets.grid_stride = call_data_cursor.find_field("_grid_stride").offset();
+                m_cached_call_data_offsets.grid_dim = call_data_cursor.find_field("_grid_dim").offset();
+                m_cached_call_data_offsets.thread_count = call_data_cursor.find_field("_thread_count").offset();
+                m_cached_call_data_offsets.field_offset = call_data_cursor.offset();
+                m_cached_call_data_offsets.field_size
+                    = (uint32_t)call_data_cursor.slang_type_layout()->getSize(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                if (m_cached_call_data_offsets.call_dim.is_valid()) {
+                    m_cached_call_data_offsets.array_stride = (int)call_data_cursor.find_field("_call_dim")
+                                                                  .slang_type_layout()
+                                                                  ->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
+                }
+                m_cached_call_data_offsets.is_valid = true;
+            }
+
+            // Use cached field index to find call_data cursor
+            ShaderCursor call_data_cursor = cursor.get_field_by_index(m_cached_call_data_offsets.call_data_field_index);
+
+            // Dereference the cursor if needed (using cached result)
+            if (m_cached_call_data_offsets.call_data_is_reference)
+                call_data_cursor = call_data_cursor.dereference();
+
+            write_uniforms(call_data_cursor, cursor);
+        }
 
         nb::list uniforms = opts->uniforms();
         if (uniforms) {
             for (auto u : uniforms) {
                 if (nb::isinstance<nb::dict>(u)) {
                     write_shader_cursor(cursor, nb::cast<nb::dict>(u));
+                } else if (nb::isinstance<nb::tuple>(u)) {
+                    // Writer tuple: (fn, args, kwargs)
+                    nb::tuple t = nb::cast<nb::tuple>(u);
+                    nb::object fn = t[0];
+                    nb::tuple args = nb::cast<nb::tuple>(t[1]);
+                    nb::dict kwargs = nb::cast<nb::dict>(t[2]);
+                    fn(nb::cast(cursor), *args, **kwargs);
                 } else {
                     write_shader_cursor(cursor, nb::cast<nb::dict>(u(this)));
                 }
@@ -796,12 +995,14 @@ nb::object NativeCallData::exec(
         bvr->python_type()->read_calldata(context, bvr.get(), rb_val, rb_data);
     }
 
-    // Pack updated 'this' values back.
-    for (size_t i = 0; i < args.size(); ++i) {
-        pack_arg(args[i], unpacked_args[i]);
-    }
-    for (auto [k, v] : kwargs) {
-        pack_arg(nb::cast<nb::object>(v), unpacked_kwargs[k]);
+    // Pack updated 'this' values back (skip if no args needed unpacking).
+    if (m_needs_unpack) {
+        for (size_t i = 0; i < args.size(); ++i) {
+            pack_arg(args[i], unpacked_args[i]);
+        }
+        for (auto [k, v] : kwargs) {
+            pack_arg(nb::cast<nb::object>(v), unpacked_kwargs[k]);
+        }
     }
 
     // Handle return value based on call mode.
@@ -812,16 +1013,6 @@ nb::object NativeCallData::exec(
         }
     }
     return nb::none();
-}
-
-nb::object PyNativeCallData::_py_torch_call(
-    NativeFunctionNode* func,
-    ref<NativeCallRuntimeOptions> opts,
-    nb::tuple args,
-    nb::dict kwargs
-)
-{
-    NB_OVERRIDE(_py_torch_call, func, opts, args, kwargs);
 }
 
 NativeCallDataCache::NativeCallDataCache()
@@ -928,6 +1119,17 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
         return;
     }
 
+    // Fast path: Signature for pytorch tensors via torch bridge (~15ns native, ~50ns fallback)
+    // Only check if torch is available to avoid any cost when torch isn't installed.
+    // get_signature() returns 0 on success, non-zero on failure (does not throw)
+    if (TorchBridge::instance().is_available()) {
+        char buffer[64];
+        if (TorchBridge::instance().get_signature(o, buffer, sizeof(buffer)) == 0) {
+            *builder << "torch\n" << buffer;
+            return;
+        }
+    }
+
     // Add type name.
     auto type_name = nb::str(nb::getattr(o.type(), "__name__"));
     *builder << type_name.c_str() << "\n";
@@ -935,6 +1137,7 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
     // Handle objects with get_this method.
     auto get_this = nb::getattr(o, "get_this", nb::none());
     if (!get_this.is_none()) {
+        *builder << "\nunpack";
         auto this_ = get_this();
         get_value_signature(builder, this_);
         return;
@@ -948,20 +1151,6 @@ void NativeCallDataCache::get_value_signature(const ref<SignatureBuilder> builde
         return;
     }
 
-    // Signature for pytorch tensors
-    {
-        nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
-        if (nb::try_cast(o, pytorch_tensor)) {
-            *builder << fmt::format(
-                "[torch,D{},C{},B{},L{}]",
-                pytorch_tensor.ndim(),
-                pytorch_tensor.dtype().code,
-                pytorch_tensor.dtype().bits,
-                pytorch_tensor.dtype().lanes
-            );
-            return;
-        }
-    }
 
     // If x is a dictionary get signature of its children.
     nb::dict dict;
@@ -1007,42 +1196,32 @@ void NativeCallDataCache::get_args_signature(const ref<SignatureBuilder> builder
     }
 }
 
-nb::list unpack_args(nb::args args, std::optional<nb::list> refs)
+nb::list unpack_args(nb::args args, bool& out_had_unpack)
 {
     nb::list unpacked;
     for (auto arg : args) {
-        unpacked.append(unpack_arg(nb::cast<nb::object>(arg), refs));
+        unpacked.append(unpack_arg(nb::cast<nb::object>(arg), out_had_unpack));
     }
     return unpacked;
 }
 
-nb::dict unpack_kwargs(nb::kwargs kwargs, std::optional<nb::list> refs)
+nb::dict unpack_kwargs(nb::kwargs kwargs, bool& out_had_unpack)
 {
     nb::dict unpacked;
     for (const auto& [k, v] : kwargs) {
-        unpacked[k] = unpack_arg(nb::cast<nb::object>(v), refs);
+        unpacked[k] = unpack_arg(nb::cast<nb::object>(v), out_had_unpack);
     }
     return unpacked;
 }
 
-nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
+nb::object unpack_arg(nb::object arg, bool& out_had_unpack)
 {
     auto obj = arg;
 
     // If object has 'get_this', read it.
     if (nb::hasattr(obj, "get_this")) {
         obj = nb::getattr(obj, "get_this")();
-    }
-
-    // If object is a pytorch tensor, wrap it in a ref and export
-    if (refs.has_value()) {
-        nb::ndarray<nb::pytorch, nb::device::cuda> pytorch_tensor;
-        if (nb::try_cast(arg, pytorch_tensor)) {
-            ref<TensorRef> tensorref = make_ref<TensorRef>((int32_t)refs->size(), pytorch_tensor);
-            auto asobj = nb::cast(tensorref);
-            refs->append(asobj);
-            return asobj;
-        }
+        out_had_unpack = true;
     }
 
     // Recursively unpack dictionaries.
@@ -1050,7 +1229,7 @@ nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
     if (nb::try_cast(obj, d)) {
         nb::dict res;
         for (auto [k, v] : d) {
-            res[k] = unpack_arg(nb::cast<nb::object>(v), refs);
+            res[k] = unpack_arg(nb::cast<nb::object>(v), out_had_unpack);
         }
         obj = res;
     }
@@ -1060,7 +1239,7 @@ nb::object unpack_arg(nb::object arg, std::optional<nb::list> refs)
     if (nb::try_cast(obj, l)) {
         nb::list res;
         for (auto v : l) {
-            res.append(unpack_arg(nb::cast<nb::object>(v), refs));
+            res.append(unpack_arg(nb::cast<nb::object>(v), out_had_unpack));
         }
         obj = res;
     }
@@ -1113,24 +1292,16 @@ SGL_PY_EXPORT(utils_slangpy)
 
     nb::sgl_enum<AccessType>(slangpy, "AccessType");
     nb::sgl_enum<CallMode>(slangpy, "CallMode");
-    nb::sgl_enum<CallDataMode>(slangpy, "CallDataMode");
+    nb::sgl_enum<AutogradAccess>(slangpy, "AutogradAccess");
 
     slangpy.def(
         "unpack_args",
         [](nb::args args)
         {
-            return unpack_args(args);
+            bool had_unpack = false;
+            nb::list result = unpack_args(args, had_unpack);
+            return nb::make_tuple(result, had_unpack);
         },
-        "args"_a,
-        D_NA(slangpy, unpack_args)
-    );
-    slangpy.def(
-        "unpack_refs_and_args",
-        [](nb::list refs, nb::args args)
-        {
-            return unpack_args(args, refs);
-        },
-        "refs"_a,
         "args"_a,
         D_NA(slangpy, unpack_args)
     );
@@ -1138,18 +1309,10 @@ SGL_PY_EXPORT(utils_slangpy)
         "unpack_kwargs",
         [](nb::kwargs kwargs)
         {
-            return unpack_kwargs(kwargs);
+            bool had_unpack = false;
+            nb::dict result = unpack_kwargs(kwargs, had_unpack);
+            return nb::make_tuple(result, had_unpack);
         },
-        "kwargs"_a,
-        D_NA(slangpy, unpack_kwargs)
-    );
-    slangpy.def(
-        "unpack_refs_and_kwargs",
-        [](nb::list refs, nb::kwargs kwargs)
-        {
-            return unpack_kwargs(kwargs, refs);
-        },
-        "refs"_a,
         "kwargs"_a,
         D_NA(slangpy, unpack_kwargs)
     );
@@ -1157,7 +1320,8 @@ SGL_PY_EXPORT(utils_slangpy)
         "unpack_arg",
         [](nb::object arg)
         {
-            return unpack_arg(arg);
+            bool had_unpack = false;
+            return unpack_arg(arg, had_unpack);
         },
         "arg"_a,
         D_NA(slangpy, unpack_arg)
@@ -1390,7 +1554,13 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeBoundVariableRuntime::write_raw_dispatch_data,
             D_NA(NativeBoundVariableRuntime, write_raw_dispatch_data)
         )
-        .def("read_output", &NativeBoundVariableRuntime::read_output, D_NA(NativeBoundVariableRuntime, read_output));
+        .def("read_output", &NativeBoundVariableRuntime::read_output, D_NA(NativeBoundVariableRuntime, read_output))
+        .def_prop_rw(
+            "direct_bind",
+            &NativeBoundVariableRuntime::direct_bind,
+            &NativeBoundVariableRuntime::set_direct_bind,
+            D_NA(NativeBoundVariableRuntime, direct_bind)
+        );
 
     nb::class_<NativeBoundCallRuntime, Object>(slangpy, "NativeBoundCallRuntime") //
         .def(nb::init<>(), D_NA(NativeBoundCallRuntime, NativeBoundCallRuntime))
@@ -1442,21 +1612,20 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallRuntimeOptions::cuda_stream,
             &NativeCallRuntimeOptions::set_cuda_stream,
             D_NA(NativeCallRuntimeOptions, cuda_stream)
+        )
+        .def_prop_rw(
+            "thread_count",
+            &NativeCallRuntimeOptions::thread_count,
+            &NativeCallRuntimeOptions::set_thread_count,
+            D_NA(NativeCallRuntimeOptions, thread_count)
         );
 
     // clang-format off
 #define DEF_LOG_METHOD(name) def(#name, [](NativeCallData& self, const std::string_view msg) { self.name(msg); }, "msg"_a)
     // clang-format on
 
-    nb::class_<NativeCallData, PyNativeCallData, Object>(slangpy, "NativeCallData") //
-        .def(
-            "__init__",
-            [](NativeCallData& self)
-            {
-                new (&self) PyNativeCallData();
-            },
-            D_NA(NativeCallData, NativeCallData)
-        )
+    nb::class_<NativeCallData, Object>(slangpy, "NativeCallData") //
+        .def(nb::init<>(), D_NA(NativeCallData, NativeCallData))
         .def_prop_rw("device", &NativeCallData::device, &NativeCallData::set_device, D_NA(NativeCallData, device))
         .def_prop_rw(
             "pipeline",
@@ -1482,12 +1651,6 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::call_mode,
             &NativeCallData::set_call_mode,
             D_NA(NativeCallData, call_mode)
-        )
-        .def_prop_rw(
-            "call_data_mode",
-            &NativeCallData::call_data_mode,
-            &NativeCallData::set_call_data_mode,
-            D_NA(NativeCallData, call_data_mode)
         )
         .def_prop_ro("last_call_shape", &NativeCallData::last_call_shape, D_NA(NativeCallData, last_call_shape))
         .def_prop_rw(
@@ -1520,15 +1683,6 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::arg("kwargs"),
             D_NA(NativeCallData, append_to)
         )
-        .def(
-            "_py_torch_call",
-            &NativeCallData::_py_torch_call,
-            nb::arg("function"),
-            nb::arg("opts"),
-            nb::arg("args"),
-            nb::arg("kwargs"),
-            D_NA(NativeCallData, _py_torch_call)
-        )
         .def_prop_rw(
             "call_group_shape",
             &NativeCallData::call_group_shape,
@@ -1549,6 +1703,66 @@ SGL_PY_EXPORT(utils_slangpy)
             &NativeCallData::set_torch_autograd,
             nb::arg(),
             D_NA(NativeCallData, torch_autograd)
+        )
+        .def_prop_rw(
+            "needs_unpack",
+            &NativeCallData::needs_unpack,
+            &NativeCallData::set_needs_unpack,
+            nb::arg(),
+            D_NA(NativeCallData, needs_unpack)
+        )
+        .def_prop_rw(
+            "has_thread_count",
+            &NativeCallData::has_thread_count,
+            &NativeCallData::set_has_thread_count,
+            nb::arg(),
+            D_NA(NativeCallData, has_thread_count)
+        )
+        .def_prop_rw(
+            "use_entrypoint_args",
+            &NativeCallData::use_entrypoint_args,
+            &NativeCallData::set_use_entrypoint_args,
+            nb::arg(),
+            D_NA(NativeCallData, use_entrypoint_args)
+        )
+        .def_prop_rw(
+            "autograd_access_list",
+            &NativeCallData::autograd_access_list,
+            &NativeCallData::set_autograd_access_list,
+            D_NA(NativeCallData, autograd_access_list)
+        )
+        .def_prop_rw(
+            "bwds_call_data",
+            &NativeCallData::bwds_call_data,
+            &NativeCallData::set_bwds_call_data,
+            D_NA(NativeCallData, bwds_call_data)
+        )
+        .def(
+            "find_torch_tensors",
+            &NativeCallData::find_torch_tensors,
+            nb::arg("args"),
+            nb::arg("kwargs"),
+            D_NA(NativeCallData, find_torch_tensors)
+        )
+        .def(
+            "autograd_forward",
+            &NativeCallData::autograd_forward,
+            nb::arg("opts"),
+            nb::arg("args"),
+            nb::arg("kwargs"),
+            nb::arg("pairs"),
+            D_NA(NativeCallData, autograd_forward)
+        )
+        .def(
+            "autograd_backward",
+            &NativeCallData::autograd_backward,
+            nb::arg("function_node"),
+            nb::arg("pairs"),
+            nb::arg("args"),
+            nb::arg("kwargs"),
+            nb::arg("saved_tensors"),
+            nb::arg("grad_outputs"),
+            D_NA(NativeCallData, autograd_backward)
         )
 
         .def("log", &NativeCallData::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(Logger, log))
@@ -1669,7 +1883,11 @@ SGL_PY_EXPORT(utils_slangpy)
             "as_list",
             [](const Shape& self)
             {
-                return self.as_vector();
+                nb::list py_list;
+                for (size_t i = 0; i < self.size(); ++i) {
+                    py_list.append(self[i]);
+                }
+                return py_list;
             },
             D_NA(Shape, as_list)
         )
@@ -1702,10 +1920,11 @@ SGL_PY_EXPORT(utils_slangpy)
 
     nb::class_<CallContext, Object>(slangpy, "CallContext") //
         .def(
-            nb::init<ref<Device>, const Shape&, CallMode>(),
+            nb::init<ref<Device>, const Shape&, CallMode, NativeHandle>(),
             nb::arg("device"),
             nb::arg("call_shape"),
             nb::arg("call_mode"),
+            nb::arg("cuda_stream") = NativeHandle(),
             D_NA(CallContext, CallContext)
         )
         .def_prop_ro(
@@ -1723,46 +1942,4 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(CallContext, call_shape)
         )
         .def_prop_ro("call_mode", &CallContext::call_mode, D_NA(CallContext, call_mode));
-
-    nb::class_<TensorRef, NativeObject>(slangpy, "TensorRef") //
-        .def(
-            "__init__",
-            [](TensorRef& self, int id, nb::ndarray<nb::pytorch, nb::device::cuda> tensor)
-            {
-                new (&self) TensorRef(id, tensor);
-            },
-            "id"_a,
-            "tensor"_a,
-            D_NA(TensorRef, TensorRef)
-        )
-        .def_prop_rw("id", &TensorRef::id, &TensorRef::set_id, nb::arg(), D_NA(TensorRef, index))
-        .def_prop_rw("tensor", &TensorRef::tensor, &TensorRef::set_tensor, nb::arg().none(), D_NA(TensorRef, tensor))
-        .def_prop_rw(
-            "interop_buffer",
-            &TensorRef::interop_buffer,
-            &TensorRef::set_interop_buffer,
-            nb::arg().none(),
-            D_NA(TensorRef, interop_buffer)
-        )
-        .def_prop_rw(
-            "grad_in",
-            &TensorRef::grad_in,
-            &TensorRef::set_grad_in,
-            nb::arg().none(),
-            D_NA(TensorRef, grad_in)
-        )
-        .def_prop_rw(
-            "grad_out",
-            &TensorRef::grad_out,
-            &TensorRef::set_grad_out,
-            nb::arg().none(),
-            D_NA(TensorRef, grad_out)
-        )
-        .def_prop_rw(
-            "last_access",
-            &TensorRef::last_access,
-            &TensorRef::set_last_access,
-            nb::arg(),
-            D_NA(TensorRef, last_access)
-        );
 }

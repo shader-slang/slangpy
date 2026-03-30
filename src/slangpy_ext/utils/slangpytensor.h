@@ -21,6 +21,27 @@
 
 namespace sgl::slangpy {
 
+/// Maximum dimensions for TensorView (matches slang-cuda-prelude.h)
+static constexpr int kSlangPyTensorViewMaxDim = 5;
+
+/// TensorViewData - C++ struct matching TensorView's memory layout.
+struct TensorViewData {
+    uint64_t data;                              // GPU pointer (8 bytes)
+    uint32_t strides[kSlangPyTensorViewMaxDim]; // Strides in bytes (20 bytes)
+    uint32_t sizes[kSlangPyTensorViewMaxDim];   // Shape (20 bytes)
+    uint32_t dimensionCount;                    // Number of dims (4 bytes)
+};
+// 52 bytes of data + 4 bytes padding for 8-byte alignment = 56 bytes
+static_assert(sizeof(TensorViewData) == 56, "TensorViewData must be 56 bytes to match TensorView");
+
+/// DiffTensorViewData - C++ struct matching DiffTensorViewData's memory layout in Slang.
+/// Contains primal (56 bytes) + diff (56 bytes) = 112 bytes total.
+struct DiffTensorViewData {
+    TensorViewData primal; // 56 bytes - primal tensor data
+    TensorViewData diff;   // 56 bytes - gradient/diff tensor data
+};
+static_assert(sizeof(DiffTensorViewData) == 112, "DiffTensorViewData must be 112 bytes");
+
 class NativeTensor;
 
 struct NativeTensorDesc : public StridedBufferViewDesc { };
@@ -127,49 +148,57 @@ public:
 
     nb::object read_output(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data) const override;
 
-private:
     /// Cached shader offsets for a single tensor's fields
+    /// Public so NativeTorchTensorMarshall can reuse them
     struct TensorFieldOffsets {
         int array_stride;
-        ShaderOffset data;     // Offset for _data field
-        ShaderOffset shape;    // Offset for _shape field
-        ShaderOffset strides;  // Offset for _strides field
-        ShaderOffset offset;   // Offset for _offset field
-        bool is_valid = false; // Whether offsets have been initialized
+        ShaderOffset data;                // Offset for _data field
+        ShaderOffset shape;               // Offset for _shape field
+        ShaderOffset strides;             // Offset for _strides field
+        ShaderOffset offset;              // Offset for _offset field
+        ShaderOffset element_byte_stride; // Offset for _element_byte_stride field (if present)
+        bool is_valid = false;            // Whether offsets have been initialized
+        bool is_tensorview = false;
     };
 
-    /// Cached offsets for all tensor variants (primal, grad_in, grad_out)
-    struct CachedOffsets {
+    /// Cached binding info for all tensor variants (primal, grad_in, grad_out)
+    /// Contains shader offsets plus copy-back decision flags.
+    /// Public so NativeTorchTensorMarshall can reuse this structure.
+    struct CachedBindingInfo {
         TensorFieldOffsets primal;    // Offsets for primal tensor fields
         TensorFieldOffsets grad_in;   // Offsets for gradient input fields (if present)
         TensorFieldOffsets grad_out;  // Offsets for gradient output fields (if present)
         bool has_grad_fields = false; // Whether tensor uses _primal wrapper (differentiated mode)
         ShaderOffset field_offset;    // Base offset of the entire field structure
         uint32_t field_size = 0;      // Total size of the field in uniform data
+
+        // Whether to copy interop buffers back to torch tensors after dispatch.
+        // Only used by NativeTorchTensorMarshall; computed in ensure_binding_info_cached()
+        // from the Slang uniform type name (Tensor/WTensor/RWTensor/DiffTensor/etc.).
+        bool needs_primal_copyback = false;
+        bool needs_grad_copyback = false;
     };
 
+    /// Extract TensorFieldOffsets from a ShaderCursor pointing to a tensor structure
+    /// Public so NativeTorchTensorMarshall can reuse it
+    static TensorFieldOffsets extract_tensor_field_offsets(ShaderCursor tensor_cursor);
+
+    /// Extract all cached binding info (primal, grad_in, grad_out) from a field cursor
+    /// Public so NativeTorchTensorMarshall can reuse it
+    static CachedBindingInfo extract_binding_info(ShaderCursor cursor);
+
+private:
     int m_dims;
     bool m_writable;
     ref<NativeSlangType> m_slang_element_type;
     ref<TypeLayoutReflection> m_element_layout;
     ref<NativeTensorMarshall> m_d_in;
     ref<NativeTensorMarshall> m_d_out;
-    mutable CachedOffsets m_cached_offsets;
+    mutable CachedBindingInfo m_cached_binding_info;
 
-    //
-    // Helper Methods for Offset Extraction and Caching
-    //
-
-    /// Extract TensorFieldOffsets from a ShaderCursor pointing to a tensor structure
-    /// This is the single source of truth for reading offsets from a cursor
-    static TensorFieldOffsets extract_tensor_field_offsets(ShaderCursor tensor_cursor);
-
-    /// Extract all cached offsets (primal, grad_in, grad_out) from a field cursor
-    static CachedOffsets extract_offsets(ShaderCursor cursor);
-
-    /// Initialize cached offsets if not already done
+    /// Initialize cached binding info if not already done
     /// This method is called on the first dispatch to cache reflection data for subsequent calls
-    void ensure_offsets_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const;
+    void ensure_binding_info_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const;
 
     //
     // High-Level Write Methods
@@ -184,15 +213,6 @@ private:
         void* base_address,
         NativeTensor* primal_tensor,
         nb::list read_back
-    ) const;
-
-    /// Write differentiated PyTorch tensor structure (handles primal, grad_in, grad_out)
-    /// This method handles both flat and differentiated tensor layouts for PyTorch tensors
-    void write_torch_tensor_ref(
-        CallContext* context,
-        NativeBoundVariableRuntime* binding,
-        ShaderObject* shader_object,
-        TensorRef* tensorref
     ) const;
 
     //
@@ -234,20 +254,6 @@ private:
         void* data_ptr,
         const Shape& shape,
         const Shape& strides,
-        int offset
-    ) const;
-
-    /// Write PyTorch tensor fields using pre-cached offsets
-    /// Handles broadcast stride zeroing and delegates to write_tensor_fields_from_pointer
-    void write_torch_tensor_ref_fields(
-        CallContext* context,
-        NativeBoundVariableRuntime* binding,
-        ShaderObject* shader_object,
-        void* base_address,
-        const TensorFieldOffsets& offsets,
-        void* data_ptr,
-        const Shape& shape,
-        const Shape& strides_in,
         int offset
     ) const;
 };

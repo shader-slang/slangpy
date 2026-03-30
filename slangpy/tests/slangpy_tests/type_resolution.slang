@@ -469,3 +469,40 @@ func func_float_inout(inout float a)
 {
     a = a + 1.0;
 }
+
+void func_tensorview_float(TensorView<float> a)
+{
+    return;
+}
+void func_tensorview_int(TensorView<int> a)
+{
+    return;
+}
+void func_tensorview_half(TensorView<half> a)
+{
+    return;
+}
+void func_tensorview_generic<T>(TensorView<T> a)
+{
+    return;
+}
+void func_tensorview_float2(TensorView<float2> a)
+{
+    return;
+}
+void func_tensorview_float4(TensorView<float4> a)
+{
+    return;
+}
+void func_difftensorview_float(DiffTensorView<float> a)
+{
+    return;
+}
+void func_difftensorview_half(DiffTensorView<half> a)
+{
+    return;
+}
+void func_difftensorview_generic<T : __BuiltinFloatingPointType>(DiffTensorView<T> a)
+{
+    return;
+}

@@ -17,7 +17,7 @@ vector<float,N> add_vectors_generic<let N:int>(vector<float,N> a, vector<float,N
 }
 
 [Differentiable]
-void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, RWTensor<float, 2> res) {
+void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, WTensor<float, 2> res) {
     [MaxIters(8)]
     for (int i = 0; i < a.shape[0]; i++)
         [MaxIters(8)]

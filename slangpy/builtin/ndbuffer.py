@@ -279,7 +279,6 @@ def ndbuffer_gen_calldata(
     binding: "BoundVariable",
 ):
     access = binding.access
-    name = binding.variable_name
     assert access[0] != AccessType.none
     assert access[1] == AccessType.none
     writable = access[0] != AccessType.read
@@ -287,7 +286,7 @@ def ndbuffer_gen_calldata(
         # If passing to NDBuffer, just use the NDBuffer type
         assert access[0] == AccessType.read
         assert isinstance(binding.vector_type, ITensorType)
-        cgb.type_alias(f"_t_{name}", binding.vector_type.full_name)
+        binding.gen_calldata_type_name(cgb, binding.vector_type.full_name)
     else:
         # If we pass to a structured buffer, check the writable flag from the type
         if isinstance(binding.vector_type, StructuredBufferType):
@@ -296,9 +295,9 @@ def ndbuffer_gen_calldata(
         # If broadcasting to an element, use the type of this buffer for code gen\
         et = cast(SlangType, self.slang_element_type)
         if writable:
-            cgb.type_alias(f"_t_{name}", f"RWTensor<{et.full_name},{self.dims}>")
+            binding.gen_calldata_type_name(cgb, f"RWTensor<{et.full_name},{self.dims}>")
         else:
-            cgb.type_alias(f"_t_{name}", f"Tensor<{et.full_name},{self.dims}>")
+            binding.gen_calldata_type_name(cgb, f"Tensor<{et.full_name},{self.dims}>")
 
 
 class BaseNDBufferMarshall(Marshall):

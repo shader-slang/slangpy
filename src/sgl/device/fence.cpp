@@ -22,7 +22,7 @@ Fence::Fence(ref<Device> device, FenceDesc desc)
         .isShared = m_desc.shared,
     };
 
-    SLANG_RHI_CALL(m_device->rhi_device()->createFence(rhi_desc, m_rhi_fence.writeRef()));
+    SLANG_RHI_CALL(m_device->rhi_device()->createFence(rhi_desc, m_rhi_fence.writeRef()), m_device);
 
     m_signaled_value = m_desc.initial_value;
 }
@@ -30,7 +30,7 @@ Fence::Fence(ref<Device> device, FenceDesc desc)
 uint64_t Fence::signal(uint64_t value)
 {
     uint64_t signal_value = update_signaled_value(value);
-    SLANG_RHI_CALL(m_rhi_fence->setCurrentValue(signal_value));
+    SLANG_RHI_CALL(m_rhi_fence->setCurrentValue(signal_value), m_device);
     return signal_value;
 }
 
@@ -41,14 +41,14 @@ void Fence::wait(uint64_t value, uint64_t timeout_ns)
     if (cur_value < wait_value) {
         rhi::IFence* fences[] = {m_rhi_fence};
         uint64_t wait_values[] = {wait_value};
-        SLANG_RHI_CALL(m_device->rhi_device()->waitForFences(1, fences, wait_values, true, timeout_ns));
+        SLANG_RHI_CALL(m_device->rhi_device()->waitForFences(1, fences, wait_values, true, timeout_ns), m_device);
     }
 }
 
 uint64_t Fence::current_value() const
 {
     uint64_t value;
-    SLANG_RHI_CALL(m_rhi_fence->getCurrentValue(&value));
+    SLANG_RHI_CALL(m_rhi_fence->getCurrentValue(&value), m_device);
     return value;
 }
 

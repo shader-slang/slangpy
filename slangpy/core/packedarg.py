@@ -4,7 +4,6 @@ from slangpy import Module
 from slangpy.core.native import (
     get_value_signature,
     CallMode,
-    CallDataMode,
     NativePackedArg,
     unpack_arg,
 )
@@ -28,9 +27,7 @@ class PackedArg(NativePackedArg):
 
         # Create a shader object from the python marshall and init native structure
         shader_object = python.build_shader_object(
-            BindContext(
-                module.layout, CallMode.prim, module.device_module, {}, CallDataMode.global_data
-            ),
+            BindContext(module.layout, CallMode.prim, module.device_module, {}),
             unpacked_obj,
         )
         if shader_object is None:

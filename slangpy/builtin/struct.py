@@ -4,8 +4,9 @@ from typing import Any, Optional, cast
 from slangpy.core.native import Shape, NativeMarshall
 
 import slangpy.bindings.typeregistry as tr
-from slangpy.bindings import PYTHON_TYPES, BindContext, BoundVariable
+from slangpy.bindings import PYTHON_TYPES, BindContext, BoundVariable, can_direct_bind_common
 from slangpy.reflection import SlangProgramLayout, SlangType, UnknownType, StructType, InterfaceType
+from slangpy.core.native import AccessType
 
 from .value import ValueMarshall
 import slangpy.reflection.vectorize as spyvec
@@ -75,7 +76,32 @@ class StructMarshall(ValueMarshall):
             cast(int, binding.children[name].call_dimensionality) for name in self._fields.keys()
         )
 
+    def can_direct_bind(self, binding: "BoundVariable") -> bool:
+        if binding.children is not None:
+            return (
+                binding.call_dimensionality == 0
+                and not binding.create_param_block
+                and binding.vector_type is not None
+                and binding.access[0] == AccessType.read
+                and all(child.direct_bind for child in binding.children.values())
+            )
+        return can_direct_bind_common(binding)
+
     # A struct type should get a dictionary, and just return that for raw dispatch
+
+    def gen_trampoline_load(
+        self, cgb: "CodeGenBlock", binding: "BoundVariable", data_name: str, value_name: str
+    ) -> bool:
+        if not binding.direct_bind:
+            return False
+        return super().gen_trampoline_load(cgb, binding, data_name, value_name)
+
+    def gen_trampoline_store(
+        self, cgb: "CodeGenBlock", binding: "BoundVariable", data_name: str, value_name: str
+    ) -> bool:
+        if not binding.direct_bind:
+            return False
+        return super().gen_trampoline_store(cgb, binding, data_name, value_name)
 
     def create_dispatchdata(self, data: Any) -> Any:
         if isinstance(data, dict):
