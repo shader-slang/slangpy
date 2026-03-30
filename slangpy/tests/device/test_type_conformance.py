@@ -6,6 +6,7 @@ from pathlib import Path
 
 import slangpy as spy
 from slangpy.testing import helpers
+from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
 
 from typing import Sequence, Union
 
@@ -176,6 +177,71 @@ def test_type_conformance_module_cache(device_type: spy.DeviceType, tmpdir: str)
             )
             == [4, 3, 2, 1]
         )
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_compose_modules_with_type_conformances(test_id: str, device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    session = device.slang_session
+
+    # Create a module with an interface and implementations
+    module = device.load_module_from_source(
+        module_name=f"compose_conformance_{test_id}",
+        source="""
+        interface IValue {
+            uint getValue();
+        };
+
+        struct ValueA : IValue {
+            uint dummy;
+            uint getValue() { return 10; }
+        };
+
+        struct ValueB : IValue {
+            uint dummy;
+            uint getValue() { return 20; }
+        };
+
+        [shader("compute")]
+        [numthreads(1, 1, 1)]
+        void main_conformance(uint3 tid: SV_DispatchThreadID, RWStructuredBuffer<uint> result) {
+            uint type_id = 0;
+            uint dummy = 0;
+            IValue value = createDynamicObject<IValue>(type_id, dummy);
+            result[tid.x] = value.getValue();
+        }
+    """,
+    )
+
+    def run_with_conformance(conformances: list[spy.TypeConformance]) -> np.ndarray:
+        # Compose with type conformance
+        composed = session.compose_modules(
+            name=f"composed_conformance_{test_id}_{conformances[0].type_name}",
+            modules=[module],
+            type_conformances=conformances,
+        )
+
+        assert composed.is_composed
+
+        # Get entry point and link program
+        entry_point = composed.entry_point("main_conformance")
+        program = session.link_program(modules=[composed], entry_points=[entry_point])
+
+        # Create kernel and run
+        kernel = device.create_compute_kernel(program)
+        result = device.create_buffer(
+            element_count=4, struct_size=4, usage=spy.BufferUsage.unordered_access
+        )
+        kernel.dispatch(thread_count=[4, 1, 1], result=result)
+        return result.to_numpy().view(np.uint32)
+
+    # Test with ValueA conformance at id 0 - should return 10
+    result_a = run_with_conformance([spy.TypeConformance("IValue", "ValueA", 0)])
+    assert np.all(result_a == [10, 10, 10, 10])
+
+    # Test with ValueB conformance at id 0 - should return 20
+    result_b = run_with_conformance([spy.TypeConformance("IValue", "ValueB", 0)])
+    assert np.all(result_b == [20, 20, 20, 20])
 
 
 if __name__ == "__main__":

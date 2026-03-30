@@ -485,6 +485,12 @@ public:
         std::optional<std::filesystem::path> path = {}
     );
 
+    ref<SlangModule> compose_modules(
+        std::string_view name,
+        std::vector<ref<SlangModule>> modules,
+        std::span<const TypeConformance> type_conformances = {}
+    );
+
     ref<ShaderProgram> link_program(
         std::vector<ref<SlangModule>> modules,
         std::vector<ref<SlangEntryPoint>> entry_points,

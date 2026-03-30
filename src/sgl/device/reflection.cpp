@@ -4,6 +4,7 @@
 
 #include "sgl/device/device.h"
 #include "sgl/device/shader.h"
+#include "sgl/device/shader_object.h"
 
 #include "sgl/core/string.h"
 
@@ -16,6 +17,29 @@ namespace sgl {
 namespace detail {
 
     static std::map<void*, const BaseReflectionObject*> g_slang_reflection_to_sgl_reflection;
+
+    /// Extract device from an owner object.
+    /// The possible owner types are known so we can query the device.
+    static Device* get_device_from_owner(const Object* owner)
+    {
+        if (!owner)
+            return nullptr;
+
+        if (auto* module = dynamic_cast<const SlangModule*>(owner))
+            return module->session()->device();
+
+        if (auto* entry_point = dynamic_cast<const SlangEntryPoint*>(owner))
+            return entry_point->module()->session()->device();
+
+        if (auto* program = dynamic_cast<const ShaderProgram*>(owner))
+            return program->device();
+
+        if (auto* shader_object = dynamic_cast<const ShaderObject*>(owner))
+            return shader_object->device();
+
+        // Unknown owner type indicates a bug!
+        SGL_THROW("Unknown reflection owner type");
+    }
 
     template<typename SGLType, typename SlangType>
     ref<const SGLType> create_reflection_type_from_slang_type(ref<const Object> owner, SlangType* slang_reflection)
@@ -56,12 +80,26 @@ namespace detail {
         g_slang_reflection_to_sgl_reflection.erase(slang_reflection);
     }
 
-    void invalidate_all_reflection_data()
+    void invalidate_reflection_data(Device* device)
     {
-        for (auto& [_, reflection] : g_slang_reflection_to_sgl_reflection) {
-            const_cast<BaseReflectionObject*>(reflection)->_hot_reload_invalidate();
+        // Collect refs to keep objects alive during invalidation.
+        std::vector<ref<const BaseReflectionObject>> objects;
+
+        for (auto it = g_slang_reflection_to_sgl_reflection.begin();
+             it != g_slang_reflection_to_sgl_reflection.end();) {
+            const BaseReflectionObject* reflection = it->second;
+            Device* owning_device = get_device_from_owner(reflection->owner());
+            bool invalidate = (device == nullptr) || (owning_device != nullptr && owning_device == device);
+            if (invalidate) {
+                objects.push_back(ref(reflection));
+                it = g_slang_reflection_to_sgl_reflection.erase(it);
+            } else {
+                ++it;
+            }
         }
-        g_slang_reflection_to_sgl_reflection.clear();
+
+        for (auto& reflection : objects)
+            const_cast<BaseReflectionObject*>(reflection.get())->_hot_reload_invalidate();
     }
 } // namespace detail
 
