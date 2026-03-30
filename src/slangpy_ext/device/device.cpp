@@ -53,7 +53,9 @@ private:
 SGL_DICT_TO_DESC_BEGIN(DeviceDesc)
 SGL_DICT_TO_DESC_FIELD(type, DeviceType)
 SGL_DICT_TO_DESC_FIELD(enable_debug_layers, bool)
+SGL_DICT_TO_DESC_FIELD(debug_layers_log_level, LogLevel)
 SGL_DICT_TO_DESC_FIELD(enable_rhi_validation, bool)
+SGL_DICT_TO_DESC_FIELD(rhi_validation_log_level, LogLevel)
 SGL_DICT_TO_DESC_FIELD(enable_ray_tracing_validation, bool)
 SGL_DICT_TO_DESC_FIELD(enable_aftermath, bool)
 SGL_DICT_TO_DESC_FIELD(enable_cuda_interop, bool)
@@ -212,7 +214,13 @@ SGL_PY_EXPORT(device_device)
         )
         .def_rw("type", &DeviceDesc::type, D(DeviceDesc, type))
         .def_rw("enable_debug_layers", &DeviceDesc::enable_debug_layers, D(DeviceDesc, enable_debug_layers))
+        .def_rw("debug_layers_log_level", &DeviceDesc::debug_layers_log_level, D(DeviceDesc, debug_layers_log_level))
         .def_rw("enable_rhi_validation", &DeviceDesc::enable_rhi_validation, D(DeviceDesc, enable_rhi_validation))
+        .def_rw(
+            "rhi_validation_log_level",
+            &DeviceDesc::rhi_validation_log_level,
+            D(DeviceDesc, rhi_validation_log_level)
+        )
         .def_rw(
             "enable_ray_tracing_validation",
             &DeviceDesc::enable_ray_tracing_validation,
@@ -351,7 +359,9 @@ SGL_PY_EXPORT(device_device)
         [](Device* self,
            DeviceType type,
            bool enable_debug_layers,
+           LogLevel debug_layers_log_level,
            bool enable_rhi_validation,
+           LogLevel rhi_validation_log_level,
            bool enable_ray_tracing_validation,
            bool enable_aftermath,
            bool enable_cuda_interop,
@@ -370,7 +380,9 @@ SGL_PY_EXPORT(device_device)
             new (self) Device(
                 {.type = type,
                  .enable_debug_layers = enable_debug_layers,
+                 .debug_layers_log_level = debug_layers_log_level,
                  .enable_rhi_validation = enable_rhi_validation,
+                 .rhi_validation_log_level = rhi_validation_log_level,
                  .enable_ray_tracing_validation = enable_ray_tracing_validation,
                  .enable_aftermath = enable_aftermath,
                  .enable_cuda_interop = enable_cuda_interop,
@@ -389,7 +401,9 @@ SGL_PY_EXPORT(device_device)
         },
         "type"_a = DeviceDesc().type,
         "enable_debug_layers"_a = DeviceDesc().enable_debug_layers,
+        "debug_layers_log_level"_a = DeviceDesc().debug_layers_log_level,
         "enable_rhi_validation"_a = DeviceDesc().enable_rhi_validation,
+        "rhi_validation_log_level"_a = DeviceDesc().rhi_validation_log_level,
         "enable_ray_tracing_validation"_a = DeviceDesc().enable_ray_tracing_validation,
         "enable_aftermath"_a = DeviceDesc().enable_aftermath,
         "enable_cuda_interop"_a = DeviceDesc().enable_cuda_interop,
@@ -772,10 +786,15 @@ SGL_PY_EXPORT(device_device)
     );
     device.def(
         "create_acceleration_structure",
-        [](Device* self, size_t size, std::string label)
+        [](Device* self, AccelerationStructureKind kind, size_t size, std::string label)
         {
-            return self->create_acceleration_structure({.size = size, .label = std::move(label)});
+            return self->create_acceleration_structure({
+                .kind = kind,
+                .size = size,
+                .label = std::move(label),
+            });
         },
+        "kind"_a = AccelerationStructureDesc().kind,
         "size"_a = AccelerationStructureDesc().size,
         "label"_a = AccelerationStructureDesc().label,
         D(Device, create_acceleration_structure)
@@ -907,6 +926,14 @@ SGL_PY_EXPORT(device_device)
         "source"_a,
         "path"_a.none() = nb::none(),
         D(Device, load_module_from_source)
+    );
+    device.def(
+        "compose_modules",
+        &Device::compose_modules,
+        "name"_a,
+        "modules"_a,
+        "type_conformances"_a = std::span<const TypeConformance>{},
+        D(Device, compose_modules)
     );
     device.def(
         "link_program",

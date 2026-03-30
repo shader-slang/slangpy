@@ -397,6 +397,8 @@ class CallData(NativeCallData):
         # Generate code.
         codegen = CodeGen()
         generate_code(context, build_info, bindings, codegen)
+        # TODO: This is not technically needed anymore because in the case of
+        # linking multiple modules, we already have composed the module to begin with.
         for link in build_info.module.link:
             codegen.add_import(link.name)
         code = codegen.finish(
@@ -484,7 +486,7 @@ class CallData(NativeCallData):
                 # Create compute pipeline
                 ep = module.entry_point(f"compute_main", type_conformances)
                 program = session.link_program(
-                    [module, build_info.module.device_module] + build_info.module.link,
+                    [module, build_info.module.device_module],
                     [ep],
                     opts,
                 )
@@ -522,7 +524,7 @@ class CallData(NativeCallData):
                     eps.append(build_info.module.device_module.entry_point(miss_entry_point))
 
                 program = session.link_program(
-                    [module, build_info.module.device_module] + build_info.module.link,
+                    [module, build_info.module.device_module],
                     eps,
                     opts,
                 )

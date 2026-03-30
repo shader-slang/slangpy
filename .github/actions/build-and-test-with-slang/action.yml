@@ -171,6 +171,18 @@ runs:
       shell: ${{ inputs.shell }}
       run: python tools/ci.py unit-test-python --parallel
 
+    # Slang integration tests (slangpy-based tests maintained in the slang repo)
+    - name: Detect slang integration tests
+      id: detect-slang-integration
+      if: contains(inputs.flags, 'unit-test')
+      shell: ${{ inputs.shell }}
+      run: python -c "import pathlib, os; f=open(os.environ['GITHUB_OUTPUT'],'a'); f.write('has_tests=true\n' if pathlib.Path('slang/tests/integration/slangpy').is_dir() else 'has_tests=false\n'); f.close()"
+
+    - name: Slang integration tests
+      if: steps.detect-slang-integration.outputs.has_tests == 'true'
+      shell: ${{ inputs.shell }}
+      run: python -m pytest slang/tests/integration/slangpy/ -ra -v
+
     # Test Examples
     - name: Test Examples
       if: contains(inputs.flags, 'test-examples')

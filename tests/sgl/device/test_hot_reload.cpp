@@ -559,4 +559,73 @@ TEST_CASE_GPU("create_multi_directory_session_and_monitor_for_changes" * doctest
     CHECK(run_and_verify(ctx, kernel, 20));
 }
 
+TEST_CASE_GPU("change_composed_module_source_and_recreate")
+{
+    // Disable auto detect changes so can test explicit reload.
+    ctx.device->_hot_reload()->set_auto_detect_changes(false);
+
+    // Create include directory for modules.
+    std::filesystem::path inc_path = testing::get_case_temp_directory() / "composed_inc";
+    std::filesystem::create_directories(inc_path);
+
+    // Write two modules with different functions.
+    std::filesystem::path mod_a_path = inc_path / "comp_mod_a.slang";
+    std::filesystem::path mod_b_path = inc_path / "comp_mod_b.slang";
+    write_module({.path = mod_a_path, .func_name = "get_a", .set_to = "1"});
+    write_module({.path = mod_b_path, .func_name = "get_b", .set_to = "10"});
+
+    // Write shader that uses both modules.
+    auto shader_path = testing::get_case_temp_directory() / "composed_shader.slang";
+    write_shader({
+        .path = shader_path,
+        .set_to = "get_a() + get_b()",
+        .imports = {"comp_mod_a", "comp_mod_b"},
+    });
+
+    // Create a session with access to the modules.
+    SlangCompilerOptions opts = ctx.device->desc().compiler_options;
+    opts.include_paths.push_back(inc_path);
+    ref<sgl::SlangSession> session = ctx.device->create_slang_session({
+        .compiler_options = opts,
+        .add_default_include_paths = true,
+    });
+
+    // Load all modules.
+    ref<SlangModule> mod_a = session->load_module(mod_a_path.string());
+    ref<SlangModule> mod_b = session->load_module(mod_b_path.string());
+    ref<SlangModule> shader_mod = session->load_module(shader_path.string());
+
+    // Compose the modules together.
+    ref<SlangModule> composed = session->compose_modules("composed_test", {mod_a, mod_b, shader_mod});
+    CHECK(composed->is_composed());
+
+    // Get entry point and link program from composed module.
+    ref<sgl::SlangEntryPoint> entry_point = composed->entry_point("compute_main");
+    ref<ShaderProgram> program = session->link_program({composed}, {entry_point});
+    ref<ComputeKernel> kernel = ctx.device->create_compute_kernel({.program = program});
+
+    // Verify initial result: 1 + 10 = 11.
+    CHECK(run_and_verify(ctx, kernel, 11));
+
+    // Modify mod_a to return 5 instead of 1.
+    write_module({.path = mod_a_path, .func_name = "get_a", .set_to = "5"});
+
+    // Force hot reload.
+    ctx.device->_hot_reload()->recreate_all_sessions();
+    CHECK(!ctx.device->_hot_reload()->last_build_failed());
+
+    // Verify updated result: 5 + 10 = 15.
+    CHECK(run_and_verify(ctx, kernel, 15));
+
+    // Modify mod_b to return 20 instead of 10.
+    write_module({.path = mod_b_path, .func_name = "get_b", .set_to = "20"});
+
+    // Force hot reload again.
+    ctx.device->_hot_reload()->recreate_all_sessions();
+    CHECK(!ctx.device->_hot_reload()->last_build_failed());
+
+    // Verify updated result: 5 + 20 = 25.
+    CHECK(run_and_verify(ctx, kernel, 25));
+}
+
 TEST_SUITE_END();

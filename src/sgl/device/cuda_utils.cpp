@@ -383,7 +383,7 @@ ContextScope::ContextScope(const sgl::Device* device)
         // If this is a CUDA device, set it's context.
         // TODO: We could cache the CUcontext instead of fetching it each time!
         rhi::DeviceNativeHandles handles;
-        SLANG_RHI_CALL(device->rhi_device()->getNativeDeviceHandles(&handles));
+        SLANG_RHI_CALL(device->rhi_device()->getNativeDeviceHandles(&handles), device);
         SGL_ASSERT(handles.handles[2].type == rhi::NativeHandleType::CUcontext);
         SGL_CU_CHECK(cuCtxPushCurrent(reinterpret_cast<CUcontext>(handles.handles[2].value)));
     } else {
