@@ -116,6 +116,13 @@ void bind_vector_type(nb::module_& m, const char* name)
     };
     vec.def("__repr__", to_string_);
     vec.def("__str__", to_string_);
+    vec.def(
+        "__hash__",
+        [](const T& self)
+        {
+            return std::hash<T>()(self);
+        }
+    );
 
     // Operators
 

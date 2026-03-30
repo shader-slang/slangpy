@@ -77,6 +77,13 @@ void bind_quaternion_type(nb::module_& m, const char* name)
     };
     quat.def("__repr__", to_string_);
     quat.def("__str__", to_string_);
+    quat.def(
+        "__hash__",
+        [](const T& self)
+        {
+            return std::hash<T>()(self);
+        }
+    );
 
     // Operators
 

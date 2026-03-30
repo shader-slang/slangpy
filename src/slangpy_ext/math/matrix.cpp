@@ -177,6 +177,13 @@ void bind_matrix_type(nb::module_& m, const char* name)
     };
     mat.def("__repr__", to_string_);
     mat.def("__str__", to_string_);
+    mat.def(
+        "__hash__",
+        [](const T& self)
+        {
+            return std::hash<T>()(self);
+        }
+    );
 
     // Operators
 

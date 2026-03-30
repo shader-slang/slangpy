@@ -23,6 +23,12 @@ inputs:
   slang-pr-number:
     description: "Slang PR number to checkout (pr mode)"
     default: ""
+  slang-ref:
+    description: "Slang ref to checkout (ref mode)"
+    default: ""
+  slang-repo:
+    description: "Slang repository to clone for ref mode"
+    default: "shader-slang/slang"
   shell:
     description: "Shell to use for run steps (bash on Linux/macOS, pwsh on Windows)"
     required: true
@@ -93,6 +99,16 @@ runs:
         git checkout FETCH_HEAD
         git submodule update --init --recursive
 
+    - name: Checkout Slang (ref)
+      if: inputs.slang-checkout-mode == 'ref'
+      shell: ${{ inputs.shell }}
+      run: |
+        git clone https://github.com/${{ inputs.slang-repo }}.git slang
+        cd slang
+        git fetch origin ${{ inputs.slang-ref }}
+        git checkout FETCH_HEAD
+        git submodule update --init --recursive
+
     # Build Slang.
     - name: Build Slang
       shell: ${{ inputs.shell }}
@@ -154,6 +170,18 @@ runs:
       if: contains(inputs.flags, 'unit-test')
       shell: ${{ inputs.shell }}
       run: python tools/ci.py unit-test-python --parallel
+
+    # Slang integration tests (slangpy-based tests maintained in the slang repo)
+    - name: Detect slang integration tests
+      id: detect-slang-integration
+      if: contains(inputs.flags, 'unit-test')
+      shell: ${{ inputs.shell }}
+      run: python -c "import pathlib, os; f=open(os.environ['GITHUB_OUTPUT'],'a'); f.write('has_tests=true\n' if pathlib.Path('slang/tests/integration/slangpy').is_dir() else 'has_tests=false\n'); f.close()"
+
+    - name: Slang integration tests
+      if: steps.detect-slang-integration.outputs.has_tests == 'true'
+      shell: ${{ inputs.shell }}
+      run: python -m pytest slang/tests/integration/slangpy/ -ra -v
 
     # Test Examples
     - name: Test Examples

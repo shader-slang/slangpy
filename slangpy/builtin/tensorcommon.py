@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional, Protocol
+from slangpy import DeviceType
 from slangpy.bindings import BoundVariable, BindContext, CodeGenBlock, can_direct_bind_common
 from slangpy.core.native import CallMode, AccessType
 from slangpy.reflection import (
@@ -141,18 +142,22 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
                 f"Can't pass a read-only tensor to a writable tensor ({bound_type.full_name})"
             )
 
-        # Gradients need binding if using a DiffTensor, or an IDiffTensor in non-primitive pass
-        grads_used = bound_type.tensor_type == TensorType.difftensor or (
-            bound_type.tensor_type == TensorType.idifftensor and context.call_mode != CallMode.prim
-        )
-        if grads_used:
+        # Technically this check is unnecesary - a user only need bind gradients if they intend to write to them. However
+        # it's a very difficult error for a user to spot if they accidentally don't provide a gradients buffer. As a sensible
+        # middle ground, assume that if a user is providing tensor types that support gradients in a backwards pass, the
+        # intention is to write to them.
+        grads_used = (
+            bound_type.tensor_type == TensorType.difftensor
+            or bound_type.tensor_type == TensorType.idifftensor
+        ) and context.call_mode != CallMode.prim
+        if grads_used and context.device.desc.type != DeviceType.cuda:
             if bound_type.has_grad_in and self.d_in is None:
                 raise TypeError(
-                    f"Can't pass tensor without input gradient to one that requires it ({bound_type.full_name})"
+                    f"On none-cuda platforms, {bound_type.full_name} requires a tensor with an associated input gradient"
                 )
             if bound_type.has_grad_out and self.d_out is None:
                 raise TypeError(
-                    f"Can't pass tensor without output gradient to one that requires it ({bound_type.full_name})"
+                    f"On none-cuda platforms, {bound_type.full_name} requires a tensor with an associated output gradient"
                 )
 
         # Select appropriate tensor type:

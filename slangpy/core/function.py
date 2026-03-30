@@ -4,7 +4,6 @@ from enum import Enum
 
 from slangpy.core.native import (
     CallMode,
-    CallDataMode,
     SignatureBuilder,
     NativeCallRuntimeOptions,
     NativeFunctionNode,
@@ -156,6 +155,16 @@ class FunctionNode(NativeFunctionNode):
             raise ValueError(
                 "Set requires either keyword arguments or 1 dictionary / hook argument"
             )
+
+    def write(self, fn: Callable, *args: Any, **kwargs: Any):
+        """
+        Specify a writer function that receives a ShaderCursor and optional arguments
+        to write uniforms directly. The function signature should be:
+            fn(cursor: ShaderCursor, *args, **kwargs)
+        """
+        if not callable(fn):
+            raise ValueError("write() requires a callable as the first argument")
+        return FunctionNodeSet(self, (fn, args, kwargs))
 
     def cuda_stream(self, stream: NativeHandle) -> "FunctionNode":
         """

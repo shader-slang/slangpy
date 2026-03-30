@@ -231,11 +231,11 @@ public struct PrimalTensor<T: IDifferentiable, let D : int> : IDiffTensor<T, D> 
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
-        get { return load(indices); }
+        [Differentiable] get { return load(indices); }
     }
     public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
-        get { return load(indices); }
+        [Differentiable] get { return load(indices); }
     }
 
     public void __slangpy_load(Context0D context, out This value)
@@ -272,11 +272,11 @@ public struct WPrimalTensor<T : IDifferentiable, let D : int> : IWDiffTensor<T, 
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
-        set { return store(indices, newValue); }
+        [Differentiable] set { return store(indices, newValue); }
     }
     public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
-        set { return store(indices, newValue); }
+        [Differentiable] set { return store(indices, newValue); }
     }
 
     public void __slangpy_load(Context0D context, out This value)
@@ -318,13 +318,13 @@ public struct RWPrimalTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
-        get { return load(indices); }
-        set { return store(indices, newValue); }
+        [Differentiable] get { return load(indices); }
+        [Differentiable] set { return store(indices, newValue); }
     }
     public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
-        get { return load(indices); }
-        set { return store(indices, newValue); }
+        [Differentiable] get { return load(indices); }
+        [Differentiable] set { return store(indices, newValue); }
     }
 
     public void __slangpy_load(Context0D context, out This value)

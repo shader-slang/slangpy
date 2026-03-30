@@ -42,7 +42,7 @@ InputLayout::InputLayout(ref<Device> device, InputLayoutDesc desc)
         .vertexStreams = rhi_vertex_streams.data(),
         .vertexStreamCount = narrow_cast<uint32_t>(rhi_vertex_streams.size()),
     };
-    SLANG_RHI_CALL(m_device->rhi_device()->createInputLayout(rhi_desc, m_rhi_input_layout.writeRef()));
+    SLANG_RHI_CALL(m_device->rhi_device()->createInputLayout(rhi_desc, m_rhi_input_layout.writeRef()), m_device);
 }
 
 inline std::string to_string(const InputElementDesc& desc)

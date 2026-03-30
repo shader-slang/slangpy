@@ -8,6 +8,7 @@
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/raytracing.h"
+#include "sgl/device/debug_logger.h"
 
 #include "sgl/core/fwd.h"
 #include "sgl/core/config.h"
@@ -99,8 +100,14 @@ struct DeviceDesc {
     /// Enable debug layers.
     bool enable_debug_layers{false};
 
+    /// Debug layers log level (only applicable if debug layers are enabled).
+    LogLevel debug_layers_log_level{LogLevel::warn};
+
     /// Enable RHI validation layer.
     bool enable_rhi_validation{true};
+
+    /// RHI validation layer log level (only applicable if RHI validation is enabled).
+    LogLevel rhi_validation_log_level{LogLevel::warn};
 
     /// Enable ray-tracing validation.
     bool enable_ray_tracing_validation{false};
@@ -185,6 +192,12 @@ struct DeviceLimits {
 
     /// Maximum samplers visible in a shader stage.
     uint32_t max_shader_visible_samplers;
+
+    /// Maximum size in bytes of inline-uniform data for entry-point parameters.
+    /// On Vulkan this corresponds to push constant size (minimum 128 bytes).
+    /// On D3D12 this corresponds to root constant space (~256 bytes).
+    /// On CUDA this corresponds to the kernel parameter block (~4096 bytes).
+    uint32_t max_entry_point_uniform_size;
 };
 
 struct DeviceInfo {
@@ -593,6 +606,8 @@ public:
      */
     void sync_to_device(void* cuda_stream = 0);
 
+    DebugLogger* debug_logger() const { return m_debug_logger.get(); }
+
     DebugPrinter* debug_printer() const { return m_debug_printer.get(); }
 
     /// Block and flush all shader side debug print output.
@@ -767,6 +782,7 @@ private:
 
     ref<Fence> m_global_fence;
 
+    std::unique_ptr<DebugLogger> m_debug_logger;
     std::unique_ptr<DebugPrinter> m_debug_printer;
 
     /// List of callbacks for hot reload event

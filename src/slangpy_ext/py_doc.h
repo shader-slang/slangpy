@@ -218,6 +218,8 @@ static const char *__doc_sgl_AccelerationStructureDesc = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureDesc_2 = R"doc()doc";
 
+static const char *__doc_sgl_AccelerationStructureDesc_kind = R"doc()doc";
+
 static const char *__doc_sgl_AccelerationStructureDesc_label = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureDesc_size = R"doc()doc";
@@ -295,6 +297,16 @@ static const char *__doc_sgl_AccelerationStructureInstanceList_to_string = R"doc
 static const char *__doc_sgl_AccelerationStructureInstanceList_write = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureInstanceList_write_2 = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_bottom_level = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_info = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_top_level = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_unknown = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureQueryDesc = R"doc()doc";
 
@@ -834,6 +846,8 @@ static const char *__doc_sgl_Blitter_ProgramKey_dst_channel_count = R"doc()doc";
 static const char *__doc_sgl_Blitter_ProgramKey_dst_format = R"doc()doc";
 
 static const char *__doc_sgl_Blitter_ProgramKey_dst_kind = R"doc()doc";
+
+static const char *__doc_sgl_Blitter_ProgramKey_hash = R"doc()doc";
 
 static const char *__doc_sgl_Blitter_ProgramKey_operator_le = R"doc()doc";
 
@@ -2343,11 +2357,13 @@ static const char *__doc_sgl_DebugLogger = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_DebugLogger = R"doc()doc";
 
-static const char *__doc_sgl_DebugLogger_get = R"doc()doc";
-
 static const char *__doc_sgl_DebugLogger_get_messages = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_handleMessage = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_driver_log_level = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_layer_log_level = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_m_logger = R"doc()doc";
 
@@ -2356,6 +2372,8 @@ static const char *__doc_sgl_DebugLogger_m_message_count = R"doc()doc";
 static const char *__doc_sgl_DebugLogger_m_messages = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_m_mutex = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_slang_log_level = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_message_count = R"doc()doc";
 
@@ -2564,6 +2582,8 @@ static const char *__doc_sgl_DeviceDesc_bindless_options = R"doc()doc";
 
 static const char *__doc_sgl_DeviceDesc_compiler_options = R"doc(Compiler options (used for default slang session).)doc";
 
+static const char *__doc_sgl_DeviceDesc_debug_layers_log_level = R"doc(Debug layers log level (only applicable if debug layers are enabled).)doc";
+
 static const char *__doc_sgl_DeviceDesc_enable_aftermath = R"doc(Enable NVIDIA Aftermath.)doc";
 
 static const char *__doc_sgl_DeviceDesc_enable_compilation_reports = R"doc(Enable compilation reports.)doc";
@@ -2591,6 +2611,10 @@ static const char *__doc_sgl_DeviceDesc_label = R"doc(Debug label)doc";
 static const char *__doc_sgl_DeviceDesc_module_cache_path =
 R"doc(Path to the module cache directory (optional). If a relative path is
 used, the cache is stored in the application data directory.)doc";
+
+static const char *__doc_sgl_DeviceDesc_rhi_validation_log_level =
+R"doc(RHI validation layer log level (only applicable if RHI validation is
+enabled).)doc";
 
 static const char *__doc_sgl_DeviceDesc_shader_cache_path =
 R"doc(Path to the shader and pipeline cache directory (optional). If a
@@ -2631,6 +2655,13 @@ static const char *__doc_sgl_DeviceLimits_max_compute_dispatch_thread_groups = R
 static const char *__doc_sgl_DeviceLimits_max_compute_thread_group_size = R"doc(Maximum dimensions of a thread group.)doc";
 
 static const char *__doc_sgl_DeviceLimits_max_compute_threads_per_group = R"doc(Maximum number of threads per thread group.)doc";
+
+static const char *__doc_sgl_DeviceLimits_max_entry_point_uniform_size =
+R"doc(Maximum size in bytes of inline-uniform data for entry-point
+parameters. On Vulkan this corresponds to push constant size (minimum
+128 bytes). On D3D12 this corresponds to root constant space (~256
+bytes). On CUDA this corresponds to the kernel parameter block (~4096
+bytes).)doc";
 
 static const char *__doc_sgl_DeviceLimits_max_framebuffer_dimensions = R"doc(Maximum framebuffer dimensions.)doc";
 
@@ -2935,6 +2966,8 @@ static const char *__doc_sgl_Device_create_texture_view = R"doc()doc";
 
 static const char *__doc_sgl_Device_cuda_device = R"doc()doc";
 
+static const char *__doc_sgl_Device_debug_logger = R"doc()doc";
+
 static const char *__doc_sgl_Device_debug_printer = R"doc()doc";
 
 static const char *__doc_sgl_Device_desc = R"doc()doc";
@@ -3022,6 +3055,8 @@ static const char *__doc_sgl_Device_m_closed = R"doc()doc";
 static const char *__doc_sgl_Device_m_cuda_device = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_cuda_semaphore = R"doc()doc";
+
+static const char *__doc_sgl_Device_m_debug_logger = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_debug_printer = R"doc()doc";
 
@@ -8022,6 +8057,8 @@ static const char *__doc_sgl_TypeConformance_id = R"doc(Unique id per type for a
 
 static const char *__doc_sgl_TypeConformance_interface_name = R"doc(Name of the interface.)doc";
 
+static const char *__doc_sgl_TypeConformance_operator_le = R"doc()doc";
+
 static const char *__doc_sgl_TypeConformance_to_string = R"doc()doc";
 
 static const char *__doc_sgl_TypeConformance_type_name = R"doc(Name of the concrete type.)doc";
@@ -9066,6 +9103,8 @@ static const char *__doc_sgl_find_enum_info_adl_72 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_73 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_74 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_75 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
@@ -10836,14 +10875,6 @@ static const char *__doc_sgl_slangpy_CallContext_m_cuda_stream = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallContext_m_device = R"doc()doc";
 
-static const char *__doc_sgl_slangpy_CallDataMode = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_entry_point = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_global_data = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_info = R"doc()doc";
-
 static const char *__doc_sgl_slangpy_CallMode = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallMode_bwds = R"doc()doc";
@@ -10942,8 +10973,6 @@ static const char *__doc_sgl_slangpy_find_enum_info_adl = R"doc()doc";
 static const char *__doc_sgl_slangpy_find_enum_info_adl_2 = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_find_enum_info_adl_3 = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_find_enum_info_adl_4 = R"doc()doc";
 
 static const char *__doc_sgl_static_ref_cast = R"doc()doc";
 
@@ -12157,6 +12186,10 @@ static const char *__doc_sgl_ui_operator_iand_2 = R"doc()doc";
 static const char *__doc_sgl_ui_operator_ior = R"doc()doc";
 
 static const char *__doc_sgl_ui_operator_ior_2 = R"doc()doc";
+
+static const char *__doc_std_hash = R"doc()doc";
+
+static const char *__doc_std_hash_operator_call = R"doc()doc";
 
 static const char *__doc_std_numeric_limits = R"doc()doc";
 

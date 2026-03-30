@@ -41,6 +41,8 @@ struct SGL_API TypeConformance {
     }
 
     std::string to_string() const;
+
+    auto operator<=>(const TypeConformance&) const = default;
 };
 
 /// Exception thrown on compilation errors.
@@ -405,7 +407,7 @@ public:
     /// Get an entry point, optionally applying type conformances to it.
     ref<SlangEntryPoint> entry_point(
         std::string_view name,
-        std::span<TypeConformance> type_conformances = std::span<TypeConformance>()
+        std::span<const TypeConformance> type_conformances = std::span<const TypeConformance>()
     ) const;
     bool has_entry_point(std::string_view name) const;
 
@@ -522,7 +524,7 @@ public:
 
     /// Returns a specialized version of a generic entry point.
     /// \param specialization_args The specialization arguments for generic parameters.
-    ref<SlangEntryPoint> specialize(std::span<SpecializationArg> specialization_args) const;
+    ref<SlangEntryPoint> specialize(std::span<const SpecializationArg> specialization_args) const;
 
     slang::IComponentType* slang_entry_point() const { return m_data->slang_entry_point.get(); }
 

@@ -4,9 +4,9 @@ import os
 import re
 from typing import TYPE_CHECKING, Any, Optional
 
-from slangpy.core.callsignature import generate_constants
+from slangpy.core.generator import generate_constants
 from slangpy.core.enums import IOType
-from slangpy.core.native import CallMode, CallDataMode, pack_arg, unpack_arg
+from slangpy.core.native import CallMode, pack_arg, unpack_arg
 from slangpy.core.calldata import _DUMP_SLANG_INTERMEDIATES, _DUMP_GENERATED_SHADERS
 
 from slangpy import (
@@ -45,19 +45,11 @@ class DispatchData:
 
             # Bind
             # Setup context
-            # Determine call data mode based on device type
-            call_data_mode = (
-                CallDataMode.entry_point
-                if build_info.module.device.info.type == DeviceType.cuda
-                else CallDataMode.global_data
-            )
-
             context = BindContext(
                 func.module.layout,
                 CallMode.prim,
                 build_info.module.device_module,
                 build_info.options,
-                call_data_mode,
             )
 
             # Build the unbound signature from inputs and convert straight
@@ -226,12 +218,15 @@ void {reflection.name}_entrypoint({params}) {{
         **kwargs: dict[str, Any],
     ) -> None:
 
-        # Merge uniforms
+        # Merge uniforms and collect writer tuples
         uniforms: dict[str, Any] = {}
+        writers: list[tuple] = []
         if opts.uniforms is not None:
             for u in opts.uniforms:
                 if isinstance(u, dict):
                     uniforms.update(u)
+                elif isinstance(u, tuple):
+                    writers.append(u)
                 else:
                     uniforms.update(u(self))  # type: ignore (need to work out native dispatch)
         uniforms.update(vars)
@@ -253,6 +248,8 @@ void {reflection.name}_entrypoint({params}) {{
         compute_pass = command_encoder.begin_compute_pass()
         cursor = ShaderCursor(compute_pass.bind_pipeline(self.compute_pipeline))
         cursor.write(uniforms)
+        for fn, args, wkwargs in writers:
+            fn(cursor, *args, **wkwargs)
         cursor.find_entry_point(0).write(call_data)
         compute_pass.dispatch(thread_count)
         compute_pass.end()

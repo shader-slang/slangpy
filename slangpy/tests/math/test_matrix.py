@@ -20,6 +20,33 @@ def test_shape_and_element_types():
                 assert floatval.shape == (rows, cols)
 
 
+def test_hashing():
+    """Test value-based hash semantics for all matrix types."""
+    vals = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]
+    for type_name in [
+        "float2x2",
+        "float2x3",
+        "float2x4",
+        "float3x2",
+        "float3x3",
+        "float3x4",
+        "float4x2",
+        "float4x3",
+        "float4x4",
+    ]:
+        cls = getattr(spy, type_name)
+        rows, cols = cls().shape
+        a = cls(vals[: rows * cols])
+        b = cls(vals[: rows * cols])
+        assert a == b
+        assert hash(a) == hash(b)
+        d = {a: "x"}
+        assert b in d
+
+    # Distinct values must act as distinct dict keys.
+    assert len({spy.float4x4.identity(): 0, spy.float4x4.zeros(): 0}) == 2
+
+
 class TestMatrixMulFunction:
     """Test spy.math.mul() function for all valid matrix-matrix combinations."""
 

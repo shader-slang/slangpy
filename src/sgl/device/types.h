@@ -212,6 +212,8 @@ struct SGL_API DescriptorHandle {
     DescriptorHandleType type{DescriptorHandleType::undefined};
     uint64_t value{0};
 
+    DescriptorHandle() = default;
+
     explicit DescriptorHandle(const rhi::DescriptorHandle& handle)
     {
         type = static_cast<DescriptorHandleType>(handle.type);

@@ -68,6 +68,7 @@
         "slangpy.AccelerationStructureInstanceDesc",
         "slangpy.AccelerationStructureInstanceFlags",
         "slangpy.AccelerationStructureInstanceList",
+        "slangpy.AccelerationStructureKind",
         "slangpy.AccelerationStructureQueryDesc",
         "slangpy.AccelerationStructureSizes",
         "slangpy.AdapterInfo",
