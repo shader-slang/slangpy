@@ -140,6 +140,41 @@ def test_tensorview_grid_dispatch(device_type: DeviceType):
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
 @pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_tensorview_copy_bool_torch(device_type: DeviceType):
+    """Test copy_tensorview_bool with torch.bool tensors."""
+    device = helpers.get_torch_device(device_type)
+    module = load_module(device)
+
+    input_tensor = torch.tensor([True, False, True, False, True], device="cuda", dtype=torch.bool)
+    output_tensor = torch.zeros(5, device="cuda", dtype=torch.bool)
+
+    module.copy_tensorview_bool(input_tensor, output_tensor)
+    torch.cuda.synchronize()
+
+    assert torch.equal(input_tensor, output_tensor), f"Expected {input_tensor}, got {output_tensor}"
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+@pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_tensorview_negate_bool_torch(device_type: DeviceType):
+    """Test negate_tensorview_bool with torch.bool tensors."""
+    device = helpers.get_torch_device(device_type)
+    module = load_module(device)
+
+    input_tensor = torch.tensor([True, False, True, False, True], device="cuda", dtype=torch.bool)
+    output_tensor = torch.zeros(5, device="cuda", dtype=torch.bool)
+
+    module.negate_tensorview_bool(input_tensor, output_tensor)
+    torch.cuda.synchronize()
+
+    expected = ~input_tensor
+    assert torch.equal(expected, output_tensor), f"Expected {expected}, got {output_tensor}"
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+@pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_tensorview_float2_torch(device_type: DeviceType):
     """Test TensorView<float2> with a float32 torch tensor (2 floats per element)."""
     device = helpers.get_torch_device(device_type)
