@@ -13,7 +13,6 @@
 #include "sgl/core/fwd.h"
 #include "sgl/core/object.h"
 #include "sgl/core/short_vector.h"
-#include "sgl/core/static_vector.h"
 #include "sgl/device/fwd.h"
 #include "sgl/device/shader_cursor.h"
 #include "sgl/device/shader_object.h"
@@ -683,8 +682,8 @@ struct RuntimeOptions {
     bool is_ray_tracing{false};
     int thread_count{0};
 
-    // Inline storage for uniforms (most calls have 0-2, max 4)
-    static_vector<nb::object, 4> uniforms;
+    // Inline storage for uniforms (most calls have 0-2; heap fallback if more)
+    short_vector<nb::object, 4> uniforms;
 
     bool has_thread_count() const { return thread_count > 0; }
 };
