@@ -650,7 +650,8 @@ public:
 
     /// Calculate the overall call shape by combining the shapes of all arguments.
     /// args can be nb::list or nb::tuple (nb::args); both support [idx] and nb::len().
-    Shape calculate_call_shape(int call_dimensionality, nb::object args, nb::dict kwargs, NativeCallData* error_context);
+    Shape
+    calculate_call_shape(int call_dimensionality, nb::object args, nb::dict kwargs, NativeCallData* error_context);
 
     void write_shader_cursor_pre_dispatch(
         CallContext* context,
@@ -940,8 +941,7 @@ public:
     nb::object call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs);
 
     /// Append the compute kernel to a command encoder with the provided arguments and keyword arguments.
-    nb::object
-    append_to(RuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
+    nb::object append_to(RuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 
     /// Python-facing overload (unwraps NativeCallRuntimeOptions).
     nb::object

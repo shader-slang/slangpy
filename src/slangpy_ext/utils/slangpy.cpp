@@ -584,12 +584,8 @@ nb::tuple NativeCallData::autograd_backward(
     return nb::tuple(input_grads);
 }
 
-nb::object NativeCallData::append_to(
-    RuntimeOptions& opts,
-    CommandEncoder* command_encoder,
-    nb::args args,
-    nb::kwargs kwargs
-)
+nb::object
+NativeCallData::append_to(RuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs)
 {
     return exec(opts, command_encoder, args, kwargs);
 }
@@ -721,12 +717,7 @@ CallShapeInfo NativeCallData::compute_call_shape_info(
     return si;
 }
 
-nb::object NativeCallData::exec(
-    RuntimeOptions& opts,
-    CommandEncoder* command_encoder,
-    nb::args args,
-    nb::kwargs kwargs
-)
+nb::object NativeCallData::exec(RuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs)
 {
     // Unpack args and kwargs (skip if no args have get_this/update_this).
     // On the fast path (no unpack needed), avoid creating Python list/dict copies
@@ -798,7 +789,8 @@ nb::object NativeCallData::exec(
         }
     }
 
-    nb::list read_back; // TODO: This allocates a Python list every call. Lazy init requires changing virtual signatures.
+    nb::list read_back; // TODO: This allocates a Python list every call. Lazy init requires changing virtual
+                        // signatures.
 
     if (is_log_enabled(LogLevel::debug)) {
         log_debug("Dispatching {}", m_debug_name);
@@ -1684,7 +1676,8 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def(
             "append_to",
-            static_cast<nb::object (NativeCallData::*)(ref<NativeCallRuntimeOptions>, CommandEncoder*, nb::args, nb::kwargs)>(
+            static_cast<
+                nb::object (NativeCallData::*)(ref<NativeCallRuntimeOptions>, CommandEncoder*, nb::args, nb::kwargs)>(
                 &NativeCallData::append_to
             ),
             nb::arg("opts"),
