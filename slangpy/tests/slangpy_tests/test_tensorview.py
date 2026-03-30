@@ -50,7 +50,6 @@ def test_tensorview_copy_torch(device_type: DeviceType):
     output_tensor = torch.zeros(5, device="cuda", dtype=torch.float32)
 
     module.copy_tensorview(input_tensor, output_tensor)
-    torch.cuda.synchronize()
 
     assert torch.allclose(
         input_tensor, output_tensor
@@ -70,7 +69,6 @@ def test_tensorview_add_torch(device_type: DeviceType):
     output_tensor = torch.zeros(5, device="cuda", dtype=torch.float32)
 
     module.add_tensorview(a, b, output_tensor)
-    torch.cuda.synchronize()
 
     expected = a + b
     assert torch.allclose(expected, output_tensor), f"Expected {expected}, got {output_tensor}"
@@ -149,7 +147,6 @@ def test_tensorview_copy_bool_torch(device_type: DeviceType):
     output_tensor = torch.zeros(5, device="cuda", dtype=torch.bool)
 
     module.copy_tensorview_bool(input_tensor, output_tensor)
-    torch.cuda.synchronize()
 
     assert torch.equal(input_tensor, output_tensor), f"Expected {input_tensor}, got {output_tensor}"
 
@@ -166,7 +163,6 @@ def test_tensorview_negate_bool_torch(device_type: DeviceType):
     output_tensor = torch.zeros(5, device="cuda", dtype=torch.bool)
 
     module.negate_tensorview_bool(input_tensor, output_tensor)
-    torch.cuda.synchronize()
 
     expected = ~input_tensor
     assert torch.equal(expected, output_tensor), f"Expected {expected}, got {output_tensor}"
@@ -186,7 +182,6 @@ def test_tensorview_float2_torch(device_type: DeviceType):
     output_tensor = torch.zeros(3, 2, device="cuda", dtype=torch.float32)
 
     module.copy_tensorview_float2(input_tensor, output_tensor, _thread_count=1)
-    torch.cuda.synchronize()
 
     assert torch.allclose(
         input_tensor, output_tensor
@@ -207,7 +202,6 @@ def test_tensorview_float4_torch(device_type: DeviceType):
     output_tensor = torch.zeros(2, 4, device="cuda", dtype=torch.float32)
 
     module.copy_tensorview_float4(input_tensor, output_tensor, _thread_count=1)
-    torch.cuda.synchronize()
 
     assert torch.allclose(
         input_tensor, output_tensor
@@ -229,7 +223,6 @@ def test_thread_count_fill_ids(device_type: DeviceType):
     output = torch.zeros(count, device="cuda", dtype=torch.int32)
 
     module.fill_thread_ids(count=count, output=output, _thread_count=count)
-    torch.cuda.synchronize()
 
     expected = torch.arange(count, device="cuda", dtype=torch.int32)
     assert torch.equal(output, expected), f"Expected {expected}, got {output}"
@@ -255,7 +248,6 @@ def test_thread_count_append_to(device_type: DeviceType):
     assert torch.all(output == 0), "Output should be zero before command buffer submission"
 
     device.submit_command_buffer(command_encoder.finish())
-    torch.cuda.synchronize()
 
     expected = torch.arange(count, device="cuda", dtype=torch.int32)
     assert torch.equal(output, expected), f"Expected {expected}, got {output}"
