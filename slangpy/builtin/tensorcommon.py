@@ -340,12 +340,15 @@ def gen_calldata(
     self: ITensorMarshall, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable
 ):
     if isinstance(binding.vector_type, ITensorType):
-        type_name = ITensorType.build_tensor_name(
-            element_type=self.slang_element_type,
-            dims=self.dims,
-            access=binding.vector_type.access,
-            tensor_type=binding.vector_type.tensor_type,
-        )
+        if binding.direct_bind:
+            type_name = binding.vector_type.full_name
+        else:
+            type_name = ITensorType.build_tensor_name(
+                element_type=self.slang_element_type,
+                dims=self.dims,
+                access=binding.vector_type.access,
+                tensor_type=binding.vector_type.tensor_type,
+            )
     elif isinstance(binding.vector_type, TensorViewType):
         type_name = TensorViewType.build_tensorview_name(binding.vector_type.dtype)
     elif isinstance(binding.vector_type, DiffTensorViewType):

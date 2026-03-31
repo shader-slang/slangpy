@@ -353,6 +353,92 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int, grads: bool):
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_reinterpret_torch(device_type: DeviceType):
+    module = load_test_module(device_type)
+
+    # Last dimension packs one PackedFloat2 value.
+    input_tensor = torch.tensor(
+        [
+            [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]],
+            [[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]],
+        ],
+        dtype=torch.float32,
+        device=torch.device("cuda"),
+    )
+    output_tensor = torch.zeros_like(input_tensor)
+
+    module.copy_struct_tensor(input_tensor, output_tensor)
+    torch.cuda.synchronize()
+
+    assert torch.allclose(input_tensor, output_tensor)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_reinterpret_requires_packed_last_dim(device_type: DeviceType):
+    module = load_test_module(device_type)
+
+    bad_input = torch.zeros((2, 3, 3), dtype=torch.float32, device=torch.device("cuda"))
+    output_tensor = torch.zeros_like(bad_input)
+
+    with pytest.raises(ValueError, match="last dimension to have size 2"):
+        module.copy_struct_tensor(bad_input, output_tensor)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_double_vectorized(device_type: DeviceType):
+    """Vectorized call: each element of a 2D batch of PackedFloat2 is doubled."""
+    module = load_test_module(device_type)
+
+    M, N = 4, 5
+    input_tensor = torch.randn((M, N, 2), dtype=torch.float32, device="cuda")
+    output_tensor = torch.zeros_like(input_tensor)
+
+    module.double_struct(input_tensor, output_tensor)
+    torch.cuda.synchronize()
+
+    compare_tensors(input_tensor * 2.0, output_tensor)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_sum_return(device_type: DeviceType):
+    """Return a scalar per struct element: sum of PackedFloat2 fields."""
+    module = load_test_module(device_type)
+
+    N = 8
+    input_tensor = torch.randn((N, 2), dtype=torch.float32, device="cuda")
+
+    result = module.sum_struct(input_tensor)
+    torch.cuda.synchronize()
+
+    expected = input_tensor[:, 0] + input_tensor[:, 1]
+    result_cpu = (
+        result.cpu()
+        if isinstance(result, torch.Tensor)
+        else torch.tensor(result.to_numpy(), dtype=torch.float32)
+    )
+    err = torch.max(torch.abs(result_cpu - expected.cpu())).item()
+    assert err < 1e-4, f"sum_struct result deviates by {err}"
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_particle_update(device_type: DeviceType):
+    """Particle struct (6 floats) — position += velocity * dt."""
+    module = load_test_module(device_type)
+
+    N = 5
+    dt = 0.1
+    input_tensor = torch.randn((N, 6), dtype=torch.float32, device="cuda")
+    output_tensor = torch.zeros_like(input_tensor)
+
+    module.update_particle(input_tensor, dt, output_tensor)
+    torch.cuda.synchronize()
+
+    expected = input_tensor.clone()
+    expected[:, 0:3] = input_tensor[:, 0:3] + input_tensor[:, 3:6] * dt
+    compare_tensors(expected, output_tensor)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_empty_tensor_null_data_ptr(device_type: DeviceType):
     """
     Test that tensors with null data pointers (e.g., zero-element tensors) are accepted.

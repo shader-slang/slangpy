@@ -92,3 +92,33 @@ void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
     for (uint i = 0; i < input.shape[0]; i++)
         output[i] = input[i];
 }
+
+struct PackedFloat2
+{
+    float x;
+    float y;
+};
+
+void copy_struct_tensor(Tensor<PackedFloat2, 1> input, WTensor<PackedFloat2, 1> output) {
+    for (uint i = 0; i < input.shape[0]; i++)
+        output[i] = input[i];
+}
+
+void double_struct(PackedFloat2 input, out PackedFloat2 output) {
+    output.x = input.x * 2.0;
+    output.y = input.y * 2.0;
+}
+
+float sum_struct(PackedFloat2 input) {
+    return input.x + input.y;
+}
+
+struct Particle {
+    float3 position;
+    float3 velocity;
+};
+
+void update_particle(Particle p, float dt, out Particle output) {
+    output.position = p.position + p.velocity * dt;
+    output.velocity = p.velocity;
+}

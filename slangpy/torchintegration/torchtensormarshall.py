@@ -22,6 +22,8 @@ from slangpy.reflection.reflectiontypes import (
     ScalarType,
     VectorType,
     MatrixType,
+    StructType,
+    ITensorType,
     TensorType,
     TensorAccess,
     DiffTensorViewType,
@@ -180,6 +182,12 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
         """Resolve types during binding phase."""
         if isinstance(bound_type, DiffTensorViewType):
             return self._resolve_difftensorview(context, bound_type)
+        packed_struct_type = self._resolve_packed_struct_tensor(context, bound_type)
+        if packed_struct_type is not None:
+            return packed_struct_type
+        resolved_struct = self._resolve_bare_struct(bound_type)
+        if resolved_struct is not None:
+            return resolved_struct
         return spytc.resolve_types(self, context, bound_type)
 
     def _resolve_difftensorview(self, context: BindContext, bound_type: DiffTensorViewType):
@@ -197,6 +205,82 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
             raise ValueError(f"DiffTensorView<{resolved_element.full_name}> not found")
         return [dtv_type]
 
+    def _packed_struct_effective_dims(self, bound_type: SlangType) -> Optional[int]:
+        """Treat the last scalar dimension as packed struct storage when possible."""
+        if not isinstance(bound_type, ITensorType):
+            return None
+        if not isinstance(bound_type.element_type, StructType):
+            return None
+        if not isinstance(self.slang_element_type, ScalarType):
+            return None
+
+        scalar_stride = self.slang_element_type.buffer_layout.stride
+        struct_stride = bound_type.element_type.buffer_layout.stride
+        if scalar_stride <= 0 or struct_stride <= 0 or struct_stride % scalar_stride != 0:
+            return None
+        if self.dims < 1:
+            return None
+        return self.dims - 1
+
+    def _resolve_packed_struct_tensor(
+        self, context: BindContext, bound_type: SlangType
+    ) -> Optional[list[SlangType]]:
+        if not isinstance(bound_type, ITensorType):
+            return None
+        if not isinstance(bound_type.element_type, StructType):
+            return None
+        if bound_type.element_type.is_generic:
+            return None
+        if bound_type.tensor_type not in (TensorType.tensor, TensorType.itensor):
+            return None
+        if bound_type.writable and not self.writable:
+            raise TypeError(
+                f"Can't pass a read-only tensor to a writable tensor ({bound_type.full_name})"
+            )
+
+        effective_dims = self._packed_struct_effective_dims(bound_type)
+        if effective_dims is None:
+            return None
+
+        dims = effective_dims if bound_type.dims == 0 else bound_type.dims
+        if effective_dims < dims:
+            raise TypeError(
+                f"Cannot reinterpret torch tensor with {self.dims} dimensions as "
+                f"{bound_type.full_name}; expected at least {dims + 1} dimensions so the "
+                f"last dimension can pack one {bound_type.element_type.full_name} value"
+            )
+
+        tensor_type = (
+            TensorType.tensor
+            if bound_type.tensor_type == TensorType.itensor
+            else bound_type.tensor_type
+        )
+        resolved_type = self.layout.tensor_type(
+            element_type=bound_type.element_type,
+            dims=dims,
+            access=bound_type.access,
+            tensor_type=tensor_type,
+        )
+        if resolved_type is None:
+            raise ValueError(f"{bound_type.full_name} not found")
+        return [resolved_type]
+
+    def _resolve_bare_struct(self, bound_type: SlangType) -> Optional[list[SlangType]]:
+        """Allow a scalar torch tensor to resolve to a bare StructType for vectorization."""
+        if not isinstance(bound_type, StructType):
+            return None
+        if bound_type.is_generic:
+            return None
+        if not isinstance(self.slang_element_type, ScalarType):
+            return None
+        scalar_stride = self.slang_element_type.buffer_layout.stride
+        struct_stride = bound_type.buffer_layout.stride
+        if scalar_stride <= 0 or struct_stride <= 0 or struct_stride % scalar_stride != 0:
+            return None
+        if self.dims < 1:
+            return None
+        return [bound_type]
+
     def reduce_type(self, context: BindContext, dimensions: int):
         """Reduce tensor type by consuming dimensions."""
         return spytc.reduce_type(self, context, dimensions)
@@ -208,13 +292,72 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
         vector_target_type: SlangType,
     ):
         """Resolve dimensionality during vectorization."""
+        packed_struct_dims = self._packed_struct_effective_dims(vector_target_type)
+        if packed_struct_dims is not None:
+            return packed_struct_dims - vector_target_type.dims
+        if isinstance(vector_target_type, StructType) and self._is_struct_compatible(
+            vector_target_type
+        ):
+            return self.dims - 1 - len(vector_target_type.shape)
         return spytc.resolve_dimensionality(self, context, binding, vector_target_type)
+
+    def _is_struct_compatible(self, struct_type: SlangType) -> bool:
+        if not isinstance(self.slang_element_type, ScalarType):
+            return False
+        scalar_stride = self.slang_element_type.buffer_layout.stride
+        struct_stride = struct_type.buffer_layout.stride
+        return (
+            scalar_stride > 0
+            and struct_stride > 0
+            and struct_stride % scalar_stride == 0
+            and self.dims >= 1
+        )
 
     def can_direct_bind(self, binding: BoundVariable) -> bool:
         return spytc.can_direct_bind(self, binding)
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         """Generate call data code for the kernel."""
+        packed_struct_dims = self._packed_struct_effective_dims(binding.vector_type)
+        if packed_struct_dims is not None and isinstance(binding.vector_type, ITensorType):
+            type_name = ITensorType.build_tensor_name(
+                element_type=binding.vector_type.element_type,
+                dims=binding.vector_type.dims if binding.direct_bind else packed_struct_dims,
+                access=binding.vector_type.access,
+                tensor_type=binding.vector_type.tensor_type,
+            )
+            binding.gen_calldata_type_name(cgb, type_name)
+            return
+
+        if isinstance(binding.vector_type, StructType) and self._is_struct_compatible(
+            binding.vector_type
+        ):
+            from slangpy.core.native import CallMode, AccessType
+
+            effective_dims = self.dims - 1
+            if context.call_mode == CallMode.prim or binding.access[0] != AccessType.none:
+                if binding.access[0] == AccessType.read:
+                    access = TensorAccess.read
+                elif binding.access[0] == AccessType.write:
+                    access = TensorAccess.write
+                else:
+                    access = TensorAccess.read_write
+            else:
+                if binding.access[1] == AccessType.read:
+                    access = TensorAccess.write
+                elif binding.access[1] == AccessType.write:
+                    access = TensorAccess.read
+                else:
+                    access = TensorAccess.read_write
+            type_name = ITensorType.build_tensor_name(
+                element_type=binding.vector_type,
+                dims=effective_dims,
+                access=access,
+                tensor_type=TensorType.tensor,
+            )
+            binding.gen_calldata_type_name(cgb, type_name)
+            return
+
         return spytc.gen_calldata(self, cgb, context, binding)
 
     def gen_trampoline_load(

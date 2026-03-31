@@ -470,6 +470,17 @@ func func_float_inout(inout float a)
     a = a + 1.0;
 }
 
+struct PackedFloat2
+{
+    float x;
+    float y;
+};
+
+void func_struct_tensor(Tensor<PackedFloat2, 1> a)
+{
+    return;
+}
+
 void func_tensorview_float(TensorView<float> a)
 {
     return;

@@ -746,6 +746,30 @@ class _TorchTensor:
         return torch.zeros((3,) * self.dim, dtype=torch_dtype, device="cuda")
 
 
+class _TorchTensorShape:
+    _dtype_map = _TorchTensor._dtype_map
+
+    def __init__(self, base_type: str, shape: Tuple[int, ...]):
+        super().__init__()
+        self.base_type = base_type
+        self.shape = shape
+
+    def __repr__(self) -> str:
+        return f"TorchTensor<{self.base_type},{self.shape}>"
+
+    def __call__(self, module: spy.Module):
+        if not _HAS_TORCH:
+            raise RuntimeError("PyTorch not installed")
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA not available")
+
+        torch_dtype_name = self._dtype_map.get(self.base_type)
+        if torch_dtype_name is None:
+            raise ValueError(f"Unknown torch dtype for Slang type {self.base_type}")
+        torch_dtype = getattr(torch, torch_dtype_name)
+        return torch.zeros(self.shape, dtype=torch_dtype, device="cuda")
+
+
 class _TorchTensorDiffPair:
     _dtype_map = {
         "float": "float32",
@@ -1234,6 +1258,8 @@ TESTS = [
     # TensorView<float2> / <float4>: scalar float tensor should resolve to vector TensorView
     ("func_tensorview_float2", _TorchTensor("float", 2), "TensorView<float2>", 1),
     ("func_tensorview_float4", _TorchTensor("float", 2), "TensorView<float4>", 1),
+    # Tensor<Struct, N>: scalar torch tensor packs the last dimension into a struct element
+    ("func_struct_tensor", _TorchTensorShape("float", (2, 3, 2)), "Tensor<PackedFloat2, 1>", 1),
     # Non-float scalar should not resolve to TensorView<float2/float4>
     ("func_tensorview_float2", _TorchTensor("int", 2), None, None),
     ("func_tensorview_float4", _TorchTensor("int", 2), None, None),
@@ -1436,7 +1462,7 @@ def test_type_resolution_texture(
 
 TORCHTENSOR_TESTS, TESTS = filter_tests(
     TESTS,
-    types=(_TorchTensor, _TorchTensorDiffPair),
+    types=(_TorchTensor, _TorchTensorDiffPair, _TorchTensorShape),
 )
 
 # TensorView requires CUDA device
