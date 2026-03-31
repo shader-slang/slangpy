@@ -93,12 +93,18 @@ def test_ndbuffer_copy_from_structured_numpy(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_ndbuffer_copy_from_structured_numpy_training_sample(device_type: DeviceType):
-    """NDBuffer.copy_from_numpy handles larger structured dtypes matching a Slang struct."""
+    """NDBuffer.copy_from_numpy handles larger structured dtypes matching a Slang struct.
+
+    GPU backends may pad struct fields differently (e.g. Metal aligns float3
+    to 16 bytes). When the numpy itemsize doesn't match the Slang stride,
+    copy_from_numpy must raise ValueError rather than silently corrupt data.
+    """
     device = helpers.get_device(device_type)
     module = helpers.create_module(device, MODULE)
 
     TrainingSample = module.TrainingSample
     np_dtype = _make_training_sample_dtype()
+    slang_stride = TrainingSample.buffer_layout.stride
 
     N = 8
     data = np.zeros(N, dtype=np_dtype)
@@ -112,10 +118,14 @@ def test_ndbuffer_copy_from_structured_numpy_training_sample(device_type: Device
         data[i]["target"] = [0.5, 0.5, 0.5]
 
     buf = NDBuffer(device, dtype=TrainingSample, shape=(N,))
-    buf.copy_from_numpy(data)
 
-    result = buf.to_numpy()
-    assert data.tobytes() == result.tobytes()
+    if np_dtype.itemsize == slang_stride:
+        buf.copy_from_numpy(data)
+        result = buf.to_numpy()
+        assert data.tobytes() == result.tobytes()
+    else:
+        with pytest.raises(ValueError, match="byte size"):
+            buf.copy_from_numpy(data)
 
 
 # ---------------------------------------------------------------------------
