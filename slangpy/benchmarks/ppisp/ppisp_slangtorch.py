@@ -17,49 +17,78 @@ from slangpy.benchmarks.ppisp.ppisp_slangpy import _dispatch_times
 
 PPISP_DEFINES = {"NUM_VIGNETTING_ALPHA_TERMS": "3"}
 
-_slang_module = None
-_fwd_fn = None  # Raw pybind11 C++ function (bypasses slangtorch's Python WrappedFunction)
-_bwd_fn = None
+_native_module = None  # Raw C++ extension module, same as NRE's libppisp_slang_cc
 
 
 def div_up(a: int, b: int) -> int:
     return (a + b - 1) // b
 
 
-def _get_slang_module():
-    global _slang_module
-    if _slang_module is not None:
-        return _slang_module
+def _get_native_module():
+    """Load the slangtorch PPISP kernel as a raw C++ extension module.
 
-    import slangtorch
+    Uses slangtorch to compile .slang → .cu → .so, but returns the raw
+    native module (pybind11) directly instead of slangtorch's Python
+    WrappedFunction wrapper. This matches NRE's pattern:
+
+        # NRE (bazel pre-compiled):
+        from ... import libppisp_slang_cc as ppisp_slang
+        ppisp_slang.ppisp(block, grid, ...)       # 18us
+
+        # Standalone (JIT-compiled, same dispatch path):
+        ppisp_slang = _get_native_module()
+        ppisp_slang.ppisp(block, grid, ...)        # 30us
+
+    The ~12us gap is from compile flags / pybind11 binding differences.
+    """
+    global _native_module
+    if _native_module is not None:
+        return _native_module
+
+    import slangtorch.slangtorch as st
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     slang_path = os.path.join(current_dir, "ppisp_slangtorch.slang")
 
-    _slang_module = slangtorch.loadModule(
-        slang_path,
-        verbose=False,
-        defines=PPISP_DEFINES,
-    )
-    return _slang_module
+    # Replicate slangtorch.loadModule() but skip wrapModule() at the end.
+    # This gives us the raw native module with direct pybind11 functions.
+    options_hash = st.getHash([PPISP_DEFINES, ["--use_fast_math", "--generate-line-info"], [], current_dir], truncate_at=16)
+    base_name = "ppisp_slangtorch"
+    base_output_folder = os.path.join(current_dir, ".slangtorch_cache", base_name)
+    output_folder = os.path.join(base_output_folder, options_hash)
+    module_name = f"_slangtorch_{base_name}_{options_hash}"
 
+    lock_file = os.path.join(current_dir, f"ppisp_slangtorch.slang{options_hash}.lock")
+    from filelock import FileLock
+    with FileLock(lock_file):
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
 
-def _get_native_fns():
-    """Get the raw pybind11 C++ function handles for fwd and bwd.
+        options = st.makeOptionsList(PPISP_DEFINES)
+        build_dir, build_id = st.getLatestDir(output_folder, output_folder)
 
-    slangtorch.loadModule() compiles the .slang to a C++ CUDA extension (.so)
-    and wraps it in Python WrappedFunction objects that do arg processing.
-    We bypass that layer by grabbing the underlying fn_handle directly,
-    matching how NRE's bazel slangtorch_library() calls the compiled extension.
+        if build_dir is not None:
+            needs_recompile = st._loadModule(
+                slang_path, f"{module_name}_{build_id}", build_dir, options,
+                sourceDir=output_folder, verbose=False, includePaths=[], dryRun=True,
+                skipNinjaCheck=False, extraCudaFlags=["--use_fast_math", "--generate-line-info"],
+                extraSlangFlags=[],
+            )
+        else:
+            needs_recompile = True
 
-    This reduces dispatch overhead from ~92us to ~30us per call.
-    """
-    global _fwd_fn, _bwd_fn
-    if _fwd_fn is None:
-        module = _get_slang_module()
-        _fwd_fn = module.ppisp.fn_handle
-        _bwd_fn = module.ppisp.bwd_wrapped_fn.fn_handle
-    return _fwd_fn, _bwd_fn
+        if needs_recompile:
+            build_dir, build_id = st.getOrCreateUniqueDir(output_folder, output_folder)
+
+        _native_module = st._loadModule(
+            slang_path, f"{module_name}_{build_id}", build_dir, options,
+            sourceDir=output_folder, verbose=False, includePaths=[], dryRun=False,
+            skipNinjaCheck=False, extraCudaFlags=["--use_fast_math", "--generate-line-info"],
+            extraSlangFlags=[],
+        )
+        st.addLoadedDirectoryEntry(output_folder, build_dir)
+
+    return _native_module
 
 
 class PPISPSlangtorchFunction(torch.autograd.Function):
@@ -82,13 +111,13 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
         resolution_w,
         resolution_h,
     ):
-        fn, _ = _get_native_fns()
+        ppisp_slang = _get_native_module()
         rgb_out = torch.empty_like(rgb)
         block = (32, 1, 1)
         grid = (div_up(batch_size, 32), 1, 1)
 
         t0 = time.perf_counter()
-        fn(
+        ppisp_slang.ppisp(
             block, grid,
             batch_size, num_cameras, num_frames,
             (exposure_params, (exposure_params,)),
@@ -132,12 +161,12 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
         grad_rgb_in = torch.empty_like(rgb)
         grad_output = grad_output.contiguous()
 
-        _, bwd_fn = _get_native_fns()
+        ppisp_slang = _get_native_module()
         block = (32, 1, 1)
         grid = (div_up(ctx.batch_size, 32), 1, 1)
 
         t0 = time.perf_counter()
-        bwd_fn(
+        ppisp_slang.ppisp_bwd_diff(
             block, grid,
             ctx.batch_size, ctx.num_cameras, ctx.num_frames,
             (exposure_params, (grad_exposure,)),
