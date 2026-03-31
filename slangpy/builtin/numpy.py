@@ -80,6 +80,12 @@ class NumpyMarshall(NativeNumpyMarshall):
 
 def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
     if isinstance(value, np.ndarray):
+        if value.dtype.names is not None:
+            raise ValueError(
+                f"Structured numpy dtype {value.dtype} cannot be passed directly to a Slang "
+                f"function. Use NDBuffer.from_numpy(device, data, dtype=...) or "
+                f"Tensor.from_numpy(device, data, dtype=...) to create a typed buffer first."
+            )
         return NumpyMarshall(layout, value.dtype, value.ndim, True)
     elif isinstance(value, ReturnContext):
         if isinstance(value.slang_type, (ScalarType, VectorType, MatrixType)):
