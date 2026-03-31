@@ -765,6 +765,27 @@ nb::object NativeCallData::exec(
     auto& is_call_shape_unaligned = si.is_call_shape_unaligned;
     int total_threads = si.total_threads;
 
+    // Skip dispatch entirely when there are zero threads to execute.
+    // This can happen when input tensors are empty (e.g. torch.arange(0)).
+    // Dispatching with 0 thread groups would cause a CUDA driver error.
+    if (total_threads == 0) {
+        // Still allocate and return the (empty) result if needed.
+        if (!command_encoder && m_call_mode == CallMode::prim) {
+            NativeHandle cuda_stream = opts->cuda_stream();
+            auto context = make_ref<CallContext>(m_device, call_shape, m_call_mode, cuda_stream);
+            ref<NativeBoundVariableRuntime> rv_node = m_runtime->find_kwarg("_result");
+            if (rv_node && (!kwargs.contains("_result") || kwargs["_result"].is_none())) {
+                nb::object output = rv_node->python_type()->create_output(context, rv_node.get());
+                kwargs["_result"] = output;
+                unpacked_kwargs["_result"] = output;
+            }
+            if (rv_node && !unpacked_kwargs["_result"].is_none()) {
+                return rv_node->read_output(context, unpacked_kwargs["_result"]);
+            }
+        }
+        return nb::none();
+    }
+
     // Extract CUDA stream handle for interop operations and command buffer submission.
     NativeHandle cuda_stream = opts->cuda_stream();
 
