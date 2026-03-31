@@ -8,13 +8,17 @@ Uses [CUDAKernel] + DiffTensorView with explicit CUDA parallelism.
 """
 
 import os
+import time
 
 import torch
 import torch.nn as nn
 
+from slangpy.benchmarks.ppisp.ppisp_slangpy import _dispatch_times
+
 PPISP_DEFINES = {"NUM_VIGNETTING_ALPHA_TERMS": "3"}
 
 _slang_module = None
+_fn_handle = None  # Raw pybind11 C++ function (bypasses Python WrappedFunction)
 
 
 def div_up(a: int, b: int) -> int:
@@ -39,6 +43,27 @@ def _get_slang_module():
     return _slang_module
 
 
+_bwd_fn_handle = None
+
+
+def _get_fn_handle():
+    """Get the raw C++ function handle, bypassing slangtorch's Python wrapper."""
+    global _fn_handle
+    if _fn_handle is None:
+        module = _get_slang_module()
+        _fn_handle = module.ppisp.fn_handle
+    return _fn_handle
+
+
+def _get_bwd_fn_handle():
+    """Get the raw C++ backward function handle."""
+    global _bwd_fn_handle
+    if _bwd_fn_handle is None:
+        module = _get_slang_module()
+        _bwd_fn_handle = module.ppisp.bwd_wrapped_fn.fn_handle
+    return _bwd_fn_handle
+
+
 class PPISPSlangtorchFunction(torch.autograd.Function):
     """Custom autograd for PPISP slangtorch backend."""
 
@@ -59,25 +84,28 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
         resolution_w,
         resolution_h,
     ):
-        module = _get_slang_module()
+        fn = _get_fn_handle()
         rgb_out = torch.empty_like(rgb)
+        block = (32, 1, 1)
+        grid = (div_up(batch_size, 32), 1, 1)
 
-        module.ppisp(
-            batch_size=batch_size,
-            num_cameras=num_cameras,
-            num_frames=num_frames,
-            exposure_params=exposure_params,
-            vignetting_params=vignetting_params,
-            color_params=color_params,
-            crf_params=crf_params,
-            rgb_in=rgb,
-            rgb_out=rgb_out,
-            pixel_coords=pixel_coords,
-            camera_idcs=camera_idcs,
-            frame_idcs=frame_idcs,
-            resolution_w=float(resolution_w),
-            resolution_h=float(resolution_h),
-        ).launchRaw(blockSize=(32, 1, 1), gridSize=(div_up(batch_size, 32), 1, 1))
+        t0 = time.perf_counter()
+        fn(
+            block, grid,
+            batch_size, num_cameras, num_frames,
+            (exposure_params, (exposure_params,)),
+            (vignetting_params, (vignetting_params,)),
+            (color_params, (color_params,)),
+            (crf_params, (crf_params,)),
+            (rgb, (rgb,)),
+            (rgb_out, (rgb_out,)),
+            pixel_coords,
+            camera_idcs,
+            frame_idcs,
+            float(resolution_w),
+            float(resolution_h),
+        )
+        _dispatch_times["slangtorch.fwd"].append((time.perf_counter() - t0) * 1e6)
 
         ctx.save_for_backward(
             exposure_params, vignetting_params, color_params, crf_params, rgb, rgb_out
@@ -106,24 +134,27 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
         grad_rgb_in = torch.empty_like(rgb)
         grad_output = grad_output.contiguous()
 
-        module = _get_slang_module()
+        bwd_fn = _get_bwd_fn_handle()
+        block = (32, 1, 1)
+        grid = (div_up(ctx.batch_size, 32), 1, 1)
 
-        module.ppisp.bwd(
-            batch_size=ctx.batch_size,
-            num_cameras=ctx.num_cameras,
-            num_frames=ctx.num_frames,
-            exposure_params=(exposure_params, grad_exposure),
-            vignetting_params=(vignetting_params, grad_vignetting),
-            color_params=(color_params, grad_color),
-            crf_params=(crf_params, grad_crf),
-            rgb_in=(rgb, grad_rgb_in),
-            rgb_out=(rgb_out, grad_output),
-            pixel_coords=ctx.pixel_coords,
-            camera_idcs=ctx.camera_idcs,
-            frame_idcs=ctx.frame_idcs,
-            resolution_w=float(ctx.resolution_w),
-            resolution_h=float(ctx.resolution_h),
-        ).launchRaw(blockSize=(32, 1, 1), gridSize=(div_up(ctx.batch_size, 32), 1, 1))
+        t0 = time.perf_counter()
+        bwd_fn(
+            block, grid,
+            ctx.batch_size, ctx.num_cameras, ctx.num_frames,
+            (exposure_params, (grad_exposure,)),
+            (vignetting_params, (grad_vignetting,)),
+            (color_params, (grad_color,)),
+            (crf_params, (grad_crf,)),
+            (rgb, (grad_rgb_in,)),
+            (rgb_out, (grad_output,)),
+            ctx.pixel_coords,
+            ctx.camera_idcs,
+            ctx.frame_idcs,
+            float(ctx.resolution_w),
+            float(ctx.resolution_h),
+        )
+        _dispatch_times["slangtorch.bwd"].append((time.perf_counter() - t0) * 1e6)
 
         return (
             None,
