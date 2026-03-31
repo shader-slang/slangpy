@@ -573,6 +573,8 @@ static const char *__doc_sgl_BaseReflectionObject_is_valid = R"doc()doc";
 
 static const char *__doc_sgl_BaseReflectionObject_m_owner = R"doc()doc";
 
+static const char *__doc_sgl_BaseReflectionObject_owner = R"doc()doc";
+
 static const char *__doc_sgl_BindlessDesc = R"doc()doc";
 
 static const char *__doc_sgl_BindlessDesc_acceleration_structure_count = R"doc()doc";
@@ -2729,6 +2731,8 @@ when the interpreter is terminated through an `atexit` handler. If a
 device is to be destroyed at runtime, it must be closed explicitly.)doc";
 
 static const char *__doc_sgl_Device_close_all_devices = R"doc(Close all open devices.)doc";
+
+static const char *__doc_sgl_Device_compose_modules = R"doc()doc";
 
 static const char *__doc_sgl_Device_convert_coop_vec_matrices = R"doc()doc";
 
@@ -7189,9 +7193,13 @@ static const char *__doc_sgl_SlangModuleData_name = R"doc()doc";
 
 static const char *__doc_sgl_SlangModuleData_path = R"doc()doc";
 
-static const char *__doc_sgl_SlangModuleData_slang_module = R"doc()doc";
+static const char *__doc_sgl_SlangModuleData_slang_component_type = R"doc(The underlying slang component type (for composed modules only).)doc";
+
+static const char *__doc_sgl_SlangModuleData_slang_module = R"doc(The underlying slang module (null for composed modules).)doc";
 
 static const char *__doc_sgl_SlangModuleDesc = R"doc()doc";
+
+static const char *__doc_sgl_SlangModuleDesc_is_composed = R"doc(Returns true if this is a composed module (has source modules).)doc";
 
 static const char *__doc_sgl_SlangModuleDesc_module_name = R"doc(Required module name)doc";
 
@@ -7200,6 +7208,12 @@ static const char *__doc_sgl_SlangModuleDesc_path = R"doc(If source specified, a
 static const char *__doc_sgl_SlangModuleDesc_source =
 R"doc(Optional module source. If not specified slang module resolution is
 used.)doc";
+
+static const char *__doc_sgl_SlangModuleDesc_source_modules =
+R"doc(Source modules that are composed together to form this module (for
+composed modules only).)doc";
+
+static const char *__doc_sgl_SlangModuleDesc_type_conformances = R"doc(Type conformances to apply when composing modules.)doc";
 
 static const char *__doc_sgl_SlangModule_SlangModule = R"doc()doc";
 
@@ -7213,21 +7227,29 @@ session to avoid ref loops.)doc";
 
 static const char *__doc_sgl_SlangModule_class_name = R"doc()doc";
 
+static const char *__doc_sgl_SlangModule_create_entry_point =
+R"doc(Create a new entry point with optional type conformances, using full
+build context.)doc";
+
 static const char *__doc_sgl_SlangModule_data = R"doc()doc";
 
 static const char *__doc_sgl_SlangModule_desc = R"doc(Descriptor that holds all data required to create this module.)doc";
 
 static const char *__doc_sgl_SlangModule_entry_point = R"doc(Get an entry point, optionally applying type conformances to it.)doc";
 
-static const char *__doc_sgl_SlangModule_entry_points = R"doc(Build and return vector of all current entry points in the module.)doc";
+static const char *__doc_sgl_SlangModule_entry_points = R"doc(Return vector of all current entry points in the module.)doc";
 
 static const char *__doc_sgl_SlangModule_has_entry_point = R"doc()doc";
 
-static const char *__doc_sgl_SlangModule_layout = R"doc()doc";
+static const char *__doc_sgl_SlangModule_is_composed = R"doc(Returns true if this is a composed module.)doc";
+
+static const char *__doc_sgl_SlangModule_layout = R"doc(Combined layout reflecting the primary module and all linked modules.)doc";
 
 static const char *__doc_sgl_SlangModule_load =
 R"doc(Loads slang module and outputs the resulting SlangModuleData in
 current build info.)doc";
+
+static const char *__doc_sgl_SlangModule_m_cached_layout = R"doc()doc";
 
 static const char *__doc_sgl_SlangModule_m_data = R"doc()doc";
 
@@ -7237,7 +7259,9 @@ static const char *__doc_sgl_SlangModule_m_registered_entry_points = R"doc()doc"
 
 static const char *__doc_sgl_SlangModule_m_session = R"doc()doc";
 
-static const char *__doc_sgl_SlangModule_module_decl = R"doc(Get root decl ref for this module)doc";
+static const char *__doc_sgl_SlangModule_module_decl =
+R"doc(Get root decl ref for this module. Throws for composed modules (no
+single module to reflect).)doc";
 
 static const char *__doc_sgl_SlangModule_name = R"doc(Module name.)doc";
 
@@ -7255,7 +7279,15 @@ static const char *__doc_sgl_SlangModule_register_entry_point = R"doc()doc";
 
 static const char *__doc_sgl_SlangModule_session = R"doc(The session from which this module was built.)doc";
 
-static const char *__doc_sgl_SlangModule_slang_module = R"doc(Internal slang module.)doc";
+static const char *__doc_sgl_SlangModule_slang_component_type =
+R"doc(Returns the component type for this module. For composed modules,
+returns the composite. For regular modules, returns the slang module.)doc";
+
+static const char *__doc_sgl_SlangModule_slang_module = R"doc(Internal slang module (null for composed modules).)doc";
+
+static const char *__doc_sgl_SlangModule_source_modules =
+R"doc(Source modules that make up this composed module (empty for non-
+composed modules).)doc";
 
 static const char *__doc_sgl_SlangModule_store_built_data =
 R"doc(Finds this module in current build and updates internal m_data to
@@ -7334,6 +7366,11 @@ static const char *__doc_sgl_SlangSessionDesc_compiler_options = R"doc()doc";
 static const char *__doc_sgl_SlangSession_SlangSession = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_class_name = R"doc()doc";
+
+static const char *__doc_sgl_SlangSession_compose_modules =
+R"doc(Compose multiple modules into a single composed module. The composed
+module provides a unified layout and entry point access across all
+source modules.)doc";
 
 static const char *__doc_sgl_SlangSession_create_session = R"doc()doc";
 
@@ -8932,7 +8969,7 @@ static const char *__doc_sgl_detail_from_slang_9 = R"doc()doc";
 
 static const char *__doc_sgl_detail_get_slang_rhi_message_count = R"doc()doc";
 
-static const char *__doc_sgl_detail_invalidate_all_reflection_data = R"doc()doc";
+static const char *__doc_sgl_detail_invalidate_reflection_data_for_device = R"doc()doc";
 
 static const char *__doc_sgl_detail_on_slang_wrapper_destroyed = R"doc()doc";
 

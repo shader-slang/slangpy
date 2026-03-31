@@ -195,7 +195,7 @@ void {reflection.name}_entrypoint({params}) {{
                 opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
                 opts.dump_intermediates_prefix = sanitized
                 program = session.link_program(
-                    [module, build_info.module.device_module] + build_info.module.link,
+                    [module, build_info.module.device_module],
                     [ep],
                     opts,
                 )

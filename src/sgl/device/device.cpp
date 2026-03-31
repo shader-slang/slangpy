@@ -710,6 +710,15 @@ ref<SlangModule> Device::load_module_from_source(
     return m_slang_session->load_module_from_source(module_name, source, path);
 }
 
+ref<SlangModule> Device::compose_modules(
+    std::string_view name,
+    std::vector<ref<SlangModule>> modules,
+    std::span<const TypeConformance> type_conformances
+)
+{
+    return m_slang_session->compose_modules(name, std::move(modules), type_conformances);
+}
+
 ref<ShaderProgram> Device::link_program(
     std::vector<ref<SlangModule>> modules,
     std::vector<ref<SlangEntryPoint>> entry_points,
