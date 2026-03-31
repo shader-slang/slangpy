@@ -8,9 +8,12 @@ Uses [CUDAKernel] + DiffTensorView with explicit CUDA parallelism.
 """
 
 import os
+import time
 
 import torch
 import torch.nn as nn
+
+from slangpy.benchmarks.ppisp.ppisp_slangpy import _dispatch_times
 
 PPISP_DEFINES = {"NUM_VIGNETTING_ALPHA_TERMS": "3"}
 
@@ -62,6 +65,7 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
         module = _get_slang_module()
         rgb_out = torch.empty_like(rgb)
 
+        t0 = time.perf_counter()
         module.ppisp(
             batch_size=batch_size,
             num_cameras=num_cameras,
@@ -78,6 +82,7 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
             resolution_w=float(resolution_w),
             resolution_h=float(resolution_h),
         ).launchRaw(blockSize=(32, 1, 1), gridSize=(div_up(batch_size, 32), 1, 1))
+        _dispatch_times["slangtorch.fwd"].append((time.perf_counter() - t0) * 1e6)
 
         ctx.save_for_backward(
             exposure_params, vignetting_params, color_params, crf_params, rgb, rgb_out
@@ -108,6 +113,7 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
 
         module = _get_slang_module()
 
+        t0 = time.perf_counter()
         module.ppisp.bwd(
             batch_size=ctx.batch_size,
             num_cameras=ctx.num_cameras,
@@ -124,6 +130,7 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
             resolution_w=float(ctx.resolution_w),
             resolution_h=float(ctx.resolution_h),
         ).launchRaw(blockSize=(32, 1, 1), gridSize=(div_up(ctx.batch_size, 32), 1, 1))
+        _dispatch_times["slangtorch.bwd"].append((time.perf_counter() - t0) * 1e6)
 
         return (
             None,

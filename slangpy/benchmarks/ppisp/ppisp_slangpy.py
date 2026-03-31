@@ -16,13 +16,54 @@ differentiable tensors so SlangPy initializes its CallData with the
 correct execution path for DiffTensorView params.
 """
 
+import atexit
 import os
-from typing import Optional
+import time
+from collections import defaultdict
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
 
 PPISP_DEFINES = {"NUM_VIGNETTING_ALPHA_TERMS": "3"}
+
+# ---------------------------------------------------------------------------
+# CPU dispatch timer — measures kernel launch latency (no GPU wait)
+# ---------------------------------------------------------------------------
+
+_dispatch_times: dict[str, List[float]] = defaultdict(list)
+_WARMUP_SKIP = 5
+
+
+def _percentile(sorted_vals: List[float], pct: float) -> float:
+    k = (len(sorted_vals) - 1) * pct / 100.0
+    f = int(k)
+    c = f + 1 if f + 1 < len(sorted_vals) else f
+    return sorted_vals[f] + (k - f) * (sorted_vals[c] - sorted_vals[f])
+
+
+def print_dispatch_stats() -> None:
+    """Print CPU dispatch timing stats for all kernels."""
+    if not _dispatch_times:
+        return
+    print("\n=== SlangPy PPISP CPU Dispatch Latency ===")
+    for name in sorted(_dispatch_times):
+        times = _dispatch_times[name]
+        vals = times[_WARMUP_SKIP:] if len(times) > _WARMUP_SKIP else times
+        if not vals:
+            continue
+        sv = sorted(vals)
+        p50 = _percentile(sv, 50)
+        p90 = _percentile(sv, 90)
+        print(
+            f"  {name:40s} n={len(vals):5d}  "
+            f"p50={p50:7.0f}us  p90={p90:7.0f}us  "
+            f"min={sv[0]:7.0f}us  max={sv[-1]:7.0f}us  mean={sum(vals) / len(vals):7.0f}us"
+        )
+    print("=" * 60)
+
+
+atexit.register(print_dispatch_stats)
 
 # Cached SlangPy module
 _slang_module = None
@@ -145,7 +186,8 @@ class PPISPSlangPy(nn.Module):
         # Pass all differentiable tensors directly (with requires_grad intact).
         # SlangPy's TorchAutoGradHook handles autograd for DiffTensorView
         # params automatically.
-        return module.ppisp(
+        t0 = time.perf_counter()
+        result = module.ppisp(
             batch_size=rgb.shape[0],
             num_cameras=self.num_cameras,
             num_frames=self.num_frames,
@@ -160,3 +202,5 @@ class PPISPSlangPy(nn.Module):
             resolution_w=float(self.resolution_w),
             resolution_h=float(self.resolution_h),
         )
+        _dispatch_times["slangpy.fwd"].append((time.perf_counter() - t0) * 1e6)
+        return result
