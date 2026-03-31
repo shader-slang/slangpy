@@ -27,31 +27,52 @@ def div_up(a: int, b: int) -> int:
 def _get_native_module():
     """Load the slangtorch PPISP kernel as a raw C++ extension module.
 
-    Uses slangtorch to compile .slang → .cu → .so, but returns the raw
-    native module (pybind11) directly instead of slangtorch's Python
-    WrappedFunction wrapper. This matches NRE's pattern:
+    Tries to load the pre-compiled ppisp_slangtorch_cc.so shipped alongside
+    this file (same as NRE's bazel-built libppisp_slang_cc). Falls back to
+    JIT compilation via slangtorch if the pre-compiled .so can't be loaded
+    (e.g. different platform, Python version, or CUDA toolkit).
 
-        # NRE (bazel pre-compiled):
-        from ... import libppisp_slang_cc as ppisp_slang
-        ppisp_slang.ppisp(block, grid, ...)       # 18us
-
-        # Standalone (JIT-compiled, same dispatch path):
         ppisp_slang = _get_native_module()
-        ppisp_slang.ppisp(block, grid, ...)        # 30us
-
-    The ~12us gap is from compile flags / pybind11 binding differences.
+        ppisp_slang.ppisp(block, grid, ...)           # ~30us
+        ppisp_slang.ppisp_bwd_diff(block, grid, ...)  # ~30us
     """
     global _native_module
     if _native_module is not None:
         return _native_module
 
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Try pre-compiled .so first (committed to repo)
+    so_path = os.path.join(current_dir, "ppisp_slangtorch_cc.so")
+    if os.path.exists(so_path):
+        try:
+            import importlib.util
+            # Find the PyInit_ symbol name baked into the .so
+            with open(so_path, "rb") as f:
+                data = f.read()
+            marker = b"PyInit_"
+            idx = data.find(marker)
+            if idx == -1:
+                raise ImportError("No PyInit_ symbol in .so")
+            end = idx + len(marker)
+            while end < len(data) and (data[end:end+1].isalnum() or data[end:end+1] == b"_"):
+                end += 1
+            mod_name = data[idx + len(marker):end].decode("ascii")
+            spec = importlib.util.spec_from_file_location(mod_name, so_path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            # Verify it has the expected functions
+            if hasattr(mod, "ppisp") and hasattr(mod, "ppisp_bwd_diff"):
+                _native_module = mod
+                return _native_module
+        except (ImportError, OSError):
+            pass  # Fall through to JIT compilation
+
+    # Fallback: JIT compile via slangtorch and return raw native module
     import slangtorch.slangtorch as st
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
     slang_path = os.path.join(current_dir, "ppisp_slangtorch.slang")
 
-    # Replicate slangtorch.loadModule() but skip wrapModule() at the end.
-    # This gives us the raw native module with direct pybind11 functions.
     options_hash = st.getHash([PPISP_DEFINES, ["--use_fast_math", "--generate-line-info"], [], current_dir], truncate_at=16)
     base_name = "ppisp_slangtorch"
     base_output_folder = os.path.join(current_dir, ".slangtorch_cache", base_name)
