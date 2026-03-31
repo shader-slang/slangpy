@@ -18,7 +18,8 @@ from slangpy.benchmarks.ppisp.ppisp_slangpy import _dispatch_times
 PPISP_DEFINES = {"NUM_VIGNETTING_ALPHA_TERMS": "3"}
 
 _slang_module = None
-_fn_handle = None  # Raw pybind11 C++ function (bypasses Python WrappedFunction)
+_fwd_fn = None  # Raw pybind11 C++ function (bypasses slangtorch's Python WrappedFunction)
+_bwd_fn = None
 
 
 def div_up(a: int, b: int) -> int:
@@ -43,25 +44,22 @@ def _get_slang_module():
     return _slang_module
 
 
-_bwd_fn_handle = None
+def _get_native_fns():
+    """Get the raw pybind11 C++ function handles for fwd and bwd.
 
+    slangtorch.loadModule() compiles the .slang to a C++ CUDA extension (.so)
+    and wraps it in Python WrappedFunction objects that do arg processing.
+    We bypass that layer by grabbing the underlying fn_handle directly,
+    matching how NRE's bazel slangtorch_library() calls the compiled extension.
 
-def _get_fn_handle():
-    """Get the raw C++ function handle, bypassing slangtorch's Python wrapper."""
-    global _fn_handle
-    if _fn_handle is None:
+    This reduces dispatch overhead from ~92us to ~30us per call.
+    """
+    global _fwd_fn, _bwd_fn
+    if _fwd_fn is None:
         module = _get_slang_module()
-        _fn_handle = module.ppisp.fn_handle
-    return _fn_handle
-
-
-def _get_bwd_fn_handle():
-    """Get the raw C++ backward function handle."""
-    global _bwd_fn_handle
-    if _bwd_fn_handle is None:
-        module = _get_slang_module()
-        _bwd_fn_handle = module.ppisp.bwd_wrapped_fn.fn_handle
-    return _bwd_fn_handle
+        _fwd_fn = module.ppisp.fn_handle
+        _bwd_fn = module.ppisp.bwd_wrapped_fn.fn_handle
+    return _fwd_fn, _bwd_fn
 
 
 class PPISPSlangtorchFunction(torch.autograd.Function):
@@ -84,7 +82,7 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
         resolution_w,
         resolution_h,
     ):
-        fn = _get_fn_handle()
+        fn, _ = _get_native_fns()
         rgb_out = torch.empty_like(rgb)
         block = (32, 1, 1)
         grid = (div_up(batch_size, 32), 1, 1)
@@ -134,7 +132,7 @@ class PPISPSlangtorchFunction(torch.autograd.Function):
         grad_rgb_in = torch.empty_like(rgb)
         grad_output = grad_output.contiguous()
 
-        bwd_fn = _get_bwd_fn_handle()
+        _, bwd_fn = _get_native_fns()
         block = (32, 1, 1)
         grid = (div_up(ctx.batch_size, 32), 1, 1)
 
