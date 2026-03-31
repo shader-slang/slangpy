@@ -9,6 +9,9 @@ Uses benchmark_python_function fixture for wall-clock timing with
 torch.cuda.synchronize() to capture full GPU execution time.
 """
 
+import time
+from typing import Any, List
+
 import pytest
 
 import slangpy as spy
@@ -30,6 +33,86 @@ try:
     HAS_SLANGTORCH = True
 except ImportError:
     pass
+
+
+# ---------------------------------------------------------------------------
+# DispatchTimer — measures pure kernel dispatch latency (no GPU wait)
+#
+# Wraps a slangpy Function so that each fwd / bwd call records wall-clock
+# time around *only* the underlying dispatch (self._func(**kwargs) or
+# self._func.bwds(**kwargs)).  Everything else — DiffPair creation, grad
+# zeroing, Python bookkeeping — is outside the measured window.
+# ---------------------------------------------------------------------------
+
+_WARMUP_SKIP = 5
+
+
+def _percentile(sorted_vals: List[float], pct: float) -> float:
+    """Linear-interpolation percentile."""
+    k = (len(sorted_vals) - 1) * pct / 100.0
+    f = int(k)
+    c = f + 1 if f + 1 < len(sorted_vals) else f
+    return sorted_vals[f] + (k - f) * (sorted_vals[c] - sorted_vals[f])
+
+
+class DispatchTimer:
+    """Record per-call kernel dispatch latency (us) for fwd and bwd.
+
+    Accepts zero-arg callables so it works with any backend (slangpy, slangtorch).
+
+    Usage::
+
+        timer = DispatchTimer("ppisp.ppisp")
+        for _ in range(N):
+            timer.fwd(lambda: func(**fwd_kwargs))
+        for _ in range(N):
+            timer.bwd(lambda: func.bwds(**bwd_kwargs))
+        timer.print_stats()
+    """
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+        self._fwd_times: List[float] = []
+        self._bwd_times: List[float] = []
+
+    # -- forward dispatch (mirrors _TimedKernel.__call__) ------------------
+    def fwd(self, call: Any) -> Any:
+        t0 = time.perf_counter()
+        result = call()
+        self._fwd_times.append((time.perf_counter() - t0) * 1e6)
+        return result
+
+    # -- backward dispatch (mirrors _TimedBwds.__call__) -------------------
+    def bwd(self, call: Any) -> Any:
+        t0 = time.perf_counter()
+        result = call()
+        self._bwd_times.append((time.perf_counter() - t0) * 1e6)
+        return result
+
+    def reset(self) -> None:
+        self._fwd_times.clear()
+        self._bwd_times.clear()
+
+    def print_stats(self, warmup_skip: int = _WARMUP_SKIP, header: str = "SlangPy CPU Dispatch Latency") -> None:
+        """Print p50/p90/min/max/mean stats."""
+        print(f"\n=== {header} ===")
+        for label, times in [
+            (f"{self._name}.fwd", self._fwd_times),
+            (f"{self._name}.bwd", self._bwd_times),
+        ]:
+            vals = times[warmup_skip:] if len(times) > warmup_skip else times
+            if not vals:
+                continue
+            sv = sorted(vals)
+            p50 = _percentile(sv, 50)
+            p90 = _percentile(sv, 90)
+            print(
+                f"  {label:60s} n={len(vals):5d}  "
+                f"p50={p50:7.0f}us  p90={p90:7.0f}us  "
+                f"min={sv[0]:7.0f}us  max={sv[-1]:7.0f}us  mean={sum(vals) / len(vals):7.0f}us"
+            )
+        print("=" * 40)
+
 
 # Benchmark parameters
 NUM_CAMERAS = 6
@@ -664,6 +747,257 @@ def test_ppisp_cpu_overhead_slangpy(
         warmup_iterations=CPU_OVERHEAD_WARMUPS,
         sleeps=True,
     )
+
+
+def _make_slangpy_bwd_kwargs(
+    exposure_params: "torch.Tensor",
+    vignetting_params: "torch.Tensor",
+    color_params: "torch.Tensor",
+    crf_params: "torch.Tensor",
+    rgb: "torch.Tensor",
+    batch_size: int,
+    torch_device: "torch.device",
+    pixel_coords: "torch.Tensor",
+    camera_idcs: "torch.Tensor",
+    frame_idcs: "torch.Tensor",
+) -> dict:
+    """Build bwd kwargs with fresh DiffPairs (allocation outside timed window)."""
+    from slangpy.core.native import NativeTorchTensorDiffPair
+
+    return dict(
+        batch_size=batch_size,
+        num_cameras=NUM_CAMERAS,
+        num_frames=NUM_FRAMES,
+        exposure_params=NativeTorchTensorDiffPair(
+            exposure_params, torch.zeros_like(exposure_params), 0, True
+        ),
+        vignetting_params=NativeTorchTensorDiffPair(
+            vignetting_params, torch.zeros_like(vignetting_params), 1, True
+        ),
+        color_params=NativeTorchTensorDiffPair(
+            color_params, torch.zeros_like(color_params), 2, True
+        ),
+        crf_params=NativeTorchTensorDiffPair(
+            crf_params, torch.zeros_like(crf_params), 3, True
+        ),
+        rgb_pixel=NativeTorchTensorDiffPair(rgb, torch.zeros_like(rgb), 4, True),
+        pixel_coord=pixel_coords,
+        camera_idx=camera_idcs,
+        frame_idx=frame_idcs,
+        resolution_w=float(RESOLUTION_W),
+        resolution_h=float(RESOLUTION_H),
+        _result=NativeTorchTensorDiffPair(
+            None, torch.ones(batch_size, 3, device=torch_device), 5, False
+        ),
+    )
+
+
+def _make_slangtorch_bwd_kwargs(
+    exposure_params: "torch.Tensor",
+    vignetting_params: "torch.Tensor",
+    color_params: "torch.Tensor",
+    crf_params: "torch.Tensor",
+    rgb: "torch.Tensor",
+    rgb_out: "torch.Tensor",
+    batch_size: int,
+    torch_device: "torch.device",
+    pixel_coords: "torch.Tensor",
+    camera_idcs: "torch.Tensor",
+    frame_idcs: "torch.Tensor",
+) -> dict:
+    """Build slangtorch bwd kwargs with fresh grad buffers (allocation outside timed window)."""
+    return dict(
+        batch_size=batch_size,
+        num_cameras=NUM_CAMERAS,
+        num_frames=NUM_FRAMES,
+        exposure_params=(exposure_params, torch.zeros_like(exposure_params)),
+        vignetting_params=(vignetting_params, torch.zeros_like(vignetting_params)),
+        color_params=(color_params, torch.zeros_like(color_params)),
+        crf_params=(crf_params, torch.zeros_like(crf_params)),
+        rgb_in=(rgb, torch.empty_like(rgb)),
+        rgb_out=(rgb_out, torch.ones_like(rgb)),
+        pixel_coords=pixel_coords,
+        camera_idcs=camera_idcs,
+        frame_idcs=frame_idcs,
+        resolution_w=float(RESOLUTION_W),
+        resolution_h=float(RESOLUTION_H),
+    )
+
+
+# Number of untimed warmup dispatches to prime kernel caches before measurement
+DISPATCH_WARMUP = 10
+DISPATCH_ITERATIONS = 1000
+
+
+def test_ppisp_pure_dispatch_slangpy(
+    benchmark_python_function: BenchmarkPythonFunction,
+) -> None:
+    """Measure SlangPy PURE dispatch overhead (fwd & bwd separately, no grad setup).
+
+    Uses DispatchTimer to wrap the raw slangpy Function, timing only the
+    kernel dispatch boundary (same measurement as _TimedKernel/_TimedBwds
+
+    DiffPair creation for bwd is *outside* the timed window.
+    """
+    _skip_if_no_torch()
+    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    torch_device = torch.device("cuda")
+
+    from slangpy.benchmarks.ppisp.ppisp_slangpy import _get_slang_module, _warmup
+
+    _warmup(torch_device, device)
+    module = _get_slang_module(device)
+
+    func = module.ppisp
+    timer = DispatchTimer("ppisp.ppisp")
+
+    # Tiny batch so GPU time is negligible — dispatch overhead dominates
+    batch_size = 32
+    rgb = torch.rand(batch_size, 3, device=torch_device)
+    pixel_coords = torch.stack(
+        [
+            torch.rand(batch_size, device=torch_device) * RESOLUTION_W,
+            torch.rand(batch_size, device=torch_device) * RESOLUTION_H,
+        ],
+        dim=-1,
+    )
+    camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
+
+    exposure_params = torch.zeros(NUM_FRAMES, device=torch_device)
+    vignetting_params = torch.zeros(NUM_CAMERAS, 3, 5, device=torch_device)
+    color_params = torch.zeros(NUM_FRAMES, 8, device=torch_device)
+    crf_params = torch.zeros(NUM_CAMERAS, 3, 4, device=torch_device)
+
+    fwd_kwargs = dict(
+        batch_size=batch_size,
+        num_cameras=NUM_CAMERAS,
+        num_frames=NUM_FRAMES,
+        exposure_params=exposure_params,
+        vignetting_params=vignetting_params,
+        color_params=color_params,
+        crf_params=crf_params,
+        rgb_pixel=rgb,
+        pixel_coord=pixel_coords,
+        camera_idx=camera_idcs,
+        frame_idx=frame_idcs,
+        resolution_w=float(RESOLUTION_W),
+        resolution_h=float(RESOLUTION_H),
+    )
+
+    # Warmup: prime CallData cache + CUDA context (not recorded by timer)
+    for _ in range(DISPATCH_WARMUP):
+        func(**fwd_kwargs)
+    for _ in range(DISPATCH_WARMUP):
+        func.bwds(**_make_slangpy_bwd_kwargs(
+            exposure_params, vignetting_params, color_params, crf_params,
+            rgb, batch_size, torch_device, pixel_coords, camera_idcs, frame_idcs,
+        ))
+
+    # Forward: DISPATCH_ITERATIONS dispatches (first 5 also skipped in stats)
+    for _ in range(DISPATCH_ITERATIONS):
+        timer.fwd(lambda: func(**fwd_kwargs))
+
+    # Backward: DISPATCH_ITERATIONS dispatches — DiffPair setup outside timed window
+    for _ in range(DISPATCH_ITERATIONS):
+        bwd_kwargs = _make_slangpy_bwd_kwargs(
+            exposure_params, vignetting_params, color_params, crf_params,
+            rgb, batch_size, torch_device, pixel_coords, camera_idcs, frame_idcs,
+        )
+        timer.bwd(lambda: func.bwds(**bwd_kwargs))
+
+    timer.print_stats()
+
+
+def test_ppisp_pure_dispatch_slangtorch(
+    benchmark_python_function: BenchmarkPythonFunction,
+) -> None:
+    """Measure slangtorch PURE dispatch overhead (fwd & bwd separately).
+
+    Uses DispatchTimer to wrap the slangtorch module.ppisp(...).launchRaw()
+    and module.ppisp.bwd(...).launchRaw() calls.  Grad buffer allocation is
+    outside the timed window — only the bind+launch chain is measured.
+    """
+    _skip_if_no_slangtorch()
+    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    torch_device = torch.device("cuda")
+
+    from slangpy.benchmarks.ppisp.ppisp_slangtorch import _get_slang_module, div_up
+
+    module = _get_slang_module()
+    timer = DispatchTimer("ppisp.ppisp")
+
+    # Tiny batch so GPU time is negligible — dispatch overhead dominates
+    batch_size = 32
+    block_size = (32, 1, 1)
+    grid_size = (div_up(batch_size, 32), 1, 1)
+
+    rgb = torch.rand(batch_size, 3, device=torch_device)
+    pixel_coords = torch.stack(
+        [
+            torch.rand(batch_size, device=torch_device) * RESOLUTION_W,
+            torch.rand(batch_size, device=torch_device) * RESOLUTION_H,
+        ],
+        dim=-1,
+    )
+    camera_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int16)
+    frame_idcs = torch.zeros(batch_size, device=torch_device, dtype=torch.int32)
+
+    exposure_params = torch.zeros(NUM_FRAMES, device=torch_device)
+    vignetting_params = torch.zeros(NUM_CAMERAS, 3, 5, device=torch_device)
+    color_params = torch.zeros(NUM_FRAMES, 8, device=torch_device)
+    crf_params = torch.zeros(NUM_CAMERAS, 3, 4, device=torch_device)
+
+    # Pre-allocate output buffer (slangtorch needs explicit output)
+    rgb_out = torch.empty_like(rgb)
+
+    fwd_kwargs = dict(
+        batch_size=batch_size,
+        num_cameras=NUM_CAMERAS,
+        num_frames=NUM_FRAMES,
+        exposure_params=exposure_params,
+        vignetting_params=vignetting_params,
+        color_params=color_params,
+        crf_params=crf_params,
+        rgb_in=rgb,
+        rgb_out=rgb_out,
+        pixel_coords=pixel_coords,
+        camera_idcs=camera_idcs,
+        frame_idcs=frame_idcs,
+        resolution_w=float(RESOLUTION_W),
+        resolution_h=float(RESOLUTION_H),
+    )
+
+    # Warmup: prime slangtorch JIT + CUDA context (not recorded by timer)
+    for _ in range(DISPATCH_WARMUP):
+        module.ppisp(**fwd_kwargs).launchRaw(blockSize=block_size, gridSize=grid_size)
+    for _ in range(DISPATCH_WARMUP):
+        module.ppisp.bwd(**_make_slangtorch_bwd_kwargs(
+            exposure_params, vignetting_params, color_params, crf_params,
+            rgb, rgb_out, batch_size, torch_device, pixel_coords, camera_idcs, frame_idcs,
+        )).launchRaw(blockSize=block_size, gridSize=grid_size)
+
+    # Forward: DISPATCH_ITERATIONS dispatches (first 5 also skipped in stats)
+    for _ in range(DISPATCH_ITERATIONS):
+        timer.fwd(
+            lambda: module.ppisp(**fwd_kwargs).launchRaw(
+                blockSize=block_size, gridSize=grid_size
+            )
+        )
+
+    # Backward: DISPATCH_ITERATIONS dispatches — grad alloc outside timed window
+    for _ in range(DISPATCH_ITERATIONS):
+        bwd_kwargs = _make_slangtorch_bwd_kwargs(
+            exposure_params, vignetting_params, color_params, crf_params,
+            rgb, rgb_out, batch_size, torch_device, pixel_coords, camera_idcs, frame_idcs,
+        )
+        timer.bwd(
+            lambda: module.ppisp.bwd(**bwd_kwargs).launchRaw(
+                blockSize=block_size, gridSize=grid_size
+            )
+        )
+
+    timer.print_stats(header="Slangtorch CPU Dispatch Latency")
 
 
 def test_ppisp_cpu_overhead_slangtorch(
