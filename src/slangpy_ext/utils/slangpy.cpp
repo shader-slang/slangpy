@@ -709,9 +709,7 @@ CallShapeInfo NativeCallData::compute_call_shape_info(
 nb::object
 NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs)
 {
-    // Unpack args and kwargs (skip if no args have get_this/update_this).
-    // On the fast path (no unpack needed), avoid creating Python list/dict copies
-    // by using args (nb::tuple) and kwargs (nb::dict) directly.
+    // Skip unpacking when no args use get_this/update_this (avoids Python list/dict copy).
     nb::object unpacked_args;
     nb::dict unpacked_kwargs;
     if (m_needs_unpack) {
@@ -719,7 +717,6 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
         unpacked_args = unpack_args(args, had_unpack);
         unpacked_kwargs = unpack_kwargs(kwargs, had_unpack);
     } else {
-        // Fast path: borrow args/kwargs directly — zero allocation.
         unpacked_args = nb::borrow<nb::object>(args);
         unpacked_kwargs = nb::borrow<nb::dict>(kwargs);
     }

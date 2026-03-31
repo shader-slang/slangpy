@@ -135,6 +135,9 @@ public:
     /// error formatting, and delegates to invoke(). Registered as __call__ in nanobind.
     nb::object call(nb::args args, nb::kwargs kwargs);
 
+    /// Common preamble: gather options, prepend this, build signature, resolve/generate call data.
+    ref<NativeCallData> resolve_call_data(NativeCallDataCache* cache, nb::args& args, nb::kwargs& kwargs);
+
     /// Call the backward pass for autograd, caching the bwds CallData on the forward CallData.
     /// This avoids the Python round-trip through function.bwds property.
     /// @param fwds_call_data The forward-pass call data (bwds call data is cached on it).

@@ -62,31 +62,10 @@ static void apply_torch_cuda_stream(const NativeCallData* call_data, NativeCallR
     }
 }
 
-ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
-{
-    auto& options = cached_options();
-    gather_runtime_options(options);
-
-    if (options.this_obj.is_valid()) {
-        args = nb::cast<nb::args>(nb::make_tuple(options.this_obj) + args);
-    }
-
-    SignatureBuffer builder;
-    read_signature(builder);
-    cache->get_args_signature(builder, args, kwargs);
-
-    std::string_view sig = builder.view();
-    ref<NativeCallData> result = cache->find_call_data(sig);
-    if (!result) {
-        result = generate_call_data(args, kwargs);
-        cache->add_call_data(std::string(sig), result);
-    } else if (result->has_thread_count()) {
-        nb::del(kwargs["_thread_count"]);
-    }
-    return result;
-}
-
-nb::object NativeFunctionNode::invoke(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
+/// Common preamble for build_call_data/invoke/append_to: gather options, prepend this,
+/// build signature, resolve or generate call data.
+ref<NativeCallData>
+NativeFunctionNode::resolve_call_data(NativeCallDataCache* cache, nb::args& args, nb::kwargs& kwargs)
 {
     auto& options = cached_options();
     gather_runtime_options(options);
@@ -110,10 +89,21 @@ nb::object NativeFunctionNode::invoke(NativeCallDataCache* cache, nb::args args,
         read_thread_count_kwarg(options, kwargs);
         nb::del(kwargs["_thread_count"]);
     }
+    return call_data;
+}
+
+ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
+{
+    return resolve_call_data(cache, args, kwargs);
+}
+
+nb::object NativeFunctionNode::invoke(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
+{
+    ref<NativeCallData> call_data = resolve_call_data(cache, args, kwargs);
+    auto& options = *m_cached_opts;
 
     apply_torch_cuda_stream(call_data, options);
 
-    // Autograd and normal path both use the same cached options
     if (call_data->is_torch_autograd()) {
         return TorchBridge::instance()
             .call_torch_autograd_hook(nb::cast(this), nb::cast(call_data), nb::cast(m_cached_opts), args, kwargs);
@@ -129,29 +119,8 @@ void NativeFunctionNode::append_to(
     nb::kwargs kwargs
 )
 {
-    auto& options = cached_options();
-    gather_runtime_options(options);
-
-    if (options.this_obj.is_valid()) {
-        args = nb::cast<nb::args>(nb::make_tuple(options.this_obj) + args);
-    }
-
-    SignatureBuffer builder;
-    read_signature(builder);
-    cache->get_args_signature(builder, args, kwargs);
-
-    std::string_view sig = builder.view();
-    ref<NativeCallData> call_data = cache->find_call_data(sig);
-
-    if (!call_data) {
-        call_data = generate_call_data(args, kwargs);
-        cache->add_call_data(std::string(sig), call_data);
-    }
-    if (call_data->has_thread_count()) {
-        read_thread_count_kwarg(options, kwargs);
-        nb::del(kwargs["_thread_count"]);
-    }
-    call_data->append_to(options, command_encoder, args, kwargs);
+    ref<NativeCallData> call_data = resolve_call_data(cache, args, kwargs);
+    call_data->append_to(*m_cached_opts, command_encoder, args, kwargs);
 }
 
 std::string NativeFunctionNode::to_string() const
