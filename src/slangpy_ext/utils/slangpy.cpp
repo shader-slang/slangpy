@@ -463,14 +463,9 @@ nb::list NativeCallData::find_torch_tensors(nb::list args, nb::dict kwargs)
     return pairs;
 }
 
-nb::object NativeCallData::call(RuntimeOptions& opts, nb::args args, nb::kwargs kwargs)
+nb::object NativeCallData::call(NativeCallRuntimeOptions& opts, nb::args args, nb::kwargs kwargs)
 {
     return exec(opts, nullptr, args, kwargs);
-}
-
-nb::object NativeCallData::call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs)
-{
-    return call(opts->opts(), args, kwargs);
 }
 
 nb::tuple
@@ -491,7 +486,7 @@ NativeCallData::autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list ar
     // Note: exec() may insert _result into kwargs, so check before calling exec.
     bool had_result = kwargs.contains("_result");
     nb::tuple args_tuple(args);
-    nb::object result = exec(opts->opts(), nullptr, nb::borrow<nb::args>(args_tuple), nb::borrow<nb::kwargs>(kwargs));
+    nb::object result = exec(*opts, nullptr, nb::borrow<nb::args>(args_tuple), nb::borrow<nb::kwargs>(kwargs));
 
     // If result is a tensor and _result was not in kwargs before exec,
     // create a new output pair for it
@@ -584,24 +579,18 @@ nb::tuple NativeCallData::autograd_backward(
     return nb::tuple(input_grads);
 }
 
-nb::object
-NativeCallData::append_to(RuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs)
-{
-    return exec(opts, command_encoder, args, kwargs);
-}
-
 nb::object NativeCallData::append_to(
-    ref<NativeCallRuntimeOptions> opts,
+    NativeCallRuntimeOptions& opts,
     CommandEncoder* command_encoder,
     nb::args args,
     nb::kwargs kwargs
 )
 {
-    return append_to(opts->opts(), command_encoder, args, kwargs);
+    return exec(opts, command_encoder, args, kwargs);
 }
 
 CallShapeInfo NativeCallData::compute_call_shape_info(
-    RuntimeOptions& opts,
+    NativeCallRuntimeOptions& opts,
     const nb::object& unpacked_args,
     const nb::dict& unpacked_kwargs
 )
@@ -717,7 +706,8 @@ CallShapeInfo NativeCallData::compute_call_shape_info(
     return si;
 }
 
-nb::object NativeCallData::exec(RuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs)
+nb::object
+NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs)
 {
     // Unpack args and kwargs (skip if no args have get_this/update_this).
     // On the fast path (no unpack needed), avoid creating Python list/dict copies
@@ -771,9 +761,8 @@ nb::object NativeCallData::exec(RuntimeOptions& opts, CommandEncoder* command_en
 
     // Setup context (reuse cached context to avoid heap allocation on repeat calls).
     if (!m_cached_context)
-        m_cached_context = make_ref<CallContext>(m_device, call_shape, m_call_mode, cuda_stream);
-    else
-        m_cached_context->reinitialize(call_shape, cuda_stream);
+        m_cached_context = make_ref<CallContext>(m_device, m_call_mode);
+    m_cached_context->init(call_shape, cuda_stream);
     auto& context = m_cached_context;
 
     // Allocate return value if needed.
@@ -1068,13 +1057,13 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
         const auto& type_info = nb::type_info(type);
 
         // If we have a native object, can directly request the signature.
-        // Use read_signature_fast for C++ objects (no Python override).
+        // Use read_signature(SignatureBuffer&) for C++ objects (non-virtual, reads m_signature).
         // For Python subclasses, the fixed signature is set via set_slangpy_signature,
-        // so read_signature_fast (which reads m_signature) is safe for all NativeObjects.
+        // so this is safe for all NativeObjects.
         const NativeObject* native_object;
         if (nb::try_cast<const NativeObject*>(o, native_object)) {
             builder << type_info.name() << "\n";
-            native_object->read_signature_fast(builder);
+            native_object->read_signature(builder);
             return;
         }
 
@@ -1372,7 +1361,15 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(NativeObject, NativeObject)
         )
         .def_prop_rw("slangpy_signature", &NativeObject::slangpy_signature, &NativeObject::set_slangpy_signature)
-        .def("read_signature", &NativeObject::read_signature, "builder"_a, D_NA(NativeObject, read_signature));
+        .def(
+            "read_signature",
+            [](const NativeObject& self, SignatureBuilder* builder)
+            {
+                self.read_signature(builder);
+            },
+            "builder"_a,
+            D_NA(NativeObject, read_signature)
+        );
 
     nb::class_<NativeSlangType, PyNativeSlangType, Object>(slangpy, "NativeSlangType") //
         .def(
@@ -1595,7 +1592,7 @@ SGL_PY_EXPORT(utils_slangpy)
         .def(nb::init<>(), D_NA(NativeCallRuntimeOptions, NativeCallRuntimeOptions))
         .def_prop_rw(
             "uniforms",
-            &NativeCallRuntimeOptions::uniforms,
+            &NativeCallRuntimeOptions::get_uniforms,
             &NativeCallRuntimeOptions::set_uniforms,
             D_NA(NativeCallRuntimeOptions, uniforms)
         )
@@ -1607,14 +1604,26 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def_prop_rw(
             "cuda_stream",
-            &NativeCallRuntimeOptions::cuda_stream,
-            &NativeCallRuntimeOptions::set_cuda_stream,
+            [](const NativeCallRuntimeOptions& self)
+            {
+                return self.cuda_stream;
+            },
+            [](NativeCallRuntimeOptions& self, NativeHandle v)
+            {
+                self.cuda_stream = v;
+            },
             D_NA(NativeCallRuntimeOptions, cuda_stream)
         )
         .def_prop_rw(
             "thread_count",
-            &NativeCallRuntimeOptions::thread_count,
-            &NativeCallRuntimeOptions::set_thread_count,
+            [](const NativeCallRuntimeOptions& self)
+            {
+                return self.thread_count;
+            },
+            [](NativeCallRuntimeOptions& self, int v)
+            {
+                self.thread_count = v;
+            },
             D_NA(NativeCallRuntimeOptions, thread_count)
         );
 
@@ -1666,9 +1675,10 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def(
             "call",
-            static_cast<nb::object (NativeCallData::*)(ref<NativeCallRuntimeOptions>, nb::args, nb::kwargs)>(
-                &NativeCallData::call
-            ),
+            [](NativeCallData& self, NativeCallRuntimeOptions& opts, nb::args args, nb::kwargs kwargs)
+            {
+                return self.call(opts, args, kwargs);
+            },
             nb::arg("opts"),
             nb::arg("args"),
             nb::arg("kwargs"),
@@ -1676,10 +1686,14 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def(
             "append_to",
-            static_cast<
-                nb::object (NativeCallData::*)(ref<NativeCallRuntimeOptions>, CommandEncoder*, nb::args, nb::kwargs)>(
-                &NativeCallData::append_to
-            ),
+            [](NativeCallData& self,
+               NativeCallRuntimeOptions& opts,
+               CommandEncoder* cmd,
+               nb::args args,
+               nb::kwargs kwargs)
+            {
+                return self.append_to(opts, cmd, args, kwargs);
+            },
             nb::arg("opts"),
             nb::arg("command_buffer"),
             nb::arg("args"),
@@ -1788,18 +1802,20 @@ SGL_PY_EXPORT(utils_slangpy)
         )
         .def(
             "get_value_signature",
-            static_cast<void (NativeCallDataCache::*)(const ref<SignatureBuilder>, nb::handle)>(
-                &NativeCallDataCache::get_value_signature
-            ),
+            [](NativeCallDataCache& self, const ref<SignatureBuilder> builder, nb::handle o)
+            {
+                self.get_value_signature(builder, o);
+            },
             "builder"_a,
             "o"_a,
             D_NA(NativeCallDataCache, get_value_signature)
         )
         .def(
             "get_args_signature",
-            static_cast<void (NativeCallDataCache::*)(const ref<SignatureBuilder>, nb::args, nb::kwargs)>(
-                &NativeCallDataCache::get_args_signature
-            ),
+            [](NativeCallDataCache& self, const ref<SignatureBuilder> builder, nb::args args, nb::kwargs kwargs)
+            {
+                self.get_args_signature(builder, args, kwargs);
+            },
             "builder"_a,
             "args"_a,
             "kwargs"_a,
@@ -1926,14 +1942,7 @@ SGL_PY_EXPORT(utils_slangpy)
         );
 
     nb::class_<CallContext, Object>(slangpy, "CallContext") //
-        .def(
-            nb::init<ref<Device>, const Shape&, CallMode, NativeHandle>(),
-            nb::arg("device"),
-            nb::arg("call_shape"),
-            nb::arg("call_mode"),
-            nb::arg("cuda_stream") = NativeHandle(),
-            D_NA(CallContext, CallContext)
-        )
+        .def(nb::init<ref<Device>, CallMode>(), nb::arg("device"), nb::arg("call_mode"), D_NA(CallContext, CallContext))
         .def_prop_ro(
             "device",
             [](const CallContext& self) -> Device*

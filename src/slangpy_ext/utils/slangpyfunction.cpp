@@ -45,7 +45,7 @@ namespace sgl::slangpy {
 // so calls with vs. without it are separate cache entries.
 // Only called when call_data->has_thread_count() is true (cheap bool check), so the
 // kwargs.contains() string lookup is avoided entirely on the common no-thread-count path.
-static void read_thread_count_kwarg(RuntimeOptions& options, nb::kwargs& kwargs)
+static void read_thread_count_kwarg(NativeCallRuntimeOptions& options, nb::kwargs& kwargs)
 {
     SGL_ASSERT(kwargs.contains("_thread_count"));
     int thread_count = nb::cast<int>(kwargs["_thread_count"]);
@@ -53,7 +53,7 @@ static void read_thread_count_kwarg(RuntimeOptions& options, nb::kwargs& kwargs)
     options.thread_count = thread_count;
 }
 
-static void apply_torch_cuda_stream(const NativeCallData* call_data, RuntimeOptions& options)
+static void apply_torch_cuda_stream(const NativeCallData* call_data, NativeCallRuntimeOptions& options)
 {
     if (call_data->is_torch_integration() && TorchBridge::instance().is_available()) {
         void* stream_ptr = TorchBridge::instance().get_current_cuda_stream(0);
@@ -64,7 +64,7 @@ static void apply_torch_cuda_stream(const NativeCallData* call_data, RuntimeOpti
 
 ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
 {
-    RuntimeOptions options;
+    auto& options = cached_options();
     gather_runtime_options(options);
 
     if (options.this_obj.is_valid()) {
@@ -72,7 +72,7 @@ ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cac
     }
 
     SignatureBuffer builder;
-    read_signature_fast(builder);
+    read_signature(builder);
     cache->get_args_signature(builder, args, kwargs);
 
     std::string_view sig = builder.view();
@@ -88,7 +88,7 @@ ref<NativeCallData> NativeFunctionNode::build_call_data(NativeCallDataCache* cac
 
 nb::object NativeFunctionNode::invoke(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs)
 {
-    RuntimeOptions options;
+    auto& options = cached_options();
     gather_runtime_options(options);
 
     if (options.this_obj.is_valid()) {
@@ -96,7 +96,7 @@ nb::object NativeFunctionNode::invoke(NativeCallDataCache* cache, nb::args args,
     }
 
     SignatureBuffer builder;
-    read_signature_fast(builder);
+    read_signature(builder);
     cache->get_args_signature(builder, args, kwargs);
 
     std::string_view sig = builder.view();
@@ -113,11 +113,10 @@ nb::object NativeFunctionNode::invoke(NativeCallDataCache* cache, nb::args args,
 
     apply_torch_cuda_stream(call_data, options);
 
-    // If torch auto grad required, go via autograd hook (rare path — heap-allocate NativeCallRuntimeOptions)
+    // Autograd and normal path both use the same cached options
     if (call_data->is_torch_autograd()) {
-        ref<NativeCallRuntimeOptions> ref_opts = NativeCallRuntimeOptions::from_runtime_options(options);
         return TorchBridge::instance()
-            .call_torch_autograd_hook(nb::cast(this), nb::cast(call_data), nb::cast(ref_opts), args, kwargs);
+            .call_torch_autograd_hook(nb::cast(this), nb::cast(call_data), nb::cast(m_cached_opts), args, kwargs);
     } else {
         return call_data->call(options, args, kwargs);
     }
@@ -130,7 +129,7 @@ void NativeFunctionNode::append_to(
     nb::kwargs kwargs
 )
 {
-    RuntimeOptions options;
+    auto& options = cached_options();
     gather_runtime_options(options);
 
     if (options.this_obj.is_valid()) {
@@ -138,7 +137,7 @@ void NativeFunctionNode::append_to(
     }
 
     SignatureBuffer builder;
-    read_signature_fast(builder);
+    read_signature(builder);
     cache->get_args_signature(builder, args, kwargs);
 
     std::string_view sig = builder.view();
@@ -186,7 +185,7 @@ nb::object NativeFunctionNode::call_bwds(NativeCallData* fwds_call_data, nb::arg
     // Gather runtime options (uniforms, cuda_stream, etc.)
     // Note: we do NOT prepend 'this' to args here — the saved args from the
     // forward pass already include it (it was prepended in NativeFunctionNode::call).
-    RuntimeOptions options;
+    auto& options = cached_options();
     gather_runtime_options(options);
 
     apply_torch_cuda_stream(bwds_cd, options);
@@ -326,15 +325,19 @@ SGL_PY_EXPORT(utils_slangpy_function)
         )
         .def(
             "read_signature",
-            &NativeFunctionNode::read_signature,
+            [](const NativeFunctionNode& self, SignatureBuilder* builder)
+            {
+                self.read_signature(builder);
+            },
             "builder"_a,
             D_NA(NativeFunctionNode, read_signature)
         )
         .def(
             "gather_runtime_options",
-            static_cast<void (NativeFunctionNode::*)(ref<NativeCallRuntimeOptions>) const>(
-                &NativeFunctionNode::gather_runtime_options
-            ),
+            [](const NativeFunctionNode& self, NativeCallRuntimeOptions& options)
+            {
+                self.gather_runtime_options(options);
+            },
             "options"_a,
             D_NA(NativeFunctionNode, gather_runtime_options)
         )

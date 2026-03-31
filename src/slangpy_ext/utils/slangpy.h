@@ -176,10 +176,8 @@ public:
 
     virtual void read_signature(SignatureBuilder* builder) const { builder->add(m_signature); }
 
-    /// Write signature into a stack-allocated SignatureBuffer (hot path).
-    /// Non-virtual: delegates to the virtual read_signature(SignatureBuilder*) via a temporary wrapper.
-    /// For NativeObject base class, we can write directly without the virtual call.
-    void read_signature_fast(SignatureBuffer& builder) const { builder.add(m_signature); }
+    /// Non-virtual overload for SignatureBuffer (hot path).
+    void read_signature(SignatureBuffer& builder) const { builder.add(m_signature); }
 
 private:
     std::string m_signature;
@@ -673,83 +671,58 @@ private:
     std::map<std::string, ref<NativeBoundVariableRuntime>> m_kwargs;
 };
 
-/// Lightweight, stack-allocated runtime options. Single source of truth for all fields.
-/// Used directly on the hot dispatch path (no heap allocation).
-/// NativeCallRuntimeOptions wraps this for Python binding / ref-counted usage.
-struct RuntimeOptions {
+/// Runtime options for function dispatch. Cached on NativeFunctionNode to avoid
+/// heap allocation on repeat calls. Also exposed to Python for autograd paths.
+class NativeCallRuntimeOptions : Object {
+    SGL_OBJECT(NativeCallRuntimeOptions)
+public:
     nb::object this_obj; // Default null handle — check with is_valid(), not is_none()
     NativeHandle cuda_stream;
     bool is_ray_tracing{false};
     int thread_count{0};
-
-    // Inline storage for uniforms (most calls have 0-2; heap fallback if more)
     short_vector<nb::object, 4> uniforms;
 
-    bool has_thread_count() const { return thread_count > 0; }
-};
-
-/// Ref-counted wrapper around RuntimeOptions for Python binding and torch autograd paths.
-class NativeCallRuntimeOptions : Object {
-    SGL_OBJECT(NativeCallRuntimeOptions)
-public:
-    /// Get the uniforms as a Python list (constructs on demand for Python compat).
-    nb::list uniforms() const { return m_uniforms; }
-
-    /// Set the uniforms from a Python list.
-    void set_uniforms(const nb::list& uniforms) { m_uniforms = uniforms; }
-
-    /// Get this
-    nb::object get_this() const { return m_opts.this_obj.is_valid() ? m_opts.this_obj : nb::none(); }
-
-    /// Set this
-    void set_this(const nb::object& this_) { m_opts.this_obj = this_; }
-
-    /// Get the CUDA stream.
-    NativeHandle cuda_stream() const { return m_opts.cuda_stream; }
-
-    /// Set the CUDA stream.
-    void set_cuda_stream(NativeHandle cuda_stream) { m_opts.cuda_stream = cuda_stream; }
-
-    /// Get ray tracing pipeline flag.
-    bool is_ray_tracing() const { return m_opts.is_ray_tracing; }
-
-    /// Set ray tracing pipeline flag.
-    void set_is_ray_tracing(bool is_ray_tracing) { m_opts.is_ray_tracing = is_ray_tracing; }
-
-    /// Get the thread count override.
-    int thread_count() const { return m_opts.thread_count; }
-
-    /// Set the thread count override.
-    void set_thread_count(int thread_count) { m_opts.thread_count = thread_count; }
-
-    /// Check if thread count override is set.
-    bool has_thread_count() const { return m_opts.has_thread_count(); }
-
-    /// Access the underlying RuntimeOptions.
-    RuntimeOptions& opts() { return m_opts; }
-    const RuntimeOptions& opts() const { return m_opts; }
-
-    /// Convert from RuntimeOptions (for torch autograd path).
-    static ref<NativeCallRuntimeOptions> from_runtime_options(const RuntimeOptions& rt)
+    /// Reset all fields for reuse on the next call.
+    void init()
     {
-        auto opts = make_ref<NativeCallRuntimeOptions>();
-        opts->m_opts = rt;
-        // Copy uniforms to the Python list for Python-side access
-        for (const auto& u : rt.uniforms)
-            opts->m_uniforms.append(u);
-        return opts;
+        this_obj = nb::object();
+        cuda_stream = NativeHandle();
+        is_ray_tracing = false;
+        thread_count = 0;
+        uniforms.clear();
     }
 
-    /// Clear internal data for garbage collection
+    bool has_thread_count() const { return thread_count > 0; }
+
+    /// Python-facing property: get uniforms as a list.
+    nb::list get_uniforms() const
+    {
+        nb::list result;
+        for (const auto& u : uniforms)
+            result.append(u);
+        return result;
+    }
+
+    /// Python-facing property: set uniforms from a list.
+    void set_uniforms(const nb::list& list)
+    {
+        uniforms.clear();
+        for (auto u : list)
+            uniforms.push_back(nb::borrow<nb::object>(u));
+    }
+
+    /// Python-facing property: get this (returns nb::none() if not set).
+    nb::object get_this() const { return this_obj.is_valid() ? this_obj : nb::none(); }
+
+    /// Python-facing property: set this.
+    void set_this(const nb::object& this_) { this_obj = this_; }
+
+    /// Clear internal data for garbage collection.
     void garbage_collect()
     {
-        m_uniforms.clear();
-        m_opts.this_obj = nb::object();
+        uniforms.clear();
+        this_obj = nb::object();
     }
-
-private:
-    RuntimeOptions m_opts;
-    nb::list m_uniforms; // Python-facing list for uniforms (kept in sync via gather_runtime_options)
 };
 
 /// Defines the common logging functions for a given log level.
@@ -934,17 +907,11 @@ public:
     const Shape& call_group_shape() const { return m_call_group_shape; }
 
     /// Call the compute kernel with the provided arguments and keyword arguments.
-    nb::object call(RuntimeOptions& opts, nb::args args, nb::kwargs kwargs);
-
-    /// Python-facing overload (unwraps NativeCallRuntimeOptions).
-    nb::object call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs);
+    nb::object call(NativeCallRuntimeOptions& opts, nb::args args, nb::kwargs kwargs);
 
     /// Append the compute kernel to a command encoder with the provided arguments and keyword arguments.
-    nb::object append_to(RuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
-
-    /// Python-facing overload (unwraps NativeCallRuntimeOptions).
     nb::object
-    append_to(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
+    append_to(NativeCallRuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 
     /// Log a message, using either the provided logger or the default logger.
     void log(LogLevel level, const std::string_view msg, LogFrequency frequency = LogFrequency::always)
@@ -1012,10 +979,13 @@ private:
     /// Recursive helper for find_torch_tensors.
     nb::object find_torch_tensors_recurse(nb::object arg, nb::list& pairs, size_t& access_idx);
 
-    CallShapeInfo
-    compute_call_shape_info(RuntimeOptions& opts, const nb::object& unpacked_args, const nb::dict& unpacked_kwargs);
+    CallShapeInfo compute_call_shape_info(
+        NativeCallRuntimeOptions& opts,
+        const nb::object& unpacked_args,
+        const nb::dict& unpacked_kwargs
+    );
 
-    nb::object exec(RuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
+    nb::object exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 };
 #undef SGL_LOG_FUNC_FAMILY
 

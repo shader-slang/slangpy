@@ -53,11 +53,11 @@ public:
     void read_signature(SignatureBuilder* builder) const override
     {
         // Delegate to the SignatureBuffer implementation via the builder's buffer.
-        read_signature_fast(builder->buffer());
+        read_signature(builder->buffer());
     }
 
-    /// Write signature into a stack-allocated SignatureBuffer (hot path, non-virtual).
-    void read_signature_fast(SignatureBuffer& builder) const
+    /// Non-virtual overload for SignatureBuffer (hot path).
+    void read_signature(SignatureBuffer& builder) const
     {
         switch (m_type) {
         case sgl::slangpy::FunctionNodeType::uniforms:
@@ -66,29 +66,17 @@ public:
             break;
         default:
             // Any other type affects kernel so adds to signature.
-            NativeObject::read_signature_fast(builder);
+            NativeObject::read_signature(builder);
             builder << "\n";
             break;
         }
         if (m_parent) {
-            m_parent->read_signature_fast(builder);
+            m_parent->read_signature(builder);
         }
     }
 
-    /// Python-facing overload: fills RuntimeOptions inside NativeCallRuntimeOptions,
-    /// then syncs the Python uniforms list.
-    void gather_runtime_options(ref<NativeCallRuntimeOptions> options) const
-    {
-        gather_runtime_options(options->opts());
-        // Sync the Python uniforms list from the RuntimeOptions inline array.
-        nb::list uniforms = options->uniforms();
-        uniforms.clear();
-        for (const auto& u : options->opts().uniforms)
-            uniforms.append(u);
-    }
-
-    /// Core implementation operating on RuntimeOptions (used by both Python and C++ hot paths).
-    void gather_runtime_options(RuntimeOptions& opts) const
+    /// Fill runtime options by walking the function node chain.
+    void gather_runtime_options(NativeCallRuntimeOptions& opts) const
     {
         if (m_parent) {
             m_parent->gather_runtime_options(opts);
@@ -191,11 +179,21 @@ public:
         m_cache = nullptr;
     }
 
+    /// Get or create cached runtime options (avoids heap alloc on repeat calls).
+    NativeCallRuntimeOptions& cached_options()
+    {
+        if (!m_cached_opts)
+            m_cached_opts = make_ref<NativeCallRuntimeOptions>();
+        m_cached_opts->init();
+        return *m_cached_opts;
+    }
+
 private:
     ref<NativeFunctionNode> m_parent;
     FunctionNodeType m_type;
     nb::object m_data;
     ref<NativeCallDataCache> m_cache;
+    ref<NativeCallRuntimeOptions> m_cached_opts;
 };
 
 struct PyNativeFunctionNode : NativeFunctionNode {
