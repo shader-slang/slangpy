@@ -15,6 +15,7 @@ import pytest
 
 import slangpy as spy
 from slangpy import DeviceType
+from slangpy.bindings.boundvariable import BoundVariableException
 from slangpy.testing import helpers
 from slangpy.types import NDBuffer, Tensor
 
@@ -255,7 +256,7 @@ def test_direct_call_with_structured_numpy_raises(device_type: DeviceType):
     np_dtype = _make_simple_vec2_dtype()
     data = np.array([(1.0, 2.0)], dtype=np_dtype)
 
-    with pytest.raises(Exception, match="Structured numpy dtype"):
+    with pytest.raises(BoundVariableException, match="Structured numpy dtype"):
         module.sum_vec2(data)
 
 

@@ -188,7 +188,10 @@ class Tensor(NativeTensor):
 
         if is_structured:
             if not ndarray.flags["C_CONTIGUOUS"]:
-                ndarray = np.ascontiguousarray(ndarray)
+                raise ValueError(
+                    "Structured numpy arrays must be C-contiguous for Tensor.from_numpy. "
+                    "Call numpy.ascontiguousarray(data) first."
+                )
             itemsize = ndarray.dtype.itemsize
             slang_stride = dtype.buffer_layout.stride
             if itemsize != slang_stride:

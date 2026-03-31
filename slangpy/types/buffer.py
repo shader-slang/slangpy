@@ -186,6 +186,7 @@ class NDBuffer(NativeNDBuffer):
             shape=shape,
             usage=usage,
             memory_type=memory_type,
+            program_layout=program_layout,
         )
         res.copy_from_numpy(ndarray)
         return res
