@@ -133,7 +133,7 @@ def test_tensorview_grid_dispatch(device_type: DeviceType):
 
 
 # ============================================================================
-# Tests for TensorView<float2> / <float4> (vector element types)
+# Tests for TensorView<bool> (bool element type)
 # ============================================================================
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
 @pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
@@ -168,6 +168,9 @@ def test_tensorview_negate_bool_torch(device_type: DeviceType):
     assert torch.equal(expected, output_tensor), f"Expected {expected}, got {output_tensor}"
 
 
+# ============================================================================
+# Tests for TensorView<float2> / <float4> (vector element types)
+# ============================================================================
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
 @pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
