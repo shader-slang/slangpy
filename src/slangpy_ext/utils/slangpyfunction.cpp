@@ -23,6 +23,23 @@ struct GcHelper<slangpy::NativeFunctionNode> {
 
 namespace sgl::slangpy {
 
+/// Re-throw NativeBoundVariableException with formatted error table (error path only).
+[[noreturn]] static void rethrow_with_error_table(const NativeBoundVariableException& e)
+{
+    nb::module_ logging_mod = nb::module_::import_("slangpy.core.logging");
+    nb::object bound_runtime_call_table = logging_mod.attr("bound_runtime_call_table");
+
+    ref<NativeCallData> ctx = e.context();
+    ref<NativeBoundVariableRuntime> src = e.source();
+
+    std::string msg(e.message());
+    if (ctx && ctx->runtime()) {
+        nb::object table = bound_runtime_call_table(ctx->runtime(), src);
+        msg += "\n\n" + nb::cast<std::string>(table) + "\n\nFor help and support: https://khr.io/slangdiscord";
+    }
+    throw nb::value_error(msg.c_str());
+}
+
 // Read _thread_count from kwargs into options and remove it from kwargs.
 // _thread_count is included in the signature (kwargs are signature-scanned before this is called),
 // so calls with vs. without it are separate cache entries.
@@ -184,7 +201,7 @@ nb::object NativeFunctionNode::call_bwds(NativeCallData* fwds_call_data, nb::arg
 nb::object NativeFunctionNode::call(nb::args args, nb::kwargs kwargs)
 {
     NativeCallDataCache* cache = resolve_cache();
-    SGL_CHECK(cache, "NativeFunctionNode::call: no cache found (was set_cache called on root?)");
+    SGL_CHECK(cache, "NativeFunctionNode::call: no cache found (was _native_cache set on root?)");
 
     // Handle _result as type or string → delegate to Python self.return_type(resval).call(...)
     if (kwargs.contains("_result")) {
@@ -215,28 +232,19 @@ nb::object NativeFunctionNode::call(nb::args args, nb::kwargs kwargs)
                         .c_str()
                 );
             }
-            append_to(cache, encoder, args, kwargs);
+            try {
+                append_to(cache, encoder, args, kwargs);
+            } catch (const NativeBoundVariableException& e) {
+                rethrow_with_error_table(e);
+            }
             return nb::none();
         }
     }
 
-    // Fast path: call with error formatting
     try {
         return invoke(cache, args, kwargs);
     } catch (const NativeBoundVariableException& e) {
-        // Format the error table by calling back into Python (error path only)
-        nb::module_ logging_mod = nb::module_::import_("slangpy.core.logging");
-        nb::object bound_runtime_call_table = logging_mod.attr("bound_runtime_call_table");
-
-        ref<NativeCallData> ctx = e.context();
-        ref<NativeBoundVariableRuntime> src = e.source();
-
-        std::string msg(e.message());
-        if (ctx && ctx->runtime()) {
-            nb::object table = bound_runtime_call_table(ctx->runtime(), src);
-            msg += "\n\n" + nb::cast<std::string>(table) + "\n\nFor help and support: https://khr.io/slangdiscord";
-        }
-        throw nb::value_error(msg.c_str());
+        rethrow_with_error_table(e);
     }
 }
 
