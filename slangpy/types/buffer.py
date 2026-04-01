@@ -94,31 +94,6 @@ class NDBuffer(NativeNDBuffer):
         """
         return super().view(Shape(shape), Shape(strides), offset)
 
-    def copy_from_numpy(self, data: np.ndarray[Any, Any]) -> None:
-        """
-        Copies numpy data into this buffer. Automatically handles structured
-        numpy dtypes (e.g. arrays created with ``np.dtype([('x', np.float32), ...])``).
-
-        Structured arrays are internally reinterpreted as flat uint8 byte arrays
-        before the raw copy, because nanobind's ndarray does not support
-        DLPack-incompatible void dtypes.
-        """
-        if data.dtype.names is not None:
-            if not data.flags["C_CONTIGUOUS"]:
-                data = np.ascontiguousarray(data)
-            stride = self.dtype.buffer_layout.stride
-            expected_bytes = data.size * stride
-            actual_bytes = data.nbytes
-            if actual_bytes != expected_bytes:
-                raise ValueError(
-                    f"Numpy structured array byte size ({actual_bytes}) does not match "
-                    f"the NDBuffer element layout ({stride} bytes/element x "
-                    f"{data.size} elements = {expected_bytes} bytes). "
-                    f"Ensure the numpy dtype layout matches the Slang struct layout."
-                )
-            data = np.frombuffer(data, dtype=np.uint8)
-        super().copy_from_numpy(data)
-
     def to_numpy(self) -> np.ndarray[Any, Any]:
         """
         Copies buffer data into a numpy array with the same shape and strides. If the element type
@@ -164,12 +139,6 @@ class NDBuffer(NativeNDBuffer):
         """
 
         if dtype is None:
-            if ndarray.dtype.names is not None:
-                raise ValueError(
-                    f"Structured numpy dtype {ndarray.dtype} cannot be automatically mapped "
-                    f"to a Slang type. Please provide an explicit dtype parameter, e.g.:\n"
-                    f"  NDBuffer.from_numpy(device, data, dtype=module.MyStructType)"
-                )
             dtype = numpy_to_slang(ndarray.dtype, device, program_layout)
             if dtype is None:
                 raise ValueError(f"Unsupported numpy dtype {ndarray.dtype}")
@@ -186,7 +155,6 @@ class NDBuffer(NativeNDBuffer):
             shape=shape,
             usage=usage,
             memory_type=memory_type,
-            program_layout=program_layout,
         )
         res.copy_from_numpy(ndarray)
         return res

@@ -160,31 +160,33 @@ class Tensor(NativeTensor):
         usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,
         program_layout: Optional[SlangProgramLayout] = None,
-        dtype: Optional[Any] = None,
+        target_slang_dtype: Optional[Any] = None,
     ) -> Tensor:
         """
         Creates a new tensor with the same contents, shape and strides as the given numpy array.
 
         For structured numpy dtypes (e.g. arrays created with ``np.dtype(...)``), an explicit
-        ``dtype`` must be provided that names the corresponding Slang type.
+        ``target_slang_dtype`` must be provided that names the corresponding Slang type.
         """
 
         is_structured = ndarray.dtype.names is not None
 
-        if dtype is None:
+        if target_slang_dtype is None:
             if is_structured:
                 raise ValueError(
                     f"Structured numpy dtype {ndarray.dtype} cannot be automatically mapped "
-                    f"to a Slang type. Please provide an explicit dtype parameter, e.g.:\n"
-                    f"  Tensor.from_numpy(device, data, dtype=module.MyStructType)"
+                    f"to a Slang type. Please provide an explicit target_slang_dtype, e.g.:\n"
+                    f"  Tensor.from_numpy(device, data, target_slang_dtype=module.MyStructType)"
                 )
             dtype = numpy_to_slang(ndarray.dtype, device, program_layout)
             if dtype is None:
                 raise ValueError(f"Unsupported numpy dtype {ndarray.dtype}")
         else:
-            if not isinstance(dtype, SlangType):
-                program_layout = resolve_program_layout(device, dtype, program_layout)
-                dtype = resolve_element_type(program_layout, dtype)
+            if isinstance(target_slang_dtype, SlangType):
+                dtype = target_slang_dtype
+            else:
+                program_layout = resolve_program_layout(device, target_slang_dtype, program_layout)
+                dtype = resolve_element_type(program_layout, target_slang_dtype)
 
         if is_structured:
             if not ndarray.flags["C_CONTIGUOUS"]:
@@ -200,34 +202,26 @@ class Tensor(NativeTensor):
                     f"Slang type '{dtype.full_name}' buffer stride ({slang_stride}). "
                     f"Ensure the numpy dtype layout matches the Slang struct layout."
                 )
-            N = ndarray.size
-            data_bytes = np.frombuffer(ndarray, dtype=np.uint8)
-            strides = tuple(stride // itemsize for stride in ndarray.strides)
-
-            buffer = device.create_buffer(
-                struct_size=itemsize,
-                element_count=N,
-                usage=usage,
-                data=data_bytes,
-                memory_type=memory_type,
-            )
-            return Tensor(buffer, dtype, tuple(ndarray.shape), strides)
-
-        if (ndarray.nbytes % ndarray.itemsize) != 0:
-            raise ValueError(f"Unsupported numpy array")
-        for stride in ndarray.strides:
-            if (stride % ndarray.itemsize) != 0:
+            data = np.frombuffer(ndarray, dtype=np.uint8)
+        else:
+            if (ndarray.nbytes % ndarray.itemsize) != 0:
                 raise ValueError(f"Unsupported numpy array")
+            for stride in ndarray.strides:
+                if (stride % ndarray.itemsize) != 0:
+                    raise ValueError(f"Unsupported numpy array")
+            data = np.lib.stride_tricks.as_strided(
+                ndarray, (ndarray.nbytes // ndarray.itemsize,), (ndarray.itemsize,)
+            )
 
-        N = ndarray.nbytes // ndarray.itemsize
-        flattened = np.lib.stride_tricks.as_strided(ndarray, (N,), (ndarray.itemsize,))
-        strides = tuple(stride // ndarray.itemsize for stride in ndarray.strides)
+        itemsize = ndarray.dtype.itemsize
+        N = ndarray.nbytes // itemsize
+        strides = tuple(stride // itemsize for stride in ndarray.strides)
 
         buffer = device.create_buffer(
-            struct_size=ndarray.itemsize,
+            struct_size=itemsize,
             element_count=N,
             usage=usage,
-            data=flattened,
+            data=data,
             memory_type=memory_type,
         )
 
