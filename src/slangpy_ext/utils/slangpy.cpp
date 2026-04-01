@@ -738,8 +738,11 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
     if (total_threads == 0) {
         // Still allocate and return the (empty) result if needed.
         if (!command_encoder && m_call_mode == CallMode::prim) {
-            NativeHandle cuda_stream = opts->cuda_stream();
-            auto context = make_ref<CallContext>(m_device, call_shape, m_call_mode, cuda_stream);
+            NativeHandle cuda_stream = opts.cuda_stream;
+            if (!m_cached_context)
+                m_cached_context = make_ref<CallContext>(m_device, m_call_mode);
+            m_cached_context->init(call_shape, cuda_stream);
+            auto& context = m_cached_context;
             ref<NativeBoundVariableRuntime> rv_node = m_runtime->find_kwarg("_result");
             if (rv_node && (!kwargs.contains("_result") || kwargs["_result"].is_none())) {
                 nb::object output = rv_node->python_type()->create_output(context, rv_node.get());

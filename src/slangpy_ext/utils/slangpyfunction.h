@@ -180,6 +180,7 @@ public:
         m_parent = nullptr;
         m_data = nb::none();
         m_cache = nullptr;
+        m_cached_opts = nullptr;
     }
 
     /// Get or create cached runtime options (avoids heap alloc on repeat calls).
