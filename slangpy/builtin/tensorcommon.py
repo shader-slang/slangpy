@@ -261,21 +261,18 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
 
     # Tensor of scalars can load arrays of vectors of known size
     # e.g. float tensor -> float2[4] parameter, including generic vector<T,N>[M]
-    if isinstance(self_element_type, ScalarType) and isinstance(bound_type, ArrayType):
-        if isinstance(bound_type.element_type, VectorType):
-            as_inner_vector = spyvec.scalar_to_sized_vector(
-                self_element_type, bound_type.element_type
+    if (
+        isinstance(self_element_type, ScalarType)
+        and isinstance(bound_type, ArrayType)
+        and isinstance(bound_type.element_type, VectorType)
+    ):
+        as_inner_vector = spyvec.scalar_to_sized_vector(self_element_type, bound_type.element_type)
+        if as_inner_vector is not None and bound_type.num_elements > 0:
+            concrete = self.layout.find_type_by_name(
+                f"vector<{as_inner_vector.element_type.full_name},{as_inner_vector.num_elements}>[{bound_type.num_elements}]"
             )
-            if as_inner_vector is not None:
-                # Build concrete array-of-vector type (resolves generic T/N/M)
-                array_count = bound_type.num_elements if bound_type.num_elements > 0 else 0
-                if array_count > 0:
-                    concrete = self.layout.find_type_by_name(
-                        f"vector<{as_inner_vector.element_type.full_name},{as_inner_vector.num_elements}>[{array_count}]"
-                    )
-                    if concrete is not None:
-                        return [concrete]
-                return [bound_type]
+            if concrete is not None:
+                return [concrete]
 
     # Tensor of array-of-vector can match generic array-of-vector
     # e.g. Tensor<vector<float,2>[4]> -> vector<T,2>[4], vector<T,N>[M], etc.
@@ -284,17 +281,16 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
         and isinstance(bound_type, ArrayType)
         and isinstance(self_element_type.element_type, VectorType)
         and isinstance(bound_type.element_type, VectorType)
-    ):
-        # Array count: must match or be generic (0)
-        if (
+        and (
             bound_type.num_elements == 0
             or self_element_type.num_elements == bound_type.num_elements
-        ):
-            # Vector count: must match or be generic (0)
-            bound_vec = bound_type.element_type
-            self_vec = self_element_type.element_type
-            if bound_vec.num_elements == 0 or self_vec.num_elements == bound_vec.num_elements:
-                return [self_element_type]
+        )
+        and (
+            bound_type.element_type.num_elements == 0
+            or self_element_type.element_type.num_elements == bound_type.element_type.num_elements
+        )
+    ):
+        return [self_element_type]
 
     # Handle ambiguous case vectorizing against generic array type
     as_generic_array_candidates = spyvec.container_to_generic_array_candidates(

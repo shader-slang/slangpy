@@ -79,25 +79,21 @@ class ArrayMarshall(ValueMarshall):
 
         # Support array-of-scalar-array matching array-of-vector
         # e.g. float[4][2] (Python list [[1,2],[3,4],...]) -> float2[4]
-        # Handles concrete and generic: vector<T,2>[4], vector<T,N>[M], etc.
-        if isinstance(bound_type, kfr.ArrayType) and isinstance(
-            bound_type.element_type, kfr.VectorType
+        if (
+            isinstance(bound_type, kfr.ArrayType)
+            and isinstance(bound_type.element_type, kfr.VectorType)
+            and (bound_type.num_elements == 0 or st.num_elements == bound_type.num_elements)
         ):
-            # Array count: must match or be generic (0)
-            if bound_type.num_elements > 0 and st.num_elements != bound_type.num_elements:
-                pass
-            else:
-                as_vector = spyvec.array_to_vector_scalarconvertable(
-                    cast(kfr.SlangType, st.element_type), bound_type.element_type
-                )
-                if as_vector is not None:
-                    # Build concrete resolved type with our known sizes
-                    return [
-                        st.program.find_type_by_name(
-                            f"vector<{as_vector.element_type.full_name},{as_vector.num_elements}>[{st.num_elements}]"
-                        )
-                        or bound_type
-                    ]
+            as_vector = spyvec.array_to_vector_scalarconvertable(
+                cast(kfr.SlangType, st.element_type), bound_type.element_type
+            )
+            if as_vector is not None:
+                return [
+                    st.program.find_type_by_name(
+                        f"vector<{as_vector.element_type.full_name},{as_vector.num_elements}>[{st.num_elements}]"
+                    )
+                    or bound_type
+                ]
 
         # Support element being of unknown type, but binding to a known struct type.
         if (
