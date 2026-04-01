@@ -800,6 +800,9 @@ nb::object NativeTorchTensorMarshall::create_output(CallContext* context, Native
     case TypeReflection::ScalarType::float64:
         c10_scalar_type = TENSOR_BRIDGE_SCALAR_FLOAT64;
         break;
+    case TypeReflection::ScalarType::bool_:
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_BOOL;
+        break;
     default:
         SGL_THROW("Unsupported scalar type for torch output tensor");
     }
