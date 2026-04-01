@@ -102,143 +102,6 @@ namespace {
         }
     }
 
-    size_t get_effective_element_stride(NativeBoundVariableRuntime* binding, size_t source_element_stride)
-    {
-        ref<NativeSlangType> vector_type = binding->vector_type();
-        if (!vector_type) {
-            return source_element_stride;
-        }
-
-        ref<NativeSlangType> struct_type;
-
-        // Case 1: vector_type is Tensor<StructType, N> — check element_type
-        ref<NativeSlangType> element_type = vector_type->element_type();
-        if (element_type && element_type->type_reflection()
-            && element_type->type_reflection()->kind() == TypeReflection::Kind::struct_) {
-            struct_type = element_type;
-        }
-
-        // Case 2: vector_type IS the struct (bare struct auto-vectorization).
-        // Exclude slangpy internal tensor/buffer wrapper types which are struct-kinded
-        // in Slang reflection but should NOT trigger packed reinterpretation.
-        if (!struct_type && vector_type->type_reflection()
-            && vector_type->type_reflection()->kind() == TypeReflection::Kind::struct_) {
-            static const std::string_view internal_wrappers[] = {
-                "Tensor",         "WTensor",          "RWTensor",           "DiffTensor",        "WDiffTensor",
-                "RWDiffTensor",   "PrimalTensor",     "WPrimalTensor",      "RWPrimalTensor",    "AtomicTensor",
-                "ITensor",        "IWTensor",         "IDiffTensor",        "IWDiffTensor",      "TensorView",
-                "DiffTensorView", "StructuredBuffer", "RWStructuredBuffer", "ByteAddressBuffer", "RWByteAddressBuffer",
-            };
-            std::string_view type_name(vector_type->type_reflection()->name());
-            bool is_internal = false;
-            for (auto& wrapper : internal_wrappers) {
-                if (type_name == wrapper) {
-                    is_internal = true;
-                    break;
-                }
-            }
-            if (!is_internal) {
-                struct_type = vector_type;
-            }
-        }
-
-        if (!struct_type) {
-            return source_element_stride;
-        }
-
-        ref<TypeLayoutReflection> struct_layout = struct_type->buffer_type_layout();
-        if (!struct_layout) {
-            return source_element_stride;
-        }
-
-        size_t target_element_stride = struct_layout->stride();
-        if (target_element_stride == source_element_stride) {
-            return source_element_stride;
-        }
-        if (target_element_stride == 0 || target_element_stride % source_element_stride != 0) {
-            throw nb::value_error(
-                fmt::format(
-                    "Cannot reinterpret torch tensor element size {} bytes as struct {} with stride {} bytes",
-                    source_element_stride,
-                    struct_type->to_string(),
-                    target_element_stride
-                )
-                    .c_str()
-            );
-        }
-
-        return target_element_stride;
-    }
-
-    void compute_effective_shape_and_strides(
-        const TensorBridgeInfo& info,
-        NativeBoundVariableRuntime* binding,
-        Shape& shape,
-        Shape& strides
-    )
-    {
-        shape = shape_from_bridge_info(info);
-        strides = strides_from_bridge_info(info);
-
-        size_t target_element_stride = get_effective_element_stride(binding, info.element_size);
-        if (target_element_stride == info.element_size) {
-            return;
-        }
-
-        size_t packed_scalar_count = target_element_stride / info.element_size;
-        if (shape.size() == 0) {
-            throw nb::value_error("Cannot reinterpret a scalar torch tensor as a packed struct tensor");
-        }
-
-        const size_t packed_dim = shape.size() - 1;
-        if (static_cast<size_t>(shape[packed_dim]) != packed_scalar_count) {
-            throw nb::value_error(
-                fmt::format(
-                    "Torch tensor shape {} cannot be reinterpreted as {}. Expected the last "
-                    "dimension to have size {}",
-                    shape.to_string(),
-                    binding->vector_type()->to_string(),
-                    packed_scalar_count
-                )
-                    .c_str()
-            );
-        }
-        if (strides[packed_dim] != 1) {
-            throw nb::value_error(
-                fmt::format(
-                    "Torch tensor shape {} cannot be reinterpreted as {} because the packed last "
-                    "dimension must be contiguous",
-                    shape.to_string(),
-                    binding->vector_type()->to_string()
-                )
-                    .c_str()
-            );
-        }
-
-        Shape reinterpreted_shape(packed_dim);
-        Shape reinterpreted_strides(packed_dim);
-        for (size_t i = 0; i < packed_dim; ++i) {
-            if (strides[i] % packed_scalar_count != 0) {
-                throw nb::value_error(
-                    fmt::format(
-                        "Torch tensor shape {} cannot be reinterpreted as {} because stride {} "
-                        "is not divisible by packed element width {}",
-                        shape.to_string(),
-                        binding->vector_type()->to_string(),
-                        strides[i],
-                        packed_scalar_count
-                    )
-                        .c_str()
-                );
-            }
-            reinterpreted_shape[i] = shape[i];
-            reinterpreted_strides[i] = strides[i] / static_cast<int>(packed_scalar_count);
-        }
-
-        shape = reinterpreted_shape;
-        strides = reinterpreted_strides;
-    }
-
     /// Helper for writing single value to base address with offset
     template<typename T>
     void write_value_helper(void* base_address, size_t offset, const T& value)
@@ -499,9 +362,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     }
 
     // Validate shape
-    Shape tensor_shape;
-    Shape tensor_strides;
-    compute_effective_shape_and_strides(primal_info, binding, tensor_shape, tensor_strides);
+    Shape tensor_shape = shape_from_bridge_info(primal_info);
     validate_tensor_shape(tensor_shape, binding->vector_type()->shape());
 
     // Only support CUDA tensors (the PyTorch tensor must be on CUDA)
@@ -621,9 +482,8 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     Buffer* interop_buffer
 ) const
 {
-    Shape shape;
-    Shape strides;
-    compute_effective_shape_and_strides(info, binding, shape, strides);
+    Shape shape = shape_from_bridge_info(info);
+    Shape strides = strides_from_bridge_info(info);
 
     // Apply broadcast stride zeroing (used by TensorView and direct CUDA paths)
     strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
@@ -715,11 +575,9 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
         if (buffer_size == 0)
             buffer_size = static_cast<size_t>(info.element_size);
 
-        size_t struct_size = get_effective_element_stride(binding, info.element_size);
-
         ref<Buffer> interop_buffer = context->device()->create_buffer({
             .size = buffer_size,
-            .struct_size = struct_size,
+            .struct_size = static_cast<size_t>(info.element_size),
             .usage = BufferUsage::unordered_access | BufferUsage::shader_resource | BufferUsage::shared,
             .default_state = writable ? ResourceState::unordered_access : ResourceState::shader_resource,
         });
@@ -737,11 +595,9 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
         if (buffer_size == 0)
             buffer_size = static_cast<size_t>(info.element_size);
 
-        size_t struct_size = get_effective_element_stride(binding, info.element_size);
-
         ref<Buffer> interop_buffer = context->device()->create_buffer({
             .size = buffer_size,
-            .struct_size = struct_size,
+            .struct_size = static_cast<size_t>(info.element_size),
             .usage = BufferUsage::unordered_access | BufferUsage::shader_resource | BufferUsage::shared,
             .default_state = ResourceState::shader_resource,
         });
