@@ -69,7 +69,10 @@ Device::Device(const DeviceDesc& desc)
 
     // Setup path for slang's downstream compilers.
     for (SlangPassThrough pass_through :
-         {SLANG_PASS_THROUGH_DXC, SLANG_PASS_THROUGH_GLSLANG, SLANG_PASS_THROUGH_SPIRV_OPT}) {
+         {SLANG_PASS_THROUGH_DXC,
+          SLANG_PASS_THROUGH_GLSLANG,
+          SLANG_PASS_THROUGH_SPIRV_OPT,
+          SLANG_PASS_THROUGH_SPIRV_DIS}) {
         m_global_session->setDownstreamCompilerPath(pass_through, platform::runtime_directory().string().c_str());
     }
 
@@ -708,6 +711,15 @@ ref<SlangModule> Device::load_module_from_source(
 )
 {
     return m_slang_session->load_module_from_source(module_name, source, path);
+}
+
+ref<SlangModule> Device::compose_modules(
+    std::string_view name,
+    std::vector<ref<SlangModule>> modules,
+    std::span<const TypeConformance> type_conformances
+)
+{
+    return m_slang_session->compose_modules(name, std::move(modules), type_conformances);
 }
 
 ref<ShaderProgram> Device::link_program(
