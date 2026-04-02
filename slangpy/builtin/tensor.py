@@ -11,6 +11,7 @@ from slangpy.reflection import (
     SlangType,
     ArrayType,
     ScalarType,
+    VectorType,
     MatrixType,
     TensorType,
     TensorAccess,
@@ -36,6 +37,8 @@ def types_equal(a: SlangType, b: SlangType):
 def is_nested_array(a: SlangType):
     while True:
         if isinstance(a, ScalarType):
+            return True
+        if isinstance(a, VectorType):
             return True
         if isinstance(a, MatrixType):
             return True
