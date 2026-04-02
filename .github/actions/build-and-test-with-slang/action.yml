@@ -178,6 +178,134 @@ runs:
       shell: ${{ inputs.shell }}
       run: python -c "import pathlib, os; f=open(os.environ['GITHUB_OUTPUT'],'a'); f.write('has_tests=true\n' if pathlib.Path('slang/tests/integration/slangpy').is_dir() else 'has_tests=false\n'); f.close()"
 
+    - name: Slang integration diagnostics (Windows)
+      if: steps.detect-slang-integration.outputs.has_tests == 'true' && startsWith(inputs.os, 'windows')
+      shell: ${{ inputs.shell }}
+      env:
+        NEURAL_MODULE_PATH: ${{ github.workspace }}/slang/build/${{ inputs.config }}/bin
+      run: |
+        @'
+        import json
+        import os
+        import pathlib
+        import subprocess
+
+        print("=== neural-ci-diagnostics-windows ===", flush=True)
+
+        for key in ["NEURAL_MODULE_PATH", "CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]:
+            print(f"{key}={os.environ.get(key)}", flush=True)
+
+        path_entries = [p for p in os.environ.get("PATH", "").split(os.pathsep) if "cuda" in p.lower() or "nvidia" in p.lower()]
+        print("PATH_cuda_entries=" + json.dumps(path_entries), flush=True)
+
+        p = pathlib.Path(os.environ["NEURAL_MODULE_PATH"])
+        print(f"neural_module_path_input={p}", flush=True)
+        print(f"neural_module_path_exists={p.exists()}", flush=True)
+        try:
+            print(f"neural_module_path_resolved={p.resolve()}", flush=True)
+        except Exception as exc:
+            print(f"neural_module_path_resolve_error={type(exc).__name__}: {exc}", flush=True)
+
+        if p.exists():
+            entries = sorted([x.name for x in p.iterdir()])
+            print("neural_module_path_entries=" + json.dumps(entries[:100]), flush=True)
+            std_dirs = [x for x in p.iterdir() if x.is_dir() and x.name.startswith("slang-standard-module-")]
+            print("std_module_dirs=" + json.dumps([x.name for x in std_dirs]), flush=True)
+            for d in std_dirs[:10]:
+                inner = d / "slang"
+                print(f"std_module_dir={d}", flush=True)
+                print(f"std_module_slang_dir_exists={inner.exists()} path={inner}", flush=True)
+                if inner.exists():
+                    neural_slang = inner / "neural.slang"
+                    neural_module = inner / "neural.slang-module"
+                    print(f"neural_slang_exists={neural_slang.exists()} path={neural_slang}", flush=True)
+                    print(f"neural_slang_module_exists={neural_module.exists()} path={neural_module}", flush=True)
+
+        def run_cmd(label, cmd):
+            print(f"=== {label} ===", flush=True)
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, shell=False)
+                print(f"returncode={result.returncode}", flush=True)
+                if result.stdout:
+                    print(result.stdout, flush=True)
+                if result.stderr:
+                    print("stderr:", flush=True)
+                    print(result.stderr, flush=True)
+            except Exception as exc:
+                print(f"command_error={type(exc).__name__}: {exc}", flush=True)
+
+        run_cmd("where nvcc", ["where", "nvcc"])
+        run_cmd("where nvrtc64_*.dll", ["where", "nvrtc64_*.dll"])
+        run_cmd("nvcc --version", ["nvcc", "--version"])
+
+        if os.environ.get("CUDA_PATH"):
+            cuda_bin = pathlib.Path(os.environ["CUDA_PATH"]) / "bin"
+            print("cuda_bin_entries=" + json.dumps(sorted([x.name for x in cuda_bin.glob("nvrtc64*.dll")])), flush=True)
+        '@ | Set-Content "$env:RUNNER_TEMP\neural_ci_diag.py"
+        python "$env:RUNNER_TEMP\neural_ci_diag.py"
+
+    - name: Slang integration diagnostics (Linux/macOS)
+      if: steps.detect-slang-integration.outputs.has_tests == 'true' && !startsWith(inputs.os, 'windows')
+      shell: ${{ inputs.shell }}
+      env:
+        NEURAL_MODULE_PATH: ${{ github.workspace }}/slang/build/${{ inputs.config }}/lib
+      run: |
+        python - <<'PY'
+        import json
+        import os
+        import pathlib
+        import subprocess
+
+        print("=== neural-ci-diagnostics-posix ===", flush=True)
+
+        for key in ["NEURAL_MODULE_PATH", "CUDA_PATH", "CUDA_HOME", "CUDA_ROOT", "LD_LIBRARY_PATH"]:
+            print(f"{key}={os.environ.get(key)}", flush=True)
+
+        path_entries = [p for p in os.environ.get("PATH", "").split(os.pathsep) if "cuda" in p.lower() or "nvidia" in p.lower()]
+        print("PATH_cuda_entries=" + json.dumps(path_entries), flush=True)
+
+        p = pathlib.Path(os.environ["NEURAL_MODULE_PATH"])
+        print(f"neural_module_path_input={p}", flush=True)
+        print(f"neural_module_path_exists={p.exists()}", flush=True)
+        try:
+            print(f"neural_module_path_resolved={p.resolve()}", flush=True)
+        except Exception as exc:
+            print(f"neural_module_path_resolve_error={type(exc).__name__}: {exc}", flush=True)
+
+        if p.exists():
+            entries = sorted([x.name for x in p.iterdir()])
+            print("neural_module_path_entries=" + json.dumps(entries[:100]), flush=True)
+            std_dirs = [x for x in p.iterdir() if x.is_dir() and x.name.startswith("slang-standard-module-")]
+            print("std_module_dirs=" + json.dumps([x.name for x in std_dirs]), flush=True)
+            for d in std_dirs[:10]:
+                inner = d / "slang"
+                print(f"std_module_dir={d}", flush=True)
+                print(f"std_module_slang_dir_exists={inner.exists()} path={inner}", flush=True)
+                if inner.exists():
+                    neural_slang = inner / "neural.slang"
+                    neural_module = inner / "neural.slang-module"
+                    print(f"neural_slang_exists={neural_slang.exists()} path={neural_slang}", flush=True)
+                    print(f"neural_slang_module_exists={neural_module.exists()} path={neural_module}", flush=True)
+
+        def run_cmd(label, cmd):
+            print(f"=== {label} ===", flush=True)
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, shell=False)
+                print(f"returncode={result.returncode}", flush=True)
+                if result.stdout:
+                    print(result.stdout, flush=True)
+                if result.stderr:
+                    print("stderr:", flush=True)
+                    print(result.stderr, flush=True)
+            except Exception as exc:
+                print(f"command_error={type(exc).__name__}: {exc}", flush=True)
+
+        run_cmd("which nvcc", ["which", "nvcc"])
+        run_cmd("nvcc --version", ["nvcc", "--version"])
+        run_cmd("bash -lc ls /usr/local/cuda*/lib64/libnvrtc*", ["bash", "-lc", "ls /usr/local/cuda*/lib64/libnvrtc* 2>/dev/null || true"])
+        run_cmd("bash -lc ls /usr/lib*/libnvrtc*", ["bash", "-lc", "ls /usr/lib*/libnvrtc* 2>/dev/null || true"])
+        PY
+
     - name: Slang integration tests
       if: steps.detect-slang-integration.outputs.has_tests == 'true' && startsWith(inputs.os, 'windows')
       shell: ${{ inputs.shell }}
