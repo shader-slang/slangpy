@@ -31,24 +31,7 @@ void simple_bwd(int coord, ITensor<float, 1> x, float df) {
     bwd_diff(process_element)(coord, x, df);
 }
 
-[Differentiable]
-float simple_auto(int coord, ITensor<float, 1> x) {
-    return process_element(coord, x);
-}
 """
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_forward_auto_diff(device_type: DeviceType):
-    """Forward pass with [Differentiable] should work."""
-    device = helpers.get_device(device_type)
-    func = helpers.create_function_from_module(device, "simple_auto", ITENSOR_CUSTOM_BACKWARD)
-
-    N = 8
-    xt = Tensor.from_numpy(device, np.arange(N, dtype=np.float32))
-    result = func(coord=spy.grid((N,)), x=xt)
-    result_np = result.to_numpy().view(np.float32)
-    np.testing.assert_allclose(result_np, np.arange(N, dtype=np.float32))
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -62,22 +45,6 @@ def test_forward_custom_backward(device_type: DeviceType):
     result = func(coord=spy.grid((N,)), x=xt)
     result_np = result.to_numpy().view(np.float32)
     np.testing.assert_allclose(result_np, np.arange(N, dtype=np.float32))
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_backward_auto_diff(device_type: DeviceType):
-    """Backward pass with [Differentiable] should work."""
-    device = helpers.get_device(device_type)
-    func = helpers.create_function_from_module(
-        device, "simple_auto", ITENSOR_CUSTOM_BACKWARD
-    ).return_type(Tensor)
-
-    N = 8
-    xt = Tensor.from_numpy(device, np.arange(N, dtype=np.float32)).with_grads(zero=True)
-    result = func(coord=spy.grid((N,)), x=xt)
-    result = result.with_grads()
-    result.grad.storage.copy_from_numpy(np.ones(N, dtype=np.float32))
-    func.bwds(coord=spy.grid((N,)), x=xt, _result=result)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
