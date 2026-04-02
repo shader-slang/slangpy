@@ -16,8 +16,10 @@
 #include "sgl/device/command.h"
 #include "sgl/device/helpers.h"
 #include "sgl/device/agility_sdk.h"
+#if SGL_HAS_CUDA
 #include "sgl/device/cuda_utils.h"
 #include "sgl/device/cuda_interop.h"
+#endif
 #include "sgl/device/print.h"
 #include "sgl/device/blit.h"
 #include "sgl/device/hot_reload.h"
@@ -68,6 +70,7 @@ Device::Device(const DeviceDesc& desc)
     SLANG_CALL(slang::createGlobalSession(m_global_session.writeRef()));
 
     // Setup path for slang's downstream compilers.
+#if !SLANG_WASM
     for (SlangPassThrough pass_through :
          {SLANG_PASS_THROUGH_DXC,
           SLANG_PASS_THROUGH_GLSLANG,
@@ -75,9 +78,12 @@ Device::Device(const DeviceDesc& desc)
           SLANG_PASS_THROUGH_SPIRV_DIS}) {
         m_global_session->setDownstreamCompilerPath(pass_through, platform::runtime_directory().string().c_str());
     }
+#endif
 
     if (m_desc.type == DeviceType::automatic) {
-#if SGL_WINDOWS
+#if SLANG_WASM
+        m_desc.type = DeviceType::wgpu;
+#elif SGL_WINDOWS
         m_desc.type = DeviceType::d3d12;
 #elif SGL_LINUX
         m_desc.type = DeviceType::vulkan;
@@ -123,6 +129,7 @@ Device::Device(const DeviceDesc& desc)
         }
     }
 
+#if SGL_HAS_CUDA
     // If CUDA interop is enabled on non-cuda backend, check if existing CUDA context or device
     // is provided. If so, we will attempt to identify the same device for use with SlangPy.
     if (m_desc.enable_cuda_interop) {
@@ -194,6 +201,7 @@ Device::Device(const DeviceDesc& desc)
             SGL_THROW("Unable to find matching adapter LUID or name for the provided CUDA device.");
         }
     }
+#endif
 
     // Setup extensions.
     rhi::D3D12DeviceExtendedDesc d3d12_extended_desc{
@@ -354,6 +362,7 @@ Device::Device(const DeviceDesc& desc)
     // Create global fence to synchronize command submission.
     m_global_fence = create_fence({.shared = m_desc.enable_cuda_interop});
 
+#if SGL_HAS_CUDA
     // Finalize CUDA interop.
     if (m_desc.enable_cuda_interop) {
 
@@ -371,6 +380,7 @@ Device::Device(const DeviceDesc& desc)
 
         m_supports_cuda_interop = true;
     }
+#endif
 
     if (m_desc.enable_print)
         m_debug_printer = std::make_unique<DebugPrinter>(this);
@@ -476,11 +486,13 @@ void Device::close()
     m_slang_session.reset();
     m_hot_reload.reset();
 
+#if SGL_HAS_CUDA
     if (m_cuda_device) {
         SGL_CU_SCOPE(this);
         m_cuda_semaphore.reset();
     }
     m_cuda_device.reset();
+#endif
 
     dec_ref();
 }
@@ -835,6 +847,18 @@ uint64_t Device::submit_command_buffers(
     if (m_hot_reload)
         m_hot_reload->update();
 
+    short_vector<rhi::ICommandBuffer*, 8> rhi_command_buffers;
+    short_vector<rhi::IFence*, 8> rhi_wait_fences;
+    short_vector<uint64_t, 8> rhi_wait_fence_values;
+    short_vector<rhi::IFence*, 8> rhi_signal_fences;
+    short_vector<uint64_t, 8> rhi_signal_fence_values;
+
+    for (CommandBuffer* command_buffer : command_buffers) {
+        SGL_CHECK_NOT_NULL(command_buffer);
+        rhi_command_buffers.push_back(command_buffer->rhi_command_buffer());
+    }
+
+#if SGL_HAS_CUDA
     // Pointer to CUDA stream
     void* cuda_stream_ptr;
     if (m_desc.type == DeviceType::cuda) {
@@ -852,21 +876,11 @@ uint64_t Device::submit_command_buffers(
         cuda_stream_ptr = nullptr;
     }
 
-    short_vector<rhi::ICommandBuffer*, 8> rhi_command_buffers;
-    short_vector<rhi::IFence*, 8> rhi_wait_fences;
-    short_vector<uint64_t, 8> rhi_wait_fence_values;
-    short_vector<rhi::IFence*, 8> rhi_signal_fences;
-    short_vector<uint64_t, 8> rhi_signal_fence_values;
 
     // Will always enable CUDA sync if explicit stream provided.
     // If not, this will only be enabled if buffers were bound that have associated
     // CUDA interop allocations.
     bool needs_cuda_sync = cuda_stream.is_valid();
-
-    for (CommandBuffer* command_buffer : command_buffers) {
-        SGL_CHECK_NOT_NULL(command_buffer);
-        rhi_command_buffers.push_back(command_buffer->rhi_command_buffer());
-    }
 
     // Handle CUDA interop.
     if (m_supports_cuda_interop) {
@@ -880,6 +894,7 @@ uint64_t Device::submit_command_buffers(
         if (needs_cuda_sync)
             sync_to_cuda(cuda_stream_ptr);
     }
+#endif
 
     // Handle passed in wait fences.
     for (size_t i = 0; i < wait_fences.size(); ++i) {
@@ -919,11 +934,16 @@ uint64_t Device::submit_command_buffers(
         .signalFences = rhi_signal_fences.data(),
         .signalFenceValues = rhi_signal_fence_values.data(),
         .signalFenceCount = narrow_cast<uint32_t>(rhi_signal_fences.size()),
+#if SGL_HAS_CUDA
         .cudaStream = cuda_stream_ptr,
+#else
+        .cudaStream = nullptr,
+#endif
     };
     SLANG_RHI_CALL(m_rhi_graphics_queue->submit(rhi_submit_desc), this);
 
     // Handle CUDA interop.
+#if SGL_HAS_CUDA
     if (m_supports_cuda_interop && needs_cuda_sync) {
         sync_to_device(cuda_stream_ptr);
 
@@ -934,6 +954,7 @@ uint64_t Device::submit_command_buffers(
             }
         }
     }
+#endif
 
     return m_global_fence->signaled_value();
 }
@@ -965,6 +986,7 @@ void Device::wait_for_idle(CommandQueueType queue)
 void Device::sync_to_cuda(void* cuda_stream)
 {
     // Signal fence from CUDA, wait for it on graphics queue.
+#if SGL_HAS_CUDA
     if (m_supports_cuda_interop) {
         SGL_CU_SCOPE(this);
 
@@ -985,10 +1007,14 @@ void Device::sync_to_cuda(void* cuda_stream)
         };
         SLANG_RHI_CALL(m_rhi_graphics_queue->submit(submit_desc), this);
     }
+#else
+    (void)cuda_stream;
+#endif
 }
 
 void Device::sync_to_device(void* cuda_stream)
 {
+#if SGL_HAS_CUDA
     if (m_supports_cuda_interop) {
         SGL_CU_SCOPE(this);
 
@@ -1009,6 +1035,9 @@ void Device::sync_to_device(void* cuda_stream)
         // Wait for it on CUDA.
         m_cuda_semaphore->wait(m_global_fence->signaled_value(), CUstream(cuda_stream));
     }
+#else
+    (void)cuda_stream;
+#endif
 }
 
 void Device::flush_print()
@@ -1306,7 +1335,7 @@ void Device::_unregister_device_child(DeviceChild* device_child)
 std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
 {
     std::array<NativeHandle, 3> handles;
-
+#if SGL_HAS_CUDA
     CUcontext cu_context;
     SGL_CHECK(rhiCudaDriverApiInit(), "Failed to initialize CUDA driver API.");
     SGL_CU_CHECK(cuCtxGetCurrent(&cu_context));
@@ -1317,7 +1346,7 @@ std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
 
     handles[0] = NativeHandle(cu_device);
     handles[1] = NativeHandle(cu_context);
-
+#endif
     return handles;
 }
 
