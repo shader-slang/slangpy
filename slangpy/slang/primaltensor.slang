@@ -83,6 +83,22 @@ implementing slangpy;
             this.store(idx, value[i]);                                                                                 \
         }                                                                                                              \
     }                                                                                                                  \
+    public void __slangpy_store<let M : int, let N : int>(ContextND<D - 2> context, in vector<T, N>[M] value)          \
+    {                                                                                                                  \
+        int idx[D];                                                                                                    \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < D - 2; ++i)                                                                                \
+            idx[i] = context.call_id[i];                                                                               \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < M; i++) {                                                                                  \
+            [ForceUnroll]                                                                                              \
+            for (int j = 0; j < N; j++) {                                                                              \
+                idx[D - 2] = i;                                                                                        \
+                idx[D - 1] = j;                                                                                        \
+                this.store(idx, value[i][j]);                                                                          \
+            }                                                                                                          \
+        }                                                                                                              \
+    }                                                                                                                  \
     public void __slangpy_store<let M : int, let N : int>(ContextND<D - 2> context, in T value[M][N])                  \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -143,6 +159,22 @@ implementing slangpy;
         for (int i = 0; i < N; i++) {                                                                                  \
             idx[D - 1] = i;                                                                                            \
             value[i] = this.load(idx);                                                                                 \
+        }                                                                                                              \
+    }                                                                                                                  \
+    public void __slangpy_load<let M : int, let N : int>(ContextND<D - 2> context, out vector<T, N>[M] value)          \
+    {                                                                                                                  \
+        int idx[D];                                                                                                    \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < D - 2; ++i)                                                                                \
+            idx[i] = context.call_id[i];                                                                               \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < M; i++) {                                                                                  \
+            [ForceUnroll]                                                                                              \
+            for (int j = 0; j < N; j++) {                                                                              \
+                idx[D - 2] = i;                                                                                        \
+                idx[D - 1] = j;                                                                                        \
+                value[i][j] = this.load(idx);                                                                          \
+            }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
     public void __slangpy_load<let M : int, let N : int>(ContextND<D - 2> context, out T value[M][N])                  \

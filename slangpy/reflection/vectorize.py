@@ -130,19 +130,22 @@ def array_to_array_scalarconvertable(marshall_type: rt.SlangType, target_type: r
 
 def array_to_vector_scalarconvertable(marshall_type: rt.SlangType, target_type: rt.SlangType):
     """Attempt to match marshall array type to vector type, allowing for generic dims. The vector
-    element type can not be inferred if generic, however its element count can."""
+    element type can be inferred from the marshall type if generic."""
     if not isinstance(marshall_type, rt.ArrayType):
         return None
     if isinstance(target_type, rt.VectorType):
         if target_type.num_elements > 0 and marshall_type.num_elements != target_type.num_elements:
             return None
-        if not isinstance(target_type.element_type, rt.ScalarType):
-            return None
         if not isinstance(marshall_type.element_type, rt.ScalarType):
             return None
-        return marshall_type.program.vector_type(
-            target_type.slang_scalar_type, marshall_type.num_elements
-        )
+        # Use target's scalar type if concrete, otherwise infer from marshall
+        if isinstance(target_type.element_type, rt.ScalarType):
+            scalar_type = target_type.slang_scalar_type
+        elif isinstance(target_type.element_type, (rt.UnknownType, rt.InterfaceType)):
+            scalar_type = marshall_type.element_type.slang_scalar_type
+        else:
+            return None
+        return marshall_type.program.vector_type(scalar_type, marshall_type.num_elements)
     return None
 
 
