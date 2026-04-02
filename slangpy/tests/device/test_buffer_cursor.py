@@ -362,6 +362,59 @@ def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("seed", RAND_SEEDS)
+def test_cursor_read_write_reinterpret(device_type: spy.DeviceType, seed: int):
+
+    # Randomize the order of the tests
+    tests = get_tests(device_type).copy()
+    random.seed(seed)
+    random.shuffle(tests)
+
+    # Create the module and buffer layout
+    code = gen_fill_in_module(tests)
+    mod_name = "test_buffer_cursor_TestType_" + hashlib.sha256(code.encode()).hexdigest()[0:8]
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source(mod_name, code)
+    resource_type_layout = module.layout.get_type_layout(
+        module.layout.find_type_by_name("StructuredBuffer<TestType>")
+    )
+    reinterpret_type_layout = module.layout.get_type_layout(
+        module.layout.find_type_by_name("uint16_t[2]")
+    )
+
+    # Create a buffer cursor with its own data
+    cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
+    
+    # Populate the first element
+    element = cursor[0]
+    for test in tests:
+        (name, gpu_type, gpu_val, value) = test[0:4]
+        element[name] = value
+
+    # Reinterpret uint32_t data as uint16_t[2] and write to it.
+    reinterpret_var_name = "f_uint1"
+    u16v2 = np.array([55, 67], dtype=np.uint16)
+    u32 = u16v2.view(np.uint32)[0]
+    element[reinterpret_var_name].reinterpret(reinterpret_type_layout)[0] = u16v2[0]
+    element[reinterpret_var_name].reinterpret(reinterpret_type_layout)[1] = u16v2[1]
+
+    # Create new cursor by copying the first, and read element
+    cursor2 = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
+    cursor2.copy_from_numpy(cursor.to_numpy())
+    element2 = cursor2[0]
+
+    # Verify data matches
+    for test in tests:
+        name = test[0]
+        if name == reinterpret_var_name:
+            assert u16v2[0] == element2[name].reinterpret(reinterpret_type_layout)[0].read()
+            assert u16v2[1] == element2[name].reinterpret(reinterpret_type_layout)[1].read()
+            assert u32 == element2[name].read()
+        else:
+            check_match(test, element2[name].read())
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("seed", RAND_SEEDS)
 def test_fill_from_kernel(device_type: spy.DeviceType, seed: int):
 
     # Randomize the order of the tests
