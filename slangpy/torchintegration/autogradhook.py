@@ -81,6 +81,13 @@ class TorchAutoGradHook(torch.autograd.Function):
         :param grad_outputs: Gradients for each output tensor.
         :return: Tuple of gradients for each input, with None for the options arg.
         """
+        if ctx.forwards_cd is None:
+            raise RuntimeError(
+                "TorchAutoGradHook.backward() called more than once on the same "
+                "graph. This can happen when backward(retain_graph=True) is used, "
+                "which is not supported by SlangPy's autograd integration."
+            )
+
         # Native C++ handles: tensor restoration, grad creation, bwds dispatch
         input_grads = ctx.forwards_cd.autograd_backward(
             ctx.function,
@@ -90,5 +97,15 @@ class TorchAutoGradHook(torch.autograd.Function):
             list(ctx.saved_tensors),
             grad_outputs,
         )
+
+        # Release references to GPU resources so they can be garbage-collected
+        # between iterations.  Without this, ctx keeps args/kwargs/pairs (which
+        # hold torch tensors and native diff-pairs) alive until the *next*
+        # backward pass replaces them, causing VRAM to grow linearly.
+        ctx.function = None
+        ctx.forwards_cd = None
+        ctx.args = None
+        ctx.kwargs = None
+        ctx.pairs = None
 
         return (None,) + tuple(input_grads)
