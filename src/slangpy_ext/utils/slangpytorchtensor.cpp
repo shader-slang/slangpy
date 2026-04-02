@@ -63,6 +63,16 @@ namespace {
         return result;
     }
 
+    /// Check if a tensor has any broadcasted dimensions (stride=0 with shape > 1).
+    bool has_broadcast_stride(const TensorBridgeInfo& info)
+    {
+        for (int i = 0; i < info.ndim; i++) {
+            if (info.strides[i] == 0 && info.shape[i] > 1)
+                return true;
+        }
+        return false;
+    }
+
     /// Validate tensor shape against expected vector type shape
     void validate_tensor_shape(const Shape& tensor_shape, const Shape& vector_shape)
     {
@@ -369,6 +379,25 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     // For meta tensors (backward pass outputs), is_cuda comes from grad
     if (!primal_info.is_cuda && primal_info.data_ptr != nullptr) {
         SGL_THROW("Non-CUDA torch tensors are not yet supported. Tensor must be on CUDA device.");
+    }
+
+    // Reject writes to broadcasted tensors (stride=0 with shape > 1).
+    // Reading from broadcast tensors works correctly (all threads read same element),
+    // but writing causes a race condition (all threads write to same address).
+    auto [primal_access, grad_access] = binding->access();
+    if (has_broadcast_stride(primal_info)
+        && (primal_access == AccessType::write || primal_access == AccessType::readwrite)) {
+        SGL_THROW(
+            "Cannot write to a broadcasted tensor (has stride 0). "
+            "Call .contiguous() before passing to slangpy."
+        );
+    }
+    if (has_grad && has_broadcast_stride(grad_info)
+        && (grad_access == AccessType::write || grad_access == AccessType::readwrite)) {
+        SGL_THROW(
+            "Cannot write to a broadcasted gradient tensor (has stride 0). "
+            "Call .contiguous() on the gradient before passing to slangpy."
+        );
     }
 
     ShaderObject* shader_object = cursor.shader_object();

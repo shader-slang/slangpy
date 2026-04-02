@@ -645,5 +645,26 @@ def test_nn_module_parameter_gradient(device_type: DeviceType):
     compare_tensors(bias.grad, torch.ones_like(bias))
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_broadcast_tensor_read(device_type: DeviceType):
+    """Reading from a broadcasted tensor (stride=0) should work correctly."""
+    module = load_test_module(device_type)
+    a = torch.tensor([1.0], device="cuda").expand(4)  # shape=[4], stride=[0]
+    b = torch.tensor([2.0, 3.0, 4.0, 5.0], device="cuda")
+    result = module.add(a, b)
+    compare_tensors(result, torch.tensor([3.0, 4.0, 5.0, 6.0], device="cuda"))
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_broadcast_tensor_write_raises(device_type: DeviceType):
+    """Writing to a broadcasted tensor (stride=0) should raise an error."""
+    module = load_test_module(device_type)
+    a = torch.tensor([1.0, 2.0, 3.0], device="cuda")
+    b = torch.tensor([1.0, 2.0, 3.0], device="cuda")
+    res = torch.tensor([0.0], device="cuda").expand(3)  # broadcasted output
+    with pytest.raises(RuntimeError, match="broadcasted tensor"):
+        module.add_out(a, b, res=res)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
