@@ -185,6 +185,26 @@ runs:
         NEURAL_MODULE_PATH: ${{ github.workspace }}/slang/build/${{ inputs.config }}/bin
       run: |
         python -m pip install Pillow
+        Write-Host "NEURAL_MODULE_PATH=$env:NEURAL_MODULE_PATH"
+        if (Test-Path $env:NEURAL_MODULE_PATH) {
+          Write-Host "Contents of NEURAL_MODULE_PATH:"
+          Get-ChildItem $env:NEURAL_MODULE_PATH | Select-Object -First 50 | Format-Table Name, FullName -AutoSize
+        } else {
+          Write-Host "NEURAL_MODULE_PATH does not exist"
+        }
+        python -c "import os, pathlib; p = pathlib.Path(os.environ['NEURAL_MODULE_PATH']); print('resolved=', p.resolve()); print('exists=', p.exists()); print('std_modules=', [x.name for x in p.iterdir() if x.is_dir() and x.name.startswith('slang-standard-module-')] if p.exists() else [])"
+        Write-Host "CUDA-related environment variables:"
+        Get-ChildItem Env:CUDA* | Format-Table Name, Value -AutoSize
+        if (Get-Command nvcc -ErrorAction SilentlyContinue) {
+          Write-Host "nvcc version:"
+          nvcc --version
+        } else {
+          Write-Host "nvcc not found on PATH"
+        }
+        if ($env:CUDA_PATH) {
+          Write-Host "NVRTC DLLs under CUDA_PATH:"
+          Get-ChildItem "$env:CUDA_PATH\bin\nvrtc64*.dll" -ErrorAction SilentlyContinue | Format-Table Name, FullName -AutoSize
+        }
         python -m pytest slang/tests/integration/slangpy/ -ra -v
 
     # Test Examples
