@@ -62,7 +62,7 @@ MarshaledDrawData marshal_draw_data(nb::handle draw_data_obj)
                     .elem_count = nb::cast<uint32_t>(cmd_handle.attr("elem_count")),
                     .idx_offset = nb::cast<uint32_t>(cmd_handle.attr("idx_offset")),
                     .vtx_offset = nb::cast<uint32_t>(cmd_handle.attr("vtx_offset")),
-                    .texture_id = nb::cast<uintptr_t>(cmd_handle.attr("get_tex_id")()),
+                    .texture = ref<Texture>(nb::cast<Texture*>(cmd_handle.attr("texture"))),
                 }
             );
         }
@@ -157,16 +157,6 @@ SGL_PY_EXPORT(ui)
             "texture"_a,
             "command_encoder"_a
         )
-        .def("texture_id", &ui::Context::texture_id, "texture"_a)
-        .def(
-            "get_texture",
-            [](const ui::Context& self, uintptr_t texture_id)
-            {
-                return self.get_texture(texture_id);
-            },
-            "texture_id"_a
-        )
-        .def("release_texture", &ui::Context::release_texture, "texture_id"_a)
         .def("handle_keyboard_event", &ui::Context::handle_keyboard_event, "event"_a, D(Context, handle_keyboard_event))
         .def("handle_mouse_event", &ui::Context::handle_mouse_event, "event"_a, D(Context, handle_mouse_event))
         .def_prop_ro("screen", &ui::Context::screen, D(Context, screen));

@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 import slangpy as spy
+import slangpy.ui.imgui_bundle as imgui_bundle_helpers
 from slangpy.testing import helpers
 
 
@@ -17,6 +18,7 @@ from slangpy.ui.imgui_bundle import (
     handle_mouse_event,
     render_imgui_draw_data,
     sync_draw_data_textures,
+    texture_ref,
 )
 
 
@@ -56,7 +58,7 @@ def test_render_external_imgui_draw_data(device_type: spy.DeviceType):
     imgui.set_next_window_size((140, 90))
     imgui.begin("external imgui")
     imgui.text("Hello from imgui_bundle")
-    imgui.image(imgui.ImTextureRef(ui_context.texture_id(checker_texture)), (24, 24))
+    imgui.image(texture_ref(checker_texture), (24, 24))
     imgui.end()
     imgui.render()
     draw_data = imgui.get_draw_data()
@@ -217,12 +219,10 @@ def test_sync_draw_data_textures_reuses_and_releases(device_type: spy.DeviceType
     draw_texture = draw_textures[0]
     texture_id = draw_texture.get_tex_id()
     assert texture_id != 0
-    assert ui_context.get_texture(texture_id) is not None
 
     created_textures = sync_draw_data_textures(device, ui_context, draw_data)
     assert created_textures == []
     assert draw_texture.get_tex_id() == texture_id
-    assert ui_context.get_texture(texture_id) is not None
 
     class _FakeGpuTexture:
         def __init__(self):
@@ -230,22 +230,6 @@ def test_sync_draw_data_textures_reuses_and_releases(device_type: spy.DeviceType
 
         def copy_from_numpy(self, pixels: np.ndarray):
             self.updated_pixels = np.array(pixels, copy=True)
-
-    class _FakeUiContext:
-        def __init__(self, texture_id: int, texture: _FakeGpuTexture):
-            self.texture_id_value = texture_id
-            self.texture = texture
-
-        def get_texture(self, candidate_texture_id: int):
-            if candidate_texture_id == self.texture_id_value:
-                return self.texture
-            return None
-
-        def release_texture(self, _: int) -> bool:
-            return False
-
-        def texture_id(self, _: object) -> int:
-            return self.texture_id_value
 
     class _FakeDrawTexture:
         def __init__(self, texture_id: int):
@@ -277,26 +261,20 @@ def test_sync_draw_data_textures_reuses_and_releases(device_type: spy.DeviceType
             self.textures = [texture]
 
     fake_texture = _FakeGpuTexture()
-    fake_ui_context = _FakeUiContext(texture_id, fake_texture)
-    fake_draw_texture = _FakeDrawTexture(texture_id)
-    updated_textures = sync_draw_data_textures(
-        device, fake_ui_context, _FakeDrawData(fake_draw_texture)
-    )
+    fake_texture_id = imgui_bundle_helpers._register_texture(fake_texture)  # type: ignore[arg-type]
+    fake_draw_texture = _FakeDrawTexture(fake_texture_id)
+    updated_textures = sync_draw_data_textures(device, ui_context, _FakeDrawData(fake_draw_texture))
     assert updated_textures == []
-    assert fake_draw_texture.get_tex_id() == texture_id
-    assert fake_ui_context.get_texture(texture_id) is not None
+    assert fake_draw_texture.get_tex_id() == fake_texture_id
     assert fake_texture.updated_pixels is not None
     assert np.array_equal(
         fake_texture.updated_pixels[0, 0], np.array([255, 0, 0, 255], dtype=np.uint8)
     )
-    assert fake_ui_context.release_texture(texture_id) is False
 
     draw_texture.set_status(imgui.ImTextureStatus.want_destroy)
     sync_draw_data_textures(device, ui_context, draw_data)
 
     assert draw_texture.get_tex_id() == 0
-    assert ui_context.get_texture(texture_id) is None
-    assert ui_context.release_texture(texture_id) is False
 
     class _MissingTextures:
         pass

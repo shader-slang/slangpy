@@ -16,6 +16,82 @@ if TYPE_CHECKING:
 
 _KEY_MAP: Optional[Dict[int, Any]] = None
 _MOUSE_BUTTON_MAP: Optional[Dict[int, int]] = None
+_TEXTURES_BY_ID: Dict[int, Any] = {}
+_TEXTURE_IDS_BY_PY_ID: Dict[int, int] = {}
+_NEXT_TEXTURE_ID = 1
+
+
+def _register_texture(texture: spy.Texture) -> int:
+    global _NEXT_TEXTURE_ID
+
+    texture_py_id = id(texture)
+    existing = _TEXTURE_IDS_BY_PY_ID.get(texture_py_id)
+    if existing is not None:
+        return existing
+
+    texture_id = _NEXT_TEXTURE_ID
+    _NEXT_TEXTURE_ID += 1
+    _TEXTURES_BY_ID[texture_id] = texture
+    _TEXTURE_IDS_BY_PY_ID[texture_py_id] = texture_id
+    return texture_id
+
+
+def _resolve_texture(texture_id: int) -> Optional[spy.Texture]:
+    return _TEXTURES_BY_ID.get(texture_id)
+
+
+def _release_texture(texture_id: int) -> bool:
+    texture = _TEXTURES_BY_ID.pop(texture_id, None)
+    if texture is None:
+        return False
+    _TEXTURE_IDS_BY_PY_ID.pop(id(texture), None)
+    return True
+
+
+class _ResolvedDrawCommand:
+    __slots__ = ("clip_rect", "elem_count", "idx_offset", "vtx_offset", "texture")
+
+    def __init__(self, cmd: Any, texture: spy.Texture):
+        self.clip_rect = cmd.clip_rect
+        self.elem_count = cmd.elem_count
+        self.idx_offset = cmd.idx_offset
+        self.vtx_offset = cmd.vtx_offset
+        self.texture = texture
+
+
+class _ResolvedDrawList:
+    __slots__ = ("cmd_buffer", "vtx_buffer", "idx_buffer")
+
+    def __init__(self, cmd_list: Any, cmd_buffer: List[_ResolvedDrawCommand]):
+        self.cmd_buffer = cmd_buffer
+        self.vtx_buffer = cmd_list.vtx_buffer
+        self.idx_buffer = cmd_list.idx_buffer
+
+
+class _ResolvedDrawData:
+    __slots__ = ("cmd_lists", "display_pos", "display_size", "framebuffer_scale")
+
+    def __init__(self, draw_data: Any, cmd_lists: List[_ResolvedDrawList]):
+        self.cmd_lists = cmd_lists
+        self.display_pos = draw_data.display_pos
+        self.display_size = draw_data.display_size
+        self.framebuffer_scale = draw_data.framebuffer_scale
+
+
+def _resolve_draw_data(draw_data: Any) -> _ResolvedDrawData:
+    cmd_lists = []
+    for list_index, cmd_list in enumerate(draw_data.cmd_lists):
+        resolved_commands = []
+        for cmd_index, cmd in enumerate(cmd_list.cmd_buffer):
+            texture_id = cmd.get_tex_id()
+            texture = _resolve_texture(texture_id)
+            if texture is None:
+                raise ValueError(
+                    f"Unknown imgui texture ID {texture_id} in draw_data.cmd_lists[{list_index}].cmd_buffer[{cmd_index}]"
+                )
+            resolved_commands.append(_ResolvedDrawCommand(cmd, texture))
+        cmd_lists.append(_ResolvedDrawList(cmd_list, resolved_commands))
+    return _ResolvedDrawData(draw_data, cmd_lists)
 
 
 def _get_key_map() -> Dict[int, Any]:
@@ -163,6 +239,18 @@ def begin_frame(width: int, height: int, delta_time: float = 1.0 / 60.0) -> None
     imgui.new_frame()
 
 
+def texture_ref(texture: spy.Texture) -> Any:
+    """
+    Create an ``imgui.ImTextureRef`` for a slangpy texture using helper-managed IDs.
+
+    :param texture: Texture to expose to the external Dear ImGui binding.
+    :return: ``imgui.ImTextureRef`` wrapping a helper-managed texture ID.
+    """
+    from imgui_bundle import imgui
+
+    return imgui.ImTextureRef(_register_texture(texture))
+
+
 # ---------------------------------------------------------------------------
 # Texture and rendering helpers
 # ---------------------------------------------------------------------------
@@ -176,21 +264,23 @@ def sync_draw_data_textures(
     """
     Upload font/image atlas textures referenced in *draw_data* to the GPU.
 
-    Processes external Dear ImGui texture requests and keeps the UI texture
-    registry in sync with ``draw_data.textures``.
+    Processes external Dear ImGui texture requests and keeps the helper-managed
+    texture registry in sync with ``draw_data.textures``.
 
     New textures are uploaded once, incremental updates reuse the existing GPU
-    texture, and ``want_destroy`` entries release the corresponding registration
-    from *ui_context*.
+    texture, and ``want_destroy`` entries release the corresponding helper-side
+    registration.
 
     :param device: GPU device used to create texture resources.
-    :param ui_context: The slangpy UI context that owns texture ID mappings.
+    :param ui_context: Unused compatibility parameter retained for existing callers.
     :param draw_data: The ``imgui.DrawData`` object returned by ``imgui.get_draw_data()``.
     :return: A list of textures created during this call.
     """
     import slangpy as spy
 
     from imgui_bundle import imgui
+
+    del ui_context
 
     if not hasattr(draw_data, "textures"):
         raise TypeError("draw_data must expose a 'textures' iterable")
@@ -237,13 +327,13 @@ def sync_draw_data_textures(
 
         if status == imgui.ImTextureStatus.want_destroy:
             if texture_id:
-                ui_context.release_texture(texture_id)
+                _release_texture(texture_id)
                 tex.set_tex_id(0)
             tex.set_status(imgui.ImTextureStatus.destroyed)
             continue
 
         if status == imgui.ImTextureStatus.want_updates and texture_id:
-            texture = ui_context.get_texture(texture_id)
+            texture = _resolve_texture(texture_id)
             if texture is not None:
                 bpp = tex.bytes_per_pixel
                 if bpp not in _BPP_TO_FORMAT:
@@ -272,7 +362,7 @@ def sync_draw_data_textures(
             data=pixels,
             label=f"imgui_bundle_texture_{idx}",
         )
-        tex.set_tex_id(ui_context.texture_id(texture))
+        tex.set_tex_id(_register_texture(texture))
         tex.set_status(imgui.ImTextureStatus.ok)
         if font_tex is None or tex.unique_id != font_tex.unique_id:
             tex.destroy_pixels()
@@ -317,10 +407,10 @@ def render_imgui_draw_data(
     This helper currently supports bindings that expose draw-list buffers with
     ``data_address()`` methods, such as ``imgui_bundle``.
 
-    :param context: The slangpy UI context that owns texture ID mappings.
+    :param context: The slangpy UI context used to access the shared renderer.
     :param draw_data: The ``imgui.DrawData`` object returned by ``imgui.get_draw_data()``.
     :param texture: Texture or texture view to render to.
     :param command_encoder: Command encoder to encode commands to.
     """
-
-    context._render_marshaled_draw_data(draw_data, texture, command_encoder)
+    resolved_draw_data = _resolve_draw_data(draw_data)
+    context._render_marshaled_draw_data(resolved_draw_data, texture, command_encoder)

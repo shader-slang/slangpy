@@ -14,7 +14,6 @@
 
 #include <map>
 #include <span>
-#include <unordered_map>
 
 struct ImGuiContext;
 struct ImFont;
@@ -26,7 +25,7 @@ struct DrawCommand {
     uint32_t elem_count;
     uint32_t idx_offset;
     uint32_t vtx_offset;
-    uintptr_t texture_id;
+    ref<Texture> texture;
 };
 
 struct DrawList {
@@ -86,21 +85,6 @@ public:
     /// @param command_encoder Command encoder used to record the render pass.
     void render_draw_data(const DrawData& draw_data, Texture* texture, CommandEncoder* command_encoder);
 
-    /// Return the raw value that should be written into ``ImTextureID``.
-    /// @param texture Texture to register with the UI context.
-    /// @return Stable integer identifier suitable for ``ImTextureID``.
-    uintptr_t texture_id(Texture* texture) const;
-
-    /// Resolve a registered texture by its ``ImTextureID`` value.
-    /// @param texture_id Identifier previously returned by ``texture_id()``.
-    /// @return The registered texture, or ``nullptr`` if the ID is unknown.
-    ref<Texture> get_texture(uintptr_t texture_id) const;
-
-    /// Release a texture previously registered with ``texture_id()``.
-    /// @param texture_id Identifier previously returned by ``texture_id()``.
-    /// @return ``true`` if a registered texture was released.
-    bool release_texture(uintptr_t texture_id) const;
-
     /// Pass a keyboard event to the UI context.
     /// \param event Keyboard event
     /// \return Returns true if event was consumed.
@@ -135,9 +119,6 @@ private:
     ref<InputLayout> m_input_layout;
 
     std::map<std::string, ImFont*> m_fonts;
-    mutable std::unordered_map<uintptr_t, ref<Texture>> m_registered_textures;
-    mutable std::unordered_map<Texture*, uintptr_t> m_texture_to_id;
-    mutable uintptr_t m_next_texture_id{1};
 
     std::map<Format, ref<RenderPipeline>> m_pipelines;
 };

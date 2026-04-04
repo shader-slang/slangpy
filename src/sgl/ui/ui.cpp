@@ -416,7 +416,7 @@ void Context::end_frame(TextureView* texture_view, CommandEncoder* command_encod
                     .elem_count = cmd.ElemCount,
                     .idx_offset = cmd.IdxOffset,
                     .vtx_offset = cmd.VtxOffset,
-                    .texture_id = texture_id(static_cast<Texture*>(cmd.GetTexID())),
+                    .texture = ref<Texture>(static_cast<Texture*>(cmd.GetTexID())),
                 }
             );
         }
@@ -596,9 +596,8 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
                 SGL_THROW("ImGui draw command index range exceeds its draw list");
             if (cmd.vtx_offset > draw_list.vertex_count)
                 SGL_THROW("ImGui draw command vertex offset exceeds its draw list");
-
-            if (m_registered_textures.find(cmd.texture_id) == m_registered_textures.end())
-                SGL_THROW("Unknown ImTextureID in draw data: {}", cmd.texture_id);
+            if (!cmd.texture)
+                SGL_THROW("ImGui draw command contains null texture");
 
             const uint64_t draw_vertex_offset = uint64_t(cmd.vtx_offset) + uint64_t(pre_vertex_offset);
             const uint64_t draw_index_offset = uint64_t(cmd.idx_offset) + uint64_t(pre_index_offset);
@@ -684,11 +683,10 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
                 .max_y = uint32_t(clip_max_y),
             };
 
-            auto it = m_registered_textures.find(cmd.texture_id);
             const uint64_t draw_vertex_offset = uint64_t(cmd.vtx_offset) + uint64_t(vertex_offset);
             const uint64_t draw_index_offset = uint64_t(cmd.idx_offset) + uint64_t(index_offset);
 
-            shader_object->set_texture(texture_offset, it->second);
+            shader_object->set_texture(texture_offset, cmd.texture);
             pass_encoder->set_render_state(render_state);
             pass_encoder->draw_indexed({
                 .vertex_count = cmd.elem_count,
@@ -706,37 +704,6 @@ void Context::render_draw_data(const DrawData& draw_data, Texture* texture, Comm
 {
     SGL_CHECK_NOT_NULL(texture);
     render_draw_data(draw_data, texture->create_view({}), command_encoder);
-}
-
-uintptr_t Context::texture_id(Texture* texture) const
-{
-    SGL_CHECK_NOT_NULL(texture);
-
-    auto it = m_texture_to_id.find(texture);
-    if (it != m_texture_to_id.end())
-        return it->second;
-
-    const uintptr_t id = m_next_texture_id++;
-    m_registered_textures.emplace(id, ref<Texture>(texture));
-    m_texture_to_id.emplace(texture, id);
-    return id;
-}
-
-ref<Texture> Context::get_texture(uintptr_t texture_id) const
-{
-    auto it = m_registered_textures.find(texture_id);
-    return it == m_registered_textures.end() ? ref<Texture>() : it->second;
-}
-
-bool Context::release_texture(uintptr_t texture_id) const
-{
-    auto it = m_registered_textures.find(texture_id);
-    if (it == m_registered_textures.end())
-        return false;
-
-    m_texture_to_id.erase(it->second.get());
-    m_registered_textures.erase(it);
-    return true;
 }
 
 bool Context::handle_keyboard_event(const KeyboardEvent& event)
