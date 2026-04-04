@@ -24,6 +24,7 @@
 #include <cstring>
 #include <limits>
 #include <unordered_map>
+#include <vector>
 
 CMRC_DECLARE(sgl_data);
 
@@ -373,9 +374,6 @@ void Context::begin_frame(uint32_t width, uint32_t height)
 void Context::end_frame(TextureView* texture_view, CommandEncoder* command_encoder)
 {
     ImGui::SetCurrentContext(m_imgui_context);
-    ImGuiIO& io = ImGui::GetIO();
-
-    bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
 
     ImGui::Render();
 
@@ -383,107 +381,59 @@ void Context::end_frame(TextureView* texture_view, CommandEncoder* command_encod
     if (!m_device->has_feature(Feature::rasterization))
         return;
 
-    ImDrawData* draw_data = ImGui::GetDrawData();
+    ImDrawData* imgui_draw_data = ImGui::GetDrawData();
+    if (!imgui_draw_data)
+        return;
 
-    if (draw_data->CmdListsCount > 0) {
-        // Cycle through vertex & index buffers.
-        ref<Buffer>& vertex_buffer = m_vertex_buffers[m_frame_index];
-        ref<Buffer>& index_buffer = m_index_buffers[m_frame_index];
-        m_frame_index = (m_frame_index + 1) % FRAME_COUNT;
+    std::vector<std::vector<DrawCommand>> commands;
+    std::vector<DrawList> draw_lists;
+    commands.reserve(imgui_draw_data->CmdListsCount);
+    draw_lists.reserve(imgui_draw_data->CmdListsCount);
 
-        // Allocate vertex buffer.
-        if (!vertex_buffer || vertex_buffer->size() < draw_data->TotalVtxCount * sizeof(ImDrawVert)) {
-            vertex_buffer = m_device->create_buffer({
-                .size = draw_data->TotalVtxCount * sizeof(ImDrawVert) + 128 * 1024,
-                .memory_type = MemoryType::upload,
-                .usage = BufferUsage::vertex_buffer,
-                .label = "imgui vertex buffer",
-            });
+    DrawData draw_data{
+        .display_pos = float2(imgui_draw_data->DisplayPos.x, imgui_draw_data->DisplayPos.y),
+        .display_size = float2(imgui_draw_data->DisplaySize.x, imgui_draw_data->DisplaySize.y),
+        .framebuffer_scale = float2(imgui_draw_data->FramebufferScale.x, imgui_draw_data->FramebufferScale.y),
+        .total_vtx_count = narrow_cast<uint32_t>(imgui_draw_data->TotalVtxCount),
+        .total_idx_count = narrow_cast<uint32_t>(imgui_draw_data->TotalIdxCount),
+        .index_size = sizeof(ImDrawIdx),
+    };
+
+    for (int i = 0; i < imgui_draw_data->CmdListsCount; ++i) {
+        const ImDrawList* cmd_list = imgui_draw_data->CmdLists[i];
+        auto& draw_commands = commands.emplace_back();
+        draw_commands.reserve(cmd_list->CmdBuffer.Size);
+
+        for (const ImDrawCmd& cmd : cmd_list->CmdBuffer) {
+            SGL_CHECK(
+                cmd.UserCallback == nullptr,
+                "ImGui draw callbacks are not supported by the shared draw-data renderer"
+            );
+
+            draw_commands.push_back(
+                DrawCommand{
+                    .clip_rect = float4(cmd.ClipRect.x, cmd.ClipRect.y, cmd.ClipRect.z, cmd.ClipRect.w),
+                    .elem_count = cmd.ElemCount,
+                    .idx_offset = cmd.IdxOffset,
+                    .vtx_offset = cmd.VtxOffset,
+                    .texture_id = texture_id(static_cast<Texture*>(cmd.GetTexID())),
+                }
+            );
         }
 
-        // Allocate index buffer.
-        if (!index_buffer || index_buffer->size() < draw_data->TotalIdxCount * sizeof(ImDrawIdx)) {
-            index_buffer = m_device->create_buffer({
-                .size = draw_data->TotalIdxCount * sizeof(ImDrawIdx) + 1024,
-                .memory_type = MemoryType::upload,
-                .usage = BufferUsage::index_buffer,
-                .label = "imgui index buffer",
-            });
-        }
-
-        // Upload vertex & index data.
-        ImDrawVert* vertices = vertex_buffer->map<ImDrawVert>();
-        ImDrawIdx* indices = index_buffer->map<ImDrawIdx>();
-        for (int i = 0; i < draw_data->CmdListsCount; ++i) {
-            const ImDrawList* cmd_list = draw_data->CmdLists[i];
-            std::memcpy(vertices, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
-            std::memcpy(indices, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
-            vertices += cmd_list->VtxBuffer.Size;
-            indices += cmd_list->IdxBuffer.Size;
-        }
-        vertex_buffer->unmap();
-        index_buffer->unmap();
-
-        // Render command lists.
-        auto pass_encoder = command_encoder->begin_render_pass({
-            .color_attachments = {
-                {
-                    .view = texture_view,
-                    .load_op = LoadOp::load,
-                    .store_op = StoreOp::store,
-                },
-            },
-        });
-        ShaderObject* shader_object = pass_encoder->bind_pipeline(get_pipeline(texture_view->desc().format));
-        ShaderCursor shader_cursor = ShaderCursor(shader_object);
-        shader_cursor["sampler"] = m_sampler;
-        shader_cursor["scale"] = 2.f / float2(io.DisplaySize.x, -io.DisplaySize.y);
-        shader_cursor["offset"] = float2(-1.f, 1.f);
-        shader_cursor["is_srgb_format"] = is_srgb_format;
-        ShaderOffset texture_offset = shader_cursor["texture"].offset();
-
-        RenderState render_state = {
-            .viewports = {Viewport::from_size(io.DisplaySize.x, io.DisplaySize.y)},
-            .scissor_rects = {ScissorRect{}},
-            .vertex_buffers = {vertex_buffer},
-            .index_buffer = index_buffer,
-            .index_format = sizeof(ImDrawIdx) == 2 ? IndexFormat::uint16 : IndexFormat::uint32,
-        };
-
-        int vertex_offset = 0;
-        int index_offset = 0;
-        ImVec2 clip_off = draw_data->DisplayPos;
-        for (int n = 0; n < draw_data->CmdListsCount; n++) {
-            const ImDrawList* cmd_list = draw_data->CmdLists[n];
-            for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
-                const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
-                SGL_ASSERT(pcmd->UserCallback == nullptr);
-                // Project scissor/clipping rectangles into framebuffer space.
-                ScissorRect clip_rect{
-                    .min_x = uint32_t(pcmd->ClipRect.x - clip_off.x),
-                    .min_y = uint32_t(pcmd->ClipRect.y - clip_off.y),
-                    .max_x = uint32_t(pcmd->ClipRect.z - clip_off.x),
-                    .max_y = uint32_t(pcmd->ClipRect.w - clip_off.y),
-                };
-                if (clip_rect.max_x <= clip_rect.min_x || clip_rect.max_y <= clip_rect.min_y)
-                    continue;
-
-                // Apply scissor/clipping rectangle, bind texture, draw.
-                render_state.scissor_rects[0] = clip_rect;
-                ref<Texture> texture = ref<Texture>(static_cast<Texture*>(pcmd->GetTexID()));
-                shader_object->set_texture(texture_offset, texture);
-                pass_encoder->set_render_state(render_state);
-                pass_encoder->draw_indexed({
-                    .vertex_count = pcmd->ElemCount,
-                    .start_vertex_location = pcmd->VtxOffset + vertex_offset,
-                    .start_index_location = pcmd->IdxOffset + index_offset,
-                });
+        draw_lists.push_back(
+            DrawList{
+                .vertex_data = reinterpret_cast<uintptr_t>(cmd_list->VtxBuffer.Data),
+                .vertex_count = narrow_cast<uint32_t>(cmd_list->VtxBuffer.Size),
+                .index_data = reinterpret_cast<uintptr_t>(cmd_list->IdxBuffer.Data),
+                .index_count = narrow_cast<uint32_t>(cmd_list->IdxBuffer.Size),
+                .commands = std::span<const DrawCommand>(draw_commands.data(), draw_commands.size()),
             }
-            index_offset += cmd_list->IdxBuffer.Size;
-            vertex_offset += cmd_list->VtxBuffer.Size;
-        }
-        pass_encoder->end();
+        );
     }
+
+    draw_data.draw_lists = std::span<const DrawList>(draw_lists.data(), draw_lists.size());
+    render_draw_data(draw_data, texture_view, command_encoder);
 }
 
 void Context::end_frame(Texture* texture, CommandEncoder* command_encoder)
