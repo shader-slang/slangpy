@@ -1,19 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from pathlib import Path
-import sys
+from typing import Any
 
 import numpy as np
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 import slangpy as spy
 from slangpy.ui.imgui_bundle import (
     create_imgui_context,
     render_imgui_draw_data,
     sync_draw_data_textures,
+    texture_ref,
 )
 from imgui_bundle import imgui
 
@@ -38,7 +35,7 @@ def create_checker_texture(device: spy.Device) -> spy.Texture:
     )
 
 
-def build_ui(preview_texture_id: int):
+def build_ui(preview_texture: Any):
     imgui.set_next_window_pos((12, 12))
     imgui.set_next_window_size((700, 500))
 
@@ -81,7 +78,7 @@ def build_ui(preview_texture_id: int):
 
         if imgui.begin_tab_item_simple("Image"):
             imgui.text("SGL texture shown through ImTextureID")
-            imgui.image(imgui.ImTextureRef(preview_texture_id), (192, 192))
+            imgui.image(preview_texture, (192, 192))
             imgui.end_tab_item()
 
         imgui.end_tab_bar()
@@ -93,7 +90,7 @@ def main():
     width = 768
     height = 540
 
-    device = spy.Device(enable_debug_layers=True)
+    device = spy.Device()
     ui_context = spy.ui.Context(device)
     external_ctx = create_imgui_context(width, height)
     checker_texture = create_checker_texture(device)
@@ -108,7 +105,7 @@ def main():
 
     imgui.set_current_context(external_ctx)
     imgui.new_frame()
-    build_ui(ui_context.texture_id(checker_texture))
+    build_ui(texture_ref(checker_texture))
     imgui.render()
     draw_data = imgui.get_draw_data()
     sync_draw_data_textures(device, ui_context, draw_data)
