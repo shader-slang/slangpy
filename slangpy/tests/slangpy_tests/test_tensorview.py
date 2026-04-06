@@ -273,5 +273,40 @@ def test_thread_count_error_on_auto_vectorized(device_type: DeviceType):
         module.mark_thread(coords, markers, _thread_count=3)
 
 
+# ============================================================================
+# Tests with slangpy.Tensor (exercises tensorcommon.py TensorView path)
+# ============================================================================
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_tensorview_copy_tensor(device_type: DeviceType):
+    """Test copy_tensorview with slangpy.Tensor — exercises tensorcommon resolve_types for TensorView."""
+    device = helpers.get_device(type=device_type)
+    module = load_module(device)
+
+    data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float32)
+    input_tensor = Tensor.from_numpy(device, data)
+    output_tensor = Tensor.zeros(device, (5,), "float")
+
+    module.copy_tensorview(input_tensor, output_tensor)
+
+    result = output_tensor.to_numpy()
+    assert np.allclose(result, data, atol=1e-5)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_tensorview_float2_scalar_tensor(device_type: DeviceType):
+    """Scalar float tensor -> TensorView<float2>: exercises scalar-to-vector resolution in tensorcommon."""
+    device = helpers.get_device(type=device_type)
+    module = load_module(device)
+
+    data = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], dtype=np.float32)
+    input_tensor = Tensor.from_numpy(device, data)
+    output_tensor = Tensor.empty(device, (3,), "float2")
+
+    module.copy_tensorview_float2(input_tensor, output_tensor, _thread_count=1)
+
+    result = output_tensor.to_numpy()
+    assert np.allclose(result, data, atol=1e-5)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

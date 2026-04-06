@@ -66,4 +66,7 @@ def load_buffer_data_from_image(
     if scale != 1.0 or offset != 0.0:
         data = data * scale + offset
 
+    if not data.flags['C_CONTIGUOUS']:
+        data = np.ascontiguousarray(data)
+
     return data
