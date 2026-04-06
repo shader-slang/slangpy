@@ -55,6 +55,12 @@ void tensor_multiply_uniform(uint3 dispatchThreadID, RWTensor<uint3,1> buffer) {
     buffer[dispatchThreadID.x] = dispatchThreadID * params.k;
 }
 
+float func_with_return(uint3 dispatchThreadID) { return 0.0; }
+
+void func_with_out(uint3 dispatchThreadID, out float result) { result = 0.0; }
+
+void func_wrong_param(uint3 threadID) {}
+
 """
 
 
@@ -168,6 +174,73 @@ def test_set_with_callback(device_type: DeviceType):
     data = helpers.read_tensor_from_numpy(buffer).reshape(-1, 3)
     expected = np.array([[i * 30, 0, 0] for i in range(32)])
     assert np.all(data == expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dispatch_return_value_error(device_type: DeviceType):
+    """Dispatching a function with a return value should raise ValueError."""
+    mod = load_test_module(device_type)
+    with pytest.raises(ValueError, match="return value"):
+        mod.func_with_return.dispatch(uint3(1, 1, 1))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dispatch_out_param_error(device_type: DeviceType):
+    """Dispatching a function with out parameters should raise ValueError."""
+    mod = load_test_module(device_type)
+    with pytest.raises(ValueError, match="out or inout"):
+        mod.func_with_out.dispatch(uint3(1, 1, 1), result=0.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dispatch_no_params_error(device_type: DeviceType):
+    """Dispatching a zero-parameter function should raise ValueError."""
+    mod = load_test_module(device_type)
+    with pytest.raises(ValueError, match="first parameter must be a thread id"):
+        mod.func_noparams.dispatch(uint3(1, 1, 1))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dispatch_wrong_param_name_error(device_type: DeviceType):
+    """Dispatching a function where first param isn't dispatchThreadID should raise ValueError."""
+    mod = load_test_module(device_type)
+    with pytest.raises(ValueError, match="dispatchThreadID"):
+        mod.func_wrong_param.dispatch(uint3(1, 1, 1))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dispatch_with_writer(device_type: DeviceType):
+    """Dispatch with .write() exercises the writer tuple path in DispatchData.dispatch."""
+    mod = load_test_module(device_type)
+    buffer = Tensor.empty(mod.device, dtype=mod.uint3, shape=(32,))
+    func = mod.tensor_multiply_uniform.as_func()
+
+    def writer(cursor, k_value):
+        cursor.write({"params": {"k": k_value}})
+
+    func = func.write(writer, 42)
+    func.dispatch(uint3(32, 1, 1), buffer=buffer)
+
+    data = helpers.read_tensor_from_numpy(buffer).reshape(-1, 3)
+    expected = np.array([[i * 42, 0, 0] for i in range(32)])
+    assert np.all(data == expected)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_dispatch_cache_hit(device_type: DeviceType):
+    """Dispatching same function twice should hit the dispatch data cache."""
+    mod = load_test_module(device_type)
+    buffer = Tensor.empty(mod.device, dtype=mod.uint3, shape=(32,))
+
+    mod.tensor_threadparam.dispatch(uint3(32, 1, 1), buffer=buffer)
+    data1 = helpers.read_tensor_from_numpy(buffer).reshape(-1, 3)
+
+    mod.tensor_threadparam.dispatch(uint3(32, 1, 1), buffer=buffer)
+    data2 = helpers.read_tensor_from_numpy(buffer).reshape(-1, 3)
+
+    expected = np.array([[i, 0, 0] for i in range(32)])
+    assert np.all(data1 == expected)
+    assert np.all(data2 == expected)
 
 
 if __name__ == "__main__":
