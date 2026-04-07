@@ -75,10 +75,10 @@ class TestDescriptorMarshallTexture:
 
 
 class TestDescriptorMarshallErrors:
-    """Test DescriptorMarshall error paths."""
+    """Test DescriptorMarshall error paths via the functional API."""
 
-    def test_reduce_type_nonzero_dimensions(self):
-        """reduce_type raises ValueError when dimensions > 0."""
+    def test_descriptor_rejects_dimension_mapping(self):
+        """Descriptors are 0-dimensional and cannot be mapped to a batch dimension."""
         device = get_device(spy.DeviceType.cuda)
 
         if not device.has_feature(spy.Feature.bindless):
@@ -94,27 +94,39 @@ class TestDescriptorMarshallErrors:
         view = texture.create_view()
         handle = view.descriptor_handle_ro
 
-        from slangpy.builtin.descriptor import DescriptorMarshall
-
-        slang_module = device.load_module_from_source(
-            "descriptor_test_reduce",
-            'import "slangpy";',
+        func = create_function_from_module(
+            device,
+            "read_desc",
+            """
+            float read_desc(DescriptorHandle<Texture2D<float>> tex) {
+                Texture2D<float> t = tex;
+                return t.Load(int3(0, 0, 0));
+            }
+            """,
         )
-        marshall = DescriptorMarshall(slang_module.layout, handle.type)
 
         with pytest.raises(ValueError, match="Cannot reduce dimensions"):
-            marshall.reduce_type(None, 1)
+            func.map(tex=(0,))(handle)
 
-    def test_init_type_not_found(self):
-        """__init__ raises ValueError when DescriptorHandle type not found in layout."""
+    def test_descriptor_requires_slangpy_import(self):
+        """Passing a DescriptorHandle to a module that lacks slangpy import raises ValueError."""
         device = get_device(spy.DeviceType.cuda)
 
-        slang_module = device.load_module_from_source(
-            "descriptor_test_notype",
-            "float dummy() { return 0; }",
+        texture = device.create_texture(
+            width=2,
+            height=1,
+            format=spy.Format.r32_float,
+            usage=spy.TextureUsage.shader_resource,
+            data=np.array([1.0, 2.0], dtype=np.float32),
+        )
+        view = texture.create_view()
+        handle = view.descriptor_handle_ro
+
+        func = create_function_from_module(
+            device,
+            "no_slangpy",
+            "float no_slangpy(float x) { return x; }",
         )
 
         with pytest.raises(ValueError, match="Could not find DescriptorHandle"):
-            from slangpy.builtin.descriptor import DescriptorMarshall
-
-            DescriptorMarshall(slang_module.layout, spy.DescriptorHandleType.texture)
+            func(handle)
