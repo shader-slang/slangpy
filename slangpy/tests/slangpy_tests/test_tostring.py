@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-from slangpy import DeviceType
+from slangpy import DeviceType, pack
+from slangpy.slangpy import Shape, NativeSlangType
 from slangpy.types import Tensor
 from slangpy.testing import helpers
 
@@ -113,6 +114,44 @@ def test_slangtype_reflection_to_string(device_type: DeviceType):
     assert "SlangType" in repr_str
     assert "name=" in repr_str
     assert "shape=" in repr_str
+
+
+MODULE_IDENTITY = r"""
+int identity(int x) { return x; }
+"""
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_function_node_repr(device_type: DeviceType):
+    """FunctionNode.__repr__ exercises NativeFunctionNode::to_string."""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "identity", MODULE_IDENTITY)
+    r = repr(func)
+    assert "NativeFunctionNode" in r
+    assert "type" in r
+    assert "data_type" in r
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_packed_arg_repr(device_type: DeviceType):
+    """PackedArg.__repr__ exercises NativePackedArg::to_string."""
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "identity", MODULE_IDENTITY)
+    pa = pack(func.module, 42)
+    r = repr(pa)
+    assert "NativePackedArg" in r
+    assert "python_type" in r
+    assert "python_object_type" in r
+
+
+def test_slangtype_repr_no_reflection():
+    """NativeSlangType.__repr__ without type_reflection."""
+    st = NativeSlangType()
+    st.shape = Shape([2, 3])
+    r = repr(st)
+    assert "NativeSlangType" in r
+    assert "type_reflection = None" in r
+    assert "shape" in r
 
 
 if __name__ == "__main__":

@@ -213,3 +213,44 @@ def test_torch_dtype_to_slang_none_for_unsupported(device_type: DeviceType):
     """_torch_dtype_to_slang returns None for unsupported torch dtype (line 70)."""
     layout = _get_layout(device_type)
     assert ttm._torch_dtype_to_slang(torch.complex128, layout) is None
+
+
+# ============================================================================
+# C++ NativeTorchTensorDiffPair coverage (slangpytorchtensor.cpp)
+# ============================================================================
+
+DIFF_SRC = r"""
+[Differentiable]
+float square(float x) { return x * x; }
+"""
+
+
+@pytest.mark.parametrize("device_type", CUDA_TYPES)
+def test_diffpair_read_signature(device_type: DeviceType):
+    """Calling a function with a DiffPair triggers NativeTorchTensorDiffPair::read_signature."""
+    from slangpy.torchintegration import diff_pair
+
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "square", DIFF_SRC)
+
+    primal = torch.tensor([2.0, 3.0, 4.0], device="cuda", dtype=torch.float32, requires_grad=True)
+    grad = torch.ones(3, device="cuda", dtype=torch.float32)
+    pair = diff_pair(primal, grad)
+
+    result = func(pair)
+    assert result is not None
+
+
+@pytest.mark.parametrize("device_type", CUDA_TYPES)
+def test_diffpair_get_shape_grad_only(device_type: DeviceType):
+    """NativeTorchTensorMarshall::get_shape falls back to grad when primal=None."""
+    from slangpy.torchintegration import diff_pair
+
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "square", DIFF_SRC)
+
+    grad = torch.ones(5, device="cuda", dtype=torch.float32)
+    pair = diff_pair(None, grad)
+
+    result = func(pair)
+    assert result is not None

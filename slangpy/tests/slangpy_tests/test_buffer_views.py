@@ -303,5 +303,45 @@ def test_torch_copy_errors(device_type: DeviceType):
         buffer_view.copy_from_torch(tensor)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_negative_index(device_type: DeviceType):
+    """Negative index wrapping on StridedBufferView."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.empty(device, dtype="float", shape=(4,))
+    data = np.array([10.0, 20.0, 30.0, 40.0], dtype=np.float32)
+    tensor.copy_from_numpy(data)
+    device.wait_for_idle()
+    assert tensor[-1].to_numpy().item() == pytest.approx(40.0)
+    assert tensor[-2].to_numpy().item() == pytest.approx(30.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_out_of_bounds_index(device_type: DeviceType):
+    """Out-of-bounds index raises IndexError on StridedBufferView."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.empty(device, dtype="float", shape=(4,))
+    with pytest.raises(IndexError):
+        _ = tensor[4]
+    with pytest.raises(IndexError):
+        _ = tensor[-5]
+
+
+@pytest.mark.skipif(sys.platform == "darwin", reason="Torch tests require CUDA")
+def test_copy_from_torch_cpu_fallback():
+    """copy_from_torch with CPU tensor falls back through numpy."""
+    try:
+        import torch
+    except ImportError:
+        pytest.skip("PyTorch not installed")
+
+    device = helpers.get_device(DeviceType.cuda)
+    tensor = Tensor.empty(device, dtype="float", shape=(4,))
+    cpu_data = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
+    tensor.copy_from_torch(cpu_data)
+    device.wait_for_idle()
+    result = tensor.to_numpy()
+    np.testing.assert_array_almost_equal(result, [1.0, 2.0, 3.0, 4.0])
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

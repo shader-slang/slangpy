@@ -243,5 +243,36 @@ def test_dispatch_cache_hit(device_type: DeviceType):
     assert np.all(data2 == expected)
 
 
+TORCH_DISPATCH_SRC = r"""
+import "slangpy";
+
+void copy_vals(uint3 dispatchThreadID, RWTensor<float,1> output, Tensor<float,1> input) {
+    output[dispatchThreadID.x] = input[dispatchThreadID.x] * 2.0;
+}
+"""
+
+
+@pytest.mark.parametrize("device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == DeviceType.cuda])
+def test_dispatch_torch_tensor(device_type: DeviceType):
+    """Raw dispatch with torch tensor triggers create_dispatchdata."""
+    try:
+        import torch
+    except ImportError:
+        pytest.skip("PyTorch not installed")
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+    import slangpy.torchintegration.torchtensormarshall  # noqa: F401
+
+    device = helpers.get_device(device_type)
+    from slangpy import Module
+    torch_mod = Module.load_from_source(device, "torch_raw_dispatch", TORCH_DISPATCH_SRC)
+
+    inp = torch.tensor([1.0, 2.0, 3.0, 4.0], device="cuda", dtype=torch.float32)
+    out = torch.zeros(4, device="cuda", dtype=torch.float32)
+    torch_mod.copy_vals.dispatch(uint3(4, 1, 1), output=out, input=inp)
+    expected = torch.tensor([2.0, 4.0, 6.0, 8.0], device="cuda", dtype=torch.float32)
+    assert torch.allclose(out, expected)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

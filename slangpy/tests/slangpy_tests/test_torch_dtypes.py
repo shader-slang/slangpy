@@ -54,5 +54,41 @@ def test_torch_output_float64(device):
     assert torch.allclose(result, torch.tensor([4.0, 7.0], device="cuda", dtype=torch.float64))
 
 
+@pytest.mark.parametrize(
+    "slang_func,torch_dtype",
+    [
+        ("uint8_t inc(uint8_t x) { return x + uint8_t(1); }", torch.uint8),
+        ("int8_t neg(int8_t x) { return -x; }", torch.int8),
+        ("int16_t dbl(int16_t x) { return x * int16_t(2); }", torch.int16),
+        ("bool flip(bool x) { return !x; }", torch.bool),
+    ],
+    ids=["uint8", "int8", "int16", "bool"],
+)
+def test_torch_output_rare_scalar(device, slang_func, torch_dtype):
+    """Auto-create output tensor for rare scalar types."""
+    func_name = slang_func.split("(")[0].split()[-1]
+    func = create_function_from_module(device, func_name, slang_func)
+    if torch_dtype == torch.bool:
+        inp = torch.tensor([True, False, True], device="cuda", dtype=torch_dtype)
+        result = func(inp)
+        assert result.dtype == torch.bool
+        assert torch.equal(result, torch.tensor([False, True, False], device="cuda"))
+    elif torch_dtype == torch.uint8:
+        inp = torch.tensor([1, 2, 3], device="cuda", dtype=torch_dtype)
+        result = func(inp)
+        assert result.dtype == torch.uint8
+        assert torch.equal(result, torch.tensor([2, 3, 4], device="cuda", dtype=torch.uint8))
+    elif torch_dtype == torch.int8:
+        inp = torch.tensor([1, -2, 3], device="cuda", dtype=torch_dtype)
+        result = func(inp)
+        assert result.dtype == torch.int8
+        assert torch.equal(result, torch.tensor([-1, 2, -3], device="cuda", dtype=torch.int8))
+    else:
+        inp = torch.tensor([5, 10], device="cuda", dtype=torch_dtype)
+        result = func(inp)
+        assert result.dtype == torch_dtype
+        assert torch.equal(result, torch.tensor([10, 20], device="cuda", dtype=torch_dtype))
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

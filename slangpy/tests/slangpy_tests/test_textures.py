@@ -610,5 +610,67 @@ def test_texture_3d_broadcast_with_scalar(device_type: DeviceType):
     assert result == pytest.approx(6.0)
 
 
+# ============================================================================
+# get_texture_shape() standalone function
+# ============================================================================
+
+from slangpy.slangpy import get_texture_shape
+
+
+def _create_simple_texture(device, tex_type, width=16, height=16, depth=16, array_length=1):
+    desc = TextureDesc()
+    desc.type = tex_type
+    desc.format = Format.rgba32_float
+    desc.usage = TextureUsage.shader_resource
+    desc.width = width
+    desc.mip_count = 1
+    desc.array_length = array_length
+    if tex_type in (
+        TextureType.texture_2d,
+        TextureType.texture_2d_array,
+        TextureType.texture_cube,
+        TextureType.texture_cube_array,
+    ):
+        desc.height = height
+    if tex_type == TextureType.texture_3d:
+        desc.height = height
+        desc.depth = depth
+    return device.create_texture(desc)
+
+
+@pytest.mark.parametrize(
+    "tex_type,expected_shape",
+    [
+        (TextureType.texture_1d, (16,)),
+        (TextureType.texture_2d, (16, 16)),
+        (TextureType.texture_3d, (16, 16, 16)),
+        (TextureType.texture_cube, (6, 16, 16)),
+    ],
+    ids=["1d", "2d", "3d", "cube"],
+)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_get_texture_shape(device_type, tex_type, expected_shape):
+    """get_texture_shape() free function for basic texture types."""
+    device = helpers.get_device(device_type)
+    texture = _create_simple_texture(device, tex_type)
+    shape = get_texture_shape(texture)
+    assert shape.as_tuple() == expected_shape
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_get_texture_shape_array_types(device_type):
+    """get_texture_shape() with array texture types."""
+    device = helpers.get_device(device_type)
+
+    tex_1d_arr = _create_simple_texture(device, TextureType.texture_1d_array, array_length=4)
+    assert get_texture_shape(tex_1d_arr).as_tuple() == (4, 16)
+
+    tex_2d_arr = _create_simple_texture(device, TextureType.texture_2d_array, array_length=3)
+    assert get_texture_shape(tex_2d_arr).as_tuple() == (3, 16, 16)
+
+    tex_cube_arr = _create_simple_texture(device, TextureType.texture_cube_array, array_length=2)
+    assert get_texture_shape(tex_cube_arr).as_tuple() == (2, 6, 16, 16)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

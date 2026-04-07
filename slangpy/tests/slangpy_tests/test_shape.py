@@ -21,7 +21,7 @@ behavior at 8 dimensions (last inline) and 9 dimensions (first heap).
 """
 
 import pytest
-from slangpy.slangpy import Shape
+from slangpy.slangpy import Shape, SignatureBuilder
 
 
 class TestShapeConstruction:
@@ -157,6 +157,13 @@ class TestShapeOperations:
         s = Shape([1, 2, 3])
         assert s == [1, 2, 3]
         assert s != [1, 2, 4]
+
+    def test_equality_incompatible_type(self):
+        """Test equality returns False for non-Shape/non-list types."""
+        s = Shape([1, 2, 3])
+        assert s != "not a shape"
+        assert s != 42
+        assert s != 3.14
 
     def test_equality_invalid_shapes(self):
         """Test equality of invalid shapes."""
@@ -448,6 +455,21 @@ class TestShapeIteration:
         s = Shape([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         values = [x for x in s.as_list()]
         assert values == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+
+class TestSignatureBuilder:
+    """Test SignatureBuilder utility."""
+
+    def test_bytes_property(self):
+        """SignatureBuilder.bytes returns raw bytes matching str encoding."""
+        sb = SignatureBuilder()
+        sb.add("hello")
+        sb.add("world")
+        b = sb.bytes
+        assert isinstance(b, bytes)
+        assert b"hello" in b
+        assert b"world" in b
+        assert sb.str.encode() == b
 
 
 if __name__ == "__main__":
