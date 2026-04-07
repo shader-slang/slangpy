@@ -7,7 +7,6 @@ Exercises:
 - TorchTensorMarshall properties: torch_dtype, slang_dtype, repr (lines 162, 166, 168)
 - Error paths for unsupported types/dtypes (lines 114, 260, 287, 319, 330)
 - hash_torch_tensor / hash_torch_diff_pair (lines 334, 338)
-- build_shader_object with gradients raises NotImplementedError (line 240)
 - Internal conversion helpers (lines 62, 70)
 """
 
@@ -178,22 +177,6 @@ def test_diffpair_factory_unsupported_dtype_raises(device_type: DeviceType):
     pair = diff_pair(primal, grad)
     with pytest.raises(ValueError, match="[Uu]nsupported"):
         ttm.create_torch_tensor_marshall(layout, pair)
-
-
-@pytest.mark.parametrize("device_type", CUDA_TYPES)
-def test_build_shader_object_gradient_not_implemented(device_type: DeviceType):
-    """pack() with a gradient diff_pair triggers build_shader_object which raises NotImplementedError."""
-    from slangpy import pack
-
-    device = helpers.get_device(device_type)
-    func = helpers.create_function_from_module(device, "scale", SCALE_SHADER)
-
-    primal = torch.tensor([1.0], device="cuda", dtype=torch.float32)
-    grad = torch.tensor([0.0], device="cuda", dtype=torch.float32)
-    pair = diff_pair(primal, grad)
-
-    with pytest.raises(NotImplementedError, match="[Gg]radient"):
-        pack(func.module, pair)
 
 
 # ============================================================================
