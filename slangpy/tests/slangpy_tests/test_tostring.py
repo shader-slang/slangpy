@@ -145,7 +145,12 @@ def test_packed_arg_repr(device_type: DeviceType):
 
 
 def test_slangtype_repr_no_reflection():
-    """NativeSlangType.__repr__ without type_reflection."""
+    """NativeSlangType.__repr__ without type_reflection.
+
+    Uses NativeSlangType directly because the child class SlangType always
+    requires a TypeReflection argument — there is no public API path that
+    produces a NativeSlangType with type_reflection=None.
+    """
     st = NativeSlangType()
     st.shape = Shape([2, 3])
     r = repr(st)
