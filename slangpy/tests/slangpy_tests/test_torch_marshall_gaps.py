@@ -3,11 +3,11 @@
 Tests targeting coverage gaps in torchtensormarshall.py.
 
 Exercises:
-- NativeTorchTensorDiffPair factory path in create_torch_tensor_marshall (lines 269-314)
-- TorchTensorMarshall properties: torch_dtype, slang_dtype, repr (lines 162, 166, 168)
-- Error paths for unsupported types/dtypes (lines 114, 260, 287, 319, 330)
-- hash_torch_tensor / hash_torch_diff_pair (lines 334, 338)
-- Internal conversion helpers (lines 62, 70)
+- NativeTorchTensorDiffPair factory path in create_torch_tensor_marshall
+- TorchTensorMarshall properties: torch_dtype, slang_dtype, repr
+- Error paths for unsupported types/dtypes
+- hash_torch_tensor / hash_torch_diff_pair
+- Internal conversion helpers
 """
 
 import sys
@@ -46,7 +46,7 @@ def _get_layout(device_type: DeviceType):
 
 
 # ============================================================================
-# DiffPair factory path (lines 269-314)
+# DiffPair factory path
 # ============================================================================
 
 
@@ -110,7 +110,7 @@ def test_diffpair_factory_no_grad(device_type: DeviceType):
 
 
 # ============================================================================
-# Properties (lines 162, 166, 168)
+# Properties
 # ============================================================================
 
 
@@ -139,13 +139,13 @@ def test_marshall_properties(device_type: DeviceType):
 
 
 def test_hash_torch_tensor_raises():
-    """hash_torch_tensor always raises ValueError (line 334)."""
+    """hash_torch_tensor always raises ValueError."""
     with pytest.raises(ValueError, match="should not need a hash"):
         ttm.hash_torch_tensor(torch.tensor([1.0]))
 
 
 def test_hash_torch_diff_pair_raises():
-    """hash_torch_diff_pair always raises ValueError (line 338)."""
+    """hash_torch_diff_pair always raises ValueError."""
     pair = diff_pair(torch.tensor([1.0]), torch.tensor([0.0]))
     with pytest.raises(ValueError, match="should not need a hash"):
         ttm.hash_torch_diff_pair(pair)
@@ -153,7 +153,7 @@ def test_hash_torch_diff_pair_raises():
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_factory_unsupported_type_raises(device_type: DeviceType):
-    """Passing a non-tensor to create_torch_tensor_marshall raises ValueError (line 330)."""
+    """Passing a non-tensor to create_torch_tensor_marshall raises ValueError."""
     layout = _get_layout(device_type)
     with pytest.raises(ValueError, match="unsupported"):
         ttm.create_torch_tensor_marshall(layout, "not a tensor")
@@ -161,7 +161,7 @@ def test_factory_unsupported_type_raises(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_factory_unsupported_torch_dtype_raises(device_type: DeviceType):
-    """Passing a tensor with unsupported dtype raises ValueError (line 319)."""
+    """Passing a tensor with unsupported dtype raises ValueError."""
     layout = _get_layout(device_type)
     t = torch.tensor([1.0 + 2.0j], dtype=torch.complex64, device="cuda")
     with pytest.raises(ValueError, match="[Uu]nsupported"):
@@ -170,7 +170,7 @@ def test_factory_unsupported_torch_dtype_raises(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_diffpair_factory_unsupported_dtype_raises(device_type: DeviceType):
-    """DiffPair factory raises for unsupported torch dtype (line 287)."""
+    """DiffPair factory raises for unsupported torch dtype."""
     layout = _get_layout(device_type)
     primal = torch.tensor([1.0 + 2.0j], dtype=torch.complex64, device="cuda")
     grad = torch.tensor([0.0 + 0.0j], dtype=torch.complex64, device="cuda")
@@ -180,13 +180,13 @@ def test_diffpair_factory_unsupported_dtype_raises(device_type: DeviceType):
 
 
 # ============================================================================
-# Internal conversion helpers (lines 62, 70)
+# Internal conversion helpers
 # ============================================================================
 
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_slang_dtype_to_torch_none_for_non_scalar(device_type: DeviceType):
-    """_slang_dtype_to_torch returns None for non-scalar SlangType (line 62)."""
+    """_slang_dtype_to_torch returns None for non-scalar SlangType."""
     layout = _get_layout(device_type)
     vec_type = layout.find_type_by_name("float2")
     assert ttm._slang_dtype_to_torch(vec_type) is None
@@ -194,7 +194,7 @@ def test_slang_dtype_to_torch_none_for_non_scalar(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_torch_dtype_to_slang_none_for_unsupported(device_type: DeviceType):
-    """_torch_dtype_to_slang returns None for unsupported torch dtype (line 70)."""
+    """_torch_dtype_to_slang returns None for unsupported torch dtype."""
     layout = _get_layout(device_type)
     assert ttm._torch_dtype_to_slang(torch.complex128, layout) is None
 

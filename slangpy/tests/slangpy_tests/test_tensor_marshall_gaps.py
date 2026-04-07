@@ -3,9 +3,9 @@
 Tests targeting coverage gaps in builtin/tensor.py.
 
 Exercises:
-- TensorMarshall grad validation error paths (lines 74, 79, 85)
-- is_nested_array helper (lines 44-48)
-- build_shader_object with differentiable tensors via pack() (lines 158-170)
+- TensorMarshall grad validation error paths
+- is_nested_array helper
+- build_shader_object with differentiable tensors via pack()
 """
 
 import pytest
@@ -32,7 +32,7 @@ DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES
 
 
 # ============================================================================
-# is_nested_array coverage (lines 37-49 of builtin/tensor.py)
+# is_nested_array coverage
 # ============================================================================
 
 
@@ -59,7 +59,7 @@ def test_is_nested_array():
 
 
 # ============================================================================
-# Grad validation errors via functional API (lines 73-87)
+# Grad validation errors via functional API
 # ============================================================================
 
 
@@ -144,7 +144,7 @@ def test_tensor_marshall_properties_via_pack(device_type: DeviceType):
 
 
 # ============================================================================
-# create_tensor_marshall error path (line 198)
+# create_tensor_marshall error path
 # ============================================================================
 
 
@@ -162,7 +162,7 @@ def test_create_tensor_marshall_rejects_bad_type(device_type: DeviceType):
 
 
 # ============================================================================
-# build_shader_object with derivatives via pack() (lines 158-170)
+# build_shader_object with derivatives via pack()
 # ============================================================================
 
 
@@ -173,7 +173,7 @@ def test_create_tensor_marshall_rejects_bad_type(device_type: DeviceType):
 )
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_pack_tensor_with_grads(device_type: DeviceType):
-    """pack() a Tensor with gradients to exercise build_shader_object derivative path (lines 158-170)."""
+    """pack() a Tensor with gradients to exercise build_shader_object derivative path."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "read_first", SIMPLE_READ_SHADER)
 

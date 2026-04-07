@@ -85,13 +85,13 @@ float read_first(Tensor<float, 1> buf) { return buf[0]; }
 
 
 # ============================================================================
-# Return type coverage (slang_type_to_return_type lines 39-72)
+# Return type coverage (slang_type_to_return_type)
 # ============================================================================
 
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_return_bool_scalar(device_type: DeviceType):
-    """Exercise slang_type_to_return_type for bool scalar (line 44-45)."""
+    """Exercise slang_type_to_return_type for bool scalar."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "is_positive", RETURN_BOOL_SHADER)
     result = func(1.0)
@@ -102,7 +102,7 @@ def test_return_bool_scalar(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_return_int2_vector(device_type: DeviceType):
-    """Exercise slang_type_to_return_type for signed int vector (lines 49-50)."""
+    """Exercise slang_type_to_return_type for signed int vector."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "make_int2", RETURN_INT2_SHADER)
     result = func(3, 7)
@@ -112,7 +112,7 @@ def test_return_int2_vector(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_return_uint2_vector(device_type: DeviceType):
-    """Exercise slang_type_to_return_type for unsigned int vector (lines 51-52)."""
+    """Exercise slang_type_to_return_type for unsigned int vector."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "make_uint2", RETURN_UINT2_SHADER)
     result = func(10, 20)
@@ -122,7 +122,7 @@ def test_return_uint2_vector(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_return_float2x2_matrix(device_type: DeviceType):
-    """Exercise slang_type_to_return_type for float matrix (lines 56-57)."""
+    """Exercise slang_type_to_return_type for float matrix."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "make_mat", RETURN_FLOAT2X2_SHADER)
     result = func(1.0, 2.0, 3.0, 4.0)
@@ -157,7 +157,7 @@ def test_torch_tensor_plus_scalar(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_pack_float2_vector(device_type: DeviceType):
-    """pack() a float2 vector value, exercising VectorMarshall.build_shader_object (lines 343-352)."""
+    """pack() a float2 vector value, exercising VectorMarshall.build_shader_object."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "scale_vec", SCALE_VECTOR_SHADER)
 
@@ -169,7 +169,7 @@ def test_pack_float2_vector(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_pack_scalar_value(device_type: DeviceType):
-    """pack() a scalar, exercising ValueMarshall.build_shader_object (lines 169-179)."""
+    """pack() a scalar, exercising ValueMarshall.build_shader_object."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "read_first", READ_FIRST_SHADER)
 
@@ -206,7 +206,7 @@ def test_value_marshall_properties(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_scalar_reduce_type_error(device_type: DeviceType):
-    """ScalarMarshall.reduce_type raises for dimensions > 0 (line 243)."""
+    """ScalarMarshall.reduce_type raises for dimensions > 0."""
     from slangpy.bindings.typeregistry import PYTHON_TYPES
 
     device = helpers.get_device(device_type)
@@ -225,7 +225,7 @@ def test_scalar_reduce_type_error(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_vector_reduce_type(device_type: DeviceType):
-    """VectorMarshall.reduce_type: dim=0 returns self, dim=1 returns element (lines 292-298)."""
+    """VectorMarshall.reduce_type: dim=0 returns self, dim=1 returns element."""
     from slangpy.bindings.typeregistry import PYTHON_TYPES
 
     device = helpers.get_device(device_type)
@@ -254,7 +254,7 @@ def test_vector_reduce_type(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_matrix_reduce_type(device_type: DeviceType):
-    """MatrixMarshall.reduce_type: dim=0 returns self, dim=1 returns row, dim=2 returns scalar (lines 368-374)."""
+    """MatrixMarshall.reduce_type: dim=0 returns self, dim=1 returns row, dim=2 returns scalar."""
     from slangpy.bindings.typeregistry import PYTHON_TYPES
 
     device = helpers.get_device(device_type)
