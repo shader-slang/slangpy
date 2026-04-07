@@ -6,7 +6,6 @@ Exercises:
 - TensorMarshall grad validation error paths (lines 74, 79, 85)
 - is_nested_array helper (lines 44-48)
 - build_shader_object with differentiable tensors via pack() (lines 158-170)
-- create_tensor_marshall error path (line 198)
 """
 
 import pytest
@@ -60,90 +59,88 @@ def test_is_nested_array():
 
 
 # ============================================================================
-# TensorMarshall grad validation errors (lines 73-87)
+# Grad validation errors via functional API (lines 73-87)
 # ============================================================================
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_grad_element_type_mismatch_d_out(device_type: DeviceType):
-    """TensorMarshall raises if d_out element type doesn't match derivative type (line 78-82)."""
-    from slangpy.builtin.tensor import TensorMarshall
-
+def test_grad_out_dtype_must_match_derivative(device_type: DeviceType):
+    """Attaching a grad_out with wrong dtype raises when passed to a differentiable function."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "polynomial", DIFF_POLY_SHADER)
-    layout = func.module.layout
 
-    float_type = layout.find_type_by_name("float")
-    int_type = layout.find_type_by_name("int")
-    if int_type is None:
-        pytest.skip("int type not found in layout")
+    primal = Tensor.zeros(device, shape=(4,), dtype="float")
+    bad_grad = Tensor.zeros(device, shape=(4,), dtype="int")
 
-    good_grad = TensorMarshall(layout, float_type, 1, True, None, None)
-    bad_grad = TensorMarshall(layout, int_type, 1, True, None, None)
-
+    tensor = primal.with_grads(grad_out=bad_grad)
     with pytest.raises(ValueError, match="[Ii]nvalid element type"):
-        TensorMarshall(layout, float_type, 1, True, None, bad_grad)
+        func(tensor, 1.0)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_grad_element_type_mismatch_d_in(device_type: DeviceType):
-    """TensorMarshall raises if d_in element type doesn't match derivative type (line 73-77)."""
-    from slangpy.builtin.tensor import TensorMarshall
-
+def test_grad_in_dtype_must_match_derivative(device_type: DeviceType):
+    """Attaching a grad_in with wrong dtype raises when passed to a differentiable function."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "polynomial", DIFF_POLY_SHADER)
-    layout = func.module.layout
 
-    float_type = layout.find_type_by_name("float")
-    int_type = layout.find_type_by_name("int")
-    if int_type is None:
-        pytest.skip("int type not found in layout")
+    primal = Tensor.zeros(
+        device, shape=(4,), dtype="float",
+        usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
+    )
+    bad_grad = Tensor.zeros(device, shape=(4,), dtype="int")
 
-    bad_grad = TensorMarshall(layout, int_type, 1, True, None, None)
-
+    tensor = primal.with_grads(grad_in=bad_grad)
     with pytest.raises(ValueError, match="[Ii]nvalid element type"):
-        TensorMarshall(layout, float_type, 1, True, bad_grad, None)
+        func(tensor, 1.0)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_d_in_requires_writable(device_type: DeviceType):
-    """TensorMarshall raises if d_in supplied but primal is not writable (line 84-87)."""
-    from slangpy.builtin.tensor import TensorMarshall
-
+def test_grad_in_requires_writable_tensor(device_type: DeviceType):
+    """Attaching grad_in to a read-only tensor raises when passed to a differentiable function."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "polynomial", DIFF_POLY_SHADER)
-    layout = func.module.layout
 
-    float_type = layout.find_type_by_name("float")
-    d_in = TensorMarshall(layout, float_type, 1, True, None, None)
+    primal = Tensor.zeros(
+        device, shape=(4,), dtype="float",
+        usage=BufferUsage.shader_resource,
+    )
+    grad = Tensor.zeros(
+        device, shape=(4,), dtype="float",
+        usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
+    )
 
+    tensor = primal.with_grads(grad_in=grad)
     with pytest.raises(ValueError, match="writable"):
-        TensorMarshall(layout, float_type, 1, False, d_in, None)
+        func(tensor, 1.0)
 
 
 # ============================================================================
-# TensorMarshall properties
+# TensorMarshall properties via pack()
 # ============================================================================
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_tensor_marshall_properties(device_type: DeviceType):
-    """TensorMarshall has_derivative and is_writable properties."""
-    from slangpy.builtin.tensor import TensorMarshall
-
+def test_tensor_marshall_properties_via_pack(device_type: DeviceType):
+    """pack() exposes marshall properties: has_derivative, is_writable, repr."""
     device = helpers.get_device(device_type)
-    func = helpers.create_function_from_module(device, "polynomial", DIFF_POLY_SHADER)
-    layout = func.module.layout
-    float_type = layout.find_type_by_name("float")
+    func = helpers.create_function_from_module(device, "read_first", SIMPLE_READ_SHADER)
 
-    no_grad = TensorMarshall(layout, float_type, 1, True, None, None)
-    assert no_grad.has_derivative is False
-    assert no_grad.is_writable is True
-    assert "Tensor" in repr(no_grad)
+    tensor = Tensor.zeros(
+        device, shape=(3,), dtype="float",
+        usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
+    )
+    packed = pack(func.module, tensor)
+    assert packed is not None
+    r = repr(packed)
+    assert "NativePackedArg" in r
 
-    d_out = TensorMarshall(layout, float_type, 1, True, None, None)
-    with_grad = TensorMarshall(layout, float_type, 1, True, None, d_out)
-    assert with_grad.has_derivative is True
+    grad_out = Tensor.zeros(
+        device, shape=(3,), dtype="float",
+        usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
+    )
+    tensor_with_grad = tensor.with_grads(grad_out=grad_out)
+    packed_grad = pack(func.module, tensor_with_grad)
+    assert packed_grad is not None
 
 
 # ============================================================================
@@ -152,8 +149,8 @@ def test_tensor_marshall_properties(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_create_tensor_marshall_bad_type(device_type: DeviceType):
-    """create_tensor_marshall raises for unsupported type (line 198)."""
+def test_create_tensor_marshall_rejects_bad_type(device_type: DeviceType):
+    """create_tensor_marshall raises for unsupported type."""
     from slangpy.builtin.tensor import create_tensor_marshall
 
     device = helpers.get_device(device_type)
