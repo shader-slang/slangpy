@@ -182,24 +182,18 @@ def test_diffpair_factory_unsupported_dtype_raises(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
 def test_build_shader_object_gradient_not_implemented(device_type: DeviceType):
-    """build_shader_object with has_derivative raises NotImplementedError (line 240)."""
-    layout = _get_layout(device_type)
+    """pack() with a gradient diff_pair triggers build_shader_object which raises NotImplementedError."""
+    from slangpy import pack
+
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "scale", SCALE_SHADER)
 
     primal = torch.tensor([1.0], device="cuda", dtype=torch.float32)
     grad = torch.tensor([0.0], device="cuda", dtype=torch.float32)
     pair = diff_pair(primal, grad)
-    marshall = ttm.create_torch_tensor_marshall(layout, pair)
-
-    assert marshall.has_derivative
-    from slangpy.bindings.marshall import BindContext
-    from slangpy.core.native import CallMode
-
-    device = helpers.get_device(device_type)
-    func = helpers.create_function_from_module(device, "scale", SCALE_SHADER)
-    ctx = BindContext(layout, CallMode.prim, func.module.device_module, {})
 
     with pytest.raises(NotImplementedError, match="[Gg]radient"):
-        marshall.build_shader_object(ctx, primal)
+        pack(func.module, pair)
 
 
 # ============================================================================
