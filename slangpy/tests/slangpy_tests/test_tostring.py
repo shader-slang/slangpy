@@ -142,6 +142,10 @@ def test_packed_arg_repr(device_type: DeviceType):
     assert "NativePackedArg" in r
     assert "python_type" in r
     assert "python_object_type" in r
+    assert pa.python is not None
+    assert pa.shader_object is not None
+    assert pa.python_object == 42
+
 
 
 def test_slangtype_repr_no_reflection():
