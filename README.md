@@ -49,6 +49,8 @@ SlangPy depends on the following third-party libraries, which have their own lic
 
 - [argparse](https://github.com/p-ranav/argparse) (MIT)
 - [AsmJit](https://github.com/asmjit/asmjit) (Zlib)
+- [bc7enc_rdo](https://github.com/richgel999/bc7enc_rdo) (MIT)
+- [bcdec](https://github.com/iOrange/bcdec) (MIT)
 - [Dear ImGui](https://github.com/ocornut/imgui) (MIT)
 - [doctest](https://github.com/doctest/doctest) (MIT)
 - [fmt](https://fmt.dev/latest/index.html) (MIT)
