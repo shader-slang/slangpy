@@ -597,5 +597,33 @@ def test_interleaved_slangpy_pytorch_optimization(device_type: DeviceType):
     assert_loss_decreased(initial_loss, final_loss, min_ratio=0.05)
 
 
+# =============================================================================
+# Test 8: DiffPair Output via Backward Pass
+#
+# Workflow: backward pass naturally creates output diff pairs with
+# is_input=False, exercising the d_in factory path in
+# create_torch_tensor_marshall.
+# =============================================================================
+
+SQUARE_SHADER = r"""
+[Differentiable]
+float square(float x) { return x * x; }
+"""
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diffpair_factory_output_via_backward(device_type: DeviceType):
+    """Backward pass creates output diff pairs with is_input=False, exercising the d_in factory path."""
+    device = helpers.get_torch_device(device_type)
+    func = helpers.create_function_from_module(device, "square", SQUARE_SHADER)
+
+    x = torch.tensor([2.0, 3.0], device="cuda", dtype=torch.float32, requires_grad=True)
+    result = func(x)
+    result.backward(torch.ones_like(result))
+
+    assert x.grad is not None
+    torch.testing.assert_close(x.grad, torch.tensor([4.0, 6.0], device="cuda"))
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
