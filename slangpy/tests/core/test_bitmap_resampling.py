@@ -44,6 +44,8 @@ def _bc_lookup(source: np.ndarray, pos: int, n: int, bc: FilterBoundaryCondition
     if bc == FilterBoundaryCondition.repeat:
         return float(source[pos % n])
     if bc == FilterBoundaryCondition.mirror:
+        if n == 1:
+            return float(source[0])
         pos = pos % (2 * n - 2)
         if pos >= n - 1:
             pos = 2 * n - 2 - pos
@@ -215,7 +217,7 @@ def test_resample_rejects_uint8():
     """resample should reject non-float types."""
     data = np.zeros((16, 16, 4), dtype=np.uint8)
     bmp = Bitmap(data)
-    with pytest.raises(Exception, match="float"):
+    with pytest.raises(RuntimeError, match="float"):
         bmp.resample(8, 8)
 
 
@@ -296,16 +298,16 @@ def test_boundary_asymmetric():
 def test_resample_zero_dimensions():
     """resample with zero target dimensions should raise."""
     bmp = make_float32_bitmap(16, 16)
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError):
         bmp.resample(0, 10)
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError):
         bmp.resample(10, 0)
 
 
 def test_resample_empty_bitmap():
     """resample on an empty bitmap should raise."""
     bmp = Bitmap(Bitmap.PixelFormat.rgba, Bitmap.ComponentType.float32, 0, 0)
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError):
         bmp.resample(8, 8)
 
 
@@ -385,7 +387,7 @@ def test_resample_into_target_rejects_format_mismatch():
     """Resample into target with different format should raise an error."""
     src = make_float32_bitmap(32, 32, channels=4)
     target = make_float32_bitmap(16, 16, channels=3)
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError):
         src.resample(target)
 
 
