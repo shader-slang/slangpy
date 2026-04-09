@@ -76,6 +76,8 @@ set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the
 
 set(SGL_SLANG_VERSION "2026.5.2" CACHE STRING "Slang version to download when not using a local build")
 
+set(SGL_SLANG_GLIBC_COMPAT OFF CACHE BOOL "Download glibc-2.28-compatible Slang binaries (for manylinux wheels)")
+
 set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SGL_SLANG_VERSION}/slang-${SGL_SLANG_VERSION}")
 
 if(SGL_WINDOWS)
@@ -87,11 +89,16 @@ if(SGL_WINDOWS)
         set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-windows-aarch64-debug-info.zip")
     endif()
 elseif(SGL_LINUX)
+    if(SGL_SLANG_GLIBC_COMPAT)
+        set(SLANG_LINUX_SUFFIX "-glibc-2.28")
+    else()
+        set(SLANG_LINUX_SUFFIX "")
+    endif()
     if(SGL_ARCHITECTURE MATCHES "x86_64")
-        set(SLANG_URL "${SLANG_URL_BASE}-linux-x86_64.tar.gz")
+        set(SLANG_URL "${SLANG_URL_BASE}-linux-x86_64${SLANG_LINUX_SUFFIX}.tar.gz")
         set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-linux-x86_64-debug-info.tar.gz")
     elseif(SGL_ARCHITECTURE MATCHES "aarch64|arm64")
-        set(SLANG_URL "${SLANG_URL_BASE}-linux-aarch64.tar.gz")
+        set(SLANG_URL "${SLANG_URL_BASE}-linux-aarch64${SLANG_LINUX_SUFFIX}.tar.gz")
         set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-linux-aarch64-debug-info.tar.gz")
     endif()
 elseif(SGL_MACOS)

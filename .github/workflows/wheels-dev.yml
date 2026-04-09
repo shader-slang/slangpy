@@ -13,11 +13,12 @@ on:
 env:
   CIBW_BUILD_VERBOSITY: 1
   CIBW_SKIP: "*-musllinux*"
-  CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_34
-  CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_34
+  CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+  CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
   CIBW_TEST_COMMAND: "python -c \"import slangpy\""
-  CIBW_BEFORE_ALL_LINUX: yum install -y zip wayland-devel libxkbcommon-devel libXcursor-devel libXi-devel libXinerama-devel libXrandr-devel ninja-build perl-IPC-Cmd kernel-headers perl-FindBin perl-Time-Piece perl-lib clang
+  CIBW_BEFORE_ALL_LINUX: yum install -y epel-release && yum install -y zip wayland-devel libxkbcommon-devel libXcursor-devel libXi-devel libXinerama-devel libXrandr-devel ninja-build perl-IPC-Cmd kernel-headers perl-FindBin perl-Time-Piece perl-lib clang
   CIBW_ENVIRONMENT: "BUILD_RELEASE_WHEEL=1"
+  CIBW_ENVIRONMENT_LINUX: "BUILD_RELEASE_WHEEL=1 CMAKE_ARGS=-DSGL_SLANG_GLIBC_COMPAT=ON"
   MACOSX_DEPLOYMENT_TARGET: 14.0
   BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
   P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
@@ -128,6 +129,7 @@ jobs:
         env:
           CIBW_BUILD: ${{ matrix.python }}-*
           CIBW_ENVIRONMENT: "BUILD_RELEASE_WHEEL=1 SLANGPY_VERSION_OVERRIDE=${{ env.SLANGPY_VERSION_OVERRIDE }}"
+          CIBW_ENVIRONMENT_LINUX: "BUILD_RELEASE_WHEEL=1 SLANGPY_VERSION_OVERRIDE=${{ env.SLANGPY_VERSION_OVERRIDE }} CMAKE_ARGS=-DSGL_SLANG_GLIBC_COMPAT=ON"
         run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels artifact
