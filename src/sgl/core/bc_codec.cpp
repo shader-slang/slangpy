@@ -34,10 +34,14 @@ static std::once_flag g_sw_init_flag;
 
 static void ensure_sw_init()
 {
-    std::call_once(g_sw_init_flag, [] {
-        rgbcx::init();
-        bc7enc_compress_block_init();
-    });
+    std::call_once(
+        g_sw_init_flag,
+        []
+        {
+            rgbcx::init();
+            bc7enc_compress_block_init();
+        }
+    );
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -405,8 +409,9 @@ BCCompressedImage BCCodec::encode(const BCImage& src, BCFormat format, const BCE
             break;
         }
 
-        // Bitmap::generate_mip_chain requires float16 or float32.
+        // Bitmap::resample requires float16 or float32.
         // Convert to float32 for mip generation.
+        // Non-owning wrap of source data — safe because src outlives this scope.
         auto src_bmp = make_ref<Bitmap>(
             pf,
             src.component_type,
@@ -425,16 +430,22 @@ BCCompressedImage BCCodec::encode(const BCImage& src, BCFormat format, const BCE
             float_bmp = src_bmp;
         }
 
-        auto mip_chain = float_bmp->generate_mip_chain(options.mip_filter);
+        // Generate mip chain by iteratively downsampling with Bitmap::resample.
+        ref<Bitmap> current = float_bmp;
+        uint32_t mip_w = src.width;
+        uint32_t mip_h = src.height;
+        while (mip_w > 1 || mip_h > 1) {
+            mip_w = std::max(mip_w / 2, 1u);
+            mip_h = std::max(mip_h / 2, 1u);
+            current = current->resample(mip_w, mip_h, options.mip_filter);
 
-        for (auto& mip_bmp : mip_chain) {
             // Convert back to source component type if needed for encoding.
             ref<Bitmap> enc_bmp;
             if (src.component_type != Bitmap::ComponentType::float32
                 && src.component_type != Bitmap::ComponentType::float16) {
-                enc_bmp = mip_bmp->convert(pf, src.component_type, false);
+                enc_bmp = current->convert(pf, src.component_type, false);
             } else {
-                enc_bmp = mip_bmp;
+                enc_bmp = current;
             }
             BCImage mip_img = bc_image_from_bitmap(*enc_bmp);
             levels.push_back({mip_img, enc_bmp});

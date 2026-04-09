@@ -156,8 +156,8 @@ struct BCImage {
     const void* data;
     uint32_t width;
     uint32_t height;
-    uint32_t row_pitch;       ///< Bytes per row (allows stride).
-    uint32_t channel_count;   ///< 1–4.
+    uint32_t row_pitch;     ///< Bytes per row (allows stride).
+    uint32_t channel_count; ///< 1–4.
     BCComponentType component_type;
 };
 
@@ -198,7 +198,7 @@ enum class BCEncodeQuality {
 struct BCEncodeOptions {
     BCEncodeQuality quality = BCEncodeQuality::normal;
     bool generate_mipmaps = false;
-    ResamplingFilter mip_filter = BoxFilter{};
+    ReconstructionFilter mip_filter = BoxFilter{};
     uint32_t channel_weights[4] = {1, 1, 1, 1};
     bool has_alpha = true;
     bool prefer_nvtt = true;

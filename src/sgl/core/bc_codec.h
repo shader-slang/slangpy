@@ -28,14 +28,8 @@ public:
     BCCompressedImage encode(const BCImage& src, BCFormat format, const BCEncodeOptions& options = {});
 
     /// Decode a single mip level from compressed data into \p dst.
-    void decode(
-        const void* data,
-        size_t size,
-        BCFormat format,
-        uint32_t width,
-        uint32_t height,
-        const BCMutableImage& dst
-    );
+    void
+    decode(const void* data, size_t size, BCFormat format, uint32_t width, uint32_t height, const BCMutableImage& dst);
 
     /// True if the NVTT3 dynamic library was found and loaded.
     bool is_nvtt_available() const;

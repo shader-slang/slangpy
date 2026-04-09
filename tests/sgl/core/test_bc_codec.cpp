@@ -71,10 +71,20 @@ TEST_CASE("bc_mip_count")
 TEST_CASE("BCFormat_Format_conversion")
 {
     BCFormat all_bc[] = {
-        BCFormat::bc1_unorm,     BCFormat::bc1_unorm_srgb, BCFormat::bc2_unorm,  BCFormat::bc2_unorm_srgb,
-        BCFormat::bc3_unorm,     BCFormat::bc3_unorm_srgb, BCFormat::bc4_unorm,  BCFormat::bc4_snorm,
-        BCFormat::bc5_unorm,     BCFormat::bc5_snorm,      BCFormat::bc6h_ufloat, BCFormat::bc6h_sfloat,
-        BCFormat::bc7_unorm,     BCFormat::bc7_unorm_srgb,
+        BCFormat::bc1_unorm,
+        BCFormat::bc1_unorm_srgb,
+        BCFormat::bc2_unorm,
+        BCFormat::bc2_unorm_srgb,
+        BCFormat::bc3_unorm,
+        BCFormat::bc3_unorm_srgb,
+        BCFormat::bc4_unorm,
+        BCFormat::bc4_snorm,
+        BCFormat::bc5_unorm,
+        BCFormat::bc5_snorm,
+        BCFormat::bc6h_ufloat,
+        BCFormat::bc6h_sfloat,
+        BCFormat::bc7_unorm,
+        BCFormat::bc7_unorm_srgb,
     };
 
     for (BCFormat bcf : all_bc) {
@@ -124,13 +134,7 @@ static BCImage make_rgba_image(const std::vector<uint8_t>& pixels, uint32_t w, u
 // Helper: compute PSNR between two images
 // ────────────────────────────────────────────────────────────────────────────
 
-static double compute_psnr(
-    const uint8_t* a,
-    const uint8_t* b,
-    uint32_t w,
-    uint32_t h,
-    uint32_t channels
-)
+static double compute_psnr(const uint8_t* a, const uint8_t* b, uint32_t w, uint32_t h, uint32_t channels)
 {
     double mse = 0.0;
     size_t count = static_cast<size_t>(w) * h * channels;
@@ -164,12 +168,22 @@ TEST_CASE("roundtrip_4x4")
 
         std::vector<uint8_t> decoded(4 * 4 * 4, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4 * 4, 4, BCComponentType::uint8};
-        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                     BCFormat::bc1_unorm, 4, 4, dst);
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc1_unorm,
+            4,
+            4,
+            dst
+        );
 
         // Lossy — just verify non-zero output.
         bool any_nonzero = false;
-        for (auto v : decoded) if (v != 0) { any_nonzero = true; break; }
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
         CHECK(any_nonzero);
     }
 
@@ -181,11 +195,21 @@ TEST_CASE("roundtrip_4x4")
 
         std::vector<uint8_t> decoded(4 * 4 * 4, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4 * 4, 4, BCComponentType::uint8};
-        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                     BCFormat::bc2_unorm, 4, 4, dst);
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc2_unorm,
+            4,
+            4,
+            dst
+        );
 
         bool any_nonzero = false;
-        for (auto v : decoded) if (v != 0) { any_nonzero = true; break; }
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
         CHECK(any_nonzero);
     }
 
@@ -197,11 +221,21 @@ TEST_CASE("roundtrip_4x4")
 
         std::vector<uint8_t> decoded(4 * 4 * 4, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4 * 4, 4, BCComponentType::uint8};
-        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                     BCFormat::bc3_unorm, 4, 4, dst);
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc3_unorm,
+            4,
+            4,
+            dst
+        );
 
         bool any_nonzero = false;
-        for (auto v : decoded) if (v != 0) { any_nonzero = true; break; }
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
         CHECK(any_nonzero);
     }
 
@@ -213,11 +247,21 @@ TEST_CASE("roundtrip_4x4")
 
         std::vector<uint8_t> decoded(4 * 4, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4, 1, BCComponentType::uint8};
-        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                     BCFormat::bc4_unorm, 4, 4, dst);
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc4_unorm,
+            4,
+            4,
+            dst
+        );
 
         bool any_nonzero = false;
-        for (auto v : decoded) if (v != 0) { any_nonzero = true; break; }
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
         CHECK(any_nonzero);
     }
 
@@ -229,11 +273,21 @@ TEST_CASE("roundtrip_4x4")
 
         std::vector<uint8_t> decoded(4 * 4 * 2, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4 * 2, 2, BCComponentType::uint8};
-        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                     BCFormat::bc5_unorm, 4, 4, dst);
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc5_unorm,
+            4,
+            4,
+            dst
+        );
 
         bool any_nonzero = false;
-        for (auto v : decoded) if (v != 0) { any_nonzero = true; break; }
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
         CHECK(any_nonzero);
     }
 
@@ -245,11 +299,21 @@ TEST_CASE("roundtrip_4x4")
 
         std::vector<uint8_t> decoded(4 * 4 * 4, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4 * 4, 4, BCComponentType::uint8};
-        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                     BCFormat::bc7_unorm, 4, 4, dst);
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc7_unorm,
+            4,
+            4,
+            dst
+        );
 
         bool any_nonzero = false;
-        for (auto v : decoded) if (v != 0) { any_nonzero = true; break; }
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
         CHECK(any_nonzero);
     }
 }
@@ -291,8 +355,7 @@ TEST_CASE("roundtrip_64x64")
         uint32_t ch = fi.decoded_channels;
         std::vector<uint8_t> decoded(W * H * ch, 0);
         BCMutableImage dst{decoded.data(), W, H, W * ch, ch, BCComponentType::uint8};
-        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                     fi.format, W, H, dst);
+        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(), fi.format, W, H, dst);
 
         // Build per-channel reference from the source for PSNR.
         std::vector<uint8_t> ref_data(W * H * ch);
@@ -324,11 +387,21 @@ TEST_CASE("non_multiple_of_4")
 
     std::vector<uint8_t> decoded(13 * 7 * 4, 0);
     BCMutableImage dst{decoded.data(), 13, 7, 13 * 4, 4, BCComponentType::uint8};
-    codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                 BCFormat::bc1_unorm, 13, 7, dst);
+    codec.decode(
+        compressed.mip_levels[0].data.data(),
+        compressed.mip_levels[0].data.size(),
+        BCFormat::bc1_unorm,
+        13,
+        7,
+        dst
+    );
 
     bool any_nonzero = false;
-    for (auto v : decoded) if (v != 0) { any_nonzero = true; break; }
+    for (auto v : decoded)
+        if (v != 0) {
+            any_nonzero = true;
+            break;
+        }
     CHECK(any_nonzero);
 }
 
@@ -352,11 +425,21 @@ TEST_CASE("small_images")
 
         std::vector<uint8_t> decoded(s * s * 4, 0);
         BCMutableImage dst{decoded.data(), s, s, s * 4, 4, BCComponentType::uint8};
-        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                     BCFormat::bc7_unorm, s, s, dst);
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc7_unorm,
+            s,
+            s,
+            dst
+        );
 
         bool any_nonzero = false;
-        for (auto v : decoded) if (v != 0) { any_nonzero = true; break; }
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
         CHECK(any_nonzero);
     }
 }
@@ -510,11 +593,21 @@ TEST_CASE("decode_output_format")
 
         std::vector<uint8_t> decoded(4 * 4, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4, 1, BCComponentType::uint8};
-        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                     BCFormat::bc4_unorm, 4, 4, dst);
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc4_unorm,
+            4,
+            4,
+            dst
+        );
 
         bool any_nonzero = false;
-        for (auto v : decoded) if (v != 0) { any_nonzero = true; break; }
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
         CHECK(any_nonzero);
     }
 
@@ -526,11 +619,21 @@ TEST_CASE("decode_output_format")
 
         std::vector<uint8_t> decoded(4 * 4 * 2, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4 * 2, 2, BCComponentType::uint8};
-        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                     BCFormat::bc5_unorm, 4, 4, dst);
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc5_unorm,
+            4,
+            4,
+            dst
+        );
 
         bool any_nonzero = false;
-        for (auto v : decoded) if (v != 0) { any_nonzero = true; break; }
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
         CHECK(any_nonzero);
     }
 
@@ -542,11 +645,21 @@ TEST_CASE("decode_output_format")
 
         std::vector<uint8_t> decoded(4 * 4 * 4, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4 * 4, 4, BCComponentType::uint8};
-        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(),
-                     BCFormat::bc7_unorm, 4, 4, dst);
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc7_unorm,
+            4,
+            4,
+            dst
+        );
 
         bool any_nonzero = false;
-        for (auto v : decoded) if (v != 0) { any_nonzero = true; break; }
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
         CHECK(any_nonzero);
     }
 
