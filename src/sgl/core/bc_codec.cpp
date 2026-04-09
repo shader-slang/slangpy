@@ -3,8 +3,11 @@
 #include "sgl/core/bc_codec.h"
 #include "sgl/core/bitmap.h"
 #include "sgl/core/error.h"
+#include "sgl/core/logger.h"
+#include "sgl/core/nvtt_api.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 
@@ -330,12 +333,350 @@ static void copy_block_to_dst(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// NVTT3 dynamic loading
+// ────────────────────────────────────────────────────────────────────────────
+
+void NvttAPI::try_load()
+{
+    // 1. Try runtime_directory() / library name.
+#if SGL_WINDOWS
+    const char* lib_name = "nvtt.dll";
+#elif SGL_LINUX
+    const char* lib_name = "libnvtt.so";
+#elif SGL_MACOS
+    const char* lib_name = "libnvtt.dylib";
+#else
+    const char* lib_name = nullptr;
+#endif
+
+    if (!lib_name) {
+        log_info("NVTT3 not supported on this platform.");
+        return;
+    }
+
+    // Try next to sgl library.
+    if (load_from_path(platform::runtime_directory() / lib_name))
+        goto resolve;
+
+    // 2. Try bare name (system PATH / LD_LIBRARY_PATH).
+    if (load_from_path(lib_name))
+        goto resolve;
+
+    // 3. Try SGL_NVTT_PATH environment variable.
+    {
+#ifdef _MSC_VER
+        char* env_path = nullptr;
+        size_t env_len = 0;
+        _dupenv_s(&env_path, &env_len, "SGL_NVTT_PATH");
+        if (env_path && env_path[0] != '\0') {
+            bool ok = load_from_path(std::filesystem::path(env_path) / lib_name);
+            free(env_path);
+            if (ok)
+                goto resolve;
+        } else {
+            free(env_path);
+        }
+#else
+        const char* env_path = std::getenv("SGL_NVTT_PATH");
+        if (env_path && env_path[0] != '\0') {
+            if (load_from_path(std::filesystem::path(env_path) / lib_name))
+                goto resolve;
+        }
+#endif
+    }
+
+    log_info("NVTT3 not found, BC6H encoding unavailable.");
+    return;
+
+resolve:
+    if (!resolve_symbols()) {
+        log_warn("NVTT3 library found but symbols could not be resolved.");
+        platform::release_shared_library(library);
+        library = nullptr;
+        available = false;
+        return;
+    }
+
+    unsigned int version = nvttVersion();
+    log_info("NVTT3 loaded (version {}.{}.{}).", (version >> 16) & 0xff, (version >> 8) & 0xff, version & 0xff);
+    available = true;
+}
+
+bool NvttAPI::load_from_path(const std::filesystem::path& path)
+{
+    library = platform::load_shared_library(path);
+    return library != nullptr;
+}
+
+bool NvttAPI::resolve_symbols()
+{
+#define NVTT_RESOLVE(name)                                                                                             \
+    name = reinterpret_cast<decltype(name)>(platform::get_proc_address(library, #name));                               \
+    if (!name)                                                                                                         \
+        return false;
+
+    NVTT_RESOLVE(nvttCreateCPUInputBuffer);
+    NVTT_RESOLVE(nvttDestroyCPUInputBuffer);
+    NVTT_RESOLVE(nvttEncodeCPU);
+    NVTT_RESOLVE(nvttCreateSurface);
+    NVTT_RESOLVE(nvttDestroySurface);
+    NVTT_RESOLVE(nvttSurfaceSetImageData);
+    NVTT_RESOLVE(nvttSurfaceBuildNextMipmapDefaults);
+    NVTT_RESOLVE(nvttSurfaceData);
+    NVTT_RESOLVE(nvttSurfaceWidth);
+    NVTT_RESOLVE(nvttSurfaceHeight);
+    NVTT_RESOLVE(nvttVersion);
+
+#undef NVTT_RESOLVE
+    return true;
+}
+
+static NvttAPI& get_nvtt_api()
+{
+    static NvttAPI api;
+    static std::once_flag flag;
+    std::call_once(flag, [&] { api.try_load(); });
+    return api;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// NVTT3 format / quality mappings
+// ────────────────────────────────────────────────────────────────────────────
+
+static NvttFormat bc_format_to_nvtt(BCFormat f)
+{
+    switch (f) {
+    case BCFormat::bc1_unorm:
+    case BCFormat::bc1_unorm_srgb:
+        return NVTT_Format_BC1;
+    case BCFormat::bc2_unorm:
+    case BCFormat::bc2_unorm_srgb:
+        return NVTT_Format_BC2;
+    case BCFormat::bc3_unorm:
+    case BCFormat::bc3_unorm_srgb:
+        return NVTT_Format_BC3;
+    case BCFormat::bc4_unorm:
+        return NVTT_Format_BC4;
+    case BCFormat::bc4_snorm:
+        return NVTT_Format_BC4S;
+    case BCFormat::bc5_unorm:
+        return NVTT_Format_BC5;
+    case BCFormat::bc5_snorm:
+        return NVTT_Format_BC5S;
+    case BCFormat::bc6h_ufloat:
+        return NVTT_Format_BC6U;
+    case BCFormat::bc6h_sfloat:
+        return NVTT_Format_BC6S;
+    case BCFormat::bc7_unorm:
+    case BCFormat::bc7_unorm_srgb:
+        return NVTT_Format_BC7;
+    default:
+        return NVTT_Format_BC1;
+    }
+}
+
+static NvttQuality quality_to_nvtt(BCEncodeQuality q)
+{
+    switch (q) {
+    case BCEncodeQuality::fastest:
+        return NVTT_Quality_Fastest;
+    case BCEncodeQuality::normal:
+        return NVTT_Quality_Normal;
+    case BCEncodeQuality::production:
+        return NVTT_Quality_Production;
+    case BCEncodeQuality::highest:
+        return NVTT_Quality_Highest;
+    default:
+        return NVTT_Quality_Normal;
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// NVTT3 encode helpers
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Encode a single mip level via NVTT3's low-level CPU API.
+static void nvtt_encode_single(
+    NvttAPI& nvtt,
+    const float* rgba_data,
+    uint32_t width,
+    uint32_t height,
+    uint32_t channel_count,
+    BCFormat format,
+    const BCEncodeOptions& options,
+    std::vector<uint8_t>& out_data
+)
+{
+    NvttRefImage ref_image{};
+    ref_image.data = rgba_data;
+    ref_image.width = static_cast<int>(width);
+    ref_image.height = static_cast<int>(height);
+    ref_image.depth = 1;
+    ref_image.num_channels = static_cast<int>(std::min(channel_count, 4u));
+    ref_image.channel_swizzle[0] = NVTT_ChannelOrder_Red;
+    ref_image.channel_swizzle[1] = NVTT_ChannelOrder_Green;
+    ref_image.channel_swizzle[2] = NVTT_ChannelOrder_Blue;
+    ref_image.channel_swizzle[3] = NVTT_ChannelOrder_Alpha;
+    ref_image.channel_interleave = NVTT_True;
+
+    unsigned num_tiles = 0;
+    NvttCPUInputBuffer* input_buffer = nvtt.nvttCreateCPUInputBuffer(
+        &ref_image,
+        NVTT_ValueType_FLOAT32,
+        1, // numImages
+        static_cast<int>(width),
+        static_cast<int>(height),
+        static_cast<float>(options.channel_weights[0]),
+        static_cast<float>(options.channel_weights[1]),
+        static_cast<float>(options.channel_weights[2]),
+        static_cast<float>(options.channel_weights[3]),
+        nullptr, // timing_context
+        &num_tiles
+    );
+    SGL_CHECK(input_buffer != nullptr, "NVTT3: failed to create CPU input buffer");
+
+    NvttEncodeSettings settings{};
+    settings.sType = 1; // NVTT_EncodeSettings_Version_1
+    settings.format = bc_format_to_nvtt(format);
+    settings.quality = quality_to_nvtt(options.quality);
+    settings.rgb_pixel_type = is_bc6h(format) ? 4 : 0; // 4 = Float, 0 = UnsignedNorm
+    settings.timing_context = nullptr;
+    settings.encode_flags
+        = options.has_alpha ? static_cast<uint32_t>(NVTT_EncodeFlags_None) : static_cast<uint32_t>(NVTT_EncodeFlags_Opaque);
+
+    size_t compressed_bytes = bc_compressed_size(width, height, format);
+    out_data.resize(compressed_bytes);
+
+    NvttBoolean ok = nvtt.nvttEncodeCPU(input_buffer, out_data.data(), &settings);
+    nvtt.nvttDestroyCPUInputBuffer(input_buffer);
+
+    SGL_CHECK(ok == NVTT_True, "NVTT3: encoding failed");
+}
+
+/// Convert a BCImage to interleaved float32 RGBA.
+static std::vector<float> bc_image_to_float32_rgba(const BCImage& src)
+{
+    uint32_t pixel_count = src.width * src.height;
+    std::vector<float> result(pixel_count * 4, 0.0f);
+    uint32_t src_pixel_bytes = src.channel_count * component_byte_size(src.component_type);
+    const uint8_t* src_bytes = static_cast<const uint8_t*>(src.data);
+
+    for (uint32_t y = 0; y < src.height; ++y) {
+        for (uint32_t x = 0; x < src.width; ++x) {
+            const uint8_t* pixel = src_bytes + y * src.row_pitch + x * src_pixel_bytes;
+            float* dst = result.data() + (y * src.width + x) * 4;
+
+            uint32_t nc = std::min(src.channel_count, 4u);
+            for (uint32_t c = 0; c < nc; ++c) {
+                if (src.component_type == BCComponentType::uint8)
+                    dst[c] = pixel[c] / 255.0f;
+                else if (src.component_type == BCComponentType::float32)
+                    dst[c] = reinterpret_cast<const float*>(pixel)[c];
+                else if (src.component_type == BCComponentType::float64)
+                    dst[c] = static_cast<float>(reinterpret_cast<const double*>(pixel)[c]);
+                else
+                    dst[c] = pixel[c] / 255.0f; // fallback
+            }
+            // Fill missing channels: RGB default 0, Alpha default 1.
+            for (uint32_t c = nc; c < 4; ++c)
+                dst[c] = (c == 3) ? 1.0f : 0.0f;
+        }
+    }
+    return result;
+}
+
+/// Convert NVTT3 planar surface data to interleaved float32 RGBA.
+static std::vector<float> nvtt_planar_to_interleaved(const float* planar_data, uint32_t width, uint32_t height)
+{
+    uint32_t pixel_count = width * height;
+    std::vector<float> interleaved(pixel_count * 4);
+    // NVTT Surface stores data as: R plane (w*h floats), G plane, B plane, A plane.
+    const float* r_plane = planar_data;
+    const float* g_plane = planar_data + pixel_count;
+    const float* b_plane = planar_data + pixel_count * 2;
+    const float* a_plane = planar_data + pixel_count * 3;
+    for (uint32_t i = 0; i < pixel_count; ++i) {
+        interleaved[i * 4 + 0] = r_plane[i];
+        interleaved[i * 4 + 1] = g_plane[i];
+        interleaved[i * 4 + 2] = b_plane[i];
+        interleaved[i * 4 + 3] = a_plane[i];
+    }
+    return interleaved;
+}
+
+/// Full NVTT3 encode path (handles mipmaps internally).
+static BCCompressedImage
+nvtt_encode(NvttAPI& nvtt, const BCImage& src, BCFormat format, const BCEncodeOptions& options)
+{
+    BCCompressedImage result;
+    result.format = format;
+
+    // Convert source to interleaved float32 RGBA for NVTT3.
+    std::vector<float> float_data = bc_image_to_float32_rgba(src);
+
+    // Encode mip level 0.
+    {
+        BCCompressedMip mip;
+        mip.width = src.width;
+        mip.height = src.height;
+        nvtt_encode_single(nvtt, float_data.data(), src.width, src.height, 4, format, options, mip.data);
+        result.mip_levels.push_back(std::move(mip));
+    }
+
+    if (!options.generate_mipmaps || (src.width <= 1 && src.height <= 1))
+        return result;
+
+    // Use NVTT3 Surface for mipmap generation.
+    NvttSurface* surface = nvtt.nvttCreateSurface();
+    SGL_CHECK(surface != nullptr, "NVTT3: failed to create surface");
+
+    NvttBoolean ok = nvtt.nvttSurfaceSetImageData(
+        surface,
+        NVTT_InputFormat_RGBA_32F,
+        static_cast<int>(src.width),
+        static_cast<int>(src.height),
+        1,
+        float_data.data(),
+        NVTT_False, // not a reference — copy the data
+        nullptr     // timing_context
+    );
+
+    if (ok != NVTT_True) {
+        nvtt.nvttDestroySurface(surface);
+        SGL_THROW("NVTT3: failed to set surface image data");
+    }
+
+    uint32_t mip_w = src.width;
+    uint32_t mip_h = src.height;
+    while (mip_w > 1 || mip_h > 1) {
+        ok = nvtt.nvttSurfaceBuildNextMipmapDefaults(surface, NVTT_MipmapFilter_Box, 1, nullptr);
+        if (ok != NVTT_True)
+            break;
+
+        mip_w = static_cast<uint32_t>(nvtt.nvttSurfaceWidth(surface));
+        mip_h = static_cast<uint32_t>(nvtt.nvttSurfaceHeight(surface));
+
+        // Get planar data from surface and convert to interleaved.
+        float* planar = nvtt.nvttSurfaceData(surface);
+        std::vector<float> interleaved = nvtt_planar_to_interleaved(planar, mip_w, mip_h);
+
+        BCCompressedMip mip;
+        mip.width = mip_w;
+        mip.height = mip_h;
+        nvtt_encode_single(nvtt, interleaved.data(), mip_w, mip_h, 4, format, options, mip.data);
+        result.mip_levels.push_back(std::move(mip));
+    }
+
+    nvtt.nvttDestroySurface(surface);
+    return result;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // BCCodec::Impl
 // ────────────────────────────────────────────────────────────────────────────
 
 struct BCCodec::Impl {
-    // Placeholder for NVTT3 state (Phase 5).
-    bool nvtt_available = false;
+    NvttAPI& nvtt = get_nvtt_api();
 };
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -352,13 +693,13 @@ BCCodec::~BCCodec() = default;
 
 bool BCCodec::is_nvtt_available() const
 {
-    return m_impl->nvtt_available;
+    return m_impl->nvtt.available;
 }
 
 bool BCCodec::can_encode(BCFormat format) const
 {
     if (is_bc6h(format))
-        return m_impl->nvtt_available;
+        return m_impl->nvtt.available;
     return true;
 }
 
@@ -373,6 +714,10 @@ BCCompressedImage BCCodec::encode(const BCImage& src, BCFormat format, const BCE
 {
     SGL_CHECK(src.data != nullptr, "BCCodec::encode: source data is null");
     SGL_CHECK(src.width > 0 && src.height > 0, "BCCodec::encode: invalid source dimensions");
+
+    auto& nvtt = m_impl->nvtt;
+    if (nvtt.available && options.prefer_nvtt)
+        return nvtt_encode(nvtt, src, format, options);
 
     if (is_bc6h(format))
         SGL_THROW("BCCodec::encode: BC6H encoding requires NVTT3 (not available)");

@@ -557,17 +557,21 @@ TEST_CASE("can_encode_can_decode")
     CHECK(codec.can_encode(BCFormat::bc5_unorm));
     CHECK(codec.can_encode(BCFormat::bc7_unorm));
 
-    // BC6H requires NVTT3 (not available in SW).
-    CHECK_FALSE(codec.can_encode(BCFormat::bc6h_ufloat));
-    CHECK_FALSE(codec.can_encode(BCFormat::bc6h_sfloat));
-    CHECK_FALSE(codec.is_nvtt_available());
+    // BC6H requires NVTT3.
+    if (codec.is_nvtt_available()) {
+        CHECK(codec.can_encode(BCFormat::bc6h_ufloat));
+        CHECK(codec.can_encode(BCFormat::bc6h_sfloat));
+    } else {
+        CHECK_FALSE(codec.can_encode(BCFormat::bc6h_ufloat));
+        CHECK_FALSE(codec.can_encode(BCFormat::bc6h_sfloat));
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 // 12. BC6H encode error
 // ────────────────────────────────────────────────────────────────────────────
 
-TEST_CASE("bc6h_encode_error")
+TEST_CASE("bc6h_encode_error" * doctest::skip(BCCodec().is_nvtt_available()))
 {
     BCCodec codec;
     auto pixels = make_gradient_rgba(4, 4);
@@ -665,6 +669,290 @@ TEST_CASE("decode_output_format")
 
     // BC6H decode-only test (can't encode without NVTT3, so we test with hand-crafted data)
     // BC6H decode is tested implicitly by verifying can_decode returns true.
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 14. NVTT3 encode (all formats)
+// ────────────────────────────────────────────────────────────────────────────
+
+TEST_CASE("bc_codec_nvtt3_encode" * doctest::skip(!BCCodec().is_nvtt_available()))
+{
+    BCCodec codec;
+    const uint32_t W = 64, H = 64;
+    auto pixels = make_gradient_rgba(W, H);
+    BCImage src = make_rgba_image(pixels, W, H);
+
+    BCEncodeOptions opts;
+    opts.prefer_nvtt = true;
+
+    struct FormatInfo {
+        BCFormat format;
+        uint32_t decoded_channels;
+        double min_psnr;
+    };
+
+    FormatInfo formats[] = {
+        {BCFormat::bc1_unorm, 4, 20.0},
+        {BCFormat::bc2_unorm, 4, 20.0},
+        {BCFormat::bc3_unorm, 4, 20.0},
+        {BCFormat::bc4_unorm, 1, 20.0},
+        {BCFormat::bc5_unorm, 2, 20.0},
+        {BCFormat::bc7_unorm, 4, 25.0},
+    };
+
+    for (auto& fi : formats) {
+        CAPTURE(static_cast<int>(fi.format));
+
+        auto compressed = codec.encode(src, fi.format, opts);
+        REQUIRE(compressed.mip_levels.size() == 1);
+        CHECK(compressed.mip_levels[0].width == W);
+        CHECK(compressed.mip_levels[0].height == H);
+
+        uint32_t ch = fi.decoded_channels;
+        std::vector<uint8_t> decoded(W * H * ch, 0);
+        BCMutableImage dst{decoded.data(), W, H, W * ch, ch, BCComponentType::uint8};
+        codec.decode(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(), fi.format, W, H, dst);
+
+        std::vector<uint8_t> ref_data(W * H * ch);
+        for (uint32_t i = 0; i < W * H; ++i)
+            for (uint32_t c = 0; c < ch; ++c)
+                ref_data[i * ch + c] = pixels[i * 4 + c];
+
+        double psnr = compute_psnr(ref_data.data(), decoded.data(), W, H, ch);
+        CHECK(psnr >= fi.min_psnr);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 15. NVTT3 BC6H encode+decode roundtrip
+// ────────────────────────────────────────────────────────────────────────────
+
+static std::vector<float> make_hdr_float32_rgb(uint32_t w, uint32_t h)
+{
+    // Synthetic HDR image: 3-channel float32 with values > 1.0.
+    std::vector<float> pixels(w * h * 3);
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (y * w + x) * 3;
+            pixels[idx + 0] = static_cast<float>(x) / static_cast<float>(w) * 4.0f;
+            pixels[idx + 1] = static_cast<float>(y) / static_cast<float>(h) * 4.0f;
+            pixels[idx + 2] = 1.5f;
+        }
+    }
+    return pixels;
+}
+
+TEST_CASE("bc_codec_nvtt3_bc6h" * doctest::skip(!BCCodec().is_nvtt_available()))
+{
+    BCCodec codec;
+    const uint32_t W = 64, H = 64;
+    auto pixels = make_hdr_float32_rgb(W, H);
+    BCImage src{
+        .data = pixels.data(),
+        .width = W,
+        .height = H,
+        .row_pitch = W * 3 * sizeof(float),
+        .channel_count = 3,
+        .component_type = BCComponentType::float32,
+    };
+
+    BCEncodeOptions opts;
+    opts.prefer_nvtt = true;
+
+    SUBCASE("bc6h_ufloat")
+    {
+        auto compressed = codec.encode(src, BCFormat::bc6h_ufloat, opts);
+        REQUIRE(compressed.mip_levels.size() == 1);
+        CHECK(compressed.mip_levels[0].width == W);
+        CHECK(compressed.mip_levels[0].height == H);
+
+        // Decode to float16 RGB (6 bytes per pixel).
+        std::vector<uint16_t> decoded(W * H * 3, 0);
+        BCMutableImage dst{decoded.data(), W, H, W * 3 * sizeof(uint16_t), 3, BCComponentType::float16};
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc6h_ufloat,
+            W,
+            H,
+            dst
+        );
+
+        // Verify non-zero output.
+        bool any_nonzero = false;
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
+        CHECK(any_nonzero);
+    }
+
+    SUBCASE("bc6h_sfloat")
+    {
+        auto compressed = codec.encode(src, BCFormat::bc6h_sfloat, opts);
+        REQUIRE(compressed.mip_levels.size() == 1);
+        CHECK(compressed.mip_levels[0].width == W);
+        CHECK(compressed.mip_levels[0].height == H);
+
+        std::vector<uint16_t> decoded(W * H * 3, 0);
+        BCMutableImage dst{decoded.data(), W, H, W * 3 * sizeof(uint16_t), 3, BCComponentType::float16};
+        codec.decode(
+            compressed.mip_levels[0].data.data(),
+            compressed.mip_levels[0].data.size(),
+            BCFormat::bc6h_sfloat,
+            W,
+            H,
+            dst
+        );
+
+        bool any_nonzero = false;
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
+        CHECK(any_nonzero);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 16. NVTT3 vs SW comparison
+// ────────────────────────────────────────────────────────────────────────────
+
+TEST_CASE("bc_codec_nvtt3_vs_sw" * doctest::skip(!BCCodec().is_nvtt_available()))
+{
+    BCCodec codec;
+    const uint32_t W = 64, H = 64;
+    auto pixels = make_gradient_rgba(W, H);
+    BCImage src = make_rgba_image(pixels, W, H);
+
+    BCEncodeOptions opts_sw;
+    opts_sw.prefer_nvtt = false;
+
+    BCEncodeOptions opts_nvtt;
+    opts_nvtt.prefer_nvtt = true;
+
+    BCFormat formats[] = {
+        BCFormat::bc1_unorm,
+        BCFormat::bc3_unorm,
+        BCFormat::bc7_unorm,
+    };
+
+    for (BCFormat fmt : formats) {
+        CAPTURE(static_cast<int>(fmt));
+
+        auto sw_compressed = codec.encode(src, fmt, opts_sw);
+        auto nvtt_compressed = codec.encode(src, fmt, opts_nvtt);
+
+        REQUIRE(sw_compressed.mip_levels.size() == 1);
+        REQUIRE(nvtt_compressed.mip_levels.size() == 1);
+
+        // Both should produce same-sized output.
+        CHECK(sw_compressed.mip_levels[0].data.size() == nvtt_compressed.mip_levels[0].data.size());
+
+        // Decode both and verify similar quality.
+        std::vector<uint8_t> sw_decoded(W * H * 4, 0);
+        std::vector<uint8_t> nvtt_decoded(W * H * 4, 0);
+        BCMutableImage sw_dst{sw_decoded.data(), W, H, W * 4, 4, BCComponentType::uint8};
+        BCMutableImage nvtt_dst{nvtt_decoded.data(), W, H, W * 4, 4, BCComponentType::uint8};
+
+        codec.decode(
+            sw_compressed.mip_levels[0].data.data(),
+            sw_compressed.mip_levels[0].data.size(),
+            fmt,
+            W,
+            H,
+            sw_dst
+        );
+        codec.decode(
+            nvtt_compressed.mip_levels[0].data.data(),
+            nvtt_compressed.mip_levels[0].data.size(),
+            fmt,
+            W,
+            H,
+            nvtt_dst
+        );
+
+        // Both decodings should be reasonable quality against the original.
+        std::vector<uint8_t> ref_data(W * H * 4);
+        for (uint32_t i = 0; i < W * H; ++i)
+            for (uint32_t c = 0; c < 4; ++c)
+                ref_data[i * 4 + c] = pixels[i * 4 + c];
+
+        double sw_psnr = compute_psnr(ref_data.data(), sw_decoded.data(), W, H, 4);
+        double nvtt_psnr = compute_psnr(ref_data.data(), nvtt_decoded.data(), W, H, 4);
+        CHECK(sw_psnr >= 20.0);
+        CHECK(nvtt_psnr >= 20.0);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 17. NVTT3 mipmap generation + BC6H encoding
+// ────────────────────────────────────────────────────────────────────────────
+
+TEST_CASE("bc_codec_nvtt3_mipmaps" * doctest::skip(!BCCodec().is_nvtt_available()))
+{
+    BCCodec codec;
+    const uint32_t W = 64, H = 64;
+    auto pixels = make_hdr_float32_rgb(W, H);
+    BCImage src{
+        .data = pixels.data(),
+        .width = W,
+        .height = H,
+        .row_pitch = W * 3 * sizeof(float),
+        .channel_count = 3,
+        .component_type = BCComponentType::float32,
+    };
+
+    BCEncodeOptions opts;
+    opts.prefer_nvtt = true;
+    opts.generate_mipmaps = true;
+
+    auto compressed = codec.encode(src, BCFormat::bc6h_ufloat, opts);
+
+    // bc_mip_count(64,64) = 7 levels (64, 32, 16, 8, 4, 2, 1)
+    REQUIRE(compressed.mip_levels.size() == 7);
+
+    uint32_t expected_w = W, expected_h = H;
+    for (size_t i = 0; i < compressed.mip_levels.size(); ++i) {
+        CHECK(compressed.mip_levels[i].width == expected_w);
+        CHECK(compressed.mip_levels[i].height == expected_h);
+        CHECK(
+            compressed.mip_levels[i].data.size()
+            == bc_compressed_size(expected_w, expected_h, BCFormat::bc6h_ufloat)
+        );
+
+        // Verify each level decodes successfully.
+        std::vector<uint16_t> decoded(expected_w * expected_h * 3, 0);
+        BCMutableImage dst{
+            decoded.data(),
+            expected_w,
+            expected_h,
+            expected_w * 3 * sizeof(uint16_t),
+            3,
+            BCComponentType::float16,
+        };
+        codec.decode(
+            compressed.mip_levels[i].data.data(),
+            compressed.mip_levels[i].data.size(),
+            BCFormat::bc6h_ufloat,
+            expected_w,
+            expected_h,
+            dst
+        );
+
+        bool any_nonzero = false;
+        for (auto v : decoded)
+            if (v != 0) {
+                any_nonzero = true;
+                break;
+            }
+        CHECK(any_nonzero);
+
+        expected_w = std::max(1u, expected_w / 2);
+        expected_h = std::max(1u, expected_h / 2);
+    }
 }
 
 TEST_SUITE_END();
