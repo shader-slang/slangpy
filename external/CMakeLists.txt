@@ -66,6 +66,15 @@ target_compile_definitions(lmdb PRIVATE _CRT_SECURE_NO_WARNINGS)
 target_compile_options(lmdb PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/wd4333 /wd4172>)
 target_compile_options(lmdb PRIVATE $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wno-deprecated-declarations>)
 
+# bc7enc (BC1-5 via rgbcx, BC7 via bc7enc)
+
+add_library(bc7enc STATIC)
+target_include_directories(bc7enc INTERFACE bc7enc)
+target_sources(bc7enc PRIVATE bc7enc/rgbcx.cpp bc7enc/bc7enc.cpp)
+target_compile_definitions(bc7enc PRIVATE _CRT_SECURE_NO_WARNINGS)
+target_compile_options(bc7enc PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/wd4244 /wd4018 /wd4456 /wd4457 /wd4100>)
+target_compile_options(bc7enc PRIVATE $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wno-sign-compare -Wno-unused-parameter -Wno-shadow>)
+
 # slang
 
 set(SGL_SLANG_DEBUG_INFO ON CACHE BOOL "Download debug info for slang")
