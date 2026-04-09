@@ -368,6 +368,7 @@ target_link_libraries(sgl
         $<$<NOT:$<BOOL:${SGL_USE_DYNAMIC_CUDA}>>:CUDA::cuda_driver>
         sgl_data
     PRIVATE
+        bc7enc
         git_version
         glfw
         tevclient
