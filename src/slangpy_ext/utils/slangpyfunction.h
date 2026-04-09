@@ -52,6 +52,13 @@ public:
 
     void read_signature(SignatureBuilder* builder) const override
     {
+        // Delegate to the SignatureBuffer implementation via the builder's buffer.
+        read_signature(builder->buffer());
+    }
+
+    /// Non-virtual overload for SignatureBuffer (hot path).
+    void read_signature(SignatureBuffer& builder) const
+    {
         switch (m_type) {
         case sgl::slangpy::FunctionNodeType::uniforms:
         case sgl::slangpy::FunctionNodeType::this_:
@@ -60,7 +67,7 @@ public:
         default:
             // Any other type affects kernel so adds to signature.
             NativeObject::read_signature(builder);
-            *builder << "\n";
+            builder << "\n";
             break;
         }
         if (m_parent) {
@@ -68,23 +75,24 @@ public:
         }
     }
 
-    void gather_runtime_options(ref<NativeCallRuntimeOptions> options) const
+    /// Fill runtime options by walking the function node chain.
+    void gather_runtime_options(NativeCallRuntimeOptions& opts) const
     {
         if (m_parent) {
-            m_parent->gather_runtime_options(options);
+            m_parent->gather_runtime_options(opts);
         }
         switch (m_type) {
         case sgl::slangpy::FunctionNodeType::this_:
-            options->set_this(m_data);
+            opts.this_obj = m_data;
             break;
         case sgl::slangpy::FunctionNodeType::uniforms:
-            options->uniforms().append(m_data);
+            opts.uniforms.push_back(m_data);
             break;
         case sgl::slangpy::FunctionNodeType::cuda_stream:
-            options->set_cuda_stream(nb::cast<NativeHandle>(m_data));
+            opts.cuda_stream = nb::cast<NativeHandle>(m_data);
             break;
         case sgl::slangpy::FunctionNodeType::ray_tracing:
-            options->set_is_ray_tracing(true);
+            opts.is_ray_tracing = true;
             break;
         default:
             break;
@@ -107,9 +115,28 @@ public:
         return root;
     }
 
+    /// Get/set the cached call data cache pointer.
+    NativeCallDataCache* cache() const { return m_cache.get(); }
+    void set_cache(NativeCallDataCache* cache) { m_cache = ref<NativeCallDataCache>(cache); }
+
+    /// Resolve the cache by walking to the root node.
+    NativeCallDataCache* resolve_cache()
+    {
+        NativeFunctionNode* root = find_root();
+        return root->cache();
+    }
+
     ref<NativeCallData> build_call_data(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs);
 
-    nb::object call(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs);
+    /// Core dispatch: resolve/build call data + exec. Used by call() on the fast path.
+    nb::object invoke(NativeCallDataCache* cache, nb::args args, nb::kwargs kwargs);
+
+    /// Full call implementation that handles _result type override, _append_to,
+    /// error formatting, and delegates to invoke(). Registered as __call__ in nanobind.
+    nb::object call(nb::args args, nb::kwargs kwargs);
+
+    /// Common preamble: gather options, prepend this, build signature, resolve/generate call data.
+    ref<NativeCallData> resolve_call_data(NativeCallDataCache* cache, nb::args& args, nb::kwargs& kwargs);
 
     /// Call the backward pass for autograd, caching the bwds CallData on the forward CallData.
     /// This avoids the Python round-trip through function.bwds property.
@@ -152,12 +179,25 @@ public:
     {
         m_parent = nullptr;
         m_data = nb::none();
+        m_cache = nullptr;
+        m_cached_opts = nullptr;
+    }
+
+    /// Get or create cached runtime options (avoids heap alloc on repeat calls).
+    NativeCallRuntimeOptions& cached_options()
+    {
+        if (!m_cached_opts)
+            m_cached_opts = make_ref<NativeCallRuntimeOptions>();
+        m_cached_opts->init();
+        return *m_cached_opts;
     }
 
 private:
     ref<NativeFunctionNode> m_parent;
     FunctionNodeType m_type;
     nb::object m_data;
+    ref<NativeCallDataCache> m_cache;
+    ref<NativeCallRuntimeOptions> m_cached_opts;
 };
 
 struct PyNativeFunctionNode : NativeFunctionNode {

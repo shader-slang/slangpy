@@ -717,5 +717,15 @@ def test_nn_module_parameter_gradient(device_type: DeviceType):
     compare_tensors(bias.grad, torch.ones_like(bias))
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_zero_size_dispatch(device_type: DeviceType):
+    """Dispatching with empty torch tensors should be a no-op, not crash."""
+    module = load_test_module(device_type)
+    a = torch.tensor([], dtype=torch.float32, device="cuda")
+    b = torch.tensor([], dtype=torch.float32, device="cuda")
+    result = module.add(a, b)
+    assert result.numel() == 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

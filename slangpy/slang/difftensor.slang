@@ -146,6 +146,30 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWDiffTensor<T,
         _grad_out.add(idx, grad);\
     }
 
+#define _SLANGPY_DIFFTENSOR_LOADONCE                                                                                   \
+    [ForceInline] [Differentiable]                                                                                     \
+    [BackwardDerivative(_load_once_bwd_array)]                                                                          \
+    public T load_once<I : __BuiltinIntegerType>(I idx[D])                                                              \
+    {                                                                                                                  \
+        return _primal.load(idx);                                                                                      \
+    }                                                                                                                  \
+    [ForceInline] [Differentiable]                                                                                     \
+    [BackwardDerivative(_load_once_bwd_vector)]                                                                         \
+    public T load_once<I : __BuiltinIntegerType>(vector<I, D> idx)                                                      \
+    {                                                                                                                  \
+        return _primal.load(idx);                                                                                      \
+    }
+
+#define _SLANGPY_DIFFTENSOR_LOADONCE_BWD \
+    [ForceInline] void _load_once_bwd_array<I : __BuiltinIntegerType>(I idx[D], T.Differential grad)\
+    {\
+        _grad_out.store(idx, grad);\
+    }\
+    [ForceInline] void _load_once_bwd_vector<I : __BuiltinIntegerType>(vector<I, D> idx, T.Differential grad)\
+    {\
+        _grad_out.store(idx, grad);\
+    }
+
 #define _SLANGPY_DIFFTENSOR_STORE_BWD \
     [ForceInline] void _store_bwd_array<I : __BuiltinIntegerType>(I idx[D], inout DifferentialPair<T> grad)\
     {\
@@ -208,6 +232,23 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWDiffTensor<T,
         for (int i = 0; i < N; i++) {                                                                                  \
             idx[D - 1] = i;                                                                                            \
             this.store(idx, value[i]);                                                                                 \
+        }                                                                                                              \
+    }                                                                                                                  \
+    [Differentiable]                                                                                                   \
+    public void __slangpy_store<let M : int, let N : int>(ContextND<D - 2> context, in vector<T, N>[M] value)          \
+    {                                                                                                                  \
+        int idx[D];                                                                                                    \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < D - 2; ++i)                                                                                \
+            idx[i] = context.call_id[i];                                                                               \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < M; i++) {                                                                                  \
+            [ForceUnroll]                                                                                              \
+            for (int j = 0; j < N; j++) {                                                                              \
+                idx[D - 2] = i;                                                                                        \
+                idx[D - 1] = j;                                                                                        \
+                this.store(idx, value[i][j]);                                                                          \
+            }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
     [Differentiable]                                                                                                   \
@@ -278,6 +319,23 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWDiffTensor<T,
         }                                                                                                              \
     }                                                                                                                  \
     [Differentiable]                                                                                                   \
+    public void __slangpy_load<let M : int, let N : int>(ContextND<D - 2> context, out vector<T, N>[M] value)          \
+    {                                                                                                                  \
+        int idx[D];                                                                                                    \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < D - 2; ++i)                                                                                \
+            idx[i] = context.call_id[i];                                                                               \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < M; i++) {                                                                                  \
+            [ForceUnroll]                                                                                              \
+            for (int j = 0; j < N; j++) {                                                                              \
+                idx[D - 2] = i;                                                                                        \
+                idx[D - 1] = j;                                                                                        \
+                value[i][j] = this.load(idx);                                                                          \
+            }                                                                                                          \
+        }                                                                                                              \
+    }                                                                                                                  \
+    [Differentiable]                                                                                                   \
     public void __slangpy_load<let M : int, let N : int>(ContextND<D - 2> context, out T value[M][N])                  \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -322,6 +380,8 @@ public struct DiffTensor<T : IDifferentiable, let D : int> : IDiffTensor<T, D> w
     _SLANGPY_DIFFTENSOR_COMMON
     _SLANGPY_DIFFTENSOR_LOAD
     _SLANGPY_DIFFTENSOR_LOAD_BWD
+    _SLANGPY_DIFFTENSOR_LOADONCE
+    _SLANGPY_DIFFTENSOR_LOADONCE_BWD
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
@@ -387,6 +447,8 @@ public struct RWDiffTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T, 
     _SLANGPY_DIFFTENSOR_COMMON
     _SLANGPY_DIFFTENSOR_LOAD
     _SLANGPY_DIFFTENSOR_LOAD_BWD
+    _SLANGPY_DIFFTENSOR_LOADONCE
+    _SLANGPY_DIFFTENSOR_LOADONCE_BWD
     _SLANGPY_DIFFTENSOR_STORE
     _SLANGPY_DIFFTENSOR_STORE_BWD
     _SLANGPY_DIFFTENSOR_SLANGPYLOAD
@@ -439,6 +501,71 @@ public extension<T: IDifferentiable, let D : int> RWDiffTensor<T, D> where T.Dif
     }
 }
 #endif
+
+// load_uniform for DiffTensor — wave-level gradient reduction.
+// Implemented as an extension rather than a macro inside the struct because
+// WaveActiveSum requires __BuiltinFloatingPointType, but DiffTensor's generic T
+// is only constrained to IDifferentiable. Placing it in the struct body would
+// fail type-checking for non-floating-point T.
+public extension<T : __BuiltinFloatingPointType, let D : int> DiffTensor<T, D>
+    where T : IDifferentiable
+    where T.Differential : IAtomicAddable
+{
+    [ForceInline] [Differentiable]
+    [BackwardDerivative(__load_uniform_bwd_array)]
+    public T load_uniform<I : __BuiltinIntegerType>(I idx[D])
+    {
+        return this._primal.load(idx);
+    }
+    [ForceInline] [Differentiable]
+    [BackwardDerivative(__load_uniform_bwd_vector)]
+    public T load_uniform<I : __BuiltinIntegerType>(vector<I, D> idx)
+    {
+        return this._primal.load(idx);
+    }
+    [ForceInline] void __load_uniform_bwd_array<I : __BuiltinIntegerType>(I idx[D], T.Differential grad)
+    {
+        T reduced = WaveActiveSum(reinterpret<T, T.Differential>(grad));
+        if (WaveIsFirstLane())
+            this._grad_out.add(idx, reinterpret<T.Differential, T>(reduced));
+    }
+    [ForceInline] void __load_uniform_bwd_vector<I : __BuiltinIntegerType>(vector<I, D> idx, T.Differential grad)
+    {
+        T reduced = WaveActiveSum(reinterpret<T, T.Differential>(grad));
+        if (WaveIsFirstLane())
+            this._grad_out.add(idx, reinterpret<T.Differential, T>(reduced));
+    }
+}
+
+public extension<T : __BuiltinFloatingPointType, let D : int> RWDiffTensor<T, D>
+    where T : IDifferentiable
+    where T.Differential : IAtomicAddable
+{
+    [ForceInline] [Differentiable]
+    [BackwardDerivative(__load_uniform_bwd_array)]
+    public T load_uniform<I : __BuiltinIntegerType>(I idx[D])
+    {
+        return this._primal.load(idx);
+    }
+    [ForceInline] [Differentiable]
+    [BackwardDerivative(__load_uniform_bwd_vector)]
+    public T load_uniform<I : __BuiltinIntegerType>(vector<I, D> idx)
+    {
+        return this._primal.load(idx);
+    }
+    [ForceInline] void __load_uniform_bwd_array<I : __BuiltinIntegerType>(I idx[D], T.Differential grad)
+    {
+        T reduced = WaveActiveSum(reinterpret<T, T.Differential>(grad));
+        if (WaveIsFirstLane())
+            this._grad_out.add(idx, reinterpret<T.Differential, T>(reduced));
+    }
+    [ForceInline] void __load_uniform_bwd_vector<I : __BuiltinIntegerType>(vector<I, D> idx, T.Differential grad)
+    {
+        T reduced = WaveActiveSum(reinterpret<T, T.Differential>(grad));
+        if (WaveIsFirstLane())
+            this._grad_out.add(idx, reinterpret<T.Differential, T>(reduced));
+    }
+}
 
 /*
 //TODO: DiffTensor sample

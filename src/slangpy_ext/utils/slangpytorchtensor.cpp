@@ -405,36 +405,8 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 primal_info,
                 nullptr
             );
-        } else if (m_cached_binding_info.primal.is_tensorview) {
-            // DiffTensorView - write entire 112-byte struct via set_data()
-            // This avoids sub-field offset issues by writing the whole struct at once
-            Shape primal_shape = shape_from_bridge_info(primal_info);
-            Shape primal_strides = strides_from_bridge_info(primal_info);
-            primal_strides = apply_broadcast_stride_zeroing(
-                primal_strides,
-                primal_shape,
-                binding->transform(),
-                context->call_shape()
-            );
-
-            DiffTensorViewData dtv = {};
-            dtv.primal = populate_tensorview_data(primal_info, primal_shape, primal_strides);
-
-            if (has_grad) {
-                Shape grad_shape = shape_from_bridge_info(grad_info);
-                Shape grad_strides = strides_from_bridge_info(grad_info);
-                grad_strides = apply_broadcast_stride_zeroing(
-                    grad_strides,
-                    grad_shape,
-                    binding->transform(),
-                    context->call_shape()
-                );
-                dtv.diff = populate_tensorview_data(grad_info, grad_shape, grad_strides);
-            }
-
-            shader_object->set_data(m_cached_binding_info.field_offset, &dtv, sizeof(DiffTensorViewData));
         } else {
-            // Differentiated structure - write primal (may have null data_ptr for backward outputs)
+            // Differentiated structure - write primal, then gradients
             write_torch_tensor_fields(
                 context,
                 binding,
@@ -491,7 +463,7 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     if (offsets.is_tensorview) {
         // TensorView path: build TensorViewData struct and write via set_data()
         TensorViewData tvd = populate_tensorview_data(info, shape, strides);
-        shader_object->set_data(m_cached_binding_info.field_offset, &tvd, sizeof(TensorViewData));
+        shader_object->set_data(offsets.tensorview_offset, &tvd, sizeof(TensorViewData));
         return;
     }
 

@@ -157,6 +157,7 @@ public:
         ShaderOffset strides;             // Offset for _strides field
         ShaderOffset offset;              // Offset for _offset field
         ShaderOffset element_byte_stride; // Offset for _element_byte_stride field (if present)
+        ShaderOffset tensorview_offset;   // Base offset for TensorView (used with set_data)
         bool is_valid = false;            // Whether offsets have been initialized
         bool is_tensorview = false;
     };
