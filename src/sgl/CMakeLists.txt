@@ -12,6 +12,9 @@ target_sources(sgl PRIVATE
     app/app.cpp
     app/app.h
 
+    core/bc_codec.cpp
+    core/bc_codec.h
+    core/bc_types.h
     core/bitmap.cpp
     core/bitmap.h
     core/crypto.cpp
@@ -368,6 +371,7 @@ target_link_libraries(sgl
         $<$<NOT:$<BOOL:${SGL_USE_DYNAMIC_CUDA}>>:CUDA::cuda_driver>
         sgl_data
     PRIVATE
+        bc7enc
         git_version
         glfw
         tevclient
