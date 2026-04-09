@@ -252,7 +252,9 @@ void copy_vals(uint3 dispatchThreadID, RWTensor<float,1> output, Tensor<float,1>
 """
 
 
-@pytest.mark.parametrize("device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == DeviceType.cuda])
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == DeviceType.cuda]
+)
 def test_dispatch_torch_tensor(device_type: DeviceType):
     """Raw dispatch with torch tensor triggers create_dispatchdata."""
     try:
@@ -265,6 +267,7 @@ def test_dispatch_torch_tensor(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
     from slangpy import Module
+
     torch_mod = Module.load_from_source(device, "torch_raw_dispatch", TORCH_DISPATCH_SRC)
 
     inp = torch.tensor([1.0, 2.0, 3.0, 4.0], device="cuda", dtype=torch.float32)

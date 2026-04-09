@@ -147,7 +147,6 @@ def test_packed_arg_repr(device_type: DeviceType):
     assert pa.python_object == 42
 
 
-
 def test_slangtype_repr_no_reflection():
     """NativeSlangType.__repr__ without type_reflection.
 

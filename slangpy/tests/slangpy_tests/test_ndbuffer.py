@@ -238,9 +238,7 @@ def test_ndbuffer_read_only_pass(device_type: DeviceType):
 def test_ndbuffer_as_structured_buffer(device_type: DeviceType):
     """Pass a 1D NDBuffer to a function expecting StructuredBuffer<float>."""
     device = helpers.get_device(device_type)
-    func = helpers.create_function_from_module(
-        device, "read_structured", STRUCTURED_BUFFER_SHADER
-    )
+    func = helpers.create_function_from_module(device, "read_structured", STRUCTURED_BUFFER_SHADER)
 
     src = np.array([99.0, 1.0], dtype=np.float32)
     buf = NDBuffer.from_numpy(device, src, usage=BufferUsage.shader_resource)
@@ -260,9 +258,9 @@ float add_and_return(float a, float b) {
 def test_ndbuffer_as_return_type(device_type: DeviceType):
     """Use NDBuffer as the return type of a function with a return value."""
     device = helpers.get_device(device_type)
-    func = helpers.create_function_from_module(
-        device, "add_and_return", RETURN_SHADER
-    ).return_type(NDBuffer)
+    func = helpers.create_function_from_module(device, "add_and_return", RETURN_SHADER).return_type(
+        NDBuffer
+    )
 
     a_data = np.array([1.0, 2.0], dtype=np.float32)
     b_data = np.array([3.0, 4.0], dtype=np.float32)

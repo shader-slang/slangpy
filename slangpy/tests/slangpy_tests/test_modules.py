@@ -240,6 +240,7 @@ def test_tensor_empty_with_struct(device_type: DeviceType):
 def test_slang_to_numpy_unsupported(device_type: DeviceType):
     """slang_to_numpy should return None for non-scalar types like structs."""
     from slangpy.reflection.lookup import slang_to_numpy
+
     m = load_test_module(device_type)
     struct_type = m.layout.find_type_by_name("Material")
     assert slang_to_numpy(struct_type) is None
@@ -249,6 +250,7 @@ def test_slang_to_numpy_unsupported(device_type: DeviceType):
 def test_numpy_to_slang_unsupported(device_type: DeviceType):
     """numpy_to_slang should return None for unsupported numpy dtypes."""
     from slangpy.reflection.lookup import numpy_to_slang
+
     device = helpers.get_device(device_type)
     result = numpy_to_slang(np.dtype("complex128"), device, None)
     assert result is None

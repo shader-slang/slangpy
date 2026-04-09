@@ -34,8 +34,9 @@ def _save_image(path: str, data: np.ndarray, pixel_format: spy.Bitmap.PixelForma
 
 @pytest.fixture(scope="module")
 def rgb_image(image_dir):
-    data = np.array([[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
-                     [[0.7, 0.8, 0.9], [1.0, 0.0, 0.5]]], dtype=np.float32)
+    data = np.array(
+        [[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], [[0.7, 0.8, 0.9], [1.0, 0.0, 0.5]]], dtype=np.float32
+    )
     path = os.path.join(image_dir, "test_rgb.exr")
     _save_image(path, data, spy.Bitmap.PixelFormat.rgb)
     return path, data
@@ -43,8 +44,13 @@ def rgb_image(image_dir):
 
 @pytest.fixture(scope="module")
 def rgba_image(image_dir):
-    data = np.array([[[0.1, 0.2, 0.3, 1.0], [0.4, 0.5, 0.6, 0.8]],
-                     [[0.7, 0.8, 0.9, 0.5], [1.0, 0.0, 0.5, 0.2]]], dtype=np.float32)
+    data = np.array(
+        [
+            [[0.1, 0.2, 0.3, 1.0], [0.4, 0.5, 0.6, 0.8]],
+            [[0.7, 0.8, 0.9, 0.5], [1.0, 0.0, 0.5, 0.2]],
+        ],
+        dtype=np.float32,
+    )
     path = os.path.join(image_dir, "test_rgba.exr")
     _save_image(path, data, spy.Bitmap.PixelFormat.rgba)
     return path, data
@@ -60,8 +66,7 @@ def grey_image(image_dir):
 
 @pytest.fixture(scope="module")
 def rg_image(image_dir):
-    data = np.array([[[0.1, 0.2], [0.4, 0.5]],
-                     [[0.7, 0.8], [1.0, 0.0]]], dtype=np.float32)
+    data = np.array([[[0.1, 0.2], [0.4, 0.5]], [[0.7, 0.8], [1.0, 0.0]]], dtype=np.float32)
     path = os.path.join(image_dir, "test_rg.exr")
     _save_image(path, data, spy.Bitmap.PixelFormat.ya)
     return path, data

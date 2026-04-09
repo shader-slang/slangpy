@@ -138,9 +138,7 @@ def test_return_float2x2_matrix(device_type: DeviceType):
 def test_torch_tensor_plus_scalar(device_type: DeviceType):
     """Pass a torch.Tensor and a Python scalar to a Slang function."""
     device = helpers.get_torch_device(device_type)
-    func = helpers.create_function_from_module(
-        device, "add_to_tensor", TORCH_TENSOR_PLUS_SCALAR
-    )
+    func = helpers.create_function_from_module(device, "add_to_tensor", TORCH_TENSOR_PLUS_SCALAR)
 
     t = torch.tensor([1.0, 2.0, 3.0], device="cuda", dtype=torch.float32)
     out = torch.zeros(3, device="cuda", dtype=torch.float32)

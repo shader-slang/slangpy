@@ -84,7 +84,9 @@ def test_grad_in_dtype_must_match_derivative(device_type: DeviceType):
     func = helpers.create_function_from_module(device, "polynomial", DIFF_POLY_SHADER)
 
     primal = Tensor.zeros(
-        device, shape=(4,), dtype="float",
+        device,
+        shape=(4,),
+        dtype="float",
         usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
     )
     bad_grad = Tensor.zeros(device, shape=(4,), dtype="int")
@@ -101,11 +103,15 @@ def test_grad_in_requires_writable_tensor(device_type: DeviceType):
     func = helpers.create_function_from_module(device, "polynomial", DIFF_POLY_SHADER)
 
     primal = Tensor.zeros(
-        device, shape=(4,), dtype="float",
+        device,
+        shape=(4,),
+        dtype="float",
         usage=BufferUsage.shader_resource,
     )
     grad = Tensor.zeros(
-        device, shape=(4,), dtype="float",
+        device,
+        shape=(4,),
+        dtype="float",
         usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
     )
 
@@ -126,7 +132,9 @@ def test_tensor_marshall_properties_via_pack(device_type: DeviceType):
     func = helpers.create_function_from_module(device, "read_first", SIMPLE_READ_SHADER)
 
     tensor = Tensor.zeros(
-        device, shape=(3,), dtype="float",
+        device,
+        shape=(3,),
+        dtype="float",
         usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
     )
     packed = pack(func.module, tensor)
@@ -135,7 +143,9 @@ def test_tensor_marshall_properties_via_pack(device_type: DeviceType):
     assert "NativePackedArg" in r
 
     grad_out = Tensor.zeros(
-        device, shape=(3,), dtype="float",
+        device,
+        shape=(3,),
+        dtype="float",
         usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
     )
     tensor_with_grad = tensor.with_grads(grad_out=grad_out)
@@ -180,7 +190,9 @@ def test_pack_tensor_with_grads(device_type: DeviceType):
     data = np.array([42.0, 1.0, 2.0], dtype=np.float32)
     tensor = Tensor.from_numpy(device, data)
     grad_tensor = Tensor.zeros(
-        device, shape=(3,), dtype="float",
+        device,
+        shape=(3,),
+        dtype="float",
         usage=BufferUsage.shader_resource | BufferUsage.unordered_access,
     )
     tensor_with_grads = tensor.with_grads(grad_out=grad_tensor)
