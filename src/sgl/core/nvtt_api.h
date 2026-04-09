@@ -160,4 +160,7 @@ private:
     bool resolve_symbols();
 };
 
+/// Get the global NVTT3 API singleton (lazy-initialized).
+NvttAPI& get_nvtt_api();
+
 } // namespace sgl

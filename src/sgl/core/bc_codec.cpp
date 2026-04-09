@@ -3,11 +3,9 @@
 #include "sgl/core/bc_codec.h"
 #include "sgl/core/bitmap.h"
 #include "sgl/core/error.h"
-#include "sgl/core/logger.h"
 #include "sgl/core/nvtt_api.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <cstring>
 #include <mutex>
 
@@ -333,113 +331,6 @@ static void copy_block_to_dst(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// NVTT3 dynamic loading
-// ────────────────────────────────────────────────────────────────────────────
-
-void NvttAPI::try_load()
-{
-    // 1. Try runtime_directory() / library name.
-#if SGL_WINDOWS
-    const char* lib_name = "nvtt.dll";
-#elif SGL_LINUX
-    const char* lib_name = "libnvtt.so";
-#elif SGL_MACOS
-    const char* lib_name = "libnvtt.dylib";
-#else
-    const char* lib_name = nullptr;
-#endif
-
-    if (!lib_name) {
-        log_info("NVTT3 not supported on this platform.");
-        return;
-    }
-
-    // Try next to sgl library.
-    if (load_from_path(platform::runtime_directory() / lib_name))
-        goto resolve;
-
-    // 2. Try bare name (system PATH / LD_LIBRARY_PATH).
-    if (load_from_path(lib_name))
-        goto resolve;
-
-    // 3. Try SGL_NVTT_PATH environment variable.
-    {
-#ifdef _MSC_VER
-        char* env_path = nullptr;
-        size_t env_len = 0;
-        _dupenv_s(&env_path, &env_len, "SGL_NVTT_PATH");
-        if (env_path && env_path[0] != '\0') {
-            bool ok = load_from_path(std::filesystem::path(env_path) / lib_name);
-            free(env_path);
-            if (ok)
-                goto resolve;
-        } else {
-            free(env_path);
-        }
-#else
-        const char* env_path = std::getenv("SGL_NVTT_PATH");
-        if (env_path && env_path[0] != '\0') {
-            if (load_from_path(std::filesystem::path(env_path) / lib_name))
-                goto resolve;
-        }
-#endif
-    }
-
-    log_info("NVTT3 not found, BC6H encoding unavailable.");
-    return;
-
-resolve:
-    if (!resolve_symbols()) {
-        log_warn("NVTT3 library found but symbols could not be resolved.");
-        platform::release_shared_library(library);
-        library = nullptr;
-        available = false;
-        return;
-    }
-
-    unsigned int version = nvttVersion();
-    log_info("NVTT3 loaded (version {}.{}.{}).", (version >> 16) & 0xff, (version >> 8) & 0xff, version & 0xff);
-    available = true;
-}
-
-bool NvttAPI::load_from_path(const std::filesystem::path& path)
-{
-    library = platform::load_shared_library(path);
-    return library != nullptr;
-}
-
-bool NvttAPI::resolve_symbols()
-{
-#define NVTT_RESOLVE(name)                                                                                             \
-    name = reinterpret_cast<decltype(name)>(platform::get_proc_address(library, #name));                               \
-    if (!name)                                                                                                         \
-        return false;
-
-    NVTT_RESOLVE(nvttCreateCPUInputBuffer);
-    NVTT_RESOLVE(nvttDestroyCPUInputBuffer);
-    NVTT_RESOLVE(nvttEncodeCPU);
-    NVTT_RESOLVE(nvttCreateSurface);
-    NVTT_RESOLVE(nvttDestroySurface);
-    NVTT_RESOLVE(nvttSurfaceSetImageData);
-    NVTT_RESOLVE(nvttSurfaceBuildNextMipmapDefaults);
-    NVTT_RESOLVE(nvttSurfaceData);
-    NVTT_RESOLVE(nvttSurfaceWidth);
-    NVTT_RESOLVE(nvttSurfaceHeight);
-    NVTT_RESOLVE(nvttVersion);
-
-#undef NVTT_RESOLVE
-    return true;
-}
-
-static NvttAPI& get_nvtt_api()
-{
-    static NvttAPI api;
-    static std::once_flag flag;
-    std::call_once(flag, [&] { api.try_load(); });
-    return api;
-}
-
-// ────────────────────────────────────────────────────────────────────────────
 // NVTT3 format / quality mappings
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -672,40 +563,200 @@ nvtt_encode(NvttAPI& nvtt, const BCImage& src, BCFormat format, const BCEncodeOp
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// BCCodec::Impl
+// BCCodecImpl — abstract interface with SW and NVTT implementations
 // ────────────────────────────────────────────────────────────────────────────
 
-struct BCCodec::Impl {
-    NvttAPI& nvtt = get_nvtt_api();
+struct BCCodecImpl {
+    virtual ~BCCodecImpl() = default;
+    virtual BCCompressedImage encode(const BCImage& src, BCFormat format, const BCEncodeOptions& options) = 0;
+    virtual bool can_encode(BCFormat format) const = 0;
+    virtual bool can_decode(BCFormat format) const = 0;
+
+    /// Default decode using bcdec (header-only). Subclasses may override.
+    virtual void
+    decode(const void* data, size_t size, BCFormat format, uint32_t width, uint32_t height, const BCMutableImage& dst);
+};
+
+/// Software encoder using rgbcx (BC1–5) and bc7enc (BC7).
+struct BCCodecSWImpl : BCCodecImpl {
+    BCCodecSWImpl() { ensure_sw_init(); }
+
+    bool can_encode(BCFormat format) const override { return !is_bc6h(format); }
+
+    bool can_decode(BCFormat) const override { return true; }
+
+    BCCompressedImage encode(const BCImage& src, BCFormat format, const BCEncodeOptions& options) override
+    {
+        if (is_bc6h(format))
+            SGL_THROW("BCCodecSW::encode: BC6H encoding requires NVTT3");
+
+        BCCompressedImage result;
+        result.format = format;
+
+        // Build the list of mip levels to encode.
+        struct MipLevel {
+            BCImage image;
+            ref<Bitmap> owned_bitmap; // keeps data alive for generated mips
+        };
+
+        std::vector<MipLevel> levels;
+
+        // Level 0 is always the source.
+        levels.push_back({src, nullptr});
+
+        if (options.generate_mipmaps && (src.width > 1 || src.height > 1)) {
+            // Convert source to a Bitmap for mip generation.
+            Bitmap::PixelFormat pf;
+            switch (src.channel_count) {
+            case 1:
+                pf = Bitmap::PixelFormat::r;
+                break;
+            case 2:
+                pf = Bitmap::PixelFormat::rg;
+                break;
+            case 3:
+                pf = Bitmap::PixelFormat::rgb;
+                break;
+            default:
+                pf = Bitmap::PixelFormat::rgba;
+                break;
+            }
+
+            // Bitmap::resample requires float16 or float32.
+            // Convert to float32 for mip generation.
+            // Non-owning wrap of source data — safe because src outlives this scope.
+            auto src_bmp = make_ref<Bitmap>(
+                pf,
+                src.component_type,
+                src.width,
+                src.height,
+                src.channel_count,
+                std::vector<std::string>{},
+                const_cast<void*>(src.data)
+            );
+
+            ref<Bitmap> float_bmp;
+            if (src.component_type != Bitmap::ComponentType::float32
+                && src.component_type != Bitmap::ComponentType::float16) {
+                float_bmp = src_bmp->convert(pf, Bitmap::ComponentType::float32, false);
+            } else {
+                float_bmp = src_bmp;
+            }
+
+            // Generate mip chain by iteratively downsampling with Bitmap::resample.
+            ref<Bitmap> current = float_bmp;
+            uint32_t mip_w = src.width;
+            uint32_t mip_h = src.height;
+            while (mip_w > 1 || mip_h > 1) {
+                mip_w = std::max(mip_w / 2, 1u);
+                mip_h = std::max(mip_h / 2, 1u);
+                current = current->resample(mip_w, mip_h, options.mip_filter);
+
+                // Convert back to source component type if needed for encoding.
+                ref<Bitmap> enc_bmp;
+                if (src.component_type != Bitmap::ComponentType::float32
+                    && src.component_type != Bitmap::ComponentType::float16) {
+                    enc_bmp = current->convert(pf, src.component_type, false);
+                } else {
+                    enc_bmp = current;
+                }
+                BCImage mip_img = bc_image_from_bitmap(*enc_bmp);
+                levels.push_back({mip_img, enc_bmp});
+            }
+        }
+
+        // Encode each level.
+        for (auto& lvl : levels) {
+            size_t compressed_bytes = bc_compressed_size(lvl.image.width, lvl.image.height, format);
+            BCCompressedMip mip;
+            mip.width = lvl.image.width;
+            mip.height = lvl.image.height;
+            mip.data.resize(compressed_bytes);
+
+            switch (format) {
+            case BCFormat::bc1_unorm:
+            case BCFormat::bc1_unorm_srgb:
+                encode_image_bc1(lvl.image, mip.data.data(), options.quality);
+                break;
+            case BCFormat::bc2_unorm:
+            case BCFormat::bc2_unorm_srgb:
+                encode_image_bc2(lvl.image, mip.data.data(), options.quality);
+                break;
+            case BCFormat::bc3_unorm:
+            case BCFormat::bc3_unorm_srgb:
+                encode_image_bc3(lvl.image, mip.data.data(), options.quality);
+                break;
+            case BCFormat::bc4_unorm:
+            case BCFormat::bc4_snorm:
+                encode_image_bc4(lvl.image, mip.data.data());
+                break;
+            case BCFormat::bc5_unorm:
+            case BCFormat::bc5_snorm:
+                encode_image_bc5(lvl.image, mip.data.data());
+                break;
+            case BCFormat::bc7_unorm:
+            case BCFormat::bc7_unorm_srgb:
+                encode_image_bc7(lvl.image, mip.data.data(), options);
+                break;
+            default:
+                SGL_THROW("BCCodecSW::encode: unsupported format");
+            }
+
+            result.mip_levels.push_back(std::move(mip));
+        }
+
+        return result;
+    }
+};
+
+/// NVTT3 encoder — delegates to the dynamically-loaded NVTT3 library.
+struct BCCodecNVTTImpl : BCCodecImpl {
+    NvttAPI& nvtt;
+
+    explicit BCCodecNVTTImpl(NvttAPI& nvtt)
+        : nvtt(nvtt)
+    {
+    }
+
+    bool can_encode(BCFormat) const override { return true; }
+
+    bool can_decode(BCFormat) const override { return true; }
+
+    BCCompressedImage encode(const BCImage& src, BCFormat format, const BCEncodeOptions& options) override
+    {
+        return nvtt_encode(nvtt, src, format, options);
+    }
 };
 
 // ────────────────────────────────────────────────────────────────────────────
 // BCCodec public interface
 // ────────────────────────────────────────────────────────────────────────────
 
-BCCodec::BCCodec()
-    : m_impl(std::make_unique<Impl>())
+BCCodec::BCCodec(bool prefer_nvtt)
 {
-    ensure_sw_init();
+    auto& nvtt = get_nvtt_api();
+
+    if (prefer_nvtt && nvtt.available)
+        m_impl = std::make_unique<BCCodecNVTTImpl>(nvtt);
+    else
+        m_impl = std::make_unique<BCCodecSWImpl>();
 }
 
 BCCodec::~BCCodec() = default;
 
-bool BCCodec::is_nvtt_available() const
+bool BCCodec::is_nvtt_available()
 {
-    return m_impl->nvtt.available;
+    return get_nvtt_api().available;
 }
 
 bool BCCodec::can_encode(BCFormat format) const
 {
-    if (is_bc6h(format))
-        return m_impl->nvtt.available;
-    return true;
+    return m_impl->can_encode(format);
 }
 
-bool BCCodec::can_decode(BCFormat) const
+bool BCCodec::can_decode(BCFormat format) const
 {
-    return true;
+    return m_impl->can_decode(format);
 }
 
 // ── Encode ──────────────────────────────────────────────────────────────────
@@ -715,134 +766,26 @@ BCCompressedImage BCCodec::encode(const BCImage& src, BCFormat format, const BCE
     SGL_CHECK(src.data != nullptr, "BCCodec::encode: source data is null");
     SGL_CHECK(src.width > 0 && src.height > 0, "BCCodec::encode: invalid source dimensions");
 
-    auto& nvtt = m_impl->nvtt;
-    if (nvtt.available && options.prefer_nvtt)
-        return nvtt_encode(nvtt, src, format, options);
-
-    if (is_bc6h(format))
-        SGL_THROW("BCCodec::encode: BC6H encoding requires NVTT3 (not available)");
-
-    BCCompressedImage result;
-    result.format = format;
-
-    // Build the list of mip levels to encode.
-    struct MipLevel {
-        BCImage image;
-        ref<Bitmap> owned_bitmap; // keeps data alive for generated mips
-    };
-
-    std::vector<MipLevel> levels;
-
-    // Level 0 is always the source.
-    levels.push_back({src, nullptr});
-
-    if (options.generate_mipmaps && (src.width > 1 || src.height > 1)) {
-        // Convert source to a Bitmap for mip generation.
-        Bitmap::PixelFormat pf;
-        switch (src.channel_count) {
-        case 1:
-            pf = Bitmap::PixelFormat::r;
-            break;
-        case 2:
-            pf = Bitmap::PixelFormat::rg;
-            break;
-        case 3:
-            pf = Bitmap::PixelFormat::rgb;
-            break;
-        default:
-            pf = Bitmap::PixelFormat::rgba;
-            break;
-        }
-
-        // Bitmap::resample requires float16 or float32.
-        // Convert to float32 for mip generation.
-        // Non-owning wrap of source data — safe because src outlives this scope.
-        auto src_bmp = make_ref<Bitmap>(
-            pf,
-            src.component_type,
-            src.width,
-            src.height,
-            src.channel_count,
-            std::vector<std::string>{},
-            const_cast<void*>(src.data)
-        );
-
-        ref<Bitmap> float_bmp;
-        if (src.component_type != Bitmap::ComponentType::float32
-            && src.component_type != Bitmap::ComponentType::float16) {
-            float_bmp = src_bmp->convert(pf, Bitmap::ComponentType::float32, false);
-        } else {
-            float_bmp = src_bmp;
-        }
-
-        // Generate mip chain by iteratively downsampling with Bitmap::resample.
-        ref<Bitmap> current = float_bmp;
-        uint32_t mip_w = src.width;
-        uint32_t mip_h = src.height;
-        while (mip_w > 1 || mip_h > 1) {
-            mip_w = std::max(mip_w / 2, 1u);
-            mip_h = std::max(mip_h / 2, 1u);
-            current = current->resample(mip_w, mip_h, options.mip_filter);
-
-            // Convert back to source component type if needed for encoding.
-            ref<Bitmap> enc_bmp;
-            if (src.component_type != Bitmap::ComponentType::float32
-                && src.component_type != Bitmap::ComponentType::float16) {
-                enc_bmp = current->convert(pf, src.component_type, false);
-            } else {
-                enc_bmp = current;
-            }
-            BCImage mip_img = bc_image_from_bitmap(*enc_bmp);
-            levels.push_back({mip_img, enc_bmp});
-        }
-    }
-
-    // Encode each level.
-    for (auto& lvl : levels) {
-        size_t compressed_bytes = bc_compressed_size(lvl.image.width, lvl.image.height, format);
-        BCCompressedMip mip;
-        mip.width = lvl.image.width;
-        mip.height = lvl.image.height;
-        mip.data.resize(compressed_bytes);
-
-        switch (format) {
-        case BCFormat::bc1_unorm:
-        case BCFormat::bc1_unorm_srgb:
-            encode_image_bc1(lvl.image, mip.data.data(), options.quality);
-            break;
-        case BCFormat::bc2_unorm:
-        case BCFormat::bc2_unorm_srgb:
-            encode_image_bc2(lvl.image, mip.data.data(), options.quality);
-            break;
-        case BCFormat::bc3_unorm:
-        case BCFormat::bc3_unorm_srgb:
-            encode_image_bc3(lvl.image, mip.data.data(), options.quality);
-            break;
-        case BCFormat::bc4_unorm:
-        case BCFormat::bc4_snorm:
-            encode_image_bc4(lvl.image, mip.data.data());
-            break;
-        case BCFormat::bc5_unorm:
-        case BCFormat::bc5_snorm:
-            encode_image_bc5(lvl.image, mip.data.data());
-            break;
-        case BCFormat::bc7_unorm:
-        case BCFormat::bc7_unorm_srgb:
-            encode_image_bc7(lvl.image, mip.data.data(), options);
-            break;
-        default:
-            SGL_THROW("BCCodec::encode: unsupported format");
-        }
-
-        result.mip_levels.push_back(std::move(mip));
-    }
-
-    return result;
+    return m_impl->encode(src, format, options);
 }
 
 // ── Decode ──────────────────────────────────────────────────────────────────
 
 void BCCodec::decode(
+    const void* data,
+    size_t size,
+    BCFormat format,
+    uint32_t width,
+    uint32_t height,
+    const BCMutableImage& dst
+)
+{
+    m_impl->decode(data, size, format, width, height, dst);
+}
+
+// ── BCCodecImpl default decode (bcdec) ──────────────────────────────────────
+
+void BCCodecImpl::decode(
     const void* data,
     size_t size,
     BCFormat format,

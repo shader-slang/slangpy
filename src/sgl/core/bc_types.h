@@ -201,7 +201,6 @@ struct BCEncodeOptions {
     ReconstructionFilter mip_filter = BoxFilter{};
     uint32_t channel_weights[4] = {1, 1, 1, 1};
     bool has_alpha = true;
-    bool prefer_nvtt = true;
 };
 
 struct BCCompressedMip {

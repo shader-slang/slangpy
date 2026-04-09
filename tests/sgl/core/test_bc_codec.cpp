@@ -683,7 +683,6 @@ TEST_CASE("bc_codec_nvtt3_encode" * doctest::skip(!BCCodec().is_nvtt_available()
     BCImage src = make_rgba_image(pixels, W, H);
 
     BCEncodeOptions opts;
-    opts.prefer_nvtt = true;
 
     struct FormatInfo {
         BCFormat format;
@@ -757,7 +756,6 @@ TEST_CASE("bc_codec_nvtt3_bc6h" * doctest::skip(!BCCodec().is_nvtt_available()))
     };
 
     BCEncodeOptions opts;
-    opts.prefer_nvtt = true;
 
     SUBCASE("bc6h_ufloat")
     {
@@ -822,16 +820,12 @@ TEST_CASE("bc_codec_nvtt3_bc6h" * doctest::skip(!BCCodec().is_nvtt_available()))
 
 TEST_CASE("bc_codec_nvtt3_vs_sw" * doctest::skip(!BCCodec().is_nvtt_available()))
 {
-    BCCodec codec;
     const uint32_t W = 64, H = 64;
     auto pixels = make_gradient_rgba(W, H);
     BCImage src = make_rgba_image(pixels, W, H);
 
-    BCEncodeOptions opts_sw;
-    opts_sw.prefer_nvtt = false;
-
-    BCEncodeOptions opts_nvtt;
-    opts_nvtt.prefer_nvtt = true;
+    BCCodec sw_codec(false);
+    BCCodec nvtt_codec(true);
 
     BCFormat formats[] = {
         BCFormat::bc1_unorm,
@@ -842,8 +836,8 @@ TEST_CASE("bc_codec_nvtt3_vs_sw" * doctest::skip(!BCCodec().is_nvtt_available())
     for (BCFormat fmt : formats) {
         CAPTURE(static_cast<int>(fmt));
 
-        auto sw_compressed = codec.encode(src, fmt, opts_sw);
-        auto nvtt_compressed = codec.encode(src, fmt, opts_nvtt);
+        auto sw_compressed = sw_codec.encode(src, fmt);
+        auto nvtt_compressed = nvtt_codec.encode(src, fmt);
 
         REQUIRE(sw_compressed.mip_levels.size() == 1);
         REQUIRE(nvtt_compressed.mip_levels.size() == 1);
@@ -857,7 +851,7 @@ TEST_CASE("bc_codec_nvtt3_vs_sw" * doctest::skip(!BCCodec().is_nvtt_available())
         BCMutableImage sw_dst{sw_decoded.data(), W, H, W * 4, 4, BCComponentType::uint8};
         BCMutableImage nvtt_dst{nvtt_decoded.data(), W, H, W * 4, 4, BCComponentType::uint8};
 
-        codec.decode(
+        sw_codec.decode(
             sw_compressed.mip_levels[0].data.data(),
             sw_compressed.mip_levels[0].data.size(),
             fmt,
@@ -865,7 +859,7 @@ TEST_CASE("bc_codec_nvtt3_vs_sw" * doctest::skip(!BCCodec().is_nvtt_available())
             H,
             sw_dst
         );
-        codec.decode(
+        nvtt_codec.decode(
             nvtt_compressed.mip_levels[0].data.data(),
             nvtt_compressed.mip_levels[0].data.size(),
             fmt,
@@ -906,7 +900,6 @@ TEST_CASE("bc_codec_nvtt3_mipmaps" * doctest::skip(!BCCodec().is_nvtt_available(
     };
 
     BCEncodeOptions opts;
-    opts.prefer_nvtt = true;
     opts.generate_mipmaps = true;
 
     auto compressed = codec.encode(src, BCFormat::bc6h_ufloat, opts);

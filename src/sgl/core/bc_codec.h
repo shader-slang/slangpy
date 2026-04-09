@@ -10,6 +10,8 @@
 
 namespace sgl {
 
+struct BCCodecImpl;
+
 /// CPU-based BC1–7 block compression encoder/decoder.
 ///
 /// Decoding uses bcdec (header-only). Encoding uses rgbcx (BC1–5) and
@@ -17,7 +19,9 @@ namespace sgl {
 /// (loaded at runtime, Phase 5).
 class SGL_API BCCodec {
 public:
-    BCCodec();
+    /// @param prefer_nvtt If true and NVTT3 is available, use NVTT3 for encoding.
+    ///                    Otherwise fall back to the software encoder.
+    explicit BCCodec(bool prefer_nvtt = true);
     ~BCCodec();
 
     BCCodec(const BCCodec&) = delete;
@@ -32,7 +36,7 @@ public:
     decode(const void* data, size_t size, BCFormat format, uint32_t width, uint32_t height, const BCMutableImage& dst);
 
     /// True if the NVTT3 dynamic library was found and loaded.
-    bool is_nvtt_available() const;
+    static bool is_nvtt_available();
 
     /// True if the given format can be encoded (SW or NVTT3).
     bool can_encode(BCFormat format) const;
@@ -41,8 +45,7 @@ public:
     bool can_decode(BCFormat format) const;
 
 private:
-    struct Impl;
-    std::unique_ptr<Impl> m_impl;
+    std::unique_ptr<BCCodecImpl> m_impl;
 };
 
 } // namespace sgl
