@@ -418,9 +418,13 @@ private:
                 break;
 
             case FilterBoundaryCondition::mirror:
-                pos = modulo(pos, 2 * static_cast<int32_t>(m_source_res) - 2);
-                if (pos >= static_cast<int32_t>(m_source_res) - 1)
-                    pos = 2 * m_source_res - 2 - pos;
+                if (m_source_res <= 1) {
+                    pos = 0;
+                } else {
+                    pos = modulo(pos, 2 * static_cast<int32_t>(m_source_res) - 2);
+                    if (pos >= static_cast<int32_t>(m_source_res) - 1)
+                        pos = 2 * m_source_res - 2 - pos;
+                }
                 break;
 
             case FilterBoundaryCondition::one:
