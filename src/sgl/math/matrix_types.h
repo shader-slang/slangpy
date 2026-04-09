@@ -7,6 +7,7 @@
 #include "sgl/core/error.h"
 
 #include <array>
+#include <compare>
 #include <initializer_list>
 #include <limits>
 
@@ -151,9 +152,6 @@ public:
             m_rows[r][col] = v[r];
     }
 
-    bool operator==(const matrix& rhs) const { return std::memcmp(this, &rhs, sizeof(*this)) == 0; }
-    bool operator!=(const matrix& rhs) const { return !(*this == rhs); }
-
 private:
     enum class Form {
         Undefined,
@@ -183,6 +181,31 @@ private:
 
     row_type m_rows[RowCount];
 };
+
+/// Equality operator.
+template<typename T, int RowCount, int ColCount>
+[[nodiscard]] bool operator==(const matrix<T, RowCount, ColCount>& lhs, const matrix<T, RowCount, ColCount>& rhs)
+{
+    for (int r = 0; r < RowCount; ++r)
+        for (int c = 0; c < ColCount; ++c)
+            if (lhs[r][c] != rhs[r][c])
+                return false;
+    return true;
+}
+
+/// Lexicographic three-way operator.
+template<typename T, int RowCount, int ColCount>
+[[nodiscard]] auto operator<=>(const matrix<T, RowCount, ColCount>& lhs, const matrix<T, RowCount, ColCount>& rhs)
+{
+    for (int r = 0; r < RowCount; ++r) {
+        for (int c = 0; c < ColCount; ++c) {
+            auto cmp = lhs[r][c] <=> rhs[r][c];
+            if (cmp != 0)
+                return cmp;
+        }
+    }
+    return lhs[0][0] <=> rhs[0][0];
+}
 
 using float2x2 = matrix<float, 2, 2>;
 using float2x3 = matrix<float, 2, 3>;

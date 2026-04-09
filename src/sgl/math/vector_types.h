@@ -5,6 +5,8 @@
 #include "sgl/math/scalar_types.h"
 #include "sgl/core/error.h"
 
+#include <compare>
+
 namespace sgl::math {
 
 // ----------------------------------------------------------------------------
@@ -300,45 +302,16 @@ template<typename T, int N>
     return true;
 }
 
-/// Inequality operator.
-template<typename T, int N>
-[[nodiscard]] constexpr bool operator!=(const vector<T, N>& lhs, const vector<T, N>& rhs)
-{
-    return !(lhs == rhs);
-}
-
-/// Lexicographic less-than operator.
+/// Lexicographic three-way operator.
 template<arithmetic T, int N>
-[[nodiscard]] constexpr bool operator<(const vector<T, N>& lhs, const vector<T, N>& rhs)
+[[nodiscard]] constexpr auto operator<=>(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
     for (int i = 0; i < N; ++i) {
-        if (lhs[i] < rhs[i])
-            return true;
-        if (rhs[i] < lhs[i])
-            return false;
+        auto cmp = lhs[i] <=> rhs[i];
+        if (cmp != 0)
+            return cmp;
     }
-    return false;
-}
-
-/// Lexicographic greater-than operator.
-template<arithmetic T, int N>
-[[nodiscard]] constexpr bool operator>(const vector<T, N>& lhs, const vector<T, N>& rhs)
-{
-    return rhs < lhs;
-}
-
-/// Lexicographic less-or-equal operator.
-template<arithmetic T, int N>
-[[nodiscard]] constexpr bool operator<=(const vector<T, N>& lhs, const vector<T, N>& rhs)
-{
-    return !(rhs < lhs);
-}
-
-/// Lexicographic greater-or-equal operator.
-template<arithmetic T, int N>
-[[nodiscard]] constexpr bool operator>=(const vector<T, N>& lhs, const vector<T, N>& rhs)
-{
-    return !(lhs < rhs);
+    return lhs[0] <=> rhs[0];
 }
 
 using bool1 = vector<bool, 1>;
