@@ -7,6 +7,13 @@ include(mt-retry)
 
 set(VCPKG_INSTALL_OPTIONS "--no-print-usage" "--allow-unsupported" "--x-buildtrees-root=${CMAKE_CURRENT_SOURCE_DIR}/build/buildtrees")
 
+# This option must be declared before project() so the vcpkg toolchain can use
+# it to select the matching manifest feature during dependency installation.
+option(SGL_ENABLE_CRASHPAD "Enable Crashpad integration" OFF)
+if(SGL_ENABLE_CRASHPAD)
+    list(APPEND VCPKG_MANIFEST_FEATURES crashpad)
+endif()
+
 project(sgl)
 
 set(CTEST_OUTPUT_ON_FAILURE TRUE)
@@ -74,9 +81,6 @@ option(SGL_ENABLE_HEADER_VALIDATION "Enable header validation" OFF)
 # Enable/disable build metrics.
 # When enabled, adds compiler timing flags (/Bt+ for MSVC, -ftime-trace for Clang, -ftime-report for GCC).
 option(SGL_ENABLE_BUILD_METRICS "Enable build metrics (compiler timing flags)" OFF)
-
-# Enable/disable Crashpad integration.
-option(SGL_ENABLE_CRASHPAD "Enable Crashpad integration" OFF)
 
 set(SGL_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Project directory (defaults to CMAKE_CURRENT_SOURCE_DIR)")
 
