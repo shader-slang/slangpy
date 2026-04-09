@@ -221,6 +221,34 @@ SGL_PY_EXPORT(core_bitmap)
             D(Bitmap, convert)
         )
         .def(
+            "resample",
+            nb::overload_cast<
+                Bitmap*,
+                ReconstructionFilter,
+                std::pair<FilterBoundaryCondition, FilterBoundaryCondition>,
+                std::pair<float, float>>(&Bitmap::resample, nb::const_),
+            "target"_a,
+            "filter"_a = BoxFilter{},
+            "bc"_a = std::make_pair(FilterBoundaryCondition::clamp, FilterBoundaryCondition::clamp),
+            "clamp"_a = std::make_pair(-std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()),
+            D(Bitmap, resample)
+        )
+        .def(
+            "resample",
+            nb::overload_cast<
+                uint32_t,
+                uint32_t,
+                ReconstructionFilter,
+                std::pair<FilterBoundaryCondition, FilterBoundaryCondition>,
+                std::pair<float, float>>(&Bitmap::resample, nb::const_),
+            "width"_a,
+            "height"_a,
+            "filter"_a = BoxFilter{},
+            "bc"_a = std::make_pair(FilterBoundaryCondition::clamp, FilterBoundaryCondition::clamp),
+            "clamp"_a = std::make_pair(-std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()),
+            D_NA(Bitmap, resample)
+        )
+        .def(
             "write",
             nb::overload_cast<const std::filesystem::path&, Bitmap::FileFormat, int>(&Bitmap::write, nb::const_),
             "path"_a,

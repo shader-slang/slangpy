@@ -162,6 +162,7 @@ NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_fi
     ShaderCursor data_cursor = tensor_cursor.find_field("_data");
     if (!data_cursor.is_valid()) {
         offsets.is_tensorview = true;
+        offsets.tensorview_offset = tensor_cursor.offset();
         offsets.is_valid = true;
         return offsets;
     }
@@ -613,7 +614,7 @@ void NativeTensorMarshall::write_native_tensor_fields(
             tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
         }
         tvd.dimensionCount = static_cast<uint32_t>(ndim);
-        shader_object->set_data(m_cached_binding_info.field_offset, &tvd, sizeof(TensorViewData));
+        shader_object->set_data(offsets.tensorview_offset, &tvd, sizeof(TensorViewData));
         return;
     }
 
