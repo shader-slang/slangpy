@@ -212,7 +212,7 @@ def test_scalar_reduce_type_error(device_type: DeviceType):
     layout = func.module.layout
 
     marshall = PYTHON_TYPES[float](layout, 1.0)
-    with pytest.raises(ValueError, match="[Cc]annot reduce"):
+    with pytest.raises(ValueError, match=r"[Cc]annot reduce"):
         marshall.reduce_type(None, 1)
 
 
@@ -241,7 +241,7 @@ def test_vector_reduce_type(device_type: DeviceType):
     assert "float" in reduced_1.full_name
     assert len(reduced_1.shape) < len(reduced_0.shape)
 
-    with pytest.raises(ValueError, match="[Cc]annot reduce"):
+    with pytest.raises(ValueError, match=r"[Cc]annot reduce"):
         marshall.reduce_type(None, 2)
 
 

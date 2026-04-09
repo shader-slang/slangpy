@@ -73,7 +73,7 @@ def test_grad_out_dtype_must_match_derivative(device_type: DeviceType):
     bad_grad = Tensor.zeros(device, shape=(4,), dtype="int")
 
     tensor = primal.with_grads(grad_out=bad_grad)
-    with pytest.raises(ValueError, match="[Ii]nvalid element type"):
+    with pytest.raises(ValueError, match=r"[Ii]nvalid element type"):
         func(tensor, 1.0)
 
 
@@ -92,7 +92,7 @@ def test_grad_in_dtype_must_match_derivative(device_type: DeviceType):
     bad_grad = Tensor.zeros(device, shape=(4,), dtype="int")
 
     tensor = primal.with_grads(grad_in=bad_grad)
-    with pytest.raises(ValueError, match="[Ii]nvalid element type"):
+    with pytest.raises(ValueError, match=r"[Ii]nvalid element type"):
         func(tensor, 1.0)
 
 

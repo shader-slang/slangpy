@@ -956,7 +956,7 @@ def test_factory_unsupported_torch_dtype_raises(device_type: DeviceType):
     """Passing a tensor with unsupported dtype raises ValueError."""
     layout = _get_layout(device_type)
     t = torch.tensor([1.0 + 2.0j], dtype=torch.complex64, device="cuda")
-    with pytest.raises(ValueError, match="[Uu]nsupported"):
+    with pytest.raises(ValueError, match=r"[Uu]nsupported"):
         ttm.create_torch_tensor_marshall(layout, t)
 
 
@@ -968,7 +968,7 @@ def test_diffpair_factory_unsupported_dtype_raises(device_type: DeviceType):
     primal = torch.tensor([1.0 + 2.0j], dtype=torch.complex64, device="cuda")
     grad = torch.tensor([0.0 + 0.0j], dtype=torch.complex64, device="cuda")
     pair = diff_pair(primal, grad)
-    with pytest.raises(ValueError, match="[Uu]nsupported"):
+    with pytest.raises(ValueError, match=r"[Uu]nsupported"):
         ttm.create_torch_tensor_marshall(layout, pair)
 
 
@@ -1000,7 +1000,7 @@ def test_torch_cpu_tensor_rejected(device_type: DeviceType):
     func = helpers.create_function_from_module(device, "identity", IDENTITY_SRC)
 
     cpu_tensor = torch.tensor([1.0, 2.0], dtype=torch.float32)
-    with pytest.raises(Exception, match="[Cc][Uu][Dd][Aa]"):
+    with pytest.raises(Exception, match=r"[Cc][Uu][Dd][Aa]"):
         func(cpu_tensor)
 
 
