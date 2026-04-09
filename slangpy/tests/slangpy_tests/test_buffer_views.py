@@ -333,6 +333,8 @@ def test_copy_from_torch_cpu_fallback():
         import torch
     except ImportError:
         pytest.skip("PyTorch not installed")
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA device not available")
 
     device = helpers.get_device(DeviceType.cuda)
     tensor = Tensor.empty(device, dtype="float", shape=(4,))

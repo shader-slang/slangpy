@@ -30,6 +30,10 @@ DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES
 if DeviceType.metal in DEVICE_TYPES:
     DEVICE_TYPES.remove(DeviceType.metal)
 
+requires_cuda = pytest.mark.skipif(
+    not torch.cuda.is_available(), reason="CUDA not available"
+)
+
 
 def get_test_tensors(device: Device, N: int = 4):
     weights = torch.randn(
@@ -827,6 +831,7 @@ def test_diffpair_get_shape_grad_only(device_type: DeviceType):
 # ============================================================================
 
 
+@requires_cuda
 def test_diffpair_repr():
     """NativeTorchTensorDiffPair.__repr__ formats primal/grad/index/is_input."""
     primal = torch.tensor([1.0], device="cuda")
@@ -847,6 +852,7 @@ def test_diffpair_repr_none():
     assert "grad=None" in r
 
 
+@requires_cuda
 def test_diffpair_property_setters():
     """Setting primal and grad properties exercises the nanobind setter lambdas."""
     pair = diff_pair(None, None)
@@ -864,6 +870,7 @@ def test_diffpair_property_setters():
     assert torch.equal(pair.grad, g)
 
 
+@requires_cuda
 def test_diffpair_clear_tensors():
     """clear_tensors() sets both primal and grad to None."""
     primal = torch.tensor([1.0], device="cuda")
@@ -882,6 +889,7 @@ def test_diffpair_clear_tensors():
 # ============================================================================
 
 
+@requires_cuda
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_marshall_properties(device_type: DeviceType):
     """Access torch_dtype, slang_dtype, repr, is_writable, has_derivative on TorchTensorMarshall."""
@@ -942,6 +950,7 @@ def test_factory_unsupported_type_raises(device_type: DeviceType):
         ttm.create_torch_tensor_marshall(layout, "not a tensor")
 
 
+@requires_cuda
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_factory_unsupported_torch_dtype_raises(device_type: DeviceType):
     """Passing a tensor with unsupported dtype raises ValueError."""
@@ -951,6 +960,7 @@ def test_factory_unsupported_torch_dtype_raises(device_type: DeviceType):
         ttm.create_torch_tensor_marshall(layout, t)
 
 
+@requires_cuda
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_diffpair_factory_unsupported_dtype_raises(device_type: DeviceType):
     """DiffPair factory raises for unsupported torch dtype."""
@@ -971,6 +981,7 @@ float2 scale_vec(float2 v) { return v * 2.0; }
 """
 
 
+@requires_cuda
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_torch_shape_mismatch_error(device_type: DeviceType):
     """validate_tensor_shape rejects a tensor whose trailing dims don't match the vector type."""
