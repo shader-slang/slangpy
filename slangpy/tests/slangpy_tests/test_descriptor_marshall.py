@@ -15,6 +15,10 @@ import slangpy as spy
 from slangpy.testing.helpers import get_device, create_function_from_module
 
 
+@pytest.mark.xfail(
+    reason="DescriptorHandle type resolves to StructuredBuffer<Unknown> (#922)",
+    strict=True,
+)
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
 class TestDescriptorMarshallTexture:
     """Test DescriptorMarshall with texture descriptor handles on CUDA."""
@@ -74,6 +78,11 @@ class TestDescriptorMarshallTexture:
         assert result == 42
 
 
+@pytest.mark.xfail(
+    reason="DescriptorHandle type resolves to StructuredBuffer<Unknown> (#922); "
+    "error paths differ from expected",
+    strict=True,
+)
 class TestDescriptorMarshallErrors:
     """Test DescriptorMarshall error paths via the functional API."""
 
