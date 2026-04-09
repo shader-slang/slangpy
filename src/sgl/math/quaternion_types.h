@@ -89,15 +89,15 @@ template<typename T>
 template<typename T>
 [[nodiscard]] constexpr auto operator<=>(const quat<T>& lhs, const quat<T>& rhs)
 {
-    auto x_cmp = lhs.x <=> rhs.x;
-    if (x_cmp != 0)
-        return x_cmp;
-    auto y_cmp = lhs.y <=> rhs.y;
-    if (y_cmp != 0)
-        return y_cmp;
-    auto z_cmp = lhs.z <=> rhs.z;
-    if (z_cmp != 0)
-        return z_cmp;
+    auto cmp = lhs.x <=> rhs.x;
+    if (cmp != 0)
+        return cmp;
+    cmp = lhs.y <=> rhs.y;
+    if (cmp != 0)
+        return cmp;
+    cmp = lhs.z <=> rhs.z;
+    if (cmp != 0)
+        return cmp;
     return lhs.w <=> rhs.w;
 }
 

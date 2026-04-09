@@ -197,14 +197,15 @@ template<typename T, int RowCount, int ColCount>
 template<typename T, int RowCount, int ColCount>
 [[nodiscard]] auto operator<=>(const matrix<T, RowCount, ColCount>& lhs, const matrix<T, RowCount, ColCount>& rhs)
 {
-    for (int r = 0; r < RowCount; ++r) {
-        for (int c = 0; c < ColCount; ++c) {
-            auto cmp = lhs[r][c] <=> rhs[r][c];
-            if (cmp != 0)
-                return cmp;
-        }
+    constexpr int element_count = RowCount * ColCount;
+    const T* lhs_data = lhs.data();
+    const T* rhs_data = rhs.data();
+    for (int i = 0; i < element_count - 1; ++i) {
+        auto cmp = lhs_data[i] <=> rhs_data[i];
+        if (cmp != 0)
+            return cmp;
     }
-    return lhs[0][0] <=> rhs[0][0];
+    return lhs_data[element_count - 1] <=> rhs_data[element_count - 1];
 }
 
 using float2x2 = matrix<float, 2, 2>;

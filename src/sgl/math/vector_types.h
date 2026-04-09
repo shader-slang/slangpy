@@ -306,12 +306,12 @@ template<typename T, int N>
 template<arithmetic T, int N>
 [[nodiscard]] constexpr auto operator<=>(const vector<T, N>& lhs, const vector<T, N>& rhs)
 {
-    for (int i = 0; i < N; ++i) {
+    for (int i = 0; i < N - 1; ++i) {
         auto cmp = lhs[i] <=> rhs[i];
         if (cmp != 0)
             return cmp;
     }
-    return lhs[0] <=> rhs[0];
+    return lhs[N - 1] <=> rhs[N - 1];
 }
 
 using bool1 = vector<bool, 1>;
