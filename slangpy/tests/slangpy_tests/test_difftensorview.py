@@ -107,6 +107,62 @@ def test_difftensorview_diff_square_torch(device_type: DeviceType):
 
 
 # ============================================================================
+# Tests with slangpy.Tensor
+# ============================================================================
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_difftensorview_copy_slangpy_tensor(device_type: DeviceType):
+    """Test copy_difftensorview with slangpy.Tensor arguments."""
+    module = load_module(device_type)
+
+    input_data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float32)
+    input_tensor = Tensor.from_numpy(module.device, input_data)
+    output_tensor = Tensor.zeros(module.device, (5,), "float")
+
+    module.copy_difftensorview(input_tensor, output_tensor)
+
+    output_data = output_tensor.to_numpy()
+    assert np.array_equal(input_data, output_data), f"Expected {input_data}, got {output_data}"
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_difftensorview_add_slangpy_tensor(device_type: DeviceType):
+    """Test add_difftensorview with slangpy.Tensor arguments."""
+    module = load_module(device_type)
+
+    a_data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float32)
+    b_data = np.array([10.0, 20.0, 30.0, 40.0, 50.0], dtype=np.float32)
+    a = Tensor.from_numpy(module.device, a_data)
+    b = Tensor.from_numpy(module.device, b_data)
+    output = Tensor.zeros(module.device, (5,), "float")
+
+    module.add_difftensorview(a, b, output)
+
+    output_data = output.to_numpy()
+    expected = a_data + b_data
+    assert np.array_equal(expected, output_data), f"Expected {expected}, got {output_data}"
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_difftensorview_diff_square_slangpy_tensor(device_type: DeviceType):
+    """Test backward pass of diff_square with slangpy.Tensor: f(x) = x^2, df/dx = 2x."""
+    module = load_module(device_type)
+
+    data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float32)
+    input_tensor = Tensor.from_numpy(module.device, data).with_grads()
+    output_tensor = Tensor.zeros(module.device, (5,), "float").with_grads()
+    output_tensor.grad_in.copy_from_numpy(np.ones(5, dtype=np.float32))
+
+    module.diff_square.bwds(input_tensor, output_tensor)
+
+    # df/dx = 2x
+    grad = input_tensor.grad_out.to_numpy()
+    expected_grad = 2.0 * data
+    assert np.allclose(grad, expected_grad, atol=1e-5), f"Expected grad {expected_grad}, got {grad}"
+
+
+# ============================================================================
 # Tests for _thread_count with CUDAKernel + Differentiable
 # ============================================================================
 
