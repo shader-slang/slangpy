@@ -267,9 +267,9 @@ void NativeTorchTensorMarshall::ensure_binding_info_cached(
         // name here rather than re-deriving from binding access mode or vector type kind.
         //
         // Naming convention:
-        //   "RW" prefix → read-write (primal writable + readable, gradient rw)
-        //   "W"  prefix → write-only primal, read-only gradient
-        //   No prefix   → read-only primal, write-only gradient
+        //   "RW" prefix - read-write (primal writable + readable, gradient rw)
+        //   "W"  prefix - write-only primal, read-only gradient
+        //   No prefix   - read-only primal, write-only gradient
         std::string_view type_name = field.slang_type_layout()->getName();
         bool starts_rw = type_name.size() >= 2 && type_name[0] == 'R' && type_name[1] == 'W';
         bool starts_w = !type_name.empty() && type_name[0] == 'W' && !starts_rw;
@@ -279,9 +279,9 @@ void NativeTorchTensorMarshall::ensure_binding_info_cached(
 
         // Gradient needs copy-back when the gradient is writable (output).
         // This happens when the primal is readable (not write-only):
-        //   DiffTensor   → read primal, write grad → copy back grad
-        //   WDiffTensor  → write primal, read grad → no grad copy-back
-        //   RWDiffTensor → rw primal, rw grad      → copy back grad
+        //   DiffTensor   - read primal, write grad - copy back grad
+        //   WDiffTensor  - write primal, read grad - no grad copy-back
+        //   RWDiffTensor - rw primal, rw grad      - copy back grad
         bool primal_readable = !starts_w;
         m_cached_binding_info.needs_grad_copyback = m_cached_binding_info.has_grad_fields && primal_readable;
     }
@@ -401,8 +401,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
         // is complete before the buffer is freed.
         ref<Buffer> primal_zeroed_buffer;
         if (primal_info.data_ptr == nullptr && primal_info.numel > 0) {
-            size_t buffer_size
-                = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
+            size_t buffer_size = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
             if (buffer_size == 0)
                 buffer_size = static_cast<size_t>(primal_info.element_size);
 
@@ -496,8 +495,12 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
             tvd.data = static_cast<uint64_t>(interop_buffer->device_address());
             // Recalculate strides as contiguous for the interop buffer copy
             Shape contiguous_strides = make_contiguous_strides(shape, info.element_size);
-            contiguous_strides
-                = apply_broadcast_stride_zeroing(contiguous_strides, shape, binding->transform(), context->call_shape());
+            contiguous_strides = apply_broadcast_stride_zeroing(
+                contiguous_strides,
+                shape,
+                binding->transform(),
+                context->call_shape()
+            );
             for (int i = 0; i < info.ndim && i < kSlangPyTensorViewMaxDim; i++)
                 tvd.strides[i] = static_cast<uint32_t>(contiguous_strides[i] * info.element_size);
         }
@@ -577,9 +580,9 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
 ) const
 {
     // Record PyTorch's current CUDA stream on the context so that exec() can
-    // pass it to submit_command_buffer for CUDA↔graphics synchronization.
+    // pass it to submit_command_buffer for CUDA<->graphics synchronization.
     // Called after any CUDA work on shared interop buffers (copy_to_buffer,
-    // memset_device_async). Only needed once per dispatch — subsequent calls
+    // memset_device_async). Only needed once per dispatch -- subsequent calls
     // are no-ops if the stream is already recorded.
     auto mark_interop_stream = [&](int32_t device_index)
     {
@@ -641,7 +644,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     } else if (m_cached_binding_info.has_grad_fields && primal_info.numel > 0
                && context->device()->supports_cuda_interop()) {
         // Backward pass: output slot has grad but no primal. Shader still needs a valid
-        // primal buffer (DiffTensor layout). Create and zero — we have no tensor to copy from.
+        // primal buffer (DiffTensor layout). Create and zero -- we have no tensor to copy from.
         primal_interop_buffer = create_zeroed_interop_buffer(primal_info);
     }
 

@@ -827,8 +827,10 @@ def test_diffpair_get_shape_grad_only(device_type: DeviceType):
     grad = torch.ones(5, device="cuda", dtype=torch.float32)
     pair = diff_pair(None, grad)
 
-    result = func(pair)
-    assert result is not None
+    result_1 = func(pair)
+    result_2 = func(pair)
+    assert result_1 is not None
+    assert result_2 is not None
 
 
 # ============================================================================
