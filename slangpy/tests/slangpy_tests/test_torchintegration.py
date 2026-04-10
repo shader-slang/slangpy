@@ -727,5 +727,31 @@ def test_zero_size_dispatch(device_type: DeviceType):
     assert result.numel() == 0
 
 
+DIFF_SQUARE_SRC = r"""
+[Differentiable]
+float square(float x) { return x * x; }
+"""
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diffpair_get_shape_grad_only(device_type: DeviceType):
+    """NativeTorchTensorMarshall::get_shape falls back to grad when primal=None.
+
+    Exercises the create_zeroed_interop_buffer path on non-CUDA devices.
+    Previously this caused a CUDA_ERROR_ILLEGAL_ADDRESS on the second
+    dispatch due to an async memset outliving the interop buffer (#929).
+    """
+    from slangpy.torchintegration import diff_pair
+
+    device = helpers.get_torch_device(device_type)
+    func = helpers.create_function_from_module(device, "square", DIFF_SQUARE_SRC)
+
+    grad = torch.ones(5, device="cuda", dtype=torch.float32)
+    pair = diff_pair(None, grad)
+
+    result = func(pair)
+    assert result is not None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
