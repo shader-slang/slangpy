@@ -4,6 +4,7 @@
 #include "sgl/math/vector.h"
 
 #include <algorithm>
+#include <compare>
 #include <random>
 
 using namespace sgl;
@@ -73,6 +74,17 @@ TEST_CASE("lexicographic_comparison")
     CHECK(float3(1, 2, 3) >= float3(1, 2, 3));
     CHECK(float3(1, 2, 4) >= float3(1, 2, 3));
     CHECK_FALSE(float3(1, 2, 3) >= float3(1, 2, 4));
+}
+
+TEST_CASE("three_way_comparison")
+{
+    auto c0 = float3(1, 2, 3) <=> float3(1, 2, 3);
+    auto c1 = float3(1, 2, 3) <=> float3(1, 2, 4);
+    auto c2 = float3(1, 2, 4) <=> float3(1, 2, 3);
+
+    CHECK(std::is_eq(c0));
+    CHECK(std::is_lt(c1));
+    CHECK(std::is_gt(c2));
 }
 
 TEST_CASE("component_wise_comparisons")
