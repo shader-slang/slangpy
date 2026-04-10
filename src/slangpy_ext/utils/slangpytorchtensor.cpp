@@ -393,9 +393,35 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
             read_back
         );
     } else {
-        // CUDA device - direct pointer access
+        // CUDA device - direct pointer access.
+        // When primal is None (backward pass, grad-only diff_pair), allocate a
+        // zeroed buffer so the shader has a valid device address instead of null.
+        // The buffer is stored in read_back; exec() will wait_for_submit on CUDA
+        // devices before read_back goes out of scope, ensuring the GPU dispatch
+        // is complete before the buffer is freed.
+        ref<Buffer> primal_zeroed_buffer;
+        if (primal_info.data_ptr == nullptr && primal_info.numel > 0) {
+            size_t buffer_size
+                = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
+            if (buffer_size == 0)
+                buffer_size = static_cast<size_t>(primal_info.element_size);
+
+            primal_zeroed_buffer = context->device()->create_buffer({
+                .size = buffer_size,
+                .struct_size = static_cast<size_t>(primal_info.element_size),
+                .usage = BufferUsage::unordered_access | BufferUsage::shader_resource,
+                .default_state = ResourceState::shader_resource,
+            });
+            DeviceAddress addr = primal_zeroed_buffer->device_address();
+            if (addr && buffer_size > 0) {
+                CUstream stream = context->cuda_stream().is_valid()
+                    ? reinterpret_cast<CUstream>(context->cuda_stream().value())
+                    : nullptr;
+                cuda::memset_device_async(reinterpret_cast<uint8_t*>(addr), 0, buffer_size, stream);
+            }
+        }
+
         if (!m_cached_binding_info.has_grad_fields) {
-            // Flat structure - write directly to primal offsets
             write_torch_tensor_fields(
                 context,
                 binding,
@@ -403,10 +429,9 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 base_address,
                 m_cached_binding_info.primal,
                 primal_info,
-                nullptr
+                primal_zeroed_buffer.get()
             );
         } else {
-            // Differentiated structure - write primal, then gradients
             write_torch_tensor_fields(
                 context,
                 binding,
@@ -414,10 +439,9 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 base_address,
                 m_cached_binding_info.primal,
                 primal_info,
-                nullptr
+                primal_zeroed_buffer.get()
             );
 
-            // Write gradient tensors if present
             if (has_grad && m_d_in && m_cached_binding_info.grad_in.is_valid) {
                 write_torch_tensor_fields(
                     context,
@@ -441,6 +465,12 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
                 );
             }
         }
+
+        if (primal_zeroed_buffer) {
+            nb::dict calldata;
+            calldata["_primal_interop_keepalive"] = nb::cast(primal_zeroed_buffer);
+            store_readback(binding, read_back, primal_value, calldata);
+        }
     }
 }
 
@@ -461,8 +491,16 @@ void NativeTorchTensorMarshall::write_torch_tensor_fields(
     strides = apply_broadcast_stride_zeroing(strides, shape, binding->transform(), context->call_shape());
 
     if (offsets.is_tensorview) {
-        // TensorView path: build TensorViewData struct and write via set_data()
         TensorViewData tvd = populate_tensorview_data(info, shape, strides);
+        if (interop_buffer) {
+            tvd.data = static_cast<uint64_t>(interop_buffer->device_address());
+            // Recalculate strides as contiguous for the interop buffer copy
+            Shape contiguous_strides = make_contiguous_strides(shape, info.element_size);
+            contiguous_strides
+                = apply_broadcast_stride_zeroing(contiguous_strides, shape, binding->transform(), context->call_shape());
+            for (int i = 0; i < info.ndim && i < kSlangPyTensorViewMaxDim; i++)
+                tvd.strides[i] = static_cast<uint32_t>(contiguous_strides[i] * info.element_size);
+        }
         shader_object->set_data(offsets.tensorview_offset, &tvd, sizeof(TensorViewData));
         return;
     }
@@ -538,8 +576,21 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     nb::list read_back
 ) const
 {
-    // Helper: create interop buffer with given info. If tensor_value has data, copy from it;
-    // otherwise (e.g. backward pass output slot, primal is None) leave buffer uninitialized.
+    // Record PyTorch's current CUDA stream on the context so that exec() can
+    // pass it to submit_command_buffer for CUDA↔graphics synchronization.
+    // Called after any CUDA work on shared interop buffers (copy_to_buffer,
+    // memset_device_async). Only needed once per dispatch — subsequent calls
+    // are no-ops if the stream is already recorded.
+    auto mark_interop_stream = [&](int32_t device_index)
+    {
+        if (context->interop_cuda_stream().is_valid())
+            return;
+        void* stream_ptr = TorchBridge::instance().get_current_cuda_stream(device_index);
+        context->mark_interop_cuda_stream(
+            NativeHandle(rhi::NativeHandle(rhi::NativeHandleType::CUstream, reinterpret_cast<uint64_t>(stream_ptr)))
+        );
+    };
+
     auto create_interop_buffer_from_tensor
         = [&](nb::object tensor_value, const TensorBridgeInfo& info, bool writable) -> ref<Buffer>
     {
@@ -555,12 +606,11 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
         });
         if (info.numel > 0 && info.data_ptr != nullptr) {
             TorchBridge::instance().copy_to_buffer(tensor_value, interop_buffer->cuda_memory(), buffer_size);
+            mark_interop_stream(info.device_index);
         }
         return interop_buffer;
     };
 
-    // Helper: create interop buffer from shape/size only and zero it. Used when there is no
-    // tensor to copy from (e.g. backward pass output slot has grad but no primal).
     auto create_zeroed_interop_buffer = [&](const TensorBridgeInfo& info) -> ref<Buffer>
     {
         size_t buffer_size = static_cast<size_t>(info.numel) * static_cast<size_t>(info.element_size);
@@ -579,6 +629,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
                 ? reinterpret_cast<CUstream>(context->cuda_stream().value())
                 : nullptr;
             cuda::memset_device_async(static_cast<uint8_t*>(cuda_ptr), 0, buffer_size, stream);
+            mark_interop_stream(info.device_index);
         }
         return interop_buffer;
     };
@@ -649,35 +700,38 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
         }
     }
 
-    // Store interop info for post-dispatch copy-back
+    // Always store interop buffers in read_back to extend their lifetime past the
+    // dispatch. Async CUDA operations (memset_device_async, copy_to_buffer) reference
+    // the buffer's CUDA-mapped memory. If the buffer is destroyed before the stream
+    // drains, cuMemFree tears down the mapping while work is in flight, corrupting
+    // the CUDA context. Storing refs in read_back keeps buffers alive until after
+    // submit_command_buffers and the read_back loop complete.
     size_t primal_buffer_size = static_cast<size_t>(primal_info.numel) * static_cast<size_t>(primal_info.element_size);
     size_t grad_buffer_size = static_cast<size_t>(grad_info.numel) * static_cast<size_t>(grad_info.element_size);
 
-    // Primal: use cached flag and only copy back when we have a real tensor (primal_info.data_ptr).
-    // When we created a zeroed buffer for backward output slot (no primal), do not copy back.
     bool needs_primal_copyback = m_cached_binding_info.needs_primal_copyback && primal_info.numel > 0
         && primal_interop_buffer && primal_info.data_ptr != nullptr;
     bool needs_grad_copyback
         = m_cached_binding_info.needs_grad_copyback && has_grad && grad_info.numel > 0 && grad_interop_buffer;
 
-    if (needs_primal_copyback || needs_grad_copyback) {
+    if (primal_interop_buffer || grad_interop_buffer) {
         nb::dict calldata;
 
-        // Store primal interop info if needed
         if (needs_primal_copyback) {
             calldata["_interop_buffer"] = nb::cast(primal_interop_buffer);
             calldata["_buffer_size"] = primal_buffer_size;
+        } else if (primal_interop_buffer) {
+            calldata["_primal_interop_keepalive"] = nb::cast(primal_interop_buffer);
         }
 
-        // Store grad interop info if needed
         if (needs_grad_copyback) {
             calldata["_grad_interop_buffer"] = nb::cast(grad_interop_buffer);
             calldata["_grad_buffer_size"] = grad_buffer_size;
             calldata["_grad_value"] = grad_value;
+        } else if (grad_interop_buffer) {
+            calldata["_grad_interop_keepalive"] = nb::cast(grad_interop_buffer);
         }
 
-        // Store using standard read_back format: (binding, value, calldata)
-        // Use primal_value as the main value (for backward compatibility)
         store_readback(binding, read_back, primal_value, calldata);
     }
 }

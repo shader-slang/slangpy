@@ -813,15 +813,15 @@ def test_diffpair_read_signature(device_type: DeviceType):
     assert result is not None
 
 
-@requires_cuda
-def test_diffpair_get_shape_grad_only():
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diffpair_get_shape_grad_only(device_type: DeviceType):
     """NativeTorchTensorMarshall::get_shape falls back to grad when primal=None.
 
-    Restricted to CUDA device only: dispatching diff_pair(None, grad) through
-    Vulkan/D3D12 interop hits a cleanup race in create_zeroed_interop_buffer
-    where an async CUDA memset outlives the interop buffer (#929).
+    Exercises the create_zeroed_interop_buffer path on non-CUDA devices.
+    Previously this caused a CUDA_ERROR_ILLEGAL_ADDRESS on the second
+    dispatch due to an async memset outliving the interop buffer (#929).
     """
-    device = helpers.get_torch_device(DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     func = helpers.create_function_from_module(device, "square", DIFF_SRC)
 
     grad = torch.ones(5, device="cuda", dtype=torch.float32)
@@ -1007,6 +1007,7 @@ def test_torch_cpu_tensor_rejected(device_type: DeviceType):
     cpu_tensor = torch.tensor([1.0, 2.0], dtype=torch.float32)
     with pytest.raises(Exception, match=r"[Cc][Uu][Dd][Aa]"):
         func(cpu_tensor)
+
 
 
 if __name__ == "__main__":
