@@ -149,5 +149,69 @@ void make_struct(inout MyStruct v) {
     assert v.value["y"] == 9
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_inout_scalar_valueref(device_type: DeviceType):
+    """inout scalar ValueRef exercises the non-struct buffer path in ValueRefMarshall."""
+    device = helpers.get_device(device_type)
+    increment = helpers.create_function_from_module(
+        device,
+        "increment",
+        r"""
+void increment(inout int x) {
+    x += 1;
+}
+""",
+    )
+    v = ValueRef(5)
+    increment(v)
+    assert v.value == 6
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_inout_vector_valueref(device_type: DeviceType):
+    """inout vector ValueRef exercises slang_value_to_numpy / numpy_to_slang_value for vectors."""
+    import slangpy
+
+    device = helpers.get_device(device_type)
+    double_vec = helpers.create_function_from_module(
+        device,
+        "double_vec",
+        r"""
+void double_vec(inout float3 v) {
+    v *= 2.0;
+}
+""",
+    )
+    v = ValueRef(slangpy.float3(1.0, 2.0, 3.0))
+    double_vec(v)
+    assert abs(v.value.x - 2.0) < 1e-5
+    assert abs(v.value.y - 4.0) < 1e-5
+    assert abs(v.value.z - 6.0) < 1e-5
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_inout_matrix_valueref(device_type: DeviceType):
+    """inout float3x3 ValueRef exercises the matrix padding/unpadding paths."""
+    import numpy as np
+    import slangpy
+
+    device = helpers.get_device(device_type)
+    modify_mat = helpers.create_function_from_module(
+        device,
+        "modify_mat",
+        r"""
+void modify_mat(inout float3x3 m) {
+    m[0][0] += 10.0;
+}
+""",
+    )
+    orig = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
+    v = ValueRef(slangpy.float3x3(orig))
+    modify_mat(v)
+    result = v.value.to_numpy()
+    assert abs(result[0][0] - 11.0) < 1e-5
+    assert abs(result[1][1] - 5.0) < 1e-5
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -277,5 +277,63 @@ def test_primaltensor_sample_scalar(device_type: DeviceType):
     assert abs(float(result) - float(expected)) < 1e-5
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_str(device_type: DeviceType):
+    """Tensor.__str__ should return the string representation of its numpy data."""
+    device = helpers.get_device(device_type)
+    data = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    tensor = Tensor.from_numpy(device, data)
+    s = str(tensor)
+    assert "1." in s and "3." in s
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_detach(device_type: DeviceType):
+    """Tensor.detach() should return a view without gradients."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.zeros(device, (4,), "float")
+    tensor_with_grads = tensor.with_grads()
+    assert tensor_with_grads.grad_in is not None
+    detached = tensor_with_grads.detach()
+    assert detached.grad_in is None
+    assert detached.grad_out is None
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_deprecated_numpy(device_type: DeviceType):
+    """Tensor.numpy() deprecated path should still work and warn."""
+    device = helpers.get_device(device_type)
+    data = np.array([1.0, 2.0], dtype=np.float32)
+    with pytest.warns(DeprecationWarning, match="deprecated"):
+        tensor = Tensor.numpy(device, data)
+    result = tensor.to_numpy()
+    assert np.allclose(result, data)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_empty_deprecated_element_count(device_type: DeviceType):
+    """Tensor.empty() with deprecated element_count kwarg."""
+    device = helpers.get_device(device_type)
+    with pytest.warns(DeprecationWarning, match="element_count"):
+        tensor = Tensor.empty(device, dtype="float", element_count=8)
+    assert tensor.shape[0] == 8
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_empty_no_dtype(device_type: DeviceType):
+    """Tensor.empty() with no dtype should raise ValueError."""
+    device = helpers.get_device(device_type)
+    with pytest.raises(ValueError, match="Unsupported type"):
+        Tensor.empty(device, (4,))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_empty_no_shape(device_type: DeviceType):
+    """Tensor.empty() with empty shape should raise ValueError."""
+    device = helpers.get_device(device_type)
+    with pytest.raises(ValueError, match="zero dimensions"):
+        Tensor.empty(device, dtype="float")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

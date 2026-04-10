@@ -44,6 +44,27 @@ def load_module(device_type: DeviceType):
 
 
 # ============================================================================
+# Tests with slangpy.Tensor (exercises tensorcommon.py DiffTensorView path)
+# ============================================================================
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_difftensorview_copy_tensor(device_type: DeviceType):
+    """Test copy_difftensorview with slangpy.Tensor — exercises tensorcommon resolve_types for DiffTensorView."""
+    module = load_module(device_type)
+    device = helpers.get_device(type=device_type)
+
+    data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float32)
+    input_tensor = Tensor.from_numpy(device, data)
+    output_tensor = Tensor.zeros(device, (5,), "float")
+
+    module.copy_difftensorview(input_tensor, output_tensor)
+
+    result = output_tensor.to_numpy()
+    assert np.allclose(result, data, atol=1e-5)
+
+
+# ============================================================================
 # Tests with torch.Tensor
 # ============================================================================
 
