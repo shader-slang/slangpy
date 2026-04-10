@@ -25,5 +25,30 @@ def test_hashing():
     assert len({spy.quatf(1, 0, 0, 0): 0, spy.quatf(0, 1, 0, 0): 0}) == 2
 
 
+def test_equality_comparison():
+    assert spy.quatf(1, 2, 3, 4) == spy.quatf(1, 2, 3, 4)
+    assert not spy.quatf(1, 2, 3, 4) == spy.quatf(1, 2, 3, 5)
+    assert not spy.quatf(1, 2, 3, 4) != spy.quatf(1, 2, 3, 4)
+    assert spy.quatf(1, 2, 3, 4) != spy.quatf(1, 2, 4, 4)
+
+
+def test_lexicographic_comparison():
+    assert spy.quatf(1, 2, 3, 4) < spy.quatf(1, 2, 3, 5)
+    assert spy.quatf(1, 2, 3, 4) < spy.quatf(1, 3, 0, 0)
+    assert not spy.quatf(1, 2, 3, 4) < spy.quatf(1, 2, 3, 4)
+    assert not spy.quatf(1, 3, 0, 0) < spy.quatf(1, 2, 9, 9)
+
+    assert spy.quatf(1, 2, 3, 5) > spy.quatf(1, 2, 3, 4)
+    assert not spy.quatf(1, 2, 3, 4) > spy.quatf(1, 2, 3, 4)
+
+    assert spy.quatf(1, 2, 3, 4) <= spy.quatf(1, 2, 3, 4)
+    assert spy.quatf(1, 2, 3, 4) <= spy.quatf(1, 2, 3, 5)
+    assert not spy.quatf(1, 2, 3, 5) <= spy.quatf(1, 2, 3, 4)
+
+    assert spy.quatf(1, 2, 3, 4) >= spy.quatf(1, 2, 3, 4)
+    assert spy.quatf(1, 2, 3, 5) >= spy.quatf(1, 2, 3, 4)
+    assert not spy.quatf(1, 2, 3, 4) >= spy.quatf(1, 2, 3, 5)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

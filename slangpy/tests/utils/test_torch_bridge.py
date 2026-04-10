@@ -248,7 +248,7 @@ class TestTorchBridgeCopy:
         self.mode = torch_bridge_mode
 
     def _make_buffer(self, device: slangpy.Device, byte_size: int) -> slangpy.Buffer:
-        """Create a shared buffer suitable for tensor ↔ buffer copies."""
+        """Create a shared buffer suitable for tensor  buffer copies."""
         return device.create_buffer(
             size=byte_size,
             usage=slangpy.BufferUsage.unordered_access
@@ -341,7 +341,7 @@ class TestTorchBridgeCopy:
 
     @pytest.mark.parametrize("device_type", DEVICE_TYPES)
     def test_roundtrip(self, device_type: DeviceType):
-        """Test data survives tensor → buffer → tensor round-trip."""
+        """Test data survives tensor -> buffer -> tensor round-trip."""
         device = helpers.get_torch_device(device_type)
         src = torch.tensor([1.5, 2.5, 3.5, 4.5, 5.5], dtype=torch.float32, device="cuda")
         buffer = self._make_buffer(device, src.numel() * src.element_size())

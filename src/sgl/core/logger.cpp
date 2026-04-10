@@ -271,24 +271,29 @@ void Logger::log(LogLevel level, const std::string_view msg, LogFrequency freque
         output->write(level, m_name, msg);
 }
 
-static Logger* s_logger;
+static ref<Logger> s_logger;
+static std::once_flag s_logger_init_flag;
 
 Logger& Logger::get()
 {
-    SGL_ASSERT(s_logger);
+    std::call_once(
+        s_logger_init_flag,
+        []()
+        {
+            s_logger = make_ref<Logger>();
+        }
+    );
     return *s_logger;
 }
 
 void Logger::static_init()
 {
-    s_logger = new Logger();
-    // Make sure the logger is not deallocated when passing to Python.
-    s_logger->inc_ref();
+    // No need to do anything here since the logger will be initialized on first use.
 }
 
 void Logger::static_shutdown()
 {
-    delete s_logger;
+    s_logger.reset();
 }
 
 bool Logger::is_duplicate(const std::string_view msg)

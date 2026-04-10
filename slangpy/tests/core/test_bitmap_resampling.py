@@ -28,7 +28,7 @@ CHANNEL_FORMAT_PAIRS = [
 ]
 
 # ---------------------------------------------------------------------------
-# Numpy reference resampler — builds weights from native filter.eval(), then
+# Numpy reference resampler - builds weights from native filter.eval(), then
 # applies them with numpy operations.  This is *not* a reimplementation of the
 # C++ resampler; it uses the same filter weights but an independent application
 # path so bugs in the C++ weighted-sum / boundary / separable logic are caught.
@@ -737,7 +737,7 @@ def test_single_pixel_upscale():
 
 
 def test_single_row_resample():
-    """A 1×N image should match the numpy reference (horizontal-only path)."""
+    """A 1xN image should match the numpy reference (horizontal-only path)."""
     rng = np.random.RandomState(50)
     data = rng.rand(1, 32).astype(np.float32)
     bmp = Bitmap(data[:, :, np.newaxis], pixel_format=Bitmap.PixelFormat.y, srgb_gamma=False)
@@ -749,7 +749,7 @@ def test_single_row_resample():
 
 
 def test_single_column_resample():
-    """An N×1 image should match the numpy reference (vertical-only path)."""
+    """An Nx1 image should match the numpy reference (vertical-only path)."""
     rng = np.random.RandomState(51)
     data = rng.rand(32, 1).astype(np.float32)
     bmp = Bitmap(data[:, :, np.newaxis], pixel_format=Bitmap.PixelFormat.y, srgb_gamma=False)
