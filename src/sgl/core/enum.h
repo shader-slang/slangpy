@@ -92,6 +92,7 @@ inline bool enum_has_value(std::string_view name)
  * Convert an flags enum value to a list of strings.
  */
 template<has_enum_info T>
+    requires(EnumInfo<T>::is_flags)
 inline std::vector<std::string> flags_to_string_list(T flags)
 {
     std::vector<std::string> list;
@@ -110,6 +111,7 @@ inline std::vector<std::string> flags_to_string_list(T flags)
  * Throws if any of the strings are not found in the registered enum information.
  */
 template<has_enum_info T>
+    requires(EnumInfo<T>::is_flags)
 inline T string_list_to_flags(const std::vector<std::string>& list)
 {
     T flags = T(0);
