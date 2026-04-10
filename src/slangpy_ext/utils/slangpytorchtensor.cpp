@@ -576,8 +576,21 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     nb::list read_back
 ) const
 {
-    // Helper: create interop buffer with given info. If tensor_value has data, copy from it;
-    // otherwise (e.g. backward pass output slot, primal is None) leave buffer uninitialized.
+    // Record PyTorch's current CUDA stream on the context so that exec() can
+    // pass it to submit_command_buffer for CUDA↔graphics synchronization.
+    // Called after any CUDA work on shared interop buffers (copy_to_buffer,
+    // memset_device_async). Only needed once per dispatch — subsequent calls
+    // are no-ops if the stream is already recorded.
+    auto mark_interop_stream = [&](int32_t device_index)
+    {
+        if (context->interop_cuda_stream().is_valid())
+            return;
+        void* stream_ptr = TorchBridge::instance().get_current_cuda_stream(device_index);
+        context->mark_interop_cuda_stream(
+            NativeHandle(rhi::NativeHandle(rhi::NativeHandleType::CUstream, reinterpret_cast<uint64_t>(stream_ptr)))
+        );
+    };
+
     auto create_interop_buffer_from_tensor
         = [&](nb::object tensor_value, const TensorBridgeInfo& info, bool writable) -> ref<Buffer>
     {
@@ -593,12 +606,11 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
         });
         if (info.numel > 0 && info.data_ptr != nullptr) {
             TorchBridge::instance().copy_to_buffer(tensor_value, interop_buffer->cuda_memory(), buffer_size);
+            mark_interop_stream(info.device_index);
         }
         return interop_buffer;
     };
 
-    // Helper: create interop buffer from shape/size only and zero it. Used when there is no
-    // tensor to copy from (e.g. backward pass output slot has grad but no primal).
     auto create_zeroed_interop_buffer = [&](const TensorBridgeInfo& info) -> ref<Buffer>
     {
         size_t buffer_size = static_cast<size_t>(info.numel) * static_cast<size_t>(info.element_size);
@@ -617,6 +629,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
                 ? reinterpret_cast<CUstream>(context->cuda_stream().value())
                 : nullptr;
             cuda::memset_device_async(static_cast<uint8_t*>(cuda_ptr), 0, buffer_size, stream);
+            mark_interop_stream(info.device_index);
         }
         return interop_buffer;
     };

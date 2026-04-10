@@ -975,9 +975,14 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
     }
 
     // If we created a temporary command encoder, we need to submit it.
+    // Use the interop CUDA stream recorded by marshalls (if any) so that
+    // submit_command_buffers enables CUDA↔graphics synchronization.
     uint64_t submit_id = 0;
     if (temp_command_encoder) {
-        submit_id = m_device->submit_command_buffer(temp_command_encoder->finish(), CommandQueueType::graphics, cuda_stream);
+        NativeHandle submit_cuda_stream = cuda_stream;
+        if (!submit_cuda_stream.is_valid())
+            submit_cuda_stream = context->interop_cuda_stream();
+        submit_id = m_device->submit_command_buffer(temp_command_encoder->finish(), CommandQueueType::graphics, submit_cuda_stream);
         command_encoder = nullptr;
     }
 
