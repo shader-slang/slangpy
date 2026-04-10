@@ -429,7 +429,7 @@ public:
 
     /// Called by marshalls when they perform CUDA work on shared interop buffers
     /// (e.g. copy_to_buffer, memset_device_async). Records the CUDA stream so
-    /// that exec() can pass it to submit_command_buffer for CUDA↔graphics sync.
+    /// that exec() can pass it to submit_command_buffer for CUDA<->graphics sync.
     void mark_interop_cuda_stream(NativeHandle stream)
     {
         if (!m_interop_cuda_stream.is_valid())
