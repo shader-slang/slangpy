@@ -26,6 +26,13 @@ repos:
       name: slangpy hooks
       entry: python tools/local_precommit.py
       language: python
+- repo: local
+  hooks:
+    - id: check-ascii-source
+      name: check-ascii-source
+      entry: python tools/check_ascii_hook.py
+      language: python
+      files: \.(cpp|hpp|h|c|py|slang|slangh)$
 
 exclude: |
   (?x)^(
