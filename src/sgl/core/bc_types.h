@@ -15,9 +15,9 @@
 
 namespace sgl {
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // BCFormat
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 enum class BCFormat {
     bc1_unorm,
@@ -110,11 +110,11 @@ inline std::optional<BCFormat> format_to_bc_format(Format f)
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // Utility functions
-// ────────────────────────────────────────────────────────────────────────────
+//
 
-/// Bytes per 4×4 compressed block.
+/// Bytes per 4x4 compressed block.
 inline uint32_t bc_format_bytes_per_block(BCFormat f)
 {
     switch (f) {
@@ -145,9 +145,9 @@ inline uint32_t bc_mip_count(uint32_t width, uint32_t height)
     return static_cast<uint32_t>(std::floor(std::log2(static_cast<float>(m)))) + 1;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // Image views
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 using BCComponentType = DataStruct::Type;
 
@@ -157,7 +157,7 @@ struct BCImage {
     uint32_t width;
     uint32_t height;
     uint32_t row_pitch;     ///< Bytes per row (allows stride).
-    uint32_t channel_count; ///< 1–4.
+    uint32_t channel_count; ///< 1-4.
     BCComponentType component_type;
 };
 
@@ -184,9 +184,9 @@ inline BCImage bc_image_from_bitmap(const Bitmap& bmp)
     };
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // Encode options & result types
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 enum class BCEncodeQuality {
     fastest,

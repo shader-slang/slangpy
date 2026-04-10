@@ -10,9 +10,9 @@
 
 namespace sgl {
 
-// ────────────────────────────────────────────────────────────────────────────
-// NVTT3 types (copied from nvtt_wrapper.h — only the subset we use)
-// ────────────────────────────────────────────────────────────────────────────
+//
+// NVTT3 types (copied from nvtt_wrapper.h - only the subset we use)
+//
 
 typedef enum {
     NVTT_False,
@@ -78,7 +78,7 @@ typedef struct {
     uint32_t encode_flags;
 } NvttEncodeSettings;
 
-// Opaque types — only used as pointers.
+// Opaque types - only used as pointers.
 struct NvttCPUInputBuffer;
 struct NvttSurface;
 
@@ -97,9 +97,9 @@ typedef enum {
     NVTT_MipmapFilter_Mitchell,
 } NvttMipmapFilter;
 
-// ────────────────────────────────────────────────────────────────────────────
-// NvttAPI — dynamically-loaded NVTT3 function pointers
-// ────────────────────────────────────────────────────────────────────────────
+//
+// NvttAPI - dynamically-loaded NVTT3 function pointers
+//
 
 /// Dynamically-loaded NVTT3 API. Owns the library handle and function pointers.
 struct NvttAPI {
@@ -118,7 +118,8 @@ struct NvttAPI {
         float,
         float,
         void*,
-        unsigned*) = nullptr;
+        unsigned*
+    ) = nullptr;
     void (*nvttDestroyCPUInputBuffer)(NvttCPUInputBuffer*) = nullptr;
     NvttBoolean (*nvttEncodeCPU)(const NvttCPUInputBuffer*, void*, const NvttEncodeSettings*) = nullptr;
 
@@ -133,7 +134,8 @@ struct NvttAPI {
         int,
         const void*,
         NvttBoolean,
-        void*) = nullptr;
+        void*
+    ) = nullptr;
     NvttBoolean (*nvttSurfaceBuildNextMipmapDefaults)(NvttSurface*, NvttMipmapFilter, int, void*) = nullptr;
     float* (*nvttSurfaceData)(NvttSurface*) = nullptr;
     int (*nvttSurfaceWidth)(const NvttSurface*) = nullptr;

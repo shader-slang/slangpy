@@ -9,9 +9,9 @@
 
 namespace sgl {
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // NvttAPI dynamic loading
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 void NvttAPI::try_load()
 {
@@ -108,15 +108,21 @@ bool NvttAPI::resolve_symbols()
     return true;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // Singleton access
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 NvttAPI& get_nvtt_api()
 {
     static NvttAPI api;
     static std::once_flag flag;
-    std::call_once(flag, [&] { api.try_load(); });
+    std::call_once(
+        flag,
+        [&]
+        {
+            api.try_load();
+        }
+    );
     return api;
 }
 

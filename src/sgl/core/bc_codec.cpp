@@ -9,7 +9,7 @@
 #include <cstring>
 #include <mutex>
 
-// ── bcdec (header-only decoder) ─────────────────────────────────────────────
+//  bcdec (header-only decoder)
 #define BCDEC_BC4BC5_PRECISE
 #define BCDEC_IMPLEMENTATION
 #ifdef _MSC_VER
@@ -21,15 +21,15 @@
 #pragma warning(pop)
 #endif
 
-// ── rgbcx + bc7enc (SW encoders) ────────────────────────────────────────────
+//  rgbcx + bc7enc (SW encoders)
 #include <rgbcx.h>
 #include <bc7enc.h>
 
 namespace sgl {
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // One-time initialization
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 static std::once_flag g_sw_init_flag;
 
@@ -45,13 +45,13 @@ static void ensure_sw_init()
     );
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // Helpers
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 static constexpr uint32_t BLOCK_DIM = 4;
 
-/// Map BCEncodeQuality → rgbcx level (0–18).
+/// Map BCEncodeQuality -> rgbcx level (0-18).
 static uint32_t quality_to_rgbcx_level(BCEncodeQuality q)
 {
     switch (q) {
@@ -68,7 +68,7 @@ static uint32_t quality_to_rgbcx_level(BCEncodeQuality q)
     }
 }
 
-/// Map BCEncodeQuality → bc7enc uber level (0–BC7ENC_MAX_UBER_LEVEL).
+/// Map BCEncodeQuality -> bc7enc uber level (0-BC7ENC_MAX_UBER_LEVEL).
 static uint32_t quality_to_bc7_uber(BCEncodeQuality q)
 {
     switch (q) {
@@ -85,7 +85,7 @@ static uint32_t quality_to_bc7_uber(BCEncodeQuality q)
     }
 }
 
-/// Map BCEncodeQuality → bc7enc max_partitions.
+/// Map BCEncodeQuality -> bc7enc max_partitions.
 static uint32_t quality_to_bc7_partitions(BCEncodeQuality q)
 {
     switch (q) {
@@ -132,7 +132,7 @@ static uint32_t component_byte_size(BCComponentType t)
     }
 }
 
-/// Extract a 4×4 RGBA8 block from the source image, padding if the block
+/// Extract a 4x4 RGBA8 block from the source image, padding if the block
 /// extends beyond the image boundary (edge clamp).
 static void extract_rgba8_block(
     const BCImage& src,
@@ -176,9 +176,9 @@ static void extract_rgba8_block(
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // Encoding helpers (per-format)
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 static void encode_image_bc1(const BCImage& src, uint8_t* dst, BCEncodeQuality quality)
 {
@@ -296,18 +296,18 @@ static void encode_image_bc7(const BCImage& src, uint8_t* dst, const BCEncodeOpt
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // Decode helpers (per-format)
-// ────────────────────────────────────────────────────────────────────────────
+//
 
-/// Write decoded pixels (one 4×4 block) into the destination image, clipping
+/// Write decoded pixels (one 4x4 block) into the destination image, clipping
 /// to image boundaries.
 static void copy_block_to_dst(
     const BCMutableImage& dst,
     uint32_t block_x,
     uint32_t block_y,
     const void* decoded_block,
-    uint32_t decoded_pitch, // bytes per row of the decoded 4×4 block
+    uint32_t decoded_pitch, // bytes per row of the decoded 4x4 block
     uint32_t pixel_bytes    // bytes per decoded pixel
 )
 {
@@ -330,9 +330,9 @@ static void copy_block_to_dst(
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // NVTT3 format / quality mappings
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 static NvttFormat bc_format_to_nvtt(BCFormat f)
 {
@@ -382,9 +382,9 @@ static NvttQuality quality_to_nvtt(BCEncodeQuality q)
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // NVTT3 encode helpers
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 /// Encode a single mip level via NVTT3's low-level CPU API.
 static void nvtt_encode_single(
@@ -432,8 +432,8 @@ static void nvtt_encode_single(
     settings.quality = quality_to_nvtt(options.quality);
     settings.rgb_pixel_type = is_bc6h(format) ? 4 : 0; // 4 = Float, 0 = UnsignedNorm
     settings.timing_context = nullptr;
-    settings.encode_flags
-        = options.has_alpha ? static_cast<uint32_t>(NVTT_EncodeFlags_None) : static_cast<uint32_t>(NVTT_EncodeFlags_Opaque);
+    settings.encode_flags = options.has_alpha ? static_cast<uint32_t>(NVTT_EncodeFlags_None)
+                                              : static_cast<uint32_t>(NVTT_EncodeFlags_Opaque);
 
     size_t compressed_bytes = bc_compressed_size(width, height, format);
     out_data.resize(compressed_bytes);
@@ -496,8 +496,7 @@ static std::vector<float> nvtt_planar_to_interleaved(const float* planar_data, u
 }
 
 /// Full NVTT3 encode path (handles mipmaps internally).
-static BCCompressedImage
-nvtt_encode(NvttAPI& nvtt, const BCImage& src, BCFormat format, const BCEncodeOptions& options)
+static BCCompressedImage nvtt_encode(NvttAPI& nvtt, const BCImage& src, BCFormat format, const BCEncodeOptions& options)
 {
     BCCompressedImage result;
     result.format = format;
@@ -528,7 +527,7 @@ nvtt_encode(NvttAPI& nvtt, const BCImage& src, BCFormat format, const BCEncodeOp
         static_cast<int>(src.height),
         1,
         float_data.data(),
-        NVTT_False, // not a reference — copy the data
+        NVTT_False, // not a reference - copy the data
         nullptr     // timing_context
     );
 
@@ -562,9 +561,9 @@ nvtt_encode(NvttAPI& nvtt, const BCImage& src, BCFormat format, const BCEncodeOp
     return result;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// BCCodecImpl — abstract interface with SW and NVTT implementations
-// ────────────────────────────────────────────────────────────────────────────
+//
+// BCCodecImpl - abstract interface with SW and NVTT implementations
+//
 
 struct BCCodecImpl {
     virtual ~BCCodecImpl() = default;
@@ -577,7 +576,7 @@ struct BCCodecImpl {
     decode(const void* data, size_t size, BCFormat format, uint32_t width, uint32_t height, const BCMutableImage& dst);
 };
 
-/// Software encoder using rgbcx (BC1–5) and bc7enc (BC7).
+/// Software encoder using rgbcx (BC1-5) and bc7enc (BC7).
 struct BCCodecSWImpl : BCCodecImpl {
     BCCodecSWImpl() { ensure_sw_init(); }
 
@@ -624,7 +623,7 @@ struct BCCodecSWImpl : BCCodecImpl {
 
             // Bitmap::resample requires float16 or float32.
             // Convert to float32 for mip generation.
-            // Non-owning wrap of source data — safe because src outlives this scope.
+            // Non-owning wrap of source data - safe because src outlives this scope.
             auto src_bmp = make_ref<Bitmap>(
                 pf,
                 src.component_type,
@@ -709,7 +708,7 @@ struct BCCodecSWImpl : BCCodecImpl {
     }
 };
 
-/// NVTT3 encoder — delegates to the dynamically-loaded NVTT3 library.
+/// NVTT3 encoder - delegates to the dynamically-loaded NVTT3 library.
 struct BCCodecNVTTImpl : BCCodecImpl {
     NvttAPI& nvtt;
 
@@ -728,9 +727,9 @@ struct BCCodecNVTTImpl : BCCodecImpl {
     }
 };
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // BCCodec public interface
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 BCCodec::BCCodec(bool prefer_nvtt)
 {
@@ -759,7 +758,7 @@ bool BCCodec::can_decode(BCFormat format) const
     return m_impl->can_decode(format);
 }
 
-// ── Encode ──────────────────────────────────────────────────────────────────
+//  Encode
 
 BCCompressedImage BCCodec::encode(const BCImage& src, BCFormat format, const BCEncodeOptions& options)
 {
@@ -769,7 +768,7 @@ BCCompressedImage BCCodec::encode(const BCImage& src, BCFormat format, const BCE
     return m_impl->encode(src, format, options);
 }
 
-// ── Decode ──────────────────────────────────────────────────────────────────
+//  Decode
 
 void BCCodec::decode(
     const void* data,
@@ -783,7 +782,7 @@ void BCCodec::decode(
     m_impl->decode(data, size, format, width, height, dst);
 }
 
-// ── BCCodecImpl default decode (bcdec) ──────────────────────────────────────
+//  BCCodecImpl default decode (bcdec)
 
 void BCCodecImpl::decode(
     const void* data,
@@ -859,7 +858,7 @@ void BCCodecImpl::decode(
                 break;
             }
             case BCFormat::bc6h_ufloat: {
-                // Output: RGB float16 (6 bytes per pixel) — lossless via bcdec_bc6h_half().
+                // Output: RGB float16 (6 bytes per pixel) - lossless via bcdec_bc6h_half().
                 uint16_t decoded[BLOCK_DIM * BLOCK_DIM * 3];
                 bcdec_bc6h_half(block, decoded, BLOCK_DIM * 3 * sizeof(uint16_t), 0);
                 copy_block_to_dst(dst, bx, by, decoded, BLOCK_DIM * 3 * sizeof(uint16_t), 6);

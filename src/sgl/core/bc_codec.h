@@ -12,9 +12,9 @@ namespace sgl {
 
 struct BCCodecImpl;
 
-/// CPU-based BC1–7 block compression encoder/decoder.
+/// CPU-based BC1-7 block compression encoder/decoder.
 ///
-/// Decoding uses bcdec (header-only). Encoding uses rgbcx (BC1–5) and
+/// Decoding uses bcdec (header-only). Encoding uses rgbcx (BC1-5) and
 /// bc7enc (BC7) for the software backend. BC6H encoding requires NVTT3
 /// (loaded at runtime, Phase 5).
 class SGL_API BCCodec {

@@ -13,9 +13,9 @@ using namespace sgl;
 
 TEST_SUITE_BEGIN("bc_codec");
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 1. Utility functions
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("bc_format_bytes_per_block")
 {
@@ -33,23 +33,23 @@ TEST_CASE("bc_format_bytes_per_block")
 
 TEST_CASE("bc_compressed_size")
 {
-    // 4x4 → 1 block
+    // 4x4 -> 1 block
     CHECK(bc_compressed_size(4, 4, BCFormat::bc1_unorm) == 8);
     CHECK(bc_compressed_size(4, 4, BCFormat::bc7_unorm) == 16);
 
-    // 8x8 → 4 blocks
+    // 8x8 -> 4 blocks
     CHECK(bc_compressed_size(8, 8, BCFormat::bc1_unorm) == 4 * 8);
 
-    // Non-multiple-of-4: 5x5 → ceil(5/4)^2 = 2*2 = 4 blocks
+    // Non-multiple-of-4: 5x5 -> ceil(5/4)^2 = 2*2 = 4 blocks
     CHECK(bc_compressed_size(5, 5, BCFormat::bc1_unorm) == 4 * 8);
 
-    // 13x7 → ceil(13/4)*ceil(7/4) = 4*2 = 8 blocks
+    // 13x7 -> ceil(13/4)*ceil(7/4) = 4*2 = 8 blocks
     CHECK(bc_compressed_size(13, 7, BCFormat::bc3_unorm) == 8 * 16);
 
-    // 1x1 → 1 block
+    // 1x1 -> 1 block
     CHECK(bc_compressed_size(1, 1, BCFormat::bc7_unorm) == 16);
 
-    // 256x256 → 64*64 = 4096 blocks
+    // 256x256 -> 64*64 = 4096 blocks
     CHECK(bc_compressed_size(256, 256, BCFormat::bc1_unorm) == 4096 * 8);
 }
 
@@ -64,9 +64,9 @@ TEST_CASE("bc_mip_count")
     CHECK(bc_mip_count(0, 0) == 0);
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// 2. BCFormat ↔ Format conversion
-// ────────────────────────────────────────────────────────────────────────────
+//
+// 2. BCFormat  Format conversion
+//
 
 TEST_CASE("BCFormat_Format_conversion")
 {
@@ -95,13 +95,13 @@ TEST_CASE("BCFormat_Format_conversion")
         CHECK(rt.value() == bcf);
     }
 
-    // Non-BC format → nullopt
+    // Non-BC format -> nullopt
     CHECK(!format_to_bc_format(Format::rgba8_unorm).has_value());
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // Helper: create a synthetic RGBA uint8 gradient image
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 static std::vector<uint8_t> make_gradient_rgba(uint32_t w, uint32_t h)
 {
@@ -130,9 +130,9 @@ static BCImage make_rgba_image(const std::vector<uint8_t>& pixels, uint32_t w, u
     };
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // Helper: compute PSNR between two images
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 static double compute_psnr(const uint8_t* a, const uint8_t* b, uint32_t w, uint32_t h, uint32_t channels)
 {
@@ -148,9 +148,9 @@ static double compute_psnr(const uint8_t* a, const uint8_t* b, uint32_t w, uint3
     return 10.0 * std::log10(255.0 * 255.0 / mse);
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 3. Roundtrip per format (4x4 block)
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("roundtrip_4x4")
 {
@@ -177,7 +177,7 @@ TEST_CASE("roundtrip_4x4")
             dst
         );
 
-        // Lossy — just verify non-zero output.
+        // Lossy - just verify non-zero output.
         bool any_nonzero = false;
         for (auto v : decoded)
             if (v != 0) {
@@ -318,9 +318,9 @@ TEST_CASE("roundtrip_4x4")
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 4. Roundtrip larger image (64x64) with PSNR check
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("roundtrip_64x64")
 {
@@ -368,9 +368,9 @@ TEST_CASE("roundtrip_64x64")
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 5. Non-multiple-of-4 sizes
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("non_multiple_of_4")
 {
@@ -405,9 +405,9 @@ TEST_CASE("non_multiple_of_4")
     CHECK(any_nonzero);
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 6. Small images (1x1, 2x2, 3x3, 4x4)
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("small_images")
 {
@@ -444,9 +444,9 @@ TEST_CASE("small_images")
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 7. Encode with mipmaps
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("encode_with_mipmaps")
 {
@@ -474,9 +474,9 @@ TEST_CASE("encode_with_mipmaps")
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 8. Quality levels
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("quality_levels")
 {
@@ -498,9 +498,9 @@ TEST_CASE("quality_levels")
     CHECK(fast.mip_levels[0].data.size() == high.mip_levels[0].data.size());
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 9. Channel weights (BC7)
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("channel_weights_bc7")
 {
@@ -519,9 +519,9 @@ TEST_CASE("channel_weights_bc7")
     CHECK(compressed.mip_levels[0].data.size() == 16);
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 10. has_alpha hint (BC7)
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("has_alpha_hint_bc7")
 {
@@ -537,9 +537,9 @@ TEST_CASE("has_alpha_hint_bc7")
     CHECK(compressed.mip_levels[0].data.size() == 16);
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 11. can_encode / can_decode
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("can_encode_can_decode")
 {
@@ -567,9 +567,9 @@ TEST_CASE("can_encode_can_decode")
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 12. BC6H encode error
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("bc6h_encode_error" * doctest::skip(BCCodec().is_nvtt_available()))
 {
@@ -581,9 +581,9 @@ TEST_CASE("bc6h_encode_error" * doctest::skip(BCCodec().is_nvtt_available()))
     CHECK_THROWS(codec.encode(src, BCFormat::bc6h_sfloat));
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 13. Decode output format
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("decode_output_format")
 {
@@ -671,9 +671,9 @@ TEST_CASE("decode_output_format")
     // BC6H decode is tested implicitly by verifying can_decode returns true.
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 14. NVTT3 encode (all formats)
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("bc_codec_nvtt3_encode" * doctest::skip(!BCCodec().is_nvtt_available()))
 {
@@ -722,9 +722,9 @@ TEST_CASE("bc_codec_nvtt3_encode" * doctest::skip(!BCCodec().is_nvtt_available()
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 15. NVTT3 BC6H encode+decode roundtrip
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 static std::vector<float> make_hdr_float32_rgb(uint32_t w, uint32_t h)
 {
@@ -814,9 +814,9 @@ TEST_CASE("bc_codec_nvtt3_bc6h" * doctest::skip(!BCCodec().is_nvtt_available()))
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 16. NVTT3 vs SW comparison
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("bc_codec_nvtt3_vs_sw" * doctest::skip(!BCCodec().is_nvtt_available()))
 {
@@ -881,9 +881,9 @@ TEST_CASE("bc_codec_nvtt3_vs_sw" * doctest::skip(!BCCodec().is_nvtt_available())
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+//
 // 17. NVTT3 mipmap generation + BC6H encoding
-// ────────────────────────────────────────────────────────────────────────────
+//
 
 TEST_CASE("bc_codec_nvtt3_mipmaps" * doctest::skip(!BCCodec().is_nvtt_available()))
 {
@@ -912,8 +912,7 @@ TEST_CASE("bc_codec_nvtt3_mipmaps" * doctest::skip(!BCCodec().is_nvtt_available(
         CHECK(compressed.mip_levels[i].width == expected_w);
         CHECK(compressed.mip_levels[i].height == expected_h);
         CHECK(
-            compressed.mip_levels[i].data.size()
-            == bc_compressed_size(expected_w, expected_h, BCFormat::bc6h_ufloat)
+            compressed.mip_levels[i].data.size() == bc_compressed_size(expected_w, expected_h, BCFormat::bc6h_ufloat)
         );
 
         // Verify each level decodes successfully.
