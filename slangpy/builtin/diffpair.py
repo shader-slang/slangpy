@@ -34,8 +34,8 @@ def generate_differential_pair(
     assert deriv_storage
     assert primal_target
 
-    # Derivative is writable (RWValueRef) → __slangpy_load backward writes gradients out.
-    # Derivative is readable (ValueType)  → __slangpy_store backward reads gradient seed.
+    # Derivative is writable (RWValueRef) -> __slangpy_load backward writes gradients out.
+    # Derivative is readable (ValueType)  -> __slangpy_store backward reads gradient seed.
     deriv_is_writable = deriv_storage.startswith("RWValueRef")
     deriv_is_readable = deriv_storage.startswith("ValueType") or deriv_is_writable
     needs_diff = deriv_storage != "NoneType"

@@ -816,7 +816,7 @@ TEST_CASE("rotate_2d_direction")
     // Rotate identity matrix by 90 degrees
     float3x3 rotated = rotate_2d(identity, math::radians(90.f));
 
-    // The result should be equivalent to matrix_from_rotation_2d(90°)
+    // The result should be equivalent to matrix_from_rotation_2d(90deg)
     float3x3 expected = math::matrix_from_rotation_2d(math::radians(90.f));
 
     CHECK_ALMOST_EQ(rotated[0], expected[0]);
@@ -952,7 +952,7 @@ TEST_CASE("2d_transform_combinations")
     transform_matrix = mul(transform_matrix, math::matrix_from_rotation_2d(math::radians(90.f)));
     transform_matrix = mul(transform_matrix, math::matrix_from_scaling_2d(float2(2.f, 3.f)));
 
-    // Transform point (1, 1) -> scale to (2, 3) -> rotate 90° to (-3, 2) -> translate to (2, 12)
+    // Transform point (1, 1) -> scale to (2, 3) -> rotate 90deg to (-3, 2) -> translate to (2, 12)
     float3 point(1.f, 1.f, 1.f);
     float3 transformed = mul(transform_matrix, point);
     CHECK_ALMOST_EQ(transformed, float3(2.f, 12.f, 1.f));

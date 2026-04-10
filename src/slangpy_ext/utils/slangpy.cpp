@@ -418,7 +418,7 @@ nb::object NativeCallData::find_torch_tensors_recurse(nb::object arg, nb::list& 
         // Read access from pre-built list
         if (access_idx >= m_autograd_access_list.size()) {
             throw std::runtime_error(
-                "Autograd access list index out of bounds — "
+                "Autograd access list index out of bounds - "
                 "argument structure doesn't match build-time bindings."
             );
         }

@@ -8,11 +8,11 @@ import slangpy;
 // =========================================================================
 // Uniform access: y[tid] = w
 // All threads load the same weight w and write it to their output slot.
-// In backward, gradients for w must be accumulated across all threads —
+// In backward, gradients for w must be accumulated across all threads -
 // this is where contention happens.
 // =========================================================================
 
-// --- DiffTensor: load (atomic backward — contention on w) ---
+// --- DiffTensor: load (atomic backward - contention on w) ---
 [CUDAKernel]
 [Differentiable]
 void broadcast_dt(uint count, DiffTensor<float, 1> w, WDiffTensor<float, 1> output)
@@ -24,7 +24,7 @@ void broadcast_dt(uint count, DiffTensor<float, 1> w, WDiffTensor<float, 1> outp
     output.store(int[1](tid), weight);
 }
 
-// --- DiffTensor: load_uniform (wave-level reduction — correct and fast) ---
+// --- DiffTensor: load_uniform (wave-level reduction - correct and fast) ---
 [CUDAKernel]
 [Differentiable]
 void broadcast_dt_uniform(uint count, DiffTensor<float, 1> w, WDiffTensor<float, 1> output)
@@ -36,7 +36,7 @@ void broadcast_dt_uniform(uint count, DiffTensor<float, 1> w, WDiffTensor<float,
     output.store(int[1](tid), weight);
 }
 
-// --- DiffTensorView: load (atomic backward — contention on w) ---
+// --- DiffTensorView: load (atomic backward - contention on w) ---
 [CUDAKernel]
 [Differentiable]
 void broadcast_dtv(uint count, DiffTensorView<float> w, DiffTensorView<float> output)
@@ -48,7 +48,7 @@ void broadcast_dtv(uint count, DiffTensorView<float> w, DiffTensorView<float> ou
     output.store(tid, weight);
 }
 
-// --- DiffTensorView: loadUniform (wave-level reduction — correct and fast) ---
+// --- DiffTensorView: loadUniform (wave-level reduction - correct and fast) ---
 [CUDAKernel]
 [Differentiable]
 void broadcast_dtv_uniform(uint count, DiffTensorView<float> w, DiffTensorView<float> output)
@@ -62,7 +62,7 @@ void broadcast_dtv_uniform(uint count, DiffTensorView<float> w, DiffTensorView<f
 
 // =========================================================================
 // Per-element access: f(x) = x*x
-// Each thread reads/writes a unique index — no contention.
+// Each thread reads/writes a unique index - no contention.
 // Non-atomic load/store variants avoid unnecessary atomics.
 // =========================================================================
 
