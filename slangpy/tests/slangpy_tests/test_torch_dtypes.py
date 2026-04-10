@@ -15,11 +15,11 @@ from slangpy.testing.helpers import get_device, create_function_from_module
 
 
 @pytest.fixture(scope="module")
-def device():
+def device() -> spy.Device:
     return get_device(spy.DeviceType.cuda)
 
 
-def test_torch_output_int32(device):
+def test_torch_output_int32(device: spy.Device) -> None:
     """Auto-create int32 output tensor from Slang int return type."""
     func = create_function_from_module(
         device, "double_it", "int double_it(int x) { return x * 2; }"
@@ -30,7 +30,7 @@ def test_torch_output_int32(device):
     assert torch.equal(result, torch.tensor([6, 14, 22], device="cuda", dtype=torch.int32))
 
 
-def test_torch_output_int64(device):
+def test_torch_output_int64(device: spy.Device) -> None:
     """Auto-create int64 output tensor from Slang int64_t return type."""
     func = create_function_from_module(
         device, "add64", "int64_t add64(int64_t x, int64_t y) { return x + y; }"
@@ -42,7 +42,7 @@ def test_torch_output_int64(device):
     assert torch.equal(result, torch.tensor([400, 600], device="cuda", dtype=torch.int64))
 
 
-def test_torch_output_float64(device):
+def test_torch_output_float64(device: spy.Device) -> None:
     """Auto-create float64 output tensor from Slang double return type."""
     func = create_function_from_module(
         device, "add_d", "double add_d(double a, double b) { return a + b; }"
@@ -64,7 +64,7 @@ def test_torch_output_float64(device):
     ],
     ids=["uint8", "int8", "int16", "bool"],
 )
-def test_torch_output_rare_scalar(device, slang_func, torch_dtype):
+def test_torch_output_rare_scalar(device: spy.Device, slang_func: str, torch_dtype: torch.dtype) -> None:
     """Auto-create output tensor for rare scalar types."""
     func_name = slang_func.split("(")[0].split()[-1]
     func = create_function_from_module(device, func_name, slang_func)

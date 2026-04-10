@@ -215,7 +215,7 @@ def test_dispatch_with_writer(device_type: DeviceType):
     buffer = Tensor.empty(mod.device, dtype=mod.uint3, shape=(32,))
     func = mod.tensor_multiply_uniform.as_func()
 
-    def writer(cursor, k_value):
+    def writer(cursor: Any, k_value: int) -> None:
         cursor.write({"params": {"k": k_value}})
 
     func = func.write(writer, 42)

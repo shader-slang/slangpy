@@ -16,8 +16,11 @@ from slangpy.testing import helpers
 
 
 @pytest.fixture(scope="module")
-def device():
-    return helpers.get_device(spy.DeviceType.cuda)
+def device() -> spy.Device:
+    try:
+        return helpers.get_device(spy.DeviceType.cuda)
+    except Exception as exc:
+        pytest.skip(f"CUDA device unavailable: {exc}")
 
 
 @pytest.fixture(scope="module")
