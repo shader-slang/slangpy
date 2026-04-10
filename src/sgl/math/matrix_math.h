@@ -806,17 +806,6 @@ template<typename T, int R, int C>
     return ::fmt::format("{}", m);
 }
 
-template<int R, int C, typename T>
-bool lex_lt(const matrix<T, R, C>& lhs, const matrix<T, R, C>& rhs)
-{
-    for (int r = 0; r < R; ++r) {
-        for (int c = 0; c < C; ++c) {
-            if (lhs[r][c] != rhs[r][c])
-                return lhs[r][c] < rhs[r][c];
-        }
-    }
-    return false;
-}
 } // namespace sgl::math
 
 template<typename T, int R, int C>

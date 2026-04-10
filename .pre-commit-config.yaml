@@ -12,6 +12,19 @@ repos:
   - id: check-merge-conflict
   - id: check-yaml
   - id: check-added-large-files
+- repo: local
+  hooks:
+    - id: custom-python-hook
+      name: slangpy hooks
+      entry: python tools/local_precommit.py
+      language: python
+- repo: local
+  hooks:
+    - id: check-ascii-source
+      name: check-ascii-source
+      entry: python tools/check_ascii_hook.py
+      language: python
+      files: \.(cpp|hpp|h|c|py|slang|slangh)$
 - repo: https://github.com/pre-commit/mirrors-clang-format
   rev: v20.1.7
   hooks:
@@ -20,12 +33,6 @@ repos:
   rev: 24.4.2
   hooks:
   - id: black
-- repo: local
-  hooks:
-    - id: custom-python-hook
-      name: slangpy hooks
-      entry: python tools/local_precommit.py
-      language: python
 
 exclude: |
   (?x)^(

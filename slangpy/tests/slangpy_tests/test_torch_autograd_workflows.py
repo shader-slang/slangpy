@@ -8,8 +8,8 @@ patterns: optimizer loops, gradient accumulation for broadcast parameters,
 chained kernel calls, vector outputs, and mixed slangpy+PyTorch autograd graphs.
 
 The workflow patterns are inspired by slang-torch examples
-(https://github.com/shader-slang/slang-torch) — bezier curve fitting, MLP
-training, and differentiable rasterization — but these are NOT ports of that
+(https://github.com/shader-slang/slang-torch) - bezier curve fitting, MLP
+training, and differentiable rasterization - but these are NOT ports of that
 code. The slang-torch originals use DiffTensorView, [CUDAKernel],
 [AutoPyBindCUDA], and manual torch.autograd.Function wrappers, none of which
 are used here. These tests use slangpy's own API (scalar/array parameters with
@@ -158,7 +158,7 @@ def test_polynomial_optimization_convergence(device_type: DeviceType):
     x = torch.linspace(-1, 1, 100, device="cuda", dtype=torch.float32)
     y_target = target_a * x**3 + target_b * x**2 + target_c * x + target_d
 
-    # Initialize coefficients at wrong values — these ARE optimized
+    # Initialize coefficients at wrong values - these ARE optimized
     a = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
     b = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
     c = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
@@ -580,7 +580,7 @@ def test_interleaved_slangpy_pytorch_optimization(device_type: DeviceType):
         # slangpy computes the polynomial
         poly_out = module.cubic_poly(a=a, b=b, c=c, d=d, x=x)
 
-        # PyTorch applies sin on top — tests mixed autograd graph
+        # PyTorch applies sin on top - tests mixed autograd graph
         y_pred = torch.sin(poly_out)
 
         loss = ((y_pred - y_target) ** 2).mean()
@@ -652,7 +652,7 @@ def test_retain_graph_accumulates_gradients(device_type: DeviceType):
     y = module.cubic_poly(a=a, b=b, c=c, d=d, x=x)
     loss = y.sum()
 
-    # Two backward calls without zero_grad — gradients should accumulate
+    # Two backward calls without zero_grad - gradients should accumulate
     loss.backward(retain_graph=True)
     loss.backward()
 
