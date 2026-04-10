@@ -151,7 +151,7 @@ def test_slangtype_repr_no_reflection():
     """NativeSlangType.__repr__ without type_reflection.
 
     Uses NativeSlangType directly because the child class SlangType always
-    requires a TypeReflection argument — there is no public API path that
+    requires a TypeReflection argument - there is no public API path that
     produces a NativeSlangType with type_reflection=None.
     """
     st = NativeSlangType()

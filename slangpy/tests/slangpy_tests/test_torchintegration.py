@@ -30,9 +30,7 @@ DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES
 if DeviceType.metal in DEVICE_TYPES:
     DEVICE_TYPES.remove(DeviceType.metal)
 
-requires_cuda = pytest.mark.skipif(
-    not torch.cuda.is_available(), reason="CUDA not available"
-)
+requires_cuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 
 
 def get_test_tensors(device: Device, N: int = 4):
@@ -1009,7 +1007,6 @@ def test_torch_cpu_tensor_rejected(device_type: DeviceType):
     cpu_tensor = torch.tensor([1.0, 2.0], dtype=torch.float32)
     with pytest.raises(Exception, match=r"[Cc][Uu][Dd][Aa]"):
         func(cpu_tensor)
-
 
 
 if __name__ == "__main__":
