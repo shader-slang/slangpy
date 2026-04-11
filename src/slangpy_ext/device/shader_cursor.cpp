@@ -100,6 +100,10 @@ SGL_PY_EXPORT(device_shader_cursor)
     shader_cursor //
         .def(nb::init<ShaderObject*>(), "shader_object"_a, D(ShaderCursor, ShaderCursor))
         .def_prop_ro("_offset", &ShaderCursor::offset, D(ShaderCursor, offset))
+        .def("reinterpret", [](ShaderCursor& self, ref<TypeLayoutReflection> new_layout)
+            {
+                return self.reinterpret(new_layout->get_slang_type_layout());
+            }, "new_layout"_a, D(ShaderCursor, reinterpret))
         .def("dereference", &ShaderCursor::dereference, D(ShaderCursor, dereference))
         .def("find_entry_point", &ShaderCursor::find_entry_point, "index"_a, D(ShaderCursor, find_entry_point))
         .def(
