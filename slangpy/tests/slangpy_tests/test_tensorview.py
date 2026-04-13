@@ -278,7 +278,7 @@ def test_thread_count_error_on_auto_vectorized(device_type: DeviceType):
 # ============================================================================
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_tensorview_copy_tensor(device_type: DeviceType):
-    """Test copy_tensorview with slangpy.Tensor — exercises tensorcommon resolve_types for TensorView."""
+    """Test copy_tensorview with slangpy.Tensor - exercises tensorcommon resolve_types for TensorView."""
     device = helpers.get_device(type=device_type)
     module = load_module(device)
 

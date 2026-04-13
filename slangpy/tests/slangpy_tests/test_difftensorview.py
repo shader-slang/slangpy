@@ -50,7 +50,7 @@ def load_module(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_difftensorview_copy_tensor(device_type: DeviceType):
-    """Test copy_difftensorview with slangpy.Tensor — exercises tensorcommon resolve_types for DiffTensorView."""
+    """Test copy_difftensorview with slangpy.Tensor - exercises tensorcommon resolve_types for DiffTensorView."""
     module = load_module(device_type)
     device = helpers.get_device(type=device_type)
 

@@ -975,18 +975,8 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
     }
 
     // If we created a temporary command encoder, we need to submit it.
-    // Use the interop CUDA stream recorded by marshalls (if any) so that
-    // submit_command_buffers enables CUDA<->graphics synchronization.
-    uint64_t submit_id = 0;
     if (temp_command_encoder) {
-        NativeHandle submit_cuda_stream = cuda_stream;
-        if (!submit_cuda_stream.is_valid())
-            submit_cuda_stream = context->interop_cuda_stream();
-        submit_id = m_device->submit_command_buffer(
-            temp_command_encoder->finish(),
-            CommandQueueType::graphics,
-            submit_cuda_stream
-        );
+        m_device->submit_command_buffer(temp_command_encoder->finish(), CommandQueueType::graphics, cuda_stream);
         command_encoder = nullptr;
     }
 
@@ -1003,14 +993,6 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
         auto rb_val = t[1];
         auto rb_data = t[2];
         bvr->python_type()->read_calldata(context, bvr.get(), rb_val, rb_data);
-    }
-
-    // On CUDA devices, temporary buffers in read_back (e.g. zeroed primal for
-    // diff_pair(None, grad)) are referenced by raw device address -- the RHI has
-    // no ref to defer their deletion. Wait for the submit to finish so the GPU
-    // dispatch is complete before read_back goes out of scope and frees them.
-    if (submit_id && m_device->type() == DeviceType::cuda && nb::len(read_back) > 0) {
-        m_device->wait_for_submit(submit_id);
     }
 
     // Pack updated 'this' values back (skip if no args needed unpacking).

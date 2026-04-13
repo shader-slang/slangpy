@@ -7,11 +7,16 @@ Exercises the create_output dtype branches in slangpytorchtensor.cpp
 by calling Slang functions that return non-float32 types with torch.Tensor inputs.
 """
 
+import sys
+
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 import slangpy as spy
 from slangpy.testing.helpers import get_device, create_function_from_module
+
+pytestmark = pytest.mark.skipif(sys.platform == "darwin", reason="Torch tests require CUDA")
 
 
 @pytest.fixture(scope="module")

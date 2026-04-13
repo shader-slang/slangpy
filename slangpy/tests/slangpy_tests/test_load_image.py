@@ -112,7 +112,7 @@ def test_load_two_channel(device, rg_image):
 
 
 def test_load_flip_y(device, rgb_image):
-    """Load with flip_y=True — rows should be vertically reversed."""
+    """Load with flip_y=True - rows should be vertically reversed."""
     path, expected = rgb_image
     tensor = spy.Tensor.load_from_image(device, path, flip_y=True)
     result = tensor.to_numpy()
