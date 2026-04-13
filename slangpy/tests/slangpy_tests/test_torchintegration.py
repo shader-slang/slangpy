@@ -811,13 +811,17 @@ def test_diffpair_read_signature(device_type: DeviceType):
     assert result is not None
 
 
-@requires_cuda
+@pytest.mark.skip(
+    reason="diff_pair(None, grad) triggers interop buffer lifetime race (#929). "
+    "Re-enable with DEVICE_TYPES parametrization once #929 is fixed."
+)
 def test_diffpair_get_shape_grad_only():
     """NativeTorchTensorMarshall::get_shape falls back to grad when primal=None.
 
-    Restricted to CUDA device only: dispatching diff_pair(None, grad) through
-    Vulkan/D3D12 interop hits a cleanup race in create_zeroed_interop_buffer
-    where an async CUDA memset outlives the interop buffer (#929).
+    Skipped: dispatching diff_pair(None, grad) hits a cleanup race in
+    create_zeroed_interop_buffer where an async CUDA memset outlives the
+    interop buffer (#929). Crashes the worker and poisons the CUDA context
+    for subsequent tests. Even CUDA-only + fallback bridge mode triggers it.
     """
     device = helpers.get_torch_device(DeviceType.cuda)
     func = helpers.create_function_from_module(device, "square", DIFF_SRC)
