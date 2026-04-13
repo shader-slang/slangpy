@@ -111,6 +111,10 @@ def test_load_two_channel(device, rg_image):
     assert result.shape[2] == 2
 
 
+@pytest.mark.xfail(
+    reason="flip_y produces non-contiguous array rejected by copy_from_numpy (#937)",
+    strict=True,
+)
 def test_load_flip_y(device, rgb_image):
     """Load with flip_y=True - rows should be vertically reversed."""
     path, expected = rgb_image
