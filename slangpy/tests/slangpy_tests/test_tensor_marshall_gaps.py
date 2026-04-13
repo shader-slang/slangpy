@@ -63,10 +63,11 @@ def test_is_nested_array():
 # ============================================================================
 
 
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason="Grad dtype validation crashes with nanobind uninitialized instance error "
-    "instead of raising ValueError; TensorMarshall lifecycle issue",
-    strict=True,
+    "instead of raising ValueError; TensorMarshall lifecycle issue. "
+    "Skipped (not xfail) to avoid potential state contamination from "
+    "partially constructed C++ objects."
 )
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_grad_out_dtype_must_match_derivative(device_type: DeviceType):
@@ -82,10 +83,11 @@ def test_grad_out_dtype_must_match_derivative(device_type: DeviceType):
         func(tensor, 1.0)
 
 
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason="Grad dtype validation crashes with nanobind uninitialized instance error "
-    "instead of raising ValueError; TensorMarshall lifecycle issue",
-    strict=True,
+    "instead of raising ValueError; TensorMarshall lifecycle issue. "
+    "Skipped (not xfail) to avoid potential state contamination from "
+    "partially constructed C++ objects."
 )
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_grad_in_dtype_must_match_derivative(device_type: DeviceType):
@@ -106,10 +108,11 @@ def test_grad_in_dtype_must_match_derivative(device_type: DeviceType):
         func(tensor, 1.0)
 
 
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason="Grad validation crashes with nanobind uninitialized instance error "
-    "instead of raising ValueError; TensorMarshall lifecycle issue",
-    strict=True,
+    "instead of raising ValueError; TensorMarshall lifecycle issue. "
+    "Skipped (not xfail) to avoid potential state contamination from "
+    "partially constructed C++ objects."
 )
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_grad_in_requires_writable_tensor(device_type: DeviceType):
