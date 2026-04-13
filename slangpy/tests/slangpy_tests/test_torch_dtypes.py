@@ -69,7 +69,9 @@ def test_torch_output_float64(device: spy.Device) -> None:
     ],
     ids=["uint8", "int8", "int16", "bool"],
 )
-def test_torch_output_rare_scalar(device: spy.Device, slang_func: str, torch_dtype: torch.dtype) -> None:
+def test_torch_output_rare_scalar(
+    device: spy.Device, slang_func: str, torch_dtype: torch.dtype
+) -> None:
     """Auto-create output tensor for rare scalar types."""
     func_name = slang_func.split("(")[0].split()[-1]
     func = create_function_from_module(device, func_name, slang_func)
