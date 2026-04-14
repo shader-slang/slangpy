@@ -352,6 +352,7 @@ file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TYPE}/include/sgl/c
 #define SGL_HAS_LIBPNG $<BOOL:${SGL_HAS_LIBPNG}>
 #define SGL_HAS_OPENEXR $<BOOL:${SGL_HAS_OPENEXR}>
 #define SGL_HAS_ASMJIT $<BOOL:${SGL_HAS_ASMJIT}>
+#define SGL_HAS_NVTT $<BOOL:${SGL_HAS_NVTT}>
 #define SGL_HAS_CRASHPAD $<BOOL:${SGL_HAS_CRASHPAD}>
 "
 )
@@ -379,6 +380,7 @@ target_link_libraries(sgl
         $<$<BOOL:${SGL_HAS_OPENEXR}>:OpenEXR::OpenEXR>
         $<$<BOOL:${SGL_HAS_ASMJIT}>:asmjit::asmjit>
         $<$<BOOL:${SGL_HAS_CRASHPAD}>:crashpad::crashpad>
+        $<$<BOOL:${SGL_HAS_NVTT}>:NVTT::NVTT>
         # Windows system libraries.
         $<$<PLATFORM_ID:Windows>:Dbghelp>
         # $<$<PLATFORM_ID:Windows>:shcore.lib>
@@ -395,6 +397,14 @@ set_target_properties(sgl PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY}
     LIBRARY_OUTPUT_DIRECTORY ${SGL_LIBRARY_OUTPUT_DIRECTORY}
 )
+
+# Copy NVTT DLL to runtime output directory.
+if(SGL_HAS_NVTT AND WIN32 AND NVTT_DLL)
+    add_custom_command(TARGET sgl POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${NVTT_DLL}" "$<TARGET_FILE_DIR:sgl>"
+        COMMENT "Copying NVTT DLL"
+    )
+endif()
 
 sgl_header_validation(sgl)
 
