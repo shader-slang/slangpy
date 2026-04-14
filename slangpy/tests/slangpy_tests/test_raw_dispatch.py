@@ -64,9 +64,15 @@ void func_wrong_param(uint3 threadID) {}
 """
 
 
-def load_test_module(device_type: DeviceType, link: list[Any] = [], options: dict[str, Any] = {}):
+def load_test_module(
+    device_type: DeviceType,
+    link: list[Any] | None = None,
+    options: dict[str, Any] | None = None,
+):
     device = helpers.get_device(device_type)
-    return helpers.create_module(device, MODULE, link=link, options=options)
+    return helpers.create_module(
+        device, MODULE, link=link if link is not None else [], options=options or {}
+    )
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

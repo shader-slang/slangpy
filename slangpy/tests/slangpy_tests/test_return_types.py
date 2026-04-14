@@ -42,7 +42,11 @@ def create_test_type(layout: SlangProgramLayout, value: Any):
         raise ValueError(f"Unexpected value {value}")
 
 
-tr.PYTHON_TYPES[Foo] = create_test_type
+@pytest.fixture(autouse=True)
+def _register_foo_type():
+    tr.PYTHON_TYPES[Foo] = create_test_type
+    yield
+    tr.PYTHON_TYPES.pop(Foo, None)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

@@ -243,7 +243,7 @@ def test_rwtensor_sample_scalar(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.skip("TODO: DiffTensor sample")
+@pytest.mark.skip(reason="DiffTensor sample not yet implemented (#939)")
 def test_difftensor_sample_scalar(device_type: DeviceType):
     """Test bilinear sampling on a DiffTensor<float, 2>."""
     device = helpers.get_device(device_type)
@@ -261,7 +261,7 @@ def test_difftensor_sample_scalar(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.skip("TODO: DiffTensor sample")
+@pytest.mark.skip(reason="PrimalTensor sample not yet implemented (#939)")
 def test_primaltensor_sample_scalar(device_type: DeviceType):
     """Test bilinear sampling on a PrimalTensor<float, 2>."""
     device = helpers.get_device(device_type)

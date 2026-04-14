@@ -182,12 +182,10 @@ def test_full_torch_copy(device_type: DeviceType):
     try:
         import torch
     except ImportError:
-        pytest.skip("Pytorch not installed", allow_module_level=True)
+        pytest.skip("Pytorch not installed")
 
     if sys.platform == "darwin":
-        pytest.skip(
-            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
-        )
+        pytest.skip("PyTorch requires CUDA, that is not available on macOS")
 
     device = helpers.get_torch_device(device_type)
     shape = (5, 4)
@@ -226,12 +224,10 @@ def test_partial_torch_copy(device_type: DeviceType):
     try:
         import torch
     except ImportError:
-        pytest.skip("Pytorch not installed", allow_module_level=True)
+        pytest.skip("Pytorch not installed")
 
     if sys.platform == "darwin":
-        pytest.skip(
-            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
-        )
+        pytest.skip("PyTorch requires CUDA, that is not available on macOS")
 
     device = helpers.get_torch_device(device_type)
     shape = (5, 4)
@@ -273,12 +269,10 @@ def test_torch_copy_errors(device_type: DeviceType):
     try:
         import torch
     except ImportError:
-        pytest.skip("Pytorch not installed", allow_module_level=True)
+        pytest.skip("Pytorch not installed")
 
     if sys.platform == "darwin":
-        pytest.skip(
-            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
-        )
+        pytest.skip("PyTorch requires CUDA, that is not available on macOS")
 
     device = helpers.get_torch_device(device_type)
     shape = (5, 4)

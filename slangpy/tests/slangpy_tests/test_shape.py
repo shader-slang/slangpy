@@ -123,12 +123,11 @@ class TestShapeCopy:
         assert list(s1.as_list()) == list(s2.as_list())
 
     def test_modify_after_copy(self):
-        """Test that modifying original doesn't affect copy."""
-        s1 = Shape([1, 2, 3])
-        s2 = Shape(s1.as_list())
-        # Note: Shape doesn't have setitem in Python, so we can't modify directly
-        # But we can verify they're independent
-        assert s1 == s2
+        """Test that Shape copies data rather than referencing the source list."""
+        data = [1, 2, 3]
+        s = Shape(data)
+        data[0] = 999
+        assert s[0] == 1
 
 
 class TestShapeOperations:
@@ -229,8 +228,7 @@ class TestShapeProperties:
     def test_element_count_simple(self):
         """Test element_count for simple shape."""
         s = Shape([2, 3, 4])
-        # Note: This test assumes Shape has element_count method
-        # If not available in Python, we can skip this test
+        assert s.element_count == 24
 
 
 class TestShapeStrides:
@@ -294,14 +292,11 @@ class TestShapeIndexing:
             assert s[i] == i + 1
 
     def test_negative_indexing(self):
-        """Test negative indexing (if supported)."""
+        """Test negative indexing."""
         s = Shape([10, 20, 30])
-        # Python negative indexing might not be supported in C++
-        # This will fail if not supported, which is expected
-        try:
-            assert s[-1] == 30
-        except (IndexError, RuntimeError):
-            pass  # Expected if not supported
+        assert s[-1] == 30
+        assert s[-2] == 20
+        assert s[-3] == 10
 
     def test_len(self):
         """Test len() function."""

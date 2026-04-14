@@ -65,9 +65,8 @@ def test_is_nested_array():
 
 @pytest.mark.skip(
     reason="Grad dtype validation crashes with nanobind uninitialized instance error "
-    "instead of raising ValueError; TensorMarshall lifecycle issue. "
-    "Skipped (not xfail) to avoid potential state contamination from "
-    "partially constructed C++ objects."
+    "instead of raising ValueError (#938). Skipped (not xfail) to avoid "
+    "potential state contamination from partially constructed C++ objects."
 )
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_grad_out_dtype_must_match_derivative(device_type: DeviceType):
@@ -85,9 +84,8 @@ def test_grad_out_dtype_must_match_derivative(device_type: DeviceType):
 
 @pytest.mark.skip(
     reason="Grad dtype validation crashes with nanobind uninitialized instance error "
-    "instead of raising ValueError; TensorMarshall lifecycle issue. "
-    "Skipped (not xfail) to avoid potential state contamination from "
-    "partially constructed C++ objects."
+    "instead of raising ValueError (#938). Skipped (not xfail) to avoid "
+    "potential state contamination from partially constructed C++ objects."
 )
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_grad_in_dtype_must_match_derivative(device_type: DeviceType):
@@ -110,9 +108,8 @@ def test_grad_in_dtype_must_match_derivative(device_type: DeviceType):
 
 @pytest.mark.skip(
     reason="Grad validation crashes with nanobind uninitialized instance error "
-    "instead of raising ValueError; TensorMarshall lifecycle issue. "
-    "Skipped (not xfail) to avoid potential state contamination from "
-    "partially constructed C++ objects."
+    "instead of raising ValueError (#938). Skipped (not xfail) to avoid "
+    "potential state contamination from partially constructed C++ objects."
 )
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_grad_in_requires_writable_tensor(device_type: DeviceType):
@@ -186,7 +183,7 @@ def test_create_tensor_marshall_rejects_bad_type(device_type: DeviceType):
 
 @pytest.mark.xfail(
     reason="TensorMarshall.build_shader_object derivative path references 'primal' field "
-    "that doesn't exist on the shader object type; likely needs DiffTensor infrastructure",
+    "that doesn't exist on the shader object type (#938)",
     raises=RuntimeError,
     strict=True,
 )

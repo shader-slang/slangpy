@@ -172,7 +172,7 @@ def test_add_values_fail(
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 @pytest.mark.parametrize("extra_dims", [0, 1, 3])
 def test_add_vectors_generic_explicit(device_type: DeviceType, extra_dims: int):
-    pytest.skip("Crashes due to slang bug")
+    pytest.skip("Crashes due to Slang compiler bug (#940)")
 
     module = load_test_module(device_type)
 
@@ -286,7 +286,7 @@ def test_polynomials(
     extra_shape = (5,) * extra_dims
 
     if func_name == "polynomial_vectors":
-        pytest.skip("Slang bug currently causing derivatives to return 0")
+        pytest.skip("Slang compiler bug: vector polynomial derivatives return 0 (#940)")
 
     if len(extra_shape + val_shape) == 0:
         pytest.skip("No shape to test")
@@ -620,6 +620,10 @@ void forward(uint index, DiffTensor<float, 1> x, WDiffTensor<float, 1> y)
     loss = loss_fn(y, targets)
     loss.backward()
 
+    assert x.grad is not None, "Gradients should flow back to x"
+    expected_y = torch.tensor([1.0, 8.0, 27.0, 64.0], device="cuda")
+    assert torch.allclose(y, expected_y), f"y = x^3 mismatch: {y} vs {expected_y}"
+
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_null_grad_idifftensor(device_type: DeviceType):
@@ -649,6 +653,10 @@ void forward(uint index, IDiffTensor<float, 1> x, IWDiffTensor<float, 1> y)
     module.forward(index=grid(shape=(4,)), x=x, y=y)
     loss = loss_fn(y, targets)
     loss.backward()
+
+    assert x.grad is not None, "Gradients should flow back to x"
+    expected_y = torch.tensor([1.0, 8.0, 27.0, 64.0], device="cuda")
+    assert torch.allclose(y, expected_y), f"y = x^3 mismatch: {y} vs {expected_y}"
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)

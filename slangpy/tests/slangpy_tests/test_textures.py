@@ -183,7 +183,7 @@ def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, typ
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
-        return
+        pytest.skip("3D texture arrays not supported")
 
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
@@ -236,7 +236,7 @@ def test_read_write_texture_with_resource_views(
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
-        return
+        pytest.skip("3D texture arrays not supported")
 
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
@@ -291,7 +291,7 @@ def test_copy_value(device_type: DeviceType, slices: int, mips: int, type: Textu
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
-        return
+        pytest.skip("3D texture arrays not supported")
 
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
@@ -329,7 +329,7 @@ def test_copy_mip_values_with_resource_views(
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
-        return
+        pytest.skip("3D texture arrays not supported")
 
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
@@ -374,7 +374,7 @@ def test_copy_mip_values_with_all_uav_resource_views(
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
-        return
+        pytest.skip("3D texture arrays not supported")
 
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))

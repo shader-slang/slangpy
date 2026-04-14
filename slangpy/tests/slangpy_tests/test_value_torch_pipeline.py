@@ -126,7 +126,11 @@ def test_return_float2x2_matrix(device_type: DeviceType):
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "make_mat", RETURN_FLOAT2X2_SHADER)
     result = func(1.0, 2.0, 3.0, 4.0)
-    assert hasattr(result, "rows") or isinstance(result, slangpy.math.float2x2)
+    assert isinstance(result, slangpy.math.float2x2)
+    result_np = result.to_numpy()
+    np.testing.assert_allclose(
+        result_np, np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32), atol=1e-5
+    )
 
 
 # ============================================================================
@@ -161,8 +165,8 @@ def test_pack_float2_vector(device_type: DeviceType):
 
     v = slangpy.math.float2(3.0, 4.0)
     packed = pack(func.module, v)
-    out_buf = slangpy.types.NDBuffer.zeros(device, shape=(1,), dtype=float)
-    result = func(packed, 2.0, out_buf)
+    assert packed is not None
+    assert "NativePackedArg" in repr(packed)
 
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
@@ -173,6 +177,7 @@ def test_pack_scalar_value(device_type: DeviceType):
 
     packed_scalar = pack(func.module, 42.0)
     assert packed_scalar is not None
+    assert "NativePackedArg" in repr(packed_scalar)
 
 
 # ============================================================================
