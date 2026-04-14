@@ -4,6 +4,8 @@
 
 #include "sgl/core/file_stream.h"
 
+#include <cstring>
+
 // Adapted from https://github.com/redorav/ddspp
 
 // Sources
@@ -615,6 +617,98 @@ namespace detail {
         return ((((width >> mip) + block_width - 1) / block_width) * bits_per_pixel_or_block + 7) / 8;
     }
 
+    /// Size of DXT10 extended DDS header (magic + header + DXT10 header).
+    static constexpr size_t DXT10_HEADER_SIZE = sizeof(DDS_MAGIC) + sizeof(Header) + sizeof(HeaderDXT10);
+
+    /// Build a DDS header with DXT10 extended header into a pre-allocated buffer.
+    /// Buffer must be at least DXT10_HEADER_SIZE (148) bytes.
+    void encode_header(
+        uint8_t* buffer,
+        DXGIFormat dxgi_format,
+        DDSFile::TextureType type,
+        uint32_t width,
+        uint32_t height,
+        uint32_t depth,
+        uint32_t mip_count,
+        uint32_t array_size
+    )
+    {
+        // DDS magic number
+        std::memcpy(buffer, &DDS_MAGIC, sizeof(DDS_MAGIC));
+
+        // Main header
+        Header& header = *reinterpret_cast<Header*>(buffer + sizeof(DDS_MAGIC));
+        std::memset(&header, 0, sizeof(Header));
+        header.size = sizeof(Header);
+        header.flags
+            = DDS_HEADER_FLAGS_CAPS | DDS_HEADER_FLAGS_HEIGHT | DDS_HEADER_FLAGS_WIDTH | DDS_HEADER_FLAGS_PIXELFORMAT;
+        header.height = height;
+        header.width = width;
+        header.mipMapCount = mip_count;
+
+        if (mip_count > 1)
+            header.flags |= DDS_HEADER_FLAGS_MIPMAP;
+
+        if (type == DDSFile::TextureType::texture_3d) {
+            header.flags |= DDS_HEADER_FLAGS_VOLUME;
+            header.depth = depth;
+        }
+
+        // Compute pitch/linear size for mip 0
+        uint32_t bpp = get_bits_per_pixel_or_block(dxgi_format);
+        uint32_t bw, bh;
+        get_block_size(dxgi_format, bw, bh);
+
+        if (is_compressed(dxgi_format)) {
+            header.flags |= DDS_HEADER_FLAGS_LINEARSIZE;
+            uint32_t row_pitch = get_row_pitch(width, bpp, bw, 0);
+            uint32_t row_count = (height + bh - 1) / bh;
+            header.pitchOrLinearSize = row_pitch * row_count;
+        } else {
+            header.flags |= DDS_HEADER_FLAGS_PITCH;
+            header.pitchOrLinearSize = get_row_pitch(width, bpp, bw, 0);
+        }
+
+        // Pixel format - always use DXT10 extended header
+        header.ddspf.size = sizeof(PixelFormat);
+        header.ddspf.flags = DDS_FOURCC;
+        header.ddspf.fourCC = FOURCC_DXT10;
+
+        // Capabilities
+        header.caps = DDS_HEADER_CAPS_TEXTURE;
+        if (mip_count > 1)
+            header.caps |= DDS_HEADER_CAPS_COMPLEX | DDS_HEADER_CAPS_MIPMAP;
+
+        if (type == DDSFile::TextureType::texture_cube) {
+            header.caps |= DDS_HEADER_CAPS_COMPLEX;
+            header.caps2 = DDS_HEADER_CAPS2_CUBEMAP_ALLFACES;
+        } else if (type == DDSFile::TextureType::texture_3d) {
+            header.caps2 = DDS_HEADER_CAPS2_VOLUME;
+        }
+
+        // DXT10 extended header
+        HeaderDXT10& dxt10 = *reinterpret_cast<HeaderDXT10*>(buffer + sizeof(DDS_MAGIC) + sizeof(Header));
+        std::memset(&dxt10, 0, sizeof(HeaderDXT10));
+        dxt10.dxgiFormat = dxgi_format;
+        dxt10.arraySize = array_size;
+
+        switch (type) {
+        case DDSFile::TextureType::texture_1d:
+            dxt10.resourceDimension = DXGI_Texture1D;
+            break;
+        case DDSFile::TextureType::texture_2d:
+        case DDSFile::TextureType::texture_cube:
+            dxt10.resourceDimension = DXGI_Texture2D;
+            break;
+        case DDSFile::TextureType::texture_3d:
+            dxt10.resourceDimension = DXGI_Texture3D;
+            break;
+        }
+
+        if (type == DDSFile::TextureType::texture_cube)
+            dxt10.miscFlag = DXGI_MISC_FLAG_CUBEMAP;
+    }
+
 } // namespace detail
 
 using namespace detail;
@@ -716,6 +810,51 @@ bool DDSFile::detect_dds_file(Stream* stream)
     stream->read(&magic, sizeof(magic));
     stream->seek(pos);
     return magic == DDS_MAGIC;
+}
+
+void DDSFile::write_dds(
+    Stream* stream,
+    uint32_t dxgi_format,
+    TextureType type,
+    uint32_t width,
+    uint32_t height,
+    uint32_t depth,
+    uint32_t mip_count,
+    uint32_t array_size,
+    const void* resource_data,
+    size_t resource_size
+)
+{
+    SGL_CHECK(width > 0, "DDSFile: width must be > 0");
+    SGL_CHECK(height > 0, "DDSFile: height must be > 0");
+    SGL_CHECK(depth > 0, "DDSFile: depth must be > 0");
+    SGL_CHECK(mip_count > 0, "DDSFile: mip_count must be > 0");
+    SGL_CHECK(array_size > 0, "DDSFile: array_size must be > 0");
+    SGL_CHECK(resource_data != nullptr || resource_size == 0, "DDSFile: resource_data is null but resource_size > 0");
+
+    uint8_t header_buf[DXT10_HEADER_SIZE];
+    encode_header(header_buf, DXGIFormat(dxgi_format), type, width, height, depth, mip_count, array_size);
+
+    stream->write(header_buf, DXT10_HEADER_SIZE);
+    if (resource_size > 0)
+        stream->write(resource_data, resource_size);
+}
+
+void DDSFile::write_dds(
+    const std::filesystem::path& path,
+    uint32_t dxgi_format,
+    TextureType type,
+    uint32_t width,
+    uint32_t height,
+    uint32_t depth,
+    uint32_t mip_count,
+    uint32_t array_size,
+    const void* resource_data,
+    size_t resource_size
+)
+{
+    FileStream stream(path, FileStream::Mode::write);
+    write_dds(&stream, dxgi_format, type, width, height, depth, mip_count, array_size, resource_data, resource_size);
 }
 
 bool DDSFile::decode_header(const uint8_t* data, size_t size)

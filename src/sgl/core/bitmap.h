@@ -74,6 +74,7 @@ public:
         tga,
         hdr,
         exr,
+        dds,
     };
 
     SGL_ENUM_INFO(
@@ -87,6 +88,7 @@ public:
             {FileFormat::tga, "tga"},
             {FileFormat::hdr, "hdr"},
             {FileFormat::exr, "exr"},
+            {FileFormat::dds, "dds"},
         }
     );
 
@@ -325,6 +327,8 @@ private:
 
     void read_exr(Stream* stream);
     void write_exr(Stream* stream, int quality) const;
+
+    void read_dds(Stream* stream);
 
     PixelFormat m_pixel_format;
     ComponentType m_component_type;

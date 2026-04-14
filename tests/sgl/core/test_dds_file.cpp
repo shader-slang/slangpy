@@ -2,9 +2,12 @@
 
 #include "testing.h"
 #include "sgl/core/dds_file.h"
+#include "sgl/core/bitmap.h"
 #include "sgl/core/platform.h"
 #include "sgl/core/memory_stream.h"
 #include "sgl/device/native_formats.h"
+
+#include <cstring>
 
 using namespace sgl;
 
@@ -418,6 +421,116 @@ TEST_CASE("detect_dds_file")
     const uint32_t INVALID_MAGIC = 0xffffffff;
     MemoryStream invalid_stream(&INVALID_MAGIC, sizeof(INVALID_MAGIC));
     CHECK_FALSE(DDSFile::detect_dds_file(&invalid_stream));
+}
+
+TEST_CASE("write_read_roundtrip")
+{
+    std::filesystem::path images_dir = platform::project_directory() / "data" / "test_images" / "dds";
+
+    for (const TestItem& item : TEST_ITEMS) {
+        CAPTURE(item.path);
+
+        DDSFile original(images_dir / item.path);
+
+        // Write directly to memory stream using static write_dds.
+        MemoryStream stream;
+        DDSFile::write_dds(
+            &stream,
+            original.dxgi_format(),
+            original.type(),
+            original.width(),
+            original.height(),
+            original.depth(),
+            original.mip_count(),
+            original.array_size(),
+            original.resource_data(),
+            original.resource_size()
+        );
+
+        // Read back.
+        stream.seek(0);
+        DDSFile read_back(&stream);
+
+        // Verify metadata matches.
+        CHECK_EQ(read_back.dxgi_format(), original.dxgi_format());
+        CHECK_EQ(read_back.type(), original.type());
+        CHECK_EQ(read_back.width(), original.width());
+        CHECK_EQ(read_back.height(), original.height());
+        CHECK_EQ(read_back.depth(), original.depth());
+        CHECK_EQ(read_back.mip_count(), original.mip_count());
+        CHECK_EQ(read_back.array_size(), original.array_size());
+        CHECK_EQ(read_back.row_pitch(), original.row_pitch());
+        CHECK_EQ(read_back.slice_pitch(), original.slice_pitch());
+        CHECK_EQ(read_back.bits_per_pixel_or_block(), original.bits_per_pixel_or_block());
+        CHECK_EQ(read_back.block_width(), original.block_width());
+        CHECK_EQ(read_back.block_height(), original.block_height());
+        CHECK_EQ(read_back.compressed(), original.compressed());
+        CHECK_EQ(read_back.srgb(), original.srgb());
+
+        // Verify resource data is byte-identical.
+        CHECK_EQ(read_back.resource_size(), original.resource_size());
+        CHECK(std::memcmp(read_back.resource_data(), original.resource_data(), original.resource_size()) == 0);
+    }
+}
+
+TEST_CASE("bitmap_read_dds")
+{
+    std::filesystem::path images_dir = platform::project_directory() / "data" / "test_images" / "dds";
+
+    struct BitmapDDSTestItem {
+        const char* path;
+        uint32_t width;
+        uint32_t height;
+        Bitmap::PixelFormat pixel_format;
+        Bitmap::ComponentType component_type;
+        bool srgb;
+    };
+
+    static const BitmapDDSTestItem BITMAP_DDS_ITEMS[] = {
+        {"bc1-unorm.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, false},
+        {"bc1-unorm-srgb.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, true},
+        {"bc3-unorm.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, false},
+        {"bc3-unorm-srgb.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, true},
+        {"bc4-unorm.dds", 256, 256, Bitmap::PixelFormat::r, Bitmap::ComponentType::uint8, false},
+        {"bc5-unorm.dds", 256, 256, Bitmap::PixelFormat::rg, Bitmap::ComponentType::uint8, false},
+        {"bc6h-uf16.dds", 409, 204, Bitmap::PixelFormat::rgb, Bitmap::ComponentType::float16, false},
+        {"bc7-unorm.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, false},
+        {"bc7-unorm-srgb.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, true},
+    };
+
+    for (const auto& item : BITMAP_DDS_ITEMS) {
+        CAPTURE(item.path);
+
+        try {
+            Bitmap bmp(images_dir / item.path);
+
+            CHECK_EQ(bmp.width(), item.width);
+            CHECK_EQ(bmp.height(), item.height);
+            CHECK_EQ(bmp.pixel_format(), item.pixel_format);
+            CHECK_EQ(bmp.component_type(), item.component_type);
+            CHECK_EQ(bmp.srgb_gamma(), item.srgb);
+            CHECK_FALSE(bmp.empty());
+            CHECK(bmp.buffer_size() > 0);
+        } catch (const std::exception& e) {
+            printf("EXCEPTION for %s: %s\n", item.path, e.what());
+            CHECK(false);
+        }
+    }
+
+    // Test auto-detection of DDS format.
+    {
+        Bitmap bmp(images_dir / "bc7-unorm.dds");
+        CHECK_EQ(bmp.width(), 256);
+        CHECK_EQ(bmp.height(), 256);
+        CHECK_EQ(bmp.pixel_format(), Bitmap::PixelFormat::rgba);
+    }
+
+    // Test odd-sized DDS (non-multiple-of-4).
+    {
+        Bitmap bmp(images_dir / "bc7-unorm-odd.dds");
+        CHECK_FALSE(bmp.empty());
+        CHECK(bmp.buffer_size() > 0);
+    }
 }
 
 TEST_SUITE_END();

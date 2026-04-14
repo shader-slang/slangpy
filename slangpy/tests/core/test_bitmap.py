@@ -248,5 +248,49 @@ def test_hdr_io(tmp_path: Path, layout: Sequence[Any]):
     write_read_test(tmp_path, "hdr", layout[0], layout[1], layout[2], layout[3], **extra)
 
 
+DDS_READ_ITEMS = [
+    ("bc1-unorm.dds", 256, 256, Bitmap.PixelFormat.rgba, Bitmap.ComponentType.uint8, False),
+    ("bc1-unorm-srgb.dds", 256, 256, Bitmap.PixelFormat.rgba, Bitmap.ComponentType.uint8, True),
+    ("bc3-unorm.dds", 256, 256, Bitmap.PixelFormat.rgba, Bitmap.ComponentType.uint8, False),
+    ("bc4-unorm.dds", 256, 256, Bitmap.PixelFormat.r, Bitmap.ComponentType.uint8, False),
+    ("bc5-unorm.dds", 256, 256, Bitmap.PixelFormat.rg, Bitmap.ComponentType.uint8, False),
+    ("bc6h-uf16.dds", 409, 204, Bitmap.PixelFormat.rgb, Bitmap.ComponentType.float16, False),
+    ("bc7-unorm.dds", 256, 256, Bitmap.PixelFormat.rgba, Bitmap.ComponentType.uint8, False),
+    ("bc7-unorm-srgb.dds", 256, 256, Bitmap.PixelFormat.rgba, Bitmap.ComponentType.uint8, True),
+    ("bc7-unorm-odd.dds", 127, 127, Bitmap.PixelFormat.rgba, Bitmap.ComponentType.uint8, False),
+]
+
+
+@pytest.mark.parametrize("item", DDS_READ_ITEMS, ids=[x[0] for x in DDS_READ_ITEMS])
+def test_dds_read(item: tuple[str, int, int, Bitmap.PixelFormat, Bitmap.ComponentType, bool]):
+    import slangpy.platform as platform
+
+    dds_dir = platform.project_directory() / "data" / "test_images" / "dds"
+    filename, width, height, pixel_format, component_type, srgb = item
+
+    bmp = Bitmap(dds_dir / filename)
+    assert bmp.width == width
+    assert bmp.height == height
+    assert bmp.pixel_format == pixel_format
+    assert bmp.component_type == component_type
+    assert bmp.srgb_gamma == srgb
+    assert not bmp.empty()
+    assert bmp.buffer_size > 0
+
+    a = np.array(bmp, copy=False)
+    assert a.shape[0] == height
+    assert a.shape[1] == width
+
+
+def test_dds_detect_format():
+    """Verify DDS files are auto-detected by Bitmap constructor."""
+    import slangpy.platform as platform
+
+    dds_dir = platform.project_directory() / "data" / "test_images" / "dds"
+    bmp = Bitmap(dds_dir / "bc7-unorm.dds")
+    assert bmp.pixel_format == Bitmap.PixelFormat.rgba
+    assert bmp.component_type == Bitmap.ComponentType.uint8
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

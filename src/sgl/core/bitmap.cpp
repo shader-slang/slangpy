@@ -54,6 +54,10 @@ derivative works thereof, in binary and source code form.
 #include "sgl/core/string.h"
 #include "sgl/core/thread.h"
 #include "sgl/core/type_utils.h"
+#include "sgl/core/dds_file.h"
+#include "sgl/core/bc_codec.h"
+#include "sgl/core/bc_types.h"
+#include "sgl/device/native_formats.h"
 
 #include "sgl/math/scalar_types.h"
 
@@ -539,6 +543,9 @@ Bitmap::FileFormat Bitmap::detect_file_format(Stream* stream)
     } else if (header[0] == 0x76 && header[1] == 0x2F && //
                header[2] == 0x31 && header[3] == 0x01) {
         format = FileFormat::exr;
+    } else if (header[0] == 0x44 && header[1] == 0x44 && //
+               header[2] == 0x53 && header[3] == 0x20) {
+        format = FileFormat::dds;
     } else {
         // Check for TGAv1 file
         char spec[10];
@@ -640,6 +647,9 @@ void Bitmap::read(Stream* stream, FileFormat format)
         break;
     case FileFormat::exr:
         read_exr(stream);
+        break;
+    case FileFormat::dds:
+        read_dds(stream);
         break;
     default:
         SGL_THROW("Unknown file format!");
@@ -2513,6 +2523,190 @@ ref<Bitmap> Bitmap::resample(
     resample(result.get(), filter, bc, clamp);
 
     return result;
+}
+
+// ----------------------------------------------------------------------------
+// DDS I/O
+// ----------------------------------------------------------------------------
+
+void Bitmap::read_dds(Stream* stream)
+{
+    DDSFile dds(stream);
+
+    SGL_CHECK(
+        dds.type() == DDSFile::TextureType::texture_2d,
+        "Bitmap::read_dds: only 2D textures are supported (got {}).",
+        dds.type()
+    );
+
+    Format format = get_format(DXGI_FORMAT(dds.dxgi_format()));
+    SGL_CHECK(format != Format::undefined, "Bitmap::read_dds: unsupported DXGI format {}.", dds.dxgi_format());
+
+    const FormatInfo& info = get_format_info(format);
+
+    if (info.is_compressed) {
+        // BC compressed format - decode mip level 0 using BCCodec.
+        auto bc_format = format_to_bc_format(format);
+        SGL_CHECK(bc_format.has_value(), "Bitmap::read_dds: unsupported compressed format {}.", format);
+
+        // Determine output pixel format and component type from BC format.
+        PixelFormat pixel_format;
+        ComponentType component_type;
+        uint32_t channel_count;
+        switch (*bc_format) {
+        case BCFormat::bc4_unorm:
+        case BCFormat::bc4_snorm:
+            pixel_format = PixelFormat::r;
+            component_type = ComponentType::uint8;
+            channel_count = 1;
+            break;
+        case BCFormat::bc5_unorm:
+        case BCFormat::bc5_snorm:
+            pixel_format = PixelFormat::rg;
+            component_type = ComponentType::uint8;
+            channel_count = 2;
+            break;
+        case BCFormat::bc6h_ufloat:
+        case BCFormat::bc6h_sfloat:
+            pixel_format = PixelFormat::rgb;
+            component_type = ComponentType::float16;
+            channel_count = 3;
+            break;
+        default:
+            // BC1, BC2, BC3, BC7 all decode to RGBA uint8.
+            pixel_format = PixelFormat::rgba;
+            component_type = ComponentType::uint8;
+            channel_count = 4;
+            break;
+        }
+
+        m_pixel_format = pixel_format;
+        m_component_type = component_type;
+        m_width = dds.width();
+        m_height = dds.height();
+        m_srgb_gamma = dds.srgb();
+
+        rebuild_pixel_struct();
+
+        // Decode into a block-aligned temporary buffer since the BC decoder
+        // writes full 4x4 blocks which may exceed the actual image dimensions.
+        uint32_t aligned_w = ((m_width + 3) / 4) * 4;
+        uint32_t aligned_h = ((m_height + 3) / 4) * 4;
+        uint32_t bpp = static_cast<uint32_t>(bytes_per_pixel());
+        uint32_t aligned_row_pitch = aligned_w * bpp;
+        size_t aligned_buf_size = static_cast<size_t>(aligned_row_pitch) * aligned_h;
+        auto decode_buf = std::make_unique<uint8_t[]>(aligned_buf_size);
+
+        BCMutableImage dst{
+            .data = decode_buf.get(),
+            .width = aligned_w,
+            .height = aligned_h,
+            .row_pitch = aligned_row_pitch,
+            .channel_count = channel_count,
+            .component_type = component_type,
+        };
+
+        uint32_t row_pitch, slice_pitch;
+        dds.get_subresource_pitch(0, &row_pitch, &slice_pitch);
+
+        BCCodec codec(false);
+        codec.decode(dds.get_subresource_data(0, 0), slice_pitch, *bc_format, m_width, m_height, dst);
+
+        // Copy valid pixels from the aligned buffer into the final bitmap.
+        size_t buf_size = buffer_size();
+        m_data = std::make_unique<uint8_t[]>(buf_size);
+        m_owns_data = true;
+
+        uint32_t dst_row_pitch = m_width * bpp;
+        if (aligned_w == m_width) {
+            std::memcpy(m_data.get(), decode_buf.get(), buf_size);
+        } else {
+            for (uint32_t y = 0; y < m_height; ++y) {
+                std::memcpy(m_data.get() + y * dst_row_pitch, decode_buf.get() + y * aligned_row_pitch, dst_row_pitch);
+            }
+        }
+    } else {
+        // Uncompressed format - copy pixel data directly.
+        uint32_t channel_count = info.channel_count;
+
+        PixelFormat pixel_format;
+        switch (channel_count) {
+        case 1:
+            pixel_format = PixelFormat::r;
+            break;
+        case 2:
+            pixel_format = PixelFormat::rg;
+            break;
+        case 3:
+            pixel_format = PixelFormat::rgb;
+            break;
+        case 4:
+            pixel_format = PixelFormat::rgba;
+            break;
+        default:
+            SGL_THROW("Bitmap::read_dds: unsupported channel count {} for format {}.", channel_count, format);
+        }
+
+        ComponentType component_type;
+        uint32_t bits = info.channel_bit_count[0];
+        switch (info.type) {
+        case FormatType::float_:
+            component_type = (bits == 16) ? ComponentType::float16 : ComponentType::float32;
+            break;
+        case FormatType::unorm:
+        case FormatType::unorm_srgb:
+            component_type = (bits <= 8) ? ComponentType::uint8 : ComponentType::uint16;
+            break;
+        case FormatType::snorm:
+            component_type = (bits <= 8) ? ComponentType::int8 : ComponentType::int16;
+            break;
+        case FormatType::uint:
+            if (bits <= 8)
+                component_type = ComponentType::uint8;
+            else if (bits <= 16)
+                component_type = ComponentType::uint16;
+            else
+                component_type = ComponentType::uint32;
+            break;
+        case FormatType::sint:
+            if (bits <= 8)
+                component_type = ComponentType::int8;
+            else if (bits <= 16)
+                component_type = ComponentType::int16;
+            else
+                component_type = ComponentType::int32;
+            break;
+        default:
+            SGL_THROW("Bitmap::read_dds: unsupported format type for {}.", format);
+        }
+
+        m_pixel_format = pixel_format;
+        m_component_type = component_type;
+        m_width = dds.width();
+        m_height = dds.height();
+        m_srgb_gamma = (info.type == FormatType::unorm_srgb);
+
+        rebuild_pixel_struct();
+
+        size_t buf_size = buffer_size();
+        m_data = std::make_unique<uint8_t[]>(buf_size);
+        m_owns_data = true;
+
+        // Copy mip level 0 data. Handle potential row pitch mismatch.
+        uint32_t row_pitch, slice_pitch;
+        dds.get_subresource_pitch(0, &row_pitch, &slice_pitch);
+        uint32_t dst_row_pitch = static_cast<uint32_t>(m_width * bytes_per_pixel());
+        const uint8_t* src = dds.get_subresource_data(0, 0);
+
+        if (row_pitch == dst_row_pitch) {
+            std::memcpy(m_data.get(), src, buf_size);
+        } else {
+            uint32_t copy_pitch = std::min(row_pitch, dst_row_pitch);
+            for (uint32_t y = 0; y < m_height; ++y) {
+                std::memcpy(m_data.get() + y * dst_row_pitch, src + y * row_pitch, copy_pitch);
+            }
+        }
+    }
 }
 
 } // namespace sgl

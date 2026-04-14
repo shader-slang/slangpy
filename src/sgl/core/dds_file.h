@@ -18,10 +18,6 @@ class SGL_API DDSFile : public Object {
 public:
     SGL_NON_COPYABLE_AND_MOVABLE(DDSFile);
 
-    explicit DDSFile(Stream* stream);
-    explicit DDSFile(const std::filesystem::path& path);
-    ~DDSFile();
-
     enum class TextureType {
         texture_1d,
         texture_2d,
@@ -38,6 +34,11 @@ public:
             {TextureType::texture_cube, "texture_cube"},
         }
     );
+
+    explicit DDSFile(Stream* stream);
+    explicit DDSFile(const std::filesystem::path& path);
+
+    ~DDSFile();
 
     const uint8_t* data() const { return m_data; }
     size_t size() const { return m_size; }
@@ -76,6 +77,34 @@ public:
     virtual std::string to_string() const override;
 
     static bool detect_dds_file(Stream* stream);
+
+    /// Write a DDS file to a stream.
+    static void write_dds(
+        Stream* stream,
+        uint32_t dxgi_format,
+        TextureType type,
+        uint32_t width,
+        uint32_t height,
+        uint32_t depth,
+        uint32_t mip_count,
+        uint32_t array_size,
+        const void* resource_data,
+        size_t resource_size
+    );
+
+    /// Write a DDS file to a file path.
+    static void write_dds(
+        const std::filesystem::path& path,
+        uint32_t dxgi_format,
+        TextureType type,
+        uint32_t width,
+        uint32_t height,
+        uint32_t depth,
+        uint32_t mip_count,
+        uint32_t array_size,
+        const void* resource_data,
+        size_t resource_size
+    );
 
 private:
     bool decode_header(const uint8_t* data, size_t size);
