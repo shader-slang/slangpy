@@ -351,9 +351,6 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int, grads: bool):
 
     compare_tensors(a + b, res)
 
-    # Should this work??
-    # res.backward(torch.ones_like(res))
-
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_struct_tensor_from_torch(device_type: DeviceType):

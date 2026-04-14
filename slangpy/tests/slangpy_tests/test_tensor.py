@@ -205,6 +205,7 @@ def test_existential_type_bug(device_type: DeviceType):
 
     program = device.load_program("test_existential_bug.slang", ["build_importance_map"])
     kernel = device.create_compute_kernel(program=program)
+    assert kernel is not None
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

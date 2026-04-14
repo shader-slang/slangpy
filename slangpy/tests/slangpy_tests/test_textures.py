@@ -494,11 +494,6 @@ def texture_return_value_impl(
     assert result.format == expected_format
 
     result_np = result.to_numpy()
-    order = list(reversed(range(dims)))
-    if channels > 1:
-        order += [dims]
-    # result_np = result_np.transpose(order)
-
     assert np.allclose(result_np, data.squeeze())
 
 
