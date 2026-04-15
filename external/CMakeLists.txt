@@ -53,6 +53,12 @@ endif()
 # nanothread
 
 set(NANOTHREAD_STATIC ON)
+# Override nanothread's default -march=native on Linux aarch64 to avoid assembler
+# errors when building under QEMU emulation (the host CPU may report extensions
+# that the container's toolchain doesn't support).
+if(SGL_LINUX AND SGL_ARCHITECTURE MATCHES "aarch64|arm64")
+    set(NANOTHREAD_NATIVE_FLAGS "-march=armv8-a" CACHE STRING "" FORCE)
+endif()
 add_subdirectory(nanothread)
 # Disable LTO for nanothread as this causes problems when linking with sgl.
 set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
