@@ -32,7 +32,7 @@ enum class AccelerationStructureGeometryFlags : uint32_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(AccelerationStructureGeometryFlags);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     AccelerationStructureGeometryFlags,
     {
         {AccelerationStructureGeometryFlags::none, "none"},
@@ -53,7 +53,7 @@ enum class AccelerationStructureInstanceFlags : uint32_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(AccelerationStructureInstanceFlags);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     AccelerationStructureInstanceFlags,
     {
         {AccelerationStructureInstanceFlags::none, "none"},
@@ -212,7 +212,7 @@ enum class AccelerationStructureBuildFlags : uint32_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(AccelerationStructureBuildFlags);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     AccelerationStructureBuildFlags,
     {
         {AccelerationStructureBuildFlags::none, "none"},

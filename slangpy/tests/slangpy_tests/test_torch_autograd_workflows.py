@@ -8,8 +8,8 @@ patterns: optimizer loops, gradient accumulation for broadcast parameters,
 chained kernel calls, vector outputs, and mixed slangpy+PyTorch autograd graphs.
 
 The workflow patterns are inspired by slang-torch examples
-(https://github.com/shader-slang/slang-torch) — bezier curve fitting, MLP
-training, and differentiable rasterization — but these are NOT ports of that
+(https://github.com/shader-slang/slang-torch) - bezier curve fitting, MLP
+training, and differentiable rasterization - but these are NOT ports of that
 code. The slang-torch originals use DiffTensorView, [CUDAKernel],
 [AutoPyBindCUDA], and manual torch.autograd.Function wrappers, none of which
 are used here. These tests use slangpy's own API (scalar/array parameters with
@@ -158,7 +158,7 @@ def test_polynomial_optimization_convergence(device_type: DeviceType):
     x = torch.linspace(-1, 1, 100, device="cuda", dtype=torch.float32)
     y_target = target_a * x**3 + target_b * x**2 + target_c * x + target_d
 
-    # Initialize coefficients at wrong values — these ARE optimized
+    # Initialize coefficients at wrong values - these ARE optimized
     a = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
     b = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
     c = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
@@ -580,7 +580,7 @@ def test_interleaved_slangpy_pytorch_optimization(device_type: DeviceType):
         # slangpy computes the polynomial
         poly_out = module.cubic_poly(a=a, b=b, c=c, d=d, x=x)
 
-        # PyTorch applies sin on top — tests mixed autograd graph
+        # PyTorch applies sin on top - tests mixed autograd graph
         y_pred = torch.sin(poly_out)
 
         loss = ((y_pred - y_target) ** 2).mean()
@@ -595,6 +595,106 @@ def test_interleaved_slangpy_pytorch_optimization(device_type: DeviceType):
 
     # Loss should decrease significantly (inner polynomial should converge to 2x^3 + x)
     assert_loss_decreased(initial_loss, final_loss, min_ratio=0.05)
+
+
+# =============================================================================
+# Test: retain_graph=True support
+# =============================================================================
+
+
+@pytest.mark.parametrize("device_type", [DeviceType.cuda])
+def test_retain_graph_backward(device_type: DeviceType):
+    """
+    Verify backward(retain_graph=True) followed by a second backward
+    produces correct gradients both times.
+    """
+    device = helpers.get_torch_device(device_type)
+    module = helpers.create_module(device, SLANG_CURVE_FITTING)
+
+    x = torch.tensor([1.0, 2.0, 3.0], device="cuda", dtype=torch.float32)
+    a = torch.tensor([2.0], device="cuda", dtype=torch.float32, requires_grad=True)
+    b = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
+    c = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
+    d = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
+
+    y = module.cubic_poly(a=a, b=b, c=c, d=d, x=x)
+    loss = y.sum()
+
+    # First backward with retain_graph=True
+    loss.backward(retain_graph=True)
+    expected_grad_a = (x**3).sum().item()
+    assert a.grad is not None
+    grad_a_1 = a.grad.item()
+    assert abs(grad_a_1 - expected_grad_a) < 1e-3, f"1st backward: {grad_a_1} != {expected_grad_a}"
+
+    a.grad.zero_()
+
+    # Second backward on same graph
+    loss.backward()
+    grad_a_2 = a.grad.item()
+    assert abs(grad_a_2 - expected_grad_a) < 1e-3, f"2nd backward: {grad_a_2} != {expected_grad_a}"
+
+
+@pytest.mark.parametrize("device_type", [DeviceType.cuda])
+def test_retain_graph_accumulates_gradients(device_type: DeviceType):
+    """
+    Verify backward(retain_graph=True) without zero_grad accumulates correctly.
+    """
+    device = helpers.get_torch_device(device_type)
+    module = helpers.create_module(device, SLANG_CURVE_FITTING)
+
+    x = torch.tensor([1.0, 2.0], device="cuda", dtype=torch.float32)
+    a = torch.tensor([1.0], device="cuda", dtype=torch.float32, requires_grad=True)
+    b = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
+    c = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
+    d = torch.tensor([0.0], device="cuda", dtype=torch.float32, requires_grad=True)
+
+    y = module.cubic_poly(a=a, b=b, c=c, d=d, x=x)
+    loss = y.sum()
+
+    # Two backward calls without zero_grad - gradients should accumulate
+    loss.backward(retain_graph=True)
+    loss.backward()
+
+    expected_grad_a = 2 * (x**3).sum().item()  # doubled from accumulation
+    assert a.grad is not None
+    assert (
+        abs(a.grad.item() - expected_grad_a) < 1e-3
+    ), f"accumulated: {a.grad.item()} != {expected_grad_a}"
+
+
+@pytest.mark.parametrize("device_type", [DeviceType.cuda])
+def test_vram_stable_across_iterations(device_type: DeviceType):
+    """
+    Verify VRAM doesn't grow across multiple forward+backward iterations.
+    Regression test for #896.
+    """
+    device = helpers.get_torch_device(device_type)
+    module = helpers.create_module(device, SLANG_CURVE_FITTING)
+
+    x = torch.tensor([1.0, 2.0, 3.0], device="cuda", dtype=torch.float32)
+
+    # Warmup
+    for _ in range(5):
+        a = torch.tensor([1.0], device="cuda", dtype=torch.float32, requires_grad=True)
+        y = module.cubic_poly(a=a, b=0.0, c=0.0, d=0.0, x=x)
+        y.sum().backward()
+
+    torch.cuda.synchronize()
+    baseline = torch.cuda.memory_allocated()
+
+    # Run iterations
+    for _ in range(50):
+        a = torch.tensor([1.0], device="cuda", dtype=torch.float32, requires_grad=True)
+        y = module.cubic_poly(a=a, b=0.0, c=0.0, d=0.0, x=x)
+        y.sum().backward()
+
+    torch.cuda.synchronize()
+    after = torch.cuda.memory_allocated()
+
+    # Allow small variance but not linear growth (~0.5MB per iter would be 25MB over 50 iters)
+    growth = after - baseline
+    assert growth < 1024 * 1024, f"VRAM grew by {growth} bytes over 50 iterations (possible leak)"
 
 
 if __name__ == "__main__":

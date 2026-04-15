@@ -6,6 +6,7 @@ from slangpy.bindings import BoundVariable, BindContext, CodeGenBlock, can_direc
 from slangpy.core.native import CallMode, AccessType
 from slangpy.reflection import (
     SlangType,
+    ScalarType,
     ITensorType,
     TensorType,
     TensorViewType,
@@ -257,6 +258,39 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
     as_vector = spyvec.scalar_to_sized_vector(self_element_type, bound_type)
     if as_vector is not None:
         return [as_vector]
+
+    # Tensor of scalars can load arrays of vectors of known size
+    # e.g. float tensor -> float2[4] parameter, including generic vector<T,N>[M]
+    if (
+        isinstance(self_element_type, ScalarType)
+        and isinstance(bound_type, ArrayType)
+        and isinstance(bound_type.element_type, VectorType)
+    ):
+        as_inner_vector = spyvec.scalar_to_sized_vector(self_element_type, bound_type.element_type)
+        if as_inner_vector is not None and bound_type.num_elements > 0:
+            concrete = self.layout.find_type_by_name(
+                f"vector<{as_inner_vector.element_type.full_name},{as_inner_vector.num_elements}>[{bound_type.num_elements}]"
+            )
+            if concrete is not None:
+                return [concrete]
+
+    # Tensor of array-of-vector can match generic array-of-vector
+    # e.g. Tensor<vector<float,2>[4]> -> vector<T,2>[4], vector<T,N>[M], etc.
+    if (
+        isinstance(self_element_type, ArrayType)
+        and isinstance(bound_type, ArrayType)
+        and isinstance(self_element_type.element_type, VectorType)
+        and isinstance(bound_type.element_type, VectorType)
+        and (
+            bound_type.num_elements == 0
+            or self_element_type.num_elements == bound_type.num_elements
+        )
+        and (
+            bound_type.element_type.num_elements == 0
+            or self_element_type.element_type.num_elements == bound_type.element_type.num_elements
+        )
+    ):
+        return [self_element_type]
 
     # Handle ambiguous case vectorizing against generic array type
     as_generic_array_candidates = spyvec.container_to_generic_array_candidates(

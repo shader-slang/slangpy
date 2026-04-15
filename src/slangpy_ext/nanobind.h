@@ -166,9 +166,10 @@ public:
 template<typename T>
 class sgl_enum_flags : public sgl_enum<T> {
 public:
+    static_assert(::sgl::has_enum_info<T>, "nanobind::sgl_enum_flags<> requires an enumeration type with infos!");
     static_assert(
-        std::is_same_v<T, decltype(std::declval<T>() & std::declval<T>())>,
-        "nanobind::sgl_enum_flags<> requires an enumeration type with bitwise operators!"
+        ::sgl::EnumInfo<T>::is_flags,
+        "nanobind::sgl_enum_flags<> requires an enumeration type registered with SGL_ENUM_FLAGS_INFO!"
     );
 
     using Base = sgl_enum<T>;

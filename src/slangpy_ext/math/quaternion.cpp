@@ -89,6 +89,10 @@ void bind_quaternion_type(nb::module_& m, const char* name)
 
     quat.def(nb::self == nb::self);
     quat.def(nb::self != nb::self);
+    quat.def(nb::self < nb::self);
+    quat.def(nb::self > nb::self);
+    quat.def(nb::self <= nb::self);
+    quat.def(nb::self >= nb::self);
 
     quat.def(+nb::self);
     quat.def(-nb::self);

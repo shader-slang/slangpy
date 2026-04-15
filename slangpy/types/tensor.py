@@ -301,6 +301,68 @@ class Tensor(NativeTensor):
         return Tensor.zeros(other.storage.device, other.shape, other.dtype, other.usage)
 
     @staticmethod
+    def from_torch(
+        device: Device,
+        tensor: "torch.Tensor",
+        dtype: Any,
+        usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
+        program_layout: Optional[SlangProgramLayout] = None,
+    ) -> Tensor:
+        """
+        Reinterpret a torch.Tensor as a slangpy Tensor with a given element type.
+
+        The last dimension of the torch tensor is treated as packed storage for one
+        element of ``dtype``. For example, a ``torch.Tensor`` of shape ``(N, 2)`` with
+        ``dtype=module.Vec2`` (a struct with two float fields) produces a
+        ``Tensor`` of shape ``(N,)`` with element type ``Vec2``.
+
+        .. warning::
+
+            Struct layout may vary between platforms due to padding/alignment.
+            The caller is responsible for ensuring the torch tensor's memory layout
+            matches the Slang struct's buffer layout.
+        """
+        if not isinstance(dtype, SlangType):
+            program_layout = resolve_program_layout(device, dtype, program_layout)
+            dtype = resolve_element_type(program_layout, dtype)
+
+        struct_stride = dtype.buffer_layout.stride
+        scalar_size = tensor.element_size()
+        if struct_stride == 0 or scalar_size == 0 or struct_stride % scalar_size != 0:
+            raise ValueError(
+                f"Torch element size ({scalar_size}) is not compatible with "
+                f"Slang type '{dtype.full_name}' buffer stride ({struct_stride})"
+            )
+
+        scalars_per_element = struct_stride // scalar_size
+
+        if tensor.dim() < 1:
+            raise ValueError("Tensor must have at least 1 dimension")
+        if tensor.shape[-1] != scalars_per_element:
+            raise ValueError(
+                f"Last dimension size ({tensor.shape[-1]}) does not match "
+                f"the number of scalars per '{dtype.full_name}' element ({scalars_per_element})"
+            )
+        if tensor.stride(-1) != 1:
+            raise ValueError("Last dimension of the tensor must be contiguous")
+
+        contiguous = tensor.contiguous()
+        element_count = contiguous.numel()
+
+        buffer = device.create_buffer(
+            size=element_count * scalar_size,
+            struct_size=struct_stride,
+            usage=usage | BufferUsage.shared,
+        )
+
+        from slangpy import copy_torch_tensor_to_buffer
+
+        copy_torch_tensor_to_buffer(contiguous, buffer)
+
+        outer_shape = tuple(contiguous.shape[:-1])
+        return Tensor(buffer, dtype, outer_shape)
+
+    @staticmethod
     def load_from_image(
         device: Device,
         path: Union[str, PathLike[str]],

@@ -62,11 +62,11 @@ class TorchAutoGradHook(torch.autograd.Function):
         ctx.args = args
         ctx.kwargs = kwargs
         ctx.pairs = pairs
-        # Save ALL primals (inputs and outputs) — Slang's backward pass
+        # Save ALL primals (inputs and outputs) - Slang's backward pass
         # replays the forward internally and needs output primals too.
         ctx.save_for_backward(*all_tensors)
 
-        # output_tensors already includes the result tensor (if any) —
+        # output_tensors already includes the result tensor (if any) -
         # autograd_forward appends it when creating the _result pair.
         return tuple(output_tensors)
 

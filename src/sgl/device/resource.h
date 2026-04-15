@@ -89,7 +89,7 @@ enum class BufferUsage : uint32_t {
 };
 SGL_ENUM_CLASS_OPERATORS(BufferUsage);
 
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     BufferUsage,
     {
         {BufferUsage::none, "none"},
@@ -125,7 +125,7 @@ enum class TextureUsage : uint32_t {
 };
 SGL_ENUM_CLASS_OPERATORS(TextureUsage);
 
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     TextureUsage,
     {
         {TextureUsage::none, "none"},

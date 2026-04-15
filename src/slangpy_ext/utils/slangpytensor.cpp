@@ -19,7 +19,7 @@ namespace sgl::slangpy {
 
 namespace {
     /// Helper function to extract shape from PyTorch tensor
-    /// Creates Shape directly and populates it - zero allocations for tensors with ≤8 dimensions
+    /// Creates Shape directly and populates it - zero allocations for tensors with <=8 dimensions
     Shape extract_shape(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
     {
         const size_t ndim = tensor.ndim();
@@ -33,7 +33,7 @@ namespace {
 
     /// Helper function to extract strides from PyTorch tensor
     /// Returns element strides directly (PyTorch stride() already returns element strides for nanobind)
-    /// Creates Shape directly and populates it - zero allocations for tensors with ≤8 dimensions
+    /// Creates Shape directly and populates it - zero allocations for tensors with <=8 dimensions
     Shape extract_strides(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
     {
         const size_t ndim = tensor.ndim();
@@ -54,7 +54,7 @@ namespace {
         const Shape& call_shape
     )
     {
-        Shape result = strides; // Uses copy constructor (inline if ≤8 dims, one allocation if >8)
+        Shape result = strides; // Uses copy constructor (inline if <=8 dims, one allocation if >8)
 
         // Get raw pointers once to avoid per-element m_uses_heap branching
         const int* transform_data = transform.data();
@@ -162,6 +162,7 @@ NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_fi
     ShaderCursor data_cursor = tensor_cursor.find_field("_data");
     if (!data_cursor.is_valid()) {
         offsets.is_tensorview = true;
+        offsets.tensorview_offset = tensor_cursor.offset();
         offsets.is_valid = true;
         return offsets;
     }
@@ -613,7 +614,7 @@ void NativeTensorMarshall::write_native_tensor_fields(
             tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
         }
         tvd.dimensionCount = static_cast<uint32_t>(ndim);
-        shader_object->set_data(m_cached_binding_info.field_offset, &tvd, sizeof(TensorViewData));
+        shader_object->set_data(offsets.tensorview_offset, &tvd, sizeof(TensorViewData));
         return;
     }
 

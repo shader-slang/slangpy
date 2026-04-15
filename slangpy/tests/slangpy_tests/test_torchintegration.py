@@ -2,6 +2,7 @@
 
 import pytest
 import sys
+import numpy as np
 
 from slangpy import DeviceType, Device, Module, grid
 from slangpy.core.native import NativeCallDataCache, SignatureBuilder
@@ -353,6 +354,77 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int, grads: bool):
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_from_torch(device_type: DeviceType):
+    """
+    Test Tensor.from_torch() reinterprets a torch.Tensor as Tensor<PackedFloat2, 1>.
+    """
+    from slangpy import Tensor
+
+    device = helpers.get_torch_device(device_type)
+    module = load_test_module(device_type)
+
+    input_torch = torch.tensor(
+        [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]],
+        dtype=torch.float32,
+        device=torch.device("cuda"),
+    )
+    output_torch = torch.zeros_like(input_torch)
+
+    input_tensor = Tensor.from_torch(device, input_torch, dtype=module.PackedFloat2)
+    output_tensor = Tensor.from_torch(device, output_torch, dtype=module.PackedFloat2)
+
+    module.copy_struct_tensor(input_tensor, output_tensor)
+
+    result = output_tensor.to_numpy()
+    expected = input_torch.cpu().numpy().view(np.uint8).reshape(3, -1)
+    np.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_wrong_last_dim(device_type: DeviceType):
+    """
+    Test that Tensor.from_torch() raises when the last dimension doesn't match.
+    """
+    from slangpy import Tensor
+
+    device = helpers.get_torch_device(device_type)
+    module = load_test_module(device_type)
+
+    bad_tensor = torch.zeros((3, 3), dtype=torch.float32, device=torch.device("cuda"))
+    with pytest.raises(ValueError, match="does not match"):
+        Tensor.from_torch(device, bad_tensor, dtype=module.PackedFloat2)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_struct_tensor_particle_update(device_type: DeviceType):
+    """
+    Test Tensor.from_torch() with a Particle struct (float3 + float3 = 6 floats).
+    """
+    from slangpy import Tensor
+
+    device = helpers.get_torch_device(device_type)
+    module = load_test_module(device_type)
+
+    N = 5
+    dt = 0.1
+    input_torch = torch.randn((N, 6), dtype=torch.float32, device=torch.device("cuda"))
+    output_torch = torch.zeros_like(input_torch)
+
+    input_tensor = Tensor.from_torch(device, input_torch, dtype=module.Particle)
+    output_tensor = Tensor.from_torch(device, output_torch, dtype=module.Particle)
+
+    module.update_particle(input_tensor, dt, output_tensor)
+
+    result_np = output_tensor.to_numpy()
+    input_np = input_torch.cpu().numpy()
+    expected = input_np.copy()
+    expected[:, 0:3] = input_np[:, 0:3] + input_np[:, 3:6] * dt
+
+    result_floats = np.frombuffer(result_np.tobytes(), dtype=np.float32).reshape(N, 6)
+    np.testing.assert_allclose(result_floats, expected, atol=1e-4)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_empty_tensor_null_data_ptr(device_type: DeviceType):
     """
     Test that tensors with null data pointers (e.g., zero-element tensors) are accepted.
@@ -643,6 +715,16 @@ def test_nn_module_parameter_gradient(device_type: DeviceType):
     assert bias.grad is not None
     compare_tensors(x.grad, torch.ones_like(x))
     compare_tensors(bias.grad, torch.ones_like(bias))
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_zero_size_dispatch(device_type: DeviceType):
+    """Dispatching with empty torch tensors should be a no-op, not crash."""
+    module = load_test_module(device_type)
+    a = torch.tensor([], dtype=torch.float32, device="cuda")
+    b = torch.tensor([], dtype=torch.float32, device="cuda")
+    result = module.add(a, b)
+    assert result.numel() == 0
 
 
 if __name__ == "__main__":

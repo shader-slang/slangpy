@@ -1001,6 +1001,24 @@ TESTS = [
     ("func_generic_size_array2d_C", _Tensor("float[8]",1,True), None, None),
     ("func_generic_size_array2d_RC", _Tensor("float[8]",1,True), None, None),
 
+    # Concrete arrays of vectors
+    ("func_float_vector_array", [[1,2],[3,4],[5,6],[7,8]], "vector<float,2>[4]", 3),
+    ("func_float_vector_array", _Tensor("vector<float,2>[4]",1,False), "vector<float,2>[4]", 3),
+    ("func_float_vector_array", _Tensor("float",1,True), "vector<float,2>[4]", 3),
+    ("func_float_vector_array", [[1,2,3],[4,5,6],[7,8,9],[10,11,12]], None, None),
+    ("func_float_vector_array", [[1,2],[3,4],[5,6]], None, None),
+
+    # Generic type vector arrays (T generic, sizes concrete)
+    ("func_generic_type_vector_array", [[1.0,2.0],[3.0,4.0],[5.0,6.0],[7.0,8.0]], "vector<float,2>[4]", 3),
+    ("func_generic_type_vector_array", _Tensor("vector<float,2>[4]",1,False), "vector<float,2>[4]", 3),
+    ("func_generic_type_vector_array", _Tensor("float",1,True), "vector<float,2>[4]", 3),
+    ("func_generic_type_vector_array", [[1.0,2.0,3.0],[4.0,5.0,6.0],[7.0,8.0,9.0],[10.0,11.0,12.0]], None, None),
+
+    # Fully generic vector arrays (T, N, M all generic)
+    ("func_generic_vector_array", [[1.0,2.0],[3.0,4.0],[5.0,6.0],[7.0,8.0]], "vector<float,2>[4]", 3),
+    ("func_generic_vector_array", _Tensor("vector<float,2>[4]",1,False), "vector<float,2>[4]", 3),
+    ("func_generic_vector_array", [[1.0,2.0,3.0],[4.0,5.0,6.0]], "vector<float,3>[2]", 3),
+
     # standard structured buffer of known element type
     ("func_float_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), "StructuredBuffer<float,DefaultDataLayout>", 1),
     ("func_float_rwstructuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), None, None),

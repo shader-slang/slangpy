@@ -80,6 +80,7 @@ class Module:
         self.logger: Optional[Logger] = None
 
         self._attr_cache: dict[str, Union[Function, Struct]] = {}
+        self._all_functions: weakref.WeakSet[Function] = weakref.WeakSet()
 
         LOADED_MODULES[self.device_module.name] = self
 
@@ -176,6 +177,7 @@ class Module:
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
             res = Function(module=self, func=slang_function, struct=None, options=self.options)
+            self._all_functions.add(res)
             return res
 
     def require_function(self, name: str):
@@ -208,8 +210,12 @@ class Module:
         # C++ side handles reload for composed modules; layout returns fresh combined layout.
         self.layout.on_hot_reload(self.device_module.layout)
 
-        # Clear all caches
+        # Create new cache and update all tracked Function objects
         self.call_data_cache = CallDataCache()
+        for func in self._all_functions:
+            func._native_cache = self.call_data_cache
+
+        # Clear all caches
         self.dispatch_data_cache = {}
         self.pipeline_cache = {}
         self.shader_table_cache = {}
@@ -229,6 +235,7 @@ class Module:
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
             res = Function(module=self, func=slang_function, struct=None, options=self.options)
+            self._all_functions.add(res)
             self._attr_cache[name] = res
             return res
 
