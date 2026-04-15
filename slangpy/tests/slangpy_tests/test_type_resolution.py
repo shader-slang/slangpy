@@ -23,8 +23,8 @@ def build_test_data(module: spy.Module, call_mode: spyn.CallMode, *args: Any, **
     # Build 'unpacked' args (that handle IThis) and extract any pytorch
     # tensor references at the same time.
     tensor_refs = []
-    unpacked_args = spyn.unpack_refs_and_args(tensor_refs, *args)
-    unpacked_kwargs = spyn.unpack_refs_and_kwargs(tensor_refs, **kwargs)
+    unpacked_args, _ = spyn.unpack_args(*args)
+    unpacked_kwargs, _ = spyn.unpack_kwargs(**kwargs)
 
     # Setup context
     context = spy.bindings.BindContext(
@@ -34,7 +34,6 @@ def build_test_data(module: spy.Module, call_mode: spyn.CallMode, *args: Any, **
         {
             "strict_broadcasting": False,
         },
-        spyn.CallDataMode.global_data,
     )
 
     return context, spy.bindings.BoundCall(context, *unpacked_args, **unpacked_kwargs)
@@ -698,6 +697,87 @@ class _Texture:
         )
 
 
+# TorchTensor helper for testing TensorView type resolution (CUDA-only)
+try:
+    import torch
+
+    _HAS_TORCH = True
+    _HAS_CUDA = torch.cuda.is_available()
+
+    # Import torch integration to register torch.Tensor handler
+    if _HAS_CUDA:
+        import slangpy.torchintegration.torchtensormarshall  # noqa: F401
+except ImportError:
+    _HAS_TORCH = False
+    _HAS_CUDA = False
+
+
+class _TorchTensor:
+    _dtype_map = {
+        "float": "float32",
+        "int": "int32",
+        "half": "float16",
+        "int8_t": "int8",
+        "int16_t": "int16",
+        "int64_t": "int64",
+        "uint8_t": "uint8",
+    }
+
+    def __init__(self, base_type: str, dim: int):
+        super().__init__()
+        self.base_type = base_type
+        self.dim = dim
+
+    def __repr__(self) -> str:
+        return f"TorchTensor<{self.base_type},{self.dim}>"
+
+    def __call__(self, module: spy.Module):
+        if not _HAS_TORCH:
+            raise RuntimeError("PyTorch not installed")
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA not available")
+
+        # Map Slang type name to torch dtype
+        torch_dtype_name = self._dtype_map.get(self.base_type)
+        if torch_dtype_name is None:
+            raise ValueError(f"Unknown torch dtype for Slang type {self.base_type}")
+        torch_dtype = getattr(torch, torch_dtype_name)
+
+        return torch.zeros((3,) * self.dim, dtype=torch_dtype, device="cuda")
+
+
+class _TorchTensorDiffPair:
+    _dtype_map = {
+        "float": "float32",
+        "int": "int32",
+        "half": "float16",
+    }
+
+    def __init__(self, base_type: str, dim: int):
+        super().__init__()
+        self.base_type = base_type
+        self.dim = dim
+
+    def __repr__(self) -> str:
+        return f"TorchTensorDiffPair<{self.base_type},{self.dim}>"
+
+    def __call__(self, module: spy.Module):
+        if not _HAS_TORCH:
+            raise RuntimeError("PyTorch not installed")
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA not available")
+
+        from slangpy.core.native import NativeTorchTensorDiffPair
+
+        torch_dtype_name = self._dtype_map.get(self.base_type)
+        if torch_dtype_name is None:
+            raise ValueError(f"Unknown torch dtype for Slang type {self.base_type}")
+        torch_dtype = getattr(torch, torch_dtype_name)
+
+        primal = torch.zeros((3,) * self.dim, dtype=torch_dtype, device="cuda")
+        return NativeTorchTensorDiffPair(primal, None)
+
+
 # fmt: off
 
 # List of simple tests, where each is a function, input argument value (or factor func + args), and expected resolved type / dimensionality.
@@ -921,6 +1001,24 @@ TESTS = [
     ("func_generic_size_array2d_C", _Tensor("float[8]",1,True), None, None),
     ("func_generic_size_array2d_RC", _Tensor("float[8]",1,True), None, None),
 
+    # Concrete arrays of vectors
+    ("func_float_vector_array", [[1,2],[3,4],[5,6],[7,8]], "vector<float,2>[4]", 3),
+    ("func_float_vector_array", _Tensor("vector<float,2>[4]",1,False), "vector<float,2>[4]", 3),
+    ("func_float_vector_array", _Tensor("float",1,True), "vector<float,2>[4]", 3),
+    ("func_float_vector_array", [[1,2,3],[4,5,6],[7,8,9],[10,11,12]], None, None),
+    ("func_float_vector_array", [[1,2],[3,4],[5,6]], None, None),
+
+    # Generic type vector arrays (T generic, sizes concrete)
+    ("func_generic_type_vector_array", [[1.0,2.0],[3.0,4.0],[5.0,6.0],[7.0,8.0]], "vector<float,2>[4]", 3),
+    ("func_generic_type_vector_array", _Tensor("vector<float,2>[4]",1,False), "vector<float,2>[4]", 3),
+    ("func_generic_type_vector_array", _Tensor("float",1,True), "vector<float,2>[4]", 3),
+    ("func_generic_type_vector_array", [[1.0,2.0,3.0],[4.0,5.0,6.0],[7.0,8.0,9.0],[10.0,11.0,12.0]], None, None),
+
+    # Fully generic vector arrays (T, N, M all generic)
+    ("func_generic_vector_array", [[1.0,2.0],[3.0,4.0],[5.0,6.0],[7.0,8.0]], "vector<float,2>[4]", 3),
+    ("func_generic_vector_array", _Tensor("vector<float,2>[4]",1,False), "vector<float,2>[4]", 3),
+    ("func_generic_vector_array", [[1.0,2.0,3.0],[4.0,5.0,6.0]], "vector<float,3>[2]", 3),
+
     # standard structured buffer of known element type
     ("func_float_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), "StructuredBuffer<float,DefaultDataLayout>", 1),
     ("func_float_rwstructuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), None, None),
@@ -1019,19 +1117,19 @@ TESTS = [
     ("func_irwdifftensor", _Tensor("int", 2, False), None, None),
     ("func_irwdifftensor", _Tensor("int", 2, True), None, None),
 
-    # Diff tensors require grads so these should all fail
-    ("func_DiffTensor", _Tensor("float", 2, False), None, None),
-    ("func_DiffTensor", _Tensor("float", 2, True), None, None),
+    # Diff tensors have grads but we are allowing them to be null during primal pass
+    ("func_DiffTensor", _Tensor("float", 2, False), "DiffTensor<float,2>", 2),
+    ("func_DiffTensor", _Tensor("float", 2, True), "DiffTensor<float,2>", 2),
     ("func_WDiffTensor", _Tensor("float", 2, False), None, None),
-    ("func_WDiffTensor", _Tensor("float", 2, True), None, None),
+    ("func_WDiffTensor", _Tensor("float", 2, True), "WDiffTensor<float,2>", 2),
     ("func_rwdifftensor", _Tensor("float", 2, False), None, None),
-    ("func_rwdifftensor", _Tensor("float", 2, True), None, None),
+    ("func_rwdifftensor", _Tensor("float", 2, True), "RWDiffTensor<float,2>", 2),
 
-    # Diff tensors with the wrong grads should also fail!
-    ("func_DiffTensor", _Tensor("float", 2, True, True, False), None, None),
-    ("func_WDiffTensor", _Tensor("float", 2, True, False, True), None, None),
-    ("func_rwdifftensor", _Tensor("float", 2, True, False, True), None, None),
-    ("func_rwdifftensor", _Tensor("float", 2, True, True, False), None, None),
+    # For same reason, having the wrong grads is still valid (it just means they'll get null grads)
+    ("func_DiffTensor", _Tensor("float", 2, True, True, False), "DiffTensor<float,2>", 2),
+    ("func_WDiffTensor", _Tensor("float", 2, True, False, True), "WDiffTensor<float,2>", 2),
+    ("func_rwdifftensor", _Tensor("float", 2, True, False, True), "RWDiffTensor<float,2>", 2),
+    ("func_rwdifftensor", _Tensor("float", 2, True, True, False), "RWDiffTensor<float,2>", 2),
 
     # Diff tensors with the correct grads should also pass!
     ("func_DiffTensor", _Tensor("float", 2, True, False, True), "DiffTensor<float,2>", 2),
@@ -1121,6 +1219,56 @@ TESTS = [
     ("func_interface", [{"_type": "Bar"}], "Bar", 0),
     ("func_interface", [{"_type": "Foo"}], None, None),
     ("func_interface", _Tensor("Bar", 2, True), "Bar", 2),
+
+    # TensorView type resolution tests (CUDA-only, requires PyTorch)
+    # torch.Tensor should resolve to TensorView<T> when binding to TensorView parameter
+    ("func_tensorview_float", _TorchTensor("float", 1), "TensorView<float>", 1),
+    ("func_tensorview_float", _TorchTensor("float", 2), "TensorView<float>", 2),
+    ("func_tensorview_int", _TorchTensor("int", 1), "TensorView<int>", 1),
+    ("func_tensorview_half", _TorchTensor("half", 2), "TensorView<half>", 2),
+
+    # Type mismatch should fail
+    ("func_tensorview_float", _TorchTensor("int", 1), None, None),
+    ("func_tensorview_int", _TorchTensor("float", 1), None, None),
+
+    # Generic TensorView<T> resolution
+    ("func_tensorview_generic", _TorchTensor("float", 1), "TensorView<float>", 1),
+    ("func_tensorview_generic", _TorchTensor("int", 2), "TensorView<int>", 2),
+
+    # Normal slangpy Tensor should also resolve to TensorView<T>
+    ("func_tensorview_float", _Tensor("float", 1, True), "TensorView<float>", 1),
+    ("func_tensorview_float", _Tensor("float", 2, True), "TensorView<float>", 2),
+    ("func_tensorview_float", _Tensor("float", 1, False), "TensorView<float>", 1),
+    ("func_tensorview_int", _Tensor("int", 1, True), "TensorView<int>", 1),
+
+    # Normal slangpy Tensor type mismatch should fail
+    ("func_tensorview_float", _Tensor("int", 1, True), None, None),
+    ("func_tensorview_int", _Tensor("float", 1, True), None, None),
+
+    # Normal slangpy Tensor with generic TensorView<T>
+    ("func_tensorview_generic", _Tensor("float", 1, True), "TensorView<float>", 1),
+    ("func_tensorview_generic", _Tensor("int", 2, True), "TensorView<int>", 2),
+
+    # TensorView<float2> / <float4>: scalar float tensor should resolve to vector TensorView
+    ("func_tensorview_float2", _TorchTensor("float", 2), "TensorView<float2>", 1),
+    ("func_tensorview_float4", _TorchTensor("float", 2), "TensorView<float4>", 1),
+    # Non-float scalar should not resolve to TensorView<float2/float4>
+    ("func_tensorview_float2", _TorchTensor("int", 2), None, None),
+    ("func_tensorview_float4", _TorchTensor("int", 2), None, None),
+
+    # DiffTensorView type resolution tests (CUDA-only, requires PyTorch)
+    # NativeTorchTensorDiffPair should resolve to DiffTensorView<T>
+    ("func_difftensorview_float", _TorchTensorDiffPair("float", 1), "DiffTensorView<float>", 1),
+    ("func_difftensorview_float", _TorchTensorDiffPair("float", 2), "DiffTensorView<float>", 2),
+    ("func_difftensorview_half", _TorchTensorDiffPair("half", 2), "DiffTensorView<half>", 2),
+
+    # DiffTensorView float/half are both __BuiltinFloatingPointType, so resolution succeeds
+    ("func_difftensorview_float", _TorchTensorDiffPair("half", 1), "DiffTensorView<float>", 1),
+    ("func_difftensorview_half", _TorchTensorDiffPair("float", 1), "DiffTensorView<half>", 1),
+
+    # Generic DiffTensorView<T> resolution
+    ("func_difftensorview_generic", _TorchTensorDiffPair("float", 1), "DiffTensorView<float>", 1),
+    ("func_difftensorview_generic", _TorchTensorDiffPair("half", 2), "DiffTensorView<half>", 2),
 ]
 
 # fmt: on
@@ -1302,6 +1450,55 @@ def test_type_resolution_texture(
         ):
             pytest.skip("Metal crashes testing 1D textures")
     run_type_resolution_test(device_type, func_name, arg_value, expected_type_name, expected_dim)
+
+
+TORCHTENSOR_TESTS, TESTS = filter_tests(
+    TESTS,
+    types=(_TorchTensor, _TorchTensorDiffPair),
+)
+
+# TensorView requires CUDA device
+CUDA_DEVICE_TYPES = (
+    [spy.DeviceType.cuda] if spy.DeviceType.cuda in helpers.DEFAULT_DEVICE_TYPES else []
+)
+
+
+@pytest.mark.skipif(not _HAS_TORCH, reason="PyTorch not installed")
+@pytest.mark.skipif(not _HAS_CUDA, reason="CUDA not available")
+@pytest.mark.parametrize("device_type", CUDA_DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "func_name, arg_value, expected_type_name, expected_dim",
+    TORCHTENSOR_TESTS,
+    ids=[f"{fn}_{av}" for fn, av, etn, ed in TORCHTENSOR_TESTS],
+)
+def test_type_resolution_tensorview(
+    device_type: spy.DeviceType,
+    func_name: str,
+    arg_value: Any,
+    expected_type_name: Optional[str],
+    expected_dim: Optional[int],
+):
+    """Test TensorView type resolution with torch.Tensor arguments."""
+    if not CUDA_DEVICE_TYPES:
+        pytest.skip("CUDA device type not available")
+    # Use torch device for TensorView tests
+    device = helpers.get_torch_device(device_type)
+    module = spy.Module.load_from_file(device, "type_resolution.slang")
+    if callable(arg_value):
+        arg = arg_value(module)
+    else:
+        arg = arg_value
+    try:
+        actual_resolution = build_and_resolve(module, func_name, spyn.CallMode.prim, arg)
+    except Exception as e:
+        if expected_type_name is None:
+            return
+        else:
+            raise e
+    assert expected_type_name is not None, "Expected resolution to fail but it succeeded"
+    expected_type = module.layout.find_type_by_name(expected_type_name)
+    assert expected_type is not None, f"Expected type {expected_type_name} not found"
+    check(actual_resolution, expected_type)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)

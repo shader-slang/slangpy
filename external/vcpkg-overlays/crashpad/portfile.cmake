@@ -9,6 +9,15 @@ vcpkg_from_git(
         fix-lib-name-conflict.patch
 )
 
+# Apply Linux-specific memset fix for clang 20+ compatibility
+if(VCPKG_TARGET_IS_LINUX OR VCPKG_TARGET_IS_ANDROID)
+    vcpkg_apply_patches(
+        SOURCE_PATH "${SOURCE_PATH}"
+        PATCHES
+            "${CMAKE_CURRENT_LIST_DIR}/fix-memset-nontrivial.patch"
+    )
+endif()
+
 vcpkg_find_acquire_program(PYTHON3)
 x_vcpkg_get_python_packages(OUT_PYTHON_VAR PYTHON3
     PYTHON_EXECUTABLE "${PYTHON3}"

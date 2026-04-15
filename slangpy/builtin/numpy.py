@@ -20,6 +20,8 @@ from slangpy.reflection.reflectiontypes import (
     VectorType,
     MatrixType,
 )
+from slangpy.reflection.lookup import innermost_type
+from slangpy.builtin.tensor import is_nested_array
 
 
 class NumpyMarshall(NativeNumpyMarshall):
@@ -82,18 +84,19 @@ def create_vr_type_for_value(layout: SlangProgramLayout, value: Any):
     if isinstance(value, np.ndarray):
         return NumpyMarshall(layout, value.dtype, value.ndim, True)
     elif isinstance(value, ReturnContext):
-        if isinstance(value.slang_type, (ScalarType, VectorType, MatrixType)):
-            scalar_type = value.slang_type.slang_scalar_type
+        st = value.slang_type
+        if isinstance(st, (ScalarType, VectorType, MatrixType)) or is_nested_array(st):
+            scalar_type = innermost_type(st).slang_scalar_type
             dtype = np.dtype(SCALAR_TYPE_TO_NUMPY_TYPE[scalar_type])
             return NumpyMarshall(
                 layout,
                 dtype,
-                value.bind_context.call_dimensionality + value.slang_type.num_dims,
+                value.bind_context.call_dimensionality + st.num_dims,
                 True,
             )
         else:
             raise ValueError(
-                f"Numpy values can only be automatically returned from scalar, vector or matrix types. Got {value.slang_type}"
+                f"Numpy values can only be automatically returned from scalar, vector, matrix, or array-of-scalar/vector/matrix types. Got {st}"
             )
     else:
         raise ValueError(f"Unexpected type {type(value)} attempting to create numpy marshall")

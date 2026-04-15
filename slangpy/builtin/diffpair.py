@@ -34,30 +34,77 @@ def generate_differential_pair(
     assert deriv_storage
     assert primal_target
 
+    # Derivative is writable (RWValueRef) -> __slangpy_load backward writes gradients out.
+    # Derivative is readable (ValueType)  -> __slangpy_store backward reads gradient seed.
+    deriv_is_writable = deriv_storage.startswith("RWValueRef")
+    deriv_is_readable = deriv_storage.startswith("ValueType") or deriv_is_writable
+    needs_diff = deriv_storage != "NoneType"
+
     DIFF_PAIR_CODE = f"""
 struct _t_{name}
 {{
     {primal_storage} primal;
     {deriv_storage} derivative;
-    void load({context} context, out DifferentialPair<{primal_target}> value)
+"""
+
+    if needs_diff and deriv_is_writable:
+        # Inner helper that returns the primal value, with a custom backward
+        # that writes the adjoint into the derivative buffer.
+        DIFF_PAIR_CODE += f"""
+    [Differentiable]
+    [BackwardDerivative(_read_bwd)]
+    {primal_target} _read({context} context)
     {{
         {primal_target} p;
-        primal.load(context, p);"""
-    if deriv_storage == "NoneType":
-        DIFF_PAIR_CODE += """
-        value = diffPair(p);"""
+        primal.__slangpy_load(context, p);
+        return p;
+    }}
+    void _read_bwd({context} context, {deriv_target} grad)
+    {{
+        derivative.__slangpy_store(context, grad);
+    }}
+    [Differentiable]
+    void __slangpy_load({context} context, out {primal_target} value)
+    {{
+        value = this._read(context);
+    }}"""
     else:
         DIFF_PAIR_CODE += f"""
-        {deriv_target} d;
-        derivative.load(d);
-        value = diffPair(p, d);"""
-    DIFF_PAIR_CODE += f"""}}
-    void store({context} context, in DifferentialPair<{primal_target}> value)
+    void __slangpy_load({context} context, out {primal_target} value)
     {{
-        primal.store(context, value.p);
-        derivative.store(context, value.d);
+        primal.__slangpy_load(context, value);
+    }}"""
+
+    if needs_diff and deriv_is_readable:
+        # Inner helper that consumes the primal value, with a custom backward
+        # that reads the gradient seed from the derivative buffer.
+        DIFF_PAIR_CODE += f"""
+    [Differentiable]
+    [BackwardDerivative(_write_bwd)]
+    void _write({context} context, {primal_target} value)
+    {{
+        primal.__slangpy_store(context, value);
     }}
-}}
+    void _write_bwd({context} context, inout DifferentialPair<{primal_target}> value)
+    {{
+        {deriv_target} d;
+        derivative.__slangpy_load(context, d);
+        value = diffPair(value.p, d);
+    }}
+    [Differentiable]
+    void __slangpy_store({context} context, in {primal_target} value)
+    {{
+        this._write(context, value);
+    }}"""
+    else:
+        DIFF_PAIR_CODE += f"""
+    void __slangpy_store({context} context, in {primal_target} value)
+    {{
+        primal.__slangpy_store(context, value);
+    }}"""
+
+    DIFF_PAIR_CODE += """
+}
 """
     return DIFF_PAIR_CODE
 
@@ -154,6 +201,7 @@ class DiffPairMarshall(Marshall):
                 deriv_target,
             )
         )
+        binding.calldata_type_name = f"_t_{name}"
 
     def get_type(self, prim: PrimType):
         return (

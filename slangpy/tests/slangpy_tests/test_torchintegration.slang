@@ -17,7 +17,7 @@ vector<float,N> add_vectors_generic<let N:int>(vector<float,N> a, vector<float,N
 }
 
 [Differentiable]
-void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, RWTensor<float, 2> res) {
+void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, WTensor<float, 2> res) {
     [MaxIters(8)]
     for (int i = 0; i < a.shape[0]; i++)
         [MaxIters(8)]
@@ -91,4 +91,30 @@ void polynomial_arrays_out(float a, float b, float c, float[5] x, out float[5] r
 void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
     for (uint i = 0; i < input.shape[0]; i++)
         output[i] = input[i];
+}
+
+struct PackedFloat2
+{
+    float x;
+    float y;
+};
+
+void copy_struct_tensor(Tensor<PackedFloat2, 1> input, WTensor<PackedFloat2, 1> output) {
+    for (uint i = 0; i < input.shape[0]; i++)
+        output[i] = input[i];
+}
+
+struct Particle {
+    float3 position;
+    float3 velocity;
+};
+
+void update_particle(Tensor<Particle, 1> particles, float dt, WTensor<Particle, 1> output) {
+    for (uint i = 0; i < particles.shape[0]; i++) {
+        Particle p = particles[i];
+        Particle result;
+        result.position = p.position + p.velocity * dt;
+        result.velocity = p.velocity;
+        output[i] = result;
+    }
 }

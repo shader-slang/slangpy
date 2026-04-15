@@ -117,7 +117,7 @@ Buffer::Buffer(ref<Device> device, BufferDesc desc)
     if (m_desc.memory_type == MemoryType::device_local)
         rhi_desc.usage |= rhi::BufferUsage::CopySource | rhi::BufferUsage::CopyDestination;
 
-    SLANG_RHI_CALL(m_device->rhi_device()->createBuffer(rhi_desc, nullptr, m_rhi_buffer.writeRef()));
+    SLANG_RHI_CALL(m_device->rhi_device()->createBuffer(rhi_desc, nullptr, m_rhi_buffer.writeRef()), m_device);
 
     // Upload init data.
     if (m_desc.data)
@@ -139,7 +139,7 @@ void* Buffer::map() const
     SGL_ASSERT(m_mapped_ptr == nullptr);
     rhi::CpuAccessMode mode
         = m_desc.memory_type == MemoryType::upload ? rhi::CpuAccessMode::Write : rhi::CpuAccessMode::Read;
-    SLANG_RHI_CALL(m_device->rhi_device()->mapBuffer(m_rhi_buffer, mode, &m_mapped_ptr));
+    SLANG_RHI_CALL(m_device->rhi_device()->mapBuffer(m_rhi_buffer, mode, &m_mapped_ptr), m_device);
     return m_mapped_ptr;
 }
 
@@ -147,7 +147,7 @@ void Buffer::unmap() const
 {
     SGL_ASSERT(m_desc.memory_type != MemoryType::device_local);
     SGL_ASSERT(m_mapped_ptr != nullptr);
-    SLANG_RHI_CALL(m_device->rhi_device()->unmapBuffer(m_rhi_buffer));
+    SLANG_RHI_CALL(m_device->rhi_device()->unmapBuffer(m_rhi_buffer), m_device);
     m_mapped_ptr = nullptr;
 }
 
@@ -236,7 +236,8 @@ DescriptorHandle Buffer::descriptor_handle_ro() const
     rhi::Format rhi_format = static_cast<rhi::Format>(m_desc.format);
     rhi::BufferRange rhi_range = {0, m_desc.size};
     SLANG_RHI_CALL(
-        m_rhi_buffer->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, rhi_format, rhi_range, &rhi_handle)
+        m_rhi_buffer->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, rhi_format, rhi_range, &rhi_handle),
+        m_device
     );
     return DescriptorHandle(rhi_handle);
 }
@@ -247,7 +248,8 @@ DescriptorHandle Buffer::descriptor_handle_rw() const
     rhi::Format rhi_format = static_cast<rhi::Format>(m_desc.format);
     rhi::BufferRange rhi_range = {0, m_desc.size};
     SLANG_RHI_CALL(
-        m_rhi_buffer->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, rhi_format, rhi_range, &rhi_handle)
+        m_rhi_buffer->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, rhi_format, rhi_range, &rhi_handle),
+        m_device
     );
     return DescriptorHandle(rhi_handle);
 }
@@ -426,7 +428,7 @@ Texture::Texture(ref<Device> device, TextureDesc desc)
     if (m_desc.memory_type == MemoryType::device_local)
         rhi_desc.usage |= rhi::TextureUsage::CopySource | rhi::TextureUsage::CopyDestination;
 
-    SLANG_RHI_CALL(m_device->rhi_device()->createTexture(rhi_desc, nullptr, m_rhi_texture.writeRef()));
+    SLANG_RHI_CALL(m_device->rhi_device()->createTexture(rhi_desc, nullptr, m_rhi_texture.writeRef()), m_device);
 
     // Upload init data.
     if (!m_desc.data.empty()) {
@@ -472,7 +474,7 @@ SubresourceLayout Texture::get_subresource_layout(uint32_t mip, uint32_t row_ali
     SGL_CHECK_LT(mip, mip_count());
 
     rhi::SubresourceLayout rhi_layout;
-    SLANG_RHI_CALL(m_rhi_texture->getSubresourceLayout(mip, row_alignment, &rhi_layout));
+    SLANG_RHI_CALL(m_rhi_texture->getSubresourceLayout(mip, row_alignment, &rhi_layout), m_device);
 
     return layout_from_rhilayout(rhi_layout);
 }
@@ -512,6 +514,13 @@ DescriptorHandle Texture::descriptor_handle_rw() const
     return DescriptorHandle(rhi_handle);
 }
 
+DescriptorHandle Texture::descriptor_handle_combined() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_texture->getDefaultView()->getCombinedTextureSamplerDescriptorHandle(&rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
 NativeHandle Texture::shared_handle() const
 {
     rhi::NativeHandle rhi_handle = {};
@@ -522,7 +531,10 @@ NativeHandle Texture::shared_handle() const
 DeviceChild::MemoryUsage Texture::memory_usage() const
 {
     rhi::Size size = 0, alignment = 0;
-    SLANG_RHI_CALL(m_device->rhi_device()->getTextureAllocationInfo(m_rhi_texture->getDesc(), &size, &alignment));
+    SLANG_RHI_CALL(
+        m_device->rhi_device()->getTextureAllocationInfo(m_rhi_texture->getDesc(), &size, &alignment),
+        m_device
+    );
     return {.device = size};
 }
 
@@ -718,7 +730,8 @@ TextureView::TextureView(ref<Device> device, ref<Texture> texture, TextureViewDe
         .label = m_desc.label.empty() ? nullptr : m_desc.label.c_str(),
     };
     SLANG_RHI_CALL(
-        m_device->rhi_device()->createTextureView(m_texture->rhi_texture(), rhi_desc, m_rhi_texture_view.writeRef())
+        m_device->rhi_device()->createTextureView(m_texture->rhi_texture(), rhi_desc, m_rhi_texture_view.writeRef()),
+        m_device
     );
 }
 
@@ -733,6 +746,13 @@ DescriptorHandle TextureView::descriptor_handle_rw() const
 {
     rhi::DescriptorHandle rhi_handle = {};
     m_rhi_texture_view->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, &rhi_handle);
+    return DescriptorHandle(rhi_handle);
+}
+
+DescriptorHandle TextureView::descriptor_handle_combined() const
+{
+    rhi::DescriptorHandle rhi_handle = {};
+    m_rhi_texture_view->getCombinedTextureSamplerDescriptorHandle(&rhi_handle);
     return DescriptorHandle(rhi_handle);
 }
 

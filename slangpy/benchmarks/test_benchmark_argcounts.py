@@ -27,13 +27,13 @@ except ImportError:
 
 SLEEPS = True
 ITERATIONS = 10
-SUB_ITERATIONS = 2000
+SUB_ITERATIONS = 20000
 WARMUPS = 10
-COUNTS = [6]
+COUNTS = [1, 6]
 
-RUN_SLANGTORCH_BENCHMARK = False
-RUN_PURE_TORCH_BENCHMARK = False
-RUN_TORCH_TENSOR_BENCHMARK = False
+RUN_SLANGTORCH_BENCHMARK = True
+RUN_PURE_TORCH_BENCHMARK = True
+RUN_TORCH_TENSOR_BENCHMARK = True
 RUN_NATIVE_TENSOR_BENCHMARK = True
 
 # ITERATIONS = 1
@@ -52,8 +52,8 @@ def test_tensor_sum_torch(
         pytest.skip("PyTorch is not installed")
 
     device = helpers.get_torch_device(device_type)
-    inputs = [np.random.rand(1024, 1024).astype(np.float32) for _ in range(count)]
-    result_tensor = torch.empty((1024, 1024), dtype=torch.float32, device="cuda")
+    inputs = [np.random.rand(1, 32).astype(np.float32) for _ in range(count)]
+    result_tensor = torch.empty((1, 32), dtype=torch.float32, device="cuda")
 
     args: dict[str, Any] = {
         f"tensor_{i}": torch.from_numpy(input).cuda() for i, input in enumerate(inputs)
@@ -101,7 +101,7 @@ def test_tensor_sum_slangtorch(
     func = getattr(module, f"sum_slangtorch_{count}")
 
     def tensor_addition():
-        func(**args).launchRaw(blockSize=(32, 1, 1), gridSize=(64, 1, 1))
+        func(**args).launchRaw(blockSize=(32, 1, 1), gridSize=(1, 1, 1))
 
     benchmark_python_function(
         device,
@@ -126,8 +126,8 @@ def test_tensor_sum(
     else:
         device = helpers.get_device(device_type)
 
-    inputs = [np.random.rand(1024, 1024).astype(np.float32) for _ in range(count)]
-    result_tensor = spy.Tensor.empty(device, shape=(1024, 1024), dtype=float)
+    inputs = [np.random.rand(1, 32).astype(np.float32) for _ in range(count)]
+    result_tensor = spy.Tensor.empty(device, shape=(1, 32), dtype=float)
 
     args: dict[str, Any] = {
         f"tensor_{i}": spy.Tensor.from_numpy(device, input) for i, input in enumerate(inputs)

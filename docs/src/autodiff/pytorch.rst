@@ -22,6 +22,68 @@ To use SlangPy with PyTorch, you first need to create a device configured for Py
 
 SlangPy automatically detects when PyTorch tensors are used and integrates them into PyTorch's auto-grad graph. No special module types are needed - you can use the standard ``spy.Module`` type as documented in `First Functions <../basics/firstfunctions.html>`_.
 
+Using the ``slangpy-torch`` extension
+-------------------------------------
+
+Whilst SlangPy can integrate with PyTorch out-of-the-box, it does not compile against libtorch, and thus by default has to go via the Python API for any interaction with PyTorch tensor operations. To substantially
+improve performance, users should install the ``slangpy-torch`` pip package, which provides native torch integration to SlangPy. This extension provides fast (~28ns) tensor metadata access from native code, compared to ~350ns when going through the Python API.
+
+The package is built locally against your installed version of PyTorch to ensure ABI compatibility, so **C++ build tools are required**.
+
+Prerequisites
+^^^^^^^^^^^^^
+
+- **Python 3.9+**
+- **PyTorch** installed
+
+**Windows**
+
+Install `Visual Studio 2019 or 2022 <https://visualstudio.microsoft.com/>`_ with the **"Desktop development with C++"** workload. This provides the MSVC compiler required to build the extension.
+
+**Linux**
+
+Install the build-essential package:
+
+.. code-block:: bash
+
+    # Ubuntu/Debian
+    sudo apt-get install build-essential
+
+Installation
+^^^^^^^^^^^^
+
+The extension **must** be installed with ``--no-build-isolation`` to ensure ABI compatibility with your installed PyTorch version:
+
+.. code-block:: bash
+
+    pip install wheels
+    pip install slangpy-torch --no-build-isolation
+
+.. note::
+
+    The ``--no-build-isolation`` flag is critical. Without it, pip may use a different PyTorch version during the build process, leading to ABI incompatibilities and crashes.
+
+Verifying Installation
+^^^^^^^^^^^^^^^^^^^^^^
+
+To verify the extension is installed correctly:
+
+.. code-block:: python
+
+    import torch  # Must import torch first
+    import slangpy_torch
+    print(slangpy_torch.get_api_ptr())  # Should print a non-zero integer
+
+If you see a non-zero integer, the extension is working correctly and SlangPy will automatically use it for improved PyTorch tensor performance.
+
+Troubleshooting
+^^^^^^^^^^^^^^^
+
+- **"torch not found"**: Ensure PyTorch is installed first with ``pip install torch``
+- **"torch still not found"**: Ensure you are running with ``--no-build-isolation``
+- **buildwheels not found**: Ensure you have the `wheels` package installed with ``pip install wheels``
+- **Windows can not find compiler / ninja**: Ensure you have the Visual Studio (or build tools) installed, and are running from a visual studio Developer Tools command prompt or have the compiler in your PATH.
+
 Creating a tensor
 -----------------
 
@@ -94,6 +156,57 @@ The choice of backend significantly impacts performance:
 
 - **Graphics Backends (D3D12/Vulkan)**: Useful when graphics features are required, but expect substantially worse performance due to context switching overhead. Consider whether the graphics features are truly necessary for your use case.
 
+TensorView Compatibility (slangtorch)
+-------------------------------------
+
+SlangPy provides PyTorch tensor support via its own ``Tensor*`` types (``Tensor<T,N>``,
+``RWTensor<T,N>``, ``DiffTensor<T,N>``, etc.). However, `slangtorch <https://github.com/shader-slang/slang-torch>`_
+uses ``TensorView<T>`` and ``DiffTensorView<T>`` for tensor interop.
+
+SlangPy supports backward compatibility for code originally written for slangtorch, allowing
+``torch.Tensor`` arguments to bind to ``TensorView<T>`` parameters in Slang functions.
+
+.. warning::
+
+    **TensorView is not recommended for new code.** This feature exists only for backward
+    compatibility with existing slangtorch code. For new projects, use SlangPy's native
+    ``Tensor*`` types which offer better cross-platform support and integration.
+
+.. note::
+
+    ``TensorView<T>`` is CUDA-only. It will not work with Vulkan or D3D12 backends.
+
+Example usage with existing slangtorch-style Slang code:
+
+.. code-block::
+
+    // slangtorch-style function using TensorView
+    void copy_tensor(TensorView<float> input, TensorView<float> output)
+    {
+        for (uint i = 0; i < input.size(0); i++)
+            output.store(i, input.load(i));
+    }
+
+.. code-block:: python
+
+    import slangpy as spy
+    import torch
+
+    device = spy.create_torch_device(type=spy.DeviceType.cuda)
+    module = spy.Module.load_from_file(device, "example.slang")
+
+    # torch.Tensor arguments bind directly to TensorView<T> parameters
+    input_tensor = torch.tensor([1.0, 2.0, 3.0], device="cuda", dtype=torch.float32)
+    output_tensor = torch.zeros(3, device="cuda", dtype=torch.float32)
+
+    module.copy_tensor(input_tensor, output_tensor)
+
+Key differences between SlangPy's ``Tensor<T,N>`` and ``TensorView<T>``:
+
+- ``Tensor<T,N>`` has compile-time dimensions (N); ``TensorView<T>`` has runtime dimensions
+- ``Tensor<T,N>`` works on all backends; ``TensorView<T>`` is CUDA-only
+- For new code, prefer SlangPy's native ``Tensor*`` types for better cross-platform support
+
 Summary
 -------
 
@@ -103,5 +216,6 @@ PyTorch integration with SlangPy is seamless and automatic. This example covered
 - Automatic detection of PyTorch tensors - no special module types required
 - Use of PyTorch's `.backward()` process to track an auto-grad graph and backpropagate gradients
 - Performance considerations when choosing between CUDA and graphics backends
+- TensorView compatibility for code migrating from slangtorch
 
 The CUDA backend is recommended for best performance, while graphics backends provide access to additional GPU features at the cost of some performance overhead.

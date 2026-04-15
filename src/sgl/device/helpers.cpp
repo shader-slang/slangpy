@@ -2,6 +2,7 @@
 
 #include "helpers.h"
 
+#include "sgl/device/device.h"
 #include "sgl/device/debug_logger.h"
 
 #include "sgl/core/config.h"
@@ -94,19 +95,20 @@ std::string build_slang_error_message(const char* call, SlangResult result)
     return fmt::format("{} failed with error: {} ({})\n", call, result, get_slang_result_name(result));
 }
 
-size_t get_slang_rhi_message_count()
+size_t get_slang_rhi_message_count(const Device* device)
 {
-    return DebugLogger::get().message_count();
+    return device->debug_logger()->message_count();
 }
 
 /// Called when a slang-rhi call fails.
-std::string build_slang_rhi_error_message(const char* call, rhi::Result result, size_t before_message_count)
+std::string
+build_slang_rhi_error_message(const Device* device, const char* call, rhi::Result result, size_t before_message_count)
 {
-    size_t after_message_count = get_slang_rhi_message_count();
+    size_t after_message_count = get_slang_rhi_message_count(device);
     auto msg = fmt::format("{} failed with error: {} ({})\n", call, result, get_slang_result_name(result));
     if (after_message_count > before_message_count) {
         msg += "\nRHI messages:\n";
-        msg += DebugLogger::get().get_messages(before_message_count, after_message_count);
+        msg += device->debug_logger()->get_messages(before_message_count, after_message_count);
     }
     if (static_cast<uint32_t>(result) >= 0x80000000U) {
         std::string graphics_errors = get_last_graphics_errors();

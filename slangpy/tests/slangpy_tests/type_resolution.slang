@@ -198,6 +198,20 @@ float [8][5] func_float_array2d_full(Array<Array<float,8>, 5> a)
 {
     return a;
 }
+
+// Arrays of vectors (concrete, generic type, fully generic)
+float2[4] func_float_vector_array(float2[4] a)
+{
+    return a;
+}
+vector<T,2>[4] func_generic_type_vector_array<T : __BuiltinFloatingPointType>(vector<T,2>[4] a)
+{
+    return a;
+}
+vector<T,N>[M] func_generic_vector_array<T : __BuiltinFloatingPointType, let N : int, let M : int>(vector<T,N>[M] a)
+{
+    return a;
+}
 T[8][5] func_generic_type_array2d<T>(T [8][5] a)
 {
     return a;
@@ -468,4 +482,41 @@ void func_float_out(out float a)
 func func_float_inout(inout float a)
 {
     a = a + 1.0;
+}
+
+void func_tensorview_float(TensorView<float> a)
+{
+    return;
+}
+void func_tensorview_int(TensorView<int> a)
+{
+    return;
+}
+void func_tensorview_half(TensorView<half> a)
+{
+    return;
+}
+void func_tensorview_generic<T>(TensorView<T> a)
+{
+    return;
+}
+void func_tensorview_float2(TensorView<float2> a)
+{
+    return;
+}
+void func_tensorview_float4(TensorView<float4> a)
+{
+    return;
+}
+void func_difftensorview_float(DiffTensorView<float> a)
+{
+    return;
+}
+void func_difftensorview_half(DiffTensorView<half> a)
+{
+    return;
+}
+void func_difftensorview_generic<T : __BuiltinFloatingPointType>(DiffTensorView<T> a)
+{
+    return;
 }

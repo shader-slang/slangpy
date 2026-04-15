@@ -5,6 +5,7 @@
 #include "sgl/core/macros.h"
 
 #include <cstdint>
+#include <functional>
 #include <limits>
 
 namespace sgl::math {
@@ -143,4 +144,15 @@ public:
     static constexpr bool tinyness_before = false;
     static constexpr float_round_style round_style = round_to_nearest;
 };
+
+// Add hash specializations
+template<>
+struct hash<sgl::math::float16_t> {
+    size_t operator()(const sgl::math::float16_t& v) const noexcept
+    {
+        // Hash the bits
+        return hash<uint16_t>()(v.toBits());
+    }
+};
+
 } // namespace std

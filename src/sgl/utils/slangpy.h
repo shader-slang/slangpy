@@ -7,6 +7,7 @@
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
 #include "sgl/device/fwd.h"
+#include "sgl/device/native_handle.h"
 
 #include <vector>
 #include <map>
@@ -42,15 +43,25 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(CallMode);
 
-enum class CallDataMode { global_data, entry_point };
+/// Access pattern for torch autograd tensor bindings.
+/// Precomputed at build time and stored in a flat list on NativeCallData,
+/// consumed in order during find_torch_tensors at dispatch time.
+enum class AutogradAccess {
+    none = 0,
+    read = 1,      // Tensor is an input (grad written to it in backward)
+    write = 2,     // Tensor is an output (grad read from it in backward)
+    readwrite = 3, // Error: in-place ops not supported for autograd
+};
 SGL_ENUM_INFO(
-    CallDataMode,
+    AutogradAccess,
     {
-        {CallDataMode::global_data, "global_data"},
-        {CallDataMode::entry_point, "entry_point"},
+        {AutogradAccess::none, "none"},
+        {AutogradAccess::read, "read"},
+        {AutogradAccess::write, "write"},
+        {AutogradAccess::readwrite, "readwrite"},
     }
 );
-SGL_ENUM_REGISTER(CallDataMode);
+SGL_ENUM_REGISTER(AutogradAccess);
 
 
 class SGL_API Shape {
@@ -100,6 +111,30 @@ public:
         }
         // For inline storage, values are also uninitialized
     }
+
+    /// Constructor that creates a Shape of a given size with all elements set to a value
+    Shape(size_t size, int fill_value)
+        : m_size(size)
+        , m_valid(true)
+        , m_uses_heap(size > INLINE_CAPACITY)
+    {
+        if (m_uses_heap) {
+            m_storage.heap_data = std::make_unique<int[]>(m_size);
+            for (size_t i = 0; i < m_size; ++i) {
+                m_storage.heap_data[i] = fill_value;
+            }
+        } else {
+            for (size_t i = 0; i < m_size; ++i) {
+                m_storage.inline_data[i] = fill_value;
+            }
+        }
+    }
+
+    /// Static helper to create a Shape filled with ones
+    static Shape ones(size_t size) { return Shape(size, 1); }
+
+    /// Static helper to create a Shape filled with zeros
+    static Shape zeros(size_t size) { return Shape(size, 0); }
 
     /// Constructor from initializer list
     Shape(std::initializer_list<int> shape)
@@ -263,6 +298,12 @@ public:
     /// Get size (i.e. number of dimensions) of shape.
     size_t size() const { return m_size; }
 
+    /// Iterator support for range-based for loops and algorithms
+    const int* begin() const { return data(); }
+    const int* end() const { return data() + m_size; }
+    int* begin() { return data(); }
+    int* end() { return data() + m_size; }
+
     /// Check if concrete shape (no dimensions are -1).
     bool concrete() const
     {
@@ -367,21 +408,29 @@ private:
 
 class SGL_API CallContext : Object {
 public:
-    CallContext(ref<Device> device, const Shape& call_shape, CallMode call_mode)
+    CallContext(ref<Device> device, CallMode call_mode)
         : m_device(std::move(device))
-        , m_call_shape(call_shape)
         , m_call_mode(call_mode)
     {
+    }
+
+    /// Initialize call shape and CUDA stream (called each dispatch).
+    void init(const Shape& call_shape, NativeHandle cuda_stream)
+    {
+        m_call_shape = call_shape;
+        m_cuda_stream = cuda_stream;
     }
 
     Device* device() const { return m_device.get(); }
     const Shape& call_shape() const { return m_call_shape; }
     CallMode call_mode() const { return m_call_mode; }
+    const NativeHandle& cuda_stream() const { return m_cuda_stream; }
 
 private:
     ref<Device> m_device;
     Shape m_call_shape;
     CallMode m_call_mode;
+    NativeHandle m_cuda_stream;
 };
 
 } // namespace sgl::slangpy
