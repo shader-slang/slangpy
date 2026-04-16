@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// Enable (and remove the define) after this issue has been addressed:
+// https://github.com/shader-slang/slang/issues/7431
+// Slang currently generates somewhat invalid code, and at the same time,
+// the tests fail in a weird fashion (u_struct_array[1:] are not set).
+#define ENABLE_PARAMBLOCK_TESTS !defined(__TARGET_VULKAN__)
+
 struct Test {
     bool f_bool;
     bool2 f_bool2;
@@ -17,6 +23,7 @@ struct Test {
     float2 f_float2;
     float3 f_float3;
     float4 f_float4;
+    float4x3 f_float4x3;
 
     bool f_bool_array[1];
     int f_int_array[2];
@@ -85,6 +92,11 @@ uniform float3x3 u_float3x3;
 uniform float2x4 u_float2x4;
 uniform float3x4 u_float3x4;
 uniform float4x4 u_float4x4;
+#if ENABLE_PARAMBLOCK_TESTS
+ParameterBlock<float4x4> pb_float4x4;
+ParameterBlock<float4x3> pb_float4x3;
+ParameterBlock<float3x4> pb_float3x4;
+#endif
 
 uniform float16_t u_float16_t;
 uniform float16_t u_float16_t_min;
@@ -108,11 +120,13 @@ uniform uint u_uint_array[4];
 uniform float u_float_array[4];
 
 uniform Test u_struct;
+#if ENABLE_PARAMBLOCK_TESTS
+ParameterBlock<Test> pb_struct;
+#endif
 uniform int u_int_array_2[4];
 uniform Test u_struct_array[4];
 
 Buffer<uint> u_buffer;
-
 
 RWStructuredBuffer<uint> results;
 
@@ -260,6 +274,11 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
     writer.write(u_float2x4);
     writer.write(u_float3x4);
     writer.write(u_float4x4);
+#if ENABLE_PARAMBLOCK_TESTS
+    writer.write(pb_float4x4);
+    writer.write(pb_float4x3);
+    writer.write(pb_float3x4);
+#endif
 
     writer.write(u_float16_t);
     writer.write(u_float16_t_min);
@@ -302,6 +321,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
     writer.write(u_struct.f_float2);
     writer.write(u_struct.f_float3);
     writer.write(u_struct.f_float4);
+    writer.write(u_struct.f_float4x3);
 
     for (uint i = 0; i < 1; ++i)
         writer.write(u_struct.f_bool_array[i]);
@@ -311,6 +331,35 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
         writer.write(u_struct.f_uint_array[i]);
     for (uint i = 0; i < 4; ++i)
         writer.write(u_struct.f_float_array[i]);
+
+#if ENABLE_PARAMBLOCK_TESTS
+    writer.write(pb_struct.f_bool);
+    writer.write(pb_struct.f_bool2);
+    writer.write(pb_struct.f_bool3);
+    writer.write(pb_struct.f_bool4);
+    writer.write(pb_struct.f_int);
+    writer.write(pb_struct.f_int2);
+    writer.write(pb_struct.f_int3);
+    writer.write(pb_struct.f_int4);
+    writer.write(pb_struct.f_uint);
+    writer.write(pb_struct.f_uint2);
+    writer.write(pb_struct.f_uint3);
+    writer.write(pb_struct.f_uint4);
+    writer.write(pb_struct.f_float);
+    writer.write(pb_struct.f_float2);
+    writer.write(pb_struct.f_float3);
+    writer.write(pb_struct.f_float4);
+    writer.write(pb_struct.f_float4x3);
+
+    for (uint i = 0; i < 1; ++i)
+        writer.write(pb_struct.f_bool_array[i]);
+    for (uint i = 0; i < 2; ++i)
+        writer.write(pb_struct.f_int_array[i]);
+    for (uint i = 0; i < 3; ++i)
+        writer.write(pb_struct.f_uint_array[i]);
+    for (uint i = 0; i < 4; ++i)
+        writer.write(pb_struct.f_float_array[i]);
+#endif
 
     for (uint i = 0; i < 4; ++i)
         writer.write(u_int_array_2[i]);
