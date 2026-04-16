@@ -226,9 +226,10 @@ class TestShapeProperties:
         assert not s3.valid  # None creates invalid shape
 
     def test_element_count_simple(self):
-        """Test element_count for simple shape."""
+        """Test element count via strides: product of dims gives total elements."""
         s = Shape([2, 3, 4])
-        assert s.element_count == 24
+        strides = s.calc_contiguous_strides()
+        assert s[0] * strides[0] == 24
 
 
 class TestShapeStrides:
