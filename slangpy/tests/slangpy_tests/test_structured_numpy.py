@@ -5,7 +5,7 @@ Tests for issue #636: Numpy arrays created with np.dtype can't be passed to slan
 
 Verifies that structured numpy arrays (with named fields) can be:
   - Created via Tensor.from_numpy with explicit target_slang_dtype
-  - Round-tripped (write → read → compare)
+  - Round-tripped (write -> read -> compare)
   - Rejected with clear errors when used incorrectly
 """
 
