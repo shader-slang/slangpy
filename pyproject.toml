@@ -63,6 +63,7 @@ ignore = [
     "./tools/download",
     "./src/sgl/device/tests/test_torch_interop.py",
     "./examples/torch_interop/torch_interop.py",
+    "./examples/imgui_bundle/imgui_bundle_offscreen.py",
     "./tools/msvc.py",
 ]
 pythonVersion = "3.9"
