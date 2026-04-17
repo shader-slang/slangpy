@@ -40,5 +40,6 @@ src/slangpy_torch/*.egg-info/
 src/slangpy_torch/build/
 
 __pycache__/
+pytest-cache-files*
 
 src/slangpy_torch/dist/
