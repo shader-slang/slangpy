@@ -721,6 +721,10 @@ class _TorchTensor:
         "int16_t": "int16",
         "int64_t": "int64",
         "uint8_t": "uint8",
+        "uint16_t": "uint16",
+        "uint": "uint32",
+        "uint32_t": "uint32",
+        "uint64_t": "uint64",
     }
 
     def __init__(self, base_type: str, dim: int):

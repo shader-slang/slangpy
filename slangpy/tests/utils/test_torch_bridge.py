@@ -134,6 +134,9 @@ class TestTorchTensorExtraction:
             (torch.int32, 4),
             (torch.int64, 8),
             (torch.uint8, 1),
+            (torch.uint16, 2),
+            (torch.uint32, 4),
+            (torch.uint64, 8),
             (torch.bool, 1),
         ]
 
@@ -364,6 +367,9 @@ class TestTorchBridgeCopy:
             torch.int32,
             torch.int64,
             torch.uint8,
+            torch.uint16,
+            torch.uint32,
+            torch.uint64,
         ],
     )
     @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -372,6 +378,8 @@ class TestTorchBridgeCopy:
         device = helpers.get_torch_device(device_type)
         if dtype.is_floating_point:
             src = torch.randn(16, dtype=dtype, device="cuda")
+        elif dtype in (torch.uint16, torch.uint32, torch.uint64):
+            src = torch.randint(0, 100, (16,), dtype=torch.int32, device="cuda").to(dtype)
         else:
             src = torch.randint(0, 100, (16,), dtype=dtype, device="cuda")
 

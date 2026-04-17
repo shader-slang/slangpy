@@ -36,9 +36,9 @@ TEST_DTYPES = [
     ("float", torch.float, np.float32, ()),
     ("double", torch.double, np.float64, ()),
     ("uint8_t", torch.uint8, np.uint8, ()),
-    ("uint16_t", None, np.uint16, ()),
-    ("uint32_t", None, np.uint32, ()),
-    ("uint64_t", None, np.uint64, ()),
+    ("uint16_t", torch.uint16, np.uint16, ()),
+    ("uint32_t", torch.uint32, np.uint32, ()),
+    ("uint64_t", torch.uint64, np.uint64, ()),
     ("int8_t", torch.int8, np.int8, ()),
     ("int16_t", torch.int16, np.int16, ()),
     ("int32_t", torch.int32, np.int32, ()),
@@ -113,6 +113,10 @@ def test_to_torch(
     rng = np.random.default_rng()
     if torch_dtype.is_floating_point:
         torch_ref = torch.randn(unravelled_shape, dtype=torch_dtype).cuda()
+    elif torch_dtype in (torch.uint16, torch.uint32, torch.uint64):
+        torch_ref = (
+            torch.randint(0, 2**31, unravelled_shape, dtype=torch.int32).cuda().to(torch_dtype)
+        )
     else:
         iinfo = torch.iinfo(torch_dtype)
         torch_ref = torch.randint(iinfo.min, iinfo.max, unravelled_shape, dtype=torch_dtype).cuda()

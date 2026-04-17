@@ -45,6 +45,9 @@ extern "C" {
 #define TENSOR_BRIDGE_SCALAR_COMPLEX128 10
 #define TENSOR_BRIDGE_SCALAR_BOOL 11
 #define TENSOR_BRIDGE_SCALAR_BFLOAT16 15
+#define TENSOR_BRIDGE_SCALAR_UINT16 27
+#define TENSOR_BRIDGE_SCALAR_UINT32 28
+#define TENSOR_BRIDGE_SCALAR_UINT64 29
 
 // ============================================================================
 // Result codes for tensor bridge API functions

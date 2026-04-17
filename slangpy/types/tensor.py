@@ -304,7 +304,11 @@ class Tensor(NativeTensor):
                 f"Last dimension size ({tensor.shape[-1]}) does not match "
                 f"the number of scalars per '{dtype.full_name}' element ({scalars_per_element})"
             )
-        if tensor.stride(-1) != 1:
+        # If each Slang element is just one scalar, the trailing dimension is a
+        # synthetic packing axis of extent 1. Its stride is irrelevant because no
+        # indexing ever steps within that axis. For vector/matrix/struct packing,
+        # the trailing storage axis must remain contiguous.
+        if scalars_per_element > 1 and tensor.stride(-1) != 1:
             raise ValueError("Last dimension of the tensor must be contiguous")
 
         contiguous = tensor.contiguous()
@@ -319,6 +323,7 @@ class Tensor(NativeTensor):
         from slangpy import copy_torch_tensor_to_buffer
 
         copy_torch_tensor_to_buffer(contiguous, buffer)
+        device.sync_to_cuda()
 
         outer_shape = tuple(contiguous.shape[:-1])
         return Tensor(buffer, dtype, outer_shape)

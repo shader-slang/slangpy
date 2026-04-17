@@ -93,6 +93,12 @@ void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
         output[i] = input[i];
 }
 
+void copy_uint_tensor(Tensor<uint, 2> input, RWTensor<uint, 2> output) {
+    for (uint i = 0; i < input.shape[0]; i++)
+        for (uint j = 0; j < input.shape[1]; j++)
+            output[i, j] = input[i, j];
+}
+
 struct PackedFloat2
 {
     float x;

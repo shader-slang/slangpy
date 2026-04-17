@@ -66,6 +66,9 @@ def setup_bridge_mode(torch_bridge_mode: str):
         (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5"),
         (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3"),
         (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0"),
+        (torch.empty((1,), dtype=torch.uint16).cuda(), "D1,S27"),
+        (torch.empty((1,), dtype=torch.uint32).cuda(), "D1,S28"),
+        (torch.empty((1,), dtype=torch.uint64).cuda(), "D1,S29"),
         (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0"),
     ],
 )
@@ -422,6 +425,73 @@ def test_struct_tensor_particle_update(device_type: DeviceType):
 
     result_floats = np.frombuffer(result_np.tobytes(), dtype=np.float32).reshape(N, 6)
     np.testing.assert_allclose(result_floats, expected, atol=1e-4)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_scalar_tensor_from_torch_accepts_singleton_last_dim(device_type: DeviceType):
+    """
+    Test Tensor.from_torch() accepts singleton trailing dimensions for scalar element types.
+    """
+    from slangpy import Tensor
+
+    device = helpers.get_torch_device(device_type)
+    module = load_test_module(device_type)
+
+    input_torch = (
+        torch.arange(12, dtype=torch.int32, device=torch.device("cuda"))
+        .to(torch.uint32)
+        .reshape(3, 4, 1)
+    )
+    output_torch = torch.zeros_like(input_torch)
+
+    input_tensor = Tensor.from_torch(device, input_torch, dtype=module.uint)
+    output_tensor = Tensor.from_torch(device, output_torch, dtype=module.uint)
+
+    module.copy_uint_tensor(input_tensor, output_tensor)
+
+    expected = input_torch.cpu().numpy().reshape(3, 4)
+    np.testing.assert_array_equal(output_tensor.to_numpy(), expected)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_tensor_from_torch_syncs_cuda_to_device(device_type: DeviceType):
+    """
+    Test Tensor.from_torch() makes CUDA writes visible to subsequent device reads.
+    """
+    from slangpy import Tensor
+
+    device = helpers.get_torch_device(device_type)
+    module = load_test_module(device_type)
+
+    input_torch = (
+        torch.arange(12, dtype=torch.int32, device=torch.device("cuda"))
+        .to(torch.uint32)
+        .reshape(3, 4, 1)
+    )
+
+    tensor = Tensor.from_torch(device, input_torch, dtype=module.uint)
+
+    expected = input_torch.cpu().numpy().reshape(3, 4)
+    np.testing.assert_array_equal(tensor.to_numpy(), expected)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_copy_uint_tensor(device_type: DeviceType):
+    """
+    Test raw torch.Tensor marshalling for uint tensors.
+    """
+    module = load_test_module(device_type)
+
+    input_torch = (
+        torch.arange(12, dtype=torch.int32, device=torch.device("cuda"))
+        .to(torch.uint32)
+        .reshape(3, 4)
+    )
+    output_torch = torch.zeros_like(input_torch)
+
+    module.copy_uint_tensor(input_torch, output_torch)
+
+    assert torch.equal(output_torch, input_torch)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)

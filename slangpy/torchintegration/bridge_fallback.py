@@ -28,6 +28,9 @@ _SCALAR_TYPE_MAP: Dict[torch.dtype, int] = {
     torch.complex128: 10,  # TENSOR_BRIDGE_SCALAR_COMPLEX128
     torch.bool: 11,  # TENSOR_BRIDGE_SCALAR_BOOL
     torch.bfloat16: 15,  # TENSOR_BRIDGE_SCALAR_BFLOAT16
+    torch.uint16: 27,  # TENSOR_BRIDGE_SCALAR_UINT16
+    torch.uint32: 28,  # TENSOR_BRIDGE_SCALAR_UINT32
+    torch.uint64: 29,  # TENSOR_BRIDGE_SCALAR_UINT64
 }
 _complex32 = getattr(torch, "complex32", None)
 if _complex32 is not None:
@@ -119,6 +122,9 @@ class _CudaBufferView:
     # Mapping from torch dtype to NumPy-style typestr used by __cuda_array_interface__.
     _TYPESTR: Dict[torch.dtype, str] = {
         torch.uint8: "|u1",
+        torch.uint16: "<u2",
+        torch.uint32: "<u4",
+        torch.uint64: "<u8",
         torch.int8: "|i1",
         torch.int16: "<i2",
         torch.int32: "<i4",
