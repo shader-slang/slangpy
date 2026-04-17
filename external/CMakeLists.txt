@@ -303,12 +303,12 @@ if(SGL_LOCAL_SLANG_RHI)
     add_subdirectory(${SGL_LOCAL_SLANG_RHI_DIR} ${CMAKE_BINARY_DIR}/external/slang-rhi)
     set(SLANG_RHI_SOURCE_PATH ${SGL_LOCAL_SLANG_RHI_DIR})
 elseif(SGL_EMSCRIPTEN)
-    # as emscripten slang-rhi is not yet merged into main repo
-    # we fetch it from a fork to build and test
+    # Emscripten uses upstream slang-rhi directly here because the checked-in
+    # submodule may still be pinned to an older commit.
     FetchContent_Declare(
         slang-rhi
-        GIT_REPOSITORY https://github.com/j8asic/slang-rhi.git
-        GIT_TAG emscripten
+        GIT_REPOSITORY https://github.com/shader-slang/slang-rhi.git
+        GIT_TAG main
         GIT_SHALLOW TRUE
     )
     FetchContent_MakeAvailable(slang-rhi)
