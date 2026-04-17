@@ -15,6 +15,7 @@
 
 struct ImGuiContext;
 struct ImFont;
+struct ImTextureData;
 
 namespace sgl::ui {
 
@@ -75,12 +76,14 @@ private:
     ref<Buffer> m_vertex_buffers[FRAME_COUNT];
     ref<Buffer> m_index_buffers[FRAME_COUNT];
     ref<ShaderProgram> m_program;
-    ref<Texture> m_font_texture;
     ref<InputLayout> m_input_layout;
 
     std::map<std::string, ImFont*> m_fonts;
+    std::map<ImTextureData*, ref<Texture>> m_textures;
 
     std::map<Format, ref<RenderPipeline>> m_pipelines;
+
+    void update_texture(ImTextureData* tex);
 };
 
 } // namespace sgl::ui

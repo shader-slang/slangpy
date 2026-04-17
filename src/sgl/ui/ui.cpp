@@ -255,8 +255,9 @@ Context::Context(ref<Device> device)
     ImGuiIO& io = ImGui::GetIO();
     io.UserData = this;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigNavCaptureKeyboard = false;
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
     io.IniFilename = nullptr;
+    io.ConfigNavCaptureKeyboard = false;
 
     float scale_factor = platform::display_scale_factor();
 
@@ -308,29 +309,6 @@ Context::Context(ref<Device> device)
     // Setup program.
     m_program = m_device->load_program("sgl/ui/imgui.slang", {"vs_main", "fs_main"});
 
-    // Setup font texture.
-    {
-        uint8_t* pixels;
-        int width;
-        int height;
-        io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-        SubresourceData data[1] = {{
-            .data = pixels,
-            .size = size_t(width * height * 4),
-            .row_pitch = size_t(width * 4),
-            .slice_pitch = size_t(width * height * 4),
-        }};
-        m_font_texture = m_device->create_texture({
-            .format = Format::rgba8_unorm,
-            .width = narrow_cast<uint32_t>(width),
-            .height = narrow_cast<uint32_t>(height),
-            .usage = TextureUsage::shader_resource,
-            .data = data,
-        });
-
-        io.Fonts->SetTexID(m_font_texture);
-    }
-
     // Setup vertex layout.
     m_input_layout = m_device->create_input_layout({
         .input_elements{
@@ -346,6 +324,14 @@ Context::Context(ref<Device> device)
 
 Context::~Context()
 {
+    ImGui::SetCurrentContext(m_imgui_context);
+    for (ImTextureData* tex : ImGui::GetPlatformIO().Textures) {
+        if (tex->Status != ImTextureStatus_Destroyed) {
+            tex->SetTexID(ImTextureID_Invalid);
+            tex->SetStatus(ImTextureStatus_Destroyed);
+        }
+    }
+    m_textures.clear();
     ImGui::DestroyContext(m_imgui_context);
 }
 
@@ -383,6 +369,12 @@ void Context::end_frame(TextureView* texture_view, CommandEncoder* command_encod
         return;
 
     ImDrawData* draw_data = ImGui::GetDrawData();
+
+    // Update textures.
+    if (draw_data->Textures != nullptr)
+        for (ImTextureData* tex : *draw_data->Textures)
+            if (tex->Status != ImTextureStatus_OK)
+                update_texture(tex);
 
     if (draw_data->CmdListsCount > 0) {
         // Cycle through vertex & index buffers.
@@ -571,6 +563,34 @@ RenderPipeline* Context::get_pipeline(Format format)
 
     m_pipelines.emplace(format, pipeline);
     return pipeline;
+}
+
+void Context::update_texture(ImTextureData* tex)
+{
+    if (tex->Status == ImTextureStatus_WantCreate || tex->Status == ImTextureStatus_WantUpdates) {
+        SGL_ASSERT(tex->Format == ImTextureFormat_RGBA32);
+        SubresourceData data[1] = {{
+            .data = tex->GetPixels(),
+            .size = size_t(tex->GetSizeInBytes()),
+            .row_pitch = size_t(tex->GetPitch()),
+            .slice_pitch = size_t(tex->GetSizeInBytes()),
+        }};
+        ref<Texture> gpu_texture = m_device->create_texture({
+            .format = Format::rgba8_unorm,
+            .width = narrow_cast<uint32_t>(tex->Width),
+            .height = narrow_cast<uint32_t>(tex->Height),
+            .usage = TextureUsage::shader_resource,
+            .data = data,
+        });
+        m_textures[tex] = gpu_texture;
+        tex->SetTexID(gpu_texture);
+        tex->SetStatus(ImTextureStatus_OK);
+    }
+    if (tex->Status == ImTextureStatus_WantDestroy && tex->UnusedFrames > 0) {
+        m_textures.erase(tex);
+        tex->SetTexID(ImTextureID_Invalid);
+        tex->SetStatus(ImTextureStatus_Destroyed);
+    }
 }
 
 } // namespace sgl::ui
