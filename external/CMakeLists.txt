@@ -247,7 +247,7 @@ endif()
 
 # imgui
 
-set(IMGUI_VERSION "1.90.1")
+set(IMGUI_VERSION "1.92.7-docking")
 sgl_download_package(imgui "https://github.com/ocornut/imgui/archive/refs/tags/v${IMGUI_VERSION}.zip")
 set(SGL_IMGUI_DIR ${imgui_SOURCE_DIR} PARENT_SCOPE)
 
