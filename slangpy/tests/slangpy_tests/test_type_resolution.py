@@ -1149,10 +1149,12 @@ TESTS = [
     ("func_float", _Texture(spy.TextureType.texture_1d, spy.Format.r32_float, False), "float", 2),
     ("func_genericfloat", _Texture(spy.TextureType.texture_1d, spy.Format.r32_float, False), "float", 2),
     ("func_float3", _Texture(spy.TextureType.texture_1d, spy.Format.rgb32_float, False), "vector<float,3>", 2),
+    ("func_float3", _Texture(spy.TextureType.texture_1d, spy.Format.rgba32_float, False), "vector<float,3>", 2),
     ("func_floatN_generic", _Texture(spy.TextureType.texture_1d, spy.Format.r32_float, False), "vector<float,1>", 2),
     ("func_floatN_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rg32_float, False), "vector<float,2>", 2),
     ("func_floatN_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgb32_float, False), "vector<float,3>", 2),
     ("func_vector3_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgb32_float, False), "vector<float,3>", 2),
+    ("func_vector3_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgba32_float, False), "vector<float,3>", 2),
     ("func_floatN_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgba32_float, False), "vector<float,4>", 2),
     ("func_vectorN_generic", _Texture(spy.TextureType.texture_1d, spy.Format.rgba32_float, False), "vector<float,4>", 2),
 

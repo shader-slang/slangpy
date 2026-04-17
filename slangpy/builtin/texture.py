@@ -82,6 +82,25 @@ def prefix(usage: TextureUsage):
     return "RW" if has_uav(usage) else ""
 
 
+def _vector4_to_vector3(marshall_type: refl.SlangType, target_type: refl.SlangType):
+    """
+    Allow a packed float4/int4 texture to service a float3/int3 per-pixel binding.
+
+    This is useful for APIs like D3D12 where rgb UAV texture formats are not
+    universally supported, so rgba storage is used for logically rgb data.
+    """
+    if not isinstance(marshall_type, refl.VectorType) or marshall_type.num_elements != 4:
+        return None
+    if not isinstance(target_type, refl.VectorType) or target_type.num_elements != 3:
+        return None
+    if (
+        isinstance(target_type.element_type, refl.ScalarType)
+        and marshall_type.slang_scalar_type != target_type.slang_scalar_type
+    ):
+        return None
+    return marshall_type.program.vector_type(marshall_type.slang_scalar_type, 3)
+
+
 class TextureMarshall(NativeTextureMarshall):
 
     def __init__(
@@ -165,6 +184,9 @@ class TextureMarshall(NativeTextureMarshall):
         as_vector = spyvec.vector_to_vector(self_element_type, bound_type)
         if as_vector is not None:
             return [as_vector]
+        as_vector3 = _vector4_to_vector3(self_element_type, bound_type)
+        if as_vector3 is not None:
+            return [as_vector3]
 
         # If texture element is 1D vector, support resolving to scalar type
         if isinstance(self_element_type, refl.VectorType) and self_element_type.num_elements == 1:

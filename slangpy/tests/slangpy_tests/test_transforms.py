@@ -3,7 +3,17 @@
 import pytest
 import numpy as np
 
-from slangpy import DeviceType, float3, Logger, LogLevel, float2x3, Module
+from slangpy import (
+    DeviceType,
+    Format,
+    Logger,
+    LogLevel,
+    Module,
+    TextureType,
+    TextureUsage,
+    float2x3,
+    float3,
+)
 from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 
@@ -172,6 +182,31 @@ def test_copy_data_vecindex_inputcontainer_input_transform(device_type: DeviceTy
             inn = inn_data[j, i]
             out = out_data[i, j]
             assert np.allclose(inn, out)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_copy_vectors_output_rgba_texture_accepts_float3_binding(device_type: DeviceType):
+    m = load_test_module(device_type)
+
+    inn = Tensor.empty(device=m.device, shape=(2, 3), dtype=float3)
+    out = m.device.create_texture(
+        type=TextureType.texture_2d,
+        format=Format.rgba32_float,
+        width=3,
+        height=2,
+        mip_count=1,
+        usage=TextureUsage.shader_resource | TextureUsage.unordered_access,
+    )
+
+    inn_data = np.random.rand(2, 3, 3).astype(np.float32)
+    helpers.write_tensor_from_numpy(inn, inn_data.flatten())
+
+    m.copy_vectors(inn, out)
+
+    out_data = out.to_numpy()
+    assert out_data.shape == (2, 3, 4)
+    np.testing.assert_allclose(out_data[..., :3], inn_data, atol=1e-6)
+    np.testing.assert_allclose(out_data[..., 3], 0.0, atol=1e-6)
 
 
 @pytest.mark.skip(reason="Can't get working on build machine atm")

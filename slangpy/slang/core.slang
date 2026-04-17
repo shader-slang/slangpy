@@ -378,6 +378,113 @@ public extension<T> RWTexture2DArrayType<vector<T, 1>> where vector<T, 1> : ITex
     public void __slangpy_store(Context3D context, in T value) { this.value[toidx(context)] = value; };
 }
 
+// Set of extensions to let packed 4-component textures service vector<T, 3> bindings.
+public extension<T> Texture1DType<vector<T, 4>> where vector<T, 4> : ITexelElement
+{
+    public void __slangpy_load(Context1D context, out vector<T, 3> value)
+    {
+        let texel = this.value[context.call_id_vec];
+        value = vector<T, 3>(texel[0], texel[1], texel[2]);
+    }
+    public void __slangpy_store(Context1D context, in vector<T, 3> value) {};
+}
+public extension<T> RWTexture1DType<vector<T, 4>> where vector<T, 4> : ITexelElement
+{
+    public void __slangpy_load(Context1D context, out vector<T, 3> value)
+    {
+        let texel = this.value[context.call_id_vec];
+        value = vector<T, 3>(texel[0], texel[1], texel[2]);
+    }
+    public void __slangpy_store(Context1D context, in vector<T, 3> value)
+    {
+        this.value[context.call_id_vec] = vector<T, 4>(value[0], value[1], value[2], T());
+    };
+}
+public extension<T> Texture2DType<vector<T, 4>> where vector<T, 4> : ITexelElement
+{
+    public void __slangpy_load(Context2D context, out vector<T, 3> value)
+    {
+        let texel = this.value[context.call_id_vec];
+        value = vector<T, 3>(texel[0], texel[1], texel[2]);
+    }
+    public void __slangpy_store(Context2D context, in vector<T, 3> value) {};
+}
+public extension<T> RWTexture2DType<vector<T, 4>> where vector<T, 4> : ITexelElement
+{
+    public void __slangpy_load(Context2D context, out vector<T, 3> value)
+    {
+        let texel = this.value[context.call_id_vec];
+        value = vector<T, 3>(texel[0], texel[1], texel[2]);
+    }
+    public void __slangpy_store(Context2D context, in vector<T, 3> value)
+    {
+        this.value[context.call_id_vec] = vector<T, 4>(value[0], value[1], value[2], T());
+    };
+}
+public extension<T> Texture1DArrayType<vector<T, 4>> where vector<T, 4> : ITexelElement
+{
+    public void __slangpy_load(Context2D context, out vector<T, 3> value)
+    {
+        let texel = this.value[toidx(context)];
+        value = vector<T, 3>(texel[0], texel[1], texel[2]);
+    }
+    public void __slangpy_store(Context2D context, in vector<T, 3> value) {};
+}
+public extension<T> RWTexture1DArrayType<vector<T, 4>> where vector<T, 4> : ITexelElement
+{
+    public void __slangpy_load(Context2D context, out vector<T, 3> value)
+    {
+        let texel = this.value[toidx(context)];
+        value = vector<T, 3>(texel[0], texel[1], texel[2]);
+    }
+    public void __slangpy_store(Context2D context, in vector<T, 3> value)
+    {
+        this.value[toidx(context)] = vector<T, 4>(value[0], value[1], value[2], T());
+    };
+}
+public extension<T> Texture3DType<vector<T, 4>> where vector<T, 4> : ITexelElement
+{
+    public void __slangpy_load(Context3D context, out vector<T, 3> value)
+    {
+        let texel = this.value[context.call_id_vec];
+        value = vector<T, 3>(texel[0], texel[1], texel[2]);
+    }
+    public void __slangpy_store(Context3D context, in vector<T, 3> value) {};
+}
+public extension<T> RWTexture3DType<vector<T, 4>> where vector<T, 4> : ITexelElement
+{
+    public void __slangpy_load(Context3D context, out vector<T, 3> value)
+    {
+        let texel = this.value[context.call_id_vec];
+        value = vector<T, 3>(texel[0], texel[1], texel[2]);
+    }
+    public void __slangpy_store(Context3D context, in vector<T, 3> value)
+    {
+        this.value[context.call_id_vec] = vector<T, 4>(value[0], value[1], value[2], T());
+    };
+}
+public extension<T> Texture2DArrayType<vector<T, 4>> where vector<T, 4> : ITexelElement
+{
+    public void __slangpy_load(Context3D context, out vector<T, 3> value)
+    {
+        let texel = this.value[toidx(context)];
+        value = vector<T, 3>(texel[0], texel[1], texel[2]);
+    }
+    public void __slangpy_store(Context3D context, in vector<T, 3> value) {};
+}
+public extension<T> RWTexture2DArrayType<vector<T, 4>> where vector<T, 4> : ITexelElement
+{
+    public void __slangpy_load(Context3D context, out vector<T, 3> value)
+    {
+        let texel = this.value[toidx(context)];
+        value = vector<T, 3>(texel[0], texel[1], texel[2]);
+    }
+    public void __slangpy_store(Context3D context, in vector<T, 3> value)
+    {
+        this.value[toidx(context)] = vector<T, 4>(value[0], value[1], value[2], T());
+    };
+}
+
 public struct RaytracingAccelerationStructureType
 {
     RaytracingAccelerationStructure value;
