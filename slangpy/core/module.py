@@ -55,21 +55,23 @@ class Module:
         super().__init__()
         _register_hot_reload_hook(device_module.session.device)
         assert isinstance(device_module, SlangModule)
-        self.device_module = device_module
         self.options = options
 
-        #: The slangpy device module.
+        # Normalize link list to SlangModule instances
+        link_slang_modules = [x.module if isinstance(x, Module) else x for x in link]
+
+        # Load slangpy module
         self.slangpy_device_module = device_module.session.load_module("slangpy")
 
-        # Extract linked modules, dict.fromkeys is used to remove duplicates while preserving order.
-        self.link = list(dict.fromkeys([x.module if isinstance(x, Module) else x for x in link]))
+        # Always compose the module with slangpy and any links
+        all_modules = [self.slangpy_device_module, device_module] + link_slang_modules
+        composed = device_module.session.compose_modules(device_module.name, all_modules)
+        self.device_module = composed
+        self.layout = SlangProgramLayout(composed.layout)
 
-        #: Reflection / layout information for the module.
-        # Link the user- and device module together so we can reflect combined types
-        # This should be solved by the combined object API in the future
-        module_list = [self.slangpy_device_module, self.device_module] + self.link
-        combined_program = device_module.session.link_program(module_list, [])
-        self.layout = SlangProgramLayout(combined_program.layout)
+        # Store link modules (excluding slangpy)
+        # TODO: We should remove this, but some applications currently still rely on this.
+        self.link = list(dict.fromkeys(link_slang_modules))
 
         self.call_data_cache = CallDataCache()
         self.dispatch_data_cache: dict[str, "DispatchData"] = {}
@@ -78,6 +80,7 @@ class Module:
         self.logger: Optional[Logger] = None
 
         self._attr_cache: dict[str, Union[Function, Struct]] = {}
+        self._all_functions: weakref.WeakSet[Function] = weakref.WeakSet()
 
         LOADED_MODULES[self.device_module.name] = self
 
@@ -174,6 +177,7 @@ class Module:
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
             res = Function(module=self, func=slang_function, struct=None, options=self.options)
+            self._all_functions.add(res)
             return res
 
     def require_function(self, name: str):
@@ -203,13 +207,15 @@ class Module:
         """
         Called by device when the module is hot reloaded.
         """
-        # Relink combined program
-        module_list = [self.slangpy_device_module, self.device_module] + self.link
-        combined_program = self.device_module.session.link_program(module_list, [])
-        self.layout.on_hot_reload(combined_program.layout)
+        # C++ side handles reload for composed modules; layout returns fresh combined layout.
+        self.layout.on_hot_reload(self.device_module.layout)
+
+        # Create new cache and update all tracked Function objects
+        self.call_data_cache = CallDataCache()
+        for func in self._all_functions:
+            func._native_cache = self.call_data_cache
 
         # Clear all caches
-        self.call_data_cache = CallDataCache()
         self.dispatch_data_cache = {}
         self.pipeline_cache = {}
         self.shader_table_cache = {}
@@ -229,6 +235,7 @@ class Module:
         slang_function = self.layout.find_function_by_name(name)
         if slang_function is not None:
             res = Function(module=self, func=slang_function, struct=None, options=self.options)
+            self._all_functions.add(res)
             self._attr_cache[name] = res
             return res
 

@@ -66,6 +66,12 @@ endif()
 
 if(NOT SGL_EMSCRIPTEN)
     set(NANOTHREAD_STATIC ON)
+    # Override nanothread's default -march=native on Linux aarch64 to avoid assembler
+    # errors when building under QEMU emulation (the host CPU may report extensions
+    # that the container's toolchain doesn't support).
+    if(SGL_LINUX AND SGL_ARCHITECTURE MATCHES "aarch64|arm64")
+        set(NANOTHREAD_NATIVE_FLAGS "-march=armv8-a" CACHE STRING "" FORCE)
+    endif()
     add_subdirectory(nanothread)
     # Disable LTO for nanothread as this causes problems when linking with sgl.
     set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
@@ -88,7 +94,7 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SGL_SLANG_VERSION "2026.2.1" CACHE STRING "Slang version to download when not using a local build")
+set(SGL_SLANG_VERSION "2026.5.2" CACHE STRING "Slang version to download when not using a local build")
 
 set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SGL_SLANG_VERSION}/slang-${SGL_SLANG_VERSION}")
 

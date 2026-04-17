@@ -4,6 +4,7 @@
 from typing import Any, Optional
 from slangpy import DataType, BufferUsage, TypeReflection
 import torch
+import torch.nn
 
 from slangpy.core.native import (
     CallContext,
@@ -39,6 +40,7 @@ _torch_to_scalar_type = {
     torch.float16: ST.float16,
     torch.float32: ST.float32,
     torch.float64: ST.float64,
+    torch.bool: ST.bool,
 }
 _scalar_type_to_torch = {y: x for x, y in _torch_to_scalar_type.items()}
 _torch_to_data_type = {
@@ -50,6 +52,7 @@ _torch_to_data_type = {
     torch.float16: DataType.float16,
     torch.float32: DataType.float32,
     torch.float64: DataType.float64,
+    torch.bool: DataType.bool,
 }
 
 
@@ -113,7 +116,10 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
         full_dims = dims + len(slang_dtype.shape)
 
         # Determine writability and tensor type
-        writable = True  # Torch tensors are always potentially writable
+        # Note: writable=True here signals that the tensor CAN be written to.
+        # Actual copy-back decisions are made in C++ (ensure_binding_info_cached)
+        # based on the Slang parameter's type and access mode.
+        writable = True
         has_derivatives = d_in is not None or d_out is not None
 
         # Get the slang tensor type
@@ -204,19 +210,22 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
         """Resolve dimensionality during vectorization."""
         return spytc.resolve_dimensionality(self, context, binding, vector_target_type)
 
+    def can_direct_bind(self, binding: BoundVariable) -> bool:
+        return spytc.can_direct_bind(self, binding)
+
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         """Generate call data code for the kernel."""
         return spytc.gen_calldata(self, cgb, context, binding)
 
     def gen_trampoline_load(
-        self, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: BoundVariable, data_name: str, value_name: str
     ) -> bool:
-        return spytc.gen_trampoline_load(self, cgb, binding, is_entry_point)
+        return spytc.gen_trampoline_load(self, cgb, binding, data_name, value_name)
 
     def gen_trampoline_store(
-        self, cgb: CodeGenBlock, binding: BoundVariable, is_entry_point: bool
+        self, cgb: CodeGenBlock, binding: BoundVariable, data_name: str, value_name: str
     ) -> bool:
-        return spytc.gen_trampoline_store(self, cgb, binding, is_entry_point)
+        return spytc.gen_trampoline_store(self, cgb, binding, data_name, value_name)
 
     def build_shader_object(self, context: BindContext, data: torch.Tensor) -> ShaderObject:
         """Build shader object for dispatch."""
@@ -332,6 +341,10 @@ def hash_torch_diff_pair(value: Any) -> str:
 # Register torch.Tensor handlers
 PYTHON_TYPES[torch.Tensor] = create_torch_tensor_marshall
 PYTHON_SIGNATURES[torch.Tensor] = hash_torch_tensor
+
+# Register torch.nn.parameter.Parameter (subclass of torch.Tensor) with same handlers
+PYTHON_TYPES[torch.nn.parameter.Parameter] = create_torch_tensor_marshall
+PYTHON_SIGNATURES[torch.nn.parameter.Parameter] = hash_torch_tensor
 
 # Register NativeTorchTensorDiffPair handlers (uses same factory as torch.Tensor)
 PYTHON_TYPES[NativeTorchTensorDiffPair] = create_torch_tensor_marshall

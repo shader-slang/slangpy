@@ -84,9 +84,8 @@ class WangHashArgMarshall(Marshall):
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
         access = binding.access
-        name = binding.variable_name
         if access[0] == AccessType.read:
-            cgb.type_alias(f"_t_{name}", self.slang_type.full_name)
+            binding.gen_calldata_type_name(cgb, self.slang_type.full_name)
 
     def create_calldata(
         self, context: CallContext, binding: BoundVariableRuntime, data: WangHashArg

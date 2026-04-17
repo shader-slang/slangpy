@@ -5,6 +5,8 @@
 #include "sgl/math/scalar_types.h"
 #include "sgl/core/error.h"
 
+#include <compare>
+
 namespace sgl::math {
 
 // ----------------------------------------------------------------------------
@@ -17,6 +19,9 @@ namespace sgl::math {
  * The semantics are aligned with Slang:
  * - Math operators are element-wise (e.g. +, -, *, /)
  * - Free standing functions for vector operations (e.g. dot(), cross(), etc.)
+ *
+ * Exception: Comparison operators (==, !=, <, etc.) return a single bool for
+ * STL compatibility. Use eq(), ne(), etc. for component-wise comparisons.
  *
  * \tparam T Scalar type
  * \tparam N Number of elements (1-4)
@@ -286,6 +291,28 @@ struct vector<T, 4> {
 
 #include "vector_swizzle_4.inl"
 };
+
+/// Equality operator.
+template<typename T, int N>
+[[nodiscard]] constexpr bool operator==(const vector<T, N>& lhs, const vector<T, N>& rhs)
+{
+    for (int i = 0; i < N; ++i)
+        if (lhs[i] != rhs[i])
+            return false;
+    return true;
+}
+
+/// Lexicographic three-way operator.
+template<arithmetic T, int N>
+[[nodiscard]] constexpr auto operator<=>(const vector<T, N>& lhs, const vector<T, N>& rhs)
+{
+    for (int i = 0; i < N - 1; ++i) {
+        auto cmp = lhs[i] <=> rhs[i];
+        if (cmp != 0)
+            return cmp;
+    }
+    return lhs[N - 1] <=> rhs[N - 1];
+}
 
 using bool1 = vector<bool, 1>;
 using bool2 = vector<bool, 2>;

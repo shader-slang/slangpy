@@ -22,6 +22,7 @@ SGL_PY_DECLARE(core_input);
 SGL_PY_DECLARE(core_logger);
 SGL_PY_DECLARE(core_object);
 SGL_PY_DECLARE(core_platform);
+SGL_PY_DECLARE(core_rfilter);
 SGL_PY_DECLARE(core_thread);
 SGL_PY_DECLARE(core_timer);
 SGL_PY_DECLARE(core_window);
@@ -116,6 +117,7 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(core_timer);
     SGL_PY_IMPORT(core_window);
     SGL_PY_IMPORT(core_data_struct);
+    SGL_PY_IMPORT(core_rfilter);
     SGL_PY_IMPORT(core_bitmap);
     SGL_PY_IMPORT(core_crypto);
     SGL_PY_IMPORT(core_data_type);

@@ -61,6 +61,11 @@ void memset_device(void* dst, uint8_t value, size_t count)
     SGL_CU_CHECK(cuMemsetD8(reinterpret_cast<CUdeviceptr>(dst), value, count));
 }
 
+void memset_device_async(void* dst, uint8_t value, size_t count, CUstream stream)
+{
+    SGL_CU_CHECK(cuMemsetD8Async(reinterpret_cast<CUdeviceptr>(dst), value, count, stream));
+}
+
 CUexternalMemory import_external_memory(const Buffer* buffer)
 {
     SGL_CU_SCOPE(buffer->device());
@@ -170,6 +175,8 @@ void wait_external_semaphore(CUexternalSemaphore ext_sem, uint64_t value, CUstre
 
 inline int find_device_by_luid(int device_count, const AdapterLUID& luid)
 {
+    SGL_UNUSED(luid);
+
     for (int i = 0; i < device_count; ++i) {
         CUdevice device;
         SGL_CU_CHECK(cuDeviceGet(&device, i));
@@ -330,6 +337,14 @@ ExternalMemory::ExternalMemory(const Buffer* buffer)
 
 ExternalMemory::~ExternalMemory()
 {
+    // The mapped device pointer returned by cuExternalMemoryGetMappedBuffer must be
+    // freed with cuMemFree before destroying the external memory, otherwise the CUDA
+    // driver keeps the underlying allocation alive and we leak ~64KB+ per buffer.
+    if (m_mapped_data) {
+        SGL_CU_SCOPE(m_resource->device());
+        SGL_CU_CHECK(cuMemFree(reinterpret_cast<CUdeviceptr>(m_mapped_data)));
+        m_mapped_data = nullptr;
+    }
     destroy_external_memory(m_external_memory);
 }
 
@@ -372,7 +387,7 @@ ContextScope::ContextScope(const sgl::Device* device)
         // If this is a CUDA device, set it's context.
         // TODO: We could cache the CUcontext instead of fetching it each time!
         rhi::DeviceNativeHandles handles;
-        SLANG_RHI_CALL(device->rhi_device()->getNativeDeviceHandles(&handles));
+        SLANG_RHI_CALL(device->rhi_device()->getNativeDeviceHandles(&handles), device);
         SGL_ASSERT(handles.handles[2].type == rhi::NativeHandleType::CUcontext);
         SGL_CU_CHECK(cuCtxPushCurrent(reinterpret_cast<CUcontext>(handles.handles[2].value)));
     } else {

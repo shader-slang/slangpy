@@ -58,7 +58,7 @@ enum class KeyModifierFlags : uint32_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(KeyModifierFlags);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     KeyModifierFlags,
     {
         {KeyModifierFlags::none, "none"},

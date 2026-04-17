@@ -83,6 +83,22 @@ implementing slangpy;
             this.store(idx, value[i]);                                                                                 \
         }                                                                                                              \
     }                                                                                                                  \
+    public void __slangpy_store<let M : int, let N : int>(ContextND<D - 2> context, in vector<T, N>[M] value)          \
+    {                                                                                                                  \
+        int idx[D];                                                                                                    \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < D - 2; ++i)                                                                                \
+            idx[i] = context.call_id[i];                                                                               \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < M; i++) {                                                                                  \
+            [ForceUnroll]                                                                                              \
+            for (int j = 0; j < N; j++) {                                                                              \
+                idx[D - 2] = i;                                                                                        \
+                idx[D - 1] = j;                                                                                        \
+                this.store(idx, value[i][j]);                                                                          \
+            }                                                                                                          \
+        }                                                                                                              \
+    }                                                                                                                  \
     public void __slangpy_store<let M : int, let N : int>(ContextND<D - 2> context, in T value[M][N])                  \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -145,6 +161,22 @@ implementing slangpy;
             value[i] = this.load(idx);                                                                                 \
         }                                                                                                              \
     }                                                                                                                  \
+    public void __slangpy_load<let M : int, let N : int>(ContextND<D - 2> context, out vector<T, N>[M] value)          \
+    {                                                                                                                  \
+        int idx[D];                                                                                                    \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < D - 2; ++i)                                                                                \
+            idx[i] = context.call_id[i];                                                                               \
+        [ForceUnroll]                                                                                                  \
+        for (int i = 0; i < M; i++) {                                                                                  \
+            [ForceUnroll]                                                                                              \
+            for (int j = 0; j < N; j++) {                                                                              \
+                idx[D - 2] = i;                                                                                        \
+                idx[D - 1] = j;                                                                                        \
+                value[i][j] = this.load(idx);                                                                          \
+            }                                                                                                          \
+        }                                                                                                              \
+    }                                                                                                                  \
     public void __slangpy_load<let M : int, let N : int>(ContextND<D - 2> context, out T value[M][N])                  \
     {                                                                                                                  \
         int idx[D];                                                                                                    \
@@ -199,11 +231,11 @@ public struct PrimalTensor<T: IDifferentiable, let D : int> : IDiffTensor<T, D> 
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
-        get { return load(indices); }
+        [Differentiable] get { return load(indices); }
     }
     public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
-        get { return load(indices); }
+        [Differentiable] get { return load(indices); }
     }
 
     public void __slangpy_load(Context0D context, out This value)
@@ -240,11 +272,11 @@ public struct WPrimalTensor<T : IDifferentiable, let D : int> : IWDiffTensor<T, 
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
-        set { return store(indices, newValue); }
+        [Differentiable] set { return store(indices, newValue); }
     }
     public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
-        set { return store(indices, newValue); }
+        [Differentiable] set { return store(indices, newValue); }
     }
 
     public void __slangpy_load(Context0D context, out This value)
@@ -286,13 +318,13 @@ public struct RWPrimalTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T
 
     public __subscript<I : __BuiltinIntegerType>(I indices[D])->T
     {
-        get { return load(indices); }
-        set { return store(indices, newValue); }
+        [Differentiable] get { return load(indices); }
+        [Differentiable] set { return store(indices, newValue); }
     }
     public __subscript<I : __BuiltinIntegerType>(vector<I, D> indices)->T
     {
-        get { return load(indices); }
-        set { return store(indices, newValue); }
+        [Differentiable] get { return load(indices); }
+        [Differentiable] set { return store(indices, newValue); }
     }
 
     public void __slangpy_load(Context0D context, out This value)

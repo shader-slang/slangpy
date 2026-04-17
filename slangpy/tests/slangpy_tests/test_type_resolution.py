@@ -34,7 +34,6 @@ def build_test_data(module: spy.Module, call_mode: spyn.CallMode, *args: Any, **
         {
             "strict_broadcasting": False,
         },
-        spyn.CallDataMode.global_data,
     )
 
     return context, spy.bindings.BoundCall(context, *unpacked_args, **unpacked_kwargs)
@@ -1002,6 +1001,24 @@ TESTS = [
     ("func_generic_size_array2d_C", _Tensor("float[8]",1,True), None, None),
     ("func_generic_size_array2d_RC", _Tensor("float[8]",1,True), None, None),
 
+    # Concrete arrays of vectors
+    ("func_float_vector_array", [[1,2],[3,4],[5,6],[7,8]], "vector<float,2>[4]", 3),
+    ("func_float_vector_array", _Tensor("vector<float,2>[4]",1,False), "vector<float,2>[4]", 3),
+    ("func_float_vector_array", _Tensor("float",1,True), "vector<float,2>[4]", 3),
+    ("func_float_vector_array", [[1,2,3],[4,5,6],[7,8,9],[10,11,12]], None, None),
+    ("func_float_vector_array", [[1,2],[3,4],[5,6]], None, None),
+
+    # Generic type vector arrays (T generic, sizes concrete)
+    ("func_generic_type_vector_array", [[1.0,2.0],[3.0,4.0],[5.0,6.0],[7.0,8.0]], "vector<float,2>[4]", 3),
+    ("func_generic_type_vector_array", _Tensor("vector<float,2>[4]",1,False), "vector<float,2>[4]", 3),
+    ("func_generic_type_vector_array", _Tensor("float",1,True), "vector<float,2>[4]", 3),
+    ("func_generic_type_vector_array", [[1.0,2.0,3.0],[4.0,5.0,6.0],[7.0,8.0,9.0],[10.0,11.0,12.0]], None, None),
+
+    # Fully generic vector arrays (T, N, M all generic)
+    ("func_generic_vector_array", [[1.0,2.0],[3.0,4.0],[5.0,6.0],[7.0,8.0]], "vector<float,2>[4]", 3),
+    ("func_generic_vector_array", _Tensor("vector<float,2>[4]",1,False), "vector<float,2>[4]", 3),
+    ("func_generic_vector_array", [[1.0,2.0,3.0],[4.0,5.0,6.0]], "vector<float,3>[2]", 3),
+
     # standard structured buffer of known element type
     ("func_float_structuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), "StructuredBuffer<float,DefaultDataLayout>", 1),
     ("func_float_rwstructuredbuffer", _Buffer(element_count=16, struct_size=4, rw=False), None, None),
@@ -1100,19 +1117,19 @@ TESTS = [
     ("func_irwdifftensor", _Tensor("int", 2, False), None, None),
     ("func_irwdifftensor", _Tensor("int", 2, True), None, None),
 
-    # Diff tensors require grads so these should all fail
-    ("func_DiffTensor", _Tensor("float", 2, False), None, None),
-    ("func_DiffTensor", _Tensor("float", 2, True), None, None),
+    # Diff tensors have grads but we are allowing them to be null during primal pass
+    ("func_DiffTensor", _Tensor("float", 2, False), "DiffTensor<float,2>", 2),
+    ("func_DiffTensor", _Tensor("float", 2, True), "DiffTensor<float,2>", 2),
     ("func_WDiffTensor", _Tensor("float", 2, False), None, None),
-    ("func_WDiffTensor", _Tensor("float", 2, True), None, None),
+    ("func_WDiffTensor", _Tensor("float", 2, True), "WDiffTensor<float,2>", 2),
     ("func_rwdifftensor", _Tensor("float", 2, False), None, None),
-    ("func_rwdifftensor", _Tensor("float", 2, True), None, None),
+    ("func_rwdifftensor", _Tensor("float", 2, True), "RWDiffTensor<float,2>", 2),
 
-    # Diff tensors with the wrong grads should also fail!
-    ("func_DiffTensor", _Tensor("float", 2, True, True, False), None, None),
-    ("func_WDiffTensor", _Tensor("float", 2, True, False, True), None, None),
-    ("func_rwdifftensor", _Tensor("float", 2, True, False, True), None, None),
-    ("func_rwdifftensor", _Tensor("float", 2, True, True, False), None, None),
+    # For same reason, having the wrong grads is still valid (it just means they'll get null grads)
+    ("func_DiffTensor", _Tensor("float", 2, True, True, False), "DiffTensor<float,2>", 2),
+    ("func_WDiffTensor", _Tensor("float", 2, True, False, True), "WDiffTensor<float,2>", 2),
+    ("func_rwdifftensor", _Tensor("float", 2, True, False, True), "RWDiffTensor<float,2>", 2),
+    ("func_rwdifftensor", _Tensor("float", 2, True, True, False), "RWDiffTensor<float,2>", 2),
 
     # Diff tensors with the correct grads should also pass!
     ("func_DiffTensor", _Tensor("float", 2, True, False, True), "DiffTensor<float,2>", 2),
@@ -1231,6 +1248,13 @@ TESTS = [
     # Normal slangpy Tensor with generic TensorView<T>
     ("func_tensorview_generic", _Tensor("float", 1, True), "TensorView<float>", 1),
     ("func_tensorview_generic", _Tensor("int", 2, True), "TensorView<int>", 2),
+
+    # TensorView<float2> / <float4>: scalar float tensor should resolve to vector TensorView
+    ("func_tensorview_float2", _TorchTensor("float", 2), "TensorView<float2>", 1),
+    ("func_tensorview_float4", _TorchTensor("float", 2), "TensorView<float4>", 1),
+    # Non-float scalar should not resolve to TensorView<float2/float4>
+    ("func_tensorview_float2", _TorchTensor("int", 2), None, None),
+    ("func_tensorview_float4", _TorchTensor("int", 2), None, None),
 
     # DiffTensorView type resolution tests (CUDA-only, requires PyTorch)
     # NativeTorchTensorDiffPair should resolve to DiffTensorView<T>

@@ -60,6 +60,59 @@ This eliminates common, error-prone tasks:
 This capability is a core feature of modern numerical computing libraries like SlangPy, NumPy, and PyTorch, allowing you to focus on the logic of your function rather than the low-level details of GPU kernel management.
 For example, to add two buffers element-wise, you simply call the function with the buffers as arguments, and SlangPy handles the rest. This also extends to more complex scenarios, like adding a scalar value to every element of a multi-dimensional tensor, significantly reducing the chances of bugs and amount of boilerplate.
 
+Explicit Thread Count
+---------------------
+
+Automatic vectorization infers the number of GPU threads from the shapes of the input arguments. However, there are cases where you want direct control over thread dispatch, for example, when writing a ``[CUDAKernel]`` function that manages its own indexing using ``cudaThreadIdx()`` rather than relying on SlangPy's vectorization.
+For these kernels, SlangPy cannot infer a thread count from the inputs (since none of the arguments are being vectorized over). You can specify it explicitly using the special ``_thread_count`` keyword argument:
+
+.. code-block::
+
+    // example.slang
+
+    // A kernel that squares each element, managing its own thread index.
+    [CUDAKernel]
+    [Differentiable]
+    void square_kernel(uint count, DiffTensorView<float> input, DiffTensorView<float> output)
+    {
+        uint tid = cudaBlockIdx().x * cudaBlockDim().x + cudaThreadIdx().x;
+        if (tid >= count)
+            return;
+        float x = input.load(tid);
+        output.store(tid, x * x);
+    }
+
+.. code-block:: python
+
+    ## main_cuda_kernel.py
+
+    # ... initialization here ...
+
+    import torch
+
+    N = 5
+    x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device="cuda")
+    output = torch.zeros(N, device="cuda")
+
+    # Dispatch exactly N threads — SlangPy cannot infer this from the inputs alone
+    module.square_kernel(count=N, input=x, output=output, _thread_count=N)
+
+``_thread_count`` is a special keyword (like ``_result``) consumed by SlangPy and never forwarded to the kernel itself. It is only valid when no arguments trigger automatic vectorization (i.e. call dimensionality is 0). Passing ``_thread_count`` alongside vectorized inputs will raise a ``ValueError``.
+
+Differentiable ``[CUDAKernel]`` functions work the same way — pass ``_thread_count`` to the ``.bwds()`` call as well:
+
+.. code-block:: python
+
+    x_grad = torch.zeros(N, device="cuda")
+    output_grad = torch.ones(N, device="cuda")
+
+    module.square_kernel.bwds(
+        count=N,
+        input=diff_pair(x, x_grad),
+        output=diff_pair(output, output_grad),
+        _thread_count=N,
+    )
+
 A simple example
 -----------------
 

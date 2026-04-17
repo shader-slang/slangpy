@@ -15,11 +15,10 @@ env:
   CIBW_BUILD_VERBOSITY: 1
   CIBW_SKIP: "*-musllinux*"
   CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_34
-  CIBW_ARCHS_WINDOWS: auto64
-  CIBW_ARCHS_LINUX: auto64
+  CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_34
   CIBW_TEST_COMMAND: "python -c \"import slangpy\""
   # zip required for vcpkg, rest for glfw
-  CIBW_BEFORE_ALL_LINUX: yum install -y zip wayland-devel libxkbcommon-devel libXcursor-devel libXi-devel libXinerama-devel libXrandr-devel
+  CIBW_BEFORE_ALL_LINUX: yum install -y zip wayland-devel libxkbcommon-devel libXcursor-devel libXi-devel libXinerama-devel libXrandr-devel ninja-build perl-IPC-Cmd kernel-headers perl-FindBin perl-Time-Piece perl-lib clang
   # make sure slangpy wheel is build with testing data + corrected project directory
   CIBW_ENVIRONMENT: BUILD_RELEASE_WHEEL=1
   MACOSX_DEPLOYMENT_TARGET: 14.0
@@ -45,7 +44,8 @@ jobs:
         include:
           # Specify runners
           - { os: windows, runs-on: [windows-latest] }
-          - { os: linux, runs-on: [ubuntu-latest] }
+          - { os: linux, platform: x86_64, runs-on: [ubuntu-latest] }
+          - { os: linux, platform: aarch64, runs-on: [ubuntu-24.04-arm] }
           - { os: macos, runs-on: [macos-latest] }
 
     steps:
@@ -58,6 +58,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Set CIBW_ARCHS
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "macos" ]; then
+            echo "CIBW_ARCHS=arm64" >> $GITHUB_ENV
+          elif [ "${{ matrix.os }}" = "windows" ]; then
+            echo "CIBW_ARCHS=AMD64" >> $GITHUB_ENV
+          else
+            echo "CIBW_ARCHS=${{ matrix.platform }}" >> $GITHUB_ENV
+          fi
 
       # Install cibuildwheel.
       - name: Install cibuildwheel

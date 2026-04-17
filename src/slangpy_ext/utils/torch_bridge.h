@@ -110,10 +110,12 @@ public:
                 if (m_api->api_version != TENSOR_BRIDGE_API_VERSION
                     || m_api->info_struct_size != sizeof(TensorBridgeInfo)) {
                     m_api = nullptr;
+                    m_fallback_reason = "incompatible";
                 }
             } catch (...) {
                 // slangpy_torch not available, will use Python fallback lazily
                 m_api = nullptr;
+                m_fallback_reason = "missing";
             }
 
             // Note: Python fallback is now initialized lazily on first use,
@@ -142,6 +144,9 @@ public:
     /// Check if using Python fallback mode.
     /// @return True if using Python fallback instead of native API.
     bool is_using_fallback() const { return m_force_python_fallback || (m_api == nullptr && m_torch_available); }
+
+    /// Why the native bridge is not available: "missing", "incompatible", or "" (available/forced).
+    const std::string& fallback_reason() const { return m_fallback_reason; }
 
     /// Force use of Python fallback even if native is available.
     /// @param force If true, force Python fallback mode.
@@ -616,6 +621,7 @@ private:
 
     // Fallback state (mutable for lazy initialization in const methods)
     bool m_force_python_fallback = false;
+    std::string m_fallback_reason; // "missing", "incompatible", or "" (native available)
     mutable bool m_fallback_initialized = false;
 
     // Cached Python objects (module and function handles)

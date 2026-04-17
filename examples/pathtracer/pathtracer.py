@@ -486,6 +486,7 @@ class Scene:
         )
 
         blas = self.device.create_acceleration_structure(
+            kind=spy.AccelerationStructureKind.bottom_level,
             size=sizes.acceleration_structure_size,
             label="blas",
         )
@@ -530,6 +531,7 @@ class Scene:
         )
 
         tlas = self.device.create_acceleration_structure(
+            kind=spy.AccelerationStructureKind.top_level,
             size=sizes.acceleration_structure_size,
             label="tlas",
         )

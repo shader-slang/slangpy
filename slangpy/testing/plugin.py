@@ -142,10 +142,11 @@ def torch_bridge_mode(request: pytest.FixtureRequest):
     try:
         if mode == "fallback":
             spy.set_torch_bridge_python_fallback(True)
+            os.environ["SLANGPY_ALLOW_TORCH_FALLBACK"] = "1"
         else:
             spy.set_torch_bridge_python_fallback(False)
 
         yield mode
     finally:
-        # Always restore the original state
         spy.set_torch_bridge_python_fallback(was_fallback)
+        os.environ.pop("SLANGPY_ALLOW_TORCH_FALLBACK", None)
