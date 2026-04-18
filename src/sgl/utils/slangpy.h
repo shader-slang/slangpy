@@ -419,6 +419,7 @@ public:
     {
         m_call_shape = call_shape;
         m_cuda_stream = cuda_stream;
+        m_interop_cuda_stream = NativeHandle();
     }
 
     Device* device() const { return m_device.get(); }
@@ -426,11 +427,25 @@ public:
     CallMode call_mode() const { return m_call_mode; }
     const NativeHandle& cuda_stream() const { return m_cuda_stream; }
 
+    /// Called by marshalls when they perform CUDA work on shared interop buffers
+    /// (e.g. copy_to_buffer, memset_device_async). Records the CUDA stream so
+    /// that exec() can pass it to submit_command_buffer for CUDA<->graphics sync.
+    void mark_interop_cuda_stream(NativeHandle stream)
+    {
+        if (!m_interop_cuda_stream.is_valid())
+            m_interop_cuda_stream = stream;
+    }
+
+    /// Returns the CUDA stream recorded by a marshall for interop sync, or
+    /// an invalid handle if no interop CUDA work was done this dispatch.
+    const NativeHandle& interop_cuda_stream() const { return m_interop_cuda_stream; }
+
 private:
     ref<Device> m_device;
     Shape m_call_shape;
     CallMode m_call_mode;
     NativeHandle m_cuda_stream;
+    NativeHandle m_interop_cuda_stream;
 };
 
 } // namespace sgl::slangpy
