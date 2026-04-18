@@ -159,5 +159,138 @@ def test_soa_particles(device_type: DeviceType):
     assert np.allclose(data, [0.5, 0])
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_load_from_source(device_type: DeviceType):
+    """Module.load_from_source should create a working module from a source string."""
+    device = helpers.get_device(device_type)
+    m = Module.load_from_source(device, "test_inline", "float add1(float x) { return x + 1; }")
+    result = m.add1(2.0)
+    assert abs(float(result) - 3.0) < 1e-5
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_module_property(device_type: DeviceType):
+    """Module.module should return the underlying SlangModule."""
+    m = load_test_module(device_type)
+    assert m.module is m.device_module
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_require_struct_not_found(device_type: DeviceType):
+    """require_struct should raise ValueError for nonexistent struct."""
+    m = load_test_module(device_type)
+    with pytest.raises(ValueError, match="Could not find struct"):
+        m.require_struct("NonexistentStruct")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_find_function_in_struct(device_type: DeviceType):
+    """find_function_in_struct should find methods by struct name or object."""
+    m = load_test_module(device_type)
+    func = m.find_function_in_struct("Particle", "calc_next_position")
+    assert func is not None
+    assert isinstance(func, Function)
+
+    func_none = m.find_function_in_struct("Particle", "nonexistent_method")
+    assert func_none is None
+
+    func_bad_struct = m.find_function_in_struct("NoSuchStruct", "calc_next_position")
+    assert func_bad_struct is None
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_module_repr(device_type: DeviceType):
+    """Module.__repr__ should return a useful string."""
+    m = load_test_module(device_type)
+    r = repr(m)
+    assert "Module(" in r
+    assert "test_modules" in r
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_module_getitem(device_type: DeviceType):
+    """Module['name'] should work like module.name."""
+    m = load_test_module(device_type)
+    func = m["add_vectors"]
+    assert isinstance(func, Function)
+
+    with pytest.raises(AttributeError, match="no function or type"):
+        m["nonexistent_thing"]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_empty_with_slangtype(device_type: DeviceType):
+    """Tensor.empty with a pre-resolved SlangType exercises resolve_element_type SlangType path."""
+    m = load_test_module(device_type)
+    float_type = m.layout.find_type_by_name("float")
+    tensor = Tensor.empty(m.device, (4,), dtype=float_type, program_layout=m.layout)
+    assert tensor.shape[0] == 4
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_empty_with_struct(device_type: DeviceType):
+    """Tensor.empty with a Struct dtype exercises resolve_element_type Struct path."""
+    m = load_test_module(device_type)
+    Material = m.Material
+    tensor = Tensor.empty(m.device, (2,), dtype=Material)
+    assert tensor.shape[0] == 2
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_slang_to_numpy_unsupported(device_type: DeviceType):
+    """slang_to_numpy should return None for non-scalar types like structs."""
+    from slangpy.reflection.lookup import slang_to_numpy
+
+    m = load_test_module(device_type)
+    struct_type = m.layout.find_type_by_name("Material")
+    assert slang_to_numpy(struct_type) is None
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_numpy_to_slang_unsupported(device_type: DeviceType):
+    """numpy_to_slang should return None for unsupported numpy dtypes."""
+    from slangpy.reflection.lookup import numpy_to_slang
+
+    device = helpers.get_device(device_type)
+    result = numpy_to_slang(np.dtype("complex128"), device, None)
+    assert result is None
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_function_set_invalid(device_type: DeviceType):
+    """FunctionNode.set() with a non-dict/non-callable arg should raise ValueError."""
+    m = load_test_module(device_type)
+    func = m.add_vectors.as_func()
+    with pytest.raises(ValueError, match="Set requires"):
+        func.set(42)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_function_write_non_callable(device_type: DeviceType):
+    """FunctionNode.write() with non-callable should raise ValueError."""
+    m = load_test_module(device_type)
+    func = m.add_vectors.as_func()
+    with pytest.raises(ValueError, match="callable"):
+        func.write(42)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_function_return_type_bad_string(device_type: DeviceType):
+    """FunctionNode.return_type() with unknown string should raise ValueError."""
+    m = load_test_module(device_type)
+    func = m.add_vectors.as_func()
+    with pytest.raises(ValueError, match="Unknown return type"):
+        func.return_type("bad_type")
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_function_as_struct(device_type: DeviceType):
+    """FunctionNode.as_struct() should raise ValueError."""
+    m = load_test_module(device_type)
+    func = m.add_vectors.as_func()
+    with pytest.raises(ValueError, match="Cannot convert"):
+        func.as_struct()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

@@ -129,7 +129,7 @@ def assert_loss_decreased(
 
 
 # =============================================================================
-# Test 1: Polynomial Coefficient Optimization
+# Polynomial Coefficient Optimization
 #
 # Workflow: Adam optimizer loop fitting scalar parameters of a [Differentiable]
 # Slang kernel, broadcast across sample points.
@@ -192,7 +192,7 @@ def test_polynomial_optimization_convergence(device_type: DeviceType):
 
 
 # =============================================================================
-# Test 2: Bezier Curve Fitting
+# Bezier Curve Fitting
 #
 # Workflow: multi-parameter optimization with gradient accumulation from many
 # sample points back to shared control-point parameters.
@@ -286,7 +286,7 @@ def test_bezier_curve_fitting(device_type: DeviceType):
 
 
 # =============================================================================
-# Test 3: Two-Layer MLP Optimization (Sequential SlangPy Calls)
+# Two-Layer MLP Optimization (Sequential SlangPy Calls)
 #
 # Workflow: gradient flow through multiple chained kernel calls
 # (linear -> relu -> dot), with all parameters receiving gradients.
@@ -359,7 +359,7 @@ def test_two_layer_mlp_optimization(device_type: DeviceType):
 
 
 # =============================================================================
-# Test 4: Multi-Output Function Optimization
+# Multi-Output Function Optimization
 #
 # Workflow: vector return type (float2) flowing through autograd in an
 # optimization loop.
@@ -423,7 +423,7 @@ def test_multi_output_optimization(device_type: DeviceType):
 
 
 # =============================================================================
-# Test 5: Gradient Correctness for Broadcast Parameters
+# Gradient Correctness for Broadcast Parameters
 #
 # Workflow: verifying gradient accumulation for parameters broadcast across
 # many dispatch elements matches analytical expectations. Catches subtle
@@ -495,7 +495,7 @@ def test_gradient_correctness_broadcast_params(device_type: DeviceType):
 
 
 # =============================================================================
-# Test 6: Multiple Backward Passes (No State Leak Between Steps)
+# Multiple Backward Passes (No State Leak Between Steps)
 #
 # Workflow: repeated forward+backward+step cycles must produce clean gradients
 # with no state leaks. All training loops depend on this.
@@ -539,7 +539,7 @@ def test_multiple_backward_passes_no_state_leak(device_type: DeviceType):
 
 
 # =============================================================================
-# Test 7: Interleaved SlangPy and PyTorch Operations in Optimization
+# Interleaved SlangPy and PyTorch Operations in Optimization
 #
 # Workflow: autograd graph spanning both slangpy kernels and PyTorch ops,
 # with gradients flowing through the mixed graph.
@@ -598,7 +598,35 @@ def test_interleaved_slangpy_pytorch_optimization(device_type: DeviceType):
 
 
 # =============================================================================
-# Test: retain_graph=True support
+# DiffPair Output via Backward Pass
+#
+# Workflow: backward pass naturally creates output diff pairs with
+# is_input=False, exercising the d_in factory path in
+# create_torch_tensor_marshall.
+# =============================================================================
+
+SQUARE_SHADER = r"""
+[Differentiable]
+float square(float x) { return x * x; }
+"""
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diffpair_factory_output_via_backward(device_type: DeviceType):
+    """Backward pass creates output diff pairs with is_input=False, exercising the d_in factory path."""
+    device = helpers.get_torch_device(device_type)
+    func = helpers.create_function_from_module(device, "square", SQUARE_SHADER)
+
+    x = torch.tensor([2.0, 3.0], device="cuda", dtype=torch.float32, requires_grad=True)
+    result = func(x)
+    result.backward(torch.ones_like(result))
+
+    assert x.grad is not None
+    torch.testing.assert_close(x.grad, torch.tensor([4.0, 6.0], device="cuda"))
+
+
+# =============================================================================
+# retain_graph=True support
 # =============================================================================
 
 
@@ -661,6 +689,14 @@ def test_retain_graph_accumulates_gradients(device_type: DeviceType):
     assert (
         abs(a.grad.item() - expected_grad_a) < 1e-3
     ), f"accumulated: {a.grad.item()} != {expected_grad_a}"
+
+
+# =============================================================================
+# VRAM Stability Across Iterations
+#
+# Workflow: repeated forward+backward cycles must not leak VRAM.
+# Regression test for #896.
+# =============================================================================
 
 
 @pytest.mark.parametrize("device_type", [DeviceType.cuda])
