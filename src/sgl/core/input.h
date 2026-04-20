@@ -10,55 +10,6 @@
 
 namespace sgl {
 
-/// Mouse cursor modes.
-enum class CursorMode : uint32_t {
-    /// The cursor is visible and behaves normally.
-    normal,
-    /// The cursor is hidden when over the window.
-    hidden,
-    /// The cursor is hidden and locked to the window.
-    disabled,
-};
-
-SGL_ENUM_INFO(
-    CursorMode,
-    {
-        {CursorMode::normal, "normal"},
-        {CursorMode::hidden, "hidden"},
-        {CursorMode::disabled, "disabled"},
-    }
-);
-SGL_ENUM_REGISTER(CursorMode);
-
-/// Mouse cursor shapes.
-enum class CursorShape : uint32_t {
-    /// Arrow cursor shape.
-    arrow,
-    /// I-beam cursor shape (for text editing).
-    ibeam,
-    /// Crosshair cursor shape.
-    crosshair,
-    /// Hand cursor shape (for links and dragging).
-    hand,
-    /// Horizontal resize cursor shape.
-    hresize,
-    /// Vertical resize cursor shape.
-    vresize,
-};
-
-SGL_ENUM_INFO(
-    CursorShape,
-    {
-        {CursorShape::arrow, "arrow"},
-        {CursorShape::ibeam, "ibeam"},
-        {CursorShape::crosshair, "crosshair"},
-        {CursorShape::hand, "hand"},
-        {CursorShape::hresize, "hresize"},
-        {CursorShape::vresize, "vresize"},
-    }
-);
-SGL_ENUM_REGISTER(CursorShape);
-
 /// Mouse buttons.
 enum class MouseButton : uint32_t {
     left,

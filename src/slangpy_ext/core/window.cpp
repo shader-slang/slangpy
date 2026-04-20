@@ -26,10 +26,9 @@ SGL_PY_EXPORT(core_window)
 {
     using namespace sgl;
 
-    nb::enum_<WindowMode>(m, "WindowMode", D(WindowMode))
-        .value("normal", WindowMode::normal)
-        .value("minimized", WindowMode::minimized)
-        .value("fullscreen", WindowMode::fullscreen);
+    nb::sgl_enum<WindowMode>(m, "WindowMode", D(WindowMode));
+    nb::sgl_enum<CursorMode>(m, "CursorMode", D(CursorMode));
+    nb::sgl_enum<CursorShape>(m, "CursorShape", D(CursorShape));
 
     nb::class_<Window, Object> window(m, "Window", gc_helper_type_slots<Window>(), D(Window));
     window.def(

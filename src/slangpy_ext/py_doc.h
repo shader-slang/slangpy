@@ -23,6 +23,8 @@
 #endif
 
 
+static const char *__doc_GLFWcursor = R"doc()doc";
+
 static const char *__doc_GLFWwindow = R"doc()doc";
 
 static const char *__doc_HWND = R"doc()doc";
@@ -8751,6 +8753,8 @@ static const char *__doc_sgl_WindowMode = R"doc(Window modes.)doc";
 
 static const char *__doc_sgl_WindowMode_fullscreen = R"doc()doc";
 
+static const char *__doc_sgl_WindowMode_info = R"doc()doc";
+
 static const char *__doc_sgl_WindowMode_minimized = R"doc()doc";
 
 static const char *__doc_sgl_WindowMode_normal = R"doc()doc";
@@ -8796,6 +8800,8 @@ static const char *__doc_sgl_Window_handle_mouse_event = R"doc()doc";
 static const char *__doc_sgl_Window_handle_window_size = R"doc()doc";
 
 static const char *__doc_sgl_Window_height = R"doc(The height of the window in pixels.)doc";
+
+static const char *__doc_sgl_Window_m_cursor_cache = R"doc()doc";
 
 static const char *__doc_sgl_Window_m_cursor_mode = R"doc()doc";
 
@@ -9387,6 +9393,8 @@ static const char *__doc_sgl_find_enum_info_adl_75 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_76 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_77 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_78 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
