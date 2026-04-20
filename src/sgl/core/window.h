@@ -7,6 +7,7 @@
 #include "sgl/core/input.h"
 #include "sgl/math/vector_types.h"
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -16,6 +17,7 @@
 
 // GLFW forward declarations.
 struct GLFWwindow;
+struct GLFWcursor;
 
 namespace sgl {
 
@@ -173,6 +175,7 @@ private:
 
     CursorMode m_cursor_mode{CursorMode::normal};
     CursorShape m_cursor_shape{CursorShape::arrow};
+    std::array<GLFWcursor*, 6> m_cursor_cache{};
     float2 m_mouse_pos{0.f, 0.f};
     KeyModifierFlags m_mods{KeyModifierFlags::none};
 
