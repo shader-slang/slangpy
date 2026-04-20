@@ -48,6 +48,7 @@ add_subdirectory(tevclient EXCLUDE_FROM_ALL)
 if(SGL_BUILD_PYTHON)
     add_subdirectory(nanobind)
     nanobind_build_library(nanobind SHARED)
+    target_compile_definitions(nanobind PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 # nanothread
@@ -62,6 +63,7 @@ endif()
 add_subdirectory(nanothread)
 # Disable LTO for nanothread as this causes problems when linking with sgl.
 set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
+target_compile_definitions(nanothread PRIVATE _CRT_SECURE_NO_WARNINGS)
 
 # lmdb
 
