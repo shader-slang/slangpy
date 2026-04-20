@@ -6,6 +6,7 @@
 
 #include "sgl/core/error.h"
 #include "sgl/core/input.h"
+#include "sgl/core/window.h"
 #include "sgl/core/platform.h"
 
 #include "sgl/device/device.h"
@@ -341,7 +342,7 @@ ImFont* Context::get_font(const char* name)
     return it == m_fonts.end() ? nullptr : it->second;
 }
 
-void Context::begin_frame(uint32_t width, uint32_t height)
+void Context::begin_frame(uint32_t width, uint32_t height, sgl::Window* window)
 {
     ImGui::SetCurrentContext(m_imgui_context);
 
@@ -349,6 +350,9 @@ void Context::begin_frame(uint32_t width, uint32_t height)
     io.DisplaySize = ImVec2(static_cast<float>(width), static_cast<float>(height));
     io.DeltaTime = static_cast<float>(m_frame_timer.elapsed_s());
     m_frame_timer.reset();
+
+    if (window)
+        update_mouse_cursor(window);
 
     ImGui::NewFrame();
 
@@ -590,6 +594,40 @@ void Context::update_texture(ImTextureData* tex)
         m_textures.erase(tex);
         tex->SetTexID(ImTextureID_Invalid);
         tex->SetStatus(ImTextureStatus_Destroyed);
+    }
+}
+
+void Context::update_mouse_cursor(sgl::Window* window)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    ImGuiMouseCursor imgui_cursor = ImGui::GetMouseCursor();
+
+    if (imgui_cursor == ImGuiMouseCursor_None) {
+        window->set_cursor_mode(CursorMode::hidden);
+    } else {
+        window->set_cursor_mode(CursorMode::normal);
+        CursorShape shape = CursorShape::arrow;
+        switch (ImGui::GetMouseCursor()) {
+        case ImGuiMouseCursor_Arrow:
+            shape = CursorShape::arrow;
+            break;
+        case ImGuiMouseCursor_TextInput:
+            shape = CursorShape::ibeam;
+            break;
+        case ImGuiMouseCursor_ResizeNS:
+            shape = CursorShape::vresize;
+            break;
+        case ImGuiMouseCursor_ResizeEW:
+            shape = CursorShape::hresize;
+            break;
+        case ImGuiMouseCursor_Hand:
+            shape = CursorShape::hand;
+            break;
+        default:
+            shape = CursorShape::arrow;
+            break;
+        }
+        window->set_cursor_shape(shape);
     }
 }
 

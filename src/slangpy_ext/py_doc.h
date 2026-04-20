@@ -11956,7 +11956,7 @@ Parameter ``height``:
     Render texture height
 
 Parameter ``window``:
-    Optional window this UI context is associated with.)doc";
+    Window this UI context is rendered for (optional).)doc";
 
 static const char *__doc_sgl_ui_Context_class_name = R"doc()doc";
 
@@ -12028,7 +12028,7 @@ static const char *__doc_sgl_ui_Context_m_vertex_buffers = R"doc()doc";
 
 static const char *__doc_sgl_ui_Context_screen = R"doc(The main screen widget.)doc";
 
-static const char *__doc_sgl_ui_Context_update_cursor_shape = R"doc()doc";
+static const char *__doc_sgl_ui_Context_update_mouse_cursor = R"doc()doc";
 
 static const char *__doc_sgl_ui_Context_update_texture = R"doc()doc";
 

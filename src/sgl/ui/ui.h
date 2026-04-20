@@ -34,7 +34,8 @@ public:
     /// ImGui widget calls are generally only valid between `begin_frame` and `end_frame`.
     /// \param width Render texture width
     /// \param height Render texture height
-    void begin_frame(uint32_t width, uint32_t height);
+    /// \param window Window this UI context is rendered for (optional).
+    void begin_frame(uint32_t width, uint32_t height, sgl::Window* window = nullptr);
 
     /// End the ImGui frame and renders the UI to the provided texture.
     /// \param texture_view Texture view to render to
@@ -84,6 +85,7 @@ private:
     std::map<Format, ref<RenderPipeline>> m_pipelines;
 
     void update_texture(ImTextureData* tex);
+    void update_mouse_cursor(sgl::Window* window);
 };
 
 } // namespace sgl::ui
