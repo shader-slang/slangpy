@@ -15,6 +15,10 @@
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
 #define GLFW_EXPOSE_NATIVE_X11
+// Xrandr defines some macros that conflict with our code, so undefine them.
+#ifdef CursorShape
+#undef CursorShape
+#endif
 #elif SGL_MACOS
 #define GLFW_EXPOSE_NATIVE_COCOA
 using CGDirectDisplayID = void*;
