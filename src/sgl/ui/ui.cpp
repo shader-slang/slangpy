@@ -30,8 +30,20 @@ namespace sgl::ui {
 static void setup_style()
 {
     ImGuiStyle& style = ImGui::GetStyle();
-
     ImVec4* colors = style.Colors;
+
+#if 1
+    // Modified dark theme.
+
+    ImGui::StyleColorsDark();
+
+    colors[ImGuiCol_WindowBg] = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);
+    colors[ImGuiCol_Tab] = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);
+    colors[ImGuiCol_TabDimmed] = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);
+#else
+    // Custom theme.
+    // Disabled for now since its tedious to maintain.
+
     colors[ImGuiCol_Text] = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
     colors[ImGuiCol_TextDisabled] = ImVec4(0.36f, 0.42f, 0.47f, 1.00f);
     colors[ImGuiCol_WindowBg] = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
@@ -65,17 +77,31 @@ static void setup_style()
     colors[ImGuiCol_ResizeGrip] = ImVec4(0.26f, 0.59f, 0.98f, 0.25f);
     colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
     colors[ImGuiCol_ResizeGripActive] = ImVec4(0.26f, 0.59f, 0.98f, 0.95f);
-    colors[ImGuiCol_Tab] = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
+    // ImGuiCol_InputTextCursor
     colors[ImGuiCol_TabHovered] = ImVec4(0.26f, 0.59f, 0.98f, 0.80f);
-    colors[ImGuiCol_TabActive] = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
+    colors[ImGuiCol_Tab] = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
+    colors[ImGuiCol_TabSelected] = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
+    // ImGuiCol_TabSelectedOverline
     colors[ImGuiCol_TabDimmed] = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
     colors[ImGuiCol_TabDimmedSelected] = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
+    // ImGuiCol_TabDimmedSelectedOverline
+    // ImGuiCol_DockingPreview
+    // ImGuiCol_DockingEmptyBg
     colors[ImGuiCol_PlotLines] = ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
     colors[ImGuiCol_PlotLinesHovered] = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
     colors[ImGuiCol_PlotHistogram] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
     colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
+    // ImGuiCol_TableHeaderBg
+    // ImGuiCol_TableBorderStrong
+    // ImGuiCol_TableBorderLight
+    // ImGuiCol_TableRowBg
+    // ImGuiCol_TableRowBgAlt
+    // ImGuiCol_TextLink
     colors[ImGuiCol_TextSelectedBg] = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
+    // ImGuiCol_TreeLines
     colors[ImGuiCol_DragDropTarget] = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
+    // ImGuiCol_DragDropTargetBg
+    // ImGuiCol_UnsavedMarker
     colors[ImGuiCol_NavCursor] = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
     colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
     colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
@@ -103,6 +129,7 @@ static void setup_style()
     style.GrabRounding = 3;
     style.LogSliderDeadzone = 4;
     style.TabRounding = 4;
+#endif
 }
 
 static ImGuiKey key_code_to_imgui_key(KeyCode key)
