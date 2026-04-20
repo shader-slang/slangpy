@@ -107,6 +107,10 @@ public:
     CursorMode cursor_mode() const { return m_cursor_mode; }
     void set_cursor_mode(CursorMode mode);
 
+    /// The mouse cursor shape.
+    CursorShape cursor_shape() const { return m_cursor_shape; }
+    void set_cursor_shape(CursorShape shape);
+
     // events
 
     using ResizeCallback = std::function<void(uint32_t /* width */, uint32_t /* height */)>;
@@ -168,6 +172,7 @@ private:
     bool m_should_close{false};
 
     CursorMode m_cursor_mode{CursorMode::normal};
+    CursorShape m_cursor_shape{CursorShape::arrow};
     float2 m_mouse_pos{0.f, 0.f};
     KeyModifierFlags m_mods{KeyModifierFlags::none};
 

@@ -501,6 +501,35 @@ void Window::set_cursor_mode(CursorMode mode)
     }
 }
 
+void Window::set_cursor_shape(CursorShape shape)
+{
+    if (shape != m_cursor_shape) {
+        m_cursor_shape = shape;
+        switch (shape) {
+        case CursorShape::arrow:
+            glfwSetCursor(m_window, glfwCreateStandardCursor(GLFW_ARROW_CURSOR));
+            break;
+        case CursorShape::ibeam:
+            glfwSetCursor(m_window, glfwCreateStandardCursor(GLFW_IBEAM_CURSOR));
+            break;
+        case CursorShape::crosshair:
+            glfwSetCursor(m_window, glfwCreateStandardCursor(GLFW_CROSSHAIR_CURSOR));
+            break;
+        case CursorShape::hand:
+            glfwSetCursor(m_window, glfwCreateStandardCursor(GLFW_HAND_CURSOR));
+            break;
+        case CursorShape::hresize:
+            glfwSetCursor(m_window, glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR));
+            break;
+        case CursorShape::vresize:
+            glfwSetCursor(m_window, glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR));
+            break;
+        default:
+            SGL_UNREACHABLE();
+        }
+    }
+}
+
 std::string Window::to_string() const
 {
     return fmt::format(

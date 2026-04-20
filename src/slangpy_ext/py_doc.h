@@ -33,6 +33,8 @@ static const char *__doc_ImGuiContext = R"doc()doc";
 
 static const char *__doc_ImGui_PushFont = R"doc()doc";
 
+static const char *__doc_ImTextureData = R"doc()doc";
+
 static const char *__doc_MDB_env = R"doc()doc";
 
 static const char *__doc_SourceLocation =
@@ -1997,6 +1999,22 @@ static const char *__doc_sgl_CursorReadWrappers_get_slang_type_layout = R"doc()d
 static const char *__doc_sgl_CursorReadWrappers_get_vector = R"doc()doc";
 
 static const char *__doc_sgl_CursorReadWrappers_increment_offset_internal = R"doc()doc";
+
+static const char *__doc_sgl_CursorShape = R"doc(Mouse cursor shapes.)doc";
+
+static const char *__doc_sgl_CursorShape_arrow = R"doc(Arrow cursor shape.)doc";
+
+static const char *__doc_sgl_CursorShape_crosshair = R"doc(Crosshair cursor shape.)doc";
+
+static const char *__doc_sgl_CursorShape_hand = R"doc(Hand cursor shape (for links and dragging).)doc";
+
+static const char *__doc_sgl_CursorShape_hresize = R"doc(Horizontal resize cursor shape.)doc";
+
+static const char *__doc_sgl_CursorShape_ibeam = R"doc(I-beam cursor shape (for text editing).)doc";
+
+static const char *__doc_sgl_CursorShape_info = R"doc()doc";
+
+static const char *__doc_sgl_CursorShape_vresize = R"doc(Vertical resize cursor shape.)doc";
 
 static const char *__doc_sgl_CursorWriteWrappers = R"doc()doc";
 
@@ -7848,6 +7866,8 @@ static const char *__doc_sgl_Texture = R"doc()doc";
 
 static const char *__doc_sgl_Texture_2 = R"doc()doc";
 
+static const char *__doc_sgl_Texture_3 = R"doc()doc";
+
 static const char *__doc_sgl_TextureAddressingMode = R"doc()doc";
 
 static const char *__doc_sgl_TextureAddressingMode_clamp_to_border = R"doc()doc";
@@ -8761,6 +8781,8 @@ static const char *__doc_sgl_Window_create = R"doc()doc";
 
 static const char *__doc_sgl_Window_cursor_mode = R"doc(The mouse cursor mode.)doc";
 
+static const char *__doc_sgl_Window_cursor_shape = R"doc(The mouse cursor shape.)doc";
+
 static const char *__doc_sgl_Window_get_clipboard = R"doc(Get the clipboard content.)doc";
 
 static const char *__doc_sgl_Window_handle_drop_files = R"doc()doc";
@@ -8776,6 +8798,8 @@ static const char *__doc_sgl_Window_handle_window_size = R"doc()doc";
 static const char *__doc_sgl_Window_height = R"doc(The height of the window in pixels.)doc";
 
 static const char *__doc_sgl_Window_m_cursor_mode = R"doc()doc";
+
+static const char *__doc_sgl_Window_m_cursor_shape = R"doc()doc";
 
 static const char *__doc_sgl_Window_m_gamepad_id = R"doc()doc";
 
@@ -8837,6 +8861,8 @@ Parameter ``height``:
 static const char *__doc_sgl_Window_set_clipboard = R"doc(Set the clipboard content.)doc";
 
 static const char *__doc_sgl_Window_set_cursor_mode = R"doc()doc";
+
+static const char *__doc_sgl_Window_set_cursor_shape = R"doc()doc";
 
 static const char *__doc_sgl_Window_set_height = R"doc()doc";
 
@@ -9360,6 +9386,8 @@ static const char *__doc_sgl_find_enum_info_adl_75 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_76 = R"doc()doc";
 
+static const char *__doc_sgl_find_enum_info_adl_77 = R"doc()doc";
+
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
 static const char *__doc_sgl_flip_bit = R"doc()doc";
@@ -9876,8 +9904,6 @@ static const char *__doc_sgl_math_lerp_5 = R"doc(lerp)doc";
 
 static const char *__doc_sgl_math_lerp_6 = R"doc()doc";
 
-static const char *__doc_sgl_math_lex_lt = R"doc()doc";
-
 static const char *__doc_sgl_math_linear_to_srgb = R"doc()doc";
 
 static const char *__doc_sgl_math_linear_to_srgb_2 = R"doc()doc";
@@ -10035,10 +10061,6 @@ static const char *__doc_sgl_math_matrix_operator_assign_2 = R"doc()doc";
 
 static const char *__doc_sgl_math_matrix_operator_assign_3 = R"doc()doc";
 
-static const char *__doc_sgl_math_matrix_operator_eq = R"doc()doc";
-
-static const char *__doc_sgl_math_matrix_operator_ne = R"doc()doc";
-
 static const char *__doc_sgl_math_matrix_set_col = R"doc()doc";
 
 static const char *__doc_sgl_math_matrix_set_row = R"doc()doc";
@@ -10131,9 +10153,7 @@ static const char *__doc_sgl_math_operator_eq = R"doc(Equality operator.)doc";
 
 static const char *__doc_sgl_math_operator_eq_2 = R"doc(Equality operator.)doc";
 
-static const char *__doc_sgl_math_operator_ge = R"doc(Lexicographic greater-or-equal operator.)doc";
-
-static const char *__doc_sgl_math_operator_gt = R"doc(Lexicographic greater-than operator.)doc";
+static const char *__doc_sgl_math_operator_eq_3 = R"doc(Equality operator.)doc";
 
 static const char *__doc_sgl_math_operator_h = R"doc(h suffix for "half float" literals.)doc";
 
@@ -10183,7 +10203,11 @@ static const char *__doc_sgl_math_operator_land_2 = R"doc(Binary && operator)doc
 
 static const char *__doc_sgl_math_operator_land_3 = R"doc(Binary && operator)doc";
 
-static const char *__doc_sgl_math_operator_le = R"doc(Lexicographic less-or-equal operator.)doc";
+static const char *__doc_sgl_math_operator_le = R"doc(Lexicographic three-way operator.)doc";
+
+static const char *__doc_sgl_math_operator_le_2 = R"doc(Lexicographic three-way operator.)doc";
+
+static const char *__doc_sgl_math_operator_le_3 = R"doc(Lexicographic three-way operator.)doc";
 
 static const char *__doc_sgl_math_operator_lnot = R"doc(Unary not operator)doc";
 
@@ -10198,8 +10222,6 @@ static const char *__doc_sgl_math_operator_lshift = R"doc(Binary << operator)doc
 static const char *__doc_sgl_math_operator_lshift_2 = R"doc(Binary << operator)doc";
 
 static const char *__doc_sgl_math_operator_lshift_3 = R"doc(Binary << operator)doc";
-
-static const char *__doc_sgl_math_operator_lt = R"doc(Lexicographic less-than operator.)doc";
 
 static const char *__doc_sgl_math_operator_mod = R"doc(Binary % operator)doc";
 
@@ -10218,10 +10240,6 @@ static const char *__doc_sgl_math_operator_mul_4 = R"doc(Binary * operator)doc";
 static const char *__doc_sgl_math_operator_mul_5 = R"doc(Binary * operator)doc";
 
 static const char *__doc_sgl_math_operator_mul_6 = R"doc(Binary * operator)doc";
-
-static const char *__doc_sgl_math_operator_ne = R"doc(Inequality operator.)doc";
-
-static const char *__doc_sgl_math_operator_ne_2 = R"doc(Inequality operator.)doc";
 
 static const char *__doc_sgl_math_operator_rshift = R"doc(Binary >> operator)doc";
 
@@ -11935,7 +11953,10 @@ Parameter ``width``:
     Render texture width
 
 Parameter ``height``:
-    Render texture height)doc";
+    Render texture height
+
+Parameter ``window``:
+    Optional window this UI context is associated with.)doc";
 
 static const char *__doc_sgl_ui_Context_class_name = R"doc()doc";
 
@@ -11981,8 +12002,6 @@ Returns:
 
 static const char *__doc_sgl_ui_Context_m_device = R"doc()doc";
 
-static const char *__doc_sgl_ui_Context_m_font_texture = R"doc()doc";
-
 static const char *__doc_sgl_ui_Context_m_fonts = R"doc()doc";
 
 static const char *__doc_sgl_ui_Context_m_frame_index = R"doc()doc";
@@ -12003,9 +12022,15 @@ static const char *__doc_sgl_ui_Context_m_sampler = R"doc()doc";
 
 static const char *__doc_sgl_ui_Context_m_screen = R"doc()doc";
 
+static const char *__doc_sgl_ui_Context_m_textures = R"doc()doc";
+
 static const char *__doc_sgl_ui_Context_m_vertex_buffers = R"doc()doc";
 
 static const char *__doc_sgl_ui_Context_screen = R"doc(The main screen widget.)doc";
+
+static const char *__doc_sgl_ui_Context_update_cursor_shape = R"doc()doc";
+
+static const char *__doc_sgl_ui_Context_update_texture = R"doc()doc";
 
 static const char *__doc_sgl_ui_DataTypeTraits = R"doc()doc";
 
