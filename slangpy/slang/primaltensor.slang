@@ -342,7 +342,7 @@ public struct RWPrimalTensor<T : IDifferentiable, let D : int> : IRWDiffTensor<T
 }
 
 // Bespoke loads for directly reading underlying structured buffers from tensor
-#ifndef __TARGET_CUDA__
+#if !defined(__TARGET_CUDA__) && !defined(__TARGET_VULKAN__)
 public extension<T : IDifferentiable, let D : int> PrimalTensor<T, D> where T.Differential : IAtomicAddable
 {
     public void __slangpy_load(Context0D context, out StructuredBuffer<T> value)
