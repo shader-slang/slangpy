@@ -103,7 +103,7 @@ public extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAt
 // store a buffer of atomics, and where appropriate uses IAtomicAddable to define the atomic add operation.
 public extension<T: IAtomicAddable> StorageTraits<T>
 {
-#ifdef __TARGET_CUDA__
+#if !defined(__TARGET_CUDA__) && !defined(__TARGET_VULKAN__) && !defined(__TARGET_METAL__)
     public typealias AtomicBufferType = T*;
     // Stride-aware versions (stride parameter ignored on CUDA since it uses element indexing)
     public static void atomicAddWithStride(AtomicBufferType buffer, uint idx, uint byte_stride, T value) { T::atomicAdd(buffer, idx, value); }
