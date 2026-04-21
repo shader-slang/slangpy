@@ -78,7 +78,7 @@ int _idx_vec<let N : int>(vector<int,N> index, int[N] stride) {
 
 public struct StorageTraits<T>
 {
-#if defined(__TARGET_CUDA__) || defined(__TARGET_VULKAN__)
+#if defined(__TARGET_CUDA__) || defined(__TARGET_VULKAN__) || defined(__TARGET_METAL__)
     public typealias BufferType = T*;
     public typealias RWBufferType = T*;
 #else
