@@ -1,0 +1,45 @@
+## Plan: ImGui CUDA SW Rasterizer
+
+Implement an ImGui-specific software rasterizer upgrade in four phases: first instrument and fix the obvious waste in the current path, then preprocess and bin triangles on the CPU during the existing draw-list upload walk, then switch the compute shader to tile-local rasterization, and finally tune packing and tile size based on measured results. This keeps ordering and texture semantics identical to today, minimizes architectural churn, and avoids premature GPU-prepass complexity.
+
+**Steps**
+1. Phase 1: Establish a measurement baseline in c:\src\slangpy\src\sgl\ui\ui.cpp around Context::end_frame() and Context::draw_sw(). Record per frame: draw command count, total triangles, total clip-rect pixels, total dispatched pixels, and optionally CPU time spent in draw-data upload versus software draw submission. This is a prerequisite for judging whether later CPU preprocessing is material.
+2. Phase 1: Preserve the current command ordering model exactly. Keep one ImDrawCmd as the unit of texture binding, clipping, and composition. Do not merge commands or reorder across command boundaries in the first implementation.
+3. Phase 2: Reduce wasted dispatch work in Context::draw_sw() in c:\src\slangpy\src\sgl\ui\ui.cpp. Replace full-display dispatch with clip-rect dispatch for each ImDrawCmd, and pass a dispatch origin uniform so the shader can reconstruct absolute pixel coordinates. Clamp clip rectangles to the render target extent before dispatch so empty or out-of-bounds clips are skipped on the CPU.
+4. Phase 2: Fix compositing semantics in c:\src\slangpy\src\sgl\ui\imguisw.slang before deeper optimization. Ensure each command blends over the existing target contents instead of starting from zero. Preferred rollout: first verify whether load-modify-store on the output view is correct and supported for this path; if that is risky across backends, introduce a dedicated intermediate output texture for the software path that is cleared once and then copied or composited to the final target at the end.
+5. Phase 2: Trim obvious redundant per-pixel work in c:\src\slangpy\src\sgl\ui\imguisw.slang. Remove unnecessary UV wrapping work if sampler wrap already defines the desired behavior, and stop recomputing invariant triangle setup in the inner pixel loop once compact triangle records exist.
+6. Phase 3: Add CPU-side triangle preprocessing during the existing ImGui vertex/index upload walk in Context::end_frame() in c:\src\slangpy\src\sgl\ui\ui.cpp. For each ImDrawCmd, build a compact triangle array from the already-available ImDrawVert and ImDrawIdx data. Each compact triangle record should include only what the shader needs repeatedly: fixed-point screen positions, triangle bbox in pixel or tile space, area or reciprocal area, UV interpolation inputs, unpacked vertex colors, and any flags needed for orientation or fill rule.
+7. Phase 3: Choose a compact C++/Slang shared layout for triangle records and tile metadata. Add the corresponding host-side structs in the UI implementation and matching shader-side structs in c:\src\slangpy\src\sgl\ui\imguisw.slang. Keep the format simple and tightly packed; avoid generalized attribute systems.
+8. Phase 3: Add CPU-side tile binning per ImDrawCmd immediately after triangle preprocessing. Partition the clipped command extent into fixed-size tiles, start with 16x16 to match the current compute threadgroup, and append each triangle index to every tile overlapped by its bbox. Produce two buffers per command or per frame region: a tile-header buffer containing offsets and counts, and a flat triangle-index list buffer containing the tile bins.
+9. Phase 3: Build the binning code to reuse temporary allocations across frames. Keep per-frame scratch vectors or reusable buffers owned by Context so the CPU path does not allocate heavily every frame. This matters more than micro-optimizing arithmetic in the first version.
+10. Phase 3: Decide the scope of CPU preprocessing ownership. Recommended starting point: preprocess and bin inside Context::end_frame() while the raw ImGui draw data is still being copied, then upload the compact triangle and tile-bin buffers once before Context::draw_sw() consumes them.
+11. Phase 4: Replace the current all-triangles-per-pixel loop in c:\src\slangpy\src\sgl\ui\imguisw.slang with tile-local rasterization. Dispatch only over the clip rect of the current command, map each thread to an output pixel, derive its tile coordinates, load the tile’s triangle range from the tile-header buffer, and test only those triangles. Preserve current command ordering and texture binding semantics.
+12. Phase 4: Move triangle setup out of the fragment hot path. In the raster shader, read precomputed compact triangle records instead of fetching three indexed ImGui vertices and decoding colors per candidate triangle. Keep per-pixel work limited to coverage, interpolation, texture sample, and blend.
+13. Phase 4: Keep the first tiled version simple. Do not add shared-memory staging, indirect dispatch generation, or multi-command batching until the basic CPU-binned path is correct and measured.
+14. Phase 5: Tune after correctness is established. Measure triangle counts per populated tile, raster time, and CPU preprocessing time. Only if CPU binning is material should the next step be a GPU compute prepass for bin generation. Only if tile-local raster remains memory-bound should shared-memory caching or tighter packing be considered.
+
+**Relevant files**
+- c:\src\slangpy\src\sgl\ui\ui.cpp — main host-side implementation surface: Context::end_frame(), Context::draw_sw(), software-path resource lifetime, and any temporary CPU-side triangle/tile storage.
+- c:\src\slangpy\src\sgl\ui\ui.h — likely place to add Context members for compact triangle buffers, tile-bin buffers, scratch storage, and any software-rasterizer statistics or reusable allocations.
+- c:\src\slangpy\src\sgl\ui\imguisw.slang — compute shader entry point and the raster hot path; will need new structured buffers for compact triangles and tile headers/index lists.
+- c:\src\slangpy\src\sgl\device\command.h — existing ComputePassEncoder::dispatch(uint3 thread_count) supports clip-sized thread dispatch without needing API changes.
+- c:\src\slangpy\src\sgl\device\command.cpp — confirms dispatch(thread_count) is converted to thread-group counts internally, which simplifies clip-sized dispatch.
+
+**Verification**
+1. Build with the normal Windows preset used for this repo before running any checks.
+2. Validate correctness against the hardware rasterizer path on the same frames: overlapping windows, clipped widgets, text-heavy panels, icons, and partially off-screen UI elements.
+3. Measure and compare these counters before and after each phase: total dispatched pixels, total clip-rect pixels, total triangles, average triangles per command, average triangles per non-empty tile, CPU preprocessing time, and software raster execution time.
+4. Add at least one focused debug mode or temporary assertion path to verify tile bins are sane: tile counts match appended indices, triangle bboxes overlap claimed tiles, and empty clips produce no dispatch.
+5. Re-run formatting and repository checks after the implementation is complete, including pre-commit per repo guidance.
+
+**Decisions**
+- Included scope: CPU-side preprocessing and tile binning for the ImGui software rasterizer path, plus dispatch narrowing, compositing fixes, and removal of obvious redundant shader work.
+- Excluded scope: a general-purpose software rasterizer, command reordering across ImGui draw commands, GPU-side bin generation in the first implementation, and aggressive second-order optimizations such as shared-memory triangle caches or indirect multi-command batching.
+- Recommended triangle data strategy: preprocess from ImGui’s CPU-side draw lists once per frame rather than repeatedly decoding indexed vertices in the shader.
+- Recommended binning strategy: one binning pass per ImDrawCmd, preserving command-local texture and clip state.
+- Recommended fallback strategy for composition: if direct load-modify-store on the output texture is not trustworthy for the target backend mix, use a dedicated intermediate texture for the software path.
+
+**Further Considerations**
+1. Tile size: start with 16x16 because it matches the existing threadgroup and keeps the first version easy to reason about; benchmark 8x8 and 32x16 only after the tiled path works.
+2. Triangle record contents: if UV gradient precomputation complicates the first version, keep per-vertex UVs in the compact record initially and only move to gradients if profiling shows interpolation setup is still non-trivial.
+3. CPU cost threshold for reconsidering GPU binning: if CPU preprocessing plus binning stays comfortably below the recovered raster time from eliminating the all-triangle scan, keep it on CPU; only revisit GPU binning if preprocessing becomes a visible fraction of frame time on representative UI workloads.

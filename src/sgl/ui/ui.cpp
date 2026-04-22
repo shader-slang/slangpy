@@ -6,6 +6,7 @@
 
 #include "sgl/core/error.h"
 #include "sgl/core/input.h"
+#include "sgl/core/logger.h"
 #include "sgl/core/window.h"
 #include "sgl/core/platform.h"
 
@@ -21,11 +22,70 @@
 #include <imgui.h>
 #include <cmrc/cmrc.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <unordered_map>
 
 CMRC_DECLARE(sgl_data);
 
 namespace sgl::ui {
+
+namespace {
+
+constexpr int k_sw_raster_subpixel = 16;
+constexpr int k_sw_raster_tile_size = 16;
+
+int clamp_int(int value, int min_value, int max_value)
+{
+    return std::min(std::max(value, min_value), max_value);
+}
+
+int floor_div(int value, int divisor)
+{
+    SGL_ASSERT(divisor > 0);
+    int quotient = value / divisor;
+    int remainder = value % divisor;
+    if (remainder != 0 && ((remainder < 0) != (divisor < 0)))
+        --quotient;
+    return quotient;
+}
+
+int ceil_div(int value, int divisor)
+{
+    return floor_div(value + divisor - 1, divisor);
+}
+
+float unpack_color_channel(uint32_t color, uint32_t shift)
+{
+    return float((color >> shift) & 0xffu) / 255.f;
+}
+
+bool env_flag_enabled(const char* name)
+{
+    auto value = platform::get_environment_variable(name);
+    if (!value || value->empty())
+        return false;
+    return *value != "0" && *value != "false" && *value != "FALSE";
+}
+
+template<typename T>
+void ensure_structured_buffer_capacity(ref<Device> device, ref<Buffer>& buffer, size_t element_count, const char* label)
+{
+    size_t capacity = std::max<size_t>(element_count, 1);
+    capacity += std::max<size_t>(capacity / 2, 64);
+    size_t required_size = capacity * sizeof(T);
+    if (buffer && buffer->size() >= required_size)
+        return;
+
+    buffer = device->create_buffer({
+        .size = required_size,
+        .memory_type = MemoryType::upload,
+        .usage = BufferUsage::shader_resource,
+        .label = label,
+    });
+}
+
+} // namespace
 
 static void setup_style()
 {
@@ -314,6 +374,7 @@ Context::Context(ref<Device> device)
 
     // Determine render mode.
     m_render_mode = m_device->has_feature(Feature::rasterization) ? RenderMode::rasterizer : RenderMode::sw_rasterizer;
+    m_log_sw_stats = env_flag_enabled("SGL_IMGUI_SW_STATS");
 
     // Setup sampler.
     m_sampler = m_device->create_sampler({
@@ -396,53 +457,73 @@ void Context::end_frame(TextureView* texture_view, CommandEncoder* command_encod
                 update_texture(tex);
 
     if (draw_data->CmdListsCount > 0) {
-        // Cycle through vertex & index buffers.
-        ref<Buffer>& vertex_buffer = m_vertex_buffers[m_frame_index];
-        ref<Buffer>& index_buffer = m_index_buffers[m_frame_index];
+        // Cycle through per-frame buffers.
+        const uint32_t frame_index = m_frame_index;
         m_frame_index = (m_frame_index + 1) % FRAME_COUNT;
 
-        // Allocate vertex buffer.
-        if (!vertex_buffer || vertex_buffer->size() < draw_data->TotalVtxCount * sizeof(ImDrawVert)) {
-            vertex_buffer = m_device->create_buffer({
-                .size = draw_data->TotalVtxCount * sizeof(ImDrawVert) + 128 * 1024,
-                .memory_type = MemoryType::upload,
-                .usage = BufferUsage::vertex_buffer,
-                .label = "imgui vertex buffer",
-            });
-        }
+        ref<Buffer>& vertex_buffer = m_vertex_buffers[frame_index];
+        ref<Buffer>& index_buffer = m_index_buffers[frame_index];
+        ref<Buffer>& sw_triangle_buffer = m_sw_triangle_buffers[frame_index];
+        ref<Buffer>& sw_tile_header_buffer = m_sw_tile_header_buffers[frame_index];
+        ref<Buffer>& sw_tile_index_buffer = m_sw_tile_index_buffers[frame_index];
 
-        // Allocate index buffer.
-        if (!index_buffer || index_buffer->size() < draw_data->TotalIdxCount * sizeof(ImDrawIdx)) {
-            index_buffer = m_device->create_buffer({
-                .size = draw_data->TotalIdxCount * sizeof(ImDrawIdx) + 1024,
-                .memory_type = MemoryType::upload,
-                .usage = BufferUsage::index_buffer,
-                .label = "imgui index buffer",
-            });
-        }
-
-        // Upload vertex & index data.
-        ImDrawVert* vertices = vertex_buffer->map<ImDrawVert>();
-        ImDrawIdx* indices = index_buffer->map<ImDrawIdx>();
-        for (int i = 0; i < draw_data->CmdListsCount; ++i) {
-            const ImDrawList* cmd_list = draw_data->CmdLists[i];
-            std::memcpy(vertices, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
-            std::memcpy(indices, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
-            vertices += cmd_list->VtxBuffer.Size;
-            indices += cmd_list->IdxBuffer.Size;
-        }
-        vertex_buffer->unmap();
-        index_buffer->unmap();
+        m_sw_frame_stats.reset();
 
         switch (m_render_mode) {
         case RenderMode::disabled:
             break;
         case RenderMode::rasterizer:
+        {
+            Timer upload_timer;
+
+            if (!vertex_buffer || vertex_buffer->size() < draw_data->TotalVtxCount * sizeof(ImDrawVert)) {
+                vertex_buffer = m_device->create_buffer({
+                    .size = draw_data->TotalVtxCount * sizeof(ImDrawVert) + 128 * 1024,
+                    .memory_type = MemoryType::upload,
+                    .usage = BufferUsage::vertex_buffer,
+                    .label = "imgui vertex buffer",
+                });
+            }
+
+            if (!index_buffer || index_buffer->size() < draw_data->TotalIdxCount * sizeof(ImDrawIdx)) {
+                index_buffer = m_device->create_buffer({
+                    .size = draw_data->TotalIdxCount * sizeof(ImDrawIdx) + 1024,
+                    .memory_type = MemoryType::upload,
+                    .usage = BufferUsage::index_buffer,
+                    .label = "imgui index buffer",
+                });
+            }
+
+            ImDrawVert* vertices = vertex_buffer->map<ImDrawVert>();
+            ImDrawIdx* indices = index_buffer->map<ImDrawIdx>();
+            for (int i = 0; i < draw_data->CmdListsCount; ++i) {
+                const ImDrawList* cmd_list = draw_data->CmdLists[i];
+                std::memcpy(vertices, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
+                std::memcpy(indices, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
+                vertices += cmd_list->VtxBuffer.Size;
+                indices += cmd_list->IdxBuffer.Size;
+            }
+            vertex_buffer->unmap();
+            index_buffer->unmap();
+            m_sw_frame_stats.upload_cpu_ms = upload_timer.elapsed_ms();
+
             draw(draw_data, vertex_buffer, index_buffer, texture_view, command_encoder);
             break;
+        }
         case RenderMode::sw_rasterizer:
-            draw_sw(draw_data, vertex_buffer, index_buffer, texture_view, command_encoder);
+        {
+            Timer preprocess_timer;
+            build_sw_draw_data(draw_data, texture_view, sw_triangle_buffer, sw_tile_header_buffer, sw_tile_index_buffer);
+            m_sw_frame_stats.preprocess_cpu_ms = preprocess_timer.elapsed_ms();
+
+            Timer submit_timer;
+            draw_sw(texture_view, command_encoder);
+            m_sw_frame_stats.submit_cpu_ms = submit_timer.elapsed_ms();
+
+            if (m_log_sw_stats)
+                log_sw_frame_stats();
             break;
+        }
         }
     }
 }
@@ -698,51 +779,251 @@ void Context::draw(
 }
 
 void Context::draw_sw(
-    ImDrawData* draw_data,
-    Buffer* vertex_buffer,
-    Buffer* index_buffer,
     TextureView* texture_view,
     CommandEncoder* command_encoder
 )
 {
-    ImGuiIO& io = ImGui::GetIO();
-
     bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
+
+    if (m_sw_draw_commands.empty())
+        return;
 
     auto pass_encoder = command_encoder->begin_compute_pass();
     ShaderObject* shader_object = pass_encoder->bind_pipeline(m_compute_pipeline);
     ShaderCursor shader_cursor = ShaderCursor(shader_object);
     shader_cursor["output_texture"] = ref(texture_view);
     shader_cursor["sampler"] = m_sampler;
-    shader_cursor["vertices"] = ref(vertex_buffer);
-    shader_cursor["indices"] = ref(index_buffer);
+    shader_cursor["triangles"] = m_sw_triangle_buffers[(m_frame_index + FRAME_COUNT - 1) % FRAME_COUNT];
+    shader_cursor["tile_headers"] = m_sw_tile_header_buffers[(m_frame_index + FRAME_COUNT - 1) % FRAME_COUNT];
+    shader_cursor["tile_triangle_indices"] = m_sw_tile_index_buffers[(m_frame_index + FRAME_COUNT - 1) % FRAME_COUNT];
     shader_cursor["is_srgb_format"] = is_srgb_format;
     ShaderOffset texture_offset = shader_cursor["texture"].offset();
     ShaderCursor entry_point_cursor = ShaderCursor(shader_object->get_entry_point(0));
 
-    int vertex_offset = 0;
-    int index_offset = 0;
-    ImVec2 clip_off = draw_data->DisplayPos;
-    for (int n = 0; n < draw_data->CmdListsCount; n++) {
-        const ImDrawList* cmd_list = draw_data->CmdLists[n];
-        for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
-            const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
-            SGL_ASSERT(pcmd->UserCallback == nullptr);
-            ref<Texture> texture = ref<Texture>(static_cast<Texture*>(pcmd->GetTexID()));
-            shader_object->set_texture(texture_offset, texture);
-            entry_point_cursor["start_vertex"] = pcmd->VtxOffset + vertex_offset;
-            entry_point_cursor["start_index"] = pcmd->IdxOffset + index_offset;
-            entry_point_cursor["vertex_count"] = pcmd->ElemCount;
-            entry_point_cursor["clip_min"] = int2(pcmd->ClipRect.x - clip_off.x, pcmd->ClipRect.y - clip_off.y);
-            entry_point_cursor["clip_max"] = int2(pcmd->ClipRect.z - clip_off.x, pcmd->ClipRect.w - clip_off.y);
-            // TODO dispatch can be optimized to only render within the clip rect
-            pass_encoder->dispatch(uint3(io.DisplaySize.x, io.DisplaySize.y, 1));
-        }
-        index_offset += cmd_list->IdxBuffer.Size;
-        vertex_offset += cmd_list->VtxBuffer.Size;
+    for (const SwDrawCommand& draw_command : m_sw_draw_commands) {
+        shader_object->set_texture(texture_offset, draw_command.texture);
+        entry_point_cursor["dispatch_origin"] = int2(draw_command.clip_min_x, draw_command.clip_min_y);
+        entry_point_cursor["tile_header_offset"] = draw_command.tile_header_offset;
+        entry_point_cursor["tile_grid_width"] = draw_command.tile_grid_width;
+        pass_encoder->dispatch(
+            uint3(
+                uint32_t(draw_command.clip_max_x - draw_command.clip_min_x),
+                uint32_t(draw_command.clip_max_y - draw_command.clip_min_y),
+                1
+            )
+        );
     }
 
     pass_encoder->end();
+}
+
+void Context::build_sw_draw_data(
+    ImDrawData* draw_data,
+    TextureView* texture_view,
+    ref<Buffer>& triangle_buffer,
+    ref<Buffer>& tile_header_buffer,
+    ref<Buffer>& tile_index_buffer
+)
+{
+    m_sw_draw_commands.clear();
+    m_sw_triangles.clear();
+    m_sw_tile_headers.clear();
+    m_sw_tile_triangle_indices.clear();
+
+    uint32_t target_width = texture_view->texture()->width();
+    uint32_t target_height = texture_view->texture()->height();
+    ImVec2 clip_off = draw_data->DisplayPos;
+
+    for (int list_index = 0; list_index < draw_data->CmdListsCount; ++list_index) {
+        const ImDrawList* cmd_list = draw_data->CmdLists[list_index];
+        for (int cmd_index = 0; cmd_index < cmd_list->CmdBuffer.Size; ++cmd_index) {
+            const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_index];
+            SGL_ASSERT(pcmd->UserCallback == nullptr);
+
+            int clip_min_x = clamp_int(int(std::floor(pcmd->ClipRect.x - clip_off.x)), 0, int(target_width));
+            int clip_min_y = clamp_int(int(std::floor(pcmd->ClipRect.y - clip_off.y)), 0, int(target_height));
+            int clip_max_x = clamp_int(int(std::ceil(pcmd->ClipRect.z - clip_off.x)), 0, int(target_width));
+            int clip_max_y = clamp_int(int(std::ceil(pcmd->ClipRect.w - clip_off.y)), 0, int(target_height));
+            if (clip_max_x <= clip_min_x || clip_max_y <= clip_min_y)
+                continue;
+
+            const uint32_t raw_triangle_count = pcmd->ElemCount / 3;
+            const uint64_t clip_rect_pixels = uint64_t(clip_max_x - clip_min_x) * uint64_t(clip_max_y - clip_min_y);
+
+            const uint32_t tile_grid_width = uint32_t((clip_max_x - clip_min_x + k_sw_raster_tile_size - 1) / k_sw_raster_tile_size);
+            const uint32_t tile_grid_height = uint32_t((clip_max_y - clip_min_y + k_sw_raster_tile_size - 1) / k_sw_raster_tile_size);
+            const size_t tile_count = size_t(tile_grid_width) * size_t(tile_grid_height);
+
+            const size_t triangle_base = m_sw_triangles.size();
+            m_sw_tile_counts.assign(tile_count, 0);
+
+            for (uint32_t triangle_index = 0; triangle_index < raw_triangle_count; ++triangle_index) {
+                const ImDrawIdx i0 = cmd_list->IdxBuffer[pcmd->IdxOffset + triangle_index * 3 + 0];
+                const ImDrawIdx i1 = cmd_list->IdxBuffer[pcmd->IdxOffset + triangle_index * 3 + 1];
+                const ImDrawIdx i2 = cmd_list->IdxBuffer[pcmd->IdxOffset + triangle_index * 3 + 2];
+
+                const ImDrawVert& v0 = cmd_list->VtxBuffer[pcmd->VtxOffset + i0];
+                const ImDrawVert& v1 = cmd_list->VtxBuffer[pcmd->VtxOffset + i1];
+                const ImDrawVert& v2 = cmd_list->VtxBuffer[pcmd->VtxOffset + i2];
+
+                const int x0 = int(v0.pos.x * float(k_sw_raster_subpixel));
+                const int y0 = int(v0.pos.y * float(k_sw_raster_subpixel));
+                const int x1 = int(v1.pos.x * float(k_sw_raster_subpixel));
+                const int y1 = int(v1.pos.y * float(k_sw_raster_subpixel));
+                const int x2 = int(v2.pos.x * float(k_sw_raster_subpixel));
+                const int y2 = int(v2.pos.y * float(k_sw_raster_subpixel));
+
+                const int area = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+                if (area == 0)
+                    continue;
+
+                int bbox_min_x = floor_div(std::min({x0, x1, x2}), k_sw_raster_subpixel);
+                int bbox_min_y = floor_div(std::min({y0, y1, y2}), k_sw_raster_subpixel);
+                int bbox_max_x = ceil_div(std::max({x0, x1, x2}), k_sw_raster_subpixel);
+                int bbox_max_y = ceil_div(std::max({y0, y1, y2}), k_sw_raster_subpixel);
+
+                bbox_min_x = clamp_int(bbox_min_x, clip_min_x, clip_max_x);
+                bbox_min_y = clamp_int(bbox_min_y, clip_min_y, clip_max_y);
+                bbox_max_x = clamp_int(bbox_max_x, clip_min_x, clip_max_x);
+                bbox_max_y = clamp_int(bbox_max_y, clip_min_y, clip_max_y);
+                if (bbox_max_x <= bbox_min_x || bbox_max_y <= bbox_min_y)
+                    continue;
+
+                SwTriangle triangle{
+                    .x0 = x0,
+                    .y0 = y0,
+                    .x1 = x1,
+                    .y1 = y1,
+                    .x2 = x2,
+                    .y2 = y2,
+                    .bbox_min_x = bbox_min_x,
+                    .bbox_min_y = bbox_min_y,
+                    .bbox_max_x = bbox_max_x,
+                    .bbox_max_y = bbox_max_y,
+                    .inv_area = 1.f / float(area),
+                    .u0 = v0.uv.x,
+                    .v0 = v0.uv.y,
+                    .u1 = v1.uv.x,
+                    .v1 = v1.uv.y,
+                    .u2 = v2.uv.x,
+                    .v2 = v2.uv.y,
+                    .c0_r = unpack_color_channel(v0.col, 0),
+                    .c0_g = unpack_color_channel(v0.col, 8),
+                    .c0_b = unpack_color_channel(v0.col, 16),
+                    .c0_a = unpack_color_channel(v0.col, 24),
+                    .c1_r = unpack_color_channel(v1.col, 0),
+                    .c1_g = unpack_color_channel(v1.col, 8),
+                    .c1_b = unpack_color_channel(v1.col, 16),
+                    .c1_a = unpack_color_channel(v1.col, 24),
+                    .c2_r = unpack_color_channel(v2.col, 0),
+                    .c2_g = unpack_color_channel(v2.col, 8),
+                    .c2_b = unpack_color_channel(v2.col, 16),
+                    .c2_a = unpack_color_channel(v2.col, 24),
+                };
+                m_sw_triangles.push_back(triangle);
+
+                const int tile_min_x = (bbox_min_x - clip_min_x) / k_sw_raster_tile_size;
+                const int tile_min_y = (bbox_min_y - clip_min_y) / k_sw_raster_tile_size;
+                const int tile_max_x = (bbox_max_x - clip_min_x - 1) / k_sw_raster_tile_size;
+                const int tile_max_y = (bbox_max_y - clip_min_y - 1) / k_sw_raster_tile_size;
+                for (int tile_y = tile_min_y; tile_y <= tile_max_y; ++tile_y) {
+                    for (int tile_x = tile_min_x; tile_x <= tile_max_x; ++tile_x) {
+                        const size_t tile_offset = size_t(tile_y) * tile_grid_width + size_t(tile_x);
+                        ++m_sw_tile_counts[tile_offset];
+                    }
+                }
+            }
+
+            const uint32_t emitted_triangle_count = narrow_cast<uint32_t>(m_sw_triangles.size() - triangle_base);
+            if (emitted_triangle_count == 0)
+                continue;
+
+            const size_t tile_header_offset = m_sw_tile_headers.size();
+            m_sw_tile_headers.resize(tile_header_offset + tile_count);
+
+            size_t tile_index_base = m_sw_tile_triangle_indices.size();
+            for (size_t tile_index = 0; tile_index < tile_count; ++tile_index) {
+                m_sw_tile_headers[tile_header_offset + tile_index] = SwTileHeader{
+                    .triangle_offset = narrow_cast<uint32_t>(tile_index_base),
+                    .triangle_count = m_sw_tile_counts[tile_index],
+                };
+                tile_index_base += m_sw_tile_counts[tile_index];
+            }
+
+            const size_t first_tile_index = m_sw_tile_triangle_indices.size();
+            m_sw_tile_triangle_indices.resize(tile_index_base);
+            m_sw_tile_write_offsets.resize(tile_count);
+            for (size_t tile_index = 0; tile_index < tile_count; ++tile_index)
+                m_sw_tile_write_offsets[tile_index] = m_sw_tile_headers[tile_header_offset + tile_index].triangle_offset;
+
+            for (uint32_t local_triangle_index = 0; local_triangle_index < emitted_triangle_count; ++local_triangle_index) {
+                const SwTriangle& triangle = m_sw_triangles[triangle_base + local_triangle_index];
+                const int tile_min_x = (triangle.bbox_min_x - clip_min_x) / k_sw_raster_tile_size;
+                const int tile_min_y = (triangle.bbox_min_y - clip_min_y) / k_sw_raster_tile_size;
+                const int tile_max_x = (triangle.bbox_max_x - clip_min_x - 1) / k_sw_raster_tile_size;
+                const int tile_max_y = (triangle.bbox_max_y - clip_min_y - 1) / k_sw_raster_tile_size;
+                for (int tile_y = tile_min_y; tile_y <= tile_max_y; ++tile_y) {
+                    for (int tile_x = tile_min_x; tile_x <= tile_max_x; ++tile_x) {
+                        const size_t tile_offset = size_t(tile_y) * tile_grid_width + size_t(tile_x);
+                        const uint32_t write_offset = m_sw_tile_write_offsets[tile_offset]++;
+                        m_sw_tile_triangle_indices[write_offset] = narrow_cast<uint32_t>(triangle_base + local_triangle_index);
+                    }
+                }
+            }
+
+            for (size_t tile_index = 0; tile_index < tile_count; ++tile_index) {
+                const SwTileHeader& tile_header = m_sw_tile_headers[tile_header_offset + tile_index];
+                const uint32_t consumed = m_sw_tile_write_offsets[tile_index] - tile_header.triangle_offset;
+                SGL_ASSERT(consumed == tile_header.triangle_count);
+            }
+            SGL_ASSERT(m_sw_tile_triangle_indices.size() - first_tile_index == tile_index_base - first_tile_index);
+
+            m_sw_draw_commands.push_back(SwDrawCommand{
+                .texture = ref<Texture>(static_cast<Texture*>(pcmd->GetTexID())),
+                .clip_min_x = clip_min_x,
+                .clip_min_y = clip_min_y,
+                .clip_max_x = clip_max_x,
+                .clip_max_y = clip_max_y,
+                .tile_header_offset = narrow_cast<uint32_t>(tile_header_offset),
+                .tile_grid_width = tile_grid_width,
+                .tile_grid_height = tile_grid_height,
+                .triangle_count = emitted_triangle_count,
+            });
+
+            ++m_sw_frame_stats.draw_command_count;
+            m_sw_frame_stats.triangle_count += emitted_triangle_count;
+            m_sw_frame_stats.clip_rect_pixels += clip_rect_pixels;
+            m_sw_frame_stats.dispatched_pixels += clip_rect_pixels;
+        }
+    }
+
+    if (m_sw_draw_commands.empty())
+        return;
+
+    ensure_structured_buffer_capacity<SwTriangle>(m_device, triangle_buffer, m_sw_triangles.size(), "imgui sw triangle buffer");
+    ensure_structured_buffer_capacity<SwTileHeader>(m_device, tile_header_buffer, m_sw_tile_headers.size(), "imgui sw tile header buffer");
+    ensure_structured_buffer_capacity<uint32_t>(m_device, tile_index_buffer, m_sw_tile_triangle_indices.size(), "imgui sw tile index buffer");
+
+    triangle_buffer->set_data(m_sw_triangles.data(), m_sw_triangles.size() * sizeof(SwTriangle));
+    tile_header_buffer->set_data(m_sw_tile_headers.data(), m_sw_tile_headers.size() * sizeof(SwTileHeader));
+    tile_index_buffer->set_data(
+        m_sw_tile_triangle_indices.data(),
+        m_sw_tile_triangle_indices.size() * sizeof(uint32_t)
+    );
+}
+
+void Context::log_sw_frame_stats() const
+{
+    log_debug(
+        "ImGui SW raster: cmds={}, tris={}, clip_pixels={}, dispatched_pixels={}, upload_ms={:.3f}, preprocess_ms={:.3f}, submit_ms={:.3f}",
+        m_sw_frame_stats.draw_command_count,
+        m_sw_frame_stats.triangle_count,
+        m_sw_frame_stats.clip_rect_pixels,
+        m_sw_frame_stats.dispatched_pixels,
+        m_sw_frame_stats.upload_cpu_ms,
+        m_sw_frame_stats.preprocess_cpu_ms,
+        m_sw_frame_stats.submit_cpu_ms
+    );
 }
 
 } // namespace sgl::ui

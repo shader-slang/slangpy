@@ -8,15 +8,54 @@ struct Vertex {
     uint c;
 };
 
+struct Triangle {
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+    int x2;
+    int y2;
+    int bbox_min_x;
+    int bbox_min_y;
+    int bbox_max_x;
+    int bbox_max_y;
+    float inv_area;
+    float u0;
+    float v0;
+    float u1;
+    float v1;
+    float u2;
+    float v2;
+    float c0_r;
+    float c0_g;
+    float c0_b;
+    float c0_a;
+    float c1_r;
+    float c1_g;
+    float c1_b;
+    float c1_a;
+    float c2_r;
+    float c2_g;
+    float c2_b;
+    float c2_a;
+};
+
+struct TileHeader {
+    uint triangle_offset;
+    uint triangle_count;
+};
+
 [format("rgba8")]
 RWTexture2D<float4> output_texture;
 SamplerState sampler;
 Texture2D<float4> texture;
-StructuredBuffer<Vertex> vertices;
-StructuredBuffer<uint16_t> indices;
+StructuredBuffer<Triangle> triangles;
+StructuredBuffer<TileHeader> tile_headers;
+StructuredBuffer<uint> tile_triangle_indices;
 uniform bool is_srgb_format;
 
 static constexpr int SUBPIXEL = 16;
+static constexpr uint TILE_SIZE = 16;
 
 float4 convert_color(uint c)
 {
@@ -33,68 +72,50 @@ float4 convert_color(uint c)
 [numthreads(16, 16, 1)]
 void cs_main(
     uint3 tid: SV_DispatchThreadID,
-    uniform uint start_vertex,
-    uniform uint start_index,
-    uniform uint vertex_count,
-    uniform int2 clip_min,
-    uniform int2 clip_max
+    uniform int2 dispatch_origin,
+    uniform uint tile_header_offset,
+    uniform uint tile_grid_width
 )
 {
     int2 dim;
     output_texture.GetDimensions(dim.x, dim.y);
-    int2 pixel = tid.xy;
+    int2 local_pixel = int2(tid.xy);
+    int2 pixel = dispatch_origin + local_pixel;
     if (any(pixel >= dim))
-        return;
-    if (any(pixel < clip_min) || any(pixel >= clip_max))
         return;
 
     // center sample
     const int px = pixel.x * SUBPIXEL + SUBPIXEL / 2;
     const int py = pixel.y * SUBPIXEL + SUBPIXEL / 2;
 
-    // float4 dst = output_texture.Load(pixel);
-    float4 dst = 0.0;
+    float4 dst = output_texture[pixel];
     bool written = false;
 
-    for (uint i = 0; i < vertex_count; i += 3) {
-        Vertex v0 = vertices[start_vertex + indices[start_index + i]];
-        Vertex v1 = vertices[start_vertex + indices[start_index + i + 1]];
-        Vertex v2 = vertices[start_vertex + indices[start_index + i + 2]];
+    uint tile_x = uint(local_pixel.x) / TILE_SIZE;
+    uint tile_y = uint(local_pixel.y) / TILE_SIZE;
+    TileHeader tile = tile_headers[tile_header_offset + tile_y * tile_grid_width + tile_x];
 
-        int x0 = int(v0.x * SUBPIXEL);
-        int y0 = int(v0.y * SUBPIXEL);
-        int x1 = int(v1.x * SUBPIXEL);
-        int y1 = int(v1.y * SUBPIXEL);
-        int x2 = int(v2.x * SUBPIXEL);
-        int y2 = int(v2.y * SUBPIXEL);
+    for (uint i = 0; i < tile.triangle_count; ++i) {
+        Triangle tri = triangles[tile_triangle_indices[tile.triangle_offset + i]];
 
-        int minx = min(x0, min(x1, x2));
-        int maxx = max(x0, max(x1, x2));
-        int miny = min(y0, min(y1, y2));
-        int maxy = max(y0, max(y1, y2));
-
-        // Early out if pixel center is outside triangle bbox.
-        if (px < minx || px >= maxx || py < miny || py >= maxy)
+        if (pixel.x < tri.bbox_min_x || pixel.x >= tri.bbox_max_x || pixel.y < tri.bbox_min_y || pixel.y >= tri.bbox_max_y)
             continue;
 
         // Compute edge deltas.
-        int e0_dx = x1 - x0;
-        int e0_dy = y1 - y0;
-        int e1_dx = x2 - x1;
-        int e1_dy = y2 - y1;
-        int e2_dx = x0 - x2;
-        int e2_dy = y0 - y2;
+        int e0_dx = tri.x1 - tri.x0;
+        int e0_dy = tri.y1 - tri.y0;
+        int e1_dx = tri.x2 - tri.x1;
+        int e1_dy = tri.y2 - tri.y1;
+        int e2_dx = tri.x0 - tri.x2;
+        int e2_dy = tri.y0 - tri.y2;
 
         // Compute edge values at pixel center.
-        int e0 = e0_dx * (py - y0) - e0_dy * (px - x0);
-        int e1 = e1_dx * (py - y1) - e1_dy * (px - x1);
-        int e2 = e2_dx * (py - y2) - e2_dy * (px - x2);
+        int e0 = e0_dx * (py - tri.y0) - e0_dy * (px - tri.x0);
+        int e1 = e1_dx * (py - tri.y1) - e1_dy * (px - tri.x1);
+        int e2 = e2_dx * (py - tri.y2) - e2_dy * (px - tri.x2);
 
         // Check for backfacing triangle.
-        int area = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
-        if (area == 0)
-            continue;
-        bool backface = area < 0;
+        bool backface = tri.inv_area < 0.0;
 
         // using top-left fill rule: require e >= 0 for edges that are top-left, else > 0
         // Here we use >= 0 everywhere, but you should compute per-edge top-left flag to be exact.
@@ -107,19 +128,17 @@ void cs_main(
         }
 
         // barycentric weights from edge functions (use fixed-point values but convert to float)
-        float w0 = (float)e1 / area;
-        float w1 = (float)e2 / area;
-        float w2 = (float)e0 / area;
+        float w0 = float(e1) * tri.inv_area;
+        float w1 = float(e2) * tri.inv_area;
+        float w2 = float(e0) * tri.inv_area;
 
         // interpolate uv and color (we stored premultiplied color components in verts)
-        float u = w0 * v0.u + w1 * v1.u + w2 * v2.u;
-        float v = w0 * v0.v + w1 * v1.v + w2 * v2.v;
-        u = fmod(u, 1.0);
-        v = fmod(v, 1.0);
+        float u = w0 * tri.u0 + w1 * tri.u1 + w2 * tri.u2;
+        float v = w0 * tri.v0 + w1 * tri.v1 + w2 * tri.v2;
 
-        float4 c0 = convert_color(v0.c);
-        float4 c1 = convert_color(v1.c);
-        float4 c2 = convert_color(v2.c);
+        float4 c0 = float4(tri.c0_r, tri.c0_g, tri.c0_b, tri.c0_a);
+        float4 c1 = float4(tri.c1_r, tri.c1_g, tri.c1_b, tri.c1_a);
+        float4 c2 = float4(tri.c2_r, tri.c2_g, tri.c2_b, tri.c2_a);
 
         float4 src = w0 * c0 + w1 * c1 + w2 * c2;
 
