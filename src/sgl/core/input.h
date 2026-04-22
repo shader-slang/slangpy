@@ -10,26 +10,6 @@
 
 namespace sgl {
 
-/// Mouse cursor modes.
-enum class CursorMode : uint32_t {
-    /// The cursor is visible and behaves normally.
-    normal,
-    /// The cursor is hidden when over the window.
-    hidden,
-    /// The cursor is hidden and locked to the window.
-    disabled,
-};
-
-SGL_ENUM_INFO(
-    CursorMode,
-    {
-        {CursorMode::normal, "normal"},
-        {CursorMode::hidden, "hidden"},
-        {CursorMode::disabled, "disabled"},
-    }
-);
-SGL_ENUM_REGISTER(CursorMode);
-
 /// Mouse buttons.
 enum class MouseButton : uint32_t {
     left,

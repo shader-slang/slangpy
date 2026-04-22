@@ -60,6 +60,7 @@ add_subdirectory(tevclient EXCLUDE_FROM_ALL)
 if(SGL_BUILD_PYTHON)
     add_subdirectory(nanobind)
     nanobind_build_library(nanobind SHARED)
+    target_compile_definitions(nanobind PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 # nanothread
@@ -75,6 +76,7 @@ if(NOT SGL_EMSCRIPTEN)
     add_subdirectory(nanothread)
     # Disable LTO for nanothread as this causes problems when linking with sgl.
     set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
+    target_compile_definitions(nanothread PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 # lmdb
@@ -345,7 +347,7 @@ endif()
 
 # imgui
 
-set(IMGUI_VERSION "1.90.1")
+set(IMGUI_VERSION "1.92.7-docking")
 sgl_download_package(imgui "https://github.com/ocornut/imgui/archive/refs/tags/v${IMGUI_VERSION}.zip")
 set(SGL_IMGUI_DIR ${imgui_SOURCE_DIR} PARENT_SCOPE)
 
