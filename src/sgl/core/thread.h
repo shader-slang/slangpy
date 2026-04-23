@@ -5,7 +5,9 @@
 #include "sgl/core/macros.h"
 #include "sgl/core/error.h"
 
+#ifndef __EMSCRIPTEN__
 #include <nanothread/nanothread.h>
+#endif
 
 #include <type_traits>
 #include <mutex>
@@ -15,6 +17,117 @@ namespace sgl::thread {
 
 SGL_API void static_init();
 SGL_API void static_shutdown();
+
+#ifdef SGL_EMSCRIPTEN
+// Mock implementation for Emscripten (single-threaded)
+using TaskHandle = void*;
+
+template<typename Func>
+[[nodiscard]] TaskHandle do_async(Func&& func, const TaskHandle* /*parents*/, size_t /*parent_count*/)
+{
+    func();
+    return nullptr;
+}
+
+template<typename Func>
+[[nodiscard]] TaskHandle do_async(Func&& func, std::initializer_list<TaskHandle> /*parents*/ = {})
+{
+    func();
+    return nullptr;
+}
+
+template<typename Int>
+struct blocked_range {
+public:
+    blocked_range(Int begin, Int end, Int block_size = 1)
+        : m_begin(begin)
+        , m_end(end)
+        , m_block_size(block_size)
+    {
+    }
+
+    struct iterator {
+        Int value;
+
+        iterator(Int value)
+            : value(value)
+        {
+        }
+
+        Int operator*() const { return value; }
+        operator Int() const { return value; }
+
+        void operator++() { value++; }
+        bool operator==(const iterator& it) { return value == it.value; }
+        bool operator!=(const iterator& it) { return value != it.value; }
+    };
+
+    uint32_t blocks() const { return (uint32_t)((m_end - m_begin + m_block_size - 1) / m_block_size); }
+
+    iterator begin() const { return iterator(m_begin); }
+    iterator end() const { return iterator(m_end); }
+    Int block_size() const { return m_block_size; }
+
+private:
+    Int m_begin;
+    Int m_end;
+    Int m_block_size;
+};
+
+template<typename Int, typename Func>
+void parallel_for(const blocked_range<Int>& range, Func&& func)
+{
+    // Execute serially
+    if (range.blocks() > 0)
+        func(range);
+}
+
+template<typename Int, typename Func>
+[[nodiscard]] TaskHandle
+parallel_for_async(const blocked_range<Int>& range, Func&& func, const TaskHandle* /*parents*/, size_t /*parent_count*/)
+{
+    parallel_for(range, std::forward<Func>(func));
+    return nullptr;
+}
+
+template<typename Int, typename Func>
+[[nodiscard]] TaskHandle
+parallel_for_async(const blocked_range<Int>& range, Func&& func, std::initializer_list<TaskHandle> /*parents*/ = {})
+{
+    parallel_for(range, std::forward<Func>(func));
+    return nullptr;
+}
+
+class SGL_API TaskGroup {
+public:
+    TaskGroup() = default;
+    ~TaskGroup() = default;
+
+    template<typename Func>
+    TaskHandle do_async(Func&& func, TaskHandle* parents, size_t parent_count)
+    {
+        return thread::do_async(std::forward<Func>(func), parents, parent_count);
+    }
+
+    template<typename Func>
+    TaskHandle do_async(Func&& func, std::initializer_list<TaskHandle> parents = {})
+    {
+        return thread::do_async(std::forward<Func>(func), parents);
+    }
+
+    void add_task(TaskHandle /*task*/) { }
+    void wait() { }
+
+    SGL_NON_COPYABLE_AND_MOVABLE(TaskGroup);
+};
+
+// Mock nanothread functions if used directly
+inline void task_wait(TaskHandle) { }
+inline void task_release(TaskHandle) { }
+inline void task_wait_and_release(TaskHandle) { }
+inline void task_retain(TaskHandle) { }
+
+#else
 
 // Import nanothread symbols into sgl::thread namespace.
 using ::Task;
@@ -305,6 +418,7 @@ private:
     std::mutex m_mutex;
     std::vector<TaskHandle> m_tasks;
 };
+#endif
 
 /// Get the global task group.
 /// This task group should mostly be used for fire-and-forget tasks without dependencies.

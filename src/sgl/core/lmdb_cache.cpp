@@ -5,8 +5,9 @@
 #include "sgl/core/error.h"
 #include "sgl/core/platform.h"
 
-#include <chrono>
+#if !SGL_EMSCRIPTEN
 
+#include <chrono>
 #include <lmdb.h>
 
 // Brief overview on how the cache works:
@@ -472,3 +473,76 @@ void LMDBCache::close_db(DB db)
 }
 
 } // namespace sgl
+
+#else // SGL_EMSCRIPTEN
+
+namespace sgl {
+
+LMDBCache::LMDBCache(const std::filesystem::path& path, std::optional<Options> options)
+{
+    SGL_UNUSED(path);
+    SGL_UNUSED(options);
+}
+
+LMDBCache::~LMDBCache() { }
+
+void LMDBCache::set(const void* key_data, size_t key_size, const void* value_data, size_t value_size)
+{
+    SGL_UNUSED(key_data);
+    SGL_UNUSED(key_size);
+    SGL_UNUSED(value_data);
+    SGL_UNUSED(value_size);
+}
+
+bool LMDBCache::get(const void* key_data, size_t key_size, WriteValueFunc write_value_func, void* user_data)
+{
+    SGL_UNUSED(key_data);
+    SGL_UNUSED(key_size);
+    SGL_UNUSED(write_value_func);
+    SGL_UNUSED(user_data);
+    return false;
+}
+
+bool LMDBCache::del(const void* key_data, size_t key_size)
+{
+    SGL_UNUSED(key_data);
+    SGL_UNUSED(key_size);
+    return false;
+}
+
+LMDBCache::Usage LMDBCache::usage() const
+{
+    return {};
+}
+
+LMDBCache::Stats LMDBCache::stats() const
+{
+    return {};
+}
+
+void LMDBCache::for_each_impl(ForEachFunc callback, void* user_data) const
+{
+    SGL_UNUSED(callback);
+    SGL_UNUSED(user_data);
+}
+
+void LMDBCache::evict(bool force)
+{
+    SGL_UNUSED(force);
+}
+
+LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Options& options)
+{
+    SGL_UNUSED(path);
+    SGL_UNUSED(options);
+    return {};
+}
+
+void LMDBCache::close_db(DB db)
+{
+    SGL_UNUSED(db);
+}
+
+} // namespace sgl
+
+#endif // SGL_EMSCRIPTEN

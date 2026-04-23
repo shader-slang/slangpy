@@ -24,8 +24,11 @@
 using CGDirectDisplayID = void*;
 using id = void*;
 #endif
+
+#ifndef SGL_EMSCRIPTEN
 #define GLFW_NATIVE_INCLUDE_NONE
 #include <GLFW/glfw3native.h>
+#endif
 
 #include <atomic>
 
@@ -40,6 +43,7 @@ namespace {
             if (glfwInit() != GLFW_TRUE)
                 SGL_THROW("Failed to initialize GLFW");
 
+#ifndef SGL_EMSCRIPTEN
             // Register mappings for NV controllers.
             // clang-format off
             static char nvPadMapping[] =
@@ -48,6 +52,7 @@ namespace {
                 "030000005509000000b4000000000000,NVIDIA Virtual Gamepad,a:b0,b:b1,back:b6,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,leftshoulder:b4,leftstick:b8,lefttrigger:+a2,leftx:a0,lefty:a1,rightshoulder:b5,rightstick:b9,righttrigger:-a2,rightx:a3,righty:a4,start:b7,x:b2,y:b3,platform:Windows,";
             // clang-format on
             glfwUpdateGamepadMappings(nvPadMapping);
+#endif
         }
     }
 
@@ -412,6 +417,8 @@ WindowHandle Window::window_handle() const
     handle.xwindow = glfwGetX11Window(m_window);
 #elif SGL_MACOS
     handle.nswindow = glfwGetCocoaWindow(m_window);
+#elif SGL_EMSCRIPTEN
+    handle.canvasSelector = "#canvas";
 #endif
     return handle;
 }
@@ -561,6 +568,7 @@ std::string Window::to_string() const
 
 void Window::poll_gamepad_input()
 {
+#ifndef SGL_EMSCRIPTEN
     // Check if a gamepad is connected.
     if (m_gamepad_id == INVALID_GAMEPAD_ID) {
         for (int id = GLFW_JOYSTICK_1; id <= GLFW_JOYSTICK_LAST; ++id) {
@@ -645,6 +653,7 @@ void Window::poll_gamepad_input()
 
     if (m_on_gamepad_state)
         m_on_gamepad_state(state);
+#endif
 }
 
 void Window::handle_window_size(uint32_t width, uint32_t height)
