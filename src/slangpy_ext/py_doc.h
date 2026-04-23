@@ -4219,6 +4219,8 @@ static const char *__doc_sgl_GamepadButton_right_thumb = R"doc()doc";
 
 static const char *__doc_sgl_GamepadButton_start = R"doc()doc";
 
+static const char *__doc_sgl_GamepadButton_unknown = R"doc()doc";
+
 static const char *__doc_sgl_GamepadButton_up = R"doc()doc";
 
 static const char *__doc_sgl_GamepadButton_x = R"doc()doc";
