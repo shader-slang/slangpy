@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-from time import time
+from time import time, sleep
 import numpy as np
 
 from slangpy import DeviceType, BufferUsage, QueryType, ResourceState, grid, float3
@@ -72,6 +72,58 @@ int test_copy_pointer_value(int* ptr) {
     )
 
     res = function(buffer.device_address)
+
+    assert res == 42, f"Expected 42, got {res}"
+
+
+WAIT_SECONDS = [
+    0.0,
+    0.1,
+    1.0,
+    5.0,
+    10.0,
+]
+
+SHAPES = [
+    (64,),
+    (1024,),
+    (65536,),
+]
+
+
+# Sets up a single buffer with 1 entry in, passes it as a pointer
+# and returns the value pointed to. Tries a few different usages
+# to make sure there aren't some weird memory type issues.
+@pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
+@pytest.mark.parametrize("usage", USAGES)
+@pytest.mark.parametrize("wait_seconds", WAIT_SECONDS)
+@pytest.mark.parametrize("shape", SHAPES)
+def test_copy_pointer_value_large_buffer(
+    device_type: DeviceType, usage: BufferUsage, wait_seconds: float, shape: tuple[int]
+):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "test_copy_pointer_value_large_buffer",
+        r"""
+int test_copy_pointer_value_large_buffer(int* ptr, uint idx) {
+    return ptr[idx];
+}
+""",
+    )
+
+    buffer = device.create_buffer(
+        size=4 * shape[0],  # Size of int in bytes times number of ints
+        usage=usage,
+        data=np.arange(shape[0], dtype=np.int32),  # Initialize with a range of values
+    )
+
+    print(buffer.to_numpy().view(np.int32))
+
+    sleep(wait_seconds)
+
+    res = function(buffer.device_address, idx=42)
 
     assert res == 42, f"Expected 42, got {res}"
 
