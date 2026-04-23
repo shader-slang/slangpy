@@ -592,6 +592,8 @@ void test_atomic_float_ptr_access(int call_id, Atomic<float>* af) {
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
 def test_atomic_float_in_struct_access(device_type: DeviceType):
+    if device_type == DeviceType.metal:
+        pytest.skip("operator& is not supported on Metal and is being removed from Slang")
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
