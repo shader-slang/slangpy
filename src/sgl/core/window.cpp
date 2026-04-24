@@ -604,6 +604,7 @@ void Window::poll_gamepad_input()
     state.right_trigger = glfw_state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER];
 
     static constexpr int GLFW_BUTTONS[]{
+        0,
         GLFW_GAMEPAD_BUTTON_A,
         GLFW_GAMEPAD_BUTTON_B,
         GLFW_GAMEPAD_BUTTON_X,
@@ -622,11 +623,11 @@ void Window::poll_gamepad_input()
     };
 
     // Get button state.
-    for (size_t i = 0; i < std::size(GLFW_BUTTONS); ++i)
+    for (size_t i = 1; i < std::size(GLFW_BUTTONS); ++i)
         state.buttons |= (glfw_state.buttons[GLFW_BUTTONS[i]] == GLFW_PRESS) << i;
 
     // Synthesize button events.
-    for (size_t i = 0; i < std::size(GLFW_BUTTONS); ++i) {
+    for (size_t i = 1; i < std::size(GLFW_BUTTONS); ++i) {
         if (state.buttons & (1 << i)) {
             if (!(m_gamepad_prev_state.buttons & (1 << i))) {
                 GamepadEvent event{.type = GamepadEventType::button_down, .button = (GamepadButton)i};
