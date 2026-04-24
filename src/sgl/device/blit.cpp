@@ -31,9 +31,9 @@ Blitter::Blitter(Device* device)
 
 Blitter::~Blitter() { }
 
-void Blitter::blit(CommandEncoder* command_encoder, TextureView* dst, TextureView* src, TextureFilteringMode filter)
+void Blitter::blit(CommandRecorder* command_recorder, TextureView* dst, TextureView* src, TextureFilteringMode filter)
 {
-    SGL_CHECK_NOT_NULL(command_encoder);
+    SGL_CHECK_NOT_NULL(command_recorder);
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK_NOT_NULL(src);
 
@@ -102,7 +102,7 @@ void Blitter::blit(CommandEncoder* command_encoder, TextureView* dst, TextureVie
 
     if (use_compute) {
         ref<ComputePipeline> pipeline = get_compute_pipeline(program_key);
-        auto pass_encoder = command_encoder->begin_compute_pass();
+        auto pass_encoder = command_recorder->begin_compute_pass();
         ShaderObject* rootObject = pass_encoder->bind_pipeline(pipeline);
         ShaderCursor cursor = ShaderCursor(rootObject);
         cursor["src"] = ref(src);
@@ -115,7 +115,7 @@ void Blitter::blit(CommandEncoder* command_encoder, TextureView* dst, TextureVie
         pass_encoder->end();
     } else {
         ref<RenderPipeline> pipeline = get_render_pipeline(program_key);
-        auto pass_encoder = command_encoder->begin_render_pass({.color_attachments = {{.view = dst}}});
+        auto pass_encoder = command_recorder->begin_render_pass({.color_attachments = {{.view = dst}}});
         ShaderCursor cursor = ShaderCursor(pass_encoder->bind_pipeline(pipeline));
         pass_encoder->set_render_state({
             .viewports = {Viewport::from_size(float(dst_size.x), float(dst_size.y))},
@@ -128,15 +128,15 @@ void Blitter::blit(CommandEncoder* command_encoder, TextureView* dst, TextureVie
     }
 }
 
-void Blitter::blit(CommandEncoder* command_encoder, Texture* dst, Texture* src, TextureFilteringMode filter)
+void Blitter::blit(CommandRecorder* command_recorder, Texture* dst, Texture* src, TextureFilteringMode filter)
 {
     // TODO(slang-rhi) use default views when available
-    blit(command_encoder, dst->create_view({}), src->create_view({}), filter);
+    blit(command_recorder, dst->create_view({}), src->create_view({}), filter);
 }
 
-void Blitter::generate_mips(CommandEncoder* command_encoder, Texture* texture, uint32_t layer)
+void Blitter::generate_mips(CommandRecorder* command_recorder, Texture* texture, uint32_t layer)
 {
-    SGL_CHECK_NOT_NULL(command_encoder);
+    SGL_CHECK_NOT_NULL(command_recorder);
     SGL_CHECK_NOT_NULL(texture);
     SGL_CHECK_LT(layer, texture->layer_count());
 
@@ -157,7 +157,7 @@ void Blitter::generate_mips(CommandEncoder* command_encoder, Texture* texture, u
                 .mip_count = 1,
             },
         });
-        blit(command_encoder, dst, src);
+        blit(command_recorder, dst, src);
     }
 }
 

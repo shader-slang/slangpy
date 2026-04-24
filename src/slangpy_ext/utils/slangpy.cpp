@@ -589,12 +589,12 @@ nb::tuple NativeCallData::autograd_backward(
 
 nb::object NativeCallData::append_to(
     NativeCallRuntimeOptions& opts,
-    CommandEncoder* command_encoder,
+    CommandRecorder* command_recorder,
     nb::args args,
     nb::kwargs kwargs
 )
 {
-    return exec(opts, command_encoder, args, kwargs);
+    return exec(opts, command_recorder, args, kwargs);
 }
 
 CallShapeInfo NativeCallData::compute_call_shape_info(
@@ -714,8 +714,12 @@ CallShapeInfo NativeCallData::compute_call_shape_info(
     return si;
 }
 
-nb::object
-NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs)
+nb::object NativeCallData::exec(
+    NativeCallRuntimeOptions& opts,
+    CommandRecorder* command_recorder,
+    nb::args args,
+    nb::kwargs kwargs
+)
 {
     // Skip unpacking when no args use get_this/update_this (avoids Python list/dict copy).
     nb::object unpacked_args;
@@ -745,7 +749,7 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
     // Dispatching with 0 thread groups would cause a CUDA driver error.
     if (total_threads == 0) {
         // Still allocate and return the (empty) result if needed.
-        if (!command_encoder && m_call_mode == CallMode::prim) {
+        if (!command_recorder && m_call_mode == CallMode::prim) {
             NativeHandle cuda_stream = opts.cuda_stream;
             if (!m_cached_context)
                 m_cached_context = make_ref<CallContext>(m_device, m_call_mode);
@@ -774,7 +778,7 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
     auto& context = m_cached_context;
 
     // Allocate return value if needed.
-    if (!command_encoder && m_call_mode == CallMode::prim) {
+    if (!command_recorder && m_call_mode == CallMode::prim) {
         ref<NativeBoundVariableRuntime> rv_node = m_runtime->find_kwarg("_result");
         if (rv_node && (!kwargs.contains("_result") || kwargs["_result"].is_none())) {
             nb::object output = rv_node->python_type()->create_output(context, rv_node.get());
@@ -791,7 +795,7 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
 
     if (is_log_enabled(LogLevel::debug)) {
         log_debug("Dispatching {}", m_debug_name);
-        log_debug("  Call type: {}", command_encoder ? "append" : "call");
+        log_debug("  Call type: {}", command_recorder ? "append" : "call");
         log_debug("  Call shape: {}", call_shape.to_string());
         log_debug("  Call mode: {}", m_call_mode);
         log_debug("  Strides: [{}]", fmt::join(strides, ", "));
@@ -810,7 +814,7 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
 
     // If CUDA stream is provided, check for valid use and sync device to the CUDA stream
     if (cuda_stream.is_valid()) {
-        SGL_CHECK(command_encoder == nullptr, "Cannot specify a CUDA stream when appending to a command encoder.");
+        SGL_CHECK(command_recorder == nullptr, "Cannot specify a CUDA stream when appending to a command recorder.");
         SGL_CHECK(
             m_device->supports_cuda_interop() || m_device->type() == DeviceType::cuda,
             "To specify a CUDA stream, device must be either using CUDA backend or have CUDA interop enabled."
@@ -949,15 +953,15 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
 
     // Create temporary command encoder if none is provided.
     ref<CommandEncoder> temp_command_encoder;
-    if (command_encoder == nullptr) {
+    if (command_recorder == nullptr) {
         temp_command_encoder = m_device->create_command_encoder();
-        command_encoder = temp_command_encoder.get();
+        command_recorder = temp_command_encoder.get();
     }
 
     bool is_ray_tracing = opts.is_ray_tracing;
 
     if (!is_ray_tracing) {
-        ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
+        ref<ComputePassEncoder> pass_encoder = command_recorder->begin_compute_pass();
         ComputePipeline* pipeline = dynamic_cast<ComputePipeline*>(m_pipeline.get());
         SGL_ASSERT(pipeline != nullptr);
         ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline));
@@ -965,7 +969,7 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
         pass_encoder->dispatch(uint3(total_threads, 1, 1));
         pass_encoder->end();
     } else {
-        ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
+        ref<RayTracingPassEncoder> pass_encoder = command_recorder->begin_ray_tracing_pass();
         RayTracingPipeline* pipeline = dynamic_cast<RayTracingPipeline*>(m_pipeline.get());
         SGL_ASSERT(pipeline != nullptr);
         ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline, m_shader_table));
@@ -977,11 +981,11 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
     // If we created a temporary command encoder, we need to submit it.
     if (temp_command_encoder) {
         m_device->submit_command_buffer(temp_command_encoder->finish(), CommandQueueType::graphics, cuda_stream);
-        command_encoder = nullptr;
+        command_recorder = nullptr;
     }
 
-    // If command_encoder is not null, return early.
-    if (command_encoder != nullptr) {
+    // If command_recorder is not null, return early.
+    if (command_recorder != nullptr) {
         return nanobind::none();
     }
 
@@ -1696,7 +1700,7 @@ SGL_PY_EXPORT(utils_slangpy)
             "append_to",
             [](NativeCallData& self,
                NativeCallRuntimeOptions& opts,
-               CommandEncoder* cmd,
+               CommandRecorder* cmd,
                nb::args args,
                nb::kwargs kwargs)
             {

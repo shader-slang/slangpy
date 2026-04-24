@@ -47,7 +47,7 @@ public:
     void dispatch(
         uint3 thread_count,
         BindVarsCallback bind_vars,
-        CommandEncoder* command_encoder,
+        CommandRecorder* command_recorder,
         QueryPool* query_pool = nullptr,
         uint32_t query_index_before = 0,
         uint32_t query_index_after = 0
@@ -76,7 +76,7 @@ public:
 
     RayTracingPipeline* pipeline() const;
 
-    void dispatch(uint3 thread_count, BindVarsCallback bind_vars, CommandEncoder* command_encoder = nullptr);
+    void dispatch(uint3 thread_count, BindVarsCallback bind_vars, CommandRecorder* command_recorder = nullptr);
 
 private:
     mutable ref<RayTracingPipeline> m_pipeline;

@@ -48,7 +48,7 @@ SGL_DICT_TO_DESC_END()
 extern SubresourceData
 texture_build_subresource_data_for_upload(Texture* self, nb::ndarray<nb::numpy> data, uint32_t layer, uint32_t mip);
 
-void upload_buffer_data(CommandEncoder* self, Buffer* buffer, size_t offset, nb::ndarray<nb::numpy> data)
+void upload_buffer_data(CommandRecorder* self, Buffer* buffer, size_t offset, nb::ndarray<nb::numpy> data)
 {
     SGL_CHECK(is_ndarray_contiguous(data), "numpy array is not contiguous");
 
@@ -66,7 +66,7 @@ void upload_buffer_data(CommandEncoder* self, Buffer* buffer, size_t offset, nb:
 }
 
 void upload_texture_data(
-    CommandEncoder* self,
+    CommandRecorder* self,
     Texture* texture,
     uint32_t layer,
     uint32_t mip,
@@ -81,7 +81,7 @@ void upload_texture_data(
 }
 
 void upload_texture_data(
-    CommandEncoder* self,
+    CommandRecorder* self,
     Texture* texture,
     uint3 offset,
     uint3 extent,
@@ -131,7 +131,7 @@ void upload_texture_data(
 }
 
 void upload_texture_data(
-    CommandEncoder* self,
+    CommandRecorder* self,
     Texture* texture,
     SubresourceRange range,
     std::span<nb::ndarray<nb::numpy>> data
@@ -142,7 +142,7 @@ void upload_texture_data(
     upload_texture_data(self, texture, offset, extent, range, data);
 }
 
-void upload_texture_data(CommandEncoder* self, Texture* texture, std::span<nb::ndarray<nb::numpy>> data)
+void upload_texture_data(CommandRecorder* self, Texture* texture, std::span<nb::ndarray<nb::numpy>> data)
 {
     SubresourceRange range;
     upload_texture_data(self, texture, range, data);
@@ -267,28 +267,28 @@ SGL_PY_EXPORT(device_command)
         );
     nb::implicitly_convertible<nb::dict, RenderPassDesc>();
 
-    nb::class_<CommandEncoder, DeviceChild>(m, "CommandEncoder", D(CommandEncoder))
-        .def("begin_render_pass", &CommandEncoder::begin_render_pass, "desc"_a, D(CommandEncoder, begin_render_pass))
-        .def("begin_compute_pass", &CommandEncoder::begin_compute_pass, D(CommandEncoder, begin_compute_pass))
+    nb::class_<CommandRecorder, DeviceChild>(m, "CommandRecorder", D(CommandRecorder))
+        .def("begin_render_pass", &CommandRecorder::begin_render_pass, "desc"_a, D(CommandRecorder, begin_render_pass))
+        .def("begin_compute_pass", &CommandRecorder::begin_compute_pass, D(CommandRecorder, begin_compute_pass))
         .def(
             "begin_ray_tracing_pass",
-            &CommandEncoder::begin_ray_tracing_pass,
-            D(CommandEncoder, begin_ray_tracing_pass)
+            &CommandRecorder::begin_ray_tracing_pass,
+            D(CommandRecorder, begin_ray_tracing_pass)
         )
         .def(
             "copy_buffer",
-            &CommandEncoder::copy_buffer,
+            &CommandRecorder::copy_buffer,
             "dst"_a,
             "dst_offset"_a,
             "src"_a,
             "src_offset"_a,
             "size"_a,
-            D(CommandEncoder, copy_buffer)
+            D(CommandRecorder, copy_buffer)
         )
         .def(
             "copy_texture",
             nb::overload_cast<Texture*, SubresourceRange, uint3, const Texture*, SubresourceRange, uint3, uint3>(
-                &CommandEncoder::copy_texture
+                &CommandRecorder::copy_texture
             ),
             "dst"_a,
             "dst_subresource_range"_a,
@@ -297,12 +297,12 @@ SGL_PY_EXPORT(device_command)
             "src_subresource_range"_a,
             "src_offset"_a,
             "extent"_a = uint3(-1),
-            D(CommandEncoder, copy_texture)
+            D(CommandRecorder, copy_texture)
         )
         .def(
             "copy_texture",
             nb::overload_cast<Texture*, uint32_t, uint32_t, uint3, const Texture*, uint32_t, uint32_t, uint3, uint3>(
-                &CommandEncoder::copy_texture
+                &CommandRecorder::copy_texture
             ),
             "dst"_a,
             "dst_layer"_a,
@@ -313,11 +313,11 @@ SGL_PY_EXPORT(device_command)
             "src_mip"_a,
             "src_offset"_a,
             "extent"_a = uint3(-1),
-            D(CommandEncoder, copy_texture, 2)
+            D(CommandRecorder, copy_texture, 2)
         )
         .def(
             "copy_texture_to_buffer",
-            &CommandEncoder::copy_texture_to_buffer,
+            &CommandRecorder::copy_texture_to_buffer,
             "dst"_a,
             "dst_offset"_a,
             "dst_size"_a,
@@ -327,11 +327,11 @@ SGL_PY_EXPORT(device_command)
             "src_mip"_a,
             "src_offset"_a = uint3(0),
             "extent"_a = uint3(-1),
-            D(CommandEncoder, copy_texture_to_buffer)
+            D(CommandRecorder, copy_texture_to_buffer)
         )
         .def(
             "copy_buffer_to_texture",
-            &CommandEncoder::copy_buffer_to_texture,
+            &CommandRecorder::copy_buffer_to_texture,
             "dst"_a,
             "dst_layer"_a,
             "dst_mip"_a,
@@ -341,24 +341,24 @@ SGL_PY_EXPORT(device_command)
             "src_size"_a,
             "src_row_pitch"_a,
             "extent"_a = uint3(-1),
-            D(CommandEncoder, copy_buffer_to_texture)
+            D(CommandRecorder, copy_buffer_to_texture)
         )
         .def("upload_buffer_data", &upload_buffer_data, "buffer"_a, "offset"_a, "data"_a)
         .def(
             "upload_texture_data",
-            nb::overload_cast<CommandEncoder*, Texture*, uint32_t, uint32_t, nb::ndarray<nb::numpy>>(
+            nb::overload_cast<CommandRecorder*, Texture*, uint32_t, uint32_t, nb::ndarray<nb::numpy>>(
                 &upload_texture_data
             ),
             "texture"_a,
             "layer"_a,
             "mip"_a,
             "data"_a,
-            D(CommandEncoder, upload_texture_data)
+            D(CommandRecorder, upload_texture_data)
         )
         .def(
             "upload_texture_data",
             nb::overload_cast<
-                CommandEncoder*,
+                CommandRecorder*,
                 Texture*,
                 uint3,
                 uint3,
@@ -369,12 +369,12 @@ SGL_PY_EXPORT(device_command)
             "extent"_a,
             "range"_a,
             "subresource_data"_a,
-            D(CommandEncoder, upload_texture_data)
+            D(CommandRecorder, upload_texture_data)
         )
         .def(
             "upload_texture_data",
             nb::overload_cast<
-                CommandEncoder*,
+                CommandRecorder*,
                 Texture*,
                 uint3,
                 uint3,
@@ -385,204 +385,229 @@ SGL_PY_EXPORT(device_command)
             "extent"_a,
             "range"_a,
             "subresource_data"_a,
-            D(CommandEncoder, upload_texture_data)
+            D(CommandRecorder, upload_texture_data)
         )
         .def(
             "upload_texture_data",
-            nb::overload_cast<CommandEncoder*, Texture*, SubresourceRange, std::span<nb::ndarray<nb::numpy>>>(
+            nb::overload_cast<CommandRecorder*, Texture*, SubresourceRange, std::span<nb::ndarray<nb::numpy>>>(
                 &upload_texture_data
             ),
             "texture"_a,
             "range"_a,
             "subresource_data"_a,
-            D(CommandEncoder, upload_texture_data)
+            D(CommandRecorder, upload_texture_data)
         )
         .def(
             "upload_texture_data",
-            nb::overload_cast<CommandEncoder*, Texture*, std::span<nb::ndarray<nb::numpy>>>(&upload_texture_data),
+            nb::overload_cast<CommandRecorder*, Texture*, std::span<nb::ndarray<nb::numpy>>>(&upload_texture_data),
             "texture"_a,
             "subresource_data"_a,
-            D(CommandEncoder, upload_texture_data)
+            D(CommandRecorder, upload_texture_data)
         )
         .def(
             "clear_buffer",
-            &CommandEncoder::clear_buffer,
+            &CommandRecorder::clear_buffer,
             "buffer"_a,
             "range"_a = BufferRange{},
-            D(CommandEncoder, clear_buffer)
+            D(CommandRecorder, clear_buffer)
         )
         .def(
             "clear_texture_float",
-            &CommandEncoder::clear_texture_float,
+            &CommandRecorder::clear_texture_float,
             "texture"_a,
             "range"_a = SubresourceRange{},
             "clear_value"_a = float4(0.f),
-            D(CommandEncoder, clear_texture_float)
+            D(CommandRecorder, clear_texture_float)
         )
         .def(
             "clear_texture_uint",
-            &CommandEncoder::clear_texture_uint,
+            &CommandRecorder::clear_texture_uint,
             "texture"_a,
             "range"_a = SubresourceRange{},
             "clear_value"_a = uint4(0),
-            D(CommandEncoder, clear_texture_uint)
+            D(CommandRecorder, clear_texture_uint)
         )
         .def(
             "clear_texture_sint",
-            &CommandEncoder::clear_texture_sint,
+            &CommandRecorder::clear_texture_sint,
             "texture"_a,
             "range"_a = SubresourceRange{},
             "clear_value"_a = int4(0),
-            D(CommandEncoder, clear_texture_sint)
+            D(CommandRecorder, clear_texture_sint)
         )
         .def(
             "clear_texture_depth_stencil",
-            &CommandEncoder::clear_texture_depth_stencil,
+            &CommandRecorder::clear_texture_depth_stencil,
             "texture"_a,
             "range"_a = SubresourceRange{},
             "clear_depth"_a = true,
             "depth_value"_a = 0.f,
             "clear_stencil"_a = true,
             "stencil_value"_a = 0,
-            D(CommandEncoder, clear_texture_depth_stencil)
+            D(CommandRecorder, clear_texture_depth_stencil)
         )
         .def(
             "blit",
-            nb::overload_cast<TextureView*, TextureView*, TextureFilteringMode>(&CommandEncoder::blit),
+            nb::overload_cast<TextureView*, TextureView*, TextureFilteringMode>(&CommandRecorder::blit),
             "dst"_a,
             "src"_a,
             "filter"_a = TextureFilteringMode::linear,
-            D(CommandEncoder, blit)
+            D(CommandRecorder, blit)
         )
         .def(
             "blit",
-            nb::overload_cast<Texture*, Texture*, TextureFilteringMode>(&CommandEncoder::blit),
+            nb::overload_cast<Texture*, Texture*, TextureFilteringMode>(&CommandRecorder::blit),
             "dst"_a,
             "src"_a,
             "filter"_a = TextureFilteringMode::linear,
-            D(CommandEncoder, blit, 2)
+            D(CommandRecorder, blit, 2)
         )
         .def(
             "generate_mips",
-            &CommandEncoder::generate_mips,
+            &CommandRecorder::generate_mips,
             "texture"_a,
             "layer"_a = 0,
-            D(CommandEncoder, generate_mips)
+            D(CommandRecorder, generate_mips)
         )
         .def(
             "resolve_query",
-            &CommandEncoder::resolve_query,
+            &CommandRecorder::resolve_query,
             "query_pool"_a,
             "index"_a,
             "count"_a,
             "buffer"_a,
             "offset"_a,
-            D(CommandEncoder, resolve_query)
+            D(CommandRecorder, resolve_query)
         )
         .def(
             "build_acceleration_structure",
-            &CommandEncoder::build_acceleration_structure,
+            &CommandRecorder::build_acceleration_structure,
             "desc"_a,
             "dst"_a,
             "src"_a.none(),
             "scratch_buffer"_a,
             "queries"_a = std::span<AccelerationStructureQueryDesc>(),
-            D(CommandEncoder, build_acceleration_structure)
+            D(CommandRecorder, build_acceleration_structure)
         )
         .def(
             "copy_acceleration_structure",
-            &CommandEncoder::copy_acceleration_structure,
+            &CommandRecorder::copy_acceleration_structure,
             "dst"_a,
             "src"_a,
             "mode"_a,
-            D(CommandEncoder, copy_acceleration_structure)
+            D(CommandRecorder, copy_acceleration_structure)
         )
         .def(
             "query_acceleration_structure_properties",
-            &CommandEncoder::query_acceleration_structure_properties,
+            &CommandRecorder::query_acceleration_structure_properties,
             "acceleration_structures"_a,
             "queries"_a,
-            D(CommandEncoder, query_acceleration_structure_properties)
+            D(CommandRecorder, query_acceleration_structure_properties)
         )
         .def(
             "serialize_acceleration_structure",
-            &CommandEncoder::serialize_acceleration_structure,
+            &CommandRecorder::serialize_acceleration_structure,
             "dst"_a,
             "src"_a,
-            D(CommandEncoder, serialize_acceleration_structure)
+            D(CommandRecorder, serialize_acceleration_structure)
         )
         .def(
             "deserialize_acceleration_structure",
-            &CommandEncoder::deserialize_acceleration_structure,
+            &CommandRecorder::deserialize_acceleration_structure,
             "dst"_a,
             "src"_a,
-            D(CommandEncoder, deserialize_acceleration_structure)
+            D(CommandRecorder, deserialize_acceleration_structure)
         )
         .def(
             "convert_coop_vec_matrices",
-            &CommandEncoder::convert_coop_vec_matrices,
+            &CommandRecorder::convert_coop_vec_matrices,
             "dst"_a,
             "dst_descs"_a,
             "src"_a,
             "src_descs"_a,
-            D(CommandEncoder, convert_coop_vec_matrices)
+            D(CommandRecorder, convert_coop_vec_matrices)
         )
         .def(
             "convert_coop_vec_matrix",
-            &CommandEncoder::convert_coop_vec_matrix,
+            &CommandRecorder::convert_coop_vec_matrix,
             "dst"_a,
             "dst_desc"_a,
             "src"_a,
             "src_desc"_a,
-            D(CommandEncoder, convert_coop_vec_matrix)
+            D(CommandRecorder, convert_coop_vec_matrix)
         )
         .def(
             "set_buffer_state",
-            &CommandEncoder::set_buffer_state,
+            &CommandRecorder::set_buffer_state,
             "buffer"_a,
             "state"_a,
-            D(CommandEncoder, set_buffer_state)
+            D(CommandRecorder, set_buffer_state)
         )
         .def(
             "set_texture_state",
-            nb::overload_cast<Texture*, ResourceState>(&CommandEncoder::set_texture_state),
+            nb::overload_cast<Texture*, ResourceState>(&CommandRecorder::set_texture_state),
             "texture"_a,
             "state"_a,
-            D(CommandEncoder, set_texture_state)
+            D(CommandRecorder, set_texture_state)
         )
         .def(
             "set_texture_state",
-            nb::overload_cast<Texture*, SubresourceRange, ResourceState>(&CommandEncoder::set_texture_state),
+            nb::overload_cast<Texture*, SubresourceRange, ResourceState>(&CommandRecorder::set_texture_state),
             "texture"_a,
             "range"_a,
             "state"_a,
-            D(CommandEncoder, set_texture_state)
+            D(CommandRecorder, set_texture_state)
         )
-        .def("global_barrier", &CommandEncoder::global_barrier, D(CommandEncoder, global_barrier))
+        .def("global_barrier", &CommandRecorder::global_barrier, D(CommandRecorder, global_barrier))
         .def(
             "push_debug_group",
-            &CommandEncoder::push_debug_group,
+            &CommandRecorder::push_debug_group,
             "name"_a,
             "color"_a,
-            D(CommandEncoder, push_debug_group)
+            D(CommandRecorder, push_debug_group)
         )
-        .def("pop_debug_group", &CommandEncoder::pop_debug_group, D(CommandEncoder, pop_debug_group))
+        .def("pop_debug_group", &CommandRecorder::pop_debug_group, D(CommandRecorder, pop_debug_group))
         .def(
             "insert_debug_marker",
-            &CommandEncoder::insert_debug_marker,
+            &CommandRecorder::insert_debug_marker,
             "name"_a,
             "color"_a,
-            D(CommandEncoder, insert_debug_marker)
+            D(CommandRecorder, insert_debug_marker)
         )
         .def(
             "write_timestamp",
-            &CommandEncoder::write_timestamp,
+            &CommandRecorder::write_timestamp,
             "query_pool"_a,
             "index"_a,
-            D(CommandEncoder, write_timestamp)
+            D(CommandRecorder, write_timestamp)
         )
-        .def("finish", &CommandEncoder::finish, D(CommandEncoder, finish))
-        .def_prop_ro("native_handle", &CommandEncoder::native_handle, D(CommandEncoder, native_handle));
+        .def_prop_ro("native_handle", &CommandRecorder::native_handle, D(CommandRecorder, native_handle));
+
+    nb::class_<CommandEncoder, CommandRecorder>(m, "CommandEncoder", D(CommandEncoder))
+        .def("finish", &CommandEncoder::finish, D(CommandEncoder, finish));
+
+    nb::class_<CommandStream, CommandRecorder>(m, "CommandStream", D(CommandStream))
+        .def("submit", &CommandStream::submit, D(CommandStream, submit))
+        .def("flush", &CommandStream::flush, D(CommandStream, flush))
+        .def("wait", nb::overload_cast<uint64_t>(&CommandStream::wait), "submit_id"_a, D(CommandStream, wait))
+        .def("wait", nb::overload_cast<>(&CommandStream::wait), D(CommandStream, wait))
+        .def(
+            "__enter__",
+            [](CommandStream* self)
+            {
+                return self;
+            }
+        )
+        .def(
+            "__exit__",
+            [](CommandStream* self, nb::object, nb::object, nb::object)
+            {
+                self->flush();
+            },
+            "exc_type"_a = nb::none(),
+            "exc_value"_a = nb::none(),
+            "traceback"_a = nb::none()
+        );
 
     nb::class_<PassEncoder, Object>(m, "PassEncoder", D(PassEncoder))
         .def("end", &PassEncoder::end, D(PassEncoder, end))

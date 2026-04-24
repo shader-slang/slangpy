@@ -98,9 +98,9 @@ ShaderObject* RenderPassEncoder::bind_pipeline(RenderPipeline* pipeline)
     SGL_CHECK_NOT_NULL(pipeline);
 
     rhi::IShaderObject* rhi_root_object = m_rhi_render_pass_encoder->bindPipeline(pipeline->rhi_pipeline());
-    ShaderObject* root_object = m_command_encoder->_get_root_object(rhi_root_object);
-    if (m_command_encoder->device()->debug_printer())
-        m_command_encoder->device()->debug_printer()->bind(ShaderCursor(root_object));
+    ShaderObject* root_object = m_recorder->_get_root_object(rhi_root_object);
+    if (m_recorder->device()->debug_printer())
+        m_recorder->device()->debug_printer()->bind(ShaderCursor(root_object));
     return root_object;
 }
 
@@ -181,9 +181,9 @@ ShaderObject* ComputePassEncoder::bind_pipeline(ComputePipeline* pipeline)
 
     m_thread_group_size = pipeline->thread_group_size();
     rhi::IShaderObject* rhi_root_object = m_rhi_compute_pass_encoder->bindPipeline(pipeline->rhi_pipeline());
-    ShaderObject* root_object = m_command_encoder->_get_root_object(rhi_root_object);
-    if (m_command_encoder->device()->debug_printer())
-        m_command_encoder->device()->debug_printer()->bind(ShaderCursor(root_object));
+    ShaderObject* root_object = m_recorder->_get_root_object(rhi_root_object);
+    if (m_recorder->device()->debug_printer())
+        m_recorder->device()->debug_printer()->bind(ShaderCursor(root_object));
     return root_object;
 }
 
@@ -232,9 +232,9 @@ ShaderObject* RayTracingPassEncoder::bind_pipeline(RayTracingPipeline* pipeline,
 
     rhi::IShaderObject* rhi_root_object
         = m_rhi_ray_tracing_pass_encoder->bindPipeline(pipeline->rhi_pipeline(), shader_table->rhi_shader_table());
-    ShaderObject* root_object = m_command_encoder->_get_root_object(rhi_root_object);
-    if (m_command_encoder->device()->debug_printer())
-        m_command_encoder->device()->debug_printer()->bind(ShaderCursor(root_object));
+    ShaderObject* root_object = m_recorder->_get_root_object(rhi_root_object);
+    if (m_recorder->device()->debug_printer())
+        m_recorder->device()->debug_printer()->bind(ShaderCursor(root_object));
     return root_object;
 }
 
@@ -264,18 +264,29 @@ void RayTracingPassEncoder::end()
 }
 
 // ----------------------------------------------------------------------------
-// CommandEncoder
+// CommandRecorder
 // ----------------------------------------------------------------------------
 
-CommandEncoder::CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder)
+CommandRecorder::CommandRecorder(ref<Device> device)
     : DeviceChild(std::move(device))
-    , m_rhi_command_encoder(std::move(rhi_command_encoder))
-    , m_open(true)
 {
 }
 
-ref<RenderPassEncoder> CommandEncoder::begin_render_pass(const RenderPassDesc& desc)
+CommandRecorder::CommandRecorder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder)
+    : DeviceChild(std::move(device))
+    , m_rhi_command_encoder(std::move(rhi_command_encoder))
 {
+}
+
+void CommandRecorder::check_encoder()
+{
+    SGL_CHECK(m_rhi_command_encoder, "Command recorder has no active command encoder");
+}
+
+ref<RenderPassEncoder> CommandRecorder::begin_render_pass(const RenderPassDesc& desc)
+{
+    check_encoder();
+
     rhi::RenderPassDesc rhi_desc = {};
 
     short_vector<rhi::RenderPassColorAttachment, 16> rhi_color_attachments;
@@ -312,43 +323,47 @@ ref<RenderPassEncoder> CommandEncoder::begin_render_pass(const RenderPassDesc& d
         m_render_pass_encoder = make_ref<RenderPassEncoder>();
     }
 
-    m_render_pass_encoder->m_command_encoder = this;
+    m_render_pass_encoder->m_recorder = this;
     m_render_pass_encoder->m_rhi_render_pass_encoder = m_rhi_command_encoder->beginRenderPass(rhi_desc);
     m_render_pass_encoder->m_rhi_pass_encoder = m_render_pass_encoder->m_rhi_render_pass_encoder;
     return m_render_pass_encoder;
 }
 
-ref<ComputePassEncoder> CommandEncoder::begin_compute_pass()
+ref<ComputePassEncoder> CommandRecorder::begin_compute_pass()
 {
+    check_encoder();
+
     if (!m_compute_pass_encoder) {
         m_compute_pass_encoder = make_ref<ComputePassEncoder>();
     }
 
-    m_compute_pass_encoder->m_command_encoder = this;
+    m_compute_pass_encoder->m_recorder = this;
     m_compute_pass_encoder->m_rhi_compute_pass_encoder = m_rhi_command_encoder->beginComputePass();
     m_compute_pass_encoder->m_rhi_pass_encoder = m_compute_pass_encoder->m_rhi_compute_pass_encoder;
     return m_compute_pass_encoder;
 }
 
-ref<RayTracingPassEncoder> CommandEncoder::begin_ray_tracing_pass()
+ref<RayTracingPassEncoder> CommandRecorder::begin_ray_tracing_pass()
 {
+    check_encoder();
+
     if (!m_ray_tracing_pass_encoder) {
         m_ray_tracing_pass_encoder = make_ref<RayTracingPassEncoder>();
     }
 
-    m_ray_tracing_pass_encoder->m_command_encoder = this;
+    m_ray_tracing_pass_encoder->m_recorder = this;
     m_ray_tracing_pass_encoder->m_rhi_ray_tracing_pass_encoder = m_rhi_command_encoder->beginRayTracingPass();
     m_ray_tracing_pass_encoder->m_rhi_pass_encoder = m_ray_tracing_pass_encoder->m_rhi_ray_tracing_pass_encoder;
     return m_ray_tracing_pass_encoder;
 }
 
-ShaderObject* CommandEncoder::_get_root_object(rhi::IShaderObject* rhi_shader_object)
+ShaderObject* CommandRecorder::_get_root_object(rhi::IShaderObject* rhi_shader_object)
 {
     m_root_object = make_ref<ShaderObject>(m_device, rhi_shader_object, false);
     return m_root_object.get();
 }
 
-void CommandEncoder::copy_buffer(
+void CommandRecorder::copy_buffer(
     Buffer* dst,
     DeviceOffset dst_offset,
     const Buffer* src,
@@ -356,7 +371,7 @@ void CommandEncoder::copy_buffer(
     DeviceSize size
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK_NOT_NULL(src);
     SGL_CHECK_LE(dst_offset + size, dst->size());
@@ -365,7 +380,7 @@ void CommandEncoder::copy_buffer(
     m_rhi_command_encoder->copyBuffer(dst->rhi_buffer(), dst_offset, src->rhi_buffer(), src_offset, size);
 }
 
-void CommandEncoder::copy_texture(
+void CommandRecorder::copy_texture(
     Texture* dst,
     SubresourceRange dst_subresource_range,
     uint3 dst_offset,
@@ -375,7 +390,7 @@ void CommandEncoder::copy_texture(
     uint3 extent
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK_NOT_NULL(src);
 
@@ -396,7 +411,7 @@ void CommandEncoder::copy_texture(
     );
 }
 
-void CommandEncoder::copy_texture(
+void CommandRecorder::copy_texture(
     Texture* dst,
     uint32_t dst_layer,
     uint32_t dst_mip,
@@ -408,7 +423,7 @@ void CommandEncoder::copy_texture(
     uint3 extent
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK_LT(dst_layer, dst->layer_count());
     SGL_CHECK_LT(dst_mip, dst->mip_count());
@@ -433,7 +448,7 @@ void CommandEncoder::copy_texture(
     );
 }
 
-void CommandEncoder::copy_texture_to_buffer(
+void CommandRecorder::copy_texture_to_buffer(
     Buffer* dst,
     DeviceOffset dst_offset,
     DeviceSize dst_size,
@@ -445,7 +460,7 @@ void CommandEncoder::copy_texture_to_buffer(
     uint3 extent
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK(dst_offset + dst_size <= dst->size(), "Destination buffer is too small");
     SGL_CHECK_NOT_NULL(src);
@@ -465,7 +480,7 @@ void CommandEncoder::copy_texture_to_buffer(
     );
 }
 
-void CommandEncoder::copy_buffer_to_texture(
+void CommandRecorder::copy_buffer_to_texture(
     Texture* dst,
     uint32_t dst_layer,
     uint32_t dst_mip,
@@ -477,7 +492,7 @@ void CommandEncoder::copy_buffer_to_texture(
     uint3 extent
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK_NOT_NULL(src);
     SGL_CHECK(src_offset + src_size <= src->size(), "Source buffer is too small");
@@ -497,9 +512,9 @@ void CommandEncoder::copy_buffer_to_texture(
     );
 }
 
-void CommandEncoder::upload_buffer_data(Buffer* buffer, size_t offset, size_t size, const void* data)
+void CommandRecorder::upload_buffer_data(Buffer* buffer, size_t offset, size_t size, const void* data)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(buffer);
     SGL_CHECK(offset + size <= buffer->size(), "Buffer upload is out of bounds");
     SGL_CHECK_NOT_NULL(data);
@@ -512,7 +527,7 @@ void CommandEncoder::upload_buffer_data(Buffer* buffer, size_t offset, size_t si
     );
 }
 
-void CommandEncoder::upload_texture_data(
+void CommandRecorder::upload_texture_data(
     Texture* texture,
     SubresourceRange subresource_range,
     uint3 offset,
@@ -520,7 +535,7 @@ void CommandEncoder::upload_texture_data(
     std::span<SubresourceData> subresource_data
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(texture);
 
     short_vector<rhi::SubresourceData, 16> rhi_subresource_data;
@@ -545,14 +560,14 @@ void CommandEncoder::upload_texture_data(
     );
 }
 
-void CommandEncoder::upload_texture_data(
+void CommandRecorder::upload_texture_data(
     Texture* texture,
     uint32_t layer,
     uint32_t mip,
     SubresourceData subresource_data
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(texture);
     SGL_CHECK_LT(layer, texture->layer_count());
     SGL_CHECK_LT(mip, texture->mip_count());
@@ -583,37 +598,37 @@ void CommandEncoder::upload_texture_data(
     );
 }
 
-void CommandEncoder::clear_buffer(Buffer* buffer, BufferRange range)
+void CommandRecorder::clear_buffer(Buffer* buffer, BufferRange range)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(buffer);
 
     m_rhi_command_encoder->clearBuffer(buffer->rhi_buffer(), range.offset, range.size);
 }
 
-void CommandEncoder::clear_texture_float(Texture* texture, SubresourceRange subresource_range, float4 clear_value)
+void CommandRecorder::clear_texture_float(Texture* texture, SubresourceRange subresource_range, float4 clear_value)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(texture);
     m_rhi_command_encoder
         ->clearTextureFloat(texture->rhi_texture(), detail::to_rhi(subresource_range), &clear_value[0]);
 }
 
-void CommandEncoder::clear_texture_uint(Texture* texture, SubresourceRange subresource_range, uint4 clear_value)
+void CommandRecorder::clear_texture_uint(Texture* texture, SubresourceRange subresource_range, uint4 clear_value)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(texture);
     m_rhi_command_encoder->clearTextureUint(texture->rhi_texture(), detail::to_rhi(subresource_range), &clear_value[0]);
 }
 
-void CommandEncoder::clear_texture_sint(Texture* texture, SubresourceRange subresource_range, int4 clear_value)
+void CommandRecorder::clear_texture_sint(Texture* texture, SubresourceRange subresource_range, int4 clear_value)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(texture);
     m_rhi_command_encoder->clearTextureSint(texture->rhi_texture(), detail::to_rhi(subresource_range), &clear_value[0]);
 }
 
-void CommandEncoder::clear_texture_depth_stencil(
+void CommandRecorder::clear_texture_depth_stencil(
     Texture* texture,
     SubresourceRange subresource_range,
     bool clear_depth,
@@ -622,7 +637,7 @@ void CommandEncoder::clear_texture_depth_stencil(
     uint8_t stencil_value
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(texture);
     m_rhi_command_encoder->clearTextureDepthStencil(
         texture->rhi_texture(),
@@ -634,31 +649,31 @@ void CommandEncoder::clear_texture_depth_stencil(
     );
 }
 
-void CommandEncoder::blit(TextureView* dst, TextureView* src, TextureFilteringMode filter)
+void CommandRecorder::blit(TextureView* dst, TextureView* src, TextureFilteringMode filter)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK_NOT_NULL(src);
     m_device->_blitter()->blit(this, dst, src, filter);
 }
 
-void CommandEncoder::blit(Texture* dst, Texture* src, TextureFilteringMode filter)
+void CommandRecorder::blit(Texture* dst, Texture* src, TextureFilteringMode filter)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK_NOT_NULL(src);
     m_device->_blitter()->blit(this, dst, src, filter);
 }
 
-void CommandEncoder::generate_mips(Texture* texture, uint32_t layer)
+void CommandRecorder::generate_mips(Texture* texture, uint32_t layer)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(texture);
     SGL_CHECK(layer < texture->layer_count(), "Layer index out of bounds");
     m_device->_blitter()->generate_mips(this, texture, layer);
 }
 
-void CommandEncoder::resolve_query(
+void CommandRecorder::resolve_query(
     QueryPool* query_pool,
     uint32_t index,
     uint32_t count,
@@ -666,7 +681,7 @@ void CommandEncoder::resolve_query(
     DeviceOffset offset
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(query_pool);
     SGL_CHECK_NOT_NULL(buffer);
     SGL_CHECK_LE(index + count, query_pool->desc().count);
@@ -675,7 +690,7 @@ void CommandEncoder::resolve_query(
     m_rhi_command_encoder->resolveQuery(query_pool->rhi_query_pool(), index, count, buffer->rhi_buffer(), offset);
 }
 
-void CommandEncoder::build_acceleration_structure(
+void CommandRecorder::build_acceleration_structure(
     const AccelerationStructureBuildDesc& desc,
     AccelerationStructure* dst,
     AccelerationStructure* src,
@@ -683,7 +698,7 @@ void CommandEncoder::build_acceleration_structure(
     std::span<AccelerationStructureQueryDesc> queries
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst);
 
     AccelerationStructureBuildDescConverter converter(desc);
@@ -707,13 +722,13 @@ void CommandEncoder::build_acceleration_structure(
     );
 }
 
-void CommandEncoder::copy_acceleration_structure(
+void CommandRecorder::copy_acceleration_structure(
     AccelerationStructure* dst,
     AccelerationStructure* src,
     AccelerationStructureCopyMode mode
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst);
 
     m_rhi_command_encoder->copyAccelerationStructure(
@@ -723,12 +738,12 @@ void CommandEncoder::copy_acceleration_structure(
     );
 }
 
-void CommandEncoder::query_acceleration_structure_properties(
+void CommandRecorder::query_acceleration_structure_properties(
     std::span<AccelerationStructure*> acceleration_structures,
     std::span<AccelerationStructureQueryDesc> queries
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
 
     short_vector<rhi::IAccelerationStructure*, 16> rhi_acceleration_structures(acceleration_structures.size(), nullptr);
     for (size_t i = 0; i < acceleration_structures.size(); i++)
@@ -751,32 +766,32 @@ void CommandEncoder::query_acceleration_structure_properties(
     );
 }
 
-void CommandEncoder::serialize_acceleration_structure(BufferOffsetPair dst, AccelerationStructure* src)
+void CommandRecorder::serialize_acceleration_structure(BufferOffsetPair dst, AccelerationStructure* src)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst.buffer);
     SGL_CHECK_NOT_NULL(src);
 
     m_rhi_command_encoder->serializeAccelerationStructure(detail::to_rhi(dst), src->rhi_acceleration_structure());
 }
 
-void CommandEncoder::deserialize_acceleration_structure(AccelerationStructure* dst, BufferOffsetPair src)
+void CommandRecorder::deserialize_acceleration_structure(AccelerationStructure* dst, BufferOffsetPair src)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK_NOT_NULL(src.buffer);
 
     m_rhi_command_encoder->deserializeAccelerationStructure(dst->rhi_acceleration_structure(), detail::to_rhi(src));
 }
 
-void CommandEncoder::convert_coop_vec_matrices(
+void CommandRecorder::convert_coop_vec_matrices(
     Buffer* dst,
     std::span<const CoopVecMatrixDesc> dst_descs,
     const Buffer* src,
     std::span<const CoopVecMatrixDesc> src_descs
 )
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(dst);
     SGL_CHECK_NOT_NULL(src);
     SGL_CHECK(src_descs.size() == dst_descs.size(), "Source and destination desc count must match.");
@@ -800,7 +815,7 @@ void CommandEncoder::convert_coop_vec_matrices(
     );
 }
 
-void CommandEncoder::convert_coop_vec_matrix(
+void CommandRecorder::convert_coop_vec_matrix(
     Buffer* dst,
     const CoopVecMatrixDesc& dst_desc,
     const Buffer* src,
@@ -815,25 +830,25 @@ void CommandEncoder::convert_coop_vec_matrix(
     );
 }
 
-void CommandEncoder::set_buffer_state(Buffer* buffer, ResourceState state)
+void CommandRecorder::set_buffer_state(Buffer* buffer, ResourceState state)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(buffer);
 
     m_rhi_command_encoder->setBufferState(buffer->rhi_buffer(), static_cast<rhi::ResourceState>(state));
 }
 
-void CommandEncoder::set_texture_state(Texture* texture, ResourceState state)
+void CommandRecorder::set_texture_state(Texture* texture, ResourceState state)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(texture);
 
     m_rhi_command_encoder->setTextureState(texture->rhi_texture(), static_cast<rhi::ResourceState>(state));
 }
 
-void CommandEncoder::set_texture_state(Texture* texture, SubresourceRange range, ResourceState state)
+void CommandRecorder::set_texture_state(Texture* texture, SubresourceRange range, ResourceState state)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(texture);
 
     m_rhi_command_encoder->setTextureState(
@@ -848,40 +863,68 @@ void CommandEncoder::set_texture_state(Texture* texture, SubresourceRange range,
     );
 }
 
-void CommandEncoder::global_barrier()
+void CommandRecorder::global_barrier()
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     m_rhi_command_encoder->globalBarrier();
 }
 
-void CommandEncoder::push_debug_group(const char* name, float3 color)
+void CommandRecorder::push_debug_group(const char* name, float3 color)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
-
+    check_encoder();
     m_rhi_command_encoder->pushDebugGroup(name, rhi::MarkerColor{color.r, color.g, color.b});
 }
 
-void CommandEncoder::pop_debug_group()
+void CommandRecorder::pop_debug_group()
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
-
+    check_encoder();
     m_rhi_command_encoder->popDebugGroup();
 }
 
-void CommandEncoder::insert_debug_marker(const char* name, float3 color)
+void CommandRecorder::insert_debug_marker(const char* name, float3 color)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
-
+    check_encoder();
     m_rhi_command_encoder->insertDebugMarker(name, rhi::MarkerColor{color.r, color.g, color.b});
 }
 
-void CommandEncoder::write_timestamp(QueryPool* query_pool, uint32_t index)
+void CommandRecorder::write_timestamp(QueryPool* query_pool, uint32_t index)
 {
-    SGL_CHECK(m_open, "Command encoder is finished");
+    check_encoder();
     SGL_CHECK_NOT_NULL(query_pool);
     SGL_CHECK_LE(index, query_pool->desc().count);
 
     m_rhi_command_encoder->writeTimestamp(query_pool->rhi_query_pool(), index);
+}
+
+NativeHandle CommandRecorder::native_handle() const
+{
+    rhi::NativeHandle rhi_handle = {};
+    m_rhi_command_encoder->getNativeHandle(&rhi_handle);
+    return NativeHandle(rhi_handle);
+}
+
+std::string CommandRecorder::to_string() const
+{
+    return fmt::format(
+        "CommandRecorder(\n"
+        "  device = {}\n"
+        ")",
+        m_device
+    );
+}
+
+// ----------------------------------------------------------------------------
+// CommandEncoder
+// ----------------------------------------------------------------------------
+
+CommandEncoder::CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder)
+    : CommandRecorder(std::move(device), std::move(rhi_command_encoder))
+{
+}
+
+void CommandEncoder::check_encoder()
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
 }
 
 ref<CommandBuffer> CommandEncoder::finish()
@@ -894,21 +937,64 @@ ref<CommandBuffer> CommandEncoder::finish()
     return command_buffer;
 }
 
-NativeHandle CommandEncoder::native_handle() const
+// ----------------------------------------------------------------------------
+// CommandStream
+// ----------------------------------------------------------------------------
+
+CommandStream::CommandStream(ref<Device> device, CommandQueueType queue)
+    : CommandRecorder(std::move(device))
+    , m_queue(queue)
 {
-    rhi::NativeHandle rhi_handle = {};
-    m_rhi_command_encoder->getNativeHandle(&rhi_handle);
-    return NativeHandle(rhi_handle);
 }
 
-std::string CommandEncoder::to_string() const
+void CommandStream::check_encoder()
 {
-    return fmt::format(
-        "CommandEncoder(\n"
-        "  device = {}\n"
-        ")",
-        m_device
-    );
+    if (!m_rhi_command_encoder)
+        ensure_encoder();
+    m_has_pending_commands = true;
+}
+
+void CommandStream::ensure_encoder()
+{
+    SGL_CHECK(m_queue == CommandQueueType::graphics, "Only graphics queue is supported.");
+    Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder;
+    SLANG_RHI_CALL(m_device->rhi_graphics_queue()->createCommandEncoder(rhi_command_encoder.writeRef()), m_device);
+    m_rhi_command_encoder = std::move(rhi_command_encoder);
+}
+
+uint64_t CommandStream::submit()
+{
+    if (!m_has_pending_commands)
+        return m_last_submit_id;
+
+    Slang::ComPtr<rhi::ICommandBuffer> rhi_command_buffer;
+    SLANG_RHI_CALL(m_rhi_command_encoder->finish(rhi_command_buffer.writeRef()), m_device);
+    ref<CommandBuffer> command_buffer = make_ref<CommandBuffer>(m_device, rhi_command_buffer);
+    command_buffer->m_cuda_interop_buffers = std::move(m_cuda_interop_buffers);
+    m_cuda_interop_buffers.clear();
+    m_rhi_command_encoder.setNull();
+
+    m_last_submit_id = m_device->submit_command_buffer(command_buffer);
+    m_has_pending_commands = false;
+    return m_last_submit_id;
+}
+
+void CommandStream::flush()
+{
+    uint64_t id = submit();
+    if (id > 0)
+        m_device->wait_for_submit(id);
+}
+
+void CommandStream::wait(uint64_t submit_id)
+{
+    m_device->wait_for_submit(submit_id);
+}
+
+void CommandStream::wait()
+{
+    if (m_last_submit_id > 0)
+        m_device->wait_for_submit(m_last_submit_id);
 }
 
 // ----------------------------------------------------------------------------

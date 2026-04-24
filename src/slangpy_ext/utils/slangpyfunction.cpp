@@ -114,13 +114,13 @@ nb::object NativeFunctionNode::invoke(NativeCallDataCache* cache, nb::args args,
 
 void NativeFunctionNode::append_to(
     NativeCallDataCache* cache,
-    CommandEncoder* command_encoder,
+    CommandRecorder* command_recorder,
     nb::args args,
     nb::kwargs kwargs
 )
 {
     ref<NativeCallData> call_data = resolve_call_data(cache, args, kwargs);
-    call_data->append_to(*m_cached_opts, command_encoder, args, kwargs);
+    call_data->append_to(*m_cached_opts, command_recorder, args, kwargs);
 }
 
 std::string NativeFunctionNode::to_string() const
@@ -184,20 +184,20 @@ nb::object NativeFunctionNode::call(nb::args args, nb::kwargs kwargs)
         nb::object app_to = kwargs["_append_to"];
         nb::del(kwargs["_append_to"]);
         if (!app_to.is_none()) {
-            CommandEncoder* encoder = nullptr;
+            CommandRecorder* recorder = nullptr;
             try {
-                encoder = nb::cast<CommandEncoder*>(app_to);
+                recorder = nb::cast<CommandRecorder*>(app_to);
             } catch (const nb::cast_error&) {
                 throw nb::value_error(
                     fmt::format(
-                        "Expected _append_to to be a CommandEncoder, got {}",
+                        "Expected _append_to to be a CommandRecorder, got {}",
                         nb::cast<std::string>(nb::str(app_to.type()))
                     )
                         .c_str()
                 );
             }
             try {
-                append_to(cache, encoder, args, kwargs);
+                append_to(cache, recorder, args, kwargs);
             } catch (const NativeBoundVariableException& e) {
                 rethrow_with_error_table(e);
             }

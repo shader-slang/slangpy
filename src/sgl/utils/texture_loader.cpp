@@ -249,7 +249,7 @@ load_and_convert_source_image(Device* device, const std::filesystem::path& path,
 inline ref<Texture> create_texture(
     Device* device,
     Blitter* blitter,
-    CommandEncoder* command_encoder,
+    CommandRecorder* command_recorder,
     SourceImage source_image,
     const TextureLoader::Options& options
 )
@@ -278,9 +278,9 @@ inline ref<Texture> create_texture(
             .row_pitch = bitmap->width() * bitmap->bytes_per_pixel(),
         };
 
-        command_encoder->upload_texture_data(texture, 0, 0, subresource_data);
+        command_recorder->upload_texture_data(texture, 0, 0, subresource_data);
         if (options.generate_mips) {
-            blitter->generate_mips(command_encoder, texture);
+            blitter->generate_mips(command_recorder, texture);
         }
 
         return texture;
@@ -330,16 +330,16 @@ inline std::vector<ref<Texture>> create_textures(
     SGL_ASSERT(source_images.size() == source_image_tasks.size());
     SGL_ASSERT(source_images.size() == options.size());
     std::vector<ref<Texture>> textures(source_images.size());
-    ref<CommandEncoder> command_encoder = device->create_command_encoder();
+    ref<CommandEncoder> command_recorder = device->create_command_encoder();
     for (size_t i = 0; i < source_images.size(); ++i) {
         thread::task_wait_and_release(source_image_tasks[i]);
-        textures[i] = create_texture(device, blitter, command_encoder, source_images[i], options[i]);
+        textures[i] = create_texture(device, blitter, command_recorder, source_images[i], options[i]);
         if (i && (i % BATCH_SIZE == 0)) {
-            device->submit_command_buffer(command_encoder->finish());
-            command_encoder = device->create_command_encoder();
+            device->submit_command_buffer(command_recorder->finish());
+            command_recorder = device->create_command_encoder();
         }
     }
-    device->submit_command_buffer(command_encoder->finish());
+    device->submit_command_buffer(command_recorder->finish());
 
     return textures;
 }
@@ -366,7 +366,7 @@ inline ref<Texture> create_texture_array(
     uint32_t first_height = 0;
     Format first_format = Format::undefined;
 
-    ref<CommandEncoder> command_encoder = device->create_command_encoder();
+    ref<CommandEncoder> command_recorder = device->create_command_encoder();
 
     for (size_t i = 0; i < source_images.size(); ++i) {
         thread::task_wait_and_release(source_image_tasks[i]);
@@ -395,8 +395,8 @@ inline ref<Texture> create_texture_array(
         }
 
         if (i && (i % BATCH_SIZE == 0)) {
-            device->submit_command_buffer(command_encoder->finish());
-            command_encoder = device->create_command_encoder();
+            device->submit_command_buffer(command_recorder->finish());
+            command_recorder = device->create_command_encoder();
         }
 
         SubresourceData subresource_data{
@@ -404,12 +404,12 @@ inline ref<Texture> create_texture_array(
             .size = bitmap->buffer_size(),
             .row_pitch = bitmap->width() * bitmap->bytes_per_pixel(),
         };
-        command_encoder->upload_texture_data(texture, narrow_cast<uint32_t>(i), 0, subresource_data);
+        command_recorder->upload_texture_data(texture, narrow_cast<uint32_t>(i), 0, subresource_data);
 
         if (options.generate_mips)
-            blitter->generate_mips(command_encoder, texture, narrow_cast<uint32_t>(i));
+            blitter->generate_mips(command_recorder, texture, narrow_cast<uint32_t>(i));
     }
-    device->submit_command_buffer(command_encoder->finish());
+    device->submit_command_buffer(command_recorder->finish());
 
     return texture;
 }
@@ -426,9 +426,9 @@ ref<Texture> TextureLoader::load_texture(const Bitmap* bitmap, std::optional<Opt
 {
     Options options = options_.value_or(Options{});
     SourceImage source_image = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmap)), options);
-    ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
-    ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, source_image, options);
-    m_device->submit_command_buffer(command_encoder->finish());
+    ref<CommandEncoder> command_recorder = m_device->create_command_encoder();
+    ref<Texture> texture = create_texture(m_device, m_blitter, command_recorder, source_image, options);
+    m_device->submit_command_buffer(command_recorder->finish());
     return texture;
 }
 
@@ -436,9 +436,9 @@ ref<Texture> TextureLoader::load_texture(const std::filesystem::path& path, std:
 {
     Options options = options_.value_or(Options{});
     SourceImage source_image = load_and_convert_source_image(m_device.get(), path, options);
-    ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
-    ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, source_image, options);
-    m_device->submit_command_buffer(command_encoder->finish());
+    ref<CommandEncoder> command_recorder = m_device->create_command_encoder();
+    ref<Texture> texture = create_texture(m_device, m_blitter, command_recorder, source_image, options);
+    m_device->submit_command_buffer(command_recorder->finish());
     return texture;
 }
 

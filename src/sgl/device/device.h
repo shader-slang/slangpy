@@ -546,6 +546,9 @@ public:
     /// Create a command encoder.
     ref<CommandEncoder> create_command_encoder(CommandQueueType queue = CommandQueueType::graphics);
 
+    /// Create a command stream.
+    ref<CommandStream> create_command_stream(CommandQueueType queue = CommandQueueType::graphics);
+
     /**
      * \brief Submit a list of command buffers to the device.
      *
@@ -1116,5 +1119,8 @@ SGL_API ref<ComputeKernel> create_compute_kernel(ComputeKernelDesc desc);
 
 /// Create a command encoder.
 SGL_API ref<CommandEncoder> create_command_encoder(CommandQueueType queue = CommandQueueType::graphics);
+
+/// Create a command stream.
+SGL_API ref<CommandStream> create_command_stream(CommandQueueType queue = CommandQueueType::graphics);
 
 } // namespace sgl

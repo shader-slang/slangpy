@@ -42,14 +42,14 @@ ComputePipeline* ComputeKernel::pipeline() const
 void ComputeKernel::dispatch(
     uint3 thread_count,
     BindVarsCallback bind_vars,
-    CommandEncoder* command_encoder,
+    CommandRecorder* command_recorder,
     QueryPool* query_pool,
     uint32_t query_index_before,
     uint32_t query_index_after
 )
 {
     {
-        auto pass_encoder = command_encoder->begin_compute_pass();
+        auto pass_encoder = command_recorder->begin_compute_pass();
         ShaderObject* shader_object = pass_encoder->bind_pipeline(pipeline());
         if (bind_vars)
             bind_vars(ShaderCursor(shader_object));
@@ -97,6 +97,7 @@ RayTracingPipeline* RayTracingKernel::pipeline() const
     return m_pipeline;
 }
 
-// void RayTracingKernel::dispatch(uint3 thread_count, BindVarsCallback bind_vars, CommandEncoder* command_encoder) { }
+// void RayTracingKernel::dispatch(uint3 thread_count, BindVarsCallback bind_vars, CommandRecorder* command_recorder) {
+// }
 
 } // namespace sgl

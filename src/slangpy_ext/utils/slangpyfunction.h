@@ -146,7 +146,7 @@ public:
     /// @return Result of the backward kernel dispatch.
     nb::object call_bwds(NativeCallData* fwds_call_data, nb::args args, nb::kwargs kwargs);
 
-    void append_to(NativeCallDataCache* cache, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
+    void append_to(NativeCallDataCache* cache, CommandRecorder* command_recorder, nb::args args, nb::kwargs kwargs);
 
     /// Get string representation of the function node.
     std::string to_string() const override;

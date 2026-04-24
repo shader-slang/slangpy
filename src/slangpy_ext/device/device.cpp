@@ -802,6 +802,12 @@ SGL_PY_EXPORT(device_device)
         D(Device, create_command_encoder)
     );
     device.def(
+        "create_command_stream",
+        &Device::create_command_stream,
+        "queue"_a = CommandQueueType::graphics,
+        D(Device, create_command_stream)
+    );
+    device.def(
         "submit_command_buffers",
         &Device::submit_command_buffers,
         "command_buffers"_a,
@@ -1412,6 +1418,13 @@ SGL_PY_EXPORT(device_device)
         &create_command_encoder,
         "queue"_a = CommandQueueType::graphics,
         D(create_command_encoder)
+    );
+
+    m.def(
+        "create_command_stream",
+        &create_command_stream,
+        "queue"_a = CommandQueueType::graphics,
+        D(create_command_stream)
     );
 
     m.def(

@@ -31,20 +31,20 @@ public:
      *
      * Blits the full extent of the source texture to the destination texture.
      *
-     * \param command_encoder Command encoder.
+     * \param command_recorder Command recorder.
      * \param dst View of the destination texture.
      * \param src View of the source texture.
      * \param filter Filtering mode to use.
      */
     void blit(
-        CommandEncoder* command_encoder,
+        CommandRecorder* command_recorder,
         TextureView* dst,
         TextureView* src,
         TextureFilteringMode filter = TextureFilteringMode::linear
     );
 
     void blit(
-        CommandEncoder* command_encoder,
+        CommandRecorder* command_recorder,
         Texture* dst,
         Texture* src,
         TextureFilteringMode filter = TextureFilteringMode::linear
@@ -57,11 +57,11 @@ public:
      * The texture needs to have mip levels pre-allocated and have usage flags for SRV and RTV.
      * Supports both 2D and 2D array textures.
      *
-     * \param command_encoder Command encoder.
+     * \param command_recorder Command recorder.
      * \param texture Texture to generate mipmaps for.
      * \param layer Array layer to generate mipmaps for.
      */
-    void generate_mips(CommandEncoder* command_encoder, Texture* texture, uint32_t layer = 0);
+    void generate_mips(CommandRecorder* command_recorder, Texture* texture, uint32_t layer = 0);
 
 private:
     enum class TextureDataKind {

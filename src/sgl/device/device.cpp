@@ -805,6 +805,11 @@ ref<CommandEncoder> Device::create_command_encoder(CommandQueueType queue)
     return make_ref<CommandEncoder>(ref(this), rhi_command_encoder);
 }
 
+ref<CommandStream> Device::create_command_stream(CommandQueueType queue)
+{
+    return make_ref<CommandStream>(ref(this), queue);
+}
+
 uint64_t Device::submit_command_buffers(
     std::span<CommandBuffer*> command_buffers,
     std::span<Fence*> wait_fences,
@@ -1589,6 +1594,11 @@ ref<ComputeKernel> create_compute_kernel(ComputeKernelDesc desc)
 ref<CommandEncoder> create_command_encoder(CommandQueueType queue)
 {
     return current_device()->create_command_encoder(queue);
+}
+
+ref<CommandStream> create_command_stream(CommandQueueType queue)
+{
+    return current_device()->create_command_stream(queue);
 }
 
 

@@ -909,9 +909,9 @@ public:
     /// Call the compute kernel with the provided arguments and keyword arguments.
     nb::object call(NativeCallRuntimeOptions& opts, nb::args args, nb::kwargs kwargs);
 
-    /// Append the compute kernel to a command encoder with the provided arguments and keyword arguments.
+    /// Append the compute kernel to a command recorder with the provided arguments and keyword arguments.
     nb::object
-    append_to(NativeCallRuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
+    append_to(NativeCallRuntimeOptions& opts, CommandRecorder* command_recorder, nb::args args, nb::kwargs kwargs);
 
     /// Log a message, using either the provided logger or the default logger.
     void log(LogLevel level, const std::string_view msg, LogFrequency frequency = LogFrequency::always)
@@ -985,7 +985,8 @@ private:
         const nb::dict& unpacked_kwargs
     );
 
-    nb::object exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
+    nb::object
+    exec(NativeCallRuntimeOptions& opts, CommandRecorder* command_recorder, nb::args args, nb::kwargs kwargs);
 };
 #undef SGL_LOG_FUNC_FAMILY
 

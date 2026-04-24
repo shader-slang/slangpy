@@ -1465,13 +1465,37 @@ static const char *__doc_sgl_CommandEncoder_2 = R"doc()doc";
 
 static const char *__doc_sgl_CommandEncoder_CommandEncoder = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_begin_compute_pass = R"doc()doc";
+static const char *__doc_sgl_CommandEncoder_check_encoder = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_begin_ray_tracing_pass = R"doc()doc";
+static const char *__doc_sgl_CommandEncoder_class_name = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_begin_render_pass = R"doc()doc";
+static const char *__doc_sgl_CommandEncoder_finish = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_blit =
+static const char *__doc_sgl_CommandEncoder_m_open = R"doc()doc";
+
+static const char *__doc_sgl_CommandQueue = R"doc()doc";
+
+static const char *__doc_sgl_CommandQueueType = R"doc()doc";
+
+static const char *__doc_sgl_CommandQueueType_graphics = R"doc()doc";
+
+static const char *__doc_sgl_CommandQueueType_info = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecorder = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecorder_2 = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecorder_CommandRecorder = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecorder_CommandRecorder_2 = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecorder_begin_compute_pass = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecorder_begin_ray_tracing_pass = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecorder_begin_render_pass = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecorder_blit =
 R"doc(Blit a texture view.
 
 Blits the full extent of the source texture to the destination
@@ -1486,7 +1510,7 @@ Parameter ``src``:
 Parameter ``filter``:
     Filtering mode to use.)doc";
 
-static const char *__doc_sgl_CommandEncoder_blit_2 =
+static const char *__doc_sgl_CommandRecorder_blit_2 =
 R"doc(Blit a texture.
 
 Blits the full extent of the source texture to the destination
@@ -1501,27 +1525,31 @@ Parameter ``src``:
 Parameter ``filter``:
     Filtering mode to use.)doc";
 
-static const char *__doc_sgl_CommandEncoder_build_acceleration_structure = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_build_acceleration_structure = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_class_name = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_check_encoder =
+R"doc(Called before each recording operation. Subclasses override to
+validate or lazily init.)doc";
 
-static const char *__doc_sgl_CommandEncoder_clear_buffer = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_class_name = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_clear_texture_depth_stencil = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_clear_buffer = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_clear_texture_float = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_clear_texture_depth_stencil = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_clear_texture_sint = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_clear_texture_float = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_clear_texture_uint = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_clear_texture_sint = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_convert_coop_vec_matrices = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_clear_texture_uint = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_convert_coop_vec_matrix = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_convert_coop_vec_matrices = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_copy_acceleration_structure = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_convert_coop_vec_matrix = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_copy_buffer =
+static const char *__doc_sgl_CommandRecorder_copy_acceleration_structure = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecorder_copy_buffer =
 R"doc(Copy a buffer region.
 
 Parameter ``dst``:
@@ -1539,7 +1567,7 @@ Parameter ``src_offset``:
 Parameter ``size``:
     Size in bytes.)doc";
 
-static const char *__doc_sgl_CommandEncoder_copy_buffer_to_texture =
+static const char *__doc_sgl_CommandRecorder_copy_buffer_to_texture =
 R"doc(Copy a buffer to a texture.
 
 Parameter ``dst``:
@@ -1569,7 +1597,7 @@ Parameter ``src_row_pitch``:
 Parameter ``extent``:
     Extent in texels (-1 for maximum possible extent).)doc";
 
-static const char *__doc_sgl_CommandEncoder_copy_texture =
+static const char *__doc_sgl_CommandRecorder_copy_texture =
 R"doc(Copy a texture region.
 
 Parameter ``dst``:
@@ -1593,7 +1621,7 @@ Parameter ``src_offset``:
 Parameter ``extent``:
     Size in texels (-1 for maximum possible size).)doc";
 
-static const char *__doc_sgl_CommandEncoder_copy_texture_2 =
+static const char *__doc_sgl_CommandRecorder_copy_texture_2 =
 R"doc(Copy a texture region.
 
 Parameter ``dst``:
@@ -1623,7 +1651,7 @@ Parameter ``src_offset``:
 Parameter ``extent``:
     Size in texels (-1 for maximum possible size).)doc";
 
-static const char *__doc_sgl_CommandEncoder_copy_texture_to_buffer =
+static const char *__doc_sgl_CommandRecorder_copy_texture_to_buffer =
 R"doc(Copy a texture to a buffer.
 
 Parameter ``dst``:
@@ -1653,15 +1681,13 @@ Parameter ``src_offset``:
 Parameter ``extent``:
     Extent in texels (-1 for maximum possible extent).)doc";
 
-static const char *__doc_sgl_CommandEncoder_deserialize_acceleration_structure = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_deserialize_acceleration_structure = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_finish = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_generate_mips = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_generate_mips = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_get_root_object = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_get_root_object = R"doc()doc";
-
-static const char *__doc_sgl_CommandEncoder_global_barrier =
+static const char *__doc_sgl_CommandRecorder_global_barrier =
 R"doc(Insert a global barrier that ensures all previous writes are visible
 to subsequent reads. Note: This is not necessary for typical bindings,
 as state management is automatic, however global barriers are useful
@@ -1669,7 +1695,7 @@ for cross-api synchronization (eg 2 slangpy devices constructed from
 the same native handle), or as brute force tools for synchronizing
 pointer/bindless operations.)doc";
 
-static const char *__doc_sgl_CommandEncoder_insert_debug_marker =
+static const char *__doc_sgl_CommandRecorder_insert_debug_marker =
 R"doc(Insert a debug marker.
 
 Parameter ``name``:
@@ -1678,37 +1704,35 @@ Parameter ``name``:
 Parameter ``color``:
     Color of the marker.)doc";
 
-static const char *__doc_sgl_CommandEncoder_m_compute_pass_encoder = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_m_compute_pass_encoder = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_m_cuda_interop_buffers = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_m_cuda_interop_buffers = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_m_open = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_m_ray_tracing_pass_encoder = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_m_ray_tracing_pass_encoder = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_m_render_pass_encoder = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_m_render_pass_encoder = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_m_rhi_command_encoder = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_m_rhi_command_encoder = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_m_root_object = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_m_root_object = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_native_handle = R"doc(Get the command encoder handle.)doc";
 
-static const char *__doc_sgl_CommandEncoder_native_handle = R"doc(Get the command encoder handle.)doc";
+static const char *__doc_sgl_CommandRecorder_pop_debug_group = R"doc(Pop a debug group.)doc";
 
-static const char *__doc_sgl_CommandEncoder_pop_debug_group = R"doc(Pop a debug group.)doc";
+static const char *__doc_sgl_CommandRecorder_push_debug_group = R"doc(Push a debug group.)doc";
 
-static const char *__doc_sgl_CommandEncoder_push_debug_group = R"doc(Push a debug group.)doc";
+static const char *__doc_sgl_CommandRecorder_query_acceleration_structure_properties = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_query_acceleration_structure_properties = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_release_rhi_resources = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_release_rhi_resources = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_resolve_query = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_resolve_query = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_rhi_command_encoder = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_rhi_command_encoder = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_serialize_acceleration_structure = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_serialize_acceleration_structure = R"doc()doc";
-
-static const char *__doc_sgl_CommandEncoder_set_buffer_state =
+static const char *__doc_sgl_CommandRecorder_set_buffer_state =
 R"doc(Transition resource state of a buffer and add a barrier if state has
 changed.
 
@@ -1718,7 +1742,7 @@ Parameter ``buffer``:
 Parameter ``state``:
     New state)doc";
 
-static const char *__doc_sgl_CommandEncoder_set_texture_state =
+static const char *__doc_sgl_CommandRecorder_set_texture_state =
 R"doc(Transition resource state of a texture and add a barrier if state has
 changed.
 
@@ -1728,7 +1752,7 @@ Parameter ``texture``:
 Parameter ``state``:
     New state)doc";
 
-static const char *__doc_sgl_CommandEncoder_set_texture_state_2 =
+static const char *__doc_sgl_CommandRecorder_set_texture_state_2 =
 R"doc(Transition resource state of texture sub-resources and add a barrier
 if state has changed.
 
@@ -1741,9 +1765,9 @@ Parameter ``range``:
 Parameter ``state``:
     New state)doc";
 
-static const char *__doc_sgl_CommandEncoder_to_string = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_to_string = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_upload_buffer_data =
+static const char *__doc_sgl_CommandRecorder_upload_buffer_data =
 R"doc(Upload host memory to a buffer.
 
 Parameter ``buffer``:
@@ -1758,11 +1782,11 @@ Parameter ``size``:
 Parameter ``data``:
     Host memory to write.)doc";
 
-static const char *__doc_sgl_CommandEncoder_upload_texture_data = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_upload_texture_data = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_upload_texture_data_2 = R"doc()doc";
+static const char *__doc_sgl_CommandRecorder_upload_texture_data_2 = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_write_timestamp =
+static const char *__doc_sgl_CommandRecorder_write_timestamp =
 R"doc(Write a timestamp.
 
 Parameter ``query_pool``:
@@ -1771,13 +1795,47 @@ Parameter ``query_pool``:
 Parameter ``index``:
     Index of the query.)doc";
 
-static const char *__doc_sgl_CommandQueue = R"doc()doc";
+static const char *__doc_sgl_CommandStream = R"doc()doc";
 
-static const char *__doc_sgl_CommandQueueType = R"doc()doc";
+static const char *__doc_sgl_CommandStream_2 = R"doc()doc";
 
-static const char *__doc_sgl_CommandQueueType_graphics = R"doc()doc";
+static const char *__doc_sgl_CommandStream_CommandStream = R"doc()doc";
 
-static const char *__doc_sgl_CommandQueueType_info = R"doc()doc";
+static const char *__doc_sgl_CommandStream_check_encoder = R"doc()doc";
+
+static const char *__doc_sgl_CommandStream_class_name = R"doc()doc";
+
+static const char *__doc_sgl_CommandStream_ensure_encoder = R"doc()doc";
+
+static const char *__doc_sgl_CommandStream_flush =
+R"doc(Submit and wait for completion.
+
+Calls submit() and then waits for the GPU to finish executing.)doc";
+
+static const char *__doc_sgl_CommandStream_m_has_pending_commands = R"doc()doc";
+
+static const char *__doc_sgl_CommandStream_m_last_submit_id = R"doc()doc";
+
+static const char *__doc_sgl_CommandStream_m_queue = R"doc()doc";
+
+static const char *__doc_sgl_CommandStream_submit =
+R"doc(Submit the current batch of recorded commands.
+
+Finishes the current command encoder, submits the resulting command
+buffer, and prepares for recording new commands. Returns the
+submission ID which can be used to wait for completion. If no commands
+have been recorded since the last submit, this is a no-op.
+
+Returns:
+    Submission ID.)doc";
+
+static const char *__doc_sgl_CommandStream_wait =
+R"doc(Wait for a specific submission to complete.
+
+Parameter ``submit_id``:
+    The submission ID returned by submit().)doc";
+
+static const char *__doc_sgl_CommandStream_wait_2 = R"doc(Wait for all outstanding submissions to complete.)doc";
 
 static const char *__doc_sgl_ComparisonFunc = R"doc()doc";
 
@@ -2886,6 +2944,8 @@ Returns:
 static const char *__doc_sgl_Device_create_buffer_view = R"doc(Create a new buffer view.)doc";
 
 static const char *__doc_sgl_Device_create_command_encoder = R"doc(Create a command encoder.)doc";
+
+static const char *__doc_sgl_Device_create_command_stream = R"doc(Create a command stream.)doc";
 
 static const char *__doc_sgl_Device_create_compute_kernel = R"doc(Create a compute kernel.)doc";
 
@@ -5834,7 +5894,7 @@ Parameter ``name``:
 Parameter ``color``:
     Color of the marker.)doc";
 
-static const char *__doc_sgl_PassEncoder_m_command_encoder = R"doc()doc";
+static const char *__doc_sgl_PassEncoder_m_recorder = R"doc()doc";
 
 static const char *__doc_sgl_PassEncoder_m_rhi_pass_encoder = R"doc()doc";
 
@@ -9075,6 +9135,8 @@ Returns:
 static const char *__doc_sgl_create_buffer_view = R"doc(Create a new buffer view.)doc";
 
 static const char *__doc_sgl_create_command_encoder = R"doc(Create a command encoder.)doc";
+
+static const char *__doc_sgl_create_command_stream = R"doc(Create a command stream.)doc";
 
 static const char *__doc_sgl_create_compute_kernel = R"doc(Create a compute kernel.)doc";
 

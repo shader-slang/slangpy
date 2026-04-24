@@ -79,10 +79,10 @@ public:
     virtual void end();
 
 protected:
-    CommandEncoder* m_command_encoder;
+    CommandRecorder* m_recorder;
     rhi::IPassEncoder* m_rhi_pass_encoder;
 
-    friend class CommandEncoder;
+    friend class CommandRecorder;
 };
 
 class SGL_API RenderPassEncoder : public PassEncoder {
@@ -108,7 +108,7 @@ public:
 private:
     rhi::IRenderPassEncoder* m_rhi_render_pass_encoder;
 
-    friend class CommandEncoder;
+    friend class CommandRecorder;
 };
 
 class SGL_API ComputePassEncoder : public PassEncoder {
@@ -127,7 +127,7 @@ private:
     rhi::IComputePassEncoder* m_rhi_compute_pass_encoder;
     uint3 m_thread_group_size;
 
-    friend class CommandEncoder;
+    friend class CommandRecorder;
 };
 
 class SGL_API RayTracingPassEncoder : public PassEncoder {
@@ -143,14 +143,12 @@ public:
 private:
     rhi::IRayTracingPassEncoder* m_rhi_ray_tracing_pass_encoder;
 
-    friend class CommandEncoder;
+    friend class CommandRecorder;
 };
 
-class SGL_API CommandEncoder : public DeviceChild {
-    SGL_OBJECT(CommandEncoder)
+class SGL_API CommandRecorder : public DeviceChild {
+    SGL_OBJECT(CommandRecorder)
 public:
-    CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder);
-
     virtual void _release_rhi_resources() override { m_rhi_command_encoder.setNull(); }
 
     ref<RenderPassEncoder> begin_render_pass(const RenderPassDesc& desc);
@@ -416,8 +414,6 @@ public:
      */
     void write_timestamp(QueryPool* query_pool, uint32_t index);
 
-    ref<CommandBuffer> finish();
-
     /// Get the command encoder handle.
     NativeHandle native_handle() const;
 
@@ -425,17 +421,81 @@ public:
 
     std::string to_string() const override;
 
-private:
+protected:
+    CommandRecorder(ref<Device> device);
+    CommandRecorder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder);
+
+    /// Called before each recording operation. Subclasses override to validate or lazily init.
+    virtual void check_encoder();
+
     Slang::ComPtr<rhi::ICommandEncoder> m_rhi_command_encoder;
-
     std::vector<ref<cuda::InteropBuffer>> m_cuda_interop_buffers;
-
-    bool m_open{false};
 
     ref<RenderPassEncoder> m_render_pass_encoder;
     ref<ComputePassEncoder> m_compute_pass_encoder;
     ref<RayTracingPassEncoder> m_ray_tracing_pass_encoder;
     ref<ShaderObject> m_root_object;
+};
+
+class SGL_API CommandEncoder : public CommandRecorder {
+    SGL_OBJECT(CommandEncoder)
+public:
+    CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder);
+
+    ref<CommandBuffer> finish();
+
+protected:
+    void check_encoder() override;
+
+private:
+    bool m_open{true};
+};
+
+class SGL_API CommandStream : public CommandRecorder {
+    SGL_OBJECT(CommandStream)
+public:
+    CommandStream(ref<Device> device, CommandQueueType queue = CommandQueueType::graphics);
+
+    /**
+     * \brief Submit the current batch of recorded commands.
+     *
+     * Finishes the current command encoder, submits the resulting command buffer,
+     * and prepares for recording new commands.
+     * Returns the submission ID which can be used to wait for completion.
+     * If no commands have been recorded since the last submit, this is a no-op.
+     *
+     * \return Submission ID.
+     */
+    uint64_t submit();
+
+    /**
+     * \brief Submit and wait for completion.
+     *
+     * Calls submit() and then waits for the GPU to finish executing.
+     */
+    void flush();
+
+    /**
+     * \brief Wait for a specific submission to complete.
+     *
+     * \param submit_id The submission ID returned by submit().
+     */
+    void wait(uint64_t submit_id);
+
+    /**
+     * \brief Wait for all outstanding submissions to complete.
+     */
+    void wait();
+
+protected:
+    void check_encoder() override;
+
+private:
+    void ensure_encoder();
+
+    CommandQueueType m_queue;
+    uint64_t m_last_submit_id{0};
+    bool m_has_pending_commands{false};
 };
 
 class SGL_API CommandBuffer : public DeviceChild {
@@ -456,6 +516,7 @@ private:
     std::vector<ref<cuda::InteropBuffer>> m_cuda_interop_buffers;
 
     friend class Device;
+    friend class CommandStream;
 };
 
 } // namespace sgl

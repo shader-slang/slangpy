@@ -118,7 +118,9 @@ class ShaderTable;
 // command.h
 
 class CommandQueue;
+class CommandRecorder;
 class CommandEncoder;
+class CommandStream;
 class RenderPassEncoder;
 class ComputePassEncoder;
 class RayTracingPassEncoder;
