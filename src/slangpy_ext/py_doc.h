@@ -922,8 +922,8 @@ R"doc(Blit a texture (SRV) to another texture (RTV).
 Blits the full extent of the source texture to the destination
 texture.
 
-Parameter ``command_encoder``:
-    Command encoder.
+Parameter ``command_recorder``:
+    Command recorder.
 
 Parameter ``dst``:
     View of the destination texture.
@@ -948,8 +948,8 @@ smallest mip level is reached. The texture needs to have mip levels
 pre-allocated and have usage flags for SRV and RTV. Supports both 2D
 and 2D array textures.
 
-Parameter ``command_encoder``:
-    Command encoder.
+Parameter ``command_recorder``:
+    Command recorder.
 
 Parameter ``texture``:
     Texture to generate mipmaps for.
@@ -1798,6 +1798,33 @@ Parameter ``index``:
 static const char *__doc_sgl_CommandStream = R"doc()doc";
 
 static const char *__doc_sgl_CommandStream_2 = R"doc()doc";
+
+static const char *__doc_sgl_CommandStreamScope =
+R"doc(RAII scope that pushes a command stream on construction and pops it on
+destruction.
+
+Usage:
+
+```
+{
+    CommandStreamScope scope(stream);
+    copy_buffer(dst, 0, src, 0, size);
+}
+```)doc";
+
+static const char *__doc_sgl_CommandStreamScope_2 = R"doc()doc";
+
+static const char *__doc_sgl_CommandStreamScope_CommandStreamScope = R"doc()doc";
+
+static const char *__doc_sgl_CommandStreamScope_CommandStreamScope_2 = R"doc()doc";
+
+static const char *__doc_sgl_CommandStreamScope_CommandStreamScope_3 = R"doc()doc";
+
+static const char *__doc_sgl_CommandStreamScope_m_active = R"doc()doc";
+
+static const char *__doc_sgl_CommandStreamScope_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_CommandStreamScope_operator_assign_2 = R"doc()doc";
 
 static const char *__doc_sgl_CommandStream_CommandStream = R"doc()doc";
 
@@ -9007,6 +9034,16 @@ static const char *__doc_sgl_YAHandling_preserve_as_rg = R"doc()doc";
 
 static const char *__doc_sgl_align_to = R"doc(Align an integer value to the given alignment.)doc";
 
+static const char *__doc_sgl_begin_compute_pass = R"doc(Begin a compute pass.)doc";
+
+static const char *__doc_sgl_begin_ray_tracing_pass = R"doc(Begin a ray tracing pass.)doc";
+
+static const char *__doc_sgl_begin_render_pass = R"doc(Begin a render pass.)doc";
+
+static const char *__doc_sgl_blit = R"doc(Blit a texture view.)doc";
+
+static const char *__doc_sgl_blit_2 = R"doc(Blit a texture.)doc";
+
 static const char *__doc_sgl_breakable_ref = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_2 =
@@ -9056,7 +9093,19 @@ static const char *__doc_sgl_breakable_ref_operator_ref = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_operator_sub = R"doc()doc";
 
+static const char *__doc_sgl_build_acceleration_structure = R"doc(Build an acceleration structure.)doc";
+
 static const char *__doc_sgl_clamp = R"doc(Clamp x to [lo..hi] range.)doc";
+
+static const char *__doc_sgl_clear_buffer = R"doc(Clear a buffer.)doc";
+
+static const char *__doc_sgl_clear_texture_depth_stencil = R"doc(Clear a texture depth/stencil values.)doc";
+
+static const char *__doc_sgl_clear_texture_float = R"doc(Clear a texture with float values.)doc";
+
+static const char *__doc_sgl_clear_texture_sint = R"doc(Clear a texture with sint values.)doc";
+
+static const char *__doc_sgl_clear_texture_uint = R"doc(Clear a texture with uint values.)doc";
 
 static const char *__doc_sgl_comparator = R"doc()doc";
 
@@ -9064,9 +9113,25 @@ static const char *__doc_sgl_comparator_operator_call = R"doc()doc";
 
 static const char *__doc_sgl_compose_modules = R"doc(Compose multiple slang modules into one.)doc";
 
-static const char *__doc_sgl_convert_coop_vec_matrices = R"doc(Convert multiple cooperative vector matrices between formats.)doc";
+static const char *__doc_sgl_convert_coop_vec_matrices = R"doc(Convert cooperative vector matrices.)doc";
 
-static const char *__doc_sgl_convert_coop_vec_matrix = R"doc(Convert a single cooperative vector matrix between formats.)doc";
+static const char *__doc_sgl_convert_coop_vec_matrices_2 = R"doc(Convert multiple cooperative vector matrices between formats.)doc";
+
+static const char *__doc_sgl_convert_coop_vec_matrix = R"doc(Convert a single cooperative vector matrix.)doc";
+
+static const char *__doc_sgl_convert_coop_vec_matrix_2 = R"doc(Convert a single cooperative vector matrix between formats.)doc";
+
+static const char *__doc_sgl_copy_acceleration_structure = R"doc(Copy an acceleration structure.)doc";
+
+static const char *__doc_sgl_copy_buffer = R"doc(Copy a buffer region.)doc";
+
+static const char *__doc_sgl_copy_buffer_to_texture = R"doc(Copy a buffer to a texture.)doc";
+
+static const char *__doc_sgl_copy_texture = R"doc(Copy a texture region.)doc";
+
+static const char *__doc_sgl_copy_texture_2 = R"doc(Copy a texture region.)doc";
+
+static const char *__doc_sgl_copy_texture_to_buffer = R"doc(Copy a texture to a buffer.)doc";
 
 static const char *__doc_sgl_crashpad_is_supported = R"doc(Returns true if Crashpad is supported in this build.)doc";
 
@@ -9457,6 +9522,13 @@ static const char *__doc_sgl_cuda_signal_external_semaphore = R"doc()doc";
 
 static const char *__doc_sgl_cuda_wait_external_semaphore = R"doc()doc";
 
+static const char *__doc_sgl_current_command_stream =
+R"doc(Get the current command stream from the top of the thread-local
+command stream stack. Throws if the stack is empty.
+
+Returns:
+    The current command stream.)doc";
+
 static const char *__doc_sgl_current_device =
 R"doc(Get the current device from the top of the thread-local device stack.
 Throws if the stack is empty.
@@ -9477,6 +9549,8 @@ static const char *__doc_sgl_cursor_utils_get_scalar_type_cpu_size = R"doc()doc"
 static const char *__doc_sgl_cursor_utils_unwrap_array = R"doc()doc";
 
 static const char *__doc_sgl_data_type_size = R"doc(Get the size of a type in bytes.)doc";
+
+static const char *__doc_sgl_deserialize_acceleration_structure = R"doc(Deserialize an acceleration structure.)doc";
 
 static const char *__doc_sgl_detail_HostTypeToFormat = R"doc()doc";
 
@@ -9756,6 +9830,10 @@ static const char *__doc_sgl_flip_bit_12 = R"doc()doc";
 
 static const char *__doc_sgl_flip_bit_13 = R"doc()doc";
 
+static const char *__doc_sgl_flush = R"doc(Submit and wait for completion on the current command stream.)doc";
+
+static const char *__doc_sgl_generate_mips = R"doc(Generate mip maps for a texture.)doc";
+
 static const char *__doc_sgl_get_acceleration_structure_sizes =
 R"doc(Query the device for buffer sizes required for acceleration structure
 builds.
@@ -9788,6 +9866,8 @@ static const char *__doc_sgl_get_shader_model_minor_version = R"doc()doc";
 
 static const char *__doc_sgl_get_vulkan_format = R"doc(Convert from sgl to Vulkan format.)doc";
 
+static const char *__doc_sgl_global_barrier = R"doc(Insert a global barrier.)doc";
+
 static const char *__doc_sgl_hash = R"doc()doc";
 
 static const char *__doc_sgl_hash_2 = R"doc()doc";
@@ -9801,6 +9881,8 @@ static const char *__doc_sgl_hasher = R"doc()doc";
 static const char *__doc_sgl_hasher_operator_call = R"doc()doc";
 
 static const char *__doc_sgl_host_type_to_format = R"doc()doc";
+
+static const char *__doc_sgl_insert_debug_marker = R"doc(Insert a debug marker.)doc";
 
 static const char *__doc_sgl_is_boolean = R"doc()doc";
 
@@ -11186,9 +11268,25 @@ static const char *__doc_sgl_platform_static_init = R"doc(Initialize the platfor
 
 static const char *__doc_sgl_platform_static_shutdown = R"doc(Shutdown the platform layer.)doc";
 
+static const char *__doc_sgl_pop_command_stream =
+R"doc(Pop the top command stream from the thread-local command stream stack.
+Throws if the stack is empty.)doc";
+
+static const char *__doc_sgl_pop_debug_group = R"doc(Pop a debug group.)doc";
+
 static const char *__doc_sgl_pop_device =
 R"doc(Pop the top device from the thread-local device stack. Throws if the
 stack is empty.)doc";
+
+static const char *__doc_sgl_push_command_stream =
+R"doc(Push a command stream onto the thread-local command stream stack. The
+command stream must outlive the corresponding pop_command_stream()
+call.
+
+Parameter ``stream``:
+    Command stream to push (must not be null).)doc";
+
+static const char *__doc_sgl_push_debug_group = R"doc(Push a debug group.)doc";
 
 static const char *__doc_sgl_push_device =
 R"doc(Push a device onto the thread-local device stack. The device must
@@ -11196,6 +11294,8 @@ outlive the corresponding pop_device() call.
 
 Parameter ``device``:
     Device to push (must not be null).)doc";
+
+static const char *__doc_sgl_query_acceleration_structure_properties = R"doc(Query acceleration structure properties.)doc";
 
 static const char *__doc_sgl_ref = R"doc()doc";
 
@@ -11316,7 +11416,17 @@ Returns:
 
 static const char *__doc_sgl_report_assertion = R"doc(Report a failed assertion.)doc";
 
+static const char *__doc_sgl_resolve_query = R"doc(Resolve a query.)doc";
+
+static const char *__doc_sgl_serialize_acceleration_structure = R"doc(Serialize an acceleration structure.)doc";
+
+static const char *__doc_sgl_set_buffer_state = R"doc(Transition resource state of a buffer.)doc";
+
 static const char *__doc_sgl_set_exception_diagnostics = R"doc(Set exception diagnostic options.)doc";
+
+static const char *__doc_sgl_set_texture_state = R"doc(Transition resource state of a texture.)doc";
+
+static const char *__doc_sgl_set_texture_state_2 = R"doc(Transition resource state of texture sub-resources.)doc";
 
 static const char *__doc_sgl_short_vector = R"doc()doc";
 
@@ -12015,6 +12125,10 @@ Parameter ``str``:
 
 Returns:
     Wide string.)doc";
+
+static const char *__doc_sgl_submit =
+R"doc(Submit the current batch of recorded commands on the current command
+stream.)doc";
 
 static const char *__doc_sgl_tev_show =
 R"doc(Show a bitmap in the tev viewer (https://github.com/Tom94/tev).
@@ -12840,6 +12954,14 @@ static const char *__doc_sgl_ui_operator_iand_2 = R"doc()doc";
 static const char *__doc_sgl_ui_operator_ior = R"doc()doc";
 
 static const char *__doc_sgl_ui_operator_ior_2 = R"doc()doc";
+
+static const char *__doc_sgl_upload_buffer_data = R"doc(Upload host memory to a buffer.)doc";
+
+static const char *__doc_sgl_upload_texture_data = R"doc(Upload host memory to a texture.)doc";
+
+static const char *__doc_sgl_upload_texture_data_2 = R"doc(Upload host memory to a texture.)doc";
+
+static const char *__doc_sgl_write_timestamp = R"doc(Write a timestamp.)doc";
 
 static const char *__doc_std_hash = R"doc()doc";
 

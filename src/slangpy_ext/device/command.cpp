@@ -48,7 +48,7 @@ SGL_DICT_TO_DESC_END()
 extern SubresourceData
 texture_build_subresource_data_for_upload(Texture* self, nb::ndarray<nb::numpy> data, uint32_t layer, uint32_t mip);
 
-void upload_buffer_data(CommandRecorder* self, Buffer* buffer, size_t offset, nb::ndarray<nb::numpy> data)
+void py_upload_buffer_data(CommandRecorder* self, Buffer* buffer, size_t offset, nb::ndarray<nb::numpy> data)
 {
     SGL_CHECK(is_ndarray_contiguous(data), "numpy array is not contiguous");
 
@@ -65,7 +65,10 @@ void upload_buffer_data(CommandRecorder* self, Buffer* buffer, size_t offset, nb
     self->upload_buffer_data(buffer, offset, data_size, data.data());
 }
 
-void upload_texture_data(
+// NOTE: The upload_texture_data local helpers are named py_upload_texture_data to
+// avoid name conflicts with the free-standing sgl::upload_texture_data functions.
+
+void py_upload_texture_data(
     CommandRecorder* self,
     Texture* texture,
     uint32_t layer,
@@ -80,7 +83,7 @@ void upload_texture_data(
     self->upload_texture_data(texture, layer, mip, subresource_data);
 }
 
-void upload_texture_data(
+void py_upload_texture_data(
     CommandRecorder* self,
     Texture* texture,
     uint3 offset,
@@ -130,7 +133,7 @@ void upload_texture_data(
     self->upload_texture_data(texture, range, offset, extent, subresource_datas);
 }
 
-void upload_texture_data(
+void py_upload_texture_data(
     CommandRecorder* self,
     Texture* texture,
     SubresourceRange range,
@@ -139,13 +142,13 @@ void upload_texture_data(
 {
     uint3 offset(0);
     uint3 extent(0xffffffff);
-    upload_texture_data(self, texture, offset, extent, range, data);
+    py_upload_texture_data(self, texture, offset, extent, range, data);
 }
 
-void upload_texture_data(CommandRecorder* self, Texture* texture, std::span<nb::ndarray<nb::numpy>> data)
+void py_upload_texture_data(CommandRecorder* self, Texture* texture, std::span<nb::ndarray<nb::numpy>> data)
 {
     SubresourceRange range;
-    upload_texture_data(self, texture, range, data);
+    py_upload_texture_data(self, texture, range, data);
 }
 
 
@@ -343,11 +346,11 @@ SGL_PY_EXPORT(device_command)
             "extent"_a = uint3(-1),
             D(CommandRecorder, copy_buffer_to_texture)
         )
-        .def("upload_buffer_data", &upload_buffer_data, "buffer"_a, "offset"_a, "data"_a)
+        .def("upload_buffer_data", &py_upload_buffer_data, "buffer"_a, "offset"_a, "data"_a)
         .def(
             "upload_texture_data",
             nb::overload_cast<CommandRecorder*, Texture*, uint32_t, uint32_t, nb::ndarray<nb::numpy>>(
-                &upload_texture_data
+                &py_upload_texture_data
             ),
             "texture"_a,
             "layer"_a,
@@ -363,23 +366,7 @@ SGL_PY_EXPORT(device_command)
                 uint3,
                 uint3,
                 SubresourceRange,
-                std::span<nb::ndarray<nb::numpy>>>(&upload_texture_data),
-            "texture"_a,
-            "offset"_a,
-            "extent"_a,
-            "range"_a,
-            "subresource_data"_a,
-            D(CommandRecorder, upload_texture_data)
-        )
-        .def(
-            "upload_texture_data",
-            nb::overload_cast<
-                CommandRecorder*,
-                Texture*,
-                uint3,
-                uint3,
-                SubresourceRange,
-                std::span<nb::ndarray<nb::numpy>>>(&upload_texture_data),
+                std::span<nb::ndarray<nb::numpy>>>(&py_upload_texture_data),
             "texture"_a,
             "offset"_a,
             "extent"_a,
@@ -390,7 +377,7 @@ SGL_PY_EXPORT(device_command)
         .def(
             "upload_texture_data",
             nb::overload_cast<CommandRecorder*, Texture*, SubresourceRange, std::span<nb::ndarray<nb::numpy>>>(
-                &upload_texture_data
+                &py_upload_texture_data
             ),
             "texture"_a,
             "range"_a,
@@ -399,7 +386,7 @@ SGL_PY_EXPORT(device_command)
         )
         .def(
             "upload_texture_data",
-            nb::overload_cast<CommandRecorder*, Texture*, std::span<nb::ndarray<nb::numpy>>>(&upload_texture_data),
+            nb::overload_cast<CommandRecorder*, Texture*, std::span<nb::ndarray<nb::numpy>>>(&py_upload_texture_data),
             "texture"_a,
             "subresource_data"_a,
             D(CommandRecorder, upload_texture_data)
@@ -595,6 +582,7 @@ SGL_PY_EXPORT(device_command)
             "__enter__",
             [](CommandStream* self)
             {
+                push_command_stream(self);
                 return self;
             }
         )
@@ -603,6 +591,7 @@ SGL_PY_EXPORT(device_command)
             [](CommandStream* self, nb::object, nb::object, nb::object)
             {
                 self->flush();
+                pop_command_stream();
             },
             "exc_type"_a = nb::none(),
             "exc_value"_a = nb::none(),
@@ -778,4 +767,292 @@ SGL_PY_EXPORT(device_command)
         );
 
     nb::class_<CommandBuffer, DeviceChild>(m, "CommandBuffer", D(CommandBuffer));
+
+    // -----------------------------------------------------------------------
+    // Thread-local command stream stack.
+    // -----------------------------------------------------------------------
+
+    m.def("push_command_stream", &push_command_stream, "stream"_a);
+    m.def("pop_command_stream", &pop_command_stream);
+    m.def("current_command_stream", &current_command_stream, nb::rv_policy::reference);
+
+    // -----------------------------------------------------------------------
+    // Free-standing command stream API functions.
+    // -----------------------------------------------------------------------
+
+    m.def(
+        "begin_render_pass",
+        static_cast<ref<RenderPassEncoder> (*)(const RenderPassDesc&)>(&begin_render_pass),
+        "desc"_a
+    );
+    m.def("begin_compute_pass", static_cast<ref<ComputePassEncoder> (*)()>(&begin_compute_pass));
+    m.def("begin_ray_tracing_pass", static_cast<ref<RayTracingPassEncoder> (*)()>(&begin_ray_tracing_pass));
+    m.def(
+        "copy_buffer",
+        static_cast<void (*)(Buffer*, DeviceOffset, const Buffer*, DeviceOffset, DeviceSize)>(&copy_buffer),
+        "dst"_a,
+        "dst_offset"_a,
+        "src"_a,
+        "src_offset"_a,
+        "size"_a
+    );
+    m.def(
+        "copy_texture",
+        static_cast<void (*)(Texture*, SubresourceRange, uint3, const Texture*, SubresourceRange, uint3, uint3)>(
+            &copy_texture
+        ),
+        "dst"_a,
+        "dst_subresource_range"_a,
+        "dst_offset"_a,
+        "src"_a,
+        "src_subresource_range"_a,
+        "src_offset"_a,
+        "extent"_a = uint3(-1)
+    );
+    m.def(
+        "copy_texture",
+        static_cast<void (*)(Texture*, uint32_t, uint32_t, uint3, const Texture*, uint32_t, uint32_t, uint3, uint3)>(
+            &copy_texture
+        ),
+        "dst"_a,
+        "dst_layer"_a,
+        "dst_mip"_a,
+        "dst_offset"_a,
+        "src"_a,
+        "src_layer"_a,
+        "src_mip"_a,
+        "src_offset"_a,
+        "extent"_a = uint3(-1)
+    );
+    m.def(
+        "copy_texture_to_buffer",
+        static_cast<
+            void (*)(Buffer*, DeviceOffset, DeviceSize, DeviceSize, const Texture*, uint32_t, uint32_t, uint3, uint3)>(
+            &copy_texture_to_buffer
+        ),
+        "dst"_a,
+        "dst_offset"_a,
+        "dst_size"_a,
+        "dst_row_pitch"_a,
+        "src"_a,
+        "src_layer"_a,
+        "src_mip"_a,
+        "src_offset"_a = uint3(0),
+        "extent"_a = uint3(-1)
+    );
+    m.def(
+        "copy_buffer_to_texture",
+        static_cast<
+            void (*)(Texture*, uint32_t, uint32_t, uint3, const Buffer*, DeviceOffset, DeviceSize, DeviceSize, uint3)>(
+            &copy_buffer_to_texture
+        ),
+        "dst"_a,
+        "dst_layer"_a,
+        "dst_mip"_a,
+        "dst_offset"_a,
+        "src"_a,
+        "src_offset"_a,
+        "src_size"_a,
+        "src_row_pitch"_a,
+        "extent"_a = uint3(-1)
+    );
+    m.def(
+        "upload_buffer_data",
+        [](Buffer* buffer, size_t offset, nb::ndarray<nb::numpy> data)
+        {
+            py_upload_buffer_data(current_command_stream(), buffer, offset, data);
+        },
+        "buffer"_a,
+        "offset"_a,
+        "data"_a
+    );
+    m.def(
+        "upload_texture_data",
+        [](Texture* texture, uint32_t layer, uint32_t mip, nb::ndarray<nb::numpy> data)
+        {
+            py_upload_texture_data(current_command_stream(), texture, layer, mip, data);
+        },
+        "texture"_a,
+        "layer"_a,
+        "mip"_a,
+        "data"_a
+    );
+    m.def(
+        "upload_texture_data",
+        [](Texture* texture, uint3 offset, uint3 extent, SubresourceRange range, std::span<nb::ndarray<nb::numpy>> data)
+        {
+            py_upload_texture_data(current_command_stream(), texture, offset, extent, range, data);
+        },
+        "texture"_a,
+        "offset"_a,
+        "extent"_a,
+        "range"_a,
+        "subresource_data"_a
+    );
+    m.def(
+        "upload_texture_data",
+        [](Texture* texture, SubresourceRange range, std::span<nb::ndarray<nb::numpy>> data)
+        {
+            py_upload_texture_data(current_command_stream(), texture, range, data);
+        },
+        "texture"_a,
+        "range"_a,
+        "subresource_data"_a
+    );
+    m.def(
+        "upload_texture_data",
+        [](Texture* texture, std::span<nb::ndarray<nb::numpy>> data)
+        {
+            py_upload_texture_data(current_command_stream(), texture, data);
+        },
+        "texture"_a,
+        "subresource_data"_a
+    );
+    m.def(
+        "clear_buffer",
+        static_cast<void (*)(Buffer*, BufferRange)>(&clear_buffer),
+        "buffer"_a,
+        "range"_a = BufferRange{}
+    );
+    m.def(
+        "clear_texture_float",
+        static_cast<void (*)(Texture*, SubresourceRange, float4)>(&clear_texture_float),
+        "texture"_a,
+        "range"_a = SubresourceRange{},
+        "clear_value"_a = float4(0.f)
+    );
+    m.def(
+        "clear_texture_uint",
+        static_cast<void (*)(Texture*, SubresourceRange, uint4)>(&clear_texture_uint),
+        "texture"_a,
+        "range"_a = SubresourceRange{},
+        "clear_value"_a = uint4(0)
+    );
+    m.def(
+        "clear_texture_sint",
+        static_cast<void (*)(Texture*, SubresourceRange, int4)>(&clear_texture_sint),
+        "texture"_a,
+        "range"_a = SubresourceRange{},
+        "clear_value"_a = int4(0)
+    );
+    m.def(
+        "clear_texture_depth_stencil",
+        static_cast<void (*)(Texture*, SubresourceRange, bool, float, bool, uint8_t)>(&clear_texture_depth_stencil),
+        "texture"_a,
+        "range"_a = SubresourceRange{},
+        "clear_depth"_a = true,
+        "depth_value"_a = 0.f,
+        "clear_stencil"_a = true,
+        "stencil_value"_a = 0
+    );
+    m.def(
+        "blit",
+        static_cast<void (*)(TextureView*, TextureView*, TextureFilteringMode)>(&blit),
+        "dst"_a,
+        "src"_a,
+        "filter"_a = TextureFilteringMode::linear
+    );
+    m.def(
+        "blit",
+        static_cast<void (*)(Texture*, Texture*, TextureFilteringMode)>(&blit),
+        "dst"_a,
+        "src"_a,
+        "filter"_a = TextureFilteringMode::linear
+    );
+    m.def("generate_mips", static_cast<void (*)(Texture*, uint32_t)>(&generate_mips), "texture"_a, "layer"_a = 0);
+    m.def(
+        "resolve_query",
+        static_cast<void (*)(QueryPool*, uint32_t, uint32_t, Buffer*, DeviceOffset)>(&resolve_query),
+        "query_pool"_a,
+        "index"_a,
+        "count"_a,
+        "buffer"_a,
+        "offset"_a
+    );
+    m.def(
+        "build_acceleration_structure",
+        static_cast<void (*)(
+            const AccelerationStructureBuildDesc&,
+            AccelerationStructure*,
+            AccelerationStructure*,
+            BufferOffsetPair,
+            std::span<AccelerationStructureQueryDesc>
+        )>(&build_acceleration_structure),
+        "desc"_a,
+        "dst"_a,
+        "src"_a.none(),
+        "scratch_buffer"_a,
+        "queries"_a = std::span<AccelerationStructureQueryDesc>()
+    );
+    m.def(
+        "copy_acceleration_structure",
+        static_cast<void (*)(AccelerationStructure*, AccelerationStructure*, AccelerationStructureCopyMode)>(
+            &copy_acceleration_structure
+        ),
+        "dst"_a,
+        "src"_a,
+        "mode"_a
+    );
+    m.def(
+        "query_acceleration_structure_properties",
+        static_cast<void (*)(std::span<AccelerationStructure*>, std::span<AccelerationStructureQueryDesc>)>(
+            &query_acceleration_structure_properties
+        ),
+        "acceleration_structures"_a,
+        "queries"_a
+    );
+    m.def(
+        "serialize_acceleration_structure",
+        static_cast<void (*)(BufferOffsetPair, AccelerationStructure*)>(&serialize_acceleration_structure),
+        "dst"_a,
+        "src"_a
+    );
+    m.def(
+        "deserialize_acceleration_structure",
+        static_cast<void (*)(AccelerationStructure*, BufferOffsetPair)>(&deserialize_acceleration_structure),
+        "dst"_a,
+        "src"_a
+    );
+    m.def(
+        "convert_coop_vec_matrices",
+        static_cast<
+            void (*)(Buffer*, std::span<const CoopVecMatrixDesc>, const Buffer*, std::span<const CoopVecMatrixDesc>)>(
+            &convert_coop_vec_matrices
+        ),
+        "dst"_a,
+        "dst_descs"_a,
+        "src"_a,
+        "src_descs"_a
+    );
+    m.def(
+        "convert_coop_vec_matrix",
+        static_cast<void (*)(Buffer*, const CoopVecMatrixDesc&, const Buffer*, const CoopVecMatrixDesc&)>(
+            &convert_coop_vec_matrix
+        ),
+        "dst"_a,
+        "dst_desc"_a,
+        "src"_a,
+        "src_desc"_a
+    );
+    m.def("set_buffer_state", static_cast<void (*)(Buffer*, ResourceState)>(&set_buffer_state), "buffer"_a, "state"_a);
+    m.def(
+        "set_texture_state",
+        static_cast<void (*)(Texture*, ResourceState)>(&set_texture_state),
+        "texture"_a,
+        "state"_a
+    );
+    m.def(
+        "set_texture_state",
+        static_cast<void (*)(Texture*, SubresourceRange, ResourceState)>(&set_texture_state),
+        "texture"_a,
+        "range"_a,
+        "state"_a
+    );
+    m.def("global_barrier", static_cast<void (*)()>(&global_barrier));
+    m.def("push_debug_group", static_cast<void (*)(const char*, float3)>(&push_debug_group), "name"_a, "color"_a);
+    m.def("pop_debug_group", static_cast<void (*)()>(&pop_debug_group));
+    m.def("insert_debug_marker", static_cast<void (*)(const char*, float3)>(&insert_debug_marker), "name"_a, "color"_a);
+    m.def("write_timestamp", static_cast<void (*)(QueryPool*, uint32_t)>(&write_timestamp), "query_pool"_a, "index"_a);
+    m.def("submit", static_cast<uint64_t (*)()>(&submit));
+    m.def("flush", static_cast<void (*)()>(&flush));
 }

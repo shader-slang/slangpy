@@ -121,6 +121,7 @@ class CommandQueue;
 class CommandRecorder;
 class CommandEncoder;
 class CommandStream;
+class CommandStreamScope;
 class RenderPassEncoder;
 class ComputePassEncoder;
 class RayTracingPassEncoder;

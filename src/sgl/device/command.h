@@ -519,4 +519,238 @@ private:
     friend class CommandStream;
 };
 
+// ---------------------------------------------------------------------------
+// Thread-local command stream stack.
+// ---------------------------------------------------------------------------
+
+/// Push a command stream onto the thread-local command stream stack.
+/// The command stream must outlive the corresponding pop_command_stream() call.
+/// \param stream Command stream to push (must not be null).
+SGL_API void push_command_stream(CommandStream* stream);
+
+/// Pop the top command stream from the thread-local command stream stack.
+/// Throws if the stack is empty.
+SGL_API void pop_command_stream();
+
+/// Get the current command stream from the top of the thread-local command stream stack.
+/// Throws if the stack is empty.
+/// \return The current command stream.
+SGL_API CommandStream* current_command_stream();
+
+/// RAII scope that pushes a command stream on construction and pops it on destruction.
+///
+/// Usage:
+/// \code
+/// {
+///     CommandStreamScope scope(stream);
+///     copy_buffer(dst, 0, src, 0, size);
+/// }
+/// \endcode
+class SGL_API CommandStreamScope {
+public:
+    explicit CommandStreamScope(CommandStream* stream);
+    ~CommandStreamScope();
+
+    // Non-copyable.
+    CommandStreamScope(const CommandStreamScope&) = delete;
+    CommandStreamScope& operator=(const CommandStreamScope&) = delete;
+
+    // Movable.
+    CommandStreamScope(CommandStreamScope&& other) noexcept;
+    CommandStreamScope& operator=(CommandStreamScope&& other) noexcept;
+
+private:
+    bool m_active{true};
+};
+
+// ---------------------------------------------------------------------------
+// Free-standing command stream API functions.
+// Each delegates to current_command_stream()->xxx(...).
+// ---------------------------------------------------------------------------
+
+/// Begin a render pass.
+SGL_API ref<RenderPassEncoder> begin_render_pass(const RenderPassDesc& desc);
+
+/// Begin a compute pass.
+SGL_API ref<ComputePassEncoder> begin_compute_pass();
+
+/// Begin a ray tracing pass.
+SGL_API ref<RayTracingPassEncoder> begin_ray_tracing_pass();
+
+/// Copy a buffer region.
+SGL_API void
+copy_buffer(Buffer* dst, DeviceOffset dst_offset, const Buffer* src, DeviceOffset src_offset, DeviceSize size);
+
+/// Copy a texture region.
+SGL_API void copy_texture(
+    Texture* dst,
+    SubresourceRange dst_subresource_range,
+    uint3 dst_offset,
+    const Texture* src,
+    SubresourceRange src_subresource_range,
+    uint3 src_offset,
+    uint3 extent = uint3(-1)
+);
+
+/// Copy a texture region.
+SGL_API void copy_texture(
+    Texture* dst,
+    uint32_t dst_layer,
+    uint32_t dst_mip,
+    uint3 dst_offset,
+    const Texture* src,
+    uint32_t src_layer,
+    uint32_t src_mip,
+    uint3 src_offset,
+    uint3 extent = uint3(-1)
+);
+
+/// Copy a texture to a buffer.
+SGL_API void copy_texture_to_buffer(
+    Buffer* dst,
+    DeviceOffset dst_offset,
+    DeviceSize dst_size,
+    DeviceSize dst_row_pitch,
+    const Texture* src,
+    uint32_t src_layer,
+    uint32_t src_mip,
+    uint3 src_offset = uint3(0),
+    uint3 extent = uint3(-1)
+);
+
+/// Copy a buffer to a texture.
+SGL_API void copy_buffer_to_texture(
+    Texture* dst,
+    uint32_t dst_layer,
+    uint32_t dst_mip,
+    uint3 dst_offset,
+    const Buffer* src,
+    DeviceOffset src_offset,
+    DeviceSize src_size,
+    DeviceSize src_row_pitch,
+    uint3 extent = uint3(-1)
+);
+
+/// Upload host memory to a buffer.
+SGL_API void upload_buffer_data(Buffer* buffer, size_t offset, size_t size, const void* data);
+
+/// Upload host memory to a texture.
+SGL_API void upload_texture_data(
+    Texture* texture,
+    SubresourceRange subresource_range,
+    uint3 offset,
+    uint3 extent,
+    std::span<SubresourceData> subresource_data
+);
+
+/// Upload host memory to a texture.
+SGL_API void upload_texture_data(Texture* texture, uint32_t layer, uint32_t mip, SubresourceData subresource_data);
+
+/// Clear a buffer.
+SGL_API void clear_buffer(Buffer* buffer, BufferRange range = {});
+
+/// Clear a texture with float values.
+SGL_API void
+clear_texture_float(Texture* texture, SubresourceRange subresource_range = {}, float4 clear_value = float4(0.f));
+
+/// Clear a texture with uint values.
+SGL_API void
+clear_texture_uint(Texture* texture, SubresourceRange subresource_range = {}, uint4 clear_value = uint4(0));
+
+/// Clear a texture with sint values.
+SGL_API void clear_texture_sint(Texture* texture, SubresourceRange subresource_range = {}, int4 clear_value = int4(0));
+
+/// Clear a texture depth/stencil values.
+SGL_API void clear_texture_depth_stencil(
+    Texture* texture,
+    SubresourceRange subresource_range = {},
+    bool clear_depth = true,
+    float depth_value = 0.f,
+    bool clear_stencil = true,
+    uint8_t stencil_value = 0
+);
+
+/// Blit a texture view.
+SGL_API void blit(TextureView* dst, TextureView* src, TextureFilteringMode filter = TextureFilteringMode::linear);
+
+/// Blit a texture.
+SGL_API void blit(Texture* dst, Texture* src, TextureFilteringMode filter = TextureFilteringMode::linear);
+
+/// Generate mip maps for a texture.
+SGL_API void generate_mips(Texture* texture, uint32_t layer = 0);
+
+/// Resolve a query.
+SGL_API void resolve_query(QueryPool* query_pool, uint32_t index, uint32_t count, Buffer* buffer, DeviceOffset offset);
+
+/// Build an acceleration structure.
+SGL_API void build_acceleration_structure(
+    const AccelerationStructureBuildDesc& desc,
+    AccelerationStructure* dst,
+    AccelerationStructure* src,
+    BufferOffsetPair scratch_buffer,
+    std::span<AccelerationStructureQueryDesc> queries = std::span<AccelerationStructureQueryDesc>()
+);
+
+/// Copy an acceleration structure.
+SGL_API void
+copy_acceleration_structure(AccelerationStructure* dst, AccelerationStructure* src, AccelerationStructureCopyMode mode);
+
+/// Query acceleration structure properties.
+SGL_API void query_acceleration_structure_properties(
+    std::span<AccelerationStructure*> acceleration_structures,
+    std::span<AccelerationStructureQueryDesc> queries
+);
+
+/// Serialize an acceleration structure.
+SGL_API void serialize_acceleration_structure(BufferOffsetPair dst, AccelerationStructure* src);
+
+/// Deserialize an acceleration structure.
+SGL_API void deserialize_acceleration_structure(AccelerationStructure* dst, BufferOffsetPair src);
+
+/// Convert cooperative vector matrices.
+SGL_API void convert_coop_vec_matrices(
+    Buffer* dst,
+    std::span<const CoopVecMatrixDesc> dst_descs,
+    const Buffer* src,
+    std::span<const CoopVecMatrixDesc> src_descs
+);
+
+/// Convert a single cooperative vector matrix.
+SGL_API void convert_coop_vec_matrix(
+    Buffer* dst,
+    const CoopVecMatrixDesc& dst_desc,
+    const Buffer* src,
+    const CoopVecMatrixDesc& src_desc
+);
+
+/// Transition resource state of a buffer.
+SGL_API void set_buffer_state(Buffer* buffer, ResourceState state);
+
+/// Transition resource state of a texture.
+SGL_API void set_texture_state(Texture* texture, ResourceState state);
+
+/// Transition resource state of texture sub-resources.
+SGL_API void set_texture_state(Texture* texture, SubresourceRange range, ResourceState state);
+
+/// Insert a global barrier.
+SGL_API void global_barrier();
+
+/// Push a debug group.
+SGL_API void push_debug_group(const char* name, float3 color);
+
+/// Pop a debug group.
+SGL_API void pop_debug_group();
+
+/// Insert a debug marker.
+SGL_API void insert_debug_marker(const char* name, float3 color);
+
+/// Write a timestamp.
+SGL_API void write_timestamp(QueryPool* query_pool, uint32_t index);
+
+/// Submit the current batch of recorded commands on the current command stream.
+SGL_API uint64_t submit();
+
+/// Submit and wait for completion on the current command stream.
+SGL_API void flush();
+
 } // namespace sgl

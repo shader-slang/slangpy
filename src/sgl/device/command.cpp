@@ -1019,4 +1019,340 @@ std::string CommandBuffer::to_string() const
     );
 }
 
+// ---------------------------------------------------------------------------
+// Thread-local command stream stack.
+// ---------------------------------------------------------------------------
+
+static thread_local std::vector<CommandStream*> t_command_stream_stack;
+
+void push_command_stream(CommandStream* stream)
+{
+    SGL_CHECK(stream != nullptr, "Cannot push a null command stream.");
+    t_command_stream_stack.push_back(stream);
+}
+
+void pop_command_stream()
+{
+    SGL_CHECK(
+        !t_command_stream_stack.empty(),
+        "No command stream to pop. push_command_stream()/pop_command_stream() mismatch."
+    );
+    t_command_stream_stack.pop_back();
+}
+
+CommandStream* current_command_stream()
+{
+    SGL_CHECK(
+        !t_command_stream_stack.empty(),
+        "No current command stream. Use push_command_stream() or CommandStreamScope to set one."
+    );
+    return t_command_stream_stack.back();
+}
+
+// ---------------------------------------------------------------------------
+// CommandStreamScope
+// ---------------------------------------------------------------------------
+
+CommandStreamScope::CommandStreamScope(CommandStream* stream)
+{
+    push_command_stream(stream);
+}
+
+CommandStreamScope::~CommandStreamScope()
+{
+    if (m_active)
+        pop_command_stream();
+}
+
+CommandStreamScope::CommandStreamScope(CommandStreamScope&& other) noexcept
+    : m_active(other.m_active)
+{
+    other.m_active = false;
+}
+
+CommandStreamScope& CommandStreamScope::operator=(CommandStreamScope&& other) noexcept
+{
+    if (this != &other) {
+        if (m_active)
+            pop_command_stream();
+        m_active = other.m_active;
+        other.m_active = false;
+    }
+    return *this;
+}
+
+// ---------------------------------------------------------------------------
+// Free-standing command stream API functions.
+// ---------------------------------------------------------------------------
+
+ref<RenderPassEncoder> begin_render_pass(const RenderPassDesc& desc)
+{
+    return current_command_stream()->begin_render_pass(desc);
+}
+
+ref<ComputePassEncoder> begin_compute_pass()
+{
+    return current_command_stream()->begin_compute_pass();
+}
+
+ref<RayTracingPassEncoder> begin_ray_tracing_pass()
+{
+    return current_command_stream()->begin_ray_tracing_pass();
+}
+
+void copy_buffer(Buffer* dst, DeviceOffset dst_offset, const Buffer* src, DeviceOffset src_offset, DeviceSize size)
+{
+    current_command_stream()->copy_buffer(dst, dst_offset, src, src_offset, size);
+}
+
+void copy_texture(
+    Texture* dst,
+    SubresourceRange dst_subresource_range,
+    uint3 dst_offset,
+    const Texture* src,
+    SubresourceRange src_subresource_range,
+    uint3 src_offset,
+    uint3 extent
+)
+{
+    current_command_stream()
+        ->copy_texture(dst, dst_subresource_range, dst_offset, src, src_subresource_range, src_offset, extent);
+}
+
+void copy_texture(
+    Texture* dst,
+    uint32_t dst_layer,
+    uint32_t dst_mip,
+    uint3 dst_offset,
+    const Texture* src,
+    uint32_t src_layer,
+    uint32_t src_mip,
+    uint3 src_offset,
+    uint3 extent
+)
+{
+    current_command_stream()
+        ->copy_texture(dst, dst_layer, dst_mip, dst_offset, src, src_layer, src_mip, src_offset, extent);
+}
+
+void copy_texture_to_buffer(
+    Buffer* dst,
+    DeviceOffset dst_offset,
+    DeviceSize dst_size,
+    DeviceSize dst_row_pitch,
+    const Texture* src,
+    uint32_t src_layer,
+    uint32_t src_mip,
+    uint3 src_offset,
+    uint3 extent
+)
+{
+    current_command_stream()
+        ->copy_texture_to_buffer(dst, dst_offset, dst_size, dst_row_pitch, src, src_layer, src_mip, src_offset, extent);
+}
+
+void copy_buffer_to_texture(
+    Texture* dst,
+    uint32_t dst_layer,
+    uint32_t dst_mip,
+    uint3 dst_offset,
+    const Buffer* src,
+    DeviceOffset src_offset,
+    DeviceSize src_size,
+    DeviceSize src_row_pitch,
+    uint3 extent
+)
+{
+    current_command_stream()
+        ->copy_buffer_to_texture(dst, dst_layer, dst_mip, dst_offset, src, src_offset, src_size, src_row_pitch, extent);
+}
+
+void upload_buffer_data(Buffer* buffer, size_t offset, size_t size, const void* data)
+{
+    current_command_stream()->upload_buffer_data(buffer, offset, size, data);
+}
+
+void upload_texture_data(
+    Texture* texture,
+    SubresourceRange subresource_range,
+    uint3 offset,
+    uint3 extent,
+    std::span<SubresourceData> subresource_data
+)
+{
+    current_command_stream()->upload_texture_data(texture, subresource_range, offset, extent, subresource_data);
+}
+
+void upload_texture_data(Texture* texture, uint32_t layer, uint32_t mip, SubresourceData subresource_data)
+{
+    current_command_stream()->upload_texture_data(texture, layer, mip, subresource_data);
+}
+
+void clear_buffer(Buffer* buffer, BufferRange range)
+{
+    current_command_stream()->clear_buffer(buffer, range);
+}
+
+void clear_texture_float(Texture* texture, SubresourceRange subresource_range, float4 clear_value)
+{
+    current_command_stream()->clear_texture_float(texture, subresource_range, clear_value);
+}
+
+void clear_texture_uint(Texture* texture, SubresourceRange subresource_range, uint4 clear_value)
+{
+    current_command_stream()->clear_texture_uint(texture, subresource_range, clear_value);
+}
+
+void clear_texture_sint(Texture* texture, SubresourceRange subresource_range, int4 clear_value)
+{
+    current_command_stream()->clear_texture_sint(texture, subresource_range, clear_value);
+}
+
+void clear_texture_depth_stencil(
+    Texture* texture,
+    SubresourceRange subresource_range,
+    bool clear_depth,
+    float depth_value,
+    bool clear_stencil,
+    uint8_t stencil_value
+)
+{
+    current_command_stream()->clear_texture_depth_stencil(
+        texture,
+        subresource_range,
+        clear_depth,
+        depth_value,
+        clear_stencil,
+        stencil_value
+    );
+}
+
+void blit(TextureView* dst, TextureView* src, TextureFilteringMode filter)
+{
+    current_command_stream()->blit(dst, src, filter);
+}
+
+void blit(Texture* dst, Texture* src, TextureFilteringMode filter)
+{
+    current_command_stream()->blit(dst, src, filter);
+}
+
+void generate_mips(Texture* texture, uint32_t layer)
+{
+    current_command_stream()->generate_mips(texture, layer);
+}
+
+void resolve_query(QueryPool* query_pool, uint32_t index, uint32_t count, Buffer* buffer, DeviceOffset offset)
+{
+    current_command_stream()->resolve_query(query_pool, index, count, buffer, offset);
+}
+
+void build_acceleration_structure(
+    const AccelerationStructureBuildDesc& desc,
+    AccelerationStructure* dst,
+    AccelerationStructure* src,
+    BufferOffsetPair scratch_buffer,
+    std::span<AccelerationStructureQueryDesc> queries
+)
+{
+    current_command_stream()->build_acceleration_structure(desc, dst, src, scratch_buffer, queries);
+}
+
+void copy_acceleration_structure(
+    AccelerationStructure* dst,
+    AccelerationStructure* src,
+    AccelerationStructureCopyMode mode
+)
+{
+    current_command_stream()->copy_acceleration_structure(dst, src, mode);
+}
+
+void query_acceleration_structure_properties(
+    std::span<AccelerationStructure*> acceleration_structures,
+    std::span<AccelerationStructureQueryDesc> queries
+)
+{
+    current_command_stream()->query_acceleration_structure_properties(acceleration_structures, queries);
+}
+
+void serialize_acceleration_structure(BufferOffsetPair dst, AccelerationStructure* src)
+{
+    current_command_stream()->serialize_acceleration_structure(dst, src);
+}
+
+void deserialize_acceleration_structure(AccelerationStructure* dst, BufferOffsetPair src)
+{
+    current_command_stream()->deserialize_acceleration_structure(dst, src);
+}
+
+void convert_coop_vec_matrices(
+    Buffer* dst,
+    std::span<const CoopVecMatrixDesc> dst_descs,
+    const Buffer* src,
+    std::span<const CoopVecMatrixDesc> src_descs
+)
+{
+    current_command_stream()->convert_coop_vec_matrices(dst, dst_descs, src, src_descs);
+}
+
+void convert_coop_vec_matrix(
+    Buffer* dst,
+    const CoopVecMatrixDesc& dst_desc,
+    const Buffer* src,
+    const CoopVecMatrixDesc& src_desc
+)
+{
+    current_command_stream()->convert_coop_vec_matrix(dst, dst_desc, src, src_desc);
+}
+
+void set_buffer_state(Buffer* buffer, ResourceState state)
+{
+    current_command_stream()->set_buffer_state(buffer, state);
+}
+
+void set_texture_state(Texture* texture, ResourceState state)
+{
+    current_command_stream()->set_texture_state(texture, state);
+}
+
+void set_texture_state(Texture* texture, SubresourceRange range, ResourceState state)
+{
+    current_command_stream()->set_texture_state(texture, range, state);
+}
+
+void global_barrier()
+{
+    current_command_stream()->global_barrier();
+}
+
+void push_debug_group(const char* name, float3 color)
+{
+    current_command_stream()->push_debug_group(name, color);
+}
+
+void pop_debug_group()
+{
+    current_command_stream()->pop_debug_group();
+}
+
+void insert_debug_marker(const char* name, float3 color)
+{
+    current_command_stream()->insert_debug_marker(name, color);
+}
+
+void write_timestamp(QueryPool* query_pool, uint32_t index)
+{
+    current_command_stream()->write_timestamp(query_pool, index);
+}
+
+uint64_t submit()
+{
+    return current_command_stream()->submit();
+}
+
+void flush()
+{
+    current_command_stream()->flush();
+}
+
 } // namespace sgl
