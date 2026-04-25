@@ -11,10 +11,10 @@ from slangpy.testing import helpers
 from typing import Any, cast
 
 # Filter default device types to only include those that support pointers
-# TODO: Metal does support pointers but the is a slang bug leading to incorrect Metal shader code
-# https://github.com/shader-slang/slang/issues/7605
 POINTER_DEVICE_TYPES = [
-    x for x in helpers.DEFAULT_DEVICE_TYPES if x in [DeviceType.vulkan, DeviceType.cuda]
+    x
+    for x in helpers.DEFAULT_DEVICE_TYPES
+    if x in [DeviceType.vulkan, DeviceType.cuda, DeviceType.metal]
 ]
 
 
