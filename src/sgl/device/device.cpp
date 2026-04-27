@@ -43,6 +43,7 @@ namespace sgl {
 
 static std::vector<Device*> s_devices;
 static std::mutex s_devices_mutex;
+static thread_local std::vector<Device*> tls_device_stack;
 
 inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
 {
@@ -391,6 +392,9 @@ Device::Device(const DeviceDesc& desc)
         std::lock_guard lock(s_devices_mutex);
         s_devices.push_back(this);
     }
+
+    // Auto-push device onto thread-local device stack (matches cuCtxCreate behavior).
+    push_device(this);
 }
 
 Device::~Device()
@@ -451,6 +455,10 @@ void Device::close()
 {
     if (m_closed)
         return;
+
+    // Pop device from thread-local stack if it's the current device (matches cuCtxDestroy behavior).
+    if (!tls_device_stack.empty() && tls_device_stack.back() == this)
+        pop_device();
 
     log_debug("Closing device {}", fmt::ptr(this));
 
@@ -1325,24 +1333,22 @@ std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
 // Thread-local device stack
 // ---------------------------------------------------------------------------
 
-static thread_local std::vector<Device*> t_device_stack;
-
 void push_device(Device* device)
 {
     SGL_CHECK(device != nullptr, "Cannot push a null device.");
-    t_device_stack.push_back(device);
+    tls_device_stack.push_back(device);
 }
 
 void pop_device()
 {
-    SGL_CHECK(!t_device_stack.empty(), "No device to pop. push_device()/pop_device() mismatch.");
-    t_device_stack.pop_back();
+    SGL_CHECK(!tls_device_stack.empty(), "No device to pop. push_device()/pop_device() mismatch.");
+    tls_device_stack.pop_back();
 }
 
 Device* current_device()
 {
-    SGL_CHECK(!t_device_stack.empty(), "No current device. Use push_device() or DeviceScope to set one.");
-    return t_device_stack.back();
+    SGL_CHECK(!tls_device_stack.empty(), "No current device. Use push_device() or DeviceScope to set one.");
+    return tls_device_stack.back();
 }
 
 // ---------------------------------------------------------------------------
