@@ -566,7 +566,7 @@ SGL_PY_EXPORT(device_device)
         "__enter__",
         [](Device* self) -> Device*
         {
-            push_device(self);
+            push_current_device(self);
             return self;
         }
     );
@@ -577,7 +577,7 @@ SGL_PY_EXPORT(device_device)
             // Only pop if this device is on top of the stack to avoid
             // popping the wrong device when the stack was mutated.
             if (current_device() == self)
-                pop_device();
+                pop_current_device();
         },
         "exc_type"_a.none(),
         "exc_val"_a.none(),
@@ -1200,8 +1200,8 @@ SGL_PY_EXPORT(device_device)
         D(get_cuda_current_context_native_handles)
     );
 
-    m.def("push_device", &push_device, "device"_a, D(push_device));
-    m.def("pop_device", &pop_device, D(pop_device));
+    m.def("push_current_device", &push_current_device, "device"_a, D(push_current_device));
+    m.def("pop_current_device", &pop_current_device, D(pop_current_device));
     m.def("current_device", &current_device, nb::rv_policy::reference, D(current_device));
 
     // Free-standing device API functions.

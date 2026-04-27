@@ -11130,23 +11130,23 @@ static const char *__doc_sgl_platform_static_init = R"doc(Initialize the platfor
 
 static const char *__doc_sgl_platform_static_shutdown = R"doc(Shutdown the platform layer.)doc";
 
-static const char *__doc_sgl_pop_device =
+static const char *__doc_sgl_pop_current_device =
 R"doc(Pop the top device from the thread-local device stack. Throws if the
 stack is empty.
 
 Returns:
     The popped device.)doc";
 
-static const char *__doc_sgl_push_device =
-R"doc(Push a device onto the thread-local device stack.
+static const char *__doc_sgl_push_current_device =
+R"doc(Push a device onto the thread-local current device stack.
 
 Stores a raw pointer in the thread-local stack. The caller must ensure
 that the device (and any devices below it on the stack) outlive their
-corresponding pop_device() calls. Device::close() only auto-pops if
-the device is on top of the stack; a closed device lower in the stack
-remains as a stale pointer - calling current_device() or pop_device()
-on that entry is undefined behavior unless the device is kept alive
-(refcount > 0) until popped.
+corresponding pop_current_device() calls. Device::close() only auto-
+pops if the device is on top of the stack; a closed device lower in
+the stack remains as a stale pointer - calling current_device() or
+pop_current_device() on that entry is undefined behavior unless the
+device is kept alive (refcount > 0) until popped.
 
 Parameter ``device``:
     Device to push (must not be null).)doc";

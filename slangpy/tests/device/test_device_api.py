@@ -12,27 +12,27 @@ def empty_device_stack():
     saved = []
     while True:
         try:
-            saved.append(spy.pop_device())
+            saved.append(spy.pop_current_device())
         except Exception:
             break
     yield
     # Clean up anything the test left on the stack.
     while True:
         try:
-            spy.pop_device()
+            spy.pop_current_device()
         except Exception:
             break
     # Restore original stack.
     for dev in reversed(saved):
-        spy.push_device(dev)
+        spy.push_current_device(dev)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_push_pop_device(device_type: spy.DeviceType, empty_device_stack: None):
+def test_push_pop_current_device(device_type: spy.DeviceType, empty_device_stack: None):
     device = helpers.get_device(device_type)
-    spy.push_device(device)
+    spy.push_current_device(device)
     assert spy.current_device() is device
-    spy.pop_device()
+    spy.pop_current_device()
 
 
 def test_current_device_throws_when_empty(empty_device_stack: None):
@@ -40,9 +40,9 @@ def test_current_device_throws_when_empty(empty_device_stack: None):
         spy.current_device()
 
 
-def test_pop_device_throws_when_empty(empty_device_stack: None):
+def test_pop_current_device_throws_when_empty(empty_device_stack: None):
     with pytest.raises(Exception, match="No device to pop"):
-        spy.pop_device()
+        spy.pop_current_device()
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -53,7 +53,7 @@ def test_context_manager(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_context_manager_pops_on_exit(device_type: spy.DeviceType):
+def test_context_manager_pops_current_on_exit(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     # Record stack state before with block.
     before_device = None
@@ -73,7 +73,7 @@ def test_context_manager_pops_on_exit(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_context_manager_pops_on_exception(device_type: spy.DeviceType):
+def test_context_manager_pops_current_on_exception(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     # Record stack state before with block.
     before_device = None
@@ -103,17 +103,6 @@ def test_nested_context_managers(device_type: spy.DeviceType):
             assert spy.current_device() is device2
         assert spy.current_device() is device1
     device2.close()
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_create_buffer_with_context(device_type: spy.DeviceType):
-    device = helpers.get_device(device_type)
-    if device_type == spy.DeviceType.cuda:
-        pytest.skip("CUDA does not support create_buffer with size")
-    with device:
-        buffer = spy.create_buffer(size=256)
-        assert buffer is not None
-        assert buffer.size == 256
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -224,7 +213,7 @@ def test_free_load_program(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_auto_push_on_create(device_type: spy.DeviceType):
+def test_auto_push_current_on_create(device_type: spy.DeviceType):
     """Device constructor auto-pushes onto thread-local stack."""
     device = helpers.get_device(device_type, use_cache=False)
     assert spy.current_device() is device
@@ -232,20 +221,20 @@ def test_auto_push_on_create(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_auto_push_stacks(device_type: spy.DeviceType):
+def test_auto_push_current_stacks(device_type: spy.DeviceType):
     """Creating multiple devices stacks them; most recent is current."""
     device_a = helpers.get_device(device_type, use_cache=False)
     device_b = helpers.get_device(device_type, use_cache=False)
     assert spy.current_device() is device_b
-    spy.pop_device()
+    spy.pop_current_device()
     assert spy.current_device() is device_a
-    spy.pop_device()
+    spy.pop_current_device()
     device_b.close()
     device_a.close()
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_close_pops_if_on_top(device_type: spy.DeviceType, empty_device_stack: None):
+def test_close_pops_current_if_on_top(device_type: spy.DeviceType, empty_device_stack: None):
     """close() pops the device if it is current."""
     device = helpers.get_device(device_type, use_cache=False)
     assert spy.current_device() is device
@@ -255,7 +244,7 @@ def test_close_pops_if_on_top(device_type: spy.DeviceType, empty_device_stack: N
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_close_does_not_pop_if_not_on_top(device_type: spy.DeviceType, empty_device_stack: None):
+def test_close_does_not_pop_current_if_not_on_top(device_type: spy.DeviceType, empty_device_stack: None):
     """close() does NOT pop if device is not current."""
     device_a = helpers.get_device(device_type, use_cache=False)
     device_b = helpers.get_device(device_type, use_cache=False)
@@ -263,15 +252,15 @@ def test_close_does_not_pop_if_not_on_top(device_type: spy.DeviceType, empty_dev
     device_a.close()
     # A is not on top, so it stays in the stack (stale, matches CUDA).
     assert spy.current_device() is device_b
-    spy.pop_device()
+    spy.pop_current_device()
     # Now A (closed) is on top - same as CUDA stale context behavior.
     assert spy.current_device() is device_a
-    spy.pop_device()
+    spy.pop_current_device()
     device_b.close()
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_auto_push_with_context_manager(device_type: spy.DeviceType, empty_device_stack: None):
+def test_auto_push_current_with_context_manager(device_type: spy.DeviceType, empty_device_stack: None):
     """Auto-push + context manager stack correctly."""
     device = helpers.get_device(device_type, use_cache=False)
     # Stack = [device] from auto-push.

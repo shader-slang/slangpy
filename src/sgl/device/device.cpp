@@ -43,7 +43,7 @@ namespace sgl {
 
 static std::vector<Device*> s_devices;
 static std::mutex s_devices_mutex;
-static thread_local std::vector<Device*> s_tls_device_stack;
+static thread_local std::vector<Device*> s_tls_current_device_stack;
 
 inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
 {
@@ -393,8 +393,8 @@ Device::Device(const DeviceDesc& desc)
         s_devices.push_back(this);
     }
 
-    // Auto-push device onto thread-local device stack.
-    push_device(this);
+    // Auto-push device onto thread-local current device stack.
+    push_current_device(this);
 }
 
 Device::~Device()
@@ -456,9 +456,9 @@ void Device::close()
     if (m_closed)
         return;
 
-    // Pop device from thread-local stack if it's the current device.
-    if (!s_tls_device_stack.empty() && s_tls_device_stack.back() == this)
-        pop_device();
+    // Pop device from thread-local current device stack if it's the current device.
+    if (!s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
+        pop_current_device();
 
     log_debug("Closing device {}", fmt::ptr(this));
 
@@ -1330,27 +1330,27 @@ std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
 }
 
 // ---------------------------------------------------------------------------
-// Thread-local device stack
+// Thread-local current device stack
 // ---------------------------------------------------------------------------
 
-void push_device(Device* device)
+void push_current_device(Device* device)
 {
     SGL_CHECK(device != nullptr, "Cannot push a null device.");
-    s_tls_device_stack.push_back(device);
+    s_tls_current_device_stack.push_back(device);
 }
 
-Device* pop_device()
+Device* pop_current_device()
 {
-    SGL_CHECK(!s_tls_device_stack.empty(), "No device to pop. push_device()/pop_device() mismatch.");
-    Device* device = s_tls_device_stack.back();
-    s_tls_device_stack.pop_back();
+    SGL_CHECK(!s_tls_current_device_stack.empty(), "No device to pop. push_current_device()/pop_current_device() mismatch.");
+    Device* device = s_tls_current_device_stack.back();
+    s_tls_current_device_stack.pop_back();
     return device;
 }
 
 Device* current_device()
 {
-    SGL_CHECK(!s_tls_device_stack.empty(), "No current device. Use push_device() or DeviceScope to set one.");
-    return s_tls_device_stack.back();
+    SGL_CHECK(!s_tls_current_device_stack.empty(), "No current device. Use push_current_device() or DeviceScope to set one.");
+    return s_tls_current_device_stack.back();
 }
 
 // ---------------------------------------------------------------------------
@@ -1360,14 +1360,14 @@ Device* current_device()
 DeviceScope::DeviceScope(Device* device)
     : m_device(device)
 {
-    push_device(device);
+    push_current_device(device);
 }
 
 DeviceScope::~DeviceScope()
 {
     if (m_active) {
         SGL_ASSERT(current_device() == m_device);
-        pop_device();
+        pop_current_device();
     }
 }
 
@@ -1384,7 +1384,7 @@ DeviceScope& DeviceScope::operator=(DeviceScope&& other) noexcept
     if (this != &other) {
         if (m_active) {
             SGL_ASSERT(current_device() == m_device);
-            pop_device();
+            pop_current_device();
         }
         m_device = other.m_device;
         m_active = other.m_active;

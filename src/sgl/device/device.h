@@ -838,26 +838,26 @@ private:
 SGL_API std::array<NativeHandle, 3> get_cuda_current_context_native_handles();
 
 // ---------------------------------------------------------------------------
-// Thread-local device stack.
+// Thread-local current device stack.
 // ---------------------------------------------------------------------------
 
-/// Push a device onto the thread-local device stack.
+/// Push a device onto the thread-local current device stack.
 ///
 /// Stores a raw pointer in the thread-local stack. The caller must ensure
 /// that the device (and any devices below it on the stack) outlive their
-/// corresponding pop_device() calls. Device::close() only auto-pops if the
+/// corresponding pop_current_device() calls. Device::close() only auto-pops if the
 /// device is on top of the stack; a closed device lower in the stack remains
-/// as a stale pointer - calling current_device() or pop_device() on that
+/// as a stale pointer - calling current_device() or pop_current_device() on that
 /// entry is undefined behavior unless the device is kept alive (refcount > 0)
 /// until popped.
 ///
 /// \param device Device to push (must not be null).
-SGL_API void push_device(Device* device);
+SGL_API void push_current_device(Device* device);
 
 /// Pop the top device from the thread-local device stack.
 /// Throws if the stack is empty.
 /// \return The popped device.
-SGL_API Device* pop_device();
+SGL_API Device* pop_current_device();
 
 /// Get the current device from the top of the thread-local device stack.
 /// Throws if the stack is empty.
