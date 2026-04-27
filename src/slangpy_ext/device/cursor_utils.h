@@ -483,6 +483,33 @@ private:
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
 
+    nb::object normalize_marshaled_object(nb::object obj)
+    {
+        if (nb::hasattr(obj, "get_this")) {
+            obj = nb::getattr(obj, "get_this")();
+        }
+
+        nb::dict dict;
+        if (nb::try_cast(obj, dict)) {
+            nb::dict normalized;
+            for (auto [key, value] : dict) {
+                normalized[key] = normalize_marshaled_object(nb::cast<nb::object>(value));
+            }
+            return normalized;
+        }
+
+        nb::list list;
+        if (nb::try_cast(obj, list)) {
+            nb::list normalized;
+            for (auto value : list) {
+                normalized.append(normalize_marshaled_object(nb::cast<nb::object>(value)));
+            }
+            return normalized;
+        }
+
+        return obj;
+    }
+
     void write_from_numpy_internal(BufferCursor& dst, BufferElementCursor self, nb::object nbval, bool unchecked_copy)
         requires std::same_as<CursorType, BufferElementCursor>
     {
@@ -666,6 +693,8 @@ private:
             auto view = nb::cast<sgl::slangpy::StridedBufferView*>(nbval);
             nbval = view->uniforms();
         }
+
+        nbval = normalize_marshaled_object(nbval);
 
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
         auto kind = (TypeReflection::Kind)type_layout->getKind();
