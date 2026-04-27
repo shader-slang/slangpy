@@ -12,6 +12,7 @@
 #include "sgl/math/vector_types.h"
 #include "sgl/math/matrix_types.h"
 
+#include "utils/slangpy.h"
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpystridedbufferview.h"
 #include "sgl/device/buffer_cursor.h"
@@ -483,38 +484,10 @@ private:
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
 
-    nb::object unpack_object(nb::object obj, bool& out_had_unpack)
-    {
-        if (nb::hasattr(obj, "get_this")) {
-            obj = nb::getattr(obj, "get_this")();
-            out_had_unpack = true;
-        }
-
-        nb::dict dict;
-        if (nb::try_cast(obj, dict)) {
-            nb::dict normalized;
-            for (auto [key, value] : dict) {
-                normalized[key] = unpack_object(nb::cast<nb::object>(value), out_had_unpack);
-            }
-            return normalized;
-        }
-
-        nb::list list;
-        if (nb::try_cast(obj, list)) {
-            nb::list normalized;
-            for (auto value : list) {
-                normalized.append(unpack_object(nb::cast<nb::object>(value), out_had_unpack));
-            }
-            return normalized;
-        }
-
-        return obj;
-    }
-
     bool try_unpack_and_retry(CursorType& self, nb::object obj)
     {
         bool had_unpack = false;
-        nb::object unpacked = unpack_object(obj, had_unpack);
+        nb::object unpacked = slangpy::unpack_arg(obj, had_unpack);
         if (!had_unpack)
             return false;
         write_internal(self, unpacked);
