@@ -2766,6 +2766,10 @@ static const char *__doc_sgl_DeviceScope =
 R"doc(RAII scope that pushes a device on construction and pops it on
 destruction.
 
+The device stack must not be externally mutated (push/pop) while a
+DeviceScope is active; doing so may cause the destructor to pop the
+wrong device. In debug builds an assertion checks LIFO ordering.
+
 Usage:
 
 ```
@@ -2784,6 +2788,8 @@ static const char *__doc_sgl_DeviceScope_DeviceScope_2 = R"doc()doc";
 static const char *__doc_sgl_DeviceScope_DeviceScope_3 = R"doc()doc";
 
 static const char *__doc_sgl_DeviceScope_m_active = R"doc()doc";
+
+static const char *__doc_sgl_DeviceScope_m_device = R"doc()doc";
 
 static const char *__doc_sgl_DeviceScope_operator_assign = R"doc()doc";
 
@@ -11126,11 +11132,21 @@ static const char *__doc_sgl_platform_static_shutdown = R"doc(Shutdown the platf
 
 static const char *__doc_sgl_pop_device =
 R"doc(Pop the top device from the thread-local device stack. Throws if the
-stack is empty.)doc";
+stack is empty.
+
+Returns:
+    The popped device.)doc";
 
 static const char *__doc_sgl_push_device =
-R"doc(Push a device onto the thread-local device stack. The device must
-outlive the corresponding pop_device() call.
+R"doc(Push a device onto the thread-local device stack.
+
+Stores a raw pointer in the thread-local stack. The caller must ensure
+that the device (and any devices below it on the stack) outlive their
+corresponding pop_device() calls. Device::close() only auto-pops if
+the device is on top of the stack; a closed device lower in the stack
+remains as a stale pointer - calling current_device() or pop_device()
+on that entry is undefined behavior unless the device is kept alive
+(refcount > 0) until popped.
 
 Parameter ``device``:
     Device to push (must not be null).)doc";

@@ -572,9 +572,12 @@ SGL_PY_EXPORT(device_device)
     );
     device.def(
         "__exit__",
-        [](Device* /*self*/, nb::object /*exc_type*/, nb::object /*exc_val*/, nb::object /*exc_tb*/)
+        [](Device* self, nb::object /*exc_type*/, nb::object /*exc_val*/, nb::object /*exc_tb*/)
         {
-            pop_device();
+            // Only pop if this device is on top of the stack to avoid
+            // popping the wrong device when the stack was mutated.
+            if (current_device() == self)
+                pop_device();
         },
         "exc_type"_a.none(),
         "exc_val"_a.none(),

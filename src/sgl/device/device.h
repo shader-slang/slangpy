@@ -842,13 +842,22 @@ SGL_API std::array<NativeHandle, 3> get_cuda_current_context_native_handles();
 // ---------------------------------------------------------------------------
 
 /// Push a device onto the thread-local device stack.
-/// The device must outlive the corresponding pop_device() call.
+///
+/// Stores a raw pointer in the thread-local stack. The caller must ensure
+/// that the device (and any devices below it on the stack) outlive their
+/// corresponding pop_device() calls. Device::close() only auto-pops if the
+/// device is on top of the stack; a closed device lower in the stack remains
+/// as a stale pointer - calling current_device() or pop_device() on that
+/// entry is undefined behavior unless the device is kept alive (refcount > 0)
+/// until popped.
+///
 /// \param device Device to push (must not be null).
 SGL_API void push_device(Device* device);
 
 /// Pop the top device from the thread-local device stack.
 /// Throws if the stack is empty.
-SGL_API void pop_device();
+/// \return The popped device.
+SGL_API Device* pop_device();
 
 /// Get the current device from the top of the thread-local device stack.
 /// Throws if the stack is empty.
@@ -856,6 +865,10 @@ SGL_API void pop_device();
 SGL_API Device* current_device();
 
 /// RAII scope that pushes a device on construction and pops it on destruction.
+///
+/// The device stack must not be externally mutated (push/pop) while a
+/// DeviceScope is active; doing so may cause the destructor to pop the
+/// wrong device. In debug builds an assertion checks LIFO ordering.
 ///
 /// Usage:
 /// \code
@@ -878,6 +891,7 @@ public:
     DeviceScope& operator=(DeviceScope&& other) noexcept;
 
 private:
+    Device* m_device{nullptr};
     bool m_active{true};
 };
 
