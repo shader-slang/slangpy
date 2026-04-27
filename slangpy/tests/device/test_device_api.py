@@ -244,7 +244,9 @@ def test_close_pops_current_if_on_top(device_type: spy.DeviceType, empty_device_
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_close_does_not_pop_current_if_not_on_top(device_type: spy.DeviceType, empty_device_stack: None):
+def test_close_does_not_pop_current_if_not_on_top(
+    device_type: spy.DeviceType, empty_device_stack: None
+):
     """close() does NOT pop if device is not current."""
     device_a = helpers.get_device(device_type, use_cache=False)
     device_b = helpers.get_device(device_type, use_cache=False)
@@ -260,7 +262,9 @@ def test_close_does_not_pop_current_if_not_on_top(device_type: spy.DeviceType, e
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_auto_push_current_with_context_manager(device_type: spy.DeviceType, empty_device_stack: None):
+def test_auto_push_current_with_context_manager(
+    device_type: spy.DeviceType, empty_device_stack: None
+):
     """Auto-push + context manager stack correctly."""
     device = helpers.get_device(device_type, use_cache=False)
     # Stack = [device] from auto-push.

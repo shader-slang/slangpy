@@ -1341,7 +1341,10 @@ void push_current_device(Device* device)
 
 Device* pop_current_device()
 {
-    SGL_CHECK(!s_tls_current_device_stack.empty(), "No device to pop. push_current_device()/pop_current_device() mismatch.");
+    SGL_CHECK(
+        !s_tls_current_device_stack.empty(),
+        "No device to pop. push_current_device()/pop_current_device() mismatch."
+    );
     Device* device = s_tls_current_device_stack.back();
     s_tls_current_device_stack.pop_back();
     return device;
@@ -1349,7 +1352,10 @@ Device* pop_current_device()
 
 Device* current_device()
 {
-    SGL_CHECK(!s_tls_current_device_stack.empty(), "No current device. Use push_current_device() or DeviceScope to set one.");
+    SGL_CHECK(
+        !s_tls_current_device_stack.empty(),
+        "No current device. Use push_current_device() or DeviceScope to set one."
+    );
     return s_tls_current_device_stack.back();
 }
 
