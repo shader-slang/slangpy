@@ -483,17 +483,18 @@ private:
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
 
-    nb::object normalize_marshaled_object(nb::object obj)
+    nb::object unpack_object(nb::object obj, bool& out_had_unpack)
     {
         if (nb::hasattr(obj, "get_this")) {
             obj = nb::getattr(obj, "get_this")();
+            out_had_unpack = true;
         }
 
         nb::dict dict;
         if (nb::try_cast(obj, dict)) {
             nb::dict normalized;
             for (auto [key, value] : dict) {
-                normalized[key] = normalize_marshaled_object(nb::cast<nb::object>(value));
+                normalized[key] = unpack_object(nb::cast<nb::object>(value), out_had_unpack);
             }
             return normalized;
         }
@@ -502,12 +503,22 @@ private:
         if (nb::try_cast(obj, list)) {
             nb::list normalized;
             for (auto value : list) {
-                normalized.append(normalize_marshaled_object(nb::cast<nb::object>(value)));
+                normalized.append(unpack_object(nb::cast<nb::object>(value), out_had_unpack));
             }
             return normalized;
         }
 
         return obj;
+    }
+
+    bool try_unpack_and_retry(CursorType& self, nb::object obj)
+    {
+        bool had_unpack = false;
+        nb::object unpacked = unpack_object(obj, had_unpack);
+        if (!had_unpack)
+            return false;
+        write_internal(self, unpacked);
+        return true;
     }
 
     void write_from_numpy_internal(BufferCursor& dst, BufferElementCursor self, nb::object nbval, bool unchecked_copy)
@@ -694,8 +705,6 @@ private:
             nbval = view->uniforms();
         }
 
-        nbval = normalize_marshaled_object(nbval);
-
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
         auto kind = (TypeReflection::Kind)type_layout->getKind();
 
@@ -703,17 +712,38 @@ private:
         case TypeReflection::Kind::scalar: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_scalar[(int)type->getScalarType()](self, nbval);
+            try {
+                return m_write_scalar[(int)type->getScalarType()](self, nbval);
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::vector: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
+            try {
+                return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::matrix: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](self, nbval);
+            try {
+                return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](
+                    self,
+                    nbval
+                );
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::pointer: {
             // Pointers are represented as uint64_t in slang.
@@ -745,6 +775,8 @@ private:
                 return;
             }
 
+            if (try_unpack_and_retry(self, nbval))
+                return;
             SGL_THROW("Expected dict");
             return;
         }
@@ -778,6 +810,8 @@ private:
                 }
                 return;
             } else {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
                 SGL_THROW("Expected dict");
             }
         }
@@ -811,6 +845,8 @@ private:
                 m_stack.pop_back();
                 return;
             } else {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
                 SGL_THROW("Expected list");
             }
         }
@@ -820,6 +856,9 @@ private:
 
         // In default case call the virtual write_value, and fail if it returns false.
         if (write_value(self, nbval))
+            return;
+
+        if (try_unpack_and_retry(self, nbval))
             return;
 
         SGL_THROW("Unsupported element type: {}", kind);
