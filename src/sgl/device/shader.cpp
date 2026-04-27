@@ -980,15 +980,17 @@ ref<const ProgramLayout> SlangModule::layout() const
     if (m_cached_layout)
         return m_cached_layout;
 
+    slang::ProgramLayout* layout = nullptr;
     if (m_data->slang_component_type) {
         // Composed module: use the composite's layout
-        m_cached_layout
-            = ProgramLayout::from_slang(ref(const_cast<SlangModule*>(this)), m_data->slang_component_type->getLayout());
+        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = m_data->slang_component_type->getLayout());
     } else {
         // Regular module: use the slang module's layout
-        m_cached_layout
-            = ProgramLayout::from_slang(ref(const_cast<SlangModule*>(this)), m_data->slang_module->getLayout());
+        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = m_data->slang_module->getLayout());
     }
+
+    SGL_CHECK(layout, "Slang module \"{}\" has no program layout.", name());
+    m_cached_layout = ProgramLayout::from_slang(ref(const_cast<SlangModule*>(this)), layout);
     return m_cached_layout;
 }
 
