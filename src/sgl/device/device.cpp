@@ -45,6 +45,7 @@ namespace sgl {
 
 static std::vector<Device*> s_devices;
 static std::mutex s_devices_mutex;
+static thread_local std::vector<Device*> s_tls_current_device_stack;
 
 inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
 {
@@ -401,6 +402,9 @@ Device::Device(const DeviceDesc& desc)
         std::lock_guard lock(s_devices_mutex);
         s_devices.push_back(this);
     }
+
+    // Auto-push device onto thread-local current device stack.
+    push_current_device(this);
 }
 
 Device::~Device()
@@ -461,6 +465,10 @@ void Device::close()
 {
     if (m_closed)
         return;
+
+    // Pop device from thread-local current device stack if it's the current device.
+    if (!s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
+        pop_current_device();
 
     log_debug("Closing device {}", fmt::ptr(this));
 
@@ -1348,6 +1356,291 @@ std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
     handles[1] = NativeHandle(cu_context);
 #endif
     return handles;
+}
+
+// ---------------------------------------------------------------------------
+// Thread-local current device stack
+// ---------------------------------------------------------------------------
+
+void push_current_device(Device* device)
+{
+    SGL_CHECK(device != nullptr, "Cannot push a null device.");
+    s_tls_current_device_stack.push_back(device);
+}
+
+Device* pop_current_device()
+{
+    SGL_CHECK(
+        !s_tls_current_device_stack.empty(),
+        "No device to pop. push_current_device()/pop_current_device() mismatch."
+    );
+    Device* device = s_tls_current_device_stack.back();
+    s_tls_current_device_stack.pop_back();
+    return device;
+}
+
+Device* current_device()
+{
+    SGL_CHECK(
+        !s_tls_current_device_stack.empty(),
+        "No current device. Use push_current_device() or DeviceScope to set one."
+    );
+    return s_tls_current_device_stack.back();
+}
+
+// ---------------------------------------------------------------------------
+// DeviceScope
+// ---------------------------------------------------------------------------
+
+DeviceScope::DeviceScope(Device* device)
+    : m_device(device)
+{
+    push_current_device(device);
+}
+
+DeviceScope::~DeviceScope()
+{
+    if (m_active) {
+        SGL_ASSERT(current_device() == m_device);
+        pop_current_device();
+    }
+}
+
+DeviceScope::DeviceScope(DeviceScope&& other) noexcept
+    : m_device(other.m_device)
+    , m_active(other.m_active)
+{
+    other.m_device = nullptr;
+    other.m_active = false;
+}
+
+DeviceScope& DeviceScope::operator=(DeviceScope&& other) noexcept
+{
+    if (this != &other) {
+        if (m_active) {
+            SGL_ASSERT(current_device() == m_device);
+            pop_current_device();
+        }
+        m_device = other.m_device;
+        m_active = other.m_active;
+        other.m_device = nullptr;
+        other.m_active = false;
+    }
+    return *this;
+}
+
+// ---------------------------------------------------------------------------
+// Free-standing device API functions.
+// ---------------------------------------------------------------------------
+
+ref<Surface> create_surface(Window* window)
+{
+    return current_device()->create_surface(window);
+}
+
+ref<Surface> create_surface(WindowHandle window_handle)
+{
+    return current_device()->create_surface(window_handle);
+}
+
+ref<Buffer> create_buffer(BufferDesc desc)
+{
+    return current_device()->create_buffer(std::move(desc));
+}
+
+ref<BufferView> create_buffer_view(Buffer* buffer, BufferViewDesc desc)
+{
+    return current_device()->create_buffer_view(buffer, std::move(desc));
+}
+
+ref<Texture> create_texture(TextureDesc desc)
+{
+    return current_device()->create_texture(std::move(desc));
+}
+
+ref<Texture> create_texture_from_resource(TextureDesc desc, rhi::ITexture* resource)
+{
+    return current_device()->create_texture_from_resource(std::move(desc), resource);
+}
+
+ref<TextureView> create_texture_view(Texture* texture, TextureViewDesc desc)
+{
+    return current_device()->create_texture_view(texture, std::move(desc));
+}
+
+ref<Sampler> create_sampler(SamplerDesc desc)
+{
+    return current_device()->create_sampler(std::move(desc));
+}
+
+ref<Fence> create_fence(FenceDesc desc)
+{
+    return current_device()->create_fence(std::move(desc));
+}
+
+ref<QueryPool> create_query_pool(QueryPoolDesc desc)
+{
+    return current_device()->create_query_pool(std::move(desc));
+}
+
+ref<InputLayout> create_input_layout(InputLayoutDesc desc)
+{
+    return current_device()->create_input_layout(std::move(desc));
+}
+
+AccelerationStructureSizes get_acceleration_structure_sizes(const AccelerationStructureBuildDesc& desc)
+{
+    return current_device()->get_acceleration_structure_sizes(desc);
+}
+
+ref<AccelerationStructure> create_acceleration_structure(AccelerationStructureDesc desc)
+{
+    return current_device()->create_acceleration_structure(std::move(desc));
+}
+
+ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size)
+{
+    return current_device()->create_acceleration_structure_instance_list(size);
+}
+
+ref<ShaderTable> create_shader_table(ShaderTableDesc desc)
+{
+    return current_device()->create_shader_table(std::move(desc));
+}
+
+size_t get_coop_vec_matrix_size(
+    uint32_t rows,
+    uint32_t cols,
+    CoopVecMatrixLayout layout,
+    DataType element_type,
+    size_t row_col_stride
+)
+{
+    return current_device()->get_coop_vec_matrix_size(rows, cols, layout, element_type, row_col_stride);
+}
+
+CoopVecMatrixDesc create_coop_vec_matrix_desc(
+    uint32_t rows,
+    uint32_t cols,
+    CoopVecMatrixLayout layout,
+    DataType element_type,
+    size_t offset,
+    size_t row_col_stride
+)
+{
+    return current_device()->create_coop_vec_matrix_desc(rows, cols, layout, element_type, offset, row_col_stride);
+}
+
+void convert_coop_vec_matrices(
+    void* dst,
+    size_t dst_size,
+    std::span<const CoopVecMatrixDesc> dst_descs,
+    const void* src,
+    size_t src_size,
+    std::span<const CoopVecMatrixDesc> src_descs
+)
+{
+    current_device()->convert_coop_vec_matrices(dst, dst_size, dst_descs, src, src_size, src_descs);
+}
+
+void convert_coop_vec_matrix(
+    void* dst,
+    size_t dst_size,
+    const CoopVecMatrixDesc& dst_desc,
+    const void* src,
+    size_t src_size,
+    const CoopVecMatrixDesc& src_desc
+)
+{
+    current_device()->convert_coop_vec_matrix(dst, dst_size, dst_desc, src, src_size, src_desc);
+}
+
+ref<SlangSession> create_slang_session(SlangSessionDesc desc)
+{
+    return current_device()->create_slang_session(std::move(desc));
+}
+
+ref<SlangModule> load_module(std::string_view module_name)
+{
+    return current_device()->load_module(module_name);
+}
+
+ref<SlangModule> load_module_from_source(
+    std::string_view module_name,
+    std::string_view source,
+    std::optional<std::filesystem::path> path
+)
+{
+    return current_device()->load_module_from_source(module_name, source, std::move(path));
+}
+
+ref<SlangModule> compose_modules(
+    std::string_view name,
+    std::vector<ref<SlangModule>> modules,
+    std::span<const TypeConformance> type_conformances
+)
+{
+    return current_device()->compose_modules(name, std::move(modules), type_conformances);
+}
+
+ref<ShaderProgram> link_program(
+    std::vector<ref<SlangModule>> modules,
+    std::vector<ref<SlangEntryPoint>> entry_points,
+    std::optional<SlangLinkOptions> link_options
+)
+{
+    return current_device()->link_program(std::move(modules), std::move(entry_points), std::move(link_options));
+}
+
+ref<ShaderProgram> load_program(
+    std::string_view module_name,
+    std::vector<std::string_view> entry_point_names,
+    std::optional<std::string_view> additional_source,
+    std::optional<SlangLinkOptions> link_options
+)
+{
+    return current_device()
+        ->load_program(module_name, std::move(entry_point_names), additional_source, std::move(link_options));
+}
+
+ref<ShaderObject> create_root_shader_object(const ShaderProgram* shader_program)
+{
+    return current_device()->create_root_shader_object(shader_program);
+}
+
+ref<ShaderObject> create_shader_object(const TypeLayoutReflection* type_layout)
+{
+    return current_device()->create_shader_object(type_layout);
+}
+
+ref<ShaderObject> create_shader_object(ReflectionCursor cursor)
+{
+    return current_device()->create_shader_object(std::move(cursor));
+}
+
+ref<ComputePipeline> create_compute_pipeline(ComputePipelineDesc desc)
+{
+    return current_device()->create_compute_pipeline(std::move(desc));
+}
+
+ref<RenderPipeline> create_render_pipeline(RenderPipelineDesc desc)
+{
+    return current_device()->create_render_pipeline(std::move(desc));
+}
+
+ref<RayTracingPipeline> create_ray_tracing_pipeline(RayTracingPipelineDesc desc)
+{
+    return current_device()->create_ray_tracing_pipeline(std::move(desc));
+}
+
+ref<ComputeKernel> create_compute_kernel(ComputeKernelDesc desc)
+{
+    return current_device()->create_compute_kernel(std::move(desc));
+}
+
+ref<CommandEncoder> create_command_encoder(CommandQueueType queue)
+{
+    return current_device()->create_command_encoder(queue);
 }
 
 

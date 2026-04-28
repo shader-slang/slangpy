@@ -282,7 +282,7 @@ Context::Context(ref<Device> device)
 
     ImGuiIO& io = ImGui::GetIO();
     io.UserData = this;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
     io.IniFilename = nullptr;
     io.ConfigNavCaptureKeyboard = false;

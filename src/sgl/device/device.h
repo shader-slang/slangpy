@@ -346,6 +346,7 @@ public:
      */
     ref<Buffer> create_buffer(BufferDesc desc);
 
+    /// Create a new buffer view.
     ref<BufferView> create_buffer_view(Buffer* buffer, BufferViewDesc desc);
 
     /**
@@ -368,8 +369,10 @@ public:
      */
     ref<Texture> create_texture(TextureDesc desc);
 
+    /// Create a texture from an existing RHI resource.
     ref<Texture> create_texture_from_resource(TextureDesc desc, rhi::ITexture* resource);
 
+    /// Create a new texture view.
     ref<TextureView> create_texture_view(Texture* texture, TextureViewDesc desc);
 
     /**
@@ -428,12 +431,16 @@ public:
      */
     AccelerationStructureSizes get_acceleration_structure_sizes(const AccelerationStructureBuildDesc& desc);
 
+    /// Create a new acceleration structure.
     ref<AccelerationStructure> create_acceleration_structure(AccelerationStructureDesc desc);
 
+    /// Create a new acceleration structure instance list.
     ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size);
 
+    /// Create a new shader table.
     ref<ShaderTable> create_shader_table(ShaderTableDesc desc);
 
+    /// Get the size of a cooperative vector matrix in bytes.
     size_t get_coop_vec_matrix_size(
         uint32_t rows,
         uint32_t cols,
@@ -442,6 +449,7 @@ public:
         size_t row_col_stride = 0
     );
 
+    /// Create a cooperative vector matrix descriptor.
     CoopVecMatrixDesc create_coop_vec_matrix_desc(
         uint32_t rows,
         uint32_t cols,
@@ -451,6 +459,7 @@ public:
         size_t row_col_stride = 0
     );
 
+    /// Convert multiple cooperative vector matrices between formats.
     void convert_coop_vec_matrices(
         void* dst,
         size_t dst_size,
@@ -460,6 +469,7 @@ public:
         std::span<const CoopVecMatrixDesc> src_descs
     );
 
+    /// Convert a single cooperative vector matrix between formats.
     void convert_coop_vec_matrix(
         void* dst,
         size_t dst_size,
@@ -477,26 +487,31 @@ public:
      */
     ref<SlangSession> create_slang_session(SlangSessionDesc desc);
 
+    /// Load a slang module by name.
     ref<SlangModule> load_module(std::string_view module_name);
 
+    /// Load a slang module from source code.
     ref<SlangModule> load_module_from_source(
         std::string_view module_name,
         std::string_view source,
         std::optional<std::filesystem::path> path = {}
     );
 
+    /// Compose multiple slang modules into one.
     ref<SlangModule> compose_modules(
         std::string_view name,
         std::vector<ref<SlangModule>> modules,
         std::span<const TypeConformance> type_conformances = {}
     );
 
+    /// Link modules and entry points into a shader program.
     ref<ShaderProgram> link_program(
         std::vector<ref<SlangModule>> modules,
         std::vector<ref<SlangEntryPoint>> entry_points,
         std::optional<SlangLinkOptions> link_options = {}
     );
 
+    /// Load a module and link a shader program in one step.
     ref<ShaderProgram> load_program(
         std::string_view module_name,
         std::vector<std::string_view> entry_point_names,
@@ -504,22 +519,31 @@ public:
         std::optional<SlangLinkOptions> link_options = {}
     );
 
+    /// Reload all shader programs.
     void reload_all_programs();
 
+    /// Create a root shader object for a shader program.
     ref<ShaderObject> create_root_shader_object(const ShaderProgram* shader_program);
 
+    /// Create a shader object from a type layout.
     ref<ShaderObject> create_shader_object(const TypeLayoutReflection* type_layout);
 
+    /// Create a shader object from a reflection cursor.
     ref<ShaderObject> create_shader_object(ReflectionCursor cursor);
 
+    /// Create a compute pipeline.
     ref<ComputePipeline> create_compute_pipeline(ComputePipelineDesc desc);
 
+    /// Create a render pipeline.
     ref<RenderPipeline> create_render_pipeline(RenderPipelineDesc desc);
 
+    /// Create a ray tracing pipeline.
     ref<RayTracingPipeline> create_ray_tracing_pipeline(RayTracingPipelineDesc desc);
 
+    /// Create a compute kernel.
     ref<ComputeKernel> create_compute_kernel(ComputeKernelDesc desc);
 
+    /// Create a command encoder.
     ref<CommandEncoder> create_command_encoder(CommandQueueType queue = CommandQueueType::graphics);
 
     /**
@@ -816,5 +840,299 @@ private:
 /// to retrieve an existing context (eg from PyTorch) to pass as the existing_device_handles
 /// from which to create a device in the DeviceDesc.
 SGL_API std::array<NativeHandle, 3> get_cuda_current_context_native_handles();
+
+// ---------------------------------------------------------------------------
+// Thread-local current device stack.
+// ---------------------------------------------------------------------------
+
+/// Push a device onto the thread-local current device stack.
+///
+/// Stores a raw pointer in the thread-local stack. The caller must ensure
+/// that the device (and any devices below it on the stack) outlive their
+/// corresponding pop_current_device() calls. Device::close() only auto-pops if the
+/// device is on top of the stack; a closed device lower in the stack remains
+/// as a stale pointer - calling current_device() or pop_current_device() on that
+/// entry is undefined behavior unless the device is kept alive (refcount > 0)
+/// until popped.
+///
+/// \param device Device to push (must not be null).
+SGL_API void push_current_device(Device* device);
+
+/// Pop the top device from the thread-local device stack.
+/// Throws if the stack is empty.
+/// \return The popped device.
+SGL_API Device* pop_current_device();
+
+/// Get the current device from the top of the thread-local device stack.
+/// Throws if the stack is empty.
+/// \return The current device.
+SGL_API Device* current_device();
+
+/// RAII scope that pushes a device on construction and pops it on destruction.
+///
+/// The device stack must not be externally mutated (push/pop) while a
+/// DeviceScope is active; doing so may cause the destructor to pop the
+/// wrong device. In debug builds an assertion checks LIFO ordering.
+///
+/// Usage:
+/// \code
+/// {
+///     DeviceScope scope(device);
+///     auto buf = create_buffer(desc);
+/// }
+/// \endcode
+class SGL_API DeviceScope {
+public:
+    explicit DeviceScope(Device* device);
+    ~DeviceScope();
+
+    // Non-copyable.
+    DeviceScope(const DeviceScope&) = delete;
+    DeviceScope& operator=(const DeviceScope&) = delete;
+
+    // Movable.
+    DeviceScope(DeviceScope&& other) noexcept;
+    DeviceScope& operator=(DeviceScope&& other) noexcept;
+
+private:
+    Device* m_device{nullptr};
+    bool m_active{true};
+};
+
+// ---------------------------------------------------------------------------
+// Free-standing device API functions.
+// Each delegates to current_device()->xxx(...).
+// ---------------------------------------------------------------------------
+
+/**
+ * \brief Create a new surface.
+ *
+ * \param window Window to create the surface for.
+ * \return New surface object.
+ */
+SGL_API ref<Surface> create_surface(Window* window);
+
+/**
+ * \brief Create a new surface.
+ *
+ * \param window_handle Native window handle to create the surface for.
+ * \return New surface object.
+ */
+SGL_API ref<Surface> create_surface(WindowHandle window_handle);
+
+/**
+ * \brief Create a new buffer.
+ *
+ * \param size Buffer size in bytes.
+ * \param element_count Buffer size in number of struct elements. Can be used instead of \c size.
+ * \param struct_size Struct size in bytes.
+ * \param resource_type_layout Resource type layout of the buffer. Can be used instead of \c struct_size to specify the size of the struct.
+ * \param format Buffer format. Used when creating typed buffer views.
+ * \param initial_state Initial resource state.
+ * \param usage Resource usage flags.
+ * \param memory_type Memory type.
+ * \param label Debug label.
+ * \param data Initial data to upload to the buffer.
+ * \param data_size Size of the initial data in bytes.
+ * \return New buffer object.
+ */
+SGL_API ref<Buffer> create_buffer(BufferDesc desc);
+
+/// Create a new buffer view.
+SGL_API ref<BufferView> create_buffer_view(Buffer* buffer, BufferViewDesc desc);
+
+/**
+ * \brief Create a new texture.
+ *
+ * \param type Texture type.
+ * \param format Texture format.
+ * \param width Width in pixels.
+ * \param height Height in pixels.
+ * \param depth Depth in pixels.
+ * \param array_length Array length.
+ * \param mip_count Mip level count. Number of mip levels (ALL_MIPS for all mip levels).
+ * \param sample_count Number of samples for multisampled textures.
+ * \param quality Quality level for multisampled textures.
+ * \param usage Resource usage.
+ * \param memory_type Memory type.
+ * \param label Debug label.
+ * \param data Initial data.
+ * \return New texture object.
+ */
+SGL_API ref<Texture> create_texture(TextureDesc desc);
+
+/// Create a texture from an existing RHI resource.
+SGL_API ref<Texture> create_texture_from_resource(TextureDesc desc, rhi::ITexture* resource);
+
+/// Create a new texture view.
+SGL_API ref<TextureView> create_texture_view(Texture* texture, TextureViewDesc desc);
+
+/**
+ * \brief Create a new sampler.
+ *
+ * \param min_filter Minification filter.
+ * \param mag_filter Magnification filter.
+ * \param mip_filter Mip-map filter.
+ * \param reduction_op Reduction operation.
+ * \param address_u Texture addressing mode for the U coordinate.
+ * \param address_v Texture addressing mode for the V coordinate.
+ * \param address_w Texture addressing mode for the W coordinate.
+ * \param mip_lod_bias Mip-map LOD bias.
+ * \param max_anisotropy Maximum anisotropy.
+ * \param comparison_func Comparison function.
+ * \param border_color Border color.
+ * \param min_lod Minimum LOD level.
+ * \param max_lod Maximum LOD level.
+ * \param label Debug label.
+ * \return New sampler object.
+ */
+SGL_API ref<Sampler> create_sampler(SamplerDesc desc);
+
+/**
+ * \brief Create a new fence.
+ *
+ * \param initial_value Initial fence value.
+ * \param shared Create a shared fence.
+ * \return New fence object.
+ */
+SGL_API ref<Fence> create_fence(FenceDesc desc);
+
+/**
+ * \brief Create a new query pool.
+ *
+ * \param type Query type.
+ * \param count Number of queries in the pool.
+ * \return New query pool object.
+ */
+SGL_API ref<QueryPool> create_query_pool(QueryPoolDesc desc);
+
+/**
+ * \brief Create a new input layout.
+ *
+ * \param input_elements List of input elements (see \ref InputElementDesc for details).
+ * \param vertex_streams List of vertex streams (see \ref VertexStreamDesc for details).
+ * \return New input layout object.
+ */
+SGL_API ref<InputLayout> create_input_layout(InputLayoutDesc desc);
+
+/**
+ * \brief Query the device for buffer sizes required for acceleration structure builds.
+ *
+ * \param desc Acceleration structure build description.
+ * \return Acceleration structure sizes.
+ */
+SGL_API AccelerationStructureSizes get_acceleration_structure_sizes(const AccelerationStructureBuildDesc& desc);
+
+/// Create a new acceleration structure.
+SGL_API ref<AccelerationStructure> create_acceleration_structure(AccelerationStructureDesc desc);
+
+/// Create a new acceleration structure instance list.
+SGL_API ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size);
+
+/// Create a new shader table.
+SGL_API ref<ShaderTable> create_shader_table(ShaderTableDesc desc);
+
+/// Get the size of a cooperative vector matrix in bytes.
+SGL_API size_t get_coop_vec_matrix_size(
+    uint32_t rows,
+    uint32_t cols,
+    CoopVecMatrixLayout layout,
+    DataType element_type,
+    size_t row_col_stride = 0
+);
+
+/// Create a cooperative vector matrix descriptor.
+SGL_API CoopVecMatrixDesc create_coop_vec_matrix_desc(
+    uint32_t rows,
+    uint32_t cols,
+    CoopVecMatrixLayout layout,
+    DataType element_type,
+    size_t offset = 0,
+    size_t row_col_stride = 0
+);
+
+/// Convert multiple cooperative vector matrices between formats.
+SGL_API void convert_coop_vec_matrices(
+    void* dst,
+    size_t dst_size,
+    std::span<const CoopVecMatrixDesc> dst_descs,
+    const void* src,
+    size_t src_size,
+    std::span<const CoopVecMatrixDesc> src_descs
+);
+
+/// Convert a single cooperative vector matrix between formats.
+SGL_API void convert_coop_vec_matrix(
+    void* dst,
+    size_t dst_size,
+    const CoopVecMatrixDesc& dst_desc,
+    const void* src,
+    size_t src_size,
+    const CoopVecMatrixDesc& src_desc
+);
+
+/**
+ * \brief Create a new slang session.
+ *
+ * \param compiler_options Compiler options (see \ref SlangCompilerOptions for details).
+ * \return New slang session object.
+ */
+SGL_API ref<SlangSession> create_slang_session(SlangSessionDesc desc);
+
+/// Load a slang module by name.
+SGL_API ref<SlangModule> load_module(std::string_view module_name);
+
+/// Load a slang module from source code.
+SGL_API ref<SlangModule> load_module_from_source(
+    std::string_view module_name,
+    std::string_view source,
+    std::optional<std::filesystem::path> path = {}
+);
+
+/// Compose multiple slang modules into one.
+SGL_API ref<SlangModule> compose_modules(
+    std::string_view name,
+    std::vector<ref<SlangModule>> modules,
+    std::span<const TypeConformance> type_conformances = {}
+);
+
+/// Link modules and entry points into a shader program.
+SGL_API ref<ShaderProgram> link_program(
+    std::vector<ref<SlangModule>> modules,
+    std::vector<ref<SlangEntryPoint>> entry_points,
+    std::optional<SlangLinkOptions> link_options = {}
+);
+
+/// Load a module and link a shader program in one step.
+SGL_API ref<ShaderProgram> load_program(
+    std::string_view module_name,
+    std::vector<std::string_view> entry_point_names,
+    std::optional<std::string_view> additional_source = {},
+    std::optional<SlangLinkOptions> link_options = {}
+);
+
+/// Create a root shader object for a shader program.
+SGL_API ref<ShaderObject> create_root_shader_object(const ShaderProgram* shader_program);
+
+/// Create a shader object from a type layout.
+SGL_API ref<ShaderObject> create_shader_object(const TypeLayoutReflection* type_layout);
+
+/// Create a shader object from a reflection cursor.
+SGL_API ref<ShaderObject> create_shader_object(ReflectionCursor cursor);
+
+/// Create a compute pipeline.
+SGL_API ref<ComputePipeline> create_compute_pipeline(ComputePipelineDesc desc);
+
+/// Create a render pipeline.
+SGL_API ref<RenderPipeline> create_render_pipeline(RenderPipelineDesc desc);
+
+/// Create a ray tracing pipeline.
+SGL_API ref<RayTracingPipeline> create_ray_tracing_pipeline(RayTracingPipelineDesc desc);
+
+/// Create a compute kernel.
+SGL_API ref<ComputeKernel> create_compute_kernel(ComputeKernelDesc desc);
+
+/// Create a command encoder.
+SGL_API ref<CommandEncoder> create_command_encoder(CommandQueueType queue = CommandQueueType::graphics);
 
 } // namespace sgl
