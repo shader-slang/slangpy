@@ -19,6 +19,11 @@ class WrappedTextureHandle:
         return {"_type": "TextureHandle", "value": self.m_value}
 
 
+class SelfReturningWrapper:
+    def get_this(self) -> "SelfReturningWrapper":
+        return self
+
+
 TESTS = [
     ("f_bool", "bool", "true", True),
     ("f_bool1", "bool1", "false", spy.bool1(False)),
@@ -500,6 +505,17 @@ def test_marshaled_object_list(device_type: spy.DeviceType):
 
     textures = element["textures"].read()
     assert [texture["value"] for texture in textures] == [11, 22]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_marshaled_object_self_returning_get_this(device_type: spy.DeviceType):
+    resource_type_layout = make_marshaled_object_layout(device_type)
+
+    cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
+    element = cursor[0]
+
+    with pytest.raises(RuntimeError, match="Expected dict"):
+        element["textures"] = [SelfReturningWrapper(), SelfReturningWrapper()]
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

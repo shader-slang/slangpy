@@ -488,7 +488,7 @@ private:
     {
         bool had_unpack = false;
         nb::object unpacked = slangpy::unpack_arg(obj, had_unpack);
-        if (!had_unpack)
+        if (!had_unpack || unpacked.ptr() == obj.ptr())
             return false;
         write_internal(self, unpacked);
         return true;
