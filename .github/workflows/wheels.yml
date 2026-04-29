@@ -44,16 +44,11 @@ jobs:
         include:
           # Specify runners
           - { os: windows, runs-on: [windows-latest] }
-          - { os: linux, runs-on: [ubuntu-latest] }
+          - { os: linux, platform: x86_64, runs-on: [ubuntu-latest] }
+          - { os: linux, platform: aarch64, runs-on: [ubuntu-24.04-arm] }
           - { os: macos, runs-on: [macos-latest] }
 
     steps:
-      - name: Set up QEMU
-        if: matrix.os == 'linux' && matrix.platform == 'aarch64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
       - uses: actions/checkout@v4
         with:
           submodules: recursive

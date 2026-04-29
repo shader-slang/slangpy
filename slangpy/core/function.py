@@ -22,7 +22,6 @@ from slangpy import (
     HitGroupDesc,
 )
 from slangpy.slangpy import Shape
-from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
 if TYPE_CHECKING:
     from slangpy.core.calldata import CallData
@@ -34,14 +33,6 @@ ENABLE_CALLDATA_CACHE = True
 
 
 TCallHook = Callable[["Function"], None]
-
-
-def _cache_value_to_id(val: Any) -> str:
-    cb = PYTHON_SIGNATURES.get(type(val))
-    if cb is None:
-        return ""
-    else:
-        return cb(val)
 
 
 class IThis(Protocol):
@@ -156,6 +147,16 @@ class FunctionNode(NativeFunctionNode):
                 "Set requires either keyword arguments or 1 dictionary / hook argument"
             )
 
+    def write(self, fn: Callable, *args: Any, **kwargs: Any):
+        """
+        Specify a writer function that receives a ShaderCursor and optional arguments
+        to write uniforms directly. The function signature should be:
+            fn(cursor: ShaderCursor, *args, **kwargs)
+        """
+        if not callable(fn):
+            raise ValueError("write() requires a callable as the first argument")
+        return FunctionNodeSet(self, (fn, args, kwargs))
+
     def cuda_stream(self, stream: NativeHandle) -> "FunctionNode":
         """
         Specify a CUDA stream to use for the function. This is useful for synchronizing with other
@@ -252,9 +253,10 @@ class FunctionNode(NativeFunctionNode):
         """
         Debug helper to build call data without dispatching the kernel.
         """
+        cache = self._find_native_root()._native_cache
         return cast(
             "CallData",
-            self._native_build_call_data(self.module.call_data_cache, *args, **kwargs),
+            self._native_build_call_data(cache, *args, **kwargs),
         )
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
@@ -262,56 +264,7 @@ class FunctionNode(NativeFunctionNode):
         Call the function with a given set of arguments. This will generate and compile
         a new kernel if need be, then immediately dispatch it and return any results.
         """
-        # Handle result type override (e.g. for numpy) by checking
-        # for override, and if found, deleting the _result arg and
-        # calling the function with the override type.
-        resval = kwargs.get("_result", None)
-        if isinstance(resval, (type, str)):
-            del kwargs["_result"]
-            return self.return_type(resval).call(*args, **kwargs)
-
-        # Handle specifying a command encoder to append to, rather than using the func.append_to
-        # syntax.
-        if "_append_to" in kwargs:
-            app_to = kwargs["_append_to"]
-            del kwargs["_append_to"]
-            if app_to is not None:
-                if not isinstance(app_to, CommandEncoder):
-                    raise ValueError(
-                        f"Expected _append_to to be a CommandEncoder, got {type(app_to)}"
-                    )
-                return self.append_to(app_to, *args, **kwargs)
-
-        try:
-            return self._native_call(self.module.call_data_cache, *args, **kwargs)
-        except ValueError as e:
-            # If runtime returned useful information, reformat it and raise a new exception
-            # Otherwise just throw the original.
-            if (
-                len(e.args) != 1
-                or not isinstance(e.args[0], dict)
-                or not "message" in e.args[0]
-                or not "source" in e.args[0]
-                or not "context" in e.args[0]
-            ):
-                raise
-            from slangpy.bindings.boundvariableruntime import (
-                BoundCallRuntime,
-                BoundVariableRuntime,
-            )
-            from slangpy.core.native import NativeCallData
-            from slangpy.core.logging import bound_runtime_call_table
-
-            msg: str = e.args[0]["message"]
-            source: BoundVariableRuntime = e.args[0]["source"]
-            context: NativeCallData = e.args[0]["context"]
-            runtime = cast(BoundCallRuntime, context.runtime)
-            msg += (
-                "\n\n"
-                + bound_runtime_call_table(runtime, source)
-                + "\n\nFor help and support: https://khr.io/slangdiscord"
-            )
-            raise ValueError(msg) from e
+        return self(*args, **kwargs)
 
     def append_to(self, command_encoder: CommandEncoder, *args: Any, **kwargs: Any):
         """
@@ -319,7 +272,8 @@ class FunctionNode(NativeFunctionNode):
         this will generate and compile a new kernel if need be. However the dispatch
         is just added to the command list and no results are returned.
         """
-        self._native_append_to(self.module.call_data_cache, command_encoder, *args, **kwargs)
+        cache = self._find_native_root()._native_cache
+        self._native_append_to(cache, command_encoder, *args, **kwargs)
 
     def dispatch(
         self,
@@ -386,21 +340,6 @@ class FunctionNode(NativeFunctionNode):
 
     def _populate_build_info(self, info: FunctionBuildInfo):
         pass
-
-    def _handle_error(self, e: ValueError, calldata: Optional["CallData"]):
-        if len(e.args) != 1 or not isinstance(e.args[0], dict):
-            raise e
-        if not "message" in e.args[0] or not "source" in e.args[0]:
-            raise e
-        msg = e.args[0]["message"]
-        source = e.args[0]["source"]
-        raise ValueError(f"Exception dispatching kernel: {msg}\n.")
-
-    def __call__(self, *args: Any, **kwargs: Any):
-        """
-        Call operator, maps to `call` method.
-        """
-        return self.call(*args, **kwargs)
 
     def generate_call_data(self, args: Any, kwargs: Any):
         """
@@ -662,6 +601,9 @@ class Function(FunctionNode):
             lines.append(self.name)
         lines.append(str(self._options))
         self.slangpy_signature = "\n".join(lines)
+
+        # Store native cache pointer for fast C++ call path
+        self._native_cache = module.call_data_cache
 
     def _populate_build_info(self, info: FunctionBuildInfo):
         info.name = self.name

@@ -142,10 +142,12 @@ def torch_bridge_mode(request: pytest.FixtureRequest):
     try:
         if mode == "fallback":
             spy.set_torch_bridge_python_fallback(True)
+            spy.set_allow_torch_fallback(True)
         else:
             spy.set_torch_bridge_python_fallback(False)
+            spy.set_allow_torch_fallback(False)
 
         yield mode
     finally:
-        # Always restore the original state
         spy.set_torch_bridge_python_fallback(was_fallback)
+        spy.set_allow_torch_fallback(True)

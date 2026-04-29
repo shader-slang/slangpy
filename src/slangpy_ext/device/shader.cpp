@@ -215,6 +215,14 @@ SGL_PY_EXPORT(device_shader)
             D(SlangSession, load_module_from_source)
         )
         .def(
+            "compose_modules",
+            &SlangSession::compose_modules,
+            "name"_a,
+            "modules"_a,
+            "type_conformances"_a = std::span<const TypeConformance>{},
+            D(SlangSession, compose_modules)
+        )
+        .def(
             "link_program",
             &SlangSession::link_program,
             "modules"_a,
@@ -240,11 +248,13 @@ SGL_PY_EXPORT(device_shader)
         .def_prop_ro("layout", &SlangModule::layout, D(SlangModule, layout))
         .def_prop_ro("entry_points", &SlangModule::entry_points, D(SlangModule, entry_points))
         .def_prop_ro("module_decl", &SlangModule::module_decl, D(SlangModule, module_decl))
+        .def_prop_ro("is_composed", &SlangModule::is_composed, D(SlangModule, is_composed))
+        .def_prop_ro("source_modules", &SlangModule::source_modules, D(SlangModule, source_modules))
         .def(
             "entry_point",
             &SlangModule::entry_point,
             "name"_a,
-            "type_conformances"_a = std::span<TypeConformance>(),
+            "type_conformances"_a = std::span<const TypeConformance>(),
             D(SlangModule, entry_point)
         );
 

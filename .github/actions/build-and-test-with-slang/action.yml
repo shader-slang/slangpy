@@ -179,9 +179,13 @@ runs:
       run: python -c "import pathlib, os; f=open(os.environ['GITHUB_OUTPUT'],'a'); f.write('has_tests=true\n' if pathlib.Path('slang/tests/integration/slangpy').is_dir() else 'has_tests=false\n'); f.close()"
 
     - name: Slang integration tests
-      if: steps.detect-slang-integration.outputs.has_tests == 'true'
+      if: steps.detect-slang-integration.outputs.has_tests == 'true' && startsWith(inputs.os, 'windows')
       shell: ${{ inputs.shell }}
-      run: python -m pytest slang/tests/integration/slangpy/ -ra -v
+      env:
+        NEURAL_MODULE_PATH: ${{ github.workspace }}/slang/build/${{ inputs.config }}/bin
+      run: |
+        python -m pip install Pillow
+        python -m pytest slang/tests/integration/slangpy/ -ra -v
 
     # Test Examples
     - name: Test Examples

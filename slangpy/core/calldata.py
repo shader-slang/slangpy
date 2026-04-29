@@ -23,6 +23,7 @@ from slangpy import (
     DeviceType,
     TypeConformance,
     is_torch_bridge_using_fallback,
+    get_torch_bridge_fallback_reason,
 )
 from slangpy.bindings import (
     BindContext,
@@ -49,6 +50,10 @@ _DUMP_SLANG_INTERMEDIATES = os.environ.get("SLANGPY_DUMP_SLANG_INTERMEDIATES", "
     "1",
 )
 _PRINT_GENERATED_SHADERS = os.environ.get("SLANGPY_PRINT_GENERATED_SHADERS", "false").lower() in (
+    "true",
+    "1",
+)
+_ALLOW_TORCH_FALLBACK = os.environ.get("SLANGPY_ALLOW_TORCH_FALLBACK", "").lower() in (
     "true",
     "1",
 )
@@ -80,6 +85,16 @@ def set_print_generated_shaders(value: bool):
     """
     global _PRINT_GENERATED_SHADERS
     _PRINT_GENERATED_SHADERS = value
+
+
+def set_allow_torch_fallback(value: bool):
+    """
+    Specify whether to allow falling back to the slower Python implementation when PyTorch
+    tensors are detected but the slangpy-torch native bridge is not available. Can also
+    be controlled via the SLANGPY_ALLOW_TORCH_FALLBACK environment variable.
+    """
+    global _ALLOW_TORCH_FALLBACK
+    _ALLOW_TORCH_FALLBACK = value
 
 
 def unpack_arg(arg: Any) -> Any:
@@ -160,20 +175,24 @@ class CallData(NativeCallData):
                 import torch
                 import slangpy.torchintegration.torchtensormarshall  # type: ignore (Registers torch.Tensor handler)
 
-                # Warn once if the slangpy_torch bridge is not installed (using Python fallback)
-                global _torch_bridge_warned
-                if not _torch_bridge_warned:
-                    if is_torch_bridge_using_fallback():
-                        import warnings
-
-                        warnings.warn(
-                            "PyTorch tensors detected but slangpy_torch is not installed. "
-                            "Using slower Python fallback for tensor metadata extraction. "
-                            "Install slangpy_torch for better performance: pip install slangpy_torch",
-                            UserWarning,
-                            stacklevel=6,  # Point to user's call site
-                        )
-                    _torch_bridge_warned = True
+                # Error if slangpy-torch native bridge is not available (unless fallback opted in)
+                if is_torch_bridge_using_fallback():
+                    if not _ALLOW_TORCH_FALLBACK:
+                        reason = get_torch_bridge_fallback_reason()
+                        if reason == "incompatible":
+                            raise RuntimeError(
+                                "slangpy-torch is installed but has an incompatible version.\n"
+                                "Upgrade with: pip install --upgrade slangpy-torch --no-build-isolation\n"
+                                "To use the slower Python fallback, set SLANGPY_ALLOW_TORCH_FALLBACK=1, or "
+                                "call set_allow_torch_fallback(True)"
+                            )
+                        else:
+                            raise RuntimeError(
+                                "PyTorch tensors detected but slangpy-torch is not installed.\n"
+                                "Install with: pip install slangpy[torch]\n"
+                                "To use the slower Python fallback, set SLANGPY_ALLOW_TORCH_FALLBACK=1, or "
+                                "call set_allow_torch_fallback(True)"
+                            )
 
                 self.torch_integration = True
                 self.torch_autograd = autograd
@@ -397,6 +416,8 @@ class CallData(NativeCallData):
         # Generate code.
         codegen = CodeGen()
         generate_code(context, build_info, bindings, codegen)
+        # TODO: This is not technically needed anymore because in the case of
+        # linking multiple modules, we already have composed the module to begin with.
         for link in build_info.module.link:
             codegen.add_import(link.name)
         code = codegen.finish(
@@ -484,7 +505,7 @@ class CallData(NativeCallData):
                 # Create compute pipeline
                 ep = module.entry_point(f"compute_main", type_conformances)
                 program = session.link_program(
-                    [module, build_info.module.device_module] + build_info.module.link,
+                    [module, build_info.module.device_module],
                     [ep],
                     opts,
                 )
@@ -522,7 +543,7 @@ class CallData(NativeCallData):
                     eps.append(build_info.module.device_module.entry_point(miss_entry_point))
 
                 program = session.link_program(
-                    [module, build_info.module.device_module] + build_info.module.link,
+                    [module, build_info.module.device_module],
                     eps,
                     opts,
                 )

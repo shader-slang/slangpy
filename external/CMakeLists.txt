@@ -48,14 +48,22 @@ add_subdirectory(tevclient EXCLUDE_FROM_ALL)
 if(SGL_BUILD_PYTHON)
     add_subdirectory(nanobind)
     nanobind_build_library(nanobind SHARED)
+    target_compile_definitions(nanobind PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 # nanothread
 
 set(NANOTHREAD_STATIC ON)
+# Override nanothread's default -march=native on Linux aarch64 to avoid assembler
+# errors when building under QEMU emulation (the host CPU may report extensions
+# that the container's toolchain doesn't support).
+if(SGL_LINUX AND SGL_ARCHITECTURE MATCHES "aarch64|arm64")
+    set(NANOTHREAD_NATIVE_FLAGS "-march=armv8-a" CACHE STRING "" FORCE)
+endif()
 add_subdirectory(nanothread)
 # Disable LTO for nanothread as this causes problems when linking with sgl.
 set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
+target_compile_definitions(nanothread PRIVATE _CRT_SECURE_NO_WARNINGS)
 
 # lmdb
 
@@ -74,7 +82,7 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SGL_SLANG_VERSION "2026.4" CACHE STRING "Slang version to download when not using a local build")
+set(SGL_SLANG_VERSION "2026.5.2" CACHE STRING "Slang version to download when not using a local build")
 
 set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SGL_SLANG_VERSION}/slang-${SGL_SLANG_VERSION}")
 
@@ -241,7 +249,7 @@ endif()
 
 # imgui
 
-set(IMGUI_VERSION "1.90.1")
+set(IMGUI_VERSION "1.92.7-docking")
 sgl_download_package(imgui "https://github.com/ocornut/imgui/archive/refs/tags/v${IMGUI_VERSION}.zip")
 set(SGL_IMGUI_DIR ${imgui_SOURCE_DIR} PARENT_SCOPE)
 
