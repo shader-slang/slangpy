@@ -328,6 +328,28 @@ def make_copy_module(device_type: spy.DeviceType, tests: list[Any]):
     return (device.create_compute_kernel(prog), resource_type_layout)
 
 
+def make_pointer_cursor_layout(device_type: spy.DeviceType):
+    code = """
+    struct PointerInfo {
+        int* _ptr;
+        __init(int* ptr) {
+            _ptr = ptr;
+        }
+    };
+
+    [shader("compute"), numthreads(1, 1, 1)]
+    void compute_main(RWStructuredBuffer<PointerInfo> infos) {
+    }
+    """
+    mod_name = "test_buffer_cursor_PointerInfo_" + hashlib.sha256(code.encode()).hexdigest()[0:8]
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source(mod_name, code)
+    resource_type_layout = module.layout.get_type_layout(
+        module.layout.find_type_by_name("StructuredBuffer<PointerInfo>")
+    )
+    return (device, resource_type_layout.element_type_layout, spy.Module(module))
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("seed", RAND_SEEDS)
 def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
@@ -458,6 +480,34 @@ def test_cursor_lifetime(device_type: spy.DeviceType):
 
     # Ensure we can still write to the element (as it should be holding a reference to the cursor)
     element["f_int32"] = 123
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_pointer_field_write_from_strided_buffer_view_adds_offset(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    if not device.has_feature(spy.Feature.pointer):
+        pytest.skip("Pointers not supported on this device.")
+
+    (device, element_type_layout, module) = make_pointer_cursor_layout(device_type)
+
+    slang_struct = module.find_struct("PointerInfo")
+    assert slang_struct is not None
+    obj = slang_struct(0) # Make sure we can construct a struct with a ptr field without error
+    assert obj['_ptr'] == 0
+
+    data = np.array([10, 20, 30, 40], dtype=np.int32)
+    tensor = spy.Tensor.from_numpy(device, data)
+    view = tensor.view((2,), offset=2)
+
+    cursor = spy.BufferCursor(device_type, element_type_layout, 1)
+    cursor[0]["_ptr"] = tensor.storage.device_address
+    assert cursor[0]["_ptr"].read() == tensor.storage.device_address
+
+    cursor[0]["_ptr"] = tensor
+    assert cursor[0]["_ptr"].read() == tensor.storage.device_address
+
+    cursor[0]["_ptr"] = view
+    assert cursor[0]["_ptr"].read() == tensor.storage.device_address + 2 * data.itemsize
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
