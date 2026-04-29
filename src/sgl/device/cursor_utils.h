@@ -7,6 +7,12 @@
 
 #include "sgl/core/macros.h"
 
+#include <cstdint>
+#include <functional>
+#include <span>
+#include <typeinfo>
+#include <vector>
+
 namespace sgl {
 
 namespace cursor_utils {
@@ -65,6 +71,77 @@ namespace cursor_utils {
         int rows,
         int cols
     );
+
+    using ShaderCursorObjectWriteFunc = std::function<bool(ShaderCursor&, const void*)>;
+    using BufferElementCursorObjectWriteFunc = std::function<bool(BufferElementCursor&, const void*)>;
+
+    struct ShaderCursorObjectWriter {
+        const std::type_info* type;
+        ShaderCursorObjectWriteFunc write;
+    };
+
+    struct BufferElementCursorObjectWriter {
+        const std::type_info* type;
+        BufferElementCursorObjectWriteFunc write;
+    };
+
+    SGL_API void
+    register_shader_cursor_object_writer(const std::type_info& type, ShaderCursorObjectWriteFunc write);
+    SGL_API void register_buffer_element_cursor_object_writer(
+        const std::type_info& type,
+        BufferElementCursorObjectWriteFunc write
+    );
+
+    SGL_API std::span<const ShaderCursorObjectWriter> shader_cursor_object_writers();
+    SGL_API std::span<const BufferElementCursorObjectWriter> buffer_element_cursor_object_writers();
+
+    template<typename T>
+    void register_shader_cursor_object_writer(std::function<bool(ShaderCursor&, const T&)> write)
+    {
+        register_shader_cursor_object_writer(
+            typeid(T),
+            [write = std::move(write)](ShaderCursor& cursor, const void* value)
+            {
+                return write(cursor, *static_cast<const T*>(value));
+            }
+        );
+    }
+
+    template<typename T>
+    void register_buffer_element_cursor_object_writer(std::function<bool(BufferElementCursor&, const T&)> write)
+    {
+        register_buffer_element_cursor_object_writer(
+            typeid(T),
+            [write = std::move(write)](BufferElementCursor& cursor, const void* value)
+            {
+                return write(cursor, *static_cast<const T*>(value));
+            }
+        );
+    }
+
+    template<typename T>
+    void register_shader_cursor_object_writer()
+    {
+        register_shader_cursor_object_writer<T>(
+            [](ShaderCursor& cursor, const T& value)
+            {
+                cursor = value;
+                return true;
+            }
+        );
+    }
+
+    template<typename T>
+    void register_buffer_element_cursor_object_writer()
+    {
+        register_buffer_element_cursor_object_writer<T>(
+            [](BufferElementCursor& cursor, const T& value)
+            {
+                cursor = value;
+                return true;
+            }
+        );
+    }
 } // namespace cursor_utils
 
 /// Dummy type to represent traits of an arbitrary value type usable by cursors

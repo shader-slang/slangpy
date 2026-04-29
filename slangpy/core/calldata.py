@@ -33,6 +33,7 @@ from slangpy.bindings import (
 )
 from slangpy.bindings.boundvariable import BoundCall, BoundVariable
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
+from slangpy.bindings.typeregistry import lookup_signature_callback, lookup_type_callback
 from slangpy.reflection import SlangFunction, ITensorType, TensorAccess
 
 if TYPE_CHECKING:
@@ -97,8 +98,16 @@ def set_allow_torch_fallback(value: bool):
     _ALLOW_TORCH_FALLBACK = value
 
 
+def _has_registered_type_or_signature(value: Any) -> bool:
+    python_type = type(value)
+    if lookup_type_callback(python_type) is not None:
+        return True
+    found, _ = lookup_signature_callback(python_type)
+    return found
+
+
 def unpack_arg(arg: Any) -> Any:
-    if hasattr(arg, "get_this"):
+    if hasattr(arg, "get_this") and not _has_registered_type_or_signature(arg):
         arg = arg.get_this()
     if isinstance(arg, dict):
         arg = {k: unpack_arg(v) for k, v in arg.items()}

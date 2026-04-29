@@ -3,6 +3,7 @@
 #pragma once
 
 #include <optional>
+#include <unordered_map>
 
 #include "nanobind.h"
 
@@ -479,9 +480,93 @@ private:
         m_write_vector_from_numpy[(int)TypeReflection::ScalarType::COUNT][5];
     std::function<void(CursorType&, const nb::ndarray<nb::numpy, nb::ro>&)>
         m_write_matrix_from_numpy[(int)TypeReflection::ScalarType::COUNT][5][5];
+    std::unordered_map<PyTypeObject*, int32_t> m_native_object_writer_cache;
     std::vector<const char*> m_stack;
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
+
+    static std::string python_type_name(nb::object nbval)
+    {
+        return nb::cast<std::string>(nb::str(nbval.type()));
+    }
+
+    static bool native_object_pointer(const std::type_info& type, nb::object nbval, void*& value)
+    {
+        return nb::detail::nb_type_get(
+            &type,
+            nbval.ptr(),
+            static_cast<uint8_t>(nb::detail::cast_flags::manual),
+            nullptr,
+            &value
+        );
+    }
+
+    auto native_object_writers() const
+    {
+        if constexpr (std::same_as<CursorType, ShaderCursor>) {
+            return cursor_utils::shader_cursor_object_writers();
+        } else {
+            return cursor_utils::buffer_element_cursor_object_writers();
+        }
+    }
+
+    template<typename WriterType>
+    bool invoke_native_object_writer(const WriterType& writer, CursorType& self, nb::object nbval)
+    {
+        void* value = nullptr;
+        if (!native_object_pointer(*writer.type, nbval, value) || value == nullptr)
+            return false;
+
+        try {
+            return writer.write(self, value);
+        } catch (const std::exception& err) {
+            SGL_THROW("Failed to write object of type {}: {}", python_type_name(nbval), err.what());
+        }
+    }
+
+    bool write_registered_native_object(CursorType& self, nb::object nbval)
+    {
+        auto writers = native_object_writers();
+        if (writers.empty())
+            return false;
+
+        PyTypeObject* python_type = Py_TYPE(nbval.ptr());
+        auto cache_it = m_native_object_writer_cache.find(python_type);
+        if (cache_it != m_native_object_writer_cache.end()) {
+            int32_t writer_index = cache_it->second;
+            if (writer_index < int32_t(writers.size()) && invoke_native_object_writer(writers[writer_index], self, nbval))
+                return true;
+        }
+
+        nb::handle type = nbval.type();
+        const std::type_info* exact_type = nb::type_check(type) ? &nb::type_info(type) : nullptr;
+
+        if (exact_type) {
+            for (size_t i = 0; i < writers.size(); ++i) {
+                const auto& writer = writers[i];
+                if (!(*writer.type == *exact_type))
+                    continue;
+                if (!invoke_native_object_writer(writer, self, nbval))
+                    continue;
+                m_native_object_writer_cache[python_type] = narrow_cast<int32_t>(i);
+                return true;
+            }
+        }
+
+        for (size_t i = 0; i < writers.size(); ++i) {
+            const auto& writer = writers[i];
+            if (!nb::detail::nb_type_isinstance(nbval.ptr(), writer.type))
+                continue;
+
+            if (!invoke_native_object_writer(writer, self, nbval))
+                continue;
+
+            m_native_object_writer_cache[python_type] = narrow_cast<int32_t>(i);
+            return true;
+        }
+
+        return false;
+    }
 
     void write_from_numpy_internal(BufferCursor& dst, BufferElementCursor self, nb::object nbval, bool unchecked_copy)
         requires std::same_as<CursorType, BufferElementCursor>
@@ -749,6 +834,8 @@ private:
                 }
                 return;
             } else {
+                if (write_registered_native_object(self, nbval))
+                    return;
                 SGL_THROW("Expected dict");
             }
         }
@@ -782,6 +869,8 @@ private:
                 m_stack.pop_back();
                 return;
             } else {
+                if (write_registered_native_object(self, nbval))
+                    return;
                 SGL_THROW("Expected list");
             }
         }

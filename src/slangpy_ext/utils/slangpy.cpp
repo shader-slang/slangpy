@@ -23,6 +23,8 @@
 
 #include <fmt/format.h>
 
+#include <unordered_map>
+
 namespace sgl {
 extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
 extern nb::ndarray<nb::numpy> buffer_to_numpy(Buffer* self);
@@ -68,6 +70,29 @@ namespace {
             T* ptr = reinterpret_cast<T*>(dest_ptr + i * element_stride);
             *ptr = data[i];
         }
+    }
+
+    bool has_registered_type_or_signature(nb::handle obj)
+    {
+        PyTypeObject* python_type = Py_TYPE(obj.ptr());
+        static std::unordered_map<PyTypeObject*, bool> type_cache;
+        auto cache_it = type_cache.find(python_type);
+        if (cache_it != type_cache.end())
+            return cache_it->second;
+
+        static PyObject* predicate = []()
+        {
+            nb::object fn = nb::module_::import_("slangpy.bindings.typeregistry")
+                                .attr("has_registered_type_or_signature");
+            return fn.release().ptr();
+        }();
+        PyObject* result = PyObject_CallFunctionObjArgs(predicate, obj.ptr(), nullptr);
+        if (!result)
+            nb::raise_python_error();
+        nb::object result_obj = nb::steal<nb::object>(result);
+        bool has_registered = nb::cast<bool>(result_obj);
+        type_cache.emplace(python_type, has_registered);
+        return has_registered;
     }
 } // anonymous namespace
 
@@ -1133,12 +1158,10 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
     auto type_name = nb::str(nb::getattr(o.type(), "__name__"));
     builder << type_name.c_str() << "\n";
 
-    // Handle objects with get_this method.
-    auto get_this = nb::getattr(o, "get_this", nb::none());
-    if (!get_this.is_none()) {
-        builder << "\nunpack";
-        auto this_ = get_this();
-        get_value_signature(builder, this_);
+    // Use registered value signature before legacy object-unpacking fallbacks.
+    std::optional<std::string> s = lookup_value_signature(o);
+    if (s.has_value()) {
+        builder << s->c_str() << "\n";
         return;
     }
 
@@ -1146,6 +1169,19 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
     if (nb::hasattr(o, "slangpy_signature")) {
         auto slangpy_sig = nb::getattr(o, "slangpy_signature");
         builder << nb::str(slangpy_sig).c_str() << "\n";
+        return;
+    }
+
+    // Handle objects with get_this method.
+    auto get_this = nb::getattr(o, "get_this", nb::none());
+    if (!get_this.is_none()) {
+        if (has_registered_type_or_signature(o)) {
+            builder << "\n";
+            return;
+        }
+        builder << "\nunpack";
+        auto this_ = get_this();
+        get_value_signature(builder, this_);
         return;
     }
 
@@ -1165,12 +1201,6 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
             }
         }
         return;
-    }
-
-    // Use value_to_id function.
-    std::optional<std::string> s = lookup_value_signature(o);
-    if (s.has_value()) {
-        builder << s->c_str();
     }
     builder << "\n";
 }
@@ -1213,9 +1243,10 @@ nb::object unpack_arg(nb::object arg, bool& out_had_unpack)
 {
     auto obj = arg;
 
-    // If object has 'get_this', read it.
-    if (nb::hasattr(obj, "get_this")) {
-        obj = nb::getattr(obj, "get_this")();
+    // If object has 'get_this', read it unless registered marshalling already owns the object.
+    auto get_this = nb::getattr(obj, "get_this", nb::none());
+    if (!get_this.is_none() && !has_registered_type_or_signature(obj)) {
+        obj = get_this();
         out_had_unpack = true;
     }
 

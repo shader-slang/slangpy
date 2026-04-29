@@ -6,6 +6,63 @@ namespace sgl {
 
 namespace cursor_utils {
 
+    namespace {
+
+        std::vector<ShaderCursorObjectWriter>& shader_cursor_object_writer_registry()
+        {
+            static std::vector<ShaderCursorObjectWriter> writers;
+            return writers;
+        }
+
+        std::vector<BufferElementCursorObjectWriter>& buffer_element_cursor_object_writer_registry()
+        {
+            static std::vector<BufferElementCursorObjectWriter> writers;
+            return writers;
+        }
+
+    } // namespace
+
+    void register_shader_cursor_object_writer(const std::type_info& type, ShaderCursorObjectWriteFunc write)
+    {
+        SGL_CHECK(bool(write), "ShaderCursor object writer must be callable.");
+
+        auto& writers = shader_cursor_object_writer_registry();
+        for (auto& entry : writers) {
+            if (*entry.type == type) {
+                SGL_THROW("ShaderCursor object writer for type \"{}\" is already registered.", type.name());
+            }
+        }
+
+        writers.push_back({&type, std::move(write)});
+    }
+
+    void register_buffer_element_cursor_object_writer(
+        const std::type_info& type,
+        BufferElementCursorObjectWriteFunc write
+    )
+    {
+        SGL_CHECK(bool(write), "BufferElementCursor object writer must be callable.");
+
+        auto& writers = buffer_element_cursor_object_writer_registry();
+        for (auto& entry : writers) {
+            if (*entry.type == type) {
+                SGL_THROW("BufferElementCursor object writer for type \"{}\" is already registered.", type.name());
+            }
+        }
+
+        writers.push_back({&type, std::move(write)});
+    }
+
+    std::span<const ShaderCursorObjectWriter> shader_cursor_object_writers()
+    {
+        return shader_cursor_object_writer_registry();
+    }
+
+    std::span<const BufferElementCursorObjectWriter> buffer_element_cursor_object_writers()
+    {
+        return buffer_element_cursor_object_writer_registry();
+    }
+
     // Helper class for checking if implicit conversion between scalar types is allowed.
     // Note that only conversion between types of the same size is allowed.
     struct ScalarConversionTable {
