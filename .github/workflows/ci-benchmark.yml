@@ -34,7 +34,7 @@ jobs:
       CI_FLAGS: ${{ matrix.flags }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           lfs: true
@@ -52,7 +52,7 @@ jobs:
 
       # Setup Python.
       - name: Setup Python ${{ matrix.python }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
 
@@ -71,7 +71,7 @@ jobs:
 
       # Setup MSVC.
       - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: step-security/msvc-dev-cmd@v1
 
       # Setup CMake/Ninja.
       - name: Setup CMake/Ninja

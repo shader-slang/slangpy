@@ -51,7 +51,7 @@ runs:
 
     # Setup Python.
     - name: Setup Python ${{ inputs.python }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ inputs.python }}
 
@@ -72,7 +72,7 @@ runs:
 
     # Setup MSVC.
     - name: Setup MSVC
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: step-security/msvc-dev-cmd@v1
 
     # Setup CMake/Ninja.
     - name: Setup CMake/Ninja
@@ -196,7 +196,7 @@ runs:
     # Upload Crashpad Reports
     - name: Upload Crashpad Reports
       if: always() && contains(inputs.flags, 'crashpad')
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: crash-reports-${{ inputs.os }}-${{ inputs.platform }}-${{ inputs.compiler }}-${{ inputs.config }}
         path: .crashpad/reports/
@@ -210,7 +210,7 @@ runs:
 
     # Coverage Report
     - name: Coverage Report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: contains(inputs.flags, 'coverage')
       with:
         name: coverage-report

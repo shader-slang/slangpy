@@ -121,7 +121,7 @@ jobs:
         shell: pwsh
         continue-on-error: true
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           lfs: true
@@ -140,14 +140,14 @@ jobs:
       # Setup Python (no pip cache on self-hosted runners).
       - name: Setup Python ${{ matrix.python }} (No cache)
         if: runner.environment == 'self-hosted'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
 
       # Setup Python (with pip cache on github-hosted runners).
       - name: Setup Python ${{ matrix.python }} (Pip cache)
         if: runner.environment == 'github-hosted'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
           cache: 'pip'
@@ -167,7 +167,7 @@ jobs:
 
       # Setup MSVC.
       - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: step-security/msvc-dev-cmd@v1
 
       # Setup CMake/Ninja.
       - name: Setup CMake/Ninja
@@ -227,7 +227,7 @@ jobs:
       # Upload Crashpad Reports
       - name: Upload Crashpad Reports
         if: always() && contains(matrix.flags, 'crashpad')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: crash-reports-${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ matrix.config }}
           path: .crashpad/reports/
@@ -240,7 +240,7 @@ jobs:
 
       # Coverage Report
       - name: Coverage Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: contains(matrix.flags, 'coverage')
         with:
           name: coverage-report
