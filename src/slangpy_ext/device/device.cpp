@@ -69,6 +69,8 @@ SGL_DICT_TO_DESC_FIELD(shader_cache_path, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(shader_cache_size, size_t)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_FIELD(bindless_options, BindlessDesc)
+SGL_DICT_TO_DESC_FIELD(additional_vulkan_instance_extensions, std::vector<std::string>)
+SGL_DICT_TO_DESC_FIELD(additional_vulkan_device_extensions, std::vector<std::string>)
 SGL_DICT_TO_DESC_END()
 
 // Utility functions for doing CoopVec conversions between ndarrays
@@ -353,6 +355,16 @@ SGL_PY_EXPORT(device_device)
         .def_rw("shader_cache_path", &DeviceDesc::shader_cache_path, D(DeviceDesc, shader_cache_path))
         .def_rw("shader_cache_size", &DeviceDesc::shader_cache_size, D(DeviceDesc, shader_cache_size))
         .def_rw("existing_device_handles", &DeviceDesc::existing_device_handles, D(DeviceDesc, existing_device_handles))
+        .def_rw(
+            "additional_vulkan_instance_extensions",
+            &DeviceDesc::additional_vulkan_instance_extensions,
+            "Additional Vulkan instance extensions to enable when creating a Vulkan device."
+        )
+        .def_rw(
+            "additional_vulkan_device_extensions",
+            &DeviceDesc::additional_vulkan_device_extensions,
+            "Additional Vulkan device extensions to enable when creating a Vulkan device."
+        )
         .def_rw("label", &DeviceDesc::label, D(DeviceDesc, label));
 
     nb::implicitly_convertible<nb::dict, DeviceDesc>();
@@ -486,6 +498,8 @@ SGL_PY_EXPORT(device_device)
            size_t shader_cache_size,
            std::optional<std::array<NativeHandle, 3>> existing_device_handles,
            std::optional<BindlessDesc> bindless_options,
+           std::optional<std::vector<std::string>> additional_vulkan_instance_extensions,
+           std::optional<std::vector<std::string>> additional_vulkan_device_extensions,
            std::string label = "")
         {
             new (self) Device(
@@ -507,6 +521,10 @@ SGL_PY_EXPORT(device_device)
                  .shader_cache_path = shader_cache_path,
                  .shader_cache_size = shader_cache_size,
                  .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
+                 .additional_vulkan_instance_extensions
+                 = additional_vulkan_instance_extensions.value_or(std::vector<std::string>{}),
+                 .additional_vulkan_device_extensions
+                 = additional_vulkan_device_extensions.value_or(std::vector<std::string>{}),
                  .label = label}
             );
         },
@@ -528,6 +546,8 @@ SGL_PY_EXPORT(device_device)
         "shader_cache_size"_a = DeviceDesc().shader_cache_size,
         "existing_device_handles"_a.none() = nb::none(),
         "bindless_options"_a.none() = nb::none(),
+        "additional_vulkan_instance_extensions"_a.none() = nb::none(),
+        "additional_vulkan_device_extensions"_a.none() = nb::none(),
         "label"_a = DeviceDesc().label,
         D(Device, Device)
     );

@@ -151,6 +151,12 @@ struct DeviceDesc {
     /// only used for CUDA interoperability.
     std::array<NativeHandle, 3> existing_device_handles;
 
+    /// Additional Vulkan instance extensions to enable when SGL creates the Vulkan instance.
+    std::vector<std::string> additional_vulkan_instance_extensions;
+
+    /// Additional Vulkan device extensions to enable when SGL creates the Vulkan device.
+    std::vector<std::string> additional_vulkan_device_extensions;
+
     /// Debug label
     std::string label;
 };

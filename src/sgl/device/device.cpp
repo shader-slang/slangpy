@@ -204,6 +204,25 @@ Device::Device(const DeviceDesc& desc)
         .highestShaderModel = 0,
     };
 
+    std::vector<const char*> additional_vulkan_instance_extensions;
+    additional_vulkan_instance_extensions.reserve(m_desc.additional_vulkan_instance_extensions.size());
+    for (const std::string& extension : m_desc.additional_vulkan_instance_extensions)
+        additional_vulkan_instance_extensions.push_back(extension.c_str());
+
+    std::vector<const char*> additional_vulkan_device_extensions;
+    additional_vulkan_device_extensions.reserve(m_desc.additional_vulkan_device_extensions.size());
+    for (const std::string& extension : m_desc.additional_vulkan_device_extensions)
+        additional_vulkan_device_extensions.push_back(extension.c_str());
+
+    rhi::VulkanDeviceExtendedDesc vulkan_extended_desc{
+        .structType = rhi::StructType::VulkanDeviceExtendedDesc,
+        .additionalVulkanInstanceExtensionCount = narrow_cast<uint32_t>(additional_vulkan_instance_extensions.size()),
+        .additionalVulkanInstanceExtensions = additional_vulkan_instance_extensions.data(),
+        .additionalVulkanDeviceExtensionCount = narrow_cast<uint32_t>(additional_vulkan_device_extensions.size()),
+        .additionalVulkanDeviceExtensions = additional_vulkan_device_extensions.data(),
+    };
+    d3d12_extended_desc.next = &vulkan_extended_desc;
+
     rhi::BindlessDesc bindless_desc{
         .bufferCount = m_desc.bindless_options.buffer_count,
         .textureCount = m_desc.bindless_options.texture_count,
