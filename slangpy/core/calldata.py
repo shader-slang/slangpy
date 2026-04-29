@@ -8,19 +8,22 @@ from typing import TYPE_CHECKING, Any
 from slangpy.core.callsignature import *
 from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
 from slangpy.core.native import (
+    AccessType,
     CallMode,
-    CallDataMode,
     NativeCallData,
     unpack_args,
     unpack_kwargs,
 )
+from slangpy.core.function import PipelineType
 
 from slangpy import (
     SlangCompileError,
     SlangLinkOptions,
     NativeHandle,
     DeviceType,
+    TypeConformance,
     is_torch_bridge_using_fallback,
+    get_torch_bridge_fallback_reason,
 )
 from slangpy.bindings import (
     BindContext,
@@ -47,6 +50,10 @@ _DUMP_SLANG_INTERMEDIATES = os.environ.get("SLANGPY_DUMP_SLANG_INTERMEDIATES", "
     "1",
 )
 _PRINT_GENERATED_SHADERS = os.environ.get("SLANGPY_PRINT_GENERATED_SHADERS", "false").lower() in (
+    "true",
+    "1",
+)
+_ALLOW_TORCH_FALLBACK = os.environ.get("SLANGPY_ALLOW_TORCH_FALLBACK", "").lower() in (
     "true",
     "1",
 )
@@ -78,6 +85,16 @@ def set_print_generated_shaders(value: bool):
     """
     global _PRINT_GENERATED_SHADERS
     _PRINT_GENERATED_SHADERS = value
+
+
+def set_allow_torch_fallback(value: bool):
+    """
+    Specify whether to allow falling back to the slower Python implementation when PyTorch
+    tensors are detected but the slangpy-torch native bridge is not available. Can also
+    be controlled via the SLANGPY_ALLOW_TORCH_FALLBACK environment variable.
+    """
+    global _ALLOW_TORCH_FALLBACK
+    _ALLOW_TORCH_FALLBACK = value
 
 
 def unpack_arg(arg: Any) -> Any:
@@ -113,7 +130,7 @@ class CallData(NativeCallData):
         build_info = func.calc_build_info()
         self.build(build_info, *args, **kwargs)
 
-    def build(self, build_info: "FunctionBuildInfo", *args: Any, **kwargs: Any):
+    def build(self, build_info: "FunctionBuildInfo", *args: Any, **kwargs: Any) -> None:
         self.has_thread_count = "_thread_count" in kwargs
 
         try:
@@ -144,15 +161,6 @@ class CallData(NativeCallData):
             self.layout = build_info.module.layout
             self.call_mode = build_info.call_mode
 
-            # Set call data mode based on device and pipeline type
-            if (
-                build_info.module.device.info.type == DeviceType.cuda
-                and build_info.pipeline_type == PipelineType.compute
-            ):
-                self.call_data_mode = CallDataMode.entry_point
-            else:
-                self.call_data_mode = CallDataMode.global_data
-
             # Unpack args (handles IThis wrappers)
             unpacked_args, args_had_unpack = unpack_args(*args)
             unpacked_kwargs, kwargs_had_unpack = unpack_kwargs(**kwargs)
@@ -167,20 +175,24 @@ class CallData(NativeCallData):
                 import torch
                 import slangpy.torchintegration.torchtensormarshall  # type: ignore (Registers torch.Tensor handler)
 
-                # Warn once if the slangpy_torch bridge is not installed (using Python fallback)
-                global _torch_bridge_warned
-                if not _torch_bridge_warned:
-                    if is_torch_bridge_using_fallback():
-                        import warnings
-
-                        warnings.warn(
-                            "PyTorch tensors detected but slangpy_torch is not installed. "
-                            "Using slower Python fallback for tensor metadata extraction. "
-                            "Install slangpy_torch for better performance: pip install slangpy_torch",
-                            UserWarning,
-                            stacklevel=6,  # Point to user's call site
-                        )
-                    _torch_bridge_warned = True
+                # Error if slangpy-torch native bridge is not available (unless fallback opted in)
+                if is_torch_bridge_using_fallback():
+                    if not _ALLOW_TORCH_FALLBACK:
+                        reason = get_torch_bridge_fallback_reason()
+                        if reason == "incompatible":
+                            raise RuntimeError(
+                                "slangpy-torch is installed but has an incompatible version.\n"
+                                "Upgrade with: pip install --upgrade slangpy-torch --no-build-isolation\n"
+                                "To use the slower Python fallback, set SLANGPY_ALLOW_TORCH_FALLBACK=1, or "
+                                "call set_allow_torch_fallback(True)"
+                            )
+                        else:
+                            raise RuntimeError(
+                                "PyTorch tensors detected but slangpy-torch is not installed.\n"
+                                "Install with: pip install slangpy[torch]\n"
+                                "To use the slower Python fallback, set SLANGPY_ALLOW_TORCH_FALLBACK=1, or "
+                                "call set_allow_torch_fallback(True)"
+                            )
 
                 self.torch_integration = True
                 self.torch_autograd = autograd
@@ -193,7 +205,6 @@ class CallData(NativeCallData):
                 self.call_mode,
                 build_info.module.device_module,
                 build_info.options,
-                self.call_data_mode,
             )
 
             # Build the unbound signature from inputs
@@ -269,173 +280,57 @@ class CallData(NativeCallData):
             # Calculate direct binding eligibility for all variables.
             calculate_direct_binding(bindings)
 
-            # Generate code.
-            codegen = CodeGen()
-            generate_code(context, build_info, bindings, codegen)
-            for link in build_info.module.link:
-                codegen.add_import(link.name)
-            code = codegen.finish(
-                call_data=True,
-                input_load_store=True,
-                header=True,
-                kernel=True,
-                imports=True,
-                trampoline=True,
-                context=True,
-                snippets=True,
-                call_data_structs=True,
-                constants=True,
-                use_param_block_for_call_data=context.call_data_mode == CallDataMode.global_data,
+            # Determine fast path (entry-point params) vs fallback (ParameterBlock<CallData>).
+            # Sum inline-uniform byte size and compare against per-device threshold.
+            inline_size = estimate_entrypoint_arguments_size(bindings, self.call_dimensionality)
+            threshold = build_info.module.device.info.limits.max_entry_point_uniform_size
+            use_entrypoint_args = inline_size <= threshold
+            self.log_debug(
+                f"  Inline uniform size: {inline_size} bytes, "
+                f"threshold: {threshold} bytes, "
+                f"use_entrypoint_args: {use_entrypoint_args}"
             )
 
-            # Optionally write the shader to a file for debugging.
-            sanitized = ""
-            if _DUMP_GENERATED_SHADERS or _DUMP_SLANG_INTERMEDIATES:
-                os.makedirs(".temp", exist_ok=True)
-                santized_module = re.sub(r"[<>, ./:\\]", "_", build_info.module.name)
-                sanitized = re.sub(r"[:<>, ./:\\]", "_", build_info.name)
-                santized_module = santized_module[:50]
-                sanitized = sanitized[:50]
-                fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}"
-                # Some platforms have path length limits that are easily exceeded with nested generics
-                # Be a good citizen here and limit the length of what we generate
-                length_limit = 200
-                if len(fn) > length_limit:
-                    fn = fn[:length_limit]
-                fn += "-" + hashlib.sha256(code.encode()).hexdigest()[0:8]
-                fn = fn + ".slang"
+            # Until https://github.com/shader-slang/slang-rhi/pull/676, Vk RTP can't use entry point args,
+            # and on optix, numPayloadValues (dependent on entry point params size) must be <= 32. For
+            # now just disable for RTP. Both fail on dispatch, so simple compilation test isn't enough
+            # to catch it.
+            if build_info.pipeline_type == PipelineType.ray_tracing:
+                use_entrypoint_args = False
 
-                # with open(fn,"r") as f:
-                #    code = f.read()
-                with open(
-                    fn,
-                    "w",
-                ) as f:
-                    f.write("/*\n")
-                    f.write(bound_call_table(bindings))
-                    f.write("\n*/\n")
-                    f.write(code)
+            # Disable for Metal until I can figure out how entry point args work properly
+            if build_info.module.device.info.type == DeviceType.metal:
+                use_entrypoint_args = False
 
-            # Optionally print the shader to the terminal for AI analysis.
-            if _PRINT_GENERATED_SHADERS:
-                print("=" * 80)
-                print(f"GENERATED SHADER: {build_info.module.name}::{build_info.name}")
-                if self.call_mode == CallMode.bwds:
-                    print("MODE: Backwards")
-                else:
-                    print("MODE: Forward")
-                print("=" * 80)
-                print("/* BINDINGS:")
-                print(bound_call_table(bindings))
-                print("*/")
-                print(code)
-                print("=" * 80)
-                print(f"END SHADER: {build_info.module.name}::{build_info.name}")
-                print("=" * 80)
-                print()
-
-            # Hash the code to get a unique identifier for the module.
-            # We add type conformances to the start of the code to ensure that the hash is unique
-            code_minus_header = (
-                "[CallData]\n" + str(build_info.type_conformances) + code[len(codegen.header) :]
-            )
-            hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
-
-            # Check if we've already built this module.
-            if hash in build_info.module.pipeline_cache:
-                # Get pipeline from cache if we have
-                self.pipeline = build_info.module.pipeline_cache[hash]
-                # Get shader table from cache if the pipeline is a raytracing pipeline
-                if build_info.pipeline_type == PipelineType.ray_tracing:
-                    self.shader_table = build_info.module.shader_table_cache[hash]
-                self.device = build_info.module.device
-                self.log_debug(f"  Found cached pipeline with hash {hash}")
-
-            else:
-                # Build new module and link it with the one that contains the function being called.
-                self.log_debug(f"  Building new pipeline with hash {hash}")
-                session = build_info.module.session
-                device = session.device
-                module = session.load_module_from_source(hash, code)
-                opts = SlangLinkOptions()
-                opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
-                opts.dump_intermediates_prefix = sanitized
-                if build_info.pipeline_type == PipelineType.compute:
-                    # Create compute pipeline
-                    ep = module.entry_point(f"compute_main", type_conformances)
-                    program = session.link_program(
-                        [module, build_info.module.device_module] + build_info.module.link,
-                        [ep],
-                        opts,
-                    )
-                    self.pipeline = device.create_compute_pipeline(
-                        program,
-                        defer_target_compilation=True,
-                        label=f"{build_info.module.name}_{build_info.name}_compute_call",
-                    )
-                    build_info.module.pipeline_cache[hash] = self.pipeline
-                elif build_info.pipeline_type == PipelineType.ray_tracing:
-                    # Create ray tracing pipeline
-                    eps = [module.entry_point(f"raygen_main", type_conformances)]
-                    hit_group_names: list[str] = []
-                    for hit_group in build_info.ray_tracing_hit_groups:
-                        hit_group_names.append(hit_group.hit_group_name)
-                        if hit_group.closest_hit_entry_point != "":
-                            eps.append(
-                                build_info.module.device_module.entry_point(
-                                    hit_group.closest_hit_entry_point
-                                )
-                            )
-                        if hit_group.any_hit_entry_point != "":
-                            eps.append(
-                                build_info.module.device_module.entry_point(
-                                    hit_group.any_hit_entry_point
-                                )
-                            )
-                        if hit_group.intersection_entry_point != "":
-                            eps.append(
-                                build_info.module.device_module.entry_point(
-                                    hit_group.intersection_entry_point
-                                )
-                            )
-                    for miss_entry_point in build_info.ray_tracing_miss_entry_points:
-                        eps.append(build_info.module.device_module.entry_point(miss_entry_point))
-
-                    program = session.link_program(
-                        [module, build_info.module.device_module] + build_info.module.link,
-                        eps,
-                        opts,
-                    )
-                    self.pipeline = device.create_ray_tracing_pipeline(
-                        program,
-                        hit_groups=build_info.ray_tracing_hit_groups,
-                        max_recursion=build_info.ray_tracing_max_recursion,
-                        max_ray_payload_size=build_info.ray_tracing_max_ray_payload_size,
-                        max_attribute_size=build_info.ray_tracing_max_attribute_size,
-                        flags=build_info.ray_tracing_flags,
-                        defer_target_compilation=True,
-                        label=f"{build_info.module.name}_{build_info.name}_rt_call",
-                    )
-                    build_info.module.pipeline_cache[hash] = self.pipeline
-                    self.shader_table = device.create_shader_table(
-                        program,
-                        ray_gen_entry_points=["raygen_main"],
-                        miss_entry_points=build_info.ray_tracing_miss_entry_points,
-                        hit_group_names=hit_group_names,
-                        callable_entry_points=build_info.ray_tracing_callable_entry_points,
-                    )
-                    build_info.module.shader_table_cache[hash] = self.shader_table
-                else:
-                    raise RuntimeError("Unknown pipeline type")
-                self.device = device
-                self.log_debug(f"  Build succesful")
+            # Try building the shader. If direct args compilation fails (the
+            # threshold is only an approximate heuristic), fall back to
+            # ParameterBlock<CallData>.
+            try:
+                self.use_entrypoint_args = use_entrypoint_args
+                self._try_build_shader(
+                    context,
+                    build_info,
+                    bindings,
+                    type_conformances,
+                )
+            except RuntimeError as e:
+                if not use_entrypoint_args:
+                    raise
+                self.log_debug(
+                    f"  Direct args compilation failed ({e}), "
+                    "retrying with ParameterBlock<CallData>"
+                )
+                self.use_entrypoint_args = False
+                self._try_build_shader(
+                    context,
+                    build_info,
+                    bindings,
+                    type_conformances,
+                )
 
             # Store the bindings and runtime for later use.
             self.debug_only_bindings = bindings
             self.runtime = BoundCallRuntime(bindings)
-
-            # Store the code as its useful for debugging
-            self.code = code
 
             # If using autograd, build list of access modes for each tensor argument.
             if self.torch_autograd:
@@ -497,6 +392,187 @@ class CallData(NativeCallData):
                 ) from e
             else:
                 raise
+
+    def _try_build_shader(
+        self,
+        context: BindContext,
+        build_info: "FunctionBuildInfo",
+        bindings: BoundCall,
+        type_conformances: list["TypeConformance"],
+    ) -> None:
+        """
+        Generate shader code and build the pipeline.
+
+        Sets self.pipeline, self.device, self.code,
+        and optionally self.shader_table.
+
+        :param context: Binding context.
+        :param build_info: Function build information.
+        :param bindings: Bound call with resolved variables.
+        :param type_conformances: Type conformances for entry point.
+        """
+        context.use_entrypoint_args = self.use_entrypoint_args
+
+        # Generate code.
+        codegen = CodeGen()
+        generate_code(context, build_info, bindings, codegen)
+        # TODO: This is not technically needed anymore because in the case of
+        # linking multiple modules, we already have composed the module to begin with.
+        for link in build_info.module.link:
+            codegen.add_import(link.name)
+        code = codegen.finish(
+            call_data=True,
+            input_load_store=True,
+            header=True,
+            kernel=True,
+            imports=True,
+            trampoline=True,
+            context=True,
+            snippets=True,
+            call_data_structs=True,
+            constants=True,
+        )
+
+        # Optionally write the shader to a file for debugging.
+        sanitized = ""
+        if _DUMP_GENERATED_SHADERS or _DUMP_SLANG_INTERMEDIATES:
+            os.makedirs(".temp", exist_ok=True)
+            santized_module = re.sub(r"[<>, ./:\\]", "_", build_info.module.name)
+            sanitized = re.sub(r"[:<>, ./:\\]", "_", build_info.name)
+            santized_module = santized_module[:50]
+            sanitized = sanitized[:50]
+            fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}"
+            # Some platforms have path length limits that are easily exceeded with nested generics
+            # Be a good citizen here and limit the length of what we generate
+            length_limit = 200
+            if len(fn) > length_limit:
+                fn = fn[:length_limit]
+            fn += "-" + hashlib.sha256(code.encode()).hexdigest()[0:8]
+            fn = fn + ".slang"
+
+            with open(
+                fn,
+                "w",
+            ) as f:
+                f.write("/*\n")
+                f.write(bound_call_table(bindings))
+                f.write("\n*/\n")
+                f.write(code)
+
+        # Optionally print the shader to the terminal for AI analysis.
+        if _PRINT_GENERATED_SHADERS:
+            print("=" * 80)
+            print(f"GENERATED SHADER: {build_info.module.name}::{build_info.name}")
+            if self.call_mode == CallMode.bwds:
+                print("MODE: Backwards")
+            else:
+                print("MODE: Forward")
+            print("=" * 80)
+            print("/* BINDINGS:")
+            print(bound_call_table(bindings))
+            print("*/")
+            print(code)
+            print("=" * 80)
+            print(f"END SHADER: {build_info.module.name}::{build_info.name}")
+            print("=" * 80)
+            print()
+
+        # Hash the code to get a unique identifier for the module.
+        # We add type conformances to the start of the code to ensure that the hash is unique
+        code_minus_header = str(build_info.type_conformances) + code[len(codegen.header) :]
+        hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
+
+        # Check if we've already built this module.
+        if hash in build_info.module.pipeline_cache:
+            # Get pipeline from cache if we have
+            self.pipeline = build_info.module.pipeline_cache[hash]
+            # Get shader table from cache if the pipeline is a raytracing pipeline
+            if build_info.pipeline_type == PipelineType.ray_tracing:
+                self.shader_table = build_info.module.shader_table_cache[hash]
+            self.device = build_info.module.device
+            self.log_debug(f"  Found cached pipeline with hash {hash}")
+
+        else:
+            # Build new module and link it with the one that contains the function being called.
+            self.log_debug(f"  Building new pipeline with hash {hash}")
+            session = build_info.module.session
+            device = session.device
+            module = session.load_module_from_source(hash, code)
+            opts = SlangLinkOptions()
+            opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
+            opts.dump_intermediates_prefix = sanitized
+            if build_info.pipeline_type == PipelineType.compute:
+                # Create compute pipeline
+                ep = module.entry_point(f"compute_main", type_conformances)
+                program = session.link_program(
+                    [module, build_info.module.device_module],
+                    [ep],
+                    opts,
+                )
+                self.pipeline = device.create_compute_pipeline(
+                    program,
+                    defer_target_compilation=True,
+                    label=f"{build_info.module.name}_{build_info.name}_compute_call",
+                )
+                build_info.module.pipeline_cache[hash] = self.pipeline
+            elif build_info.pipeline_type == PipelineType.ray_tracing:
+                # Create ray tracing pipeline
+                eps = [module.entry_point(f"raygen_main", type_conformances)]
+                hit_group_names: list[str] = []
+                for hit_group in build_info.ray_tracing_hit_groups:
+                    hit_group_names.append(hit_group.hit_group_name)
+                    if hit_group.closest_hit_entry_point != "":
+                        eps.append(
+                            build_info.module.device_module.entry_point(
+                                hit_group.closest_hit_entry_point
+                            )
+                        )
+                    if hit_group.any_hit_entry_point != "":
+                        eps.append(
+                            build_info.module.device_module.entry_point(
+                                hit_group.any_hit_entry_point
+                            )
+                        )
+                    if hit_group.intersection_entry_point != "":
+                        eps.append(
+                            build_info.module.device_module.entry_point(
+                                hit_group.intersection_entry_point
+                            )
+                        )
+                for miss_entry_point in build_info.ray_tracing_miss_entry_points:
+                    eps.append(build_info.module.device_module.entry_point(miss_entry_point))
+
+                program = session.link_program(
+                    [module, build_info.module.device_module],
+                    eps,
+                    opts,
+                )
+                self.pipeline = device.create_ray_tracing_pipeline(
+                    program,
+                    hit_groups=build_info.ray_tracing_hit_groups,
+                    max_recursion=build_info.ray_tracing_max_recursion,
+                    max_ray_payload_size=build_info.ray_tracing_max_ray_payload_size,
+                    max_attribute_size=build_info.ray_tracing_max_attribute_size,
+                    flags=build_info.ray_tracing_flags,
+                    defer_target_compilation=True,
+                    label=f"{build_info.module.name}_{build_info.name}_rt_call",
+                )
+                build_info.module.pipeline_cache[hash] = self.pipeline
+                self.shader_table = device.create_shader_table(
+                    program,
+                    ray_gen_entry_points=["raygen_main"],
+                    miss_entry_points=build_info.ray_tracing_miss_entry_points,
+                    hit_group_names=hit_group_names,
+                    callable_entry_points=build_info.ray_tracing_callable_entry_points,
+                )
+                build_info.module.shader_table_cache[hash] = self.shader_table
+            else:
+                raise RuntimeError("Unknown pipeline type")
+            self.device = device
+            self.log_debug(f"  Build succesful")
+
+        # Store the code as it's useful for debugging
+        self.code = code
 
     def _build_autograd_access_list(self, args: list[Any], kwargs: dict[str, Any]) -> None:
         """

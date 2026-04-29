@@ -46,7 +46,7 @@ class TorchAutoGradHook(torch.autograd.Function):
 
         :param ctx: PyTorch autograd context for storing state.
         :param options: Tuple containing (function, forwards_cd, rt_options, args, kwargs, pairs).
-        :param tensors: Input tensors tracked by autograd (primals of input pairs).
+        :param tensors: All tensor primals tracked by autograd (inputs and outputs).
         :return: Tuple of output tensors.
         """
         function, forwards_cd, rt_options, args, kwargs, pairs = options
@@ -55,16 +55,18 @@ class TorchAutoGradHook(torch.autograd.Function):
         ctx.forwards_cd = forwards_cd
 
         # Native C++ handles: kernel dispatch, pair bookkeeping, output collection
-        input_tensors, output_tensors, result, pairs = forwards_cd.autograd_forward(
+        all_tensors, output_tensors, result, pairs = forwards_cd.autograd_forward(
             rt_options, args, kwargs, pairs
         )
 
         ctx.args = args
         ctx.kwargs = kwargs
         ctx.pairs = pairs
-        ctx.save_for_backward(*input_tensors)
+        # Save ALL primals (inputs and outputs) - Slang's backward pass
+        # replays the forward internally and needs output primals too.
+        ctx.save_for_backward(*all_tensors)
 
-        # output_tensors already includes the result tensor (if any) —
+        # output_tensors already includes the result tensor (if any) -
         # autograd_forward appends it when creating the _result pair.
         return tuple(output_tensors)
 

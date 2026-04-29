@@ -43,16 +43,6 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(CallMode);
 
-enum class CallDataMode { global_data, entry_point };
-SGL_ENUM_INFO(
-    CallDataMode,
-    {
-        {CallDataMode::global_data, "global_data"},
-        {CallDataMode::entry_point, "entry_point"},
-    }
-);
-SGL_ENUM_REGISTER(CallDataMode);
-
 /// Access pattern for torch autograd tensor bindings.
 /// Precomputed at build time and stored in a flat list on NativeCallData,
 /// consumed in order during find_torch_tensors at dispatch time.
@@ -418,18 +408,22 @@ private:
 
 class SGL_API CallContext : Object {
 public:
-    CallContext(ref<Device> device, const Shape& call_shape, CallMode call_mode, NativeHandle cuda_stream)
+    CallContext(ref<Device> device, CallMode call_mode)
         : m_device(std::move(device))
-        , m_call_shape(call_shape)
         , m_call_mode(call_mode)
-        , m_cuda_stream(cuda_stream)
     {
+    }
+
+    /// Initialize call shape and CUDA stream (called each dispatch).
+    void init(const Shape& call_shape, NativeHandle cuda_stream)
+    {
+        m_call_shape = call_shape;
+        m_cuda_stream = cuda_stream;
     }
 
     Device* device() const { return m_device.get(); }
     const Shape& call_shape() const { return m_call_shape; }
     CallMode call_mode() const { return m_call_mode; }
-
     const NativeHandle& cuda_stream() const { return m_cuda_stream; }
 
 private:

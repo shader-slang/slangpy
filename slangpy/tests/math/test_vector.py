@@ -210,5 +210,35 @@ def test_shapes():
     assert bool4(True, False, True, False).shape == (4,)
 
 
+def test_hashing():
+    """Test value-based hash semantics for all vector types."""
+    # Equal values must produce equal hashes and map to the same dict key.
+    for a, b in [
+        (float2(1, 2), float2(1, 2)),
+        (float3(1, 2, 3), float3(1, 2, 3)),
+        (float4(1, 2, 3, 4), float4(1, 2, 3, 4)),
+        (int2(1, 2), int2(1, 2)),
+        (int3(1, 2, 3), int3(1, 2, 3)),
+        (int4(1, 2, 3, 4), int4(1, 2, 3, 4)),
+        (uint2(1, 2), uint2(1, 2)),
+        (uint3(1, 2, 3), uint3(1, 2, 3)),
+        (uint4(1, 2, 3, 4), uint4(1, 2, 3, 4)),
+        (bool2(True, False), bool2(True, False)),
+        (bool3(True, False, True), bool3(True, False, True)),
+        (bool4(True, False, True, False), bool4(True, False, True, False)),
+        (float16_t2(1, 2), float16_t2(1, 2)),
+        (float16_t3(1, 2, 3), float16_t3(1, 2, 3)),
+        (float16_t4(1, 2, 3, 4), float16_t4(1, 2, 3, 4)),
+    ]:
+        assert a == b
+        assert hash(a) == hash(b)
+        d = {a: "x"}
+        assert b in d
+
+    # Distinct values must act as distinct dict keys.
+    assert len({float3(1, 2, 3): 0, float3(4, 5, 6): 0}) == 2
+    assert len({int4(1, 2, 3, 4): 0, int4(5, 6, 7, 8): 0}) == 2
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

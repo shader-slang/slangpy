@@ -53,7 +53,9 @@ private:
 SGL_DICT_TO_DESC_BEGIN(DeviceDesc)
 SGL_DICT_TO_DESC_FIELD(type, DeviceType)
 SGL_DICT_TO_DESC_FIELD(enable_debug_layers, bool)
+SGL_DICT_TO_DESC_FIELD(debug_layers_log_level, LogLevel)
 SGL_DICT_TO_DESC_FIELD(enable_rhi_validation, bool)
+SGL_DICT_TO_DESC_FIELD(rhi_validation_log_level, LogLevel)
 SGL_DICT_TO_DESC_FIELD(enable_ray_tracing_validation, bool)
 SGL_DICT_TO_DESC_FIELD(enable_aftermath, bool)
 SGL_DICT_TO_DESC_FIELD(enable_cuda_interop, bool)
@@ -120,7 +122,7 @@ coopvec_get_ndarray_matrix_desc(const nb::ndarray<Args...>& array, std::optional
 }
 
 inline void convert_coop_vec_matrix_ndarray(
-    Device* self,
+    Device* device,
     nb::ndarray<nb::device::cpu> dst,
     nb::ndarray<nb::device::cpu> src,
     std::optional<CoopVecMatrixLayout> dst_layout,
@@ -149,7 +151,118 @@ inline void convert_coop_vec_matrix_ndarray(
         SGL_THROW("At least one of src or dst must be a 2D array");
     }
 
-    self->convert_coop_vec_matrix(dst.data(), dst.nbytes(), dst_desc, src.data(), src.nbytes(), src_desc);
+    device->convert_coop_vec_matrix(dst.data(), dst.nbytes(), dst_desc, src.data(), src.nbytes(), src_desc);
+}
+
+/// Helper for create_buffer kwargs binding (shared by Device and free-standing).
+static ref<Buffer> create_buffer_from_kwargs(
+    Device* device,
+    size_t size,
+    size_t element_count,
+    size_t struct_size,
+    nb::object resource_type_layout,
+    Format format,
+    MemoryType memory_type,
+    BufferUsage usage,
+    ResourceState default_state,
+    std::string label,
+    std::optional<nb::ndarray<nb::numpy>> data
+)
+{
+    if (data) {
+        SGL_CHECK(is_ndarray_contiguous(*data), "Data is not contiguous.");
+    }
+
+    ref<const TypeLayoutReflection> resolved_resource_type_layout;
+    if (!resource_type_layout.is_none()) {
+        // Note: nanobind can't try cast to a ref counted pointer, however the reflection
+        // cursor code below needs to ensure it maintains a reference to the type layout if
+        // returned, so we attempt to convert to the raw ptr here, and then immediately
+        // store it in a local ref counted ptr.
+        if (const TypeLayoutReflection* resolved_struct_type_ptr;
+            nb::try_cast(resource_type_layout, resolved_struct_type_ptr)) {
+            resolved_resource_type_layout = ref<const TypeLayoutReflection>(resolved_struct_type_ptr);
+        }
+        // If this is a reflection cursor, get type layout from it
+        else if (ReflectionCursor reflection_cursor; nb::try_cast(resource_type_layout, reflection_cursor)) {
+            resolved_resource_type_layout = reflection_cursor.type_layout();
+        }
+        // Otherwise we got an invalid type
+        else {
+            throw nb::type_error("Expected a TypeLayoutReflection or ReflectionCursor for 'resource_type_layout'");
+        }
+        if (resolved_resource_type_layout->kind() != TypeReflection::Kind::resource
+            || resolved_resource_type_layout->type()->resource_shape()
+                != TypeReflection::ResourceShape::structured_buffer) {
+            throw nb::type_error("Expected a TypeLayoutReflection of a structured buffer for 'resource_type_layout'");
+        }
+    }
+
+    return device->create_buffer({
+        .size = size,
+        .element_count = element_count,
+        .struct_size = struct_size,
+        .resource_type_layout = resolved_resource_type_layout,
+        .format = format,
+        .memory_type = memory_type,
+        .usage = usage,
+        .default_state = default_state,
+        .label = std::move(label),
+        .data = data ? data->data() : nullptr,
+        .data_size = data ? data->nbytes() : 0,
+    });
+}
+
+/// Helper for create_texture kwargs binding (shared by Device and free-standing).
+static ref<Texture> create_texture_from_kwargs(
+    Device* device,
+    TextureType type,
+    Format format,
+    uint32_t width,
+    uint32_t height,
+    uint32_t depth,
+    uint32_t array_length,
+    uint32_t mip_count,
+    uint32_t sample_count,
+    uint32_t sample_quality,
+    MemoryType memory_type,
+    TextureUsage usage,
+    ResourceState default_state,
+    ref<Sampler> sampler,
+    std::string label,
+    std::optional<nb::ndarray<nb::numpy>> data
+)
+{
+    SubresourceData subresourceData[1];
+    if (data) {
+        SGL_CHECK(array_length == 1, "Texture arrays cannot be populated on construction - use upload_texture_data");
+        SGL_CHECK(
+            type != TextureType::texture_cube && type != TextureType::texture_cube_array,
+            "Cube textures cannot be populated on construction - use upload_texture_data"
+        );
+        SGL_CHECK(is_ndarray_contiguous(*data), "Data is not contiguous.");
+        subresourceData[0].data = data->data();
+        subresourceData[0].size = data->nbytes();
+        subresourceData[0].slice_pitch = subresourceData[0].size / depth;
+        subresourceData[0].row_pitch = subresourceData[0].slice_pitch / height;
+    }
+    return device->create_texture({
+        .type = type,
+        .format = format,
+        .width = width,
+        .height = height,
+        .depth = depth,
+        .array_length = array_length,
+        .mip_count = mip_count,
+        .sample_count = sample_count,
+        .sample_quality = sample_quality,
+        .memory_type = memory_type,
+        .usage = usage,
+        .default_state = default_state,
+        .sampler = std::move(sampler),
+        .label = std::move(label),
+        .data = data ? subresourceData : std::span<SubresourceData>(),
+    });
 }
 
 } // namespace sgl
@@ -212,7 +325,13 @@ SGL_PY_EXPORT(device_device)
         )
         .def_rw("type", &DeviceDesc::type, D(DeviceDesc, type))
         .def_rw("enable_debug_layers", &DeviceDesc::enable_debug_layers, D(DeviceDesc, enable_debug_layers))
+        .def_rw("debug_layers_log_level", &DeviceDesc::debug_layers_log_level, D(DeviceDesc, debug_layers_log_level))
         .def_rw("enable_rhi_validation", &DeviceDesc::enable_rhi_validation, D(DeviceDesc, enable_rhi_validation))
+        .def_rw(
+            "rhi_validation_log_level",
+            &DeviceDesc::rhi_validation_log_level,
+            D(DeviceDesc, rhi_validation_log_level)
+        )
         .def_rw(
             "enable_ray_tracing_validation",
             &DeviceDesc::enable_ray_tracing_validation,
@@ -306,6 +425,11 @@ SGL_PY_EXPORT(device_device)
             "max_shader_visible_samplers",
             &DeviceLimits::max_shader_visible_samplers,
             D(DeviceLimits, max_shader_visible_samplers)
+        )
+        .def_ro(
+            "max_entry_point_uniform_size",
+            &DeviceLimits::max_entry_point_uniform_size,
+            D(DeviceLimits, max_entry_point_uniform_size)
         );
 
     nb::class_<DeviceInfo>(m, "DeviceInfo", D(DeviceInfo))
@@ -346,7 +470,9 @@ SGL_PY_EXPORT(device_device)
         [](Device* self,
            DeviceType type,
            bool enable_debug_layers,
+           LogLevel debug_layers_log_level,
            bool enable_rhi_validation,
+           LogLevel rhi_validation_log_level,
            bool enable_ray_tracing_validation,
            bool enable_aftermath,
            bool enable_cuda_interop,
@@ -365,7 +491,9 @@ SGL_PY_EXPORT(device_device)
             new (self) Device(
                 {.type = type,
                  .enable_debug_layers = enable_debug_layers,
+                 .debug_layers_log_level = debug_layers_log_level,
                  .enable_rhi_validation = enable_rhi_validation,
+                 .rhi_validation_log_level = rhi_validation_log_level,
                  .enable_ray_tracing_validation = enable_ray_tracing_validation,
                  .enable_aftermath = enable_aftermath,
                  .enable_cuda_interop = enable_cuda_interop,
@@ -384,7 +512,9 @@ SGL_PY_EXPORT(device_device)
         },
         "type"_a = DeviceDesc().type,
         "enable_debug_layers"_a = DeviceDesc().enable_debug_layers,
+        "debug_layers_log_level"_a = DeviceDesc().debug_layers_log_level,
         "enable_rhi_validation"_a = DeviceDesc().enable_rhi_validation,
+        "rhi_validation_log_level"_a = DeviceDesc().rhi_validation_log_level,
         "enable_ray_tracing_validation"_a = DeviceDesc().enable_ray_tracing_validation,
         "enable_aftermath"_a = DeviceDesc().enable_aftermath,
         "enable_cuda_interop"_a = DeviceDesc().enable_cuda_interop,
@@ -432,6 +562,28 @@ SGL_PY_EXPORT(device_device)
         "This is useful for multi-GPU scenarios where you need to temporarily\n"
         "switch to a different device's context."
     );
+    device.def(
+        "__enter__",
+        [](Device* self) -> Device*
+        {
+            push_current_device(self);
+            return self;
+        }
+    );
+    device.def(
+        "__exit__",
+        [](Device* self, nb::object /*exc_type*/, nb::object /*exc_val*/, nb::object /*exc_tb*/)
+        {
+            // Only pop if this device is on top of the stack to avoid
+            // popping the wrong device when the stack was mutated.
+            if (current_device() == self)
+                pop_current_device();
+        },
+        "exc_type"_a.none(),
+        "exc_val"_a.none(),
+        "exc_tb"_a.none()
+    );
+
     device.def("has_feature", &Device::has_feature, "feature"_a, D(Device, has_feature));
     device.def("has_capability", &Device::has_capability, "capability"_a, D(Device, has_capability));
     device.def("get_format_support", &Device::get_format_support, "format"_a, D(Device, get_format_support));
@@ -470,53 +622,19 @@ SGL_PY_EXPORT(device_device)
            std::string label,
            std::optional<nb::ndarray<nb::numpy>> data)
         {
-            if (data) {
-                SGL_CHECK(is_ndarray_contiguous(*data), "Data is not contiguous.");
-            }
-
-            ref<const TypeLayoutReflection> resolved_resource_type_layout;
-            if (!resource_type_layout.is_none()) {
-                // Note: nanobind can't try cast to a ref counted pointer, however the reflection
-                // cursor code below needs to ensure it maintains a reference to the type layout if
-                // returned, so we attempt to convert to the raw ptr here, and then immediately
-                // store it in a local ref counted ptr.
-                if (const TypeLayoutReflection* resolved_struct_type_ptr;
-                    nb::try_cast(resource_type_layout, resolved_struct_type_ptr)) {
-                    resolved_resource_type_layout = ref<const TypeLayoutReflection>(resolved_struct_type_ptr);
-                }
-                // If this is a reflection cursor, get type layout from it
-                else if (ReflectionCursor reflection_cursor; nb::try_cast(resource_type_layout, reflection_cursor)) {
-
-                    resolved_resource_type_layout = reflection_cursor.type_layout();
-                }
-                // Otherwise we got an invalid type
-                else {
-                    throw nb::type_error(
-                        "Expected a TypeLayoutReflection or ReflectionCursor for 'resource_type_layout'"
-                    );
-                }
-                if (resolved_resource_type_layout->kind() != TypeReflection::Kind::resource
-                    || resolved_resource_type_layout->type()->resource_shape()
-                        != TypeReflection::ResourceShape::structured_buffer) {
-                    throw nb::type_error(
-                        "Expected a TypeLayoutReflection of a structured buffer for 'resource_type_layout'"
-                    );
-                }
-            }
-
-            return self->create_buffer({
-                .size = size,
-                .element_count = element_count,
-                .struct_size = struct_size,
-                .resource_type_layout = resolved_resource_type_layout,
-                .format = format,
-                .memory_type = memory_type,
-                .usage = usage,
-                .default_state = default_state,
-                .label = std::move(label),
-                .data = data ? data->data() : nullptr,
-                .data_size = data ? data->nbytes() : 0,
-            });
+            return create_buffer_from_kwargs(
+                self,
+                size,
+                element_count,
+                struct_size,
+                std::move(resource_type_layout),
+                format,
+                memory_type,
+                usage,
+                default_state,
+                std::move(label),
+                std::move(data)
+            );
         },
         "size"_a = BufferDesc().size,
         "element_count"_a = BufferDesc().element_count,
@@ -530,15 +648,7 @@ SGL_PY_EXPORT(device_device)
         "data"_a.none() = nb::none(),
         D(Device, create_buffer)
     );
-    device.def(
-        "create_buffer",
-        [](Device* self, const BufferDesc& desc)
-        {
-            return self->create_buffer(desc);
-        },
-        "desc"_a,
-        D(Device, create_buffer)
-    );
+    device.def("create_buffer", &Device::create_buffer, "desc"_a, D(Device, create_buffer));
 
     device.def(
         "create_texture",
@@ -559,39 +669,24 @@ SGL_PY_EXPORT(device_device)
            std::string label,
            std::optional<nb::ndarray<nb::numpy>> data)
         {
-            SubresourceData subresourceData[1];
-            if (data) {
-                SGL_CHECK(
-                    array_length == 1,
-                    "Texture arrays cannot be populated on construction - use upload_texture_data"
-                );
-                SGL_CHECK(
-                    type != TextureType::texture_cube && type != TextureType::texture_cube_array,
-                    "Cube textures cannot be populated on construction - use upload_texture_data"
-                );
-                SGL_CHECK(is_ndarray_contiguous(*data), "Data is not contiguous.");
-                subresourceData[0].data = data->data();
-                subresourceData[0].size = data->nbytes();
-                subresourceData[0].slice_pitch = subresourceData[0].size / depth;
-                subresourceData[0].row_pitch = subresourceData[0].slice_pitch / height;
-            }
-            return self->create_texture({
-                .type = type,
-                .format = format,
-                .width = width,
-                .height = height,
-                .depth = depth,
-                .array_length = array_length,
-                .mip_count = mip_count,
-                .sample_count = sample_count,
-                .sample_quality = sample_quality,
-                .memory_type = memory_type,
-                .usage = usage,
-                .default_state = default_state,
-                .sampler = std::move(sampler),
-                .label = std::move(label),
-                .data = data ? subresourceData : std::span<SubresourceData>(),
-            });
+            return create_texture_from_kwargs(
+                self,
+                type,
+                format,
+                width,
+                height,
+                depth,
+                array_length,
+                mip_count,
+                sample_count,
+                sample_quality,
+                memory_type,
+                usage,
+                default_state,
+                std::move(sampler),
+                std::move(label),
+                std::move(data)
+            );
         },
         "type"_a = TextureDesc().type,
         "format"_a = TextureDesc().format,
@@ -610,15 +705,7 @@ SGL_PY_EXPORT(device_device)
         "data"_a.none() = nb::none(),
         D(Device, create_texture)
     );
-    device.def(
-        "create_texture",
-        [](Device* self, const TextureDesc& desc)
-        {
-            return self->create_texture(desc);
-        },
-        "desc"_a,
-        D(Device, create_texture)
-    );
+    device.def("create_texture", &Device::create_texture, "desc"_a, D(Device, create_texture));
 
     device.def(
         "create_sampler",
@@ -767,10 +854,15 @@ SGL_PY_EXPORT(device_device)
     );
     device.def(
         "create_acceleration_structure",
-        [](Device* self, size_t size, std::string label)
+        [](Device* self, AccelerationStructureKind kind, size_t size, std::string label)
         {
-            return self->create_acceleration_structure({.size = size, .label = std::move(label)});
+            return self->create_acceleration_structure({
+                .kind = kind,
+                .size = size,
+                .label = std::move(label),
+            });
         },
+        "kind"_a = AccelerationStructureDesc().kind,
         "size"_a = AccelerationStructureDesc().size,
         "label"_a = AccelerationStructureDesc().label,
         D(Device, create_acceleration_structure)
@@ -902,6 +994,14 @@ SGL_PY_EXPORT(device_device)
         "source"_a,
         "path"_a.none() = nb::none(),
         D(Device, load_module_from_source)
+    );
+    device.def(
+        "compose_modules",
+        &Device::compose_modules,
+        "name"_a,
+        "modules"_a,
+        "type_conformances"_a = std::span<const TypeConformance>{},
+        D(Device, compose_modules)
     );
     device.def(
         "link_program",
@@ -1098,5 +1198,545 @@ SGL_PY_EXPORT(device_device)
         "get_cuda_current_context_native_handles",
         get_cuda_current_context_native_handles,
         D(get_cuda_current_context_native_handles)
+    );
+
+    m.def("push_current_device", &push_current_device, "device"_a, D(push_current_device));
+    m.def("pop_current_device", &pop_current_device, D(pop_current_device));
+    m.def("current_device", &current_device, nb::rv_policy::reference, D(current_device));
+
+    // Free-standing device API functions.
+
+    m.def(
+        "create_surface",
+        [](ref<Window> window)
+        {
+            return create_surface(window);
+        },
+        "window"_a,
+        D(create_surface)
+    );
+    m.def("create_surface", nb::overload_cast<WindowHandle>(&create_surface), "window_handle"_a, D(create_surface, 2));
+
+    m.def(
+        "create_buffer",
+        [](size_t size,
+           size_t element_count,
+           size_t struct_size,
+           nb::object resource_type_layout,
+           Format format,
+           MemoryType memory_type,
+           BufferUsage usage,
+           ResourceState default_state,
+           std::string label,
+           std::optional<nb::ndarray<nb::numpy>> data)
+        {
+            return create_buffer_from_kwargs(
+                current_device(),
+                size,
+                element_count,
+                struct_size,
+                std::move(resource_type_layout),
+                format,
+                memory_type,
+                usage,
+                default_state,
+                std::move(label),
+                std::move(data)
+            );
+        },
+        "size"_a = BufferDesc().size,
+        "element_count"_a = BufferDesc().element_count,
+        "struct_size"_a = BufferDesc().struct_size,
+        "resource_type_layout"_a.none() = nb::none(),
+        "format"_a = BufferDesc().format,
+        "memory_type"_a = BufferDesc().memory_type,
+        "usage"_a = BufferDesc().usage,
+        "default_state"_a = BufferDesc().default_state,
+        "label"_a = BufferDesc().label,
+        "data"_a.none() = nb::none(),
+        D(create_buffer)
+    );
+    m.def("create_buffer", nb::overload_cast<BufferDesc>(&create_buffer), "desc"_a, D(create_buffer));
+
+    m.def(
+        "create_texture",
+        [](TextureType type,
+           Format format,
+           uint32_t width,
+           uint32_t height,
+           uint32_t depth,
+           uint32_t array_length,
+           uint32_t mip_count,
+           uint32_t sample_count,
+           uint32_t sample_quality,
+           MemoryType memory_type,
+           TextureUsage usage,
+           ResourceState default_state,
+           ref<Sampler> sampler,
+           std::string label,
+           std::optional<nb::ndarray<nb::numpy>> data)
+        {
+            return create_texture_from_kwargs(
+                current_device(),
+                type,
+                format,
+                width,
+                height,
+                depth,
+                array_length,
+                mip_count,
+                sample_count,
+                sample_quality,
+                memory_type,
+                usage,
+                default_state,
+                std::move(sampler),
+                std::move(label),
+                std::move(data)
+            );
+        },
+        "type"_a = TextureDesc().type,
+        "format"_a = TextureDesc().format,
+        "width"_a = TextureDesc().width,
+        "height"_a = TextureDesc().height,
+        "depth"_a = TextureDesc().depth,
+        "array_length"_a = TextureDesc().array_length,
+        "mip_count"_a = TextureDesc().mip_count,
+        "sample_count"_a = TextureDesc().sample_count,
+        "sample_quality"_a = TextureDesc().sample_quality,
+        "memory_type"_a = TextureDesc().memory_type,
+        "usage"_a = TextureDesc().usage,
+        "default_state"_a = TextureDesc().default_state,
+        "sampler"_a.none() = nb::none(),
+        "label"_a = TextureDesc().label,
+        "data"_a.none() = nb::none(),
+        D(create_texture)
+    );
+    m.def("create_texture", nb::overload_cast<TextureDesc>(&create_texture), "desc"_a, D(create_texture));
+
+    m.def(
+        "create_sampler",
+        [](TextureFilteringMode min_filter,
+           TextureFilteringMode mag_filter,
+           TextureFilteringMode mip_filter,
+           TextureReductionOp reduction_op,
+           TextureAddressingMode address_u,
+           TextureAddressingMode address_v,
+           TextureAddressingMode address_w,
+           float mip_lod_bias,
+           uint32_t max_anisotropy,
+           ComparisonFunc comparison_func,
+           float4 border_color,
+           float min_lod,
+           float max_lod,
+           std::string label)
+        {
+            return create_sampler({
+                .min_filter = min_filter,
+                .mag_filter = mag_filter,
+                .mip_filter = mip_filter,
+                .reduction_op = reduction_op,
+                .address_u = address_u,
+                .address_v = address_v,
+                .address_w = address_w,
+                .mip_lod_bias = mip_lod_bias,
+                .max_anisotropy = max_anisotropy,
+                .comparison_func = comparison_func,
+                .border_color = border_color,
+                .min_lod = min_lod,
+                .max_lod = max_lod,
+                .label = std::move(label),
+            });
+        },
+        "min_filter"_a = SamplerDesc().min_filter,
+        "mag_filter"_a = SamplerDesc().mag_filter,
+        "mip_filter"_a = SamplerDesc().mip_filter,
+        "reduction_op"_a = SamplerDesc().reduction_op,
+        "address_u"_a = SamplerDesc().address_u,
+        "address_v"_a = SamplerDesc().address_v,
+        "address_w"_a = SamplerDesc().address_w,
+        "mip_lod_bias"_a = SamplerDesc().mip_lod_bias,
+        "max_anisotropy"_a = SamplerDesc().max_anisotropy,
+        "comparison_func"_a = SamplerDesc().comparison_func,
+        "border_color"_a = SamplerDesc().border_color,
+        "min_lod"_a = SamplerDesc().min_lod,
+        "max_lod"_a = SamplerDesc().max_lod,
+        "label"_a = SamplerDesc().label,
+        D(create_sampler)
+    );
+    m.def("create_sampler", nb::overload_cast<SamplerDesc>(&create_sampler), "desc"_a, D(create_sampler));
+
+    m.def(
+        "create_fence",
+        [](uint64_t initial_value, bool shared)
+        {
+            return create_fence({.initial_value = initial_value, .shared = shared});
+        },
+        "initial_value"_a = FenceDesc().initial_value,
+        "shared"_a = FenceDesc().shared,
+        D(create_fence)
+    );
+    m.def("create_fence", nb::overload_cast<FenceDesc>(&create_fence), "desc"_a, D(create_fence));
+
+    m.def(
+        "create_query_pool",
+        [](QueryType type, uint32_t count)
+        {
+            return create_query_pool({.type = type, .count = count});
+        },
+        "type"_a,
+        "count"_a,
+        D(create_query_pool)
+    );
+    m.def("create_query_pool", nb::overload_cast<QueryPoolDesc>(&create_query_pool), "desc"_a, D(create_query_pool));
+
+    m.def(
+        "create_input_layout",
+        [](std::vector<InputElementDesc> input_elements, std::vector<VertexStreamDesc> vertex_streams)
+        {
+            return create_input_layout({
+                .input_elements = std::move(input_elements),
+                .vertex_streams = std::move(vertex_streams),
+            });
+        },
+        "input_elements"_a,
+        "vertex_streams"_a,
+        D(create_input_layout)
+    );
+    m.def(
+        "create_input_layout",
+        nb::overload_cast<InputLayoutDesc>(&create_input_layout),
+        "desc"_a,
+        D(create_input_layout)
+    );
+
+    m.def(
+        "create_command_encoder",
+        &create_command_encoder,
+        "queue"_a = CommandQueueType::graphics,
+        D(create_command_encoder)
+    );
+
+    m.def(
+        "get_acceleration_structure_sizes",
+        &get_acceleration_structure_sizes,
+        "desc"_a,
+        D(get_acceleration_structure_sizes)
+    );
+    m.def(
+        "create_acceleration_structure",
+        [](AccelerationStructureKind kind, size_t size, std::string label)
+        {
+            return create_acceleration_structure({
+                .kind = kind,
+                .size = size,
+                .label = std::move(label),
+            });
+        },
+        "kind"_a = AccelerationStructureDesc().kind,
+        "size"_a = AccelerationStructureDesc().size,
+        "label"_a = AccelerationStructureDesc().label,
+        D(create_acceleration_structure)
+    );
+    m.def(
+        "create_acceleration_structure",
+        nb::overload_cast<AccelerationStructureDesc>(&create_acceleration_structure),
+        "desc"_a,
+        D(create_acceleration_structure)
+    );
+    m.def(
+        "create_acceleration_structure_instance_list",
+        nb::overload_cast<size_t>(&create_acceleration_structure_instance_list),
+        "size"_a,
+        D(create_acceleration_structure_instance_list)
+    );
+    m.def(
+        "create_shader_table",
+        [](ref<ShaderProgram> program,
+           std::vector<std::string> ray_gen_entry_points,
+           std::vector<std::string> miss_entry_points,
+           std::vector<std::string> hit_group_names,
+           std::vector<std::string> callable_entry_points)
+        {
+            return create_shader_table({
+                .program = std::move(program),
+                .ray_gen_entry_points = std::move(ray_gen_entry_points),
+                .miss_entry_points = std::move(miss_entry_points),
+                .hit_group_names = std::move(hit_group_names),
+                .callable_entry_points = std::move(callable_entry_points),
+            });
+        },
+        "program"_a,
+        "ray_gen_entry_points"_a = std::vector<std::string>{},
+        "miss_entry_points"_a = std::vector<std::string>{},
+        "hit_group_names"_a = std::vector<std::string>{},
+        "callable_entry_points"_a = std::vector<std::string>{},
+        D(create_shader_table)
+    );
+    m.def(
+        "create_shader_table",
+        nb::overload_cast<ShaderTableDesc>(&create_shader_table),
+        "desc"_a,
+        D(create_shader_table)
+    );
+
+    m.def(
+        "get_coop_vec_matrix_size",
+        &get_coop_vec_matrix_size,
+        "rows"_a,
+        "cols"_a,
+        "layout"_a,
+        "element_type"_a,
+        "row_col_stride"_a = 0,
+        D(get_coop_vec_matrix_size)
+    );
+    m.def(
+        "create_coop_vec_matrix_desc",
+        &create_coop_vec_matrix_desc,
+        "rows"_a,
+        "cols"_a,
+        "layout"_a,
+        "element_type"_a,
+        "offset"_a = 0,
+        "row_col_stride"_a = 0,
+        D(create_coop_vec_matrix_desc)
+    );
+    m.def(
+        "convert_coop_vec_matrices",
+        [](nb::bytearray dst,
+           std::span<CoopVecMatrixDesc> dst_descs,
+           nb::bytes src,
+           std::span<CoopVecMatrixDesc> src_descs)
+        {
+            convert_coop_vec_matrices(dst.data(), dst.size(), dst_descs, src.data(), src.size(), src_descs);
+        },
+        "dst"_a,
+        "dst_descs"_a,
+        "src"_a,
+        "src_descs"_a,
+        D(convert_coop_vec_matrices)
+    );
+    m.def(
+        "convert_coop_vec_matrix",
+        [](nb::bytearray dst, const CoopVecMatrixDesc& dst_desc, nb::bytes src, const CoopVecMatrixDesc& src_desc)
+        {
+            convert_coop_vec_matrix(dst.data(), dst.size(), dst_desc, src.data(), src.size(), src_desc);
+        },
+        "dst"_a,
+        "dst_desc"_a,
+        "src"_a,
+        "src_desc"_a,
+        D(convert_coop_vec_matrix)
+    );
+    m.def(
+        "convert_coop_vec_matrix",
+        [](nb::ndarray<nb::device::cpu> dst,
+           nb::ndarray<nb::device::cpu> src,
+           std::optional<CoopVecMatrixLayout> dst_layout,
+           std::optional<CoopVecMatrixLayout> src_layout)
+        {
+            convert_coop_vec_matrix_ndarray(current_device(), dst, src, dst_layout, src_layout);
+        },
+        "dst"_a,
+        "src"_a,
+        "dst_layout"_a = nb::none(),
+        "src_layout"_a = nb::none(),
+        D(convert_coop_vec_matrix)
+    );
+
+    m.def(
+        "create_slang_session",
+        [](std::optional<SlangCompilerOptions> compiler_options,
+           bool add_default_include_paths,
+           std::optional<std::filesystem::path> cache_path)
+        {
+            return create_slang_session(
+                SlangSessionDesc{
+                    .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
+                    .add_default_include_paths = add_default_include_paths,
+                    .cache_path = cache_path,
+                }
+            );
+        },
+        "compiler_options"_a.none() = nb::none(),
+        "add_default_include_paths"_a = SlangSessionDesc().add_default_include_paths,
+        "cache_path"_a.none() = nb::none(),
+        D(create_slang_session)
+    );
+    m.def(
+        "create_slang_session",
+        nb::overload_cast<SlangSessionDesc>(&create_slang_session),
+        "desc"_a,
+        D(create_slang_session)
+    );
+    m.def("load_module", nb::overload_cast<std::string_view>(&load_module), "module_name"_a, D(load_module));
+    m.def(
+        "load_module_from_source",
+        &load_module_from_source,
+        "module_name"_a,
+        "source"_a,
+        "path"_a.none() = nb::none(),
+        D(load_module_from_source)
+    );
+    m.def(
+        "compose_modules",
+        &compose_modules,
+        "name"_a,
+        "modules"_a,
+        "type_conformances"_a = std::span<const TypeConformance>{},
+        D(compose_modules)
+    );
+    m.def(
+        "link_program",
+        &link_program,
+        "modules"_a,
+        "entry_points"_a,
+        "link_options"_a.none() = nb::none(),
+        D(link_program)
+    );
+    m.def(
+        "load_program",
+        &load_program,
+        "module_name"_a,
+        "entry_point_names"_a,
+        "additional_source"_a.none() = nb::none(),
+        "link_options"_a.none() = nb::none(),
+        D(load_program)
+    );
+
+    m.def("create_root_shader_object", &create_root_shader_object, "shader_program"_a, D(create_root_shader_object));
+    m.def(
+        "create_shader_object",
+        [](ref<TypeLayoutReflection> type_layout)
+        {
+            return create_shader_object(type_layout.get());
+        },
+        "type_layout"_a,
+        D(create_shader_object)
+    );
+    m.def(
+        "create_shader_object",
+        nb::overload_cast<ReflectionCursor>(&create_shader_object),
+        "cursor"_a,
+        D(create_shader_object, 2)
+    );
+
+    m.def(
+        "create_compute_pipeline",
+        [](ref<ShaderProgram> program, bool defer_target_compilation, std::optional<std::string> label)
+        {
+            return create_compute_pipeline({
+                .program = std::move(program),
+                .defer_target_compilation = defer_target_compilation,
+                .label = label.value_or(""),
+            });
+        },
+        "program"_a,
+        "defer_target_compilation"_a = ComputePipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
+        D(create_compute_pipeline)
+    );
+    m.def(
+        "create_compute_pipeline",
+        nb::overload_cast<ComputePipelineDesc>(&create_compute_pipeline),
+        "desc"_a,
+        D(create_compute_pipeline)
+    );
+
+    m.def(
+        "create_render_pipeline",
+        [](ref<ShaderProgram> program,
+           ref<InputLayout> input_layout,
+           PrimitiveTopology primitive_topology,
+           std::vector<ColorTargetDesc> targets,
+           std::optional<DepthStencilDesc> depth_stencil,
+           std::optional<RasterizerDesc> rasterizer,
+           std::optional<MultisampleDesc> multisample,
+           bool defer_target_compilation,
+           std::optional<std::string> label)
+        {
+            return create_render_pipeline(
+                {.program = std::move(program),
+                 .input_layout = std::move(input_layout),
+                 .primitive_topology = primitive_topology,
+                 .targets = targets,
+                 .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),
+                 .rasterizer = rasterizer.value_or(RasterizerDesc{}),
+                 .multisample = multisample.value_or(MultisampleDesc{}),
+                 .defer_target_compilation = defer_target_compilation,
+                 .label = label.value_or("")}
+            );
+        },
+        "program"_a,
+        "input_layout"_a.none(),
+        "primitive_topology"_a = RenderPipelineDesc().primitive_topology,
+        "targets"_a = std::vector<ColorTargetDesc>{},
+        "depth_stencil"_a.none() = nb::none(),
+        "rasterizer"_a.none() = nb::none(),
+        "multisample"_a.none() = nb::none(),
+        "defer_target_compilation"_a = RenderPipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
+        D(create_render_pipeline)
+    );
+    m.def(
+        "create_render_pipeline",
+        nb::overload_cast<RenderPipelineDesc>(&create_render_pipeline),
+        "desc"_a,
+        D(create_render_pipeline)
+    );
+
+    m.def(
+        "create_ray_tracing_pipeline",
+        [](ref<ShaderProgram> program,
+           std::vector<HitGroupDesc> hit_groups,
+           uint32_t max_recursion,
+           uint32_t max_ray_payload_size,
+           uint32_t max_attribute_size,
+           RayTracingPipelineFlags flags,
+           bool defer_target_compilation,
+           std::optional<std::string> label)
+        {
+            return create_ray_tracing_pipeline({
+                .program = std::move(program),
+                .hit_groups = std::move(hit_groups),
+                .max_recursion = max_recursion,
+                .max_ray_payload_size = max_ray_payload_size,
+                .max_attribute_size = max_attribute_size,
+                .flags = flags,
+                .defer_target_compilation = defer_target_compilation,
+                .label = label.value_or(""),
+            });
+        },
+        "program"_a,
+        "hit_groups"_a,
+        "max_recursion"_a = RayTracingPipelineDesc().max_recursion,
+        "max_ray_payload_size"_a = RayTracingPipelineDesc().max_ray_payload_size,
+        "max_attribute_size"_a = RayTracingPipelineDesc().max_attribute_size,
+        "flags"_a = RayTracingPipelineDesc().flags,
+        "defer_target_compilation"_a = RayTracingPipelineDesc().defer_target_compilation,
+        "label"_a.none() = nb::none(),
+        D(create_ray_tracing_pipeline)
+    );
+    m.def(
+        "create_ray_tracing_pipeline",
+        nb::overload_cast<RayTracingPipelineDesc>(&create_ray_tracing_pipeline),
+        "desc"_a,
+        D(create_ray_tracing_pipeline)
+    );
+
+    m.def(
+        "create_compute_kernel",
+        [](ref<ShaderProgram> program)
+        {
+            return create_compute_kernel({.program = std::move(program)});
+        },
+        "program"_a,
+        D(create_compute_kernel)
+    );
+    m.def(
+        "create_compute_kernel",
+        nb::overload_cast<ComputeKernelDesc>(&create_compute_kernel),
+        "desc"_a,
+        D(create_compute_kernel)
     );
 }

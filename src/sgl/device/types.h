@@ -212,6 +212,8 @@ struct SGL_API DescriptorHandle {
     DescriptorHandleType type{DescriptorHandleType::undefined};
     uint64_t value{0};
 
+    DescriptorHandle() = default;
+
     explicit DescriptorHandle(const rhi::DescriptorHandle& handle)
     {
         type = static_cast<DescriptorHandleType>(handle.type);
@@ -687,7 +689,7 @@ enum class RenderTargetWriteMask : uint8_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(RenderTargetWriteMask);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     RenderTargetWriteMask,
     {
         {RenderTargetWriteMask::none, "none"},
@@ -793,7 +795,7 @@ enum class RayTracingPipelineFlags : uint8_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(RayTracingPipelineFlags);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     RayTracingPipelineFlags,
     {
         {RayTracingPipelineFlags::none, "none"},

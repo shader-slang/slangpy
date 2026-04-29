@@ -32,6 +32,20 @@ void copy_tensorview_float4(TensorView<float4> input, TensorView<float4> output)
         output.store(i, input.load(i));
 }
 
+// Copy bool elements between TensorView<bool>.
+void copy_tensorview_bool(TensorView<bool> input, TensorView<bool> output)
+{
+    for (uint i = 0; i < input.size(0); i++)
+        output.store(i, input.load(i));
+}
+
+// Negate bool elements: output[i] = !input[i].
+void negate_tensorview_bool(TensorView<bool> input, TensorView<bool> output)
+{
+    for (uint i = 0; i < input.size(0); i++)
+        output.store(i, !input.load(i));
+}
+
 // CUDAKernel that fills thread IDs - requires _thread_count to dispatch.
 [CUDAKernel]
 void fill_thread_ids(uint count, TensorView<int> output)

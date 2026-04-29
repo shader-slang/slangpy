@@ -173,6 +173,8 @@ void wait_external_semaphore(CUexternalSemaphore ext_sem, uint64_t value, CUstre
 
 inline int find_device_by_luid(int device_count, const AdapterLUID& luid)
 {
+    SGL_UNUSED(luid);
+
     for (int i = 0; i < device_count; ++i) {
         CUdevice device;
         SGL_CU_CHECK(cuDeviceGet(&device, i));
@@ -383,7 +385,7 @@ ContextScope::ContextScope(const sgl::Device* device)
         // If this is a CUDA device, set it's context.
         // TODO: We could cache the CUcontext instead of fetching it each time!
         rhi::DeviceNativeHandles handles;
-        SLANG_RHI_CALL(device->rhi_device()->getNativeDeviceHandles(&handles));
+        SLANG_RHI_CALL(device->rhi_device()->getNativeDeviceHandles(&handles), device);
         SGL_ASSERT(handles.handles[2].type == rhi::NativeHandleType::CUcontext);
         SGL_CU_CHECK(cuCtxPushCurrent(reinterpret_cast<CUcontext>(handles.handles[2].value)));
     } else {

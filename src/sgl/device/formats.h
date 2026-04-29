@@ -245,7 +245,7 @@ enum class FormatChannels : uint32_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(FormatChannels);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     FormatChannels,
     {
         {FormatChannels::none, "none"},
@@ -364,7 +364,7 @@ enum class FormatSupport : uint32_t {
 };
 SGL_ENUM_CLASS_OPERATORS(FormatSupport);
 
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     FormatSupport,
     {
         {FormatSupport::none, "none"},

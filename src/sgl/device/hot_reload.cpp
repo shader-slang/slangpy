@@ -71,8 +71,8 @@ void HotReload::set_auto_detect_delay(uint32_t delay_ms)
 
 void HotReload::recreate_all_sessions()
 {
-    // Notify reflection system to clear all reflection data
-    detail::invalidate_all_reflection_data();
+    // Notify reflection system to clear reflection data for this device.
+    detail::invalidate_reflection_data(m_device);
 
     // Iterate over sessions and build each one. This is in a try/catch
     // statement as we don't want programs to except as a result

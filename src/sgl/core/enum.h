@@ -23,6 +23,7 @@ template<typename T>
 concept is_enum_info = requires(T v) {
     { v.name } -> std::same_as<const char* const&>;
     { v.items[0] } -> std::same_as<const std::pair<typename T::enum_type, const char*>&>;
+    { T::is_flags } -> std::same_as<const bool&>;
 };
 
 template<typename T>
@@ -91,6 +92,7 @@ inline bool enum_has_value(std::string_view name)
  * Convert an flags enum value to a list of strings.
  */
 template<has_enum_info T>
+    requires(EnumInfo<T>::is_flags)
 inline std::vector<std::string> flags_to_string_list(T flags)
 {
     std::vector<std::string> list;
@@ -109,6 +111,7 @@ inline std::vector<std::string> flags_to_string_list(T flags)
  * Throws if any of the strings are not found in the registered enum information.
  */
 template<has_enum_info T>
+    requires(EnumInfo<T>::is_flags)
 inline T string_list_to_flags(const std::vector<std::string>& list)
 {
     T flags = T(0);
@@ -165,11 +168,34 @@ namespace detail {
  *     { Foo::B, "B" },
  *     { Foo::C, "C" },
  * })
+ *
+ * For flag enums (bitwise combinable), use SGL_ENUM_FLAGS_INFO instead.
  */
 #define SGL_ENUM_INFO(T, ...)                                                                                          \
     struct T##_info {                                                                                                  \
         using enum_type = T;                                                                                           \
         static constexpr const char* name{#T};                                                                         \
+        static constexpr bool is_flags{false};                                                                         \
+        static constexpr std::array<std::pair<T, const char*>, std::size<std::pair<T, const char*>>(__VA_ARGS__)>      \
+            items{__VA_ARGS__};                                                                                        \
+    };
+
+/**
+ * Define enum information for a flags enum (bitwise combinable values).
+ * Identical to SGL_ENUM_INFO but marks the enum as a flags type.
+ *
+ * enum class FooFlags { A = 1 << 0, B = 1 << 1 };
+ * SGL_ENUM_CLASS_OPERATORS(FooFlags);
+ * SGL_ENUM_FLAGS_INFO(FooFlags, {
+ *     { FooFlags::A, "A" },
+ *     { FooFlags::B, "B" },
+ * })
+ */
+#define SGL_ENUM_FLAGS_INFO(T, ...)                                                                                    \
+    struct T##_info {                                                                                                  \
+        using enum_type = T;                                                                                           \
+        static constexpr const char* name{#T};                                                                         \
+        static constexpr bool is_flags{true};                                                                          \
         static constexpr std::array<std::pair<T, const char*>, std::size<std::pair<T, const char*>>(__VA_ARGS__)>      \
             items{__VA_ARGS__};                                                                                        \
     };

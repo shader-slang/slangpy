@@ -43,6 +43,7 @@ namespace sgl {
 
 static std::vector<Device*> s_devices;
 static std::mutex s_devices_mutex;
+static thread_local std::vector<Device*> s_tls_current_device_stack;
 
 inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
 {
@@ -69,7 +70,10 @@ Device::Device(const DeviceDesc& desc)
 
     // Setup path for slang's downstream compilers.
     for (SlangPassThrough pass_through :
-         {SLANG_PASS_THROUGH_DXC, SLANG_PASS_THROUGH_GLSLANG, SLANG_PASS_THROUGH_SPIRV_OPT}) {
+         {SLANG_PASS_THROUGH_DXC,
+          SLANG_PASS_THROUGH_GLSLANG,
+          SLANG_PASS_THROUGH_SPIRV_OPT,
+          SLANG_PASS_THROUGH_SPIRV_DIS}) {
         m_global_session->setDownstreamCompilerPath(pass_through, platform::runtime_directory().string().c_str());
     }
 
@@ -207,6 +211,8 @@ Device::Device(const DeviceDesc& desc)
         .accelerationStructureCount = m_desc.bindless_options.acceleration_structure_count,
     };
 
+    m_debug_logger = std::make_unique<DebugLogger>(m_desc.rhi_validation_log_level, m_desc.debug_layers_log_level);
+
     rhi::DeviceDesc rhi_desc{
         .next = &d3d12_extended_desc,
         .deviceType = static_cast<rhi::DeviceType>(m_desc.type),
@@ -228,7 +234,7 @@ Device::Device(const DeviceDesc& desc)
         .enableValidation = m_desc.enable_rhi_validation,
         .enableRayTracingValidation = m_desc.enable_ray_tracing_validation,
         .enableAftermath = m_desc.enable_aftermath,
-        .debugCallback = &DebugLogger::get(),
+        .debugCallback = m_debug_logger.get(),
         .enableCompilationReports = m_desc.enable_compilation_reports,
         .bindless = bindless_desc,
     };
@@ -274,6 +280,27 @@ Device::Device(const DeviceDesc& desc)
     );
     m_info.limits.max_shader_visible_samplers = rhi_device_info.limits.maxShaderVisibleSamplers;
 
+    // TODO: These are known safe limits based on API spec, but could be increased based on
+    // platform (eg early Vk==128, CUDA 12.1+ supports 32k etc). Either this or the relevant
+    // information needs to be exposed by slang-rhi.
+    switch (m_desc.type) {
+    case DeviceType::vulkan:
+        // Vulkan spec minimum maxPushConstantsSize is 128 bytes.
+        m_info.limits.max_entry_point_uniform_size = 128;
+        break;
+    case DeviceType::d3d12:
+        // D3D12 root signature allows 64 DWORDs
+        m_info.limits.max_entry_point_uniform_size = 256;
+        break;
+    case DeviceType::cuda:
+        // CUDA kernel parameter block limit pre 12.1 is 4KB.
+        m_info.limits.max_entry_point_uniform_size = 4096;
+        break;
+    default:
+        m_info.limits.max_entry_point_uniform_size = 128;
+        break;
+    }
+
     // Get supported shader model.
     const std::vector<std::pair<ShaderModel, const char*>> available_shader_models = {
         {ShaderModel::sm_6_7, "sm_6_7"},
@@ -310,9 +337,9 @@ Device::Device(const DeviceDesc& desc)
     // Query capabilities.
     {
         uint32_t rhi_capability_count = 0;
-        SLANG_RHI_CALL(m_rhi_device->getCapabilities(&rhi_capability_count, nullptr));
+        SLANG_RHI_CALL(m_rhi_device->getCapabilities(&rhi_capability_count, nullptr), this);
         std::vector<rhi::Capability> rhi_capabilities(rhi_capability_count);
-        SLANG_RHI_CALL(m_rhi_device->getCapabilities(&rhi_capability_count, rhi_capabilities.data()));
+        SLANG_RHI_CALL(m_rhi_device->getCapabilities(&rhi_capability_count, rhi_capabilities.data()), this);
         for (rhi::Capability rhi_capability : rhi_capabilities) {
             std::string capability_name = rhi::getRHI()->getCapabilityName(rhi_capability);
             SlangCapabilityID slang_capability = m_global_session->findCapability(capability_name.c_str());
@@ -323,7 +350,7 @@ Device::Device(const DeviceDesc& desc)
     }
 
     // Create graphics queue.
-    SLANG_RHI_CALL(m_rhi_device->getQueue(rhi::QueueType::Graphics, m_rhi_graphics_queue.writeRef()));
+    SLANG_RHI_CALL(m_rhi_device->getQueue(rhi::QueueType::Graphics, m_rhi_graphics_queue.writeRef()), this);
 
     // Create global fence to synchronize command submission.
     m_global_fence = create_fence({.shared = m_desc.enable_cuda_interop});
@@ -365,6 +392,9 @@ Device::Device(const DeviceDesc& desc)
         std::lock_guard lock(s_devices_mutex);
         s_devices.push_back(this);
     }
+
+    // Auto-push device onto thread-local current device stack.
+    push_current_device(this);
 }
 
 Device::~Device()
@@ -417,7 +447,7 @@ bool Device::has_capability(std::string_view capability) const
 FormatSupport Device::get_format_support(Format format) const
 {
     rhi::FormatSupport rhi_format_support;
-    SLANG_RHI_CALL(m_rhi_device->getFormatSupport(static_cast<rhi::Format>(format), &rhi_format_support));
+    SLANG_RHI_CALL(m_rhi_device->getFormatSupport(static_cast<rhi::Format>(format), &rhi_format_support), this);
     return static_cast<FormatSupport>(rhi_format_support);
 }
 
@@ -425,6 +455,10 @@ void Device::close()
 {
     if (m_closed)
         return;
+
+    // Pop device from thread-local current device stack if it's the current device.
+    if (!s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
+        pop_current_device();
 
     log_debug("Closing device {}", fmt::ptr(this));
 
@@ -535,7 +569,7 @@ AccelerationStructureSizes Device::get_acceleration_structure_sizes(const Accele
 {
     AccelerationStructureBuildDescConverter converter(desc);
     rhi::AccelerationStructureSizes rhi_sizes;
-    SLANG_RHI_CALL(m_rhi_device->getAccelerationStructureSizes(converter.rhi_desc, &rhi_sizes));
+    SLANG_RHI_CALL(m_rhi_device->getAccelerationStructureSizes(converter.rhi_desc, &rhi_sizes), this);
     return {
         .acceleration_structure_size = rhi_sizes.accelerationStructureSize,
         .scratch_size = rhi_sizes.scratchSize,
@@ -567,14 +601,17 @@ size_t Device::get_coop_vec_matrix_size(
 )
 {
     size_t size = 0;
-    SLANG_RHI_CALL(m_rhi_device->getCooperativeVectorMatrixSize(
-        rows,
-        cols,
-        detail::to_rhi_cooperative_vector_component_type(element_type),
-        static_cast<rhi::CooperativeVectorMatrixLayout>(layout),
-        row_col_stride,
-        &size
-    ));
+    SLANG_RHI_CALL(
+        m_rhi_device->getCooperativeVectorMatrixSize(
+            rows,
+            cols,
+            detail::to_rhi_cooperative_vector_component_type(element_type),
+            static_cast<rhi::CooperativeVectorMatrixLayout>(layout),
+            row_col_stride,
+            &size
+        ),
+        this
+    );
     return size;
 }
 
@@ -626,15 +663,18 @@ void Device::convert_coop_vec_matrices(
     for (const CoopVecMatrixDesc& desc : src_descs)
         rhi_src_descs.push_back(detail::to_rhi(desc));
 
-    SLANG_RHI_CALL(m_rhi_device->convertCooperativeVectorMatrix(
-        dst,
-        dst_size,
-        rhi_dst_descs.data(),
-        src,
-        src_size,
-        rhi_src_descs.data(),
-        narrow_cast<uint32_t>(rhi_dst_descs.size())
-    ));
+    SLANG_RHI_CALL(
+        m_rhi_device->convertCooperativeVectorMatrix(
+            dst,
+            dst_size,
+            rhi_dst_descs.data(),
+            src,
+            src_size,
+            rhi_src_descs.data(),
+            narrow_cast<uint32_t>(rhi_dst_descs.size())
+        ),
+        this
+    );
 }
 
 void Device::convert_coop_vec_matrix(
@@ -681,6 +721,15 @@ ref<SlangModule> Device::load_module_from_source(
     return m_slang_session->load_module_from_source(module_name, source, path);
 }
 
+ref<SlangModule> Device::compose_modules(
+    std::string_view name,
+    std::vector<ref<SlangModule>> modules,
+    std::span<const TypeConformance> type_conformances
+)
+{
+    return m_slang_session->compose_modules(name, std::move(modules), type_conformances);
+}
+
 ref<ShaderProgram> Device::link_program(
     std::vector<ref<SlangModule>> modules,
     std::vector<ref<SlangEntryPoint>> entry_points,
@@ -704,7 +753,8 @@ ref<ShaderObject> Device::create_root_shader_object(const ShaderProgram* shader_
 {
     Slang::ComPtr<rhi::IShaderObject> rhi_shader_object;
     SLANG_RHI_CALL(
-        m_rhi_device->createRootShaderObject(shader_program->rhi_shader_program(), rhi_shader_object.writeRef())
+        m_rhi_device->createRootShaderObject(shader_program->rhi_shader_program(), rhi_shader_object.writeRef()),
+        this
     );
 
     ref<ShaderObject> shader_object = make_ref<ShaderObject>(ref<Device>(this), rhi_shader_object);
@@ -719,10 +769,11 @@ ref<ShaderObject> Device::create_root_shader_object(const ShaderProgram* shader_
 ref<ShaderObject> Device::create_shader_object(const TypeLayoutReflection* type_layout)
 {
     Slang::ComPtr<rhi::IShaderObject> rhi_shader_object;
-    SLANG_RHI_CALL(m_rhi_device->createShaderObjectFromTypeLayout(
-        type_layout->get_slang_type_layout(),
-        rhi_shader_object.writeRef()
-    ));
+    SLANG_RHI_CALL(
+        m_rhi_device
+            ->createShaderObjectFromTypeLayout(type_layout->get_slang_type_layout(), rhi_shader_object.writeRef()),
+        this
+    );
 
     return make_ref<ShaderObject>(ref<Device>(this), rhi_shader_object);
 }
@@ -758,7 +809,7 @@ ref<CommandEncoder> Device::create_command_encoder(CommandQueueType queue)
     SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
 
     Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder;
-    SLANG_RHI_CALL(m_rhi_graphics_queue->createCommandEncoder(rhi_command_encoder.writeRef()));
+    SLANG_RHI_CALL(m_rhi_graphics_queue->createCommandEncoder(rhi_command_encoder.writeRef()), this);
     return make_ref<CommandEncoder>(ref(this), rhi_command_encoder);
 }
 
@@ -878,7 +929,7 @@ uint64_t Device::submit_command_buffers(
         .signalFenceCount = narrow_cast<uint32_t>(rhi_signal_fences.size()),
         .cudaStream = cuda_stream_ptr,
     };
-    SLANG_RHI_CALL(m_rhi_graphics_queue->submit(rhi_submit_desc));
+    SLANG_RHI_CALL(m_rhi_graphics_queue->submit(rhi_submit_desc), this);
 
     // Handle CUDA interop.
     if (m_supports_cuda_interop && needs_cuda_sync) {
@@ -940,7 +991,7 @@ void Device::sync_to_cuda(void* cuda_stream)
             .waitFenceCount = 1,
             .cudaStream = cuda_stream,
         };
-        SLANG_RHI_CALL(m_rhi_graphics_queue->submit(submit_desc));
+        SLANG_RHI_CALL(m_rhi_graphics_queue->submit(submit_desc), this);
     }
 }
 
@@ -961,7 +1012,7 @@ void Device::sync_to_device(void* cuda_stream)
             .signalFenceCount = 1,
             .cudaStream = cuda_stream,
         };
-        SLANG_RHI_CALL(m_rhi_graphics_queue->submit(submit_desc));
+        SLANG_RHI_CALL(m_rhi_graphics_queue->submit(submit_desc), this);
 
         // Wait for it on CUDA.
         m_cuda_semaphore->wait(m_global_fence->signaled_value(), CUstream(cuda_stream));
@@ -997,7 +1048,7 @@ void Device::read_buffer_data(const Buffer* buffer, void* data, size_t size, siz
     SGL_CHECK(offset + size <= buffer->size(), "Buffer read is out of bounds");
     SGL_CHECK_NOT_NULL(data);
 
-    SLANG_RHI_CALL(m_rhi_device->readBuffer(buffer->rhi_buffer(), offset, size, data));
+    SLANG_RHI_CALL(m_rhi_device->readBuffer(buffer->rhi_buffer(), offset, size, data), this);
 }
 
 void Device::upload_texture_data(
@@ -1028,7 +1079,7 @@ OwnedSubresourceData Device::read_texture_data(const Texture* texture, uint32_t 
 
     // Query layout information.
     rhi::SubresourceLayout rhi_layout;
-    SLANG_RHI_CALL(texture->rhi_texture()->getSubresourceLayout(mip, &rhi_layout));
+    SLANG_RHI_CALL(texture->rhi_texture()->getSubresourceLayout(mip, &rhi_layout), this);
 
     // Setup owned sub resource data that can contain the results.
     OwnedSubresourceData subresource_data;
@@ -1040,7 +1091,8 @@ OwnedSubresourceData Device::read_texture_data(const Texture* texture, uint32_t 
 
     // Read texture data.
     SLANG_RHI_CALL(
-        m_rhi_device->readTexture(texture->rhi_texture(), layer, mip, rhi_layout, subresource_data.owned_data.get())
+        m_rhi_device->readTexture(texture->rhi_texture(), layer, mip, rhi_layout, subresource_data.owned_data.get()),
+        this
     );
 
     return subresource_data;
@@ -1049,7 +1101,7 @@ OwnedSubresourceData Device::read_texture_data(const Texture* texture, uint32_t 
 std::array<NativeHandle, 3> Device::native_handles() const
 {
     rhi::DeviceNativeHandles handles = {};
-    SLANG_RHI_CALL(m_rhi_device->getNativeDeviceHandles(&handles));
+    SLANG_RHI_CALL(m_rhi_device->getNativeDeviceHandles(&handles), this);
     return {NativeHandle(handles.handles[0]), NativeHandle(handles.handles[1]), NativeHandle(handles.handles[2])};
 }
 
@@ -1057,7 +1109,7 @@ NativeHandle Device::get_native_command_queue_handle(CommandQueueType queue) con
 {
     SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
     rhi::NativeHandle rhi_handle = {};
-    SLANG_RHI_CALL(m_rhi_graphics_queue->getNativeHandle(&rhi_handle));
+    SLANG_RHI_CALL(m_rhi_graphics_queue->getNativeHandle(&rhi_handle), this);
     return NativeHandle(rhi_handle);
 }
 
@@ -1275,6 +1327,291 @@ std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
     handles[1] = NativeHandle(cu_context);
 
     return handles;
+}
+
+// ---------------------------------------------------------------------------
+// Thread-local current device stack
+// ---------------------------------------------------------------------------
+
+void push_current_device(Device* device)
+{
+    SGL_CHECK(device != nullptr, "Cannot push a null device.");
+    s_tls_current_device_stack.push_back(device);
+}
+
+Device* pop_current_device()
+{
+    SGL_CHECK(
+        !s_tls_current_device_stack.empty(),
+        "No device to pop. push_current_device()/pop_current_device() mismatch."
+    );
+    Device* device = s_tls_current_device_stack.back();
+    s_tls_current_device_stack.pop_back();
+    return device;
+}
+
+Device* current_device()
+{
+    SGL_CHECK(
+        !s_tls_current_device_stack.empty(),
+        "No current device. Use push_current_device() or DeviceScope to set one."
+    );
+    return s_tls_current_device_stack.back();
+}
+
+// ---------------------------------------------------------------------------
+// DeviceScope
+// ---------------------------------------------------------------------------
+
+DeviceScope::DeviceScope(Device* device)
+    : m_device(device)
+{
+    push_current_device(device);
+}
+
+DeviceScope::~DeviceScope()
+{
+    if (m_active) {
+        SGL_ASSERT(current_device() == m_device);
+        pop_current_device();
+    }
+}
+
+DeviceScope::DeviceScope(DeviceScope&& other) noexcept
+    : m_device(other.m_device)
+    , m_active(other.m_active)
+{
+    other.m_device = nullptr;
+    other.m_active = false;
+}
+
+DeviceScope& DeviceScope::operator=(DeviceScope&& other) noexcept
+{
+    if (this != &other) {
+        if (m_active) {
+            SGL_ASSERT(current_device() == m_device);
+            pop_current_device();
+        }
+        m_device = other.m_device;
+        m_active = other.m_active;
+        other.m_device = nullptr;
+        other.m_active = false;
+    }
+    return *this;
+}
+
+// ---------------------------------------------------------------------------
+// Free-standing device API functions.
+// ---------------------------------------------------------------------------
+
+ref<Surface> create_surface(Window* window)
+{
+    return current_device()->create_surface(window);
+}
+
+ref<Surface> create_surface(WindowHandle window_handle)
+{
+    return current_device()->create_surface(window_handle);
+}
+
+ref<Buffer> create_buffer(BufferDesc desc)
+{
+    return current_device()->create_buffer(std::move(desc));
+}
+
+ref<BufferView> create_buffer_view(Buffer* buffer, BufferViewDesc desc)
+{
+    return current_device()->create_buffer_view(buffer, std::move(desc));
+}
+
+ref<Texture> create_texture(TextureDesc desc)
+{
+    return current_device()->create_texture(std::move(desc));
+}
+
+ref<Texture> create_texture_from_resource(TextureDesc desc, rhi::ITexture* resource)
+{
+    return current_device()->create_texture_from_resource(std::move(desc), resource);
+}
+
+ref<TextureView> create_texture_view(Texture* texture, TextureViewDesc desc)
+{
+    return current_device()->create_texture_view(texture, std::move(desc));
+}
+
+ref<Sampler> create_sampler(SamplerDesc desc)
+{
+    return current_device()->create_sampler(std::move(desc));
+}
+
+ref<Fence> create_fence(FenceDesc desc)
+{
+    return current_device()->create_fence(std::move(desc));
+}
+
+ref<QueryPool> create_query_pool(QueryPoolDesc desc)
+{
+    return current_device()->create_query_pool(std::move(desc));
+}
+
+ref<InputLayout> create_input_layout(InputLayoutDesc desc)
+{
+    return current_device()->create_input_layout(std::move(desc));
+}
+
+AccelerationStructureSizes get_acceleration_structure_sizes(const AccelerationStructureBuildDesc& desc)
+{
+    return current_device()->get_acceleration_structure_sizes(desc);
+}
+
+ref<AccelerationStructure> create_acceleration_structure(AccelerationStructureDesc desc)
+{
+    return current_device()->create_acceleration_structure(std::move(desc));
+}
+
+ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size)
+{
+    return current_device()->create_acceleration_structure_instance_list(size);
+}
+
+ref<ShaderTable> create_shader_table(ShaderTableDesc desc)
+{
+    return current_device()->create_shader_table(std::move(desc));
+}
+
+size_t get_coop_vec_matrix_size(
+    uint32_t rows,
+    uint32_t cols,
+    CoopVecMatrixLayout layout,
+    DataType element_type,
+    size_t row_col_stride
+)
+{
+    return current_device()->get_coop_vec_matrix_size(rows, cols, layout, element_type, row_col_stride);
+}
+
+CoopVecMatrixDesc create_coop_vec_matrix_desc(
+    uint32_t rows,
+    uint32_t cols,
+    CoopVecMatrixLayout layout,
+    DataType element_type,
+    size_t offset,
+    size_t row_col_stride
+)
+{
+    return current_device()->create_coop_vec_matrix_desc(rows, cols, layout, element_type, offset, row_col_stride);
+}
+
+void convert_coop_vec_matrices(
+    void* dst,
+    size_t dst_size,
+    std::span<const CoopVecMatrixDesc> dst_descs,
+    const void* src,
+    size_t src_size,
+    std::span<const CoopVecMatrixDesc> src_descs
+)
+{
+    current_device()->convert_coop_vec_matrices(dst, dst_size, dst_descs, src, src_size, src_descs);
+}
+
+void convert_coop_vec_matrix(
+    void* dst,
+    size_t dst_size,
+    const CoopVecMatrixDesc& dst_desc,
+    const void* src,
+    size_t src_size,
+    const CoopVecMatrixDesc& src_desc
+)
+{
+    current_device()->convert_coop_vec_matrix(dst, dst_size, dst_desc, src, src_size, src_desc);
+}
+
+ref<SlangSession> create_slang_session(SlangSessionDesc desc)
+{
+    return current_device()->create_slang_session(std::move(desc));
+}
+
+ref<SlangModule> load_module(std::string_view module_name)
+{
+    return current_device()->load_module(module_name);
+}
+
+ref<SlangModule> load_module_from_source(
+    std::string_view module_name,
+    std::string_view source,
+    std::optional<std::filesystem::path> path
+)
+{
+    return current_device()->load_module_from_source(module_name, source, std::move(path));
+}
+
+ref<SlangModule> compose_modules(
+    std::string_view name,
+    std::vector<ref<SlangModule>> modules,
+    std::span<const TypeConformance> type_conformances
+)
+{
+    return current_device()->compose_modules(name, std::move(modules), type_conformances);
+}
+
+ref<ShaderProgram> link_program(
+    std::vector<ref<SlangModule>> modules,
+    std::vector<ref<SlangEntryPoint>> entry_points,
+    std::optional<SlangLinkOptions> link_options
+)
+{
+    return current_device()->link_program(std::move(modules), std::move(entry_points), std::move(link_options));
+}
+
+ref<ShaderProgram> load_program(
+    std::string_view module_name,
+    std::vector<std::string_view> entry_point_names,
+    std::optional<std::string_view> additional_source,
+    std::optional<SlangLinkOptions> link_options
+)
+{
+    return current_device()
+        ->load_program(module_name, std::move(entry_point_names), additional_source, std::move(link_options));
+}
+
+ref<ShaderObject> create_root_shader_object(const ShaderProgram* shader_program)
+{
+    return current_device()->create_root_shader_object(shader_program);
+}
+
+ref<ShaderObject> create_shader_object(const TypeLayoutReflection* type_layout)
+{
+    return current_device()->create_shader_object(type_layout);
+}
+
+ref<ShaderObject> create_shader_object(ReflectionCursor cursor)
+{
+    return current_device()->create_shader_object(std::move(cursor));
+}
+
+ref<ComputePipeline> create_compute_pipeline(ComputePipelineDesc desc)
+{
+    return current_device()->create_compute_pipeline(std::move(desc));
+}
+
+ref<RenderPipeline> create_render_pipeline(RenderPipelineDesc desc)
+{
+    return current_device()->create_render_pipeline(std::move(desc));
+}
+
+ref<RayTracingPipeline> create_ray_tracing_pipeline(RayTracingPipelineDesc desc)
+{
+    return current_device()->create_ray_tracing_pipeline(std::move(desc));
+}
+
+ref<ComputeKernel> create_compute_kernel(ComputeKernelDesc desc)
+{
+    return current_device()->create_compute_kernel(std::move(desc));
+}
+
+ref<CommandEncoder> create_command_encoder(CommandQueueType queue)
+{
+    return current_device()->create_command_encoder(queue);
 }
 
 

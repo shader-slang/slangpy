@@ -6,6 +6,7 @@
 #include "sgl/ui/widgets.h"
 
 #include "sgl/core/input.h"
+#include "sgl/core/window.h"
 
 #include "sgl/device/device.h"
 #include "sgl/device/command.h"
@@ -120,7 +121,14 @@ SGL_PY_EXPORT(ui)
 
     nb::class_<ui::Context, Object>(ui, "Context", gc_helper_type_slots<ui::Context>(), D(Context))
         .def(nb::init<ref<Device>>(), "device"_a)
-        .def("begin_frame", &ui::Context::begin_frame, "width"_a, "height"_a, D(Context, begin_frame))
+        .def(
+            "begin_frame",
+            &ui::Context::begin_frame,
+            "width"_a,
+            "height"_a,
+            "window"_a = nullptr,
+            D(Context, begin_frame)
+        )
         .def(
             "end_frame",
             nb::overload_cast<TextureView*, CommandEncoder*>(&ui::Context::end_frame),

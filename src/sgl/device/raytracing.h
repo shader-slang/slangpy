@@ -32,7 +32,7 @@ enum class AccelerationStructureGeometryFlags : uint32_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(AccelerationStructureGeometryFlags);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     AccelerationStructureGeometryFlags,
     {
         {AccelerationStructureGeometryFlags::none, "none"},
@@ -53,7 +53,7 @@ enum class AccelerationStructureInstanceFlags : uint32_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(AccelerationStructureInstanceFlags);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     AccelerationStructureInstanceFlags,
     {
         {AccelerationStructureInstanceFlags::none, "none"},
@@ -212,7 +212,7 @@ enum class AccelerationStructureBuildFlags : uint32_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(AccelerationStructureBuildFlags);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     AccelerationStructureBuildFlags,
     {
         {AccelerationStructureBuildFlags::none, "none"},
@@ -268,7 +268,24 @@ struct AccelerationStructureQueryDesc {
     uint32_t first_query_index;
 };
 
+enum class AccelerationStructureKind : uint32_t {
+    unknown = static_cast<uint32_t>(rhi::AccelerationStructureKind::Unknown),
+    bottom_level = static_cast<uint32_t>(rhi::AccelerationStructureKind::BottomLevel),
+    top_level = static_cast<uint32_t>(rhi::AccelerationStructureKind::TopLevel),
+};
+
+SGL_ENUM_INFO(
+    AccelerationStructureKind,
+    {
+        {AccelerationStructureKind::unknown, "unknown"},
+        {AccelerationStructureKind::bottom_level, "bottom_level"},
+        {AccelerationStructureKind::top_level, "top_level"},
+    }
+);
+SGL_ENUM_REGISTER(AccelerationStructureKind);
+
 struct AccelerationStructureDesc {
+    AccelerationStructureKind kind{AccelerationStructureKind::unknown};
     DeviceSize size{0};
     std::string label;
 };
