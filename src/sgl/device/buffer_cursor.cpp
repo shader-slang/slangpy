@@ -27,6 +27,7 @@ BufferElementCursor BufferElementCursor::reinterpret(ref<const TypeLayoutReflect
     element_cursor.m_buffer = m_buffer;
     element_cursor.m_type_layout = new_layout;
     element_cursor.m_offset = m_offset;
+    element_cursor.m_is_reinterpreted = true;
     return element_cursor;
 }
 
@@ -69,6 +70,7 @@ BufferElementCursor BufferElementCursor::find_field(std::string_view name) const
         field_cursor.m_buffer = m_buffer;
         field_cursor.m_type_layout = field_layout->type_layout();
         field_cursor.m_offset = m_offset + field_layout->offset();
+        field_cursor.m_is_reinterpreted = m_is_reinterpreted;
 
         return field_cursor;
     }
@@ -90,7 +92,8 @@ BufferElementCursor BufferElementCursor::find_element(uint32_t index) const
         BufferElementCursor element_cursor;
         element_cursor.m_buffer = m_buffer;
         element_cursor.m_type_layout = m_type_layout->element_type_layout();
-        element_cursor.m_offset = m_offset + index * m_type_layout->element_stride();
+        element_cursor.m_offset = m_offset + index * element_stride();
+        element_cursor.m_is_reinterpreted = m_is_reinterpreted;
         return element_cursor;
     } break;
 
@@ -99,7 +102,8 @@ BufferElementCursor BufferElementCursor::find_element(uint32_t index) const
         BufferElementCursor field_cursor;
         field_cursor.m_buffer = m_buffer;
         field_cursor.m_type_layout = m_type_layout->element_type_layout();
-        field_cursor.m_offset = m_offset + m_type_layout->element_stride() * index;
+        field_cursor.m_offset = m_offset + element_stride() * index;
+        field_cursor.m_is_reinterpreted = m_is_reinterpreted;
         return field_cursor;
     } break;
 
@@ -108,6 +112,11 @@ BufferElementCursor BufferElementCursor::find_element(uint32_t index) const
     }
 
     return {};
+}
+
+size_t BufferElementCursor::element_stride() const
+{
+    return m_is_reinterpreted ? m_type_layout->element_type_layout()->size() : m_type_layout->element_stride();
 }
 
 void BufferElementCursor::set_pointer(uint64_t pointer_value)
