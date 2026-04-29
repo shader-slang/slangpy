@@ -483,7 +483,7 @@ def test_cursor_lifetime(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_pointer_field_write_from_strided_buffer_view_adds_offset(device_type: spy.DeviceType):
+def test_cursor_pointer_fields(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
     if not device.has_feature(spy.Feature.pointer):
         pytest.skip("Pointers not supported on this device.")
@@ -492,8 +492,8 @@ def test_pointer_field_write_from_strided_buffer_view_adds_offset(device_type: s
 
     slang_struct = module.find_struct("PointerInfo")
     assert slang_struct is not None
-    obj = slang_struct(0) # Make sure we can construct a struct with a ptr field without error
-    assert obj['_ptr'] == 0
+    obj = slang_struct(123) # Make sure we can construct a struct with a ptr field without error
+    assert obj['_ptr'] == 123
 
     data = np.array([10, 20, 30, 40], dtype=np.int32)
     tensor = spy.Tensor.from_numpy(device, data)
