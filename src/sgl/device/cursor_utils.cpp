@@ -36,10 +36,8 @@ namespace cursor_utils {
         writers.push_back({&type, std::move(write)});
     }
 
-    void register_buffer_element_cursor_object_writer(
-        const std::type_info& type,
-        BufferElementCursorObjectWriteFunc write
-    )
+    void
+    register_buffer_element_cursor_object_writer(const std::type_info& type, BufferElementCursorObjectWriteFunc write)
     {
         SGL_CHECK(bool(write), "BufferElementCursor object writer must be callable.");
 

@@ -485,10 +485,7 @@ private:
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
 
-    static std::string python_type_name(nb::object nbval)
-    {
-        return nb::cast<std::string>(nb::str(nbval.type()));
-    }
+    static std::string python_type_name(nb::object nbval) { return nb::cast<std::string>(nb::str(nbval.type())); }
 
     static bool native_object_pointer(const std::type_info& type, nb::object nbval, void*& value)
     {
@@ -534,7 +531,8 @@ private:
         auto cache_it = m_native_object_writer_cache.find(python_type);
         if (cache_it != m_native_object_writer_cache.end()) {
             int32_t writer_index = cache_it->second;
-            if (writer_index < int32_t(writers.size()) && invoke_native_object_writer(writers[writer_index], self, nbval))
+            if (writer_index < int32_t(writers.size())
+                && invoke_native_object_writer(writers[writer_index], self, nbval))
                 return true;
         }
 

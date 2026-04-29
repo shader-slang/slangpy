@@ -82,8 +82,8 @@ namespace {
 
         static PyObject* predicate = []()
         {
-            nb::object fn = nb::module_::import_("slangpy.bindings.typeregistry")
-                                .attr("has_registered_type_or_signature");
+            nb::object fn
+                = nb::module_::import_("slangpy.bindings.typeregistry").attr("has_registered_type_or_signature");
             return fn.release().ptr();
         }();
         PyObject* result = PyObject_CallFunctionObjArgs(predicate, obj.ptr(), nullptr);

@@ -85,12 +85,9 @@ namespace cursor_utils {
         BufferElementCursorObjectWriteFunc write;
     };
 
+    SGL_API void register_shader_cursor_object_writer(const std::type_info& type, ShaderCursorObjectWriteFunc write);
     SGL_API void
-    register_shader_cursor_object_writer(const std::type_info& type, ShaderCursorObjectWriteFunc write);
-    SGL_API void register_buffer_element_cursor_object_writer(
-        const std::type_info& type,
-        BufferElementCursorObjectWriteFunc write
-    );
+    register_buffer_element_cursor_object_writer(const std::type_info& type, BufferElementCursorObjectWriteFunc write);
 
     SGL_API std::span<const ShaderCursorObjectWriter> shader_cursor_object_writers();
     SGL_API std::span<const BufferElementCursorObjectWriter> buffer_element_cursor_object_writers();

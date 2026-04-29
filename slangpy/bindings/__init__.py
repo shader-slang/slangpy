@@ -16,5 +16,6 @@ from slangpy.bindings.typeregistry import (
     PYTHON_SIGNATURES,
     get_or_create_type,
 )
+from slangpy.bindings.cursor import CursorMarshall, CursorMarshallInfo, register_cursor_type
 
 from slangpy.core.native import AccessType, CallContext, Shape
