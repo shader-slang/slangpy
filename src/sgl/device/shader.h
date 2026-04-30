@@ -9,6 +9,7 @@
 
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
+#include "sgl/core/crypto.h"
 
 #include <exception>
 #include <map>
@@ -41,6 +42,8 @@ struct SGL_API TypeConformance {
     }
 
     std::string to_string() const;
+
+    auto operator<=>(const TypeConformance&) const = default;
 };
 
 /// Exception thrown on compilation errors.
@@ -88,11 +91,11 @@ SGL_ENUM_REGISTER(SlangFloatingPointMode);
 enum class SlangDebugInfoLevel {
     /// No debug information.
     none = SLANG_DEBUG_INFO_LEVEL_NONE,
-    /// Emit as little debug information as possible, while still supporting stack trackes.
+    /// Emit as little debug information as possible, while still supporting stack traces.
     minimal = SLANG_DEBUG_INFO_LEVEL_MINIMAL,
     /// Emit whatever is the standard level of debug information for each target.
     standard = SLANG_DEBUG_INFO_LEVEL_STANDARD,
-    /// Emit as much debug infromation as possible for each target.
+    /// Emit as much debug information as possible for each target.
     maximal = SLANG_DEBUG_INFO_LEVEL_MAXIMAL,
 };
 
@@ -216,6 +219,7 @@ struct SlangLinkOptions {
 };
 
 struct SlangSessionData;
+struct SlangModuleDesc;
 struct SlangModuleData;
 struct SlangEntryPointData;
 struct ShaderProgramData;
@@ -289,6 +293,14 @@ public:
         std::optional<std::filesystem::path> path = {}
     );
 
+    /// Compose multiple modules into a single composed module.
+    /// The composed module provides a unified layout and entry point access across all source modules.
+    ref<SlangModule> compose_modules(
+        std::string_view name,
+        std::vector<ref<SlangModule>> modules,
+        std::span<const TypeConformance> type_conformances = {}
+    );
+
     /// Link a program with a set of modules and entry points.
     ref<ShaderProgram> link_program(
         std::vector<ref<SlangModule>> modules,
@@ -344,6 +356,12 @@ private:
     void update_module_cache_and_dependencies();
     bool write_module_to_cache(slang::IModule* module);
     void create_session(SlangSessionBuild& build);
+
+    /// Helper to create a module, updating cache afterwards.
+    ref<SlangModule> create_module(SlangModuleDesc desc);
+
+    /// Cache of module name -> source SHA1 digest to detect same-name-different-source misuse.
+    std::map<std::string, SHA1::Digest, std::less<>> m_source_module_digests;
 };
 
 struct SlangModuleDesc {
@@ -355,12 +373,26 @@ struct SlangModuleDesc {
 
     /// If source specified, additional path for compilation.
     std::optional<std::filesystem::path> path;
+
+    /// Source modules that are composed together to form this module (for composed modules only).
+    std::vector<ref<SlangModule>> source_modules;
+
+    /// Type conformances to apply when composing modules.
+    std::vector<TypeConformance> type_conformances;
+
+    /// Returns true if this is a composed module (has source modules).
+    bool is_composed() const { return !source_modules.empty(); }
 };
 
 struct SlangModuleData : Object {
     SGL_OBJECT(SlangModuleData)
 
+    /// The underlying slang module (null for composed modules).
     slang::IModule* slang_module = nullptr;
+
+    /// The underlying slang component type (for composed modules only).
+    Slang::ComPtr<slang::IComponentType> slang_component_type;
+
     std::string name;
     std::filesystem::path path;
 };
@@ -381,7 +413,7 @@ public:
     void store_built_data(SlangSessionBuild& build_data);
 
     /// Repopulates a build structure with reference to internal m_data ptr.
-    void populate_build_data(SlangSessionBuild& build_data);
+    void populate_build_data(SlangSessionBuild& build_data) const;
 
     /// The session from which this module was built.
     SlangSession* session() const { return m_session; }
@@ -389,31 +421,39 @@ public:
     /// Descriptor that holds all data required to create this module.
     const SlangModuleDesc& desc() const { return m_desc; }
 
+    /// Returns true if this is a composed module.
+    bool is_composed() const { return m_desc.is_composed(); }
+
+    /// Source modules that make up this composed module (empty for non-composed modules).
+    const std::vector<ref<SlangModule>>& source_modules() const { return m_desc.source_modules; }
+
     /// Module name.
     const std::string& name() const { return m_data->name; }
 
     /// Module source path. This can be empty if the module was generated from a string.
     const std::filesystem::path& path() const { return m_data->path; }
-    ref<const ProgramLayout> layout() const
-    {
-        return ProgramLayout::from_slang(ref(this), m_data->slang_module->getLayout());
-    }
 
-    /// Build and return vector of all current entry points in the module.
+    /// Combined layout reflecting the primary module and all linked modules.
+    ref<const ProgramLayout> layout() const;
+
+    /// Return vector of all current entry points in the module.
     std::vector<ref<SlangEntryPoint>> entry_points() const;
 
     /// Get an entry point, optionally applying type conformances to it.
-    ref<SlangEntryPoint> entry_point(
-        std::string_view name,
-        std::span<TypeConformance> type_conformances = std::span<TypeConformance>()
-    ) const;
+    ref<SlangEntryPoint>
+    entry_point(std::string_view name, std::span<const TypeConformance> type_conformances = {}) const;
     bool has_entry_point(std::string_view name) const;
 
-    /// Get root decl ref for this module
+    /// Get root decl ref for this module.
+    /// Throws for composed modules (no single module to reflect).
     ref<const DeclReflection> module_decl() const;
 
-    /// Internal slang module.
+    /// Internal slang module (null for composed modules).
     slang::IModule* slang_module() const { return m_data->slang_module; }
+
+    /// Returns the component type for this module.
+    /// For composed modules, returns the composite. For regular modules, returns the slang module.
+    slang::IComponentType* slang_component_type() const;
 
     /// Text summary of the module.
     std::string to_string() const override;
@@ -427,10 +467,15 @@ public:
     ref<SlangModuleData> _data() { return m_data; }
 
 private:
+    /// Create a new entry point with optional type conformances, using full build context.
+    ref<SlangEntryPoint>
+    create_entry_point(std::string_view name, std::span<const TypeConformance> type_conformances = {}) const;
+
     breakable_ref<SlangSession> m_session;
     SlangModuleDesc m_desc;
     ref<SlangModuleData> m_data;
 
+    mutable ref<const ProgramLayout> m_cached_layout;
     mutable std::set<SlangEntryPoint*> m_registered_entry_points;
 };
 
@@ -485,6 +530,9 @@ struct SlangEntryPointDesc {
     std::vector<TypeConformance> type_conformances;
     /// Specialization arguments for generic entrypoints.
     std::vector<SpecializationArg> specialization_args;
+    /// Module to use for type lookups (type conformances, specialization args).
+    /// When entry point is from a composed module, this contains the composed module.
+    ref<SlangModule> type_lookup_module;
 };
 struct SlangEntryPointData : Object {
     SGL_OBJECT(SlangEntryPointData)
@@ -522,13 +570,16 @@ public:
 
     /// Returns a specialized version of a generic entry point.
     /// \param specialization_args The specialization arguments for generic parameters.
-    ref<SlangEntryPoint> specialize(std::span<SpecializationArg> specialization_args) const;
+    ref<SlangEntryPoint> specialize(std::span<const SpecializationArg> specialization_args) const;
 
     slang::IComponentType* slang_entry_point() const { return m_data->slang_entry_point.get(); }
 
     virtual std::string to_string() const override;
 
 private:
+    /// Helper to create a build context for entry point operations.
+    SlangSessionBuild create_build_context() const;
+
     ref<SlangModule> m_module;
     SlangEntryPointDesc m_desc;
     ref<SlangEntryPointData> m_data;

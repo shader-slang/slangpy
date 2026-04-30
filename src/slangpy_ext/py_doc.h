@@ -23,6 +23,8 @@
 #endif
 
 
+static const char *__doc_GLFWcursor = R"doc()doc";
+
 static const char *__doc_GLFWwindow = R"doc()doc";
 
 static const char *__doc_HWND = R"doc()doc";
@@ -32,6 +34,8 @@ static const char *__doc_ImFont = R"doc()doc";
 static const char *__doc_ImGuiContext = R"doc()doc";
 
 static const char *__doc_ImGui_PushFont = R"doc()doc";
+
+static const char *__doc_ImTextureData = R"doc()doc";
 
 static const char *__doc_MDB_env = R"doc()doc";
 
@@ -218,6 +222,8 @@ static const char *__doc_sgl_AccelerationStructureDesc = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureDesc_2 = R"doc()doc";
 
+static const char *__doc_sgl_AccelerationStructureDesc_kind = R"doc()doc";
+
 static const char *__doc_sgl_AccelerationStructureDesc_label = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureDesc_size = R"doc()doc";
@@ -295,6 +301,16 @@ static const char *__doc_sgl_AccelerationStructureInstanceList_to_string = R"doc
 static const char *__doc_sgl_AccelerationStructureInstanceList_write = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureInstanceList_write_2 = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_bottom_level = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_info = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_top_level = R"doc()doc";
+
+static const char *__doc_sgl_AccelerationStructureKind_unknown = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructureQueryDesc = R"doc()doc";
 
@@ -561,6 +577,8 @@ static const char *__doc_sgl_BaseReflectionObject_is_valid = R"doc()doc";
 
 static const char *__doc_sgl_BaseReflectionObject_m_owner = R"doc()doc";
 
+static const char *__doc_sgl_BaseReflectionObject_owner = R"doc()doc";
+
 static const char *__doc_sgl_BindlessDesc = R"doc()doc";
 
 static const char *__doc_sgl_BindlessDesc_acceleration_structure_count = R"doc()doc";
@@ -707,6 +725,47 @@ static const char *__doc_sgl_Bitmap_read_tga = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_rebuild_pixel_struct = R"doc()doc";
 
+static const char *__doc_sgl_Bitmap_resample =
+R"doc(Resample into a pre-allocated target bitmap using a separable filter.
+Source and target must have the same pixel format, component type and
+channel count. Only supports float16 and float32 component types.
+
+Parameter ``target``:
+    Pre-allocated target bitmap.
+
+Parameter ``filter``:
+    Reconstruction filter to use.
+
+Parameter ``bc``:
+    Horizontal and vertical boundary conditions for out-of-bounds
+    lookups.
+
+Parameter ``clamp``:
+    Optional (min, max) range to clamp output values.)doc";
+
+static const char *__doc_sgl_Bitmap_resample_2 =
+R"doc(Resample to arbitrary resolution using a separable filter. Only
+supports float16 and float32 component types.
+
+Parameter ``width``:
+    Target width.
+
+Parameter ``height``:
+    Target height.
+
+Parameter ``filter``:
+    Reconstruction filter to use.
+
+Parameter ``bc``:
+    Horizontal and vertical boundary conditions for out-of-bounds
+    lookups.
+
+Parameter ``clamp``:
+    Optional (min, max) range to clamp output values.
+
+Returns:
+    Returns a new bitmap containing the resampled image.)doc";
+
 static const char *__doc_sgl_Bitmap_set_srgb_gamma =
 R"doc(Set the sRGB gamma flag. Note that this does not convert the pixel
 values, it only sets the flag and adjusts the pixel struct.)doc";
@@ -834,6 +893,8 @@ static const char *__doc_sgl_Blitter_ProgramKey_dst_channel_count = R"doc()doc";
 static const char *__doc_sgl_Blitter_ProgramKey_dst_format = R"doc()doc";
 
 static const char *__doc_sgl_Blitter_ProgramKey_dst_kind = R"doc()doc";
+
+static const char *__doc_sgl_Blitter_ProgramKey_hash = R"doc()doc";
 
 static const char *__doc_sgl_Blitter_ProgramKey_operator_le = R"doc()doc";
 
@@ -995,6 +1056,14 @@ Returns:
 static const char *__doc_sgl_BlockAllocator_reset =
 R"doc(Reset the allocator, rebuilding the free list from all pages (NOT
 thread safe).)doc";
+
+static const char *__doc_sgl_BoxFilter = R"doc()doc";
+
+static const char *__doc_sgl_BoxFilter_BoxFilter = R"doc()doc";
+
+static const char *__doc_sgl_BoxFilter_eval = R"doc()doc";
+
+static const char *__doc_sgl_BoxFilter_radius = R"doc()doc";
 
 static const char *__doc_sgl_Buffer = R"doc()doc";
 
@@ -1933,6 +2002,22 @@ static const char *__doc_sgl_CursorReadWrappers_get_vector = R"doc()doc";
 
 static const char *__doc_sgl_CursorReadWrappers_increment_offset_internal = R"doc()doc";
 
+static const char *__doc_sgl_CursorShape = R"doc(Mouse cursor shapes.)doc";
+
+static const char *__doc_sgl_CursorShape_arrow = R"doc(Arrow cursor shape.)doc";
+
+static const char *__doc_sgl_CursorShape_crosshair = R"doc(Crosshair cursor shape.)doc";
+
+static const char *__doc_sgl_CursorShape_hand = R"doc(Hand cursor shape (for links and dragging).)doc";
+
+static const char *__doc_sgl_CursorShape_hresize = R"doc(Horizontal resize cursor shape.)doc";
+
+static const char *__doc_sgl_CursorShape_ibeam = R"doc(I-beam cursor shape (for text editing).)doc";
+
+static const char *__doc_sgl_CursorShape_info = R"doc()doc";
+
+static const char *__doc_sgl_CursorShape_vresize = R"doc(Vertical resize cursor shape.)doc";
+
 static const char *__doc_sgl_CursorWriteWrappers = R"doc()doc";
 
 static const char *__doc_sgl_CursorWriteWrappers_CursorWriteWrappers = R"doc()doc";
@@ -2343,11 +2428,13 @@ static const char *__doc_sgl_DebugLogger = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_DebugLogger = R"doc()doc";
 
-static const char *__doc_sgl_DebugLogger_get = R"doc()doc";
-
 static const char *__doc_sgl_DebugLogger_get_messages = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_handleMessage = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_driver_log_level = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_layer_log_level = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_m_logger = R"doc()doc";
 
@@ -2356,6 +2443,8 @@ static const char *__doc_sgl_DebugLogger_m_message_count = R"doc()doc";
 static const char *__doc_sgl_DebugLogger_m_messages = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_m_mutex = R"doc()doc";
+
+static const char *__doc_sgl_DebugLogger_m_slang_log_level = R"doc()doc";
 
 static const char *__doc_sgl_DebugLogger_message_count = R"doc()doc";
 
@@ -2516,6 +2605,8 @@ static const char *__doc_sgl_DescriptorHandleType_undefined = R"doc()doc";
 
 static const char *__doc_sgl_DescriptorHandle_DescriptorHandle = R"doc()doc";
 
+static const char *__doc_sgl_DescriptorHandle_DescriptorHandle_2 = R"doc()doc";
+
 static const char *__doc_sgl_DescriptorHandle_is_valid = R"doc()doc";
 
 static const char *__doc_sgl_DescriptorHandle_operator_bool = R"doc()doc";
@@ -2564,6 +2655,8 @@ static const char *__doc_sgl_DeviceDesc_bindless_options = R"doc()doc";
 
 static const char *__doc_sgl_DeviceDesc_compiler_options = R"doc(Compiler options (used for default slang session).)doc";
 
+static const char *__doc_sgl_DeviceDesc_debug_layers_log_level = R"doc(Debug layers log level (only applicable if debug layers are enabled).)doc";
+
 static const char *__doc_sgl_DeviceDesc_enable_aftermath = R"doc(Enable NVIDIA Aftermath.)doc";
 
 static const char *__doc_sgl_DeviceDesc_enable_compilation_reports = R"doc(Enable compilation reports.)doc";
@@ -2591,6 +2684,10 @@ static const char *__doc_sgl_DeviceDesc_label = R"doc(Debug label)doc";
 static const char *__doc_sgl_DeviceDesc_module_cache_path =
 R"doc(Path to the module cache directory (optional). If a relative path is
 used, the cache is stored in the application data directory.)doc";
+
+static const char *__doc_sgl_DeviceDesc_rhi_validation_log_level =
+R"doc(RHI validation layer log level (only applicable if RHI validation is
+enabled).)doc";
 
 static const char *__doc_sgl_DeviceDesc_shader_cache_path =
 R"doc(Path to the shader and pipeline cache directory (optional). If a
@@ -2632,6 +2729,13 @@ static const char *__doc_sgl_DeviceLimits_max_compute_thread_group_size = R"doc(
 
 static const char *__doc_sgl_DeviceLimits_max_compute_threads_per_group = R"doc(Maximum number of threads per thread group.)doc";
 
+static const char *__doc_sgl_DeviceLimits_max_entry_point_uniform_size =
+R"doc(Maximum size in bytes of inline-uniform data for entry-point
+parameters. On Vulkan this corresponds to push constant size (minimum
+128 bytes). On D3D12 this corresponds to root constant space (~256
+bytes). On CUDA this corresponds to the kernel parameter block (~4096
+bytes).)doc";
+
 static const char *__doc_sgl_DeviceLimits_max_framebuffer_dimensions = R"doc(Maximum framebuffer dimensions.)doc";
 
 static const char *__doc_sgl_DeviceLimits_max_shader_visible_samplers = R"doc(Maximum samplers visible in a shader stage.)doc";
@@ -2657,6 +2761,39 @@ static const char *__doc_sgl_DeviceLimits_max_vertex_streams = R"doc(Maximum num
 static const char *__doc_sgl_DeviceLimits_max_viewport_dimensions = R"doc(Maximum viewport dimensions.)doc";
 
 static const char *__doc_sgl_DeviceLimits_max_viewports = R"doc(Maximum number of viewports per pipeline.)doc";
+
+static const char *__doc_sgl_DeviceScope =
+R"doc(RAII scope that pushes a device on construction and pops it on
+destruction.
+
+The device stack must not be externally mutated (push/pop) while a
+DeviceScope is active; doing so may cause the destructor to pop the
+wrong device. In debug builds an assertion checks LIFO ordering.
+
+Usage:
+
+```
+{
+    DeviceScope scope(device);
+    auto buf = create_buffer(desc);
+}
+```)doc";
+
+static const char *__doc_sgl_DeviceScope_2 = R"doc()doc";
+
+static const char *__doc_sgl_DeviceScope_DeviceScope = R"doc()doc";
+
+static const char *__doc_sgl_DeviceScope_DeviceScope_2 = R"doc()doc";
+
+static const char *__doc_sgl_DeviceScope_DeviceScope_3 = R"doc()doc";
+
+static const char *__doc_sgl_DeviceScope_m_active = R"doc()doc";
+
+static const char *__doc_sgl_DeviceScope_m_device = R"doc()doc";
+
+static const char *__doc_sgl_DeviceScope_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_DeviceScope_operator_assign_2 = R"doc()doc";
 
 static const char *__doc_sgl_DeviceType = R"doc()doc";
 
@@ -2699,15 +2836,17 @@ device is to be destroyed at runtime, it must be closed explicitly.)doc";
 
 static const char *__doc_sgl_Device_close_all_devices = R"doc(Close all open devices.)doc";
 
-static const char *__doc_sgl_Device_convert_coop_vec_matrices = R"doc()doc";
+static const char *__doc_sgl_Device_compose_modules = R"doc(Compose multiple slang modules into one.)doc";
 
-static const char *__doc_sgl_Device_convert_coop_vec_matrix = R"doc()doc";
+static const char *__doc_sgl_Device_convert_coop_vec_matrices = R"doc(Convert multiple cooperative vector matrices between formats.)doc";
+
+static const char *__doc_sgl_Device_convert_coop_vec_matrix = R"doc(Convert a single cooperative vector matrix between formats.)doc";
 
 static const char *__doc_sgl_Device_create = R"doc()doc";
 
-static const char *__doc_sgl_Device_create_acceleration_structure = R"doc()doc";
+static const char *__doc_sgl_Device_create_acceleration_structure = R"doc(Create a new acceleration structure.)doc";
 
-static const char *__doc_sgl_Device_create_acceleration_structure_instance_list = R"doc()doc";
+static const char *__doc_sgl_Device_create_acceleration_structure_instance_list = R"doc(Create a new acceleration structure instance list.)doc";
 
 static const char *__doc_sgl_Device_create_buffer =
 R"doc(Create a new buffer.
@@ -2750,15 +2889,15 @@ Parameter ``data_size``:
 Returns:
     New buffer object.)doc";
 
-static const char *__doc_sgl_Device_create_buffer_view = R"doc()doc";
+static const char *__doc_sgl_Device_create_buffer_view = R"doc(Create a new buffer view.)doc";
 
-static const char *__doc_sgl_Device_create_command_encoder = R"doc()doc";
+static const char *__doc_sgl_Device_create_command_encoder = R"doc(Create a command encoder.)doc";
 
-static const char *__doc_sgl_Device_create_compute_kernel = R"doc()doc";
+static const char *__doc_sgl_Device_create_compute_kernel = R"doc(Create a compute kernel.)doc";
 
-static const char *__doc_sgl_Device_create_compute_pipeline = R"doc()doc";
+static const char *__doc_sgl_Device_create_compute_pipeline = R"doc(Create a compute pipeline.)doc";
 
-static const char *__doc_sgl_Device_create_coop_vec_matrix_desc = R"doc()doc";
+static const char *__doc_sgl_Device_create_coop_vec_matrix_desc = R"doc(Create a cooperative vector matrix descriptor.)doc";
 
 static const char *__doc_sgl_Device_create_fence =
 R"doc(Create a new fence.
@@ -2796,11 +2935,11 @@ Parameter ``count``:
 Returns:
     New query pool object.)doc";
 
-static const char *__doc_sgl_Device_create_ray_tracing_pipeline = R"doc()doc";
+static const char *__doc_sgl_Device_create_ray_tracing_pipeline = R"doc(Create a ray tracing pipeline.)doc";
 
-static const char *__doc_sgl_Device_create_render_pipeline = R"doc()doc";
+static const char *__doc_sgl_Device_create_render_pipeline = R"doc(Create a render pipeline.)doc";
 
-static const char *__doc_sgl_Device_create_root_shader_object = R"doc()doc";
+static const char *__doc_sgl_Device_create_root_shader_object = R"doc(Create a root shader object for a shader program.)doc";
 
 static const char *__doc_sgl_Device_create_sampler =
 R"doc(Create a new sampler.
@@ -2850,11 +2989,11 @@ Parameter ``label``:
 Returns:
     New sampler object.)doc";
 
-static const char *__doc_sgl_Device_create_shader_object = R"doc()doc";
+static const char *__doc_sgl_Device_create_shader_object = R"doc(Create a shader object from a type layout.)doc";
 
-static const char *__doc_sgl_Device_create_shader_object_2 = R"doc()doc";
+static const char *__doc_sgl_Device_create_shader_object_2 = R"doc(Create a shader object from a reflection cursor.)doc";
 
-static const char *__doc_sgl_Device_create_shader_table = R"doc()doc";
+static const char *__doc_sgl_Device_create_shader_table = R"doc(Create a new shader table.)doc";
 
 static const char *__doc_sgl_Device_create_slang_session =
 R"doc(Create a new slang session.
@@ -2929,11 +3068,13 @@ Parameter ``data``:
 Returns:
     New texture object.)doc";
 
-static const char *__doc_sgl_Device_create_texture_from_resource = R"doc()doc";
+static const char *__doc_sgl_Device_create_texture_from_resource = R"doc(Create a texture from an existing RHI resource.)doc";
 
-static const char *__doc_sgl_Device_create_texture_view = R"doc()doc";
+static const char *__doc_sgl_Device_create_texture_view = R"doc(Create a new texture view.)doc";
 
 static const char *__doc_sgl_Device_cuda_device = R"doc()doc";
+
+static const char *__doc_sgl_Device_debug_logger = R"doc()doc";
 
 static const char *__doc_sgl_Device_debug_printer = R"doc()doc";
 
@@ -2974,7 +3115,7 @@ Parameter ``desc``:
 Returns:
     Acceleration structure sizes.)doc";
 
-static const char *__doc_sgl_Device_get_coop_vec_matrix_size = R"doc()doc";
+static const char *__doc_sgl_Device_get_coop_vec_matrix_size = R"doc(Get the size of a cooperative vector matrix in bytes.)doc";
 
 static const char *__doc_sgl_Device_get_created_devices = R"doc(Lists all created devices)doc";
 
@@ -3005,13 +3146,13 @@ Parameter ``id``:
 Returns:
     True if the submission is finished executing.)doc";
 
-static const char *__doc_sgl_Device_link_program = R"doc()doc";
+static const char *__doc_sgl_Device_link_program = R"doc(Link modules and entry points into a shader program.)doc";
 
-static const char *__doc_sgl_Device_load_module = R"doc()doc";
+static const char *__doc_sgl_Device_load_module = R"doc(Load a slang module by name.)doc";
 
-static const char *__doc_sgl_Device_load_module_from_source = R"doc()doc";
+static const char *__doc_sgl_Device_load_module_from_source = R"doc(Load a slang module from source code.)doc";
 
-static const char *__doc_sgl_Device_load_program = R"doc()doc";
+static const char *__doc_sgl_Device_load_program = R"doc(Load a module and link a shader program in one step.)doc";
 
 static const char *__doc_sgl_Device_m_blitter = R"doc()doc";
 
@@ -3022,6 +3163,8 @@ static const char *__doc_sgl_Device_m_closed = R"doc()doc";
 static const char *__doc_sgl_Device_m_cuda_device = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_cuda_semaphore = R"doc()doc";
+
+static const char *__doc_sgl_Device_m_debug_logger = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_debug_printer = R"doc()doc";
 
@@ -3066,6 +3209,15 @@ static const char *__doc_sgl_Device_m_supports_cuda_interop = R"doc()doc";
 static const char *__doc_sgl_Device_native_handles = R"doc(Get the native device handles.)doc";
 
 static const char *__doc_sgl_Device_on_hot_reload = R"doc(Called by hot reload system after reload occurs, to trigger the hooks.)doc";
+
+static const char *__doc_sgl_Device_pop_cuda_context =
+R"doc(Pop the CUDA context from the current thread's context stack. For non-
+CUDA devices, this is a no-op.)doc";
+
+static const char *__doc_sgl_Device_push_cuda_context =
+R"doc(Push the device's CUDA context onto the current thread's context
+stack. Must be paired with pop_cuda_context(). For non-CUDA devices,
+this is a no-op.)doc";
 
 static const char *__doc_sgl_Device_read_buffer_data =
 R"doc(Read buffer data to host memory. \note This will wait until the data
@@ -3119,7 +3271,7 @@ workaround during shutdown, to ensure all resources are released when
 slangpy fails to clean up properly due to reference cycles introduced
 in Python.)doc";
 
-static const char *__doc_sgl_Device_reload_all_programs = R"doc()doc";
+static const char *__doc_sgl_Device_reload_all_programs = R"doc(Reload all shader programs.)doc";
 
 static const char *__doc_sgl_Device_report_heaps =
 R"doc(Report status of internal heaps used by the device.
@@ -3135,6 +3287,10 @@ clean shutdown with all resources released properly.)doc";
 static const char *__doc_sgl_Device_rhi_device = R"doc()doc";
 
 static const char *__doc_sgl_Device_rhi_graphics_queue = R"doc()doc";
+
+static const char *__doc_sgl_Device_set_cuda_context_current =
+R"doc(Set the device's CUDA context as current on this thread. For non-CUDA
+devices, this is a no-op.)doc";
 
 static const char *__doc_sgl_Device_shader_cache_stats = R"doc(Shader cache statistics.)doc";
 
@@ -3353,6 +3509,8 @@ static const char *__doc_sgl_Feature_acceleration_structure_spheres = R"doc()doc
 
 static const char *__doc_sgl_Feature_argument_buffer_tier2 = R"doc()doc";
 
+static const char *__doc_sgl_Feature_atomic_bfloat16 = R"doc()doc";
+
 static const char *__doc_sgl_Feature_atomic_float = R"doc()doc";
 
 static const char *__doc_sgl_Feature_atomic_half = R"doc()doc";
@@ -3360,6 +3518,8 @@ static const char *__doc_sgl_Feature_atomic_half = R"doc()doc";
 static const char *__doc_sgl_Feature_atomic_int64 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_barycentrics = R"doc()doc";
+
+static const char *__doc_sgl_Feature_bfloat16 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_bindless = R"doc()doc";
 
@@ -3377,6 +3537,8 @@ static const char *__doc_sgl_Feature_conservative_rasterization3 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_cooperative_matrix = R"doc()doc";
 
+static const char *__doc_sgl_Feature_cooperative_matrix2 = R"doc()doc";
+
 static const char *__doc_sgl_Feature_cooperative_vector = R"doc()doc";
 
 static const char *__doc_sgl_Feature_count = R"doc()doc";
@@ -3384,6 +3546,8 @@ static const char *__doc_sgl_Feature_count = R"doc()doc";
 static const char *__doc_sgl_Feature_custom_border_color = R"doc()doc";
 
 static const char *__doc_sgl_Feature_double = R"doc()doc";
+
+static const char *__doc_sgl_Feature_float8 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_fragment_shading_rate = R"doc()doc";
 
@@ -3705,6 +3869,22 @@ static const char *__doc_sgl_FillMode_info = R"doc()doc";
 static const char *__doc_sgl_FillMode_solid = R"doc()doc";
 
 static const char *__doc_sgl_FillMode_wireframe = R"doc()doc";
+
+static const char *__doc_sgl_FilterBoundaryCondition = R"doc(Filter boundary condition used for resampling images.)doc";
+
+static const char *__doc_sgl_FilterBoundaryCondition_clamp = R"doc(Clamp to the outermost sample position.)doc";
+
+static const char *__doc_sgl_FilterBoundaryCondition_info = R"doc()doc";
+
+static const char *__doc_sgl_FilterBoundaryCondition_mirror = R"doc(Assume that the input is mirrored along the boundary.)doc";
+
+static const char *__doc_sgl_FilterBoundaryCondition_one =
+R"doc(Assume that the input function is equal to one outside of the defined
+domain.)doc";
+
+static const char *__doc_sgl_FilterBoundaryCondition_repeat = R"doc(Assume that the input repeats in a periodic fashion.)doc";
+
+static const char *__doc_sgl_FilterBoundaryCondition_zero = R"doc(Assume that the input function is zero outside of the defined domain.)doc";
 
 static const char *__doc_sgl_Format = R"doc(Resource formats.)doc";
 
@@ -4072,6 +4252,8 @@ static const char *__doc_sgl_GamepadButton_right_thumb = R"doc()doc";
 
 static const char *__doc_sgl_GamepadButton_start = R"doc()doc";
 
+static const char *__doc_sgl_GamepadButton_unknown = R"doc()doc";
+
 static const char *__doc_sgl_GamepadButton_up = R"doc()doc";
 
 static const char *__doc_sgl_GamepadButton_x = R"doc()doc";
@@ -4129,6 +4311,22 @@ static const char *__doc_sgl_GamepadState_right_x = R"doc(X-axis of the right an
 static const char *__doc_sgl_GamepadState_right_y = R"doc(Y-axis of the right analog stick.)doc";
 
 static const char *__doc_sgl_GamepadState_to_string = R"doc()doc";
+
+static const char *__doc_sgl_GaussianFilter = R"doc()doc";
+
+static const char *__doc_sgl_GaussianFilter_GaussianFilter = R"doc()doc";
+
+static const char *__doc_sgl_GaussianFilter_eval = R"doc()doc";
+
+static const char *__doc_sgl_GaussianFilter_m_alpha = R"doc()doc";
+
+static const char *__doc_sgl_GaussianFilter_m_bias = R"doc()doc";
+
+static const char *__doc_sgl_GaussianFilter_m_radius = R"doc()doc";
+
+static const char *__doc_sgl_GaussianFilter_m_stddev = R"doc()doc";
+
+static const char *__doc_sgl_GaussianFilter_radius = R"doc()doc";
 
 static const char *__doc_sgl_HeapReport = R"doc(Report information for a memory heap.)doc";
 
@@ -4782,6 +4980,16 @@ static const char *__doc_sgl_LMDBException_error = R"doc()doc";
 
 static const char *__doc_sgl_LMDBException_m_error = R"doc()doc";
 
+static const char *__doc_sgl_LanczosFilter = R"doc()doc";
+
+static const char *__doc_sgl_LanczosFilter_LanczosFilter = R"doc()doc";
+
+static const char *__doc_sgl_LanczosFilter_eval = R"doc()doc";
+
+static const char *__doc_sgl_LanczosFilter_m_radius = R"doc()doc";
+
+static const char *__doc_sgl_LanczosFilter_radius = R"doc()doc";
+
 static const char *__doc_sgl_LinearSweptSpheresEndCapsMode = R"doc()doc";
 
 static const char *__doc_sgl_LinearSweptSpheresEndCapsMode_chained = R"doc()doc";
@@ -5166,6 +5374,18 @@ static const char *__doc_sgl_MemoryType_info = R"doc()doc";
 static const char *__doc_sgl_MemoryType_read_back = R"doc()doc";
 
 static const char *__doc_sgl_MemoryType_upload = R"doc()doc";
+
+static const char *__doc_sgl_MitchellFilter = R"doc()doc";
+
+static const char *__doc_sgl_MitchellFilter_MitchellFilter = R"doc()doc";
+
+static const char *__doc_sgl_MitchellFilter_eval = R"doc()doc";
+
+static const char *__doc_sgl_MitchellFilter_m_b = R"doc()doc";
+
+static const char *__doc_sgl_MitchellFilter_m_c = R"doc()doc";
+
+static const char *__doc_sgl_MitchellFilter_radius = R"doc()doc";
 
 static const char *__doc_sgl_ModifierID = R"doc()doc";
 
@@ -6363,6 +6583,91 @@ static const char *__doc_sgl_RenderTargetWriteMask_none = R"doc()doc";
 
 static const char *__doc_sgl_RenderTargetWriteMask_red = R"doc()doc";
 
+static const char *__doc_sgl_Resampler =
+R"doc(Utility class for efficiently resampling discrete datasets to
+different resolutions.
+
+Template parameter ``Scalar``:
+    The underlying floating point data type.)doc";
+
+static const char *__doc_sgl_Resampler_Resampler =
+R"doc(Create a new Resampler object that transforms between the specified
+resolutions.
+
+This constructor precomputes all information needed to efficiently
+perform the desired resampling operation. For that reason, it is most
+efficient if it can be used repeatedly (e.g. to resample the equal-
+sized rows of a bitmap)
+
+Parameter ``source_res``:
+    Source resolution
+
+Parameter ``target_res``:
+    Target resolution)doc";
+
+static const char *__doc_sgl_Resampler_boundary_condition =
+R"doc(Boundary condition used when looking up samples outside of the defined
+input domain.)doc";
+
+static const char *__doc_sgl_Resampler_clamp = R"doc(Range to which resampled values will be clamped.)doc";
+
+static const char *__doc_sgl_Resampler_lookup = R"doc()doc";
+
+static const char *__doc_sgl_Resampler_m_bc = R"doc()doc";
+
+static const char *__doc_sgl_Resampler_m_clamp = R"doc()doc";
+
+static const char *__doc_sgl_Resampler_m_fast_end = R"doc()doc";
+
+static const char *__doc_sgl_Resampler_m_fast_start = R"doc()doc";
+
+static const char *__doc_sgl_Resampler_m_source_res = R"doc()doc";
+
+static const char *__doc_sgl_Resampler_m_start = R"doc()doc";
+
+static const char *__doc_sgl_Resampler_m_taps = R"doc()doc";
+
+static const char *__doc_sgl_Resampler_m_target_res = R"doc()doc";
+
+static const char *__doc_sgl_Resampler_m_weights = R"doc()doc";
+
+static const char *__doc_sgl_Resampler_resample =
+R"doc(Resample a multi-channel array and clamp the results to a specified
+valid range
+
+Parameter ``source``:
+    Source array of samples
+
+Parameter ``target``:
+    Target array of samples
+
+Parameter ``source_stride``:
+    Stride of samples in the source array. A value of '1' implies that
+    they are densely packed.
+
+Parameter ``target_stride``:
+    Stride of samples in the target array. A value of '1' implies that
+    they are densely packed.
+
+Parameter ``channels``:
+    Number of channels to be resampled)doc";
+
+static const char *__doc_sgl_Resampler_resample_internal = R"doc()doc";
+
+static const char *__doc_sgl_Resampler_set_boundary_condition =
+R"doc(Set the boundary condition used when looking up samples outside of the
+defined input domain.)doc";
+
+static const char *__doc_sgl_Resampler_set_clamp = R"doc(Set the range to which resampled values will be clamped.)doc";
+
+static const char *__doc_sgl_Resampler_source_resolution = R"doc(Return the reconstruction filter's source resolution)doc";
+
+static const char *__doc_sgl_Resampler_taps = R"doc(Return the number of taps used by the reconstruction filter)doc";
+
+static const char *__doc_sgl_Resampler_target_resolution = R"doc(Return the reconstruction filter's target resolution)doc";
+
+static const char *__doc_sgl_Resampler_to_string = R"doc()doc";
+
 static const char *__doc_sgl_Resolver = R"doc()doc";
 
 static const char *__doc_sgl_Resolver_resolve = R"doc()doc";
@@ -6587,6 +6892,8 @@ static const char *__doc_sgl_ShaderCursor_ShaderCursor = R"doc()doc";
 static const char *__doc_sgl_ShaderCursor_ShaderCursor_2 = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_ShaderCursor_3 = R"doc()doc";
+
+static const char *__doc_sgl_ShaderCursor_ShaderCursor_4 = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_dereference = R"doc()doc";
 
@@ -6959,6 +7266,8 @@ static const char *__doc_sgl_SlangCompilerOptions_dump_intermediates = R"doc(Whe
 
 static const char *__doc_sgl_SlangCompilerOptions_dump_intermediates_prefix = R"doc(The file name prefix for the intermediate source output.)doc";
 
+static const char *__doc_sgl_SlangCompilerOptions_enable_experimental_features = R"doc(Enable experimental Slang features (required for neural module).)doc";
+
 static const char *__doc_sgl_SlangCompilerOptions_enable_warnings = R"doc(Specifies a list of warnings to enable (warning codes or names).)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_floating_point_mode = R"doc(Specifies the floating point mode.)doc";
@@ -6995,11 +7304,11 @@ static const char *__doc_sgl_SlangDebugInfoLevel = R"doc(Slang debug info levels
 
 static const char *__doc_sgl_SlangDebugInfoLevel_info = R"doc()doc";
 
-static const char *__doc_sgl_SlangDebugInfoLevel_maximal = R"doc(Emit as much debug infromation as possible for each target.)doc";
+static const char *__doc_sgl_SlangDebugInfoLevel_maximal = R"doc(Emit as much debug information as possible for each target.)doc";
 
 static const char *__doc_sgl_SlangDebugInfoLevel_minimal =
 R"doc(Emit as little debug information as possible, while still supporting
-stack trackes.)doc";
+stack traces.)doc";
 
 static const char *__doc_sgl_SlangDebugInfoLevel_none = R"doc(No debug information.)doc";
 
@@ -7031,9 +7340,16 @@ static const char *__doc_sgl_SlangEntryPointDesc_specialization_args = R"doc(Spe
 
 static const char *__doc_sgl_SlangEntryPointDesc_type_conformances = R"doc()doc";
 
+static const char *__doc_sgl_SlangEntryPointDesc_type_lookup_module =
+R"doc(Module to use for type lookups (type conformances, specialization
+args). When entry point is from a composed module, this contains the
+composed module.)doc";
+
 static const char *__doc_sgl_SlangEntryPoint_SlangEntryPoint = R"doc()doc";
 
 static const char *__doc_sgl_SlangEntryPoint_class_name = R"doc()doc";
+
+static const char *__doc_sgl_SlangEntryPoint_create_build_context = R"doc(Helper to create a build context for entry point operations.)doc";
 
 static const char *__doc_sgl_SlangEntryPoint_desc = R"doc()doc";
 
@@ -7129,9 +7445,15 @@ static const char *__doc_sgl_SlangModuleData_name = R"doc()doc";
 
 static const char *__doc_sgl_SlangModuleData_path = R"doc()doc";
 
-static const char *__doc_sgl_SlangModuleData_slang_module = R"doc()doc";
+static const char *__doc_sgl_SlangModuleData_slang_component_type = R"doc(The underlying slang component type (for composed modules only).)doc";
+
+static const char *__doc_sgl_SlangModuleData_slang_module = R"doc(The underlying slang module (null for composed modules).)doc";
 
 static const char *__doc_sgl_SlangModuleDesc = R"doc()doc";
+
+static const char *__doc_sgl_SlangModuleDesc_2 = R"doc()doc";
+
+static const char *__doc_sgl_SlangModuleDesc_is_composed = R"doc(Returns true if this is a composed module (has source modules).)doc";
 
 static const char *__doc_sgl_SlangModuleDesc_module_name = R"doc(Required module name)doc";
 
@@ -7140,6 +7462,12 @@ static const char *__doc_sgl_SlangModuleDesc_path = R"doc(If source specified, a
 static const char *__doc_sgl_SlangModuleDesc_source =
 R"doc(Optional module source. If not specified slang module resolution is
 used.)doc";
+
+static const char *__doc_sgl_SlangModuleDesc_source_modules =
+R"doc(Source modules that are composed together to form this module (for
+composed modules only).)doc";
+
+static const char *__doc_sgl_SlangModuleDesc_type_conformances = R"doc(Type conformances to apply when composing modules.)doc";
 
 static const char *__doc_sgl_SlangModule_SlangModule = R"doc()doc";
 
@@ -7153,21 +7481,29 @@ session to avoid ref loops.)doc";
 
 static const char *__doc_sgl_SlangModule_class_name = R"doc()doc";
 
+static const char *__doc_sgl_SlangModule_create_entry_point =
+R"doc(Create a new entry point with optional type conformances, using full
+build context.)doc";
+
 static const char *__doc_sgl_SlangModule_data = R"doc()doc";
 
 static const char *__doc_sgl_SlangModule_desc = R"doc(Descriptor that holds all data required to create this module.)doc";
 
 static const char *__doc_sgl_SlangModule_entry_point = R"doc(Get an entry point, optionally applying type conformances to it.)doc";
 
-static const char *__doc_sgl_SlangModule_entry_points = R"doc(Build and return vector of all current entry points in the module.)doc";
+static const char *__doc_sgl_SlangModule_entry_points = R"doc(Return vector of all current entry points in the module.)doc";
 
 static const char *__doc_sgl_SlangModule_has_entry_point = R"doc()doc";
 
-static const char *__doc_sgl_SlangModule_layout = R"doc()doc";
+static const char *__doc_sgl_SlangModule_is_composed = R"doc(Returns true if this is a composed module.)doc";
+
+static const char *__doc_sgl_SlangModule_layout = R"doc(Combined layout reflecting the primary module and all linked modules.)doc";
 
 static const char *__doc_sgl_SlangModule_load =
 R"doc(Loads slang module and outputs the resulting SlangModuleData in
 current build info.)doc";
+
+static const char *__doc_sgl_SlangModule_m_cached_layout = R"doc()doc";
 
 static const char *__doc_sgl_SlangModule_m_data = R"doc()doc";
 
@@ -7177,7 +7513,9 @@ static const char *__doc_sgl_SlangModule_m_registered_entry_points = R"doc()doc"
 
 static const char *__doc_sgl_SlangModule_m_session = R"doc()doc";
 
-static const char *__doc_sgl_SlangModule_module_decl = R"doc(Get root decl ref for this module)doc";
+static const char *__doc_sgl_SlangModule_module_decl =
+R"doc(Get root decl ref for this module. Throws for composed modules (no
+single module to reflect).)doc";
 
 static const char *__doc_sgl_SlangModule_name = R"doc(Module name.)doc";
 
@@ -7195,7 +7533,15 @@ static const char *__doc_sgl_SlangModule_register_entry_point = R"doc()doc";
 
 static const char *__doc_sgl_SlangModule_session = R"doc(The session from which this module was built.)doc";
 
-static const char *__doc_sgl_SlangModule_slang_module = R"doc(Internal slang module.)doc";
+static const char *__doc_sgl_SlangModule_slang_component_type =
+R"doc(Returns the component type for this module. For composed modules,
+returns the composite. For regular modules, returns the slang module.)doc";
+
+static const char *__doc_sgl_SlangModule_slang_module = R"doc(Internal slang module (null for composed modules).)doc";
+
+static const char *__doc_sgl_SlangModule_source_modules =
+R"doc(Source modules that make up this composed module (empty for non-
+composed modules).)doc";
 
 static const char *__doc_sgl_SlangModule_store_built_data =
 R"doc(Finds this module in current build and updates internal m_data to
@@ -7274,6 +7620,13 @@ static const char *__doc_sgl_SlangSessionDesc_compiler_options = R"doc()doc";
 static const char *__doc_sgl_SlangSession_SlangSession = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_class_name = R"doc()doc";
+
+static const char *__doc_sgl_SlangSession_compose_modules =
+R"doc(Compose multiple modules into a single composed module. The composed
+module provides a unified layout and entry point access across all
+source modules.)doc";
+
+static const char *__doc_sgl_SlangSession_create_module = R"doc(Helper to create a module, updating cache afterwards.)doc";
 
 static const char *__doc_sgl_SlangSession_create_session = R"doc()doc";
 
@@ -7534,9 +7887,23 @@ static const char *__doc_sgl_Surface_present = R"doc(Present the previously acqu
 
 static const char *__doc_sgl_Surface_unconfigure = R"doc(Unconfigure the surface.)doc";
 
+static const char *__doc_sgl_TentFilter = R"doc()doc";
+
+static const char *__doc_sgl_TentFilter_TentFilter = R"doc()doc";
+
+static const char *__doc_sgl_TentFilter_eval = R"doc()doc";
+
+static const char *__doc_sgl_TentFilter_m_inv_radius = R"doc()doc";
+
+static const char *__doc_sgl_TentFilter_m_radius = R"doc()doc";
+
+static const char *__doc_sgl_TentFilter_radius = R"doc()doc";
+
 static const char *__doc_sgl_Texture = R"doc()doc";
 
 static const char *__doc_sgl_Texture_2 = R"doc()doc";
+
+static const char *__doc_sgl_Texture_3 = R"doc()doc";
 
 static const char *__doc_sgl_TextureAddressingMode = R"doc()doc";
 
@@ -7631,6 +7998,8 @@ sRGB gamma.)doc";
 static const char *__doc_sgl_TextureLoader_Options_usage =
 R"doc(Resource usage flags for the texture. ``TextureUsage::render_target``
 will be added automatically if ``generate_mips`` is true.)doc";
+
+static const char *__doc_sgl_TextureLoader_Options_ya_handling = R"doc(Strategy for handling YA (greyscale + alpha) bitmaps.)doc";
 
 static const char *__doc_sgl_TextureLoader_TextureLoader = R"doc()doc";
 
@@ -7994,6 +8363,8 @@ static const char *__doc_sgl_TypeConformance_TypeConformance_2 = R"doc()doc";
 static const char *__doc_sgl_TypeConformance_id = R"doc(Unique id per type for an interface (optional).)doc";
 
 static const char *__doc_sgl_TypeConformance_interface_name = R"doc(Name of the interface.)doc";
+
+static const char *__doc_sgl_TypeConformance_operator_le = R"doc()doc";
 
 static const char *__doc_sgl_TypeConformance_to_string = R"doc()doc";
 
@@ -8417,6 +8788,8 @@ static const char *__doc_sgl_WindowMode = R"doc(Window modes.)doc";
 
 static const char *__doc_sgl_WindowMode_fullscreen = R"doc()doc";
 
+static const char *__doc_sgl_WindowMode_info = R"doc()doc";
+
 static const char *__doc_sgl_WindowMode_minimized = R"doc()doc";
 
 static const char *__doc_sgl_WindowMode_normal = R"doc()doc";
@@ -8447,6 +8820,8 @@ static const char *__doc_sgl_Window_create = R"doc()doc";
 
 static const char *__doc_sgl_Window_cursor_mode = R"doc(The mouse cursor mode.)doc";
 
+static const char *__doc_sgl_Window_cursor_shape = R"doc(The mouse cursor shape.)doc";
+
 static const char *__doc_sgl_Window_get_clipboard = R"doc(Get the clipboard content.)doc";
 
 static const char *__doc_sgl_Window_handle_drop_files = R"doc()doc";
@@ -8461,7 +8836,11 @@ static const char *__doc_sgl_Window_handle_window_size = R"doc()doc";
 
 static const char *__doc_sgl_Window_height = R"doc(The height of the window in pixels.)doc";
 
+static const char *__doc_sgl_Window_m_cursor_cache = R"doc()doc";
+
 static const char *__doc_sgl_Window_m_cursor_mode = R"doc()doc";
+
+static const char *__doc_sgl_Window_m_cursor_shape = R"doc()doc";
 
 static const char *__doc_sgl_Window_m_gamepad_id = R"doc()doc";
 
@@ -8524,6 +8903,8 @@ static const char *__doc_sgl_Window_set_clipboard = R"doc(Set the clipboard cont
 
 static const char *__doc_sgl_Window_set_cursor_mode = R"doc()doc";
 
+static const char *__doc_sgl_Window_set_cursor_shape = R"doc()doc";
+
 static const char *__doc_sgl_Window_set_height = R"doc()doc";
 
 static const char *__doc_sgl_Window_set_icon = R"doc()doc";
@@ -8559,6 +8940,16 @@ static const char *__doc_sgl_Window_to_string = R"doc()doc";
 static const char *__doc_sgl_Window_width = R"doc(The width of the window in pixels.)doc";
 
 static const char *__doc_sgl_Window_window_handle = R"doc(The native window handle.)doc";
+
+static const char *__doc_sgl_YAHandling =
+R"doc(Strategy for handling YA (greyscale + alpha) bitmaps during texture
+loading.)doc";
+
+static const char *__doc_sgl_YAHandling_expand_to_rgba = R"doc()doc";
+
+static const char *__doc_sgl_YAHandling_info = R"doc()doc";
+
+static const char *__doc_sgl_YAHandling_preserve_as_rg = R"doc()doc";
 
 static const char *__doc_sgl_align_to = R"doc(Align an integer value to the given alignment.)doc";
 
@@ -8617,6 +9008,12 @@ static const char *__doc_sgl_comparator = R"doc()doc";
 
 static const char *__doc_sgl_comparator_operator_call = R"doc()doc";
 
+static const char *__doc_sgl_compose_modules = R"doc(Compose multiple slang modules into one.)doc";
+
+static const char *__doc_sgl_convert_coop_vec_matrices = R"doc(Convert multiple cooperative vector matrices between formats.)doc";
+
+static const char *__doc_sgl_convert_coop_vec_matrix = R"doc(Convert a single cooperative vector matrix between formats.)doc";
+
 static const char *__doc_sgl_crashpad_is_supported = R"doc(Returns true if Crashpad is supported in this build.)doc";
 
 static const char *__doc_sgl_crashpad_start_handler =
@@ -8635,6 +9032,234 @@ Parameter ``database``:
 
 Parameter ``annotations``:
     Annotations to include with crash reports.)doc";
+
+static const char *__doc_sgl_create_acceleration_structure = R"doc(Create a new acceleration structure.)doc";
+
+static const char *__doc_sgl_create_acceleration_structure_instance_list = R"doc(Create a new acceleration structure instance list.)doc";
+
+static const char *__doc_sgl_create_buffer =
+R"doc(Create a new buffer.
+
+Parameter ``size``:
+    Buffer size in bytes.
+
+Parameter ``element_count``:
+    Buffer size in number of struct elements. Can be used instead of
+    ``size``.
+
+Parameter ``struct_size``:
+    Struct size in bytes.
+
+Parameter ``resource_type_layout``:
+    Resource type layout of the buffer. Can be used instead of
+    ``struct_size`` to specify the size of the struct.
+
+Parameter ``format``:
+    Buffer format. Used when creating typed buffer views.
+
+Parameter ``initial_state``:
+    Initial resource state.
+
+Parameter ``usage``:
+    Resource usage flags.
+
+Parameter ``memory_type``:
+    Memory type.
+
+Parameter ``label``:
+    Debug label.
+
+Parameter ``data``:
+    Initial data to upload to the buffer.
+
+Parameter ``data_size``:
+    Size of the initial data in bytes.
+
+Returns:
+    New buffer object.)doc";
+
+static const char *__doc_sgl_create_buffer_view = R"doc(Create a new buffer view.)doc";
+
+static const char *__doc_sgl_create_command_encoder = R"doc(Create a command encoder.)doc";
+
+static const char *__doc_sgl_create_compute_kernel = R"doc(Create a compute kernel.)doc";
+
+static const char *__doc_sgl_create_compute_pipeline = R"doc(Create a compute pipeline.)doc";
+
+static const char *__doc_sgl_create_coop_vec_matrix_desc = R"doc(Create a cooperative vector matrix descriptor.)doc";
+
+static const char *__doc_sgl_create_fence =
+R"doc(Create a new fence.
+
+Parameter ``initial_value``:
+    Initial fence value.
+
+Parameter ``shared``:
+    Create a shared fence.
+
+Returns:
+    New fence object.)doc";
+
+static const char *__doc_sgl_create_input_layout =
+R"doc(Create a new input layout.
+
+Parameter ``input_elements``:
+    List of input elements (see InputElementDesc for details).
+
+Parameter ``vertex_streams``:
+    List of vertex streams (see VertexStreamDesc for details).
+
+Returns:
+    New input layout object.)doc";
+
+static const char *__doc_sgl_create_query_pool =
+R"doc(Create a new query pool.
+
+Parameter ``type``:
+    Query type.
+
+Parameter ``count``:
+    Number of queries in the pool.
+
+Returns:
+    New query pool object.)doc";
+
+static const char *__doc_sgl_create_ray_tracing_pipeline = R"doc(Create a ray tracing pipeline.)doc";
+
+static const char *__doc_sgl_create_render_pipeline = R"doc(Create a render pipeline.)doc";
+
+static const char *__doc_sgl_create_root_shader_object = R"doc(Create a root shader object for a shader program.)doc";
+
+static const char *__doc_sgl_create_sampler =
+R"doc(Create a new sampler.
+
+Parameter ``min_filter``:
+    Minification filter.
+
+Parameter ``mag_filter``:
+    Magnification filter.
+
+Parameter ``mip_filter``:
+    Mip-map filter.
+
+Parameter ``reduction_op``:
+    Reduction operation.
+
+Parameter ``address_u``:
+    Texture addressing mode for the U coordinate.
+
+Parameter ``address_v``:
+    Texture addressing mode for the V coordinate.
+
+Parameter ``address_w``:
+    Texture addressing mode for the W coordinate.
+
+Parameter ``mip_lod_bias``:
+    Mip-map LOD bias.
+
+Parameter ``max_anisotropy``:
+    Maximum anisotropy.
+
+Parameter ``comparison_func``:
+    Comparison function.
+
+Parameter ``border_color``:
+    Border color.
+
+Parameter ``min_lod``:
+    Minimum LOD level.
+
+Parameter ``max_lod``:
+    Maximum LOD level.
+
+Parameter ``label``:
+    Debug label.
+
+Returns:
+    New sampler object.)doc";
+
+static const char *__doc_sgl_create_shader_object = R"doc(Create a shader object from a type layout.)doc";
+
+static const char *__doc_sgl_create_shader_object_2 = R"doc(Create a shader object from a reflection cursor.)doc";
+
+static const char *__doc_sgl_create_shader_table = R"doc(Create a new shader table.)doc";
+
+static const char *__doc_sgl_create_slang_session =
+R"doc(Create a new slang session.
+
+Parameter ``compiler_options``:
+    Compiler options (see SlangCompilerOptions for details).
+
+Returns:
+    New slang session object.)doc";
+
+static const char *__doc_sgl_create_surface =
+R"doc(Create a new surface.
+
+Parameter ``window``:
+    Window to create the surface for.
+
+Returns:
+    New surface object.)doc";
+
+static const char *__doc_sgl_create_surface_2 =
+R"doc(Create a new surface.
+
+Parameter ``window_handle``:
+    Native window handle to create the surface for.
+
+Returns:
+    New surface object.)doc";
+
+static const char *__doc_sgl_create_texture =
+R"doc(Create a new texture.
+
+Parameter ``type``:
+    Texture type.
+
+Parameter ``format``:
+    Texture format.
+
+Parameter ``width``:
+    Width in pixels.
+
+Parameter ``height``:
+    Height in pixels.
+
+Parameter ``depth``:
+    Depth in pixels.
+
+Parameter ``array_length``:
+    Array length.
+
+Parameter ``mip_count``:
+    Mip level count. Number of mip levels (ALL_MIPS for all mip
+    levels).
+
+Parameter ``sample_count``:
+    Number of samples for multisampled textures.
+
+Parameter ``quality``:
+    Quality level for multisampled textures.
+
+Parameter ``usage``:
+    Resource usage.
+
+Parameter ``memory_type``:
+    Memory type.
+
+Parameter ``label``:
+    Debug label.
+
+Parameter ``data``:
+    Initial data.
+
+Returns:
+    New texture object.)doc";
+
+static const char *__doc_sgl_create_texture_from_resource = R"doc(Create a texture from an existing RHI resource.)doc";
+
+static const char *__doc_sgl_create_texture_view = R"doc(Create a new texture view.)doc";
 
 static const char *__doc_sgl_cuda_ContextScope = R"doc()doc";
 
@@ -8752,6 +9377,10 @@ static const char *__doc_sgl_cuda_external_memory_get_mapped_buffer = R"doc()doc
 
 static const char *__doc_sgl_cuda_free_device = R"doc()doc";
 
+static const char *__doc_sgl_cuda_get_current_device_index =
+R"doc(Get the CUDA device index from the current CUDA context. Returns 0 if
+no CUDA context is active.)doc";
+
 static const char *__doc_sgl_cuda_import_external_memory = R"doc()doc";
 
 static const char *__doc_sgl_cuda_import_external_semaphore = R"doc()doc";
@@ -8766,9 +9395,18 @@ static const char *__doc_sgl_cuda_memcpy_host_to_device = R"doc()doc";
 
 static const char *__doc_sgl_cuda_memset_device = R"doc()doc";
 
+static const char *__doc_sgl_cuda_memset_device_async = R"doc()doc";
+
 static const char *__doc_sgl_cuda_signal_external_semaphore = R"doc()doc";
 
 static const char *__doc_sgl_cuda_wait_external_semaphore = R"doc()doc";
+
+static const char *__doc_sgl_current_device =
+R"doc(Get the current device from the top of the thread-local device stack.
+Throws if the stack is empty.
+
+Returns:
+    The current device.)doc";
 
 static const char *__doc_sgl_cursor_utils_check_array = R"doc()doc";
 
@@ -8852,7 +9490,9 @@ static const char *__doc_sgl_detail_from_slang_9 = R"doc()doc";
 
 static const char *__doc_sgl_detail_get_slang_rhi_message_count = R"doc()doc";
 
-static const char *__doc_sgl_detail_invalidate_all_reflection_data = R"doc()doc";
+static const char *__doc_sgl_detail_invalidate_reflection_data =
+R"doc(Invalidate reflection data. If device is set, only reflection data
+owned by that device is invalidated.)doc";
 
 static const char *__doc_sgl_detail_on_slang_wrapper_destroyed = R"doc()doc";
 
@@ -9022,6 +9662,16 @@ static const char *__doc_sgl_find_enum_info_adl_72 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_73 = R"doc()doc";
 
+static const char *__doc_sgl_find_enum_info_adl_74 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_75 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_76 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_77 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_78 = R"doc()doc";
+
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
 static const char *__doc_sgl_flip_bit = R"doc()doc";
@@ -9049,6 +9699,18 @@ static const char *__doc_sgl_flip_bit_11 = R"doc()doc";
 static const char *__doc_sgl_flip_bit_12 = R"doc()doc";
 
 static const char *__doc_sgl_flip_bit_13 = R"doc()doc";
+
+static const char *__doc_sgl_get_acceleration_structure_sizes =
+R"doc(Query the device for buffer sizes required for acceleration structure
+builds.
+
+Parameter ``desc``:
+    Acceleration structure build description.
+
+Returns:
+    Acceleration structure sizes.)doc";
+
+static const char *__doc_sgl_get_coop_vec_matrix_size = R"doc(Get the size of a cooperative vector matrix in bytes.)doc";
 
 static const char *__doc_sgl_get_cuda_current_context_native_handles =
 R"doc(Gets the device and context handles for the current CUDA context. Use
@@ -9119,6 +9781,14 @@ static const char *__doc_sgl_is_set_13 = R"doc()doc";
 static const char *__doc_sgl_layout_from_rhilayout = R"doc()doc";
 
 static const char *__doc_sgl_lerp = R"doc(Linearly interpolate between a and b.)doc";
+
+static const char *__doc_sgl_link_program = R"doc(Link modules and entry points into a shader program.)doc";
+
+static const char *__doc_sgl_load_module = R"doc(Load a slang module by name.)doc";
+
+static const char *__doc_sgl_load_module_from_source = R"doc(Load a slang module from source code.)doc";
+
+static const char *__doc_sgl_load_program = R"doc(Load a module and link a shader program in one step.)doc";
 
 static const char *__doc_sgl_log_debug = R"doc()doc";
 
@@ -9312,6 +9982,14 @@ static const char *__doc_sgl_math_dot = R"doc(dot)doc";
 
 static const char *__doc_sgl_math_dot_2 = R"doc(dot)doc";
 
+static const char *__doc_sgl_math_eq = R"doc(Component-wise == comparison.)doc";
+
+static const char *__doc_sgl_math_eq_2 = R"doc(Component-wise == comparison.)doc";
+
+static const char *__doc_sgl_math_eq_3 = R"doc(Component-wise == comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_eq_4 = R"doc(Component-wise == comparison (scalar-vector).)doc";
+
 static const char *__doc_sgl_math_euler_angles =
 R"doc(Extract the euler angles in radians from a quaternion (pitch as x, yaw
 as y, roll as z).)doc";
@@ -9452,6 +10130,18 @@ static const char *__doc_sgl_math_frac_3 = R"doc()doc";
 
 static const char *__doc_sgl_math_frac_4 = R"doc(frac)doc";
 
+static const char *__doc_sgl_math_ge = R"doc(Component-wise >= comparison.)doc";
+
+static const char *__doc_sgl_math_ge_2 = R"doc(Component-wise >= comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_ge_3 = R"doc(Component-wise >= comparison (scalar-vector).)doc";
+
+static const char *__doc_sgl_math_gt = R"doc(Component-wise > comparison.)doc";
+
+static const char *__doc_sgl_math_gt_2 = R"doc(Component-wise > comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_gt_3 = R"doc(Component-wise > comparison (scalar-vector).)doc";
+
 static const char *__doc_sgl_math_inverse = R"doc(Compute inverse of a 2x2 matrix.)doc";
 
 static const char *__doc_sgl_math_inverse_2 = R"doc(Compute inverse of a 3x3 matrix.)doc";
@@ -9496,6 +10186,12 @@ static const char *__doc_sgl_math_isnan_5 = R"doc()doc";
 
 static const char *__doc_sgl_math_isnan_6 = R"doc(isnan)doc";
 
+static const char *__doc_sgl_math_le = R"doc(Component-wise <= comparison.)doc";
+
+static const char *__doc_sgl_math_le_2 = R"doc(Component-wise <= comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_le_3 = R"doc(Component-wise <= comparison (scalar-vector).)doc";
+
 static const char *__doc_sgl_math_length = R"doc(length)doc";
 
 static const char *__doc_sgl_math_length_2 = R"doc(length)doc";
@@ -9511,8 +10207,6 @@ static const char *__doc_sgl_math_lerp_4 = R"doc()doc";
 static const char *__doc_sgl_math_lerp_5 = R"doc(lerp)doc";
 
 static const char *__doc_sgl_math_lerp_6 = R"doc()doc";
-
-static const char *__doc_sgl_math_lex_lt = R"doc()doc";
 
 static const char *__doc_sgl_math_linear_to_srgb = R"doc()doc";
 
@@ -9543,6 +10237,12 @@ static const char *__doc_sgl_math_log2_2 = R"doc()doc";
 static const char *__doc_sgl_math_log2_3 = R"doc()doc";
 
 static const char *__doc_sgl_math_log2_4 = R"doc(log2)doc";
+
+static const char *__doc_sgl_math_lt = R"doc(Component-wise < comparison.)doc";
+
+static const char *__doc_sgl_math_lt_2 = R"doc(Component-wise < comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_lt_3 = R"doc(Component-wise < comparison (scalar-vector).)doc";
 
 static const char *__doc_sgl_math_matrix =
 R"doc(Matrix type with row-major storage.
@@ -9665,10 +10365,6 @@ static const char *__doc_sgl_math_matrix_operator_assign_2 = R"doc()doc";
 
 static const char *__doc_sgl_math_matrix_operator_assign_3 = R"doc()doc";
 
-static const char *__doc_sgl_math_matrix_operator_eq = R"doc()doc";
-
-static const char *__doc_sgl_math_matrix_operator_ne = R"doc()doc";
-
 static const char *__doc_sgl_math_matrix_set_col = R"doc()doc";
 
 static const char *__doc_sgl_math_matrix_set_row = R"doc()doc";
@@ -9692,6 +10388,14 @@ static const char *__doc_sgl_math_mul_3 = R"doc(Multiply vector and matrix. Vect
 static const char *__doc_sgl_math_mul_4 = R"doc(Multiply quaternion with another quaternion.)doc";
 
 static const char *__doc_sgl_math_mul_5 = R"doc(Multiply quaternion and 3 component vector.)doc";
+
+static const char *__doc_sgl_math_ne = R"doc(Component-wise != comparison.)doc";
+
+static const char *__doc_sgl_math_ne_2 = R"doc(Component-wise != comparison.)doc";
+
+static const char *__doc_sgl_math_ne_3 = R"doc(Component-wise != comparison (vector-scalar).)doc";
+
+static const char *__doc_sgl_math_ne_4 = R"doc(Component-wise != comparison (scalar-vector).)doc";
 
 static const char *__doc_sgl_math_none = R"doc()doc";
 
@@ -9749,25 +10453,11 @@ static const char *__doc_sgl_math_operator_div_3 = R"doc(Binary / operator)doc";
 
 static const char *__doc_sgl_math_operator_div_4 = R"doc(Binary / operator)doc";
 
-static const char *__doc_sgl_math_operator_eq = R"doc(Binary == operator)doc";
+static const char *__doc_sgl_math_operator_eq = R"doc(Equality operator.)doc";
 
-static const char *__doc_sgl_math_operator_eq_2 = R"doc(Binary == operator)doc";
+static const char *__doc_sgl_math_operator_eq_2 = R"doc(Equality operator.)doc";
 
-static const char *__doc_sgl_math_operator_eq_3 = R"doc(Binary == operator)doc";
-
-static const char *__doc_sgl_math_operator_eq_4 = R"doc(Binary == operator)doc";
-
-static const char *__doc_sgl_math_operator_ge = R"doc(Binary >= operator)doc";
-
-static const char *__doc_sgl_math_operator_ge_2 = R"doc(Binary >= operator)doc";
-
-static const char *__doc_sgl_math_operator_ge_3 = R"doc(Binary >= operator)doc";
-
-static const char *__doc_sgl_math_operator_gt = R"doc(Binary > operator)doc";
-
-static const char *__doc_sgl_math_operator_gt_2 = R"doc(Binary > operator)doc";
-
-static const char *__doc_sgl_math_operator_gt_3 = R"doc(Binary > operator)doc";
+static const char *__doc_sgl_math_operator_eq_3 = R"doc(Equality operator.)doc";
 
 static const char *__doc_sgl_math_operator_h = R"doc(h suffix for "half float" literals.)doc";
 
@@ -9817,11 +10507,11 @@ static const char *__doc_sgl_math_operator_land_2 = R"doc(Binary && operator)doc
 
 static const char *__doc_sgl_math_operator_land_3 = R"doc(Binary && operator)doc";
 
-static const char *__doc_sgl_math_operator_le = R"doc(Binary <= operator)doc";
+static const char *__doc_sgl_math_operator_le = R"doc(Lexicographic three-way operator.)doc";
 
-static const char *__doc_sgl_math_operator_le_2 = R"doc(Binary <= operator)doc";
+static const char *__doc_sgl_math_operator_le_2 = R"doc(Lexicographic three-way operator.)doc";
 
-static const char *__doc_sgl_math_operator_le_3 = R"doc(Binary <= operator)doc";
+static const char *__doc_sgl_math_operator_le_3 = R"doc(Lexicographic three-way operator.)doc";
 
 static const char *__doc_sgl_math_operator_lnot = R"doc(Unary not operator)doc";
 
@@ -9836,12 +10526,6 @@ static const char *__doc_sgl_math_operator_lshift = R"doc(Binary << operator)doc
 static const char *__doc_sgl_math_operator_lshift_2 = R"doc(Binary << operator)doc";
 
 static const char *__doc_sgl_math_operator_lshift_3 = R"doc(Binary << operator)doc";
-
-static const char *__doc_sgl_math_operator_lt = R"doc(Binary < operator)doc";
-
-static const char *__doc_sgl_math_operator_lt_2 = R"doc(Binary < operator)doc";
-
-static const char *__doc_sgl_math_operator_lt_3 = R"doc(Binary < operator)doc";
 
 static const char *__doc_sgl_math_operator_mod = R"doc(Binary % operator)doc";
 
@@ -9860,14 +10544,6 @@ static const char *__doc_sgl_math_operator_mul_4 = R"doc(Binary * operator)doc";
 static const char *__doc_sgl_math_operator_mul_5 = R"doc(Binary * operator)doc";
 
 static const char *__doc_sgl_math_operator_mul_6 = R"doc(Binary * operator)doc";
-
-static const char *__doc_sgl_math_operator_ne = R"doc(Binary != operator)doc";
-
-static const char *__doc_sgl_math_operator_ne_2 = R"doc(Binary != operator)doc";
-
-static const char *__doc_sgl_math_operator_ne_3 = R"doc(Binary != operator)doc";
-
-static const char *__doc_sgl_math_operator_ne_4 = R"doc(Binary != operator)doc";
 
 static const char *__doc_sgl_math_operator_rshift = R"doc(Binary >> operator)doc";
 
@@ -9922,7 +10598,13 @@ imaginary units.
 The quaternion is normalized if: w^2 + x^2 + y^2 + z^2 = 1
 
 Quaternions are stored as (x, y, z, w) to make them better for interop
-with the GPU.)doc";
+with the GPU.
+
+Comparison operators (==, !=, <, etc.) return a single bool for STL
+compatibility. Use eq(), ne(), etc. for component-wise comparisons.
+
+Template parameter ``T``:
+    Scalar type)doc";
 
 static const char *__doc_sgl_math_quat_from_angle_axis =
 R"doc(Build a quaternion from an angle and a normalized axis.
@@ -10153,6 +10835,10 @@ The semantics are aligned with Slang: - Math operators are element-
 wise (e.g. +, -, *, /) - Free standing functions for vector operations
 (e.g. dot(), cross(), etc.)
 
+Exception: Comparison operators (==, !=, <, etc.) return a single bool
+for STL compatibility. Use eq(), ne(), etc. for component-wise
+comparisons.
+
 Template parameter ``T``:
     Scalar type
 
@@ -10160,6 +10846,8 @@ Template parameter ``N``:
     Number of elements (1-4))doc";
 
 static const char *__doc_sgl_math_yaw = R"doc(Returns yaw value of euler angles expressed in radians.)doc";
+
+static const char *__doc_sgl_modulo = R"doc(Returns always positive modulo value.)doc";
 
 static const char *__doc_sgl_narrow_cast = R"doc()doc";
 
@@ -10441,6 +11129,27 @@ static const char *__doc_sgl_platform_set_window_icon = R"doc(Set the window ico
 static const char *__doc_sgl_platform_static_init = R"doc(Initialize the platform layer.)doc";
 
 static const char *__doc_sgl_platform_static_shutdown = R"doc(Shutdown the platform layer.)doc";
+
+static const char *__doc_sgl_pop_current_device =
+R"doc(Pop the top device from the thread-local device stack. Throws if the
+stack is empty.
+
+Returns:
+    The popped device.)doc";
+
+static const char *__doc_sgl_push_current_device =
+R"doc(Push a device onto the thread-local current device stack.
+
+Stores a raw pointer in the thread-local stack. The caller must ensure
+that the device (and any devices below it on the stack) outlive their
+corresponding pop_current_device() calls. Device::close() only auto-
+pops if the device is on top of the stack; a closed device lower in
+the stack remains as a stale pointer - calling current_device() or
+pop_current_device() on that entry is undefined behavior unless the
+device is kept alive (refcount > 0) until popped.
+
+Parameter ``device``:
+    Device to push (must not be null).)doc";
 
 static const char *__doc_sgl_ref = R"doc()doc";
 
@@ -10730,6 +11439,21 @@ static const char *__doc_sgl_slangpy_AccessType_readwrite = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_AccessType_write = R"doc()doc";
 
+static const char *__doc_sgl_slangpy_AutogradAccess =
+R"doc(Access pattern for torch autograd tensor bindings. Precomputed at
+build time and stored in a flat list on NativeCallData, consumed in
+order during find_torch_tensors at dispatch time.)doc";
+
+static const char *__doc_sgl_slangpy_AutogradAccess_info = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_AutogradAccess_none = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_AutogradAccess_read = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_AutogradAccess_readwrite = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_AutogradAccess_write = R"doc()doc";
+
 static const char *__doc_sgl_slangpy_CallContext = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallContext_CallContext = R"doc()doc";
@@ -10738,21 +11462,19 @@ static const char *__doc_sgl_slangpy_CallContext_call_mode = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallContext_call_shape = R"doc()doc";
 
+static const char *__doc_sgl_slangpy_CallContext_cuda_stream = R"doc()doc";
+
 static const char *__doc_sgl_slangpy_CallContext_device = R"doc()doc";
+
+static const char *__doc_sgl_slangpy_CallContext_init = R"doc(Initialize call shape and CUDA stream (called each dispatch).)doc";
 
 static const char *__doc_sgl_slangpy_CallContext_m_call_mode = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallContext_m_call_shape = R"doc()doc";
 
+static const char *__doc_sgl_slangpy_CallContext_m_cuda_stream = R"doc()doc";
+
 static const char *__doc_sgl_slangpy_CallContext_m_device = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_entry_point = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_global_data = R"doc()doc";
-
-static const char *__doc_sgl_slangpy_CallDataMode_info = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_CallMode = R"doc()doc";
 
@@ -11556,7 +12278,10 @@ Parameter ``width``:
     Render texture width
 
 Parameter ``height``:
-    Render texture height)doc";
+    Render texture height
+
+Parameter ``window``:
+    Window this UI context is rendered for (optional).)doc";
 
 static const char *__doc_sgl_ui_Context_class_name = R"doc()doc";
 
@@ -11602,8 +12327,6 @@ Returns:
 
 static const char *__doc_sgl_ui_Context_m_device = R"doc()doc";
 
-static const char *__doc_sgl_ui_Context_m_font_texture = R"doc()doc";
-
 static const char *__doc_sgl_ui_Context_m_fonts = R"doc()doc";
 
 static const char *__doc_sgl_ui_Context_m_frame_index = R"doc()doc";
@@ -11624,9 +12347,15 @@ static const char *__doc_sgl_ui_Context_m_sampler = R"doc()doc";
 
 static const char *__doc_sgl_ui_Context_m_screen = R"doc()doc";
 
+static const char *__doc_sgl_ui_Context_m_textures = R"doc()doc";
+
 static const char *__doc_sgl_ui_Context_m_vertex_buffers = R"doc()doc";
 
 static const char *__doc_sgl_ui_Context_screen = R"doc(The main screen widget.)doc";
+
+static const char *__doc_sgl_ui_Context_update_mouse_cursor = R"doc()doc";
+
+static const char *__doc_sgl_ui_Context_update_texture = R"doc()doc";
 
 static const char *__doc_sgl_ui_DataTypeTraits = R"doc()doc";
 
@@ -12065,6 +12794,10 @@ static const char *__doc_sgl_ui_operator_iand_2 = R"doc()doc";
 static const char *__doc_sgl_ui_operator_ior = R"doc()doc";
 
 static const char *__doc_sgl_ui_operator_ior_2 = R"doc()doc";
+
+static const char *__doc_std_hash = R"doc()doc";
+
+static const char *__doc_std_hash_operator_call = R"doc()doc";
 
 static const char *__doc_std_numeric_limits = R"doc()doc";
 

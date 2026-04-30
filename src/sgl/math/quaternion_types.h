@@ -6,6 +6,7 @@
 #include "sgl/math/vector_types.h"
 
 #include <array>
+#include <compare>
 #include <type_traits>
 
 namespace sgl::math {
@@ -23,6 +24,11 @@ namespace sgl::math {
  * w^2 + x^2 + y^2 + z^2 = 1
  *
  * Quaternions are stored as (x, y, z, w) to make them better for interop with the GPU.
+ *
+ * Comparison operators (==, !=, <, etc.) return a single bool for
+ * STL compatibility. Use eq(), ne(), etc. for component-wise comparisons.
+ *
+ * \tparam T Scalar type
  */
 template<typename T>
 struct quat {
@@ -71,6 +77,29 @@ struct quat {
     value_type& operator[](size_t i) { return (&x)[i]; }
     const value_type& operator[](size_t i) const { return (&x)[i]; }
 };
+
+/// Equality operator.
+template<typename T>
+[[nodiscard]] constexpr bool operator==(const quat<T>& lhs, const quat<T>& rhs)
+{
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
+}
+
+/// Lexicographic three-way operator.
+template<typename T>
+[[nodiscard]] constexpr auto operator<=>(const quat<T>& lhs, const quat<T>& rhs)
+{
+    auto cmp = lhs.x <=> rhs.x;
+    if (cmp != 0)
+        return cmp;
+    cmp = lhs.y <=> rhs.y;
+    if (cmp != 0)
+        return cmp;
+    cmp = lhs.z <=> rhs.z;
+    if (cmp != 0)
+        return cmp;
+    return lhs.w <=> rhs.w;
+}
 
 using quatf = quat<float>;
 

@@ -126,6 +126,7 @@ class _CudaBufferView:
         torch.float16: "<f2",
         torch.float32: "<f4",
         torch.float64: "<f8",
+        torch.bool: "|b1",
         torch.bfloat16: "<V2",  # no NumPy equivalent; 2-byte opaque
     }
 

@@ -28,6 +28,14 @@ constexpr bool is_power_of_two(T a)
     return (a & (a - (T)1)) == 0;
 }
 
+/// Returns always positive modulo value.
+template<std::integral T>
+constexpr T modulo(T a, T b)
+{
+    T result = a - (a / b) * b;
+    return result < 0 ? result + b : result;
+}
+
 /// Divide a by b and round up to the next integer.
 template<std::integral T>
 constexpr T div_round_up(T a, T b)

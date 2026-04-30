@@ -93,6 +93,7 @@ SGL_DICT_TO_DESC_FIELD(first_query_index, uint32_t)
 SGL_DICT_TO_DESC_END()
 
 SGL_DICT_TO_DESC_BEGIN(AccelerationStructureDesc)
+SGL_DICT_TO_DESC_FIELD(kind, AccelerationStructureKind)
 SGL_DICT_TO_DESC_FIELD(size, DeviceSize)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_END()
@@ -406,6 +407,8 @@ SGL_PY_EXPORT(device_raytracing)
         );
     nb::implicitly_convertible<nb::dict, AccelerationStructureQueryDesc>();
 
+    nb::sgl_enum<AccelerationStructureKind>(m, "AccelerationStructureKind");
+
     nb::class_<AccelerationStructureDesc>(m, "AccelerationStructureDesc", D(AccelerationStructureDesc))
         .def(nb::init<>())
         .def(
@@ -415,6 +418,7 @@ SGL_PY_EXPORT(device_raytracing)
                 new (self) AccelerationStructureDesc(dict_to_AccelerationStructureDesc(dict));
             }
         )
+        .def_rw("kind", &AccelerationStructureDesc::kind, D(AccelerationStructureDesc, kind))
         .def_rw("size", &AccelerationStructureDesc::size, D(AccelerationStructureDesc, size))
         .def_rw("label", &AccelerationStructureDesc::label, D(AccelerationStructureDesc, label));
     nb::implicitly_convertible<nb::dict, AccelerationStructureDesc>();
