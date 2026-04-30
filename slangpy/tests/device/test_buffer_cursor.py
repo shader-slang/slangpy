@@ -413,8 +413,8 @@ def test_cursor_read_write_reinterpret(device_type: spy.DeviceType, seed: int):
         module.layout.find_type_by_name("StructuredBuffer<TestType>")
     )
     reinterpret_type_layout = module.layout.get_type_layout(
-        module.layout.find_type_by_name("uint16_t[2]")
-    )
+        module.layout.find_type_by_name("StructuredBuffer<uint16_t[2]>")
+    ).element_type_layout
 
     # Create a buffer cursor with its own data
     cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
