@@ -93,15 +93,12 @@ public:
     DeviceType _get_device_type() const;
 
 private:
-    size_t element_stride() const;
-
     void write_data(size_t offset, const void* data, size_t size) const;
     void read_data(size_t offset, void* data, size_t size) const;
 
     ref<const TypeLayoutReflection> m_type_layout;
     ref<BufferCursor> m_buffer;
     size_t m_offset{0};
-    bool m_is_reinterpreted{false};
 
     friend class BufferCursor;
 };
