@@ -418,7 +418,7 @@ def test_cursor_read_write_reinterpret(device_type: spy.DeviceType, seed: int):
 
     # Create a buffer cursor with its own data
     cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
-    
+
     # Populate the first element
     element = cursor[0]
     for test in tests:
