@@ -21,6 +21,7 @@ public:
     SignatureBuffer& operator=(const SignatureBuffer&) = delete;
 
     void add(const std::string& value) { add_bytes(reinterpret_cast<const uint8_t*>(value.data()), value.length()); }
+    void add(std::string_view value) { add_bytes(reinterpret_cast<const uint8_t*>(value.data()), value.length()); }
     void add(const char* value) { add_bytes(reinterpret_cast<const uint8_t*>(value), std::strlen(value)); }
 
     void add(uint32_t value)

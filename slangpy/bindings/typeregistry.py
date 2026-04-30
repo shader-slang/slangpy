@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+import re
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 from slangpy.bindings.marshall import Marshall
@@ -42,14 +43,6 @@ def lookup_signature_callback(
     return _lookup_mro(PYTHON_SIGNATURES, python_type)
 
 
-def has_registered_type_or_signature(value: Any) -> bool:
-    python_type = type(value)
-    if lookup_type_callback(python_type) is not None:
-        return True
-    found, _ = lookup_signature_callback(python_type)
-    return found
-
-
 def get_or_create_type(
     layout: "SlangProgramLayout", python_type: Any, value: Any = None
 ) -> NativeMarshall:
@@ -59,6 +52,26 @@ def get_or_create_type(
     if isinstance(python_type, type):
         cb = lookup_type_callback(python_type)
         if cb is None:
+            if value is not None:
+                from slangpy.bindings.cursor import (
+                    WriteToCursorMarshall,
+                    WriteToCursorMarshallInfo,
+                )
+                from slangpy.core.native import _get_native_cursor_writer_type_info
+
+                native_info = _get_native_cursor_writer_type_info(value)
+                if native_info is not None:
+                    return WriteToCursorMarshall(
+                        layout,
+                        WriteToCursorMarshallInfo(
+                            slang_type_name=native_info["slang_type_name"],
+                            signature=native_info["signature"],
+                            imports=tuple(native_info["imports"]),
+                            accepted_type_regex=re.compile(
+                                re.escape(native_info["slang_type_name"])
+                            ),
+                        ),
+                    )
             raise ValueError(f"Unsupported type {python_type}")
         res = cb(layout, value)
         if res is None:

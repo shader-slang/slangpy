@@ -9,6 +9,7 @@
 #include "sgl/core/logger.h"
 #include "sgl/utils/slangpy.h"
 #include "sgl/device/device.h"
+#include "sgl/device/cursor_utils.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/command.h"
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
@@ -22,8 +23,6 @@
 #include "utils/torch_bridge.h"
 
 #include <fmt/format.h>
-
-#include <unordered_map>
 
 namespace sgl {
 extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
@@ -72,27 +71,81 @@ namespace {
         }
     }
 
-    bool has_registered_type_or_signature(nb::handle obj)
+    bool native_cursor_writer_pointer(const std::type_info& type, nb::handle obj, void*& value)
     {
-        PyTypeObject* python_type = Py_TYPE(obj.ptr());
-        static std::unordered_map<PyTypeObject*, bool> type_cache;
-        auto cache_it = type_cache.find(python_type);
-        if (cache_it != type_cache.end())
-            return cache_it->second;
+        return nb::detail::nb_type_get(
+            &type,
+            obj.ptr(),
+            static_cast<uint8_t>(nb::detail::cast_flags::manual),
+            nullptr,
+            &value
+        );
+    }
 
-        static PyObject* predicate = []()
-        {
-            nb::object fn
-                = nb::module_::import_("slangpy.bindings.typeregistry").attr("has_registered_type_or_signature");
-            return fn.release().ptr();
-        }();
-        PyObject* result = PyObject_CallFunctionObjArgs(predicate, obj.ptr(), nullptr);
-        if (!result)
-            nb::raise_python_error();
-        nb::object result_obj = nb::steal<nb::object>(result);
-        bool has_registered = nb::cast<bool>(result_obj);
-        type_cache.emplace(python_type, has_registered);
-        return has_registered;
+    const cursor_utils::CursorWriterTypeInfo* find_native_cursor_writer(nb::handle obj, void*& value)
+    {
+        auto infos = cursor_utils::cursor_writer_type_infos();
+        if (infos.empty())
+            return nullptr;
+
+        nb::handle type = obj.type();
+        const std::type_info* exact_type = nb::type_check(type) ? &nb::type_info(type) : nullptr;
+
+        if (exact_type) {
+            if (const auto* info = cursor_utils::find_cursor_writer_type_info(*exact_type)) {
+                if (native_cursor_writer_pointer(*info->type, obj, value) && value != nullptr)
+                    return info;
+            }
+        }
+
+        for (const auto& info : infos) {
+            if (exact_type && *info.type == *exact_type)
+                continue;
+            if (!nb::detail::nb_type_isinstance(obj.ptr(), info.type))
+                continue;
+            if (native_cursor_writer_pointer(*info.type, obj, value) && value != nullptr)
+                return &info;
+        }
+
+        return nullptr;
+    }
+
+    void check_native_cursor_writer_get_this_conflict(nb::handle obj, const std::type_info& type)
+    {
+        auto get_this = nb::getattr(obj, "get_this", nb::none());
+        if (!get_this.is_none()) {
+            SGL_THROW(
+                "Native cursor writer type \"{}\" also exposes get_this; a single type cannot use both paths.",
+                type.name()
+            );
+        }
+    }
+
+    nb::object get_native_cursor_writer_type_info(nb::handle obj)
+    {
+        void* value = nullptr;
+        const auto* info = find_native_cursor_writer(obj, value);
+        if (!info)
+            return nb::none();
+
+        check_native_cursor_writer_get_this_conflict(obj, *info->type);
+
+        if (!info->has_functional_metadata) {
+            SGL_THROW("Registered cursor writer type \"{}\" has no Slang type metadata.", info->type->name());
+        }
+
+        SignatureBuffer signature;
+        info->write_signature(signature, value);
+
+        nb::list imports;
+        for (const auto& import_path : info->imports)
+            imports.append(import_path);
+
+        nb::dict result;
+        result["slang_type_name"] = std::string(info->slang_type_name(value));
+        result["signature"] = std::string(signature.view());
+        result["imports"] = nb::tuple(imports);
+        return result;
     }
 } // anonymous namespace
 
@@ -1089,6 +1142,18 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
     if (is_bound_type) {
         const auto& type_info = nb::type_info(type);
 
+        void* cursor_writer_value = nullptr;
+        if (const auto* info = find_native_cursor_writer(o, cursor_writer_value)) {
+            check_native_cursor_writer_get_this_conflict(o, *info->type);
+            if (!info->has_functional_metadata) {
+                SGL_THROW("Registered cursor writer type \"{}\" has no Slang type metadata.", info->type->name());
+            }
+            builder << type_info.name() << "\n";
+            info->write_signature(builder, cursor_writer_value);
+            builder << "\n";
+            return;
+        }
+
         // If we have a native object, can directly request the signature.
         // Use read_signature(SignatureBuffer&) for C++ objects (non-virtual, reads m_signature).
         // For Python subclasses, the fixed signature is set via set_slangpy_signature,
@@ -1175,10 +1240,6 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
     // Handle objects with get_this method.
     auto get_this = nb::getattr(o, "get_this", nb::none());
     if (!get_this.is_none()) {
-        if (has_registered_type_or_signature(o)) {
-            builder << "\n";
-            return;
-        }
         builder << "\nunpack";
         auto this_ = get_this();
         get_value_signature(builder, this_);
@@ -1243,9 +1304,15 @@ nb::object unpack_arg(nb::object arg, bool& out_had_unpack)
 {
     auto obj = arg;
 
-    // If object has 'get_this', read it unless registered marshalling already owns the object.
+    void* cursor_writer_value = nullptr;
+    const auto* cursor_writer_info = find_native_cursor_writer(obj, cursor_writer_value);
+
+    // If object has 'get_this', read it unless native cursor-writer marshalling owns the object.
     auto get_this = nb::getattr(obj, "get_this", nb::none());
-    if (!get_this.is_none() && !has_registered_type_or_signature(obj)) {
+    if (!get_this.is_none() && cursor_writer_info) {
+        check_native_cursor_writer_get_this_conflict(obj, *cursor_writer_info->type);
+    }
+    if (!get_this.is_none() && !cursor_writer_info) {
         obj = get_this();
         out_had_unpack = true;
     }
@@ -1389,6 +1456,13 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::rv_policy::reference_internal,
             D_NA(SignatureBuilder, bytes)
         );
+
+    slangpy.def(
+        "_get_native_cursor_writer_type_info",
+        &get_native_cursor_writer_type_info,
+        "value"_a,
+        "Returns native cursor-writer SlangPy metadata for a Python-visible native object."
+    );
 
     nb::class_<NativeObject, PyNativeObject, Object>(slangpy, "NativeObject") //
         .def(

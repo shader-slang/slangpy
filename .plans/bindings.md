@@ -24,7 +24,46 @@ The new policy should be:
 - Native registered cursor writers should be identified from the native registry, not from Python-side compatibility predicates.
 - The old cursor-writer caches and `has_registered_type_or_signature` compatibility path should be removed as part of this migration, not preserved as fallback behavior.
 
+## Progress So Far
+
+Completed in the current implementation slice:
+
+- `SignatureBuffer` moved to `src/sgl/core/signature_buffer.h` in namespace `sgl`.
+- `SignatureBuilder` remains the Python-facing wrapper and now includes the native `SignatureBuffer` header.
+- `src/sgl/CMakeLists.txt` includes the new header.
+- Added native C++ coverage in `tests/sgl/core/test_signature_buffer.cpp`.
+- `HasWriteToCursor<T, TCursor>` now checks the actual `obj.write_to_cursor(cursor)` call expression.
+- `ShaderCursor::set()` now checks `HasWriteToCursor<T, ShaderCursor>`.
+- `ShaderCursor::set()` and `operator=` are non-const, so `write_to_cursor(*this)` writes through the original cursor without copying it.
+- Added native C++ coverage in `tests/sgl/device/test_cursors.cpp` for ShaderCursor-only writers, BufferElementCursor-only writers, both overloads, and negative concept checks.
+- Introduced a combined native `CursorWriterTypeInfo` registry in `src/sgl/device/cursor_utils.h/.cpp`.
+- Added `cursor_utils::register_cursor_writer<T>()`.
+- Legacy low-level cursor-writer registration functions now merge into the combined registry instead of using separate storage.
+- `src/slangpy_ext/device/cursor_utils.h` direct cursor writes now consult the combined native registry and no longer keep `WriteConverterTable::m_native_object_writer_cache`.
+- Static metadata and imports are captured into the native descriptor at registration time.
+- Added native C++ coverage for registry lookup, duplicate rejection, shader-only registration, buffer-only registration, static metadata/signature/imports, and legacy wrapper merge behavior.
+- Renamed the Python marshall API to `WriteToCursorMarshall`, `WriteToCursorMarshallInfo`, and `register_write_to_cursor_type`.
+- `WriteToCursorMarshall` now derives from `NativeValueMarshall`, so dispatch uses the native cursor-write fast path rather than Python `create_calldata()`.
+- `slangpy/bindings/typeregistry.py` now falls back to native cursor-writer metadata when Python type registration has no hit.
+- `NativeCallDataCache::get_value_signature()` now uses the native cursor-writer registry for signatures and reports missing Slang metadata from the native descriptor.
+- Removed the old `has_registered_type_or_signature` Python predicate, native callback, and native predicate cache.
+- `get_this` remains the legacy wrapper path for non-cursor-writer objects; registered native cursor writers with `get_this` now fail with a clear conflict error.
+
+Verification run for this slice:
+
+```powershell
+cmake --build --preset windows-msvc-debug --target slangpy_ext sgl_tests
+build\windows-msvc\Debug\sgl_tests.exe --test-suite=signature_buffer,cursors
+python -m pytest slangpy/tests/slangpy_tests/test_write_to_cursor_marshall.py -v -p no:cacheprovider
+python -m pytest slangpy/tests/slangpy_tests/test_type_resolution.py -v -p no:cacheprovider
+python -m pytest slangpy/tests/slangpy_tests/test_instances.py::test_packed_vs_unpacked_cache -v -p no:cacheprovider --device-types d3d12
+pre-commit run --files .plans/bindings.md slangpy/bindings/__init__.py slangpy/bindings/cursor.py slangpy/bindings/typeregistry.py slangpy/core/calldata.py slangpy/core/native.py slangpy/tests/slangpy_tests/test_write_to_cursor_marshall.py src/sgl/core/signature_buffer.h src/sgl/device/cursor_utils.cpp src/sgl/device/cursor_utils.h src/sgl/device/shader_cursor.h src/sgl/device/shader_cursor.cpp src/slangpy_ext/device/cursor_utils.h src/slangpy_ext/utils/slangpy.cpp src/slangpy_ext/utils/slangpy.h tests/sgl/core/test_signature_buffer.cpp tests/sgl/device/test_cursors.cpp src/sgl/CMakeLists.txt tests/CMakeLists.txt
+pre-commit run --all-files
+```
+
 ## Phase 1: Move SignatureBuffer To Native
+
+Status: complete.
 
 Move `SignatureBuffer` out of `src/slangpy_ext/utils/slangpy.h` and into a pure native header:
 
@@ -71,6 +110,8 @@ Tests to add:
 
 ## Phase 2: Fix The Cursor Contract
 
+Status: complete.
+
 Make each cursor check the cursor type it actually passes. The existing `write_to_cursor` implementation is already the contract; this phase should be a narrow correctness fix, not a redesign.
 
 Expected edits:
@@ -78,11 +119,10 @@ Expected edits:
 - In `src/sgl/device/cursor_utils.h`, keep the existing `HasWriteToCursor<T, TCursor>` style unless a small compile fix is required.
 - In `src/sgl/device/shader_cursor.h`, change `ShaderCursor::set()` to check `HasWriteToCursor<T, ShaderCursor>`, not `BufferElementCursor`.
 - Keep `BufferElementCursor::set()` checking `HasWriteToCursor<T, BufferElementCursor>`.
-- Account for `ShaderCursor::set()` being a `const` member only if needed. If calling `write_to_cursor(*this)` deduces a const cursor and causes friction, create a local mutable cursor copy before calling the writer:
+- `ShaderCursor::set()` should not be `const`. This avoids copying the cursor just to pass a mutable `ShaderCursor&` into `write_to_cursor`.
 
 ```cpp
-ShaderCursor cursor = *this;
-value.write_to_cursor(cursor);
+value.write_to_cursor(*this);
 ```
 
 Tests to change:
@@ -97,6 +137,8 @@ Tests to add:
 - A negative compile-time test with `static_assert(!HasWriteToCursor<...>)` for a type without `write_to_cursor`.
 
 ## Phase 3: Introduce The Combined Native Registry
+
+Status: complete for native direct cursor-write registration. Functional-API consumption is implemented in Phase 7.
 
 Replace the current split native writer registries with one combined registry that owns cursor writer functions and optional functional-API metadata.
 
@@ -143,6 +185,8 @@ Tests to add:
 - If base lookup is supported, derived nanobind/Python-exposed types resolve to the registered base writer.
 
 ## Phase 4: Add `register_cursor_writer<T>()`
+
+Status: complete.
 
 Make `register_cursor_writer<T>()` the single public native API.
 
@@ -203,6 +247,8 @@ Tests to add:
 
 ## Phase 5: Capture Constant Imports At Registration
 
+Status: complete for native registrations.
+
 Imports are a constant list of constant strings for a registered type. Keep this mechanism simple.
 
 Expected shape:
@@ -226,6 +272,8 @@ Tests to add:
 - The registry owns copied import strings after registration.
 
 ## Phase 6: Rename CursorMarshall To WriteToCursorMarshall And Require Native Fast Path
+
+Status: complete.
 
 Rename the marshall to match the contract it represents, and require the native fast dispatch path.
 
@@ -256,6 +304,8 @@ Tests to add:
 - Repeated calls use the native dispatch write path and do not invoke Python `create_calldata()` for the cursor value.
 
 ## Phase 7: Make The Extension Consume The Native Registry
+
+Status: implementation complete for direct cursor writes, signature generation, and Python fallback construction. A full nanobind-exposed functional API smoke test remains as follow-up coverage.
 
 The extension should use the combined native registry for both direct cursor writes and functional-API marshalling.
 
@@ -289,6 +339,8 @@ Tests to add:
 - Python-only `PYTHON_TYPES`, `PYTHON_SIGNATURES`, and `slangpy_signature` behavior still works for non-cursor-writer values.
 
 ## Phase 8: Remove `has_registered_type_or_signature`
+
+Status: complete.
 
 Remove the brittle compatibility path that calls from native C++ back into Python to decide whether `get_this` should run.
 

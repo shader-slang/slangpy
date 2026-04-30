@@ -13,13 +13,13 @@ from slangpy.bindings.boundvariable import (
     can_direct_bind_common,
 )
 from slangpy.bindings.codegen import CodeGenBlock
-from slangpy.bindings.marshall import BindContext, Marshall
+from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
-from slangpy.core.native import AccessType, CallContext
+from slangpy.core.native import AccessType, NativeValueMarshall
 
 
 @dataclass(frozen=True)
-class CursorMarshallInfo:
+class WriteToCursorMarshallInfo:
     slang_type_name: str
     signature: str
     imports: tuple[str, ...]
@@ -29,9 +29,9 @@ class CursorMarshallInfo:
         return self.accepted_type_regex.fullmatch(slang_type.full_name) is not None
 
 
-class CursorMarshall(Marshall):
-    def __init__(self, layout: spyref.SlangProgramLayout, info: CursorMarshallInfo):
-        super().__init__(layout)
+class WriteToCursorMarshall(NativeValueMarshall):
+    def __init__(self, layout: spyref.SlangProgramLayout, info: WriteToCursorMarshallInfo):
+        super().__init__()
         self.m_info = info
         slang_type = layout.find_type_by_name(info.slang_type_name)
         if slang_type is None:
@@ -58,14 +58,6 @@ class CursorMarshall(Marshall):
             return 0
         return None
 
-    def create_calldata(
-        self,
-        context: CallContext,
-        binding: Any,
-        data: Any,
-    ) -> Any:
-        return data
-
     def gen_calldata(
         self,
         cgb: CodeGenBlock,
@@ -89,14 +81,14 @@ class CursorMarshall(Marshall):
     ) -> bool:
         if not binding.direct_bind:
             raise BoundVariableException(
-                "CursorMarshall only supports read-only scalar direct binding.",
+                "WriteToCursorMarshall only supports read-only scalar direct binding.",
                 binding,
             )
         cgb.append_statement(f"{value_name} = {data_name}")
         return True
 
 
-def register_cursor_type(
+def register_write_to_cursor_type(
     python_type: type,
     *,
     slang_type_name: str,
@@ -119,9 +111,9 @@ def register_cursor_type(
     type_signature = (
         signature
         if signature is not None
-        else f"[CursorMarshall,{python_type.__module__}.{python_type.__qualname__},{slang_type_name}]"
+        else f"[WriteToCursorMarshall,{python_type.__module__}.{python_type.__qualname__},{slang_type_name}]"
     )
-    info = CursorMarshallInfo(
+    info = WriteToCursorMarshallInfo(
         slang_type_name=slang_type_name,
         signature=type_signature,
         imports=tuple(imports),
@@ -131,8 +123,8 @@ def register_cursor_type(
     def create_cursor_marshall(
         layout: spyref.SlangProgramLayout,
         _value: Any,
-    ) -> CursorMarshall:
-        return CursorMarshall(layout, info)
+    ) -> WriteToCursorMarshall:
+        return WriteToCursorMarshall(layout, info)
 
     def cursor_signature(_value: Any) -> str:
         return info.signature

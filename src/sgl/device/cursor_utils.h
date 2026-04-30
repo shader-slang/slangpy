@@ -6,6 +6,7 @@
 #include "sgl/device/reflection.h"
 
 #include "sgl/core/macros.h"
+#include "sgl/core/signature_buffer.h"
 
 #include <concepts>
 #include <cstdint>
@@ -14,9 +15,16 @@
 #include <string>
 #include <string_view>
 #include <typeinfo>
+#include <utility>
 #include <vector>
 
 namespace sgl {
+
+// Concept to detect if T has write_to_cursor method
+template<typename T, typename TCursor>
+concept HasWriteToCursor = requires(const T& obj, TCursor& cursor) {
+    { obj.write_to_cursor(cursor) };
+};
 
 namespace cursor_utils {
     // Get the CPU size of the scalar types
@@ -78,22 +86,28 @@ namespace cursor_utils {
     using ShaderCursorObjectWriteFunc = std::function<bool(ShaderCursor&, const void*)>;
     using BufferElementCursorObjectWriteFunc = std::function<bool(BufferElementCursor&, const void*)>;
 
-    struct ShaderCursorObjectWriter {
-        const std::type_info* type;
-        ShaderCursorObjectWriteFunc write;
+    struct CursorWriterTypeInfo {
+        const std::type_info* type{nullptr};
+
+        ShaderCursorObjectWriteFunc write_shader_cursor;
+        BufferElementCursorObjectWriteFunc write_buffer_cursor;
+
+        bool has_functional_metadata{false};
+        std::function<std::string_view(const void*)> slang_type_name;
+        std::function<void(SignatureBuffer&, const void*)> write_signature;
+        std::vector<std::string> imports;
     };
 
-    struct BufferElementCursorObjectWriter {
-        const std::type_info* type;
-        BufferElementCursorObjectWriteFunc write;
-    };
+    template<typename T>
+    struct CursorWriterTraits { };
+
+    SGL_API void register_cursor_writer_type(CursorWriterTypeInfo info);
+    SGL_API std::span<const CursorWriterTypeInfo> cursor_writer_type_infos();
+    SGL_API const CursorWriterTypeInfo* find_cursor_writer_type_info(const std::type_info& type);
 
     SGL_API void register_shader_cursor_object_writer(const std::type_info& type, ShaderCursorObjectWriteFunc write);
     SGL_API void
     register_buffer_element_cursor_object_writer(const std::type_info& type, BufferElementCursorObjectWriteFunc write);
-
-    SGL_API std::span<const ShaderCursorObjectWriter> shader_cursor_object_writers();
-    SGL_API std::span<const BufferElementCursorObjectWriter> buffer_element_cursor_object_writers();
 
     template<typename T>
     void register_shader_cursor_object_writer(std::function<bool(ShaderCursor&, const T&)> write)
@@ -141,6 +155,144 @@ namespace cursor_utils {
                 return true;
             }
         );
+    }
+
+    template<typename T>
+    concept HasCursorWriterTraitsSlangTypeName = requires {
+        { std::string_view(CursorWriterTraits<T>::slang_type_name) } -> std::same_as<std::string_view>;
+    };
+
+    template<typename T>
+    concept HasTypeStaticSlangTypeName = requires {
+        { std::string_view(T::slang_type_name) } -> std::same_as<std::string_view>;
+    };
+
+    template<typename T>
+    concept HasValueSlangTypeName = requires(const T& value) {
+        { value.slang_type_name() } -> std::convertible_to<std::string_view>;
+    };
+
+    template<typename T>
+    concept HasCursorWriterTraitsSignature = requires(SignatureBuffer& signature) {
+        { CursorWriterTraits<T>::write_slangpy_signature(signature) };
+    };
+
+    template<typename T>
+    concept HasTypeStaticSignature = requires(SignatureBuffer& signature) {
+        { T::write_slangpy_signature(signature) };
+    };
+
+    template<typename T>
+    concept HasValueSignature = requires(const T& value, SignatureBuffer& signature) {
+        { value.write_slangpy_signature(signature) };
+    };
+
+    template<typename T>
+    concept HasCursorWriterTraitsImports = requires {
+        { CursorWriterTraits<T>::slangpy_imports() };
+    };
+
+    template<typename T>
+    concept HasTypeStaticImports = requires {
+        { T::slangpy_imports() };
+    };
+
+    template<typename T>
+    constexpr bool has_static_slang_type_name_v
+        = HasCursorWriterTraitsSlangTypeName<T> || HasTypeStaticSlangTypeName<T>;
+
+    template<typename T>
+    std::string_view static_slang_type_name()
+        requires(has_static_slang_type_name_v<T>)
+    {
+        if constexpr (HasCursorWriterTraitsSlangTypeName<T>)
+            return std::string_view(CursorWriterTraits<T>::slang_type_name);
+        else
+            return std::string_view(T::slang_type_name);
+    }
+
+    template<typename T>
+    void write_static_slangpy_signature(SignatureBuffer& signature)
+        requires(has_static_slang_type_name_v<T>)
+    {
+        if constexpr (HasCursorWriterTraitsSignature<T>)
+            CursorWriterTraits<T>::write_slangpy_signature(signature);
+        else if constexpr (HasTypeStaticSignature<T>)
+            T::write_slangpy_signature(signature);
+        else
+            signature.add(static_slang_type_name<T>());
+    }
+
+    template<typename TImports>
+    void append_cursor_writer_imports(std::vector<std::string>& result, TImports&& imports)
+    {
+        for (auto&& import_path : imports)
+            result.emplace_back(std::string_view(import_path));
+    }
+
+    template<typename T>
+    std::vector<std::string> cursor_writer_imports()
+    {
+        std::vector<std::string> result;
+        if constexpr (HasCursorWriterTraitsImports<T>)
+            append_cursor_writer_imports(result, CursorWriterTraits<T>::slangpy_imports());
+        else if constexpr (HasTypeStaticImports<T>)
+            append_cursor_writer_imports(result, T::slangpy_imports());
+        return result;
+    }
+
+    template<typename T>
+    void register_cursor_writer()
+        requires(HasWriteToCursor<T, ShaderCursor> || HasWriteToCursor<T, BufferElementCursor>)
+    {
+        CursorWriterTypeInfo info;
+        info.type = &typeid(T);
+
+        if constexpr (HasWriteToCursor<T, ShaderCursor>) {
+            info.write_shader_cursor = [](ShaderCursor& cursor, const void* value)
+            {
+                static_cast<const T*>(value)->write_to_cursor(cursor);
+                return true;
+            };
+        }
+
+        if constexpr (HasWriteToCursor<T, BufferElementCursor>) {
+            info.write_buffer_cursor = [](BufferElementCursor& cursor, const void* value)
+            {
+                static_cast<const T*>(value)->write_to_cursor(cursor);
+                return true;
+            };
+        }
+
+        if constexpr (has_static_slang_type_name_v<T>) {
+            info.has_functional_metadata = true;
+            info.slang_type_name = [](const void*) -> std::string_view
+            {
+                return static_slang_type_name<T>();
+            };
+            info.write_signature = [](SignatureBuffer& signature, const void*)
+            {
+                write_static_slangpy_signature<T>(signature);
+            };
+            info.imports = cursor_writer_imports<T>();
+        } else if constexpr (HasValueSlangTypeName<T>) {
+            static_assert(
+                HasValueSignature<T>,
+                "Cursor writer types with value-aware slang_type_name() must provide write_slangpy_signature()."
+            );
+            info.has_functional_metadata = true;
+            info.slang_type_name = [](const void* value) -> std::string_view
+            {
+                return static_cast<const T*>(value)->slang_type_name();
+            };
+            info.write_signature = [](SignatureBuffer& signature, const void* value)
+            {
+                static_cast<const T*>(value)->write_slangpy_signature(signature);
+            };
+            info.imports = cursor_writer_imports<T>();
+        }
+
+        register_cursor_writer_type(std::move(info));
     }
 } // namespace cursor_utils
 
@@ -191,11 +343,5 @@ concept WritableCursor
           { obj._set_vector(data, size, scalar_type, 0) } -> std::same_as<void>;
           { obj._set_matrix(data, size, scalar_type, 0, 0) } -> std::same_as<void>;
       };
-
-// Concept to detect if T has write_to_cursor method
-template<typename T, typename TCursor>
-concept HasWriteToCursor = requires(const T& obj, TCursor& cursor) {
-    { obj.write_to_cursor(cursor) };
-};
 
 } // namespace sgl

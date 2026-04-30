@@ -3,7 +3,6 @@
 #pragma once
 
 #include <optional>
-#include <unordered_map>
 
 #include "nanobind.h"
 
@@ -480,7 +479,6 @@ private:
         m_write_vector_from_numpy[(int)TypeReflection::ScalarType::COUNT][5];
     std::function<void(CursorType&, const nb::ndarray<nb::numpy, nb::ro>&)>
         m_write_matrix_from_numpy[(int)TypeReflection::ScalarType::COUNT][5][5];
-    std::unordered_map<PyTypeObject*, int32_t> m_native_object_writer_cache;
     std::vector<const char*> m_stack;
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
@@ -498,24 +496,30 @@ private:
         );
     }
 
-    auto native_object_writers() const
+    static bool has_native_object_writer(const cursor_utils::CursorWriterTypeInfo& info)
     {
         if constexpr (std::same_as<CursorType, ShaderCursor>) {
-            return cursor_utils::shader_cursor_object_writers();
+            return bool(info.write_shader_cursor);
         } else {
-            return cursor_utils::buffer_element_cursor_object_writers();
+            return bool(info.write_buffer_cursor);
         }
     }
 
-    template<typename WriterType>
-    bool invoke_native_object_writer(const WriterType& writer, CursorType& self, nb::object nbval)
+    bool invoke_native_object_writer(const cursor_utils::CursorWriterTypeInfo& info, CursorType& self, nb::object nbval)
     {
+        if (!has_native_object_writer(info))
+            return false;
+
         void* value = nullptr;
-        if (!native_object_pointer(*writer.type, nbval, value) || value == nullptr)
+        if (!native_object_pointer(*info.type, nbval, value) || value == nullptr)
             return false;
 
         try {
-            return writer.write(self, value);
+            if constexpr (std::same_as<CursorType, ShaderCursor>) {
+                return info.write_shader_cursor(self, value);
+            } else {
+                return info.write_buffer_cursor(self, value);
+            }
         } catch (const std::exception& err) {
             SGL_THROW("Failed to write object of type {}: {}", python_type_name(nbval), err.what());
         }
@@ -523,45 +527,32 @@ private:
 
     bool write_registered_native_object(CursorType& self, nb::object nbval)
     {
-        auto writers = native_object_writers();
-        if (writers.empty())
+        auto infos = cursor_utils::cursor_writer_type_infos();
+        if (infos.empty())
             return false;
-
-        PyTypeObject* python_type = Py_TYPE(nbval.ptr());
-        auto cache_it = m_native_object_writer_cache.find(python_type);
-        if (cache_it != m_native_object_writer_cache.end()) {
-            int32_t writer_index = cache_it->second;
-            if (writer_index < int32_t(writers.size())
-                && invoke_native_object_writer(writers[writer_index], self, nbval))
-                return true;
-        }
 
         nb::handle type = nbval.type();
         const std::type_info* exact_type = nb::type_check(type) ? &nb::type_info(type) : nullptr;
 
         if (exact_type) {
-            for (size_t i = 0; i < writers.size(); ++i) {
-                const auto& writer = writers[i];
-                if (!(*writer.type == *exact_type))
-                    continue;
-                if (!invoke_native_object_writer(writer, self, nbval))
-                    continue;
-                m_native_object_writer_cache[python_type] = narrow_cast<int32_t>(i);
-                return true;
+            if (const auto* info = cursor_utils::find_cursor_writer_type_info(*exact_type)) {
+                if (invoke_native_object_writer(*info, self, nbval))
+                    return true;
             }
         }
 
-        for (size_t i = 0; i < writers.size(); ++i) {
-            const auto& writer = writers[i];
-            if (!nb::detail::nb_type_isinstance(nbval.ptr(), writer.type))
+        for (const auto& info : infos) {
+            if (exact_type && *info.type == *exact_type)
+                continue;
+            if (!has_native_object_writer(info))
+                continue;
+            if (!nb::detail::nb_type_isinstance(nbval.ptr(), info.type))
                 continue;
 
-            if (!invoke_native_object_writer(writer, self, nbval))
-                continue;
-
-            m_native_object_writer_cache[python_type] = narrow_cast<int32_t>(i);
-            return true;
+            if (invoke_native_object_writer(info, self, nbval))
+                return true;
         }
+
 
         return false;
     }
