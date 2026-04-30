@@ -10,6 +10,20 @@ from slangpy.testing import helpers
 
 from typing import Any
 
+
+class WrappedTextureHandle:
+    def __init__(self, value: int):
+        self.m_value = value
+
+    def get_this(self) -> dict[str, Any]:
+        return {"_type": "TextureHandle", "value": self.m_value}
+
+
+class SelfReturningWrapper:
+    def get_this(self) -> "SelfReturningWrapper":
+        return self
+
+
 TESTS = [
     ("f_bool", "bool", "true", True),
     ("f_bool1", "bool1", "false", spy.bool1(False)),
@@ -328,6 +342,27 @@ def make_copy_module(device_type: spy.DeviceType, tests: list[Any]):
     return (device.create_compute_kernel(prog), resource_type_layout)
 
 
+def make_marshaled_object_layout(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source(
+        "test_buffer_cursor_marshaled_objects",
+        """
+struct TextureHandle {
+    uint value;
+};
+
+struct TestType {
+    TextureHandle textures[2];
+};
+
+StructuredBuffer<TestType> buffer;
+""",
+    )
+    return module.layout.get_type_layout(
+        module.layout.find_type_by_name("StructuredBuffer<TestType>")
+    )
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("seed", RAND_SEEDS)
 def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
@@ -458,6 +493,29 @@ def test_cursor_lifetime(device_type: spy.DeviceType):
 
     # Ensure we can still write to the element (as it should be holding a reference to the cursor)
     element["f_int32"] = 123
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_marshaled_object_list(device_type: spy.DeviceType):
+    resource_type_layout = make_marshaled_object_layout(device_type)
+
+    cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
+    element = cursor[0]
+    element["textures"] = [WrappedTextureHandle(11), WrappedTextureHandle(22)]
+
+    textures = element["textures"].read()
+    assert [texture["value"] for texture in textures] == [11, 22]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_marshaled_object_self_returning_get_this(device_type: spy.DeviceType):
+    resource_type_layout = make_marshaled_object_layout(device_type)
+
+    cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
+    element = cursor[0]
+
+    with pytest.raises(RuntimeError, match="Expected dict"):
+        element["textures"] = [SelfReturningWrapper(), SelfReturningWrapper()]
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

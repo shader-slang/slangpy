@@ -72,7 +72,7 @@ public extension half : IAtomicAddable
 // #pragma warning(disable: 30856)
 
 // Add atomic support for per element operations on arrays or vectors of atomics.
-public extension<S : IAtomicAddable, T : ISizedArray<S, D>, let D : int> T : IAtomicAddable
+public extension<S : IAtomicAddable, let D : int, T : ISizedArray<S, D>> T : IAtomicAddable
 {
     // Byte address buffer version increments each element by stepping through the buffer
     public static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value)
