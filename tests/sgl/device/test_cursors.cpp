@@ -4,6 +4,7 @@
 #include "sgl/device/device.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/buffer_cursor.h"
+#include "sgl/device/shader_cursor.h"
 #include <fstream>
 #include <filesystem>
 
@@ -33,9 +34,65 @@ struct TestStruct {
     }
 };
 
+struct ShaderCursorOnlyStruct {
+    static inline bool wrote = false;
+
+    void write_to_cursor(ShaderCursor& cursor) const
+    {
+        (void)cursor;
+        wrote = true;
+    }
+};
+
+struct BufferCursorOnlyStruct {
+    static inline bool wrote = false;
+
+    void write_to_cursor(BufferElementCursor& cursor) const
+    {
+        (void)cursor;
+        wrote = true;
+    }
+};
+
+struct BothCursorStruct {
+    void write_to_cursor(ShaderCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(BufferElementCursor& cursor) const { (void)cursor; }
+};
+
+struct NoWriteToCursorStruct { };
+
+static_assert(HasWriteToCursor<ShaderCursorOnlyStruct, ShaderCursor>);
+static_assert(!HasWriteToCursor<ShaderCursorOnlyStruct, BufferElementCursor>);
+static_assert(HasWriteToCursor<BufferCursorOnlyStruct, BufferElementCursor>);
+static_assert(!HasWriteToCursor<BufferCursorOnlyStruct, ShaderCursor>);
+static_assert(HasWriteToCursor<BothCursorStruct, ShaderCursor>);
+static_assert(HasWriteToCursor<BothCursorStruct, BufferElementCursor>);
+static_assert(!HasWriteToCursor<NoWriteToCursorStruct, ShaderCursor>);
+static_assert(!HasWriteToCursor<NoWriteToCursorStruct, BufferElementCursor>);
+
 } // namespace
 
 TEST_SUITE_BEGIN("cursors");
+
+TEST_CASE("shader_cursor_set_uses_shader_cursor_contract")
+{
+    ShaderCursorOnlyStruct::wrote = false;
+
+    ShaderCursor cursor{};
+    cursor.set(ShaderCursorOnlyStruct{});
+
+    CHECK(ShaderCursorOnlyStruct::wrote);
+}
+
+TEST_CASE("buffer_element_cursor_set_uses_buffer_cursor_contract")
+{
+    BufferCursorOnlyStruct::wrote = false;
+
+    BufferElementCursor cursor;
+    cursor.set(BufferCursorOnlyStruct{});
+
+    CHECK(BufferCursorOnlyStruct::wrote);
+}
 
 TEST_CASE_GPU("write_to_cursor")
 {

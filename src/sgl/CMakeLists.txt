@@ -55,6 +55,7 @@ target_sources(sgl PRIVATE
     core/plugin.h
     core/resolver.h
     core/short_vector.h
+    core/signature_buffer.h
     core/static_vector.h
     core/stream.h
     core/string.cpp

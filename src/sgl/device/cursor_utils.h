@@ -7,9 +7,12 @@
 
 #include "sgl/core/macros.h"
 
+#include <concepts>
 #include <cstdint>
 #include <functional>
 #include <span>
+#include <string>
+#include <string_view>
 #include <typeinfo>
 #include <vector>
 
@@ -192,7 +195,7 @@ concept WritableCursor
 // Concept to detect if T has write_to_cursor method
 template<typename T, typename TCursor>
 concept HasWriteToCursor = requires(const T& obj, TCursor& cursor) {
-    { obj.template write_to_cursor<TCursor>(cursor) };
+    { obj.write_to_cursor(cursor) };
 };
 
 } // namespace sgl

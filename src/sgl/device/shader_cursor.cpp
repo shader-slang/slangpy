@@ -625,70 +625,70 @@ template void CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_vector(
 //
 
 template<>
-SGL_API void ShaderCursor::set(const ref<ShaderObject>& value) const
+SGL_API void ShaderCursor::set(const ref<ShaderObject>& value)
 {
     set_object(value);
 }
 
 template<>
-SGL_API void ShaderCursor::set(const ref<Buffer>& value) const
+SGL_API void ShaderCursor::set(const ref<Buffer>& value)
 {
     set_buffer(value);
 }
 
 template<>
-SGL_API void ShaderCursor::set(const ref<BufferView>& value) const
+SGL_API void ShaderCursor::set(const ref<BufferView>& value)
 {
     set_buffer_view(value);
 }
 
 template<>
-SGL_API void ShaderCursor::set(const ref<Texture>& value) const
+SGL_API void ShaderCursor::set(const ref<Texture>& value)
 {
     set_texture(value);
 }
 
 template<>
-SGL_API void ShaderCursor::set(const ref<TextureView>& value) const
+SGL_API void ShaderCursor::set(const ref<TextureView>& value)
 {
     set_texture_view(value);
 }
 
 template<>
-SGL_API void ShaderCursor::set(const ref<Sampler>& value) const
+SGL_API void ShaderCursor::set(const ref<Sampler>& value)
 {
     set_sampler(value);
 }
 
 template<>
-SGL_API void ShaderCursor::set(const ref<AccelerationStructure>& value) const
+SGL_API void ShaderCursor::set(const ref<AccelerationStructure>& value)
 {
     set_acceleration_structure(value);
 }
 
 template<>
-SGL_API void ShaderCursor::set(const DescriptorHandle& value) const
+SGL_API void ShaderCursor::set(const DescriptorHandle& value)
 {
     set_descriptor_handle(value);
 }
 
 #define SET_SCALAR(type, scalar_type)                                                                                  \
     template<>                                                                                                         \
-    SGL_API void ShaderCursor::set(const type& value) const                                                            \
+    SGL_API void ShaderCursor::set(const type& value)                                                                  \
     {                                                                                                                  \
         _set_scalar(&value, sizeof(value), TypeReflection::ScalarType::scalar_type);                                   \
     }
 
 #define SET_VECTOR(type, scalar_type)                                                                                  \
     template<>                                                                                                         \
-    SGL_API void ShaderCursor::set(const type& value) const                                                            \
+    SGL_API void ShaderCursor::set(const type& value)                                                                  \
     {                                                                                                                  \
         _set_vector(&value, sizeof(value), TypeReflection::ScalarType::scalar_type, type::dimension);                  \
     }
 
 #define SET_MATRIX(type, scalar_type)                                                                                  \
     template<>                                                                                                         \
-    SGL_API void ShaderCursor::set(const type& value) const                                                            \
+    SGL_API void ShaderCursor::set(const type& value)                                                                  \
     {                                                                                                                  \
         _set_matrix(&value, sizeof(value), TypeReflection::ScalarType::scalar_type, type::rows, type::cols);           \
     }
@@ -759,7 +759,7 @@ SET_SCALAR(double, float64);
 #undef SET_MATRIX
 
 template<>
-SGL_API void ShaderCursor::set(const bool1& v) const
+SGL_API void ShaderCursor::set(const bool1& v)
 {
     SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
     _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);

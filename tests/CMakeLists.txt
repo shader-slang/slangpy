@@ -18,6 +18,7 @@ if(SGL_BUILD_TESTS)
         sgl/core/test_object.cpp
         sgl/core/test_platform.cpp
         sgl/core/test_plugin.cpp
+        sgl/core/test_signature_buffer.cpp
         sgl/core/test_short_vector.cpp
         sgl/core/test_static_vector.cpp
         sgl/core/test_stream.cpp

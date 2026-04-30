@@ -87,22 +87,22 @@ public:
     void set_pointer(uint64_t pointer_value) const;
 
     template<typename T>
-    const ShaderCursor& operator=(const T& value) const
+    ShaderCursor& operator=(const T& value)
     {
         set(value);
         return *this;
     }
 
     template<typename T>
-        requires(HasWriteToCursor<T, BufferElementCursor>)
-    void set(const T& value) const
+        requires(HasWriteToCursor<T, ShaderCursor>)
+    void set(const T& value)
     {
         value.write_to_cursor(*this);
     }
 
     template<typename T>
-        requires(!HasWriteToCursor<T, BufferElementCursor>)
-    void set(const T& value) const;
+        requires(!HasWriteToCursor<T, ShaderCursor>)
+    void set(const T& value);
 
     void _set_array_unsafe(
         const void* data,
