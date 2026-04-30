@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import re
+
 import pytest
 
-from slangpy.bindings import register_cursor_type
+from slangpy.bindings import CursorMarshallInfo, register_cursor_type
 from slangpy.bindings.typeregistry import (
     PYTHON_SIGNATURES,
     PYTHON_TYPES,
@@ -17,6 +19,11 @@ class CursorValueObject:
 
 class DuplicateCursorValueObject:
     pass
+
+
+class FakeSlangType:
+    def __init__(self, full_name: str) -> None:
+        self.full_name = full_name
 
 
 def unregister_cursor_type(python_type: type) -> None:
@@ -62,3 +69,16 @@ def test_register_cursor_marshall_duplicate_rejected() -> None:
             register_cursor_type(DuplicateCursorValueObject, slang_type_name="CursorValue")
     finally:
         unregister_cursor_type(DuplicateCursorValueObject)
+
+
+def test_cursor_marshall_info_accepts_fullmatch_regex() -> None:
+    info = CursorMarshallInfo(
+        slang_type_name="CursorValue",
+        signature="[CursorValueObject]",
+        imports=(),
+        accepted_type_regex=re.compile(r"CursorValue(?:<.*>)?"),
+    )
+
+    assert info.accepts_type(FakeSlangType("CursorValue")) is True
+    assert info.accepts_type(FakeSlangType("CursorValue<float4>")) is True
+    assert info.accepts_type(FakeSlangType("Nested.CursorValue")) is False

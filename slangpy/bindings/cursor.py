@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Iterable
 
 import slangpy.reflection as spyref
-from slangpy.bindings.boundvariable import BoundVariable, can_direct_bind_common
+from slangpy.bindings.boundvariable import (
+    BoundVariable,
+    BoundVariableException,
+    can_direct_bind_common,
+)
 from slangpy.bindings.codegen import CodeGenBlock
 from slangpy.bindings.marshall import BindContext, Marshall
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES, PYTHON_TYPES
@@ -18,18 +23,10 @@ class CursorMarshallInfo:
     slang_type_name: str
     signature: str
     imports: tuple[str, ...]
-    accepted_type_names: tuple[str, ...]
-    accepted_type_name_prefixes: tuple[str, ...]
-    direct_bind: bool
-    call_dimensionality: int
+    accepted_type_regex: re.Pattern[str]
 
     def accepts_type(self, slang_type: spyref.SlangType) -> bool:
-        full_name = slang_type.full_name
-        if full_name in self.accepted_type_names:
-            return True
-        return any(
-            full_name.startswith(prefix) for prefix in self.accepted_type_name_prefixes
-        )
+        return self.accepted_type_regex.fullmatch(slang_type.full_name) is not None
 
 
 class CursorMarshall(Marshall):
@@ -58,7 +55,7 @@ class CursorMarshall(Marshall):
         vector_target_type: spyref.SlangType,
     ) -> int | None:
         if self.m_info.accepts_type(vector_target_type):
-            return self.m_info.call_dimensionality
+            return 0
         return None
 
     def create_calldata(
@@ -81,11 +78,7 @@ class CursorMarshall(Marshall):
         binding.gen_calldata_type_name(cgb, binding.vector_type.full_name)
 
     def can_direct_bind(self, binding: BoundVariable) -> bool:
-        return (
-            self.m_info.direct_bind
-            and can_direct_bind_common(binding)
-            and binding.access[0] == AccessType.read
-        )
+        return can_direct_bind_common(binding) and binding.access[0] == AccessType.read
 
     def gen_trampoline_load(
         self,
@@ -95,7 +88,10 @@ class CursorMarshall(Marshall):
         value_name: str,
     ) -> bool:
         if not binding.direct_bind:
-            return False
+            raise BoundVariableException(
+                "CursorMarshall only supports read-only scalar direct binding.",
+                binding,
+            )
         cgb.append_statement(f"{value_name} = {data_name}")
         return True
 
@@ -106,19 +102,19 @@ def register_cursor_type(
     slang_type_name: str,
     signature: str | None = None,
     imports: Iterable[str] = (),
-    accepted_type_names: Iterable[str] = (),
-    accepted_type_name_prefixes: Iterable[str] = (),
-    direct_bind: bool = True,
-    call_dimensionality: int = 0,
+    accepted_type_regex: str | re.Pattern[str] | None = None,
 ) -> None:
     if python_type in PYTHON_TYPES or python_type in PYTHON_SIGNATURES:
         raise ValueError(
             f"Python type '{python_type.__name__}' is already registered with SlangPy."
         )
 
-    accepted_names = tuple(accepted_type_names)
-    if len(accepted_names) == 0:
-        accepted_names = (slang_type_name,)
+    if accepted_type_regex is None:
+        type_regex = re.compile(re.escape(slang_type_name))
+    elif isinstance(accepted_type_regex, str):
+        type_regex = re.compile(accepted_type_regex)
+    else:
+        type_regex = accepted_type_regex
 
     type_signature = (
         signature
@@ -129,10 +125,7 @@ def register_cursor_type(
         slang_type_name=slang_type_name,
         signature=type_signature,
         imports=tuple(imports),
-        accepted_type_names=accepted_names,
-        accepted_type_name_prefixes=tuple(accepted_type_name_prefixes),
-        direct_bind=direct_bind,
-        call_dimensionality=call_dimensionality,
+        accepted_type_regex=type_regex,
     )
 
     def create_cursor_marshall(
