@@ -30,6 +30,7 @@
     ],
     "Windowing": [
         "slangpy.CursorMode",
+        "slangpy.CursorShape",
         "slangpy.WindowMode",
         "slangpy.Window",
         "slangpy.MouseButton",

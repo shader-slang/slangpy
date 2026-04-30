@@ -52,6 +52,7 @@ from .core.calldata import (
     set_dump_generated_shaders,
     set_dump_slang_intermediates,
     set_print_generated_shaders,
+    set_allow_torch_fallback,
 )
 
 # Core slangpy interface

@@ -108,7 +108,7 @@ public:
         default_ = 4,
     };
 
-    SGL_ENUM_INFO(
+    SGL_ENUM_FLAGS_INFO(
         Flags,
         {
             {Flags::none, "none"},

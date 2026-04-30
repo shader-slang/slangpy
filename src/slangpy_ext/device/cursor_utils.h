@@ -12,6 +12,7 @@
 #include "sgl/math/vector_types.h"
 #include "sgl/math/matrix_types.h"
 
+#include "utils/slangpy.h"
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpystridedbufferview.h"
 #include "sgl/device/buffer_cursor.h"
@@ -483,6 +484,16 @@ private:
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
 
+    bool try_unpack_and_retry(CursorType& self, nb::object obj)
+    {
+        bool had_unpack = false;
+        nb::object unpacked = slangpy::unpack_arg(obj, had_unpack);
+        if (!had_unpack || unpacked.ptr() == obj.ptr())
+            return false;
+        write_internal(self, unpacked);
+        return true;
+    }
+
     void write_from_numpy_internal(BufferCursor& dst, BufferElementCursor self, nb::object nbval, bool unchecked_copy)
         requires std::same_as<CursorType, BufferElementCursor>
     {
@@ -674,17 +685,38 @@ private:
         case TypeReflection::Kind::scalar: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_scalar[(int)type->getScalarType()](self, nbval);
+            try {
+                return m_write_scalar[(int)type->getScalarType()](self, nbval);
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::vector: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
+            try {
+                return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::matrix: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](self, nbval);
+            try {
+                return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](
+                    self,
+                    nbval
+                );
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::pointer: {
             // Pointers are represented as uint64_t in slang.
@@ -716,6 +748,8 @@ private:
                 return;
             }
 
+            if (try_unpack_and_retry(self, nbval))
+                return;
             SGL_THROW("Expected dict");
             return;
         }
@@ -749,6 +783,8 @@ private:
                 }
                 return;
             } else {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
                 SGL_THROW("Expected dict");
             }
         }
@@ -782,6 +818,8 @@ private:
                 m_stack.pop_back();
                 return;
             } else {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
                 SGL_THROW("Expected list");
             }
         }
@@ -791,6 +829,9 @@ private:
 
         // In default case call the virtual write_value, and fail if it returns false.
         if (write_value(self, nbval))
+            return;
+
+        if (try_unpack_and_retry(self, nbval))
             return;
 
         SGL_THROW("Unsupported element type: {}", kind);

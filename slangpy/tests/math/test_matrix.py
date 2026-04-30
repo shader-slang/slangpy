@@ -47,6 +47,31 @@ def test_hashing():
     assert len({spy.float4x4.identity(): 0, spy.float4x4.zeros(): 0}) == 2
 
 
+def test_equality_comparison():
+    assert spy.float2x2([1, 2, 3, 4]) == spy.float2x2([1, 2, 3, 4])
+    assert not spy.float2x2([1, 2, 3, 4]) == spy.float2x2([1, 2, 3, 5])
+    assert not spy.float2x2([1, 2, 3, 4]) != spy.float2x2([1, 2, 3, 4])
+    assert spy.float2x2([1, 2, 3, 4]) != spy.float2x2([1, 2, 4, 4])
+
+
+def test_lexicographic_comparison():
+    assert spy.float2x2([1, 2, 3, 4]) < spy.float2x2([1, 2, 3, 5])
+    assert spy.float2x2([1, 2, 3, 4]) < spy.float2x2([1, 3, 0, 0])
+    assert not spy.float2x2([1, 2, 3, 4]) < spy.float2x2([1, 2, 3, 4])
+    assert not spy.float2x2([1, 3, 0, 0]) < spy.float2x2([1, 2, 9, 9])
+
+    assert spy.float2x2([1, 2, 3, 5]) > spy.float2x2([1, 2, 3, 4])
+    assert not spy.float2x2([1, 2, 3, 4]) > spy.float2x2([1, 2, 3, 4])
+
+    assert spy.float2x2([1, 2, 3, 4]) <= spy.float2x2([1, 2, 3, 4])
+    assert spy.float2x2([1, 2, 3, 4]) <= spy.float2x2([1, 2, 3, 5])
+    assert not spy.float2x2([1, 2, 3, 5]) <= spy.float2x2([1, 2, 3, 4])
+
+    assert spy.float2x2([1, 2, 3, 4]) >= spy.float2x2([1, 2, 3, 4])
+    assert spy.float2x2([1, 2, 3, 5]) >= spy.float2x2([1, 2, 3, 4])
+    assert not spy.float2x2([1, 2, 3, 4]) >= spy.float2x2([1, 2, 3, 5])
+
+
 class TestMatrixMulFunction:
     """Test spy.math.mul() function for all valid matrix-matrix combinations."""
 

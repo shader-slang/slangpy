@@ -126,6 +126,13 @@ bool is_torch_bridge_using_fallback()
     return TorchBridge::instance().is_using_fallback();
 }
 
+/// Get the reason the native bridge is not available.
+/// @return "missing" (not installed), "incompatible" (wrong version), or "" (available).
+std::string get_torch_bridge_fallback_reason()
+{
+    return TorchBridge::instance().fallback_reason();
+}
+
 /// Force use of Python fallback for torch bridge operations.
 /// @param force If true, force Python fallback mode.
 void set_torch_bridge_python_fallback(bool force)
@@ -275,6 +282,12 @@ SGL_PY_EXPORT(utils_torch_bridge)
     m.def("is_torch_bridge_available", &is_torch_bridge_available, D_NA(is_torch_bridge_available));
 
     m.def("is_torch_bridge_using_fallback", &is_torch_bridge_using_fallback, D_NA(is_torch_bridge_using_fallback));
+
+    m.def(
+        "get_torch_bridge_fallback_reason",
+        &get_torch_bridge_fallback_reason,
+        D_NA(get_torch_bridge_fallback_reason)
+    );
 
     m.def(
         "set_torch_bridge_python_fallback",

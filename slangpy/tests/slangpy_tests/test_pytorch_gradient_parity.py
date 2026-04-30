@@ -948,7 +948,7 @@ def test_scalar_broadcast_no_copyback(device_type: DeviceType):
 
 # =============================================================================
 # Explicit Gradient Copy-back Tests
-# These verify the interop buffer → PyTorch tensor copy-back for gradients
+# These verify the interop buffer -> PyTorch tensor copy-back for gradients
 # =============================================================================
 
 
