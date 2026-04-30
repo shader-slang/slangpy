@@ -125,10 +125,11 @@ struct Pair
         (*direct_buffer_cursor)[0]["nested"]["data"] = cpu_struct.nested.data;
 
         // reinterpret uint32_t data as uint16_t[2]
-        uint16_t pair[] = { 55, 67 };
+        uint16_t pair[] = {55, 67};
         auto reinterpret_element_type = layout->find_type_by_name("Pair");
         auto reinterpret_element_type_layout = layout->get_type_layout(reinterpret_element_type);
-        auto reinterpret_cursor = (*direct_buffer_cursor)[0]["nested"]["data"].reinterpret(reinterpret_element_type_layout);
+        auto reinterpret_cursor
+            = (*direct_buffer_cursor)[0]["nested"]["data"].reinterpret(reinterpret_element_type_layout);
         reinterpret_cursor["x"] = pair[0];
         reinterpret_cursor["y"] = pair[1];
 
