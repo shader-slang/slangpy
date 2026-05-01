@@ -69,6 +69,7 @@ ShaderCursor::ShaderCursor(
 
 ShaderCursor ShaderCursor::reinterpret(slang::TypeLayoutReflection* new_layout) const
 {
+    SGL_CHECK(new_layout, "New layout cannot be null");
     ShaderCursor shader_cursor;
     shader_cursor.m_type_layout = new_layout;
     shader_cursor.m_shader_object = m_shader_object;

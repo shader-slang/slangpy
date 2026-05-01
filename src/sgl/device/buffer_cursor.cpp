@@ -23,6 +23,7 @@ BufferElementCursor::BufferElementCursor(ref<const TypeLayoutReflection> layout,
 
 BufferElementCursor BufferElementCursor::reinterpret(ref<const TypeLayoutReflection> new_layout) const
 {
+    SGL_CHECK(new_layout, "New layout cannot be null");
     BufferElementCursor element_cursor;
     element_cursor.m_buffer = m_buffer;
     element_cursor.m_type_layout = new_layout;
