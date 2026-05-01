@@ -35,7 +35,7 @@ Issues = "https://github.com/shader-slang/slangpy/issues"
 Changelog = "https://slangpy.shader-slang.org/en/latest/changelog.html"
 
 [project.optional-dependencies]
-torch = ["slangpy-torch>=0.7.0"]
+torch = ["slangpy-torch==0.7.0"]
 
 [tool.setuptools]
 include-package-data = true
