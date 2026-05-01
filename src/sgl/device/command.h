@@ -13,6 +13,7 @@
 #include "sgl/core/static_vector.h"
 #include "sgl/math/vector_types.h"
 
+#include <functional>
 #include <span>
 
 namespace sgl {
@@ -51,6 +52,7 @@ struct RenderPassDesc {
     std::optional<RenderPassDepthStencilAttachment> depth_stencil_attachment;
 };
 
+using CommandNativeCallback = std::function<void(NativeHandle native_handle)>;
 
 class SGL_API PassEncoder : public Object {
     SGL_OBJECT(PassEncoder)
@@ -415,6 +417,14 @@ public:
      * \param index Index of the query.
      */
     void write_timestamp(QueryPool* query_pool, uint32_t index);
+
+    /**
+     * \brief Execute a callback while recording/executing the active native command context.
+     *
+     * The callback receives the active native command-list/command-buffer/stream handle.
+     * D3D12 passes D3D12GraphicsCommandList, Vulkan passes VkCommandBuffer, and CUDA passes CUstream.
+     */
+    void execute_callback(CommandNativeCallback callback);
 
     ref<CommandBuffer> finish();
 

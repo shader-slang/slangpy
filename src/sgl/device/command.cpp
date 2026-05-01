@@ -23,6 +23,48 @@
 #include "sgl/math/vector.h"
 
 namespace sgl {
+namespace {
+
+class CommandNativeCallbackState : public Object {
+    SGL_OBJECT(CommandNativeCallbackState)
+public:
+    explicit CommandNativeCallbackState(CommandNativeCallback callback)
+        : m_callback(std::move(callback))
+    {
+    }
+
+    void execute(NativeHandle native_handle)
+    {
+        if (m_callback)
+            m_callback(native_handle);
+    }
+
+private:
+    CommandNativeCallback m_callback;
+};
+
+void SLANG_MCALL execute_native_callback(
+    const rhi::ExecuteCallbackContext* context,
+    void* user_object,
+    const void* user_data
+)
+{
+    SGL_UNUSED(user_data);
+    auto state = static_cast<CommandNativeCallbackState*>(user_object);
+    state->execute(NativeHandle(context->nativeHandle));
+}
+
+void SLANG_MCALL retain_native_callback_state(void* user_object)
+{
+    static_cast<CommandNativeCallbackState*>(user_object)->inc_ref();
+}
+
+void SLANG_MCALL release_native_callback_state(void* user_object)
+{
+    static_cast<CommandNativeCallbackState*>(user_object)->dec_ref();
+}
+
+} // namespace
 
 namespace detail {
     inline rhi::SubresourceRange rhi_subresource_range(const Texture* texture, uint32_t subresource_index)
@@ -882,6 +924,21 @@ void CommandEncoder::write_timestamp(QueryPool* query_pool, uint32_t index)
     SGL_CHECK_LE(index, query_pool->desc().count);
 
     m_rhi_command_encoder->writeTimestamp(query_pool->rhi_query_pool(), index);
+}
+
+void CommandEncoder::execute_callback(CommandNativeCallback callback)
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+    SGL_CHECK(static_cast<bool>(callback), "callback must not be empty");
+
+    ref<CommandNativeCallbackState> state = make_ref<CommandNativeCallbackState>(std::move(callback));
+
+    rhi::ExecuteCallbackDesc desc;
+    desc.callback = execute_native_callback;
+    desc.userObject = state.get();
+    desc.retainUserObject = retain_native_callback_state;
+    desc.releaseUserObject = release_native_callback_state;
+    m_rhi_command_encoder->executeCallback(desc);
 }
 
 ref<CommandBuffer> CommandEncoder::finish()
