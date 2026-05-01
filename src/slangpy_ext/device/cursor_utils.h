@@ -681,8 +681,7 @@ private:
         auto kind = (TypeReflection::Kind)type_layout->getKind();
 
         // Read uniforms for StridedBufferView unless it is being written directly to a pointer.
-        if (kind != TypeReflection::Kind::pointer
-            && nb::isinstance<sgl::slangpy::StridedBufferView>(nbval)) {
+        if (kind != TypeReflection::Kind::pointer && nb::isinstance<sgl::slangpy::StridedBufferView>(nbval)) {
             auto view = nb::cast<sgl::slangpy::StridedBufferView*>(nbval);
             nbval = view->uniforms();
         }
@@ -750,8 +749,7 @@ private:
             sgl::slangpy::StridedBufferView* sbview;
             if (nb::try_cast<sgl::slangpy::StridedBufferView*>(nbval, sbview)) {
                 // If we have a StridedBufferView, write address of storage plus its byte offset.
-                uint64_t offset
-                    = static_cast<uint64_t>(sbview->offset()) * sbview->desc().element_layout->stride();
+                uint64_t offset = static_cast<uint64_t>(sbview->offset()) * sbview->desc().element_layout->stride();
                 self.set_pointer(sbview->storage()->device_address() + offset);
                 return;
             }

@@ -362,7 +362,8 @@ def make_pointer_cursor_layout(device_type: spy.DeviceType):
         module.layout.find_type_by_name("StructuredBuffer<PointerInfo>")
     )
     return (device, resource_type_layout.element_type_layout, spy.Module(module))
-  
+
+
 def make_marshaled_object_layout(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
     module = device.load_module_from_source(
@@ -526,8 +527,8 @@ def test_cursor_pointer_fields(device_type: spy.DeviceType):
 
     slang_struct = module.find_struct("PointerInfo")
     assert slang_struct is not None
-    obj = slang_struct(123) # Make sure we can construct a struct with a ptr field without error
-    assert obj['_ptr'] == 123
+    obj = slang_struct(123)  # Make sure we can construct a struct with a ptr field without error
+    assert obj["_ptr"] == 123
 
     data = np.array([10, 20, 30, 40], dtype=np.int32)
     tensor = spy.Tensor.from_numpy(device, data)
@@ -542,8 +543,8 @@ def test_cursor_pointer_fields(device_type: spy.DeviceType):
 
     cursor[0]["_ptr"] = view
     assert cursor[0]["_ptr"].read() == tensor.storage.device_address + 2 * data.itemsize
-    
-    
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_marshaled_object_list(device_type: spy.DeviceType):
     resource_type_layout = make_marshaled_object_layout(device_type)
