@@ -476,6 +476,10 @@ void SlangSession::create_session(SlangSessionBuild& build)
             session_options.insert_cache_include(data->cache_include_paths[i], i);
         }
 
+        // Create cache directory for source-loaded modules.
+        data->source_cache_path = data->cache_path / "source_modules";
+        std::filesystem::create_directories(data->source_cache_path);
+
         // Update session descriptor with the patched include paths.
         slang_session_option_entries = session_options.slang_entries();
         session_desc.compilerOptionEntries = slang_session_option_entries.data();
@@ -537,6 +541,7 @@ ref<SlangModule> SlangSession::load_module_from_source(
     desc.module_name = module_name;
     desc.source = source;
     desc.path = path;
+    desc.source_digest = digest;
     return create_module(std::move(desc));
 }
 
@@ -777,6 +782,65 @@ bool SlangSession::write_module_to_cache(slang::IModule* module)
     return true;
 }
 
+std::filesystem::path
+SlangSession::_get_source_module_cache_path(std::string_view module_name, const SHA1::Digest& digest) const
+{
+    // Sanitize module name for use as a directory name (replace non-alphanumeric with '_').
+    std::string safe_name{module_name};
+    for (char& c : safe_name) {
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '_')
+            c = '_';
+    }
+    std::filesystem::path cache_file
+        = m_data->source_cache_path / safe_name / (string::hexlify(digest.data(), digest.size()) + ".slang-module");
+    return cache_file;
+}
+
+bool SlangSession::_write_source_module_to_cache(
+    slang::IModule* module,
+    std::string_view module_name,
+    const SHA1::Digest& digest
+) const
+{
+    std::filesystem::path cache_file = _get_source_module_cache_path(module_name, digest);
+
+    // Create directories to cache path.
+    std::error_code ec;
+    std::filesystem::create_directories(cache_file.parent_path(), ec);
+    if (ec) {
+        log_warn(
+            "Failed to create directory \"{}\" for source module cache ({})",
+            cache_file.parent_path(),
+            ec.message()
+        );
+        return false;
+    }
+
+    // Write module to a temporary file.
+    std::filesystem::path tmp_path = cache_file;
+    std::random_device rd;
+    uint64_t uid = rd();
+    tmp_path.replace_extension(".slang-module-" + string::hexlify(&uid, sizeof(uid)));
+    if (std::filesystem::exists(tmp_path))
+        return false;
+    if (!SLANG_SUCCEEDED(module->writeToFile(tmp_path.string().c_str()))) {
+        log_warn("Failed to write cached source module \"{}\" to \"{}\"", module_name, cache_file);
+        return false;
+    }
+
+    // Rename temporary file to cache path.
+    std::filesystem::rename(tmp_path, cache_file, ec);
+    if (ec) {
+        log_warn("Failed to rename cached source module \"{}\" to \"{}\" ({})", tmp_path, cache_file, ec.message());
+        std::filesystem::remove(tmp_path, ec);
+        return false;
+    }
+
+    log_debug("Cached source module \"{}\" to \"{}\"", module_name, cache_file);
+
+    return true;
+}
+
 std::string SlangSessionData::resolve_module_name(std::string_view module_name) const
 {
     // Return if module name is an absolute file path.
@@ -916,7 +980,7 @@ void SlangModule::load(SlangSessionBuild& build_data) const
         // Regular module: load from file or source
         Timer timer;
         Slang::ComPtr<ISlangBlob> diagnostics;
-        slang::IModule* slang_module;
+        slang::IModule* slang_module = nullptr;
 
         // Load module either from resolved name or source depending on whether source specified
         if (!desc.source.has_value()) {
@@ -932,25 +996,49 @@ void SlangModule::load(SlangSessionBuild& build_data) const
                 throw SlangCompileError(msg);
             }
         } else {
-            // TODO: This is a workaround until we use a Slang release with this fix:
-            // https://github.com/shader-slang/slang/pull/10996
-            // Once this is fixed on the Slang side, we can remove this.
-            std::string source_str = fmt::format("// {}\n{}", desc.module_name, desc.source.value());
+            // Try to load from source module cache if available.
+            bool loaded_from_cache = false;
+            if (session_data->cache_enabled && desc.source_digest.has_value()) {
+                std::filesystem::path cache_file
+                    = m_session->_get_source_module_cache_path(desc.module_name, *desc.source_digest);
+                if (std::filesystem::exists(cache_file)) {
+                    SGL_CATCH_INTERNAL_SLANG_ERROR(
+                        slang_module
+                        = session_data->slang_session->loadModule(cache_file.string().c_str(), diagnostics.writeRef());
+                    );
+                    if (slang_module) {
+                        loaded_from_cache = true;
+                        log_debug("Loaded source module \"{}\" from cache", desc.module_name);
+                    }
+                }
+            }
 
-            SGL_CATCH_INTERNAL_SLANG_ERROR(
-                slang_module = session_data->slang_session->loadModuleFromSourceString(
-                    std::string{desc.module_name}.c_str(),
-                    desc.path ? desc.path->string().c_str() : nullptr,
-                    source_str.c_str(),
-                    diagnostics.writeRef()
-                )
-            );
-            if (!slang_module) {
-                std::string msg = append_diagnostics(
-                    fmt::format("Failed to load slang module \"{}\" from source", desc.module_name),
-                    diagnostics
+            if (!loaded_from_cache) {
+                // TODO: This is a workaround until we use a Slang release with this fix:
+                // https://github.com/shader-slang/slang/pull/10996
+                // Once this is fixed on the Slang side, we can remove this.
+                std::string source_str = fmt::format("// {}\n{}", desc.module_name, desc.source.value());
+
+                SGL_CATCH_INTERNAL_SLANG_ERROR(
+                    slang_module = session_data->slang_session->loadModuleFromSourceString(
+                        std::string{desc.module_name}.c_str(),
+                        desc.path ? desc.path->string().c_str() : nullptr,
+                        source_str.c_str(),
+                        diagnostics.writeRef()
+                    )
                 );
-                throw SlangCompileError(msg);
+                if (!slang_module) {
+                    std::string msg = append_diagnostics(
+                        fmt::format("Failed to load slang module \"{}\" from source", desc.module_name),
+                        diagnostics
+                    );
+                    throw SlangCompileError(msg);
+                }
+
+                // Write to source module cache.
+                if (session_data->cache_enabled && desc.source_digest.has_value()) {
+                    m_session->_write_source_module_to_cache(slang_module, desc.module_name, *desc.source_digest);
+                }
             }
         }
 

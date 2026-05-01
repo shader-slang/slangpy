@@ -266,6 +266,9 @@ struct SlangSessionData : Object {
     /// One cache path for each include path under the root cache path.
     std::vector<std::filesystem::path> cache_include_paths;
 
+    /// Cache path for source-loaded modules.
+    std::filesystem::path source_cache_path;
+
     /// Finds fully qualified module name by scanning the cache and include paths.
     std::string resolve_module_name(std::string_view module_name) const;
 };
@@ -334,6 +337,11 @@ public:
     // Internal access to the built session data.
     ref<SlangSessionData> _data() { return m_data; }
 
+    // Internal source module cache helpers.
+    std::filesystem::path _get_source_module_cache_path(std::string_view module_name, const SHA1::Digest& digest) const;
+    bool
+    _write_source_module_to_cache(slang::IModule* module, std::string_view module_name, const SHA1::Digest& digest) const;
+
 private:
     ref<Device> m_device;
 
@@ -373,6 +381,9 @@ struct SlangModuleDesc {
 
     /// If source specified, additional path for compilation.
     std::optional<std::filesystem::path> path;
+
+    /// SHA1 digest of source (set when loading from source, for caching).
+    std::optional<SHA1::Digest> source_digest;
 
     /// Source modules that are composed together to form this module (for composed modules only).
     std::vector<ref<SlangModule>> source_modules;
