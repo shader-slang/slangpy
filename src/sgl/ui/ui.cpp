@@ -452,12 +452,16 @@ void Context::render_draw_data(const ImDrawData* draw_data, TextureView* texture
             );
         }
     }
-    if (narrow_cast<uint32_t>(draw_data->TotalIdxCount) > max_size / sizeof(ImDrawIdx)) {
-        SGL_THROW(
-            "ImGui draw data index buffer size overflow: count={} stride={}",
-            draw_data->TotalIdxCount,
-            sizeof(ImDrawIdx)
-        );
+    constexpr bool index_count_overflow_possible
+        = std::numeric_limits<uint32_t>::max() > std::numeric_limits<size_t>::max() / sizeof(ImDrawIdx);
+    if constexpr (index_count_overflow_possible) {
+        if (narrow_cast<uint32_t>(draw_data->TotalIdxCount) > max_size / sizeof(ImDrawIdx)) {
+            SGL_THROW(
+                "ImGui draw data index buffer size overflow: count={} stride={}",
+                draw_data->TotalIdxCount,
+                sizeof(ImDrawIdx)
+            );
+        }
     }
     const uint32_t total_vertex_count = narrow_cast<uint32_t>(draw_data->TotalVtxCount);
     const uint32_t total_index_count = narrow_cast<uint32_t>(draw_data->TotalIdxCount);
