@@ -476,9 +476,10 @@ void SlangSession::create_session(SlangSessionBuild& build)
             session_options.insert_cache_include(data->cache_include_paths[i], i);
         }
 
-        // Create cache directory for source-loaded modules.
+        // Create cache directory for source-loaded modules and register as include path.
         data->source_cache_path = data->cache_path / "source_modules";
         std::filesystem::create_directories(data->source_cache_path);
+        session_options.add_include(data->source_cache_path);
 
         // Update session descriptor with the patched include paths.
         slang_session_option_entries = session_options.slang_entries();
@@ -782,18 +783,9 @@ bool SlangSession::write_module_to_cache(slang::IModule* module)
     return true;
 }
 
-std::filesystem::path
-SlangSession::_get_source_module_cache_path(std::string_view module_name, const SHA1::Digest& digest) const
+std::filesystem::path SlangSession::_get_source_module_cache_path(const SHA1::Digest& digest) const
 {
-    // Sanitize module name for use as a directory name (replace non-alphanumeric with '_').
-    std::string safe_name{module_name};
-    for (char& c : safe_name) {
-        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '_')
-            c = '_';
-    }
-    std::filesystem::path cache_file
-        = m_data->source_cache_path / safe_name / (string::hexlify(digest.data(), digest.size()) + ".slang");
-    return cache_file;
+    return m_data->source_cache_path / (string::hexlify(digest.data(), digest.size()) + ".slang");
 }
 
 bool SlangSession::_write_source_module_to_cache(
@@ -803,7 +795,7 @@ bool SlangSession::_write_source_module_to_cache(
     const SHA1::Digest& digest
 ) const
 {
-    std::filesystem::path source_file = _get_source_module_cache_path(module_name, digest);
+    std::filesystem::path source_file = _get_source_module_cache_path(digest);
     std::filesystem::path binary_file = source_file;
     binary_file.replace_extension(".slang-module");
 
@@ -1030,14 +1022,14 @@ void SlangModule::load(SlangSessionBuild& build_data) const
             // Try to load from source module cache if available.
             bool loaded_from_cache = false;
             if (session_data->cache_enabled && desc.source_digest.has_value()) {
-                std::filesystem::path cache_source_file
-                    = m_session->_get_source_module_cache_path(desc.module_name, *desc.source_digest);
+                std::filesystem::path cache_source_file = m_session->_get_source_module_cache_path(*desc.source_digest);
                 std::filesystem::path cache_binary_file = cache_source_file;
                 cache_binary_file.replace_extension(".slang-module");
                 if (std::filesystem::exists(cache_source_file) && std::filesystem::exists(cache_binary_file)) {
+                    std::string cache_filename = cache_source_file.filename().string();
                     SGL_CATCH_INTERNAL_SLANG_ERROR(
-                        slang_module = session_data->slang_session
-                                           ->loadModule(cache_source_file.string().c_str(), diagnostics.writeRef());
+                        slang_module
+                        = session_data->slang_session->loadModule(cache_filename.c_str(), diagnostics.writeRef());
                     );
                     if (slang_module) {
                         loaded_from_cache = true;

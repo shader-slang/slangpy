@@ -89,7 +89,7 @@ void compute_main() {
 
     # Check that cache files were created under source_modules directory.
     cache_root = Path(cache_dir)
-    slang_module_files = list(cache_root.rglob("source_modules/**/*.slang-module"))
+    slang_module_files = list(cache_root.rglob("source_modules/*.slang-module"))
     assert len(slang_module_files) > 0, "Expected cached .slang-module files for source module"
 
     # Close device.
