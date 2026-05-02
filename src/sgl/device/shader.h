@@ -339,8 +339,12 @@ public:
 
     // Internal source module cache helpers.
     std::filesystem::path _get_source_module_cache_path(std::string_view module_name, const SHA1::Digest& digest) const;
-    bool
-    _write_source_module_to_cache(slang::IModule* module, std::string_view module_name, const SHA1::Digest& digest) const;
+    bool _write_source_module_to_cache(
+        slang::IModule* module,
+        std::string_view module_name,
+        std::string_view source,
+        const SHA1::Digest& digest
+    ) const;
 
 private:
     ref<Device> m_device;

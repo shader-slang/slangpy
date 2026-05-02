@@ -792,51 +792,82 @@ SlangSession::_get_source_module_cache_path(std::string_view module_name, const 
             c = '_';
     }
     std::filesystem::path cache_file
-        = m_data->source_cache_path / safe_name / (string::hexlify(digest.data(), digest.size()) + ".slang-module");
+        = m_data->source_cache_path / safe_name / (string::hexlify(digest.data(), digest.size()) + ".slang");
     return cache_file;
 }
 
 bool SlangSession::_write_source_module_to_cache(
     slang::IModule* module,
     std::string_view module_name,
+    std::string_view source,
     const SHA1::Digest& digest
 ) const
 {
-    std::filesystem::path cache_file = _get_source_module_cache_path(module_name, digest);
+    std::filesystem::path source_file = _get_source_module_cache_path(module_name, digest);
+    std::filesystem::path binary_file = source_file;
+    binary_file.replace_extension(".slang-module");
 
     // Create directories to cache path.
     std::error_code ec;
-    std::filesystem::create_directories(cache_file.parent_path(), ec);
+    std::filesystem::create_directories(source_file.parent_path(), ec);
     if (ec) {
         log_warn(
             "Failed to create directory \"{}\" for source module cache ({})",
-            cache_file.parent_path(),
+            source_file.parent_path(),
             ec.message()
         );
         return false;
     }
 
-    // Write module to a temporary file.
-    std::filesystem::path tmp_path = cache_file;
+    // Write source to a temporary file, then rename.
     std::random_device rd;
-    uint64_t uid = rd();
-    tmp_path.replace_extension(".slang-module-" + string::hexlify(&uid, sizeof(uid)));
-    if (std::filesystem::exists(tmp_path))
-        return false;
-    if (!SLANG_SUCCEEDED(module->writeToFile(tmp_path.string().c_str()))) {
-        log_warn("Failed to write cached source module \"{}\" to \"{}\"", module_name, cache_file);
-        return false;
+    {
+        std::filesystem::path tmp_path = source_file;
+        uint64_t uid = rd();
+        tmp_path.replace_extension(".slang-" + string::hexlify(&uid, sizeof(uid)));
+        if (std::filesystem::exists(tmp_path))
+            return false;
+        {
+            FileStream stream(tmp_path, FileStream::Mode::write);
+            stream.write(source.data(), source.size());
+        }
+        std::filesystem::rename(tmp_path, source_file, ec);
+        if (ec) {
+            log_warn("Failed to rename cached source file \"{}\" to \"{}\" ({})", tmp_path, source_file, ec.message());
+            std::filesystem::remove(tmp_path, ec);
+            return false;
+        }
     }
 
-    // Rename temporary file to cache path.
-    std::filesystem::rename(tmp_path, cache_file, ec);
-    if (ec) {
-        log_warn("Failed to rename cached source module \"{}\" to \"{}\" ({})", tmp_path, cache_file, ec.message());
-        std::filesystem::remove(tmp_path, ec);
-        return false;
+    // Write binary module to a temporary file, then rename.
+    {
+        std::filesystem::path tmp_path = binary_file;
+        uint64_t uid = rd();
+        tmp_path.replace_extension(".slang-module-" + string::hexlify(&uid, sizeof(uid)));
+        if (std::filesystem::exists(tmp_path)) {
+            std::filesystem::remove(source_file, ec);
+            return false;
+        }
+        if (!SLANG_SUCCEEDED(module->writeToFile(tmp_path.string().c_str()))) {
+            log_warn("Failed to write cached source module \"{}\" to \"{}\"", module_name, binary_file);
+            std::filesystem::remove(source_file, ec);
+            return false;
+        }
+        std::filesystem::rename(tmp_path, binary_file, ec);
+        if (ec) {
+            log_warn(
+                "Failed to rename cached source module \"{}\" to \"{}\" ({})",
+                tmp_path,
+                binary_file,
+                ec.message()
+            );
+            std::filesystem::remove(tmp_path, ec);
+            std::filesystem::remove(source_file, ec);
+            return false;
+        }
     }
 
-    log_debug("Cached source module \"{}\" to \"{}\"", module_name, cache_file);
+    log_debug("Cached source module \"{}\" to \"{}\"", module_name, source_file);
 
     return true;
 }
@@ -999,12 +1030,14 @@ void SlangModule::load(SlangSessionBuild& build_data) const
             // Try to load from source module cache if available.
             bool loaded_from_cache = false;
             if (session_data->cache_enabled && desc.source_digest.has_value()) {
-                std::filesystem::path cache_file
+                std::filesystem::path cache_source_file
                     = m_session->_get_source_module_cache_path(desc.module_name, *desc.source_digest);
-                if (std::filesystem::exists(cache_file)) {
+                std::filesystem::path cache_binary_file = cache_source_file;
+                cache_binary_file.replace_extension(".slang-module");
+                if (std::filesystem::exists(cache_source_file) && std::filesystem::exists(cache_binary_file)) {
                     SGL_CATCH_INTERNAL_SLANG_ERROR(
-                        slang_module
-                        = session_data->slang_session->loadModule(cache_file.string().c_str(), diagnostics.writeRef());
+                        slang_module = session_data->slang_session
+                                           ->loadModule(cache_source_file.string().c_str(), diagnostics.writeRef());
                     );
                     if (slang_module) {
                         loaded_from_cache = true;
@@ -1037,7 +1070,12 @@ void SlangModule::load(SlangSessionBuild& build_data) const
 
                 // Write to source module cache.
                 if (session_data->cache_enabled && desc.source_digest.has_value()) {
-                    m_session->_write_source_module_to_cache(slang_module, desc.module_name, *desc.source_digest);
+                    m_session->_write_source_module_to_cache(
+                        slang_module,
+                        desc.module_name,
+                        source_str,
+                        *desc.source_digest
+                    );
                 }
             }
         }
