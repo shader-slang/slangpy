@@ -26,7 +26,7 @@ def create_checker_texture(device: spy.Device) -> spy.Texture:
     data = np.where(on[..., None], [242, 184, 82, 255], [24, 30, 39, 255]).astype(np.uint8)
 
     return device.create_texture(
-        format=spy.Format.rgba8_unorm,
+        format=spy.Format.rgba8_unorm_srgb,
         width=size,
         height=size,
         usage=spy.TextureUsage.shader_resource,

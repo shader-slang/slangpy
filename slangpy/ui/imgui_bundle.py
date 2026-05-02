@@ -243,6 +243,11 @@ def texture_ref(texture: spy.Texture) -> Any:
     """
     Create an ``imgui.ImTextureRef`` for a slangpy texture using helper-managed IDs.
 
+    The referenced texture keeps its existing format. For authored 8-bit color
+    images, prefer an sRGB texture format such as
+    ``spy.Format.rgba8_unorm_srgb`` so sampling matches the shared UI
+    renderer's linear workflow.
+
     :param texture: Texture to expose to the external Dear ImGui binding.
     :return: ``imgui.ImTextureRef`` wrapping a helper-managed texture ID.
     """
@@ -413,4 +418,4 @@ def render_imgui_draw_data(
     :param command_encoder: Command encoder to encode commands to.
     """
     resolved_draw_data = _resolve_draw_data(draw_data)
-    context._render_marshaled_draw_data(resolved_draw_data, texture, command_encoder)
+    context.render_draw_data(resolved_draw_data, texture, command_encoder)

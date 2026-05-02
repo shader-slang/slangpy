@@ -411,55 +411,7 @@ void Context::end_frame(TextureView* texture_view, CommandEncoder* command_encod
         }
     }
 
-    std::vector<std::vector<DrawCommand>> commands;
-    std::vector<DrawList> draw_lists;
-    commands.reserve(imgui_draw_data->CmdListsCount);
-    draw_lists.reserve(imgui_draw_data->CmdListsCount);
-
-    DrawData draw_data{
-        .display_pos = float2(imgui_draw_data->DisplayPos.x, imgui_draw_data->DisplayPos.y),
-        .display_size = float2(imgui_draw_data->DisplaySize.x, imgui_draw_data->DisplaySize.y),
-        .framebuffer_scale = float2(imgui_draw_data->FramebufferScale.x, imgui_draw_data->FramebufferScale.y),
-        .total_vtx_count = narrow_cast<uint32_t>(imgui_draw_data->TotalVtxCount),
-        .total_idx_count = narrow_cast<uint32_t>(imgui_draw_data->TotalIdxCount),
-        .index_size = sizeof(ImDrawIdx),
-    };
-
-    for (int i = 0; i < imgui_draw_data->CmdListsCount; ++i) {
-        const ImDrawList* cmd_list = imgui_draw_data->CmdLists[i];
-        auto& draw_commands = commands.emplace_back();
-        draw_commands.reserve(cmd_list->CmdBuffer.Size);
-
-        for (const ImDrawCmd& cmd : cmd_list->CmdBuffer) {
-            SGL_CHECK(
-                cmd.UserCallback == nullptr,
-                "ImGui draw callbacks are not supported by the shared draw-data renderer"
-            );
-
-            draw_commands.push_back(
-                DrawCommand{
-                    .clip_rect = float4(cmd.ClipRect.x, cmd.ClipRect.y, cmd.ClipRect.z, cmd.ClipRect.w),
-                    .elem_count = cmd.ElemCount,
-                    .idx_offset = cmd.IdxOffset,
-                    .vtx_offset = cmd.VtxOffset,
-                    .texture = ref<Texture>(static_cast<Texture*>(cmd.GetTexID())),
-                }
-            );
-        }
-
-        draw_lists.push_back(
-            DrawList{
-                .vertex_data = reinterpret_cast<uintptr_t>(cmd_list->VtxBuffer.Data),
-                .vertex_count = narrow_cast<uint32_t>(cmd_list->VtxBuffer.Size),
-                .index_data = reinterpret_cast<uintptr_t>(cmd_list->IdxBuffer.Data),
-                .index_count = narrow_cast<uint32_t>(cmd_list->IdxBuffer.Size),
-                .commands = std::span<const DrawCommand>(draw_commands.data(), draw_commands.size()),
-            }
-        );
-    }
-
-    draw_data.draw_lists = std::span<const DrawList>(draw_lists.data(), draw_lists.size());
-    render_draw_data(draw_data, texture_view, command_encoder);
+    render_draw_data(imgui_draw_data, texture_view, command_encoder);
 }
 
 void Context::end_frame(Texture* texture, CommandEncoder* command_encoder)
@@ -468,66 +420,49 @@ void Context::end_frame(Texture* texture, CommandEncoder* command_encoder)
     end_frame(texture->create_view({}), command_encoder);
 }
 
-void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_view, CommandEncoder* command_encoder)
+void Context::render_draw_data(const ImDrawData* draw_data, TextureView* texture_view, CommandEncoder* command_encoder)
 {
+    SGL_CHECK_NOT_NULL(draw_data);
     SGL_CHECK_NOT_NULL(texture_view);
     SGL_CHECK_NOT_NULL(command_encoder);
 
     if (!m_device->has_feature(Feature::rasterization))
         return;
-    if (draw_data.index_size != 2 && draw_data.index_size != 4)
-        SGL_THROW("Unsupported ImGui draw data index size: {}", draw_data.index_size);
+    if constexpr (sizeof(ImDrawIdx) != 2 && sizeof(ImDrawIdx) != 4) {
+        SGL_THROW("Unsupported ImGui draw data index size: {}", sizeof(ImDrawIdx));
+    }
 
     const bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
-    const float fb_width = draw_data.display_size.x * draw_data.framebuffer_scale.x;
-    const float fb_height = draw_data.display_size.y * draw_data.framebuffer_scale.y;
+    const float fb_width = draw_data->DisplaySize.x * draw_data->FramebufferScale.x;
+    const float fb_height = draw_data->DisplaySize.y * draw_data->FramebufferScale.y;
     if (fb_width <= 0.f || fb_height <= 0.f)
         return;
-
-    uint64_t total_vtx_count = 0;
-    uint64_t total_idx_count = 0;
-    for (const DrawList& draw_list : draw_data.draw_lists) {
-        total_vtx_count += draw_list.vertex_count;
-        total_idx_count += draw_list.index_count;
-    }
-    if (total_vtx_count != draw_data.total_vtx_count) {
-        SGL_THROW(
-            "ImGui draw data vertex count mismatch: reported={} actual={}",
-            draw_data.total_vtx_count,
-            total_vtx_count
-        );
-    }
-    if (total_idx_count != draw_data.total_idx_count) {
-        SGL_THROW(
-            "ImGui draw data index count mismatch: reported={} actual={}",
-            draw_data.total_idx_count,
-            total_idx_count
-        );
-    }
-    if (draw_data.draw_lists.empty() && draw_data.total_vtx_count == 0 && draw_data.total_idx_count == 0)
+    if (draw_data->CmdListsCount == 0 && draw_data->TotalVtxCount == 0 && draw_data->TotalIdxCount == 0)
         return;
 
     const size_t max_size = std::numeric_limits<size_t>::max();
     constexpr bool vertex_count_overflow_possible
         = std::numeric_limits<uint32_t>::max() > std::numeric_limits<size_t>::max() / sizeof(ImDrawVert);
     if constexpr (vertex_count_overflow_possible) {
-        if (draw_data.total_vtx_count > max_size / sizeof(ImDrawVert)) {
+        if (narrow_cast<uint32_t>(draw_data->TotalVtxCount) > max_size / sizeof(ImDrawVert)) {
             SGL_THROW(
                 "ImGui draw data vertex buffer size overflow: count={} stride={}",
-                draw_data.total_vtx_count,
+                draw_data->TotalVtxCount,
                 sizeof(ImDrawVert)
             );
         }
     }
-    if (draw_data.total_idx_count > max_size / draw_data.index_size) {
+    if (narrow_cast<uint32_t>(draw_data->TotalIdxCount) > max_size / sizeof(ImDrawIdx)) {
         SGL_THROW(
             "ImGui draw data index buffer size overflow: count={} stride={}",
-            draw_data.total_idx_count,
-            draw_data.index_size
+            draw_data->TotalIdxCount,
+            sizeof(ImDrawIdx)
         );
     }
-    const size_t required_vertex_bytes = size_t(draw_data.total_vtx_count) * sizeof(ImDrawVert);
-    const size_t required_index_bytes = size_t(draw_data.total_idx_count) * draw_data.index_size;
+    const uint32_t total_vertex_count = narrow_cast<uint32_t>(draw_data->TotalVtxCount);
+    const uint32_t total_index_count = narrow_cast<uint32_t>(draw_data->TotalIdxCount);
+    const size_t required_vertex_bytes = size_t(total_vertex_count) * sizeof(ImDrawVert);
+    const size_t required_index_bytes = size_t(total_index_count) * sizeof(ImDrawIdx);
 
     ref<Buffer>& vertex_buffer = m_vertex_buffers[m_frame_index];
     ref<Buffer>& index_buffer = m_index_buffers[m_frame_index];
@@ -555,110 +490,20 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
 
     ImDrawVert* vertices = vertex_buffer->map<ImDrawVert>();
     uint8_t* indices = index_buffer->map<uint8_t>();
-    size_t remaining_vertex_bytes = required_vertex_bytes;
-    size_t remaining_index_bytes = required_index_bytes;
-    uint32_t remaining_vertex_count = draw_data.total_vtx_count;
-    uint32_t remaining_index_count = draw_data.total_idx_count;
-    for (const DrawList& draw_list : draw_data.draw_lists) {
-        if (draw_list.vertex_count > remaining_vertex_count || draw_list.index_count > remaining_index_count) {
-            vertex_buffer->unmap();
-            index_buffer->unmap();
-            SGL_THROW("ImGui draw list exceeds validated aggregate buffer capacity");
-        }
+    for (int i = 0; i < draw_data->CmdListsCount; ++i) {
+        const ImDrawList* draw_list = draw_data->CmdLists[i];
+        const uint32_t vertex_count = narrow_cast<uint32_t>(draw_list->VtxBuffer.Size);
+        const uint32_t index_count = narrow_cast<uint32_t>(draw_list->IdxBuffer.Size);
+        const size_t draw_list_vertex_bytes = size_t(vertex_count) * sizeof(ImDrawVert);
+        const size_t draw_list_index_bytes = size_t(index_count) * sizeof(ImDrawIdx);
 
-        if constexpr (vertex_count_overflow_possible) {
-            if (draw_list.vertex_count > max_size / sizeof(ImDrawVert)) {
-                vertex_buffer->unmap();
-                index_buffer->unmap();
-                SGL_THROW(
-                    "ImGui draw list vertex buffer size overflow: count={} stride={}",
-                    draw_list.vertex_count,
-                    sizeof(ImDrawVert)
-                );
-            }
-        }
-        if (draw_list.index_count > max_size / draw_data.index_size) {
-            vertex_buffer->unmap();
-            index_buffer->unmap();
-            SGL_THROW(
-                "ImGui draw list index buffer size overflow: count={} stride={}",
-                draw_list.index_count,
-                draw_data.index_size
-            );
-        }
-        const size_t draw_list_vertex_bytes = size_t(draw_list.vertex_count) * sizeof(ImDrawVert);
-        const size_t draw_list_index_bytes = size_t(draw_list.index_count) * draw_data.index_size;
-
-        if (draw_list_vertex_bytes > remaining_vertex_bytes || draw_list_index_bytes > remaining_index_bytes) {
-            vertex_buffer->unmap();
-            index_buffer->unmap();
-            SGL_THROW("ImGui draw list copy would overflow the upload buffers");
-        }
-        if ((draw_list.vertex_count != 0 && draw_list.vertex_data == 0)
-            || (draw_list.index_count != 0 && draw_list.index_data == 0)) {
-            vertex_buffer->unmap();
-            index_buffer->unmap();
-            SGL_THROW("ImGui draw list contains null buffer data");
-        }
-
-        std::memcpy(vertices, reinterpret_cast<const void*>(draw_list.vertex_data), draw_list_vertex_bytes);
-        std::memcpy(indices, reinterpret_cast<const void*>(draw_list.index_data), draw_list_index_bytes);
-        vertices += draw_list.vertex_count;
+        std::memcpy(vertices, draw_list->VtxBuffer.Data, draw_list_vertex_bytes);
+        std::memcpy(indices, draw_list->IdxBuffer.Data, draw_list_index_bytes);
+        vertices += vertex_count;
         indices += draw_list_index_bytes;
-        remaining_vertex_count -= draw_list.vertex_count;
-        remaining_index_count -= draw_list.index_count;
-        remaining_vertex_bytes -= draw_list_vertex_bytes;
-        remaining_index_bytes -= draw_list_index_bytes;
     }
     vertex_buffer->unmap();
     index_buffer->unmap();
-
-    // Pre-validate all draw commands before starting the render pass.
-    uint32_t pre_vertex_offset = 0;
-    uint32_t pre_index_offset = 0;
-    for (const DrawList& draw_list : draw_data.draw_lists) {
-        for (const DrawCommand& cmd : draw_list.commands) {
-            if (cmd.idx_offset > draw_list.index_count || cmd.elem_count > draw_list.index_count - cmd.idx_offset)
-                SGL_THROW("ImGui draw command index range exceeds its draw list");
-            if (cmd.vtx_offset > draw_list.vertex_count)
-                SGL_THROW("ImGui draw command vertex offset exceeds its draw list");
-            if (!cmd.texture)
-                SGL_THROW("ImGui draw command contains null texture");
-
-            const uint64_t draw_vertex_offset = uint64_t(cmd.vtx_offset) + uint64_t(pre_vertex_offset);
-            const uint64_t draw_index_offset = uint64_t(cmd.idx_offset) + uint64_t(pre_index_offset);
-            const uint64_t draw_index_end = draw_index_offset + uint64_t(cmd.elem_count);
-            if (draw_vertex_offset > draw_data.total_vtx_count || draw_index_end > draw_data.total_idx_count)
-                SGL_THROW("ImGui draw command would read beyond the uploaded draw buffers");
-
-            // Validate that each index references a valid vertex.
-            if (cmd.elem_count > 0 && draw_list.index_data != 0) {
-                const uint8_t* idx_base = reinterpret_cast<const uint8_t*>(draw_list.index_data);
-                for (uint32_t ei = 0; ei < cmd.elem_count; ++ei) {
-                    uint32_t index_val;
-                    if (draw_data.index_size == 2) {
-                        uint16_t idx16;
-                        std::memcpy(&idx16, idx_base + (cmd.idx_offset + ei) * 2, sizeof(idx16));
-                        index_val = idx16;
-                    } else {
-                        std::memcpy(&index_val, idx_base + (cmd.idx_offset + ei) * 4, sizeof(index_val));
-                    }
-                    if (index_val + cmd.vtx_offset >= draw_list.vertex_count) {
-                        SGL_THROW(
-                            "ImGui draw command references out-of-bounds vertex: "
-                            "index[{}]={} + vtx_offset={} >= vertex_count={}",
-                            ei,
-                            index_val,
-                            cmd.vtx_offset,
-                            draw_list.vertex_count
-                        );
-                    }
-                }
-            }
-        }
-        pre_index_offset += draw_list.index_count;
-        pre_vertex_offset += draw_list.vertex_count;
-    }
 
 
     auto pass_encoder = command_encoder->begin_render_pass({
@@ -673,7 +518,7 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
     ShaderObject* shader_object = pass_encoder->bind_pipeline(get_pipeline(texture_view->desc().format));
     ShaderCursor shader_cursor = ShaderCursor(shader_object);
     shader_cursor["sampler"] = m_sampler;
-    shader_cursor["scale"] = 2.f / float2(draw_data.display_size.x, -draw_data.display_size.y);
+    shader_cursor["scale"] = 2.f / float2(draw_data->DisplaySize.x, -draw_data->DisplaySize.y);
     shader_cursor["offset"] = float2(-1.f, 1.f);
     shader_cursor["is_srgb_format"] = is_srgb_format;
     ShaderOffset texture_offset = shader_cursor["texture"].offset();
@@ -683,17 +528,26 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
         .scissor_rects = {ScissorRect{}},
         .vertex_buffers = {vertex_buffer},
         .index_buffer = index_buffer,
-        .index_format = draw_data.index_size == 2 ? IndexFormat::uint16 : IndexFormat::uint32,
+        .index_format = sizeof(ImDrawIdx) == 2 ? IndexFormat::uint16 : IndexFormat::uint32,
     };
 
     uint32_t vertex_offset = 0;
     uint32_t index_offset = 0;
-    for (const DrawList& draw_list : draw_data.draw_lists) {
-        for (const DrawCommand& cmd : draw_list.commands) {
-            const float raw_clip_min_x = (cmd.clip_rect.x - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
-            const float raw_clip_min_y = (cmd.clip_rect.y - draw_data.display_pos.y) * draw_data.framebuffer_scale.y;
-            const float raw_clip_max_x = (cmd.clip_rect.z - draw_data.display_pos.x) * draw_data.framebuffer_scale.x;
-            const float raw_clip_max_y = (cmd.clip_rect.w - draw_data.display_pos.y) * draw_data.framebuffer_scale.y;
+    for (int i = 0; i < draw_data->CmdListsCount; ++i) {
+        const ImDrawList* draw_list = draw_data->CmdLists[i];
+        const uint32_t vertex_count = narrow_cast<uint32_t>(draw_list->VtxBuffer.Size);
+        const uint32_t index_count = narrow_cast<uint32_t>(draw_list->IdxBuffer.Size);
+
+        for (const ImDrawCmd& cmd : draw_list->CmdBuffer) {
+            if (cmd.UserCallback != nullptr)
+                SGL_THROW("ImGui draw callbacks are not supported by the shared draw-data renderer");
+            if (!cmd.GetTexID())
+                SGL_THROW("ImGui draw command contains null texture");
+
+            const float raw_clip_min_x = (cmd.ClipRect.x - draw_data->DisplayPos.x) * draw_data->FramebufferScale.x;
+            const float raw_clip_min_y = (cmd.ClipRect.y - draw_data->DisplayPos.y) * draw_data->FramebufferScale.y;
+            const float raw_clip_max_x = (cmd.ClipRect.z - draw_data->DisplayPos.x) * draw_data->FramebufferScale.x;
+            const float raw_clip_max_y = (cmd.ClipRect.w - draw_data->DisplayPos.y) * draw_data->FramebufferScale.y;
 
             const float clip_min_x = std::clamp(raw_clip_min_x, 0.f, fb_width);
             const float clip_min_y = std::clamp(raw_clip_min_y, 0.f, fb_height);
@@ -709,24 +563,24 @@ void Context::render_draw_data(const DrawData& draw_data, TextureView* texture_v
                 .max_y = uint32_t(clip_max_y),
             };
 
-            const uint64_t draw_vertex_offset = uint64_t(cmd.vtx_offset) + uint64_t(vertex_offset);
-            const uint64_t draw_index_offset = uint64_t(cmd.idx_offset) + uint64_t(index_offset);
+            const uint64_t draw_vertex_offset = uint64_t(cmd.VtxOffset) + uint64_t(vertex_offset);
+            const uint64_t draw_index_offset = uint64_t(cmd.IdxOffset) + uint64_t(index_offset);
 
-            shader_object->set_texture(texture_offset, cmd.texture);
+            shader_object->set_texture(texture_offset, ref<Texture>(cmd.GetTexID()));
             pass_encoder->set_render_state(render_state);
             pass_encoder->draw_indexed({
-                .vertex_count = cmd.elem_count,
+                .vertex_count = cmd.ElemCount,
                 .start_vertex_location = narrow_cast<uint32_t>(draw_vertex_offset),
                 .start_index_location = narrow_cast<uint32_t>(draw_index_offset),
             });
         }
-        index_offset += draw_list.index_count;
-        vertex_offset += draw_list.vertex_count;
+        index_offset += index_count;
+        vertex_offset += vertex_count;
     }
     pass_encoder->end();
 }
 
-void Context::render_draw_data(const DrawData& draw_data, Texture* texture, CommandEncoder* command_encoder)
+void Context::render_draw_data(const ImDrawData* draw_data, Texture* texture, CommandEncoder* command_encoder)
 {
     SGL_CHECK_NOT_NULL(texture);
     render_draw_data(draw_data, texture->create_view({}), command_encoder);
