@@ -9,6 +9,7 @@
 
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
+#include "sgl/core/crypto.h"
 
 #include <exception>
 #include <map>
@@ -358,6 +359,9 @@ private:
 
     /// Helper to create a module, updating cache afterwards.
     ref<SlangModule> create_module(SlangModuleDesc desc);
+
+    /// Cache of module name -> source SHA1 digest to detect same-name-different-source misuse.
+    std::map<std::string, SHA1::Digest, std::less<>> m_source_module_digests;
 };
 
 struct SlangModuleDesc {

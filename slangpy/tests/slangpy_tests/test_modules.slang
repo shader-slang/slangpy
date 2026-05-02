@@ -19,8 +19,8 @@ struct Material : IDifferentiable, IAtomicAddable {
 
     static void atomicAdd(This* buf, uint element, This value)
     {
-        float3::atomicAdd(&buf[element].color, 0, value.color);
-        float3::atomicAdd(&buf[element].emission, 0, value.emission);
+        float3::atomicAdd(__getAddress(buf[element].color), 0, value.color);
+        float3::atomicAdd(__getAddress(buf[element].emission), 0, value.emission);
     }
 };
 
@@ -75,10 +75,10 @@ struct Particle : IDifferentiable, IAtomicAddable {
 
     static void atomicAdd(This* buf, uint element, This value)
     {
-        float2::atomicAdd(&buf[element].position, 0, value.position);
-        float2::atomicAdd(&buf[element].velocity, 0, value.velocity);
-        float::atomicAdd(&buf[element].size, 0, value.size);
-        Material::atomicAdd(&buf[element].material, 0, value.material);
+        float2::atomicAdd(__getAddress(buf[element].position), 0, value.position);
+        float2::atomicAdd(__getAddress(buf[element].velocity), 0, value.velocity);
+        float::atomicAdd(__getAddress(buf[element].size), 0, value.size);
+        Material::atomicAdd(__getAddress(buf[element].material), 0, value.material);
     }
 }
 
