@@ -29,6 +29,9 @@ public:
     ShaderCursor(ShaderObject* shader_object, bool need_dereference, slang::TypeLayoutReflection* parent_type_layout);
     ShaderCursor(ShaderObject* shader_object, slang::TypeLayoutReflection* type_layout, ShaderOffset offset);
 
+    /// Reinterpret the current cursor using a different type layout.
+    ShaderCursor reinterpret(slang::TypeLayoutReflection* new_layout) const;
+
     ShaderOffset offset() const { return m_offset; }
     ShaderObject* shader_object() const { return m_shader_object; }
 
