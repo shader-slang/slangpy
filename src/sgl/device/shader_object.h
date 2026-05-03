@@ -53,10 +53,12 @@ public:
     /// returned is immediately populated, not retained. Prefer using set_data unless absolutely necessary.
     virtual void* reserve_data(const ShaderOffset& offset, size_t size);
 
+#if SGL_HAS_CUDA
     virtual void
     set_cuda_tensor_view_buffer(const ShaderOffset& offset, const cuda::TensorView& tensor_view, bool is_uav);
     virtual void set_cuda_tensor_view_pointer(const ShaderOffset& offset, const cuda::TensorView& tensor_view);
     virtual void get_cuda_interop_buffers(std::vector<ref<cuda::InteropBuffer>>& cuda_interop_buffers) const;
+#endif
 
     rhi::IShaderObject* rhi_shader_object() const { return m_shader_object; }
 
@@ -64,7 +66,9 @@ protected:
     ref<Device> m_device;
     rhi::IShaderObject* m_shader_object;
     bool m_retain;
+#if SGL_HAS_CUDA
     short_vector<ref<cuda::InteropBuffer>, 8> m_cuda_interop_buffers;
+#endif
     short_vector<ref<ShaderObject>, 8> m_objects;
 };
 

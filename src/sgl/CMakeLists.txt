@@ -1,5 +1,9 @@
 
-add_library(sgl SHARED)
+if(SGL_EMSCRIPTEN)
+    add_library(sgl STATIC)
+else()
+    add_library(sgl SHARED)
+endif()
 
 option(SGL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 
@@ -49,6 +53,7 @@ target_sources(sgl PRIVATE
     core/lmdb_cache.h
     core/platform_linux.cpp
     core/platform_windows.cpp
+    core/platform_emscripten.cpp
     core/platform.cpp
     core/platform.h
     core/plugin.cpp
@@ -247,6 +252,7 @@ target_compile_options(sgl
 
             # this is for ImGUI only
             -Wno-nontrivial-memcall
+            -Wno-uninitialized-const-pointer
         >
         # GCC flags.
         $<$<CXX_COMPILER_ID:GNU>:
@@ -340,6 +346,7 @@ file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TYPE}/include/sgl/c
 
 #define SGL_BUILD_TYPE \"${SGL_BUILD_TYPE}\"
 
+#define SGL_HAS_CUDA $<BOOL:${SGL_HAS_CUDA}>
 #define SGL_USE_DYNAMIC_CUDA $<BOOL:${SGL_USE_DYNAMIC_CUDA}>
 
 #define SGL_HAS_D3D12 $<BOOL:${SGL_HAS_D3D12}>
@@ -360,18 +367,18 @@ target_include_directories(sgl PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TY
 target_link_libraries(sgl
     PUBLIC
         fmt::fmt
-        nanothread
+        $<$<NOT:$<BOOL:${SGL_EMSCRIPTEN}>>:nanothread>
         slang
         slang-rhi
-        slang-rhi-vulkan-headers
+        $<$<NOT:$<BOOL:${SGL_EMSCRIPTEN}>>:slang-rhi-vulkan-headers>
         header_only
         $<$<NOT:$<BOOL:${SGL_USE_DYNAMIC_CUDA}>>:CUDA::cuda_driver>
         sgl_data
     PRIVATE
         git_version
-        glfw
+        $<$<NOT:$<BOOL:${SGL_EMSCRIPTEN}>>:glfw>
         tevclient
-        lmdb
+        $<$<NOT:$<BOOL:${SGL_EMSCRIPTEN}>>:lmdb>
         $<$<BOOL:${SGL_HAS_D3D12}>:d3d12>
         $<$<BOOL:${SGL_HAS_LIBPNG}>:PNG::PNG>
         $<$<BOOL:${SGL_HAS_LIBJPEG}>:JPEG::JPEG>
@@ -406,3 +413,16 @@ foreach(file IN ZIP_LISTS shader_files_src shader_files_dst)
     # if dst is directory create it
     add_custom_command(TARGET sgl POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ${file_1} COMMAND ${CMAKE_COMMAND} -E copy_if_different ${file_0} ${file_1}/)
 endforeach()
+
+if(SGL_EMSCRIPTEN)
+    target_link_options(sgl
+        PUBLIC
+            "-sUSE_GLFW=3"
+            "--use-port=emdawnwebgpu"
+            "-fwasm-exceptions"
+            "-sASYNCIFY=1"
+            "-sALLOW_MEMORY_GROWTH=1"
+            "-sMAXIMUM_MEMORY=4GB"
+            "--no-entry"
+    )
+endif()
