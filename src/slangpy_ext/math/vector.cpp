@@ -116,8 +116,22 @@ void bind_vector_type(nb::module_& m, const char* name)
     };
     vec.def("__repr__", to_string_);
     vec.def("__str__", to_string_);
+    vec.def(
+        "__hash__",
+        [](const T& self)
+        {
+            return std::hash<T>()(self);
+        }
+    );
 
     // Operators
+
+    vec.def(nb::self == nb::self);
+    vec.def(nb::self != nb::self);
+    vec.def(nb::self < nb::self);
+    vec.def(nb::self > nb::self);
+    vec.def(nb::self <= nb::self);
+    vec.def(nb::self >= nb::self);
 
     if constexpr (arithmetic<value_type> && !boolean<value_type>) {
         vec.def(+nb::self);
@@ -196,48 +210,6 @@ void bind_vector_type(nb::module_& m, const char* name)
         vec.def(nb::self ^= value_type());
     }
 
-    if constexpr (boolean<value_type>) {
-        // vec.def(nb::self || nb::self);
-        // vec.def(nb::self || value_type());
-        // vec.def(value_type() || nb::self);
-        // vec.def(nb::self && nb::self);
-        // vec.def(nb::self && value_type());
-        // vec.def(value_type() && nb::self);
-
-        // The vector comparisons operators use component-wise comparisons.
-        // In order to compare lists of vectors in Python, we need to
-        // implement the `bool` operator, which returns `True` if all
-        // components are `True`.
-        vec.def(
-            "__bool__",
-            [](const T& self)
-            {
-                return all(self);
-            }
-        );
-    }
-
-    vec.def(nb::self == nb::self);
-    vec.def(nb::self == value_type());
-    vec.def(value_type() == nb::self);
-    vec.def(nb::self != nb::self);
-    vec.def(nb::self != value_type());
-    vec.def(value_type() != nb::self);
-
-    if constexpr (arithmetic<value_type> && !boolean<value_type>) {
-        vec.def(nb::self < nb::self);
-        vec.def(nb::self < value_type());
-        vec.def(value_type() < nb::self);
-        vec.def(nb::self > nb::self);
-        vec.def(nb::self > value_type());
-        vec.def(value_type() > nb::self);
-        vec.def(nb::self <= nb::self);
-        vec.def(nb::self <= value_type());
-        vec.def(value_type() <= nb::self);
-        vec.def(nb::self >= nb::self);
-        vec.def(nb::self >= value_type());
-        vec.def(value_type() >= nb::self);
-    }
 
     // Intrinsics
 
@@ -249,6 +221,12 @@ void bind_vector_type(nb::module_& m, const char* name)
         "x"_a
 #define WRAP_INTRINSIC_XY(name)                                                                                        \
     [](const T& x, const T& y)                                                                                         \
+    {                                                                                                                  \
+        return name(x, y);                                                                                             \
+    },                                                                                                                 \
+        "x"_a, "y"_a
+#define WRAP_INTRINSIC_XY_TYPED(T1, T2, name)                                                                          \
+    [](const T1& x, const T2& y)                                                                                       \
     {                                                                                                                  \
         return name(x, y);                                                                                             \
     },                                                                                                                 \
@@ -282,6 +260,30 @@ void bind_vector_type(nb::module_& m, const char* name)
             "true_value"_a,
             "false_value"_a
         );
+
+        // Component-wise comparisons
+
+        m.def("eq", WRAP_INTRINSIC_XY(eq));
+        m.def("eq", WRAP_INTRINSIC_XY_TYPED(T, value_type, eq));
+        m.def("eq", WRAP_INTRINSIC_XY_TYPED(value_type, T, eq));
+        m.def("ne", WRAP_INTRINSIC_XY(ne));
+        m.def("ne", WRAP_INTRINSIC_XY_TYPED(T, value_type, ne));
+        m.def("ne", WRAP_INTRINSIC_XY_TYPED(value_type, T, ne));
+
+        if constexpr (arithmetic<value_type>) {
+            m.def("lt", WRAP_INTRINSIC_XY(lt));
+            m.def("lt", WRAP_INTRINSIC_XY_TYPED(T, value_type, lt));
+            m.def("lt", WRAP_INTRINSIC_XY_TYPED(value_type, T, lt));
+            m.def("gt", WRAP_INTRINSIC_XY(gt));
+            m.def("gt", WRAP_INTRINSIC_XY_TYPED(T, value_type, gt));
+            m.def("gt", WRAP_INTRINSIC_XY_TYPED(value_type, T, gt));
+            m.def("le", WRAP_INTRINSIC_XY(le));
+            m.def("le", WRAP_INTRINSIC_XY_TYPED(T, value_type, le));
+            m.def("le", WRAP_INTRINSIC_XY_TYPED(value_type, T, le));
+            m.def("ge", WRAP_INTRINSIC_XY(ge));
+            m.def("ge", WRAP_INTRINSIC_XY_TYPED(T, value_type, ge));
+            m.def("ge", WRAP_INTRINSIC_XY_TYPED(value_type, T, ge));
+        }
 
         // Basic functions
 
@@ -415,6 +417,7 @@ void bind_vector_type(nb::module_& m, const char* name)
 
 #undef WRAP_INTRINSIC_X
 #undef WRAP_INTRINSIC_XY
+#undef WRAP_INTRINSIC_XY_TYPED
 #undef WRAP_INTRINSIC_YX
 }
 

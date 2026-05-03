@@ -149,7 +149,11 @@ VERSION_REGEX = re.compile(r"^\s*#\s*define\s+SGL_VERSION_([A-Z]+)\s+(.*)$", re.
 
 with open("src/sgl/sgl.h") as f:
     matches = dict(VERSION_REGEX.findall(f.read()))
-    version = "{MAJOR}.{MINOR}.{PATCH}".format(**matches)
+    version_override = os.environ.get("SLANGPY_VERSION_OVERRIDE", "")
+    if version_override:
+        version = version_override
+    else:
+        version = "{MAJOR}.{MINOR}.{PATCH}".format(**matches)
     print(f"version={version}")
 
 with open("README.md", "r") as f:

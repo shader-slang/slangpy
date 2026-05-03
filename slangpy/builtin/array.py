@@ -77,6 +77,24 @@ class ArrayMarshall(ValueMarshall):
         if as_array is not None:
             return [as_array]
 
+        # Support array-of-scalar-array matching array-of-vector
+        # e.g. float[4][2] (Python list [[1,2],[3,4],...]) -> float2[4]
+        if (
+            isinstance(bound_type, kfr.ArrayType)
+            and isinstance(bound_type.element_type, kfr.VectorType)
+            and (bound_type.num_elements == 0 or st.num_elements == bound_type.num_elements)
+        ):
+            as_vector = spyvec.array_to_vector_scalarconvertable(
+                cast(kfr.SlangType, st.element_type), bound_type.element_type
+            )
+            if as_vector is not None:
+                return [
+                    st.program.find_type_by_name(
+                        f"vector<{as_vector.element_type.full_name},{as_vector.num_elements}>[{st.num_elements}]"
+                    )
+                    or bound_type
+                ]
+
         # Support element being of unknown type, but binding to a known struct type.
         if (
             isinstance(self_element_type, kfr.UnknownType)
@@ -115,7 +133,6 @@ class ArrayMarshall(ValueMarshall):
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
         access = binding.access
-        name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             if binding.call_dimensionality == 0:
                 # If not vectorizing, fallback to use of basic type as it works well
@@ -125,9 +142,11 @@ class ArrayMarshall(ValueMarshall):
                 # If vectorizing, utilize the value type.
                 st = cast(kfr.ArrayType, self.slang_type)
                 et = cast(SlangType, st.element_type)
-                cgb.type_alias(f"_t_{name}", f"Array1DValueType<{et.full_name},{st.num_elements}>")
+                binding.gen_calldata_type_name(
+                    cgb, f"Array1DValueType<{et.full_name},{st.num_elements}>"
+                )
         else:
-            cgb.type_alias(f"_t_{name}", f"NoneType")
+            binding.gen_calldata_type_name(cgb, "NoneType")
 
     def build_shader_object(self, context: "BindContext", data: Any) -> "ShaderObject":
         if len(self.concrete_shape) != 1:

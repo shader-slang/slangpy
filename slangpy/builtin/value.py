@@ -15,6 +15,7 @@ from slangpy.bindings import (
     BoundVariable,
     BoundVariableRuntime,
     CodeGenBlock,
+    can_direct_bind_common,
 )
 from slangpy.reflection.reflectiontypes import (
     BOOL_TYPES,
@@ -60,6 +61,8 @@ def slang_type_to_return_type(slang_type: kfr.SlangType) -> Any:
             return getattr(slangpy, f"uint{slang_type.rows}x{slang_type.cols}")
         elif slang_type.slang_scalar_type in BOOL_TYPES:
             return getattr(slangpy, f"bool{slang_type.rows}x{slang_type.cols}")
+    elif isinstance(slang_type, kfr.ArrayType):
+        return list
     elif isinstance(slang_type, kfr.StructType):
         return dict
     elif isinstance(slang_type, kfr.PointerType):
@@ -87,23 +90,39 @@ class ValueMarshall(NativeValueMarshall):
     def is_writable(self) -> bool:
         return False
 
+    def can_direct_bind(self, binding: "BoundVariable") -> bool:
+        return can_direct_bind_common(binding)
+
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
         access = binding.access
-        name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             assert binding.vector_type is not None
-            cgb.type_alias(f"_t_{name}", f"ValueType<{binding.vector_type.full_name}>")
+            if binding.direct_bind:
+                binding.gen_calldata_type_name(cgb, binding.vector_type.full_name)
+            else:
+                binding.gen_calldata_type_name(cgb, f"ValueType<{binding.vector_type.full_name}>")
         else:
-            cgb.type_alias(f"_t_{name}", f"NoneType")
+            binding.gen_calldata_type_name(cgb, "NoneType")
 
-    # Call data just returns the primal
-    def create_calldata(
-        self, context: CallContext, binding: "BoundVariableRuntime", data: Any
-    ) -> Any:
-        access = binding.access
-        if access[0] in [AccessType.read, AccessType.readwrite]:
-            return {"value": data}
+    def gen_trampoline_load(
+        self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str
+    ) -> bool:
+        if not binding.direct_bind:
+            return False
+        if binding.access[0] not in (AccessType.read, AccessType.readwrite):
+            cgb.append_statement(f"{value_name} = {{}}")
+        else:
+            cgb.append_statement(f"{value_name} = {data_name}")
+        return True
+
+    def gen_trampoline_store(
+        self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str
+    ) -> bool:
+        if not binding.direct_bind:
+            return False
+        # ValueMarshall is read-only - suppress the default store
+        return True
 
     # Values just return themselves for raw dispatch
     def create_dispatchdata(self, data: Any) -> Any:
@@ -308,13 +327,17 @@ class VectorMarshall(ValueMarshall):
     # Call data can only be read access to primal, and simply declares it as a variable
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
         access = binding.access
-        name = binding.variable_name
         if access[0] in [AccessType.read, AccessType.readwrite]:
             st = cast(kfr.VectorType, self.slang_type)
             et = cast(SlangType, st.element_type)
-            cgb.type_alias(f"_t_{name}", f"VectorValueType<{et.full_name},{st.num_elements}>")
+            if binding.direct_bind:
+                binding.gen_calldata_type_name(cgb, binding.vector_type.full_name)
+            else:
+                binding.gen_calldata_type_name(
+                    cgb, f"VectorValueType<{et.full_name},{st.num_elements}>"
+                )
         else:
-            cgb.type_alias(f"_t_{name}", f"NoneType")
+            binding.gen_calldata_type_name(cgb, "NoneType")
 
     def build_shader_object(self, context: "BindContext", data: Any) -> "slangpy.ShaderObject":
         unpacked = unpack_arg(data)

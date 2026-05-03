@@ -1,25 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 from os import PathLike
+import warnings
 
 from slangpy import (
     Device,
     Buffer,
     BufferUsage,
-    TypeReflection,
     CommandEncoder,
     MemoryType,
 )
 from slangpy.reflection import SlangType, SlangProgramLayout
 from slangpy.core.native import Shape
 from slangpy.core.shapes import TShapeOrTuple
-from slangpy.types.buffer import (
-    resolve_element_type,
-    resolve_program_layout,
-    load_buffer_data_from_image,
-    _numpy_to_slang,
-)
+from slangpy.reflection.lookup import resolve_program_layout, resolve_element_type, numpy_to_slang
 from slangpy.core.native import Shape, NativeTensor, NativeTensorDesc
+from slangpy.types.common import load_buffer_data_from_image
 
 from warnings import warn
 
@@ -30,27 +26,11 @@ import math
 if TYPE_CHECKING:
     import torch
 
-ST = TypeReflection.ScalarType
-_numpy_to_sgl = {
-    "int8": ST.int8,
-    "int16": ST.int16,
-    "int32": ST.int32,
-    "int64": ST.int64,
-    "uint8": ST.uint8,
-    "uint16": ST.uint16,
-    "uint32": ST.uint32,
-    "uint64": ST.uint64,
-    "float16": ST.float16,
-    "float32": ST.float32,
-    "float64": ST.float64,
-}
-_sgl_to_numpy = {y: x for x, y in _numpy_to_sgl.items()}
-
 
 class Tensor(NativeTensor):
     """
     Represents an N-D view of an underlying buffer with given shape and element type,
-    and has optional gradient information attached. Element type must be differentiable.
+    and has optional gradient information attached.
 
     Strides and offset can optionally be specified and are given in terms of elements, not bytes.
     If omitted, a dense N-D grid is assumed (row-major).
@@ -185,7 +165,7 @@ class Tensor(NativeTensor):
         Creates a new tensor with the same contents, shape and strides as the given numpy array.
         """
 
-        dtype = _numpy_to_slang(ndarray.dtype, device, program_layout)
+        dtype = numpy_to_slang(ndarray.dtype, device, program_layout)
         if dtype is None:
             raise ValueError(f"Unsupported numpy dtype {ndarray.dtype}")
         if (ndarray.nbytes % ndarray.itemsize) != 0:
@@ -211,19 +191,33 @@ class Tensor(NativeTensor):
     @staticmethod
     def empty(
         device: Device,
-        shape: TShapeOrTuple,
-        dtype: Any,
+        shape: TShapeOrTuple = (),
+        dtype: Any = None,
         usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
         memory_type: MemoryType = MemoryType.device_local,
         program_layout: Optional[SlangProgramLayout] = None,
+        element_count: Optional[int] = None,
     ) -> Tensor:
         """
         Creates a tensor with the requested shape and element type without attempting to initialize the data.
         """
-        # If dtype supplied is not a SlangType, resolve it using the same mechanism as NDBuffer
+        # If dtype supplied is not a SlangType, resolve it
         if not isinstance(dtype, SlangType):
             program_layout = resolve_program_layout(device, dtype, program_layout)
             dtype = resolve_element_type(program_layout, dtype)
+
+        if element_count is not None:
+            warnings.warn(
+                "element_count parameter is deprecated; use shape instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            shape = (element_count,)
+
+        if dtype is None:
+            raise ValueError("Element type (dtype) must be specified")
+        if shape == ():
+            raise ValueError("Cannot create a tensor with zero dimensions")
 
         shape_tuple = shape if isinstance(shape, tuple) else shape.as_tuple()
         num_elems = math.prod(shape_tuple)
@@ -258,14 +252,76 @@ class Tensor(NativeTensor):
         """
         Creates a new tensor with the same shape and element type as the given tensor, without initializing the data.
         """
-        return Tensor.empty(other.storage.device, other.shape, other.dtype)
+        return Tensor.empty(other.storage.device, other.shape, other.dtype, other.usage)
 
     @staticmethod
     def zeros_like(other: Tensor) -> Tensor:
         """
         Creates a zero-initialized tensor with the same shape and element type as the given tensor.
         """
-        return Tensor.zeros(other.storage.device, other.shape, other.dtype)
+        return Tensor.zeros(other.storage.device, other.shape, other.dtype, other.usage)
+
+    @staticmethod
+    def from_torch(
+        device: Device,
+        tensor: "torch.Tensor",
+        dtype: Any,
+        usage: BufferUsage = BufferUsage.shader_resource | BufferUsage.unordered_access,
+        program_layout: Optional[SlangProgramLayout] = None,
+    ) -> Tensor:
+        """
+        Reinterpret a torch.Tensor as a slangpy Tensor with a given element type.
+
+        The last dimension of the torch tensor is treated as packed storage for one
+        element of ``dtype``. For example, a ``torch.Tensor`` of shape ``(N, 2)`` with
+        ``dtype=module.Vec2`` (a struct with two float fields) produces a
+        ``Tensor`` of shape ``(N,)`` with element type ``Vec2``.
+
+        .. warning::
+
+            Struct layout may vary between platforms due to padding/alignment.
+            The caller is responsible for ensuring the torch tensor's memory layout
+            matches the Slang struct's buffer layout.
+        """
+        if not isinstance(dtype, SlangType):
+            program_layout = resolve_program_layout(device, dtype, program_layout)
+            dtype = resolve_element_type(program_layout, dtype)
+
+        struct_stride = dtype.buffer_layout.stride
+        scalar_size = tensor.element_size()
+        if struct_stride == 0 or scalar_size == 0 or struct_stride % scalar_size != 0:
+            raise ValueError(
+                f"Torch element size ({scalar_size}) is not compatible with "
+                f"Slang type '{dtype.full_name}' buffer stride ({struct_stride})"
+            )
+
+        scalars_per_element = struct_stride // scalar_size
+
+        if tensor.dim() < 1:
+            raise ValueError("Tensor must have at least 1 dimension")
+        if tensor.shape[-1] != scalars_per_element:
+            raise ValueError(
+                f"Last dimension size ({tensor.shape[-1]}) does not match "
+                f"the number of scalars per '{dtype.full_name}' element ({scalars_per_element})"
+            )
+        if tensor.stride(-1) != 1:
+            raise ValueError("Last dimension of the tensor must be contiguous")
+
+        contiguous = tensor.contiguous()
+        element_count = contiguous.numel()
+
+        buffer = device.create_buffer(
+            size=element_count * scalar_size,
+            struct_size=struct_stride,
+            usage=usage | BufferUsage.shared,
+        )
+
+        from slangpy import copy_torch_tensor_to_buffer
+
+        copy_torch_tensor_to_buffer(contiguous, buffer)
+
+        outer_shape = tuple(contiguous.shape[:-1])
+        return Tensor(buffer, dtype, outer_shape)
 
     @staticmethod
     def load_from_image(

@@ -103,7 +103,7 @@ def test_tensor_interfaces(device_type: DeviceType):
     module = get_module(device)
 
     weights, biases, x = get_test_tensors(device)
-    y = module.matrix_vector_interfaces(weights, biases, x)
+    y = module.matrix_vector_interfaces_diff(weights, biases, x)
     reference = torch.nn.functional.linear(x, weights, biases)
     compare_tensors(y, reference)
 
@@ -124,7 +124,7 @@ def test_tensor_generic(device_type: DeviceType):
 
     weights, biases, x = get_test_tensors(device)
 
-    y = module["matrix_vector_generic<8, 5>"](weights, biases, x)
+    y = module["matrix_vector_generic_diff<8, 5>"](weights, biases, x)
     reference = torch.nn.functional.linear(x, weights, biases)
     compare_tensors(y, reference)
 

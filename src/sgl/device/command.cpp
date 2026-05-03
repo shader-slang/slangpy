@@ -382,7 +382,7 @@ void CommandEncoder::copy_texture(
     rhi::SubresourceRange dst_sr = detail::to_rhi(dst_subresource_range);
     rhi::SubresourceRange src_sr = detail::to_rhi(src_subresource_range);
 
-    if (all(extent == uint3(-1)))
+    if (extent == uint3(-1))
         extent = src->get_mip_size(src_sr.mip) - src_offset;
 
     m_rhi_command_encoder->copyTexture(
@@ -419,7 +419,7 @@ void CommandEncoder::copy_texture(
     rhi::SubresourceRange dst_sr = {dst_layer, 1, dst_mip, 1};
     rhi::SubresourceRange src_sr = {src_layer, 1, src_mip, 1};
 
-    if (all(extent == uint3(-1)))
+    if (extent == uint3(-1))
         extent = src->get_mip_size(src_sr.mip) - src_offset;
 
     m_rhi_command_encoder->copyTexture(
@@ -507,7 +507,8 @@ void CommandEncoder::upload_buffer_data(Buffer* buffer, size_t offset, size_t si
     set_buffer_state(buffer, ResourceState::copy_destination);
 
     SLANG_RHI_CALL(
-        m_rhi_command_encoder->uploadBufferData(buffer->rhi_buffer(), offset, size, const_cast<void*>(data))
+        m_rhi_command_encoder->uploadBufferData(buffer->rhi_buffer(), offset, size, const_cast<void*>(data)),
+        m_device
     );
 }
 
@@ -531,14 +532,17 @@ void CommandEncoder::upload_texture_data(
         });
     }
 
-    SLANG_RHI_CALL(m_rhi_command_encoder->uploadTextureData(
-        texture->rhi_texture(),
-        detail::to_rhi(subresource_range),
-        rhi::Offset3D{offset.x, offset.y, offset.z},
-        rhi::Extent3D{extent.x, extent.y, extent.z},
-        rhi_subresource_data.data(),
-        narrow_cast<uint32_t>(rhi_subresource_data.size())
-    ));
+    SLANG_RHI_CALL(
+        m_rhi_command_encoder->uploadTextureData(
+            texture->rhi_texture(),
+            detail::to_rhi(subresource_range),
+            rhi::Offset3D{offset.x, offset.y, offset.z},
+            rhi::Extent3D{extent.x, extent.y, extent.z},
+            rhi_subresource_data.data(),
+            narrow_cast<uint32_t>(rhi_subresource_data.size())
+        ),
+        m_device
+    );
 }
 
 void CommandEncoder::upload_texture_data(
@@ -566,14 +570,17 @@ void CommandEncoder::upload_texture_data(
         .slicePitch = subresource_data.slice_pitch,
     };
 
-    SLANG_RHI_CALL(m_rhi_command_encoder->uploadTextureData(
-        texture->rhi_texture(),
-        rhi_subresource_range,
-        rhi::Offset3D{0, 0, 0},
-        rhi::Extent3D::kWholeTexture,
-        &rhi_subresource_data,
-        1
-    ));
+    SLANG_RHI_CALL(
+        m_rhi_command_encoder->uploadTextureData(
+            texture->rhi_texture(),
+            rhi_subresource_range,
+            rhi::Offset3D{0, 0, 0},
+            rhi::Extent3D::kWholeTexture,
+            &rhi_subresource_data,
+            1
+        ),
+        m_device
+    );
 }
 
 void CommandEncoder::clear_buffer(Buffer* buffer, BufferRange range)
@@ -881,7 +888,7 @@ ref<CommandBuffer> CommandEncoder::finish()
 {
     SGL_CHECK(m_open, "Command encoder is finished");
     Slang::ComPtr<rhi::ICommandBuffer> rhi_command_buffer;
-    SLANG_RHI_CALL(m_rhi_command_encoder->finish(rhi_command_buffer.writeRef()));
+    SLANG_RHI_CALL(m_rhi_command_encoder->finish(rhi_command_buffer.writeRef()), m_device);
     ref<CommandBuffer> command_buffer = make_ref<CommandBuffer>(m_device, rhi_command_buffer);
     m_open = false;
     return command_buffer;

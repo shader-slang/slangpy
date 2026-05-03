@@ -56,7 +56,8 @@ void ComputePipeline::recreate()
         .label = m_desc.label.empty() ? nullptr : m_desc.label.c_str(),
     };
     SLANG_RHI_CALL(
-        m_device->rhi_device()->createComputePipeline(rhi_desc, (rhi::IComputePipeline**)m_rhi_pipeline.writeRef())
+        m_device->rhi_device()->createComputePipeline(rhi_desc, (rhi::IComputePipeline**)m_rhi_pipeline.writeRef()),
+        m_device
     );
     m_thread_group_size = m_desc.program->layout()->get_entry_point_by_index(0)->compute_thread_group_size();
 }
@@ -173,7 +174,8 @@ void RenderPipeline::recreate()
     };
 
     SLANG_RHI_CALL(
-        m_device->rhi_device()->createRenderPipeline(rhi_desc, (rhi::IRenderPipeline**)m_rhi_pipeline.writeRef())
+        m_device->rhi_device()->createRenderPipeline(rhi_desc, (rhi::IRenderPipeline**)m_rhi_pipeline.writeRef()),
+        m_device
     );
 }
 
@@ -237,8 +239,11 @@ void RayTracingPipeline::recreate()
         .deferTargetCompilation = m_desc.defer_target_compilation,
         .label = m_desc.label.empty() ? nullptr : m_desc.label.c_str(),
     };
-    SLANG_RHI_CALL(m_device->rhi_device()
-                       ->createRayTracingPipeline(rhi_desc, (rhi::IRayTracingPipeline**)m_rhi_pipeline.writeRef()));
+    SLANG_RHI_CALL(
+        m_device->rhi_device()
+            ->createRayTracingPipeline(rhi_desc, (rhi::IRayTracingPipeline**)m_rhi_pipeline.writeRef()),
+        m_device
+    );
 }
 
 NativeHandle RayTracingPipeline::native_handle() const

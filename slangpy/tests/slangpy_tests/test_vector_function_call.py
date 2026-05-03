@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 from slangpy import DeviceType, float2
-from slangpy.types import NDBuffer, Tensor
+from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 
 
@@ -42,10 +42,10 @@ void add_numbers(float2 a, float2 b, out float2 res) {
     a = float2(a_data[0], a_data[1])
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = NDBuffer(device=device, element_count=100, dtype=float2)
+    b = Tensor.empty(device=device, shape=(100,), dtype=float2)
     b.storage.copy_from_numpy(b_data)
 
-    res = NDBuffer(device=device, element_count=100, dtype=float2)
+    res = Tensor.empty(device=device, shape=(100,), dtype=float2)
 
     function(a, b, res)
 
@@ -70,14 +70,14 @@ void add_numbers(float2 a, float2 b, out float2 res) {
     )
 
     a_data = np.random.rand(100, 2).astype(np.float32)
-    a = NDBuffer(device=device, shape=(100, 2), dtype=float)
+    a = Tensor.empty(device=device, shape=(100, 2), dtype=float)
     a.storage.copy_from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = NDBuffer(device=device, element_count=100, dtype=float2)
+    b = Tensor.empty(device=device, shape=(100,), dtype=float2)
     b.storage.copy_from_numpy(b_data)
 
-    res = NDBuffer(device=device, element_count=100, dtype=float2)
+    res = Tensor.empty(device=device, shape=(100,), dtype=float2)
 
     function(a, b, res)
 
@@ -102,14 +102,14 @@ void add_numbers_vecreadwrite(float2 a, float2 b, out float2 res) {
     )
 
     a_data = np.random.rand(100, 2).astype(np.float32)
-    a = NDBuffer(device=device, shape=(100, 2), dtype=float)
+    a = Tensor.empty(device=device, shape=(100, 2), dtype=float)
     a.storage.copy_from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = NDBuffer(device=device, element_count=100, dtype=float2)
+    b = Tensor.empty(device=device, shape=(100,), dtype=float2)
     b.storage.copy_from_numpy(b_data)
 
-    res = NDBuffer(device=device, shape=(100, 2), dtype=float)
+    res = Tensor.empty(device=device, shape=(100, 2), dtype=float)
 
     function(a, b, res)
 
@@ -138,10 +138,10 @@ void add_numbers_diffpair(float2 a, float2 b, out float2 res) {
     a.storage.copy_from_numpy(a_data)
 
     b_data = np.random.rand(100, 2).astype(np.float32)
-    b = NDBuffer(device=device, element_count=100, dtype=float2)
+    b = Tensor.empty(device=device, shape=(100,), dtype=float2)
     b.storage.copy_from_numpy(b_data)
 
-    res = NDBuffer(device=device, shape=(100, 2), dtype=float)
+    res = Tensor.empty(device=device, shape=(100, 2), dtype=float)
 
     function(a, b, res)
 

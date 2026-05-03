@@ -44,7 +44,7 @@ def compare_tensors(a: np.ndarray[Any, Any], b: np.ndarray[Any, Any]):
 def test_differentiable_interface_parameters(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
-    func_base = get_func(device, "matrix_vector_interfaces")
+    func_base = get_func(device, "matrix_vector_interfaces_diff")
     func = func_base.return_type(Tensor)
     weights, biases, x, np_result = get_test_tensors(device)
 

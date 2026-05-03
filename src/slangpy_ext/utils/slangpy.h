@@ -12,12 +12,89 @@
 #include "sgl/core/macros.h"
 #include "sgl/core/fwd.h"
 #include "sgl/core/object.h"
+#include "sgl/core/short_vector.h"
 #include "sgl/device/fwd.h"
 #include "sgl/device/shader_cursor.h"
 #include "sgl/device/shader_object.h"
 #include "sgl/utils/slangpy.h"
+#include "utils/torch_bridge.h"
 
 namespace sgl::slangpy {
+
+/// Transparent hash functor for std::string / std::string_view heterogeneous lookup.
+struct StringHash {
+    using is_transparent = void;
+    size_t operator()(std::string_view sv) const { return std::hash<std::string_view>{}(sv); }
+    size_t operator()(const std::string& s) const { return std::hash<std::string_view>{}(s); }
+};
+
+/// Transparent equality functor for std::string / std::string_view heterogeneous lookup.
+struct StringEqual {
+    using is_transparent = void;
+    bool operator()(std::string_view a, std::string_view b) const { return a == b; }
+};
+
+/// Stack-allocated signature buffer (non-Object, non-ref-counted).
+/// Used in the hot dispatch path to avoid heap-allocating a SignatureBuilder.
+/// Backed by short_vector<uint8_t, 1024> for inline SBO with heap fallback.
+class SignatureBuffer {
+public:
+    SignatureBuffer() = default;
+
+    // Non-copyable, non-movable (stack-only usage)
+    SignatureBuffer(const SignatureBuffer&) = delete;
+    SignatureBuffer& operator=(const SignatureBuffer&) = delete;
+
+    void add(const std::string& value) { add_bytes(reinterpret_cast<const uint8_t*>(value.data()), value.length()); }
+    void add(const char* value) { add_bytes(reinterpret_cast<const uint8_t*>(value), strlen(value)); }
+
+    void add(uint32_t value)
+    {
+        static constexpr char hex[] = "0123456789abcdef";
+        uint8_t buf[8];
+        for (int i = 0; i < 8; ++i)
+            buf[7 - i] = static_cast<uint8_t>(hex[(value >> (i * 4)) & 0xF]);
+        add_bytes(buf, 8);
+    }
+
+    void add(uint64_t value)
+    {
+        static constexpr char hex[] = "0123456789abcdef";
+        uint8_t buf[16];
+        for (int i = 0; i < 16; ++i)
+            buf[15 - i] = static_cast<uint8_t>(hex[(value >> (i * 4)) & 0xF]);
+        add_bytes(buf, 16);
+    }
+
+    template<typename T>
+    SignatureBuffer& operator<<(const T& v)
+    {
+        add(v);
+        return *this;
+    }
+
+    std::string_view view() const { return {reinterpret_cast<const char*>(m_buf.data()), m_buf.size()}; }
+
+private:
+    short_vector<uint8_t, 1024> m_buf;
+
+    void add_bytes(const uint8_t* data, size_t sz)
+    {
+        size_t old_size = m_buf.size();
+        m_buf.resize(old_size + sz);
+        memcpy(m_buf.data() + old_size, data, sz);
+    }
+};
+
+/// Helper function to convert Shape to nb::list efficiently (avoids std::vector allocation)
+inline nb::list shape_to_list(const Shape& shape)
+{
+    nb::list result;
+    for (size_t i = 0; i < shape.size(); ++i) {
+        result.append(shape[i]);
+    }
+    return result;
+}
 
 class NativeBoundVariableRuntime;
 class NativeCallData;
@@ -50,31 +127,22 @@ private:
     ref<NativeCallData> m_context;
 };
 
-/// Used during calculation of slangpy signature
+/// Used during calculation of slangpy signature.
+/// Thin Object wrapper around SignatureBuffer for Python binding compatibility.
 class SignatureBuilder : public Object {
     SGL_OBJECT(SignatureBuilder)
 public:
-    SignatureBuilder()
-    {
-        m_buffer = m_initial_buffer;
-        m_size = 0;
-        m_capacity = sizeof(m_initial_buffer);
-    }
-    ~SignatureBuilder()
-    {
-        if (m_buffer != m_initial_buffer)
-            delete[] m_buffer;
-    }
+    SignatureBuilder() = default;
 
-    void add(const std::string& value);
-    void add(const char* value);
-    void add(const uint32_t value);
-    void add(const uint64_t value);
+    void add(const std::string& value) { m_buf.add(value); }
+    void add(const char* value) { m_buf.add(value); }
+    void add(const uint32_t value) { m_buf.add(value); }
+    void add(const uint64_t value) { m_buf.add(value); }
 
     template<typename T>
     SignatureBuilder& operator<<(const T& value)
     {
-        add(value);
+        m_buf.add(value);
         return *this;
     }
 
@@ -82,27 +150,15 @@ public:
 
     std::string str() const;
 
-    std::string dbg_as_string() const { return std::string((const char*)m_buffer, m_size); }
+    std::string_view view() const { return m_buf.view(); }
+
+    std::string dbg_as_string() const { return std::string(m_buf.view()); }
+
+    /// Access the underlying buffer (for callers that accept either type).
+    SignatureBuffer& buffer() { return m_buf; }
 
 private:
-    uint8_t m_initial_buffer[1024];
-    uint8_t* m_buffer;
-    size_t m_size;
-    size_t m_capacity;
-
-    void add_bytes(const uint8_t* data, size_t size)
-    {
-        if (m_size + size > m_capacity) {
-            m_capacity = std::max(m_capacity * 2, m_size + size);
-            uint8_t* new_buffer = new uint8_t[m_capacity];
-            memcpy(new_buffer, m_buffer, m_size);
-            if (m_buffer != m_initial_buffer)
-                delete[] m_buffer;
-            m_buffer = new_buffer;
-        }
-        memcpy(m_buffer + m_size, data, size);
-        m_size += size;
-    };
+    SignatureBuffer m_buf;
 };
 
 /// Base class for types that can be passed to a slang function. Use of
@@ -120,6 +176,8 @@ public:
 
     virtual void read_signature(SignatureBuilder* builder) const { builder->add(m_signature); }
 
+    /// Non-virtual overload for SignatureBuffer (hot path).
+    void read_signature(SignatureBuffer& builder) const { builder.add(m_signature); }
 
 private:
     std::string m_signature;
@@ -151,7 +209,7 @@ public:
     void set_type_reflection(const ref<TypeReflection>& reflection) { m_type_reflection = reflection; }
 
     /// Get the shape of the type.
-    Shape shape() const { return m_shape; }
+    const Shape& shape() const { return m_shape; }
 
     /// Set the shape of the type.
     void set_shape(const Shape& shape) { m_shape = shape; }
@@ -522,8 +580,14 @@ public:
     /// Set the call dimensionality.
     void set_call_dimensionality(int call_dimensionality) { m_call_dimensionality = call_dimensionality; }
 
+    /// Whether this variable uses direct binding (raw Slang type, no wrapper).
+    bool direct_bind() const { return m_direct_bind; }
+
+    /// Set the direct_bind flag.
+    void set_direct_bind(bool direct_bind) { m_direct_bind = direct_bind; }
+
     /// Recursively populate the overall kernel call shape.
-    void populate_call_shape(std::vector<int>& call_shape, nb::object value, NativeCallData* error_context);
+    void populate_call_shape(Shape& call_shape, nb::object value, NativeCallData* error_context);
 
     /// Write call data to shader cursor before dispatch, optionally writing data for read back after the kernel has
     /// run.
@@ -549,6 +613,7 @@ private:
     int m_call_dimensionality{0};
     ref<NativeSlangType> m_vector_type;
     bool m_is_param_block{false};
+    bool m_direct_bind{false};
 };
 
 /// Binding information for a call to a compute kernel. Includes a set of positional
@@ -581,13 +646,15 @@ public:
     }
 
     /// Calculate the overall call shape by combining the shapes of all arguments.
-    Shape calculate_call_shape(int call_dimensionality, nb::list args, nb::dict kwargs, NativeCallData* error_context);
+    /// args can be nb::list or nb::tuple (nb::args); both support [idx] and nb::len().
+    Shape
+    calculate_call_shape(int call_dimensionality, nb::object args, nb::dict kwargs, NativeCallData* error_context);
 
     void write_shader_cursor_pre_dispatch(
         CallContext* context,
         ShaderCursor root_cursor,
         ShaderCursor call_data_cursor,
-        nb::list args,
+        nb::object args,
         nb::dict kwargs,
         nb::list read_back
     );
@@ -604,45 +671,58 @@ private:
     std::map<std::string, ref<NativeBoundVariableRuntime>> m_kwargs;
 };
 
+/// Runtime options for function dispatch. Cached on NativeFunctionNode to avoid
+/// heap allocation on repeat calls. Also exposed to Python for autograd paths.
 class NativeCallRuntimeOptions : Object {
     SGL_OBJECT(NativeCallRuntimeOptions)
 public:
-    /// Get the uniforms.
-    nb::list uniforms() const { return m_uniforms; }
+    nb::object this_obj; // Default null handle - check with is_valid(), not is_none()
+    NativeHandle cuda_stream;
+    bool is_ray_tracing{false};
+    int thread_count{0};
+    short_vector<nb::object, 4> uniforms;
 
-    /// Set the uniforms.
-    void set_uniforms(const nb::list& uniforms) { m_uniforms = uniforms; }
-
-    /// Get this
-    nb::object get_this() const { return m_this; }
-
-    /// Set this
-    void set_this(const nb::object& this_) { m_this = this_; }
-
-    /// Get the CUDA stream.
-    NativeHandle cuda_stream() const { return m_cuda_stream; }
-
-    /// Set the CUDA stream.
-    void set_cuda_stream(NativeHandle cuda_stream) { m_cuda_stream = cuda_stream; }
-
-    /// Get ray tracing pipeline flag.
-    bool is_ray_tracing() const { return m_is_ray_tracing; }
-
-    /// Set ray tracing pipeline flag.
-    void set_is_ray_tracing(bool is_ray_tracing) { m_is_ray_tracing = is_ray_tracing; }
-
-    /// Clear internal data for garbage collection
-    void garbage_collect()
+    /// Reset all fields for reuse on the next call.
+    void init()
     {
-        m_uniforms.clear();
-        m_this = nb::none();
+        this_obj = nb::object();
+        cuda_stream = NativeHandle();
+        is_ray_tracing = false;
+        thread_count = 0;
+        uniforms.clear();
     }
 
-private:
-    nb::list m_uniforms;
-    nb::object m_this{nb::none()};
-    NativeHandle m_cuda_stream;
-    bool m_is_ray_tracing{false};
+    bool has_thread_count() const { return thread_count > 0; }
+
+    /// Python-facing property: get uniforms as a list.
+    nb::list get_uniforms() const
+    {
+        nb::list result;
+        for (const auto& u : uniforms)
+            result.append(u);
+        return result;
+    }
+
+    /// Python-facing property: set uniforms from a list.
+    void set_uniforms(const nb::list& list)
+    {
+        uniforms.clear();
+        for (auto u : list)
+            uniforms.push_back(nb::borrow<nb::object>(u));
+    }
+
+    /// Python-facing property: get this (returns nb::none() if not set).
+    nb::object get_this() const { return this_obj.is_valid() ? this_obj : nb::none(); }
+
+    /// Python-facing property: set this.
+    void set_this(const nb::object& this_) { this_obj = this_; }
+
+    /// Clear internal data for garbage collection.
+    void garbage_collect()
+    {
+        uniforms.clear();
+        this_obj = nb::object();
+    }
 };
 
 /// Defines the common logging functions for a given log level.
@@ -659,6 +739,18 @@ private:
     {                                                                                                                  \
         log(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::always);                               \
     }
+
+struct CallShapeInfo {
+    Shape call_shape = Shape(0, 0);
+    Shape strides = Shape(0, 0);
+    Shape call_group_shape = Shape(0, 0);
+    Shape call_group_strides = Shape(0, 0);
+    Shape call_grid_shape = Shape(0, 0);
+    Shape call_grid_strides = Shape(0, 0);
+    Shape aligned_call_shape = Shape(0, 0);
+    bool is_call_shape_unaligned{false};
+    int total_threads{0};
+};
 
 /// Contains the compute pipeline for a call, the corresponding bindings and any additional
 /// options provided by the user.
@@ -703,12 +795,6 @@ public:
     /// Set the call mode (primitive/forward/backward).
     void set_call_mode(CallMode call_mode) { m_call_mode = call_mode; }
 
-    /// Get the call data mode (global_data/entry_point).
-    CallDataMode call_data_mode() const { return m_call_data_mode; }
-
-    /// Set the call data mode (global_data/entry_point).
-    void set_call_data_mode(CallDataMode call_data_mode) { m_call_data_mode = call_data_mode; }
-
     /// Get the shape of the last call (useful for debugging).
     const Shape& last_call_shape() const { return m_last_call_shape; }
 
@@ -736,6 +822,77 @@ public:
     /// Set torch autograd status.
     void set_torch_autograd(bool torch_autograd) { m_torch_autograd = torch_autograd; }
 
+    /// Get whether args need unpacking (have get_this/update_this).
+    bool needs_unpack() const { return m_needs_unpack; }
+
+    /// Set whether args need unpacking.
+    void set_needs_unpack(bool needs_unpack) { m_needs_unpack = needs_unpack; }
+
+    /// Get whether this call data expects a _thread_count kwarg.
+    bool has_thread_count() const { return m_has_thread_count; }
+
+    /// Set whether this call data expects a _thread_count kwarg.
+    void set_has_thread_count(bool has_thread_count) { m_has_thread_count = has_thread_count; }
+
+    /// Get whether this call uses direct entry-point parameters (fast path).
+    bool use_entrypoint_args() const { return m_use_entrypoint_args; }
+
+    /// Set whether this call uses direct entry-point parameters (fast path).
+    void set_use_entrypoint_args(bool use_entrypoint_args) { m_use_entrypoint_args = use_entrypoint_args; }
+
+    /// Get the autograd access list.
+    /// This is a flat list of AutogradAccess values precomputed at build time.
+    /// At dispatch time, find_torch_tensors steps through this list as it encounters tensors.
+    const std::vector<AutogradAccess>& autograd_access_list() const { return m_autograd_access_list; }
+
+    /// Set the autograd access list.
+    void set_autograd_access_list(const std::vector<AutogradAccess>& list) { m_autograd_access_list = list; }
+
+    /// Get the cached backward-pass call data (generated on first backward call).
+    ref<NativeCallData> bwds_call_data() const { return m_bwds_call_data; }
+
+    /// Set the cached backward-pass call data.
+    void set_bwds_call_data(const ref<NativeCallData>& bwds_call_data) { m_bwds_call_data = bwds_call_data; }
+
+    /// Find all torch tensors in args/kwargs, wrap them in NativeTorchTensorDiffPair,
+    /// and replace the tensors in args/kwargs with the pairs.
+    /// Uses the precomputed autograd_access_list to determine input/output roles.
+    /// @param args Mutable list of positional arguments (modified in place).
+    /// @param kwargs Mutable dict of keyword arguments (modified in place).
+    /// @return List of NativeTorchTensorDiffPair for all found tensors.
+    nb::list find_torch_tensors(nb::list args, nb::dict kwargs);
+
+    /// Run the forward kernel and prepare data for autograd.
+    /// Returns a tuple of (input_tensors, output_tensors, result, pairs).
+    /// - input_tensors: list of primal tensors from input pairs (for save_for_backward)
+    /// - output_tensors: list of primal tensors from output pairs (returned to autograd)
+    /// - result: the kernel result (or None)
+    /// - pairs: updated pairs list (with _result pair appended if needed)
+    /// @param opts Runtime options for the call.
+    /// @param args Positional arguments (containing NativeTorchTensorDiffPair objects).
+    /// @param kwargs Keyword arguments (containing NativeTorchTensorDiffPair objects).
+    /// @param pairs List of NativeTorchTensorDiffPair from find_torch_tensors.
+    /// @return Tuple of (input_tensors, output_tensors, result, pairs).
+    nb::tuple autograd_forward(ref<NativeCallRuntimeOptions> opts, nb::list args, nb::dict kwargs, nb::list pairs);
+
+    /// Run the backward pass: restore tensors, create gradients, call bwds kernel.
+    /// Returns tuple of input gradients (matching order of input tensors from forward).
+    /// @param function_node The FunctionNode (for calling .bwds).
+    /// @param pairs The NativeTorchTensorDiffPair list from forward.
+    /// @param args Saved args (with DiffPair placeholders).
+    /// @param kwargs Saved kwargs (with DiffPair placeholders).
+    /// @param saved_tensors Input tensors from save_for_backward.
+    /// @param grad_outputs Upstream gradients for output tensors.
+    /// @return Tuple of input gradients.
+    nb::tuple autograd_backward(
+        nb::handle function_node,
+        nb::list pairs,
+        nb::list args,
+        nb::dict kwargs,
+        nb::list saved_tensors,
+        nb::tuple grad_outputs
+    );
+
     /// Set the shape of call groups when a dispatch is made.
     void set_call_group_shape(std::optional<Shape> call_group_shape)
     {
@@ -750,11 +907,11 @@ public:
     const Shape& call_group_shape() const { return m_call_group_shape; }
 
     /// Call the compute kernel with the provided arguments and keyword arguments.
-    nb::object call(ref<NativeCallRuntimeOptions> opts, nb::args args, nb::kwargs kwargs);
+    nb::object call(NativeCallRuntimeOptions& opts, nb::args args, nb::kwargs kwargs);
 
     /// Append the compute kernel to a command encoder with the provided arguments and keyword arguments.
     nb::object
-    append_to(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
+    append_to(NativeCallRuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 
     /// Log a message, using either the provided logger or the default logger.
     void log(LogLevel level, const std::string_view msg, LogFrequency frequency = LogFrequency::always)
@@ -783,50 +940,56 @@ public:
     SGL_LOG_FUNC_FAMILY(log_error, LogLevel::error)
     SGL_LOG_FUNC_FAMILY(log_fatal, LogLevel::fatal)
 
-    // Virtual for python to override for wrapping torch calls
-    virtual nb::object
-    _py_torch_call(NativeFunctionNode* func, ref<NativeCallRuntimeOptions> opts, nb::tuple args, nb::dict kwargs)
-    {
-        SGL_UNUSED(func);
-        SGL_UNUSED(opts);
-        SGL_UNUSED(args);
-        SGL_UNUSED(kwargs);
-        SGL_THROW("Not implemented");
-    }
-
 private:
+    /// Cached shader offsets for call data fields
+    struct CallDataOffsets {
+        ShaderOffset call_dim;
+        ShaderOffset grid_stride;
+        ShaderOffset grid_dim;
+        ShaderOffset thread_count;
+        ShaderOffset field_offset; // Base offset of the call_data structure (or entry-point)
+        uint32_t field_size = 0;   // Total size of the call_data in uniform data
+        int array_stride = 0;      // Stride for array elements
+        // Cached information for navigating to call_data field (fallback path)
+        int32_t call_data_field_index = -1;  // Field index for "call_data" lookup
+        bool call_data_is_reference = false; // Whether call_data needs dereference
+        bool is_valid = false;               // Whether offsets have been initialized
+    };
+
     ref<Device> m_device;
     ref<Pipeline> m_pipeline;
     ref<ShaderTable> m_shader_table;
     int m_call_dimensionality{0};
     ref<NativeBoundCallRuntime> m_runtime;
     CallMode m_call_mode{CallMode::prim};
-    CallDataMode m_call_data_mode{CallDataMode::global_data};
     Shape m_last_call_shape;
     std::string m_debug_name;
     ref<Logger> m_logger;
     Shape m_call_group_shape;
     bool m_torch_integration{false};
     bool m_torch_autograd{false};
+    bool m_needs_unpack{true};
+    bool m_has_thread_count{false};
+    bool m_use_entrypoint_args{false};
+    std::vector<AutogradAccess> m_autograd_access_list;
+    ref<NativeCallData> m_bwds_call_data;
+    mutable CallDataOffsets m_cached_call_data_offsets;
+    mutable ref<CallContext> m_cached_context;
 
-    nb::object
-    exec(ref<NativeCallRuntimeOptions> opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
+    /// Recursive helper for find_torch_tensors.
+    nb::object find_torch_tensors_recurse(nb::object arg, nb::list& pairs, size_t& access_idx);
+
+    CallShapeInfo compute_call_shape_info(
+        NativeCallRuntimeOptions& opts,
+        const nb::object& unpacked_args,
+        const nb::dict& unpacked_kwargs
+    );
+
+    nb::object exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 };
 #undef SGL_LOG_FUNC_FAMILY
 
-class PyNativeCallData : public NativeCallData {
-public:
-    NB_TRAMPOLINE(NativeCallData, 1);
-
-    nb::object _py_torch_call(
-        NativeFunctionNode* func,
-        ref<NativeCallRuntimeOptions> opts,
-        nb::tuple args,
-        nb::dict kwargs
-    ) override;
-};
-
-typedef std::function<bool(const ref<SignatureBuilder>& builder, nb::handle)> BuildSignatureFunc;
+typedef std::function<bool(SignatureBuffer& builder, nb::handle)> BuildSignatureFunc;
 
 /// Native side of system for caching call data info for given function signatures.
 class NativeCallDataCache : Object {
@@ -835,11 +998,23 @@ class NativeCallDataCache : Object {
 public:
     NativeCallDataCache();
 
-    void get_value_signature(const ref<SignatureBuilder> builder, nb::handle o);
+    /// Python-facing wrappers (delegate to the SignatureBuffer implementations via SignatureBuilder::buffer()).
+    void get_value_signature(const ref<SignatureBuilder> builder, nb::handle o)
+    {
+        get_value_signature(builder->buffer(), o);
+    }
 
-    void get_args_signature(const ref<SignatureBuilder> builder, nb::args args, nb::kwargs kwargs);
+    void get_args_signature(const ref<SignatureBuilder> builder, nb::args args, nb::kwargs kwargs)
+    {
+        get_args_signature(builder->buffer(), args, kwargs);
+    }
 
-    ref<NativeCallData> find_call_data(const std::string& signature)
+    /// Core implementations operating on SignatureBuffer (used by both Python and C++ hot paths).
+    void get_value_signature(SignatureBuffer& builder, nb::handle o);
+    void get_args_signature(SignatureBuffer& builder, nb::args args, nb::kwargs kwargs);
+
+    /// Transparent string_view lookup (no std::string allocation on cache hit).
+    ref<NativeCallData> find_call_data(std::string_view signature)
     {
         auto it = m_cache.find(signature);
         if (it != m_cache.end()) {
@@ -848,9 +1023,10 @@ public:
         return nullptr;
     }
 
-    void add_call_data(const std::string& signature, const ref<NativeCallData>& call_data)
+    /// Store call data (cache miss only - takes ownership of std::string key).
+    void add_call_data(std::string signature, const ref<NativeCallData>& call_data)
     {
-        m_cache[signature] = call_data;
+        m_cache[std::move(signature)] = call_data;
     }
 
     virtual std::optional<std::string> lookup_value_signature(nb::handle o)
@@ -860,7 +1036,7 @@ public:
     }
 
 private:
-    std::unordered_map<std::string, ref<NativeCallData>> m_cache;
+    std::unordered_map<std::string, ref<NativeCallData>, StringHash, StringEqual> m_cache;
     std::unordered_map<std::type_index, BuildSignatureFunc> m_type_signature_table;
 };
 
@@ -870,58 +1046,9 @@ public:
     std::optional<std::string> lookup_value_signature(nb::handle o) override { NB_OVERRIDE(lookup_value_signature, o); }
 };
 
-class TensorRef : public NativeObject {
-public:
-    TensorRef() = default;
-
-    TensorRef(int32_t id, const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
-        : m_id(id)
-        , m_tensor(tensor)
-    {
-        set_slangpy_signature(
-            fmt::format(
-                "[torch,D{},C{},B{},L{}]",
-                tensor.ndim(),
-                tensor.dtype().code,
-                tensor.dtype().bits,
-                tensor.dtype().lanes
-            )
-        );
-    }
-
-    std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> tensor() const { return m_tensor; }
-
-    void set_tensor(const std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> tensor) { m_tensor = tensor; }
-
-    ref<Buffer> interop_buffer() const { return m_interop_buffer; }
-
-    void set_interop_buffer(const ref<Buffer>& interop_buffer) { m_interop_buffer = interop_buffer; }
-
-    int32_t id() const { return m_id; }
-
-    void set_id(int32_t id) { m_id = id; }
-
-    ref<TensorRef> grad_in() const { return m_grad_in; }
-    void set_grad_in(const ref<TensorRef>& grad_in) { m_grad_in = grad_in; }
-
-    ref<TensorRef> grad_out() const { return m_grad_out; }
-    void set_grad_out(const ref<TensorRef>& grad_out) { m_grad_out = grad_out; }
-
-    std::pair<AccessType, AccessType> last_access() const { return m_last_access; }
-    void set_last_access(const std::pair<AccessType, AccessType>& last_access) { m_last_access = last_access; }
-
-private:
-    int32_t m_id{-1};
-    std::optional<nb::ndarray<nb::pytorch, nb::device::cuda>> m_tensor;
-    ref<Buffer> m_interop_buffer;
-    ref<TensorRef> m_grad_in;
-    ref<TensorRef> m_grad_out;
-    std::pair<AccessType, AccessType> m_last_access{AccessType::none, AccessType::none};
-};
-
-nb::list unpack_args(nb::args args, std::optional<nb::list> refs = std::optional<nb::list>());
-nb::dict unpack_kwargs(nb::kwargs kwargs, std::optional<nb::list> refs = std::optional<nb::list>());
-nb::object unpack_arg(nanobind::object arg, std::optional<nb::list> refs = std::optional<nb::list>());
+nb::list unpack_args(nb::args args, bool& out_had_unpack);
+nb::dict unpack_kwargs(nb::kwargs kwargs, bool& out_had_unpack);
+nb::object unpack_arg(nanobind::object arg, bool& out_had_unpack);
 void pack_arg(nb::object arg, nb::object unpacked_arg);
 
 void hash_signature(

@@ -15,7 +15,7 @@ import slangpy as spy
 import math
 from slangpy import DeviceType
 from slangpy.slangpy import Shape
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 
@@ -290,7 +290,7 @@ uint test_5d_basic(uint[5] grid_cell) {
     call_group_shape = (1, 1, 2, 2, 2)
 
     # Create output buffer
-    result_buffer = NDBuffer(device=device, shape=call_shape, dtype=int)
+    result_buffer = Tensor.empty(device=device, shape=call_shape, dtype=int)
 
     # Call with call group shape
     module.test_5d_basic.call_group_shape(Shape(call_group_shape))(
@@ -428,7 +428,7 @@ int test_call_group_math({param_type} grid_pos) {{
     module = helpers.create_module(device, kernel_source)
 
     # Create output buffer
-    result_buffer = NDBuffer(device=device, shape=call_shape, dtype=float)
+    result_buffer = Tensor.empty(device=device, shape=call_shape, dtype=float)
 
     # Call with call group shape
     module.test_call_group_math.call_group_shape(Shape(call_group_shape))(
@@ -506,14 +506,14 @@ def test_call_group_math_verified_thread_id_patterns(device_type: DeviceType):
     Two key scenarios tested:
 
     1. DEFAULT CASE (no call groups):
-       - Uses default linear dispatch (effectively 1×1 call groups)
+       - Uses default linear dispatch (effectively 1x1 call groups)
        - thread_id.x follows pattern: thread_id = y * width + x
-       - Examples: [0,0]→thread_id=0, [0,1]→thread_id=1, [1,0]→thread_id=64, [1,1]→thread_id=65
+       - Examples: [0,0]->thread_id=0, [0,1]->thread_id=1, [1,0]->thread_id=64, [1,1]->thread_id=65
 
     2. CALL GROUP CASE (4, 8) groups:
-       - Threads arranged in spatial 4×8 groups
+       - Threads arranged in spatial 4x8 groups
        - thread_id assignment depends on group layout and changes from linear pattern
-       - Examples: [0,0]→thread_id=0, [0,1]→thread_id=1, [1,0]→thread_id=8, [1,1]→thread_id=9
+       - Examples: [0,0]->thread_id=0, [0,1]->thread_id=1, [1,0]->thread_id=8, [1,1]->thread_id=9
 
     The key insight: call groups change how thread_id.x is assigned while call_id remains position-based.
     """
@@ -532,7 +532,7 @@ uint3 test_thread_id_patterns(uint2 grid_cell, uint3 thread_id) {
 """
 
     module = helpers.create_module(device, kernel_source)
-    call_shape = (32, 64)  # 32 rows × 64 columns
+    call_shape = (32, 64)  # 32 rows x 64 columns
 
     # Test 1: DEFAULT CASE (no call groups)
     # Expected: Linear thread assignment where thread_id.x = y * width + x
@@ -582,8 +582,8 @@ uint3 test_thread_id_patterns(uint2 grid_cell, uint3 thread_id) {
     )
 
     # With (4, 8) call groups, thread assignment follows group-based pattern:
-    # - Grid divided into 8×8 call groups (32÷4 = 8 rows, 64÷8 = 8 columns of groups)
-    # - Each group contains 4×8 = 32 threads
+    # - Grid divided into 8x8 call groups (32/4 = 8 rows, 64/8 = 8 columns of groups)
+    # - Each group contains 4x8 = 32 threads
     # - thread_id assignment prioritizes spatial locality within groups
 
     # Row 0 positions: early positions should have thread_id = x (same as default)

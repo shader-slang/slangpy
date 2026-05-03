@@ -129,15 +129,15 @@ def test_compute_addition_noalloc_cpu(
     device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 10
-    buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
 
     module = device.load_module_from_source("test_compute_addition_noalloc_cpu", ADD_COMPUTE)
     program = device.link_program([module], [module.entry_point("compute_main")])
     kernel = device.create_compute_kernel(program)
 
-    def tensor_addition(a: spy.NDBuffer, b: spy.NDBuffer, res: spy.NDBuffer):
+    def tensor_addition(a: spy.Tensor, b: spy.Tensor, res: spy.Tensor):
         kernel.dispatch(spy.uint3(BUFFER_SIZE, 1, 1), a=a.storage, b=b.storage, res=res.storage)
 
     benchmark_python_function(device, tensor_addition, a=buffer0, b=buffer1, res=resbuffer)
@@ -151,11 +151,11 @@ def test_slangpy_tensor_addition_noalloc_cpu(
     func = helpers.create_function_from_module(device, "add_floats", ADD_FLOATS)
 
     BUFFER_SIZE = 10
-    buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
 
-    def tensor_addition(a: spy.NDBuffer, b: spy.NDBuffer, res: spy.NDBuffer):
+    def tensor_addition(a: spy.Tensor, b: spy.Tensor, res: spy.Tensor):
         func(a, b, _result=res)
 
     benchmark_python_function(device, tensor_addition, a=buffer0, b=buffer1, res=resbuffer)
@@ -169,10 +169,10 @@ def test_slangpy_tensor_addition_alloc_cpu(
     func = helpers.create_function_from_module(device, "add_floats", ADD_FLOATS)
 
     BUFFER_SIZE = 10
-    buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
 
-    def tensor_addition(a: spy.NDBuffer, b: spy.NDBuffer):
+    def tensor_addition(a: spy.Tensor, b: spy.Tensor):
         func(a, b)
 
     benchmark_python_function(device, tensor_addition, a=buffer0, b=buffer1)
@@ -186,12 +186,12 @@ def test_slangpy_tensor_addition_appendonly_cpu(
     func = helpers.create_function_from_module(device, "add_floats", ADD_FLOATS)
 
     BUFFER_SIZE = 10
-    buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
     ce = device.create_command_encoder()
 
-    def tensor_addition(a: spy.NDBuffer, b: spy.NDBuffer, res: spy.NDBuffer):
+    def tensor_addition(a: spy.Tensor, b: spy.Tensor, res: spy.Tensor):
         func(a, b, _result=res, _append_to=ce)
 
     benchmark_python_function(device, tensor_addition, a=buffer0, b=buffer1, res=resbuffer)
@@ -234,9 +234,9 @@ def test_compute_addition_noalloc_gpu(
     device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 65535 * 32
-    buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
 
     module = device.load_module_from_source("test_compute_addition_noalloc_gpu", ADD_COMPUTE)
     program = device.link_program([module], [module.entry_point("compute_main")])
@@ -259,9 +259,9 @@ def test_compute_addition_4x_noalloc_gpu(
     device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 65535 * 32
-    buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
 
     module = device.load_module_from_source("test_compute_addition_noalloc_gpu_4x", ADD_COMPUTE_4X)
     program = device.link_program([module], [module.entry_point("compute_main")])
@@ -284,9 +284,9 @@ def test_compute_addition_16x_noalloc_gpu(
     device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 65535 * 32
-    buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
 
     module = device.load_module_from_source(
         "test_compute_addition_noalloc_gpu_16x", ADD_COMPUTE_16X
@@ -311,9 +311,9 @@ def test_compute_addition_16xloop_noalloc_gpu(
     device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 65535 * 32
-    buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
 
     module = device.load_module_from_source(
         "test_compute_addition_16xloop_noalloc_gpu", ADD_COMPUTE_16X_LOOP
@@ -338,9 +338,9 @@ def test_compute_addition_16xunroll_noalloc_gpu(
     device = helpers.get_device(device_type)
 
     BUFFER_SIZE = 65535 * 32
-    buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
 
     module = device.load_module_from_source(
         "test_compute_addition_16xunroll_noalloc_gpu", ADD_COMPUTE_16X_UNROLL
@@ -366,9 +366,9 @@ def test_slangpy_tensor_addition_noalloc_gpu(
     func = helpers.create_function_from_module(device, "add_floats", ADD_FLOATS)
 
     BUFFER_SIZE = 65535 * 32
-    buffer0 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.NDBuffer.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
 
     benchmark_slang_function(device, func, a=buffer0, b=buffer1, _result=resbuffer)
 
@@ -388,7 +388,7 @@ def test_slangpy_addition_noalloc_interop_cpu(
     buffer1 = torch.randn((BUFFER_SIZE,), dtype=torch.float32, device="cuda")
     resbuffer = torch.randn((BUFFER_SIZE,), dtype=torch.float32, device="cuda")
 
-    def tensor_addition(a: spy.NDBuffer, b: spy.NDBuffer, res: spy.NDBuffer):
+    def tensor_addition(a: spy.Tensor, b: spy.Tensor, res: spy.Tensor):
         func(a, b, _result=res)
 
     benchmark_python_function(device, tensor_addition, a=buffer0, b=buffer1, res=resbuffer)
@@ -408,7 +408,7 @@ def test_slangpy_addition_alloc_interop_cpu(
     buffer0 = torch.randn((BUFFER_SIZE,), dtype=torch.float32, device="cuda")
     buffer1 = torch.randn((BUFFER_SIZE,), dtype=torch.float32, device="cuda")
 
-    def tensor_addition(a: spy.NDBuffer, b: spy.NDBuffer):
+    def tensor_addition(a: spy.Tensor, b: spy.Tensor):
         func(a, b)
 
     benchmark_python_function(device, tensor_addition, a=buffer0, b=buffer1)

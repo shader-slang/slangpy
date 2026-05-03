@@ -15,6 +15,7 @@
 
 struct ImGuiContext;
 struct ImFont;
+struct ImTextureData;
 
 namespace sgl::ui {
 
@@ -33,7 +34,8 @@ public:
     /// ImGui widget calls are generally only valid between `begin_frame` and `end_frame`.
     /// \param width Render texture width
     /// \param height Render texture height
-    void begin_frame(uint32_t width, uint32_t height);
+    /// \param window Window this UI context is rendered for (optional).
+    void begin_frame(uint32_t width, uint32_t height, sgl::Window* window = nullptr);
 
     /// End the ImGui frame and renders the UI to the provided texture.
     /// \param texture_view Texture view to render to
@@ -58,7 +60,10 @@ public:
 private:
     RenderPipeline* get_pipeline(Format format);
 
-    static constexpr uint32_t FRAME_COUNT = 3;
+    // TODO: The frame count should not be hard-coded like this.
+    // We should probably both control the number of buffers in the Context constructor
+    // and pass in the frame to use in begin_frame().
+    static constexpr uint32_t FRAME_COUNT = 4;
 
     ref<Device> m_device;
     ImGuiContext* m_imgui_context;
@@ -72,12 +77,15 @@ private:
     ref<Buffer> m_vertex_buffers[FRAME_COUNT];
     ref<Buffer> m_index_buffers[FRAME_COUNT];
     ref<ShaderProgram> m_program;
-    ref<Texture> m_font_texture;
     ref<InputLayout> m_input_layout;
 
     std::map<std::string, ImFont*> m_fonts;
+    std::map<ImTextureData*, ref<Texture>> m_textures;
 
     std::map<Format, ref<RenderPipeline>> m_pipelines;
+
+    void update_texture(ImTextureData* tex);
+    void update_mouse_cursor(sgl::Window* window);
 };
 
 } // namespace sgl::ui

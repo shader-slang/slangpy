@@ -25,12 +25,15 @@
 #include "sgl/core/data_struct.h"
 #include "sgl/core/data_type.h"
 #include "sgl/core/static_vector.h"
+#include "sgl/core/short_vector.h"
 
 #include "sgl/math/float16.h"
 
 #include "sgl/device/cuda_interop.h"
 
+#ifndef SLANGPY_SKIP_PY_DOC_INCLUDE
 #include "py_doc.h"
+#endif
 
 #include <span>
 
@@ -78,7 +81,7 @@ template<typename T>
 struct type_caster<std::span<T>> {
     NB_TYPE_CASTER(
         std::span<T>,
-        io_name("Sequence", NB_TYPING_LIST) + const_name("[") + make_caster<T>::Name + const_name("]")
+        io_name("collections.abc.Sequence", "list") + const_name("[") + make_caster<T>::Name + const_name("]")
     )
 
     using Caster = make_caster<T>;
@@ -139,6 +142,8 @@ struct type_caster<std::span<T>> {
 template<typename T, std::size_t N>
 struct type_caster<sgl::static_vector<T, N>> : list_caster<sgl::static_vector<T, N>, T> { };
 
+template<typename T, std::size_t N>
+struct type_caster<sgl::short_vector<T, N>> : list_caster<sgl::short_vector<T, N>, T> { };
 
 NAMESPACE_END(detail)
 
@@ -161,9 +166,10 @@ public:
 template<typename T>
 class sgl_enum_flags : public sgl_enum<T> {
 public:
+    static_assert(::sgl::has_enum_info<T>, "nanobind::sgl_enum_flags<> requires an enumeration type with infos!");
     static_assert(
-        std::is_same_v<T, decltype(std::declval<T>() & std::declval<T>())>,
-        "nanobind::sgl_enum_flags<> requires an enumeration type with bitwise operators!"
+        ::sgl::EnumInfo<T>::is_flags,
+        "nanobind::sgl_enum_flags<> requires an enumeration type registered with SGL_ENUM_FLAGS_INFO!"
     );
 
     using Base = sgl_enum<T>;

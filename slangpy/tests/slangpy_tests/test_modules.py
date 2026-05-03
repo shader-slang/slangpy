@@ -7,7 +7,7 @@ from slangpy import DeviceType, float2, float3, Module
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 from slangpy.core.utils import find_type_layout_for_buffer
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 
@@ -55,12 +55,12 @@ def test_init_particle(device_type: DeviceType):
     Particle = m.Particle
     assert isinstance(Particle, Struct)
 
-    buffer = NDBuffer(m.device, Particle, 1)
+    buffer = Tensor.empty(m.device, dtype=Particle, shape=(1,))
 
     # Call constructor, which returns particles
     Particle.__init(float2(1.0, 2.0), float2(3.0, 4.0), _result=buffer)
 
-    data = helpers.read_ndbuffer_from_numpy(buffer)
+    data = helpers.read_tensor_from_numpy(buffer)
     print(data)
 
     # position
@@ -87,7 +87,7 @@ def test_call_read_only_func(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Create and init a buffer of particles
-    buffer = NDBuffer(m.device, Particle, 1)
+    buffer = Tensor.empty(m.device, dtype=Particle, shape=(1,))
     Particle.__init(float2(0, 0), float2(0.1, 0.2), _result=buffer)
 
     # Get next position of all particles
@@ -104,7 +104,7 @@ def test_call_mutable_func(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Create and init a buffer of particles
-    buffer = NDBuffer(m.device, Particle, 1)
+    buffer = Tensor.empty(m.device, dtype=Particle, shape=(1,))
     Particle.__init(float2(0, 0), float2(0.1, 0.2), _result=buffer)
 
     # Update position of all particles
@@ -121,7 +121,7 @@ def test_read_back_with_global_func(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     # Create and init a buffer of particles
-    buffer = NDBuffer(m.device, Particle, 1)
+    buffer = Tensor.empty(m.device, dtype=Particle, shape=(1,))
     Particle.__init(float2(0, 0), float2(0, 0.2), _result=buffer)
 
     # Update position of particles
@@ -129,7 +129,7 @@ def test_read_back_with_global_func(device_type: DeviceType):
 
     # Get quad of all particles
     quad_type_layout = find_type_layout_for_buffer(m.device_module.layout, "float2[4]")
-    results = NDBuffer(m.device, quad_type_layout, 1)
+    results = Tensor.empty(m.device, dtype=quad_type_layout, shape=(1,))
     m.get_particle_quad(buffer, _result=results)
 
     data = results.storage.to_numpy().view(dtype=np.float32).reshape(-1, 2)
@@ -143,7 +143,7 @@ def test_soa_particles(device_type: DeviceType):
     assert isinstance(Particle, Struct)
 
     soa_particles = {
-        "position": NDBuffer(m.device, float2, 1),
+        "position": Tensor.empty(m.device, dtype=float2, shape=(1,)),
         "velocity": float2(1, 0),
         "size": 0.5,
         "material": {"color": float3(1, 1, 1), "emission": float3(0, 0, 0)},

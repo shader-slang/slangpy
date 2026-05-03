@@ -8,7 +8,7 @@ import math
 from slangpy import Struct
 from slangpy.core.native import Shape
 from slangpy import DeviceType, BufferUsage
-from slangpy.types import NDBuffer, Tensor
+from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 
 from typing import Any, Optional, Union, Type, cast
@@ -53,11 +53,9 @@ TEST_DTYPES = [
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
 @pytest.mark.parametrize("test_dtype", TEST_DTYPES)
 def test_to_numpy(
     device_type: DeviceType,
-    buffer_type: Union[Type[Tensor], Type[NDBuffer]],
     test_dtype: tuple[str, Optional[torch.dtype], Type[Any], tuple[int, ...]],
 ):
 
@@ -77,7 +75,7 @@ def test_to_numpy(
         iinfo = np.iinfo(np_type)
         numpy_ref = rng.integers(iinfo.min, iinfo.max, unravelled_shape, np_dtype)
 
-    buffer = buffer_type.zeros(device, dtype=module[slang_dtype], shape=shape)
+    buffer = Tensor.zeros(device, dtype=module[slang_dtype], shape=shape)
 
     assert buffer.shape == shape
     assert buffer.strides == Shape(shape).calc_contiguous_strides()
@@ -96,11 +94,9 @@ def test_to_numpy(
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("buffer_type", [Tensor, NDBuffer])
 @pytest.mark.parametrize("test_dtype", TEST_DTYPES)
 def test_to_torch(
     device_type: DeviceType,
-    buffer_type: Union[Type[Tensor], Type[NDBuffer]],
     test_dtype: tuple[str, Optional[torch.dtype], Type[Any], tuple[int, ...]],
 ):
     device = helpers.get_torch_device(device_type)
@@ -122,15 +118,12 @@ def test_to_torch(
         torch_ref = torch.randint(iinfo.min, iinfo.max, unravelled_shape, dtype=torch_dtype).cuda()
 
     usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
-    if buffer_type == Tensor:
-        storage = device.create_buffer(
-            element_count=math.prod(shape),
-            struct_size=slang_type.buffer_layout.reflection.size,
-            usage=usage,
-        )
-        buffer = Tensor(storage, slang_type, shape)
-    else:
-        buffer = NDBuffer(device, dtype=slang_type, shape=shape, usage=usage)
+    storage = device.create_buffer(
+        element_count=math.prod(shape),
+        struct_size=slang_type.buffer_layout.reflection.size,
+        usage=usage,
+    )
+    buffer = Tensor(storage, slang_type, shape)
     buffer.clear()
 
     assert buffer.shape == shape

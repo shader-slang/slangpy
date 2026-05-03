@@ -31,7 +31,7 @@ Sampler::Sampler(ref<Device> device, SamplerDesc desc)
         .maxLOD = m_desc.max_lod,
         .label = m_desc.label.empty() ? nullptr : m_desc.label.c_str(),
     };
-    SLANG_RHI_CALL(m_device->rhi_device()->createSampler(rhi_desc, m_rhi_sampler.writeRef()));
+    SLANG_RHI_CALL(m_device->rhi_device()->createSampler(rhi_desc, m_rhi_sampler.writeRef()), m_device);
 }
 
 Sampler::~Sampler() { }

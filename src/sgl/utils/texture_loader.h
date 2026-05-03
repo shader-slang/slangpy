@@ -12,6 +12,18 @@
 
 namespace sgl {
 
+/// Strategy for handling YA (greyscale + alpha) bitmaps during texture loading.
+enum class YAHandling {
+    expand_to_rgba,
+    preserve_as_rg,
+};
+
+SGL_ENUM_INFO(
+    YAHandling,
+    {{YAHandling::expand_to_rgba, "expand_to_rgba"}, {YAHandling::preserve_as_rg, "preserve_as_rg"}}
+);
+SGL_ENUM_REGISTER(YAHandling);
+
 /**
  * \brief Utility class for loading textures from bitmaps and image files.
  */
@@ -28,6 +40,8 @@ public:
         bool load_as_srgb{true};
         /// Extend RGB to RGBA if RGB texture format is not available.
         bool extend_alpha{true};
+        /// Strategy for handling YA (greyscale + alpha) bitmaps.
+        YAHandling ya_handling{YAHandling::expand_to_rgba};
         /// Allocate mip levels for the texture.
         bool allocate_mips{false};
         /// Generate mip levels for the texture.
@@ -65,6 +79,15 @@ public:
     std::vector<ref<Texture>> load_textures(std::span<const Bitmap*> bitmaps, std::optional<Options> options = {});
 
     /**
+     * \brief Load textures from a list of bitmaps.
+     *
+     * \param bitmaps Bitmaps to load.
+     * \param options Texture loading options.
+     * \return List of new of texture objects.
+     */
+    std::vector<ref<Texture>> load_textures(std::span<const Bitmap*> bitmaps, std::span<const Options> options);
+
+    /**
      * \brief Load textures from a list of image files.
      *
      * \param paths Image file paths.
@@ -72,7 +95,17 @@ public:
      * \return List of new texture objects.
      */
     std::vector<ref<Texture>>
-    load_textures(std::span<std::filesystem::path> paths, std::optional<Options> options = {});
+    load_textures(std::span<const std::filesystem::path> paths, std::optional<Options> options = {});
+
+    /**
+     * \brief Load textures from a list of image files.
+     *
+     * \param paths Image file paths.
+     * \param options Texture loading options.
+     * \return List of new texture objects.
+     */
+    std::vector<ref<Texture>>
+    load_textures(std::span<const std::filesystem::path> paths, std::span<const Options> options);
 
     /**
      * \brief Load a texture array from a list of bitmaps.
@@ -94,7 +127,7 @@ public:
      * \param options Texture loading options.
      * \return New texture array object.
      */
-    ref<Texture> load_texture_array(std::span<std::filesystem::path> paths, std::optional<Options> options = {});
+    ref<Texture> load_texture_array(std::span<const std::filesystem::path> paths, std::optional<Options> options = {});
 
 private:
     ref<Device> m_device;

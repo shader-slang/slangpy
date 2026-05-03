@@ -5,6 +5,7 @@
 #include "native_handle.h"
 
 #include "sgl/core/config.h"
+#include "sgl/core/type_utils.h"
 
 #if SGL_HAS_D3D12
 #include <d3d12.h>

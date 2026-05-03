@@ -78,6 +78,11 @@ void write_shader_cursor(ShaderCursor& cursor, nb::object value)
     detail::_writeconv.write(cursor, value);
 }
 
+std::function<void(ShaderCursor&, nb::object)> get_shader_cursor_writer(slang::TypeLayoutReflection* type_layout)
+{
+    return detail::_writeconv.get_writer(type_layout);
+}
+
 } // namespace sgl
 
 SGL_PY_EXPORT(device_shader_cursor)
@@ -96,7 +101,14 @@ SGL_PY_EXPORT(device_shader_cursor)
         .def(nb::init<ShaderObject*>(), "shader_object"_a, D(ShaderCursor, ShaderCursor))
         .def_prop_ro("_offset", &ShaderCursor::offset, D(ShaderCursor, offset))
         .def("dereference", &ShaderCursor::dereference, D(ShaderCursor, dereference))
-        .def("find_entry_point", &ShaderCursor::find_entry_point, "index"_a, D(ShaderCursor, find_entry_point));
+        .def("find_entry_point", &ShaderCursor::find_entry_point, "index"_a, D(ShaderCursor, find_entry_point))
+        .def(
+            "get_field_by_index",
+            &ShaderCursor::get_field_by_index,
+            "field_index"_a,
+            D_NA(ShaderCursor, get_field_by_index)
+        )
+        .def("find_field_index", &ShaderCursor::find_field_index, "name"_a, D_NA(ShaderCursor, find_field_index));
 
     bind_traversable_cursor(shader_cursor);
 

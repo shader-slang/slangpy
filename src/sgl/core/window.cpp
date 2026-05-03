@@ -15,6 +15,10 @@
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
 #define GLFW_EXPOSE_NATIVE_X11
+// Xrandr defines some macros that conflict with our code, so undefine them.
+#ifdef CursorShape
+#undef CursorShape
+#endif
 #elif SGL_MACOS
 #define GLFW_EXPOSE_NATIVE_COCOA
 using CGDirectDisplayID = void*;
@@ -300,6 +304,7 @@ struct EventHandlers {
 
         MouseEvent event{
             .type = (action == GLFW_PRESS) ? MouseEventType::button_down : MouseEventType::button_up,
+            .pos = window->m_mouse_pos,
             .button = mouse_button,
             .mods = window->m_mods,
         };
@@ -388,6 +393,10 @@ Window::Window(WindowDesc desc)
 
 Window::~Window()
 {
+    for (GLFWcursor* cursor : m_cursor_cache)
+        if (cursor)
+            glfwDestroyCursor(cursor);
+
     glfwDestroyWindow(m_window);
 
     terminate_glfw();
@@ -407,11 +416,38 @@ WindowHandle Window::window_handle() const
     return handle;
 }
 
+void Window::set_width(uint32_t width)
+{
+    resize(width, m_height);
+}
+
+void Window::set_height(uint32_t height)
+{
+    resize(m_width, height);
+}
+
+void Window::set_size(uint2 size)
+{
+    resize(size.x, size.y);
+}
+
 void Window::resize(uint32_t width, uint32_t height)
 {
     m_width = width;
     m_height = height;
     glfwSetWindowSize(m_window, m_width, m_height);
+}
+
+int2 Window::position() const
+{
+    int xpos, ypos;
+    glfwGetWindowPos(m_window, &xpos, &ypos);
+    return int2{xpos, ypos};
+}
+
+void Window::set_position(int2 position)
+{
+    glfwSetWindowPos(m_window, position.x, position.y);
 }
 
 void Window::set_title(std::string title)
@@ -470,6 +506,42 @@ void Window::set_cursor_mode(CursorMode mode)
         default:
             SGL_UNREACHABLE();
         }
+    }
+}
+
+void Window::set_cursor_shape(CursorShape shape)
+{
+    if (shape != m_cursor_shape) {
+        m_cursor_shape = shape;
+        uint32_t index = static_cast<uint32_t>(shape);
+        SGL_ASSERT(index < m_cursor_cache.size());
+        if (!m_cursor_cache[index]) {
+            int glfw_shape = 0;
+            switch (shape) {
+            case CursorShape::arrow:
+                glfw_shape = GLFW_ARROW_CURSOR;
+                break;
+            case CursorShape::ibeam:
+                glfw_shape = GLFW_IBEAM_CURSOR;
+                break;
+            case CursorShape::crosshair:
+                glfw_shape = GLFW_CROSSHAIR_CURSOR;
+                break;
+            case CursorShape::hand:
+                glfw_shape = GLFW_HAND_CURSOR;
+                break;
+            case CursorShape::hresize:
+                glfw_shape = GLFW_HRESIZE_CURSOR;
+                break;
+            case CursorShape::vresize:
+                glfw_shape = GLFW_VRESIZE_CURSOR;
+                break;
+            default:
+                SGL_UNREACHABLE();
+            }
+            m_cursor_cache[index] = glfwCreateStandardCursor(glfw_shape);
+        }
+        glfwSetCursor(m_window, m_cursor_cache[index]);
     }
 }
 
@@ -532,6 +604,7 @@ void Window::poll_gamepad_input()
     state.right_trigger = glfw_state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER];
 
     static constexpr int GLFW_BUTTONS[]{
+        0,
         GLFW_GAMEPAD_BUTTON_A,
         GLFW_GAMEPAD_BUTTON_B,
         GLFW_GAMEPAD_BUTTON_X,
@@ -550,11 +623,11 @@ void Window::poll_gamepad_input()
     };
 
     // Get button state.
-    for (size_t i = 0; i < std::size(GLFW_BUTTONS); ++i)
+    for (size_t i = 1; i < std::size(GLFW_BUTTONS); ++i)
         state.buttons |= (glfw_state.buttons[GLFW_BUTTONS[i]] == GLFW_PRESS) << i;
 
     // Synthesize button events.
-    for (size_t i = 0; i < std::size(GLFW_BUTTONS); ++i) {
+    for (size_t i = 1; i < std::size(GLFW_BUTTONS); ++i) {
         if (state.buttons & (1 << i)) {
             if (!(m_gamepad_prev_state.buttons & (1 << i))) {
                 GamepadEvent event{.type = GamepadEventType::button_down, .button = (GamepadButton)i};

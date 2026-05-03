@@ -10,26 +10,6 @@
 
 namespace sgl {
 
-/// Mouse cursor modes.
-enum class CursorMode : uint32_t {
-    /// The cursor is visible and behaves normally.
-    normal,
-    /// The cursor is hidden when over the window.
-    hidden,
-    /// The cursor is hidden and locked to the window.
-    disabled,
-};
-
-SGL_ENUM_INFO(
-    CursorMode,
-    {
-        {CursorMode::normal, "normal"},
-        {CursorMode::hidden, "hidden"},
-        {CursorMode::disabled, "disabled"},
-    }
-);
-SGL_ENUM_REGISTER(CursorMode);
-
 /// Mouse buttons.
 enum class MouseButton : uint32_t {
     left,
@@ -58,7 +38,7 @@ enum class KeyModifierFlags : uint32_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(KeyModifierFlags);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     KeyModifierFlags,
     {
         {KeyModifierFlags::none, "none"},
@@ -137,6 +117,10 @@ enum class KeyCode : uint32_t {
     backslash = '\\',
     right_bracket = ']',
     grave_accent = '`',
+    // Non-US keys (GLFW_KEY_WORLD_1/2). These are layout-dependent and occupy
+    // values in the printable range.
+    world_1 = 161,
+    world_2 = 162,
 
     // Special keys start at key code 256.
     escape = 256,
@@ -250,6 +234,8 @@ SGL_ENUM_INFO(
         {KeyCode::backslash, "backslash"},
         {KeyCode::right_bracket, "right_bracket"},
         {KeyCode::grave_accent, "grave_accent"},
+        {KeyCode::world_1, "world_1"},
+        {KeyCode::world_2, "world_2"},
         {KeyCode::escape, "escape"},
         {KeyCode::tab, "tab"},
         {KeyCode::enter, "enter"},
@@ -344,7 +330,7 @@ struct SGL_API KeyboardEvent {
     /// UTF-32 codepoint for input events.
     uint32_t codepoint{0};
     /// Keyboard modifier flags.
-    KeyModifierFlags mods{0};
+    KeyModifierFlags mods{KeyModifierFlags::none};
 
     /// Returns true if this event is a key press event.
     bool is_key_press() const { return type == KeyboardEventType::key_press; }
@@ -395,7 +381,7 @@ struct SGL_API MouseEvent {
     /// The mouse button that was pressed/released.
     MouseButton button{MouseButton::unknown};
     /// Keyboard modifier flags.
-    KeyModifierFlags mods{0};
+    KeyModifierFlags mods{KeyModifierFlags::none};
 
     /// Returns true if this event is a mouse button down event.
     bool is_button_down() const { return type == MouseEventType::button_down; }
@@ -437,6 +423,7 @@ SGL_ENUM_REGISTER(GamepadEventType);
 
 /// Gamepad buttons.
 enum class GamepadButton : uint32_t {
+    unknown,
     a,
     b,
     x,
@@ -457,6 +444,7 @@ enum class GamepadButton : uint32_t {
 SGL_ENUM_INFO(
     GamepadButton,
     {
+        {GamepadButton::unknown, "unknown"},
         {GamepadButton::a, "a"},
         {GamepadButton::b, "b"},
         {GamepadButton::x, "x"},
@@ -481,7 +469,7 @@ struct SGL_API GamepadEvent {
     /// The event type.
     GamepadEventType type;
     /// The gamepad button that was pressed/released.
-    GamepadButton button;
+    GamepadButton button{GamepadButton::unknown};
 
     /// Returns true if this event is a gamepad button down event.
     bool is_button_down() const { return type == GamepadEventType::button_down; }

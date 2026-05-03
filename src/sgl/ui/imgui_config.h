@@ -4,6 +4,11 @@
 
 // ImGui configuration file. See imconfig.h for more details.
 
+namespace sgl {
+class Texture;
+}
+#define ImTextureID ::sgl::Texture*
+
 #include "sgl/math/vector_types.h"
 
 #define IM_VEC2_CLASS_EXTRA                                                                                            \

@@ -536,6 +536,7 @@ struct Scene {
         AccelerationStructureSizes sizes = device->get_acceleration_structure_sizes(build_desc);
 
         ref<AccelerationStructure> blas = device->create_acceleration_structure({
+            .kind = AccelerationStructureKind::bottom_level,
             .size = sizes.acceleration_structure_size,
             .label = "blas",
         });
@@ -580,6 +581,7 @@ struct Scene {
         AccelerationStructureSizes sizes = device->get_acceleration_structure_sizes(build_desc);
 
         ref<AccelerationStructure> tlas_ = device->create_acceleration_structure({
+            .kind = AccelerationStructureKind::top_level,
             .size = sizes.acceleration_structure_size,
             .label = "tlas",
         });

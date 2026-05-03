@@ -18,19 +18,19 @@ QueryPool::QueryPool(ref<Device> device, QueryPoolDesc desc)
         .type = static_cast<rhi::QueryType>(m_desc.type),
         .count = m_desc.count,
     };
-    SLANG_RHI_CALL(m_device->rhi_device()->createQueryPool(rhi_desc, m_rhi_query_pool.writeRef()));
+    SLANG_RHI_CALL(m_device->rhi_device()->createQueryPool(rhi_desc, m_rhi_query_pool.writeRef()), m_device);
 }
 
 void QueryPool::reset()
 {
-    SLANG_RHI_CALL(m_rhi_query_pool->reset());
+    SLANG_RHI_CALL(m_rhi_query_pool->reset(), m_device);
 }
 
 void QueryPool::get_results(uint32_t index, uint32_t count, std::span<uint64_t> result)
 {
     SGL_CHECK(index + count <= m_desc.count, "'index' / 'count' out of range");
     SGL_CHECK(result.size() >= count, "'result' buffer too small");
-    SLANG_RHI_CALL(m_rhi_query_pool->getResult(index, count, result.data()));
+    SLANG_RHI_CALL(m_rhi_query_pool->getResult(index, count, result.data()), m_device);
 }
 
 std::vector<uint64_t> QueryPool::get_results(uint32_t index, uint32_t count)
@@ -44,7 +44,7 @@ uint64_t QueryPool::get_result(uint32_t index)
 {
     SGL_CHECK(index < m_desc.count, "'index' out of range");
     uint64_t result;
-    SLANG_RHI_CALL(m_rhi_query_pool->getResult(index, 1, &result));
+    SLANG_RHI_CALL(m_rhi_query_pool->getResult(index, 1, &result), m_device);
     return result;
 }
 

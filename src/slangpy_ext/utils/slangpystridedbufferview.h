@@ -31,7 +31,7 @@ struct StridedBufferViewDesc {
 class StridedBufferView : public NativeObject {
     SGL_OBJECT(StridedBufferView)
 public:
-    StridedBufferView(Device* device, const StridedBufferViewDesc& desc, ref<Buffer> storage);
+    StridedBufferView(Device* device, const StridedBufferViewDesc& desc, const ref<Buffer>& storage);
     virtual ~StridedBufferView() { }
 
     // Derived classes are free to store a desc with extra information, and can provide us
@@ -40,7 +40,7 @@ public:
     virtual const StridedBufferViewDesc& desc() const { SGL_THROW("desc() is not implemented"); }
 
     Device* device() const { return storage()->device(); }
-    ref<NativeSlangType> dtype() const { return desc().dtype; }
+    const ref<NativeSlangType>& dtype() const { return desc().dtype; }
     int offset() const { return desc().offset; }
     const Shape& shape() const { return desc().shape; }
     const Shape& strides() const { return desc().strides; }
@@ -48,7 +48,7 @@ public:
     size_t element_count() const { return desc().shape.element_count(); }
     BufferUsage usage() const { return desc().usage; }
     MemoryType memory_type() const { return desc().memory_type; }
-    ref<Buffer> storage() const { return m_storage; }
+    const ref<Buffer>& storage() const { return m_storage; }
     size_t element_stride() const { return desc().element_layout->stride(); }
 
     bool is_contiguous() const;

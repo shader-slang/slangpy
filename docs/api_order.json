@@ -30,6 +30,7 @@
     ],
     "Windowing": [
         "slangpy.CursorMode",
+        "slangpy.CursorShape",
         "slangpy.WindowMode",
         "slangpy.Window",
         "slangpy.MouseButton",
@@ -68,6 +69,7 @@
         "slangpy.AccelerationStructureInstanceDesc",
         "slangpy.AccelerationStructureInstanceFlags",
         "slangpy.AccelerationStructureInstanceList",
+        "slangpy.AccelerationStructureKind",
         "slangpy.AccelerationStructureQueryDesc",
         "slangpy.AccelerationStructureSizes",
         "slangpy.AdapterInfo",

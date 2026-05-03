@@ -24,7 +24,7 @@ interface IFoo {}
 
 struct Test2f : ITest<float, 2> {
     float sentinel() { return 42.0f; }
-    void load(Context0D ctx, out Test2f x) { x = this; }
+    void __slangpy_load(Context0D ctx, out Test2f x) { x = this; }
 }
 struct Test3i : ITest<int, 3> {
     float sentinel() { return 0.0f; }
@@ -58,7 +58,7 @@ class FooImpl(Marshall):
         self.concrete_shape = Shape()
 
     def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable):
-        cgb.type_alias(f"_t_{binding.variable_name}", self.slang_type.full_name)
+        binding.gen_calldata_type_name(cgb, self.slang_type.full_name)
 
 
 def create_test_impl(layout: SlangProgramLayout, value: Any):

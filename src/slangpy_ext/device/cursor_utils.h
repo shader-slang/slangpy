@@ -12,6 +12,7 @@
 #include "sgl/math/vector_types.h"
 #include "sgl/math/matrix_types.h"
 
+#include "utils/slangpy.h"
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpystridedbufferview.h"
 #include "sgl/device/buffer_cursor.h"
@@ -19,6 +20,18 @@
 #include <slang.h>
 
 namespace sgl {
+
+/// Fast check if a Python object is a numpy ndarray.
+/// Caches the type pointer on first call, then does a single pointer comparison.
+inline bool is_numpy_ndarray(nb::handle obj)
+{
+    static PyTypeObject* np_ndarray_type = []() -> PyTypeObject*
+    {
+        nb::object numpy = nb::module_::import_("numpy");
+        return (PyTypeObject*)numpy.attr("ndarray").ptr();
+    }();
+    return Py_TYPE(obj.ptr()) == np_ndarray_type;
+}
 
 /// Helper to convert from numpy type mask to slang scalar type.
 inline std::optional<TypeReflection::ScalarType> dtype_to_scalar_type(nb::dlpack::dtype dtype)
@@ -233,6 +246,11 @@ private:
                 m_stack.pop_back();
                 return res;
             }
+            case TypeReflection::Kind::pointer: {
+                uint64_t ptr_value;
+                self._get_data(self._get_offset(), &ptr_value, sizeof(uint64_t));
+                return nb::cast(ptr_value);
+            }
             default:
                 break;
             }
@@ -394,6 +412,28 @@ public:
         matrix_case(float4x4, float32);
     }
 
+    /// Resolve a type-specialized writer function for the given type layout.
+    /// Returns an empty function for types that do not have a predefined write function.
+    std::function<void(CursorType&, nb::object)> get_writer(slang::TypeLayoutReflection* type_layout) const
+    {
+        if (!type_layout)
+            return {};
+        auto kind = (TypeReflection::Kind)type_layout->getKind();
+        auto type = type_layout->getType();
+        if (!type)
+            return {};
+        switch (kind) {
+        case TypeReflection::Kind::scalar:
+            return m_write_scalar[(int)type->getScalarType()];
+        case TypeReflection::Kind::vector:
+            return m_write_vector[(int)type->getScalarType()][type->getColumnCount()];
+        case TypeReflection::Kind::matrix:
+            return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()];
+        default:
+            return {};
+        }
+    }
+
     /// Virtual for writing none-basic value types.
     virtual bool write_value(CursorType& self, nb::object nbval)
     {
@@ -448,6 +488,16 @@ private:
     std::vector<const char*> m_stack;
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
+
+    bool try_unpack_and_retry(CursorType& self, nb::object obj)
+    {
+        bool had_unpack = false;
+        nb::object unpacked = slangpy::unpack_arg(obj, had_unpack);
+        if (!had_unpack || unpacked.ptr() == obj.ptr())
+            return false;
+        write_internal(self, unpacked);
+        return true;
+    }
 
     void write_from_numpy_internal(BufferCursor& dst, BufferElementCursor self, nb::object nbval, bool unchecked_copy)
         requires std::same_as<CursorType, BufferElementCursor>
@@ -627,30 +677,51 @@ private:
             return;
         }
 
-        // Read uniforms for StridedBufferView
-        if (nb::isinstance<sgl::slangpy::StridedBufferView>(nbval)) {
+        slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
+        auto kind = (TypeReflection::Kind)type_layout->getKind();
+
+        // Read uniforms for StridedBufferView unless it is being written directly to a pointer.
+        if (kind != TypeReflection::Kind::pointer && nb::isinstance<sgl::slangpy::StridedBufferView>(nbval)) {
             auto view = nb::cast<sgl::slangpy::StridedBufferView*>(nbval);
             nbval = view->uniforms();
         }
-
-        slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
-        auto kind = (TypeReflection::Kind)type_layout->getKind();
 
         switch (kind) {
         case TypeReflection::Kind::scalar: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_scalar[(int)type->getScalarType()](self, nbval);
+            try {
+                return m_write_scalar[(int)type->getScalarType()](self, nbval);
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::vector: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
+            try {
+                return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::matrix: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](self, nbval);
+            try {
+                return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](
+                    self,
+                    nbval
+                );
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::pointer: {
             // Pointers are represented as uint64_t in slang.
@@ -677,11 +748,14 @@ private:
 
             sgl::slangpy::StridedBufferView* sbview;
             if (nb::try_cast<sgl::slangpy::StridedBufferView*>(nbval, sbview)) {
-                // If we have a StridedBufferView, write address of storage plus offset.
-                self.set_pointer(sbview->storage()->device_address() + sbview->offset());
+                // If we have a StridedBufferView, write address of storage plus its byte offset.
+                uint64_t offset = static_cast<uint64_t>(sbview->offset()) * sbview->desc().element_layout->stride();
+                self.set_pointer(sbview->storage()->device_address() + offset);
                 return;
             }
 
+            if (try_unpack_and_retry(self, nbval))
+                return;
             SGL_THROW("Expected dict");
             return;
         }
@@ -715,12 +789,14 @@ private:
                 }
                 return;
             } else {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
                 SGL_THROW("Expected dict");
             }
         }
         case TypeReflection::Kind::array: {
             // Expect numpy array or sequence for a slang array.
-            if (nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+            if (is_numpy_ndarray(nbval)) {
                 // TODO: Should be able to do better job of interpreting nb array values by reading
                 // data type and extracting individual elements.
                 auto nbarray = nb::cast<nb::ndarray<nb::numpy>>(nbval);
@@ -748,6 +824,8 @@ private:
                 m_stack.pop_back();
                 return;
             } else {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
                 SGL_THROW("Expected list");
             }
         }
@@ -757,6 +835,9 @@ private:
 
         // In default case call the virtual write_value, and fail if it returns false.
         if (write_value(self, nbval))
+            return;
+
+        if (try_unpack_and_retry(self, nbval))
             return;
 
         SGL_THROW("Unsupported element type: {}", kind);
@@ -774,7 +855,7 @@ private:
     inline static void _write_scalar(CursorType& self, nb::object nbval)
     {
         // Avoid warning about converting from numpy array to scalar
-        if (nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+        if (is_numpy_ndarray(nbval)) {
             auto nbarray = nb::cast<nb::ndarray<nb::numpy>>(nbval);
             auto val = *reinterpret_cast<ValType*>(nbarray.data());
             self.set(val);
@@ -813,7 +894,7 @@ private:
             // A vector of the correct type - just convert it.
             auto val = nb::cast<ValType>(nbval);
             self.set(val);
-        } else if (nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+        } else if (is_numpy_ndarray(nbval)) {
             // A numpy array. Reinterpret numpy memory as vector type.
             nb::ndarray<nb::numpy, nb::ro> nbarray = nb::cast<nb::ndarray<nb::numpy, nb::ro>>(nbval);
             SGL_CHECK(is_ndarray_contiguous(nbarray), "data is not contiguous");
@@ -846,7 +927,7 @@ private:
             // A vector of the correct type - just convert it.
             auto val = nb::cast<ValType>(nbval);
             self.set(val);
-        } else if (nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+        } else if (is_numpy_ndarray(nbval)) {
             // A numpy array. Reinterpret numpy memory as vector type.
             nb::ndarray<nb::numpy, nb::ro> nbarray = nb::cast<nb::ndarray<nb::numpy, nb::ro>>(nbval);
             SGL_CHECK(is_ndarray_contiguous(nbarray), "data is not contiguous");
@@ -885,7 +966,7 @@ private:
         requires IsSpecializationOfMatrix<ValType>
     inline static void _write_matrix(CursorType& self, nb::object nbval)
     {
-        if (nb::isinstance<ValType>(nbval) || nb::isinstance<nb::ndarray<nb::numpy>>(nbval)) {
+        if (nb::isinstance<ValType>(nbval) || is_numpy_ndarray(nbval)) {
             // Matrix of correct type
             auto val = nb::cast<ValType>(nbval);
             self.set(val);

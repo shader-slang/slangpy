@@ -54,6 +54,7 @@ blas_scratch_buffer = device.create_buffer(
 )
 
 blas = device.create_acceleration_structure(
+    kind=spy.AccelerationStructureKind.bottom_level,
     size=blas_sizes.acceleration_structure_size,
     label="blas",
 )
@@ -92,6 +93,7 @@ tlas_scratch_buffer = device.create_buffer(
 )
 
 tlas = device.create_acceleration_structure(
+    kind=spy.AccelerationStructureKind.top_level,
     size=tlas_sizes.acceleration_structure_size,
     label="tlas",
 )

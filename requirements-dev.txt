@@ -11,3 +11,4 @@ autoflake
 libcst
 pymongo
 setuptools
+imageio

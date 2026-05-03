@@ -5,7 +5,9 @@
 #include "sgl/core/platform.h"
 #include "sgl/core/object.h"
 #include "sgl/core/input.h"
+#include "sgl/math/vector_types.h"
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -15,6 +17,7 @@
 
 // GLFW forward declarations.
 struct GLFWwindow;
+struct GLFWcursor;
 
 namespace sgl {
 
@@ -24,6 +27,16 @@ enum class WindowMode {
     minimized,
     fullscreen,
 };
+
+SGL_ENUM_INFO(
+    WindowMode,
+    {
+        {WindowMode::normal, "normal"},
+        {WindowMode::minimized, "minimized"},
+        {WindowMode::fullscreen, "fullscreen"},
+    }
+);
+SGL_ENUM_REGISTER(WindowMode);
 
 /// Window description.
 struct WindowDesc {
@@ -38,6 +51,55 @@ struct WindowDesc {
     /// Whether the window is resizable.
     bool resizable{true};
 };
+
+/// Mouse cursor modes.
+enum class CursorMode : uint32_t {
+    /// The cursor is visible and behaves normally.
+    normal,
+    /// The cursor is hidden when over the window.
+    hidden,
+    /// The cursor is hidden and locked to the window.
+    disabled,
+};
+
+SGL_ENUM_INFO(
+    CursorMode,
+    {
+        {CursorMode::normal, "normal"},
+        {CursorMode::hidden, "hidden"},
+        {CursorMode::disabled, "disabled"},
+    }
+);
+SGL_ENUM_REGISTER(CursorMode);
+
+/// Mouse cursor shapes.
+enum class CursorShape : uint32_t {
+    /// Arrow cursor shape.
+    arrow,
+    /// I-beam cursor shape (for text editing).
+    ibeam,
+    /// Crosshair cursor shape.
+    crosshair,
+    /// Hand cursor shape (for links and dragging).
+    hand,
+    /// Horizontal resize cursor shape.
+    hresize,
+    /// Vertical resize cursor shape.
+    vresize,
+};
+
+SGL_ENUM_INFO(
+    CursorShape,
+    {
+        {CursorShape::arrow, "arrow"},
+        {CursorShape::ibeam, "ibeam"},
+        {CursorShape::crosshair, "crosshair"},
+        {CursorShape::hand, "hand"},
+        {CursorShape::hresize, "hresize"},
+        {CursorShape::vresize, "vresize"},
+    }
+);
+SGL_ENUM_REGISTER(CursorShape);
 
 /**
  * \brief Window class.
@@ -63,13 +125,23 @@ public:
 
     /// The width of the window in pixels.
     uint32_t width() const { return m_width; }
+    void set_width(uint32_t width);
     /// The height of the window in pixels.
     uint32_t height() const { return m_height; }
+    void set_height(uint32_t height);
+
+    /// Size of the window in pixels.
+    uint2 size() const { return uint2{m_width, m_height}; }
+    void set_size(uint2 size);
 
     /// Resize the window.
     /// \param width The new width of the window in pixels.
     /// \param height The new height of the window in pixels.
     void resize(uint32_t width, uint32_t height);
+
+    /// Position of the window on the screen in pixels.
+    int2 position() const;
+    void set_position(int2 position);
 
     /// The title of the window.
     const std::string& title() const { return m_title; }
@@ -95,6 +167,10 @@ public:
     /// The mouse cursor mode.
     CursorMode cursor_mode() const { return m_cursor_mode; }
     void set_cursor_mode(CursorMode mode);
+
+    /// The mouse cursor shape.
+    CursorShape cursor_shape() const { return m_cursor_shape; }
+    void set_cursor_shape(CursorShape shape);
 
     // events
 
@@ -157,6 +233,8 @@ private:
     bool m_should_close{false};
 
     CursorMode m_cursor_mode{CursorMode::normal};
+    CursorShape m_cursor_shape{CursorShape::arrow};
+    std::array<GLFWcursor*, 6> m_cursor_cache{};
     float2 m_mouse_pos{0.f, 0.f};
     KeyModifierFlags m_mods{KeyModifierFlags::none};
 

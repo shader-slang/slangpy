@@ -17,12 +17,17 @@ SGL_DICT_TO_DESC_FIELD(extend_alpha, bool)
 SGL_DICT_TO_DESC_FIELD(allocate_mips, bool)
 SGL_DICT_TO_DESC_FIELD(generate_mips, bool)
 SGL_DICT_TO_DESC_FIELD(usage, TextureUsage)
+SGL_DICT_TO_DESC_FIELD(ya_handling, YAHandling)
 SGL_DICT_TO_DESC_END()
 } // namespace sgl
 
 SGL_PY_EXPORT(utils_texture_loader)
 {
     using namespace sgl;
+
+    nb::enum_<YAHandling>(m, "YAHandling")
+        .value("expand_to_rgba", YAHandling::expand_to_rgba)
+        .value("preserve_as_rg", YAHandling::preserve_as_rg);
 
     nb::class_<TextureLoader, Object> texture_loader(m, "TextureLoader", D(TextureLoader));
 
@@ -44,7 +49,8 @@ SGL_PY_EXPORT(utils_texture_loader)
         .def_rw("extend_alpha", &TextureLoader::Options::extend_alpha, D(TextureLoader, Options, extend_alpha))
         .def_rw("allocate_mips", &TextureLoader::Options::allocate_mips, D(TextureLoader, Options, allocate_mips))
         .def_rw("generate_mips", &TextureLoader::Options::generate_mips, D(TextureLoader, Options, generate_mips))
-        .def_rw("usage", &TextureLoader::Options::usage);
+        .def_rw("usage", &TextureLoader::Options::usage)
+        .def_rw("ya_handling", &TextureLoader::Options::ya_handling);
 
     nb::implicitly_convertible<nb::dict, TextureLoader::Options>();
 
@@ -77,12 +83,30 @@ SGL_PY_EXPORT(utils_texture_loader)
         )
         .def(
             "load_textures",
-            nb::overload_cast<std::span<std::filesystem::path>, std::optional<TextureLoader::Options>>(
+            nb::overload_cast<std::span<const Bitmap*>, std::span<const TextureLoader::Options>>(
+                &TextureLoader::load_textures
+            ),
+            "bitmaps"_a,
+            "options"_a,
+            D(TextureLoader, load_textures, 2)
+        )
+        .def(
+            "load_textures",
+            nb::overload_cast<std::span<const std::filesystem::path>, std::optional<TextureLoader::Options>>(
                 &TextureLoader::load_textures
             ),
             "paths"_a,
             "options"_a.none() = nb::none(),
-            D(TextureLoader, load_textures, 2)
+            D(TextureLoader, load_textures, 3)
+        )
+        .def(
+            "load_textures",
+            nb::overload_cast<std::span<const std::filesystem::path>, std::span<const TextureLoader::Options>>(
+                &TextureLoader::load_textures
+            ),
+            "paths"_a,
+            "options"_a,
+            D(TextureLoader, load_textures, 4)
         )
         .def(
             "load_texture_array",
@@ -95,7 +119,7 @@ SGL_PY_EXPORT(utils_texture_loader)
         )
         .def(
             "load_texture_array",
-            nb::overload_cast<std::span<std::filesystem::path>, std::optional<TextureLoader::Options>>(
+            nb::overload_cast<std::span<const std::filesystem::path>, std::optional<TextureLoader::Options>>(
                 &TextureLoader::load_texture_array
             ),
             "paths"_a,

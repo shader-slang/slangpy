@@ -39,7 +39,8 @@ namespace detail {
 
     SGL_API void on_slang_wrapper_destroyed(void* slang_reflection);
 
-    SGL_API void invalidate_all_reflection_data();
+    /// Invalidate reflection data. If device is set, only reflection data owned by that device is invalidated.
+    SGL_API void invalidate_reflection_data(Device* device = nullptr);
 } // namespace detail
 
 
@@ -198,6 +199,8 @@ public:
     virtual void _hot_reload_invalidate() { m_owner = nullptr; }
 
     bool is_valid() const { return m_owner != nullptr; }
+
+    const Object* owner() const { return m_owner.get(); }
 
 protected:
     ref<const Object> m_owner;

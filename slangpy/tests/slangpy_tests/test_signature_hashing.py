@@ -5,7 +5,7 @@ from time import time
 
 from slangpy import DeviceType, float3, Module
 import slangpy.core.function as kff
-from slangpy.types.buffer import NDBuffer
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 # We mess with cache in this suite, so make sure it gets turned on correctly before each test
@@ -29,7 +29,7 @@ def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Mo
 def test_kernel_reuse(device_type: DeviceType):
     add_vectors = load_module(device_type).add_vectors.as_func()
 
-    encoder = NDBuffer(helpers.get_device(device_type), int, 4)
+    encoder = Tensor.empty(helpers.get_device(device_type), dtype=int, shape=(4,))
 
     count = 1000
 
@@ -43,9 +43,9 @@ def test_kernel_reuse(device_type: DeviceType):
 
     kff.ENABLE_CALLDATA_CACHE = True
 
-    a = NDBuffer(helpers.get_device(device_type), float3, 1)
-    b = NDBuffer(helpers.get_device(device_type), float3, 1)
-    res = NDBuffer(helpers.get_device(device_type), float3, 1)
+    a = Tensor.empty(helpers.get_device(device_type), dtype=float3, shape=(1,))
+    b = Tensor.empty(helpers.get_device(device_type), dtype=float3, shape=(1,))
+    res = Tensor.empty(helpers.get_device(device_type), dtype=float3, shape=(1,))
 
     add_vectors(a, b, _result=res)
 

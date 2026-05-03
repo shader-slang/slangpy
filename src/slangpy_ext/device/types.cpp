@@ -357,7 +357,7 @@ SGL_PY_EXPORT(device_types)
         .def_rw("layout", &CoopVecMatrixDesc::layout, D(CoopVecMatrixDesc, layout))
         .def_rw("size", &CoopVecMatrixDesc::size, D(CoopVecMatrixDesc, size))
         .def_rw("offset", &CoopVecMatrixDesc::offset, D(CoopVecMatrixDesc, offset))
-        .def_rw("row_col_stride", &CoopVecMatrixDesc::row_col_stride, D_NA(CoopVecMatrixDesc, row_col_stride));
+        .def_rw("row_col_stride", &CoopVecMatrixDesc::row_col_stride, D(CoopVecMatrixDesc, row_col_stride));
 
     nb::implicitly_convertible<nb::dict, CoopVecMatrixDesc>();
 }
