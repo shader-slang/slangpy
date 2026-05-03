@@ -94,14 +94,15 @@ public:
     }
 
     template<typename T>
-        requires(HasWriteToCursor<T, BufferElementCursor>)
+        requires(HasWriteToCursor<T, ShaderCursor>)
     void set(const T& value) const
     {
-        value.write_to_cursor(*this);
+        ShaderCursor cursor = *this;
+        value.write_to_cursor(cursor);
     }
 
     template<typename T>
-        requires(!HasWriteToCursor<T, BufferElementCursor>)
+        requires(!HasWriteToCursor<T, ShaderCursor>)
     void set(const T& value) const;
 
     void _set_array_unsafe(
