@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import pytest
-from time import time
-import numpy as np
-
-from slangpy import DeviceType, BufferUsage, QueryType, ResourceState, grid, float3
-from slangpy.types import Tensor, Tensor
-from slangpy.testing import helpers
-
+from time import sleep, time
 from typing import Any, cast
+
+import numpy as np
+import pytest
+
+from slangpy import (BufferUsage, DeviceType, QueryType, ResourceState, float3,
+                     grid)
+from slangpy.testing import helpers
+from slangpy.types import Tensor
 
 # Filter default device types to only include those that support pointers
 # TODO: Metal does support pointers but the is a slang bug leading to incorrect Metal shader code
@@ -72,6 +73,39 @@ int test_copy_pointer_value(int* ptr) {
     )
 
     res = function(buffer.device_address)
+
+    assert res == 42, f"Expected 42, got {res}"
+
+
+# Sets up a single buffer with 1 entry in, passes it as a pointer
+# and returns the value pointed to. Tries a few different usages
+# to make sure there aren't some weird memory type issues.
+@pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
+@pytest.mark.parametrize("usage", USAGES)
+def test_copy_pointer_value_large_buffer(
+    device_type: DeviceType, usage: BufferUsage
+):
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "test_copy_pointer_value_large_buffer",
+        r"""
+int test_copy_pointer_value_large_buffer(int* ptr, uint idx) {
+    return ptr[idx];
+}
+""",
+    )
+
+    buffer = device.create_buffer(
+        size=4 * 65536,  # Size of int in bytes times number of ints
+        usage=usage,
+        data=np.arange(65536, dtype=np.int32),  # Initialize with a range of values
+    )
+
+    sleep(10)
+
+    res = function(buffer.device_address, idx=42)
 
     assert res == 42, f"Expected 42, got {res}"
 
