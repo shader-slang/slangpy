@@ -82,6 +82,41 @@ def test_load_module_from_source(test_id: str, device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_load_module_from_source_dedup(test_id: str, device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+
+    source = """
+        [shader("compute")]
+        [numthreads(1, 1, 1)]
+        void main(uint3 tid: SV_DispatchThreadID) { }
+    """
+
+    # Loading the same module name with the same source twice must succeed.
+    name = f"dedup_same_name_{test_id}"
+    module_a = device.load_module_from_source(module_name=name, source=source)
+    module_b = device.load_module_from_source(module_name=name, source=source)
+    assert module_a is not None
+    assert module_b is not None
+
+    # Loading the same module name with different source must raise an exception.
+    with pytest.raises(SlangCompileError, match="already loaded with different source"):
+        device.load_module_from_source(
+            module_name=name,
+            source="""
+                [shader("compute")]
+                [numthreads(2, 2, 1)]
+                void main(uint3 tid: SV_DispatchThreadID) { }
+            """,
+        )
+
+    # Loading the same source with two different module names must succeed.
+    module_c = device.load_module_from_source(module_name=f"dedup_name_1_{test_id}", source=source)
+    module_d = device.load_module_from_source(module_name=f"dedup_name_2_{test_id}", source=source)
+    assert module_c is not None
+    assert module_d is not None
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_load_program(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 

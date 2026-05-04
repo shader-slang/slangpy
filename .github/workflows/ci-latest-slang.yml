@@ -52,7 +52,7 @@ jobs:
       SLANG_PATH: ${{ github.workspace }}/slang/build/${{ matrix.config }}/bin
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           lfs: true
@@ -91,7 +91,7 @@ jobs:
       SLANG_PATH: ${{ github.workspace }}/slang/build/${{ matrix.config }}/bin
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           lfs: true

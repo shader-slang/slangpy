@@ -10,6 +10,20 @@ from slangpy.testing import helpers
 
 from typing import Any
 
+
+class WrappedTextureHandle:
+    def __init__(self, value: int):
+        self.m_value = value
+
+    def get_this(self) -> dict[str, Any]:
+        return {"_type": "TextureHandle", "value": self.m_value}
+
+
+class SelfReturningWrapper:
+    def get_this(self) -> "SelfReturningWrapper":
+        return self
+
+
 TESTS = [
     ("f_bool", "bool", "true", True),
     ("f_bool1", "bool1", "false", spy.bool1(False)),
@@ -328,6 +342,49 @@ def make_copy_module(device_type: spy.DeviceType, tests: list[Any]):
     return (device.create_compute_kernel(prog), resource_type_layout)
 
 
+def make_pointer_cursor_layout(device_type: spy.DeviceType):
+    code = """
+    struct PointerInfo {
+        int* _ptr;
+        __init(int* ptr) {
+            _ptr = ptr;
+        }
+    };
+
+    [shader("compute"), numthreads(1, 1, 1)]
+    void compute_main(RWStructuredBuffer<PointerInfo> infos) {
+    }
+    """
+    mod_name = "test_buffer_cursor_PointerInfo_" + hashlib.sha256(code.encode()).hexdigest()[0:8]
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source(mod_name, code)
+    resource_type_layout = module.layout.get_type_layout(
+        module.layout.find_type_by_name("StructuredBuffer<PointerInfo>")
+    )
+    return (device, resource_type_layout.element_type_layout, spy.Module(module))
+
+
+def make_marshaled_object_layout(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source(
+        "test_buffer_cursor_marshaled_objects",
+        """
+struct TextureHandle {
+    uint value;
+};
+
+struct TestType {
+    TextureHandle textures[2];
+};
+
+StructuredBuffer<TestType> buffer;
+""",
+    )
+    return module.layout.get_type_layout(
+        module.layout.find_type_by_name("StructuredBuffer<TestType>")
+    )
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("seed", RAND_SEEDS)
 def test_cursor_read_write(device_type: spy.DeviceType, seed: int):
@@ -458,6 +515,57 @@ def test_cursor_lifetime(device_type: spy.DeviceType):
 
     # Ensure we can still write to the element (as it should be holding a reference to the cursor)
     element["f_int32"] = 123
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_cursor_pointer_fields(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    if not device.has_feature(spy.Feature.pointer):
+        pytest.skip("Pointers not supported on this device.")
+
+    (device, element_type_layout, module) = make_pointer_cursor_layout(device_type)
+
+    slang_struct = module.find_struct("PointerInfo")
+    assert slang_struct is not None
+    obj = slang_struct(123)  # Make sure we can construct a struct with a ptr field without error
+    assert obj["_ptr"] == 123
+
+    data = np.array([10, 20, 30, 40], dtype=np.int32)
+    tensor = spy.Tensor.from_numpy(device, data)
+    view = tensor.view((2,), offset=2)
+
+    cursor = spy.BufferCursor(device_type, element_type_layout, 1)
+    cursor[0]["_ptr"] = tensor.storage.device_address
+    assert cursor[0]["_ptr"].read() == tensor.storage.device_address
+
+    cursor[0]["_ptr"] = tensor
+    assert cursor[0]["_ptr"].read() == tensor.storage.device_address
+
+    cursor[0]["_ptr"] = view
+    assert cursor[0]["_ptr"].read() == tensor.storage.device_address + 2 * data.itemsize
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_marshaled_object_list(device_type: spy.DeviceType):
+    resource_type_layout = make_marshaled_object_layout(device_type)
+
+    cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
+    element = cursor[0]
+    element["textures"] = [WrappedTextureHandle(11), WrappedTextureHandle(22)]
+
+    textures = element["textures"].read()
+    assert [texture["value"] for texture in textures] == [11, 22]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_marshaled_object_self_returning_get_this(device_type: spy.DeviceType):
+    resource_type_layout = make_marshaled_object_layout(device_type)
+
+    cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 1)
+    element = cursor[0]
+
+    with pytest.raises(RuntimeError, match="Expected dict"):
+        element["textures"] = [SelfReturningWrapper(), SelfReturningWrapper()]
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
