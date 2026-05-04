@@ -5,14 +5,14 @@ on:
     inputs:
       build_type:
         description: |
-          dev: .devN version → Artifactory (+ slangpy-torch)
-          artifactory-release: sgl.h version → Artifactory (+ slangpy-torch)
+          nightly: .devN version → Artifactory (+ slangpy-torch)
+          internal: sgl.h version → Artifactory (+ slangpy-torch)
           release: sgl.h version → PyPI + GitHub Release (slangpy only)
           build-only: sgl.h version → artifacts only, no upload (slangpy only)
         required: true
-        default: 'dev'
+        default: 'nightly'
         type: choice
-        options: [dev, artifactory-release, release, build-only]
+        options: [nightly, internal, release, build-only]
 
 env:
   CIBW_BUILD_VERBOSITY: 1
@@ -96,11 +96,11 @@ jobs:
 
       - name: Compute dev_n
         id: devver
-        if: inputs.build_type == 'dev'
+        if: inputs.build_type == 'nightly'
         uses: ./.github/actions/compute-dev-version
 
       - name: Compute version override
-        if: inputs.build_type == 'dev'
+        if: inputs.build_type == 'nightly'
         shell: bash
         run: |
           MAJOR=$(grep '#define SGL_VERSION_MAJOR' src/sgl/sgl.h | awk '{print $3}')
@@ -141,7 +141,7 @@ jobs:
 
   slangpy_torch_sdist:
     name: Build slangpy-torch sdist
-    if: inputs.build_type == 'dev' || inputs.build_type == 'artifactory-release'
+    if: inputs.build_type == 'nightly' || inputs.build_type == 'internal'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -159,14 +159,14 @@ jobs:
 
       - name: Compute dev_n
         id: devver
-        if: inputs.build_type == 'dev'
+        if: inputs.build_type == 'nightly'
         uses: ./.github/actions/compute-dev-version
 
       - name: Patch version
         shell: bash
         run: |
           BASE_VER=$(grep '^version = ' src/slangpy_torch/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          if [ "${{ inputs.build_type }}" = "dev" ]; then
+          if [ "${{ inputs.build_type }}" = "nightly" ]; then
             NEW_VER="${BASE_VER}.dev${{ steps.devver.outputs.dev_n }}"
           else
             NEW_VER="${BASE_VER}"
@@ -186,7 +186,7 @@ jobs:
 
   slangpy_torch_wheels_linux:
     name: "slangpy-torch (linux, torch${{ matrix.torch_version }}, py${{ matrix.python }})"
-    if: inputs.build_type == 'dev' || inputs.build_type == 'artifactory-release'
+    if: inputs.build_type == 'nightly' || inputs.build_type == 'internal'
     runs-on: ubuntu-latest
     container: "nvidia/cuda:12.8.1-devel-ubuntu22.04"
     timeout-minutes: 30
@@ -219,14 +219,14 @@ jobs:
 
       - name: Compute dev_n
         id: devver
-        if: inputs.build_type == 'dev'
+        if: inputs.build_type == 'nightly'
         uses: ./.github/actions/compute-dev-version
 
       - name: Patch version
         run: |
           BASE_VER=$(grep '^version = ' src/slangpy_torch/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           TORCH_TAG=$(echo "${{ matrix.torch_version }}" | tr -d '.')
-          if [ "${{ inputs.build_type }}" = "dev" ]; then
+          if [ "${{ inputs.build_type }}" = "nightly" ]; then
             PKG_VER="${BASE_VER}.dev${{ steps.devver.outputs.dev_n }}+torch${TORCH_TAG}"
           else
             PKG_VER="${BASE_VER}+torch${TORCH_TAG}"
@@ -252,7 +252,7 @@ jobs:
 
   slangpy_torch_wheels_windows:
     name: "slangpy-torch (windows, torch${{ matrix.torch_version }}, py${{ matrix.python }})"
-    if: inputs.build_type == 'dev' || inputs.build_type == 'artifactory-release'
+    if: inputs.build_type == 'nightly' || inputs.build_type == 'internal'
     runs-on: windows-latest
     timeout-minutes: 60
     strategy:
@@ -287,7 +287,7 @@ jobs:
 
       - name: Compute dev_n
         id: devver
-        if: inputs.build_type == 'dev'
+        if: inputs.build_type == 'nightly'
         uses: ./.github/actions/compute-dev-version
 
       - name: Patch version
@@ -295,7 +295,7 @@ jobs:
         run: |
           BASE_VER=$(grep '^version = ' src/slangpy_torch/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           TORCH_TAG=$(echo "${{ matrix.torch_version }}" | tr -d '.')
-          if [ "${{ inputs.build_type }}" = "dev" ]; then
+          if [ "${{ inputs.build_type }}" = "nightly" ]; then
             PKG_VER="${BASE_VER}.dev${{ steps.devver.outputs.dev_n }}+torch${TORCH_TAG}"
           else
             PKG_VER="${BASE_VER}+torch${TORCH_TAG}"
@@ -400,7 +400,7 @@ jobs:
 
   upload_artifactory:
     name: Upload dev wheels to Artifactory
-    if: inputs.build_type == 'dev' || inputs.build_type == 'artifactory-release'
+    if: inputs.build_type == 'nightly' || inputs.build_type == 'internal'
     runs-on: { group: nvrgfx, labels: [Linux, X64] }
     needs: [wheels, slangpy_torch_sdist, slangpy_torch_wheels_linux, slangpy_torch_wheels_windows]
 
