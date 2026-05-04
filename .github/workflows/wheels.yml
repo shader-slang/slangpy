@@ -94,20 +94,19 @@ jobs:
             echo "virtualenv.pyz already cached at $VENV_FILE"
           fi
 
-      - name: Compute version
+      - name: Compute dev_n
+        id: devver
+        if: inputs.build_type == 'dev'
+        uses: ./.github/actions/compute-dev-version
+
+      - name: Compute version override
+        if: inputs.build_type == 'dev'
         shell: bash
         run: |
-          # Dev-only: compute .devN override. Release/artifactory-release/build-only
-          # fall through to setup.py reading from sgl.h.
-          if [ "${{ inputs.build_type }}" = "dev" ]; then
-            MAJOR=$(grep '#define SGL_VERSION_MAJOR' src/sgl/sgl.h | awk '{print $3}')
-            MINOR=$(grep '#define SGL_VERSION_MINOR' src/sgl/sgl.h | awk '{print $3}')
-            NEXT_MINOR=$((MINOR + 1))
-            LAST_VER_COMMIT=$(git log -1 -G 'SGL_VERSION_(MAJOR|MINOR|PATCH)' --format=%H -- src/sgl/sgl.h)
-            [ -z "$LAST_VER_COMMIT" ] && LAST_VER_COMMIT=$(git rev-list --max-parents=0 HEAD)
-            DEV_N=$(git rev-list --count ${LAST_VER_COMMIT}..HEAD)
-            echo "SLANGPY_VERSION_OVERRIDE=${MAJOR}.${NEXT_MINOR}.0.dev${DEV_N}" >> $GITHUB_ENV
-          fi
+          MAJOR=$(grep '#define SGL_VERSION_MAJOR' src/sgl/sgl.h | awk '{print $3}')
+          MINOR=$(grep '#define SGL_VERSION_MINOR' src/sgl/sgl.h | awk '{print $3}')
+          NEXT_MINOR=$((MINOR + 1))
+          echo "SLANGPY_VERSION_OVERRIDE=${MAJOR}.${NEXT_MINOR}.0.dev${{ steps.devver.outputs.dev_n }}" >> $GITHUB_ENV
 
       - name: Set CIBW_ARCHS
         shell: bash
@@ -158,15 +157,17 @@ jobs:
       - name: Install build tools
         run: python -m pip install build
 
+      - name: Compute dev_n
+        id: devver
+        if: inputs.build_type == 'dev'
+        uses: ./.github/actions/compute-dev-version
+
       - name: Patch version
         shell: bash
         run: |
           BASE_VER=$(grep '^version = ' src/slangpy_torch/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           if [ "${{ inputs.build_type }}" = "dev" ]; then
-            LAST_VER_COMMIT=$(git log -1 -G 'SGL_VERSION_(MAJOR|MINOR|PATCH)' --format=%H -- src/sgl/sgl.h)
-            [ -z "$LAST_VER_COMMIT" ] && LAST_VER_COMMIT=$(git rev-list --max-parents=0 HEAD)
-            DEV_N=$(git rev-list --count ${LAST_VER_COMMIT}..HEAD)
-            NEW_VER="${BASE_VER}.dev${DEV_N}"
+            NEW_VER="${BASE_VER}.dev${{ steps.devver.outputs.dev_n }}"
           else
             NEW_VER="${BASE_VER}"
           fi
@@ -216,16 +217,17 @@ jobs:
           lfs: true
           fetch-depth: 0
 
+      - name: Compute dev_n
+        id: devver
+        if: inputs.build_type == 'dev'
+        uses: ./.github/actions/compute-dev-version
+
       - name: Patch version
         run: |
-          git config --global --add safe.directory $GITHUB_WORKSPACE
           BASE_VER=$(grep '^version = ' src/slangpy_torch/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           TORCH_TAG=$(echo "${{ matrix.torch_version }}" | tr -d '.')
           if [ "${{ inputs.build_type }}" = "dev" ]; then
-            LAST_VER_COMMIT=$(git log -1 -G 'SGL_VERSION_(MAJOR|MINOR|PATCH)' --format=%H -- src/sgl/sgl.h)
-            [ -z "$LAST_VER_COMMIT" ] && LAST_VER_COMMIT=$(git rev-list --max-parents=0 HEAD)
-            DEV_N=$(git rev-list --count ${LAST_VER_COMMIT}..HEAD)
-            PKG_VER="${BASE_VER}.dev${DEV_N}+torch${TORCH_TAG}"
+            PKG_VER="${BASE_VER}.dev${{ steps.devver.outputs.dev_n }}+torch${TORCH_TAG}"
           else
             PKG_VER="${BASE_VER}+torch${TORCH_TAG}"
           fi
@@ -283,16 +285,18 @@ jobs:
         with:
           arch: x64
 
+      - name: Compute dev_n
+        id: devver
+        if: inputs.build_type == 'dev'
+        uses: ./.github/actions/compute-dev-version
+
       - name: Patch version
         shell: bash
         run: |
           BASE_VER=$(grep '^version = ' src/slangpy_torch/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           TORCH_TAG=$(echo "${{ matrix.torch_version }}" | tr -d '.')
           if [ "${{ inputs.build_type }}" = "dev" ]; then
-            LAST_VER_COMMIT=$(git log -1 -G 'SGL_VERSION_(MAJOR|MINOR|PATCH)' --format=%H -- src/sgl/sgl.h)
-            [ -z "$LAST_VER_COMMIT" ] && LAST_VER_COMMIT=$(git rev-list --max-parents=0 HEAD)
-            DEV_N=$(git rev-list --count ${LAST_VER_COMMIT}..HEAD)
-            PKG_VER="${BASE_VER}.dev${DEV_N}+torch${TORCH_TAG}"
+            PKG_VER="${BASE_VER}.dev${{ steps.devver.outputs.dev_n }}+torch${TORCH_TAG}"
           else
             PKG_VER="${BASE_VER}+torch${TORCH_TAG}"
           fi
