@@ -295,6 +295,18 @@ if(SGL_ENABLE_ASAN)
     )
 endif()
 
+if(SGL_ENABLE_BUILD_METRICS)
+    target_compile_options(sgl
+        PUBLIC
+            # report frontend/backend time per TU
+            $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Bt+>
+            # produce per-TU trace JSON
+            $<$<CXX_COMPILER_ID:Clang>:-ftime-trace -ftime-trace-granularity=500>
+            # print per-pass timing summary
+            $<$<CXX_COMPILER_ID:GNU>:-ftime-report>
+    )
+endif()
+
 if(SGL_ENABLE_PCH)
     target_precompile_headers(sgl
         PRIVATE
