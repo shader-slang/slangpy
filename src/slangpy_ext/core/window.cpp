@@ -26,10 +26,9 @@ SGL_PY_EXPORT(core_window)
 {
     using namespace sgl;
 
-    nb::enum_<WindowMode>(m, "WindowMode", D(WindowMode))
-        .value("normal", WindowMode::normal)
-        .value("minimized", WindowMode::minimized)
-        .value("fullscreen", WindowMode::fullscreen);
+    nb::sgl_enum<WindowMode>(m, "WindowMode", D(WindowMode));
+    nb::sgl_enum<CursorMode>(m, "CursorMode", D(CursorMode));
+    nb::sgl_enum<CursorShape>(m, "CursorShape", D(CursorShape));
 
     nb::class_<Window, Object> window(m, "Window", gc_helper_type_slots<Window>(), D(Window));
     window.def(
@@ -63,6 +62,7 @@ SGL_PY_EXPORT(core_window)
     window.def("set_clipboard", &Window::set_clipboard, "text"_a, D(Window, set_clipboard));
     window.def("get_clipboard", &Window::get_clipboard, D(Window, get_clipboard));
     window.def_prop_rw("cursor_mode", &Window::cursor_mode, &Window::set_cursor_mode, D(Window, cursor_mode));
+    window.def_prop_rw("cursor_shape", &Window::cursor_shape, &Window::set_cursor_shape, D(Window, cursor_shape));
 
     window.def_prop_rw("on_resize", &Window::on_resize, &Window::set_on_resize, nb::arg().none(), D(Window, on_resize));
     window.def_prop_rw(

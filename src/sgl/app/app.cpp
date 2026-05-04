@@ -150,7 +150,8 @@ void AppWindow::_run_frame()
 
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
 
-    if (get_format_info(texture->format()).is_float_format())
+    const FormatInfo& format_info = get_format_info(texture->format());
+    if (format_info.is_float_format() || format_info.is_normalized_format())
         command_encoder->clear_texture_float(texture, {}, float4{0.f, 0.f, 0.f, 1.f});
     else
         command_encoder->clear_texture_uint(texture, {}, uint4{0, 0, 0, 255});

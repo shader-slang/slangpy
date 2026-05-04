@@ -604,7 +604,7 @@ struct Test {
     int intvalue2;
 }
 void test_atomic_float_in_struct_access(int call_id, Test* buffer) {
-    Atomic<float>* cur = (Atomic<float>*) &buffer[call_id%10].value;
+    Atomic<float>* cur = (Atomic<float>*) __getAddress(buffer[call_id%10].value);
     cur.add(1.0f);
 }
 """,

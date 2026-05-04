@@ -58,9 +58,6 @@ public:
     /// True if this is an input tensor, false if it's an output tensor.
     /// Determines which saved tensor list to index into.
     bool is_input = true;
-
-    /// Read signature for cache key generation
-    void read_signature(SignatureBuilder* builder) const override;
 };
 
 /// Native marshall for torch.Tensor objects.

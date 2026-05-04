@@ -159,41 +159,6 @@ namespace {
 
 } // anonymous namespace
 
-// NativeTorchTensorDiffPair implementation
-
-void NativeTorchTensorDiffPair::read_signature(SignatureBuilder* builder) const
-{
-    // Write signature that combines both primal and grad tensor signatures
-    // This ensures that different primal/grad combinations get different cache keys
-    char buffer[128];
-
-    *builder << "TorchDiffPair\n";
-
-    // Add primal signature
-    // get_signature() returns 0 on success, non-zero on failure (does not throw)
-    if (!primal.is_none()) {
-        if (TorchBridge::instance().get_signature(primal.ptr(), buffer, sizeof(buffer)) == 0) {
-            *builder << "primal:" << buffer << "\n";
-        } else {
-            *builder << "primal:none\n";
-        }
-    } else {
-        *builder << "primal:none\n";
-    }
-
-    // Add grad signature
-    if (!grad.is_none()) {
-        if (TorchBridge::instance().get_signature(grad.ptr(), buffer, sizeof(buffer)) == 0) {
-            *builder << "grad:" << buffer << "\n";
-        } else {
-            *builder << "grad:none\n";
-        }
-    } else {
-        *builder << "grad:none\n";
-    }
-}
-
-
 NativeTorchTensorMarshall::NativeTorchTensorMarshall(
     int dims,
     bool writable,
