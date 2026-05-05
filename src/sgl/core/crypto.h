@@ -9,6 +9,7 @@
 #include <string_view>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 namespace sgl {
 
@@ -44,14 +45,51 @@ public:
      * Update hash by adding one byte.
      * \param byte Byte to hash.
      */
-    SHA1& update(uint8_t byte);
+    SHA1& update(uint8_t byte) { return update(&byte, 1); }
 
     /**
      * Update hash by adding the given data.
      * \param data Data to hash.
      * \param len Length of data in bytes.
      */
-    SHA1& update(const void* data, size_t len);
+    SGL_INLINE SHA1& update(const void* data, size_t len)
+    {
+        if (!data || len == 0)
+            return *this;
+
+        const uint8_t* ptr = reinterpret_cast<const uint8_t*>(data);
+        m_bits += static_cast<uint64_t>(len) * 8;
+
+        // If there's existing data in the buffer, try to fill it.
+        if (m_index != 0) {
+            uint32_t space = 64 - m_index;
+            if (len < space) {
+                std::memcpy(m_buf + m_index, ptr, len);
+                m_index += static_cast<uint32_t>(len);
+                return *this;
+            }
+            std::memcpy(m_buf + m_index, ptr, space);
+            process_block(m_buf);
+            m_index = 0;
+            ptr += space;
+            len -= space;
+        }
+
+        // Process full 64-byte blocks directly from input.
+        while (len >= 64) {
+            process_block(ptr);
+            ptr += 64;
+            len -= 64;
+        }
+
+        // Copy remaining bytes into buffer.
+        if (len > 0) {
+            std::memcpy(m_buf, ptr, len);
+            m_index = static_cast<uint32_t>(len);
+        }
+
+        return *this;
+    }
 
     /**
      * Update hash by adding the given string.
