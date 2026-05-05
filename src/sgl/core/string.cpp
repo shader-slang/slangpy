@@ -119,7 +119,7 @@ std::string format_byte_size(size_t size)
         return fmt::format("{:.2f} kB", size / 1024.0);
     else if (size < 1073741824ull)
         return fmt::format("{:.2f} MB", size / 1048576.0);
-#ifndef SGL_EMSCRIPTEN
+#if !SGL_EMSCRIPTEN
     else if (size < 1099511627776ull)
         return fmt::format("{:.2f} GB", size / 1073741824.0);
     else

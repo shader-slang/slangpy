@@ -8,7 +8,7 @@
 
 namespace sgl::renderdoc {
 
-#ifndef SGL_EMSCRIPTEN
+#if !SGL_EMSCRIPTEN
 
 /**
  * \brief Check if RenderDoc is available.

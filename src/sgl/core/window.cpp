@@ -25,7 +25,7 @@ using CGDirectDisplayID = void*;
 using id = void*;
 #endif
 
-#ifndef SGL_EMSCRIPTEN
+#if !SGL_EMSCRIPTEN
 #define GLFW_NATIVE_INCLUDE_NONE
 #include <GLFW/glfw3native.h>
 #endif
@@ -43,7 +43,7 @@ namespace {
             if (glfwInit() != GLFW_TRUE)
                 SGL_THROW("Failed to initialize GLFW");
 
-#ifndef SGL_EMSCRIPTEN
+#if !SGL_EMSCRIPTEN
             // Register mappings for NV controllers.
             // clang-format off
             static char nvPadMapping[] =
@@ -568,7 +568,7 @@ std::string Window::to_string() const
 
 void Window::poll_gamepad_input()
 {
-#ifndef SGL_EMSCRIPTEN
+#if !SGL_EMSCRIPTEN
     // Check if a gamepad is connected.
     if (m_gamepad_id == INVALID_GAMEPAD_ID) {
         for (int id = GLFW_JOYSTICK_1; id <= GLFW_JOYSTICK_LAST; ++id) {

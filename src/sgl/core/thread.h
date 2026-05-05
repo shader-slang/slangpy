@@ -18,7 +18,7 @@ namespace sgl::thread {
 SGL_API void static_init();
 SGL_API void static_shutdown();
 
-#ifdef SGL_EMSCRIPTEN
+#if SGL_EMSCRIPTEN
 // Mock implementation for Emscripten (single-threaded)
 using TaskHandle = void*;
 

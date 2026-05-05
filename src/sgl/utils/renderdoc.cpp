@@ -2,7 +2,7 @@
 
 #include "renderdoc.h"
 
-#ifndef SGL_EMSCRIPTEN
+#if !SGL_EMSCRIPTEN
 
 #include "sgl/core/error.h"
 #include "sgl/core/platform.h"

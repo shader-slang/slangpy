@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#ifdef SGL_HAS_CUDA
+#include "sgl/core/config.h"
+
+#if SGL_HAS_CUDA
 
 #include "cuda_utils.h"
 
