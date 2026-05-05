@@ -380,8 +380,10 @@ namespace {
 
 #if SGL_MSVC
 #define SGL_SHA_CE_TARGET
-#else
+#elif SGL_CLANG
 #define SGL_SHA_CE_TARGET __attribute__((target("crypto")))
+#else
+#define SGL_SHA_CE_TARGET __attribute__((target("+crypto")))
 #endif
 
     SGL_SHA_CE_TARGET
