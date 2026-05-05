@@ -558,17 +558,19 @@ namespace {
 
     ProcessBlockFn get_process_block_fn()
     {
+        static ProcessBlockFn fn = []() -> ProcessBlockFn
+        {
 #if SGL_X86_64
-        if (cpu_has_sha_ni())
-            return sha1_process_block_shani;
+            if (cpu_has_sha_ni())
+                return sha1_process_block_shani;
 #elif SGL_ARM64
-        if (cpu_has_sha1_ce())
-            return sha1_process_block_arm_ce;
+            if (cpu_has_sha1_ce())
+                return sha1_process_block_arm_ce;
 #endif
-        return sha1_process_block_software;
+            return sha1_process_block_software;
+        }();
+        return fn;
     }
-
-    static ProcessBlockFn s_process_block = get_process_block_fn();
 
 } // anonymous namespace
 
@@ -634,6 +636,6 @@ void SHA1::add_byte(uint8_t byte)
 
 void SHA1::process_block(const uint8_t* ptr)
 {
-    s_process_block(ptr, m_state);
+    get_process_block_fn()(ptr, m_state);
 }
 } // namespace sgl
