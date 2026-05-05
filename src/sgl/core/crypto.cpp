@@ -11,7 +11,12 @@
 #include <immintrin.h>
 #elif SGL_ARM64
 #include <arm_neon.h>
-#if SGL_LINUX
+#if SGL_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
+#elif SGL_LINUX
 #include <sys/auxv.h>
 #include <asm/hwcap.h>
 #endif
