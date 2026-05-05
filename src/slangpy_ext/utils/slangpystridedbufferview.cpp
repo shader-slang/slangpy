@@ -551,11 +551,36 @@ SGL_PY_EXPORT(utils_slangpy_strided_buffer_view)
         .def_prop_ro("usage", &StridedBufferView::usage)
         .def_prop_ro("memory_type", &StridedBufferView::memory_type)
         .def_prop_ro("storage", &StridedBufferView::storage)
-        .def("clear", &StridedBufferView::clear, "cmd"_a.none() = nullptr)
-        .def("cursor", &StridedBufferView::cursor, "start"_a.none() = std::nullopt, "count"_a.none() = std::nullopt)
+        .def(
+            "clear",
+            &StridedBufferView::clear,
+            "cmd"_a.none() = nb::none(),
+            "Fill the tensor with zeros. If no command buffer is provided, a new one is created and\n"
+            "immediately submitted. If a command buffer is provided the clear is simply appended to it\n"
+            "but not automatically submitted."
+        )
+        .def("cursor", &StridedBufferView::cursor, "start"_a.none() = nb::none(), "count"_a.none() = nb::none())
         .def("uniforms", &StridedBufferView::uniforms)
-        .def("to_numpy", &StridedBufferView::to_numpy, D_NA(StridedBufferView, to_numpy))
-        .def("to_torch", &StridedBufferView::to_torch, D_NA(StridedBufferView, to_torch))
+        .def(
+            "to_numpy",
+            &StridedBufferView::to_numpy,
+            "Copies tensor data into a numpy array with the same shape and strides. If the element type\n"
+            "of the tensor is representable in numpy (e.g. floats, ints, arrays/vectors thereof), the\n"
+            "ndarray will have a matching dtype. If the element type can't be represented in numpy (e.g. structs),\n"
+            "the ndarray will be an array over the bytes of the buffer elements\n"
+            "\n"
+            "Examples:\n"
+            "Tensor of dtype float3 with shape (4, 5)\n"
+            "    -> ndarray of dtype np.float32 with shape (4, 5, 3)\n"
+            "Tensor of dtype struct Foo {...} with shape (5, )\n"
+            "    -> ndarray of dtype np.uint8 with shape (5, sizeof(Foo))"
+        )
+        .def(
+            "to_torch",
+            &StridedBufferView::to_torch,
+            "Returns a view of the buffer data as a torch tensor with the same shape and strides.\n"
+            "See to_numpy for notes on dtype conversion."
+        )
         .def("copy_from_numpy", &StridedBufferView::copy_from_numpy, "data"_a, D_NA(StridedBufferView, copy_from_numpy))
         .def("copy_from_torch", &StridedBufferView::copy_from_torch, "tensor"_a)
         .def("is_contiguous", &StridedBufferView::is_contiguous, D_NA(&StridedBufferView, is_contiguous))
