@@ -9,6 +9,12 @@
 #include <cpuid.h>
 #endif
 #include <immintrin.h>
+#elif SGL_ARM64
+#include <arm_neon.h>
+#if SGL_LINUX
+#include <sys/auxv.h>
+#include <asm/hwcap.h>
+#endif
 #endif
 
 namespace sgl {
@@ -357,6 +363,190 @@ namespace {
 #undef SGL_SHA_TARGET
 #endif // SGL_X86_64
 
+#if SGL_ARM64
+    bool cpu_has_sha1_ce()
+    {
+#if SGL_MACOS
+        // Apple Silicon always has SHA1 crypto extensions.
+        return true;
+#elif SGL_LINUX
+        return (getauxval(AT_HWCAP) & HWCAP_SHA1) != 0;
+#elif SGL_WINDOWS
+        return IsProcessorFeaturePresent(PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE) != 0;
+#else
+        return false;
+#endif
+    }
+
+#if SGL_MSVC
+#define SGL_SHA_CE_TARGET
+#else
+#define SGL_SHA_CE_TARGET __attribute__((target("crypto")))
+#endif
+
+    SGL_SHA_CE_TARGET
+    void sha1_process_block_arm_ce(const uint8_t* data, uint32_t state[5])
+    {
+        // Load state into NEON registers.
+        uint32x4_t abcd = vld1q_u32(state);
+        uint32_t e0 = state[4];
+
+        // Save for final addition.
+        uint32x4_t abcd_save = abcd;
+        uint32_t e0_save = e0;
+
+        // Load message block (big-endian byte swap).
+        uint32x4_t msg0 = vreinterpretq_u32_u8(vrev32q_u8(vld1q_u8(data + 0)));
+        uint32x4_t msg1 = vreinterpretq_u32_u8(vrev32q_u8(vld1q_u8(data + 16)));
+        uint32x4_t msg2 = vreinterpretq_u32_u8(vrev32q_u8(vld1q_u8(data + 32)));
+        uint32x4_t msg3 = vreinterpretq_u32_u8(vrev32q_u8(vld1q_u8(data + 48)));
+
+        uint32x4_t tmp0, tmp1;
+
+        // Rounds 0-3
+        tmp0 = vaddq_u32(msg0, vdupq_n_u32(0x5a827999));
+        e0 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1cq_u32(abcd, e0_save, tmp0);
+        msg0 = vsha1su0q_u32(msg0, msg1, msg2);
+
+        // Rounds 4-7
+        tmp1 = vaddq_u32(msg1, vdupq_n_u32(0x5a827999));
+        uint32_t e1 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1cq_u32(abcd, e0, tmp1);
+        msg0 = vsha1su1q_u32(msg0, msg3);
+        msg1 = vsha1su0q_u32(msg1, msg2, msg3);
+
+        // Rounds 8-11
+        tmp0 = vaddq_u32(msg2, vdupq_n_u32(0x5a827999));
+        e0 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1cq_u32(abcd, e1, tmp0);
+        msg1 = vsha1su1q_u32(msg1, msg0);
+        msg2 = vsha1su0q_u32(msg2, msg3, msg0);
+
+        // Rounds 12-15
+        tmp1 = vaddq_u32(msg3, vdupq_n_u32(0x5a827999));
+        e1 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1cq_u32(abcd, e0, tmp1);
+        msg2 = vsha1su1q_u32(msg2, msg1);
+        msg3 = vsha1su0q_u32(msg3, msg0, msg1);
+
+        // Rounds 16-19
+        tmp0 = vaddq_u32(msg0, vdupq_n_u32(0x5a827999));
+        e0 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1cq_u32(abcd, e1, tmp0);
+        msg3 = vsha1su1q_u32(msg3, msg2);
+        msg0 = vsha1su0q_u32(msg0, msg1, msg2);
+
+        // Rounds 20-23
+        tmp1 = vaddq_u32(msg1, vdupq_n_u32(0x6ed9eba1));
+        e1 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1pq_u32(abcd, e0, tmp1);
+        msg0 = vsha1su1q_u32(msg0, msg3);
+        msg1 = vsha1su0q_u32(msg1, msg2, msg3);
+
+        // Rounds 24-27
+        tmp0 = vaddq_u32(msg2, vdupq_n_u32(0x6ed9eba1));
+        e0 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1pq_u32(abcd, e1, tmp0);
+        msg1 = vsha1su1q_u32(msg1, msg0);
+        msg2 = vsha1su0q_u32(msg2, msg3, msg0);
+
+        // Rounds 28-31
+        tmp1 = vaddq_u32(msg3, vdupq_n_u32(0x6ed9eba1));
+        e1 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1pq_u32(abcd, e0, tmp1);
+        msg2 = vsha1su1q_u32(msg2, msg1);
+        msg3 = vsha1su0q_u32(msg3, msg0, msg1);
+
+        // Rounds 32-35
+        tmp0 = vaddq_u32(msg0, vdupq_n_u32(0x6ed9eba1));
+        e0 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1pq_u32(abcd, e1, tmp0);
+        msg3 = vsha1su1q_u32(msg3, msg2);
+        msg0 = vsha1su0q_u32(msg0, msg1, msg2);
+
+        // Rounds 36-39
+        tmp1 = vaddq_u32(msg1, vdupq_n_u32(0x6ed9eba1));
+        e1 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1pq_u32(abcd, e0, tmp1);
+        msg0 = vsha1su1q_u32(msg0, msg3);
+        msg1 = vsha1su0q_u32(msg1, msg2, msg3);
+
+        // Rounds 40-43
+        tmp0 = vaddq_u32(msg2, vdupq_n_u32(0x8f1bbcdc));
+        e0 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1mq_u32(abcd, e1, tmp0);
+        msg1 = vsha1su1q_u32(msg1, msg0);
+        msg2 = vsha1su0q_u32(msg2, msg3, msg0);
+
+        // Rounds 44-47
+        tmp1 = vaddq_u32(msg3, vdupq_n_u32(0x8f1bbcdc));
+        e1 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1mq_u32(abcd, e0, tmp1);
+        msg2 = vsha1su1q_u32(msg2, msg1);
+        msg3 = vsha1su0q_u32(msg3, msg0, msg1);
+
+        // Rounds 48-51
+        tmp0 = vaddq_u32(msg0, vdupq_n_u32(0x8f1bbcdc));
+        e0 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1mq_u32(abcd, e1, tmp0);
+        msg3 = vsha1su1q_u32(msg3, msg2);
+        msg0 = vsha1su0q_u32(msg0, msg1, msg2);
+
+        // Rounds 52-55
+        tmp1 = vaddq_u32(msg1, vdupq_n_u32(0x8f1bbcdc));
+        e1 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1mq_u32(abcd, e0, tmp1);
+        msg0 = vsha1su1q_u32(msg0, msg3);
+        msg1 = vsha1su0q_u32(msg1, msg2, msg3);
+
+        // Rounds 56-59
+        tmp0 = vaddq_u32(msg2, vdupq_n_u32(0x8f1bbcdc));
+        e0 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1mq_u32(abcd, e1, tmp0);
+        msg1 = vsha1su1q_u32(msg1, msg0);
+        msg2 = vsha1su0q_u32(msg2, msg3, msg0);
+
+        // Rounds 60-63
+        tmp1 = vaddq_u32(msg3, vdupq_n_u32(0xca62c1d6));
+        e1 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1pq_u32(abcd, e0, tmp1);
+        msg2 = vsha1su1q_u32(msg2, msg1);
+        msg3 = vsha1su0q_u32(msg3, msg0, msg1);
+
+        // Rounds 64-67
+        tmp0 = vaddq_u32(msg0, vdupq_n_u32(0xca62c1d6));
+        e0 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1pq_u32(abcd, e1, tmp0);
+        msg3 = vsha1su1q_u32(msg3, msg2);
+
+        // Rounds 68-71
+        tmp1 = vaddq_u32(msg1, vdupq_n_u32(0xca62c1d6));
+        e1 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1pq_u32(abcd, e0, tmp1);
+
+        // Rounds 72-75
+        tmp0 = vaddq_u32(msg2, vdupq_n_u32(0xca62c1d6));
+        e0 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1pq_u32(abcd, e1, tmp0);
+
+        // Rounds 76-79
+        tmp1 = vaddq_u32(msg3, vdupq_n_u32(0xca62c1d6));
+        e1 = vsha1h_u32(vgetq_lane_u32(abcd, 0));
+        abcd = vsha1pq_u32(abcd, e0, tmp1);
+
+        // Add saved state.
+        e0 = e1 + e0_save;
+        abcd = vaddq_u32(abcd, abcd_save);
+
+        // Store state.
+        vst1q_u32(state, abcd);
+        state[4] = e0;
+    }
+
+#undef SGL_SHA_CE_TARGET
+#endif // SGL_ARM64
+
     using ProcessBlockFn = void (*)(const uint8_t*, uint32_t[5]);
 
     ProcessBlockFn get_process_block_fn()
@@ -364,6 +554,9 @@ namespace {
 #if SGL_X86_64
         if (cpu_has_sha_ni())
             return sha1_process_block_shani;
+#elif SGL_ARM64
+        if (cpu_has_sha1_ce())
+            return sha1_process_block_arm_ce;
 #endif
         return sha1_process_block_software;
     }
