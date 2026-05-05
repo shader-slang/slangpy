@@ -115,10 +115,13 @@ public:
     std::string hex_digest() const;
 
 private:
-    void add_byte(uint8_t x);
-    void process_block(const uint8_t* ptr);
+    using ProcessBlockFn = void (*)(const uint8_t*, uint32_t[5]);
+
+    SGL_INLINE void process_block(const uint8_t* ptr) { m_process_block(ptr, m_state); }
+
     Digest finalize();
 
+    ProcessBlockFn m_process_block;
     uint32_t m_index;
     uint64_t m_bits;
     uint32_t m_state[5];

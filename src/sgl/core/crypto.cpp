@@ -575,7 +575,8 @@ namespace {
 } // anonymous namespace
 
 SHA1::SHA1()
-    : m_index(0)
+    : m_process_block(get_process_block_fn())
+    , m_index(0)
     , m_bits(0)
 {
     m_state[0] = 0x67452301;
@@ -605,6 +606,15 @@ std::string SHA1::hex_digest() const
 
 SHA1::Digest SHA1::finalize()
 {
+    auto add_byte = [this](uint8_t x)
+    {
+        m_buf[m_index++] = x;
+        if (m_index >= sizeof(m_buf)) {
+            m_index = 0;
+            process_block(m_buf);
+        }
+    };
+
     // Finalize with 0x80, some zero padding and the length in bits.
     add_byte(0x80);
     while (m_index % 64 != 56) {
@@ -624,18 +634,4 @@ SHA1::Digest SHA1::finalize()
     return digest;
 }
 
-void SHA1::add_byte(uint8_t byte)
-{
-    m_buf[m_index++] = byte;
-
-    if (m_index >= sizeof(m_buf)) {
-        m_index = 0;
-        process_block(m_buf);
-    }
-}
-
-void SHA1::process_block(const uint8_t* ptr)
-{
-    get_process_block_fn()(ptr, m_state);
-}
 } // namespace sgl
