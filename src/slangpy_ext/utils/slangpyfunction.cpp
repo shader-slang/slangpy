@@ -152,7 +152,7 @@ nb::object NativeFunctionNode::call_bwds(NativeCallData* fwds_call_data, nb::arg
     }
 
     // Gather runtime options (uniforms, cuda_stream, etc.)
-    // Note: we do NOT prepend 'this' to args here — the saved args from the
+    // Note: we do NOT prepend 'this' to args here - the saved args from the
     // forward pass already include it (it was prepended in NativeFunctionNode::call).
     auto& options = cached_options();
     gather_runtime_options(options);
@@ -167,7 +167,7 @@ nb::object NativeFunctionNode::call(nb::args args, nb::kwargs kwargs)
     NativeCallDataCache* cache = resolve_cache();
     SGL_CHECK(cache, "NativeFunctionNode::call: no cache found (was _native_cache set on root?)");
 
-    // Handle _result as type or string → delegate to Python self.return_type(resval).call(...)
+    // Handle _result as type or string -> delegate to Python self.return_type(resval).call(...)
     if (kwargs.contains("_result")) {
         nb::object resval = kwargs["_result"];
         if (nb::isinstance<nb::type_object>(resval) || nb::isinstance<nb::str>(resval)) {
@@ -179,7 +179,7 @@ nb::object NativeFunctionNode::call(nb::args args, nb::kwargs kwargs)
         }
     }
 
-    // Handle _append_to kwarg → delegate to append_to
+    // Handle _append_to kwarg -> delegate to append_to
     if (kwargs.contains("_append_to")) {
         nb::object app_to = kwargs["_append_to"];
         nb::del(kwargs["_append_to"]);

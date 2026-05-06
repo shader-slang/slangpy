@@ -4,6 +4,8 @@
 #include "sgl/math/quaternion.h"
 #include "sgl/math/matrix.h"
 
+#include <compare>
+
 using namespace sgl;
 
 TEST_SUITE_BEGIN("quaternion");
@@ -172,6 +174,44 @@ TEST_CASE("operators")
         CHECK(ne(q1, q2) == bool4(false, false, false, false));
         CHECK(ne(q1, q3) == bool4(false, false, false, true));
     }
+}
+
+TEST_CASE("equality_comparison")
+{
+    CHECK(quatf(1, 2, 3, 4) == quatf(1, 2, 3, 4));
+    CHECK_FALSE(quatf(1, 2, 3, 4) == quatf(1, 2, 3, 5));
+    CHECK_FALSE(quatf(1, 2, 3, 4) != quatf(1, 2, 3, 4));
+    CHECK(quatf(1, 2, 3, 4) != quatf(1, 2, 4, 4));
+}
+
+TEST_CASE("lexicographic_comparison")
+{
+    CHECK(quatf(1, 2, 3, 4) < quatf(1, 2, 3, 5));
+    CHECK(quatf(1, 2, 3, 4) < quatf(1, 3, 0, 0));
+    CHECK_FALSE(quatf(1, 2, 3, 4) < quatf(1, 2, 3, 4));
+    CHECK_FALSE(quatf(1, 3, 0, 0) < quatf(1, 2, 9, 9));
+
+    CHECK(quatf(1, 2, 3, 5) > quatf(1, 2, 3, 4));
+    CHECK_FALSE(quatf(1, 2, 3, 4) > quatf(1, 2, 3, 4));
+
+    CHECK(quatf(1, 2, 3, 4) <= quatf(1, 2, 3, 4));
+    CHECK(quatf(1, 2, 3, 4) <= quatf(1, 2, 3, 5));
+    CHECK_FALSE(quatf(1, 2, 3, 5) <= quatf(1, 2, 3, 4));
+
+    CHECK(quatf(1, 2, 3, 4) >= quatf(1, 2, 3, 4));
+    CHECK(quatf(1, 2, 3, 5) >= quatf(1, 2, 3, 4));
+    CHECK_FALSE(quatf(1, 2, 3, 4) >= quatf(1, 2, 3, 5));
+}
+
+TEST_CASE("three_way_comparison")
+{
+    auto c0 = quatf(1, 2, 3, 4) <=> quatf(1, 2, 3, 4);
+    auto c1 = quatf(1, 2, 3, 4) <=> quatf(1, 2, 3, 5);
+    auto c2 = quatf(1, 2, 3, 5) <=> quatf(1, 2, 3, 4);
+
+    CHECK(std::is_eq(c0));
+    CHECK(std::is_lt(c1));
+    CHECK(std::is_gt(c2));
 }
 
 TEST_CASE("multiply")

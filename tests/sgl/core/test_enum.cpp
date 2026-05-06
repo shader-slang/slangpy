@@ -28,7 +28,7 @@ enum class TestFlags {
 };
 SGL_ENUM_CLASS_OPERATORS(TestFlags);
 
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     TestFlags,
     {
         {TestFlags::A, "A"},
@@ -59,6 +59,9 @@ SGL_ENUM_REGISTER(TestStruct::TestEnum);
 static_assert(has_enum_info<void> == false);
 static_assert(has_enum_info<::TestEnum> == true);
 static_assert(has_enum_info<TestStruct::TestEnum> == true);
+
+static_assert(!EnumInfo<::TestEnum>::is_flags);
+static_assert(EnumInfo<::TestFlags>::is_flags);
 
 TEST_CASE("enum_has_value")
 {

@@ -502,7 +502,7 @@ public extension<T: IDifferentiable, let D : int> RWDiffTensor<T, D> where T.Dif
 }
 #endif
 
-// load_uniform for DiffTensor — wave-level gradient reduction.
+// load_uniform for DiffTensor - wave-level gradient reduction.
 // Implemented as an extension rather than a macro inside the struct because
 // WaveActiveSum requires __BuiltinFloatingPointType, but DiffTensor's generic T
 // is only constrained to IDifferentiable. Placing it in the struct body would

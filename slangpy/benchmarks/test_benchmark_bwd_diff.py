@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
-Benchmark: DiffTensor vs DiffTensorView backward — atomic contention.
+Benchmark: DiffTensor vs DiffTensorView backward - atomic contention.
 
 Two scenarios:
 
 1. Uniform access: y[tid] = w
    All threads load the same weight w. In backward, gradients for w
-   must be accumulated across all threads — atomic contention.
+   must be accumulated across all threads - atomic contention.
 
 2. Per-element access: y[tid] = x[tid] * x[tid]
-   Each thread reads/writes a unique index — no contention.
+   Each thread reads/writes a unique index - no contention.
    loadOnce/storeOnce avoids unnecessary atomics.
 
 GPU time is measured via timestamp query pools (no CPU overhead).
@@ -232,7 +232,7 @@ def test_bwd_dtv_load(
     n: int,
     benchmark_slang_function: BenchmarkSlangFunction,
 ) -> None:
-    """Uniform backward using DiffTensorView load() — atomic contention."""
+    """Uniform backward using DiffTensorView load() - atomic contention."""
     device = helpers.get_torch_device(device_type)
     module = _load_module(device)
     func = module.require_function("broadcast_dtv")
@@ -248,7 +248,7 @@ def test_bwd_dtv_load_uniform(
     n: int,
     benchmark_slang_function: BenchmarkSlangFunction,
 ) -> None:
-    """Uniform backward using DiffTensorView loadUniform() — wave reduction."""
+    """Uniform backward using DiffTensorView loadUniform() - wave reduction."""
     device = helpers.get_torch_device(device_type)
     module = _load_module(device)
     func = module.require_function("broadcast_dtv_uniform")

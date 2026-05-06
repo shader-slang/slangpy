@@ -436,21 +436,19 @@ public:
 
         ScopedID id(this);
         ScopedDisable disable(!m_enabled);
-        if (ImGui::Combo(
-                m_label.c_str(),
-                &m_value,
-                [](void* data, int idx, const char** out_text) -> bool
-                {
-                    auto& items = *reinterpret_cast<std::vector<std::string>*>(data);
-                    if (idx < 0 || idx >= items.size())
-                        return false;
-                    *out_text = items[idx].c_str();
-                    return true;
-                },
-                &m_items,
-                (int)m_items.size()
-            )) {
-            notify();
+        int item_count = static_cast<int>(m_items.size());
+        const char* preview = (m_value >= 0 && m_value < item_count) ? m_items[m_value].c_str() : "";
+        if (ImGui::BeginCombo(m_label.c_str(), preview)) {
+            for (int i = 0; i < item_count; i++) {
+                bool is_selected = (m_value == i);
+                if (ImGui::Selectable(m_items[i].c_str(), is_selected)) {
+                    m_value = i;
+                    notify();
+                }
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
         }
     }
 

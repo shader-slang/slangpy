@@ -13,6 +13,7 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     core/logger.cpp
     core/object.cpp
     core/platform.cpp
+    core/rfilter.cpp
     core/thread.cpp
     core/timer.cpp
     core/window.cpp

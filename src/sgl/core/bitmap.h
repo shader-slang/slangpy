@@ -51,6 +51,7 @@ derivative works thereof, in binary and source code form.
 #include "sgl/core/enum.h"
 #include "sgl/core/stream.h"
 #include "sgl/core/data_struct.h"
+#include "sgl/core/rfilter.h"
 
 #include <filesystem>
 #include <future>
@@ -242,6 +243,44 @@ public:
     ref<Bitmap> convert(PixelFormat pixel_format, ComponentType component_type, bool srgb_gamma) const;
 
     void convert(Bitmap* target) const;
+
+    /**
+     * \brief Resample into a pre-allocated target bitmap using a separable filter.
+     * Source and target must have the same pixel format, component type and channel count.
+     * Only supports float16 and float32 component types.
+     * \param target Pre-allocated target bitmap.
+     * \param filter Reconstruction filter to use.
+     * \param bc Horizontal and vertical boundary conditions for out-of-bounds lookups.
+     * \param clamp Optional (min, max) range to clamp output values.
+     */
+    void resample(
+        Bitmap* target,
+        ReconstructionFilter filter = BoxFilter{},
+        std::pair<FilterBoundaryCondition, FilterBoundaryCondition> bc
+        = {FilterBoundaryCondition::clamp, FilterBoundaryCondition::clamp},
+        std::pair<float, float> clamp
+        = {-std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()}
+    ) const;
+
+    /**
+     * \brief Resample to arbitrary resolution using a separable filter.
+     * Only supports float16 and float32 component types.
+     * \param width Target width.
+     * \param height Target height.
+     * \param filter Reconstruction filter to use.
+     * \param bc Horizontal and vertical boundary conditions for out-of-bounds lookups.
+     * \param clamp Optional (min, max) range to clamp output values.
+     * \return Returns a new bitmap containing the resampled image.
+     */
+    ref<Bitmap> resample(
+        uint32_t width,
+        uint32_t height,
+        ReconstructionFilter filter = BoxFilter{},
+        std::pair<FilterBoundaryCondition, FilterBoundaryCondition> bc
+        = {FilterBoundaryCondition::clamp, FilterBoundaryCondition::clamp},
+        std::pair<float, float> clamp
+        = {-std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()}
+    ) const;
 
     /// Equality operator.
     bool operator==(const Bitmap& other) const;

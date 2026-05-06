@@ -19,7 +19,7 @@ namespace sgl::slangpy {
 
 namespace {
     /// Helper function to extract shape from PyTorch tensor
-    /// Creates Shape directly and populates it - zero allocations for tensors with ≤8 dimensions
+    /// Creates Shape directly and populates it - zero allocations for tensors with <=8 dimensions
     Shape extract_shape(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
     {
         const size_t ndim = tensor.ndim();
@@ -33,7 +33,7 @@ namespace {
 
     /// Helper function to extract strides from PyTorch tensor
     /// Returns element strides directly (PyTorch stride() already returns element strides for nanobind)
-    /// Creates Shape directly and populates it - zero allocations for tensors with ≤8 dimensions
+    /// Creates Shape directly and populates it - zero allocations for tensors with <=8 dimensions
     Shape extract_strides(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
     {
         const size_t ndim = tensor.ndim();
@@ -54,7 +54,7 @@ namespace {
         const Shape& call_shape
     )
     {
-        Shape result = strides; // Uses copy constructor (inline if ≤8 dims, one allocation if >8)
+        Shape result = strides; // Uses copy constructor (inline if <=8 dims, one allocation if >8)
 
         // Get raw pointers once to avoid per-element m_uses_heap branching
         const int* transform_data = transform.data();

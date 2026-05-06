@@ -517,6 +517,22 @@ ref<SlangModule> SlangSession::load_module_from_source(
     std::optional<std::filesystem::path> path
 )
 {
+    // TODO: This is a workaround until we use a Slang release with this fix:
+    // https://github.com/shader-slang/slang/pull/10996
+    // Once this is fixed on the Slang side, we can remove the digest check and just rely on Slang's internal caching
+    // mechanism.
+    SHA1::Digest digest = SHA1(source).digest();
+    auto it = m_source_module_digests.find(module_name);
+    if (it != m_source_module_digests.end()) {
+        if (it->second != digest) {
+            throw SlangCompileError(
+                fmt::format("Module \"{}\" already loaded with different source in this session.", module_name)
+            );
+        }
+    } else {
+        m_source_module_digests.emplace(std::string{module_name}, digest);
+    }
+
     SlangModuleDesc desc;
     desc.module_name = module_name;
     desc.source = source;
@@ -916,9 +932,10 @@ void SlangModule::load(SlangSessionBuild& build_data) const
                 throw SlangCompileError(msg);
             }
         } else {
-            // TODO workaround: slang doesn't like loading the same source twice
-            static uint32_t id = 0;
-            std::string source_str = fmt::format("// {}\n{}", id++, desc.source);
+            // TODO: This is a workaround until we use a Slang release with this fix:
+            // https://github.com/shader-slang/slang/pull/10996
+            // Once this is fixed on the Slang side, we can remove this.
+            std::string source_str = fmt::format("// {}\n{}", desc.module_name, desc.source.value());
 
             SGL_CATCH_INTERNAL_SLANG_ERROR(
                 slang_module = session_data->slang_session->loadModuleFromSourceString(
@@ -980,15 +997,17 @@ ref<const ProgramLayout> SlangModule::layout() const
     if (m_cached_layout)
         return m_cached_layout;
 
+    slang::ProgramLayout* layout = nullptr;
     if (m_data->slang_component_type) {
         // Composed module: use the composite's layout
-        m_cached_layout
-            = ProgramLayout::from_slang(ref(const_cast<SlangModule*>(this)), m_data->slang_component_type->getLayout());
+        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = m_data->slang_component_type->getLayout());
     } else {
         // Regular module: use the slang module's layout
-        m_cached_layout
-            = ProgramLayout::from_slang(ref(const_cast<SlangModule*>(this)), m_data->slang_module->getLayout());
+        SGL_CATCH_INTERNAL_SLANG_ERROR(layout = m_data->slang_module->getLayout());
     }
+
+    SGL_CHECK(layout, "Slang module \"{}\" has no program layout.", name());
+    m_cached_layout = ProgramLayout::from_slang(ref(const_cast<SlangModule*>(this)), layout);
     return m_cached_layout;
 }
 

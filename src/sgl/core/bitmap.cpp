@@ -2362,4 +2362,157 @@ void Bitmap::write_exr(Stream* stream, int quality) const
 
 #endif // SGL_HAS_OPENEXR
 
+// ---------------------------------------------------------------------------
+// Resample / mipmap generation
+// ---------------------------------------------------------------------------
+
+void Bitmap::resample(
+    Bitmap* target,
+    ReconstructionFilter filter,
+    std::pair<FilterBoundaryCondition, FilterBoundaryCondition> bc,
+    std::pair<float, float> clamp
+) const
+{
+    SGL_CHECK(target != nullptr, "Target bitmap must not be null.");
+    SGL_CHECK(target->width() > 0 && target->height() > 0, "Target dimensions must be positive.");
+    SGL_CHECK(!empty(), "Cannot resample an empty bitmap.");
+    SGL_CHECK(
+        m_component_type == ComponentType::float16 || m_component_type == ComponentType::float32,
+        "resample() only supports float16 and float32 component types. Convert the bitmap first."
+    );
+    SGL_CHECK(
+        m_pixel_format == target->pixel_format() && m_component_type == target->component_type()
+            && channel_count() == target->channel_count(),
+        "resample(): source and target bitmaps must have the same pixel format, component type and channel count."
+    );
+
+    uint32_t src_w = m_width;
+    uint32_t src_h = m_height;
+    uint32_t dst_width = target->width();
+    uint32_t dst_height = target->height();
+    uint32_t channels = channel_count();
+
+    // Short-circuit: if dimensions match, just copy.
+    if (src_w == dst_width && src_h == dst_height) {
+        std::memcpy(target->data(), data(), buffer_size());
+        return;
+    }
+
+    size_t total_src = static_cast<size_t>(src_w) * src_h * channels;
+    size_t total_dst = static_cast<size_t>(dst_width) * dst_height * channels;
+
+    // Work in float32 for precision, even for float16 inputs.
+    const bool is_float16 = m_component_type == ComponentType::float16;
+    std::vector<float> src_float_storage;
+    const float* src_ptr;
+    if (is_float16) {
+        src_float_storage.resize(total_src);
+        const math::float16_t* src = data_as<math::float16_t>();
+        for (size_t i = 0; i < total_src; ++i)
+            src_float_storage[i] = static_cast<float>(src[i]);
+        src_ptr = src_float_storage.data();
+    } else {
+        src_ptr = data_as<float>();
+    }
+
+    const bool needs_h = (src_w != dst_width);
+    const bool needs_v = (src_h != dst_height);
+
+    // Use std::visit to dispatch on the concrete filter type.
+    auto do_resample = [&](const auto& f)
+    {
+        const float* h_input = src_ptr;
+        std::vector<float> intermediate;
+
+        if (needs_h) {
+            // Horizontal pass: resample each row from src_w to dst_width.
+            Resampler<float> h_resampler(f, src_w, dst_width);
+            h_resampler.set_boundary_condition(bc.first);
+            // Apply clamp only if this is the final (or only) pass.
+            if (!needs_v)
+                h_resampler.set_clamp(clamp);
+
+            size_t total_inter = static_cast<size_t>(dst_width) * src_h * channels;
+            intermediate.resize(total_inter);
+            thread::parallel_for(
+                thread::blocked_range<uint32_t>(0, src_h, 100),
+                [&](const thread::blocked_range<uint32_t>& range)
+                {
+                    for (uint32_t y = *range.begin(); y < *range.end(); ++y) {
+                        h_resampler.resample(
+                            &h_input[static_cast<size_t>(y) * src_w * channels],
+                            1,
+                            &intermediate[static_cast<size_t>(y) * dst_width * channels],
+                            1,
+                            channels
+                        );
+                    }
+                }
+            );
+        }
+
+        // Source for vertical pass: intermediate if H was done, otherwise original.
+        const float* v_input = needs_h ? intermediate.data() : src_ptr;
+        uint32_t v_input_width = needs_h ? dst_width : src_w;
+
+        if (needs_v) {
+            // Vertical pass: resample each column from src_h to dst_height.
+            Resampler<float> v_resampler(f, src_h, dst_height);
+            v_resampler.set_boundary_condition(bc.second);
+            v_resampler.set_clamp(clamp);
+
+            std::vector<float> dst_float(total_dst);
+            thread::parallel_for(
+                thread::blocked_range<uint32_t>(0, dst_width, 100),
+                [&](const thread::blocked_range<uint32_t>& range)
+                {
+                    for (uint32_t x = *range.begin(); x < *range.end(); ++x) {
+                        v_resampler.resample(
+                            &v_input[static_cast<size_t>(x) * channels],
+                            v_input_width,
+                            &dst_float[static_cast<size_t>(x) * channels],
+                            dst_width,
+                            channels
+                        );
+                    }
+                }
+            );
+            return dst_float;
+        } else {
+            // Only horizontal pass was needed; intermediate is the final result.
+            return intermediate;
+        }
+    };
+
+    std::vector<float> dst_float = std::visit(do_resample, filter);
+
+    // Write output to target bitmap.
+    if (is_float16) {
+        math::float16_t* dst = target->data_as<math::float16_t>();
+        for (size_t i = 0; i < total_dst; ++i)
+            dst[i] = math::float16_t(dst_float[i]);
+    } else {
+        std::memcpy(target->data(), dst_float.data(), total_dst * sizeof(float));
+    }
+}
+
+ref<Bitmap> Bitmap::resample(
+    uint32_t dst_width,
+    uint32_t dst_height,
+    ReconstructionFilter filter,
+    std::pair<FilterBoundaryCondition, FilterBoundaryCondition> bc,
+    std::pair<float, float> clamp
+) const
+{
+    SGL_CHECK(dst_width > 0 && dst_height > 0, "Target dimensions must be positive.");
+
+    ref<Bitmap> result
+        = make_ref<Bitmap>(m_pixel_format, m_component_type, dst_width, dst_height, channel_count(), channel_names());
+    result->set_srgb_gamma(m_srgb_gamma);
+
+    resample(result.get(), filter, bc, clamp);
+
+    return result;
+}
+
 } // namespace sgl

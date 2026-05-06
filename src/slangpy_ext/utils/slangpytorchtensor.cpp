@@ -159,41 +159,6 @@ namespace {
 
 } // anonymous namespace
 
-// NativeTorchTensorDiffPair implementation
-
-void NativeTorchTensorDiffPair::read_signature(SignatureBuilder* builder) const
-{
-    // Write signature that combines both primal and grad tensor signatures
-    // This ensures that different primal/grad combinations get different cache keys
-    char buffer[128];
-
-    *builder << "TorchDiffPair\n";
-
-    // Add primal signature
-    // get_signature() returns 0 on success, non-zero on failure (does not throw)
-    if (!primal.is_none()) {
-        if (TorchBridge::instance().get_signature(primal.ptr(), buffer, sizeof(buffer)) == 0) {
-            *builder << "primal:" << buffer << "\n";
-        } else {
-            *builder << "primal:none\n";
-        }
-    } else {
-        *builder << "primal:none\n";
-    }
-
-    // Add grad signature
-    if (!grad.is_none()) {
-        if (TorchBridge::instance().get_signature(grad.ptr(), buffer, sizeof(buffer)) == 0) {
-            *builder << "grad:" << buffer << "\n";
-        } else {
-            *builder << "grad:none\n";
-        }
-    } else {
-        *builder << "grad:none\n";
-    }
-}
-
-
 NativeTorchTensorMarshall::NativeTorchTensorMarshall(
     int dims,
     bool writable,
@@ -267,9 +232,9 @@ void NativeTorchTensorMarshall::ensure_binding_info_cached(
         // name here rather than re-deriving from binding access mode or vector type kind.
         //
         // Naming convention:
-        //   "RW" prefix → read-write (primal writable + readable, gradient rw)
-        //   "W"  prefix → write-only primal, read-only gradient
-        //   No prefix   → read-only primal, write-only gradient
+        //   "RW" prefix -> read-write (primal writable + readable, gradient rw)
+        //   "W"  prefix -> write-only primal, read-only gradient
+        //   No prefix   -> read-only primal, write-only gradient
         std::string_view type_name = field.slang_type_layout()->getName();
         bool starts_rw = type_name.size() >= 2 && type_name[0] == 'R' && type_name[1] == 'W';
         bool starts_w = !type_name.empty() && type_name[0] == 'W' && !starts_rw;
@@ -279,9 +244,9 @@ void NativeTorchTensorMarshall::ensure_binding_info_cached(
 
         // Gradient needs copy-back when the gradient is writable (output).
         // This happens when the primal is readable (not write-only):
-        //   DiffTensor   → read primal, write grad → copy back grad
-        //   WDiffTensor  → write primal, read grad → no grad copy-back
-        //   RWDiffTensor → rw primal, rw grad      → copy back grad
+        //   DiffTensor   -> read primal, write grad -> copy back grad
+        //   WDiffTensor  -> write primal, read grad -> no grad copy-back
+        //   RWDiffTensor -> rw primal, rw grad      -> copy back grad
         bool primal_readable = !starts_w;
         m_cached_binding_info.needs_grad_copyback = m_cached_binding_info.has_grad_fields && primal_readable;
     }
@@ -590,7 +555,7 @@ void NativeTorchTensorMarshall::write_shader_cursor_with_interop(
     } else if (m_cached_binding_info.has_grad_fields && primal_info.numel > 0
                && context->device()->supports_cuda_interop()) {
         // Backward pass: output slot has grad but no primal. Shader still needs a valid
-        // primal buffer (DiffTensor layout). Create and zero — we have no tensor to copy from.
+        // primal buffer (DiffTensor layout). Create and zero - we have no tensor to copy from.
         primal_interop_buffer = create_zeroed_interop_buffer(primal_info);
     }
 

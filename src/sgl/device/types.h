@@ -689,7 +689,7 @@ enum class RenderTargetWriteMask : uint8_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(RenderTargetWriteMask);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     RenderTargetWriteMask,
     {
         {RenderTargetWriteMask::none, "none"},
@@ -795,7 +795,7 @@ enum class RayTracingPipelineFlags : uint8_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(RayTracingPipelineFlags);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     RayTracingPipelineFlags,
     {
         {RayTracingPipelineFlags::none, "none"},

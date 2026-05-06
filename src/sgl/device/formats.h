@@ -102,6 +102,13 @@ enum class Format : uint32_t {
     bc7_unorm = static_cast<uint32_t>(rhi::Format::BC7Unorm),
     bc7_unorm_srgb = static_cast<uint32_t>(rhi::Format::BC7UnormSrgb),
 
+    astc4x4_unorm = static_cast<uint32_t>(rhi::Format::ASTC4x4Unorm),
+    astc4x4_unorm_srgb = static_cast<uint32_t>(rhi::Format::ASTC4x4UnormSrgb),
+    astc6x6_unorm = static_cast<uint32_t>(rhi::Format::ASTC6x6Unorm),
+    astc6x6_unorm_srgb = static_cast<uint32_t>(rhi::Format::ASTC6x6UnormSrgb),
+    astc8x8_unorm = static_cast<uint32_t>(rhi::Format::ASTC8x8Unorm),
+    astc8x8_unorm_srgb = static_cast<uint32_t>(rhi::Format::ASTC8x8UnormSrgb),
+
     count,
 };
 
@@ -196,6 +203,12 @@ SGL_ENUM_INFO(
         {Format::bc7_unorm, "bc7_unorm"},
         {Format::bc7_unorm_srgb, "bc7_unorm_srgb"},
 
+        {Format::astc4x4_unorm, "astc4x4_unorm"},
+        {Format::astc4x4_unorm_srgb, "astc4x4_unorm_srgb"},
+        {Format::astc6x6_unorm, "astc6x6_unorm"},
+        {Format::astc6x6_unorm_srgb, "astc6x6_unorm_srgb"},
+        {Format::astc8x8_unorm, "astc8x8_unorm"},
+        {Format::astc8x8_unorm_srgb, "astc8x8_unorm_srgb"},
     }
 );
 SGL_ENUM_REGISTER(Format);
@@ -245,7 +258,7 @@ enum class FormatChannels : uint32_t {
 };
 
 SGL_ENUM_CLASS_OPERATORS(FormatChannels);
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     FormatChannels,
     {
         {FormatChannels::none, "none"},
@@ -364,7 +377,7 @@ enum class FormatSupport : uint32_t {
 };
 SGL_ENUM_CLASS_OPERATORS(FormatSupport);
 
-SGL_ENUM_INFO(
+SGL_ENUM_FLAGS_INFO(
     FormatSupport,
     {
         {FormatSupport::none, "none"},

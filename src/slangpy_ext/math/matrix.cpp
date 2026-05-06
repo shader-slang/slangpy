@@ -189,6 +189,10 @@ void bind_matrix_type(nb::module_& m, const char* name)
 
     mat.def(nb::self == nb::self);
     mat.def(nb::self != nb::self);
+    mat.def(nb::self < nb::self);
+    mat.def(nb::self > nb::self);
+    mat.def(nb::self <= nb::self);
+    mat.def(nb::self >= nb::self);
 
     // Intrinsics
 

@@ -676,7 +676,7 @@ private:
 class NativeCallRuntimeOptions : Object {
     SGL_OBJECT(NativeCallRuntimeOptions)
 public:
-    nb::object this_obj; // Default null handle — check with is_valid(), not is_none()
+    nb::object this_obj; // Default null handle - check with is_valid(), not is_none()
     NativeHandle cuda_stream;
     bool is_ray_tracing{false};
     int thread_count{0};
@@ -1023,7 +1023,7 @@ public:
         return nullptr;
     }
 
-    /// Store call data (cache miss only — takes ownership of std::string key).
+    /// Store call data (cache miss only - takes ownership of std::string key).
     void add_call_data(std::string signature, const ref<NativeCallData>& call_data)
     {
         m_cache[std::move(signature)] = call_data;

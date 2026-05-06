@@ -7,7 +7,7 @@ test calls ``debug_build_call_data`` once and asserts on both ``.code`` and
 ``.debug_only_bindings``.
 
 Negative-gate tests (``test_*_not_direct_bind``, ``test_*_keeps_wrapper``) must
-remain passing — they cover types that are NOT direct-bind eligible.
+remain passing - they cover types that are NOT direct-bind eligible.
 
 Functional dispatch tests are included only for scenarios that are not covered
 by other test files (``test_simple_function_call.py``, ``test_tensor.py``, etc.).
@@ -102,7 +102,7 @@ def build_bwds_call_data_full(
 
 
 # ===========================================================================
-# Codegen + binding flag tests (1–21)
+# Codegen + binding flag tests (1-21)
 # ===========================================================================
 
 
@@ -124,7 +124,7 @@ def test_scalar_direct_bind(device_type: spy.DeviceType):
     # Scalars use raw type directly, no wrapper
     assert_not_contains(code, "ValueType<int>")
     assert_not_contains(code, "typealias _t_a", "typealias _t_b")
-    # Direct assignment — loaded into __tmp_ locals
+    # Direct assignment - loaded into __tmp_ locals
     assert_load_statement(code, "a", "b")
     # _result is auto-created writable RWValueRef
     assert_contains(code, "RWValueRef<int>")
@@ -228,7 +228,7 @@ def test_valueref_read_direct_bind(device_type: spy.DeviceType):
 # 6 -------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_writable_valueref_not_direct_bind(device_type: spy.DeviceType):
-    """Writable ValueRef (inout) must not be direct-bind — needs buffer read/write."""
+    """Writable ValueRef (inout) must not be direct-bind - needs buffer read/write."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "inc", "void inc(inout int v) { v += 1; }")
     cd = func.debug_build_call_data(ValueRef(5))
@@ -244,7 +244,7 @@ def test_writable_valueref_not_direct_bind(device_type: spy.DeviceType):
 # 7 -------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_struct_all_scalar_direct_bind(device_type: spy.DeviceType):
-    """S{float x, y} via dict — all-scalar, direct-bind.
+    """S{float x, y} via dict - all-scalar, direct-bind.
 
     Merges: test_gate_struct_uses_slangpy_load, test_struct_all_scalars_binding_flag.
     """
@@ -260,7 +260,7 @@ float sum(S s) { return s.x + s.y; }
         device, "sum", src, {"_type": "S", "x": 1.0, "y": 2.0}
     )
 
-    # Direct-bind struct — raw type, no __slangpy_load
+    # Direct-bind struct - raw type, no __slangpy_load
     assert_not_contains(code, "__slangpy_load")
     assert_not_contains(code, "typealias _t_s")
     assert_contains(code, "S __tmp_s;")
@@ -280,7 +280,7 @@ float sum(S s) { return s.x + s.y; }
     ids=["vector_field", "array_field", "matrix_field"],
 )
 def test_struct_composite_fields_direct_bind(device_type: spy.DeviceType, variant: str):
-    """Struct with composite field (vector / array / matrix) all dim-0 → direct-bind."""
+    """Struct with composite field (vector / array / matrix) all dim-0 -> direct-bind."""
     device = helpers.get_device(device_type)
 
     if variant == "vector_field":
@@ -324,7 +324,7 @@ float4x4 apply(S s) { return s.m * s.scale; }
 
     code, bindings = generate_code_and_bindings(device, func_name, src, arg)
 
-    # Struct is direct-bind — raw type, no __slangpy_load
+    # Struct is direct-bind - raw type, no __slangpy_load
     assert_not_contains(code, "__slangpy_load")
     param_name = "foo" if variant == "array_field" else "s"
     assert_not_contains(code, f"typealias _t_{param_name}")
@@ -338,7 +338,7 @@ float4x4 apply(S s) { return s.m * s.scale; }
 # 9 -------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_deeply_nested_struct_direct_bind(device_type: spy.DeviceType):
-    """3-level deep Top{Mid{Bot}} — all-scalar, direct-bind at every level.
+    """3-level deep Top{Mid{Bot}} - all-scalar, direct-bind at every level.
 
     Subsumes 2-level nested struct tests. Merges: test_gate_deeply_nested_struct_codegen,
     test_gate_deeply_nested_struct_binding_flags.
@@ -383,7 +383,7 @@ float compute(Top t) { return t.mid.bot.v * float(t.mid.c) * t.s; }
 # 10 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_struct_mixed_fields(device_type: spy.DeviceType):
-    """S{x(tensor), y(scalar)} — struct NOT direct-bind, scalar child keeps direct-bind.
+    """S{x(tensor), y(scalar)} - struct NOT direct-bind, scalar child keeps direct-bind.
 
     Merges: test_gate_struct_mixed_fields_codegen, test_mixed_children_direct_bind_codegen,
     test_gate_struct_mixed_fields_binding_flags.
@@ -401,20 +401,20 @@ void apply(S s, float scale) {}
         device, "apply", src, {"_type": "S", "x": tensor_x, "y": 1.0}, 2.0
     )
 
-    # Struct NOT direct-bind — inline struct with __slangpy_load
+    # Struct NOT direct-bind - inline struct with __slangpy_load
     assert_contains(code, "__slangpy_load")
     assert_contains(code, "struct _t_s")
     assert_not_contains(code, "typealias _t_s = S;")
-    # Child y direct-bind — type used directly, direct assignment
+    # Child y direct-bind - type used directly, direct assignment
     assert_not_contains(code, "typealias _t_y")
     assert_contains(code, "float y;")
     assert_contains(code, "value.y = y;")
     assert_not_contains(code, "ValueType<float>")
     assert_not_contains(code, "_m_y")
-    # Child x — tensor
+    # Child x - tensor
     assert_contains(code, "Tensor<float, 1>")
     assert_contains(code, "x.__slangpy_load(context.map(_m_x),value.x)")
-    # Independent scalar arg 'scale' — direct-bind
+    # Independent scalar arg 'scale' - direct-bind
     assert_not_contains(code, "typealias _t_scale")
     assert_contains(code, "float __tmp_scale;")
 
@@ -429,7 +429,7 @@ void apply(S s, float scale) {}
 # 11 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_nested_struct_with_tensor_child(device_type: spy.DeviceType):
-    """Outer{Inner{x(tensor),y(scalar)},s} — Outer/Inner NOT direct-bind, scalar leaves are.
+    """Outer{Inner{x(tensor),y(scalar)},s} - Outer/Inner NOT direct-bind, scalar leaves are.
 
     Merges: test_gate_nested_struct_with_tensor_child_codegen,
     test_gate_nested_struct_with_tensor_child_binding_flags.
@@ -477,7 +477,7 @@ float compute(Outer o) { return (o.inner.x + o.inner.y) * o.s; }
 # 12 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_struct_return_not_direct_bind(device_type: spy.DeviceType):
-    """Function returning struct — _result uses wrapper, NOT direct-bind.
+    """Function returning struct - _result uses wrapper, NOT direct-bind.
 
     Merges: test_gate_struct_return_codegen, test_gate_struct_return_binding_flags.
     """
@@ -493,7 +493,7 @@ S make_struct(int a, int b) { return { a, b }; }
 
     # Scalar inputs direct-bind
     assert_not_contains(code, "typealias _t_a", "typealias _t_b")
-    # _result writable — uses wrapper
+    # _result writable - uses wrapper
     assert_contains(code, "__slangpy_store")
     assert_contains(code, "_m__result")
 
@@ -506,7 +506,7 @@ S make_struct(int a, int b) { return { a, b }; }
 # 13 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_struct_vectorized_2d_child(device_type: spy.DeviceType):
-    """S{float3 v (2D tensor→float3), float s (scalar)} — struct NOT direct-bind."""
+    """S{float3 v (2D tensor->float3), float s (scalar)} - struct NOT direct-bind."""
     device = helpers.get_device(device_type)
     src = """
 struct S {
@@ -533,7 +533,7 @@ float3 apply(S st) { return st.v * st.s; }
 # 14 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_mixed_scalar_and_tensor(device_type: spy.DeviceType):
-    """Scalar + tensor args — scalar direct-bind, tensor not.
+    """Scalar + tensor args - scalar direct-bind, tensor not.
 
     Merges: test_gate_mixed_args_scalar_and_tensor, test_gate_mixed_args_direct_bind_flags.
     """
@@ -587,7 +587,7 @@ float tensor_read(Tensor<float,1> t) {
 # 16 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_2d_tensor_to_vector(device_type: spy.DeviceType):
-    """2D Tensor (10,3) → float3: trailing dim consumed by vector, outer dispatched.
+    """2D Tensor (10,3) -> float3: trailing dim consumed by vector, outer dispatched.
 
     Merges: test_gate_2d_tensor_to_vector_codegen, test_gate_2d_tensor_to_vector_binding_flags.
     """
@@ -615,7 +615,7 @@ def test_2d_tensor_to_vector(device_type: spy.DeviceType):
 # 17 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_3d_tensor_to_vector(device_type: spy.DeviceType):
-    """3D Tensor (2,5,3) → float3: two outer dims dispatched (call_dim=2).
+    """3D Tensor (2,5,3) -> float3: two outer dims dispatched (call_dim=2).
 
     Merges: test_gate_3d_tensor_to_vector_codegen, test_gate_3d_tensor_to_vector_binding_flags.
     """
@@ -637,7 +637,7 @@ def test_3d_tensor_to_vector(device_type: spy.DeviceType):
 # 18 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_2d_tensor_to_scalar(device_type: spy.DeviceType):
-    """2D Tensor (4,5) → float: both dims dispatched (call_dim=2).
+    """2D Tensor (4,5) -> float: both dims dispatched (call_dim=2).
 
     Merges: test_gate_2d_tensor_to_scalar_codegen, test_gate_2d_tensor_to_scalar_binding_flags.
     """
@@ -658,7 +658,7 @@ def test_2d_tensor_to_scalar(device_type: spy.DeviceType):
 # 19 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_2d_tensor_to_array(device_type: spy.DeviceType):
-    """2D Tensor (4,8) → half[8]: trailing dim consumed by array, outer dispatched.
+    """2D Tensor (4,8) -> half[8]: trailing dim consumed by array, outer dispatched.
 
     Merges: test_gate_2d_tensor_to_1d_array_codegen, test_gate_2d_tensor_to_1d_array_binding_flags.
     """
@@ -688,7 +688,7 @@ half[NumChannels] tensor_test_channels<let NumChannels : int>(half[NumChannels] 
 # 20 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_mixed_vectorized_dim0_tensor(device_type: spy.DeviceType):
-    """One tensor vectorized (2D→float3) and another at dim-0 (Tensor<float,1> param).
+    """One tensor vectorized (2D->float3) and another at dim-0 (Tensor<float,1> param).
 
     Merges: test_gate_mixed_vectorized_and_dim0_tensor_codegen,
     test_gate_mixed_vectorized_and_dim0_tensor_binding_flags.
@@ -705,7 +705,7 @@ float dot_lookup(float3 v, Tensor<float,1> weights) {
         device, "dot_lookup", src, vec_tensor, weight_tensor
     )
 
-    # v: vectorized dim-1 (2D→float3)
+    # v: vectorized dim-1 (2D->float3)
     assert_contains(code, "_m_v")
     assert_contains(code, "__slangpy_load")
     # weights: dim-0 direct-bind
@@ -739,7 +739,7 @@ def test_long_type_name_typealias(device_type: spy.DeviceType):
     """
     device = helpers.get_device(device_type)
 
-    # --- Long name → typealias emitted ---
+    # --- Long name -> typealias emitted ---
     long_src = f"""
 struct {_LONG_STRUCT_NAME} {{
     float x;
@@ -756,7 +756,7 @@ float sum({_LONG_STRUCT_NAME} s) {{ return s.x + s.y; }}
         "_t_s s;" in code_long or "uniform _t_s s" in code_long
     ), "Expected typealias usage (_t_s s; or uniform _t_s s) not found"
 
-    # --- Short name → no typealias ---
+    # --- Short name -> no typealias ---
     short_src = f"""
 struct {_SHORT_STRUCT_NAME} {{
     float x;
@@ -787,7 +787,7 @@ struct {_LONG_STRUCT_NAME} {{
 
 
 # ===========================================================================
-# Negative gates (22–24) — must remain passing
+# Negative gates (22-24) - must remain passing
 # ===========================================================================
 
 
@@ -829,7 +829,7 @@ float apply(S s) { return float(s.seed.x) * s.scale; }
 # 23 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorized_scalar_keeps_wrapper(device_type: spy.DeviceType):
-    """1D tensor → float: vectorized, keeps __slangpy_load."""
+    """1D tensor -> float: vectorized, keeps __slangpy_load."""
     device = helpers.get_device(device_type)
     tensor = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
     code, _ = generate_code_and_bindings(
@@ -899,7 +899,7 @@ float polynomial(float a, float b) {
 
 
 # ===========================================================================
-# Functional GPU dispatch — novel scenarios only (26–34)
+# Functional GPU dispatch - novel scenarios only (26-34)
 # ===========================================================================
 
 
@@ -955,7 +955,7 @@ float tensor_read(Tensor<float,1> t) {
 # 29 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_dispatch_2d_tensor_to_vector(device_type: spy.DeviceType):
-    """Dispatch 2D tensor → float3 and verify GPU result."""
+    """Dispatch 2D tensor -> float3 and verify GPU result."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(
         device, "scale", "float3 scale(float3 v, float s) { return v * s; }"
@@ -970,7 +970,7 @@ def test_dispatch_2d_tensor_to_vector(device_type: spy.DeviceType):
 # 30 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_dispatch_2d_tensor_to_array(device_type: spy.DeviceType):
-    """Dispatch 2D tensor → half[8] and verify GPU doubles each element."""
+    """Dispatch 2D tensor -> half[8] and verify GPU doubles each element."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(
         device,
@@ -1047,7 +1047,7 @@ float compute(Outer o) { return (o.inner.x + o.inner.y) * o.s; }
 # 33 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_dispatch_struct_vectorized_2d_child(device_type: spy.DeviceType):
-    """Dispatch struct with 2D tensor→float3 child and verify GPU result."""
+    """Dispatch struct with 2D tensor->float3 child and verify GPU result."""
     device = helpers.get_device(device_type)
     src = """
 struct S {
@@ -1100,7 +1100,7 @@ int sum_inner(Outer outer) {
 
 
 # ===========================================================================
-# Phase 2 — entry-point params (35–38, 40)
+# Phase 2 - entry-point params (35-38, 40)
 # ===========================================================================
 
 
@@ -1266,9 +1266,9 @@ float polynomial(float a, float b) {
 # 40 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_fallback_calldata_large_params(device_type: spy.DeviceType):
-    """Fallback path: many float4x4 params exceed threshold → ParameterBlock<CallData>.
+    """Fallback path: many float4x4 params exceed threshold -> ParameterBlock<CallData>.
 
-    8 × float4x4 = 512 bytes + 12 bytes _thread_count = 524 bytes.
+    8 x float4x4 = 512 bytes + 12 bytes _thread_count = 524 bytes.
     Exceeds Vulkan (128) and D3D12 (256); CUDA (4096) stays on fast path.
     Asserts codegen patterns match the expected path.
 
@@ -1298,12 +1298,12 @@ float4x4 sum8(float4x4 a, float4x4 b, float4x4 c, float4x4 d,
 
     threshold = device.info.limits.max_entry_point_uniform_size
     if threshold >= 524:
-        # CUDA: fast path — no CallData, individual uniform params
+        # CUDA: fast path - no CallData, individual uniform params
         assert cd.use_entrypoint_args is True
         assert_not_contains(code, "struct CallData")
         assert_contains(code, "uniform uint3 _thread_count")
     else:
-        # Vulkan/D3D12: fallback — struct CallData + ParameterBlock
+        # Vulkan/D3D12: fallback - struct CallData + ParameterBlock
         assert cd.use_entrypoint_args is False
         assert_contains(code, "struct CallData")
         assert_contains(code, "ParameterBlock<CallData> call_data")
@@ -1312,7 +1312,7 @@ float4x4 sum8(float4x4 a, float4x4 b, float4x4 c, float4x4 d,
 
 
 # ===========================================================================
-# Prim-mode trampoline elimination (41–42)
+# Prim-mode trampoline elimination (41-42)
 # ===========================================================================
 
 
@@ -1326,7 +1326,7 @@ def test_prim_no_trampoline(device_type: spy.DeviceType):
     )
     # No trampoline function generated
     assert_not_contains(code, "void _trampoline(")
-    # compute_main does NOT call _trampoline — it inlines the call
+    # compute_main does NOT call _trampoline - it inlines the call
     main_idx = code.index("void compute_main(")
     main_body = code[main_idx:]
     assert "_trampoline(" not in main_body
@@ -1336,7 +1336,7 @@ def test_prim_no_trampoline(device_type: spy.DeviceType):
 # 42 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_struct_array_of_structs_codegen(device_type: spy.DeviceType):
-    """Struct with array-of-structs field: Outer{Inner items[4]} — all dim-0, direct-bind."""
+    """Struct with array-of-structs field: Outer{Inner items[4]} - all dim-0, direct-bind."""
     device = helpers.get_device(device_type)
     src = """
 struct Inner {
@@ -1376,7 +1376,7 @@ int sum_inner(Outer outer) {
 
 
 # ===========================================================================
-# Additional use_entrypoint_args coverage (43–46)
+# Additional use_entrypoint_args coverage (43-46)
 # ===========================================================================
 
 
@@ -1424,7 +1424,7 @@ float sum(S s) { return s.x + s.y; }
 # 46 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_tensor_uses_entrypoint_args(device_type: spy.DeviceType):
-    """Tensor args contribute descriptor-only (0 inline bytes) → entry-point params."""
+    """Tensor args contribute descriptor-only (0 inline bytes) -> entry-point params."""
     if device_type == spy.DeviceType.metal:
         pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
@@ -1439,14 +1439,14 @@ def test_tensor_uses_entrypoint_args(device_type: spy.DeviceType):
 
 
 # ===========================================================================
-# Additional functional dispatch tests (47–49)
+# Additional functional dispatch tests (47-49)
 # ===========================================================================
 
 
 # 47 ------------------------------------------------------------------------
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_dispatch_valueref_read(device_type: spy.DeviceType):
-    """Dispatch with a read-only ValueRef input — direct-bind pipeline end-to-end."""
+    """Dispatch with a read-only ValueRef input - direct-bind pipeline end-to-end."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(
         device, "double_it", "float double_it(float v) { return v * 2; }"

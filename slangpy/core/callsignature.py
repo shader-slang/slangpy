@@ -173,7 +173,7 @@ def estimate_entrypoint_arguments_size(call: BoundCall, call_dimensionality: int
     total = 0
 
     for node in call.values():
-        # PackedArg types use ParameterBlock — excluded from inline accounting
+        # PackedArg types use ParameterBlock - excluded from inline accounting
         if node.create_param_block:
             continue
         if node.vector_type is not None:
@@ -183,9 +183,9 @@ def estimate_entrypoint_arguments_size(call: BoundCall, call_dimensionality: int
     # _thread_count: uint3 = 12 bytes
     total += 12
 
-    # Shape arrays: _grid_stride, _grid_dim, _call_dim — each is int[call_dimensionality]
+    # Shape arrays: _grid_stride, _grid_dim, _call_dim - each is int[call_dimensionality]
     if call_dimensionality > 0:
-        total += call_dimensionality * 4 * 3  # 3 arrays × N × sizeof(int)
+        total += call_dimensionality * 4 * 3  # 3 arrays x N x sizeof(int)
 
     return total
 

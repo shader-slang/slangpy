@@ -121,7 +121,7 @@ class ValueMarshall(NativeValueMarshall):
     ) -> bool:
         if not binding.direct_bind:
             return False
-        # ValueMarshall is read-only — suppress the default store
+        # ValueMarshall is read-only - suppress the default store
         return True
 
     # Values just return themselves for raw dispatch

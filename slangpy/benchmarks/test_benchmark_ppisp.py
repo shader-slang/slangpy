@@ -38,7 +38,7 @@ RESOLUTION_W = 1920
 RESOLUTION_H = 1080
 BATCH_SIZES = [100_000, 1_000_000]
 
-# Fixture parameters: 10 outer × 100 inner = 1000 total timed calls
+# Fixture parameters: 10 outer x 100 inner = 1000 total timed calls
 ITERATIONS = 10
 SUB_ITERATIONS = 100
 WARMUP_ITERATIONS = 10
@@ -199,7 +199,7 @@ def test_ppisp_correctness_backward(include_pytorch: bool) -> None:
         CORRECTNESS_BATCH, NUM_CAMERAS, NUM_FRAMES, RESOLUTION_W, RESOLUTION_H, torch_device
     )
 
-    # Uniform indices — see comment in test_ppisp_correctness_forward.
+    # Uniform indices - see comment in test_ppisp_correctness_forward.
     cam = 0 if include_pytorch else 2
     frm = 0 if include_pytorch else 5
     camera_idcs = torch.full((CORRECTNESS_BATCH,), cam, device=torch_device, dtype=torch.int16)
@@ -608,7 +608,7 @@ def test_ppisp_backward_slangpy_manual_hook(
 # =============================================================================
 # CPU dispatch overhead benchmarks (tiny batch, no GPU sync, high sub-iterations)
 #
-# Measures pure Python→GPU dispatch overhead by making GPU kernel time negligible
+# Measures pure Python->GPU dispatch overhead by making GPU kernel time negligible
 # (batch_size=32) and removing torch.cuda.synchronize(). The measured time is
 # dominated by argument marshalling, CallData cache lookup, and dispatch.
 # =============================================================================
@@ -654,7 +654,7 @@ def test_ppisp_cpu_overhead_slangpy(
         rgb.grad.zero_()  # type: ignore[union-attr]
         output = model(rgb, pixel_coords, camera_idcs, frame_idcs)
         output.sum().backward()
-        # NO torch.cuda.synchronize() — measure CPU dispatch only
+        # NO torch.cuda.synchronize() - measure CPU dispatch only
 
     benchmark_python_function(
         device,
@@ -694,7 +694,7 @@ def test_ppisp_cpu_overhead_slangtorch(
         rgb.grad.zero_()  # type: ignore[union-attr]
         output = model(rgb, pixel_coords, camera_idcs, frame_idcs)
         output.sum().backward()
-        # NO torch.cuda.synchronize() — measure CPU dispatch only
+        # NO torch.cuda.synchronize() - measure CPU dispatch only
 
     benchmark_python_function(
         device,
