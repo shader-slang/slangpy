@@ -18,34 +18,6 @@ extern void write_shader_cursor(ShaderCursor& cursor, nb::object value);
 namespace sgl::slangpy {
 
 namespace {
-    /// Helper function to extract shape from PyTorch tensor
-    /// Creates Shape directly and populates it - zero allocations for tensors with <=8 dimensions
-    Shape extract_shape(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
-    {
-        const size_t ndim = tensor.ndim();
-        Shape shape(ndim);
-        int* shape_data = shape.data(); // Get pointer once
-        for (size_t i = 0; i < ndim; i++) {
-            shape_data[i] = static_cast<int>(tensor.shape(i));
-        }
-        return shape;
-    }
-
-    /// Helper function to extract strides from PyTorch tensor
-    /// Returns element strides directly (PyTorch stride() already returns element strides for nanobind)
-    /// Creates Shape directly and populates it - zero allocations for tensors with <=8 dimensions
-    Shape extract_strides(const nb::ndarray<nb::pytorch, nb::device::cuda>& tensor)
-    {
-        const size_t ndim = tensor.ndim();
-        Shape strides(ndim);
-        int* strides_data = strides.data(); // Get pointer once
-        for (size_t i = 0; i < ndim; i++) {
-            // nanobind's tensor.stride() returns element strides, not byte strides
-            strides_data[i] = static_cast<int>(tensor.stride(i));
-        }
-        return strides;
-    }
-
     /// Overload accepting Shape directly and returning Shape (ZERO allocations for small shapes!)
     Shape apply_broadcast_stride_zeroing(
         const Shape& strides,
@@ -109,49 +81,6 @@ namespace {
         }
     }
 
-    /// Validate that a tensor's trailing dimensions match the expected vector type shape.
-    /// This mirrors the validation in Python's torchtensormarshall.py
-    /// Throws nb::value_error to match the Python behavior
-    void validate_tensor_shape(const Shape& tensor_shape, const Shape& vector_shape)
-    {
-        const size_t vector_dims = vector_shape.size();
-        if (vector_dims == 0) {
-            return; // No vector shape to validate against
-        }
-
-        const size_t tensor_dims = tensor_shape.size();
-        if (tensor_dims < vector_dims) {
-            throw nb::value_error(
-                fmt::format(
-                    "Tensor shape {} does not match expected shape {}",
-                    tensor_shape.to_string(),
-                    vector_shape.to_string()
-                )
-                    .c_str()
-            );
-        }
-
-        // Get raw pointers once to avoid per-element m_uses_heap branching
-        const int* tensor_data = tensor_shape.data();
-        const int* vector_data = vector_shape.data();
-
-        // Check trailing dimensions
-        for (size_t i = 0; i < vector_dims; i++) {
-            int expected = vector_data[vector_dims - 1 - i];
-            int actual = tensor_data[tensor_dims - 1 - i];
-            // -1 acts as a wildcard (matches any size)
-            if (expected != -1 && actual != expected) {
-                throw nb::value_error(
-                    fmt::format(
-                        "Tensor shape {} does not match expected shape {}",
-                        tensor_shape.to_string(),
-                        vector_shape.to_string()
-                    )
-                        .c_str()
-                );
-            }
-        }
-    }
 } // anonymous namespace
 
 
@@ -698,32 +627,449 @@ SGL_PY_EXPORT(utils_slangpy_tensor)
 
     nb::module_ slangpy = m.attr("slangpy");
 
+    // Allow tuples/lists to be passed wherever Shape is expected.
+    nb::implicitly_convertible<nb::tuple, Shape>();
+    nb::implicitly_convertible<nb::list, Shape>();
+
+    // ---------------------------------------------------------------------------
+    // Type resolution helpers (call back to Python reflection system)
+    // ---------------------------------------------------------------------------
+
+    /// Resolve dtype from various Python representations to NativeSlangType.
+    /// Fast path if dtype is already a NativeSlangType; otherwise calls Python.
+    auto resolve_dtype = [](Device* device, nb::object dtype, nb::object program_layout) -> ref<NativeSlangType>
+    {
+        if (nb::isinstance<NativeSlangType>(dtype))
+            return nb::cast<ref<NativeSlangType>>(dtype);
+        nb::module_ lookup = nb::module_::import_("slangpy.reflection.lookup");
+        nb::object layout = lookup.attr("resolve_program_layout")(device, dtype, program_layout);
+        return nb::cast<ref<NativeSlangType>>(lookup.attr("resolve_element_type")(layout, dtype));
+    };
+
+    /// Map a numpy dtype to a NativeSlangType, returns nullptr on failure.
+    auto resolve_numpy_dtype
+        = [](Device* device, nb::object np_dtype, nb::object program_layout) -> ref<NativeSlangType>
+    {
+        nb::module_ lookup = nb::module_::import_("slangpy.reflection.lookup");
+        nb::object result = lookup.attr("numpy_to_slang")(np_dtype, device, program_layout);
+        if (result.is_none())
+            return nullptr;
+        return nb::cast<ref<NativeSlangType>>(result);
+    };
+
+    /// Create a NativeTensor from storage buffer + dtype + shape + strides.
+    auto make_tensor = [](const ref<Buffer>& storage,
+                          const ref<NativeSlangType>& dtype,
+                          const Shape& shape,
+                          const Shape& strides,
+                          int offset = 0) -> ref<NativeTensor>
+    {
+        NativeTensorDesc desc;
+        desc.shape = shape;
+        desc.strides = strides;
+        desc.offset = offset;
+        desc.dtype = dtype;
+        desc.element_layout = dtype->buffer_type_layout();
+        desc.usage = storage->desc().usage;
+        return make_ref<NativeTensor>(desc, storage, nullptr, nullptr);
+    };
+
+    /// Shared implementation for empty().
+    auto tensor_empty_impl = [&](const ref<Device>& device,
+                                 const Shape& shape,
+                                 nb::object dtype_obj,
+                                 BufferUsage usage,
+                                 MemoryType memory_type,
+                                 nb::object program_layout) -> ref<NativeTensor>
+    {
+        ref<NativeSlangType> dtype = resolve_dtype(device, dtype_obj, program_layout);
+        if (!dtype)
+            throw nb::value_error("Element type (dtype) must be specified");
+        if (shape.size() == 0)
+            throw nb::value_error("Cannot create a tensor with zero dimensions");
+
+        size_t num_elems = shape.element_count();
+        ref<TypeLayoutReflection> layout = dtype->buffer_type_layout();
+
+        BufferDesc buffer_desc;
+        buffer_desc.element_count = num_elems;
+        buffer_desc.struct_size = layout->stride();
+        buffer_desc.usage = usage;
+        buffer_desc.memory_type = memory_type;
+
+        ref<Buffer> buffer = device->create_buffer(buffer_desc);
+        return make_tensor(buffer, dtype, shape, shape.calc_contiguous_strides());
+    };
+
+    // ---------------------------------------------------------------------------
+    // NativeTensorDesc
+    // ---------------------------------------------------------------------------
+
     nb::class_<NativeTensorDesc, StridedBufferViewDesc>(slangpy, "NativeTensorDesc").def(nb::init<>());
 
-    nb::class_<NativeTensor, StridedBufferView>(slangpy, "NativeTensor")
-        .def(
-            nb::init<NativeTensorDesc, const ref<Buffer>&, const ref<NativeTensor>&, const ref<NativeTensor>&>(),
-            "desc"_a,
-            "storage"_a,
-            "grad_in"_a.none(),
-            "grad_out"_a.none()
-        )
+    // ---------------------------------------------------------------------------
+    // Tensor (was NativeTensor)
+    // ---------------------------------------------------------------------------
+
+    auto tensor_cls = nb::class_<NativeTensor, StridedBufferView>(slangpy, "Tensor");
+
+    // Internal desc-based constructor (used by marshalls etc.)
+    tensor_cls.def(
+        nb::init<NativeTensorDesc, const ref<Buffer>&, const ref<NativeTensor>&, const ref<NativeTensor>&>(),
+        "desc"_a,
+        "storage"_a,
+        "grad_in"_a.none(),
+        "grad_out"_a.none()
+    );
+
+    // User-friendly constructor: Tensor(storage, dtype, shape, strides=None, offset=0, ...)
+    tensor_cls.def(
+        "__init__",
+        [](NativeTensor& self,
+           const ref<Buffer>& storage,
+           const ref<NativeSlangType>& dtype,
+           const Shape& shape,
+           std::optional<Shape> strides,
+           int offset,
+           ref<NativeTensor> grad_in,
+           ref<NativeTensor> grad_out)
+        {
+            Shape actual_strides = strides.has_value() ? *strides : shape.calc_contiguous_strides();
+            if (actual_strides.size() != shape.size())
+                throw nb::value_error("Number of strides must match number of dimensions");
+
+            NativeTensorDesc desc;
+            desc.shape = shape;
+            desc.strides = actual_strides;
+            desc.offset = offset;
+            desc.dtype = dtype;
+            desc.element_layout = dtype->buffer_type_layout();
+            desc.usage = storage->desc().usage;
+            new (&self) NativeTensor(desc, storage, grad_in, grad_out);
+        },
+        "storage"_a,
+        "dtype"_a,
+        "shape"_a,
+        "strides"_a.none() = nb::none(),
+        "offset"_a = 0,
+        "grad_in"_a.none() = nb::none(),
+        "grad_out"_a.none() = nb::none()
+    );
+
+    // Properties & methods inherited from StridedBufferView are already bound.
+    tensor_cls //
         .def_prop_rw("grad_in", &NativeTensor::grad_in, &NativeTensor::set_grad_in, nb::none())
         .def_prop_rw("grad_out", &NativeTensor::grad_out, &NativeTensor::set_grad_out, nb::none())
         .def_prop_ro("grad", &NativeTensor::grad)
-        .def("broadcast_to", &NativeTensor::broadcast_to, "shape"_a)
-        .def("view", &NativeTensor::view, "shape"_a, "strides"_a = Shape(), "offset"_a = 0)
+        .def(
+            "broadcast_to",
+            &NativeTensor::broadcast_to,
+            "shape"_a,
+            "Returns a new view of the tensor with the requested shape, following standard broadcasting rules."
+        )
+        .def(
+            "view",
+            &NativeTensor::view,
+            "shape"_a,
+            "strides"_a = Shape(),
+            "offset"_a = 0,
+            "Returns a new view of the tensor with the requested shape, strides and offset.\n"
+            "The offset is in elements (not bytes) and is specified relative to the current offset."
+        )
         .def("__getitem__", &NativeTensor::index)
         .def(
             "with_grads",
             &NativeTensor::with_grads,
-            "grad_in"_a.none() = nullptr,
-            "grad_out"_a.none() = nullptr,
-            "zero"_a = true
+            "grad_in"_a.none() = nb::none(),
+            "grad_out"_a.none() = nb::none(),
+            "zero"_a = true,
+            "Returns a new tensor view with gradients attached. If called with no arguments, the\n"
+            "tensor defaults to attaching a zeros-like initialized gradient tensor for both input and\n"
+            "output gradients.\n"
+            "\n"
+            "Specifying input gradients (grad_in) and/or output gradients (grad_out) allows more precise\n"
+            "control over the gradient tensors, and is key when using a function that has inout parameters,\n"
+            "so will want to both read and write gradients without causing race conditions.\n"
+            "\n"
+            "When differentiating a slang call that wrote results to a tensor, gradients of the output will\n"
+            "be read from grad_in (if not None). When differentiating a slang call that read inputs from a\n"
+            "tensor, input gradients will be written to grad_out (if not None)."
         )
-        .def("detach", &NativeTensor::detach)
-        .def("__repr__", &NativeTensor::to_string);
+        .def(
+            "detach",
+            &NativeTensor::detach,
+            "Returns a new tensor view with gradients detached. The returned tensor will not have any\n"
+            "gradients attached, and will not be differentiable."
+        )
+        .def("__repr__", &NativeTensor::to_string)
+        .def(
+            "__str__",
+            [](NativeTensor& self)
+            {
+                return nb::str(nb::cast(self.to_numpy()));
+            }
+        );
 
+    // ---------------------------------------------------------------------------
+    // Static factory methods
+    // ---------------------------------------------------------------------------
+
+    tensor_cls.def_static(
+        "from_numpy",
+        [&](const ref<Device>& device,
+            nb::object ndarray_obj,
+            BufferUsage usage,
+            MemoryType memory_type,
+            nb::object program_layout) -> ref<NativeTensor>
+        {
+            // Cast to ndarray for direct C++ access to shape/strides/data
+            nb::ndarray<nb::numpy> arr = nb::cast<nb::ndarray<nb::numpy>>(ndarray_obj);
+
+            // Resolve numpy dtype -> Slang type (requires Python object)
+            nb::object np_dtype = ndarray_obj.attr("dtype");
+            ref<NativeSlangType> dtype = resolve_numpy_dtype(device, np_dtype, program_layout);
+            if (!dtype)
+                throw nb::value_error(
+                    fmt::format("Unsupported numpy dtype {}", nb::cast<std::string>(nb::str(np_dtype))).c_str()
+                );
+
+            // Extract shape and strides directly from ndarray
+            // ndarray strides are already in elements (DLPack convention)
+            size_t ndim = arr.ndim();
+            size_t itemsize = arr.itemsize();
+            if (itemsize == 0)
+                throw nb::value_error("Unsupported numpy array");
+
+            Shape shape(ndim);
+            Shape strides(ndim);
+            for (size_t i = 0; i < ndim; i++) {
+                shape[i] = static_cast<int>(arr.shape(i));
+                strides[i] = static_cast<int>(arr.stride(i));
+            }
+
+            // Upload raw memory to GPU buffer
+            size_t N = arr.nbytes() / itemsize;
+            BufferDesc buffer_desc;
+            buffer_desc.struct_size = itemsize;
+            buffer_desc.element_count = N;
+            buffer_desc.usage = usage;
+            buffer_desc.memory_type = memory_type;
+            buffer_desc.data = arr.data();
+            buffer_desc.data_size = arr.nbytes();
+
+            ref<Buffer> buffer = device->create_buffer(buffer_desc);
+            return make_tensor(buffer, dtype, shape, strides);
+        },
+        "device"_a,
+        "ndarray"_a,
+        "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
+        "memory_type"_a = MemoryType::device_local,
+        "program_layout"_a.none() = nb::none(),
+        "Creates a new tensor with the same contents, shape and strides as the given numpy array."
+    );
+
+    tensor_cls.def_static(
+        "empty",
+        [&](const ref<Device>& device,
+            nb::object shape_obj,
+            nb::object dtype_obj,
+            BufferUsage usage,
+            MemoryType memory_type,
+            nb::object program_layout,
+            nb::object element_count_obj) -> ref<NativeTensor>
+        {
+            Shape shape;
+            if (!element_count_obj.is_none()) {
+                nb::module_ warnings = nb::module_::import_("warnings");
+                warnings.attr("warn")(
+                    "element_count parameter is deprecated; use shape instead",
+                    nb::handle(PyExc_DeprecationWarning),
+                    "stacklevel"_a = 2
+                );
+                shape = Shape({nb::cast<int>(element_count_obj)});
+            } else {
+                shape = nb::cast<Shape>(shape_obj);
+            }
+            return tensor_empty_impl(device, shape, dtype_obj, usage, memory_type, program_layout);
+        },
+        "device"_a,
+        "shape"_a = Shape(),
+        "dtype"_a = nb::none(),
+        "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
+        "memory_type"_a = MemoryType::device_local,
+        "program_layout"_a.none() = nb::none(),
+        "element_count"_a.none() = nb::none(),
+        "Creates a tensor with the requested shape and element type without attempting to initialize the data."
+    );
+
+    tensor_cls.def_static(
+        "zeros",
+        [&](const ref<Device>& device,
+            const Shape& shape,
+            nb::object dtype_obj,
+            BufferUsage usage,
+            MemoryType memory_type,
+            nb::object program_layout) -> ref<NativeTensor>
+        {
+            auto tensor = tensor_empty_impl(device, shape, dtype_obj, usage, memory_type, program_layout);
+            tensor->clear();
+            return tensor;
+        },
+        "device"_a,
+        "shape"_a,
+        "dtype"_a,
+        "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
+        "memory_type"_a = MemoryType::device_local,
+        "program_layout"_a.none() = nb::none(),
+        "Creates a zero-initialized tensor with the requested shape and element type."
+    );
+
+    tensor_cls.def_static(
+        "empty_like",
+        [](const ref<NativeTensor>& other) -> ref<NativeTensor>
+        {
+            NativeTensorDesc desc;
+            desc.shape = other->shape();
+            desc.strides = other->shape().calc_contiguous_strides();
+            desc.offset = 0;
+            desc.dtype = other->dtype();
+            desc.element_layout = other->desc().element_layout;
+            desc.usage = other->usage();
+
+            BufferDesc buffer_desc;
+            buffer_desc.element_count = desc.shape.element_count();
+            buffer_desc.struct_size = desc.element_layout->stride();
+            buffer_desc.usage = desc.usage;
+
+            ref<Buffer> buffer = other->device()->create_buffer(buffer_desc);
+            return make_ref<NativeTensor>(desc, buffer, nullptr, nullptr);
+        },
+        "other"_a,
+        "Creates a new tensor with the same shape and element type as the given tensor, without initializing the data."
+    );
+
+    tensor_cls.def_static(
+        "zeros_like",
+        [](const ref<NativeTensor>& other) -> ref<NativeTensor>
+        {
+            NativeTensorDesc desc;
+            desc.shape = other->shape();
+            desc.strides = other->shape().calc_contiguous_strides();
+            desc.offset = 0;
+            desc.dtype = other->dtype();
+            desc.element_layout = other->desc().element_layout;
+            desc.usage = other->usage();
+
+            BufferDesc buffer_desc;
+            buffer_desc.element_count = desc.shape.element_count();
+            buffer_desc.struct_size = desc.element_layout->stride();
+            buffer_desc.usage = desc.usage;
+
+            ref<Buffer> buffer = other->device()->create_buffer(buffer_desc);
+            auto tensor = make_ref<NativeTensor>(desc, buffer, nullptr, nullptr);
+            tensor->clear();
+            return tensor;
+        },
+        "other"_a,
+        "Creates a zero-initialized tensor with the same shape and element type as the given tensor."
+    );
+
+    tensor_cls.def_static(
+        "from_torch",
+        [&](const ref<Device>& device,
+            nb::object torch_tensor,
+            nb::object dtype_obj,
+            BufferUsage usage,
+            nb::object program_layout) -> ref<NativeTensor>
+        {
+            ref<NativeSlangType> dtype = resolve_dtype(device, dtype_obj, program_layout);
+
+            size_t struct_stride = dtype->buffer_type_layout()->stride();
+            size_t scalar_size = nb::cast<size_t>(torch_tensor.attr("element_size")());
+
+            if (struct_stride == 0 || scalar_size == 0 || struct_stride % scalar_size != 0)
+                throw nb::value_error(
+                    fmt::format(
+                        "Torch element size ({}) is not compatible with Slang type '{}' buffer stride ({})",
+                        scalar_size,
+                        dtype->type_reflection()->full_name(),
+                        struct_stride
+                    )
+                        .c_str()
+                );
+
+            size_t scalars_per_element = struct_stride / scalar_size;
+            int dim = nb::cast<int>(torch_tensor.attr("dim")());
+            if (dim < 1)
+                throw nb::value_error("Tensor must have at least 1 dimension");
+
+            nb::tuple torch_shape = nb::cast<nb::tuple>(torch_tensor.attr("shape"));
+            size_t last_dim = nb::cast<size_t>(torch_shape[dim - 1]);
+            if (last_dim != scalars_per_element)
+                throw nb::value_error(
+                    fmt::format(
+                        "Last dimension size ({}) does not match the number of scalars per '{}' element ({})",
+                        last_dim,
+                        dtype->type_reflection()->full_name(),
+                        scalars_per_element
+                    )
+                        .c_str()
+                );
+
+            int64_t last_stride = nb::cast<int64_t>(torch_tensor.attr("stride")(dim - 1));
+            if (last_stride != 1)
+                throw nb::value_error("Last dimension of the tensor must be contiguous");
+
+            // Make contiguous and compute element count
+            nb::object contiguous = torch_tensor.attr("contiguous")();
+            size_t element_count = nb::cast<size_t>(contiguous.attr("numel")());
+
+            // Create buffer
+            BufferDesc buffer_desc;
+            buffer_desc.size = element_count * scalar_size;
+            buffer_desc.struct_size = struct_stride;
+            buffer_desc.usage = usage | BufferUsage::shared;
+
+            ref<Buffer> buffer = device->create_buffer(buffer_desc);
+
+            // Copy data from torch tensor to buffer
+            nb::module_ spy_ext = nb::module_::import_("slangpy");
+            spy_ext.attr("copy_torch_tensor_to_buffer")(contiguous, nb::cast(buffer));
+
+            // Build outer shape (all dims except last)
+            Shape outer_shape(dim - 1);
+            nb::tuple cont_shape = nb::cast<nb::tuple>(contiguous.attr("shape"));
+            for (int i = 0; i < dim - 1; i++)
+                outer_shape[i] = nb::cast<int>(cont_shape[i]);
+
+            return make_tensor(buffer, dtype, outer_shape, outer_shape.calc_contiguous_strides());
+        },
+        "device"_a,
+        "tensor"_a,
+        "dtype"_a,
+        "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
+        "program_layout"_a.none() = nb::none(),
+        "Reinterpret a torch.Tensor as a slangpy Tensor with a given element type.\n"
+        "\n"
+        "The last dimension of the torch tensor is treated as packed storage for one\n"
+        "element of ``dtype``. For example, a ``torch.Tensor`` of shape ``(N, 2)`` with\n"
+        "``dtype=module.Vec2`` (a struct with two float fields) produces a\n"
+        "``Tensor`` of shape ``(N,)`` with element type ``Vec2``.\n"
+        "\n"
+        ".. warning::\n"
+        "\n"
+        "    Struct layout may vary between platforms due to padding/alignment.\n"
+        "    The caller is responsible for ensuring the torch tensor's memory layout\n"
+        "    matches the Slang struct's buffer layout."
+    );
+
+    // Backward compatibility alias: NativeTensor = Tensor
+    slangpy.attr("NativeTensor") = slangpy.attr("Tensor");
+
+
+    // ---------------------------------------------------------------------------
+    // NativeTensorMarshall
+    // ---------------------------------------------------------------------------
 
     nb::class_<NativeTensorMarshall, PyNativeTensorMarshall, NativeMarshall>(slangpy, "NativeTensorMarshall") //
         .def(

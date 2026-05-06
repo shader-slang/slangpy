@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from typing import Any, Optional, cast
-from slangpy.types.tensor import Tensor
 from slangpy.core.native import NativeTensorMarshall, NativeTensor
 
 from slangpy import ShaderObject, ShaderCursor, BufferUsage
@@ -199,4 +198,3 @@ def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
 
 
 PYTHON_TYPES[NativeTensor] = create_tensor_marshall
-PYTHON_TYPES[Tensor] = create_tensor_marshall
