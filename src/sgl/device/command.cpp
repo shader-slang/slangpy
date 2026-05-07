@@ -23,7 +23,6 @@
 #include "sgl/math/vector.h"
 
 namespace sgl {
-
 namespace detail {
     inline rhi::SubresourceRange rhi_subresource_range(const Texture* texture, uint32_t subresource_index)
     {
@@ -55,6 +54,35 @@ namespace detail {
             .startIndexLocation = draw_args.start_index_location,
         };
     }
+
+    class ExecuteCallbackState : public Object {
+        SGL_OBJECT(ExecuteCallbackState)
+    public:
+        explicit ExecuteCallbackState(ExecuteCallback callback)
+            : m_callback(std::move(callback))
+        {
+        }
+
+        void execute(NativeHandle native_handle) { m_callback(native_handle); }
+
+    private:
+        ExecuteCallback m_callback;
+    };
+
+    void SLANG_MCALL execute_callback(
+        const ExecuteCallbackContext* context,
+        void* user_object,
+        const void* user_data,
+        size_t user_data_size
+    )
+    {
+        SGL_UNUSED(user_data);
+        SGL_UNUSED(user_data_size);
+
+        auto state = static_cast<ExecuteCallbackState*>(user_object);
+        state->execute(NativeHandle(context->nativeHandle));
+    }
+
 } // namespace detail
 
 // ----------------------------------------------------------------------------
@@ -882,6 +910,49 @@ void CommandEncoder::write_timestamp(QueryPool* query_pool, uint32_t index)
     SGL_CHECK_LE(index, query_pool->desc().count);
 
     m_rhi_command_encoder->writeTimestamp(query_pool->rhi_query_pool(), index);
+}
+
+void CommandEncoder::execute_callback(const ExecuteCallbackDesc& desc)
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+    SGL_CHECK(desc.callback, "callback must not be null");
+    SGL_CHECK(desc.user_data || desc.user_data_size == 0, "user_data must not be null when user_data_size is non-zero");
+    SGL_CHECK(desc.user_data_size > 0 || !desc.user_data, "user_data_size must be non-zero when user_data is set");
+    SGL_CHECK(
+        !desc.user_object || (desc.retain_user_object && desc.release_user_object),
+        "retain_user_object and release_user_object are required when user_object is set"
+    );
+
+    rhi::ExecuteCallbackDesc rhi_desc;
+    rhi_desc.callback = desc.callback;
+    rhi_desc.userObject = desc.user_object;
+    rhi_desc.retainUserObject = desc.retain_user_object;
+    rhi_desc.releaseUserObject = desc.release_user_object;
+    rhi_desc.userData = desc.user_data;
+    rhi_desc.userDataSize = desc.user_data_size;
+    m_rhi_command_encoder->executeCallback(rhi_desc);
+}
+
+void CommandEncoder::execute_callback(ExecuteCallback callback)
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+    SGL_CHECK(static_cast<bool>(callback), "callback must not be empty");
+
+    ref<detail::ExecuteCallbackState> state = make_ref<detail::ExecuteCallbackState>(std::move(callback));
+    execute_callback({
+        .callback = detail::execute_callback,
+        .user_object = state.get(),
+        .retain_user_object =
+            [](void* user_object)
+        {
+            static_cast<detail::ExecuteCallbackState*>(user_object)->inc_ref();
+        },
+        .release_user_object =
+            [](void* user_object)
+        {
+            static_cast<detail::ExecuteCallbackState*>(user_object)->dec_ref();
+        },
+    });
 }
 
 ref<CommandBuffer> CommandEncoder::finish()

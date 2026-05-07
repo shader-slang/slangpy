@@ -103,6 +103,7 @@ enum class Feature : uint32_t {
     shader_resource_min_lod = static_cast<uint32_t>(rhi::Feature::ShaderResourceMinLod),
     // Metal specific features
     argument_buffer_tier2 = static_cast<uint32_t>(rhi::Feature::ArgumentBufferTier2),
+    residency_set = static_cast<uint32_t>(rhi::Feature::ResidencySet),
     // CUDA specific features
     atomic_bfloat16 = static_cast<uint32_t>(rhi::Feature::AtomicBfloat16),
 
@@ -176,6 +177,7 @@ SGL_ENUM_INFO(
         {Feature::programmable_sample_positions2, "programmable_sample_positions2"},
         {Feature::shader_resource_min_lod, "shader_resource_min_lod"},
         {Feature::argument_buffer_tier2, "argument_buffer_tier2"},
+        {Feature::residency_set, "residency_set"},
         {Feature::atomic_bfloat16, "atomic_bfloat16"},
     }
 );
