@@ -358,12 +358,12 @@ SGL_PY_EXPORT(device_device)
         .def_rw(
             "additional_vulkan_instance_extensions",
             &DeviceDesc::additional_vulkan_instance_extensions,
-            "Additional Vulkan instance extensions to enable when creating a Vulkan device."
+            D(DeviceDesc, additional_vulkan_instance_extensions)
         )
         .def_rw(
             "additional_vulkan_device_extensions",
             &DeviceDesc::additional_vulkan_device_extensions,
-            "Additional Vulkan device extensions to enable when creating a Vulkan device."
+            D(DeviceDesc, additional_vulkan_device_extensions)
         )
         .def_rw("label", &DeviceDesc::label, D(DeviceDesc, label));
 
