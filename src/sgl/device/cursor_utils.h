@@ -14,6 +14,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <typeinfo>
 #include <utility>
 #include <vector>
@@ -86,6 +87,14 @@ namespace cursor_utils {
     using ShaderCursorObjectWriteFunc = std::function<bool(ShaderCursor&, const void*)>;
     using BufferElementCursorObjectWriteFunc = std::function<bool(BufferElementCursor&, const void*)>;
 
+    enum class CursorWriterSignatureKind {
+        none,
+        default_class_name,
+        static_string,
+        static_function,
+        dynamic_function,
+    };
+
     struct CursorWriterTypeInfo {
         const std::type_info* type{nullptr};
 
@@ -93,13 +102,11 @@ namespace cursor_utils {
         BufferElementCursorObjectWriteFunc write_buffer_cursor;
 
         bool has_functional_metadata{false};
-        std::function<std::string_view(const void*)> slang_type_name;
+        std::string slang_type_name;
         std::function<void(SignatureBuffer&, const void*)> write_signature;
+        CursorWriterSignatureKind signature_kind{CursorWriterSignatureKind::none};
         std::vector<std::string> imports;
     };
-
-    template<typename T>
-    struct CursorWriterTraits { };
 
     SGL_API void register_cursor_writer_type(CursorWriterTypeInfo info);
     SGL_API std::span<const CursorWriterTypeInfo> cursor_writer_type_infos();
@@ -157,10 +164,56 @@ namespace cursor_utils {
         );
     }
 
-    template<typename T>
-    concept HasCursorWriterTraitsSlangTypeName = requires {
-        { std::string_view(CursorWriterTraits<T>::slang_type_name) } -> std::same_as<std::string_view>;
-    };
+    namespace detail {
+
+        template<typename T>
+        constexpr std::string_view wrapped_type_name()
+        {
+#if SGL_MSVC
+            return __FUNCSIG__;
+#else
+            return __PRETTY_FUNCTION__;
+#endif
+        }
+
+        constexpr std::string_view strip_class_key(std::string_view name)
+        {
+            if (name.starts_with("class "))
+                return name.substr(6);
+            if (name.starts_with("struct "))
+                return name.substr(7);
+            return name;
+        }
+
+        template<typename T>
+        constexpr std::string_view cursor_writer_class_name()
+        {
+            constexpr std::string_view wrapped = wrapped_type_name<T>();
+#if SGL_MSVC
+            constexpr std::string_view marker = "wrapped_type_name<";
+            size_t begin = wrapped.find(marker);
+            if (begin == std::string_view::npos)
+                return wrapped;
+            begin += marker.size();
+            size_t end = wrapped.rfind(">(void)");
+            if (end == std::string_view::npos)
+                end = wrapped.rfind('>');
+#else
+            constexpr std::string_view marker = "T = ";
+            size_t begin = wrapped.find(marker);
+            if (begin == std::string_view::npos)
+                return wrapped;
+            begin += marker.size();
+            size_t end = wrapped.find(';', begin);
+            if (end == std::string_view::npos)
+                end = wrapped.find(']', begin);
+#endif
+            if (end == std::string_view::npos || end <= begin)
+                return wrapped;
+            return strip_class_key(wrapped.substr(begin, end - begin));
+        }
+
+    } // namespace detail
 
     template<typename T>
     concept HasTypeStaticSlangTypeName = requires {
@@ -168,13 +221,15 @@ namespace cursor_utils {
     };
 
     template<typename T>
-    concept HasValueSlangTypeName = requires(const T& value) {
-        { value.slang_type_name() } -> std::convertible_to<std::string_view>;
+    concept HasTypeStaticStringSignature = requires {
+        { std::string_view(T::slangpy_signature) } -> std::same_as<std::string_view>;
     };
 
     template<typename T>
-    concept HasCursorWriterTraitsSignature = requires(SignatureBuffer& signature) {
-        { CursorWriterTraits<T>::write_slangpy_signature(signature) };
+    concept HasValueSignature = requires {
+        requires std::is_member_function_pointer_v<decltype(&T::write_slangpy_signature)>;
+    } && requires(const T& value, SignatureBuffer& signature) {
+        { value.write_slangpy_signature(signature) };
     };
 
     template<typename T>
@@ -183,44 +238,39 @@ namespace cursor_utils {
     };
 
     template<typename T>
-    concept HasValueSignature = requires(const T& value, SignatureBuffer& signature) {
-        { value.write_slangpy_signature(signature) };
-    };
-
-    template<typename T>
-    concept HasCursorWriterTraitsImports = requires {
-        { CursorWriterTraits<T>::slangpy_imports() };
-    };
-
-    template<typename T>
     concept HasTypeStaticImports = requires {
         { T::slangpy_imports() };
     };
 
     template<typename T>
-    constexpr bool has_static_slang_type_name_v
-        = HasCursorWriterTraitsSlangTypeName<T> || HasTypeStaticSlangTypeName<T>;
+    concept CanRegisterCursorWriter = HasTypeStaticSlangTypeName<T> && HasWriteToCursor<T, ShaderCursor>
+        && HasWriteToCursor<T, BufferElementCursor>;
 
     template<typename T>
-    std::string_view static_slang_type_name()
-        requires(has_static_slang_type_name_v<T>)
+    constexpr CursorWriterSignatureKind cursor_writer_signature_kind()
     {
-        if constexpr (HasCursorWriterTraitsSlangTypeName<T>)
-            return std::string_view(CursorWriterTraits<T>::slang_type_name);
+        if constexpr (HasValueSignature<T>)
+            return CursorWriterSignatureKind::dynamic_function;
+        else if constexpr (HasTypeStaticSignature<T>)
+            return CursorWriterSignatureKind::static_function;
+        else if constexpr (HasTypeStaticStringSignature<T>)
+            return CursorWriterSignatureKind::static_string;
         else
-            return std::string_view(T::slang_type_name);
+            return CursorWriterSignatureKind::default_class_name;
     }
 
     template<typename T>
-    void write_static_slangpy_signature(SignatureBuffer& signature)
-        requires(has_static_slang_type_name_v<T>)
+    void write_cursor_writer_signature(SignatureBuffer& signature, const void* value)
+        requires(HasTypeStaticSlangTypeName<T>)
     {
-        if constexpr (HasCursorWriterTraitsSignature<T>)
-            CursorWriterTraits<T>::write_slangpy_signature(signature);
+        if constexpr (HasValueSignature<T>)
+            static_cast<const T*>(value)->write_slangpy_signature(signature);
         else if constexpr (HasTypeStaticSignature<T>)
             T::write_slangpy_signature(signature);
+        else if constexpr (HasTypeStaticStringSignature<T>)
+            signature.add(std::string_view(T::slangpy_signature));
         else
-            signature.add(static_slang_type_name<T>());
+            signature.add(detail::cursor_writer_class_name<T>());
     }
 
     template<typename TImports>
@@ -234,63 +284,37 @@ namespace cursor_utils {
     std::vector<std::string> cursor_writer_imports()
     {
         std::vector<std::string> result;
-        if constexpr (HasCursorWriterTraitsImports<T>)
-            append_cursor_writer_imports(result, CursorWriterTraits<T>::slangpy_imports());
-        else if constexpr (HasTypeStaticImports<T>)
+        if constexpr (HasTypeStaticImports<T>)
             append_cursor_writer_imports(result, T::slangpy_imports());
         return result;
     }
 
     template<typename T>
     void register_cursor_writer()
-        requires(HasWriteToCursor<T, ShaderCursor> || HasWriteToCursor<T, BufferElementCursor>)
+        requires(CanRegisterCursorWriter<T>)
     {
         CursorWriterTypeInfo info;
         info.type = &typeid(T);
 
-        if constexpr (HasWriteToCursor<T, ShaderCursor>) {
-            info.write_shader_cursor = [](ShaderCursor& cursor, const void* value)
-            {
-                static_cast<const T*>(value)->write_to_cursor(cursor);
-                return true;
-            };
-        }
+        info.write_shader_cursor = [](ShaderCursor& cursor, const void* value)
+        {
+            static_cast<const T*>(value)->write_to_cursor(cursor);
+            return true;
+        };
+        info.write_buffer_cursor = [](BufferElementCursor& cursor, const void* value)
+        {
+            static_cast<const T*>(value)->write_to_cursor(cursor);
+            return true;
+        };
 
-        if constexpr (HasWriteToCursor<T, BufferElementCursor>) {
-            info.write_buffer_cursor = [](BufferElementCursor& cursor, const void* value)
-            {
-                static_cast<const T*>(value)->write_to_cursor(cursor);
-                return true;
-            };
-        }
-
-        if constexpr (has_static_slang_type_name_v<T>) {
-            info.has_functional_metadata = true;
-            info.slang_type_name = [](const void*) -> std::string_view
-            {
-                return static_slang_type_name<T>();
-            };
-            info.write_signature = [](SignatureBuffer& signature, const void*)
-            {
-                write_static_slangpy_signature<T>(signature);
-            };
-            info.imports = cursor_writer_imports<T>();
-        } else if constexpr (HasValueSlangTypeName<T>) {
-            static_assert(
-                HasValueSignature<T>,
-                "Cursor writer types with value-aware slang_type_name() must provide write_slangpy_signature()."
-            );
-            info.has_functional_metadata = true;
-            info.slang_type_name = [](const void* value) -> std::string_view
-            {
-                return static_cast<const T*>(value)->slang_type_name();
-            };
-            info.write_signature = [](SignatureBuffer& signature, const void* value)
-            {
-                static_cast<const T*>(value)->write_slangpy_signature(signature);
-            };
-            info.imports = cursor_writer_imports<T>();
-        }
+        info.has_functional_metadata = true;
+        info.slang_type_name = std::string(std::string_view(T::slang_type_name));
+        info.write_signature = [](SignatureBuffer& signature, const void* value)
+        {
+            write_cursor_writer_signature<T>(signature, value);
+        };
+        info.signature_kind = cursor_writer_signature_kind<T>();
+        info.imports = cursor_writer_imports<T>();
 
         register_cursor_writer_type(std::move(info));
     }

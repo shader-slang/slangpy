@@ -26,7 +26,7 @@ namespace cursor_utils {
         );
         if (info.has_functional_metadata) {
             SGL_CHECK(
-                bool(info.slang_type_name),
+                !info.slang_type_name.empty(),
                 "Cursor writer type info for type \"{}\" has functional metadata but no Slang type name.",
                 info.type->name()
             );
@@ -66,6 +66,7 @@ namespace cursor_utils {
                 entry.has_functional_metadata = true;
                 entry.slang_type_name = std::move(info.slang_type_name);
                 entry.write_signature = std::move(info.write_signature);
+                entry.signature_kind = info.signature_kind;
                 entry.imports = std::move(info.imports);
             }
 

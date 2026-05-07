@@ -142,7 +142,7 @@ namespace {
             imports.append(import_path);
 
         nb::dict result;
-        result["slang_type_name"] = std::string(info->slang_type_name(value));
+        result["slang_type_name"] = info->slang_type_name;
         result["signature"] = std::string(signature.view());
         result["imports"] = nb::tuple(imports);
         return result;
