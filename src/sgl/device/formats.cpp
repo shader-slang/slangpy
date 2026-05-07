@@ -103,6 +103,13 @@ static const FormatInfo s_format_infos[] = {
     {Format::bc6h_sfloat,           "bc6h_sfloat",              16,     3,      FormatType::float_,         false,  false,  true,       4,  4,      {128, 0, 0, 0  },   DXGI_FORMAT_BC6H_SF16,                  VK_FORMAT_BC6H_SFLOAT_BLOCK,        nullptr},
     {Format::bc7_unorm,             "bc7_unorm",                16,     4,      FormatType::unorm,          false,  false,  true,       4,  4,      {128, 0, 0, 0  },   DXGI_FORMAT_BC7_UNORM,                  VK_FORMAT_BC7_UNORM_BLOCK,          nullptr},
     {Format::bc7_unorm_srgb,        "bc7_unorm_srgb",           16,     4,      FormatType::unorm_srgb,     false,  false,  true,       4,  4,      {128, 0, 0, 0  },   DXGI_FORMAT_BC7_UNORM_SRGB,             VK_FORMAT_BC7_SRGB_BLOCK,           nullptr},
+
+    {Format::astc4x4_unorm,         "astc4x4_unorm",            16,     4,      FormatType::unorm,          false,  false,  true,       4,  4,      {128, 0, 0, 0  },   DXGI_FORMAT_UNKNOWN,                    VK_FORMAT_ASTC_4x4_UNORM_BLOCK,     nullptr},
+    {Format::astc4x4_unorm_srgb,    "astc4x4_unorm_srgb",       16,     4,      FormatType::unorm_srgb,     false,  false,  true,       4,  4,      {128, 0, 0, 0  },   DXGI_FORMAT_UNKNOWN,                    VK_FORMAT_ASTC_4x4_SRGB_BLOCK,      nullptr},
+    {Format::astc6x6_unorm,         "astc6x6_unorm",            16,     4,      FormatType::unorm,          false,  false,  true,       6,  6,      {128, 0, 0, 0  },   DXGI_FORMAT_UNKNOWN,                    VK_FORMAT_ASTC_6x6_UNORM_BLOCK,     nullptr},
+    {Format::astc6x6_unorm_srgb,    "astc6x6_unorm_srgb",       16,     4,      FormatType::unorm_srgb,     false,  false,  true,       6,  6,      {128, 0, 0, 0  },   DXGI_FORMAT_UNKNOWN,                    VK_FORMAT_ASTC_6x6_SRGB_BLOCK,      nullptr},
+    {Format::astc8x8_unorm,         "astc8x8_unorm",            16,     4,      FormatType::unorm,          false,  false,  true,       8,  8,      {128, 0, 0, 0  },   DXGI_FORMAT_UNKNOWN,                    VK_FORMAT_ASTC_8x8_UNORM_BLOCK,     nullptr},
+    {Format::astc8x8_unorm_srgb,    "astc8x8_unorm_srgb",       16,     4,      FormatType::unorm_srgb,     false,  false,  true,       8,  8,      {128, 0, 0, 0  },   DXGI_FORMAT_UNKNOWN,                    VK_FORMAT_ASTC_8x8_SRGB_BLOCK,      nullptr},
     // clang-format on
 };
 
