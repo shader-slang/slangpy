@@ -18,14 +18,14 @@ struct ExecuteCallbackTestState {
 };
 
 void SLANG_MCALL execute_callback_test(
-    const CommandNativeCallbackContext* context,
+    const ExecuteCallbackContext* context,
     void* user_object,
     const void* user_data,
     size_t user_data_size
 )
 {
     SGL_UNUSED(user_object);
-    CHECK(user_data_size == sizeof(ExecuteCallbackTestState*));
+    REQUIRE(user_data_size == sizeof(ExecuteCallbackTestState*));
 
     auto state = *static_cast<ExecuteCallbackTestState* const*>(user_data);
     state->called = true;

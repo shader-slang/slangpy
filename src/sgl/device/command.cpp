@@ -55,10 +55,10 @@ namespace detail {
         };
     }
 
-    class CommandNativeCallbackState : public Object {
-        SGL_OBJECT(CommandNativeCallbackState)
+    class ExecuteCallbackState : public Object {
+        SGL_OBJECT(ExecuteCallbackState)
     public:
-        explicit CommandNativeCallbackState(CommandNativeCallback callback)
+        explicit ExecuteCallbackState(ExecuteCallback callback)
             : m_callback(std::move(callback))
         {
         }
@@ -66,11 +66,11 @@ namespace detail {
         void execute(NativeHandle native_handle) { m_callback(native_handle); }
 
     private:
-        CommandNativeCallback m_callback;
+        ExecuteCallback m_callback;
     };
 
-    void SLANG_MCALL execute_native_callback(
-        const CommandNativeCallbackContext* context,
+    void SLANG_MCALL execute_callback(
+        const ExecuteCallbackContext* context,
         void* user_object,
         const void* user_data,
         size_t user_data_size
@@ -79,18 +79,8 @@ namespace detail {
         SGL_UNUSED(user_data);
         SGL_UNUSED(user_data_size);
 
-        auto state = static_cast<CommandNativeCallbackState*>(user_object);
+        auto state = static_cast<ExecuteCallbackState*>(user_object);
         state->execute(NativeHandle(context->nativeHandle));
-    }
-
-    void SLANG_MCALL retain_native_callback_state(void* user_object)
-    {
-        static_cast<CommandNativeCallbackState*>(user_object)->inc_ref();
-    }
-
-    void SLANG_MCALL release_native_callback_state(void* user_object)
-    {
-        static_cast<CommandNativeCallbackState*>(user_object)->dec_ref();
     }
 
 } // namespace detail
@@ -922,7 +912,7 @@ void CommandEncoder::write_timestamp(QueryPool* query_pool, uint32_t index)
     m_rhi_command_encoder->writeTimestamp(query_pool->rhi_query_pool(), index);
 }
 
-void CommandEncoder::execute_callback(const CommandNativeCallbackDesc& desc)
+void CommandEncoder::execute_callback(const ExecuteCallbackDesc& desc)
 {
     SGL_CHECK(m_open, "Command encoder is finished");
     SGL_CHECK(desc.callback, "callback must not be null");
@@ -943,17 +933,25 @@ void CommandEncoder::execute_callback(const CommandNativeCallbackDesc& desc)
     m_rhi_command_encoder->executeCallback(rhi_desc);
 }
 
-void CommandEncoder::execute_callback(CommandNativeCallback callback)
+void CommandEncoder::execute_callback(ExecuteCallback callback)
 {
     SGL_CHECK(m_open, "Command encoder is finished");
     SGL_CHECK(static_cast<bool>(callback), "callback must not be empty");
 
-    ref<detail::CommandNativeCallbackState> state = make_ref<detail::CommandNativeCallbackState>(std::move(callback));
+    ref<detail::ExecuteCallbackState> state = make_ref<detail::ExecuteCallbackState>(std::move(callback));
     execute_callback({
-        .callback = detail::execute_native_callback,
+        .callback = detail::execute_callback,
         .user_object = state.get(),
-        .retain_user_object = detail::retain_native_callback_state,
-        .release_user_object = detail::release_native_callback_state,
+        .retain_user_object =
+            [](void* user_object)
+        {
+            static_cast<detail::ExecuteCallbackState*>(user_object)->inc_ref();
+        },
+        .release_user_object =
+            [](void* user_object)
+        {
+            static_cast<detail::ExecuteCallbackState*>(user_object)->dec_ref();
+        },
     });
 }
 
