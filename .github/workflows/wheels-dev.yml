@@ -45,18 +45,18 @@ jobs:
           - { os: macos, runs-on: [macos-latest] }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           lfs: true
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
       - name: Cache cibuildwheel virtualenv
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/cibuildwheel
@@ -120,7 +120,7 @@ jobs:
         run: python -m pip install cibuildwheel==3.0.0rc1
 
       - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: step-security/msvc-dev-cmd@v1
         with:
           arch: x64
 
@@ -131,7 +131,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ github.event.inputs.build_type }}-${{ matrix.os }}-${{ matrix.platform }}-${{ matrix.python }}
           path: ./wheelhouse/*.whl
@@ -140,13 +140,13 @@ jobs:
     name: Build slangpy-torch sdist
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           lfs: true
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -173,7 +173,7 @@ jobs:
         run: python -m build --sdist
 
       - name: Upload sdist artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: slangpy-torch-sdist
           path: src/slangpy_torch/dist/*.tar.gz
@@ -204,7 +204,7 @@ jobs:
           update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${{ matrix.python }} 1
           curl -sS https://bootstrap.pypa.io/get-pip.py | python3
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           lfs: true
@@ -237,7 +237,7 @@ jobs:
         run: python3 -m pip wheel --no-build-isolation --no-deps -w dist .
 
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: slangpy-torch-torch${{ matrix.torch_version }}-py${{ matrix.python }}-linux
           path: src/slangpy_torch/dist/*.whl
@@ -255,13 +255,13 @@ jobs:
       TORCH_INDEX: "https://download.pytorch.org/whl/cu128"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           lfs: true
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
 
@@ -272,7 +272,7 @@ jobs:
           method: network
 
       - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: step-security/msvc-dev-cmd@v1
         with:
           arch: x64
 
@@ -303,7 +303,7 @@ jobs:
         run: pip wheel --no-build-isolation --no-deps -w dist .
 
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: slangpy-torch-torch${{ matrix.torch_version }}-py${{ matrix.python }}-windows
           path: src/slangpy_torch/dist/*.whl

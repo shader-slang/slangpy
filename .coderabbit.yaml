@@ -1,0 +1,227 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "en-US"
+
+reviews:
+  profile: assertive
+  high_level_summary: false
+  auto_title_placeholder: ""
+  poem: false
+  in_progress_fortune: false
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  assess_linked_issues: true
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  auto_label: false
+  suggested_reviewers: true
+  auto_assign_reviewers: true
+
+  path_filters:
+    - "!build/**"
+    - "!external/**"
+    - "!data/**"
+    - "!resources/**"
+
+  path_instructions:
+    - path: "slangpy/**"
+      instructions: >-
+        Python package implementing the slangpy public API and runtime glue.
+        Review for:
+        (1) Public API stability — slangpy is consumed by user code; flag breaking
+        signature changes, removed symbols, or behavior changes in functions
+        re-exported from `slangpy/__init__.py`.
+        (2) Type hints — slangpy ships a `py.typed` marker, so type annotations
+        are part of the API surface.
+        (3) Reference / lifetime correctness for objects that wrap native handles
+        (devices, buffers, modules) — these often hold C++ resources via pybind.
+        (4) Thread-safety assumptions when interacting with GPU resources.
+
+    - path: "src/sgl/**"
+      instructions: >-
+        C++ source for the sgl (Slang Graphics Library) native core. Review for:
+        (1) RAII and reference-counting correctness (ref<T>, breakable_ref<T>).
+        (2) Cross-platform portability (Windows, Linux, macOS).
+        (3) Thread safety of shared resources.
+        (4) Proper error propagation rather than silent failure.
+
+    - path: "src/slangpy_ext/**"
+      instructions: >-
+        pybind11 bindings exposing sgl/slangpy_ext types to Python. Review for:
+        (1) GIL handling — long-running or blocking C++ calls should release the GIL.
+        (2) Reference counting / ownership across the Python<->C++ boundary.
+        (3) Exception translation from C++ to Python.
+        (4) Consistency between C++ signatures and the Python type stubs.
+
+    - path: "src/slangpy_torch/**"
+      instructions: >-
+        PyTorch interop layer. Review for tensor lifetime correctness, CUDA stream
+        synchronization, and dtype/shape validation at the boundary.
+
+    - path: "tests/**"
+      instructions: >-
+        Verify test correctness and coverage. Most tests use pytest; some require
+        a GPU (D3D12, Vulkan, Metal, CUDA, WGPU) and will be skipped on machines
+        without one. New behavior should have a corresponding test, and tests
+        should assert on intended behavior, not just current behavior.
+
+    - path: "examples/**"
+      instructions: >-
+        User-facing examples. Keep them minimal, runnable end-to-end, and
+        consistent with the documented public API.
+
+    - path: "docs/**"
+      instructions: >-
+        User-facing documentation. Verify code samples match the current public
+        API and that links resolve.
+
+    - path: "cmake/**"
+      instructions: >-
+        Build system changes. Verify cross-platform compatibility
+        (Windows/Linux/macOS) and that target dependencies are declared.
+
+    - path: "CMakeLists.txt"
+      instructions: >-
+        Root build configuration. Verify minimum CMake version compatibility and
+        that new targets are properly linked and installed.
+
+    - path: ".github/workflows/**"
+      instructions: >-
+        CI/CD workflow changes. Verify trigger conditions, secret handling, and
+        that matrix configurations cover the required platforms (Windows, Linux,
+        macOS, and where applicable GPU runners).
+
+    - path: "pyproject.toml"
+      instructions: >-
+        Python packaging metadata. Flag changes to the public package name,
+        minimum Python version, declared dependencies, or build backend.
+
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+    ignore_title_keywords:
+      - "WIP"
+      - "wip"
+      - "DO NOT MERGE"
+
+  enable_prompt_for_ai_agents: false
+
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+
+  tools:
+    # Python — relevant
+    ruff:
+      enabled: true
+    pylint:
+      enabled: true
+    # C++ — relevant (native sgl core + pybind extensions)
+    cppcheck:
+      enabled: true
+    clang:
+      enabled: true
+    # Scripts/config — relevant
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+    # Security — relevant
+    gitleaks:
+      enabled: true
+    # Everything else — not applicable
+    luacheck:
+      enabled: false
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+    biome:
+      enabled: false
+    hadolint:
+      enabled: false
+    swiftlint:
+      enabled: false
+    phpstan:
+      enabled: false
+    phpmd:
+      enabled: false
+    phpcs:
+      enabled: false
+    golangci-lint:
+      enabled: false
+    trufflehog:
+      enabled: false
+    checkov:
+      enabled: false
+    tflint:
+      enabled: false
+    detekt:
+      enabled: false
+    eslint:
+      enabled: false
+    flake8:
+      enabled: false
+    fortitudeLint:
+      enabled: false
+    rubocop:
+      enabled: false
+    buf:
+      enabled: false
+    regal:
+      enabled: false
+    pmd:
+      enabled: false
+    opengrep:
+      enabled: false
+    semgrep:
+      enabled: false
+    circleci:
+      enabled: false
+    clippy:
+      enabled: false
+    sqlfluff:
+      enabled: false
+    trivy:
+      enabled: false
+    prismaLint:
+      enabled: false
+    oxc:
+      enabled: false
+    shopifyThemeCheck:
+      enabled: false
+    brakeman:
+      enabled: false
+    dotenvLint:
+      enabled: false
+    htmlhint:
+      enabled: false
+    stylelint:
+      enabled: false
+    checkmake:
+      enabled: false
+    osvScanner:
+      enabled: false
+    blinter:
+      enabled: false
+    smartyLint:
+      enabled: false
+    emberTemplateLint:
+      enabled: false
+    psscriptanalyzer:
+      enabled: false
+
+chat:
+  auto_reply: false
+  art: false
+
+knowledge_base:
+  opt_out: true

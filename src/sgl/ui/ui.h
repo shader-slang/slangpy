@@ -10,10 +10,12 @@
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/formats.h"
+#include "sgl/math/vector_types.h"
 
 #include <map>
 
 struct ImGuiContext;
+struct ImDrawData;
 struct ImFont;
 struct ImTextureData;
 
@@ -46,6 +48,18 @@ public:
     /// \param texture Texture to render to
     /// \param command_encoder Command encoder to encode commands to
     void end_frame(Texture* texture, CommandEncoder* command_encoder);
+
+    /// Render Dear ImGui draw data to the provided texture view.
+    /// @param draw_data Dear ImGui draw data.
+    /// @param texture_view Texture view to render to.
+    /// @param command_encoder Command encoder used to record the render pass.
+    void render_draw_data(const ImDrawData* draw_data, TextureView* texture_view, CommandEncoder* command_encoder);
+
+    /// Render Dear ImGui draw data to the provided texture.
+    /// @param draw_data Dear ImGui draw data.
+    /// @param texture Texture to render to.
+    /// @param command_encoder Command encoder used to record the render pass.
+    void render_draw_data(const ImDrawData* draw_data, Texture* texture, CommandEncoder* command_encoder);
 
     /// Pass a keyboard event to the UI context.
     /// \param event Keyboard event
