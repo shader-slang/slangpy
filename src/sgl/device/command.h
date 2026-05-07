@@ -52,7 +52,24 @@ struct RenderPassDesc {
     std::optional<RenderPassDepthStencilAttachment> depth_stencil_attachment;
 };
 
+using CommandNativeCallbackContext = rhi::ExecuteCallbackContext;
+using CommandNativeCallbackFunc = rhi::ExecuteCallbackFunc;
+using CommandNativeCallbackObjectFunc = rhi::ExecuteCallbackObjectFunc;
 using CommandNativeCallback = std::function<void(NativeHandle native_handle)>;
+
+struct CommandNativeCallbackDesc {
+    /// Function to call when the callback command is recorded/executed.
+    CommandNativeCallbackFunc callback{nullptr};
+
+    /// Optional object retained until the command buffer is reset or destroyed.
+    void* user_object{nullptr};
+    CommandNativeCallbackObjectFunc retain_user_object{nullptr};
+    CommandNativeCallbackObjectFunc release_user_object{nullptr};
+
+    /// Optional small user-data block copied into the command buffer.
+    const void* user_data{nullptr};
+    size_t user_data_size{0};
+};
 
 class SGL_API PassEncoder : public Object {
     SGL_OBJECT(PassEncoder)
@@ -421,8 +438,25 @@ public:
     /**
      * \brief Execute a callback while recording/executing the active native command context.
      *
-     * The callback receives the active native command-list/command-buffer/stream handle.
-     * D3D12 passes D3D12GraphicsCommandList, Vulkan passes VkCommandBuffer, and CUDA passes CUstream.
+     * The
+     * callback descriptor mirrors slang-rhi, including explicit user-object
+     * retain/release hooks and copied
+     * user-data. Use user_data for non-retained
+     * one-shot data. If user_object is set, retain_user_object and
+
+     * * release_user_object must also be set.
+     */
+    void execute_callback(const CommandNativeCallbackDesc& desc);
+
+    /**
+     * \brief Execute a lambda callback while recording/executing the active native command context.
+     *
+
+     * * This is a convenience wrapper around CommandNativeCallbackDesc. The callback is
+     * heap allocated and
+     * retained until the command buffer releases it. Use the
+     * descriptor overload directly when a call does not
+     * need retained captures.
      */
     void execute_callback(CommandNativeCallback callback);
 

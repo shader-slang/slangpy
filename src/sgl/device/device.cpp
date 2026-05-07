@@ -216,10 +216,10 @@ Device::Device(const DeviceDesc& desc)
 
     rhi::VulkanDeviceExtendedDesc vulkan_extended_desc{
         .structType = rhi::StructType::VulkanDeviceExtendedDesc,
-        .additionalVulkanInstanceExtensionCount = narrow_cast<uint32_t>(additional_vulkan_instance_extensions.size()),
-        .additionalVulkanInstanceExtensions = additional_vulkan_instance_extensions.data(),
-        .additionalVulkanDeviceExtensionCount = narrow_cast<uint32_t>(additional_vulkan_device_extensions.size()),
-        .additionalVulkanDeviceExtensions = additional_vulkan_device_extensions.data(),
+        .instanceExtensionCount = narrow_cast<uint32_t>(additional_vulkan_instance_extensions.size()),
+        .instanceExtensions = additional_vulkan_instance_extensions.data(),
+        .deviceExtensionCount = narrow_cast<uint32_t>(additional_vulkan_device_extensions.size()),
+        .deviceExtensions = additional_vulkan_device_extensions.data(),
     };
     d3d12_extended_desc.next = &vulkan_extended_desc;
 

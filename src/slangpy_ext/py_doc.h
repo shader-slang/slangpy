@@ -3589,6 +3589,8 @@ static const char *__doc_sgl_Feature_ray_tracing_validation = R"doc()doc";
 
 static const char *__doc_sgl_Feature_realtime_clock = R"doc()doc";
 
+static const char *__doc_sgl_Feature_residency_set = R"doc()doc";
+
 static const char *__doc_sgl_Feature_sampler_feedback = R"doc()doc";
 
 static const char *__doc_sgl_Feature_shader_execution_reordering = R"doc()doc";
