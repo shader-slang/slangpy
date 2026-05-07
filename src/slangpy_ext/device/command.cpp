@@ -581,6 +581,11 @@ SGL_PY_EXPORT(device_command)
             "index"_a,
             D(CommandEncoder, write_timestamp)
         )
+        .def(
+            "execute_callback",
+            nb::overload_cast<CommandNativeCallback>(&CommandEncoder::execute_callback),
+            "callback"_a
+        )
         .def("finish", &CommandEncoder::finish, D(CommandEncoder, finish))
         .def_prop_ro("native_handle", &CommandEncoder::native_handle, D(CommandEncoder, native_handle));
 

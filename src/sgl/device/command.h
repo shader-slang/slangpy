@@ -438,13 +438,9 @@ public:
     /**
      * \brief Execute a callback while recording/executing the active native command context.
      *
-     * The
-     * callback descriptor mirrors slang-rhi, including explicit user-object
-     * retain/release hooks and copied
-     * user-data. Use user_data for non-retained
-     * one-shot data. If user_object is set, retain_user_object and
-
-     * * release_user_object must also be set.
+     * The callback descriptor mirrors slang-rhi, including explicit user-object retain/release hooks
+     * and copied user-data. Use user_data for non-retained one-shot data. If user_object is set,
+     * retain_user_object and release_user_object must also be set.
      */
     void execute_callback(const CommandNativeCallbackDesc& desc);
 
@@ -453,10 +449,9 @@ public:
      *
 
      * * This is a convenience wrapper around CommandNativeCallbackDesc. The callback is
-     * heap allocated and
-     * retained until the command buffer releases it. Use the
-     * descriptor overload directly when a call does not
-     * need retained captures.
+     * heap allocated and retained until the command buffer releases it, resulting in objects
+     * captured by the lambda are kept alive for the duration of the commmand buffer.
+     *
      */
     void execute_callback(CommandNativeCallback callback);
 

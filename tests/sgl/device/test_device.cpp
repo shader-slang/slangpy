@@ -62,13 +62,11 @@ TEST_CASE_GPU("execute_callback_desc_native_handle")
     ExecuteCallbackTestState* state_ptr = &state;
 
     ref<CommandEncoder> command_encoder = ctx.device->create_command_encoder();
-    command_encoder->execute_callback(
-        {
-            .callback = execute_callback_test,
-            .user_data = &state_ptr,
-            .user_data_size = sizeof(state_ptr),
-        }
-    );
+    command_encoder->execute_callback({
+        .callback = execute_callback_test,
+        .user_data = &state_ptr,
+        .user_data_size = sizeof(state_ptr),
+    });
 
     ref<CommandBuffer> command_buffer = command_encoder->finish();
 
