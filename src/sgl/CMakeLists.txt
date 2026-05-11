@@ -297,7 +297,7 @@ endif()
 
 if(SGL_ENABLE_BUILD_METRICS)
     target_compile_options(sgl
-        PUBLIC
+        PRIVATE
             # report frontend/backend time per TU
             $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Bt+>
             # produce per-TU trace JSON

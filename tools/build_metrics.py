@@ -43,7 +43,13 @@ if sys.platform == "win32":
 
 
 def parse_ninja_log(build_dir: Path, top_n: int) -> bool:
-    """Parse .ninja_log and print the slowest translation units."""
+    """
+    Parse .ninja_log and print the slowest translation units.
+
+    :param build_dir: Path to the build directory containing .ninja_log.
+    :param top_n: Number of top entries to display.
+    :return: True if entries were found and displayed, False otherwise.
+    """
     ninja_log = build_dir / ".ninja_log"
     if not ninja_log.exists():
         print(f"No .ninja_log found at {ninja_log}")
@@ -115,9 +121,8 @@ def parse_ninja_log(build_dir: Path, top_n: int) -> bool:
 
     print(f"{''*80}")
     top_total = sum(d for d, _ in display_entries[:top_n])
-    print(
-        f"{'Top entries:':>10}  {top_total:.1f}s ({top_total/compile_time*100:.1f}% of compile time)"
-    )
+    top_pct = (top_total / compile_time * 100) if compile_time > 0 else 0.0
+    print(f"{'Top entries:':>10}  {top_total:.1f}s ({top_pct:.1f}% of compile time)")
 
     # Show link targets if any are significant
     if link_entries:
@@ -133,7 +138,13 @@ def parse_ninja_log(build_dir: Path, top_n: int) -> bool:
 
 
 def parse_msvc_bt(log_file: Path, top_n: int) -> bool:
-    """Parse MSVC /Bt+ output from a captured build log."""
+    """
+    Parse MSVC /Bt+ output from a captured build log.
+
+    :param log_file: Path to the captured build output file.
+    :param top_n: Number of top entries to display.
+    :return: True if timing data was found and displayed, False otherwise.
+    """
     if not log_file.exists():
         print(f"Log file not found: {log_file}")
         return False
@@ -196,7 +207,13 @@ def parse_msvc_bt(log_file: Path, top_n: int) -> bool:
 
 
 def parse_ftime_trace(build_dir: Path, top_n: int) -> bool:
-    """Parse Clang -ftime-trace JSON files and aggregate results."""
+    """
+    Parse Clang -ftime-trace JSON files and aggregate results.
+
+    :param build_dir: Path to the build directory containing trace files.
+    :param top_n: Number of top entries to display per category.
+    :return: True if trace data was found and displayed, False otherwise.
+    """
     # Find all .json trace files in the build tree
     trace_files: list[Path] = []
     for root, _dirs, files in os.walk(build_dir):
@@ -284,7 +301,13 @@ def parse_ftime_trace(build_dir: Path, top_n: int) -> bool:
 
 
 def generate_ninja_trace(build_dir: Path, output_file: Path) -> bool:
-    """Convert .ninja_log to Chrome trace format for visualization."""
+    """
+    Convert .ninja_log to Chrome trace format for visualization.
+
+    :param build_dir: Path to the build directory containing .ninja_log.
+    :param output_file: Path to write the Chrome trace JSON output.
+    :return: True if the trace was generated successfully, False otherwise.
+    """
     ninja_log = build_dir / ".ninja_log"
     if not ninja_log.exists():
         print(f"No .ninja_log found at {ninja_log}")
@@ -351,7 +374,12 @@ def generate_ninja_trace(build_dir: Path, output_file: Path) -> bool:
 
 
 def find_build_dir(args: argparse.Namespace) -> Path:
-    """Determine the build directory from arguments."""
+    """
+    Determine the build directory from arguments.
+
+    :param args: Parsed command-line arguments.
+    :return: Path to the build directory.
+    """
     if args.build_dir:
         return Path(args.build_dir)
     if args.preset:
@@ -396,7 +424,7 @@ def main() -> None:
         "--log-file",
         type=str,
         default=None,
-        help="Path to captured build output (stderr) for MSVC/GCC parsing",
+        help="Path to captured build output (stderr) for MSVC /Bt+ parsing",
     )
     parser.add_argument(
         "--trace",
@@ -416,8 +444,8 @@ def main() -> None:
 
     # Generate trace if requested
     if args.trace:
-        if generate_ninja_trace(build_dir, Path(args.trace)):
-            found_data = True
+        if not generate_ninja_trace(build_dir, Path(args.trace)):
+            sys.exit(1)
         return
 
     # Always try ninja log
@@ -435,7 +463,7 @@ def main() -> None:
 
     if not found_data:
         print("\nNo build metrics data found.")
-        print("Run a build first, or specify --log-file for MSVC/GCC output.")
+        print("Run a build first, or specify --log-file for MSVC output.")
         sys.exit(1)
 
 
