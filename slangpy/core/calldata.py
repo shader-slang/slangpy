@@ -58,6 +58,14 @@ _ALLOW_TORCH_FALLBACK = os.environ.get("SLANGPY_ALLOW_TORCH_FALLBACK", "").lower
     "1",
 )
 
+# OptiX built-in intersection shaders that must not be resolved as user entry points.
+_OPTIX_BUILTIN_INTERSECTION_SHADERS = frozenset(
+    {
+        "__builtin_intersection__sphere",
+        "__builtin_intersection__linear_swept_spheres",
+    }
+)
+
 # Track if we've already warned about torch bridge fallback
 _torch_bridge_warned = False
 
@@ -518,29 +526,32 @@ class CallData(NativeCallData):
             elif build_info.pipeline_type == PipelineType.ray_tracing:
                 # Create ray tracing pipeline
                 eps = [module.entry_point(f"raygen_main", type_conformances)]
+                # Collect hit group names and entry point names from build info.
                 hit_group_names: list[str] = []
+                # dict preserves insertion order; value is unused.
+                entry_point_names: dict[str, None] = {}
                 for hit_group in build_info.ray_tracing_hit_groups:
                     hit_group_names.append(hit_group.hit_group_name)
-                    if hit_group.closest_hit_entry_point != "":
-                        eps.append(
-                            build_info.module.device_module.entry_point(
-                                hit_group.closest_hit_entry_point
-                            )
-                        )
-                    if hit_group.any_hit_entry_point != "":
-                        eps.append(
-                            build_info.module.device_module.entry_point(
-                                hit_group.any_hit_entry_point
-                            )
-                        )
-                    if hit_group.intersection_entry_point != "":
-                        eps.append(
-                            build_info.module.device_module.entry_point(
-                                hit_group.intersection_entry_point
-                            )
-                        )
-                for miss_entry_point in build_info.ray_tracing_miss_entry_points:
-                    eps.append(build_info.module.device_module.entry_point(miss_entry_point))
+                    if hit_group.closest_hit_entry_point:
+                        entry_point_names[hit_group.closest_hit_entry_point] = None
+                    if hit_group.any_hit_entry_point:
+                        entry_point_names[hit_group.any_hit_entry_point] = None
+                    if (
+                        hit_group.intersection_entry_point
+                        and hit_group.intersection_entry_point
+                        not in _OPTIX_BUILTIN_INTERSECTION_SHADERS
+                    ):
+                        entry_point_names[hit_group.intersection_entry_point] = None
+                entry_point_names.update(
+                    (name, None) for name in build_info.ray_tracing_miss_entry_points
+                )
+                entry_point_names.update(
+                    (name, None) for name in build_info.ray_tracing_callable_entry_points
+                )
+                # Add entry points for every user-defined entry point in the hit groups, miss shaders, and callable shaders.
+                eps.extend(
+                    build_info.module.device_module.entry_point(name) for name in entry_point_names
+                )
 
                 program = session.link_program(
                     [module, build_info.module.device_module],
