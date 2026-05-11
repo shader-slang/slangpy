@@ -519,28 +519,38 @@ class CallData(NativeCallData):
                 # Create ray tracing pipeline
                 eps = [module.entry_point(f"raygen_main", type_conformances)]
                 hit_group_names: list[str] = []
+                entry_point_names = set()
                 for hit_group in build_info.ray_tracing_hit_groups:
                     hit_group_names.append(hit_group.hit_group_name)
-                    if hit_group.closest_hit_entry_point != "":
-                        eps.append(
-                            build_info.module.device_module.entry_point(
-                                hit_group.closest_hit_entry_point
-                            )
-                        )
-                    if hit_group.any_hit_entry_point != "":
-                        eps.append(
-                            build_info.module.device_module.entry_point(
-                                hit_group.any_hit_entry_point
-                            )
-                        )
-                    if hit_group.intersection_entry_point != "":
-                        eps.append(
-                            build_info.module.device_module.entry_point(
-                                hit_group.intersection_entry_point
-                            )
-                        )
+                    if (
+                        hit_group.closest_hit_entry_point != ""
+                        and hit_group.closest_hit_entry_point not in entry_point_names
+                    ):
+                        entry_point_names.add(hit_group.closest_hit_entry_point)
+                    if (
+                        hit_group.any_hit_entry_point != ""
+                        and hit_group.any_hit_entry_point not in entry_point_names
+                    ):
+                        entry_point_names.add(hit_group.any_hit_entry_point)
+                    if (
+                        hit_group.intersection_entry_point != ""
+                        # Filter out built-in intersection shaders (used for OptiX)
+                        and hit_group.intersection_entry_point
+                        not in [
+                            "__builtin_intersection__sphere",
+                            "__builtin_intersection__linear_swept_spheres",
+                        ]
+                        and hit_group.intersection_entry_point not in entry_point_names
+                    ):
+                        entry_point_names.add(hit_group.intersection_entry_point)
                 for miss_entry_point in build_info.ray_tracing_miss_entry_points:
-                    eps.append(build_info.module.device_module.entry_point(miss_entry_point))
+                    if miss_entry_point not in entry_point_names:
+                        entry_point_names.add(miss_entry_point)
+                for callable_entry_point in build_info.ray_tracing_callable_entry_points:
+                    if callable_entry_point not in entry_point_names:
+                        entry_point_names.add(callable_entry_point)
+                for entry_point in entry_point_names:
+                    eps.append(build_info.module.device_module.entry_point(entry_point))
 
                 program = session.link_program(
                     [module, build_info.module.device_module],
