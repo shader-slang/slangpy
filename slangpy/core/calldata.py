@@ -526,12 +526,14 @@ class CallData(NativeCallData):
             elif build_info.pipeline_type == PipelineType.ray_tracing:
                 # Create ray tracing pipeline
                 eps = [module.entry_point(f"raygen_main", type_conformances)]
-                # Collect hit group names and entry point names from build info.
-                hit_group_names: list[str] = []
+                # Collect hit group names. Either use the provided list, or construct hit group descriptions.
+                hit_group_names = build_info.ray_tracing_hit_group_names or [
+                    hit_group.hit_group_name for hit_group in build_info.ray_tracing_hit_groups
+                ]
+                # Collect entry point names for all hit groups, miss shaders and callable shaders.
                 # dict preserves insertion order; value is unused.
                 entry_point_names: dict[str, None] = {}
                 for hit_group in build_info.ray_tracing_hit_groups:
-                    hit_group_names.append(hit_group.hit_group_name)
                     if hit_group.closest_hit_entry_point:
                         entry_point_names[hit_group.closest_hit_entry_point] = None
                     if hit_group.any_hit_entry_point:
@@ -543,10 +545,10 @@ class CallData(NativeCallData):
                     ):
                         entry_point_names[hit_group.intersection_entry_point] = None
                 entry_point_names.update(
-                    (name, None) for name in build_info.ray_tracing_miss_entry_points
+                    (name, None) for name in build_info.ray_tracing_miss_entry_points if name
                 )
                 entry_point_names.update(
-                    (name, None) for name in build_info.ray_tracing_callable_entry_points
+                    (name, None) for name in build_info.ray_tracing_callable_entry_points if name
                 )
                 # Add entry points for every user-defined entry point in the hit groups, miss shaders, and callable shaders.
                 eps.extend(
