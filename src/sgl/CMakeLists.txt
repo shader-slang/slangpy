@@ -310,8 +310,14 @@ endif()
 if(SGL_ENABLE_PCH)
     target_precompile_headers(sgl
         PRIVATE
-            sgl/sgl_pch.h
+            sgl_pch.h
     )
+    # bitmap.cpp defines STB_IMAGE_IMPLEMENTATION, skip PCH for it.
+    set_source_files_properties(core/bitmap.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+    if(SGL_MACOS)
+        # platform_macos.mm is Objective-C++, incompatible with the C++ PCH.
+        set_source_files_properties(core/platform_macos.mm PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+    endif()
 endif()
 
 target_link_options(sgl
