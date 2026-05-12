@@ -35,7 +35,7 @@ def detect_torch_tensors(args: tuple[Any, ...], kwargs: dict[str, Any]) -> tuple
     global _torch_module
     if _torch_module is None:
         try:
-            import torch
+            import torch # @IgnoreException
 
             _torch_module = torch
         except ImportError:
