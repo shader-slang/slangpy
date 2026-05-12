@@ -70,6 +70,7 @@ class FunctionBuildInfo:
         self.pipeline_type: PipelineType = PipelineType.compute
         self.ray_tracing_hit_groups: list[HitGroupDesc] = []
         self.ray_tracing_miss_entry_points: list[str] = []
+        self.ray_tracing_hit_group_names: Optional[list[str]] = None
         self.ray_tracing_callable_entry_points: list[str] = []
         self.ray_tracing_max_recursion: int = 0
         self.ray_tracing_max_ray_payload_size: int = 0
@@ -182,6 +183,7 @@ class FunctionNode(NativeFunctionNode):
         self,
         hit_groups: Sequence["HitGroupDescParam"],
         miss_entry_points: Sequence[str] = [],
+        hit_group_names: Optional[Sequence[str]] = None,
         callable_entry_points: Sequence[str] = [],
         max_recursion: int = 1,
         max_ray_payload_size: int = 32,
@@ -195,6 +197,7 @@ class FunctionNode(NativeFunctionNode):
             self,
             hit_groups,
             miss_entry_points,
+            hit_group_names,
             callable_entry_points,
             max_recursion,
             max_ray_payload_size,
@@ -462,6 +465,7 @@ class FunctionNodeRayTracing(FunctionNode):
         parent: NativeFunctionNode,
         hit_groups: Sequence["HitGroupDescParam"],
         miss_entry_points: Sequence[str],
+        hit_group_names: Optional[Sequence[str]],
         callable_entry_points: Sequence[str],
         max_recursion: int,
         max_ray_payload_size: int,
@@ -472,8 +476,9 @@ class FunctionNodeRayTracing(FunctionNode):
             parent,
             FunctionNodeType.ray_tracing,
             {
-                "hit_groups": [HitGroupDesc(hit_group) for hit_group in hit_groups],  # type: ignore
+                "hit_groups": [hit_group if isinstance(hit_group, HitGroupDesc) else HitGroupDesc(hit_group) for hit_group in hit_groups],  # type: ignore
                 "miss_entry_points": list(miss_entry_points),
+                "hit_group_names": list(hit_group_names) if hit_group_names is not None else None,
                 "callable_entry_points": list(callable_entry_points),
                 "max_recursion": max_recursion,
                 "max_ray_payload_size": max_ray_payload_size,
@@ -488,6 +493,7 @@ class FunctionNodeRayTracing(FunctionNode):
         info.pipeline_type = PipelineType.ray_tracing
         info.ray_tracing_hit_groups = d["hit_groups"]
         info.ray_tracing_miss_entry_points = d["miss_entry_points"]
+        info.ray_tracing_hit_group_names = d["hit_group_names"]
         info.ray_tracing_callable_entry_points = d["callable_entry_points"]
         info.ray_tracing_max_recursion = d["max_recursion"]
         info.ray_tracing_max_ray_payload_size = d["max_ray_payload_size"]
