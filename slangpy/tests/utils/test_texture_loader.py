@@ -259,14 +259,14 @@ def test_load_rgb_float_texture_with_generated_mips_extends_to_rgba(device_type:
 
     format_support = device.get_format_support(Format.rgba32_float)
     if (
-        not FormatSupport.texture in format_support
-        or not FormatSupport.shader_load in format_support
+        FormatSupport.texture not in format_support
+        or FormatSupport.shader_load not in format_support
     ):
         pytest.skip("RGBA32 float format not supported")
     if spy.Feature.rasterization in device.features:
-        if not FormatSupport.render_target in format_support:
+        if FormatSupport.render_target not in format_support:
             pytest.skip("RGBA32 float render target format not supported")
-    elif not FormatSupport.shader_uav_store in format_support:
+    elif FormatSupport.shader_uav_store not in format_support:
         pytest.skip("RGBA32 float UAV format not supported")
 
     bitmap = Bitmap(
