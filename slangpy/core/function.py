@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+import hashlib
 from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union, cast, Sequence
 from enum import Enum
 
@@ -63,6 +64,7 @@ class FunctionBuildInfo:
         self.call_mode: CallMode = CallMode.prim
         self.options: dict[str, Any] = {}
         self.constants: dict[str, Any] = {}
+        self.prelude: list[str] = []
         self.thread_group_size: Optional[uint3] = None
         self.return_type: Optional[Union[type, str]] = None
         self.logger: Optional[Logger] = None
@@ -172,6 +174,12 @@ class FunctionNode(NativeFunctionNode):
         will result in the function being recompiled.
         """
         return FunctionNodeConstants(self, constants)
+
+    def prelude(self, code: str) -> "FunctionNode":
+        """
+        Specify raw Slang source code to inject into the generated kernel module.
+        """
+        return FunctionNodePrelude(self, code)
 
     def type_conformances(self, type_conformances: list[TypeConformance]):
         """
@@ -442,6 +450,20 @@ class FunctionNodeConstants(FunctionNode):
 
     def _populate_build_info(self, info: FunctionBuildInfo):
         info.constants.update(self.constants)
+
+
+class FunctionNodePrelude(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, code: str) -> None:
+        code = code.replace("\r\n", "\n")
+        super().__init__(parent, FunctionNodeType.kernelgen, code)
+        self.slangpy_signature = "prelude:" + hashlib.sha256(code.encode()).hexdigest()
+
+    @property
+    def code(self) -> str:
+        return cast(str, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo) -> None:
+        info.prelude.append(self.code)
 
 
 class FunctionNodeTypeConformances(FunctionNode):
