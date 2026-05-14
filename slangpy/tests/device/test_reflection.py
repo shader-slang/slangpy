@@ -598,6 +598,61 @@ def test_find_type_by_name(test_id: str, device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_function_user_attributes_on_interface(test_id: str, device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+
+    # Create a session, and within it a module.
+    session = create_session(device)
+    module = session.load_module_from_source(
+        module_name=f"module_from_source_{test_id}",
+        source=r"""
+        [__AttributeUsage(_AttributeTargets.Function)]
+        struct OutputSpecAttribute
+        {
+            string format;
+            string clear_value;
+            int flags;
+            float scale;
+        }
+
+        public interface ITestWrite
+        {
+            [OutputSpec("rgba16_float", "0,0,0,1", 7, 0.5)]
+            public static void color(uint2 coord, float4 value) { }
+
+            [OutputSpec("r32_float", "0", 3, 1.0)]
+            public static void depth(uint2 coord, float value) { }
+        }
+    """,
+    )
+
+    # Find the interface type and inspect attributes on one of its functions.
+    interface_type = module.layout.find_type_by_name("ITestWrite")
+    assert interface_type is not None
+    assert interface_type.kind == spy.TypeReflection.Kind.interface
+
+    color_func = module.layout.find_function_by_name_in_type(interface_type, "color")
+    assert color_func is not None
+    assert color_func.get_user_attribute_count() == 1
+
+    attr = color_func.get_user_attribute_by_index(0)
+    assert attr is not None
+    assert attr.name == "OutputSpec"
+    assert attr.argument_count == 4
+    assert attr.argument_type(0) is not None
+    assert attr.argument_type(1) is not None
+    assert attr.argument_type(2).name == "int"
+    assert attr.argument_type(3).name == "float"
+    assert attr.argument_value_string(0) == "rgba16_float"
+    assert attr.argument_value_string(1) == "0,0,0,1"
+    assert attr.argument_value_int(2) == 7
+    assert attr.argument_value_float(3) == pytest.approx(0.5)
+
+    assert color_func.find_user_attribute_by_name("OutputSpec") is attr
+    assert color_func.find_user_attribute_by_name("Missing") is None
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_find_generic_type_by_name(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
