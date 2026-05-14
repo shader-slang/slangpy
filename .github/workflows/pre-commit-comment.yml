@@ -6,8 +6,9 @@ on:
     types: [completed]
 
 permissions:
+  contents: read
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   comment:
@@ -19,9 +20,17 @@ jobs:
       uses: actions/github-script@v8
       with:
         script: |
-          const pullRequests = context.payload.workflow_run.pull_requests;
-          if (!pullRequests || pullRequests.length === 0) {
-            core.info("No pull request is associated with this workflow run.");
+          let pullRequests = context.payload.workflow_run.pull_requests || [];
+          if (pullRequests.length === 0) {
+            const associated = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              ...context.repo,
+              commit_sha: context.payload.workflow_run.head_sha
+            });
+            pullRequests = associated.data;
+          }
+
+          if (pullRequests.length === 0) {
+            core.info(`No pull request is associated with ${context.payload.workflow_run.head_sha}.`);
             return;
           }
 
