@@ -2,6 +2,7 @@
 
 #include "nanobind.h"
 
+#include "sgl/refl/function.h"
 #include "sgl/refl/layout.h"
 #include "sgl/refl/type.h"
 
@@ -28,6 +29,17 @@ SGL_PY_EXPORT(native_refl)
         .def_prop_ro("uniform_layout", &refl::Type::uniform_layout, D_NA(Type, uniform_layout))
         .def_prop_ro("buffer_layout", &refl::Type::buffer_layout, D_NA(Type, buffer_layout))
         .def_prop_ro("derivative", &refl::Type::derivative, D_NA(Type, derivative))
+        .def_prop_ro(
+            "fields",
+            [](refl::Type& self)
+            {
+                nb::dict result;
+                for (const auto& [name, field] : self.fields())
+                    result[nb::str(name.c_str())] = nb::cast(field);
+                return result;
+            },
+            D_NA(Type, fields)
+        )
         .def("__repr__", &refl::Type::to_string, D_NA(Type, to_string));
 
     nb::class_<refl::UnknownType, refl::Type>(native_refl, "UnknownType", D_NA(UnknownType));
@@ -117,6 +129,46 @@ SGL_PY_EXPORT(native_refl)
 
     nb::class_<refl::UnhandledType, refl::Type>(native_refl, "UnhandledType", D_NA(UnhandledType));
 
+    nb::class_<refl::Variable, sgl::Object> variable(native_refl, "Variable", D_NA(Variable));
+    nb::sgl_enum<refl::Variable::IOType>(variable, "IOType", D_NA(Variable, IOType));
+    variable.def_prop_ro("type", &refl::Variable::type, D_NA(Variable, type))
+        .def_prop_ro("name", &refl::Variable::name, D_NA(Variable, name))
+        .def_prop_ro("modifiers", &refl::Variable::modifiers, D_NA(Variable, modifiers))
+        .def_prop_ro("declaration", &refl::Variable::declaration, D_NA(Variable, declaration))
+        .def_prop_ro("io_type", &refl::Variable::io_type, D_NA(Variable, io_type))
+        .def_prop_ro("no_diff", &refl::Variable::no_diff, D_NA(Variable, no_diff))
+        .def_prop_ro("differentiable", &refl::Variable::differentiable, D_NA(Variable, differentiable))
+        .def_prop_ro("derivative", &refl::Variable::derivative, D_NA(Variable, derivative))
+        .def("has_modifier", &refl::Variable::has_modifier, "modifier"_a, D_NA(Variable, has_modifier))
+        .def("__repr__", &refl::Variable::to_string, D_NA(Variable, to_string));
+
+    nb::class_<refl::Field, refl::Variable>(native_refl, "Field", D_NA(Field));
+
+    nb::class_<refl::Parameter, refl::Variable>(native_refl, "Parameter", D_NA(Parameter))
+        .def_prop_ro("index", &refl::Parameter::index, D_NA(Parameter, index))
+        .def_prop_ro("has_default", &refl::Parameter::has_default, D_NA(Parameter, has_default));
+
+    nb::class_<refl::Function, sgl::Object>(native_refl, "Function", D_NA(Function))
+        .def_prop_ro("name", &refl::Function::name, D_NA(Function, name))
+        .def_prop_ro("full_name", &refl::Function::full_name, D_NA(Function, full_name))
+        .def_prop_ro("this_type", &refl::Function::this_type, D_NA(Function, this_type))
+        .def_prop_ro("return_type", &refl::Function::return_type, D_NA(Function, return_type))
+        .def_prop_ro("parameters", &refl::Function::parameters, D_NA(Function, parameters))
+        .def_prop_ro("have_return_value", &refl::Function::have_return_value, D_NA(Function, have_return_value))
+        .def_prop_ro("differentiable", &refl::Function::differentiable, D_NA(Function, differentiable))
+        .def_prop_ro("mutating", &refl::Function::mutating, D_NA(Function, mutating))
+        .def_prop_ro("static", &refl::Function::static_, D_NA(Function, static_))
+        .def_prop_ro("is_overloaded", &refl::Function::is_overloaded, D_NA(Function, is_overloaded))
+        .def_prop_ro("overloads", &refl::Function::overloads, D_NA(Function, overloads))
+        .def_prop_ro("is_constructor", &refl::Function::is_constructor, D_NA(Function, is_constructor))
+        .def(
+            "specialize_with_arg_types",
+            &refl::Function::specialize_with_arg_types,
+            "types"_a,
+            D_NA(Function, specialize_with_arg_types)
+        )
+        .def("__repr__", &refl::Function::to_string, D_NA(Function, to_string));
+
     nb::class_<refl::Layout, sgl::Object>(native_refl, "Layout", D_NA(Layout))
         .def(
             "__init__",
@@ -144,6 +196,45 @@ SGL_PY_EXPORT(native_refl)
         )
         .def("find_type_by_name", &refl::Layout::find_type_by_name, "name"_a, D_NA(Layout, find_type_by_name))
         .def("require_type_by_name", &refl::Layout::require_type_by_name, "name"_a, D_NA(Layout, require_type_by_name))
+        .def(
+            "find_function",
+            [](refl::Layout& self, nb::object function_reflection)
+            {
+                return self.find_function(
+                    sgl::ref<const sgl::FunctionReflection>(
+                        nb::cast<const sgl::FunctionReflection*>(function_reflection)
+                    )
+                );
+            },
+            "function_reflection"_a,
+            D_NA(Layout, find_function)
+        )
+        .def(
+            "find_function_by_name",
+            &refl::Layout::find_function_by_name,
+            "name"_a,
+            D_NA(Layout, find_function_by_name)
+        )
+        .def(
+            "require_function_by_name",
+            &refl::Layout::require_function_by_name,
+            "name"_a,
+            D_NA(Layout, require_function_by_name)
+        )
+        .def(
+            "find_function_by_name_in_type",
+            &refl::Layout::find_function_by_name_in_type,
+            "type"_a,
+            "name"_a,
+            D_NA(Layout, find_function_by_name_in_type)
+        )
+        .def(
+            "require_function_by_name_in_type",
+            &refl::Layout::require_function_by_name_in_type,
+            "type"_a,
+            "name"_a,
+            D_NA(Layout, require_function_by_name_in_type)
+        )
         .def("scalar_type", &refl::Layout::scalar_type, "scalar_type"_a, D_NA(Layout, scalar_type))
         .def("vector_type", &refl::Layout::vector_type, "scalar_type"_a, "size"_a, D_NA(Layout, vector_type))
         .def("matrix_type", &refl::Layout::matrix_type, "scalar_type"_a, "rows"_a, "cols"_a, D_NA(Layout, matrix_type))

@@ -95,6 +95,12 @@ Completed:
   - Expanded `sgl::refl::Layout` with cached type lookup by reflection and name, scalar/vector/matrix/array/tensor helper lookups, generic argument parsing, and cache invalidation on hot reload.
   - Updated `sgl::func::BaseStruct` to store a native `sgl::refl::Type` instead of copied type name/full-name/shape fields.
   - Extended `slangpy.native_refl` bindings for the new semantic type classes.
+- Continued Phase 1 with native function metadata:
+  - Added `src/sgl/refl/function.h` and `src/sgl/refl/function.cpp`.
+  - Added native semantic `Variable`, `Field`, `Parameter`, and `Function` classes.
+  - Added `sgl::refl::Type::fields()` for struct fields and synthesized vector swizzle fields.
+  - Added `sgl::refl::Layout` lookup and caching for global functions, type methods, overloads, and specialization by argument type.
+  - Extended `slangpy.native_refl` bindings for fields, parameters, functions, and function lookup.
 - Added tests:
   - `tests/sgl/refl/test_reflection.cpp`
   - `tests/sgl/func/test_reflection.cpp`
@@ -121,7 +127,8 @@ pre-commit run --all-files
 Current limitations:
 
 - Native semantic `Type` coverage has started, but existing Python `SlangType` is still the active runtime type used by marshalling and type resolution.
-- High-level semantic `Function`, `Field`, `Parameter`, and full Python-compatible `Layout` behavior are still Python-owned.
+- Native `Function`, `Field`, and `Parameter` metadata now exists, but existing Python `SlangFunction`, `SlangField`, and `SlangParameter` are still the active runtime objects used by marshalling and type resolution.
+- Full Python-compatible `Layout` behavior is still Python-owned.
 - `slangpy/reflection/lookup.py` has not moved native yet.
 - `Module.layout` still returns the Python `SlangProgramLayout`, not `sgl::refl::Layout`.
 - `Struct` still delegates user-facing metadata to the Python `SlangType` object.
@@ -130,7 +137,7 @@ Current limitations:
 
 Next recommended step:
 
-- Continue Phase 1: Native Semantic Reflection. The next checkpoint should fill in native function, field, and parameter metadata around the new native `Type` model, then use that to start routing Tensor-critical lookup paths through native reflection.
+- Continue Phase 1: Native Semantic Reflection. The next checkpoint should move Tensor-critical lookup paths through native reflection: built-in per-device layout ownership, `resolve_program_layout`, `resolve_element_type`, scalar/NumPy type conversion, and cross-layout lookup by `full_name`.
 
 ## Nanobind Trampoline Rule
 

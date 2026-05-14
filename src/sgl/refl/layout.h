@@ -5,6 +5,7 @@
 #include "sgl/core/macros.h"
 #include "sgl/core/object.h"
 #include "sgl/device/reflection.h"
+#include "sgl/refl/function.h"
 #include "sgl/refl/type.h"
 
 #include <cstdint>
@@ -27,8 +28,6 @@ public:
 
     /// Return the low-level SGL program layout.
     const sgl::ProgramLayout* low_level_layout() const { return m_low_level_layout.get(); }
-    /// Return the low-level SGL program layout with reference ownership.
-    ref<const sgl::ProgramLayout> low_level_layout_ref() const { return m_low_level_layout; }
 
     /// Return the layout generation, incremented whenever hot reload replaces the low-level layout.
     uint64_t generation() const { return m_generation; }
@@ -41,6 +40,17 @@ public:
     ref<Type> find_type_by_name(std::string_view name);
     /// Find or create a semantic type by reflected type name, throwing if absent.
     ref<Type> require_type_by_name(std::string_view name);
+
+    /// Find or create a semantic function for a low-level function reflection.
+    ref<Function> find_function(ref<const FunctionReflection> reflection, ref<Type> this_type = nullptr);
+    /// Find or create a semantic function by global reflected function name.
+    ref<Function> find_function_by_name(std::string_view name);
+    /// Find or create a semantic function by global reflected function name, throwing if absent.
+    ref<Function> require_function_by_name(std::string_view name);
+    /// Find or create a semantic function by name within a reflected type.
+    ref<Function> find_function_by_name_in_type(ref<Type> type, std::string_view name);
+    /// Find or create a semantic function by name within a reflected type, throwing if absent.
+    ref<Function> require_function_by_name_in_type(ref<Type> type, std::string_view name);
 
     /// Return the semantic scalar type for a Slang scalar id.
     ref<ScalarType> scalar_type(TypeReflection::ScalarType scalar_type);
@@ -76,6 +86,8 @@ private:
     uint64_t m_generation = 0;
     std::unordered_map<const TypeReflection*, ref<Type>> m_types_by_reflection;
     std::unordered_map<std::string, ref<Type>> m_types_by_name;
+    std::unordered_map<const FunctionReflection*, ref<Function>> m_functions_by_reflection;
+    std::unordered_map<std::string, ref<Function>> m_functions_by_name;
 };
 
 } // namespace sgl::refl

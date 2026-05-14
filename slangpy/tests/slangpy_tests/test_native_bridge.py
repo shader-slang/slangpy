@@ -6,11 +6,15 @@ import slangpy as spy
 from slangpy.native_func import BaseModule, BaseStruct
 from slangpy.native_refl import (
     ArrayType,
+    Field,
+    Function,
     Layout,
     MatrixType,
+    Parameter,
     ScalarType,
     StructType,
     TensorType,
+    Variable,
     VectorType,
 )
 from slangpy.testing import helpers
@@ -21,7 +25,15 @@ import "slangpy";
 
 struct Foo {
     float3 value;
+    float eval(float scale) { return value.x * scale; }
 };
+
+[Differentiable]
+float add(float lhs, float rhs) { return lhs + rhs; }
+
+void update(inout float value, out float result, no_diff in float weight) {
+    result = value * weight;
+}
 """
 
 
@@ -85,6 +97,8 @@ def test_native_refl_layout_creates_semantic_types(device_type: spy.DeviceType) 
     struct_type = layout.require_type_by_name("Foo")
     assert isinstance(struct_type, StructType)
     assert struct_type.full_name == "Foo"
+    assert isinstance(struct_type.fields["value"], Field)
+    assert struct_type.fields["value"].type is vector_type
 
     tensor_type = layout.tensor_type(
         float_type,
@@ -98,3 +112,37 @@ def test_native_refl_layout_creates_semantic_types(device_type: spy.DeviceType) 
     assert tensor_type.readable
     assert tensor_type.writable
     assert tensor_type.shape == (-1, -1)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_native_refl_layout_creates_function_metadata(device_type: spy.DeviceType) -> None:
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, MODULE_SOURCE)
+    layout = Layout(module.module.layout)
+
+    float_type = layout.require_type_by_name("float")
+    struct_type = layout.require_type_by_name("Foo")
+
+    function = layout.require_function_by_name("add")
+    assert isinstance(function, Function)
+    assert function.name == "add"
+    assert function.return_type is float_type
+    assert function.have_return_value
+    assert function.differentiable
+
+    parameters = function.parameters
+    assert len(parameters) == 2
+    assert isinstance(parameters[0], Parameter)
+    assert parameters[0].name == "lhs"
+    assert parameters[0].index == 0
+    assert parameters[0].type is float_type
+    assert parameters[0].io_type == Variable.IOType.inn
+
+    update = layout.require_function_by_name("update")
+    assert update.parameters[0].io_type == Variable.IOType.inout
+    assert update.parameters[1].io_type == Variable.IOType.out
+    assert update.parameters[2].no_diff
+
+    method = layout.require_function_by_name_in_type(struct_type, "eval")
+    assert method.this_type is struct_type
+    assert method.full_name == "Foo::eval"

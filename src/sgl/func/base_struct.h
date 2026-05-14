@@ -27,10 +27,8 @@ public:
     refl::Layout* layout() const { return m_module ? m_module->layout() : nullptr; }
     /// Return the semantic reflected type for this struct.
     refl::Type* type() const { return m_type.get(); }
-    /// Return the semantic reflected type with reference ownership.
-    ref<refl::Type> type_ref() const { return m_type; }
-    /// Return the low-level reflected type with reference ownership.
-    ref<const TypeReflection> type_reflection() const { return m_type ? m_type->reflection_ref() : nullptr; }
+    /// Return the low-level reflected type.
+    const TypeReflection* type_reflection() const { return m_type ? m_type->reflection() : nullptr; }
 
     /// Return the short reflected struct name.
     std::string name() const;

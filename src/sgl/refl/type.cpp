@@ -2,11 +2,13 @@
 
 #include "sgl/refl/type.h"
 
+#include "sgl/refl/function.h"
 #include "sgl/refl/layout.h"
 
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <utility>
 
@@ -301,6 +303,18 @@ ref<Type> Type::derivative()
     return m_derivative;
 }
 
+const std::unordered_map<std::string, ref<Field>>& Type::fields()
+{
+    if (!m_fields)
+        m_fields = build_fields();
+    return *m_fields;
+}
+
+std::unordered_map<std::string, ref<Field>> Type::build_fields()
+{
+    return {};
+}
+
 ref<TypeLayout> Type::uniform_layout()
 {
     if (!m_uniform_layout) {
@@ -333,6 +347,7 @@ void Type::on_hot_reload(ref<const TypeReflection> reflection)
     m_uniform_layout = nullptr;
     m_buffer_layout = nullptr;
     m_derivative = nullptr;
+    m_fields.reset();
     m_vector_type_name.reset();
 }
 
@@ -434,6 +449,18 @@ std::string VectorType::vector_type_name() const
         m_element_type ? m_element_type->vector_type_name() : "Unknown",
         m_num_elements
     );
+}
+
+std::unordered_map<std::string, ref<Field>> VectorType::build_fields()
+{
+    static constexpr std::array<const char*, 4> names = {"x", "y", "z", "w"};
+
+    std::unordered_map<std::string, ref<Field>> fields;
+    ref<ScalarType> scalar_type = this->scalar_type();
+    const int count = std::min<int>(m_num_elements, int(names.size()));
+    for (int i = 0; i < count; ++i)
+        fields.emplace(names[size_t(i)], make_ref<Field>(m_layout, scalar_type, names[size_t(i)]));
+    return fields;
 }
 
 MatrixType::MatrixType(ref<Layout> layout, ref<const TypeReflection> reflection)
@@ -541,6 +568,16 @@ std::string StructType::vector_type_name() const
     if (full_name().find('<') != std::string::npos)
         return "Unknown";
     return full_name();
+}
+
+std::unordered_map<std::string, ref<Field>> StructType::build_fields()
+{
+    std::unordered_map<std::string, ref<Field>> fields;
+    for (ref<const VariableReflection> field_reflection : m_reflection->fields()) {
+        if (field_reflection)
+            fields.emplace(c_string(field_reflection->name()), make_ref<Field>(m_layout, field_reflection));
+    }
+    return fields;
 }
 
 InterfaceType::InterfaceType(ref<Layout> layout, ref<const TypeReflection> reflection)

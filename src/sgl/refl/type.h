@@ -11,10 +11,12 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace sgl::refl {
 
+class Field;
 class Layout;
 
 /// Native semantic reflection code must remain Python-free.
@@ -29,8 +31,6 @@ public:
 
     /// Return the low-level SGL type layout reflection.
     const TypeLayoutReflection* reflection() const { return m_reflection.get(); }
-    /// Return the low-level SGL type layout reflection with reference ownership.
-    ref<const TypeLayoutReflection> reflection_ref() const { return m_reflection; }
 
     /// Return the byte size of the type under uniform layout rules.
     size_t size() const { return m_reflection->size(); }
@@ -55,13 +55,9 @@ public:
 
     /// Return the semantic layout that owns this type.
     Layout* layout() const { return m_layout.get(); }
-    /// Return the semantic layout that owns this type with reference ownership.
-    ref<Layout> layout_ref() const { return m_layout; }
 
     /// Return the low-level SGL type reflection.
     const TypeReflection* reflection() const { return m_reflection.get(); }
-    /// Return the low-level SGL type reflection with reference ownership.
-    ref<const TypeReflection> reflection_ref() const { return m_reflection; }
 
     /// Return the short reflected type name.
     std::string name() const;
@@ -81,6 +77,8 @@ public:
     virtual std::string vector_type_name() const;
     /// Return the derivative type, if one exists.
     virtual ref<Type> derivative();
+    /// Return the reflected fields for aggregate-like types.
+    const std::unordered_map<std::string, ref<Field>>& fields();
 
     /// Return the type layout when used as uniform data.
     ref<TypeLayout> uniform_layout();
@@ -98,6 +96,8 @@ protected:
     void set_local_shape(slangpy::Shape local_shape);
     void update_shape();
     ref<Type> find_type_by_name(std::string_view name) const;
+    /// Build fields for this semantic type. Override in types that expose field-like members.
+    virtual std::unordered_map<std::string, ref<Field>> build_fields();
 
     ref<Layout> m_layout;
     ref<const TypeReflection> m_reflection;
@@ -109,6 +109,7 @@ private:
     ref<TypeLayout> m_uniform_layout;
     ref<TypeLayout> m_buffer_layout;
     ref<Type> m_derivative;
+    std::optional<std::unordered_map<std::string, ref<Field>>> m_fields;
     mutable std::optional<std::string> m_vector_type_name;
 };
 
@@ -169,6 +170,9 @@ public:
     /// Return the low-level Slang scalar type id for each lane.
     TypeReflection::ScalarType slang_scalar_type() const { return m_reflection->scalar_type(); }
     std::string vector_type_name() const override;
+
+protected:
+    std::unordered_map<std::string, ref<Field>> build_fields() override;
 
 private:
     int m_num_elements = 0;
@@ -231,6 +235,8 @@ public:
     std::string vector_type_name() const override;
 
 protected:
+    std::unordered_map<std::string, ref<Field>> build_fields() override;
+
     bool m_is_generic = false;
 };
 

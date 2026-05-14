@@ -4,6 +4,7 @@
 
 #include "sgl/device/device.h"
 #include "sgl/device/shader.h"
+#include "sgl/refl/function.h"
 #include "sgl/refl/layout.h"
 #include "sgl/refl/type.h"
 
@@ -59,6 +60,15 @@ struct Foo {
     CHECK(struct_type->name() == "Foo");
     CHECK(struct_type->full_name() == "Foo");
     CHECK(struct_type->shape() == slangpy::Shape(std::vector<int>{}));
+
+    const auto& struct_fields = struct_type->fields();
+    REQUIRE(struct_fields.contains("value"));
+    CHECK(struct_fields.at("value")->type() == vector_type);
+    CHECK(struct_fields.at("value")->declaration() == "vector<float,3> value");
+
+    const auto& vector_fields = vector_type->fields();
+    REQUIRE(vector_fields.contains("x"));
+    CHECK(vector_fields.at("x")->type() == float_type);
 }
 
 TEST_CASE_GPU("semantic tensor type lookup")
@@ -130,6 +140,79 @@ void use_tensor(
         = dynamic_ref_cast<refl::DiffTensorViewType>(layout->find_type(parameters[3]->type()));
     REQUIRE(diff_tensor_view_type);
     CHECK(diff_tensor_view_type->dtype() == float_type);
+}
+
+TEST_CASE_GPU("semantic function metadata")
+{
+    ref<SlangModule> module = ctx.device->load_module_from_source(
+        "refl_semantic_function_metadata",
+        R"(
+struct Foo {
+    float value;
+    float eval(float scale) { return value * scale; }
+};
+
+[Differentiable]
+float add(float lhs, float rhs) { return lhs + rhs; }
+
+void update(inout float value, out float result, no_diff in float weight)
+{
+    result = value * weight;
+}
+
+float overloaded(float value) { return value; }
+int overloaded(int value) { return value; }
+)"
+    );
+
+    ref<refl::Layout> layout = make_ref<refl::Layout>(module->layout());
+    ref<refl::ScalarType> float_type = layout->scalar_type(TypeReflection::ScalarType::float32);
+    ref<refl::ScalarType> int_type = layout->scalar_type(TypeReflection::ScalarType::int32);
+    REQUIRE(float_type);
+    REQUIRE(int_type);
+
+    ref<refl::Function> add = layout->require_function_by_name("add");
+    CHECK(add->name() == "add");
+    CHECK(add->full_name() == "add");
+    CHECK(add->return_type() == float_type);
+    CHECK(add->have_return_value());
+    CHECK(add->differentiable());
+    CHECK(!add->is_constructor());
+
+    const std::vector<ref<refl::Parameter>>& add_parameters = add->parameters();
+    REQUIRE(add_parameters.size() == 2);
+    CHECK(add_parameters[0]->name() == "lhs");
+    CHECK(add_parameters[0]->index() == 0);
+    CHECK(add_parameters[0]->type() == float_type);
+    CHECK(add_parameters[0]->io_type() == refl::Variable::IOType::in_);
+    CHECK(add_parameters[0]->declaration() == "float lhs");
+
+    ref<refl::Function> update = layout->require_function_by_name("update");
+    const std::vector<ref<refl::Parameter>>& update_parameters = update->parameters();
+    REQUIRE(update_parameters.size() == 3);
+    CHECK(update_parameters[0]->io_type() == refl::Variable::IOType::inout);
+    CHECK(update_parameters[1]->io_type() == refl::Variable::IOType::out);
+    CHECK(update_parameters[2]->no_diff());
+
+    ref<refl::Function> overloaded = layout->require_function_by_name("overloaded");
+    CHECK(overloaded->is_overloaded());
+    CHECK(overloaded->overloads().size() == 2);
+
+    ref<refl::Function> specialized = overloaded->specialize_with_arg_types({float_type});
+    REQUIRE(specialized);
+    CHECK(specialized->return_type() == float_type);
+
+    ref<refl::Function> int_specialized = overloaded->specialize_with_arg_types({int_type});
+    REQUIRE(int_specialized);
+    CHECK(int_specialized->return_type() == int_type);
+
+    ref<refl::StructType> foo_type = dynamic_ref_cast<refl::StructType>(layout->require_type_by_name("Foo"));
+    REQUIRE(foo_type);
+
+    ref<refl::Function> method = layout->require_function_by_name_in_type(foo_type, "eval");
+    CHECK(method->this_type() == foo_type.get());
+    CHECK(method->full_name() == "Foo::eval");
+    CHECK(method->return_type() == float_type);
 }
 
 TEST_SUITE_END();
