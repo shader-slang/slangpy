@@ -1741,6 +1741,8 @@ class SlangProgramLayout:
         for piece in reversed(pieces):
             if can_convert_to_int(piece):
                 x = int(piece)
+            elif can_convert_to_bool(piece):
+                x = convert_bool_to_int(piece)
             else:
                 x = self.find_type_by_name(piece)
                 if x is None:
@@ -1761,6 +1763,24 @@ def can_convert_to_int(value: Any):
         return True
     else:
         return False
+
+
+def can_convert_to_bool(value: Any):
+    if isinstance(value, bool):
+        return True
+    if not isinstance(value, str):
+        return False
+    normalized = value.strip().lower()
+    return normalized in ("true", "false", "bool(1)", "bool(0)")
+
+
+def convert_bool_to_int(value: Any):
+    if isinstance(value, bool):
+        return 1 if value else 0
+    normalized = value.strip().lower()
+    if normalized in ("true", "bool(1)"):
+        return 1
+    return 0
 
 
 def is_unknown(slang_type: Optional[Union[SlangType, NativeSlangType]]) -> bool:
