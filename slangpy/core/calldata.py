@@ -434,6 +434,7 @@ class CallData(NativeCallData):
             header=True,
             kernel=True,
             imports=True,
+            prelude=True,
             trampoline=True,
             context=True,
             snippets=True,
