@@ -45,6 +45,17 @@ jobs:
 
             core.setOutput("head_ref", pr.head.ref);
 
+            try {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pull_number,
+                body: "Formatting requested - I'm on it!"
+              });
+            } catch (error) {
+              core.warning(`Failed to post formatting start comment: ${error.message}`);
+            }
+
       - name: Checkout PR branch
         uses: actions/checkout@v6
         with:
