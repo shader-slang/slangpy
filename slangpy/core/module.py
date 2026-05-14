@@ -6,6 +6,8 @@ from slangpy.core.struct import Struct
 
 from slangpy import Pipeline, ShaderTable, SlangModule, Device, Logger
 from slangpy.core.native import NativeCallDataCache
+from slangpy.native_func import BaseModule
+from slangpy.native_refl import Layout as NativeReflLayout
 from slangpy.reflection import SlangProgramLayout
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
@@ -41,7 +43,7 @@ class CallDataCache(NativeCallDataCache):
             return None
 
 
-class Module:
+class Module(BaseModule):
     """
     A Slang module, created either by loading a slang file or providing a loaded SGL module.
     """
@@ -52,22 +54,27 @@ class Module:
         options: dict[str, Any] = {},
         link: Sequence[Union["Module", SlangModule]] = [],
     ):
-        super().__init__()
         _register_hot_reload_hook(device_module.session.device)
         assert isinstance(device_module, SlangModule)
-        self.options = options
 
         # Normalize link list to SlangModule instances
         link_slang_modules = [x.module if isinstance(x, Module) else x for x in link]
 
         # Load slangpy module
-        self.slangpy_device_module = device_module.session.load_module("slangpy")
+        slangpy_device_module = device_module.session.load_module("slangpy")
 
         # Always compose the module with slangpy and any links
-        all_modules = [self.slangpy_device_module, device_module] + link_slang_modules
+        all_modules = [slangpy_device_module, device_module] + link_slang_modules
         composed = device_module.session.compose_modules(device_module.name, all_modules)
+        layout = SlangProgramLayout(composed.layout)
+        base_layout = NativeReflLayout(composed.layout)
+
+        super().__init__(composed, base_layout)
+
+        self.options = options
+        self.slangpy_device_module = slangpy_device_module
         self.device_module = composed
-        self.layout = SlangProgramLayout(composed.layout)
+        self.layout = layout
 
         # Store link modules (excluding slangpy)
         # TODO: We should remove this, but some applications currently still rely on this.
@@ -207,6 +214,8 @@ class Module:
         """
         Called by device when the module is hot reloaded.
         """
+        BaseModule.on_hot_reload(self, self.device_module, self.device_module.layout)
+
         # C++ side handles reload for composed modules; layout returns fresh combined layout.
         self.layout.on_hot_reload(self.device_module.layout)
 

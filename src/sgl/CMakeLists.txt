@@ -149,6 +149,14 @@ target_sources(sgl PRIVATE
     math/vector_types.h
     math/vector.h
 
+    func/base_module.cpp
+    func/base_module.h
+    func/base_struct.cpp
+    func/base_struct.h
+
+    refl/layout.cpp
+    refl/layout.h
+
     stl/bit.h
 
     ui/fwd.h
