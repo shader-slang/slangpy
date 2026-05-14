@@ -152,8 +152,6 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(device_kernel);
     SGL_PY_IMPORT(device_device);
 
-    SGL_PY_IMPORT(native_refl);
-
     SGL_PY_IMPORT(ui);
     SGL_PY_IMPORT(ui_widgets);
 
@@ -161,6 +159,7 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(utils_renderdoc);
 
     SGL_PY_IMPORT(utils_slangpy);
+    SGL_PY_IMPORT(native_refl);
     SGL_PY_IMPORT(native_func);
     SGL_PY_IMPORT(utils_slangpy_strided_buffer_view);
     SGL_PY_IMPORT(utils_slangpy_buffer);

@@ -6,6 +6,7 @@
 #include "sgl/core/object.h"
 #include "sgl/device/fwd.h"
 #include "sgl/func/base_module.h"
+#include "sgl/refl/type.h"
 #include "sgl/utils/slangpy.h"
 
 #include <string>
@@ -17,21 +18,17 @@ namespace sgl::func {
 class SGL_API BaseStruct : public Object {
     SGL_OBJECT(BaseStruct)
 public:
-    BaseStruct(
-        ref<BaseModule> module,
-        ref<const TypeReflection> type_reflection,
-        std::string name,
-        std::string full_name,
-        slangpy::Shape shape = slangpy::Shape()
-    );
+    BaseStruct(ref<BaseModule> module, ref<refl::Type> type);
 
     BaseModule* module() const { return m_module.get(); }
     refl::Layout* layout() const { return m_module ? m_module->layout() : nullptr; }
-    ref<const TypeReflection> type_reflection() const { return m_type_reflection; }
+    refl::Type* type() const { return m_type.get(); }
+    ref<refl::Type> type_ref() const { return m_type; }
+    ref<const TypeReflection> type_reflection() const { return m_type ? m_type->reflection_ref() : nullptr; }
 
-    const std::string& name() const { return m_name; }
-    const std::string& full_name() const { return m_full_name; }
-    const slangpy::Shape& shape() const { return m_shape; }
+    std::string name() const;
+    std::string full_name() const;
+    const slangpy::Shape& shape() const;
 
     void on_hot_reload(ref<const TypeReflection> type_reflection);
 
@@ -39,10 +36,7 @@ public:
 
 private:
     ref<BaseModule> m_module;
-    ref<const TypeReflection> m_type_reflection;
-    std::string m_name;
-    std::string m_full_name;
-    slangpy::Shape m_shape;
+    ref<refl::Type> m_type;
 };
 
 } // namespace sgl::func

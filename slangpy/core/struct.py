@@ -18,13 +18,7 @@ class Struct(BaseStruct):
     def __init__(
         self, module: "Module", slang_struct: "SlangType", options: dict[str, Any] = {}
     ) -> None:
-        super().__init__(
-            module,
-            slang_struct.type_reflection,
-            slang_struct.name,
-            slang_struct.full_name,
-            slang_struct.shape,
-        )
+        super().__init__(module, slang_struct.type_reflection)
         self.module = module
         self.options = options
         self.struct = slang_struct

@@ -156,6 +156,8 @@ target_sources(sgl PRIVATE
 
     refl/layout.cpp
     refl/layout.h
+    refl/type.cpp
+    refl/type.h
 
     stl/bit.h
 

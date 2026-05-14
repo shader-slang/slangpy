@@ -46,26 +46,15 @@ SGL_PY_EXPORT(native_func)
     nb::class_<func::BaseStruct, sgl::Object>(native_func, "BaseStruct")
         .def(
             "__init__",
-            [](func::BaseStruct* self,
-               nb::object module,
-               nb::object type_reflection,
-               std::string name,
-               std::string full_name,
-               sgl::slangpy::Shape shape)
+            [](func::BaseStruct* self, nb::object module, nb::object type_reflection)
             {
-                new (self) func::BaseStruct(
-                    sgl::ref<func::BaseModule>(nb::cast<func::BaseModule*>(module)),
-                    sgl::ref<const sgl::TypeReflection>(nb::cast<const sgl::TypeReflection*>(type_reflection)),
-                    std::move(name),
-                    std::move(full_name),
-                    std::move(shape)
-                );
+                sgl::ref<func::BaseModule> base_module(nb::cast<func::BaseModule*>(module));
+                sgl::ref<const sgl::TypeReflection> reflection(nb::cast<const sgl::TypeReflection*>(type_reflection));
+                sgl::ref<refl::Type> type = base_module->layout()->find_type(std::move(reflection));
+                new (self) func::BaseStruct(std::move(base_module), std::move(type));
             },
             "module"_a,
-            "type_reflection"_a,
-            "name"_a,
-            "full_name"_a,
-            "shape"_a = sgl::slangpy::Shape()
+            "type_reflection"_a
         )
         .def(
             "on_hot_reload",

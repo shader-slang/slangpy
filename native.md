@@ -88,7 +88,15 @@ Completed:
   - `slangpy.core.struct.Struct` now inherits from `slangpy.native_func.BaseStruct`.
   - Existing Python fields such as `Module.layout`, `Struct.name`, `Struct.full_name`, and `Struct.shape` remain the active Python API until native reflection can replace them outright.
 - Avoided exposing duplicate `native_*` fields on the Python base classes. The native data is present for inheritance and future lookup, not as a parallel public API.
+- Began Phase 1: Native Semantic Reflection:
+  - Added `src/sgl/refl/type.h` and `src/sgl/refl/type.cpp`.
+  - Added native semantic `TypeLayout` and `Type` classes.
+  - Added native semantic subclasses for scalar, vector, matrix, array, struct, interface, resource, texture, structured buffer, byte-address buffer, pointer, unknown, void, differential pair, tensor, tensor view, diff tensor view, sampler, acceleration structure, and unhandled types.
+  - Expanded `sgl::refl::Layout` with cached type lookup by reflection and name, scalar/vector/matrix/array/tensor helper lookups, generic argument parsing, and cache invalidation on hot reload.
+  - Updated `sgl::func::BaseStruct` to store a native `sgl::refl::Type` instead of copied type name/full-name/shape fields.
+  - Extended `slangpy.native_refl` bindings for the new semantic type classes.
 - Added tests:
+  - `tests/sgl/refl/test_reflection.cpp`
   - `tests/sgl/func/test_reflection.cpp`
   - `slangpy/tests/slangpy_tests/test_native_bridge.py`
 - Confirmed the native `src/sgl/refl` and `src/sgl/func` additions remain Python-free with:
@@ -102,15 +110,18 @@ Verified:
 ```powershell
 cmake --build --preset windows-msvc-debug --target slangpy_ext sgl_tests
 build\windows-msvc\Debug\sgl_tests.exe -ts=func
+build\windows-msvc\Debug\sgl_tests.exe -ts=refl
 python -m pytest slangpy/tests/slangpy_tests/test_native_bridge.py -v
 python -m pytest slangpy/tests/slangpy_tests/test_reflection2.py -v
+python -m pytest slangpy/tests/slangpy_tests/test_type_resolution.py -v
 python -m pytest slangpy/tests/slangpy_tests/test_tensor.py -v
 pre-commit run --all-files
 ```
 
 Current limitations:
 
-- High-level semantic `Type`, `Function`, `Field`, `Parameter`, and full `Layout` lookup behavior are still Python-owned.
+- Native semantic `Type` coverage has started, but existing Python `SlangType` is still the active runtime type used by marshalling and type resolution.
+- High-level semantic `Function`, `Field`, `Parameter`, and full Python-compatible `Layout` behavior are still Python-owned.
 - `slangpy/reflection/lookup.py` has not moved native yet.
 - `Module.layout` still returns the Python `SlangProgramLayout`, not `sgl::refl::Layout`.
 - `Struct` still delegates user-facing metadata to the Python `SlangType` object.
@@ -119,7 +130,7 @@ Current limitations:
 
 Next recommended step:
 
-- Start the native lookup work needed by Tensor: introduce native type specs and a `LookupContext`/built-in layout path, then teach Python adapters for `resolve_program_layout()` and `resolve_element_type()` to route through native fast paths where possible.
+- Continue Phase 1: Native Semantic Reflection. The next checkpoint should fill in native function, field, and parameter metadata around the new native `Type` model, then use that to start routing Tensor-critical lookup paths through native reflection.
 
 ## Nanobind Trampoline Rule
 

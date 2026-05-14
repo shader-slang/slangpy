@@ -28,6 +28,7 @@ if(SGL_BUILD_TESTS)
         sgl/device/test_formats.cpp
         sgl/device/test_shader.cpp
         sgl/func/test_reflection.cpp
+        sgl/refl/test_reflection.cpp
         sgl/math/test_float16.cpp
         sgl/math/test_matrix.cpp
         sgl/math/test_quaternion.cpp

@@ -37,13 +37,10 @@ struct Foo {
     ref<const TypeReflection> foo_reflection = low_level_layout->find_type_by_name("Foo");
     REQUIRE(foo_reflection);
 
-    ref<func::BaseStruct> base_struct = make_ref<func::BaseStruct>(
-        base_module,
-        foo_reflection,
-        foo_reflection->name(),
-        foo_reflection->full_name(),
-        slangpy::Shape{}
-    );
+    ref<refl::Type> foo_type = layout->find_type(foo_reflection);
+    REQUIRE(foo_type);
+
+    ref<func::BaseStruct> base_struct = make_ref<func::BaseStruct>(base_module, foo_type);
 
     CHECK(base_struct->module() == base_module.get());
     CHECK(base_struct->layout() == layout.get());
