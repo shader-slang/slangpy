@@ -366,6 +366,12 @@ public:
         return detail::from_slang(m_owner, slang_target()->getArgumentType(index));
     }
 
+    int argument_value_int(uint32_t index) const;
+
+    float argument_value_float(uint32_t index) const;
+
+    std::string argument_value_string(uint32_t index) const;
+
     std::string to_string() const;
 };
 
@@ -849,6 +855,15 @@ public:
 
     /// List of all function parameters.
     FunctionReflectionParameterList parameters() const;
+
+    uint32_t get_user_attribute_count() const { return slang_target()->getUserAttributeCount(); }
+
+    ref<const Attribute> get_user_attribute_by_index(uint32_t index) const
+    {
+        return detail::from_slang(m_owner, slang_target()->getUserAttributeByIndex(index));
+    }
+
+    ref<const Attribute> find_user_attribute_by_name(const char* name) const;
 
     /// Check if the function has a given modifier (e.g. 'differentiable').
     bool has_modifier(ModifierID modifier) const
