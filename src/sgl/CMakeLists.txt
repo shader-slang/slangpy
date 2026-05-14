@@ -156,6 +156,8 @@ target_sources(sgl PRIVATE
 
     refl/layout.cpp
     refl/layout.h
+    refl/lookup.cpp
+    refl/lookup.h
     refl/function.cpp
     refl/function.h
     refl/type.cpp

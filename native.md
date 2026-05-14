@@ -101,8 +101,17 @@ Completed:
   - Added `sgl::refl::Type::fields()` for struct fields and synthesized vector swizzle fields.
   - Added `sgl::refl::Layout` lookup and caching for global functions, type methods, overloads, and specialization by argument type.
   - Extended `slangpy.native_refl` bindings for fields, parameters, functions, and function lookup.
+- Added the first native Tensor-critical lookup checkpoint:
+  - Added `src/sgl/refl/lookup.h` and `src/sgl/refl/lookup.cpp`.
+  - Added a device-owned built-in semantic layout cache.
+  - Added native hot-reload and close handling for the built-in layout cache through `sgl::Device` lifetime rather than global lookup tables. Reload/reset are internal device behavior, not public lookup APIs.
+  - Added native `resolve_layout()` overloads for explicit layouts, native reflection types, and `sgl::func::BaseStruct`.
+  - Added native `resolve_element_type()` overloads for names, native semantic types, low-level type reflections, low-level type-layout reflections, and `BaseStruct`.
+  - Kept SlangPy support module discovery outside core `sgl`; Python-created SlangPy devices already provide the package shader include path, and native-only discovery should be designed separately.
+  - Bound the lookup helpers through `slangpy.native_refl`.
 - Added tests:
   - `tests/sgl/refl/test_reflection.cpp`
+  - `tests/sgl/refl/test_lookup.cpp`
   - `tests/sgl/func/test_reflection.cpp`
   - `slangpy/tests/slangpy_tests/test_native_bridge.py`
 - Confirmed the native `src/sgl/refl` and `src/sgl/func` additions remain Python-free with:
@@ -129,7 +138,7 @@ Current limitations:
 - Native semantic `Type` coverage has started, but existing Python `SlangType` is still the active runtime type used by marshalling and type resolution.
 - Native `Function`, `Field`, and `Parameter` metadata now exists, but existing Python `SlangFunction`, `SlangField`, and `SlangParameter` are still the active runtime objects used by marshalling and type resolution.
 - Full Python-compatible `Layout` behavior is still Python-owned.
-- `slangpy/reflection/lookup.py` has not moved native yet.
+- Native lookup exists for built-in layouts and native element-type resolution, but `slangpy/reflection/lookup.py` is still the active Python adapter for Tensor factories and NumPy/custom Python inputs.
 - `Module.layout` still returns the Python `SlangProgramLayout`, not `sgl::refl::Layout`.
 - `Struct` still delegates user-facing metadata to the Python `SlangType` object.
 - Tensor, NumPy marshalling, `NDBuffer`, and `StridedBufferView` are not migrated yet.
@@ -137,7 +146,7 @@ Current limitations:
 
 Next recommended step:
 
-- Continue Phase 1: Native Semantic Reflection. The next checkpoint should move Tensor-critical lookup paths through native reflection: built-in per-device layout ownership, `resolve_program_layout`, `resolve_element_type`, scalar/NumPy type conversion, and cross-layout lookup by `full_name`.
+- Continue Phase 1 by retargeting the Python reflection compatibility layer to native reflection. The next checkpoint should make `slangpy/reflection/lookup.py` use native lookup for native values while preserving Python-only NumPy/custom registry adaptation.
 
 ## Nanobind Trampoline Rule
 
@@ -603,6 +612,8 @@ private:
 ```
 
 The built-in layout should be loaded once per device using a generic SGL support module, not a SlangPy/Python-specific module. It should refresh on shader hot reload and be released with the owning device. This removes `_global_lookup_modules` and makes the cache lifetime match the `Device` lifetime.
+
+During the transition, the implementation may load the existing `slangpy.slang` support module, but only through normal device include paths supplied by the caller or Python SlangPy device setup. Core `sgl` should not copy, package, or discover SlangPy shader files as a side effect of this checkpoint.
 
 Module-level binding functions in `slangpy_ext`, if any, should be stateless shims over `LookupContext`; all lookup state and caches belong to native layout/lookup objects.
 

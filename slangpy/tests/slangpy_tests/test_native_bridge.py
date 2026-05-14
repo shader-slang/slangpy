@@ -16,6 +16,10 @@ from slangpy.native_refl import (
     TensorType,
     Variable,
     VectorType,
+    get_builtin_layout,
+    name_for_scalar_type,
+    resolve_element_type,
+    resolve_layout,
 )
 from slangpy.testing import helpers
 
@@ -146,3 +150,35 @@ def test_native_refl_layout_creates_function_metadata(device_type: spy.DeviceTyp
     method = layout.require_function_by_name_in_type(struct_type, "eval")
     assert method.this_type is struct_type
     assert method.full_name == "Foo::eval"
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_native_refl_lookup_resolves_builtin_and_struct_types(device_type: spy.DeviceType) -> None:
+    device = helpers.get_device(device_type)
+
+    builtin_layout = get_builtin_layout(device)
+    assert builtin_layout.find_type_by_name("float") is not None
+    assert name_for_scalar_type(spy.TypeReflection.ScalarType.float32) == "float"
+
+    float_type = resolve_element_type(builtin_layout, "float")
+    assert isinstance(float_type, ScalarType)
+    assert float_type.full_name == "float"
+
+    generation = builtin_layout.generation
+    device.reload_all_programs()
+    assert builtin_layout.generation == generation + 1
+
+    module = helpers.create_module(device, MODULE_SOURCE)
+    struct = module.Foo.as_struct()
+    struct_layout = resolve_layout(device, struct)
+    assert struct_layout.find_type_by_name("Foo") is not None
+
+    python_struct_type = module.layout.require_type_by_name("Foo")
+    assert resolve_element_type(struct_layout, struct).full_name == "Foo"
+    assert (
+        resolve_element_type(struct_layout, python_struct_type.type_reflection).full_name == "Foo"
+    )
+    assert (
+        resolve_element_type(struct_layout, python_struct_type.buffer_layout.reflection).full_name
+        == "Foo"
+    )

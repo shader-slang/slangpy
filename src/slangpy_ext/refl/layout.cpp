@@ -2,15 +2,75 @@
 
 #include "nanobind.h"
 
+#include "sgl/device/device.h"
+#include "sgl/func/base_struct.h"
 #include "sgl/refl/function.h"
 #include "sgl/refl/layout.h"
+#include "sgl/refl/lookup.h"
 #include "sgl/refl/type.h"
 
 SGL_PY_EXPORT(native_refl)
 {
     namespace refl = sgl::refl;
+    namespace func = sgl::func;
 
     nb::module_ native_refl = nb::module_::import_("slangpy.native_refl");
+
+    native_refl.def("get_builtin_layout", &refl::get_builtin_layout, "device"_a, D_NA(get_builtin_layout));
+    native_refl.def("name_for_scalar_type", &refl::name_for_scalar_type, "scalar_type"_a, D_NA(name_for_scalar_type));
+    native_refl.def(
+        "resolve_layout",
+        [](sgl::Device* device, nb::object element_type, nb::object explicit_layout)
+        {
+            refl::Layout* layout = nullptr;
+            if (!explicit_layout.is_none())
+                layout = nb::cast<refl::Layout*>(explicit_layout);
+
+            refl::Type* type = nullptr;
+            if (!element_type.is_none() && nb::try_cast<refl::Type*>(element_type, type))
+                return refl::resolve_layout(device, type, layout);
+
+            func::BaseStruct* struct_type = nullptr;
+            if (!element_type.is_none() && nb::try_cast<func::BaseStruct*>(element_type, struct_type))
+                return refl::resolve_layout(device, struct_type, layout);
+
+            return refl::resolve_layout(device, static_cast<const refl::Type*>(nullptr), layout);
+        },
+        "device"_a,
+        "element_type"_a.none() = nb::none(),
+        "layout"_a.none() = nb::none(),
+        D_NA(resolve_layout)
+    );
+    native_refl.def(
+        "resolve_element_type",
+        [](refl::Layout& layout, nb::object element_type)
+        {
+            refl::Type* type = nullptr;
+            if (nb::try_cast<refl::Type*>(element_type, type))
+                return refl::resolve_element_type(&layout, type);
+
+            const sgl::TypeReflection* type_reflection = nullptr;
+            if (nb::try_cast<const sgl::TypeReflection*>(element_type, type_reflection))
+                return refl::resolve_element_type(&layout, type_reflection);
+
+            const sgl::TypeLayoutReflection* type_layout_reflection = nullptr;
+            if (nb::try_cast<const sgl::TypeLayoutReflection*>(element_type, type_layout_reflection))
+                return refl::resolve_element_type(&layout, type_layout_reflection);
+
+            func::BaseStruct* struct_type = nullptr;
+            if (nb::try_cast<func::BaseStruct*>(element_type, struct_type))
+                return refl::resolve_element_type(&layout, struct_type);
+
+            nb::str name;
+            if (nb::try_cast<nb::str>(element_type, name))
+                return refl::resolve_element_type(&layout, nb::cast<std::string>(name));
+
+            SGL_THROW("Unsupported element type lookup value");
+        },
+        "layout"_a,
+        "element_type"_a,
+        D_NA(resolve_element_type)
+    );
 
     nb::class_<refl::TypeLayout, sgl::Object>(native_refl, "TypeLayout", D_NA(TypeLayout))
         .def_prop_ro("size", &refl::TypeLayout::size, D_NA(TypeLayout, size))
