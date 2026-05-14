@@ -3,6 +3,7 @@
 #include "reflection.h"
 
 #include "sgl/device/device.h"
+#include "sgl/device/helpers.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/shader_object.h"
 
@@ -200,6 +201,28 @@ ref<const DeclReflection> DeclReflection::find_first_child_of_kind(Kind kind, st
     return nullptr;
 }
 
+int Attribute::argument_value_int(uint32_t index) const
+{
+    int value = 0;
+    SLANG_CALL(slang_target()->getArgumentValueInt(index, &value));
+    return value;
+}
+
+float Attribute::argument_value_float(uint32_t index) const
+{
+    float value = 0.0f;
+    SLANG_CALL(slang_target()->getArgumentValueFloat(index, &value));
+    return value;
+}
+
+std::string Attribute::argument_value_string(uint32_t index) const
+{
+    size_t size = 0;
+    const char* value = slang_target()->getArgumentValueString(index, &size);
+    SGL_CHECK(value != nullptr, "Attribute argument {} is not a string.", index);
+    return std::string(value, size);
+}
+
 std::string Attribute::to_string() const
 {
     std::vector<std::string> arguments;
@@ -321,6 +344,13 @@ std::string TypeLayoutReflection::to_string() const
 FunctionReflectionParameterList FunctionReflection::parameters() const
 {
     return FunctionReflectionParameterList(ref(this));
+}
+
+ref<const Attribute> FunctionReflection::find_user_attribute_by_name(const char* name) const
+{
+    Device* device = detail::get_device_from_owner(m_owner.get());
+    SGL_CHECK(device, "Cannot resolve Slang global session for reflection owner.");
+    return detail::from_slang(m_owner, slang_target()->findUserAttributeByName(device->global_session(), name));
 }
 
 FunctionReflectionOverloadList FunctionReflection::overloads() const
