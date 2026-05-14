@@ -16,7 +16,7 @@ SGL_PY_EXPORT(native_func)
 
     nb::module_ native_func = nb::module_::import_("slangpy.native_func");
 
-    nb::class_<func::BaseModule, sgl::Object>(native_func, "BaseModule")
+    nb::class_<func::BaseModule, sgl::Object>(native_func, "BaseModule", D_NA(BaseModule))
         .def(
             "__init__",
             [](func::BaseModule* self, nb::object module, nb::object layout)
@@ -27,7 +27,8 @@ SGL_PY_EXPORT(native_func)
                 );
             },
             "module"_a,
-            "layout"_a
+            "layout"_a,
+            D_NA(BaseModule, BaseModule)
         )
         .def(
             "on_hot_reload",
@@ -39,11 +40,12 @@ SGL_PY_EXPORT(native_func)
                 );
             },
             "module"_a,
-            "low_level_layout"_a
+            "low_level_layout"_a,
+            D_NA(BaseModule, on_hot_reload)
         )
-        .def("__repr__", &func::BaseModule::to_string);
+        .def("__repr__", &func::BaseModule::to_string, D_NA(BaseModule, to_string));
 
-    nb::class_<func::BaseStruct, sgl::Object>(native_func, "BaseStruct")
+    nb::class_<func::BaseStruct, sgl::Object>(native_func, "BaseStruct", D_NA(BaseStruct))
         .def(
             "__init__",
             [](func::BaseStruct* self, nb::object module, nb::object type_reflection)
@@ -54,7 +56,8 @@ SGL_PY_EXPORT(native_func)
                 new (self) func::BaseStruct(std::move(base_module), std::move(type));
             },
             "module"_a,
-            "type_reflection"_a
+            "type_reflection"_a,
+            D_NA(BaseStruct, BaseStruct)
         )
         .def(
             "on_hot_reload",
@@ -64,7 +67,8 @@ SGL_PY_EXPORT(native_func)
                     sgl::ref<const sgl::TypeReflection>(nb::cast<const sgl::TypeReflection*>(type_reflection))
                 );
             },
-            "type_reflection"_a
+            "type_reflection"_a,
+            D_NA(BaseStruct, on_hot_reload)
         )
-        .def("__repr__", &func::BaseStruct::to_string);
+        .def("__repr__", &func::BaseStruct::to_string, D_NA(BaseStruct, to_string));
 }

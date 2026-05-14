@@ -12,6 +12,10 @@
 
 namespace sgl::refl {
 
+//------------------------------------
+// Internal helpers
+//------------------------------------
+
 namespace {
 
     slangpy::Shape shape_from_vector(std::vector<int> shape)
@@ -238,6 +242,10 @@ namespace {
 
 } // namespace
 
+//------------------------------------
+// TypeLayout
+//------------------------------------
+
 TypeLayout::TypeLayout(ref<const TypeLayoutReflection> reflection)
     : m_reflection(std::move(reflection))
 {
@@ -248,6 +256,10 @@ std::string TypeLayout::to_string() const
 {
     return fmt::format("refl::TypeLayout(size={}, alignment={}, stride={})", size(), alignment(), stride());
 }
+
+//------------------------------------
+// Type
+//------------------------------------
 
 Type::Type(ref<Layout> layout, ref<const TypeReflection> reflection, ref<Type> element_type, slangpy::Shape local_shape)
     : m_layout(std::move(layout))
@@ -359,6 +371,10 @@ ref<Type> Type::find_type_by_name(std::string_view name) const
     return m_layout->find_type_by_name(name);
 }
 
+//------------------------------------
+// Fundamental types
+//------------------------------------
+
 UnknownType::UnknownType(ref<Layout> layout, ref<const TypeReflection> reflection)
     : Type(std::move(layout), std::move(reflection), nullptr, empty_shape())
 {
@@ -393,6 +409,10 @@ ScalarType::ScalarType(ref<Layout> layout, ref<const TypeReflection> reflection)
     SGL_CHECK(m_reflection->scalar_type() != TypeReflection::ScalarType::none_, "ScalarType cannot wrap none");
     SGL_CHECK(m_reflection->scalar_type() != TypeReflection::ScalarType::void_, "ScalarType cannot wrap void");
 }
+
+//------------------------------------
+// Vector and matrix types
+//------------------------------------
 
 VectorType::VectorType(ref<Layout> layout, ref<const TypeReflection> reflection)
     : Type(std::move(layout), std::move(reflection), nullptr, empty_shape())
@@ -449,6 +469,10 @@ std::string MatrixType::vector_type_name() const
     ref<Type> inner = inner_element_type();
     return fmt::format("matrix<{},{},{}>", inner ? inner->vector_type_name() : "Unknown", m_rows, m_cols);
 }
+
+//------------------------------------
+// Array and aggregate types
+//------------------------------------
 
 ArrayType::ArrayType(ref<Layout> layout, ref<const TypeReflection> reflection)
     : Type(std::move(layout), std::move(reflection), nullptr, empty_shape())
@@ -533,6 +557,10 @@ InterfaceType::InterfaceType(ref<Layout> layout, ref<const TypeReflection> refle
     }
 }
 
+//------------------------------------
+// Resource types
+//------------------------------------
+
 ResourceType::ResourceType(
     ref<Layout> layout,
     ref<const TypeReflection> reflection,
@@ -578,6 +606,10 @@ ByteAddressBufferType::ByteAddressBufferType(ref<Layout> layout, ref<const TypeR
     set_element_type(m_layout->scalar_type(TypeReflection::ScalarType::uint8));
 }
 
+//------------------------------------
+// Differential and singleton types
+//------------------------------------
+
 DifferentialPairType::DifferentialPairType(ref<Layout> layout, ref<const TypeReflection> reflection)
     : Type(std::move(layout), std::move(reflection), nullptr, empty_shape())
 {
@@ -606,6 +638,10 @@ SamplerStateType::SamplerStateType(ref<Layout> layout, ref<const TypeReflection>
     : Type(std::move(layout), std::move(reflection), nullptr, empty_shape())
 {
 }
+
+//------------------------------------
+// Tensor types
+//------------------------------------
 
 TensorType::TensorType(ref<Layout> layout, ref<const TypeReflection> reflection)
     : Type(std::move(layout), std::move(reflection), nullptr, empty_shape())
@@ -693,6 +729,10 @@ std::string DiffTensorViewType::build_difftensorview_name(const Type& element_ty
     return fmt::format("DiffTensorView<{}>", element_type.full_name());
 }
 
+//------------------------------------
+// Fallback and generic argument helpers
+//------------------------------------
+
 UnhandledType::UnhandledType(ref<Layout> layout, ref<const TypeReflection> reflection)
     : Type(std::move(layout), std::move(reflection), nullptr, empty_shape())
 {
@@ -713,6 +753,10 @@ GenericArg GenericArg::type(ref<Type> value)
     arg.m_type = std::move(value);
     return arg;
 }
+
+//------------------------------------
+// Type factories
+//------------------------------------
 
 ref<Type> create_builtin_type(Layout& layout, ref<const TypeReflection> reflection)
 {
