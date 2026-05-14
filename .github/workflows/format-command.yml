@@ -1,4 +1,4 @@
-name: Format PR  
+name: Format PR
 
 on:
   issue_comment:
