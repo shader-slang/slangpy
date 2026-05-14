@@ -6,14 +6,99 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
-    - uses: actions/setup-python@v6
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
       with:
         python-version: "3.9"
-    - uses: pre-commit/action@v3.0.0
+
+    - name: Run pre-commit
+      id: pre_commit
+      uses: pre-commit/action@v3.0.0
       with:
         extra_args: --all-files
+
+    - name: Comment with pre-commit help
+      if: failure() && github.event_name == 'pull_request' && steps.pre_commit.outcome == 'failure'
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const marker = "<!-- slangpy-pre-commit-failure -->";
+          const issue_number = context.payload.pull_request.number;
+          const body = [
+            marker,
+            "Pre-commit failed for this PR.",
+            "",
+            "You can fix this locally by running:",
+            "",
+            "```bash",
+            "pre-commit run --all-files",
+            "```",
+            "",
+            "To install the hooks locally for future commits:",
+            "",
+            "```bash",
+            "pre-commit install",
+            "```",
+            "",
+            "Or ask GitHub to apply the formatting here by adding a PR comment containing:",
+            "",
+            "```",
+            "/format",
+            "```"
+          ].join("\n");
+
+          const comments = await github.paginate(github.rest.issues.listComments, {
+            ...context.repo,
+            issue_number
+          });
+          const existing = comments.find((comment) =>
+            comment.user.type === "Bot" && comment.body?.includes(marker)
+          );
+
+          if (existing) {
+            await github.rest.issues.updateComment({
+              ...context.repo,
+              comment_id: existing.id,
+              body
+            });
+          } else {
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number,
+              body
+            });
+          }
+
+    - name: Remove stale pre-commit help comment
+      if: success() && github.event_name == 'pull_request'
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const marker = "<!-- slangpy-pre-commit-failure -->";
+          const issue_number = context.payload.pull_request.number;
+          const comments = await github.paginate(github.rest.issues.listComments, {
+            ...context.repo,
+            issue_number
+          });
+          const existing = comments.find((comment) =>
+            comment.user.type === "Bot" && comment.body?.includes(marker)
+          );
+
+          if (existing) {
+            await github.rest.issues.deleteComment({
+              ...context.repo,
+              comment_id: existing.id
+            });
+          }
