@@ -1,0 +1,98 @@
+name: Pre-commit PR Comment
+
+on:
+  workflow_run:
+    workflows: [checks]
+    types: [completed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  comment:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Update pre-commit help comment
+      uses: actions/github-script@v8
+      with:
+        script: |
+          let pullRequests = context.payload.workflow_run.pull_requests || [];
+          if (pullRequests.length === 0) {
+            const associated = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              ...context.repo,
+              commit_sha: context.payload.workflow_run.head_sha
+            });
+            pullRequests = associated.data;
+          }
+
+          if (pullRequests.length === 0) {
+            core.info(`No pull request is associated with ${context.payload.workflow_run.head_sha}.`);
+            return;
+          }
+
+          const marker = "<!-- slangpy-pre-commit-failure -->";
+          const issue_number = pullRequests[0].number;
+          const comments = await github.paginate(github.rest.issues.listComments, {
+            ...context.repo,
+            issue_number
+          });
+          const existing = comments.find((comment) =>
+            comment.user.type === "Bot" && comment.body?.includes(marker)
+          );
+
+          if (context.payload.workflow_run.conclusion === "success") {
+            if (existing) {
+              await github.rest.issues.deleteComment({
+                ...context.repo,
+                comment_id: existing.id
+              });
+            }
+            return;
+          }
+
+          if (context.payload.workflow_run.conclusion !== "failure") {
+            return;
+          }
+
+          const body = [
+            marker,
+            "Pre-commit failed for this PR.",
+            "",
+            `Workflow run: ${context.payload.workflow_run.html_url}`,
+            "",
+            "You can fix this locally by running:",
+            "",
+            "```bash",
+            "pre-commit run --all-files",
+            "```",
+            "",
+            "To install the hooks locally for future commits:",
+            "",
+            "```bash",
+            "pre-commit install",
+            "```",
+            "",
+            "Or ask GitHub to apply the formatting here by adding a PR comment containing:",
+            "",
+            "```",
+            "/format",
+            "```"
+          ].join("\n");
+
+          if (existing) {
+            await github.rest.issues.updateComment({
+              ...context.repo,
+              comment_id: existing.id,
+              body
+            });
+          } else {
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number,
+              body
+            });
+          }
