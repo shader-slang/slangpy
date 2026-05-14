@@ -10,6 +10,7 @@ namespace sgl {
 
 struct DeviceDesc;
 class Device;
+class DeviceScope;
 
 // surface.h
 

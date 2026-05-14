@@ -1211,6 +1211,8 @@ class SlangFunction:
         if self._cached_overloads is None:
             overloads = []
             for refl in self.reflection.overloads:
+                if refl is None:
+                    continue
                 overloads.append(SlangFunction(self._program, refl, self._this, self._full_name))
             self._cached_overloads = tuple(overloads)
         return self._cached_overloads
