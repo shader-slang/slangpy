@@ -253,22 +253,17 @@ void SlangSession::create_session(SlangSessionBuild& build)
 
     const SlangCompilerOptions& options = m_desc.compiler_options;
 
-    // Use device's highest supported shader model if none is provided explicitly.
-    ShaderModel supported_shader_model = m_device->supported_shader_model();
-    ShaderModel default_shader_model = supported_shader_model;
-    // TODO: Slang generates invalid HLSL for SM 6.7 when using ray payloads.
-    if (default_shader_model == ShaderModel::sm_6_7)
-        default_shader_model = ShaderModel::sm_6_6;
-    ShaderModel shader_model = options.shader_model;
-    if (options.shader_model == ShaderModel::unknown)
-        shader_model = default_shader_model;
+    // Use device's default profile if none is provided explicitly.
+    std::string profile = options.profile;
+    if (profile.empty())
+        profile = m_device->default_profile();
 
-    // Check that requested shader model is supported.
+    // Check that requested profile is supported.
     SGL_CHECK(
-        shader_model <= supported_shader_model,
-        "Shader model {} is not supported (max shader model is {})",
-        shader_model,
-        supported_shader_model
+        m_device->has_profile(profile),
+        "Profile \"{}\" is not supported (supported profiles: {})",
+        profile,
+        string::join(m_device->supported_profiles(), ", ")
     );
 
     // Set matrix layout.
@@ -367,14 +362,11 @@ void SlangSession::create_session(SlangSessionBuild& build)
     // Select target profile.
     slang::TargetDesc target_desc;
     target_desc.format = SLANG_TARGET_UNKNOWN;
-    uint32_t shader_model_major = get_shader_model_major_version(shader_model);
-    uint32_t shader_model_minor = get_shader_model_minor_version(shader_model);
-    std::string profile_str = fmt::format("sm_{}_{}", shader_model_major, shader_model_minor);
 
     // TODO: CUDA doesn't support shader model profiles like Vulkan or D3D12.
     if (device_type == DeviceType::d3d12 || device_type == DeviceType::vulkan) {
-        target_desc.profile = m_device->global_session()->findProfile(profile_str.c_str());
-        SGL_CHECK(target_desc.profile != SLANG_PROFILE_UNKNOWN, "Unsupported target profile: {}", profile_str);
+        target_desc.profile = m_device->global_session()->findProfile(profile.c_str());
+        SGL_CHECK(target_desc.profile != SLANG_PROFILE_UNKNOWN, "Unsupported target profile: {}", profile);
     }
 
     // Set floating point mode.
@@ -421,9 +413,20 @@ void SlangSession::create_session(SlangSessionBuild& build)
     // Add target define.
     session_options.add_macro_define(target_define, "1");
 
-    // Add shader model defines.
-    session_options.add_macro_define("__SHADER_TARGET_MAJOR", fmt::format("{}", shader_model_major));
-    session_options.add_macro_define("__SHADER_TARGET_MINOR", fmt::format("{}", shader_model_minor));
+    // Add shader model defines (used by NVAPI headers).
+    // Parse major/minor from profile string (e.g. "sm_6_6" -> 6, 6).
+    {
+        uint32_t sm_major = 6, sm_minor = 0;
+        if (profile.size() >= 6 && profile.substr(0, 3) == "sm_") {
+            auto underscore = profile.find('_', 3);
+            if (underscore != std::string::npos) {
+                sm_major = std::stoul(profile.substr(3, underscore - 3));
+                sm_minor = std::stoul(profile.substr(underscore + 1));
+            }
+        }
+        session_options.add_macro_define("__SHADER_TARGET_MAJOR", fmt::format("{}", sm_major));
+        session_options.add_macro_define("__SHADER_TARGET_MINOR", fmt::format("{}", sm_minor));
+    }
 
     // Add NVAPI defines.
     session_options.add_macro_define(

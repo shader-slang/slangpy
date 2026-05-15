@@ -265,8 +265,14 @@ public:
     /// Shader cache statistics.
     ShaderCacheStats shader_cache_stats() const;
 
-    /// The highest shader model supported by the device.
-    ShaderModel supported_shader_model() const { return m_supported_shader_model; }
+    /// List of supported profiles (e.g. "sm_6_6", "spirv_1_5").
+    const std::vector<std::string>& supported_profiles() const { return m_supported_profiles; }
+
+    /// Check if the device supports a given profile.
+    bool has_profile(std::string_view profile) const;
+
+    /// The default profile for the device.
+    std::string default_profile() const;
 
     /// List of features supported by the device.
     const std::vector<Feature>& features() const { return m_features; }
@@ -805,7 +811,7 @@ private:
 
     DeviceDesc m_desc;
     DeviceInfo m_info;
-    ShaderModel m_supported_shader_model{ShaderModel::unknown};
+    std::vector<std::string> m_supported_profiles;
 
     bool m_closed{false};
 

@@ -322,28 +322,28 @@ Device::Device(const DeviceDesc& desc)
         break;
     }
 
-    // Get supported shader model.
-    const std::vector<std::pair<ShaderModel, const char*>> available_shader_models = {
-        {ShaderModel::sm_6_7, "sm_6_7"},
-        {ShaderModel::sm_6_6, "sm_6_6"},
-        {ShaderModel::sm_6_5, "sm_6_5"},
-        {ShaderModel::sm_6_4, "sm_6_4"},
-        {ShaderModel::sm_6_3, "sm_6_3"},
-        {ShaderModel::sm_6_2, "sm_6_2"},
-        {ShaderModel::sm_6_1, "sm_6_1"},
-        {ShaderModel::sm_6_0, "sm_6_0"},
-    };
-    for (const auto& [sm, sm_str] : available_shader_models) {
-        if (m_rhi_device->hasFeature(sm_str)) {
-            m_supported_shader_model = sm;
-            break;
+    // Get supported profiles from RHI capabilities.
+    {
+        static const char* known_profiles[] = {
+            "sm_6_0",
+            "sm_6_1",
+            "sm_6_2",
+            "sm_6_3",
+            "sm_6_4",
+            "sm_6_5",
+            "sm_6_6",
+            "sm_6_7",
+        };
+        for (const char* profile : known_profiles) {
+            if (m_rhi_device->hasFeature(profile))
+                m_supported_profiles.push_back(profile);
         }
+        if (m_supported_profiles.empty()) {
+            m_supported_profiles.push_back("sm_6_0");
+            log_warn("No supported profiles found, pretending to support sm_6_0.");
+        }
+        log_debug("Supported profiles: {}", string::join(m_supported_profiles, ", "));
     }
-    if (m_supported_shader_model == ShaderModel::unknown) {
-        m_supported_shader_model = ShaderModel::sm_6_0;
-        log_warn("No supported shader model found, pretending to support {}.", m_supported_shader_model);
-    }
-    log_debug("Supported shader model: {}", m_supported_shader_model);
 
     // Query features.
     std::vector<std::string> feature_names;
@@ -463,6 +463,23 @@ bool Device::has_feature(Feature feature) const
 bool Device::has_capability(std::string_view capability) const
 {
     return std::find(m_capabilities.begin(), m_capabilities.end(), capability) != m_capabilities.end();
+}
+
+bool Device::has_profile(std::string_view profile) const
+{
+    return std::find(m_supported_profiles.begin(), m_supported_profiles.end(), profile) != m_supported_profiles.end();
+}
+
+std::string Device::default_profile() const
+{
+    if (m_supported_profiles.empty())
+        return "sm_6_0";
+    // Return the highest supported profile.
+    std::string profile = m_supported_profiles.back();
+    // TODO: Slang generates invalid HLSL for SM 6.7 when using ray payloads.
+    if (profile == "sm_6_7")
+        profile = "sm_6_6";
+    return profile;
 }
 
 FormatSupport Device::get_format_support(Format format) const
@@ -1312,7 +1329,8 @@ std::string Device::to_string() const
         "  enable_print = {},\n"
         "  enable_hot_reload = {},\n"
         "  enable_compilation_reports = {},\n"
-        "  supported_shader_model = {},\n"
+        "  supported_profiles = [{}],\n"
+        "  default_profile = \"{}\",\n"
         "  module_cache_path = \"{}\",\n"
         "  shader_cache_path = \"{}\"\n"
         ")",
@@ -1327,7 +1345,8 @@ std::string Device::to_string() const
         m_desc.enable_print,
         m_desc.enable_hot_reload,
         m_desc.enable_compilation_reports,
-        m_supported_shader_model,
+        string::join(m_supported_profiles, ", "),
+        default_profile(),
         m_module_cache_path,
         m_shader_cache_path
     );

@@ -229,44 +229,6 @@ struct SGL_API DescriptorHandle {
     std::string to_string() const;
 };
 
-enum class ShaderModel : uint32_t {
-    unknown = 0,
-    sm_6_0 = 60,
-    sm_6_1 = 61,
-    sm_6_2 = 62,
-    sm_6_3 = 63,
-    sm_6_4 = 64,
-    sm_6_5 = 65,
-    sm_6_6 = 66,
-    sm_6_7 = 67,
-};
-
-SGL_ENUM_INFO(
-    ShaderModel,
-    {
-        {ShaderModel::unknown, "unknown"},
-        {ShaderModel::sm_6_0, "sm_6_0"},
-        {ShaderModel::sm_6_1, "sm_6_1"},
-        {ShaderModel::sm_6_2, "sm_6_2"},
-        {ShaderModel::sm_6_3, "sm_6_3"},
-        {ShaderModel::sm_6_4, "sm_6_4"},
-        {ShaderModel::sm_6_5, "sm_6_5"},
-        {ShaderModel::sm_6_6, "sm_6_6"},
-        {ShaderModel::sm_6_7, "sm_6_7"},
-    }
-);
-SGL_ENUM_REGISTER(ShaderModel);
-
-inline uint32_t get_shader_model_major_version(ShaderModel sm)
-{
-    return static_cast<uint32_t>(sm) / 10;
-}
-
-inline uint32_t get_shader_model_minor_version(ShaderModel sm)
-{
-    return static_cast<uint32_t>(sm) % 10;
-}
-
 enum class ShaderStage : uint32_t {
     none = SLANG_STAGE_NONE,
     vertex = SLANG_STAGE_VERTEX,
