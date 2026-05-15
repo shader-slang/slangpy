@@ -333,6 +333,8 @@ Device::Device(const DeviceDesc& desc)
             "sm_6_5",
             "sm_6_6",
             "sm_6_7",
+            "sm_6_8",
+            "sm_6_9",
         };
         for (const char* profile : known_profiles) {
             if (m_rhi_device->hasFeature(profile))
