@@ -17,7 +17,9 @@ namespace {
 ref<Device> create_slangpy_lookup_device(Device* source_device)
 {
     DeviceDesc desc = source_device->desc();
-    desc.compiler_options.include_paths.push_back(std::filesystem::path(SOURCE_DIR).parent_path() / "slangpy" / "slang");
+    desc.compiler_options.include_paths.push_back(
+        std::filesystem::path(SOURCE_DIR).parent_path() / "slangpy" / "slang"
+    );
     return Device::create(desc);
 }
 
@@ -76,7 +78,10 @@ struct Foo {
     ref<refl::Type> foo_b = layout_b->require_type_by_name("Foo");
 
     CHECK(refl::resolve_layout(ctx.device, foo_a.get()).get() == layout_a.get());
-    CHECK(refl::resolve_layout(ctx.device, static_cast<const refl::Type*>(nullptr), layout_b.get()).get() == layout_b.get());
+    CHECK(
+        refl::resolve_layout(ctx.device, static_cast<const refl::Type*>(nullptr), layout_b.get()).get()
+        == layout_b.get()
+    );
 
     CHECK(refl::resolve_element_type(layout_a.get(), "Foo").get() == foo_a.get());
     CHECK(refl::resolve_element_type(layout_b.get(), foo_a.get()).get() == foo_b.get());
