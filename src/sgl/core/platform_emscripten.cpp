@@ -24,6 +24,11 @@ void set_keyboard_interrupt_handler(std::function<void()> handler)
     SGL_UNUSED(handler);
 }
 
+float display_scale_factor()
+{
+    return 1.f;
+}
+
 std::optional<std::filesystem::path> open_file_dialog(std::span<const FileDialogFilter> filters)
 {
     SGL_UNUSED(filters);

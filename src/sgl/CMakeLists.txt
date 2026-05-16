@@ -448,7 +448,7 @@ endforeach()
 
 if(SGL_EMSCRIPTEN)
     target_link_options(sgl
-        PUBLIC
+        INTERFACE
             "-sUSE_GLFW=3"
             "--use-port=emdawnwebgpu"
             "-fwasm-exceptions"

@@ -132,6 +132,13 @@ Device::Device(const DeviceDesc& desc)
         }
     }
 
+#if !SGL_HAS_CUDA
+    if (m_desc.enable_cuda_interop) {
+        log_warn("CUDA interop requested but CUDA support is not compiled in; disabling.");
+        m_desc.enable_cuda_interop = false;
+    }
+#endif
+
 #if SGL_HAS_CUDA
     // If CUDA interop is enabled on non-cuda backend, check if existing CUDA context or device
     // is provided. If so, we will attempt to identify the same device for use with SlangPy.
@@ -891,6 +898,10 @@ uint64_t Device::submit_command_buffers(
         "Native handle supplied for CUDA stream is not of type CUstream."
     );
 
+#if !SGL_HAS_CUDA
+    SGL_CHECK(!cuda_stream.is_valid(), "CUDA stream provided, but CUDA support is not compiled in.");
+#endif
+
     // Update hot reload system if created.
     // TODO(slang-rhi) need to make sure this is not too expensive.
     if (m_hot_reload)
@@ -1395,6 +1406,8 @@ std::array<NativeHandle, 3> get_cuda_current_context_native_handles()
 
     handles[0] = NativeHandle(cu_device);
     handles[1] = NativeHandle(cu_context);
+#else
+    SGL_THROW("CUDA support is not compiled in; cannot return CUDA context handles.");
 #endif
     return handles;
 }

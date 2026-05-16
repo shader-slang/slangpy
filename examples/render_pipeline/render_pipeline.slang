@@ -14,7 +14,12 @@ VertexOutput vertex_main(float2 pos: POSITION, uint vid: SV_VertexID)
     VertexOutput output;
     output.pos = float4(pos, 0.0, 1.0);
 
-    // Mimic SV_Barycentrics for backends that don't support it (e.g., WebGPU)
+    // Mimic SV_Barycentrics for backends that don't support it (e.g., WebGPU).
+    // NOTE: this only works for sequential per-triangle vertex IDs (0,1,2,0,1,2,...)
+    // as produced by a non-indexed triangle-list draw with one unique vertex per
+    // triangle corner. It will produce wrong colours for indexed draws,
+    // triangle strips/fans, or any draw that reuses vertices across triangles.
+    // Do not copy-paste this trick into pipelines that don't match that shape.
     uint id = vid % 3;
     output.barycentrics = float3(0, 0, 0);
     output.barycentrics[id] = 1.0;

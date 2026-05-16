@@ -359,6 +359,7 @@ Window::Window(WindowDesc desc)
     : m_width(desc.width)
     , m_height(desc.height)
     , m_title(desc.title)
+    , m_canvas_selector(desc.canvas_selector)
 {
     init_glfw();
 
@@ -418,7 +419,7 @@ WindowHandle Window::window_handle() const
 #elif SGL_MACOS
     handle.nswindow = glfwGetCocoaWindow(m_window);
 #elif SGL_EMSCRIPTEN
-    handle.canvasSelector = "#canvas";
+    handle.canvasSelector = m_canvas_selector.c_str();
 #endif
     return handle;
 }

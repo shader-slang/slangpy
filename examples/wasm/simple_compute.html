@@ -44,11 +44,16 @@
     <script>
         const output = document.getElementById('output');
         const status = document.getElementById('status');
-        
+
         var Module = {
             onRuntimeInitialized: function() {
                 status.textContent = '✓ Simple Compute WASM module loaded successfully!';
                 status.className = 'status success';
+            },
+            onAbort: function(reason) {
+                status.textContent = '✗ WASM aborted: ' + reason;
+                status.className = 'status error';
+                output.textContent += '[ABORT] ' + reason + '\n';
             },
             print: function(text) {
                 console.log(text);
@@ -60,6 +65,9 @@
             }
         };
     </script>
-    <script src="simple-compute-wasm.js"></script>
+    <script src="simple-compute-wasm.js"
+            onerror="status.textContent='✗ Failed to load simple-compute-wasm.js';
+                     status.className='status error';
+                     output.textContent += '[ERROR] Failed to load simple-compute-wasm.js\n';"></script>
 </body>
 </html>

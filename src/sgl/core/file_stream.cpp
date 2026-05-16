@@ -4,6 +4,7 @@
 
 #include "sgl/core/error.h"
 
+#include <cstring>
 #include <fstream>
 
 namespace sgl {

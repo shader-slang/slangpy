@@ -24,7 +24,10 @@ Surface::Surface(WindowHandle window_handle, ref<Device> device)
 #elif SGL_MACOS
     rhi::WindowHandle rhi_window_handle = rhi::WindowHandle::fromNSWindow(window_handle.nswindow);
 #elif SGL_EMSCRIPTEN
-    rhi::WindowHandle rhi_window_handle = rhi::WindowHandle::fromWGPUCanvas(window_handle.canvasSelector);
+    const char* canvas_selector = window_handle.canvasSelector;
+    if (!canvas_selector || !*canvas_selector)
+        canvas_selector = "#canvas";
+    rhi::WindowHandle rhi_window_handle = rhi::WindowHandle::fromWGPUCanvas(canvas_selector);
 #endif
 
     SLANG_RHI_CALL(m_device->rhi_device()->createSurface(rhi_window_handle, m_rhi_surface.writeRef()), m_device);

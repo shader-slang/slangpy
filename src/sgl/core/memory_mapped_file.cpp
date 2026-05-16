@@ -24,6 +24,7 @@
 #include <sys/stat.h>
 #elif SGL_EMSCRIPTEN
 #include <errno.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #else
 #error "Unknown OS"
