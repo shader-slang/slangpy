@@ -82,6 +82,12 @@ class ProgramLayout;
 class ProgramLayoutParameterList;
 class ProgramLayoutEntryPointList;
 
+// refl
+
+namespace refl {
+    class Layout;
+} // namespace refl
+
 // kernel.h
 
 class Kernel;

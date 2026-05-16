@@ -24,6 +24,7 @@ struct Foo
 }
 
 struct GenericType<A, int N> {}
+struct BoolGenericType<let Enabled: bool> {}
 
 """
 
@@ -126,6 +127,26 @@ def test_generic_parsing(device_type: DeviceType):
     assert args[0].full_name == "GenericType<GenericType<float, 1>, 2>"
     assert isinstance(args[1], int)
     assert args[1] == 3
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize(
+    ("type_name", "expected_value"),
+    [("BoolGenericType<true>", 1), ("BoolGenericType<false>", 0)],
+)
+def test_bool_generic_value_parsing(device_type: DeviceType, type_name: str, expected_value: int):
+    device = helpers.get_device(device_type)
+    m = helpers.create_module(device, MODULE)
+    layout = m.layout
+
+    generic = layout.find_type_by_name(type_name)
+    assert generic is not None
+
+    args = layout.get_resolved_generic_args(generic.type_reflection)
+    assert args is not None
+    assert len(args) == 1
+    assert isinstance(args[0], int)
+    assert args[0] == expected_value
 
 
 def check_texture(

@@ -123,6 +123,14 @@ def _emit_user_constants(build_info: "FunctionBuildInfo", cg: CodeGen) -> None:
 generate_constants = _emit_user_constants
 
 
+def _emit_user_prelude(build_info: "FunctionBuildInfo", cg: CodeGen) -> None:
+    """Emit raw user-provided Slang source into the generated module."""
+    for code in build_info.prelude:
+        cg.prelude.append_code(code)
+        if not code.endswith("\n"):
+            cg.prelude.append_code("\n")
+
+
 def gen_calldata_type_name(binding: "BoundVariable", cgb: CodeGenBlock, type_name: str) -> None:
     """Record the Slang type name for this variable's CallData field.
 
@@ -880,6 +888,7 @@ def generate_code(
     if use_entrypoint_args:
         cg.skip_call_data = True
 
+    _emit_user_prelude(build_info, cg)
     _emit_link_time_constants(
         cg, build_info, call_data_len, call_group_size, call_group_strides, call_group_shape_vector
     )

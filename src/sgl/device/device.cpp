@@ -33,6 +33,8 @@
 #include "sgl/core/window.h"
 #include "sgl/core/string.h"
 
+#include "sgl/refl/layout.h"
+
 #if SGL_HAS_D3D12
 #include <dxgi.h>
 #include <d3d12.h>
@@ -211,6 +213,25 @@ Device::Device(const DeviceDesc& desc)
         .debugBreakOnD3D12Error = false,
         .highestShaderModel = 0,
     };
+
+    std::vector<const char*> additional_vulkan_instance_extensions;
+    additional_vulkan_instance_extensions.reserve(m_desc.additional_vulkan_instance_extensions.size());
+    for (const std::string& extension : m_desc.additional_vulkan_instance_extensions)
+        additional_vulkan_instance_extensions.push_back(extension.c_str());
+
+    std::vector<const char*> additional_vulkan_device_extensions;
+    additional_vulkan_device_extensions.reserve(m_desc.additional_vulkan_device_extensions.size());
+    for (const std::string& extension : m_desc.additional_vulkan_device_extensions)
+        additional_vulkan_device_extensions.push_back(extension.c_str());
+
+    rhi::VulkanDeviceExtendedDesc vulkan_extended_desc{
+        .structType = rhi::StructType::VulkanDeviceExtendedDesc,
+        .instanceExtensionCount = narrow_cast<uint32_t>(additional_vulkan_instance_extensions.size()),
+        .instanceExtensions = additional_vulkan_instance_extensions.data(),
+        .deviceExtensionCount = narrow_cast<uint32_t>(additional_vulkan_device_extensions.size()),
+        .deviceExtensions = additional_vulkan_device_extensions.data(),
+    };
+    d3d12_extended_desc.next = &vulkan_extended_desc;
 
     rhi::BindlessDesc bindless_desc{
         .bufferCount = m_desc.bindless_options.buffer_count,
@@ -491,6 +512,7 @@ void Device::close()
 
     m_global_fence.reset();
 
+    m_builtin_layout.reset();
     m_slang_session.reset();
     m_hot_reload.reset();
 
@@ -717,6 +739,25 @@ void Device::reload_all_programs()
 {
     if (m_hot_reload)
         m_hot_reload->recreate_all_sessions();
+}
+
+ref<refl::Layout> Device::builtin_layout()
+{
+    if (!m_builtin_layout) {
+        ref<SlangModule> module = load_module("slangpy");
+        m_builtin_layout = make_ref<refl::Layout>(module->layout());
+    }
+    return m_builtin_layout;
+}
+
+ref<refl::Layout> Device::reload_builtin_layout()
+{
+    if (!m_builtin_layout)
+        return builtin_layout();
+
+    ref<SlangModule> module = load_module("slangpy");
+    m_builtin_layout->on_hot_reload(module->layout());
+    return m_builtin_layout;
 }
 
 ref<SlangModule> Device::load_module(std::string_view module_name)

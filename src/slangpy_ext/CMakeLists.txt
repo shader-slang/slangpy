@@ -17,6 +17,7 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     core/thread.cpp
     core/timer.cpp
     core/window.cpp
+    func/functional.cpp
     device/buffer_cursor.cpp
     device/command.cpp
     device/cursor_utils.h
@@ -44,6 +45,7 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     math/vector.cpp
     ui/ui.cpp
     ui/widgets.cpp
+    refl/layout.cpp
     utils/crashpad.cpp
     utils/renderdoc.cpp
     utils/slangpy.h
@@ -200,7 +202,9 @@ set(SGL_HEADER_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/app"
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/core"
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/device"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/func"
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/math"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/refl"
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/ui"
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/utils"
 )

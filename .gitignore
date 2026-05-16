@@ -16,6 +16,7 @@ docs/_build/
 .venv/
 .crashpad/
 .tools/
+.conda/
 
 # Python files installed into source tree
 slangpy/**/*.pyi

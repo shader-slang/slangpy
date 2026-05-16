@@ -2,13 +2,14 @@
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from slangpy.core.function import Function
+from slangpy.native_func import BaseStruct
 
 if TYPE_CHECKING:
     from slangpy import Module
     from slangpy.reflection import SlangType
 
 
-class Struct:
+class Struct(BaseStruct):
     """
     A Slang struct, typically created by accessing it via a module or parent struct. i.e. mymodule.Foo,
     or mymodule.Foo.Bar.
@@ -17,7 +18,7 @@ class Struct:
     def __init__(
         self, module: "Module", slang_struct: "SlangType", options: dict[str, Any] = {}
     ) -> None:
-        super().__init__()
+        super().__init__(module, slang_struct.type_reflection)
         self.module = module
         self.options = options
         self.struct = slang_struct

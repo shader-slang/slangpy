@@ -1221,6 +1221,8 @@ static const char *__doc_sgl_BufferElementCursor_operator_assign = R"doc()doc";
 
 static const char *__doc_sgl_BufferElementCursor_read_data = R"doc()doc";
 
+static const char *__doc_sgl_BufferElementCursor_reinterpret = R"doc(Reinterpret the current cursor using a different type layout.)doc";
+
 static const char *__doc_sgl_BufferElementCursor_set = R"doc()doc";
 
 static const char *__doc_sgl_BufferElementCursor_set_2 = R"doc()doc";
@@ -2651,6 +2653,14 @@ static const char *__doc_sgl_DeviceDesc_2 = R"doc()doc";
 
 static const char *__doc_sgl_DeviceDesc_adapter_luid = R"doc(Adapter LUID to select adapter on which the device will be created.)doc";
 
+static const char *__doc_sgl_DeviceDesc_additional_vulkan_device_extensions =
+R"doc(Additional Vulkan device extensions to enable when SGL creates the
+Vulkan device.)doc";
+
+static const char *__doc_sgl_DeviceDesc_additional_vulkan_instance_extensions =
+R"doc(Additional Vulkan instance extensions to enable when SGL creates the
+Vulkan instance.)doc";
+
 static const char *__doc_sgl_DeviceDesc_bindless_options = R"doc()doc";
 
 static const char *__doc_sgl_DeviceDesc_compiler_options = R"doc(Compiler options (used for default slang session).)doc";
@@ -3588,6 +3598,8 @@ static const char *__doc_sgl_Feature_ray_tracing_motion_blur = R"doc()doc";
 static const char *__doc_sgl_Feature_ray_tracing_validation = R"doc()doc";
 
 static const char *__doc_sgl_Feature_realtime_clock = R"doc()doc";
+
+static const char *__doc_sgl_Feature_residency_set = R"doc()doc";
 
 static const char *__doc_sgl_Feature_sampler_feedback = R"doc()doc";
 
@@ -6934,6 +6946,8 @@ static const char *__doc_sgl_ShaderCursor_operator_array = R"doc()doc";
 static const char *__doc_sgl_ShaderCursor_operator_array_2 = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_ShaderCursor_reinterpret = R"doc(Reinterpret the current cursor using a different type layout.)doc";
 
 static const char *__doc_sgl_ShaderCursor_reserve_data =
 R"doc(Reserves a block of memory within the shader object's internal data

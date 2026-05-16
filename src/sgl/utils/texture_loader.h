@@ -38,7 +38,7 @@ public:
         bool load_as_normalized{true};
         /// Use \c Format::rgba8_unorm_srgb format if bitmap is 8-bit RGBA with sRGB gamma.
         bool load_as_srgb{true};
-        /// Extend RGB to RGBA if RGB texture format is not available.
+        /// Extend RGB to RGBA if the RGB texture format cannot support the requested usage.
         bool extend_alpha{true};
         /// Strategy for handling YA (greyscale + alpha) bitmaps.
         YAHandling ya_handling{YAHandling::expand_to_rgba};
@@ -47,7 +47,7 @@ public:
         /// Generate mip levels for the texture.
         bool generate_mips{false};
         /// Resource usage flags for the texture.
-        /// \c TextureUsage::render_target will be added automatically if \c generate_mips is true.
+        /// Render-target or unordered-access usage will be added automatically if \c generate_mips is true.
         TextureUsage usage{TextureUsage::shader_resource};
     };
 

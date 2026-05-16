@@ -71,6 +71,10 @@ option(SGL_ENABLE_ASAN "Enable address sanitizer" OFF)
 # If enabled, additional targets are generated to validate that headers are self sufficient.
 option(SGL_ENABLE_HEADER_VALIDATION "Enable header validation" OFF)
 
+# Enable/disable build metrics.
+# When enabled, adds compiler timing flags (/Bt+ for MSVC, -ftime-trace for Clang, -ftime-report for GCC).
+option(SGL_ENABLE_BUILD_METRICS "Enable build metrics (compiler timing flags)" OFF)
+
 # Enable/disable Crashpad integration.
 option(SGL_ENABLE_CRASHPAD "Enable Crashpad integration" OFF)
 
