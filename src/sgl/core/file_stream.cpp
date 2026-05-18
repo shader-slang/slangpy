@@ -4,6 +4,7 @@
 
 #include "sgl/core/error.h"
 
+#include <cstring>
 #include <fstream>
 
 namespace sgl {
@@ -42,7 +43,9 @@ inline std::string strerror_safe(int errnum)
     if (strerror_r(errnum, buf, sizeof(buf)) != 0)
         return "Unknown error";
     return buf;
-#elif
+#elif SGL_EMSCRIPTEN
+    return strerror(errnum);
+#else
 #error "Unsupported platform"
 #endif
 }

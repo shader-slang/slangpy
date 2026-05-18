@@ -123,7 +123,7 @@ private:
     int m_inotify_file_descriptor;
 #endif
 
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
     /// Mutex to protect the watch map.
     std::mutex m_watches_mutex;
 

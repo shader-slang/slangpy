@@ -50,6 +50,8 @@ struct WindowDesc {
     WindowMode mode{WindowMode::normal};
     /// Whether the window is resizable.
     bool resizable{true};
+    /// HTML canvas selector for Emscripten builds (ignored on other platforms).
+    std::string canvas_selector{"#canvas"};
 };
 
 /// Mouse cursor modes.
@@ -228,6 +230,7 @@ private:
     uint32_t m_width;
     uint32_t m_height;
     std::string m_title;
+    std::string m_canvas_selector;
     GLFWwindow* m_window;
 
     bool m_should_close{false};

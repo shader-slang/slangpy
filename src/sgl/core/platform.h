@@ -30,6 +30,8 @@ struct WindowHandle {
     uint32_t xwindow;
 #elif SGL_MACOS
     void* nswindow;
+#elif SGL_EMSCRIPTEN
+    const char* canvasSelector = nullptr;
 #endif
 };
 

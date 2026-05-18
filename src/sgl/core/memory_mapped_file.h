@@ -98,7 +98,7 @@ private:
 #if SGL_WINDOWS
     using FileHandle = void*;
     void* m_mapped_file{nullptr};
-#elif SGL_LINUX || SGL_MACOS
+#elif SGL_LINUX || SGL_MACOS || SGL_EMSCRIPTEN
     using FileHandle = int;
 #else
 #error "Unknown OS"

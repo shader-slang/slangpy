@@ -9,13 +9,16 @@
 #define SGL_COMPILER_MSVC 1
 #define SGL_COMPILER_CLANG 2
 #define SGL_COMPILER_GCC 3
+#define SGL_COMPILER_EMSCRIPTEN 4
 
 /**
  * Determine the compiler in use.
  * http://sourceforge.net/p/predef/wiki/Compilers/
  */
 #ifndef SGL_COMPILER
-#if defined(_MSC_VER) && !defined(__clang__)
+#if defined(__EMSCRIPTEN__)
+#define SGL_COMPILER SGL_COMPILER_EMSCRIPTEN
+#elif defined(_MSC_VER) && !defined(__clang__)
 #define SGL_COMPILER SGL_COMPILER_MSVC
 #elif defined(__clang__)
 #define SGL_COMPILER SGL_COMPILER_CLANG
@@ -27,8 +30,9 @@
 #endif // SGL_COMPILER
 
 #define SGL_MSVC (SGL_COMPILER == SGL_COMPILER_MSVC)
-#define SGL_CLANG (SGL_COMPILER == SGL_COMPILER_CLANG)
+#define SGL_CLANG (SGL_COMPILER == SGL_COMPILER_CLANG || SGL_COMPILER == SGL_COMPILER_EMSCRIPTEN)
 #define SGL_GCC (SGL_COMPILER == SGL_COMPILER_GCC)
+#define SGL_EMSCRIPTEN (SGL_COMPILER == SGL_COMPILER_EMSCRIPTEN)
 
 // -------------------------------------------------------------------------------------------------
 // Architecture macros
@@ -36,6 +40,7 @@
 
 #define SGL_ARCH_X86_64 1
 #define SGL_ARCH_ARM64 2
+#define SGL_ARCH_WASM 3
 
 /**
  * Determine the target architecture in use.
@@ -46,6 +51,8 @@
 #define SGL_ARCH SGL_ARCH_X86_64
 #elif defined(_M_ARM64) || defined(__aarch64__)
 #define SGL_ARCH SGL_ARCH_ARM64
+#elif defined(SGL_EMSCRIPTEN)
+#define SGL_ARCH SGL_ARCH_WASM
 #else
 #error "Unsupported target architecture"
 #endif
@@ -53,6 +60,7 @@
 
 #define SGL_X86_64 (SGL_ARCH == SGL_ARCH_X86_64)
 #define SGL_ARM64 (SGL_ARCH == SGL_ARCH_ARM64)
+#define SGL_WASM (SGL_ARCH == SGL_ARCH_WASM)
 
 // -------------------------------------------------------------------------------------------------
 // Platform macros
@@ -61,6 +69,7 @@
 #define SGL_PLATFORM_WINDOWS 1
 #define SGL_PLATFORM_LINUX 2
 #define SGL_PLATFORM_MACOS 3
+#define SGL_PLATFORM_EMSCRIPTEN 4
 
 /**
  * Determine the target platform in use.
@@ -73,6 +82,8 @@
 #define SGL_PLATFORM SGL_PLATFORM_LINUX
 #elif defined(__APPLE__) && defined(__MACH__)
 #define SGL_PLATFORM SGL_PLATFORM_MACOS
+#elif defined(__EMSCRIPTEN__)
+#define SGL_PLATFORM SGL_PLATFORM_EMSCRIPTEN
 #else
 #error "Unsupported target platform"
 #endif
@@ -105,7 +116,7 @@
 
 #if SGL_MSVC
 #define SGL_INLINE __forceinline
-#elif SGL_CLANG | SGL_GCC
+#elif SGL_CLANG || SGL_GCC
 #define SGL_INLINE __attribute__((always_inline))
 #endif
 

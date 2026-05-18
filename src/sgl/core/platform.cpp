@@ -4,7 +4,9 @@
 #include "sgl/core/error.h"
 #include "sgl/core/format.h"
 
+#if !SGL_EMSCRIPTEN
 #include <GLFW/glfw3.h>
+#endif
 
 #include <algorithm>
 #include <cstdio>
@@ -23,6 +25,7 @@ void set_python_active(bool active)
     s_is_python_active = active;
 }
 
+#if !SGL_EMSCRIPTEN
 float display_scale_factor()
 {
     float xscale = 1.f;
@@ -32,6 +35,7 @@ float display_scale_factor()
         glfwGetMonitorContentScale(monitor, &xscale, &yscale);
     return 0.5f * (xscale + yscale);
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Filesystem

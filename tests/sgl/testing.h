@@ -2,7 +2,16 @@
 
 #pragma once
 
+// doctest unconditionally includes <ciso646> on clang; libstdc++ >= 13 makes that
+// a deprecation #warning in C++20+, which -Werror promotes to a fatal error.
+#if defined(__clang__) && __cplusplus >= 202002L
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-W#warnings"
+#endif
 #include <doctest/doctest.h>
+#if defined(__clang__) && __cplusplus >= 202002L
+#pragma clang diagnostic pop
+#endif
 #include <filesystem>
 
 namespace sgl {

@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "sgl/core/config.h"
+
+#if SGL_HAS_CUDA
+
 #include "cuda_utils.h"
 
 #include "sgl/core/error.h"
@@ -402,3 +406,5 @@ ContextScope::~ContextScope()
 }
 
 } // namespace sgl::cuda
+
+#endif
