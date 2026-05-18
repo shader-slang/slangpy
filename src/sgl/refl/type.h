@@ -5,6 +5,7 @@
 #include "sgl/core/macros.h"
 #include "sgl/core/object.h"
 #include "sgl/device/reflection.h"
+#include "sgl/device/resource.h"
 #include "sgl/utils/slangpy.h"
 
 #include <cstdint>
@@ -77,13 +78,25 @@ public:
     virtual std::string vector_type_name() const;
     /// Return the derivative type, if one exists.
     virtual ref<Type> derivative();
+    /// Return true when derivative() resolves to a valid type.
+    bool has_derivative() { return derivative() != nullptr; }
     /// Return the reflected fields for aggregate-like types.
     const std::unordered_map<std::string, ref<Field>>& fields();
 
     /// Return the type layout when used as uniform data.
     ref<TypeLayout> uniform_layout();
+    /// Return the low-level uniform type layout reflection.
+    ref<TypeLayoutReflection> uniform_type_layout()
+    {
+        return ref<TypeLayoutReflection>(const_cast<TypeLayoutReflection*>(uniform_layout()->reflection()));
+    }
     /// Return the type layout when used as an element of a structured buffer.
     ref<TypeLayout> buffer_layout();
+    /// Return the low-level structured-buffer element type layout reflection.
+    ref<TypeLayoutReflection> buffer_type_layout()
+    {
+        return ref<TypeLayoutReflection>(const_cast<TypeLayoutReflection*>(buffer_layout()->reflection()));
+    }
 
     /// Refresh low-level reflection after hot reload and clear derived caches.
     virtual void on_hot_reload(ref<const TypeReflection> reflection);
@@ -280,6 +293,8 @@ public:
 
     /// Return the dimensionality of the texture resource shape.
     int texture_dims() const { return m_texture_dims; }
+    /// Return the texture usage needed to bind this reflected texture type.
+    TextureUsage usage() const;
 
 private:
     int m_texture_dims = 0;

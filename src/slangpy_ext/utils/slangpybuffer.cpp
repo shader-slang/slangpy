@@ -311,8 +311,8 @@ SGL_PY_EXPORT(utils_slangpy_buffer)
             [](NativeNDBufferMarshall& self,
                int dims,
                bool writable,
-               ref<NativeSlangType> slang_type,
-               ref<NativeSlangType> slang_element_type,
+               ref<refl::Type> slang_type,
+               ref<refl::Type> slang_element_type,
                ref<TypeLayoutReflection> element_layout)
             {
                 new (&self) NativeNDBufferMarshall(dims, writable, slang_type, slang_element_type, element_layout);
@@ -333,8 +333,8 @@ SGL_PY_EXPORT(utils_slangpy_buffer)
             "__init__",
             [](NativeNumpyMarshall& self,
                int dims,
-               ref<NativeSlangType> slang_type,
-               ref<NativeSlangType> slang_element_type,
+               ref<refl::Type> slang_type,
+               ref<refl::Type> slang_element_type,
                ref<TypeLayoutReflection> element_layout,
                nb::object numpydtype)
             {

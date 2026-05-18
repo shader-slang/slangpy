@@ -7,7 +7,6 @@ from slangpy.core.struct import Struct
 from slangpy import Pipeline, ShaderTable, SlangModule, Device, Logger
 from slangpy.core.native import NativeCallDataCache
 from slangpy.native_func import BaseModule
-from slangpy.native_refl import Layout as NativeReflLayout
 from slangpy.reflection import SlangProgramLayout
 from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
 
@@ -67,9 +66,8 @@ class Module(BaseModule):
         all_modules = [slangpy_device_module, device_module] + link_slang_modules
         composed = device_module.session.compose_modules(device_module.name, all_modules)
         layout = SlangProgramLayout(composed.layout)
-        base_layout = NativeReflLayout(composed.layout)
 
-        super().__init__(composed, base_layout)
+        super().__init__(composed, layout)
 
         self.options = options
         self.slangpy_device_module = slangpy_device_module

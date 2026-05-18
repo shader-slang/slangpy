@@ -162,8 +162,8 @@ namespace {
 NativeTorchTensorMarshall::NativeTorchTensorMarshall(
     int dims,
     bool writable,
-    ref<NativeSlangType> slang_type,
-    ref<NativeSlangType> slang_element_type,
+    ref<refl::Type> slang_type,
+    ref<refl::Type> slang_element_type,
     ref<TypeLayoutReflection> element_layout,
     ref<NativeTorchTensorMarshall> d_in,
     ref<NativeTorchTensorMarshall> d_out
@@ -710,7 +710,7 @@ nb::object NativeTorchTensorMarshall::create_output(CallContext* context, Native
     }
 
     // Map slang scalar type to c10::ScalarType code
-    TypeReflection::ScalarType scalar_type = m_slang_element_type->type_reflection()->scalar_type();
+    TypeReflection::ScalarType scalar_type = m_slang_element_type->reflection()->scalar_type();
     int32_t c10_scalar_type;
     switch (scalar_type) {
     case TypeReflection::ScalarType::uint8:
@@ -801,8 +801,8 @@ SGL_PY_EXPORT(utils_slangpy_torch_tensor)
             [](NativeTorchTensorMarshall& self,
                int dims,
                bool writable,
-               ref<NativeSlangType> slang_type,
-               ref<NativeSlangType> slang_element_type,
+               ref<refl::Type> slang_type,
+               ref<refl::Type> slang_element_type,
                ref<TypeLayoutReflection> element_layout,
                ref<NativeTorchTensorMarshall> d_in,
                ref<NativeTorchTensorMarshall> d_out)

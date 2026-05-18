@@ -175,7 +175,7 @@ def format_slang_function(func: SlangFunction, p: pretty.RepresentationPrinter, 
 
 
 def format_type(st: SlangType, p: pretty.RepresentationPrinter, cycle: bool):
-    pprint_all(p, ("SlangType(", st.type_reflection, ")"))
+    pprint_all(p, ("SlangType(", st.reflection, ")"))
 
 
 def format_function(func: Function, p: pretty.RepresentationPrinter, cycle: bool):
@@ -201,18 +201,18 @@ def format_struct(m: Struct, p: pretty.RepresentationPrinter, cycle: bool):
         p,
         (
             'slangpy.Struct("',
-            m.struct.type_reflection,
+            m.struct.reflection,
             f'", module="{m.device_module.name}")',
         ),
     )
 
 
 def format_ndbuffer(buf: NativeNDBuffer, p: pretty.RepresentationPrinter, cycle: bool):
-    pprint_all(p, ("Tensor.empty(shape=", buf.shape, ", dtype=", buf.dtype.type_reflection, ")"))
+    pprint_all(p, ("Tensor.empty(shape=", buf.shape, ", dtype=", buf.dtype.reflection, ")"))
 
 
 def format_tensor(t: NativeTensor, p: pretty.RepresentationPrinter, cycle: bool):
-    pprint_all(p, ("Tensor(shape=", t.shape, ", dtype=", t.dtype.type_reflection, ")"))
+    pprint_all(p, ("Tensor(shape=", t.shape, ", dtype=", t.dtype.reflection, ")"))
 
 
 def format_texture(tex: Texture, p: pretty.RepresentationPrinter, cycle: bool):

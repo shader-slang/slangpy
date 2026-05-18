@@ -14,8 +14,10 @@ from slangpy.native_refl import (
     ScalarType,
     StructType,
     TensorType,
+    TextureType as NativeTextureType,
     Variable,
     VectorType,
+    VoidType,
     get_builtin_layout,
     name_for_scalar_type,
     resolve_element_type,
@@ -38,6 +40,8 @@ float add(float lhs, float rhs) { return lhs + rhs; }
 void update(inout float value, out float result, no_diff in float weight) {
     result = value * weight;
 }
+
+void use_textures(Texture2D<float4> texture, RWTexture2D<float4> rw_texture) {}
 """
 
 
@@ -82,6 +86,10 @@ def test_native_refl_layout_creates_semantic_types(device_type: spy.DeviceType) 
     assert float_type.full_name == "float"
     assert float_type.shape == ()
 
+    void_type = layout.scalar_type(spy.TypeReflection.ScalarType.void)
+    assert isinstance(void_type, VoidType)
+    assert void_type.full_name == "void"
+
     vector_type = layout.require_type_by_name("vector<float,3>")
     assert isinstance(vector_type, VectorType)
     assert vector_type.element_type is float_type
@@ -117,6 +125,14 @@ def test_native_refl_layout_creates_semantic_types(device_type: spy.DeviceType) 
     assert tensor_type.writable
     assert tensor_type.shape == (-1, -1)
 
+    texture_function = layout.require_function_by_name("use_textures")
+    texture_type = texture_function.parameters[0].type
+    rw_texture_type = texture_function.parameters[1].type
+    assert isinstance(texture_type, NativeTextureType)
+    assert texture_type.usage == spy.TextureUsage.shader_resource
+    assert isinstance(rw_texture_type, NativeTextureType)
+    assert rw_texture_type.usage == spy.TextureUsage.unordered_access
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_native_refl_layout_creates_function_metadata(device_type: spy.DeviceType) -> None:
@@ -149,7 +165,7 @@ def test_native_refl_layout_creates_function_metadata(device_type: spy.DeviceTyp
 
     method = layout.require_function_by_name_in_type(struct_type, "eval")
     assert method.this_type is struct_type
-    assert method.full_name == "Foo::eval"
+    assert method.full_name == "eval"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -175,9 +191,7 @@ def test_native_refl_lookup_resolves_builtin_and_struct_types(device_type: spy.D
 
     python_struct_type = module.layout.require_type_by_name("Foo")
     assert resolve_element_type(struct_layout, struct).full_name == "Foo"
-    assert (
-        resolve_element_type(struct_layout, python_struct_type.type_reflection).full_name == "Foo"
-    )
+    assert resolve_element_type(struct_layout, python_struct_type).full_name == "Foo"
     assert (
         resolve_element_type(struct_layout, python_struct_type.buffer_layout.reflection).full_name
         == "Foo"

@@ -53,7 +53,8 @@ ref<Type> Layout::require_type_by_name(std::string_view name)
     return type;
 }
 
-ref<Function> Layout::find_function(ref<const FunctionReflection> reflection, ref<Type> this_type)
+ref<Function>
+Layout::find_function(ref<const FunctionReflection> reflection, ref<Type> this_type, std::string full_name)
 {
     if (!reflection)
         return nullptr;
@@ -61,15 +62,16 @@ ref<Function> Layout::find_function(ref<const FunctionReflection> reflection, re
     if (auto it = m_functions_by_reflection.find(reflection.get()); it != m_functions_by_reflection.end())
         return it->second;
 
-    std::string name = reflection->name() ? reflection->name() : "";
-    std::string full_name = this_type ? fmt::format("{}::{}", this_type->full_name(), name) : name;
+    if (full_name.empty())
+        full_name = reflection->name() ? reflection->name() : "";
     ref<Function> function = make_ref<Function>(ref(this), reflection, std::move(this_type), full_name);
 
     m_functions_by_reflection[reflection.get()] = function;
-    if (!function->full_name().empty())
-        m_functions_by_name[function->full_name()] = function;
-    if (!this_type && !name.empty())
-        m_functions_by_name[name] = function;
+    if (function->this_type()) {
+        m_functions_by_name[fmt::format("{}::{}", function->this_type()->full_name(), function->name())] = function;
+    } else if (!function->name().empty()) {
+        m_functions_by_name[function->name()] = function;
+    }
     return function;
 }
 
@@ -112,7 +114,7 @@ ref<Function> Layout::find_function_by_name_in_type(ref<Type> type, std::string_
     if (!reflection)
         return nullptr;
 
-    ref<Function> function = make_ref<Function>(ref(this), std::move(reflection), std::move(type), qualified_name);
+    ref<Function> function = make_ref<Function>(ref(this), std::move(reflection), std::move(type), function_name);
     m_functions_by_reflection[function->reflection()] = function;
     m_functions_by_name[qualified_name] = function;
     return function;

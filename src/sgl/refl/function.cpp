@@ -218,7 +218,7 @@ const std::vector<ref<Function>>& Function::overloads()
         for (uint32_t i = 0; i < reflected_overloads.size(); ++i) {
             ref<const FunctionReflection> reflection = reflected_overloads[i];
             if (reflection)
-                m_overloads.push_back(m_layout->find_function(std::move(reflection), m_this_type));
+                m_overloads.push_back(m_layout->find_function(std::move(reflection), m_this_type, m_full_name));
         }
     }
     return m_overloads;
@@ -241,7 +241,7 @@ ref<Function> Function::specialize_with_arg_types(const std::vector<ref<Type>>& 
     ref<const FunctionReflection> reflection = m_reflection->specialize_with_arg_types(reflections);
     if (!reflection)
         return nullptr;
-    return m_layout->find_function(std::move(reflection), m_this_type);
+    return m_layout->find_function(std::move(reflection), m_this_type, m_full_name);
 }
 
 void Function::on_hot_reload(ref<const FunctionReflection> reflection)

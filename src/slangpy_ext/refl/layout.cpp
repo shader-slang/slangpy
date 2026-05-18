@@ -9,6 +9,8 @@
 #include "sgl/refl/lookup.h"
 #include "sgl/refl/type.h"
 
+#include <utility>
+
 SGL_PY_EXPORT(native_refl)
 {
     namespace refl = sgl::refl;
@@ -73,13 +75,45 @@ SGL_PY_EXPORT(native_refl)
     );
 
     nb::class_<refl::TypeLayout, sgl::Object>(native_refl, "TypeLayout", D_NA(TypeLayout))
+        .def_prop_ro(
+            "reflection",
+            [](refl::TypeLayout& self)
+            {
+                return sgl::ref<const sgl::TypeLayoutReflection>(self.reflection());
+            },
+            D_NA(TypeLayout, reflection)
+        )
         .def_prop_ro("size", &refl::TypeLayout::size, D_NA(TypeLayout, size))
         .def_prop_ro("alignment", &refl::TypeLayout::alignment, D_NA(TypeLayout, alignment))
         .def_prop_ro("stride", &refl::TypeLayout::stride, D_NA(TypeLayout, stride))
         .def("__repr__", &refl::TypeLayout::to_string, D_NA(TypeLayout, to_string));
 
     nb::class_<refl::Type, sgl::Object> type(native_refl, "Type", D_NA(Type));
-    type.def_prop_ro("name", &refl::Type::name, D_NA(Type, name))
+    type.def_prop_ro(
+            "layout",
+            [](refl::Type& self)
+            {
+                return sgl::ref<refl::Layout>(self.layout());
+            },
+            D_NA(Type, layout)
+    )
+        .def_prop_ro(
+            "program",
+            [](refl::Type& self)
+            {
+                return sgl::ref<refl::Layout>(self.layout());
+            },
+            D_NA(Type, program)
+        )
+        .def_prop_ro(
+            "reflection",
+            [](refl::Type& self)
+            {
+                return sgl::ref<const sgl::TypeReflection>(self.reflection());
+            },
+            D_NA(Type, reflection)
+        )
+        .def_prop_ro("name", &refl::Type::name, D_NA(Type, name))
         .def_prop_ro("full_name", &refl::Type::full_name, D_NA(Type, full_name))
         .def_prop_ro("element_type", &refl::Type::element_type, D_NA(Type, element_type))
         .def_prop_ro("shape", &refl::Type::shape, D_NA(Type, shape))
@@ -89,6 +123,14 @@ SGL_PY_EXPORT(native_refl)
         .def_prop_ro("uniform_layout", &refl::Type::uniform_layout, D_NA(Type, uniform_layout))
         .def_prop_ro("buffer_layout", &refl::Type::buffer_layout, D_NA(Type, buffer_layout))
         .def_prop_ro("derivative", &refl::Type::derivative, D_NA(Type, derivative))
+        .def_prop_ro(
+            "differentiable",
+            [](refl::Type& self)
+            {
+                return self.derivative() != nullptr;
+            },
+            D_NA(Type, differentiable)
+        )
         .def_prop_ro(
             "fields",
             [](refl::Type& self)
@@ -142,7 +184,8 @@ SGL_PY_EXPORT(native_refl)
         .def_prop_ro("writable", &refl::ResourceType::writable, D_NA(ResourceType, writable));
 
     nb::class_<refl::TextureType, refl::ResourceType>(native_refl, "TextureType", D_NA(TextureType))
-        .def_prop_ro("texture_dims", &refl::TextureType::texture_dims, D_NA(TextureType, texture_dims));
+        .def_prop_ro("texture_dims", &refl::TextureType::texture_dims, D_NA(TextureType, texture_dims))
+        .def_prop_ro("usage", &refl::TextureType::usage, D_NA(TextureType, usage));
 
     nb::class_<refl::StructuredBufferType, refl::ResourceType>(
         native_refl,
@@ -171,27 +214,78 @@ SGL_PY_EXPORT(native_refl)
     nb::sgl_enum<refl::TensorType::Kind>(tensor_type, "Kind", D_NA(TensorType, Kind));
     nb::sgl_enum<refl::TensorType::Access>(tensor_type, "Access", D_NA(TensorType, Access));
     tensor_type.def_prop_ro("tensor_kind", &refl::TensorType::tensor_kind, D_NA(TensorType, tensor_kind))
+        .def_prop_ro("tensor_type", &refl::TensorType::tensor_kind, D_NA(TensorType, tensor_kind))
         .def_prop_ro("access", &refl::TensorType::access, D_NA(TensorType, access))
         .def_prop_ro("readable", &refl::TensorType::readable, D_NA(TensorType, readable))
         .def_prop_ro("writable", &refl::TensorType::writable, D_NA(TensorType, writable))
         .def_prop_ro("diff_tensor", &refl::TensorType::diff_tensor, D_NA(TensorType, diff_tensor))
+        .def_prop_ro("difftensor", &refl::TensorType::diff_tensor, D_NA(TensorType, diff_tensor))
         .def_prop_ro("dims", &refl::TensorType::dims, D_NA(TensorType, dims))
         .def_prop_ro("dtype", &refl::TensorType::dtype, D_NA(TensorType, dtype))
         .def_prop_ro("has_grad_in", &refl::TensorType::has_grad_in, D_NA(TensorType, has_grad_in))
-        .def_prop_ro("has_grad_out", &refl::TensorType::has_grad_out, D_NA(TensorType, has_grad_out));
+        .def_prop_ro("has_grad_out", &refl::TensorType::has_grad_out, D_NA(TensorType, has_grad_out))
+        .def_static(
+            "build_tensor_name",
+            [](refl::Type& element_type, int dims, refl::TensorType::Access access, refl::TensorType::Kind tensor_kind)
+            {
+                return refl::TensorType::build_tensor_name(element_type, dims, access, tensor_kind);
+            },
+            "element_type"_a,
+            "dims"_a,
+            "access"_a = refl::TensorType::Access::read_write,
+            "tensor_kind"_a = refl::TensorType::Kind::tensor,
+            D_NA(TensorType, build_tensor_name)
+        );
 
     nb::class_<refl::TensorViewType, refl::Type>(native_refl, "TensorViewType", D_NA(TensorViewType))
-        .def_prop_ro("dtype", &refl::TensorViewType::dtype, D_NA(TensorViewType, dtype));
+        .def_prop_ro("dtype", &refl::TensorViewType::dtype, D_NA(TensorViewType, dtype))
+        .def_static(
+            "build_tensorview_name",
+            &refl::TensorViewType::build_tensorview_name,
+            "element_type"_a,
+            D_NA(TensorViewType, build_tensorview_name)
+        );
 
     nb::class_<refl::DiffTensorViewType, refl::Type>(native_refl, "DiffTensorViewType", D_NA(DiffTensorViewType))
         .def_prop_ro("dtype", &refl::DiffTensorViewType::dtype, D_NA(DiffTensorViewType, dtype))
-        .def_prop_ro("wrapper_type", &refl::DiffTensorViewType::wrapper_type, D_NA(DiffTensorViewType, wrapper_type));
+        .def_prop_ro("wrapper_type", &refl::DiffTensorViewType::wrapper_type, D_NA(DiffTensorViewType, wrapper_type))
+        .def_static(
+            "build_difftensorview_name",
+            &refl::DiffTensorViewType::build_difftensorview_name,
+            "element_type"_a,
+            D_NA(DiffTensorViewType, build_difftensorview_name)
+        );
 
     nb::class_<refl::UnhandledType, refl::Type>(native_refl, "UnhandledType", D_NA(UnhandledType));
 
     nb::class_<refl::Variable, sgl::Object> variable(native_refl, "Variable", D_NA(Variable));
     nb::sgl_enum<refl::Variable::IOType>(variable, "IOType", D_NA(Variable, IOType));
-    variable.def_prop_ro("type", &refl::Variable::type, D_NA(Variable, type))
+    variable
+        .def_prop_ro(
+            "layout",
+            [](refl::Variable& self)
+            {
+                return sgl::ref<refl::Layout>(self.layout());
+            },
+            D_NA(Variable, layout)
+        )
+        .def_prop_ro(
+            "program",
+            [](refl::Variable& self)
+            {
+                return sgl::ref<refl::Layout>(self.layout());
+            },
+            D_NA(Variable, program)
+        )
+        .def_prop_ro(
+            "reflection",
+            [](refl::Variable& self)
+            {
+                return sgl::ref<const sgl::VariableReflection>(self.reflection());
+            },
+            D_NA(Variable, reflection)
+        )
+        .def_prop_ro("type", &refl::Variable::type, D_NA(Variable, type))
         .def_prop_ro("name", &refl::Variable::name, D_NA(Variable, name))
         .def_prop_ro("modifiers", &refl::Variable::modifiers, D_NA(Variable, modifiers))
         .def_prop_ro("declaration", &refl::Variable::declaration, D_NA(Variable, declaration))
@@ -209,9 +303,34 @@ SGL_PY_EXPORT(native_refl)
         .def_prop_ro("has_default", &refl::Parameter::has_default, D_NA(Parameter, has_default));
 
     nb::class_<refl::Function, sgl::Object>(native_refl, "Function", D_NA(Function))
+        .def_prop_ro(
+            "layout",
+            [](refl::Function& self)
+            {
+                return sgl::ref<refl::Layout>(self.layout());
+            },
+            D_NA(Function, layout)
+        )
+        .def_prop_ro(
+            "program",
+            [](refl::Function& self)
+            {
+                return sgl::ref<refl::Layout>(self.layout());
+            },
+            D_NA(Function, program)
+        )
+        .def_prop_ro(
+            "reflection",
+            [](refl::Function& self)
+            {
+                return sgl::ref<const sgl::FunctionReflection>(self.reflection());
+            },
+            D_NA(Function, reflection)
+        )
         .def_prop_ro("name", &refl::Function::name, D_NA(Function, name))
         .def_prop_ro("full_name", &refl::Function::full_name, D_NA(Function, full_name))
         .def_prop_ro("this_type", &refl::Function::this_type, D_NA(Function, this_type))
+        .def_prop_ro("this", &refl::Function::this_type, D_NA(Function, this_type))
         .def_prop_ro("return_type", &refl::Function::return_type, D_NA(Function, return_type))
         .def_prop_ro("parameters", &refl::Function::parameters, D_NA(Function, parameters))
         .def_prop_ro("have_return_value", &refl::Function::have_return_value, D_NA(Function, have_return_value))
@@ -242,6 +361,22 @@ SGL_PY_EXPORT(native_refl)
             D_NA(Layout, Layout)
         )
         .def_prop_ro("generation", &refl::Layout::generation, D_NA(Layout, generation))
+        .def_prop_ro(
+            "low_level_layout",
+            [](refl::Layout& self)
+            {
+                return sgl::ref<const sgl::ProgramLayout>(self.low_level_layout());
+            },
+            D_NA(Layout, low_level_layout)
+        )
+        .def_prop_ro(
+            "program_layout",
+            [](refl::Layout& self)
+            {
+                return sgl::ref<const sgl::ProgramLayout>(self.low_level_layout());
+            },
+            D_NA(Layout, program_layout)
+        )
         .def_prop_ro("is_valid", &refl::Layout::is_valid, D_NA(Layout, is_valid))
         .def(
             "find_type",
@@ -258,15 +393,21 @@ SGL_PY_EXPORT(native_refl)
         .def("require_type_by_name", &refl::Layout::require_type_by_name, "name"_a, D_NA(Layout, require_type_by_name))
         .def(
             "find_function",
-            [](refl::Layout& self, nb::object function_reflection)
+            [](refl::Layout& self, nb::object function_reflection, nb::object this_type)
             {
+                sgl::ref<refl::Type> reflected_this;
+                if (!this_type.is_none())
+                    reflected_this = nb::cast<sgl::ref<refl::Type>>(this_type);
+
                 return self.find_function(
                     sgl::ref<const sgl::FunctionReflection>(
                         nb::cast<const sgl::FunctionReflection*>(function_reflection)
-                    )
+                    ),
+                    std::move(reflected_this)
                 );
             },
             "function_reflection"_a,
+            "this_type"_a.none() = nb::none(),
             D_NA(Layout, find_function)
         )
         .def(
@@ -295,7 +436,15 @@ SGL_PY_EXPORT(native_refl)
             "name"_a,
             D_NA(Layout, require_function_by_name_in_type)
         )
-        .def("scalar_type", &refl::Layout::scalar_type, "scalar_type"_a, D_NA(Layout, scalar_type))
+        .def(
+            "scalar_type",
+            [](refl::Layout& self, sgl::TypeReflection::ScalarType scalar_type) -> sgl::ref<refl::Type>
+            {
+                return self.require_type_by_name(refl::name_for_scalar_type(scalar_type));
+            },
+            "scalar_type"_a,
+            D_NA(Layout, scalar_type)
+        )
         .def("vector_type", &refl::Layout::vector_type, "scalar_type"_a, "size"_a, D_NA(Layout, vector_type))
         .def("matrix_type", &refl::Layout::matrix_type, "scalar_type"_a, "rows"_a, "cols"_a, D_NA(Layout, matrix_type))
         .def("array_type", &refl::Layout::array_type, "element_type"_a, "count"_a, D_NA(Layout, array_type))
@@ -314,6 +463,31 @@ SGL_PY_EXPORT(native_refl)
             &refl::Layout::difftensorview_type,
             "element_type"_a,
             D_NA(Layout, difftensorview_type)
+        )
+        .def(
+            "get_resolved_generic_args",
+            [](refl::Layout& self, nb::object type_reflection) -> nb::object
+            {
+                const sgl::TypeReflection* type = nullptr;
+                refl::Type* semantic_type = nullptr;
+                if (nb::try_cast<refl::Type*>(type_reflection, semantic_type))
+                    type = semantic_type->reflection();
+                else
+                    type = nb::cast<const sgl::TypeReflection*>(type_reflection);
+
+                std::optional<refl::GenericArgs> args = self.get_resolved_generic_args(type);
+                if (!args)
+                    return nb::none();
+
+                nb::list result;
+                for (size_t i = 0; i < args->size(); ++i) {
+                    const refl::GenericArg& arg = (*args)[i];
+                    result.append(arg.is_integer() ? nb::cast(arg.integer()) : nb::cast(arg.type()));
+                }
+                return result;
+            },
+            "type_reflection"_a,
+            D_NA(Layout, get_resolved_generic_args)
         )
         .def(
             "on_hot_reload",

@@ -48,26 +48,23 @@ SGL_PY_EXPORT(native_func)
     nb::class_<func::BaseStruct, sgl::Object>(native_func, "BaseStruct", D_NA(BaseStruct))
         .def(
             "__init__",
-            [](func::BaseStruct* self, nb::object module, nb::object type_reflection)
+            [](func::BaseStruct* self, nb::object module, nb::object type)
             {
                 sgl::ref<func::BaseModule> base_module(nb::cast<func::BaseModule*>(module));
-                sgl::ref<const sgl::TypeReflection> reflection(nb::cast<const sgl::TypeReflection*>(type_reflection));
-                sgl::ref<refl::Type> type = base_module->layout()->find_type(std::move(reflection));
-                new (self) func::BaseStruct(std::move(base_module), std::move(type));
+                new (self) func::BaseStruct(std::move(base_module), nb::cast<sgl::ref<refl::Type>>(type));
             },
             "module"_a,
-            "type_reflection"_a,
+            "type"_a,
             D_NA(BaseStruct, BaseStruct)
         )
         .def(
             "on_hot_reload",
-            [](func::BaseStruct& self, nb::object type_reflection)
+            [](func::BaseStruct& self, nb::object type)
             {
-                self.on_hot_reload(
-                    sgl::ref<const sgl::TypeReflection>(nb::cast<const sgl::TypeReflection*>(type_reflection))
-                );
+                sgl::ref<refl::Type> semantic_type = nb::cast<sgl::ref<refl::Type>>(type);
+                self.on_hot_reload(sgl::ref<const sgl::TypeReflection>(semantic_type->reflection()));
             },
-            "type_reflection"_a,
+            "type"_a,
             D_NA(BaseStruct, on_hot_reload)
         )
         .def("__repr__", &func::BaseStruct::to_string, D_NA(BaseStruct, to_string));

@@ -27,10 +27,12 @@ namespace sgl::refl {
 SGL_API ref<Layout> get_builtin_layout(Device* device);
 
 /// Resolve the layout to use for an element type lookup.
-SGL_API ref<Layout> resolve_layout(Device* device, const Type* element_type = nullptr, Layout* explicit_layout = nullptr);
+SGL_API ref<Layout>
+resolve_layout(Device* device, const Type* element_type = nullptr, Layout* explicit_layout = nullptr);
 
 /// Resolve the layout to use for a struct-backed element type lookup.
-SGL_API ref<Layout> resolve_layout(Device* device, const func::BaseStruct* element_type, Layout* explicit_layout = nullptr);
+SGL_API ref<Layout>
+resolve_layout(Device* device, const func::BaseStruct* element_type, Layout* explicit_layout = nullptr);
 
 /// Resolve a semantic type by name within a layout.
 SGL_API ref<Type> resolve_element_type(Layout* layout, std::string_view element_type);

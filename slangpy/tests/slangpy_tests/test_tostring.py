@@ -26,8 +26,8 @@ def test_slangtype_struct_to_string(device_type: DeviceType):
     print(f"SlangType: {repr_str}")
 
     # Verify the repr contains expected information
-    assert "SlangType" in repr_str
-    assert "name" in repr_str
+    assert "refl::Type" in repr_str
+    assert "full_name" in repr_str
     assert "Foo" in repr_str
     assert "shape" in repr_str
 
@@ -46,8 +46,8 @@ def test_slangtype_vector_to_string(device_type: DeviceType):
     print(f"SlangType: {repr_str}")
 
     # Verify the repr contains expected information
-    assert "SlangType" in repr_str
-    assert "name" in repr_str
+    assert "refl::Type" in repr_str
+    assert "full_name" in repr_str
     assert "vector<float,3>" in repr_str
     assert "shape" in repr_str
 
@@ -110,8 +110,8 @@ def test_slangtype_reflection_to_string(device_type: DeviceType):
     print(f"SlangType reflection: {repr_str}")
 
     # Verify the repr contains expected information - should get the Python SlangType repr
-    assert "SlangType" in repr_str
-    assert "name=" in repr_str
+    assert "refl::Type" in repr_str
+    assert "full_name=" in repr_str
     assert "shape=" in repr_str
 
 

@@ -120,7 +120,7 @@ def test_generic_parsing(device_type: DeviceType):
     generic = layout.find_type_by_name("GenericType<GenericType<GenericType<float, 1>, 2>, 3>")
     assert generic is not None
 
-    args = layout.get_resolved_generic_args(generic.type_reflection)
+    args = layout.get_resolved_generic_args(generic)
     assert args is not None
     assert len(args) == 2
     assert isinstance(args[0], r.SlangType)
@@ -142,7 +142,7 @@ def test_bool_generic_value_parsing(device_type: DeviceType, type_name: str, exp
     generic = layout.find_type_by_name(type_name)
     assert generic is not None
 
-    args = layout.get_resolved_generic_args(generic.type_reflection)
+    args = layout.get_resolved_generic_args(generic)
     assert args is not None
     assert len(args) == 1
     assert isinstance(args[0], int)
@@ -161,7 +161,7 @@ def check_texture(
     assert type.resource_access == resource_access
     assert type.texture_dims == num_dims
 
-    et = type._program.find_type_by_name(element_type)
+    et = type.program.find_type_by_name(element_type)
     assert et is not None
     assert type.num_dims == type.texture_dims + et.num_dims
     assert type.element_type == et
@@ -193,20 +193,20 @@ def check_structured_buffer(
     type: r.SlangType, resource_access: TypeReflection.ResourceAccess, element_type: str
 ):
     assert isinstance(type, r.StructuredBufferType)
-    assert type.element_type == type._program.find_type_by_name(element_type)
+    assert type.element_type == type.program.find_type_by_name(element_type)
     assert type.resource_access == resource_access
 
 
 def check_address_buffer(type: r.SlangType, resource_access: TypeReflection.ResourceAccess):
     assert isinstance(type, r.ByteAddressBufferType)
-    assert type.element_type == type._program.find_type_by_name("uint8_t")
+    assert type.element_type == type.program.find_type_by_name("uint8_t")
     assert type.resource_access == resource_access
 
 
 def check_array(type: r.SlangType, element_type: str, num_elements: int):
     assert isinstance(type, r.ArrayType)
     assert type.element_type is not None
-    assert type.element_type == type._program.find_type_by_name(element_type)
+    assert type.element_type == type.program.find_type_by_name(element_type)
     assert type.num_elements == num_elements
     if num_elements == 0:
         assert type.full_name == f"{type.element_type.full_name}[]"
@@ -218,7 +218,7 @@ def check_array(type: r.SlangType, element_type: str, num_elements: int):
 def check_struct(type: r.SlangType, fields: dict[str, str]):
     assert isinstance(type, r.StructType)
 
-    input_field_types = {n: type._program.find_type_by_name(t) for (n, t) in fields.items()}
+    input_field_types = {n: type.program.find_type_by_name(t) for (n, t) in fields.items()}
     struct_field_types = {f.name: f.type for f in type.fields.values()}
     assert input_field_types == struct_field_types
 

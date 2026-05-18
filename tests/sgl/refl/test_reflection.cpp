@@ -211,7 +211,7 @@ int overloaded(int value) { return value; }
 
     ref<refl::Function> method = layout->require_function_by_name_in_type(foo_type, "eval");
     CHECK(method->this_type() == foo_type.get());
-    CHECK(method->full_name() == "Foo::eval");
+    CHECK(method->full_name() == "eval");
     CHECK(method->return_type() == float_type);
 }
 

@@ -187,6 +187,42 @@ namespace {
         return !type || is_unknown_type(type) || type->is_generic();
     }
 
+    ref<Type> unknown_type(Layout& layout)
+    {
+        return layout.require_type_by_name("Unknown");
+    }
+
+    ref<Type> type_arg_or_unknown(Layout& layout, const std::optional<GenericArgs>& args, size_t index)
+    {
+        if (args && index < args->size() && (*args)[index].is_type())
+            return (*args)[index].type();
+        return unknown_type(layout);
+    }
+
+    int int_arg_or_zero(const std::optional<GenericArgs>& args, size_t index)
+    {
+        if (args && index < args->size() && (*args)[index].is_integer())
+            return (*args)[index].integer();
+        return 0;
+    }
+
+    ref<Type> type_from_scalar_or_unknown(Layout& layout, TypeReflection::ScalarType scalar_type)
+    {
+        if (scalar_type == TypeReflection::ScalarType::none_)
+            return unknown_type(layout);
+        return layout.scalar_type(scalar_type);
+    }
+
+    template<typename Callback>
+    int safe_reflected_count(Callback&& callback)
+    {
+        try {
+            return int(callback());
+        } catch (...) {
+            return 0;
+        }
+    }
+
     TensorType::Kind tensor_kind_from_name(std::string_view name)
     {
         if (name == "ITensor" || name == "IWTensor" || name == "IRWTensor")
@@ -432,8 +468,20 @@ ScalarType::ScalarType(ref<Layout> layout, ref<const TypeReflection> reflection)
 VectorType::VectorType(ref<Layout> layout, ref<const TypeReflection> reflection)
     : Type(std::move(layout), std::move(reflection), nullptr, empty_shape())
 {
-    m_num_elements = int(m_reflection->col_count());
-    set_element_type(m_layout->scalar_type(m_reflection->scalar_type()));
+    auto args = m_layout->get_resolved_generic_args(m_reflection.get());
+    m_num_elements = int_arg_or_zero(args, 1);
+    if (m_num_elements == 0)
+        m_num_elements = safe_reflected_count(
+            [&]()
+            {
+                return m_reflection->col_count();
+            }
+        );
+
+    ref<Type> element_type = type_arg_or_unknown(*m_layout, args, 0);
+    if (is_unknown_type(element_type))
+        element_type = type_from_scalar_or_unknown(*m_layout, m_reflection->scalar_type());
+    set_element_type(std::move(element_type));
     set_local_shape(shape_from_vector({m_num_elements}));
 }
 
@@ -456,23 +504,47 @@ std::unordered_map<std::string, ref<Field>> VectorType::build_fields()
     static constexpr std::array<const char*, 4> names = {"x", "y", "z", "w"};
 
     std::unordered_map<std::string, ref<Field>> fields;
-    ref<ScalarType> scalar_type = this->scalar_type();
     const int count = std::min<int>(m_num_elements, int(names.size()));
     for (int i = 0; i < count; ++i)
-        fields.emplace(names[size_t(i)], make_ref<Field>(m_layout, scalar_type, names[size_t(i)]));
+        fields.emplace(names[size_t(i)], make_ref<Field>(m_layout, m_element_type, names[size_t(i)]));
     return fields;
 }
 
 MatrixType::MatrixType(ref<Layout> layout, ref<const TypeReflection> reflection)
     : Type(std::move(layout), std::move(reflection), nullptr, empty_shape())
 {
-    m_cols = int(m_reflection->col_count());
-    m_rows = int(m_reflection->row_count());
+    auto args = m_layout->get_resolved_generic_args(m_reflection.get());
+    m_rows = int_arg_or_zero(args, 1);
+    m_cols = int_arg_or_zero(args, 2);
+    if (m_rows == 0)
+        m_rows = safe_reflected_count(
+            [&]()
+            {
+                return m_reflection->row_count();
+            }
+        );
+    if (m_cols == 0)
+        m_cols = safe_reflected_count(
+            [&]()
+            {
+                return m_reflection->col_count();
+            }
+        );
+
+    ref<Type> scalar_type = type_arg_or_unknown(*m_layout, args, 0);
+    if (is_unknown_type(scalar_type))
+        scalar_type = type_from_scalar_or_unknown(*m_layout, m_reflection->scalar_type());
+
     if (m_cols > 0 && m_rows > 0) {
-        set_element_type(m_layout->vector_type(m_reflection->scalar_type(), m_cols));
+        if (dynamic_ref_cast<ScalarType>(scalar_type))
+            set_element_type(m_layout->vector_type(m_reflection->scalar_type(), m_cols));
+        else
+            set_element_type(
+                m_layout->find_type_by_name(fmt::format("vector<{},{}>", scalar_type->full_name(), m_cols))
+            );
         set_local_shape(shape_from_vector({m_rows}));
     } else {
-        set_element_type(m_layout->scalar_type(m_reflection->scalar_type()));
+        set_element_type(std::move(scalar_type));
         set_local_shape(shape_from_vector({m_rows, m_cols}));
     }
 }
@@ -505,7 +577,12 @@ ArrayType::ArrayType(ref<Layout> layout, ref<const TypeReflection> reflection)
     : Type(std::move(layout), std::move(reflection), nullptr, empty_shape())
 {
     set_element_type(m_layout->find_type(m_reflection->element_type()));
-    m_num_elements = int(m_reflection->element_count());
+    m_num_elements = safe_reflected_count(
+        [&]()
+        {
+            return m_reflection->element_count();
+        }
+    );
     set_local_shape(shape_from_vector({m_num_elements}));
 }
 
@@ -611,6 +688,7 @@ ResourceType::ResourceType(
 bool ResourceType::writable() const
 {
     return resource_access() == TypeReflection::ResourceAccess::read_write
+        || resource_access() == TypeReflection::ResourceAccess::raster_ordered
         || resource_access() == TypeReflection::ResourceAccess::access_write;
 }
 
@@ -620,6 +698,11 @@ TextureType::TextureType(ref<Layout> layout, ref<const TypeReflection> reflectio
     m_texture_dims = resource_texture_dims(resource_shape());
     set_element_type(m_layout->find_type(m_reflection->resource_result_type()));
     set_local_shape(shape_from_vector(std::vector<int>(size_t(m_texture_dims), -1)));
+}
+
+TextureUsage TextureType::usage() const
+{
+    return writable() ? TextureUsage::unordered_access : TextureUsage::shader_resource;
 }
 
 StructuredBufferType::StructuredBufferType(ref<Layout> layout, ref<const TypeReflection> reflection)

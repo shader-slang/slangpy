@@ -71,31 +71,6 @@ namespace {
     }
 } // anonymous namespace
 
-// Implementation of to_string methods
-std::string NativeSlangType::to_string() const
-{
-    if (m_type_reflection) {
-        return fmt::format(
-            "NativeSlangType(\n"
-            "  name = \"{}\",\n"
-            "  shape = {},\n"
-            "  kind = {}\n"
-            ")",
-            m_type_reflection->full_name(),
-            m_shape.to_string(),
-            m_type_reflection->kind()
-        );
-    } else {
-        return fmt::format(
-            "NativeSlangType(\n"
-            "  shape = {},\n"
-            "  type_reflection = None\n"
-            ")",
-            m_shape.to_string()
-        );
-    }
-}
-
 nb::bytes SignatureBuilder::bytes() const
 {
     auto sv = m_buf.view();
@@ -1378,29 +1353,6 @@ SGL_PY_EXPORT(utils_slangpy)
             "builder"_a,
             D_NA(NativeObject, read_signature)
         );
-
-    nb::class_<NativeSlangType, PyNativeSlangType, Object>(slangpy, "NativeSlangType") //
-        .def(
-            "__init__",
-            [](NativeSlangType& self)
-            {
-                new (&self) PyNativeSlangType();
-            },
-            D_NA(NativeSlangType, NativeSlangType)
-        )
-        .def_prop_rw(
-            "type_reflection",
-            &NativeSlangType::type_reflection,
-            &NativeSlangType::set_type_reflection,
-            D_NA(NativeSlangType, type_reflection)
-        )
-        .def_prop_rw("shape", &NativeSlangType::shape, &NativeSlangType::set_shape, D_NA(NativeSlangType, shape))
-        .def("_py_element_type", &NativeSlangType::_py_element_type)
-        .def("_py_has_derivative", &NativeSlangType::_py_has_derivative)
-        .def("_py_derivative", &NativeSlangType::_py_derivative)
-        .def("_py_uniform_type_layout", &NativeSlangType::_py_uniform_type_layout)
-        .def("_py_buffer_type_layout", &NativeSlangType::_py_buffer_type_layout)
-        .def("__repr__", &NativeSlangType::to_string);
 
     nb::class_<NativeMarshall, PyNativeMarshall, Object>(slangpy, "NativeMarshall") //
         .def(

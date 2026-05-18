@@ -42,7 +42,8 @@ public:
     ref<Type> require_type_by_name(std::string_view name);
 
     /// Find or create a semantic function for a low-level function reflection.
-    ref<Function> find_function(ref<const FunctionReflection> reflection, ref<Type> this_type = nullptr);
+    ref<Function>
+    find_function(ref<const FunctionReflection> reflection, ref<Type> this_type = nullptr, std::string full_name = {});
     /// Find or create a semantic function by global reflected function name.
     ref<Function> find_function_by_name(std::string_view name);
     /// Find or create a semantic function by global reflected function name, throwing if absent.

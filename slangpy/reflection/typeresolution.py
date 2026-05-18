@@ -271,8 +271,8 @@ def _resolve_function_internal(
     if len(resolved_args) != 1:
         specialized_args = []
         for ra in resolved_args:
-            slang_reflections = [cast("SlangType", arg.vector).type_reflection for arg in ra]
-            specialized = function.reflection.specialize_with_arg_types(slang_reflections)
+            slang_types = [cast("SlangType", arg.vector) for arg in ra]
+            specialized = function.specialize_with_arg_types(slang_types)
             if specialized:
                 specialized_args.append(ra)
         if len(specialized_args) > 1:
@@ -305,10 +305,10 @@ def _resolve_function_internal(
         i = name_map[name]
         res.kwargs[name] = cast("SlangType", resolved_args[i].vector)
 
-    # Build list of slang types, and then native type reflections, and specialize
+    # Keep specialization at the semantic native layer so Layout owns function registration
+    # and Python does not need to shuttle low-level reflection pointers around.
     slang_types = tuple([cast("SlangType", arg.vector) for arg in resolved_args])
-    slang_reflections = [arg.type_reflection for arg in slang_types]
-    specialized = function.reflection.specialize_with_arg_types(slang_reflections)
+    specialized = function.specialize_with_arg_types(slang_types)
     if specialized is None:
         diagnostics.summary(
             f"  Slang compiler could not match the function signature to the vectorization candidate:"
@@ -317,8 +317,7 @@ def _resolve_function_internal(
         return None
 
     # Also output the slangfunction
-    type_reflection = None if this_type is None else this_type.type_reflection
-    res.function = bind_context.layout.find_function(specialized, type_reflection)
+    res.function = specialized
     res.params = [ResolvedParam(p, t) for p, t in zip(res.function.parameters, slang_types)]
 
     diagnostics.detail(f"  Selected slang function signature:")

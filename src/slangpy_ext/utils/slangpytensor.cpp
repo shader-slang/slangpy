@@ -270,9 +270,9 @@ ref<NativeTensor> NativeTensor::with_grads(ref<NativeTensor> grad_in, ref<Native
     if (!new_grad_in && !new_grad_out) {
 
         // Get the derivative type + buffer layout.
-        ref<NativeSlangType> dtype = m_desc.dtype->derivative();
+        ref<refl::Type> dtype = m_desc.dtype->derivative();
         if (!dtype)
-            SGL_THROW("No derivative type found for {}", m_desc.dtype->type_reflection()->name());
+            SGL_THROW("No derivative type found for {}", m_desc.dtype->name());
         ref<TypeLayoutReflection> layout = dtype->buffer_type_layout();
 
         // Create a new structured buffer for storage.
@@ -647,7 +647,7 @@ nb::object NativeTensorMarshall::create_output(CallContext* context, NativeBound
     SGL_UNUSED(binding);
 
     // Get type, buffer layout and shape.
-    ref<NativeSlangType> dtype = m_slang_element_type;
+    ref<refl::Type> dtype = m_slang_element_type;
     ref<TypeLayoutReflection> layout = m_element_layout;
     auto& shape = context->call_shape();
 
@@ -731,8 +731,8 @@ SGL_PY_EXPORT(utils_slangpy_tensor)
             [](NativeTensorMarshall& self,
                int dims,
                bool writable,
-               ref<NativeSlangType> slang_type,
-               ref<NativeSlangType> slang_element_type,
+               ref<refl::Type> slang_type,
+               ref<refl::Type> slang_element_type,
                ref<TypeLayoutReflection> element_layout,
                ref<NativeTensorMarshall> d_in,
                ref<NativeTensorMarshall> d_out)

@@ -18,7 +18,7 @@ class Struct(BaseStruct):
     def __init__(
         self, module: "Module", slang_struct: "SlangType", options: dict[str, Any] = {}
     ) -> None:
-        super().__init__(module, slang_struct.type_reflection)
+        super().__init__(module, slang_struct)
         self.module = module
         self.options = options
         self.struct = slang_struct
@@ -30,6 +30,13 @@ class Struct(BaseStruct):
         Program layout struct is part of.
         """
         return self.struct.program
+
+    @property
+    def layout(self):
+        """
+        Native reflection layout this struct is part of.
+        """
+        return self.struct.layout
 
     @property
     def name(self) -> str:
@@ -115,11 +122,11 @@ class Struct(BaseStruct):
         return self.module.device_module.session
 
     @property
-    def type_reflection(self):
+    def reflection(self):
         """
         The type reflection of the struct.
         """
-        return self.struct.type_reflection
+        return self.struct.reflection
 
     @property
     def device(self):

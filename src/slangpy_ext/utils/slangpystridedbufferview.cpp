@@ -52,11 +52,11 @@ inline std::optional<nb::dlpack::dtype> scalartype_to_dtype(TypeReflection::Scal
     }
 }
 
-ref<NativeSlangType> innermost_type(ref<NativeSlangType> type)
+ref<refl::Type> innermost_type(ref<refl::Type> type)
 {
-    ref<NativeSlangType> result = type;
+    ref<refl::Type> result = type;
     while (true) {
-        ref<NativeSlangType> child = result->element_type();
+        ref<refl::Type> child = result->element_type();
         if (!child || child == result) {
             break;
         }
@@ -78,9 +78,7 @@ StridedBufferView::StridedBufferView(Device* device, const StridedBufferViewDesc
         m_storage = storage;
     }
 
-    set_slangpy_signature(
-        fmt::format("[{},{},{}]", desc.dtype->type_reflection()->full_name(), desc.shape.size(), desc.usage)
-    );
+    set_slangpy_signature(fmt::format("[{},{},{}]", desc.dtype->full_name(), desc.shape.size(), desc.usage));
 }
 
 bool StridedBufferView::is_contiguous() const
@@ -332,7 +330,7 @@ static nb::ndarray<Framework> to_ndarray(void* data, nb::handle owner, const Str
 {
     // Get dlpack type from scalar type.
     size_t dtype_size = desc.element_layout->stride();
-    ref<NativeSlangType> innermost = innermost_type(desc.dtype);
+    ref<refl::Type> innermost = innermost_type(desc.dtype);
     ref<TypeLayoutReflection> innermost_layout = innermost->buffer_type_layout();
 
     // If the buffer data type (after unwrapping all arrays/vectors) is a scalar,

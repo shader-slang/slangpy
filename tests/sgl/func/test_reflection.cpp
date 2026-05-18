@@ -44,7 +44,7 @@ struct Foo {
 
     CHECK(base_struct->module() == base_module.get());
     CHECK(base_struct->layout() == layout.get());
-    CHECK(base_struct->type_reflection() == foo_reflection);
+    CHECK(base_struct->reflection() == foo_reflection);
     CHECK(base_struct->name() == "Foo");
     CHECK(base_struct->full_name() == "Foo");
 
