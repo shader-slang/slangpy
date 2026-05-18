@@ -219,8 +219,11 @@ float generic_value<T>(T value) { return 0.0; }
     ref<refl::Function> generic = layout->require_function_by_name("generic_value");
     ref<refl::Function> generic_specialized = generic->specialize_with_arg_types({float_type});
     REQUIRE(generic_specialized);
+    CHECK(generic_specialized->name() == "generic_value");
     CHECK(generic_specialized->full_name() == "generic_value<float>");
     CHECK(generic_specialized->return_type() == float_type);
+    CHECK(layout->require_function_by_name("generic_value").get() == generic.get());
+    CHECK(layout->require_function_by_name("generic_value<float>").get() == generic_specialized.get());
 
     ref<refl::StructType> foo_type = dynamic_ref_cast<refl::StructType>(layout->require_type_by_name("Foo"));
     REQUIRE(foo_type);
@@ -266,12 +269,14 @@ int get_value(Foo foo) { return foo.value; }
 
     ref<refl::Type> new_foo_type = layout->require_type_by_name("Foo");
     REQUIRE(new_foo_type);
-    CHECK(new_foo_type.get() != old_foo_type.get());
+    CHECK(new_foo_type.get() == old_foo_type.get());
+    CHECK(old_foo_type->fields().at("value")->type() == layout->scalar_type(TypeReflection::ScalarType::int32));
     CHECK(new_foo_type->fields().at("value")->type() == layout->scalar_type(TypeReflection::ScalarType::int32));
 
     ref<refl::Function> new_function = layout->require_function_by_name("get_value");
     REQUIRE(new_function);
-    CHECK(new_function.get() != old_function.get());
+    CHECK(new_function.get() == old_function.get());
+    CHECK(old_function->return_type() == layout->scalar_type(TypeReflection::ScalarType::int32));
     CHECK(new_function->return_type() == layout->scalar_type(TypeReflection::ScalarType::int32));
 }
 

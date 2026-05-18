@@ -41,9 +41,7 @@ ref<Type> Layout::find_type_by_name(std::string_view name)
     if (!reflection)
         return nullptr;
 
-    ref<Type> type = find_type(std::move(reflection));
-    m_types_by_name[type_name] = type;
-    return type;
+    return find_type(std::move(reflection));
 }
 
 ref<Type> Layout::require_type_by_name(std::string_view name)
@@ -81,9 +79,9 @@ ref<Function> Layout::get_or_create_function(
 
     m_functions_by_reflection[reflection.get()] = function;
     if (this_type) {
-        m_functions_by_name[fmt::format("{}::{}", this_type->full_name(), function->name())] = function;
+        m_functions_by_name[fmt::format("{}::{}", this_type->full_name(), function->full_name())] = function;
     } else {
-        m_functions_by_name[function->name()] = function;
+        m_functions_by_name[function->full_name()] = function;
     }
     return function;
 }
@@ -198,11 +196,58 @@ std::optional<GenericArgs> Layout::get_resolved_generic_args(const TypeReflectio
 void Layout::on_hot_reload(ref<const sgl::ProgramLayout> low_level_layout)
 {
     SGL_CHECK(low_level_layout, "Layout hot reload requires a low-level layout");
+
+    auto old_types_by_name = std::move(m_types_by_name);
+    auto old_functions_by_name = std::move(m_functions_by_name);
+
     m_low_level_layout = std::move(low_level_layout);
+
     m_types_by_reflection.clear();
     m_types_by_name.clear();
+
+    for (const auto& [name, type] : old_types_by_name) {
+        if (!type)
+            continue;
+
+        ref<const TypeReflection> reflection = m_low_level_layout->find_type_by_name(name.c_str());
+        if (!reflection)
+            continue;
+
+        type->on_hot_reload(reflection);
+        m_types_by_reflection[reflection.get()] = type;
+        m_types_by_name[name] = type;
+    }
+
     m_functions_by_reflection.clear();
     m_functions_by_name.clear();
+
+    sgl::ProgramLayout* low_level_layout_ptr = const_cast<sgl::ProgramLayout*>(m_low_level_layout.get());
+    for (const auto& [name, function] : old_functions_by_name) {
+        if (!function)
+            continue;
+
+        ref<const FunctionReflection> reflection;
+        if (function->this_type()) {
+            ref<Type> this_type = find_type_by_name(function->this_type()->full_name());
+            if (!this_type)
+                continue;
+
+            reflection = low_level_layout_ptr->find_function_by_name_in_type(
+                this_type->reflection(),
+                function->full_name().c_str()
+            );
+        } else {
+            reflection = low_level_layout_ptr->find_function_by_name(name.c_str());
+        }
+
+        if (!reflection)
+            continue;
+
+        function->on_hot_reload(reflection);
+        m_functions_by_reflection[reflection.get()] = function;
+        m_functions_by_name[name] = function;
+    }
+
     ++m_generation;
 }
 
