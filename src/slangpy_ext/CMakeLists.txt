@@ -52,10 +52,6 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     utils/slangpy.cpp
     utils/slangpyvalue.h
     utils/slangpyvalue.cpp
-    utils/slangpystridedbufferview.h
-    utils/slangpystridedbufferview.cpp
-    utils/slangpybuffer.h
-    utils/slangpybuffer.cpp
     utils/slangpyfunction.h
     utils/slangpyfunction.cpp
     utils/slangpypackedarg.h

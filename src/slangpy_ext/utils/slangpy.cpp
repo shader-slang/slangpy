@@ -15,7 +15,6 @@
 
 #include "utils/slangpy.h"
 #include "utils/slangpyvalue.h"
-#include "utils/slangpybuffer.h"
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpyfunction.h"
 #include "utils/slangpytorchtensor.h"

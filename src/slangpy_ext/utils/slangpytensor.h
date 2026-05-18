@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <map>
+#include <optional>
 
 #include "nanobind.h"
 
@@ -16,8 +17,6 @@
 #include "sgl/device/shader_offset.h"
 
 #include "utils/slangpy.h"
-
-#include "slangpystridedbufferview.h"
 
 namespace sgl::slangpy {
 
@@ -44,9 +43,18 @@ static_assert(sizeof(DiffTensorViewData) == 112, "DiffTensorViewData must be 112
 
 class NativeTensor;
 
-struct NativeTensorDesc : public StridedBufferViewDesc { };
+struct NativeTensorDesc {
+    ref<refl::Type> dtype;
+    ref<TypeLayoutReflection> element_layout;
+    int offset{0};
+    Shape shape;
+    Shape strides;
+    BufferUsage usage{BufferUsage::shader_resource | BufferUsage::unordered_access};
+    MemoryType memory_type{MemoryType::device_local};
+};
 
-class NativeTensor : public StridedBufferView {
+class NativeTensor : public NativeObject {
+    SGL_OBJECT(NativeTensor)
 public:
     NativeTensor(
         NativeTensorDesc desc,
@@ -56,8 +64,41 @@ public:
     );
     virtual ~NativeTensor() { }
 
-    virtual NativeTensorDesc& desc() override { return m_desc; }
-    virtual const NativeTensorDesc& desc() const override { return m_desc; }
+    NativeTensorDesc& desc() { return m_desc; }
+    const NativeTensorDesc& desc() const { return m_desc; }
+
+    Device* device() const { return storage()->device(); }
+    const ref<refl::Type>& dtype() const { return m_desc.dtype; }
+    int offset() const { return m_desc.offset; }
+    const Shape& shape() const { return m_desc.shape; }
+    const Shape& strides() const { return m_desc.strides; }
+    int dims() const { return (int)m_desc.shape.size(); }
+    size_t element_count() const { return m_desc.shape.element_count(); }
+    BufferUsage usage() const { return m_desc.usage; }
+    MemoryType memory_type() const { return m_desc.memory_type; }
+    const ref<Buffer>& storage() const { return m_storage; }
+    size_t element_stride() const { return m_desc.element_layout->stride(); }
+
+    bool is_contiguous() const;
+    ref<BufferCursor> cursor(std::optional<int> start = std::nullopt, std::optional<int> count = std::nullopt) const;
+    nb::dict uniforms() const;
+
+    /// Clear tensor storage to zeros.
+    void clear(CommandEncoder* cmd = nullptr);
+
+    /// Copy to CPU memory as a numpy array of matching stride/shape.
+    nb::ndarray<nb::numpy> to_numpy() const;
+
+    /// Map CUDA memory to a torch tensor of matching stride/shape.
+    nb::ndarray<nb::pytorch> to_torch() const;
+
+    /// Copy from CPU memory into tensor storage.
+    void copy_from_numpy(nb::ndarray<nb::numpy> data);
+
+    /// Copy from a torch tensor into tensor storage.
+    void copy_from_torch(nb::object tensor);
+
+    void point_to(ref<NativeTensor> target);
 
     ref<NativeTensor> view(Shape shape, Shape strides = Shape(), int offset = 0) const;
     ref<NativeTensor> broadcast_to(const Shape& shape) const;
@@ -88,8 +129,15 @@ public:
     /// Get string representation of the tensor.
     std::string to_string() const override;
 
+protected:
+    void view_inplace(Shape shape, Shape strides = Shape(), int offset = 0);
+    void broadcast_to_inplace(const Shape& shape);
+    void index_inplace(nb::object index_arg);
+    bool maybe_pad_data(nb::ndarray<nb::numpy> data, size_t dtype_size, size_t byte_offset);
+
 private:
     NativeTensorDesc m_desc;
+    ref<Buffer> m_storage;
     ref<NativeTensor> m_grad_in;
     ref<NativeTensor> m_grad_out;
 };
@@ -291,6 +339,49 @@ struct PyNativeTensorMarshall : public NativeTensorMarshall {
     {
         NB_OVERRIDE(read_output, context, binding, data);
     }
+};
+
+class NativeNumpyMarshall : public NativeTensorMarshall {
+public:
+    NativeNumpyMarshall(
+        int dims,
+        ref<refl::Type> slang_type,
+        ref<refl::Type> slang_element_type,
+        ref<TypeLayoutReflection> element_layout,
+        nb::dlpack::dtype dtype
+    )
+        : NativeTensorMarshall(dims, true, slang_type, slang_element_type, element_layout, nullptr, nullptr)
+        , m_dtype(dtype)
+    {
+    }
+
+    nb::dlpack::dtype dtype() const { return m_dtype; }
+
+    Shape get_shape(nb::object data) const override;
+
+    void write_shader_cursor_pre_dispatch(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        ShaderCursor cursor,
+        nb::object value,
+        nb::list read_back
+    ) const override;
+
+    void read_calldata(
+        CallContext* context,
+        NativeBoundVariableRuntime* binding,
+        nb::object data,
+        nb::object result
+    ) const override;
+
+    nb::object create_output(CallContext* context, NativeBoundVariableRuntime* binding) const override;
+
+    nb::object create_dispatchdata(nb::object data) const override;
+
+private:
+    ref<NativeTensor> create_tensor(Device* device, const Shape& shape) const;
+
+    nb::dlpack::dtype m_dtype;
 };
 
 } // namespace sgl::slangpy
