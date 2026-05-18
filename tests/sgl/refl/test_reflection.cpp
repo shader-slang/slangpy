@@ -160,6 +160,8 @@ void update(inout float value, out float result, no_diff in float weight)
     result = value * weight;
 }
 
+void no_params() {}
+
 float overloaded(float value) { return value; }
 int overloaded(int value) { return value; }
 )"
@@ -193,6 +195,12 @@ int overloaded(int value) { return value; }
     CHECK(update_parameters[0]->io_type() == refl::IOType::inout);
     CHECK(update_parameters[1]->io_type() == refl::IOType::out);
     CHECK(update_parameters[2]->no_diff());
+
+    ref<refl::Function> no_params = layout->require_function_by_name("no_params");
+    const refl::Function& const_no_params = *no_params;
+    CHECK(const_no_params.parameters().empty());
+    CHECK(!const_no_params.have_return_value());
+    CHECK(const_no_params.overloads().empty());
 
     ref<refl::Function> overloaded = layout->require_function_by_name("overloaded");
     CHECK(overloaded->is_overloaded());

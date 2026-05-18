@@ -51,11 +51,18 @@ def test_module_and_struct_have_native_bridge(device_type: spy.DeviceType) -> No
     module = helpers.create_module(device, MODULE_SOURCE)
 
     assert isinstance(module, BaseModule)
+    assert not hasattr(module, "module")
+    assert "layout" not in module.__dict__
+    assert "device_module" not in module.__dict__
     assert module.layout.find_type_by_name("Foo") is not None
 
     struct = module.Foo.as_struct()
 
     assert isinstance(struct, BaseStruct)
+    assert struct.module is module
+    assert struct.struct is struct.type
+    assert "module" not in struct.__dict__
+    assert "struct" not in struct.__dict__
     assert struct.struct.type_reflection.full_name == "Foo"
     assert struct.type_reflection.full_name == "Foo"
     assert not hasattr(struct.struct, "reflection")
@@ -69,10 +76,10 @@ def test_module_and_struct_have_native_bridge(device_type: spy.DeviceType) -> No
 def test_native_refl_layout_tracks_hot_reload_generation(device_type: spy.DeviceType) -> None:
     device = helpers.get_device(device_type)
     module = helpers.create_module(device, MODULE_SOURCE)
-    layout = Layout(module.module.layout)
+    layout = Layout(module.device_module.layout)
 
     generation = layout.generation
-    layout.on_hot_reload(module.module.layout)
+    layout.on_hot_reload(module.device_module.layout)
     module.on_hot_reload()
 
     assert layout.generation == generation + 1
@@ -83,7 +90,7 @@ def test_native_refl_layout_tracks_hot_reload_generation(device_type: spy.Device
 def test_native_refl_layout_creates_semantic_types(device_type: spy.DeviceType) -> None:
     device = helpers.get_device(device_type)
     module = helpers.create_module(device, MODULE_SOURCE)
-    layout = Layout(module.module.layout)
+    layout = Layout(module.device_module.layout)
 
     float_type = layout.require_type_by_name("float")
     assert isinstance(float_type, ScalarType)
@@ -142,7 +149,7 @@ def test_native_refl_layout_creates_semantic_types(device_type: spy.DeviceType) 
 def test_native_refl_layout_creates_function_metadata(device_type: spy.DeviceType) -> None:
     device = helpers.get_device(device_type)
     module = helpers.create_module(device, MODULE_SOURCE)
-    layout = Layout(module.module.layout)
+    layout = Layout(module.device_module.layout)
 
     float_type = layout.require_type_by_name("float")
     struct_type = layout.require_type_by_name("Foo")

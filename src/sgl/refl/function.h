@@ -7,6 +7,7 @@
 #include "sgl/device/reflection.h"
 #include "sgl/refl/type.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -130,12 +131,12 @@ public:
     /// Return the type this function is a method of, or null for global functions.
     Type* this_type() const { return m_this_type.get(); }
     /// Return the function return type, or null if reflection does not expose one.
-    ref<Type> return_type();
+    ref<Type> return_type() const;
     /// Return the function parameters.
-    const std::vector<ref<Parameter>>& parameters();
+    const std::vector<ref<Parameter>>& parameters() const;
 
     /// Return true if this function has a non-void return type.
-    bool have_return_value();
+    bool have_return_value() const;
     /// Return true if this function has the differentiable modifier.
     bool differentiable() const;
     /// Return true if this function has the mutating modifier.
@@ -145,12 +146,12 @@ public:
     /// Return true if this function is an overload set.
     bool is_overloaded() const;
     /// Return the function overloads.
-    const std::vector<ref<Function>>& overloads();
+    const std::vector<ref<Function>>& overloads() const;
     /// Return true if this function represents a constructor.
     bool is_constructor() const;
 
     /// Specialize or overload-resolve this function with concrete argument types.
-    ref<Function> specialize_with_arg_types(const std::vector<ref<Type>>& types);
+    ref<Function> specialize_with_arg_types(const std::vector<ref<Type>>& types) const;
 
     /// Refresh low-level reflection after hot reload and clear derived caches.
     void on_hot_reload(ref<const FunctionReflection> reflection);
@@ -164,9 +165,9 @@ private:
     ref<Type> m_this_type;
     std::string m_full_name;
 
-    ref<Type> m_return_type;
-    std::vector<ref<Parameter>> m_parameters;
-    std::vector<ref<Function>> m_overloads;
+    mutable std::optional<ref<Type>> m_cached_return_type;
+    mutable std::optional<std::vector<ref<Parameter>>> m_cached_parameters;
+    mutable std::optional<std::vector<ref<Function>>> m_cached_overloads;
 };
 
 SGL_ENUM_REGISTER(IOType);

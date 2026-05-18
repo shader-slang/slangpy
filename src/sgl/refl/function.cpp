@@ -163,28 +163,32 @@ std::string Function::name() const
     return c_string(m_reflection->name());
 }
 
-ref<Type> Function::return_type()
+ref<Type> Function::return_type() const
 {
-    if (!m_return_type) {
+    if (!m_cached_return_type.has_value()) {
+        ref<Type> type;
         ref<const TypeReflection> reflection = const_cast<FunctionReflection*>(m_reflection.get())->return_type();
         if (reflection)
-            m_return_type = m_layout->find_type(std::move(reflection));
+            type = m_layout->find_type(std::move(reflection));
+        m_cached_return_type = std::move(type);
     }
-    return m_return_type;
+    return m_cached_return_type.value();
 }
 
-const std::vector<ref<Parameter>>& Function::parameters()
+const std::vector<ref<Parameter>>& Function::parameters() const
 {
-    if (m_parameters.empty()) {
+    if (!m_cached_parameters.has_value()) {
+        std::vector<ref<Parameter>> parameters;
         auto reflected_parameters = m_reflection->parameters();
-        m_parameters.reserve(reflected_parameters.size());
+        parameters.reserve(reflected_parameters.size());
         for (uint32_t i = 0; i < reflected_parameters.size(); ++i)
-            m_parameters.push_back(make_ref<Parameter>(m_layout, reflected_parameters[i], i));
+            parameters.push_back(make_ref<Parameter>(m_layout, reflected_parameters[i], i));
+        m_cached_parameters = std::move(parameters);
     }
-    return m_parameters;
+    return m_cached_parameters.value();
 }
 
-bool Function::have_return_value()
+bool Function::have_return_value() const
 {
     ref<Type> type = return_type();
     return type && !dynamic_ref_cast<VoidType>(type);
@@ -210,18 +214,20 @@ bool Function::is_overloaded() const
     return m_reflection->is_overloaded();
 }
 
-const std::vector<ref<Function>>& Function::overloads()
+const std::vector<ref<Function>>& Function::overloads() const
 {
-    if (m_overloads.empty()) {
+    if (!m_cached_overloads.has_value()) {
+        std::vector<ref<Function>> overloads;
         auto reflected_overloads = m_reflection->overloads();
-        m_overloads.reserve(reflected_overloads.size());
+        overloads.reserve(reflected_overloads.size());
         for (uint32_t i = 0; i < reflected_overloads.size(); ++i) {
             ref<const FunctionReflection> reflection = reflected_overloads[i];
             if (reflection)
-                m_overloads.push_back(make_ref<Function>(m_layout, std::move(reflection), m_this_type, m_full_name));
+                overloads.push_back(make_ref<Function>(m_layout, std::move(reflection), m_this_type, m_full_name));
         }
+        m_cached_overloads = std::move(overloads);
     }
-    return m_overloads;
+    return m_cached_overloads.value();
 }
 
 bool Function::is_constructor() const
@@ -229,7 +235,7 @@ bool Function::is_constructor() const
     return m_full_name.starts_with("$init");
 }
 
-ref<Function> Function::specialize_with_arg_types(const std::vector<ref<Type>>& types)
+ref<Function> Function::specialize_with_arg_types(const std::vector<ref<Type>>& types) const
 {
     std::vector<ref<TypeReflection>> reflections;
     reflections.reserve(types.size());
@@ -248,9 +254,9 @@ void Function::on_hot_reload(ref<const FunctionReflection> reflection)
 {
     SGL_CHECK(reflection, "Function hot reload requires a function reflection");
     m_reflection = std::move(reflection);
-    m_return_type = nullptr;
-    m_parameters.clear();
-    m_overloads.clear();
+    m_cached_return_type.reset();
+    m_cached_parameters.reset();
+    m_cached_overloads.reset();
 }
 
 std::string Function::to_string() const

@@ -43,6 +43,32 @@ SGL_PY_EXPORT(native_func)
             "low_level_layout"_a,
             D_NA(BaseModule, on_hot_reload)
         )
+        .def_prop_ro(
+            "device_module",
+            [](func::BaseModule& self)
+            {
+                return sgl::ref<sgl::SlangModule>(self.module());
+            },
+            D_NA(BaseModule, device_module)
+        )
+        .def_prop_ro(
+            "layout",
+            [](func::BaseModule& self)
+            {
+                return sgl::ref<refl::Layout>(self.layout());
+            },
+            D_NA(BaseModule, layout)
+        )
+        .def_prop_ro(
+            "session",
+            [](func::BaseModule& self)
+            {
+                return self.module()->session();
+            },
+            D_NA(BaseModule, session)
+        )
+        .def_prop_ro("device", &func::BaseModule::device, D_NA(BaseModule, device))
+        .def_prop_ro("name", &func::BaseModule::name, D_NA(BaseModule, name))
         .def("__repr__", &func::BaseModule::to_string, D_NA(BaseModule, to_string));
 
     nb::class_<func::BaseStruct, sgl::Object>(native_func, "BaseStruct", D_NA(BaseStruct))
@@ -68,6 +94,14 @@ SGL_PY_EXPORT(native_func)
             D_NA(BaseStruct, on_hot_reload)
         )
         .def_prop_ro(
+            "module",
+            [](func::BaseStruct& self)
+            {
+                return sgl::ref<func::BaseModule>(self.module());
+            },
+            D_NA(BaseStruct, module)
+        )
+        .def_prop_ro(
             "layout",
             [](func::BaseStruct& self)
             {
@@ -75,7 +109,16 @@ SGL_PY_EXPORT(native_func)
             },
             D_NA(BaseStruct, layout)
         )
+        .def_prop_ro(
+            "program",
+            [](func::BaseStruct& self)
+            {
+                return sgl::ref<refl::Layout>(self.layout());
+            },
+            D_NA(BaseStruct, program)
+        )
         .def_prop_ro("type", &func::BaseStruct::type, D_NA(BaseStruct, type))
+        .def_prop_ro("struct", &func::BaseStruct::type, D_NA(BaseStruct, struct))
         .def_prop_ro(
             "type_reflection",
             [](func::BaseStruct& self)
@@ -84,5 +127,8 @@ SGL_PY_EXPORT(native_func)
             },
             D_NA(BaseStruct, type_reflection)
         )
+        .def_prop_ro("name", &func::BaseStruct::name, D_NA(BaseStruct, name))
+        .def_prop_ro("full_name", &func::BaseStruct::full_name, D_NA(BaseStruct, full_name))
+        .def_prop_ro("shape", &func::BaseStruct::shape, D_NA(BaseStruct, shape))
         .def("__repr__", &func::BaseStruct::to_string, D_NA(BaseStruct, to_string));
 }

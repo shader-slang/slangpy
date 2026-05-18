@@ -57,7 +57,7 @@ class Module(BaseModule):
         assert isinstance(device_module, SlangModule)
 
         # Normalize link list to SlangModule instances
-        link_slang_modules = [x.module if isinstance(x, Module) else x for x in link]
+        link_slang_modules = [x.device_module if isinstance(x, Module) else x for x in link]
 
         # Load slangpy module
         slangpy_device_module = device_module.session.load_module("slangpy")
@@ -71,8 +71,6 @@ class Module(BaseModule):
 
         self.options = options
         self.slangpy_device_module = slangpy_device_module
-        self.device_module = composed
-        self.layout = layout
 
         # Store link modules (excluding slangpy)
         # TODO: We should remove this, but some applications currently still rely on this.
@@ -87,7 +85,7 @@ class Module(BaseModule):
         self._attr_cache: dict[str, Union[Function, Struct]] = {}
         self._all_functions: weakref.WeakSet[Function] = weakref.WeakSet()
 
-        LOADED_MODULES[self.device_module.name] = self
+        LOADED_MODULES[self.name] = self
 
     @staticmethod
     def load_from_source(
@@ -127,34 +125,6 @@ class Module(BaseModule):
         Load a module from a Slang module.
         """
         return Module(module, options=options, link=link)
-
-    @property
-    def name(self):
-        """
-        The name of the module.
-        """
-        return self.device_module.name
-
-    @property
-    def module(self):
-        """
-        The SGL Slang module this wraps.
-        """
-        return self.device_module
-
-    @property
-    def session(self):
-        """
-        The SGL Slang session this module is part of.
-        """
-        return self.device_module.session
-
-    @property
-    def device(self):
-        """
-        The SGL device this module is part of.
-        """
-        return self.session.device
 
     def find_struct(self, name: str):
         """
@@ -213,9 +183,6 @@ class Module(BaseModule):
         Called by device when the module is hot reloaded.
         """
         BaseModule.on_hot_reload(self, self.device_module, self.device_module.layout)
-
-        # C++ side handles reload for composed modules; layout returns fresh combined layout.
-        self.layout.on_hot_reload(self.device_module.layout)
 
         # Create new cache and update all tracked Function objects
         self.call_data_cache = CallDataCache()

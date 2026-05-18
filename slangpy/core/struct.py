@@ -19,10 +19,8 @@ class Struct(BaseStruct):
         self, module: "Module", slang_struct: "SlangType", options: dict[str, Any] = {}
     ) -> None:
         super().__init__(module, slang_struct)
-        self.module = module
         self.options = options
-        self.struct = slang_struct
-        self.slangpy_signature = self.struct.full_name
+        self.slangpy_signature = slang_struct.full_name
 
     @property
     def program(self):
