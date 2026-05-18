@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from __future__ import annotations
 
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 
@@ -35,6 +35,9 @@ from slangpy.native_refl import (
     UnknownType,
     VectorType,
     VoidType,
+    is_known,
+    is_known_or_none,
+    is_unknown,
 )
 
 TensorType = ITensorType.Kind
@@ -97,35 +100,6 @@ SCALAR_TYPE_TO_NUMPY_TYPE = {
 }
 NUMPY_TYPE_TO_SCALAR_TYPE = {np.dtype(v): k for k, v in SCALAR_TYPE_TO_NUMPY_TYPE.items()}
 
-texture_names = {
-    TR.ResourceShape.texture_1d: "Texture1D",
-    TR.ResourceShape.texture_2d: "Texture2D",
-    TR.ResourceShape.texture_3d: "Texture3D",
-    TR.ResourceShape.texture_cube: "TextureCube",
-    TR.ResourceShape.texture_1d_array: "Texture1DArray",
-    TR.ResourceShape.texture_2d_array: "Texture2DArray",
-    TR.ResourceShape.texture_cube_array: "TextureCubeArray",
-    TR.ResourceShape.texture_2d_multisample: "Texture2DMS",
-    TR.ResourceShape.texture_2d_multisample_array: "Texture2DMSArray",
-}
-texture_dims = {
-    TR.ResourceShape.texture_1d: 1,
-    TR.ResourceShape.texture_2d: 2,
-    TR.ResourceShape.texture_3d: 3,
-    TR.ResourceShape.texture_cube: 3,
-    TR.ResourceShape.texture_1d_array: 2,
-    TR.ResourceShape.texture_2d_array: 3,
-    TR.ResourceShape.texture_cube_array: 4,
-    TR.ResourceShape.texture_2d_multisample: 2,
-    TR.ResourceShape.texture_2d_multisample_array: 3,
-}
-
-TGenericArgs = Optional[tuple[Union[int, SlangType], ...]]
-
-
-def is_float(kind: TR.ScalarType) -> bool:
-    return kind in FLOAT_TYPES
-
 
 def is_matching_array_type(a: SlangType, b: SlangType, allow_generics: bool = True) -> bool:
     if not isinstance(a, ArrayType) or not isinstance(b, ArrayType):
@@ -141,42 +115,6 @@ def is_matching_array_type(a: SlangType, b: SlangType, allow_generics: bool = Tr
         a.array_shape == b.array_shape
         and a.inner_element_type.full_name == b.inner_element_type.full_name
     )
-
-
-def can_convert_to_int(value: Any) -> bool:
-    if isinstance(value, int):
-        return True
-    if isinstance(value, float) and value.is_integer():
-        return True
-    return isinstance(value, str) and value.lstrip("+-").isdigit()
-
-
-def can_convert_to_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return True
-    if not isinstance(value, str):
-        return False
-    return value.strip().lower() in ("true", "false", "bool(1)", "bool(0)")
-
-
-def convert_bool_to_int(value: Any) -> int:
-    if isinstance(value, bool):
-        return 1 if value else 0
-    return 1 if value.strip().lower() in ("true", "bool(1)") else 0
-
-
-def is_unknown(slang_type: Optional[SlangType]) -> bool:
-    return isinstance(slang_type, UnknownType)
-
-
-def is_known(slang_type: Optional[SlangType]) -> bool:
-    if slang_type is None:
-        raise ValueError("Type is None")
-    return not is_unknown(slang_type)
-
-
-def is_known_or_none(slang_type: Optional[SlangType]) -> bool:
-    return slang_type is None or not is_unknown(slang_type)
 
 
 def vectorize_type(

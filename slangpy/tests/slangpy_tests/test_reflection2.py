@@ -7,7 +7,6 @@ import slangpy.reflection as r
 from slangpy.core.enums import IOType
 from slangpy.core.function import Function
 from slangpy.reflection.lookup import resolve_element_type, resolve_program_layout
-from slangpy.reflection.reflectiontypes import is_float
 from slangpy.testing import helpers
 
 from typing import Any, Callable
@@ -36,6 +35,17 @@ void update(inout float value, out float result, no_diff in float weight) {
 void use_textures(Texture2D<float4> texture, RWTexture2D<float4> rw_texture) {}
 
 """
+
+
+FLOAT_SCALAR_TYPES = {
+    TypeReflection.ScalarType.float16,
+    TypeReflection.ScalarType.float32,
+    TypeReflection.ScalarType.float64,
+}
+
+
+def is_float(kind: TypeReflection.ScalarType) -> bool:
+    return kind in FLOAT_SCALAR_TYPES
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -144,6 +154,29 @@ def test_reflection_layout_tracks_hot_reload_generation(device_type: DeviceType)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_known_type_helpers(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, MODULE)
+    layout = module.layout
+
+    unknown_type = layout.require_type_by_name("Unknown")
+    float_type = layout.require_type_by_name("float")
+
+    assert r.is_unknown(unknown_type)
+    assert not r.is_known(unknown_type)
+    assert not r.is_known_or_none(unknown_type)
+
+    assert not r.is_unknown(float_type)
+    assert r.is_known(float_type)
+    assert r.is_known_or_none(float_type)
+
+    assert not r.is_unknown(None)
+    assert r.is_known_or_none(None)
+    with pytest.raises(ValueError, match="Type is None"):
+        r.is_known(None)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_reflection_layout_creates_semantic_types(device_type: DeviceType):
     device = helpers.get_device(device_type)
     module = helpers.create_module(device, MODULE)
@@ -241,10 +274,12 @@ def test_reflection_lookup_resolves_builtin_and_struct_types(device_type: Device
 
     builtin_layout = resolve_program_layout(device, None, None)
     assert builtin_layout.find_type_by_name("float") is not None
+    assert resolve_program_layout(device, "float", None) is builtin_layout
 
     float_type = resolve_element_type(builtin_layout, "float")
     assert isinstance(float_type, r.ScalarType)
     assert float_type.full_name == "float"
+    assert resolve_element_type(builtin_layout, int).full_name == "int"
 
     generation = builtin_layout.generation
     device.reload_all_programs()

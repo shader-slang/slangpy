@@ -20,6 +20,39 @@ SGL_PY_EXPORT(native_refl)
 
     native_refl.def("get_builtin_layout", &refl::get_builtin_layout, "device"_a, D_NA(get_builtin_layout));
     native_refl.def("name_for_scalar_type", &refl::name_for_scalar_type, "scalar_type"_a, D_NA(name_for_scalar_type));
+    native_refl.def(
+        "is_unknown",
+        [](nb::object type)
+        {
+            if (type.is_none())
+                return false;
+            return refl::is_unknown(nb::cast<refl::Type*>(type));
+        },
+        "type"_a.none(),
+        D_NA(is_unknown)
+    );
+    native_refl.def(
+        "is_known",
+        [](nb::object type)
+        {
+            if (type.is_none())
+                throw nb::value_error("Type is None");
+            return refl::is_known(nb::cast<refl::Type*>(type));
+        },
+        "type"_a.none(),
+        D_NA(is_known)
+    );
+    native_refl.def(
+        "is_known_or_none",
+        [](nb::object type)
+        {
+            if (type.is_none())
+                return true;
+            return refl::is_known_or_none(nb::cast<refl::Type*>(type));
+        },
+        "type"_a.none(),
+        D_NA(is_known_or_none)
+    );
     nb::sgl_enum<refl::IOType>(native_refl, "IOType", D_NA(IOType));
     native_refl.def(
         "resolve_layout",

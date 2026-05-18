@@ -62,6 +62,7 @@ struct Foo {
 };
 )"
     );
+    REQUIRE(module_a);
     ref<SlangModule> module_b = ctx.device->load_module_from_source(
         "refl_lookup_b",
         R"(
@@ -70,6 +71,7 @@ struct Foo {
 };
 )"
     );
+    REQUIRE(module_b);
 
     ref<refl::Layout> layout_a = make_ref<refl::Layout>(module_a->layout());
     ref<refl::Layout> layout_b = make_ref<refl::Layout>(module_b->layout());

@@ -34,11 +34,11 @@ void BaseModule::on_hot_reload(ref<SlangModule> module, ref<const sgl::ProgramLa
 {
     SGL_CHECK(module, "BaseModule hot reload requires a Slang module");
     SGL_CHECK(low_level_layout, "BaseModule hot reload requires a low-level layout");
-    m_module = std::move(module);
     if (!m_layout)
         m_layout = make_ref<refl::Layout>(low_level_layout);
     else
-        m_layout->on_hot_reload(std::move(low_level_layout));
+        m_layout->on_hot_reload(low_level_layout);
+    m_module = std::move(module);
 }
 
 std::string BaseModule::to_string() const

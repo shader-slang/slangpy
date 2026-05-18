@@ -247,7 +247,16 @@ ref<Function> Function::specialize_with_arg_types(const std::vector<ref<Type>>& 
     ref<const FunctionReflection> reflection = m_reflection->specialize_with_arg_types(reflections);
     if (!reflection)
         return nullptr;
-    return m_layout->get_or_create_function(std::move(reflection), m_this_type, m_full_name);
+
+    std::optional<std::string> full_name;
+    if (m_reflection->is_generic()) {
+        std::vector<std::string> type_names;
+        type_names.reserve(types.size());
+        for (const ref<Type>& type : types)
+            type_names.push_back(type->full_name());
+        full_name = fmt::format("{}<{}>", name(), fmt::join(type_names, ","));
+    }
+    return m_layout->get_or_create_function(std::move(reflection), m_this_type, std::move(full_name));
 }
 
 void Function::on_hot_reload(ref<const FunctionReflection> reflection)

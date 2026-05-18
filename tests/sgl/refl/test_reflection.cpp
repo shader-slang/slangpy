@@ -17,6 +17,8 @@ TEST_CASE_GPU("semantic type lookup")
     ref<SlangModule> module = ctx.device->load_module_from_source(
         "refl_semantic_type_lookup",
         R"(
+import "slangpy";
+
 struct Foo {
     float3 value;
 };
@@ -31,6 +33,20 @@ struct Foo {
     CHECK(float_type->full_name() == "float");
     CHECK(float_type->shape() == slangpy::Shape(std::vector<int>{}));
     CHECK(float_type->slang_scalar_type() == TypeReflection::ScalarType::float32);
+
+    ref<refl::UnknownType> unknown_type = dynamic_ref_cast<refl::UnknownType>(layout->require_type_by_name("Unknown"));
+    REQUIRE(unknown_type);
+    CHECK(refl::is_unknown(unknown_type.get()));
+    CHECK(!refl::is_known(unknown_type.get()));
+    CHECK(!refl::is_known_or_none(unknown_type.get()));
+
+    CHECK(!refl::is_unknown(float_type.get()));
+    CHECK(refl::is_known(float_type.get()));
+    CHECK(refl::is_known_or_none(float_type.get()));
+
+    CHECK(!refl::is_unknown(nullptr));
+    CHECK(refl::is_known_or_none(nullptr));
+    CHECK_THROWS(refl::is_known(nullptr));
 
     ref<refl::VectorType> vector_type
         = dynamic_ref_cast<refl::VectorType>(layout->require_type_by_name("vector<float,3>"));
@@ -164,6 +180,8 @@ void no_params() {}
 
 float overloaded(float value) { return value; }
 int overloaded(int value) { return value; }
+
+float generic_value<T>(T value) { return 0.0; }
 )"
     );
 
@@ -214,6 +232,12 @@ int overloaded(int value) { return value; }
     REQUIRE(int_specialized);
     CHECK(int_specialized->return_type() == int_type);
 
+    ref<refl::Function> generic = layout->require_function_by_name("generic_value");
+    ref<refl::Function> generic_specialized = generic->specialize_with_arg_types({float_type});
+    REQUIRE(generic_specialized);
+    CHECK(generic_specialized->full_name() == "generic_value<float>");
+    CHECK(generic_specialized->return_type() == float_type);
+
     ref<refl::StructType> foo_type = dynamic_ref_cast<refl::StructType>(layout->require_type_by_name("Foo"));
     REQUIRE(foo_type);
 
@@ -221,6 +245,50 @@ int overloaded(int value) { return value; }
     CHECK(method->this_type() == foo_type.get());
     CHECK(method->full_name() == "eval");
     CHECK(method->return_type() == float_type);
+}
+
+TEST_CASE_GPU("semantic layout hot reload")
+{
+    ref<SlangModule> module_a = ctx.device->load_module_from_source(
+        "refl_semantic_layout_hot_reload_a",
+        R"(
+struct Foo {
+    float value;
+};
+float get_value(Foo foo) { return foo.value; }
+)"
+    );
+    REQUIRE(module_a);
+
+    ref<SlangModule> module_b = ctx.device->load_module_from_source(
+        "refl_semantic_layout_hot_reload_b",
+        R"(
+struct Foo {
+    int value;
+};
+int get_value(Foo foo) { return foo.value; }
+)"
+    );
+    REQUIRE(module_b);
+
+    ref<refl::Layout> layout = make_ref<refl::Layout>(module_a->layout());
+    ref<refl::Type> old_foo_type = layout->require_type_by_name("Foo");
+    ref<refl::Function> old_function = layout->require_function_by_name("get_value");
+    uint64_t generation = layout->generation();
+
+    layout->on_hot_reload(module_b->layout());
+
+    CHECK(layout->generation() == generation + 1);
+
+    ref<refl::Type> new_foo_type = layout->require_type_by_name("Foo");
+    REQUIRE(new_foo_type);
+    CHECK(new_foo_type.get() != old_foo_type.get());
+    CHECK(new_foo_type->fields().at("value")->type() == layout->scalar_type(TypeReflection::ScalarType::int32));
+
+    ref<refl::Function> new_function = layout->require_function_by_name("get_value");
+    REQUIRE(new_function);
+    CHECK(new_function.get() != old_function.get());
+    CHECK(new_function->return_type() == layout->scalar_type(TypeReflection::ScalarType::int32));
 }
 
 TEST_SUITE_END();

@@ -4,9 +4,10 @@ from typing import Any, Optional
 
 import numpy as np
 
-from slangpy import Device, TypeReflection
+from slangpy import Device, TypeLayoutReflection, TypeReflection
 from slangpy.bindings.marshall import Marshall
 from slangpy.bindings.typeregistry import get_or_create_type
+from slangpy.native_func import BaseStruct
 from slangpy.native_refl import get_builtin_layout
 from slangpy.native_refl import resolve_element_type as native_resolve_element_type
 from slangpy.native_refl import resolve_layout as native_resolve_layout
@@ -84,7 +85,10 @@ def resolve_program_layout(
     if isinstance(element_type, Marshall):
         element_type = element_type.slang_type
 
-    return native_resolve_layout(device, element_type, None)
+    if isinstance(element_type, (SlangType, BaseStruct)):
+        return native_resolve_layout(device, element_type, None)
+
+    return _get_lookup_module(device)
 
 
 def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) -> SlangType:
@@ -94,8 +98,9 @@ def resolve_element_type(program_layout: SlangProgramLayout, element_type: Any) 
     if isinstance(element_type, Marshall):
         element_type = element_type.slang_type
 
-    resolved = native_resolve_element_type(program_layout, element_type)
-    if resolved is None:
+    if isinstance(element_type, (SlangType, TypeReflection, TypeLayoutReflection, BaseStruct, str)):
+        resolved = native_resolve_element_type(program_layout, element_type)
+    else:
         resolved = get_or_create_type(program_layout, element_type).slang_type
 
     if resolved is None:

@@ -39,7 +39,9 @@ void BaseStruct::on_hot_reload(ref<const TypeReflection> type_reflection)
 {
     SGL_CHECK(type_reflection, "BaseStruct hot reload requires a type reflection");
     SGL_CHECK(layout(), "BaseStruct hot reload requires a layout");
-    m_type = layout()->find_type(std::move(type_reflection));
+    ref<refl::Type> resolved_type = layout()->find_type(std::move(type_reflection));
+    SGL_CHECK(resolved_type, "BaseStruct hot reload failed to resolve semantic type in current layout");
+    m_type = std::move(resolved_type);
 }
 
 std::string BaseStruct::to_string() const

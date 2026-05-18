@@ -431,6 +431,22 @@ UnknownType::UnknownType(ref<Layout> layout, ref<const TypeReflection> reflectio
 {
 }
 
+bool is_unknown(const Type* type)
+{
+    return dynamic_cast<const UnknownType*>(type) != nullptr;
+}
+
+bool is_known(const Type* type)
+{
+    SGL_CHECK(type, "Type is None");
+    return !is_unknown(type);
+}
+
+bool is_known_or_none(const Type* type)
+{
+    return type == nullptr || !is_unknown(type);
+}
+
 VoidType::VoidType(ref<Layout> layout, ref<const TypeReflection> reflection)
     : Type(std::move(layout), std::move(reflection), nullptr, empty_shape())
 {

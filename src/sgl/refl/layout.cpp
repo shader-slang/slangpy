@@ -67,8 +67,14 @@ ref<Function> Layout::get_or_create_function(
     if (!reflection)
         return nullptr;
 
-    if (auto it = m_functions_by_reflection.find(reflection.get()); it != m_functions_by_reflection.end())
+    if (auto it = m_functions_by_reflection.find(reflection.get()); it != m_functions_by_reflection.end()) {
+        SGL_CHECK(
+            it->second->this_type() == this_type.get(),
+            "Function '{}' was requested with inconsistent this_type",
+            it->second->full_name()
+        );
         return it->second;
+    }
 
     std::string function_full_name = full_name ? std::move(*full_name) : std::string();
     ref<Function> function = make_ref<Function>(ref(this), reflection, this_type, std::move(function_full_name));
@@ -172,14 +178,14 @@ Layout::tensor_type(ref<Type> element_type, int dims, TensorType::Access access,
 ref<TensorViewType> Layout::tensorview_type(ref<Type> element_type)
 {
     SGL_CHECK(element_type, "TensorView type requires an element type");
-    return dynamic_ref_cast<TensorViewType>(find_type_by_name(TensorViewType::build_tensorview_name(*element_type)));
+    return dynamic_ref_cast<TensorViewType>(require_type_by_name(TensorViewType::build_tensorview_name(*element_type)));
 }
 
 ref<DiffTensorViewType> Layout::difftensorview_type(ref<Type> element_type)
 {
     SGL_CHECK(element_type, "DiffTensorView type requires an element type");
     return dynamic_ref_cast<DiffTensorViewType>(
-        find_type_by_name(DiffTensorViewType::build_difftensorview_name(*element_type))
+        require_type_by_name(DiffTensorViewType::build_difftensorview_name(*element_type))
     );
 }
 

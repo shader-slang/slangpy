@@ -135,6 +135,13 @@ public:
     std::string vector_type_name() const override { return "Unknown"; }
 };
 
+/// Return true when type is the semantic Unknown placeholder.
+SGL_API bool is_unknown(const Type* type);
+/// Return true when type is non-null and not the semantic Unknown placeholder.
+SGL_API bool is_known(const Type* type);
+/// Return true when type is null or not the semantic Unknown placeholder.
+SGL_API bool is_known_or_none(const Type* type);
+
 /// Semantic type for void.
 class SGL_API VoidType final : public Type {
     SGL_OBJECT(VoidType)
