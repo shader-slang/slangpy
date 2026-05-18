@@ -248,15 +248,10 @@ ref<Function> Function::specialize_with_arg_types(const std::vector<ref<Type>>& 
     if (!reflection)
         return nullptr;
 
-    std::optional<std::string> full_name;
-    if (m_reflection->is_generic()) {
-        std::vector<std::string> type_names;
-        type_names.reserve(types.size());
-        for (const ref<Type>& type : types)
-            type_names.push_back(type->full_name());
-        full_name = fmt::format("{}<{}>", name(), fmt::join(type_names, ","));
-    }
-    return m_layout->get_or_create_function(std::move(reflection), m_this_type, std::move(full_name));
+    // Do not cache this result by name. The input types are concrete call argument
+    // types, not the canonical generic argument list, so deriving a full name here
+    // can pollute Layout's named-function cache with non-canonical spellings.
+    return make_ref<Function>(m_layout, std::move(reflection), m_this_type);
 }
 
 void Function::on_hot_reload(ref<const FunctionReflection> reflection)

@@ -357,11 +357,11 @@ def test_generic_specialization(device_type: DeviceType):
     specialized = generic.specialize_with_arg_types(
         [layout.scalar_type(TypeReflection.ScalarType.float32)]
     )
-    assert specialized is res
     assert specialized.name == "foo_generic"
-    assert specialized.full_name == "foo_generic<float>"
+    assert specialized.return_type is layout.scalar_type(TypeReflection.ScalarType.float32)
     assert layout.find_function_by_name("foo_generic") is generic
-    assert layout.find_function_by_name("foo_generic<float>") is specialized
+    assert layout.find_function_by_name("foo_generic<float>") is res
+    assert specialized is not res
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

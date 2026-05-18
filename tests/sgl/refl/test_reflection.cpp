@@ -166,14 +166,17 @@ float overloaded(float value) { return value; }
 int overloaded(int value) { return value; }
 
 float generic_value<T>(T value) { return 0.0; }
+float partial_generic_value<T>(T value, float3 fixed_value) { return 0.0; }
 )"
     );
 
     ref<refl::Layout> layout = make_ref<refl::Layout>(module->layout());
     ref<refl::ScalarType> float_type = layout->scalar_type(TypeReflection::ScalarType::float32);
     ref<refl::ScalarType> int_type = layout->scalar_type(TypeReflection::ScalarType::int32);
+    ref<refl::VectorType> float3_type = layout->vector_type(TypeReflection::ScalarType::float32, 3);
     REQUIRE(float_type);
     REQUIRE(int_type);
+    REQUIRE(float3_type);
 
     ref<refl::Function> add = layout->require_function_by_name("add");
     CHECK(add->name() == "add");
@@ -220,10 +223,20 @@ float generic_value<T>(T value) { return 0.0; }
     ref<refl::Function> generic_specialized = generic->specialize_with_arg_types({float_type});
     REQUIRE(generic_specialized);
     CHECK(generic_specialized->name() == "generic_value");
-    CHECK(generic_specialized->full_name() == "generic_value<float>");
     CHECK(generic_specialized->return_type() == float_type);
     CHECK(layout->require_function_by_name("generic_value").get() == generic.get());
-    CHECK(layout->require_function_by_name("generic_value<float>").get() == generic_specialized.get());
+
+    ref<refl::Function> named_generic_specialized = layout->require_function_by_name("generic_value<float>");
+    REQUIRE(named_generic_specialized);
+    CHECK(named_generic_specialized->full_name() == "generic_value<float>");
+    CHECK(named_generic_specialized.get() != generic_specialized.get());
+
+    ref<refl::Function> partial_generic = layout->require_function_by_name("partial_generic_value");
+    ref<refl::Function> partial_specialized = partial_generic->specialize_with_arg_types({float3_type, float3_type});
+    REQUIRE(partial_specialized);
+    CHECK(partial_specialized->return_type() == float_type);
+    CHECK(layout->find_function_by_name("partial_generic_value<vector<float,3>,vector<float,3>>") == nullptr);
+    CHECK(layout->require_function_by_name("partial_generic_value<vector<float,3>>")->return_type() == float_type);
 
     ref<refl::StructType> foo_type = dynamic_ref_cast<refl::StructType>(layout->require_type_by_name("Foo"));
     REQUIRE(foo_type);
