@@ -11,10 +11,10 @@ using namespace sgl;
 
 TEST_SUITE_BEGIN("func");
 
-TEST_CASE_GPU("reflection bridge")
+TEST_CASE_GPU("base module and struct")
 {
     ref<SlangModule> module = ctx.device->load_module_from_source(
-        "func_reflection_bridge",
+        "func_base_objects",
         R"(
 struct Foo {
     int value;

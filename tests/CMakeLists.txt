@@ -27,7 +27,7 @@ if(SGL_BUILD_TESTS)
         sgl/device/test_hot_reload.cpp
         sgl/device/test_formats.cpp
         sgl/device/test_shader.cpp
-        sgl/func/test_reflection.cpp
+        sgl/func/test_base_objects.cpp
         sgl/refl/test_lookup.cpp
         sgl/refl/test_reflection.cpp
         sgl/math/test_float16.cpp

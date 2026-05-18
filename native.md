@@ -112,8 +112,8 @@ Completed:
 - Added tests:
   - `tests/sgl/refl/test_reflection.cpp`
   - `tests/sgl/refl/test_lookup.cpp`
-  - `tests/sgl/func/test_reflection.cpp`
-  - `slangpy/tests/slangpy_tests/test_native_bridge.py`
+  - `tests/sgl/func/test_base_objects.cpp`
+  - `slangpy/tests/slangpy_tests/test_reflection2.py`
 - Confirmed the native `src/sgl/refl` and `src/sgl/func` additions remain Python-free with:
 
 ```powershell
@@ -126,7 +126,6 @@ Verified:
 cmake --build --preset windows-msvc-debug --target slangpy_ext sgl_tests
 build\windows-msvc\Debug\sgl_tests.exe -ts=func
 build\windows-msvc\Debug\sgl_tests.exe -ts=refl
-python -m pytest slangpy/tests/slangpy_tests/test_native_bridge.py -v
 python -m pytest slangpy/tests/slangpy_tests/test_reflection2.py -v
 python -m pytest slangpy/tests/slangpy_tests/test_type_resolution.py -v
 python -m pytest slangpy/tests/slangpy_tests/test_tensor.py -v
@@ -320,7 +319,7 @@ Suggested files:
 - `src/sgl/refl/lookup.h`
 - `src/sgl/refl/lookup.cpp`
 - `tests/sgl/refl/test_reflection.cpp`
-- `tests/sgl/func/test_reflection.cpp`
+- `tests/sgl/func/test_base_objects.cpp`
 - `tests/sgl/refl/test_lookup.cpp`
 - `src/slangpy_ext/refl/*.cpp`
 - `src/slangpy_ext/func/*.cpp`
@@ -793,7 +792,7 @@ Gating tests:
 
 - `slangpy/tests/slangpy_tests/test_reflection2.py` passes without requiring Python-owned `SlangType`.
 - `slangpy/tests/slangpy_tests/test_type_resolution.py` passes for existing built-in type paths.
-- New Python tests verify `Module` is a `BaseModule`, `Struct` is a `BaseStruct`, and Tensor dtype lookup from a `Struct` still uses the struct's owning module layout.
+- Python reflection tests verify `Module`/`Struct` use bound native storage without duplicate Python fields, and Tensor dtype lookup from a `Struct` still uses the struct's owning module layout.
 - A new Python test verifies custom Python reflection fallback:
   - register a custom type override from Python
   - first lookup calls provider
