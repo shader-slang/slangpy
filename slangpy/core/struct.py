@@ -122,11 +122,11 @@ class Struct(BaseStruct):
         return self.module.device_module.session
 
     @property
-    def reflection(self):
+    def type_reflection(self):
         """
         The type reflection of the struct.
         """
-        return self.struct.reflection
+        return self.struct.type_reflection
 
     @property
     def device(self):

@@ -77,12 +77,12 @@ SGL_PY_EXPORT(native_func)
         )
         .def_prop_ro("type", &func::BaseStruct::type, D_NA(BaseStruct, type))
         .def_prop_ro(
-            "reflection",
+            "type_reflection",
             [](func::BaseStruct& self)
             {
                 return sgl::ref<const sgl::TypeReflection>(self.reflection());
             },
-            D_NA(BaseStruct, reflection)
+            D_NA(BaseStruct, type_reflection)
         )
         .def("__repr__", &func::BaseStruct::to_string, D_NA(BaseStruct, to_string));
 }

@@ -107,12 +107,12 @@ SGL_PY_EXPORT(native_refl)
             D_NA(Type, program)
         )
         .def_prop_ro(
-            "reflection",
+            "type_reflection",
             [](refl::Type& self)
             {
                 return sgl::ref<const sgl::TypeReflection>(self.reflection());
             },
-            D_NA(Type, reflection)
+            D_NA(Type, type_reflection)
         )
         .def_prop_ro("name", &refl::Type::name, D_NA(Type, name))
         .def_prop_ro("full_name", &refl::Type::full_name, D_NA(Type, full_name))

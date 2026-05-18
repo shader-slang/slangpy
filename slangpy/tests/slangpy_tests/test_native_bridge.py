@@ -56,6 +56,10 @@ def test_module_and_struct_have_native_bridge(device_type: spy.DeviceType) -> No
     struct = module.Foo.as_struct()
 
     assert isinstance(struct, BaseStruct)
+    assert struct.struct.type_reflection.full_name == "Foo"
+    assert struct.type_reflection.full_name == "Foo"
+    assert not hasattr(struct.struct, "reflection")
+    assert not hasattr(struct, "reflection")
 
     tensor = spy.Tensor.empty(device, (2,), dtype=struct)
     assert tensor.dtype is struct.struct
