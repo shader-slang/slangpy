@@ -40,6 +40,20 @@ TEST_CASE_GPU("builtin lookup layout")
     REQUIRE(float_type);
     CHECK(float_type->full_name() == "float");
 
+    ref<refl::UnknownType> unknown_type = dynamic_ref_cast<refl::UnknownType>(layout->require_type_by_name("Unknown"));
+    REQUIRE(unknown_type);
+    CHECK(refl::is_unknown(unknown_type.get()));
+    CHECK(!refl::is_known(unknown_type.get()));
+    CHECK(!refl::is_known_or_none(unknown_type.get()));
+
+    CHECK(!refl::is_unknown(float_type.get()));
+    CHECK(refl::is_known(float_type.get()));
+    CHECK(refl::is_known_or_none(float_type.get()));
+
+    CHECK(!refl::is_unknown(nullptr));
+    CHECK(refl::is_known_or_none(nullptr));
+    CHECK_THROWS(refl::is_known(nullptr));
+
     ref<refl::TensorType> tensor_type = layout->tensor_type(float_type, 2);
     REQUIRE(tensor_type);
     CHECK(tensor_type->full_name() == "RWTensor<float, 2>");

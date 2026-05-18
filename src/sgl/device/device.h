@@ -528,7 +528,7 @@ public:
     /// Reload all shader programs.
     void reload_all_programs();
 
-    /// Return the cached semantic layout for the built-in support module.
+    /// Return the cached reflection layout for the built-in support module.
     ref<refl::Layout> builtin_layout();
 
     /// Create a root shader object for a shader program.

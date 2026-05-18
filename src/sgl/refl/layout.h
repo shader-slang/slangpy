@@ -16,14 +16,11 @@
 
 namespace sgl::refl {
 
-/// Native semantic reflection code must remain Python-free.
-/// Bindings and Python-specific adaptation belong in src/slangpy_ext.
-
-/// Transitional native owner for a low-level Slang program layout.
+/// Slang program layout.
 class SGL_API Layout : public Object {
     SGL_OBJECT(Layout)
 public:
-    /// Create a semantic layout over an existing low-level Slang program layout.
+    /// Create a reflection layout over an existing low-level Slang program layout.
     explicit Layout(ref<const sgl::ProgramLayout> low_level_layout);
 
     /// Return the low-level SGL program layout.
@@ -34,51 +31,51 @@ public:
     /// Return true if the wrapped low-level layout is still valid.
     bool is_valid() const { return m_low_level_layout && m_low_level_layout->is_valid(); }
 
-    /// Find or create a semantic type for a low-level type reflection.
+    /// Find or create reflection for a low-level type reflection.
     ref<Type> find_type(ref<const TypeReflection> reflection);
-    /// Find or create a semantic type by reflected type name.
+    /// Find or create reflection by reflected type name.
     ref<Type> find_type_by_name(std::string_view name);
-    /// Find or create a semantic type by reflected type name, throwing if absent.
+    /// Find or create reflection by reflected type name, throwing if absent.
     ref<Type> require_type_by_name(std::string_view name);
 
-    /// Find or create a semantic function for a low-level function reflection.
+    /// Find or create reflection function for a low-level function reflection.
     ref<Function> find_function(ref<const FunctionReflection> reflection, ref<Type> this_type = nullptr);
-    /// Find or create a semantic function by global reflected function name.
+    /// Find or create reflection function by global reflected function name.
     ref<Function> find_function_by_name(std::string_view name);
-    /// Find or create a semantic function by global reflected function name, throwing if absent.
+    /// Find or create reflection function by global reflected function name, throwing if absent.
     ref<Function> require_function_by_name(std::string_view name);
-    /// Find or create a semantic function by name within a reflected type.
+    /// Find or create reflection function by name within a reflected type.
     ref<Function> find_function_by_name_in_type(ref<Type> type, std::string_view name);
-    /// Find or create a semantic function by name within a reflected type, throwing if absent.
+    /// Find or create reflection function by name within a reflected type, throwing if absent.
     ref<Function> require_function_by_name_in_type(ref<Type> type, std::string_view name);
 
-    /// Return the semantic scalar type for a Slang scalar id.
+    /// Return the reflection scalar type for a Slang scalar id.
     ref<ScalarType> scalar_type(TypeReflection::ScalarType scalar_type);
-    /// Return the semantic vector type for a scalar id and lane count.
+    /// Return the reflection vector type for a scalar id and lane count.
     ref<VectorType> vector_type(TypeReflection::ScalarType scalar_type, int size);
-    /// Return the semantic matrix type for a scalar id and shape.
+    /// Return the reflection matrix type for a scalar id and shape.
     ref<MatrixType> matrix_type(TypeReflection::ScalarType scalar_type, int rows, int cols);
-    /// Return the semantic array type for an element type and element count.
+    /// Return the reflection array type for an element type and element count.
     ref<ArrayType> array_type(ref<Type> element_type, int count);
-    /// Return the semantic tensor type for an element type, rank, access mode, and tensor family.
+    /// Return the reflection tensor type for an element type, rank, access mode, and tensor family.
     ref<TensorType> tensor_type(
         ref<Type> element_type,
         int dims,
         TensorType::Access access = TensorType::Access::read_write,
         TensorType::Kind tensor_kind = TensorType::Kind::tensor
     );
-    /// Return the semantic TensorView type for an element type.
+    /// Return the reflection TensorView type for an element type.
     ref<TensorViewType> tensorview_type(ref<Type> element_type);
-    /// Return the semantic DiffTensorView type for an element type.
+    /// Return the reflection DiffTensorView type for an element type.
     ref<DiffTensorViewType> difftensorview_type(ref<Type> element_type);
 
     /// Parse and resolve generic arguments from a low-level reflected type.
     std::optional<GenericArgs> get_resolved_generic_args(const TypeReflection* type);
 
-    /// Replace the wrapped low-level layout after hot reload and clear semantic caches.
+    /// Replace the wrapped low-level layout after hot reload and clear reflection caches.
     void on_hot_reload(ref<const sgl::ProgramLayout> low_level_layout);
 
-    /// Return a debug string for this semantic layout.
+    /// Return a debug string for this layout.
     std::string to_string() const override;
 
 private:

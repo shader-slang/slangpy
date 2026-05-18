@@ -49,8 +49,8 @@ Variable::Variable(
     , m_modifiers(std::move(modifiers))
     , m_reflection(std::move(reflection))
 {
-    SGL_CHECK(m_layout, "Variable requires a semantic layout");
-    SGL_CHECK(m_type, "Variable '{}' requires a semantic type", m_name);
+    SGL_CHECK(m_layout, "Variable requires a reflection layout");
+    SGL_CHECK(m_type, "Variable '{}' requires a reflection type", m_name);
 }
 
 bool Variable::has_modifier(ModifierID modifier) const
@@ -152,7 +152,7 @@ Function::Function(
     , m_this_type(std::move(this_type))
     , m_full_name(std::move(full_name))
 {
-    SGL_CHECK(m_layout, "Function requires a semantic layout");
+    SGL_CHECK(m_layout, "Function requires a reflection layout");
     SGL_CHECK(m_reflection, "Function requires a function reflection");
     if (m_full_name.empty())
         m_full_name = name();

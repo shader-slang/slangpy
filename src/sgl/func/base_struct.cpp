@@ -13,25 +13,25 @@ BaseStruct::BaseStruct(ref<BaseModule> module, ref<refl::Type> type)
     , m_type(std::move(type))
 {
     SGL_CHECK(m_module, "BaseStruct requires a BaseModule");
-    SGL_CHECK(m_type, "BaseStruct requires a semantic type");
+    SGL_CHECK(m_type, "BaseStruct requires a reflection type");
     SGL_CHECK(m_type->layout() == m_module->layout(), "BaseStruct type must belong to its module layout");
 }
 
 std::string BaseStruct::name() const
 {
-    SGL_CHECK(m_type, "BaseStruct has no semantic type");
+    SGL_CHECK(m_type, "BaseStruct has no reflection type");
     return m_type->name();
 }
 
 std::string BaseStruct::full_name() const
 {
-    SGL_CHECK(m_type, "BaseStruct has no semantic type");
+    SGL_CHECK(m_type, "BaseStruct has no reflection type");
     return m_type->full_name();
 }
 
 const slangpy::Shape& BaseStruct::shape() const
 {
-    SGL_CHECK(m_type, "BaseStruct has no semantic type");
+    SGL_CHECK(m_type, "BaseStruct has no reflection type");
     return m_type->shape();
 }
 
@@ -40,7 +40,7 @@ void BaseStruct::on_hot_reload(ref<const TypeReflection> type_reflection)
     SGL_CHECK(type_reflection, "BaseStruct hot reload requires a type reflection");
     SGL_CHECK(layout(), "BaseStruct hot reload requires a layout");
     ref<refl::Type> resolved_type = layout()->find_type(std::move(type_reflection));
-    SGL_CHECK(resolved_type, "BaseStruct hot reload failed to resolve semantic type in current layout");
+    SGL_CHECK(resolved_type, "BaseStruct hot reload failed to resolve reflection type in current layout");
     m_type = std::move(resolved_type);
 }
 

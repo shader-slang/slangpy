@@ -177,7 +177,7 @@ def test_known_type_helpers(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_reflection_layout_creates_semantic_types(device_type: DeviceType):
+def test_reflection_layout_creates_native_types(device_type: DeviceType):
     device = helpers.get_device(device_type)
     module = helpers.create_module(device, MODULE)
     layout = r.SlangProgramLayout(module.device_module.layout)

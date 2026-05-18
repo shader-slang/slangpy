@@ -305,7 +305,7 @@ def _resolve_function_internal(
         i = name_map[name]
         res.kwargs[name] = cast("SlangType", resolved_args[i].vector)
 
-    # Keep specialization at the semantic native layer so Layout owns function registration
+    # Keep specialization in the native reflection layer so Layout owns function registration
     # and Python does not need to shuttle low-level reflection pointers around.
     slang_types = tuple([cast("SlangType", arg.vector) for arg in resolved_args])
     specialized = function.specialize_with_arg_types(slang_types)

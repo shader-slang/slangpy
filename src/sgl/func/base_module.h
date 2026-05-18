@@ -11,17 +11,16 @@
 
 namespace sgl::func {
 
-/// Native functional module base code must remain Python-free.
-/// Bindings and Python-specific adaptation belong in src/slangpy_ext.
+/// Base class for functional slangpy module.
 class SGL_API BaseModule : public Object {
     SGL_OBJECT(BaseModule)
 public:
-    /// Create a native functional module base from a compiled Slang module and semantic layout.
+    /// Create a native functional module base from a compiled Slang module and reflection layout.
     BaseModule(ref<SlangModule> module, ref<refl::Layout> layout);
 
     /// Return the compiled Slang module.
     SlangModule* module() const { return m_module.get(); }
-    /// Return the semantic reflection layout for this module.
+    /// Return the reflection layout for this module.
     refl::Layout* layout() const { return m_layout.get(); }
     /// Return the device that owns this module.
     Device* device() const;

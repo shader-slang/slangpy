@@ -20,14 +20,11 @@ namespace sgl::refl {
 class Field;
 class Layout;
 
-/// Native semantic reflection code must remain Python-free.
-/// Bindings and Python-specific adaptation belong in src/slangpy_ext.
-
-/// Semantic size/alignment/stride information for a reflected type in a specific layout context.
+/// Size/alignment/stride information for a reflected type in a specific layout context.
 class SGL_API TypeLayout : public Object {
     SGL_OBJECT(TypeLayout)
 public:
-    /// Create a semantic layout wrapper from low-level Slang type layout reflection.
+    /// Create a layout wrapper from low-level Slang type layout reflection.
     explicit TypeLayout(ref<const TypeLayoutReflection> reflection);
 
     /// Return the low-level SGL type layout reflection.
@@ -40,21 +37,21 @@ public:
     /// Return the byte stride of the type under uniform layout rules.
     size_t stride() const { return m_reflection->stride(); }
 
-    /// Return a debug string for this semantic layout wrapper.
+    /// Return a debug string for this layout wrapper.
     std::string to_string() const override;
 
 private:
     ref<const TypeLayoutReflection> m_reflection;
 };
 
-/// Base semantic reflection type used by native SlangPy runtime code.
+/// Base reflection type used by SlangPy runtime code.
 class SGL_API Type : public Object {
     SGL_OBJECT(Type)
 public:
-    /// Create a semantic type from low-level Slang type reflection.
+    /// Create a reflection type from low-level Slang type reflection.
     Type(ref<Layout> layout, ref<const TypeReflection> reflection, ref<Type> element_type, slangpy::Shape local_shape);
 
-    /// Return the semantic layout that owns this type.
+    /// Return the layout that owns this type.
     Layout* layout() const { return m_layout.get(); }
 
     /// Return the low-level SGL type reflection.
@@ -101,7 +98,7 @@ public:
     /// Refresh low-level reflection after hot reload and clear derived caches.
     virtual void on_hot_reload(ref<const TypeReflection> reflection);
 
-    /// Return a debug string for this semantic type.
+    /// Return a debug string for this type.
     std::string to_string() const override;
 
 protected:
@@ -109,7 +106,7 @@ protected:
     void set_local_shape(slangpy::Shape local_shape);
     void update_shape();
     ref<Type> find_type_by_name(std::string_view name) const;
-    /// Build fields for this semantic type. Override in types that expose field-like members.
+    /// Build fields for this type. Override in types that expose field-like members.
     virtual std::unordered_map<std::string, ref<Field>> build_fields();
 
     ref<Layout> m_layout;
@@ -126,7 +123,7 @@ private:
     mutable std::optional<std::string> m_vector_type_name;
 };
 
-/// Semantic type for Slang's Unknown placeholder type.
+/// Reflection type for Slang's Unknown placeholder type.
 class SGL_API UnknownType final : public Type {
     SGL_OBJECT(UnknownType)
 public:
@@ -135,21 +132,21 @@ public:
     std::string vector_type_name() const override { return "Unknown"; }
 };
 
-/// Return true when type is the semantic Unknown placeholder.
+/// Return true when type is the Unknown placeholder.
 SGL_API bool is_unknown(const Type* type);
-/// Return true when type is non-null and not the semantic Unknown placeholder.
+/// Return true when type is non-null and not the Unknown placeholder.
 SGL_API bool is_known(const Type* type);
-/// Return true when type is null or not the semantic Unknown placeholder.
+/// Return true when type is null or not the Unknown placeholder.
 SGL_API bool is_known_or_none(const Type* type);
 
-/// Semantic type for void.
+/// Reflection type for void.
 class SGL_API VoidType final : public Type {
     SGL_OBJECT(VoidType)
 public:
     VoidType(ref<Layout> layout, ref<const TypeReflection> reflection);
 };
 
-/// Semantic type for pointer-like reflected types.
+/// Reflection type for pointer-like reflected types.
 class SGL_API PointerType final : public Type {
     SGL_OBJECT(PointerType)
 public:
@@ -157,7 +154,7 @@ public:
 
     /// Return the pointer target type when it could be resolved from generic arguments.
     ref<Type> target_type() const { return m_target_type; }
-    /// Return the scalar representation used for pointer values in native marshalling.
+    /// Return the scalar representation used for pointer values in marshalling.
     TypeReflection::ScalarType slang_scalar_type() const { return TypeReflection::ScalarType::uint64; }
     bool is_generic() const override;
     std::string vector_type_name() const override;
@@ -166,7 +163,7 @@ private:
     ref<Type> m_target_type;
 };
 
-/// Semantic type for scalar values.
+/// Reflection type for scalar values.
 class SGL_API ScalarType final : public Type {
     SGL_OBJECT(ScalarType)
 public:
@@ -176,7 +173,7 @@ public:
     TypeReflection::ScalarType slang_scalar_type() const { return m_reflection->scalar_type(); }
 };
 
-/// Semantic type for vector values.
+/// Reflection type for vector values.
 class SGL_API VectorType final : public Type {
     SGL_OBJECT(VectorType)
 public:
@@ -198,7 +195,7 @@ private:
     int m_num_elements = 0;
 };
 
-/// Semantic type for matrix values.
+/// Reflection type for matrix values.
 class SGL_API MatrixType final : public Type {
     SGL_OBJECT(MatrixType)
 public:
@@ -222,7 +219,7 @@ private:
     int m_cols = 0;
 };
 
-/// Semantic type for sized or unsized arrays.
+/// Reflection type for sized or unsized arrays.
 class SGL_API ArrayType final : public Type {
     SGL_OBJECT(ArrayType)
 public:
@@ -245,7 +242,7 @@ private:
     int m_num_elements = 0;
 };
 
-/// Semantic type for concrete and generic Slang structs.
+/// Reflection type for concrete and generic Slang structs.
 class SGL_API StructType : public Type {
     SGL_OBJECT(StructType)
 public:
@@ -260,7 +257,7 @@ protected:
     bool m_is_generic = false;
 };
 
-/// Semantic type for Slang interfaces.
+/// Reflection type for Slang interfaces.
 class SGL_API InterfaceType final : public Type {
     SGL_OBJECT(InterfaceType)
 public:
@@ -273,7 +270,7 @@ private:
     bool m_is_generic = false;
 };
 
-/// Base semantic type for resource-like Slang types.
+/// Base reflection type for resource-like Slang types.
 class SGL_API ResourceType : public Type {
     SGL_OBJECT(ResourceType)
 public:
@@ -292,7 +289,7 @@ public:
     bool writable() const;
 };
 
-/// Semantic type for texture resources.
+/// Reflection type for texture resources.
 class SGL_API TextureType final : public ResourceType {
     SGL_OBJECT(TextureType)
 public:
@@ -307,7 +304,7 @@ private:
     int m_texture_dims = 0;
 };
 
-/// Semantic type for structured buffer resources.
+/// Reflection type for structured buffer resources.
 class SGL_API StructuredBufferType final : public ResourceType {
     SGL_OBJECT(StructuredBufferType)
 public:
@@ -316,14 +313,14 @@ public:
     std::string vector_type_name() const override;
 };
 
-/// Semantic type for byte-address buffer resources.
+/// Reflection type for byte-address buffer resources.
 class SGL_API ByteAddressBufferType final : public ResourceType {
     SGL_OBJECT(ByteAddressBufferType)
 public:
     ByteAddressBufferType(ref<Layout> layout, ref<const TypeReflection> reflection);
 };
 
-/// Semantic type for Slang differential pairs.
+/// Reflection type for Slang differential pairs.
 class SGL_API DifferentialPairType final : public Type {
     SGL_OBJECT(DifferentialPairType)
 public:
@@ -337,21 +334,21 @@ private:
     ref<Type> m_primal;
 };
 
-/// Semantic type for raytracing acceleration structures.
+/// Reflection type for raytracing acceleration structures.
 class SGL_API RaytracingAccelerationStructureType final : public Type {
     SGL_OBJECT(RaytracingAccelerationStructureType)
 public:
     RaytracingAccelerationStructureType(ref<Layout> layout, ref<const TypeReflection> reflection);
 };
 
-/// Semantic type for sampler states.
+/// Reflection type for sampler states.
 class SGL_API SamplerStateType final : public Type {
     SGL_OBJECT(SamplerStateType)
 public:
     SamplerStateType(ref<Layout> layout, ref<const TypeReflection> reflection);
 };
 
-/// Semantic type for Tensor/ITensor/DiffTensor families.
+/// Reflection type for Tensor/ITensor/DiffTensor families.
 class SGL_API TensorType final : public Type {
     SGL_OBJECT(TensorType)
 public:
@@ -417,7 +414,7 @@ private:
     int m_dims = 0;
 };
 
-/// Semantic type for CUDA tensor view interop values.
+/// Reflection type for CUDA tensor view interop values.
 class SGL_API TensorViewType final : public Type {
     SGL_OBJECT(TensorViewType)
 public:
@@ -431,7 +428,7 @@ public:
     static std::string build_tensorview_name(const Type& element_type);
 };
 
-/// Semantic type for differentiable CUDA tensor view interop values.
+/// Reflection type for differentiable CUDA tensor view interop values.
 class SGL_API DiffTensorViewType final : public Type {
     SGL_OBJECT(DiffTensorViewType)
 public:
@@ -450,14 +447,14 @@ private:
     ref<Type> m_wrapper_type;
 };
 
-/// Semantic fallback for reflected types that do not yet have a native specialization.
+/// Fallback for reflected types that do not yet have a specialization.
 class SGL_API UnhandledType final : public Type {
     SGL_OBJECT(UnhandledType)
 public:
     UnhandledType(ref<Layout> layout, ref<const TypeReflection> reflection);
 };
 
-/// Resolved generic argument value used by native semantic reflection.
+/// Resolved generic argument value used by reflection.
 class SGL_API GenericArg {
 public:
     /// Generic argument kind.
@@ -472,11 +469,11 @@ public:
     Kind kind() const { return m_kind; }
     /// Return true if this argument stores an integer value.
     bool is_integer() const { return m_kind == Kind::integer; }
-    /// Return true if this argument stores a semantic type.
+    /// Return true if this argument stores a reflection type.
     bool is_type() const { return m_kind == Kind::type; }
     /// Return the integer value. Only valid when is_integer() is true.
     int integer() const { return m_integer; }
-    /// Return the semantic type value. Only valid when is_type() is true.
+    /// Return the reflection type value. Only valid when is_type() is true.
     ref<Type> type() const { return m_type; }
 
 private:
@@ -488,7 +485,7 @@ private:
 /// List of resolved generic arguments.
 using GenericArgs = std::vector<GenericArg>;
 
-/// Create the built-in native semantic type for a low-level reflection type.
+/// Create the built-in reflection type for a low-level reflection type.
 SGL_API ref<Type> create_builtin_type(Layout& layout, ref<const TypeReflection> reflection);
 /// Parse and resolve generic arguments from a reflected specialized type name.
 SGL_API std::optional<GenericArgs> parse_generic_args(Layout& layout, const TypeReflection* reflection);

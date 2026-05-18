@@ -12,13 +12,11 @@ using namespace sgl;
 
 TEST_SUITE_BEGIN("refl");
 
-TEST_CASE_GPU("semantic type lookup")
+TEST_CASE_GPU("native type lookup")
 {
     ref<SlangModule> module = ctx.device->load_module_from_source(
-        "refl_semantic_type_lookup",
+        "refl_native_type_lookup",
         R"(
-import "slangpy";
-
 struct Foo {
     float3 value;
 };
@@ -33,20 +31,6 @@ struct Foo {
     CHECK(float_type->full_name() == "float");
     CHECK(float_type->shape() == slangpy::Shape(std::vector<int>{}));
     CHECK(float_type->slang_scalar_type() == TypeReflection::ScalarType::float32);
-
-    ref<refl::UnknownType> unknown_type = dynamic_ref_cast<refl::UnknownType>(layout->require_type_by_name("Unknown"));
-    REQUIRE(unknown_type);
-    CHECK(refl::is_unknown(unknown_type.get()));
-    CHECK(!refl::is_known(unknown_type.get()));
-    CHECK(!refl::is_known_or_none(unknown_type.get()));
-
-    CHECK(!refl::is_unknown(float_type.get()));
-    CHECK(refl::is_known(float_type.get()));
-    CHECK(refl::is_known_or_none(float_type.get()));
-
-    CHECK(!refl::is_unknown(nullptr));
-    CHECK(refl::is_known_or_none(nullptr));
-    CHECK_THROWS(refl::is_known(nullptr));
 
     ref<refl::VectorType> vector_type
         = dynamic_ref_cast<refl::VectorType>(layout->require_type_by_name("vector<float,3>"));
@@ -87,10 +71,10 @@ struct Foo {
     CHECK(vector_fields.at("x")->type() == float_type);
 }
 
-TEST_CASE_GPU("semantic tensor type lookup")
+TEST_CASE_GPU("native tensor type lookup")
 {
     ref<SlangModule> module = ctx.device->load_module_from_source(
-        "refl_semantic_tensor_type_lookup",
+        "refl_native_tensor_type_lookup",
         R"(
 struct Tensor<T, let D : int> {}
 struct WTensor<T, let D : int> {}
@@ -158,10 +142,10 @@ void use_tensor(
     CHECK(diff_tensor_view_type->dtype() == float_type);
 }
 
-TEST_CASE_GPU("semantic function metadata")
+TEST_CASE_GPU("native function metadata")
 {
     ref<SlangModule> module = ctx.device->load_module_from_source(
-        "refl_semantic_function_metadata",
+        "refl_native_function_metadata",
         R"(
 struct Foo {
     float value;
@@ -247,10 +231,10 @@ float generic_value<T>(T value) { return 0.0; }
     CHECK(method->return_type() == float_type);
 }
 
-TEST_CASE_GPU("semantic layout hot reload")
+TEST_CASE_GPU("native layout hot reload")
 {
     ref<SlangModule> module_a = ctx.device->load_module_from_source(
-        "refl_semantic_layout_hot_reload_a",
+        "refl_native_layout_hot_reload_a",
         R"(
 struct Foo {
     float value;
@@ -261,7 +245,7 @@ float get_value(Foo foo) { return foo.value; }
     REQUIRE(module_a);
 
     ref<SlangModule> module_b = ctx.device->load_module_from_source(
-        "refl_semantic_layout_hot_reload_b",
+        "refl_native_layout_hot_reload_b",
         R"(
 struct Foo {
     int value;

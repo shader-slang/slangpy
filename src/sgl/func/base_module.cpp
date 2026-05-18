@@ -15,7 +15,7 @@ BaseModule::BaseModule(ref<SlangModule> module, ref<refl::Layout> layout)
     , m_layout(std::move(layout))
 {
     SGL_CHECK(m_module, "BaseModule requires a Slang module");
-    SGL_CHECK(m_layout, "BaseModule requires a semantic layout");
+    SGL_CHECK(m_layout, "BaseModule requires a reflection layout");
 }
 
 Device* BaseModule::device() const

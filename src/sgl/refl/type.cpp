@@ -305,7 +305,7 @@ Type::Type(ref<Layout> layout, ref<const TypeReflection> reflection, ref<Type> e
     , m_element_type(std::move(element_type))
     , m_local_shape(std::move(local_shape))
 {
-    SGL_CHECK(m_layout, "Type requires a semantic layout");
+    SGL_CHECK(m_layout, "Type requires a reflection layout");
     SGL_CHECK(m_reflection, "Type requires a reflection object");
     update_shape();
 }

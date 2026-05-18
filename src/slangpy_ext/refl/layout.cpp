@@ -501,9 +501,9 @@ SGL_PY_EXPORT(native_refl)
             [](refl::Layout& self, nb::object type_reflection) -> nb::object
             {
                 const sgl::TypeReflection* type = nullptr;
-                refl::Type* semantic_type = nullptr;
-                if (nb::try_cast<refl::Type*>(type_reflection, semantic_type))
-                    type = semantic_type->reflection();
+                refl::Type* reflection_type = nullptr;
+                if (nb::try_cast<refl::Type*>(type_reflection, reflection_type))
+                    type = reflection_type->reflection();
                 else
                     type = nb::cast<const sgl::TypeReflection*>(type_reflection);
 

@@ -14,9 +14,6 @@
 
 namespace sgl::refl {
 
-/// Native semantic reflection code must remain Python-free.
-/// Bindings and Python-specific adaptation belong in src/slangpy_ext.
-
 /// SlangPy call-direction classification derived from Slang parameter modifiers.
 enum class IOType { none, in_, out, inout };
 
@@ -30,11 +27,11 @@ SGL_ENUM_INFO(
     }
 );
 
-/// Base semantic reflection object for Slang variables such as fields and parameters.
+/// Base reflection object for Slang variables such as fields and parameters.
 class SGL_API Variable : public Object {
     SGL_OBJECT(Variable)
 public:
-    /// Create a semantic variable from resolved type metadata and optional low-level reflection.
+    /// Create a variable from resolved type metadata and optional low-level reflection.
     Variable(
         ref<Layout> layout,
         ref<Type> type,
@@ -43,7 +40,7 @@ public:
         ref<const VariableReflection> reflection = nullptr
     );
 
-    /// Return the semantic layout that owns this variable.
+    /// Return the layout that owns this variable.
     Layout* layout() const { return m_layout.get(); }
     /// Return the low-level variable reflection, if this variable came directly from Slang reflection.
     const VariableReflection* reflection() const { return m_reflection.get(); }
@@ -79,22 +76,22 @@ protected:
     ref<const VariableReflection> m_reflection;
 };
 
-/// Semantic reflection for a field in an aggregate type.
+/// Reflection object for a field in an aggregate type.
 class SGL_API Field final : public Variable {
     SGL_OBJECT(Field)
 public:
-    /// Create a semantic field from low-level Slang variable reflection.
+    /// Create a field from low-level Slang variable reflection.
     Field(ref<Layout> layout, ref<const VariableReflection> reflection);
 
-    /// Create a semantic field from synthesized metadata.
+    /// Create a field from synthesized metadata.
     Field(ref<Layout> layout, ref<Type> type, std::string name, std::vector<ModifierID> modifiers = {});
 };
 
-/// Semantic reflection for a function parameter.
+/// Reflection object for a function parameter.
 class SGL_API Parameter final : public Variable {
     SGL_OBJECT(Parameter)
 public:
-    /// Create a semantic parameter from low-level Slang variable reflection.
+    /// Create a parameter from low-level Slang variable reflection.
     Parameter(ref<Layout> layout, ref<const VariableReflection> reflection, uint32_t index);
 
     /// Return the parameter index in its owning function.
@@ -107,11 +104,11 @@ private:
     bool m_has_default = false;
 };
 
-/// Semantic reflection for a Slang function or method.
+/// Reflection object for a Slang function or method.
 class SGL_API Function final : public Object {
     SGL_OBJECT(Function)
 public:
-    /// Create a semantic function from low-level Slang function reflection.
+    /// Create a function from low-level Slang function reflection.
     Function(
         ref<Layout> layout,
         ref<const FunctionReflection> reflection,
@@ -119,7 +116,7 @@ public:
         std::string full_name = {}
     );
 
-    /// Return the semantic layout that owns this function.
+    /// Return the layout that owns this function.
     Layout* layout() const { return m_layout.get(); }
     /// Return the low-level function reflection.
     const FunctionReflection* reflection() const { return m_reflection.get(); }

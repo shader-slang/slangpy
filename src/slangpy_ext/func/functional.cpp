@@ -87,8 +87,8 @@ SGL_PY_EXPORT(native_func)
             "on_hot_reload",
             [](func::BaseStruct& self, nb::object type)
             {
-                sgl::ref<refl::Type> semantic_type = nb::cast<sgl::ref<refl::Type>>(type);
-                self.on_hot_reload(sgl::ref<const sgl::TypeReflection>(semantic_type->reflection()));
+                sgl::ref<refl::Type> reflection_type = nb::cast<sgl::ref<refl::Type>>(type);
+                self.on_hot_reload(sgl::ref<const sgl::TypeReflection>(reflection_type->reflection()));
             },
             "type"_a,
             D_NA(BaseStruct, on_hot_reload)
