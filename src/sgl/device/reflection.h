@@ -871,6 +871,9 @@ public:
         return slang_target()->findModifier(static_cast<slang::Modifier::ID>(modifier)) != nullptr;
     }
 
+    /// Check whether this function is declared inside a generic container.
+    bool is_generic() const { return slang_target()->getGenericContainer() != nullptr; }
+
     /// Specialize a generic or interface based function with a set of concrete
     /// argument types. Calling on a none-generic/interface function will simply
     /// validate all argument types can be implicitly converted to their respective

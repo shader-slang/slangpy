@@ -47,8 +47,8 @@ public:
     NativeNDBufferMarshall(
         int dims,
         bool writable,
-        ref<NativeSlangType> slang_type,
-        ref<NativeSlangType> slang_element_type,
+        ref<refl::Type> slang_type,
+        ref<refl::Type> slang_element_type,
         ref<TypeLayoutReflection> element_layout
     )
         : NativeMarshall(slang_type)
@@ -61,7 +61,7 @@ public:
 
     int dims() const { return m_dims; }
     bool writable() const { return m_writable; }
-    ref<NativeSlangType> slang_element_type() const { return m_slang_element_type; }
+    ref<refl::Type> slang_element_type() const { return m_slang_element_type; }
     ref<TypeLayoutReflection> element_layout() const { return m_element_layout; }
     size_t element_stride() const { return m_element_layout->stride(); }
 
@@ -94,7 +94,7 @@ protected:
 private:
     int m_dims;
     bool m_writable;
-    ref<NativeSlangType> m_slang_element_type;
+    ref<refl::Type> m_slang_element_type;
     ref<TypeLayoutReflection> m_element_layout;
 };
 
@@ -102,8 +102,8 @@ class NativeNumpyMarshall : public NativeNDBufferMarshall {
 public:
     NativeNumpyMarshall(
         int dims,
-        ref<NativeSlangType> slang_type,
-        ref<NativeSlangType> slang_element_type,
+        ref<refl::Type> slang_type,
+        ref<refl::Type> slang_element_type,
         ref<TypeLayoutReflection> element_layout,
         nb::dlpack::dtype dtype
     )

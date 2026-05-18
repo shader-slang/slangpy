@@ -528,6 +528,9 @@ public:
     /// Reload all shader programs.
     void reload_all_programs();
 
+    /// Return the cached reflection layout for the built-in support module.
+    ref<refl::Layout> builtin_layout();
+
     /// Create a root shader object for a shader program.
     ref<ShaderObject> create_root_shader_object(const ShaderProgram* shader_program);
 
@@ -788,6 +791,8 @@ public:
     /// Called by hot reload system after reload occurs, to trigger the hooks.
     void _on_hot_reload()
     {
+        if (m_builtin_layout)
+            reload_builtin_layout();
         for (auto& hook : m_shader_hot_reload_callbacks)
             hook({});
     }
@@ -796,6 +801,8 @@ public:
     void _unregister_device_child(DeviceChild* device_child);
 
 private:
+    ref<refl::Layout> reload_builtin_layout();
+
     DeviceDesc m_desc;
     DeviceInfo m_info;
     ShaderModel m_supported_shader_model{ShaderModel::unknown};
@@ -811,6 +818,7 @@ private:
     Slang::ComPtr<slang::IGlobalSession> m_global_session;
 
     ref<SlangSession> m_slang_session;
+    ref<refl::Layout> m_builtin_layout;
 
     std::vector<Feature> m_features;
     std::vector<std::string> m_capabilities;

@@ -19,7 +19,7 @@
 namespace sgl::slangpy {
 
 struct StridedBufferViewDesc {
-    ref<NativeSlangType> dtype;
+    ref<refl::Type> dtype;
     ref<TypeLayoutReflection> element_layout;
     int offset{0};
     Shape shape;
@@ -40,7 +40,7 @@ public:
     virtual const StridedBufferViewDesc& desc() const { SGL_THROW("desc() is not implemented"); }
 
     Device* device() const { return storage()->device(); }
-    const ref<NativeSlangType>& dtype() const { return desc().dtype; }
+    const ref<refl::Type>& dtype() const { return desc().dtype; }
     int offset() const { return desc().offset; }
     const Shape& shape() const { return desc().shape; }
     const Shape& strides() const { return desc().strides; }

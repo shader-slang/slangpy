@@ -31,6 +31,8 @@
 #include "sgl/core/window.h"
 #include "sgl/core/string.h"
 
+#include "sgl/refl/layout.h"
+
 #if SGL_HAS_D3D12
 #include <dxgi.h>
 #include <d3d12.h>
@@ -500,6 +502,7 @@ void Device::close()
 
     m_global_fence.reset();
 
+    m_builtin_layout.reset();
     m_slang_session.reset();
     m_hot_reload.reset();
 
@@ -724,6 +727,25 @@ void Device::reload_all_programs()
 {
     if (m_hot_reload)
         m_hot_reload->recreate_all_sessions();
+}
+
+ref<refl::Layout> Device::builtin_layout()
+{
+    if (!m_builtin_layout) {
+        ref<SlangModule> module = load_module("slangpy");
+        m_builtin_layout = make_ref<refl::Layout>(module->layout());
+    }
+    return m_builtin_layout;
+}
+
+ref<refl::Layout> Device::reload_builtin_layout()
+{
+    if (!m_builtin_layout)
+        return builtin_layout();
+
+    ref<SlangModule> module = load_module("slangpy");
+    m_builtin_layout->on_hot_reload(module->layout());
+    return m_builtin_layout;
 }
 
 ref<SlangModule> Device::load_module(std::string_view module_name)
