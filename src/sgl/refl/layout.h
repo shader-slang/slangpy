@@ -42,8 +42,7 @@ public:
     ref<Type> require_type_by_name(std::string_view name);
 
     /// Find or create a semantic function for a low-level function reflection.
-    ref<Function>
-    find_function(ref<const FunctionReflection> reflection, ref<Type> this_type = nullptr, std::string full_name = {});
+    ref<Function> find_function(ref<const FunctionReflection> reflection, ref<Type> this_type = nullptr);
     /// Find or create a semantic function by global reflected function name.
     ref<Function> find_function_by_name(std::string_view name);
     /// Find or create a semantic function by global reflected function name, throwing if absent.
@@ -83,6 +82,14 @@ public:
     std::string to_string() const override;
 
 private:
+    friend class Function;
+
+    ref<Function> get_or_create_function(
+        ref<const FunctionReflection> reflection,
+        ref<Type> this_type,
+        std::optional<std::string> full_name
+    );
+
     ref<const sgl::ProgramLayout> m_low_level_layout;
     uint64_t m_generation = 0;
     std::unordered_map<const TypeReflection*, ref<Type>> m_types_by_reflection;

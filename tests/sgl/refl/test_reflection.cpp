@@ -184,14 +184,14 @@ int overloaded(int value) { return value; }
     CHECK(add_parameters[0]->name() == "lhs");
     CHECK(add_parameters[0]->index() == 0);
     CHECK(add_parameters[0]->type() == float_type);
-    CHECK(add_parameters[0]->io_type() == refl::Variable::IOType::in_);
+    CHECK(add_parameters[0]->io_type() == refl::IOType::in_);
     CHECK(add_parameters[0]->declaration() == "float lhs");
 
     ref<refl::Function> update = layout->require_function_by_name("update");
     const std::vector<ref<refl::Parameter>>& update_parameters = update->parameters();
     REQUIRE(update_parameters.size() == 3);
-    CHECK(update_parameters[0]->io_type() == refl::Variable::IOType::inout);
-    CHECK(update_parameters[1]->io_type() == refl::Variable::IOType::out);
+    CHECK(update_parameters[0]->io_type() == refl::IOType::inout);
+    CHECK(update_parameters[1]->io_type() == refl::IOType::out);
     CHECK(update_parameters[2]->no_diff());
 
     ref<refl::Function> overloaded = layout->require_function_by_name("overloaded");

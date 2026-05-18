@@ -20,6 +20,7 @@ SGL_PY_EXPORT(native_refl)
 
     native_refl.def("get_builtin_layout", &refl::get_builtin_layout, "device"_a, D_NA(get_builtin_layout));
     native_refl.def("name_for_scalar_type", &refl::name_for_scalar_type, "scalar_type"_a, D_NA(name_for_scalar_type));
+    nb::sgl_enum<refl::IOType>(native_refl, "IOType", D_NA(IOType));
     native_refl.def(
         "resolve_layout",
         [](sgl::Device* device, nb::object element_type, nb::object explicit_layout)
@@ -45,7 +46,7 @@ SGL_PY_EXPORT(native_refl)
     );
     native_refl.def(
         "resolve_element_type",
-        [](refl::Layout& layout, nb::object element_type)
+        [](refl::Layout& layout, nb::object element_type) -> sgl::ref<refl::Type>
         {
             refl::Type* type = nullptr;
             if (nb::try_cast<refl::Type*>(element_type, type))
@@ -67,7 +68,7 @@ SGL_PY_EXPORT(native_refl)
             if (nb::try_cast<nb::str>(element_type, name))
                 return refl::resolve_element_type(&layout, nb::cast<std::string>(name));
 
-            SGL_THROW("Unsupported element type lookup value");
+            return nullptr;
         },
         "layout"_a,
         "element_type"_a,
@@ -258,9 +259,7 @@ SGL_PY_EXPORT(native_refl)
 
     nb::class_<refl::UnhandledType, refl::Type>(native_refl, "UnhandledType", D_NA(UnhandledType));
 
-    nb::class_<refl::Variable, sgl::Object> variable(native_refl, "Variable", D_NA(Variable));
-    nb::sgl_enum<refl::Variable::IOType>(variable, "IOType", D_NA(Variable, IOType));
-    variable
+    nb::class_<refl::Variable, sgl::Object>(native_refl, "Variable", D_NA(Variable))
         .def_prop_ro(
             "layout",
             [](refl::Variable& self)

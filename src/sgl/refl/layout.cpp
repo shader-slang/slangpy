@@ -53,8 +53,16 @@ ref<Type> Layout::require_type_by_name(std::string_view name)
     return type;
 }
 
-ref<Function>
-Layout::find_function(ref<const FunctionReflection> reflection, ref<Type> this_type, std::string full_name)
+ref<Function> Layout::find_function(ref<const FunctionReflection> reflection, ref<Type> this_type)
+{
+    return get_or_create_function(std::move(reflection), std::move(this_type), std::nullopt);
+}
+
+ref<Function> Layout::get_or_create_function(
+    ref<const FunctionReflection> reflection,
+    ref<Type> this_type,
+    std::optional<std::string> full_name
+)
 {
     if (!reflection)
         return nullptr;
@@ -62,14 +70,13 @@ Layout::find_function(ref<const FunctionReflection> reflection, ref<Type> this_t
     if (auto it = m_functions_by_reflection.find(reflection.get()); it != m_functions_by_reflection.end())
         return it->second;
 
-    if (full_name.empty())
-        full_name = reflection->name() ? reflection->name() : "";
-    ref<Function> function = make_ref<Function>(ref(this), reflection, std::move(this_type), full_name);
+    std::string function_full_name = full_name ? std::move(*full_name) : std::string();
+    ref<Function> function = make_ref<Function>(ref(this), reflection, this_type, std::move(function_full_name));
 
     m_functions_by_reflection[reflection.get()] = function;
-    if (function->this_type()) {
-        m_functions_by_name[fmt::format("{}::{}", function->this_type()->full_name(), function->name())] = function;
-    } else if (!function->name().empty()) {
+    if (this_type) {
+        m_functions_by_name[fmt::format("{}::{}", this_type->full_name(), function->name())] = function;
+    } else {
         m_functions_by_name[function->name()] = function;
     }
     return function;
@@ -86,10 +93,7 @@ ref<Function> Layout::find_function_by_name(std::string_view name)
     if (!reflection)
         return nullptr;
 
-    ref<Function> function = make_ref<Function>(ref(this), std::move(reflection), nullptr, function_name);
-    m_functions_by_reflection[function->reflection()] = function;
-    m_functions_by_name[function_name] = function;
-    return function;
+    return get_or_create_function(std::move(reflection), nullptr, function_name);
 }
 
 ref<Function> Layout::require_function_by_name(std::string_view name)
@@ -108,16 +112,16 @@ ref<Function> Layout::find_function_by_name_in_type(ref<Type> type, std::string_
     if (auto it = m_functions_by_name.find(qualified_name); it != m_functions_by_name.end())
         return it->second;
 
+    ref<const TypeReflection> type_reflection = m_low_level_layout->find_type_by_name(type->full_name().c_str());
+    SGL_CHECK(type_reflection, "Type '{}' not found", type->full_name());
+
     ref<const FunctionReflection> reflection
         = const_cast<sgl::ProgramLayout*>(m_low_level_layout.get())
-              ->find_function_by_name_in_type(type->reflection(), function_name.c_str());
+              ->find_function_by_name_in_type(type_reflection.get(), function_name.c_str());
     if (!reflection)
         return nullptr;
 
-    ref<Function> function = make_ref<Function>(ref(this), std::move(reflection), std::move(type), function_name);
-    m_functions_by_reflection[function->reflection()] = function;
-    m_functions_by_name[qualified_name] = function;
-    return function;
+    return get_or_create_function(std::move(reflection), find_type(std::move(type_reflection)), function_name);
 }
 
 ref<Function> Layout::require_function_by_name_in_type(ref<Type> type, std::string_view name)

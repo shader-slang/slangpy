@@ -8,6 +8,7 @@ from slangpy.native_refl import (
     ArrayType,
     Field,
     Function,
+    IOType,
     Layout,
     MatrixType,
     Parameter,
@@ -15,7 +16,6 @@ from slangpy.native_refl import (
     StructType,
     TensorType,
     TextureType as NativeTextureType,
-    Variable,
     VectorType,
     VoidType,
     get_builtin_layout,
@@ -156,11 +156,11 @@ def test_native_refl_layout_creates_function_metadata(device_type: spy.DeviceTyp
     assert parameters[0].name == "lhs"
     assert parameters[0].index == 0
     assert parameters[0].type is float_type
-    assert parameters[0].io_type == Variable.IOType.inn
+    assert parameters[0].io_type == IOType.inn
 
     update = layout.require_function_by_name("update")
-    assert update.parameters[0].io_type == Variable.IOType.inout
-    assert update.parameters[1].io_type == Variable.IOType.out
+    assert update.parameters[0].io_type == IOType.inout
+    assert update.parameters[1].io_type == IOType.out
     assert update.parameters[2].no_diff
 
     method = layout.require_function_by_name_in_type(struct_type, "eval")

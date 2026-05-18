@@ -21,7 +21,7 @@ from slangpy.bindings.marshall import BindContext
 from slangpy.bindings.boundvariable import BoundCall
 from slangpy.bindings.boundvariableruntime import BoundCallRuntime
 from slangpy.bindings.codegen import CodeGen
-from slangpy.native_refl import Variable
+from slangpy.native_refl import IOType
 
 if TYPE_CHECKING:
     from slangpy.core.function import FunctionNode
@@ -69,7 +69,7 @@ class DispatchData:
             slang_function = build_info.module.layout.find_function(reflection, None)
 
             # Ensure the function has no out or inout parameters, and no return value.
-            if any(x.io_type != Variable.IOType.inn for x in slang_function.parameters):
+            if any(x.io_type != IOType.inn for x in slang_function.parameters):
                 raise ValueError("Raw dispatch functions cannot have out or inout parameters.")
             if slang_function.have_return_value:
                 raise ValueError("Raw dispatch functions cannot have return values.")

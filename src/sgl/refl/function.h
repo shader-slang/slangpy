@@ -16,22 +16,23 @@ namespace sgl::refl {
 /// Native semantic reflection code must remain Python-free.
 /// Bindings and Python-specific adaptation belong in src/slangpy_ext.
 
+/// SlangPy call-direction classification derived from Slang parameter modifiers.
+enum class IOType { none, in_, out, inout };
+
+SGL_ENUM_INFO(
+    IOType,
+    {
+        {IOType::none, "none"},
+        {IOType::in_, "inn"},
+        {IOType::out, "out"},
+        {IOType::inout, "inout"},
+    }
+);
+
 /// Base semantic reflection object for Slang variables such as fields and parameters.
 class SGL_API Variable : public Object {
     SGL_OBJECT(Variable)
 public:
-    /// SlangPy call-direction classification derived from Slang parameter modifiers.
-    enum class IOType { in_, out, inout };
-
-    SGL_ENUM_INFO(
-        IOType,
-        {
-            {IOType::in_, "inn"},
-            {IOType::out, "out"},
-            {IOType::inout, "inout"},
-        }
-    );
-
     /// Create a semantic variable from resolved type metadata and optional low-level reflection.
     Variable(
         ref<Layout> layout,
@@ -124,7 +125,7 @@ public:
 
     /// Return the short function name.
     std::string name() const;
-    /// Return the fully qualified function name used by the semantic layout cache.
+    /// Return the reflected function spelling used when generating calls.
     const std::string& full_name() const { return m_full_name; }
     /// Return the type this function is a method of, or null for global functions.
     Type* this_type() const { return m_this_type.get(); }
@@ -168,6 +169,6 @@ private:
     std::vector<ref<Function>> m_overloads;
 };
 
-SGL_ENUM_REGISTER(Variable::IOType);
+SGL_ENUM_REGISTER(IOType);
 
 } // namespace sgl::refl

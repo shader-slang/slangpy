@@ -137,7 +137,7 @@ postprocess_stub(${SLANGPY_PACKAGE_DIR}/__init__.pyi "")
 install(FILES ${SLANGPY_PACKAGE_DIR}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # Generate submodule stub files.
-foreach(submodule IN ITEMS platform thread math ui tev crashpad renderdoc slangpy)
+foreach(submodule IN ITEMS platform thread math ui tev crashpad renderdoc slangpy native_refl native_func)
     string(REPLACE "." "/" submodule_path ${submodule})
     nanobind_add_stub(
         slangpy_${submodule}_stub
