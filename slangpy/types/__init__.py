@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # pyright: reportUnusedImport=false
 
-from .buffer import NDBuffer
 from .diffpair import DiffPair, diffPair, floatDiffPair
 from .randfloatarg import RandFloatArg, rand_float
 from .threadidarg import ThreadIdArg, thread_id
@@ -11,7 +10,6 @@ from .wanghasharg import WangHashArg, wang_hash
 from .tensor import Tensor
 
 __all__ = [
-    "NDBuffer",
     "DiffPair",
     "diffPair",
     "floatDiffPair",

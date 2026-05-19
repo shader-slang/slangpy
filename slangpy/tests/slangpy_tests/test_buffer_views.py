@@ -105,7 +105,7 @@ def test_view_errors(device_type: DeviceType):
     with pytest.raises(Exception, match=r"Strides must be positive"):
         buffer.view((5, 4), (-5, 1))
 
-    with pytest.raises(Exception, match=r"Buffer view offset is negative"):
+    with pytest.raises(Exception, match=r"Tensor view offset is negative"):
         buffer.view((5, 4), offset=-100)
 
 
@@ -263,7 +263,7 @@ def test_numpy_copy_errors(device_type: DeviceType):
         buffer.copy_from_numpy(ndarray)
 
     buffer_view = buffer.view(shape, (1, shape[0]))
-    with pytest.raises(Exception, match=r"Destination buffer view must be contiguous"):
+    with pytest.raises(Exception, match=r"Destination tensor must be contiguous"):
         ndarray = np.zeros(shape, dtype=np.float32)
         buffer_view.copy_from_numpy(ndarray)
 
@@ -296,7 +296,7 @@ def test_torch_copy_errors(device_type: DeviceType):
         buffer.copy_from_torch(tensor)
 
     buffer_view = buffer.view(shape, (1, shape[0]))
-    with pytest.raises(Exception, match=r"Destination buffer view must be contiguous"):
+    with pytest.raises(Exception, match=r"Destination tensor must be contiguous"):
         tensor = torch.zeros(shape, dtype=torch.float32)
         if torch.cuda.is_available():
             tensor = tensor.cuda()
