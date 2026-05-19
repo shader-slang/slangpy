@@ -488,12 +488,26 @@ jobs:
               print(f"Generated {page_name} ({len(fnames)} wheels)")
           PYEOF
 
+          # Delete any existing find-links pages before uploading to avoid conflicts
+          for page in torch-*.html; do
+            [ -f "$page" ] || continue
+            curl -s -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_PASSWORD}" \
+              -X DELETE "${BASE}/whl/${page}" || true
+          done
+
           # Upload with curl (same mechanism that works for whl-binaries/)
           for page in torch-*.html; do
             [ -f "$page" ] || continue
-            curl -sf -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_PASSWORD}" \
-              -T "$page" "${BASE}/whl/${page}"
-            echo "Uploaded ${page}"
+            HTTP_CODE=$(curl -s --fail-with-body -w "\n%{http_code}" \
+              -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_PASSWORD}" \
+              -T "$page" "${BASE}/whl/${page}")
+            STATUS=$(echo "$HTTP_CODE" | tail -1)
+            if [ "$STATUS" != "200" ] && [ "$STATUS" != "201" ]; then
+              echo "Failed to upload ${page}: HTTP ${STATUS}"
+              echo "$HTTP_CODE" | head -n -1
+              exit 1
+            fi
+            echo "Uploaded ${page} (HTTP ${STATUS})"
           done
 
       - name: Upload slangpy wheels + slangpy-torch sdist via twine
