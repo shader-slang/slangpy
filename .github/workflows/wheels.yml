@@ -437,7 +437,9 @@ jobs:
           ARTIFACTORY_PASSWORD: ${{ secrets.NV_ARTIFACTORY_PASSWORD }}
         run: |
           # Upload torch-versioned wheels directly to whl-binaries/ (not the PyPI path)
-          # so they only appear in find-links pages, not the simple index.
+          # so they don't appear in the PyPI simple index. Users discover them via
+          # pip's --find-links pointing at the whl-binaries/torch-X.Y.Z+cu128/ directory,
+          # which Artifactory auto-renders as an HTML index of all wheels in that folder.
           BASE="https://artifactory.nvidia.com/artifactory/sw-slangpy-pypi-local"
           for whl in dist/slangpy_torch-*+torch*.whl; do
             [ -f "$whl" ] || continue
@@ -451,74 +453,15 @@ jobs:
               -T "$whl" "$dest"
           done
 
-      - name: Generate and upload find-links pages
-        env:
-          ARTIFACTORY_USERNAME: ${{ secrets.NV_ARTIFACTORY_USERNAME }}
-          ARTIFACTORY_PASSWORD: ${{ secrets.NV_ARTIFACTORY_PASSWORD }}
-        run: |
-          BASE="https://artifactory.nvidia.com/artifactory/sw-slangpy-pypi-local"
-
-          # Generate one HTML find-links page per torch version
-          python3 << 'PYEOF'
-          import os, re
-          from collections import defaultdict
-
-          BASE = "https://artifactory.nvidia.com/artifactory/sw-slangpy-pypi-local"
-          by_torch = defaultdict(list)
-          for fname in sorted(os.listdir("dist")):
-              m = re.search(r'\+torch(\d+)', fname)
-              if m and fname.endswith(".whl"):
-                  by_torch[m.group(1)].append(fname)
-
-          for torch_tag, fnames in sorted(by_torch.items()):
-              major, minor, patch = torch_tag[0], torch_tag[1:-1], torch_tag[-1]
-              torch_ver = f"{major}.{minor}.{patch}"
-              page_name = f"torch-{torch_ver}+cu128.html"
-              lines = [
-                  "<!DOCTYPE html><html>",
-                  f"<head><title>slangpy-torch for torch {torch_ver}+cu128</title></head>",
-                  "<body>",
-              ]
-              for fname in fnames:
-                  url = f"{BASE}/whl-binaries/torch-{torch_ver}+cu128/{fname}"
-                  lines.append(f'<a href="{url}">{fname}</a><br/>')
-              lines.append("</body></html>")
-              with open(page_name, "w") as f:
-                  f.write("\n".join(lines))
-              print(f"Generated {page_name} ({len(fnames)} wheels)")
-          PYEOF
-
-          # Delete any existing find-links pages before uploading to avoid conflicts
-          for page in torch-*.html; do
-            [ -f "$page" ] || continue
-            curl -s -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_PASSWORD}" \
-              -X DELETE "${BASE}/whl/${page}" || true
-          done
-
-          # Upload with curl (same mechanism that works for whl-binaries/)
-          for page in torch-*.html; do
-            [ -f "$page" ] || continue
-            HTTP_CODE=$(curl -s --fail-with-body -w "\n%{http_code}" \
-              -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_PASSWORD}" \
-              -T "$page" "${BASE}/whl/${page}")
-            STATUS=$(echo "$HTTP_CODE" | tail -1)
-            if [ "$STATUS" != "200" ] && [ "$STATUS" != "201" ]; then
-              echo "Failed to upload ${page}: HTTP ${STATUS}"
-              echo "$HTTP_CODE" | head -n -1
-              exit 1
-            fi
-            echo "Uploaded ${page} (HTTP ${STATUS})"
-          done
-
       - name: Upload slangpy wheels + slangpy-torch sdist via twine
         env:
           TWINE_USERNAME: ${{ secrets.NV_ARTIFACTORY_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.NV_ARTIFACTORY_PASSWORD }}
         run: |
-          # PyPI upload is intentionally last — torch wheels and find-links pages
-          # must exist before slangpy/sdist are discoverable by users.
+          # PyPI upload is intentionally last — torch wheels must exist before
+          # slangpy/sdist are discoverable by users.
           # Only slangpy binary wheels and slangpy-torch sdist go into the PyPI simple index.
-          # slangpy-torch binary wheels are excluded so users must use find-links pages.
+          # slangpy-torch binary wheels live under whl-binaries/ and are consumed via --find-links.
           PYPI_FILES=$(find dist/ \( -name "slangpy-*.whl" -o -name "slangpy_torch-*.tar.gz" \))
           if [ -z "$PYPI_FILES" ]; then
             echo "No PyPI artifacts to upload, skipping."
