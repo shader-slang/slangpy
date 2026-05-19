@@ -5,9 +5,9 @@ on:
     inputs:
       build_type:
         description: |
-          nightly:    .devN version → Artifactory (slangpy + slangpy-torch). Continuous staging channel.
-          release:    sgl.h version → PyPI + GitHub Release (slangpy) AND Artifactory (slangpy + slangpy-torch). Atomic public+internal ship.
-          build-only: sgl.h version → artifacts only, no upload (slangpy only). Used for test compiles.
+          nightly:    dev build → Artifactory
+          release:    tagged release → PyPI + GitHub + Artifactory
+          build-only: test compile, no upload
         required: true
         default: 'nightly'
         type: choice
