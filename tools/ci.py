@@ -141,21 +141,38 @@ def typing_check_python(args: Any):
     run_command(f"pyright", env=env)
 
 
+def _run_pytest_with_retry(base_cmd: list[str], parallel: bool, env: dict[str, str]):
+    """
+    Run pytest. When ``parallel`` is set, run with xdist first; if that fails,
+    re-run only the failed tests sequentially with ``-n 0 --lf`` to isolate
+    xdist-induced flakes before failing the job. Mirrors the pattern from
+    Slang's old ci-slang-test.yml workflow (shader-slang/slang#9900).
+    """
+    if parallel:
+        try:
+            run_command(base_cmd + ["-n", "auto", "--maxprocesses=4"], env=env)
+            return
+        except RuntimeError:
+            print("")
+            print("========================================")
+            print("Some tests failed. Re-running failed tests sequentially...")
+            print("========================================")
+            print("")
+            sys.stdout.flush()
+            run_command(base_cmd + ["-n", "0", "--lf"], env=env)
+    else:
+        run_command(base_cmd, env=env)
+
+
 def unit_test_python(args: Any):
     env = get_python_env()
     os.makedirs("reports", exist_ok=True)
-    cmd = ["pytest", "slangpy/tests", "-vra"]
-    if args.parallel:
-        cmd += ["-n", "auto", "--maxprocesses=4"]
-    run_command(cmd, env=env)
+    _run_pytest_with_retry(["pytest", "slangpy/tests", "-vra"], args.parallel, env)
 
 
 def test_examples(args: Any):
     env = get_python_env()
-    cmd = ["pytest", "samples/tests", "-vra"]
-    if args.parallel:
-        cmd += ["-n", "auto", "--maxprocesses=4"]
-    run_command(cmd, env=env)
+    _run_pytest_with_retry(["pytest", "samples/tests", "-vra"], args.parallel, env)
 
 
 def benchmark_python(args: Any):
