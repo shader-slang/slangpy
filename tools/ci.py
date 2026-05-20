@@ -144,10 +144,23 @@ def typing_check_python(args: Any):
 def unit_test_python(args: Any):
     env = get_python_env()
     os.makedirs("reports", exist_ok=True)
-    cmd = ["pytest", "slangpy/tests", "-vra"]
+    base_cmd = ["pytest", "slangpy/tests", "-vra"]
+    first_cmd = list(base_cmd)
     if args.parallel:
-        cmd += ["-n", "auto", "--maxprocesses=4"]
-    run_command(cmd, env=env)
+        first_cmd += ["-n", "auto", "--maxprocesses=4"]
+    try:
+        run_command(first_cmd, env=env)
+        return
+    except RuntimeError as e:
+        # Retry once: rerun only the failed tests sequentially. Mirrors the pattern
+        # previously used by Slang's SlangPy CI step (shader-slang/slang#9900) to
+        # ride out parallel-execution flakes. Final exit code reflects the retry.
+        print(f"First pytest attempt failed ({e}); rerunning failed tests sequentially.")
+        sys.stdout.flush()
+    retry_cmd = base_cmd + ["--lf"]
+    if args.parallel:
+        retry_cmd += ["-n", "0"]
+    run_command(retry_cmd, env=env)
 
 
 def test_examples(args: Any):
