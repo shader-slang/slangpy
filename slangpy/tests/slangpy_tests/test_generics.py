@@ -5,7 +5,7 @@ import numpy as np
 
 from slangpy import DeviceType, TypeReflection
 from slangpy.types import Tensor
-from slangpy.types.tensor import Tensor
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 

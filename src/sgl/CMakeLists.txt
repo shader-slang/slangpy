@@ -153,6 +153,8 @@ target_sources(sgl PRIVATE
     func/base_module.h
     func/base_struct.cpp
     func/base_struct.h
+    func/tensor.cpp
+    func/tensor.h
 
     refl/layout.cpp
     refl/layout.h

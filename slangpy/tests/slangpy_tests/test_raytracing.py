@@ -5,7 +5,7 @@ import numpy as np
 
 import slangpy as spy
 from slangpy import DeviceType, Module
-from slangpy.types.tensor import Tensor
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 

@@ -7,7 +7,7 @@ from .threadidarg import ThreadIdArg, thread_id
 from .callidarg import CallIdArg, call_id
 from .valueref import ValueRef, floatRef, intRef
 from .wanghasharg import WangHashArg, wang_hash
-from .tensor import Tensor
+from slangpy.core.native import Tensor
 
 __all__ = [
     "DiffPair",

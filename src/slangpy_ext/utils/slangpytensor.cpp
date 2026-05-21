@@ -103,7 +103,7 @@ namespace {
     }
 
     template<typename Framework>
-    nb::ndarray<Framework> to_ndarray(void* data, nb::handle owner, const NativeTensorDesc& desc)
+    nb::ndarray<Framework> to_ndarray(void* data, nb::handle owner, const TensorDesc& desc)
     {
         size_t dtype_size = desc.element_layout->stride();
         ref<refl::Type> innermost = innermost_type(desc.dtype);
@@ -248,7 +248,7 @@ namespace {
 } // anonymous namespace
 
 
-NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_field_offsets(ShaderCursor tensor_cursor)
+TensorMarshall::TensorFieldOffsets TensorMarshall::extract_tensor_field_offsets(ShaderCursor tensor_cursor)
 {
     TensorFieldOffsets offsets;
 
@@ -276,9 +276,9 @@ NativeTensorMarshall::TensorFieldOffsets NativeTensorMarshall::extract_tensor_fi
     return offsets;
 }
 
-NativeTensorMarshall::CachedBindingInfo NativeTensorMarshall::extract_binding_info(ShaderCursor field)
+TensorMarshall::CachedBindingInfo TensorMarshall::extract_binding_info(ShaderCursor field)
 {
-    NativeTensorMarshall::CachedBindingInfo offsets;
+    TensorMarshall::CachedBindingInfo offsets;
 
     std::string_view type_name = field.slang_type_layout()->getName();
     bool is_diff_tensor_view = type_name.find("DiffTensorView") != std::string_view::npos;
@@ -322,433 +322,574 @@ NativeTensorMarshall::CachedBindingInfo NativeTensorMarshall::extract_binding_in
     return offsets;
 }
 
-NativeTensor::NativeTensor(
-    NativeTensorDesc desc,
-    const ref<Buffer>& storage,
-    const ref<NativeTensor>& grad_in,
-    const ref<NativeTensor>& grad_out
-)
-    : m_desc(std::move(desc))
-    , m_storage(storage)
-    , m_grad_in(grad_in)
-    , m_grad_out(grad_out)
-{
-    SGL_CHECK(m_storage, "NativeTensor requires storage");
+namespace {
 
-    set_slangpy_signature(fmt::format("[{},{},{}]", m_desc.dtype->full_name(), m_desc.shape.size(), m_desc.usage));
-}
-
-bool NativeTensor::is_contiguous() const
-{
-    const Shape& shape_ref = shape();
-    const Shape& stride_ref = strides();
-
-    int prod = 1;
-    for (int i = dims() - 1; i >= 0; --i) {
-        if (shape_ref[i] == 1)
-            continue;
-
-        if (stride_ref[i] != prod)
-            return false;
-        prod *= shape_ref[i];
+    Shape shape_from_object(nb::object value)
+    {
+        if (value.is_none())
+            return Shape(std::nullopt);
+        if (nb::isinstance<Shape>(value))
+            return nb::cast<Shape>(value);
+        if (nb::isinstance<nb::tuple>(value) || nb::isinstance<nb::list>(value))
+            return Shape(nb::cast<std::vector<int>>(value));
+        return Shape(nb::cast<std::vector<int>>(nb::make_tuple(value)));
     }
 
-    return true;
-}
-
-ref<BufferCursor> NativeTensor::cursor(std::optional<int> start, std::optional<int> count) const
-{
-    size_t el_stride = m_desc.element_layout->stride();
-    size_t size = (count.value_or(element_count())) * el_stride;
-    size_t byte_offset = (m_desc.offset + start.value_or(0)) * el_stride;
-    return make_ref<BufferCursor>(m_desc.element_layout, m_storage, size, byte_offset);
-}
-
-nb::dict NativeTensor::uniforms() const
-{
-    nb::dict res;
-    res["_data"] = storage();
-    res["_shape"] = shape_to_list(shape());
-    res["_offset"] = offset();
-    res["_strides"] = shape_to_list(strides());
-    return res;
-}
-
-void NativeTensor::view_inplace(Shape shape, Shape strides, int offset)
-{
-    SGL_CHECK(shape.valid(), "New shape must be valid");
-
-    if (!strides.valid() || strides.size() == 0)
-        strides = shape.calc_contiguous_strides();
-
-    for (size_t i = 0; i < strides.size(); ++i) {
-        SGL_CHECK(strides[i] >= 0, "Strides must be positive");
+    bool numpy_flag(nb::object array, const char* name)
+    {
+        return nb::cast<bool>(array.attr("flags").attr("__getitem__")(name));
     }
 
-    SGL_CHECK(
-        shape.size() == strides.size(),
-        "Shape dimensions ({}) must match stride dimensions ({})",
-        shape.size(),
-        strides.size()
-    );
-
-    m_desc.shape = shape;
-    m_desc.strides = strides;
-    m_desc.offset += offset;
-
-    SGL_CHECK(m_desc.offset >= 0, "Tensor view offset is negative");
-}
-
-void NativeTensor::broadcast_to_inplace(const Shape& new_shape)
-{
-    const Shape& curr_shape = shape();
-    const Shape& curr_strides = strides();
-
-    int dim_delta = static_cast<int>(new_shape.size()) - static_cast<int>(curr_shape.size());
-    if (dim_delta < 0) {
-        SGL_THROW("Broadcast shape must be larger than tensor shape");
+    ref<refl::Type> as_refl_type(nb::object value)
+    {
+        refl::Type* type = nullptr;
+        if (!value.is_none() && nb::try_cast(value, type))
+            return ref<refl::Type>(type);
+        return nullptr;
     }
 
-    for (size_t i = 0; i < curr_shape.size(); ++i) {
-        if (curr_shape[i] != new_shape[dim_delta + i] && curr_shape[i] != 1) {
-            SGL_THROW(
-                "Current dimension {} at index {} must be equal to new dimension {} or 1",
-                curr_shape[i],
-                i,
-                new_shape[dim_delta + i]
-            );
-        }
+    ref<refl::Type> resolve_dtype(Device* device, nb::object dtype, nb::object program_layout)
+    {
+        if (dtype.is_none())
+            return nullptr;
+        if (ref<refl::Type> type = as_refl_type(dtype))
+            return type;
+
+        nb::object lookup = nb::module_::import_("slangpy.reflection.lookup");
+        nb::object layout = lookup.attr("resolve_program_layout")(nb::cast(device), dtype, program_layout);
+        return nb::cast<ref<refl::Type>>(lookup.attr("resolve_element_type")(layout, dtype));
     }
 
-    Shape new_strides(new_shape.size());
-    int* new_strides_data = new_strides.data();
-    for (size_t i = 0; i < new_shape.size(); ++i) {
-        new_strides_data[i] = 0;
-    }
-    for (size_t i = 0; i < curr_shape.size(); ++i) {
-        if (curr_shape[i] > 1) {
-            new_strides_data[dim_delta + i] = curr_strides[i];
-        }
+    ref<refl::Type> numpy_to_slang(nb::object dtype, Device* device, nb::object program_layout)
+    {
+        nb::object lookup = nb::module_::import_("slangpy.reflection.lookup");
+        nb::object result = lookup.attr("numpy_to_slang")(dtype, nb::cast(device), program_layout);
+        if (result.is_none())
+            return nullptr;
+        return nb::cast<ref<refl::Type>>(result);
     }
 
-    view_inplace(new_shape, new_strides);
-}
+    TensorDesc make_tensor_desc(ref<Buffer> storage, ref<refl::Type> dtype, Shape shape, Shape strides, int offset)
+    {
+        if (!strides.valid() || strides.size() == 0)
+            strides = shape.calc_contiguous_strides();
+        if (strides.size() != shape.size())
+            throw nb::value_error("Number of strides must match number of dimensions");
 
-void NativeTensor::index_inplace(nb::object index_arg)
-{
-    std::vector<nb::handle> args;
-    if (nb::isinstance<nb::tuple>(index_arg)) {
-        nb::tuple t = nb::cast<nb::tuple>(index_arg);
-        args.insert(args.end(), t.begin(), t.end());
-    } else {
-        args.push_back(index_arg);
+        TensorDesc desc;
+        desc.shape = std::move(shape);
+        desc.strides = std::move(strides);
+        desc.offset = offset;
+        desc.dtype = std::move(dtype);
+        desc.element_layout = desc.dtype->buffer_type_layout();
+        desc.usage = storage->desc().usage;
+        desc.memory_type = storage->desc().memory_type;
+        return desc;
     }
 
-    int real_dims = 0;
-    for (auto v : args) {
-        if (nb::isinstance<int>(v) || nb::isinstance<nb::slice>(v))
-            real_dims++;
+    nb::dict tensor_uniforms_impl(const Tensor& tensor)
+    {
+        nb::dict res;
+        res["_data"] = tensor.storage();
+        res["_shape"] = shape_to_list(tensor.shape());
+        res["_offset"] = tensor.offset();
+        res["_strides"] = shape_to_list(tensor.strides());
+        return res;
     }
-    SGL_CHECK(real_dims <= dims(), "Too many indices for tensor of dimension {}", dims());
 
-    const Shape& cur_shape = shape();
-    const Shape& cur_strides = strides();
-
-    int dim = 0;
-    int offset = 0;
-    std::vector<int> out_shape;
-    std::vector<int> out_strides;
-
-    for (size_t i = 0; i < args.size(); ++i) {
-        const nb::handle& arg = args[i];
-
-        if (nb::isinstance<int>(arg)) {
-            int idx = nb::cast<int>(arg);
-            if (idx < -cur_shape[dim] || idx >= cur_shape[dim])
-                throw nb::index_error();
-
-            if (idx < 0)
-                idx += cur_shape[dim];
-            offset += idx * cur_strides[dim];
-            dim++;
-        } else if (nb::isinstance<nb::slice>(arg)) {
-            nb::slice slice = nb::cast<nb::slice>(arg);
-            auto adjusted = slice.compute(cur_shape[dim]);
-            size_t start = adjusted.get<0>();
-            size_t step = adjusted.get<2>();
-            size_t slice_length = adjusted.get<3>();
-
-            SGL_CHECK(step > 0, "Slice step must be greater than zero (found stride {} at dimension {})", step, i);
-
-            offset += int(start) * cur_strides[dim];
-            out_shape.push_back(int(slice_length));
-            out_strides.push_back(int(step) * cur_strides[dim]);
-            dim++;
-        } else if (nb::isinstance<nb::ellipsis>(arg)) {
-            int skipped_dims = dims() - real_dims;
-            for (int j = 0; j < skipped_dims; ++j) {
-                out_shape.push_back(cur_shape[dim + j]);
-                out_strides.push_back(cur_strides[dim + j]);
+    nb::ndarray<nb::numpy> tensor_to_numpy(const Tensor& tensor)
+    {
+        const TensorDesc& desc = tensor.desc();
+        size_t dtype_size = desc.element_layout->stride();
+        size_t byte_offset = desc.offset * dtype_size;
+        size_t data_size = tensor.storage()->size() - byte_offset;
+        void* data = new uint8_t[data_size];
+        tensor.storage()->get_data(data, data_size, byte_offset);
+        nb::capsule owner(
+            data,
+            [](void* p) noexcept
+            {
+                delete[] reinterpret_cast<uint8_t*>(p);
             }
-            dim += skipped_dims;
-        } else if (arg.is_none()) {
-            out_shape.push_back(1);
-            out_strides.push_back(0);
-        } else {
-            auto type_name = nb::str(arg.type());
-            SGL_THROW(
-                "Illegal argument at dimension {}: Allowed are int, slice, ..., or None; found {} instead",
-                i,
-                type_name.c_str()
-            );
-        }
+        );
+
+        return to_ndarray<nb::numpy>(data, owner, desc);
     }
 
-    int remaining = dims() - dim;
-    for (int j = 0; j < remaining; ++j) {
-        out_shape.push_back(cur_shape[dim + j]);
-        out_strides.push_back(cur_strides[dim + j]);
+    nb::ndarray<nb::pytorch> tensor_to_torch(const Tensor& tensor)
+    {
+        const TensorDesc& desc = tensor.desc();
+        size_t dtype_size = desc.element_layout->stride();
+        size_t byte_offset = desc.offset * dtype_size;
+        void* data = reinterpret_cast<uint8_t*>(tensor.storage()->cuda_memory()) + byte_offset;
+        nb::handle owner = nb::find(&tensor);
+
+        return to_ndarray<nb::pytorch>(data, owner, desc);
     }
 
-    if (out_shape.empty()) {
-        out_shape.push_back(1);
-        out_strides.push_back(1);
-    }
+    bool tensor_maybe_pad_data(Tensor& tensor, nb::ndarray<nb::numpy> data, size_t dtype_size, size_t byte_offset)
+    {
+        const TensorDesc& desc = tensor.desc();
+        if (desc.element_layout->kind() == TypeReflection::Kind::vector) {
+            size_t scalar_size = desc.element_layout->element_type_layout()->size();
+            size_t required_element_num = dtype_size / scalar_size;
+            size_t actual_element_num = data.shape(data.ndim() - 1);
+            if (actual_element_num < required_element_num) {
+                nb::object np = nb::module_::import_("numpy");
+                size_t padding_element_num = required_element_num - actual_element_num;
+                nb::list pad_width;
+                for (size_t i = 0; i < data.ndim() - 1; i++)
+                    pad_width.append(nb::make_tuple(0, 0));
+                pad_width.append(nb::make_tuple(0, padding_element_num));
 
-    view_inplace(Shape(out_shape), Shape(out_strides), offset);
-}
-
-void NativeTensor::clear(CommandEncoder* cmd)
-{
-    if (cmd) {
-        cmd->clear_buffer(m_storage);
-    } else {
-        ref<CommandEncoder> temp_cmd = device()->create_command_encoder();
-        temp_cmd->clear_buffer(m_storage);
-        device()->submit_command_buffer(temp_cmd->finish());
-    }
-}
-
-nb::ndarray<nb::numpy> NativeTensor::to_numpy() const
-{
-    size_t dtype_size = m_desc.element_layout->stride();
-    size_t byte_offset = m_desc.offset * dtype_size;
-    size_t data_size = m_storage->size() - byte_offset;
-    void* data = new uint8_t[data_size];
-    m_storage->get_data(data, data_size, byte_offset);
-    nb::capsule owner(
-        data,
-        [](void* p) noexcept
-        {
-            delete[] reinterpret_cast<uint8_t*>(p);
-        }
-    );
-
-    return to_ndarray<nb::numpy>(data, owner, m_desc);
-}
-
-nb::ndarray<nb::pytorch> NativeTensor::to_torch() const
-{
-    size_t dtype_size = m_desc.element_layout->stride();
-    size_t byte_offset = m_desc.offset * dtype_size;
-    void* data = reinterpret_cast<uint8_t*>(m_storage->cuda_memory()) + byte_offset;
-    auto owner = nb::find(this);
-
-    return to_ndarray<nb::pytorch>(data, owner, m_desc);
-}
-
-bool NativeTensor::maybe_pad_data(nb::ndarray<nb::numpy> data, size_t dtype_size, size_t byte_offset)
-{
-    if (m_desc.element_layout->kind() == TypeReflection::Kind::vector) {
-        size_t scalar_size = m_desc.element_layout->element_type_layout()->size();
-        size_t required_element_num = dtype_size / scalar_size;
-        size_t actual_element_num = data.shape(data.ndim() - 1);
-        if (actual_element_num < required_element_num) {
-            nb::object np = nb::module_::import_("numpy");
-            size_t padding_element_num = required_element_num - actual_element_num;
-            nb::list pad_width;
-            for (size_t i = 0; i < data.ndim() - 1; i++) {
-                pad_width.append(nb::make_tuple(0, 0));
+                nb::object padding_data = np.attr("pad")(nb::cast(data), pad_width, "constant_values"_a = 0);
+                nb::ndarray<nb::numpy> out = nb::cast<nb::ndarray<nb::numpy>>(padding_data);
+                tensor.storage()->set_data(out.data(), out.nbytes(), byte_offset);
+                return true;
             }
-            pad_width.append(nb::make_tuple(0, padding_element_num));
-
-            nb::object arr_obj = nb::cast(data);
-            nb::object padding_data = np.attr("pad")(arr_obj, pad_width, "constant_values"_a = 0);
-
-            nb::ndarray<nb::numpy> out = nb::cast<nb::ndarray<nb::numpy>>(padding_data);
-            size_t data_size = out.nbytes();
-            m_storage->set_data(out.data(), data_size, byte_offset);
-            return true;
         }
-    }
-    return false;
-}
-
-void NativeTensor::copy_from_numpy(nb::ndarray<nb::numpy> data)
-{
-    SGL_CHECK(is_ndarray_contiguous(data), "Source Numpy array must be contiguous");
-    SGL_CHECK(is_contiguous(), "Destination tensor must be contiguous");
-
-    size_t dtype_size = m_desc.element_layout->stride();
-    size_t byte_offset = m_desc.offset * dtype_size;
-    size_t data_size = data.nbytes();
-    size_t buffer_size = m_storage->size() - byte_offset;
-    SGL_CHECK(
-        data_size <= buffer_size,
-        "Numpy array is larger than the tensor storage ({} > {})",
-        data_size,
-        buffer_size
-    );
-
-    if (maybe_pad_data(data, dtype_size, byte_offset)) {
-        return;
+        return false;
     }
 
-    m_storage->set_data(data.data(), data_size, byte_offset);
-}
+    void tensor_copy_from_numpy(Tensor& tensor, nb::ndarray<nb::numpy> data)
+    {
+        SGL_CHECK(is_ndarray_contiguous(data), "Source Numpy array must be contiguous");
+        SGL_CHECK(tensor.is_contiguous(), "Destination tensor must be contiguous");
 
-void NativeTensor::copy_from_torch(nb::object tensor)
-{
-    bool is_cuda = nb::cast<bool>(tensor.attr("is_cuda"));
-    bool has_cuda_memory = m_storage->cuda_memory() != nullptr;
-
-    if (is_cuda && has_cuda_memory) {
-        SGL_CHECK(is_contiguous(), "Destination tensor must be contiguous");
-
-        nb::object contiguous_tensor = tensor.attr("contiguous")();
-        nb::object data_ptr = contiguous_tensor.attr("data_ptr")();
-        void* src_data = reinterpret_cast<void*>(nb::cast<uintptr_t>(data_ptr));
-
-        size_t tensor_bytes = nb::cast<size_t>(contiguous_tensor.attr("numel")())
-            * nb::cast<size_t>(contiguous_tensor.attr("element_size")());
-
-        size_t dtype_size = m_desc.element_layout->stride();
-        size_t byte_offset = m_desc.offset * dtype_size;
-        size_t buffer_size = m_storage->size() - byte_offset;
+        const TensorDesc& desc = tensor.desc();
+        size_t dtype_size = desc.element_layout->stride();
+        size_t byte_offset = desc.offset * dtype_size;
+        size_t data_size = data.nbytes();
+        size_t buffer_size = tensor.storage()->size() - byte_offset;
         SGL_CHECK(
-            tensor_bytes <= buffer_size,
-            "Tensor is larger than the tensor storage ({} > {})",
-            tensor_bytes,
+            data_size <= buffer_size,
+            "Numpy array is larger than the tensor storage ({} > {})",
+            data_size,
             buffer_size
         );
 
-        SGL_CU_SCOPE(m_storage->device());
+        if (tensor_maybe_pad_data(tensor, data, dtype_size, byte_offset))
+            return;
 
-        void* dst_data = reinterpret_cast<uint8_t*>(m_storage->cuda_memory()) + byte_offset;
-        sgl::cuda::memcpy_device_to_device(dst_data, src_data, tensor_bytes);
-    } else {
-        nb::object numpy_array = tensor.attr("cpu")().attr("numpy")();
-        nb::ndarray<nb::numpy> numpy_data = nb::cast<nb::ndarray<nb::numpy>>(numpy_array);
-        copy_from_numpy(numpy_data);
+        tensor.storage()->set_data(data.data(), data_size, byte_offset);
     }
-}
 
-void NativeTensor::point_to(ref<NativeTensor> target)
-{
-    SGL_CHECK(shape() == target->shape(), "Shape of existing and new tensor view must match");
-    SGL_CHECK(usage() == target->usage(), "Usage flags of existing and new tensor storage must match");
-    SGL_CHECK(memory_type() == target->memory_type(), "Memory type of existing and new tensor storage must match");
-    SGL_CHECK(element_stride() == target->element_stride(), "Element size of new and existing data type must match");
+    void tensor_copy_from_torch(Tensor& tensor, nb::object torch_tensor)
+    {
+        bool is_cuda = nb::cast<bool>(torch_tensor.attr("is_cuda"));
+        bool has_cuda_memory = tensor.storage()->cuda_memory() != nullptr;
 
-    m_desc.offset = target->offset();
-    m_desc.strides = target->strides();
-    m_storage = target->m_storage;
-}
+        if (is_cuda && has_cuda_memory) {
+            SGL_CHECK(tensor.is_contiguous(), "Destination tensor must be contiguous");
 
-ref<NativeTensor> NativeTensor::view(Shape shape, Shape strides, int offset) const
-{
-    auto result = make_ref<NativeTensor>(desc(), storage(), m_grad_in, m_grad_out);
-    result->view_inplace(shape, strides, offset);
-    return result;
-}
-ref<NativeTensor> NativeTensor::broadcast_to(const Shape& shape) const
-{
-    auto result = make_ref<NativeTensor>(desc(), storage(), m_grad_in, m_grad_out);
-    result->broadcast_to_inplace(shape);
-    return result;
-}
-ref<NativeTensor> NativeTensor::index(nb::object index_arg) const
-{
-    auto result = make_ref<NativeTensor>(desc(), storage(), m_grad_in, m_grad_out);
-    result->index_inplace(index_arg);
-    return result;
-}
+            nb::object contiguous_tensor = torch_tensor.attr("contiguous")();
+            nb::object data_ptr = contiguous_tensor.attr("data_ptr")();
+            void* src_data = reinterpret_cast<void*>(nb::cast<uintptr_t>(data_ptr));
 
-ref<NativeTensor> NativeTensor::with_grads(ref<NativeTensor> grad_in, ref<NativeTensor> grad_out, bool zero) const
-{
-    ref<NativeTensor> new_grad_in = std::move(grad_in);
-    ref<NativeTensor> new_grad_out = std::move(grad_out);
+            size_t tensor_bytes = nb::cast<size_t>(contiguous_tensor.attr("numel")())
+                * nb::cast<size_t>(contiguous_tensor.attr("element_size")());
 
-    // Create new, empty tensor for grads if none specified.
-    if (!new_grad_in && !new_grad_out) {
+            const TensorDesc& desc = tensor.desc();
+            size_t dtype_size = desc.element_layout->stride();
+            size_t byte_offset = desc.offset * dtype_size;
+            size_t buffer_size = tensor.storage()->size() - byte_offset;
+            SGL_CHECK(
+                tensor_bytes <= buffer_size,
+                "Tensor is larger than the tensor storage ({} > {})",
+                tensor_bytes,
+                buffer_size
+            );
 
-        // Get the derivative type + buffer layout.
-        ref<refl::Type> dtype = m_desc.dtype->derivative();
+            SGL_CU_SCOPE(tensor.storage()->device());
+
+            void* dst_data = reinterpret_cast<uint8_t*>(tensor.storage()->cuda_memory()) + byte_offset;
+            sgl::cuda::memcpy_device_to_device(dst_data, src_data, tensor_bytes);
+        } else {
+            nb::object numpy_array = torch_tensor.attr("cpu")().attr("numpy")();
+            tensor_copy_from_numpy(tensor, nb::cast<nb::ndarray<nb::numpy>>(numpy_array));
+        }
+    }
+
+    ref<Tensor> tensor_index(const ref<Tensor>& tensor, nb::object index_arg)
+    {
+        std::vector<nb::handle> args;
+        if (nb::isinstance<nb::tuple>(index_arg)) {
+            nb::tuple t = nb::cast<nb::tuple>(index_arg);
+            args.insert(args.end(), t.begin(), t.end());
+        } else {
+            args.push_back(index_arg);
+        }
+
+        int real_dims = 0;
+        for (auto v : args) {
+            if (nb::isinstance<int>(v) || nb::isinstance<nb::slice>(v))
+                real_dims++;
+        }
+        SGL_CHECK(real_dims <= tensor->dims(), "Too many indices for tensor of dimension {}", tensor->dims());
+
+        const Shape& cur_shape = tensor->shape();
+        const Shape& cur_strides = tensor->strides();
+
+        int dim = 0;
+        int offset = 0;
+        std::vector<int> out_shape;
+        std::vector<int> out_strides;
+
+        for (size_t i = 0; i < args.size(); ++i) {
+            const nb::handle& arg = args[i];
+
+            if (nb::isinstance<int>(arg)) {
+                int idx = nb::cast<int>(arg);
+                if (idx < -cur_shape[dim] || idx >= cur_shape[dim])
+                    throw nb::index_error();
+
+                if (idx < 0)
+                    idx += cur_shape[dim];
+                offset += idx * cur_strides[dim];
+                dim++;
+            } else if (nb::isinstance<nb::slice>(arg)) {
+                nb::slice slice = nb::cast<nb::slice>(arg);
+                auto adjusted = slice.compute(cur_shape[dim]);
+                size_t start = adjusted.get<0>();
+                size_t step = adjusted.get<2>();
+                size_t slice_length = adjusted.get<3>();
+
+                SGL_CHECK(step > 0, "Slice step must be greater than zero (found stride {} at dimension {})", step, i);
+
+                offset += int(start) * cur_strides[dim];
+                out_shape.push_back(int(slice_length));
+                out_strides.push_back(int(step) * cur_strides[dim]);
+                dim++;
+            } else if (nb::isinstance<nb::ellipsis>(arg)) {
+                int skipped_dims = tensor->dims() - real_dims;
+                for (int j = 0; j < skipped_dims; ++j) {
+                    out_shape.push_back(cur_shape[dim + j]);
+                    out_strides.push_back(cur_strides[dim + j]);
+                }
+                dim += skipped_dims;
+            } else if (arg.is_none()) {
+                out_shape.push_back(1);
+                out_strides.push_back(0);
+            } else {
+                auto type_name = nb::str(arg.type());
+                SGL_THROW(
+                    "Illegal argument at dimension {}: Allowed are int, slice, ..., or None; found {} instead",
+                    i,
+                    type_name.c_str()
+                );
+            }
+        }
+
+        int remaining = tensor->dims() - dim;
+        for (int j = 0; j < remaining; ++j) {
+            out_shape.push_back(cur_shape[dim + j]);
+            out_strides.push_back(cur_strides[dim + j]);
+        }
+
+        if (out_shape.empty()) {
+            out_shape.push_back(1);
+            out_strides.push_back(1);
+        }
+
+        return tensor->view(Shape(out_shape), Shape(out_strides), offset);
+    }
+
+    ref<Tensor> tensor_empty(
+        Device* device,
+        nb::object shape_obj,
+        nb::object dtype_obj,
+        BufferUsage usage,
+        MemoryType memory_type,
+        nb::object program_layout,
+        nb::object element_count_obj
+    )
+    {
+        Shape shape = shape_from_object(shape_obj);
+
+        if (!element_count_obj.is_none()) {
+            nb::module_::import_("warnings")
+                .attr("warn")(
+                    "element_count parameter is deprecated; use shape instead",
+                    nb::module_::import_("builtins").attr("DeprecationWarning"),
+                    "stacklevel"_a = 2
+                );
+            shape = Shape({nb::cast<int>(element_count_obj)});
+        }
+
+        ref<refl::Type> dtype = resolve_dtype(device, dtype_obj, program_layout);
         if (!dtype)
-            SGL_THROW("No derivative type found for {}", m_desc.dtype->name());
-        ref<TypeLayoutReflection> layout = dtype->buffer_type_layout();
+            throw nb::value_error("Element type (dtype) must be specified");
+        if (shape.size() == 0)
+            throw nb::value_error("Cannot create a tensor with zero dimensions");
 
-        // Create a new structured buffer for storage.
         BufferDesc buffer_desc;
-        buffer_desc.usage = BufferUsage::shader_resource | BufferUsage::unordered_access | BufferUsage::shared;
-        buffer_desc.struct_size = layout->stride();
-        buffer_desc.element_count = element_count();
-        ref<Buffer> buffer = device()->create_buffer(buffer_desc);
+        buffer_desc.element_count = shape.element_count();
+        buffer_desc.struct_size = dtype->buffer_layout()->stride();
+        buffer_desc.usage = usage;
+        buffer_desc.memory_type = memory_type;
+        ref<Buffer> buffer = device->create_buffer(buffer_desc);
 
-        NativeTensorDesc desc;
+        TensorDesc desc;
         desc.dtype = dtype;
-        desc.element_layout = layout;
-        desc.shape = m_desc.shape;
-        desc.strides = m_desc.shape.calc_contiguous_strides();
-        desc.offset = m_desc.offset;
-
-        // Create new native tensor to hold the grads.
-        new_grad_in = make_ref<NativeTensor>(desc, buffer, nullptr, nullptr);
-        new_grad_out = new_grad_in;
+        desc.element_layout = dtype->buffer_type_layout();
+        desc.shape = shape;
+        desc.strides = shape.calc_contiguous_strides();
+        desc.offset = 0;
+        desc.usage = usage;
+        desc.memory_type = memory_type;
+        return make_ref<Tensor>(desc, buffer, nullptr, nullptr);
     }
 
-    // Create a new tensor object that refers to the same data as this one, but with
-    // associated grads.
-    ref<NativeTensor> result = make_ref<NativeTensor>(m_desc, storage(), new_grad_in, new_grad_out);
-
-    // Optionally clear both.
-    if (zero) {
-        if (new_grad_in) {
-            new_grad_in->clear();
-        }
-        if (new_grad_out && new_grad_out != new_grad_in) {
-            new_grad_out->clear();
-        }
+    ref<Tensor> tensor_zeros(
+        Device* device,
+        nb::object shape,
+        nb::object dtype,
+        BufferUsage usage,
+        MemoryType memory_type,
+        nb::object program_layout
+    )
+    {
+        ref<Tensor> tensor = tensor_empty(device, shape, dtype, usage, memory_type, program_layout, nb::none());
+        tensor->clear();
+        return tensor;
     }
 
-    return result;
+    ref<Tensor> tensor_from_numpy(
+        Device* device,
+        nb::object ndarray_obj,
+        BufferUsage usage,
+        MemoryType memory_type,
+        nb::object program_layout,
+        nb::object target_slang_dtype
+    )
+    {
+        nb::object dtype_obj = ndarray_obj.attr("dtype");
+        bool is_structured = !dtype_obj.attr("names").is_none();
+        size_t item_size = nb::cast<size_t>(dtype_obj.attr("itemsize"));
+        size_t nbytes = nb::cast<size_t>(ndarray_obj.attr("nbytes"));
+        nb::object shape_obj = ndarray_obj.attr("shape");
+        nb::object strides_obj = ndarray_obj.attr("strides");
+        size_t ndim = nb::len(shape_obj);
+
+        ref<refl::Type> dtype;
+        if (target_slang_dtype.is_none()) {
+            if (is_structured) {
+                throw nb::value_error(
+                    fmt::format(
+                        "Structured numpy dtype {} cannot be automatically mapped to a Slang type. Please provide "
+                        "an explicit target_slang_dtype, e.g.:\n  Tensor.from_numpy(device, data, "
+                        "target_slang_dtype=module.MyStructType)",
+                        nb::cast<std::string>(nb::str(dtype_obj))
+                    )
+                        .c_str()
+                );
+            }
+            dtype = numpy_to_slang(dtype_obj, device, program_layout);
+            if (!dtype)
+                throw nb::value_error(
+                    fmt::format("Unsupported numpy dtype {}", nb::cast<std::string>(nb::str(dtype_obj))).c_str()
+                );
+        } else {
+            dtype = resolve_dtype(device, target_slang_dtype, program_layout);
+        }
+
+        nb::object data_obj;
+        if (is_structured) {
+            if (!numpy_flag(ndarray_obj, "C_CONTIGUOUS")) {
+                throw nb::value_error(
+                    "Structured numpy arrays must be C-contiguous for Tensor.from_numpy. "
+                    "Call numpy.ascontiguousarray(data) first."
+                );
+            }
+            size_t slang_stride = dtype->buffer_layout()->stride();
+            if (item_size != slang_stride) {
+                throw nb::value_error(
+                    fmt::format(
+                        "Numpy structured dtype itemsize ({}) does not match Slang type '{}' buffer stride ({}). "
+                        "Ensure the numpy dtype layout matches the Slang struct layout.",
+                        item_size,
+                        dtype->full_name(),
+                        slang_stride
+                    )
+                        .c_str()
+                );
+            }
+            nb::object np = nb::module_::import_("numpy");
+            data_obj = np.attr("frombuffer")(ndarray_obj, "dtype"_a = np.attr("uint8"));
+        } else {
+            if ((nbytes % item_size) != 0)
+                throw nb::value_error("Unsupported numpy array");
+            for (size_t i = 0; i < ndim; ++i) {
+                int64_t stride_bytes = nb::cast<int64_t>(strides_obj.attr("__getitem__")(i));
+                if ((stride_bytes % static_cast<int64_t>(item_size)) != 0)
+                    throw nb::value_error("Unsupported numpy array");
+            }
+            nb::object np = nb::module_::import_("numpy");
+            data_obj
+                = np.attr("lib")
+                      .attr("stride_tricks")
+                      .attr("as_strided")(ndarray_obj, nb::make_tuple(nbytes / item_size), nb::make_tuple(item_size));
+        }
+
+        nb::ndarray<nb::numpy> data = nb::cast<nb::ndarray<nb::numpy>>(data_obj);
+        size_t element_count = nbytes / item_size;
+
+        BufferDesc buffer_desc;
+        buffer_desc.struct_size = item_size;
+        buffer_desc.element_count = element_count;
+        buffer_desc.usage = usage;
+        buffer_desc.memory_type = memory_type;
+        buffer_desc.data = data.data();
+        buffer_desc.data_size = data.nbytes();
+        ref<Buffer> buffer = device->create_buffer(buffer_desc);
+
+        Shape shape(ndim);
+        Shape strides(ndim);
+        int* shape_data = shape.data();
+        int* strides_data = strides.data();
+        for (size_t i = 0; i < ndim; ++i) {
+            shape_data[i] = nb::cast<int>(shape_obj.attr("__getitem__")(i));
+            strides_data[i] = static_cast<int>(
+                nb::cast<int64_t>(strides_obj.attr("__getitem__")(i)) / static_cast<int64_t>(item_size)
+            );
+        }
+
+        TensorDesc desc;
+        desc.dtype = dtype;
+        desc.element_layout = dtype->buffer_type_layout();
+        desc.shape = shape;
+        desc.strides = strides;
+        desc.offset = 0;
+        desc.usage = usage;
+        desc.memory_type = memory_type;
+        return make_ref<Tensor>(desc, buffer, nullptr, nullptr);
+    }
+
+    ref<Tensor> tensor_from_torch(
+        Device* device,
+        nb::object torch_tensor,
+        nb::object dtype_obj,
+        BufferUsage usage,
+        nb::object program_layout
+    )
+    {
+        ref<refl::Type> dtype = resolve_dtype(device, dtype_obj, program_layout);
+        size_t struct_stride = dtype->buffer_layout()->stride();
+        size_t scalar_size = nb::cast<size_t>(torch_tensor.attr("element_size")());
+        if (struct_stride == 0 || scalar_size == 0 || struct_stride % scalar_size != 0) {
+            throw nb::value_error(
+                fmt::format(
+                    "Torch element size ({}) is not compatible with Slang type '{}' buffer stride ({})",
+                    scalar_size,
+                    dtype->full_name(),
+                    struct_stride
+                )
+                    .c_str()
+            );
+        }
+
+        size_t scalars_per_element = struct_stride / scalar_size;
+        int dims = nb::cast<int>(torch_tensor.attr("dim")());
+        if (dims < 1)
+            throw nb::value_error("Tensor must have at least 1 dimension");
+        nb::object torch_shape = torch_tensor.attr("shape");
+        size_t last_dim_size = nb::cast<size_t>(torch_shape.attr("__getitem__")(dims - 1));
+        if (last_dim_size != scalars_per_element) {
+            throw nb::value_error(
+                fmt::format(
+                    "Last dimension size ({}) does not match the number of scalars per '{}' element ({})",
+                    last_dim_size,
+                    dtype->full_name(),
+                    scalars_per_element
+                )
+                    .c_str()
+            );
+        }
+        if (nb::cast<int64_t>(torch_tensor.attr("stride")(dims - 1)) != 1)
+            throw nb::value_error("Last dimension of the tensor must be contiguous");
+
+        nb::object contiguous = torch_tensor.attr("contiguous")();
+        size_t element_count = nb::cast<size_t>(contiguous.attr("numel")());
+
+        BufferDesc buffer_desc;
+        buffer_desc.size = element_count * scalar_size;
+        buffer_desc.struct_size = struct_stride;
+        buffer_desc.usage = usage | BufferUsage::shared;
+        ref<Buffer> buffer = device->create_buffer(buffer_desc);
+
+        nb::module_::import_("slangpy").attr("copy_torch_tensor_to_buffer")(contiguous, buffer);
+
+        Shape shape(dims - 1);
+        int* shape_data = shape.data();
+        for (int i = 0; i < dims - 1; ++i)
+            shape_data[i] = nb::cast<int>(contiguous.attr("shape").attr("__getitem__")(i));
+
+        TensorDesc desc;
+        desc.dtype = dtype;
+        desc.element_layout = dtype->buffer_type_layout();
+        desc.shape = shape;
+        desc.strides = shape.calc_contiguous_strides();
+        desc.offset = 0;
+        desc.usage = buffer_desc.usage;
+        desc.memory_type = buffer_desc.memory_type;
+        return make_ref<Tensor>(desc, buffer, nullptr, nullptr);
+    }
+
+    ref<Tensor> tensor_load_from_image(
+        Device* device,
+        nb::object path,
+        bool flip_y,
+        bool linearize,
+        float scale,
+        float offset,
+        bool grayscale
+    )
+    {
+        nb::object data_obj
+            = nb::module_::import_("slangpy.types.common")
+                  .attr("load_buffer_data_from_image")(path, flip_y, linearize, scale, offset, grayscale);
+        nb::ndarray<nb::numpy> data = nb::cast<nb::ndarray<nb::numpy>>(data_obj);
+
+        std::string dtype;
+        if (data.ndim() == 2 || data.shape(2) == 1)
+            dtype = "float";
+        else if (data.shape(2) == 2)
+            dtype = "float2";
+        else if (data.shape(2) == 3)
+            dtype = "float3";
+        else if (data.shape(2) == 4)
+            dtype = "float4";
+        else
+            throw nb::value_error(fmt::format("Unsupported number of channels: {}", data.shape(2)).c_str());
+
+        Shape shape({static_cast<int>(data.shape(0)), static_cast<int>(data.shape(1))});
+        ref<Tensor> tensor = tensor_empty(
+            device,
+            nb::cast(shape),
+            nb::cast(dtype),
+            BufferUsage::shader_resource | BufferUsage::unordered_access,
+            MemoryType::device_local,
+            nb::none(),
+            nb::none()
+        );
+        tensor_copy_from_numpy(*tensor, data);
+        return tensor;
+    }
+
+} // namespace
+
+nb::dict tensor_uniforms(const Tensor& tensor)
+{
+    return tensor_uniforms_impl(tensor);
 }
 
-ref<NativeTensor> NativeTensor::detach() const
+Shape TensorMarshall::get_shape(nb::object data) const
 {
-    // Create a new tensor object that refers to the same data as this one, but without
-    // associated grads.
-    return make_ref<NativeTensor>(m_desc, storage(), nullptr, nullptr);
-}
-
-std::string NativeTensor::to_string() const
-{
-    return fmt::format(
-        "NativeTensor(dtype={}, shape={}, has_grad_in={}, has_grad_out={})",
-        m_desc.dtype->to_string(),
-        m_desc.shape.to_string(),
-        m_grad_in ? "true" : "false",
-        m_grad_out ? "true" : "false"
-    );
-}
-
-Shape NativeTensorMarshall::get_shape(nb::object data) const
-{
-    auto buffer = nb::cast<NativeTensor*>(data);
+    auto buffer = nb::cast<Tensor*>(data);
     return buffer->shape();
 }
 
-void NativeTensorMarshall::ensure_binding_info_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const
+void TensorMarshall::ensure_binding_info_cached(ShaderCursor cursor, NativeBoundVariableRuntime* binding) const
 {
     if (!m_cached_binding_info.primal.is_valid) {
         ShaderCursor field = cursor[binding->variable_name()];
@@ -756,17 +897,17 @@ void NativeTensorMarshall::ensure_binding_info_cached(ShaderCursor cursor, Nativ
     }
 }
 
-void NativeTensorMarshall::write_native_tensor(
+void TensorMarshall::write_native_tensor(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
     ShaderObject* shader_object,
     void* base_address,
-    NativeTensor* primal_tensor,
+    Tensor* primal_tensor,
     nb::list read_back
 ) const
 {
-    const ref<NativeTensor>& grad_in = primal_tensor->grad_in();
-    const ref<NativeTensor>& grad_out = primal_tensor->grad_out();
+    const ref<Tensor>& grad_in = primal_tensor->grad_in();
+    const ref<Tensor>& grad_out = primal_tensor->grad_out();
 
     if (!m_cached_binding_info.has_grad_fields) {
         // Flat structure - write directly to primal offsets
@@ -826,7 +967,7 @@ void NativeTensorMarshall::write_native_tensor(
  * The offsets are cached on first call and reused for subsequent calls.
  * This assumes the shader structure layout remains constant across calls.
  */
-void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
+void TensorMarshall::write_shader_cursor_pre_dispatch(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
     ShaderCursor cursor,
@@ -870,8 +1011,8 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     }
 #endif
 
-    // Try NativeTensor path
-    NativeTensor* primal;
+    // Try Tensor path
+    Tensor* primal;
     if (nb::try_cast(value, primal)) {
         ShaderObject* shader_object = cursor.shader_object();
         void* base_address
@@ -881,8 +1022,8 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
         write_native_tensor(context, binding, shader_object, base_address, primal, read_back);
 
         // Check for gradient aliasing issues
-        const ref<NativeTensor>& grad_in = primal->grad_in();
-        const ref<NativeTensor>& grad_out = primal->grad_out();
+        const ref<Tensor>& grad_in = primal->grad_in();
+        const ref<Tensor>& grad_out = primal->grad_out();
         if (context->call_mode() != CallMode::prim && grad_in && grad_in == grad_out) {
             if (binding->access().second == AccessType::readwrite)
                 SGL_THROW(
@@ -896,7 +1037,7 @@ void NativeTensorMarshall::write_shader_cursor_pre_dispatch(
     NativeMarshall::write_shader_cursor_pre_dispatch(context, binding, cursor, value, read_back);
 }
 
-void NativeTensorMarshall::write_tensor_fields_from_buffer(
+void TensorMarshall::write_tensor_fields_from_buffer(
     ShaderObject* shader_object,
     void* base_address,
     const TensorFieldOffsets& offsets,
@@ -948,7 +1089,7 @@ void NativeTensorMarshall::write_tensor_fields_from_buffer(
     }
 }
 
-void NativeTensorMarshall::write_tensor_fields_from_pointer(
+void TensorMarshall::write_tensor_fields_from_pointer(
     ShaderObject* shader_object,
     void* base_address,
     const TensorFieldOffsets& offsets,
@@ -998,13 +1139,13 @@ void NativeTensorMarshall::write_tensor_fields_from_pointer(
     );
 }
 
-void NativeTensorMarshall::write_native_tensor_fields(
+void TensorMarshall::write_native_tensor_fields(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
     ShaderObject* shader_object,
     void* base_address,
     const TensorFieldOffsets& offsets,
-    NativeTensor* tensor,
+    Tensor* tensor,
     nb::list read_back
 ) const
 {
@@ -1021,7 +1162,7 @@ void NativeTensorMarshall::write_native_tensor_fields(
         tvd.data = tensor->storage()->device_address() + tensor->offset() * element_stride();
 
         const int ndim = static_cast<int>(shape.size());
-        // TensorView strides are in bytes, NativeTensor strides are in elements
+        // TensorView strides are in bytes, Tensor strides are in elements
         for (int i = 0; i < ndim && i < kSlangPyTensorViewMaxDim; i++) {
             tvd.strides[i] = static_cast<uint32_t>(strides[i] * element_stride());
             tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
@@ -1042,7 +1183,7 @@ void NativeTensorMarshall::write_native_tensor_fields(
     );
 }
 
-void NativeTensorMarshall::read_calldata(
+void TensorMarshall::read_calldata(
     CallContext* context,
     NativeBoundVariableRuntime* binding,
     nb::object data,
@@ -1055,7 +1196,7 @@ void NativeTensorMarshall::read_calldata(
     SGL_UNUSED(result);
 }
 
-nb::object NativeTensorMarshall::create_output(CallContext* context, NativeBoundVariableRuntime* binding) const
+nb::object TensorMarshall::create_output(CallContext* context, NativeBoundVariableRuntime* binding) const
 {
     SGL_UNUSED(binding);
 
@@ -1071,7 +1212,7 @@ nb::object NativeTensorMarshall::create_output(CallContext* context, NativeBound
     buffer_desc.element_count = shape.element_count();
     ref<Buffer> buffer = context->device()->create_buffer(buffer_desc);
 
-    NativeTensorDesc desc;
+    TensorDesc desc;
     desc.dtype = dtype;
     desc.element_layout = layout;
     desc.shape = shape;
@@ -1079,21 +1220,20 @@ nb::object NativeTensorMarshall::create_output(CallContext* context, NativeBound
     desc.offset = 0;
 
     // Create new native tensor to hold the grads.
-    return nb::cast(make_ref<NativeTensor>(desc, buffer, nullptr, nullptr));
+    return nb::cast(make_ref<Tensor>(desc, buffer, nullptr, nullptr));
 }
 
-nb::object
-NativeTensorMarshall::read_output(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data) const
+nb::object TensorMarshall::read_output(CallContext* context, NativeBoundVariableRuntime* binding, nb::object data) const
 {
     SGL_UNUSED(context);
     SGL_UNUSED(binding);
     return data;
 }
 
-nb::object NativeTensorMarshall::create_dispatchdata(nb::object data) const
+nb::object TensorMarshall::create_dispatchdata(nb::object data) const
 {
     // Cast value to buffer, and get the cursor field to write to.
-    auto buffer = nb::cast<NativeTensor*>(data);
+    auto buffer = nb::cast<Tensor*>(data);
     nb::dict res;
     res["_data"] = buffer->storage();
     res["_shape"] = shape_to_list(buffer->shape());
@@ -1102,7 +1242,7 @@ nb::object NativeTensorMarshall::create_dispatchdata(nb::object data) const
     return res;
 }
 
-ref<NativeTensor> NativeNumpyMarshall::create_tensor(Device* device, const Shape& shape) const
+ref<Tensor> NativeNumpyMarshall::create_tensor(Device* device, const Shape& shape) const
 {
     BufferDesc buffer_desc;
     buffer_desc.usage = BufferUsage::shader_resource | BufferUsage::unordered_access;
@@ -1110,7 +1250,7 @@ ref<NativeTensor> NativeNumpyMarshall::create_tensor(Device* device, const Shape
     buffer_desc.element_count = shape.element_count();
     ref<Buffer> buffer = device->create_buffer(buffer_desc);
 
-    NativeTensorDesc desc;
+    TensorDesc desc;
     desc.dtype = slang_element_type();
     desc.element_layout = element_layout();
     desc.offset = 0;
@@ -1118,7 +1258,7 @@ ref<NativeTensor> NativeNumpyMarshall::create_tensor(Device* device, const Shape
     desc.strides = shape.calc_contiguous_strides();
     desc.usage = buffer_desc.usage;
     desc.memory_type = buffer_desc.memory_type;
-    return make_ref<NativeTensor>(desc, buffer, nullptr, nullptr);
+    return make_ref<Tensor>(desc, buffer, nullptr, nullptr);
 }
 
 Shape NativeNumpyMarshall::get_shape(nb::object data) const
@@ -1171,7 +1311,7 @@ void NativeNumpyMarshall::write_shader_cursor_pre_dispatch(
     auto tensor_obj = nb::cast(tensor);
     store_readback(binding, read_back, value, tensor_obj);
 
-    NativeTensorMarshall::write_shader_cursor_pre_dispatch(context, binding, cursor, tensor_obj, read_back);
+    TensorMarshall::write_shader_cursor_pre_dispatch(context, binding, cursor, tensor_obj, read_back);
 }
 
 void NativeNumpyMarshall::read_calldata(
@@ -1185,7 +1325,7 @@ void NativeNumpyMarshall::read_calldata(
     SGL_UNUSED(binding);
 
     auto ndarray = nb::cast<nb::ndarray<nb::numpy>>(data);
-    auto tensor = nb::cast<NativeTensor*>(result);
+    auto tensor = nb::cast<Tensor*>(result);
 
     size_t numpy_data_size = ndarray.nbytes();
     size_t buffer_data_size = tensor->storage()->size();
@@ -1241,73 +1381,237 @@ SGL_PY_EXPORT(utils_slangpy_tensor)
 
     nb::module_ slangpy = m.attr("slangpy");
 
-    nb::class_<NativeTensorDesc>(slangpy, "NativeTensorDesc")
-        .def(nb::init<>())
-        .def_rw("dtype", &NativeTensorDesc::dtype)
-        .def_rw("element_layout", &NativeTensorDesc::element_layout)
-        .def_rw("offset", &NativeTensorDesc::offset)
-        .def_rw("shape", &NativeTensorDesc::shape)
-        .def_rw("strides", &NativeTensorDesc::strides)
-        .def_rw("usage", &NativeTensorDesc::usage)
-        .def_rw("memory_type", &NativeTensorDesc::memory_type);
+    nb::class_<TensorDesc> tensor_desc(slangpy, "TensorDesc");
+    tensor_desc.def(nb::init<>())
+        .def_rw("dtype", &TensorDesc::dtype)
+        .def_rw("element_layout", &TensorDesc::element_layout)
+        .def_rw("offset", &TensorDesc::offset)
+        .def_rw("shape", &TensorDesc::shape)
+        .def_rw("strides", &TensorDesc::strides)
+        .def_rw("usage", &TensorDesc::usage)
+        .def_rw("memory_type", &TensorDesc::memory_type);
 
-    nb::class_<NativeTensor, NativeObject>(slangpy, "NativeTensor")
+    nb::class_<Tensor, Object> tensor(slangpy, "Tensor");
+    tensor
         .def(
-            nb::init<NativeTensorDesc, const ref<Buffer>&, const ref<NativeTensor>&, const ref<NativeTensor>&>(),
+            "__init__",
+            [](Tensor* self,
+               ref<Buffer> storage,
+               ref<refl::Type> dtype,
+               nb::object shape,
+               nb::object strides,
+               int offset,
+               ref<Tensor> grad_in,
+               ref<Tensor> grad_out)
+            {
+                new (self) Tensor(
+                    make_tensor_desc(
+                        storage,
+                        std::move(dtype),
+                        shape_from_object(shape),
+                        strides.is_none() ? Shape() : shape_from_object(strides),
+                        offset
+                    ),
+                    std::move(storage),
+                    std::move(grad_in),
+                    std::move(grad_out)
+                );
+            },
+            "storage"_a,
+            "dtype"_a,
+            "shape"_a,
+            "strides"_a.none() = nb::none(),
+            "offset"_a = 0,
+            "grad_in"_a.none() = nullptr,
+            "grad_out"_a.none() = nullptr
+        )
+        .def(
+            "__init__",
+            [](Tensor* self, TensorDesc desc, ref<Buffer> storage, ref<Tensor> grad_in, ref<Tensor> grad_out)
+            {
+                new (self) Tensor(std::move(desc), std::move(storage), std::move(grad_in), std::move(grad_out));
+            },
             "desc"_a,
             "storage"_a,
-            "grad_in"_a.none(),
-            "grad_out"_a.none()
+            "grad_in"_a.none() = nullptr,
+            "grad_out"_a.none() = nullptr
         )
-        .def_prop_ro("device", &NativeTensor::device)
-        .def_prop_ro("dtype", &NativeTensor::dtype)
-        .def_prop_ro("offset", &NativeTensor::offset)
-        .def_prop_ro("shape", &NativeTensor::shape)
-        .def_prop_ro("strides", &NativeTensor::strides)
-        .def_prop_ro("element_count", &NativeTensor::element_count)
-        .def_prop_ro("usage", &NativeTensor::usage)
-        .def_prop_ro("memory_type", &NativeTensor::memory_type)
-        .def_prop_ro("storage", &NativeTensor::storage)
-        .def_prop_rw("grad_in", &NativeTensor::grad_in, &NativeTensor::set_grad_in, nb::none())
-        .def_prop_rw("grad_out", &NativeTensor::grad_out, &NativeTensor::set_grad_out, nb::none())
-        .def_prop_ro("grad", &NativeTensor::grad)
-        .def("clear", &NativeTensor::clear, "cmd"_a.none() = nullptr)
-        .def("cursor", &NativeTensor::cursor, "start"_a.none() = std::nullopt, "count"_a.none() = std::nullopt)
-        .def("uniforms", &NativeTensor::uniforms)
-        .def("to_numpy", &NativeTensor::to_numpy)
-        .def("to_torch", &NativeTensor::to_torch)
-        .def("copy_from_numpy", &NativeTensor::copy_from_numpy, "data"_a)
-        .def("copy_from_torch", &NativeTensor::copy_from_torch, "tensor"_a)
-        .def("is_contiguous", &NativeTensor::is_contiguous)
-        .def("point_to", &NativeTensor::point_to, "target"_a)
-        .def("broadcast_to", &NativeTensor::broadcast_to, "shape"_a)
-        .def("view", &NativeTensor::view, "shape"_a, "strides"_a = Shape(), "offset"_a = 0)
-        .def("__getitem__", &NativeTensor::index)
+        .def_prop_ro("device", &Tensor::device)
+        .def_prop_ro("dtype", &Tensor::dtype)
+        .def_prop_ro("offset", &Tensor::offset)
+        .def_prop_ro("shape", &Tensor::shape)
+        .def_prop_ro("strides", &Tensor::strides)
+        .def_prop_ro("element_count", &Tensor::element_count)
+        .def_prop_ro("usage", &Tensor::usage)
+        .def_prop_ro("memory_type", &Tensor::memory_type)
+        .def_prop_ro("storage", &Tensor::storage)
+        .def_prop_rw("grad_in", &Tensor::grad_in, &Tensor::set_grad_in, nb::none())
+        .def_prop_rw("grad_out", &Tensor::grad_out, &Tensor::set_grad_out, nb::none())
+        .def_prop_ro("grad", &Tensor::grad)
+        .def("clear", &Tensor::clear, "cmd"_a.none() = nullptr)
+        .def("cursor", &Tensor::cursor, "start"_a.none() = std::nullopt, "count"_a.none() = std::nullopt)
+        .def("uniforms", &tensor_uniforms)
+        .def("to_numpy", &tensor_to_numpy)
+        .def("to_torch", &tensor_to_torch)
+        .def("copy_from_numpy", &tensor_copy_from_numpy, "data"_a)
+        .def("copy_from_torch", &tensor_copy_from_torch, "tensor"_a)
+        .def("is_contiguous", &Tensor::is_contiguous)
+        .def("point_to", &Tensor::point_to, "target"_a)
+        .def(
+            "broadcast_to",
+            [](const ref<Tensor>& self, nb::object shape)
+            {
+                return self->broadcast_to(shape_from_object(shape));
+            },
+            "shape"_a
+        )
+        .def(
+            "view",
+            [](const ref<Tensor>& self, nb::object shape, nb::object strides, int offset)
+            {
+                return self
+                    ->view(shape_from_object(shape), strides.is_none() ? Shape() : shape_from_object(strides), offset);
+            },
+            "shape"_a,
+            "strides"_a.none() = nb::none(),
+            "offset"_a = 0
+        )
+        .def("__getitem__", &tensor_index)
         .def(
             "with_grads",
-            &NativeTensor::with_grads,
+            &Tensor::with_grads,
             "grad_in"_a.none() = nullptr,
             "grad_out"_a.none() = nullptr,
             "zero"_a = true
         )
-        .def("detach", &NativeTensor::detach)
-        .def("__repr__", &NativeTensor::to_string);
+        .def("detach", &Tensor::detach)
+        .def(
+            "__str__",
+            [](const Tensor& self)
+            {
+                return nb::str(nb::cast(tensor_to_numpy(self)));
+            }
+        )
+        .def("__repr__", &Tensor::to_string)
+        .def_static(
+            "numpy",
+            [](Device* device, nb::object ndarray)
+            {
+                nb::module_::import_("warnings")
+                    .attr("warn")(
+                        "Tensor.numpy is deprecated. Use Tensor.from_numpy instead.",
+                        nb::module_::import_("builtins").attr("DeprecationWarning"),
+                        "stacklevel"_a = 2
+                    );
+                return tensor_from_numpy(
+                    device,
+                    ndarray,
+                    BufferUsage::shader_resource | BufferUsage::unordered_access,
+                    MemoryType::device_local,
+                    nb::none(),
+                    nb::none()
+                );
+            },
+            "device"_a,
+            "ndarray"_a
+        )
+        .def_static(
+            "from_numpy",
+            &tensor_from_numpy,
+            "device"_a,
+            "ndarray"_a,
+            "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
+            "memory_type"_a = MemoryType::device_local,
+            "program_layout"_a.none() = nb::none(),
+            "target_slang_dtype"_a.none() = nb::none()
+        )
+        .def_static(
+            "empty",
+            &tensor_empty,
+            "device"_a,
+            "shape"_a = nb::make_tuple(),
+            "dtype"_a.none() = nb::none(),
+            "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
+            "memory_type"_a = MemoryType::device_local,
+            "program_layout"_a.none() = nb::none(),
+            "element_count"_a.none() = nb::none()
+        )
+        .def_static(
+            "zeros",
+            &tensor_zeros,
+            "device"_a,
+            "shape"_a,
+            "dtype"_a,
+            "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
+            "memory_type"_a = MemoryType::device_local,
+            "program_layout"_a.none() = nb::none()
+        )
+        .def_static(
+            "empty_like",
+            [](const Tensor& other)
+            {
+                return tensor_empty(
+                    other.storage()->device(),
+                    nb::cast(other.shape()),
+                    nb::cast(other.dtype()),
+                    other.usage(),
+                    other.memory_type(),
+                    nb::none(),
+                    nb::none()
+                );
+            },
+            "other"_a
+        )
+        .def_static(
+            "zeros_like",
+            [](const Tensor& other)
+            {
+                return tensor_zeros(
+                    other.storage()->device(),
+                    nb::cast(other.shape()),
+                    nb::cast(other.dtype()),
+                    other.usage(),
+                    other.memory_type(),
+                    nb::none()
+                );
+            },
+            "other"_a
+        )
+        .def_static(
+            "from_torch",
+            &tensor_from_torch,
+            "device"_a,
+            "tensor"_a,
+            "dtype"_a,
+            "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
+            "program_layout"_a.none() = nb::none()
+        )
+        .def_static(
+            "load_from_image",
+            &tensor_load_from_image,
+            "device"_a,
+            "path"_a,
+            "flip_y"_a = false,
+            "linearize"_a = false,
+            "scale"_a = 1.0f,
+            "offset"_a = 0.0f,
+            "grayscale"_a = false
+        );
 
-
-    nb::class_<NativeTensorMarshall, PyNativeTensorMarshall, NativeMarshall>(slangpy, "NativeTensorMarshall") //
+    nb::class_<TensorMarshall, PyTensorMarshall, NativeMarshall>(slangpy, "TensorMarshall") //
         .def(
             "__init__",
-            [](NativeTensorMarshall& self,
+            [](TensorMarshall& self,
                int dims,
                bool writable,
                ref<refl::Type> slang_type,
                ref<refl::Type> slang_element_type,
                ref<TypeLayoutReflection> element_layout,
-               ref<NativeTensorMarshall> d_in,
-               ref<NativeTensorMarshall> d_out)
+               ref<TensorMarshall> d_in,
+               ref<TensorMarshall> d_out)
             {
                 new (&self)
-                    PyNativeTensorMarshall(dims, writable, slang_type, slang_element_type, element_layout, d_in, d_out);
+                    PyTensorMarshall(dims, writable, slang_type, slang_element_type, element_layout, d_in, d_out);
             },
             "dims"_a,
             "writable"_a,
@@ -1316,15 +1620,15 @@ SGL_PY_EXPORT(utils_slangpy_tensor)
             "element_layout"_a,
             "d_in"_a.none(),
             "d_out"_a.none(),
-            D_NA(NativeTensorMarshall, NativeTensorMarshall)
+            D_NA(TensorMarshall, TensorMarshall)
         )
-        .def_prop_ro("dims", &sgl::slangpy::NativeTensorMarshall::dims)
-        .def_prop_ro("writable", &sgl::slangpy::NativeTensorMarshall::writable)
-        .def_prop_ro("slang_element_type", &sgl::slangpy::NativeTensorMarshall::slang_element_type)
-        .def_prop_ro("d_in", &NativeTensorMarshall::d_in)
-        .def_prop_ro("d_out", &NativeTensorMarshall::d_out);
+        .def_prop_ro("dims", &sgl::slangpy::TensorMarshall::dims)
+        .def_prop_ro("writable", &sgl::slangpy::TensorMarshall::writable)
+        .def_prop_ro("slang_element_type", &sgl::slangpy::TensorMarshall::slang_element_type)
+        .def_prop_ro("d_in", &TensorMarshall::d_in)
+        .def_prop_ro("d_out", &TensorMarshall::d_out);
 
-    nb::class_<NativeNumpyMarshall, NativeTensorMarshall>(slangpy, "NativeNumpyMarshall") //
+    nb::class_<NativeNumpyMarshall, TensorMarshall>(slangpy, "NativeNumpyMarshall") //
         .def(
             "__init__",
             [](NativeNumpyMarshall& self,

@@ -72,12 +72,12 @@ public:
 /// - Supports arbitrary dimension counts via caller-provided buffers
 ///
 /// This class shares the CachedBindingInfo and TensorFieldOffsets structures with
-/// NativeTensorMarshall to ensure consistent shader data layout.
+/// TensorMarshall to ensure consistent shader data layout.
 class NativeTorchTensorMarshall : public NativeMarshall {
 public:
-    /// Reuse the offset structures from NativeTensorMarshall
-    using TensorFieldOffsets = NativeTensorMarshall::TensorFieldOffsets;
-    using CachedBindingInfo = NativeTensorMarshall::CachedBindingInfo;
+    /// Reuse the offset structures from TensorMarshall
+    using TensorFieldOffsets = TensorMarshall::TensorFieldOffsets;
+    using CachedBindingInfo = TensorMarshall::CachedBindingInfo;
 
     /// Default buffer size for shape/strides storage (covers 99%+ of tensors)
     static constexpr int32_t DEFAULT_BUFFER_CAPACITY = TENSOR_BRIDGE_DEFAULT_DIMS;

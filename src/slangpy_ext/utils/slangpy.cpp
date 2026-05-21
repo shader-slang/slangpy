@@ -11,6 +11,7 @@
 #include "sgl/device/device.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/command.h"
+#include "sgl/func/tensor.h"
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
 #include "utils/slangpy.h"
@@ -1055,6 +1056,15 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
             if (it->second(builder, o)) {
                 return;
             }
+        }
+    }
+
+    if (!o.is_none()) {
+        const func::Tensor* tensor = nullptr;
+        if (nb::try_cast(o, tensor)) {
+            builder << "Tensor\n";
+            builder.add(tensor->signature());
+            return;
         }
     }
 

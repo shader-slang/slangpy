@@ -4,7 +4,7 @@ import numpy as np
 
 from slangpy import DeviceType, float3
 from slangpy.types import Tensor, diffPair
-from slangpy.types.tensor import Tensor
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false
