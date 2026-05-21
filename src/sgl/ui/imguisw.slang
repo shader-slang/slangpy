@@ -60,6 +60,26 @@ float4 convert_color(uint c)
     return result;
 }
 
+float3 linear_to_srgb(float3 linear)
+{
+    return select(linear * 12.92, pow(linear, 1.0 / 2.4) * 1.055 - 0.055, linear >= 0.0031308);
+}
+
+float4 linear_to_srgb(float4 linear)
+{
+    return float4(linear_to_srgb(linear.rgb), linear.a);
+}
+
+float3 srgb_to_linear(float3 srgb)
+{
+    return select(srgb * (1.0 / 12.92), pow((srgb + 0.055) * (1.0 / 1.055), 2.4), srgb >= 0.04045);
+}
+
+float4 srgb_to_linear(float4 srgb)
+{
+    return float4(srgb_to_linear(srgb.rgb), srgb.a);
+}
+
 bool is_top_left_edge(int dx, int dy)
 {
     // Top-left rule for half-open rasterization: include samples on top/left edges only.
@@ -220,6 +240,7 @@ void draw_triangles(
 #else
         dst = output_texture[pixel];
 #endif
+        dst = is_srgb_format ? srgb_to_linear(dst) : dst;
 
         // Iterate over buckets using the bitmask.
         for (uint w = 0; w < TILE_BITMASK_WORDS; w++) {
@@ -284,10 +305,10 @@ void draw_triangles(
                     float u = w0 * tri.uv0.x + w1 * tri.uv1.x + w2 * tri.uv2.x;
                     float v = w0 * tri.uv0.y + w1 * tri.uv1.y + w2 * tri.uv2.y;
 
-                    // Interpolate vertex color
-                    float4 c0 = convert_color(tri.c0);
-                    float4 c1 = convert_color(tri.c1);
-                    float4 c2 = convert_color(tri.c2);
+                    // Interpolate vertex color (in linear space)
+                    float4 c0 = srgb_to_linear(convert_color(tri.c0));
+                    float4 c1 = srgb_to_linear(convert_color(tri.c1));
+                    float4 c2 = srgb_to_linear(convert_color(tri.c2));
                     float4 src = w0 * c0 + w1 * c1 + w2 * c2;
 
                     // Sample texture and blend
@@ -299,6 +320,8 @@ void draw_triangles(
                 }
             }
         }
+
+        dst = is_srgb_format ? linear_to_srgb(dst) : dst;
 
 #if CUDA_SURFACE_CONVERSION_HACK
         raw = (
