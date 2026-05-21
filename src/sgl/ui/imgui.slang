@@ -20,7 +20,7 @@ struct VsOut {
 
 float3 linear_to_srgb(float3 linear)
 {
-    return select(linear * 12.92, pow(linear, 1.0 / 2.4) * 1.055 - 0.055, linear >= 0.0031308);
+    return select(linear >= 0.0031308, pow(linear, 1.0 / 2.4) * 1.055 - 0.055, linear * 12.92);
 }
 
 float4 linear_to_srgb(float4 linear)
@@ -30,7 +30,7 @@ float4 linear_to_srgb(float4 linear)
 
 float3 srgb_to_linear(float3 srgb)
 {
-    return select(srgb * (1.0 / 12.92), pow((srgb + 0.055) * (1.0 / 1.055), 2.4), srgb >= 0.04045);
+    return select(srgb >= 0.04045, pow((srgb + 0.055) * (1.0 / 1.055), 2.4), srgb * (1.0 / 12.92));
 }
 
 float4 srgb_to_linear(float4 srgb)
