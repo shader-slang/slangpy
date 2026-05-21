@@ -16,7 +16,7 @@
 #endif
 
 /// Subpixel precision (number of subpixels per pixel).
-static constexpr int SUBPIXEL = 16;
+static constexpr int SUBPIXEL = 8;
 /// Tile size.
 static constexpr uint TILE_SIZE = 16;
 /// Number of words (32 bits) in the tile bitmask. Each bit corresponds to a bucket of triangles.
@@ -283,8 +283,6 @@ void draw_triangles(
                     // Interpolate UV
                     float u = w0 * tri.uv0.x + w1 * tri.uv1.x + w2 * tri.uv2.x;
                     float v = w0 * tri.uv0.y + w1 * tri.uv1.y + w2 * tri.uv2.y;
-                    u = fmod(u, 1.0);
-                    v = fmod(v, 1.0);
 
                     // Interpolate vertex color
                     float4 c0 = convert_color(tri.c0);
@@ -296,7 +294,8 @@ void draw_triangles(
                     float4 sampled = texture.Sample(sampler, float2(u, v));
                     src *= sampled;
                     float a = src.a;
-                    dst = (1.0 - a) * dst + src * a;
+                    dst.rgb = src.rgb * a + dst.rgb * (1.0 - a);
+                    dst.a = a + dst.a * (1.0 - a);
                 }
             }
         }
