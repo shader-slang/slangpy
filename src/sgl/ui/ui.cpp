@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // Enable the ImGui demo window for testing and debugging purposes.
-#define ENABLE_IMGUI_DEMO_WINDOW 1
+#define ENABLE_IMGUI_DEMO_WINDOW 0
 
 #include "ui.h"
 
@@ -36,6 +36,12 @@
 CMRC_DECLARE(sgl_data);
 
 namespace sgl::ui {
+
+// Note: These must match the definitions in the SW rasterizer shader.
+static constexpr size_t TRIANGLE_DATA_STRIDE = 64; // sizeof(TriangleData)
+static constexpr size_t BBOX_STRIDE = 8;           // sizeof(BBox)
+static constexpr uint32_t TILE_SIZE = 16;
+static constexpr uint32_t TILE_BITMASK_WORDS = 4; // 128 bits per tile
 
 static void setup_style()
 {
@@ -513,12 +519,6 @@ void Context::render_draw_data(const ImDrawData* draw_data, TextureView* texture
         // Calculate total triangles across all draw commands (for batched buffer allocation).
         uint32_t total_triangles = total_index_count / 3;
 
-        // Note: These must match the definitions in the SW rasterizer shader.
-        static constexpr size_t TRIANGLE_DATA_STRIDE = 64; // sizeof(TriangleData)
-        static constexpr size_t BBOX_STRIDE = 8;           // sizeof(BBox)
-        static constexpr uint32_t TILE_SIZE = 16;
-        static constexpr uint32_t TILE_BITMASK_WORDS = 4; // 128 bits per tile
-
         const size_t required_triangle_bytes = size_t(total_triangles) * TRIANGLE_DATA_STRIDE;
         const size_t required_bbox_bytes = size_t(total_triangles) * BBOX_STRIDE;
 
@@ -873,9 +873,6 @@ void Context::draw_sw(
     ImGuiIO& io = ImGui::GetIO();
 
     bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
-
-    static constexpr uint32_t TILE_SIZE = 16;
-    static constexpr uint32_t TILE_BITMASK_WORDS = 4;
 
     ImVec2 inv_scale = ImVec2(1.f / draw_data->FramebufferScale.x, 1.f / draw_data->FramebufferScale.y);
 
