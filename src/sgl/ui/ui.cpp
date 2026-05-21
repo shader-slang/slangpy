@@ -816,7 +816,7 @@ void Context::draw(
     shader_cursor["scale"] = 2.f / float2(io.DisplaySize.x, -io.DisplaySize.y);
     shader_cursor["offset"] = float2(-1.f, 1.f);
     shader_cursor["is_srgb_format"] = is_srgb_format;
-    ShaderOffset texture_offset = shader_cursor["texture"].offset();
+    ShaderOffset shader_offset_texture = shader_cursor["texture"].offset();
 
     RenderState render_state = {
         .viewports = {Viewport::from_size(io.DisplaySize.x, io.DisplaySize.y)},
@@ -848,7 +848,7 @@ void Context::draw(
             // Apply scissor/clipping rectangle, bind texture, draw.
             render_state.scissor_rects[0] = clip_rect;
             ref<Texture> texture = ref<Texture>(static_cast<Texture*>(pcmd->GetTexID()));
-            shader_object->set_texture(texture_offset, texture);
+            shader_object->set_texture(shader_offset_texture, texture);
             pass_encoder->set_render_state(render_state);
             pass_encoder->draw_indexed({
                 .vertex_count = pcmd->ElemCount,
@@ -877,23 +877,34 @@ void Context::draw_sw(
     static constexpr uint32_t TILE_SIZE = 16;
     static constexpr uint32_t TILE_BITMASK_WORDS = 4;
 
+    ImVec2 inv_scale = ImVec2(1.f / draw_data->FramebufferScale.x, 1.f / draw_data->FramebufferScale.y);
+
     // Pass 1: Setup triangles
     {
         auto pass_encoder = command_encoder->begin_compute_pass();
-        ShaderObject* shader_object = pass_encoder->bind_pipeline(m_setup_triangles_pipeline);
-        ShaderCursor entry_point_cursor = ShaderCursor(shader_object->get_entry_point(0));
-        entry_point_cursor["vertices"] = ref(vertex_buffer);
-        entry_point_cursor["indices"] = ref(index_buffer);
-        entry_point_cursor["triangles"] = m_triangle_buffer;
-        entry_point_cursor["bboxes"] = m_bbox_buffer;
-        entry_point_cursor["tile_bitmasks"] = m_tile_bitmask_buffer;
+        ShaderObject* shader_object = pass_encoder->bind_pipeline(m_setup_triangles_pipeline)->get_entry_point(0);
+        ShaderCursor shader_cursor = ShaderCursor(shader_object);
+        shader_cursor["vertices"] = ref(vertex_buffer);
+        shader_cursor["indices"] = ref(index_buffer);
+        shader_cursor["triangles"] = m_triangle_buffer;
+        shader_cursor["bboxes"] = m_bbox_buffer;
+        shader_cursor["tile_bitmasks"] = m_tile_bitmask_buffer;
+        ShaderOffset shader_offset_start_vertex = shader_cursor["start_vertex"].offset();
+        ShaderOffset shader_offset_start_index = shader_cursor["start_index"].offset();
+        ShaderOffset shader_offset_triangle_count = shader_cursor["triangle_count"].offset();
+        ShaderOffset shader_offset_triangle_offset = shader_cursor["triangle_offset"].offset();
+        ShaderOffset shader_offset_clip_min = shader_cursor["clip_min"].offset();
+        ShaderOffset shader_offset_clip_max = shader_cursor["clip_max"].offset();
+        ShaderOffset shader_offset_tile_bitmask_offset = shader_cursor["tile_bitmask_offset"].offset();
+        ShaderOffset shader_offset_tiles_x = shader_cursor["tiles_x"].offset();
+        ShaderOffset shader_offset_tiles_y = shader_cursor["tiles_y"].offset();
+        ShaderOffset shader_offset_bucket_size = shader_cursor["bucket_size"].offset();
 
         int vertex_offset = 0;
         int index_offset = 0;
         uint32_t triangle_offset = 0;
         uint32_t tile_bitmask_offset = 0;
         ImVec2 clip_off = draw_data->DisplayPos;
-        ImVec2 inv_scale = ImVec2(1.f / draw_data->FramebufferScale.x, 1.f / draw_data->FramebufferScale.y);
         for (int n = 0; n < draw_data->CmdListsCount; n++) {
             const ImDrawList* cmd_list = draw_data->CmdLists[n];
             for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
@@ -904,8 +915,14 @@ void Context::draw_sw(
                 if (triangle_count == 0)
                     continue;
 
-                int2 clip_min = int2((pcmd->ClipRect.x - clip_off.x) * inv_scale.x, (pcmd->ClipRect.y - clip_off.y) * inv_scale.y);
-                int2 clip_max = int2((pcmd->ClipRect.z - clip_off.x) * inv_scale.x, (pcmd->ClipRect.w - clip_off.y) * inv_scale.y);
+                int2 clip_min = int2(
+                    (pcmd->ClipRect.x - clip_off.x) * inv_scale.x,
+                    (pcmd->ClipRect.y - clip_off.y) * inv_scale.y
+                );
+                int2 clip_max = int2(
+                    (pcmd->ClipRect.z - clip_off.x) * inv_scale.x,
+                    (pcmd->ClipRect.w - clip_off.y) * inv_scale.y
+                );
                 uint32_t tiles_x = (uint32_t(clip_max.x - clip_min.x) + TILE_SIZE - 1) / TILE_SIZE;
                 uint32_t tiles_y = (uint32_t(clip_max.y - clip_min.y) + TILE_SIZE - 1) / TILE_SIZE;
                 uint32_t bucket_size = std::max(1u, (triangle_count + 127) / 128);
@@ -914,16 +931,16 @@ void Context::draw_sw(
                     continue;
                 }
 
-                entry_point_cursor["start_vertex"] = uint32_t(pcmd->VtxOffset + vertex_offset);
-                entry_point_cursor["start_index"] = uint32_t(pcmd->IdxOffset + index_offset);
-                entry_point_cursor["triangle_count"] = triangle_count;
-                entry_point_cursor["triangle_offset"] = triangle_offset;
-                entry_point_cursor["clip_min"] = clip_min;
-                entry_point_cursor["clip_max"] = clip_max;
-                entry_point_cursor["tile_bitmask_offset"] = tile_bitmask_offset;
-                entry_point_cursor["tiles_x"] = tiles_x;
-                entry_point_cursor["tiles_y"] = tiles_y;
-                entry_point_cursor["bucket_size"] = bucket_size;
+                shader_object->set_data(shader_offset_start_index, uint32_t(pcmd->IdxOffset + index_offset));
+                shader_object->set_data(shader_offset_start_vertex, uint32_t(pcmd->VtxOffset + vertex_offset));
+                shader_object->set_data(shader_offset_triangle_count, triangle_count);
+                shader_object->set_data(shader_offset_triangle_offset, triangle_offset);
+                shader_object->set_data(shader_offset_clip_min, clip_min);
+                shader_object->set_data(shader_offset_clip_max, clip_max);
+                shader_object->set_data(shader_offset_tile_bitmask_offset, tile_bitmask_offset);
+                shader_object->set_data(shader_offset_tiles_x, tiles_x);
+                shader_object->set_data(shader_offset_tiles_y, tiles_y);
+                shader_object->set_data(shader_offset_bucket_size, bucket_size);
                 pass_encoder->dispatch(uint3(triangle_count, 1, 1));
 
                 triangle_offset += triangle_count;
@@ -939,14 +956,22 @@ void Context::draw_sw(
     {
         auto pass_encoder = command_encoder->begin_compute_pass();
         ShaderObject* shader_object
-            = pass_encoder->bind_pipeline(get_draw_triangles_pipeline(texture_view->desc().format));
-        ShaderCursor entry_point_cursor = ShaderCursor(shader_object->get_entry_point(0));
-        entry_point_cursor["triangles"] = m_triangle_buffer;
-        entry_point_cursor["bboxes"] = m_bbox_buffer;
-        entry_point_cursor["tile_bitmasks"] = m_tile_bitmask_buffer;
-        entry_point_cursor["sampler"] = m_sampler;
-        entry_point_cursor["output_texture"] = ref(texture_view);
-        entry_point_cursor["is_srgb_format"] = is_srgb_format;
+            = pass_encoder->bind_pipeline(get_draw_triangles_pipeline(texture_view->desc().format))->get_entry_point(0);
+        ShaderCursor shader_cursor = ShaderCursor(shader_object);
+        shader_cursor["triangles"] = m_triangle_buffer;
+        shader_cursor["bboxes"] = m_bbox_buffer;
+        shader_cursor["tile_bitmasks"] = m_tile_bitmask_buffer;
+        shader_cursor["sampler"] = m_sampler;
+        shader_cursor["output_texture"] = ref(texture_view);
+        shader_cursor["is_srgb_format"] = is_srgb_format;
+        ShaderOffset shader_offset_texture = shader_cursor["texture"].offset();
+        ShaderOffset shader_offset_triangle_count = shader_cursor["triangle_count"].offset();
+        ShaderOffset shader_offset_triangle_offset = shader_cursor["triangle_offset"].offset();
+        ShaderOffset shader_offset_clip_min = shader_cursor["clip_min"].offset();
+        ShaderOffset shader_offset_clip_max = shader_cursor["clip_max"].offset();
+        ShaderOffset shader_offset_tile_bitmask_offset = shader_cursor["tile_bitmask_offset"].offset();
+        ShaderOffset shader_offset_tiles_x = shader_cursor["tiles_x"].offset();
+        ShaderOffset shader_offset_bucket_size = shader_cursor["bucket_size"].offset();
 
         int vertex_offset = 0;
         int index_offset = 0;
@@ -963,8 +988,14 @@ void Context::draw_sw(
                 if (triangle_count == 0)
                     continue;
 
-                int2 clip_min = int2(pcmd->ClipRect.x - clip_off.x, pcmd->ClipRect.y - clip_off.y);
-                int2 clip_max = int2(pcmd->ClipRect.z - clip_off.x, pcmd->ClipRect.w - clip_off.y);
+                int2 clip_min = int2(
+                    (pcmd->ClipRect.x - clip_off.x) * inv_scale.x,
+                    (pcmd->ClipRect.y - clip_off.y) * inv_scale.y
+                );
+                int2 clip_max = int2(
+                    (pcmd->ClipRect.z - clip_off.x) * inv_scale.x,
+                    (pcmd->ClipRect.w - clip_off.y) * inv_scale.y
+                );
                 uint32_t tiles_x = (uint32_t(clip_max.x - clip_min.x) + TILE_SIZE - 1) / TILE_SIZE;
                 uint32_t tiles_y = (uint32_t(clip_max.y - clip_min.y) + TILE_SIZE - 1) / TILE_SIZE;
                 uint32_t bucket_size = std::max(1u, (triangle_count + 127) / 128);
@@ -974,14 +1005,14 @@ void Context::draw_sw(
                 }
 
                 ref<Texture> tex = ref<Texture>(static_cast<Texture*>(pcmd->GetTexID()));
-                entry_point_cursor["texture"] = tex;
-                entry_point_cursor["triangle_count"] = triangle_count;
-                entry_point_cursor["triangle_offset"] = triangle_offset;
-                entry_point_cursor["clip_min"] = clip_min;
-                entry_point_cursor["clip_max"] = clip_max;
-                entry_point_cursor["tile_bitmask_offset"] = tile_bitmask_offset;
-                entry_point_cursor["tiles_x"] = tiles_x;
-                entry_point_cursor["bucket_size"] = bucket_size;
+                shader_object->set_texture(shader_offset_texture, tex);
+                shader_object->set_data(shader_offset_triangle_count, triangle_count);
+                shader_object->set_data(shader_offset_triangle_offset, triangle_offset);
+                shader_object->set_data(shader_offset_clip_min, clip_min);
+                shader_object->set_data(shader_offset_clip_max, clip_max);
+                shader_object->set_data(shader_offset_tile_bitmask_offset, tile_bitmask_offset);
+                shader_object->set_data(shader_offset_tiles_x, tiles_x);
+                shader_object->set_data(shader_offset_bucket_size, bucket_size);
 
                 // Dispatch in tiles covering the clip rect.
                 // dispatch() takes thread counts; each tile is TILE_SIZE x TILE_SIZE threads.
