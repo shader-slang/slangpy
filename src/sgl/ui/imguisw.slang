@@ -60,6 +60,12 @@ float4 convert_color(uint c)
     return result;
 }
 
+bool is_top_left_edge(int dx, int dy)
+{
+    // Top-left rule for half-open rasterization: include samples on top/left edges only.
+    return (dy < 0) || (dy == 0 && dx > 0);
+}
+
 /// One thread per triangle. Reads vertices/indices, writes precomputed triangle data, packed bbox,
 /// and sets bits in per-tile bitmasks for bucket culling.
 [shader("compute")]
@@ -251,14 +257,23 @@ void draw_triangles(
                     int e1 = e1_dx * (py - tri.p1.y) - e1_dy * (px - tri.p1.x);
                     int e2 = e2_dx * (py - tri.p2.y) - e2_dy * (px - tri.p2.x);
 
-                    bool backface = tri.area < 0;
-                    if (backface) {
-                        if (e0 > 0 || e1 > 0 || e2 > 0)
-                            continue;
-                    } else {
-                        if (e0 < 0 || e1 < 0 || e2 < 0)
-                            continue;
-                    }
+                    // Normalize winding so coverage uses a single top-left rule.
+                    int winding = tri.area < 0 ? -1 : 1;
+                    int n_e0 = e0 * winding;
+                    int n_e1 = e1 * winding;
+                    int n_e2 = e2 * winding;
+                    int n_e0_dx = e0_dx * winding;
+                    int n_e0_dy = e0_dy * winding;
+                    int n_e1_dx = e1_dx * winding;
+                    int n_e1_dy = e1_dy * winding;
+                    int n_e2_dx = e2_dx * winding;
+                    int n_e2_dy = e2_dy * winding;
+
+                    bool e0_inside = (n_e0 > 0) || (n_e0 == 0 && is_top_left_edge(n_e0_dx, n_e0_dy));
+                    bool e1_inside = (n_e1 > 0) || (n_e1 == 0 && is_top_left_edge(n_e1_dx, n_e1_dy));
+                    bool e2_inside = (n_e2 > 0) || (n_e2 == 0 && is_top_left_edge(n_e2_dx, n_e2_dy));
+                    if (!(e0_inside && e1_inside && e2_inside))
+                        continue;
 
                     // Barycentric weights
                     float w0 = float(e1) / float(tri.area);
