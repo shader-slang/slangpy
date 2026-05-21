@@ -18,6 +18,7 @@ struct ImGuiContext;
 struct ImDrawData;
 struct ImFont;
 struct ImTextureData;
+struct ImDrawData;
 
 namespace sgl::ui {
 
@@ -72,12 +73,38 @@ public:
     bool handle_mouse_event(const MouseEvent& event);
 
 private:
-    RenderPipeline* get_pipeline(Format format);
-
     // TODO: The frame count should not be hard-coded like this.
     // We should probably both control the number of buffers in the Context constructor
     // and pass in the frame to use in begin_frame().
     static constexpr uint32_t FRAME_COUNT = 4;
+
+    enum class RenderMode {
+        disabled,
+        rasterizer,
+        sw_rasterizer,
+    };
+
+    void init_rasterizer();
+    void init_sw_rasterizer();
+
+    RenderPipeline* get_render_pipeline(Format format);
+    ComputePipeline* get_draw_triangles_pipeline(Format format);
+
+    void draw(
+        const ImDrawData* draw_data,
+        Buffer* vertex_buffer,
+        Buffer* index_buffer,
+        TextureView* texture_view,
+        CommandEncoder* command_encoder
+    );
+
+    void draw_sw(
+        const ImDrawData* draw_data,
+        Buffer* vertex_buffer,
+        Buffer* index_buffer,
+        TextureView* texture_view,
+        CommandEncoder* command_encoder
+    );
 
     ref<Device> m_device;
     ImGuiContext* m_imgui_context;
@@ -87,16 +114,26 @@ private:
     uint32_t m_frame_index{0};
     Timer m_frame_timer;
 
+    RenderMode m_render_mode{RenderMode::disabled};
+
     ref<Sampler> m_sampler;
     ref<Buffer> m_vertex_buffers[FRAME_COUNT];
     ref<Buffer> m_index_buffers[FRAME_COUNT];
-    ref<ShaderProgram> m_program;
+
+    // Resources for the rasterizer pipeline.
     ref<InputLayout> m_input_layout;
+    ref<ShaderProgram> m_render_program;
+    std::map<Format, ref<RenderPipeline>> m_render_pipelines;
+
+    // Resources for the SW rasterizer pipeline.
+    ref<Buffer> m_triangle_buffer;
+    ref<Buffer> m_bbox_buffer;
+    ref<Buffer> m_tile_bitmask_buffer;
+    ref<ComputePipeline> m_setup_triangles_pipeline;
+    std::map<Format, ref<ComputePipeline>> m_draw_triangles_pipeline;
 
     std::map<std::string, ImFont*> m_fonts;
     std::map<ImTextureData*, ref<Texture>> m_textures;
-
-    std::map<Format, ref<RenderPipeline>> m_pipelines;
 
     void update_texture(ImTextureData* tex);
     void update_mouse_cursor(sgl::Window* window);
