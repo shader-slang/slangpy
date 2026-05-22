@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import pytest
 import numpy as np
-from slangpy import DeviceType, BufferUsage, Tensor
-from slangpy.types import Tensor
+import pytest
+
+from slangpy import BufferUsage, DeviceType, Tensor
 from slangpy.testing import helpers
+from slangpy.types import Tensor
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -479,6 +480,140 @@ void double_buffers(RWStructuredBuffer<int> buffers[4]) {
     for i, buf in enumerate(buffers):
         result = np.frombuffer(buf.to_numpy(), dtype=np.int32)
         assert result[0] == (i + 1) * 20
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_array_of_tensors_read(device_type: DeviceType) -> None:
+    """A function parameter that is an array of Tensor<T,N>."""
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "sum_tensors",
+        r"""
+float sum_tensors(Tensor<float, 1> tensors[4]) {
+    float s = 0.0;
+    for (int i = 0; i < 4; i++) {
+        s += tensors[i].load(int[1](0));
+    }
+    return s;
+}
+""",
+    )
+
+    tensors: list[Tensor] = []
+    for i in range(4):
+        t = Tensor.zeros(
+            device,
+            dtype=function.module.float,
+            shape=(1,),
+            usage=BufferUsage.shader_resource,
+        )
+        t.copy_from_numpy(np.array([(i + 1) * 10], dtype=np.float32))
+        tensors.append(t)
+
+    result = function(tensors)
+    assert np.isclose(result, 100.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_array_of_rwtensors_write(device_type: DeviceType) -> None:
+    """A function parameter that is an array of RWTensor<T,N>."""
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "double_tensors",
+        r"""
+void double_tensors(RWTensor<float, 1> tensors[4]) {
+    for (int i = 0; i < 4; i++) {
+        float v = tensors[i].load(int[1](0));
+        tensors[i].store(int[1](0), v * 2.0);
+    }
+}
+""",
+    )
+
+    tensors: list[Tensor] = []
+    for i in range(4):
+        t = Tensor.zeros(device, dtype=function.module.float, shape=(1,))
+        t.copy_from_numpy(np.array([(i + 1) * 10], dtype=np.float32))
+        tensors.append(t)
+
+    function(tensors)
+
+    for i, t in enumerate(tensors):
+        out = t.to_numpy()
+        assert out.shape == (1,)
+        assert np.isclose(out[0], (i + 1) * 20.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_array_of_difftensors_read(device_type: DeviceType) -> None:
+    """A function parameter that is an array of DiffTensor<T,N> (primal pass)."""
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "sum_difftensors",
+        r"""
+float sum_difftensors(DiffTensor<float, 1> tensors[4]) {
+    float s = 0.0;
+    for (int i = 0; i < 4; i++) {
+        s += tensors[i].load(int[1](0));
+    }
+    return s;
+}
+""",
+    )
+
+    tensors: list[Tensor] = []
+    for i in range(4):
+        t = Tensor.zeros(
+            device,
+            dtype=function.module.float,
+            shape=(1,),
+            usage=BufferUsage.shader_resource,
+        )
+        t = t.with_grads(grad_out=Tensor.zeros_like(t))
+        t.copy_from_numpy(np.array([(i + 1) * 10], dtype=np.float32))
+        tensors.append(t)
+
+    result = function(tensors)
+    assert np.isclose(result, 100.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_array_of_rwdifftensors_write(device_type: DeviceType) -> None:
+    """A function parameter that is an array of RWDiffTensor<T,N> (primal write)."""
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "double_difftensors",
+        r"""
+void double_difftensors(RWDiffTensor<float, 1> tensors[4]) {
+    for (int i = 0; i < 4; i++) {
+        float v = tensors[i].load(int[1](0));
+        tensors[i].store(int[1](0), v * 2.0);
+    }
+}
+""",
+    )
+
+    tensors: list[Tensor] = []
+    for i in range(4):
+        t = Tensor.zeros(device, dtype=function.module.float, shape=(1,))
+        t = t.with_grads(grad_out=Tensor.zeros_like(t))
+        t.copy_from_numpy(np.array([(i + 1) * 10], dtype=np.float32))
+        tensors.append(t)
+
+    function(tensors)
+
+    for i, t in enumerate(tensors):
+        out = t.to_numpy()
+        assert out.shape == (1,)
+        assert np.isclose(out[0], (i + 1) * 20.0)
 
 
 if __name__ == "__main__":
