@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 #: to keep generated entry-point params and ``CallData`` fields readable.
 #: Shorter names are inlined directly.
 MAX_INLINE_TYPE_LEN = 60
+MAX_DISPATCH_THREAD_GROUPS_X = 65535
 
 
 class KernelGenException(Exception):
@@ -455,8 +456,20 @@ def _emit_link_time_constants(
         export static const int[call_data_len] call_group_shape_vector = {};
     """
     _emit_user_constants(build_info, cg)
+    dispatch_thread_group_size = call_group_size if call_group_size != 1 else 32
+    dispatch_thread_groups_x = min(
+        build_info.module.device.info.limits.max_compute_dispatch_thread_groups.x,
+        MAX_DISPATCH_THREAD_GROUPS_X,
+    )
     cg.constants.append_statement(f"export static const int call_data_len = {call_data_len}")
     cg.constants.append_statement(f"export static const int call_group_size = {call_group_size}")
+    cg.constants.append_statement(
+        f"export static const int dispatch_group_x_stride = {dispatch_thread_groups_x}"
+    )
+    cg.constants.append_statement(
+        "export static const int dispatch_thread_x_stride = "
+        f"{dispatch_thread_groups_x * dispatch_thread_group_size}"
+    )
 
     cg.constants.append_line(f"export static const int[call_data_len] call_group_strides = {{")
     cg.constants.inc_indent()
@@ -733,8 +746,8 @@ def _emit_entry_point_signature(
 
         [shader("compute")]
         [numthreads(32, 1, 1)]
-        void compute_main(int3 flat_call_thread_id: SV_DispatchThreadID,
-                          int3 flat_call_group_id: SV_GroupID,
+        void compute_main(int3 physical_thread_id: SV_DispatchThreadID,
+                          int3 physical_group_id: SV_GroupID,
                           int flat_call_group_thread_id: SV_GroupIndex,
                           uniform int[N] _grid_stride, ...)
 
@@ -752,16 +765,16 @@ def _emit_entry_point_signature(
         else:
             cg.kernel.append_line("[numthreads(32, 1, 1)]")
         if use_entrypoint_args:
-            sig_parts = ["int3 flat_call_thread_id: SV_DispatchThreadID"]
+            sig_parts = ["int3 physical_thread_id: SV_DispatchThreadID"]
             if call_data_len > 0:
-                sig_parts.append("int3 flat_call_group_id: SV_GroupID")
+                sig_parts.append("int3 physical_group_id: SV_GroupID")
                 sig_parts.append("int flat_call_group_thread_id: SV_GroupIndex")
             sig_parts.extend(cg.entry_point_params)
             cg.kernel.append_line(f"void compute_main({', '.join(sig_parts)})")
         else:
             sig_parts = [
-                "int3 flat_call_thread_id: SV_DispatchThreadID",
-                "int3 flat_call_group_id: SV_GroupID",
+                "int3 physical_thread_id: SV_DispatchThreadID",
+                "int3 physical_group_id: SV_GroupID",
                 "int flat_call_group_thread_id: SV_GroupIndex",
             ]
             cg.kernel.append_line(f"void compute_main({', '.join(sig_parts)})")
@@ -799,9 +812,23 @@ def _emit_kernel_body(
     """
     from slangpy.core.function import PipelineType
 
-    # For RTP, read thread ID using DispatchRaysIndex() instead of SV_DispatchThreadID
-    if build_info.pipeline_type == PipelineType.ray_tracing:
+    if build_info.pipeline_type == PipelineType.compute:
+        cg.kernel.append_statement(
+            "int3 flat_call_thread_id = int3("
+            "physical_thread_id.y * dispatch_thread_x_stride + physical_thread_id.x, "
+            "0, 0)"
+        )
+        if call_data_len > 0:
+            cg.kernel.append_statement(
+                "int3 flat_call_group_id = int3("
+                "physical_group_id.y * dispatch_group_x_stride + physical_group_id.x, "
+                "0, 0)"
+            )
+    elif build_info.pipeline_type == PipelineType.ray_tracing:
+        # For RTP, read thread ID using DispatchRaysIndex() instead of SV_DispatchThreadID.
         cg.kernel.append_statement("int3 flat_call_thread_id = DispatchRaysIndex();")
+    else:
+        raise RuntimeError(f"Unknown pipeline type: {build_info.pipeline_type}")
 
     # Bail out if out of bounds.
     if use_entrypoint_args:
