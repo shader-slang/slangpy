@@ -10,7 +10,9 @@ import pytest
 import numpy as np
 from pathlib import Path
 
-from slangpy import DeviceType, Tensor
+import slangpy
+from slangpy import Tensor
+from slangpy import DeviceType
 from slangpy.core.module import Module
 from slangpy.testing import helpers
 
@@ -22,11 +24,10 @@ def load_module(device_type: DeviceType) -> Module:
         str(Path(__file__).parent / "test_difftensor_load_variants.slang"),
     )
 
-
-# =============================================================================
-# load_once: per-element f(x) = x*x, backward dx = 2*x
-# Works on all device types (no wave intrinsics needed)
-# =============================================================================
+    # =============================================================================
+    # load_once: per-element f(x) = x*x, backward dx = 2*x
+    # Works on all device types (no wave intrinsics needed)
+    # =============================================================================
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -50,7 +51,7 @@ def test_load_once_square_correctness(device_type: DeviceType) -> None:
 
     # Verify forward
     result_np = result.to_numpy()
-    assert np.allclose(result_np, x_np * x_np), f"Forward wrong: {result_np}"
+    assert np.allclose(result_np, x_np * x_np), f"Forward wrong: {result_np }"
 
     func.bwds(x, result, 0)
     func.bwds(x, result, 1)
@@ -64,7 +65,7 @@ def test_load_once_square_correctness(device_type: DeviceType) -> None:
     expected = 2.0 * x_np
     assert np.allclose(
         x_grad, expected, atol=1e-5
-    ), f"Grad wrong: got {x_grad}, expected {expected}"
+    ), f"Grad wrong: got {x_grad }, expected {expected }"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -85,7 +86,7 @@ def test_load_once_matches_load(device_type: DeviceType) -> None:
     for i in range(3):
         module.square_load_once.bwds(x_once, result_once, i)
 
-    # Run with load
+        # Run with load
     x_load = Tensor.from_numpy(device, x_np).with_grads()
     result_load = Tensor.empty(device, shape=(3,), dtype=float).with_grads()
     assert result_load.grad_in is not None
@@ -102,13 +103,12 @@ def test_load_once_matches_load(device_type: DeviceType) -> None:
 
     assert np.allclose(
         grad_once, grad_load, atol=1e-5
-    ), f"Gradients differ: load_once={grad_once}, load={grad_load}"
+    ), f"Gradients differ: load_once={grad_once }, load={grad_load }"
 
-
-# =============================================================================
-# load_uniform: uniform y = w, backward w_grad = sum(output_grad) = n
-# WaveActiveSum maps to subgroupAdd on Vulkan, works on all backends
-# =============================================================================
+    # =============================================================================
+    # load_uniform: uniform y = w, backward w_grad = sum(output_grad) = n
+    # WaveActiveSum maps to subgroupAdd on Vulkan, works on all backends
+    # =============================================================================
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -127,17 +127,17 @@ def test_load_uniform_broadcast_correctness(device_type: DeviceType) -> None:
     for i in range(n):
         func(w, result, i)
 
-    # Verify forward: all outputs = w = 3.0
+        # Verify forward: all outputs = w = 3.0
     result_np = result.to_numpy()
-    assert np.allclose(result_np, 3.0), f"Forward wrong: {result_np}"
+    assert np.allclose(result_np, 3.0), f"Forward wrong: {result_np }"
 
     for i in range(n):
         func.bwds(w, result, i)
 
-    # Verify backward: w_grad = sum(output_grad) = n
+        # Verify backward: w_grad = sum(output_grad) = n
     assert w.grad_out is not None
     w_grad = w.grad_out.to_numpy()
-    assert np.allclose(w_grad, [float(n)], atol=1e-5), f"w_grad wrong: got {w_grad}, expected {n}"
+    assert np.allclose(w_grad, [float(n)], atol=1e-5), f"w_grad wrong: got {w_grad }, expected {n }"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -158,7 +158,7 @@ def test_load_uniform_matches_load(device_type: DeviceType) -> None:
     for i in range(n):
         module.broadcast_load_uniform.bwds(w_uniform, result_uniform, i)
 
-    # Run with load
+        # Run with load
     w_load = Tensor.from_numpy(device, np.array([3.0], dtype=np.float32)).with_grads()
     result_load = Tensor.empty(device, shape=(n,), dtype=float).with_grads()
     assert result_load.grad_in is not None
@@ -175,7 +175,7 @@ def test_load_uniform_matches_load(device_type: DeviceType) -> None:
 
     assert np.allclose(
         grad_uniform, grad_load, atol=1e-5
-    ), f"Gradients differ: load_uniform={grad_uniform}, load={grad_load}"
+    ), f"Gradients differ: load_uniform={grad_uniform }, load={grad_load }"
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Tuple
 import pytest
 
 import slangpy as spy
+from slangpy import Tensor
 import slangpy.reflection as spyr
 import slangpy.core.native as spyn
 import slangpy.testing.helpers as helpers
@@ -348,7 +349,7 @@ void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
-    param_values = (spy.Tensor.empty(device, (10,), dtype=get_type(module, "int")),) * param_count
+    param_values = (Tensor.empty(device, (10,), dtype=get_type(module, "int")),) * param_count
     param_types = (get_type(module, "Tensor<int,1>"),) * param_count
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)
@@ -369,7 +370,7 @@ void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
-    param_values = (spy.Tensor.empty(device, (10,), dtype=get_type(module, "int")),) * param_count
+    param_values = (Tensor.empty(device, (10,), dtype=get_type(module, "int")),) * param_count
     param_types = (get_type(module, "StructuredBuffer<int>"),) * param_count
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)
@@ -390,7 +391,7 @@ void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
-    param_values = (spy.Tensor.empty(device, (10,), dtype=get_type(module, "int")),) * param_count
+    param_values = (Tensor.empty(device, (10,), dtype=get_type(module, "int")),) * param_count
     param_types = (get_type(module, "int"),) * param_count
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)
@@ -411,7 +412,7 @@ void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
-    param_values = (spy.Tensor.empty(device, (10,), dtype=get_type(module, "int")),) * param_count
+    param_values = (Tensor.empty(device, (10,), dtype=get_type(module, "int")),) * param_count
     param_types = (get_type(module, "vector<int,1>"),) * param_count
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)
@@ -432,7 +433,7 @@ void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
-    param_values = (spy.Tensor.empty(device, (10,), dtype=get_type(module, "int")),) * param_count
+    param_values = (Tensor.empty(device, (10,), dtype=get_type(module, "int")),) * param_count
     param_types = (get_type(module, "int[1]"),) * param_count
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)
@@ -455,9 +456,7 @@ void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
-    param_values = (
-        spy.Tensor.empty(device, (10,), dtype=get_type(module, "int[1]")),
-    ) * param_count
+    param_values = (Tensor.empty(device, (10,), dtype=get_type(module, "int[1]")),) * param_count
     param_types = (get_type(module, "int[1]"),) * param_count
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)
@@ -480,9 +479,7 @@ void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
-    param_values = (
-        spy.Tensor.empty(device, (10,), dtype=get_type(module, "int[1]")),
-    ) * param_count
+    param_values = (Tensor.empty(device, (10,), dtype=get_type(module, "int[1]")),) * param_count
     param_types = (get_type(module, "int[1][1]"),) * param_count
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)
@@ -499,7 +496,7 @@ void test_func(Foo x) {{}}
 """
     module = helpers.create_module(device, code)
 
-    param_values = (spy.Tensor.empty(device, (10,), dtype=get_type(module, "int")),)
+    param_values = (Tensor.empty(device, (10,), dtype=get_type(module, "int")),)
     param_types = (get_type(module, "int"),)
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)
@@ -562,7 +559,7 @@ void test_func<T>(Foo<T> p0) {{}}
 """
     module = helpers.create_module(device, code)
 
-    param_values = (spy.Tensor.empty(device, (10,), dtype=get_type(module, "Foo<int>")),)
+    param_values = (Tensor.empty(device, (10,), dtype=get_type(module, "Foo<int>")),)
     param_types = (get_type(module, "Foo<int>"),)
     actual_resolution = build_and_resolve(module, "test_func", spyn.CallMode.prim, *param_values)
     check(actual_resolution, *param_types)
@@ -620,8 +617,8 @@ class _Tensor:
         txt += ">"
         return txt
 
-    def __call__(self, module: spy.Module) -> spy.Tensor:
-        t = spy.Tensor.empty(
+    def __call__(self, module: spy.Module) -> Tensor:
+        t = Tensor.empty(
             module.device,
             (3,) * self.dim,
             dtype=module.layout.find_type_by_name(self.base_type),
@@ -629,8 +626,8 @@ class _Tensor:
         )
         if self.gradin or self.gradout:
             t = t.with_grads(
-                grad_in=spy.Tensor.empty_like(t) if self.gradin else None,
-                grad_out=spy.Tensor.empty_like(t) if self.gradout else None,
+                grad_in=Tensor.empty_like(t) if self.gradin else None,
+                grad_out=Tensor.empty_like(t) if self.gradout else None,
             )
         return t
 

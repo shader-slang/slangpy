@@ -30,6 +30,8 @@ import runpy
 import pathlib
 
 # Useful slangpy types
+from . import native_func
+from .native_func import Tensor
 from . import types
 
 # Bring all shared types into the top level namespace

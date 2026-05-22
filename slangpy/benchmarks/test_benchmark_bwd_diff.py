@@ -31,7 +31,8 @@ if sys.platform == "darwin":
     pytest.skip("PyTorch requires CUDA, not available on macOS", allow_module_level=True)
 
 import slangpy as spy
-from slangpy import diff_pair, Tensor
+import slangpy
+from slangpy import diff_pair
 
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkSlangFunction
@@ -75,8 +76,8 @@ def _check_uniform_correctness(
     """Verify y[tid]=w backward: w_grad = sum(output_grad) = CORRECTNESS_N."""
     n = CORRECTNESS_N
     if use_difftensor:
-        w = Tensor.from_numpy(device, np.array([W_VAL], dtype=np.float32)).with_grads()
-        result = Tensor.empty(device, shape=(n,), dtype=float).with_grads()
+        w = slangpy.Tensor.from_numpy(device, np.array([W_VAL], dtype=np.float32)).with_grads()
+        result = slangpy.Tensor.empty(device, shape=(n,), dtype=float).with_grads()
         assert result.grad_in is not None
         result.grad_in.storage.copy_from_numpy(np.ones(n, dtype=np.float32))
         func(count=n, w=w, output=result, _thread_count=n)
@@ -109,8 +110,8 @@ def _check_square_correctness(
     x_np = np.array([1.0, 2.0, 3.0] + [0.0] * (n - 3), dtype=np.float32)
     expected_np = 2.0 * x_np
     if use_difftensor:
-        x = Tensor.from_numpy(device, x_np).with_grads()
-        result = Tensor.empty(device, shape=(n,), dtype=float).with_grads()
+        x = slangpy.Tensor.from_numpy(device, x_np).with_grads()
+        result = slangpy.Tensor.empty(device, shape=(n,), dtype=float).with_grads()
         assert result.grad_in is not None
         result.grad_in.storage.copy_from_numpy(np.ones(n, dtype=np.float32))
         func(count=n, input=x, output=result, _thread_count=n)
@@ -119,7 +120,7 @@ def _check_square_correctness(
         x_grad = x.grad_out.to_numpy()
         assert np.allclose(
             x_grad, expected_np
-        ), f"x_grad wrong: got {x_grad[:3].tolist()}, expected {expected_np[:3].tolist()}"
+        ), f"x_grad wrong: got {x_grad [:3 ].tolist()}, expected {expected_np [:3 ].tolist()}"
     else:
         x = torch.tensor(x_np, device="cuda")
         x_grad = torch.zeros(n, device="cuda")
@@ -135,13 +136,13 @@ def _check_square_correctness(
         expected = torch.tensor(expected_np, device="cuda")
         assert torch.allclose(
             x_grad, expected
-        ), f"x_grad wrong: got {x_grad[:3].tolist()}, expected {expected[:3].tolist()}"
+        ), f"x_grad wrong: got {x_grad [:3 ].tolist()}, expected {expected [:3 ].tolist()}"
 
 
 def _make_dt_uniform_kwargs(device: spy.Device, n: int) -> dict:
     """Create DiffTensor kwargs for uniform access benchmark."""
-    w = Tensor.from_numpy(device, np.array([W_VAL], dtype=np.float32)).with_grads()
-    result = Tensor.empty(device, shape=(n,), dtype=float).with_grads()
+    w = slangpy.Tensor.from_numpy(device, np.array([W_VAL], dtype=np.float32)).with_grads()
+    result = slangpy.Tensor.empty(device, shape=(n,), dtype=float).with_grads()
     assert result.grad_in is not None
     result.grad_in.storage.copy_from_numpy(np.ones(n, dtype=np.float32))
     return dict(count=n, w=w, output=result, _thread_count=n)
@@ -165,8 +166,8 @@ def _make_dtv_uniform_kwargs(n: int) -> dict:
 
 def _make_dt_square_kwargs(device: spy.Device, n: int) -> dict:
     """Create DiffTensor kwargs for per-element square benchmark."""
-    x = Tensor.from_numpy(device, np.random.randn(n).astype(np.float32)).with_grads()
-    result = Tensor.empty(device, shape=(n,), dtype=float).with_grads()
+    x = slangpy.Tensor.from_numpy(device, np.random.randn(n).astype(np.float32)).with_grads()
+    result = slangpy.Tensor.empty(device, shape=(n,), dtype=float).with_grads()
     assert result.grad_in is not None
     result.grad_in.storage.copy_from_numpy(np.ones(n, dtype=np.float32))
     return dict(count=n, input=x, output=result, _thread_count=n)
@@ -187,10 +188,9 @@ def _make_dtv_square_kwargs(n: int) -> dict:
         _thread_count=n,
     )
 
-
-# =============================================================================
-# Uniform access: y[tid] = w (broadcast)
-# =============================================================================
+    # =============================================================================
+    # Uniform access: y[tid] = w (broadcast)
+    # =============================================================================
 
 
 @pytest.mark.parametrize("n", TENSOR_SIZES)
@@ -256,10 +256,9 @@ def test_bwd_dtv_load_uniform(
     kwargs = _make_dtv_uniform_kwargs(n)
     benchmark_slang_function(device, func.bwds, **kwargs)
 
-
-# =============================================================================
-# Per-element access: f(x) = x*x
-# =============================================================================
+    # =============================================================================
+    # Per-element access: f(x) = x*x
+    # =============================================================================
 
 
 @pytest.mark.parametrize("n", TENSOR_SIZES)

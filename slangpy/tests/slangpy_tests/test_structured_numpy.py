@@ -13,10 +13,11 @@ import numpy as np
 import pytest
 
 import slangpy as spy
+from slangpy import Tensor
 from slangpy import DeviceType
 from slangpy.bindings.boundvariable import BoundVariableException
 from slangpy.testing import helpers
-from slangpy.types import Tensor
+import slangpy
 
 
 MODULE = r"""
@@ -65,10 +66,9 @@ def _make_training_sample_dtype():
         ]
     )
 
-
-# ---------------------------------------------------------------------------
-# Tensor.from_numpy with structured dtype
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    # Tensor.from_numpy with structured dtype
+    # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -141,10 +141,9 @@ def test_tensor_from_numpy_structured_training_sample(device_type: DeviceType):
         with pytest.raises(ValueError, match="does not match"):
             Tensor.from_numpy(device, data, target_slang_dtype=TrainingSample)
 
-
-# ---------------------------------------------------------------------------
-# Error: structured dtype without explicit target_slang_dtype
-# ---------------------------------------------------------------------------
+            # ---------------------------------------------------------------------------
+            # Error: structured dtype without explicit target_slang_dtype
+            # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -158,10 +157,9 @@ def test_tensor_from_numpy_structured_without_dtype_raises(device_type: DeviceTy
     with pytest.raises(ValueError, match="Structured numpy dtype"):
         Tensor.from_numpy(device, data)
 
-
-# ---------------------------------------------------------------------------
-# Error: size mismatch detection
-# ---------------------------------------------------------------------------
+        # ---------------------------------------------------------------------------
+        # Error: size mismatch detection
+        # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -178,10 +176,9 @@ def test_tensor_from_numpy_structured_size_mismatch(device_type: DeviceType):
     with pytest.raises(ValueError, match="does not match"):
         Tensor.from_numpy(device, data, target_slang_dtype=TrainingSample)
 
-
-# ---------------------------------------------------------------------------
-# Error: direct function call with structured numpy
-# ---------------------------------------------------------------------------
+        # ---------------------------------------------------------------------------
+        # Error: direct function call with structured numpy
+        # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

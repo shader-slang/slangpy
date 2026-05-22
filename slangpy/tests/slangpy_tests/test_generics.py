@@ -4,8 +4,8 @@ import pytest
 import numpy as np
 
 from slangpy import DeviceType, TypeReflection
-from slangpy.types import Tensor
-from slangpy.types import Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.testing import helpers
 
 
@@ -21,9 +21,7 @@ def do_generic_test(
     module = helpers.create_module(
         device,
         f"""
-{slang_type_name} get{generic_args}({slang_type_name} input) {{
-    return input;
-}}
+{slang_type_name} get{generic_args}({slang_type_name} input) {{return input;}}
 """,
     )
 
@@ -103,20 +101,14 @@ def test_arithmetic_generic_arguments_bug(device_type: DeviceType, explicit: boo
 
     CODE = """
 interface IModule<int N, int M>
-{
-    float[M] eval(float[N] x);
-}
+{float[M] eval(float[N] x);}
 
 struct LinearLayer<int N, int M> : IModule<N, M>
-{
-    float[M] eval(float[N] x)
-    {
-        float[M] result;
+{float[M] eval(float[N] x)
+    {float[M] result;
         [ForceUnroll]
         for (int i = 0; i < M; ++i) result[i] = 0.f;
-        return result;
-    }
-};
+        return result;}};
 
 float trainMaterial<
     int numLatents,
@@ -124,9 +116,7 @@ float trainMaterial<
     Decoder : IModule<numLatents+6, 3> // <---- here!
 >
 (Encoder encoder, Decoder decoder)
-{
-    return 0.f;
-}
+{return 0.f;}
 """
 
     device = helpers.get_device(device_type)

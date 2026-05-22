@@ -4,7 +4,8 @@ import pytest
 import numpy as np
 
 from slangpy import DeviceType, int3, float3
-from slangpy.types import Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.testing import helpers
 
 SIMPLE_FUNC = """

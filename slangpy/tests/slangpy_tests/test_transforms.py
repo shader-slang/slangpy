@@ -4,7 +4,8 @@ import pytest
 import numpy as np
 
 from slangpy import DeviceType, float3, Logger, LogLevel, float2x3, Module
-from slangpy.types import Tensor, Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.testing import helpers
 
 from typing import Any

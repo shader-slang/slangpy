@@ -7,7 +7,8 @@ from slangpy import DeviceType, float2, float3, Module
 from slangpy.core.function import Function
 from slangpy.core.struct import Struct
 from slangpy.core.utils import find_type_layout_for_buffer
-from slangpy.types import Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.testing import helpers
 
 

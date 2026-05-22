@@ -5,7 +5,8 @@ import numpy as np
 import os
 
 from slangpy import DeviceType, Device
-from slangpy.types import Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.testing import helpers
 
 from typing import Any
@@ -105,7 +106,7 @@ def test_fail_shared_inout_grad_buffers(device_type: DeviceType):
         "inc",
         r"""
 [Differentiable]
-void inc(float amount, inout float val) { val += amount; }
+void inc(float amount, inout float val) {val += amount;}
 """,
     )
 

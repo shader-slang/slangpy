@@ -5,7 +5,7 @@ import numpy.typing as npt
 
 from slangpy.core.instance import InstanceList
 from slangpy.core.struct import Struct
-from slangpy import Tensor
+import slangpy
 
 
 class InstanceDifferentiableBuffer(InstanceList):
@@ -20,10 +20,10 @@ class InstanceDifferentiableBuffer(InstanceList):
         self,
         struct: Struct,
         shape: tuple[int, ...],
-        data: Optional[Tensor] = None,
+        data: Optional[slangpy.Tensor] = None,
     ):
         if data is None:
-            data = Tensor.empty(
+            data = slangpy.Tensor.empty(
                 struct.device_module.session.device,
                 dtype=struct,
                 shape=shape,

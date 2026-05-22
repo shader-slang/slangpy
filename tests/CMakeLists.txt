@@ -28,6 +28,7 @@ if(SGL_BUILD_TESTS)
         sgl/device/test_formats.cpp
         sgl/device/test_shader.cpp
         sgl/func/test_base_objects.cpp
+        sgl/func/test_tensor.cpp
         sgl/refl/test_lookup.cpp
         sgl/refl/test_reflection.cpp
         sgl/math/test_float16.cpp

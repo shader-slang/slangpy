@@ -5,7 +5,9 @@ import sys
 import numpy as np
 from pathlib import Path
 
-from slangpy import DeviceType, Tensor, diff_pair
+import slangpy
+from slangpy import Tensor
+from slangpy import DeviceType, diff_pair
 from slangpy.core.module import Module
 from slangpy.testing import helpers
 
@@ -13,7 +15,7 @@ from slangpy.testing import helpers
 if sys.platform == "darwin":
     pytest.skip("DiffTensorView requires CUDA, not available on macOS", allow_module_level=True)
 
-# DiffTensorView only works with CUDA device type
+    # DiffTensorView only works with CUDA device type
 DEVICE_TYPES = [DeviceType.cuda] if DeviceType.cuda in helpers.DEFAULT_DEVICE_TYPES else []
 if not DEVICE_TYPES:
     pytest.skip("DiffTensorView requires CUDA device type", allow_module_level=True)
@@ -42,10 +44,9 @@ def load_module(device_type: DeviceType):
         str(Path(__file__).parent / "test_difftensorview.slang"),
     )
 
-
-# ============================================================================
-# Tests with torch.Tensor
-# ============================================================================
+    # ============================================================================
+    # Tests with torch.Tensor
+    # ============================================================================
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
@@ -63,7 +64,7 @@ def test_difftensorview_copy_torch(device_type: DeviceType):
 
     assert torch.allclose(
         input_tensor, output_tensor
-    ), f"Expected {input_tensor}, got {output_tensor}"
+    ), f"Expected {input_tensor }, got {output_tensor }"
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
@@ -81,7 +82,7 @@ def test_difftensorview_add_torch(device_type: DeviceType):
     torch.cuda.synchronize()
 
     expected = a + b
-    assert torch.allclose(expected, output_tensor), f"Expected {expected}, got {output_tensor}"
+    assert torch.allclose(expected, output_tensor), f"Expected {expected }, got {output_tensor }"
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
@@ -103,17 +104,16 @@ def test_difftensorview_diff_square_torch(device_type: DeviceType):
     expected_grad = 2.0 * x
     assert torch.allclose(
         x_grad, expected_grad, atol=1e-5
-    ), f"Expected grad {expected_grad}, got {x_grad}"
+    ), f"Expected grad {expected_grad }, got {x_grad }"
 
-
-# ============================================================================
-# Tests with slangpy.Tensor
-# ============================================================================
+    # ============================================================================
+    # Tests with Tensor
+    # ============================================================================
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_difftensorview_copy_slangpy_tensor(device_type: DeviceType):
-    """Test copy_difftensorview with slangpy.Tensor arguments."""
+    """Test copy_difftensorview with Tensor arguments."""
     module = load_module(device_type)
 
     input_data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float32)
@@ -123,12 +123,12 @@ def test_difftensorview_copy_slangpy_tensor(device_type: DeviceType):
     module.copy_difftensorview(input_tensor, output_tensor)
 
     output_data = output_tensor.to_numpy()
-    assert np.array_equal(input_data, output_data), f"Expected {input_data}, got {output_data}"
+    assert np.array_equal(input_data, output_data), f"Expected {input_data }, got {output_data }"
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_difftensorview_add_slangpy_tensor(device_type: DeviceType):
-    """Test add_difftensorview with slangpy.Tensor arguments."""
+    """Test add_difftensorview with Tensor arguments."""
     module = load_module(device_type)
 
     a_data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float32)
@@ -141,12 +141,12 @@ def test_difftensorview_add_slangpy_tensor(device_type: DeviceType):
 
     output_data = output.to_numpy()
     expected = a_data + b_data
-    assert np.array_equal(expected, output_data), f"Expected {expected}, got {output_data}"
+    assert np.array_equal(expected, output_data), f"Expected {expected }, got {output_data }"
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_difftensorview_diff_square_slangpy_tensor(device_type: DeviceType):
-    """Test backward pass of diff_square with slangpy.Tensor: f(x) = x^2, df/dx = 2x."""
+    """Test backward pass of diff_square with Tensor: f(x) = x^2, df/dx = 2x."""
     module = load_module(device_type)
 
     data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float32)
@@ -159,12 +159,13 @@ def test_difftensorview_diff_square_slangpy_tensor(device_type: DeviceType):
     # df/dx = 2x
     grad = input_tensor.grad_out.to_numpy()
     expected_grad = 2.0 * data
-    assert np.allclose(grad, expected_grad, atol=1e-5), f"Expected grad {expected_grad}, got {grad}"
+    assert np.allclose(
+        grad, expected_grad, atol=1e-5
+    ), f"Expected grad {expected_grad }, got {grad }"
 
-
-# ============================================================================
-# Tests for _thread_count with CUDAKernel + Differentiable
-# ============================================================================
+    # ============================================================================
+    # Tests for _thread_count with CUDAKernel + Differentiable
+    # ============================================================================
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
@@ -182,7 +183,7 @@ def test_difftensorview_kernel_forward(device_type: DeviceType):
     torch.cuda.synchronize()
 
     expected = x * x
-    assert torch.allclose(output, expected), f"Expected {expected}, got {output}"
+    assert torch.allclose(output, expected), f"Expected {expected }, got {output }"
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
@@ -209,4 +210,4 @@ def test_difftensorview_kernel_backward(device_type: DeviceType):
     expected_grad = 2.0 * x
     assert torch.allclose(
         x_grad, expected_grad, atol=1e-5
-    ), f"Expected grad {expected_grad}, got {x_grad}"
+    ), f"Expected grad {expected_grad }, got {x_grad }"

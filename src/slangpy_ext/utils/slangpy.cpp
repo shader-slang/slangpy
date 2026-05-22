@@ -1812,6 +1812,7 @@ SGL_PY_EXPORT(utils_slangpy)
 
 
     nb::class_<Shape>(slangpy, "Shape") //
+        .def(nb::init_implicit<std::vector<int>>(), "shape"_a, D_NA(Shape, Shape))
         .def(
             "__init__",
             [](Shape& self, nb::args args)

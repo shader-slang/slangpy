@@ -5,7 +5,8 @@ import pytest
 from slangpy import float4
 from slangpy.bindings.boundvariable import BoundVariableException
 from slangpy import DeviceType
-from slangpy.types import Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.testing import helpers
 
 MODULE = """

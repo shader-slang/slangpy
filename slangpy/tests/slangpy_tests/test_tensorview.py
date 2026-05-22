@@ -5,7 +5,9 @@ import sys
 import numpy as np
 from pathlib import Path
 
-from slangpy import DeviceType, Tensor
+import slangpy
+from slangpy import Tensor
+from slangpy import DeviceType
 from slangpy.core.module import Module
 from slangpy.experimental.gridarg import grid
 from slangpy.testing import helpers
@@ -14,7 +16,7 @@ from slangpy.testing import helpers
 if sys.platform == "darwin":
     pytest.skip("TensorView requires CUDA, not available on macOS", allow_module_level=True)
 
-# TensorView only works with CUDA device type
+    # TensorView only works with CUDA device type
 DEVICE_TYPES = [DeviceType.cuda] if DeviceType.cuda in helpers.DEFAULT_DEVICE_TYPES else []
 if not DEVICE_TYPES:
     pytest.skip("TensorView requires CUDA device type", allow_module_level=True)
@@ -34,10 +36,11 @@ def load_module(device):
         str(Path(__file__).parent / "test_tensorview.slang"),
     )
 
+    # ============================================================================
+    # Tests with torch.Tensor
+    # ============================================================================
 
-# ============================================================================
-# Tests with torch.Tensor
-# ============================================================================
+
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
 @pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -53,7 +56,7 @@ def test_tensorview_copy_torch(device_type: DeviceType):
 
     assert torch.allclose(
         input_tensor, output_tensor
-    ), f"Expected {input_tensor}, got {output_tensor}"
+    ), f"Expected {input_tensor }, got {output_tensor }"
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
@@ -71,12 +74,13 @@ def test_tensorview_add_torch(device_type: DeviceType):
     module.add_tensorview(a, b, output_tensor)
 
     expected = a + b
-    assert torch.allclose(expected, output_tensor), f"Expected {expected}, got {output_tensor}"
+    assert torch.allclose(expected, output_tensor), f"Expected {expected }, got {output_tensor }"
+
+    # ============================================================================
+    # Tests with slangpy Tensor
+    # ============================================================================
 
 
-# ============================================================================
-# Tests with slangpy Tensor
-# ============================================================================
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_tensorview_copy_slangpy_tensor(device_type: DeviceType):
     """Test copy_tensorview with slangpy Tensor arguments."""
@@ -90,7 +94,7 @@ def test_tensorview_copy_slangpy_tensor(device_type: DeviceType):
     module.copy_tensorview(input_tensor, output_tensor)
 
     output_data = output_tensor.to_numpy()
-    assert np.array_equal(input_data, output_data), f"Expected {input_data}, got {output_data}"
+    assert np.array_equal(input_data, output_data), f"Expected {input_data }, got {output_data }"
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -109,7 +113,7 @@ def test_tensorview_add_slangpy_tensor(device_type: DeviceType):
 
     output_data = output.to_numpy()
     expected = a_data + b_data
-    assert np.array_equal(expected, output_data), f"Expected {expected}, got {output_data}"
+    assert np.array_equal(expected, output_data), f"Expected {expected }, got {output_data }"
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -129,12 +133,13 @@ def test_tensorview_grid_dispatch(device_type: DeviceType):
 
     result = markers.to_numpy()
     expected = np.ones(5, dtype=np.int32)
-    assert np.array_equal(result, expected), f"Expected all markers to be 1, got {result}"
+    assert np.array_equal(result, expected), f"Expected all markers to be 1, got {result }"
+
+    # ============================================================================
+    # Tests for TensorView<bool> (bool element type)
+    # ============================================================================
 
 
-# ============================================================================
-# Tests for TensorView<bool> (bool element type)
-# ============================================================================
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
 @pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -148,7 +153,9 @@ def test_tensorview_copy_bool_torch(device_type: DeviceType):
 
     module.copy_tensorview_bool(input_tensor, output_tensor)
 
-    assert torch.equal(input_tensor, output_tensor), f"Expected {input_tensor}, got {output_tensor}"
+    assert torch.equal(
+        input_tensor, output_tensor
+    ), f"Expected {input_tensor }, got {output_tensor }"
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
@@ -165,12 +172,13 @@ def test_tensorview_negate_bool_torch(device_type: DeviceType):
     module.negate_tensorview_bool(input_tensor, output_tensor)
 
     expected = ~input_tensor
-    assert torch.equal(expected, output_tensor), f"Expected {expected}, got {output_tensor}"
+    assert torch.equal(expected, output_tensor), f"Expected {expected }, got {output_tensor }"
+
+    # ============================================================================
+    # Tests for TensorView<float2> / <float4> (vector element types)
+    # ============================================================================
 
 
-# ============================================================================
-# Tests for TensorView<float2> / <float4> (vector element types)
-# ============================================================================
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
 @pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -188,7 +196,7 @@ def test_tensorview_float2_torch(device_type: DeviceType):
 
     assert torch.allclose(
         input_tensor, output_tensor
-    ), f"Expected {input_tensor}, got {output_tensor}"
+    ), f"Expected {input_tensor }, got {output_tensor }"
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
@@ -208,12 +216,13 @@ def test_tensorview_float4_torch(device_type: DeviceType):
 
     assert torch.allclose(
         input_tensor, output_tensor
-    ), f"Expected {input_tensor}, got {output_tensor}"
+    ), f"Expected {input_tensor }, got {output_tensor }"
+
+    # ============================================================================
+    # Tests for _thread_count (CUDAKernel dispatch)
+    # ============================================================================
 
 
-# ============================================================================
-# Tests for _thread_count (CUDAKernel dispatch)
-# ============================================================================
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
 @pytest.mark.skipif(not (HAS_TORCH and torch.cuda.is_available()), reason="CUDA not available")
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -228,7 +237,7 @@ def test_thread_count_fill_ids(device_type: DeviceType):
     module.fill_thread_ids(count=count, output=output, _thread_count=count)
 
     expected = torch.arange(count, device="cuda", dtype=torch.int32)
-    assert torch.equal(output, expected), f"Expected {expected}, got {output}"
+    assert torch.equal(output, expected), f"Expected {expected }, got {output }"
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
@@ -253,7 +262,7 @@ def test_thread_count_append_to(device_type: DeviceType):
     device.submit_command_buffer(command_encoder.finish())
 
     expected = torch.arange(count, device="cuda", dtype=torch.int32)
-    assert torch.equal(output, expected), f"Expected {expected}, got {output}"
+    assert torch.equal(output, expected), f"Expected {expected }, got {output }"
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")

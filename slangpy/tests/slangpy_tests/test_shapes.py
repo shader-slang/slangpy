@@ -8,7 +8,8 @@ from slangpy.core.callsignature import BoundVariable
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.types import floatRef
-from slangpy.types import Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.types.valueref import ValueRef
 from slangpy.testing import helpers
 
@@ -73,10 +74,9 @@ def dot_product(
         "node_transforms": [list_or_none(x.vector_mapping) for x in nodes],
     }
 
-
-# Second set of tests emulate the shape of the following slang function,
-# which has a 2nd parameter with with undefined dimension sizes
-# float4 read(int2 index, Slice<2,float4> array) { return Shaparray[index];}
+    # Second set of tests emulate the shape of the following slang function,
+    # which has a 2nd parameter with with undefined dimension sizes
+    # float4 read(int2 index, Slice<2,float4> array) { return Shaparray[index];}
 
 
 def read_slice(
@@ -109,10 +109,9 @@ def read_slice(
         "node_transforms": [list_or_none(x.vector_mapping) for x in nodes],
     }
 
-
-# Copy function designed to replicate situations in which we'd ideally
-# be able to infer a buffer size but can't due to absence of generics
-# void copy(int index, Slice<1,float4> from, Slice<1,float4> to) { to[index] = from[index];}
+    # Copy function designed to replicate situations in which we'd ideally
+    # be able to infer a buffer size but can't due to absence of generics
+    # void copy(int index, Slice<1,float4> from, Slice<1,float4> to) { to[index] = from[index];}
 
 
 def copy_at_index(

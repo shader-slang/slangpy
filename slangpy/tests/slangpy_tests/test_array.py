@@ -2,8 +2,9 @@
 
 import pytest
 import numpy as np
-from slangpy import DeviceType, BufferUsage, Tensor
-from slangpy.types import Tensor
+import slangpy
+from slangpy import Tensor
+from slangpy import DeviceType, BufferUsage
 from slangpy.testing import helpers
 
 
@@ -201,7 +202,7 @@ int inc(Val val) {
         )
         vals.append({"x": buffer, "_type": "Val"})
 
-    # just verify it can be called with no exceptions
+        # just verify it can be called with no exceptions
     results = function(vals, _result="numpy")
     assert isinstance(results, np.ndarray)
     assert results.shape == (4,)
@@ -235,7 +236,7 @@ float inc(Val val) {
         buffer.copy_from_numpy(np.array([i + 1], dtype=np.float32))
         vals.append({"x": buffer, "_type": "Val"})
 
-    # just verify it can be called with no exceptions
+        # just verify it can be called with no exceptions
     results = function(vals, _result="numpy")
     assert isinstance(results, np.ndarray)
     assert results.shape == (4,)
@@ -270,7 +271,7 @@ float add(Val val, float val2) {
         buffer.copy_from_numpy(np.array([i + 1], dtype=np.float32))
         vals.append({"x": buffer, "_type": "Val"})
 
-    # Map the tensor list to the first dimension, and a list of floats to the second dimensions
+        # Map the tensor list to the first dimension, and a list of floats to the second dimensions
     results = function.map((0,), (1,))(vals, [5.0, 10.0, 15.0, 20.0], _result="numpy")
 
     # Should end up with 4x4 matrix, where each row corresponds to a tensor and each column corresponds to the float value added

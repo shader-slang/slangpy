@@ -4,7 +4,7 @@ import pytest
 import sys
 import numpy as np
 
-from slangpy import DeviceType, Device, Module, grid
+from slangpy import DeviceType, Device, Module, Tensor, grid
 from slangpy.core.native import NativeCallDataCache, SignatureBuilder
 from slangpy.testing import helpers
 
@@ -13,16 +13,14 @@ try:
 except ImportError:
     pytest.skip("Pytorch not installed", allow_module_level=True)
 
-# Skip all tests in this file if running on MacOS
+    # Skip all tests in this file if running on MacOS
 if sys.platform == "darwin":
     pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
 
 TEST_CODE = """
 import tensor;
 [Differentiable]
-float square(float x) {
-    return x * x;
-}
+float square(float x) {return x * x;}
 """
 
 DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES
@@ -73,7 +71,7 @@ def test_torch_signature(pair: tuple[torch.Tensor, str]):
     cd = NativeCallDataCache()
     sig = SignatureBuilder()
     cd.get_value_signature(sig, pair[0])
-    assert sig.str == f"torch\n[{pair[1]}]"
+    assert sig.str == f"torch\n[{pair [1 ]}]"
 
 
 ADD_TESTS = [
@@ -205,9 +203,10 @@ def test_polynomial(device_type: DeviceType):
 
     compare_tensors(2 * a * x + b, x.grad)  # type: ignore
 
+    # This test ensures that the PyTorch integration doesn't fail if re-using the
+    # same cached call data.
 
-# This test ensures that the PyTorch integration doesn't fail if re-using the
-# same cached call data.
+
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_polynomial_multiple_calls(device_type: DeviceType):
 
@@ -253,8 +252,9 @@ def test_polynomial_outparam(device_type: DeviceType):
 
     compare_tensors(2 * a * x + b, x.grad)  # type: ignore
 
+    # Enable the vectors+arrays tests to reproduce compiler bugs
 
-# Enable the vectors+arrays tests to reproduce compiler bugs
+
 POLYNOMIAL_TESTS = [
     ("polynomial", ()),
     ("polynomial_vectors", (3,)),
@@ -358,7 +358,6 @@ def test_struct_tensor_from_torch(device_type: DeviceType):
     """
     Test Tensor.from_torch() reinterprets a torch.Tensor as Tensor<PackedFloat2, 1>.
     """
-    from slangpy import Tensor
 
     device = helpers.get_torch_device(device_type)
     module = load_test_module(device_type)
@@ -385,7 +384,6 @@ def test_struct_tensor_wrong_last_dim(device_type: DeviceType):
     """
     Test that Tensor.from_torch() raises when the last dimension doesn't match.
     """
-    from slangpy import Tensor
 
     device = helpers.get_torch_device(device_type)
     module = load_test_module(device_type)
@@ -400,7 +398,6 @@ def test_struct_tensor_particle_update(device_type: DeviceType):
     """
     Test Tensor.from_torch() with a Particle struct (float3 + float3 = 6 floats).
     """
-    from slangpy import Tensor
 
     device = helpers.get_torch_device(device_type)
     module = load_test_module(device_type)
@@ -478,7 +475,7 @@ def test_copy_tensor_to_buffer(device_type: DeviceType):
 
     assert len(buffer_data) == len(
         expected
-    ), f"Length mismatch: {len(buffer_data)} vs {len(expected)}"
+    ), f"Length mismatch: {len (buffer_data )} vs {len (expected )}"
     assert np.allclose(buffer_data, expected), f"Data mismatch: {buffer_data} vs {expected}"
 
 
@@ -597,10 +594,8 @@ import slangpy;
 
 [Differentiable]
 void forward(uint index, DiffTensor<float, 1> x, WDiffTensor<float, 1> y)
-{
-    float x_i = x[index];
-    y[index] = x_i * x_i * x_i;
-}
+{float x_i = x[index];
+    y[index] = x_i * x_i * x_i;}
 """
     import torch
     import torch.nn as nn
@@ -627,10 +622,8 @@ import slangpy;
 
 [Differentiable]
 void forward(uint index, IDiffTensor<float, 1> x, IWDiffTensor<float, 1> y)
-{
-    float x_i = x[index];
-    y[index] = x_i * x_i * x_i;
-}
+{float x_i = x[index];
+    y[index] = x_i * x_i * x_i;}
 """
     import torch
     import torch.nn as nn

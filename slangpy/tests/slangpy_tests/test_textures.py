@@ -14,7 +14,8 @@ from slangpy import (
     InstanceTensor,
     Module,
 )
-from slangpy.types import Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.reflection import ScalarType
 from slangpy.builtin.texture import SCALARTYPE_TO_TEXTURE_FORMAT
 from slangpy.reflection.lookup import slang_to_numpy
@@ -27,8 +28,7 @@ def load_test_module(device_type: DeviceType):
     device = helpers.get_device(device_type)
     return Module(device.load_module("test_textures.slang"))
 
-
-# Generate random data for a texture with a given array size and mip count.
+    # Generate random data for a texture with a given array size and mip count.
 
 
 def make_rand_data(type: TextureType, array_length: int, mip_count: int):
@@ -54,8 +54,9 @@ def make_rand_data(type: TextureType, array_length: int, mip_count: int):
         levels.append(mips)
     return levels
 
+    # Generate dictionary of arguments for creating a texture.
 
-# Generate dictionary of arguments for creating a texture.
+
 def make_args(type: TextureType, array_length: int, mips: int):
 
     desc = TextureDesc()
@@ -185,7 +186,7 @@ def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, typ
     if type == TextureType.texture_3d and slices > 1:
         return
 
-    # populate a buffer of grid coordinates
+        # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
     dims = len(grid_coords_data.shape) - 1
     grid_coords = InstanceTensor(
@@ -238,7 +239,7 @@ def test_read_write_texture_with_resource_views(
     if type == TextureType.texture_3d and slices > 1:
         return
 
-    # populate a buffer of grid coordinates
+        # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
     dims = len(grid_coords_data.shape) - 1
     grid_coords = InstanceTensor(
@@ -268,7 +269,7 @@ def test_read_write_texture_with_resource_views(
             dest_tex.create_view(mip=mip_idx),
         )
 
-    # Read back data and compare (currently just messing with mip 0)
+        # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
             data = dest_tex.to_numpy(layer=slice_idx, mip=mip_idx)
@@ -293,7 +294,7 @@ def test_copy_value(device_type: DeviceType, slices: int, mips: int, type: Textu
     if type == TextureType.texture_3d and slices > 1:
         return
 
-    # Create texture and build random data
+        # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
     dest_tex = m.device.create_texture(make_args(type, slices, mips))
     rand_data = make_rand_data(src_tex.type, src_tex.array_length, src_tex.mip_count)
@@ -331,7 +332,7 @@ def test_copy_mip_values_with_resource_views(
     if type == TextureType.texture_3d and slices > 1:
         return
 
-    # Create texture and build random data
+        # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
     dest_tex = m.device.create_texture(make_args(type, slices, mips))
     rand_data = make_rand_data(src_tex.type, src_tex.array_length, src_tex.mip_count)
@@ -347,7 +348,7 @@ def test_copy_mip_values_with_resource_views(
             dest_tex.create_view(mip=mip_idx, mip_count=1),
         )
 
-    # Read back data and compare (currently just messing with mip 0)
+        # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
             data = dest_tex.to_numpy(layer=slice_idx, mip=mip_idx)
@@ -376,7 +377,7 @@ def test_copy_mip_values_with_all_uav_resource_views(
     if type == TextureType.texture_3d and slices > 1:
         return
 
-    # Create texture and build random data
+        # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
     dest_tex = m.device.create_texture(make_args(type, slices, mips))
     rand_data = make_rand_data(src_tex.type, src_tex.array_length, src_tex.mip_count)
@@ -392,7 +393,7 @@ def test_copy_mip_values_with_all_uav_resource_views(
             dest_tex.create_view(mip=mip_idx, mip_count=1),
         )
 
-    # Read back data and compare (currently just messing with mip 0)
+        # Read back data and compare (currently just messing with mip 0)
     for slice_idx, slice_data in enumerate(rand_data):
         for mip_idx, mip_data in enumerate(slice_data):
             data = dest_tex.to_numpy(layer=slice_idx, mip=mip_idx)
@@ -497,7 +498,7 @@ def texture_return_value_impl(
     order = list(reversed(range(dims)))
     if channels > 1:
         order += [dims]
-    # result_np = result_np.transpose(order)
+        # result_np = result_np.transpose(order)
 
     assert np.allclose(result_np, data.squeeze())
 
@@ -513,9 +514,10 @@ def test_texture_return_value(device_type: DeviceType, texel_name: str, dims: in
         pytest.skip("Limited texture support in Metal backend")
     texture_return_value_impl(device_type, texel_name, dims, channels, Texture)
 
+    # This case checks for when the return type is the string "texture".
+    # This checks a subset of the "test_texture_return_value" parameters.
 
-# This case checks for when the return type is the string "texture".
-# This checks a subset of the "test_texture_return_value" parameters.
+
 @pytest.mark.parametrize("texel_name", ["float"])
 @pytest.mark.parametrize("dims", [1, 2, 3])
 @pytest.mark.parametrize("channels", [4])

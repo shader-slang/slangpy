@@ -3,7 +3,8 @@
 import pytest
 import numpy as np
 from slangpy import DeviceType
-from slangpy.types import Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.testing import helpers
 
 

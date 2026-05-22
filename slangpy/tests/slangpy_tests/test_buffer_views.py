@@ -2,7 +2,8 @@
 
 import pytest
 from slangpy import DeviceType, BufferUsage
-from slangpy.types import Tensor, Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.testing import helpers
 
 from typing import Any, Union, Type

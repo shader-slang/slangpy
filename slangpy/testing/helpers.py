@@ -25,9 +25,8 @@ from slangpy import (
     Logger,
     LogLevel,
     NativeHandle,
-    Tensor,
 )
-from slangpy.types import Tensor
+import slangpy
 from slangpy.core.function import Function
 
 # Global variables for device isolation. If SELECTED_DEVICE_TYPES is None, no restriction.
@@ -45,8 +44,9 @@ elif sys.platform == "darwin":
 else:
     raise RuntimeError("Unsupported platform")
 
+    # Called from pytest plugin if 'device-types' argument is provided
 
-# Called from pytest plugin if 'device-types' argument is provided
+
 def set_device_types(device_types_str: Optional[str]) -> None:
     """Set the global device types. Called by pytest plugin."""
     global SELECTED_DEVICE_TYPES
@@ -106,7 +106,7 @@ def close_all_devices():
 
         torch.cuda.synchronize()
 
-    # Close all devices that were created during the tests.
+        # Close all devices that were created during the tests.
     for device in Device.get_created_devices():
         print(f"Closing device on shutdown {device.desc.label}")
         device.close()
@@ -142,8 +142,9 @@ def should_skip_non_device_test() -> bool:
         return False  # No restriction, don't skip
     return len(SELECTED_DEVICE_TYPES) != 0  # Skip if specific devices were selected
 
+    # Helper to get device of a given type
 
-# Helper to get device of a given type
+
 def get_device(
     type: DeviceType,
     use_cache: bool = True,
@@ -163,7 +164,7 @@ def get_device(
                 f"get_device called with incompatible device type {type.name}, expected one of {allowed_types}"
             )
 
-    # Early out if we know we don't have support for parameter blocks
+            # Early out if we know we don't have support for parameter blocks
     global METAL_PARAMETER_BLOCK_SUPPORT
     if type == DeviceType.metal and METAL_PARAMETER_BLOCK_SUPPORT == False:
         pytest.skip(
@@ -191,7 +192,7 @@ def get_device(
         if cuda_interop:
             label += "-cuda-interop"
 
-    # Use directory from caller module as the shader search path.
+            # Use directory from caller module as the shader search path.
     caller_module_path: Optional[Path] = None
     stack_index = 1
     while caller_module_path == None:
@@ -245,9 +246,10 @@ def get_device(
         DEVICE_CACHE[cache_key] = device
     return device
 
+    # Helper that gets a device that wraps the current torch cuda context.
+    # This is useful for testing the torch integration.
 
-# Helper that gets a device that wraps the current torch cuda context.
-# This is useful for testing the torch integration.
+
 def get_torch_device(type: DeviceType, use_cache: bool = True) -> Device:
     import torch
 
@@ -269,9 +271,10 @@ def get_torch_device(type: DeviceType, use_cache: bool = True) -> Device:
         cuda_interop=True,
     )
 
+    # Helper that creates a module from source (if not already loaded) and returns
+    # the corresponding slangpy module.
 
-# Helper that creates a module from source (if not already loaded) and returns
-# the corresponding slangpy module.
+
 def create_module(
     device: Device,
     module_source: str,
@@ -285,10 +288,9 @@ def create_module(
     spy_module.logger = Logger(level=LogLevel.info)
     return spy_module
 
-
-# Helper that creates a module from source (if not already loaded) and find / returns
-# a kernel function for it. This helper supports nested functions and structs, e.g.
-# create_function_from_module(device, "MyStruct.add_numbers", <src>).
+    # Helper that creates a module from source (if not already loaded) and find / returns
+    # a kernel function for it. This helper supports nested functions and structs, e.g.
+    # create_function_from_module(device, "MyStruct.add_numbers", <src>).
 
 
 def create_function_from_module(
@@ -320,7 +322,7 @@ def create_function_from_module(
     return cast(Function, function)
 
 
-def read_tensor_from_numpy(buffer: Tensor) -> np.ndarray:
+def read_tensor_from_numpy(buffer: slangpy.Tensor) -> np.ndarray:
     cursor = buffer.cursor()
     data = np.array([])
     shape = np.prod(np.array(buffer.shape))
@@ -333,7 +335,7 @@ def read_tensor_from_numpy(buffer: Tensor) -> np.ndarray:
     return data
 
 
-def write_tensor_from_numpy(buffer: Tensor, data: np.ndarray, element_count: int = 0):
+def write_tensor_from_numpy(buffer: slangpy.Tensor, data: np.ndarray, element_count: int = 0):
     cursor = buffer.cursor()
     shape = np.prod(np.array(buffer.shape))
 
@@ -390,7 +392,7 @@ def dispatch_compute(
     if device.info.type == spy.DeviceType.metal or device.info.type == spy.DeviceType.cuda:
         shader_model = spy.ShaderModel.sm_6_0
     if shader_model > device.supported_shader_model:
-        pytest.skip(f"Shader model {str(shader_model)} not supported")
+        pytest.skip(f"Shader model {str (shader_model )} not supported")
 
     compiler_options["include_paths"] = device.slang_session.desc.compiler_options.include_paths
     compiler_options["shader_model"] = shader_model

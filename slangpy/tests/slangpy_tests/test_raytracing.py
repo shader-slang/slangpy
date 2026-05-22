@@ -4,8 +4,9 @@ import pytest
 import numpy as np
 
 import slangpy as spy
+from slangpy import Tensor
 from slangpy import DeviceType, Module
-from slangpy.types import Tensor
+import slangpy
 from slangpy.testing import helpers
 
 

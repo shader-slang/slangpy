@@ -18,7 +18,8 @@ from slangpy import (
     Module,
 )
 from slangpy.core.struct import Struct
-from slangpy.types import Tensor, Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.types.randfloatarg import RandFloatArg
 from slangpy.types.valueref import ValueRef, floatRef
 from slangpy.experimental.diffinstancelist import InstanceDifferentiableBuffer
@@ -463,7 +464,7 @@ def test_backwards_diff(device_type: DeviceType):
             "Metal backend can not atomically accumulate float3 types due to sizeof(float3) returning 12"
         )
 
-    # Use test system helper to load a slangpy module from a file
+        # Use test system helper to load a slangpy module from a file
     m = load_module(device_type, "test_modules.slang")
     assert m is not None
 

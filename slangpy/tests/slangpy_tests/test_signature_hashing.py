@@ -5,7 +5,8 @@ from time import time
 
 from slangpy import DeviceType, float3, Module
 import slangpy.core.function as kff
-from slangpy.types import Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.testing import helpers
 
 # We mess with cache in this suite, so make sure it gets turned on correctly before each test
@@ -21,8 +22,7 @@ def load_module(device_type: DeviceType, name: str = "test_modules.slang") -> Mo
     device = helpers.get_device(device_type)
     return Module(device.load_module(name))
 
-
-# @pytest.mark.skip(reason="Perf test only")
+    # @pytest.mark.skip(reason="Perf test only")
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -67,7 +67,7 @@ def test_kernel_reuse(device_type: DeviceType):
 
     encoder.finish()
 
-    print(f"Time taken cached: {1000.0*(end-start)/count}ms")
+    print(f"Time taken cached: {1000.0 *(end -start )/count }ms")
 
 
 if __name__ == "__main__":

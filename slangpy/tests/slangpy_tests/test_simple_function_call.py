@@ -4,7 +4,8 @@ import pytest
 import numpy as np
 
 from slangpy import Device, DeviceType, float3
-from slangpy.types import Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.types.diffpair import diffPair, floatDiffPair
 from slangpy.types.valueref import intRef
 from slangpy.testing import helpers
@@ -48,7 +49,7 @@ void add_numbers(int a, int b) {
     with pytest.raises(Exception):
         function(5, float3(1.0, 2.0, 3.0))
 
-    # verify call fails with wrong number of arguments
+        # verify call fails with wrong number of arguments
     with pytest.raises(Exception):
         function(5)
 
@@ -204,7 +205,7 @@ void add_numbers(int a, int b, out int c) {
     if out_buffer_size is None:
         out_buffer_size = max(in_buffer_0_size, in_buffer_1_size)
 
-    # Setup input buffers
+        # Setup input buffers
     in_buffer_0: Union[int, Tensor]
     if in_buffer_0_size == 0:
         in_buffer_0 = int(rand_array_of_ints(1)[0])
@@ -227,7 +228,7 @@ void add_numbers(int a, int b, out int c) {
         )
         in_buffer_1.storage.copy_from_numpy(rand_array_of_ints(in_buffer_1.element_count))
 
-    # Setup output buffer
+        # Setup output buffer
     out_buffer = Tensor.empty(
         shape=(out_buffer_size,),
         device=device,
@@ -424,7 +425,7 @@ def test_pass_float_array(device_type: DeviceType, scalar_type: str):
 
     device = helpers.get_device(device_type)
     module = helpers.create_module(
-        device, f"{scalar_type} first({scalar_type} x[3]) {{ return x[0]; }}"
+        device, f"{scalar_type } first({scalar_type } x[3]) {{ return x[0]; }}"
     )
 
     arg = [3.0, 4.0, 5.0]
@@ -443,7 +444,7 @@ def test_pass_int_array(device_type: DeviceType, scalar_type: str):
         pytest.skip("8-bit types are unsupported by DXC")
     device = helpers.get_device(device_type)
     module = helpers.create_module(
-        device, f"{scalar_type} first({scalar_type} x[3]) {{ return x[0]; }}"
+        device, f"{scalar_type } first({scalar_type } x[3]) {{ return x[0]; }}"
     )
 
     arg = [3, 4, 5]
@@ -462,8 +463,8 @@ def test_pass_float_field(device_type: DeviceType, scalar_type: str):
     module = helpers.create_module(
         device,
         f"""
-struct Foo {{ {scalar_type} x; }}
-{scalar_type} unwrap(Foo foo) {{ return foo.x; }}
+struct Foo {{ {scalar_type } x; }}
+{scalar_type } unwrap(Foo foo) {{ return foo.x; }}
 """,
     )
 
@@ -485,8 +486,8 @@ def test_pass_int_field(device_type: DeviceType, scalar_type: str):
     module = helpers.create_module(
         device,
         f"""
-struct Foo {{ {scalar_type} x; }}
-{scalar_type} unwrap(Foo foo) {{ return foo.x; }}
+struct Foo {{ {scalar_type } x; }}
+{scalar_type } unwrap(Foo foo) {{ return foo.x; }}
 """,
     )
 

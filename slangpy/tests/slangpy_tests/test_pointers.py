@@ -5,7 +5,8 @@ from time import time
 import numpy as np
 
 from slangpy import DeviceType, BufferUsage, QueryType, ResourceState, grid, float3
-from slangpy.types import Tensor, Tensor
+import slangpy
+from slangpy import Tensor
 from slangpy.testing import helpers
 
 from typing import Any, cast
@@ -73,10 +74,11 @@ int test_copy_pointer_value(int* ptr) {
 
     res = function(buffer.device_address)
 
-    assert res == 42, f"Expected 42, got {res}"
+    assert res == 42, f"Expected 42, got {res }"
+
+    # Same as above but uses subscript to access the value
 
 
-# Same as above but uses subscript to access the value
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
 def test_copy_pointer_subscript(device_type: DeviceType):
 
@@ -99,10 +101,11 @@ int test_copy_pointer_subscript(int* ptr) {
 
     res = function(buffer.device_address)
 
-    assert res == 42, f"Expected 42, got {res}"
+    assert res == 42, f"Expected 42, got {res }"
+
+    # Same as above but uses subscript to access the value
 
 
-# Same as above but uses subscript to access the value
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
 def test_copy_pointer_subscript_fullbuffer(device_type: DeviceType):
 
@@ -129,7 +132,7 @@ int test_copy_pointer_subscript_fullbuffer(int idx, int* ptr) {
 
     res = function(grid(shape=(num_ints,)), buffer.device_address, _result="numpy")
 
-    assert np.array_equal(res, rand_ints), f"Expected {rand_ints}, got {res}"
+    assert np.array_equal(res, rand_ints), f"Expected {rand_ints }, got {res }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -162,7 +165,7 @@ int test_add_numbers(int call_id, int* a_buffer, int* b_buffer) {
     res = function(grid(shape=(num_ints,)), a_address, b_address, _result="numpy")
 
     expected = a_data + b_data
-    assert np.array_equal(res, expected), f"Expected {expected}, got {res}"
+    assert np.array_equal(res, expected), f"Expected {expected }, got {res }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -189,11 +192,12 @@ int test_pass_raw_buffers(int call_id, int* a_buffer, int* b_buffer) {
     res = function(grid(shape=(num_ints,)), a.storage, b.storage, _result="numpy")
 
     expected = a_data + b_data
-    assert np.array_equal(res, expected), f"Expected {expected}, got {res}"
+    assert np.array_equal(res, expected), f"Expected {expected }, got {res }"
+
+    # Creates a buffer of values, and a buffer of pointers into those values,
+    # and returns the value pointed to by the pointer at the given index.
 
 
-# Creates a buffer of values, and a buffer of pointers into those values,
-# and returns the value pointed to by the pointer at the given index.
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
 def test_raw_buffer_of_pointers(device_type: DeviceType):
 
@@ -237,7 +241,7 @@ int test_raw_buffer_of_pointers(int idx, StructuredBuffer<int*> buffer) {
     # Call the function with the grid shape and the pointers buffer0
     res = function(grid(shape=(num_ptrs,)), pointers_buffer, _result="numpy")
 
-    assert np.array_equal(res, expected_values), f"Expected {expected_values}, got {res}"
+    assert np.array_equal(res, expected_values), f"Expected {expected_values }, got {res }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -278,7 +282,7 @@ int test_vectorize_buffer_of_pointers(int* buffer) {
     # Call the function with so it vectorizes across the pointers buffer
     res = function(pointers_buffer, _result="numpy")
 
-    assert np.array_equal(res, expected_values), f"Expected {expected_values}, got {res}"
+    assert np.array_equal(res, expected_values), f"Expected {expected_values }, got {res }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -301,7 +305,7 @@ void test_write_raw_buffers(int call_id, int* in_buffer, int* out_buffer) {
     out_buffer = Tensor.zeros_like(in_buffer)
     function(grid(shape=(num_ints,)), in_buffer.storage, out_buffer.storage)
     out_data = out_buffer.to_numpy()
-    assert np.array_equal(in_data, out_data), f"Expected {in_data}, got {out_data}"
+    assert np.array_equal(in_data, out_data), f"Expected {in_data }, got {out_data }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -326,7 +330,7 @@ void test_float_tensor_storage(int call_id, float* in_buffer, float* out_buffer)
     out_buffer = Tensor.zeros_like(in_buffer)
     function(grid(shape=(num_vals,)), in_buffer.storage, out_buffer.storage)
     out_data = out_buffer.to_numpy()
-    assert np.array_equal(in_data, out_data), f"Expected {in_data}, got {out_data}"
+    assert np.array_equal(in_data, out_data), f"Expected {in_data }, got {out_data }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -362,7 +366,7 @@ void test_copy_whole_structs(int call_id, Test* in_buffer, Test* out_buffer) {
             }
         )
 
-    # Fill input buffer with it
+        # Fill input buffer with it
     in_buffer = Tensor.empty(device, (count,), dtype=function.module.Test)
     cursor = in_buffer.cursor()
     for i, item in enumerate(data):
@@ -382,10 +386,10 @@ void test_copy_whole_structs(int call_id, Test* in_buffer, Test* out_buffer) {
     for i in range(count):
         in_val = data[i]
         out_val = cast(Any, out_cursor[i].read())
-        assert in_val["value"] == out_val["value"], f"Value mismatch at index {i}"
-        assert np.isclose(in_val["value2"], out_val["value2"]), f"Value2 mismatch at index {i}"
-        assert in_val["value3"] == out_val["value3"], f"Value3 mismatch at index {i}"
-        assert np.allclose(in_val["value4"], out_val["value4"]), f"Value4 mismatch at index {i}"
+        assert in_val["value"] == out_val["value"], f"Value mismatch at index {i }"
+        assert np.isclose(in_val["value2"], out_val["value2"]), f"Value2 mismatch at index {i }"
+        assert in_val["value3"] == out_val["value3"], f"Value3 mismatch at index {i }"
+        assert np.allclose(in_val["value4"], out_val["value4"]), f"Value4 mismatch at index {i }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -424,7 +428,7 @@ void test_copy_fields_from_structs(int call_id, Test* in_buffer, int* out_value1
             }
         )
 
-    # Fill input buffer with it
+        # Fill input buffer with it
     in_buffer = Tensor.empty(device, (count,), dtype=function.module.Test)
     cursor = in_buffer.cursor()
     for i, item in enumerate(data):
@@ -458,10 +462,10 @@ void test_copy_fields_from_structs(int call_id, Test* in_buffer, int* out_value1
 
     for i in range(count):
         in_val = data[i]
-        assert in_val["value"] == out_value1[i], f"Value mismatch at index {i}"
-        assert np.isclose(in_val["value2"], out_value2[i]), f"Value2 mismatch at index {i}"
-        assert in_val["value3"] == out_value3[i], f"Value3 mismatch at index {i}"
-        assert np.allclose(in_val["value4"], out_value4[i]), f"Value4 mismatch at index {i}"
+        assert in_val["value"] == out_value1[i], f"Value mismatch at index {i }"
+        assert np.isclose(in_val["value2"], out_value2[i]), f"Value2 mismatch at index {i }"
+        assert in_val["value3"] == out_value3[i], f"Value3 mismatch at index {i }"
+        assert np.allclose(in_val["value4"], out_value4[i]), f"Value4 mismatch at index {i }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -501,7 +505,7 @@ void test_copy_fields_by_pointer(int call_id, Test* in_buffer, int* out_value1, 
             }
         )
 
-    # Fill input buffer with it
+        # Fill input buffer with it
     in_buffer = Tensor.empty(device, (count,), dtype=function.module.Test)
     cursor = in_buffer.cursor()
     for i, item in enumerate(data):
@@ -535,10 +539,10 @@ void test_copy_fields_by_pointer(int call_id, Test* in_buffer, int* out_value1, 
 
     for i in range(count):
         in_val = data[i]
-        assert in_val["value"] == out_value1[i], f"Value mismatch at index {i}"
-        assert np.isclose(in_val["value2"], out_value2[i]), f"Value2 mismatch at index {i}"
-        assert in_val["value3"] == out_value3[i], f"Value3 mismatch at index {i}"
-        assert np.allclose(in_val["value4"], out_value4[i]), f"Value4 mismatch at index {i}"
+        assert in_val["value"] == out_value1[i], f"Value mismatch at index {i }"
+        assert np.isclose(in_val["value2"], out_value2[i]), f"Value2 mismatch at index {i }"
+        assert in_val["value3"] == out_value3[i], f"Value3 mismatch at index {i }"
+        assert np.allclose(in_val["value4"], out_value4[i]), f"Value4 mismatch at index {i }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -562,7 +566,7 @@ void test_atomic_float_access(int call_id, Atomic<float>* af) {
 
     out_data = in_buffer.to_numpy()
     expected_data = np.ones(num_vals, dtype=np.float32) * 100
-    assert np.array_equal(out_data, expected_data), f"Expected {expected_data}, got {out_data}"
+    assert np.array_equal(out_data, expected_data), f"Expected {expected_data }, got {out_data }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -587,7 +591,7 @@ void test_atomic_float_ptr_access(int call_id, Atomic<float>* af) {
 
     out_data = in_buffer.to_numpy()
     expected_data = np.ones(num_vals, dtype=np.float32) * 100
-    assert np.array_equal(out_data, expected_data), f"Expected {expected_data}, got {out_data}"
+    assert np.array_equal(out_data, expected_data), f"Expected {expected_data }, got {out_data }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -622,7 +626,7 @@ void test_atomic_float_in_struct_access(int call_id, Test* buffer) {
             }
         )
 
-    # Fill input buffer with it
+        # Fill input buffer with it
     in_buffer = Tensor.empty(device, (count,), dtype=function.module.Test)
     cursor = in_buffer.cursor()
     for i, item in enumerate(data):
@@ -636,9 +640,9 @@ void test_atomic_float_in_struct_access(int call_id, Test* buffer) {
     for i in range(count):
         in_val = data[i]
         out_val = cast(Any, out_cursor[i].read())
-        assert in_val["intvalue"] == out_val["intvalue"], f"IntValue mismatch at index {i}"
-        assert np.isclose(in_val["value"] + 100, out_val["value"]), f"Value mismatch at index {i}"
-        assert in_val["intvalue2"] == out_val["intvalue2"], f"IntValue2 mismatch at index {i}"
+        assert in_val["intvalue"] == out_val["intvalue"], f"IntValue mismatch at index {i }"
+        assert np.isclose(in_val["value"] + 100, out_val["value"]), f"Value mismatch at index {i }"
+        assert in_val["intvalue2"] == out_val["intvalue2"], f"IntValue2 mismatch at index {i }"
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -714,7 +718,7 @@ void bindings_to_pointer_function(int call_id, StructuredBuffer<int> in_buffer, 
             # Do 1 call of pointers function to get it compiled and validate it
             func(g, in_buffer.storage, out_buffer.storage)
             out_data = out_buffer.to_numpy()
-            assert np.array_equal(in_data, out_data), f"Expected {in_data}, got {out_data}"
+            assert np.array_equal(in_data, out_data), f"Expected {in_data }, got {out_data }"
             out_buffer.clear()
 
             # Do 1 call to ensure warmed up
@@ -750,14 +754,14 @@ void bindings_to_pointer_function(int call_id, StructuredBuffer<int> in_buffer, 
 
             pointers_duration = pointers_end - pointers_start
             print(
-                f"\n{test_name} function took {pointers_duration*1000:.2f}ms for {DISPATCHES_PER_LOOP} calls, "
+                f"\n{test_name } function took {pointers_duration *1000 :.2f}ms for {DISPATCHES_PER_LOOP } calls, "
             )
             print(
-                f"Min dispatch time: {min_time*1000:.2f}ms, "
-                f"Max dispatch time: {max_time*1000:.2f}ms, "
-                f"Avg dispatch time: {avg_time*1000:.2f}ms"
+                f"Min dispatch time: {min_time *1000 :.2f}ms, "
+                f"Max dispatch time: {max_time *1000 :.2f}ms, "
+                f"Avg dispatch time: {avg_time *1000 :.2f}ms"
             )
-            print(",".join([f"{x*1000:.2f}" for x in dispatch_times]))
+            print(",".join([f"{x *1000 :.2f}" for x in dispatch_times]))
 
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
@@ -841,7 +845,7 @@ void buffer_to_ptr(int idx, StructuredBuffer<int> src, int* dst) {
     else:
         encoder.set_buffer_state(tmp, ResourceState.unordered_access)
 
-    # Call the function once to transition data from src to tmp
+        # Call the function once to transition data from src to tmp
     ptr_to_ptr(gridshape, src, tmp, _append_to=encoder)
 
     # If using global sync, just add a global barrier
@@ -852,7 +856,7 @@ void buffer_to_ptr(int idx, StructuredBuffer<int> src, int* dst) {
         encoder.set_buffer_state(tmp, ResourceState.shader_resource)
         encoder.set_buffer_state(dst, ResourceState.unordered_access)
 
-    # Call the function again to transition data from tmp to dst
+        # Call the function again to transition data from tmp to dst
     ptr_to_ptr(gridshape, tmp, dst, _append_to=encoder)
 
     # Final barriers (potentially not needed) for after final copy
@@ -861,15 +865,15 @@ void buffer_to_ptr(int idx, StructuredBuffer<int> src, int* dst) {
     else:
         encoder.set_buffer_state(dst, ResourceState.shader_resource)
 
-    # Submit all work at once
+        # Submit all work at once
     device.submit_command_buffer(encoder.finish())
 
     res = dst.to_numpy().view(np.int32)
 
     if sync_type == "none" and device_type in [DeviceType.vulkan, DeviceType.d3d12]:
-        assert not np.array_equal(res, rand_ints), f"Expected {rand_ints}, got {res}"
+        assert not np.array_equal(res, rand_ints), f"Expected {rand_ints }, got {res }"
     else:
-        assert np.array_equal(res, rand_ints), f"Expected {rand_ints}, got {res}"
+        assert np.array_equal(res, rand_ints), f"Expected {rand_ints }, got {res }"
 
 
 if __name__ == "__main__":
