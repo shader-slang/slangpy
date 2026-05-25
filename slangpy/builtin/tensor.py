@@ -90,8 +90,8 @@ class TensorMarshall(NativeTensorMarshall):
             element_type=element_type,
             dims=dims,
             access=TensorAccess.read_write if writable else TensorAccess.read,
-            tensor_type=(
-                TensorType.difftensor
+            tensor_kind=(
+                TensorType.diff_tensor
                 if (d_in is not None or d_out is not None)
                 else TensorType.tensor
             ),

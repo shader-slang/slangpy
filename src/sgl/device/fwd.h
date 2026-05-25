@@ -10,6 +10,7 @@ namespace sgl {
 
 struct DeviceDesc;
 class Device;
+class DeviceScope;
 
 // surface.h
 
@@ -80,6 +81,12 @@ class EntryPointLayoutParameterList;
 class ProgramLayout;
 class ProgramLayoutParameterList;
 class ProgramLayoutEntryPointList;
+
+// refl
+
+namespace refl {
+    class Layout;
+} // namespace refl
 
 // kernel.h
 

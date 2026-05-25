@@ -12,8 +12,9 @@
 #include "sgl/math/vector_types.h"
 #include "sgl/math/matrix_types.h"
 
+#include "utils/slangpy.h"
 #include "utils/slangpypackedarg.h"
-#include "utils/slangpystridedbufferview.h"
+#include "utils/slangpytensor.h"
 #include "sgl/device/buffer_cursor.h"
 
 #include <slang.h>
@@ -244,6 +245,11 @@ private:
                 }
                 m_stack.pop_back();
                 return res;
+            }
+            case TypeReflection::Kind::pointer: {
+                uint64_t ptr_value;
+                self._get_data(self._get_offset(), &ptr_value, sizeof(uint64_t));
+                return nb::cast(ptr_value);
             }
             default:
                 break;
@@ -483,6 +489,16 @@ private:
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
 
+    bool try_unpack_and_retry(CursorType& self, nb::object obj)
+    {
+        bool had_unpack = false;
+        nb::object unpacked = slangpy::unpack_arg(obj, had_unpack);
+        if (!had_unpack || unpacked.ptr() == obj.ptr())
+            return false;
+        write_internal(self, unpacked);
+        return true;
+    }
+
     void write_from_numpy_internal(BufferCursor& dst, BufferElementCursor self, nb::object nbval, bool unchecked_copy)
         requires std::same_as<CursorType, BufferElementCursor>
     {
@@ -661,30 +677,51 @@ private:
             return;
         }
 
-        // Read uniforms for StridedBufferView
-        if (nb::isinstance<sgl::slangpy::StridedBufferView>(nbval)) {
-            auto view = nb::cast<sgl::slangpy::StridedBufferView*>(nbval);
-            nbval = view->uniforms();
-        }
-
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
         auto kind = (TypeReflection::Kind)type_layout->getKind();
+
+        // Read uniforms for NativeTensor unless it is being written directly to a pointer.
+        if (kind != TypeReflection::Kind::pointer && nb::isinstance<sgl::slangpy::NativeTensor>(nbval)) {
+            auto tensor = nb::cast<sgl::slangpy::NativeTensor*>(nbval);
+            nbval = tensor->uniforms();
+        }
 
         switch (kind) {
         case TypeReflection::Kind::scalar: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_scalar[(int)type->getScalarType()](self, nbval);
+            try {
+                return m_write_scalar[(int)type->getScalarType()](self, nbval);
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::vector: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
+            try {
+                return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::matrix: {
             auto type = type_layout->getType();
             SGL_ASSERT(type);
-            return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](self, nbval);
+            try {
+                return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](
+                    self,
+                    nbval
+                );
+            } catch (const std::exception&) {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
+                throw;
+            }
         }
         case TypeReflection::Kind::pointer: {
             // Pointers are represented as uint64_t in slang.
@@ -709,13 +746,16 @@ private:
                 return;
             }
 
-            sgl::slangpy::StridedBufferView* sbview;
-            if (nb::try_cast<sgl::slangpy::StridedBufferView*>(nbval, sbview)) {
-                // If we have a StridedBufferView, write address of storage plus offset.
-                self.set_pointer(sbview->storage()->device_address() + sbview->offset());
+            sgl::slangpy::NativeTensor* tensor;
+            if (nb::try_cast<sgl::slangpy::NativeTensor*>(nbval, tensor)) {
+                // If we have a NativeTensor, write address of storage plus its byte offset.
+                uint64_t offset = static_cast<uint64_t>(tensor->offset()) * tensor->element_stride();
+                self.set_pointer(tensor->storage()->device_address() + offset);
                 return;
             }
 
+            if (try_unpack_and_retry(self, nbval))
+                return;
             SGL_THROW("Expected dict");
             return;
         }
@@ -749,6 +789,8 @@ private:
                 }
                 return;
             } else {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
                 SGL_THROW("Expected dict");
             }
         }
@@ -782,6 +824,8 @@ private:
                 m_stack.pop_back();
                 return;
             } else {
+                if (try_unpack_and_retry(self, nbval))
+                    return;
                 SGL_THROW("Expected list");
             }
         }
@@ -791,6 +835,9 @@ private:
 
         // In default case call the virtual write_value, and fail if it returns false.
         if (write_value(self, nbval))
+            return;
+
+        if (try_unpack_and_retry(self, nbval))
             return;
 
         SGL_THROW("Unsupported element type: {}", kind);

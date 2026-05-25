@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+import hashlib
 from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union, cast, Sequence
 from enum import Enum
 
@@ -63,6 +64,7 @@ class FunctionBuildInfo:
         self.call_mode: CallMode = CallMode.prim
         self.options: dict[str, Any] = {}
         self.constants: dict[str, Any] = {}
+        self.prelude: list[str] = []
         self.thread_group_size: Optional[uint3] = None
         self.return_type: Optional[Union[type, str]] = None
         self.logger: Optional[Logger] = None
@@ -70,6 +72,7 @@ class FunctionBuildInfo:
         self.pipeline_type: PipelineType = PipelineType.compute
         self.ray_tracing_hit_groups: list[HitGroupDesc] = []
         self.ray_tracing_miss_entry_points: list[str] = []
+        self.ray_tracing_hit_group_names: Optional[list[str]] = None
         self.ray_tracing_callable_entry_points: list[str] = []
         self.ray_tracing_max_recursion: int = 0
         self.ray_tracing_max_ray_payload_size: int = 0
@@ -172,6 +175,12 @@ class FunctionNode(NativeFunctionNode):
         """
         return FunctionNodeConstants(self, constants)
 
+    def prelude(self, code: str) -> "FunctionNode":
+        """
+        Specify raw Slang source code to inject into the generated kernel module.
+        """
+        return FunctionNodePrelude(self, code)
+
     def type_conformances(self, type_conformances: list[TypeConformance]):
         """
         Specify Slang type conformances to use when compiling the function.
@@ -182,6 +191,7 @@ class FunctionNode(NativeFunctionNode):
         self,
         hit_groups: Sequence["HitGroupDescParam"],
         miss_entry_points: Sequence[str] = [],
+        hit_group_names: Optional[Sequence[str]] = None,
         callable_entry_points: Sequence[str] = [],
         max_recursion: int = 1,
         max_ray_payload_size: int = 32,
@@ -195,6 +205,7 @@ class FunctionNode(NativeFunctionNode):
             self,
             hit_groups,
             miss_entry_points,
+            hit_group_names,
             callable_entry_points,
             max_recursion,
             max_ray_payload_size,
@@ -441,6 +452,20 @@ class FunctionNodeConstants(FunctionNode):
         info.constants.update(self.constants)
 
 
+class FunctionNodePrelude(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, code: str) -> None:
+        code = code.replace("\r\n", "\n")
+        super().__init__(parent, FunctionNodeType.kernelgen, code)
+        self.slangpy_signature = "prelude:" + hashlib.sha256(code.encode()).hexdigest()
+
+    @property
+    def code(self) -> str:
+        return cast(str, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo) -> None:
+        info.prelude.append(self.code)
+
+
 class FunctionNodeTypeConformances(FunctionNode):
     def __init__(
         self, parent: NativeFunctionNode, type_conformances: list[TypeConformance]
@@ -462,6 +487,7 @@ class FunctionNodeRayTracing(FunctionNode):
         parent: NativeFunctionNode,
         hit_groups: Sequence["HitGroupDescParam"],
         miss_entry_points: Sequence[str],
+        hit_group_names: Optional[Sequence[str]],
         callable_entry_points: Sequence[str],
         max_recursion: int,
         max_ray_payload_size: int,
@@ -472,8 +498,9 @@ class FunctionNodeRayTracing(FunctionNode):
             parent,
             FunctionNodeType.ray_tracing,
             {
-                "hit_groups": [HitGroupDesc(hit_group) for hit_group in hit_groups],  # type: ignore
+                "hit_groups": [hit_group if isinstance(hit_group, HitGroupDesc) else HitGroupDesc(hit_group) for hit_group in hit_groups],  # type: ignore
                 "miss_entry_points": list(miss_entry_points),
+                "hit_group_names": list(hit_group_names) if hit_group_names is not None else None,
                 "callable_entry_points": list(callable_entry_points),
                 "max_recursion": max_recursion,
                 "max_ray_payload_size": max_ray_payload_size,
@@ -488,6 +515,7 @@ class FunctionNodeRayTracing(FunctionNode):
         info.pipeline_type = PipelineType.ray_tracing
         info.ray_tracing_hit_groups = d["hit_groups"]
         info.ray_tracing_miss_entry_points = d["miss_entry_points"]
+        info.ray_tracing_hit_group_names = d["hit_group_names"]
         info.ray_tracing_callable_entry_points = d["callable_entry_points"]
         info.ray_tracing_max_recursion = d["max_recursion"]
         info.ray_tracing_max_ray_payload_size = d["max_ray_payload_size"]
