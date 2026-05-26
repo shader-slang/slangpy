@@ -245,9 +245,19 @@ def install_slangpy_torch(args: Any):
     cmd = [sys.executable, "-m", "pip", "install", "wheel"]
     run_command(cmd)
 
-    # Use --no-build-isolation to compile against the user's installed PyTorch
-    cmd = [sys.executable, "-m", "pip", "install", str(slangpy_torch_dir), "--no-build-isolation"]
-    run_command(cmd)
+    # -vvv so pip relays the PEP 517 build-backend's stdio live (a hang isn't
+    # a failure, so captured output is never flushed); env vars prevent stdio
+    # buffering and any interactive prompt that could wedge the install.
+    cmd = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "-vvv",
+        str(slangpy_torch_dir),
+        "--no-build-isolation",
+    ]
+    run_command(cmd, env={"PYTHONUNBUFFERED": "1", "PIP_NO_INPUT": "1"})
 
 
 def main():
