@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <sstream>
 #include <cmath>
+#include <cstdint>
+#include <limits>
 
 #include "nanobind.h"
 
@@ -45,7 +47,17 @@ struct GcHelper<slangpy::NativeCallRuntimeOptions> {
 namespace sgl::slangpy {
 
 namespace {
-    constexpr uint32_t kSlangPyMaxDispatchThreadGroupsX = 65535;
+    // The generated flattening math uses signed 32-bit Slang ints and emits
+    // dispatch_thread_x_stride = dispatch_groups_x * numthreads_x. Use the
+    // conservative max-group-size case (1024 threads) so that stride always
+    // stays representable for any generated SlangPy compute kernel.
+    constexpr uint32_t kSlangPyMaxGeneratedThreadGroupSize = 1024;
+    constexpr uint32_t kSlangPyMaxDispatchThreadGroupsX
+        = uint32_t(std::numeric_limits<int32_t>::max()) / kSlangPyMaxGeneratedThreadGroupSize;
+    static_assert(
+        uint64_t(kSlangPyMaxDispatchThreadGroupsX) * kSlangPyMaxGeneratedThreadGroupSize
+        <= uint64_t(std::numeric_limits<int32_t>::max())
+    );
 
     /// Helper for writing single value to base address with offset
     template<typename T>

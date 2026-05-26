@@ -15,7 +15,13 @@ if TYPE_CHECKING:
 #: to keep generated entry-point params and ``CallData`` fields readable.
 #: Shorter names are inlined directly.
 MAX_INLINE_TYPE_LEN = 60
-MAX_DISPATCH_THREAD_GROUPS_X = 65535
+
+# The generated flattening math uses signed 32-bit Slang ints and emits
+# dispatch_thread_x_stride = dispatch_groups_x * numthreads_x. Use the
+# conservative max-group-size case (1024 threads) so that stride always stays
+# representable for any generated SlangPy compute kernel.
+MAX_GENERATED_THREAD_GROUP_SIZE = 1024
+MAX_DISPATCH_THREAD_GROUPS_X = (2**31 - 1) // MAX_GENERATED_THREAD_GROUP_SIZE
 
 
 class KernelGenException(Exception):

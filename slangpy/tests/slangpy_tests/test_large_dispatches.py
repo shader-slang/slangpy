@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from slangpy import DeviceType
+from slangpy.core.generator import MAX_DISPATCH_THREAD_GROUPS_X
 from slangpy.experimental.gridarg import grid
 from slangpy.slangpy import Shape
 from slangpy.testing import helpers
@@ -11,7 +12,6 @@ from slangpy.types import Tensor
 from slangpy.types.threadidarg import thread_id
 
 
-MAX_DISPATCH_THREAD_GROUPS_X = 65535
 DEFAULT_GENERATED_THREAD_GROUP_SIZE = 32
 EXTRA_THREADS = 17
 
