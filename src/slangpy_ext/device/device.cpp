@@ -422,6 +422,8 @@ SGL_PY_EXPORT(device_device)
             &DeviceLimits::max_compute_dispatch_thread_groups,
             D(DeviceLimits, max_compute_dispatch_thread_groups)
         )
+        .def_ro("min_wave_size", &DeviceLimits::min_wave_size, D(DeviceLimits, min_wave_size))
+        .def_ro("max_wave_size", &DeviceLimits::max_wave_size, D(DeviceLimits, max_wave_size))
         .def_ro("max_viewports", &DeviceLimits::max_viewports, D(DeviceLimits, max_viewports))
         .def_ro(
             "max_viewport_dimensions",
