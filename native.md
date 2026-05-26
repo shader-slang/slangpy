@@ -109,11 +109,11 @@ Completed:
   - `Struct` user-facing metadata delegates to the native `BaseStruct`/`sgl::refl::Type` storage instead of copied Python fields.
   - Duplicate `native_*` fields were avoided; native data replaces the old fields directly.
 - Removed the active `NDBuffer`/`StridedBufferView` runtime path:
-  - `NativeTensorDesc` and `NativeTensor` now own storage, shape, stride, offset, view/broadcast/indexing, contiguous checks, cursor/uniform helpers, clear, and NumPy/Torch conversion directly in `src/slangpy_ext/utils/slangpytensor.*`.
+  - `TensorDesc` and `Tensor` now own storage, shape, stride, offset, view/broadcast/indexing, contiguous checks, cursor/uniform helpers, clear, and NumPy/Torch conversion directly in `src/slangpy_ext/utils/slangpytensor.*`.
   - Removed `StridedBufferViewDesc`, `StridedBufferView`, `NativeNDBufferDesc`, `NativeNDBuffer`, and `NativeNDBufferMarshall` from the extension build.
-  - Moved `NativeNumpyMarshall` onto the `NativeTensorMarshall` path so direct NumPy arguments/outputs no longer depend on `NDBuffer`.
+  - Moved `NativeNumpyMarshall` onto the `TensorMarshall` path so direct NumPy arguments/outputs no longer depend on `NDBuffer`.
   - Removed `slangpy/types/buffer.py`, `slangpy.builtin.ndbuffer`, root/type exports for `NDBuffer`, `PYTHON_TYPES` registration for `NDBuffer`, and Jupyter `NDBuffer` formatting.
-  - Replaced `cursor_utils` `StridedBufferView` special cases with `NativeTensor` handling.
+  - Replaced `cursor_utils` `StridedBufferView` special cases with `Tensor` handling.
 - Added tests:
   - `tests/sgl/refl/test_reflection.cpp`
   - `tests/sgl/refl/test_lookup.cpp`
@@ -142,7 +142,7 @@ Current limitations:
 - `NativeSlangType` still exists in the native marshalling API and several extension marshall classes; it has not yet been retired in favor of `sgl::refl::Type`.
 - The custom Python reflection/provider fallback described later in this document is not implemented. `TYPE_OVERRIDES` is no longer exported from `slangpy.reflection`, and remaining sample/generated-doc references to it are stale.
 - `slangpy/reflection/lookup.py` is still the Python adapter for Tensor factories, NumPy dtype conversion, and Python registry fallback for non-native Python values.
-- Tensor runtime behavior is consolidated on `NativeTensor` in the extension, but it has not moved to Python-free `src/sgl::func` yet.
+- Tensor runtime behavior is consolidated on `Tensor` in the extension, but it has not moved to Python-free `src/sgl::func` yet.
 - `NDBuffer` and `StridedBufferView` are removed from the active Python/native extension API. Historical docs, generated API docs, sample `.slang` files, and generated test fixtures still contain old `NDBuffer` references and need a separate docs/sample cleanup pass.
 - `NativeNumpyMarshall` is now Tensor-backed, but direct NumPy dispatch remains an extension-owned convenience path with per-call temporary tensor storage.
 - The native submodule stubs exist, but they need a cleanup pass against runtime behavior. In particular, `native_func.__init__.pyi` still advertises `BaseModule.module` while the runtime binding exposes `device_module`.
@@ -155,7 +155,7 @@ Current limitations:
 
 Next recommended step:
 
-- Do the cleanup pass around generated docs/stubs and historical sample/generated-test references to `NDBuffer`, then start Phase 4 by moving the now-consolidated `NativeTensor` runtime from `src/slangpy_ext` into Python-free `src/sgl::func`.
+- Do the cleanup pass around generated docs/stubs and historical sample/generated-test references to `NDBuffer`, then start Phase 4 by moving the now-consolidated `Tensor` runtime from `src/slangpy_ext` into Python-free `src/sgl::func`.
 
 ## Nanobind Trampoline Rule
 
@@ -166,7 +166,7 @@ Do not create a `PyFoo : Foo` just to add Python-specific methods. Bind those me
 Good:
 
 ```cpp
-nb::class_<sgl::func::Tensor, Object>(m, "NativeTensor")
+nb::class_<sgl::func::Tensor, Object>(m, "Tensor")
     .def_prop_ro("shape", &sgl::func::Tensor::shape)
     .def(
         "to_numpy",
@@ -842,14 +842,14 @@ Purpose:
 
 Status on 2026-05-18:
 
-- Implemented for the active runtime/API path. `NativeTensor` no longer derives from `StridedBufferView`, `NativeNumpyMarshall` no longer derives from `NativeNDBufferMarshall`, and the extension build no longer compiles the old `slangpybuffer.*` or `slangpystridedbufferview.*` modules.
+- Implemented for the active runtime/API path. `Tensor` no longer derives from `StridedBufferView`, `NativeNumpyMarshall` no longer derives from `NativeNDBufferMarshall`, and the extension build no longer compiles the old `slangpybuffer.*` or `slangpystridedbufferview.*` modules.
 - Python `NDBuffer` exports and marshalling registration were removed.
 - Focused Tensor, NumPy, structured NumPy, type-resolution, code-generation, and array tests pass after the change.
 - Remaining cleanup is documentation/sample hygiene: generated docs and historical `.slang` fixtures still mention `NDBuffer`.
 
 Implementation:
 
-- First detach current extension `NativeTensorDesc`/`NativeTensor` from `StridedBufferView`.
+- First detach current extension `TensorDesc`/`Tensor` from `StridedBufferView`.
   - Move storage, shape, stride, offset, view, broadcast, contiguous checks, clear, cursor/uniform helpers, and NumPy/Torch conversion helpers onto Tensor-specific code.
   - Keep this Tensor-specific code in the extension until Phase 4 moves it to `src/sgl::func`.
 - Remove Python exports:
@@ -988,7 +988,7 @@ private:
 Python-specific factory stays in Python or extension:
 
 ```python
-class Tensor(NativeTensor):
+class Tensor(native_func.Tensor):
     @staticmethod
     def empty(device: Device, shape: TShapeOrTuple, dtype: Any, ...) -> Tensor:
         # These names can remain as Python adapters, but the implementation should
@@ -1000,10 +1000,10 @@ class Tensor(NativeTensor):
 
 The important boundary is that `resolve_program_layout()` and `resolve_element_type()` may still accept Python-shaped inputs for ergonomics, but the lookup cache, lookup module, name resolution, and type construction should already be native.
 
-Python binding should use lambdas for Python-only operations. `NativeTensor` is a transitional internal binding name; public Python should continue exporting `Tensor`, and Phase 7 should either rename the binding or hide it behind the native public name.
+Python binding should use lambdas for Python-only operations. Public Python should export `Tensor` directly.
 
 ```cpp
-nb::class_<func::Tensor, Object>(slangpy, "NativeTensor")
+nb::class_<func::Tensor, Object>(slangpy, "Tensor")
     .def_prop_ro("dtype", &func::Tensor::dtype)
     .def_prop_ro("shape", &func::Tensor::shape)
     .def_prop_ro("strides", &func::Tensor::strides)
@@ -1044,14 +1044,14 @@ pytest slangpy/tests/slangpy_tests/test_tensorview.py -v
 Purpose:
 
 - Leave function marshalling and code generation in `slangpy_ext`/Python.
-- Make existing `NativeTensorMarshall` consume `sgl::func::Tensor` and `sgl::refl::Type`.
+- Make existing `TensorMarshall` consume `sgl::func::Tensor` and `sgl::refl::Type`.
 
 Implementation:
 
 - Change `NativeMarshall` and related runtime binding objects only as much as needed to accept native reflection types.
 - Keep virtual marshalling methods where Python must still override behavior.
 - Keep `PyNativeMarshall` only for classes that genuinely allow Python override.
-- Remove `PyNativeTensorMarshall` if Tensor marshalling no longer needs Python overrides.
+- Remove `PyTensorMarshall` if Tensor marshalling no longer needs Python overrides.
 - Keep `NativeNumpyMarshall` as an extension-only adapter. It should reuse Tensor dispatch data where possible so NumPy support survives the `NDBuffer` deletion without creating another native buffer-view abstraction.
 - Direct `np.ndarray` arguments are a convenience path, not the high-performance repeated-call path. Persistent `Tensor.from_numpy()` plus `copy_from_numpy()` should remain the recommended route for repeated calls.
 - Do not redesign the separate `slangpy_torch` bridge in this phase. Preserve its ABI and current CUDA direct-pointer behavior; update only the extension marshalling surface needed to consume native reflection/Tensor metadata.
@@ -1060,16 +1060,16 @@ Implementation:
 Example direction:
 
 ```cpp
-class NativeTensorMarshall : public NativeMarshall {
+class TensorMarshall : public NativeMarshall {
 public:
-    NativeTensorMarshall(
+    TensorMarshall(
         int dims,
         bool writable,
         ref<refl::Type> slang_type,
         ref<refl::Type> slang_element_type,
         ref<const TypeLayoutReflection> element_layout,
-        ref<NativeTensorMarshall> d_in,
-        ref<NativeTensorMarshall> d_out
+        ref<TensorMarshall> d_in,
+        ref<TensorMarshall> d_out
     );
 
     Shape get_shape(nb::object data) const override
@@ -1108,7 +1108,7 @@ public:
         ref<refl::Type> slang_element_type,
         ref<const TypeLayoutReflection> element_layout,
         nb::dtype dtype,
-        ref<NativeTensorMarshall> tensor_marshall
+        ref<TensorMarshall> tensor_marshall
     );
 
     Shape get_shape(nb::object data) const override
@@ -1133,7 +1133,7 @@ public:
 private:
     nb::dtype m_dtype;
     ref<refl::Type> m_slang_element_type;
-    ref<NativeTensorMarshall> m_tensor_marshall;
+    ref<TensorMarshall> m_tensor_marshall;
 };
 ```
 
