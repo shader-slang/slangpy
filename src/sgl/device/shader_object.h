@@ -48,6 +48,12 @@ public:
     virtual void set_descriptor_handle(const ShaderOffset& offset, const DescriptorHandle& handle);
     virtual void set_data(const ShaderOffset& offset, const void* data, size_t size);
 
+    template<typename T>
+    void set_data(const ShaderOffset& offset, const T& value)
+    {
+        set_data(offset, &value, sizeof(T));
+    }
+
     /// Reserves a block of memory within the shader object's internal data buffer at the specified offset.
     /// WARNING: This function bypasses the immutability of a ShaderObject. To use safely, ensure that the address
     /// returned is immediately populated, not retained. Prefer using set_data unless absolutely necessary.

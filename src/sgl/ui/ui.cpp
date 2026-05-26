@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// Enable the ImGui demo window for testing and debugging purposes.
+#define ENABLE_IMGUI_DEMO_WINDOW 0
+
 #include "ui.h"
 
 #include "sgl/ui/widgets.h"
@@ -19,6 +22,9 @@
 #include "sgl/device/pipeline.h"
 
 #include <imgui.h>
+#if ENABLE_IMGUI_DEMO_WINDOW
+#include <imgui_demo.cpp>
+#endif
 #include <cmrc/cmrc.hpp>
 
 #include <algorithm>
@@ -30,6 +36,12 @@
 CMRC_DECLARE(sgl_data);
 
 namespace sgl::ui {
+
+// Note: These must match the definitions in the SW rasterizer shader.
+static constexpr size_t TRIANGLE_DATA_STRIDE = 64; // sizeof(TriangleData)
+static constexpr size_t BBOX_STRIDE = 8;           // sizeof(BBox)
+static constexpr uint32_t TILE_SIZE = 16;
+static constexpr uint32_t TILE_BITMASK_WORDS = 4; // 128 bits per tile
 
 static void setup_style()
 {
@@ -315,12 +327,8 @@ Context::Context(ref<Device> device)
     setup_style();
     ImGui::GetStyle().ScaleAllSizes(scale_factor);
 
-    // Skip initializing rasterizer if device does not support rasterization.
-    // TODO: This will be fixed later when adding sw rasterizer (wip).
-    if (!m_device->has_feature(Feature::rasterization)) {
-        log_warn("Rasterization is not available and UI will not be rendered!");
-        return;
-    }
+    // Determine render mode.
+    m_render_mode = m_device->has_feature(Feature::rasterization) ? RenderMode::rasterizer : RenderMode::sw_rasterizer;
 
     // Setup sampler.
     m_sampler = m_device->create_sampler({
@@ -337,20 +345,16 @@ Context::Context(ref<Device> device)
         .max_lod = 0.f,
     });
 
-    // Setup program.
-    m_program = m_device->load_program("sgl/ui/imgui.slang", {"vs_main", "fs_main"});
-
-    // Setup vertex layout.
-    m_input_layout = m_device->create_input_layout({
-        .input_elements{
-            {.semantic_name = "POSITION", .format = Format::rg32_float, .offset = offsetof(ImDrawVert, pos)},
-            {.semantic_name = "TEXCOORD", .format = Format::rg32_float, .offset = offsetof(ImDrawVert, uv)},
-            {.semantic_name = "COLOR", .format = Format::rgba8_unorm, .offset = offsetof(ImDrawVert, col)},
-        },
-        .vertex_streams{
-            {.stride = sizeof(ImDrawVert)},
-        },
-    });
+    switch (m_render_mode) {
+    case RenderMode::disabled:
+        break;
+    case RenderMode::rasterizer:
+        init_rasterizer();
+        break;
+    case RenderMode::sw_rasterizer:
+        init_sw_rasterizer();
+        break;
+    }
 }
 
 Context::~Context()
@@ -393,10 +397,13 @@ void Context::end_frame(TextureView* texture_view, CommandEncoder* command_encod
 {
     ImGui::SetCurrentContext(m_imgui_context);
 
+#if ENABLE_IMGUI_DEMO_WINDOW
+    ImGui::ShowDemoWindow();
+#endif
+
     ImGui::Render();
 
-    // Skip actual rendering device does not support it.
-    if (!m_device->has_feature(Feature::rasterization))
+    if (m_render_mode == RenderMode::disabled)
         return;
 
     ImDrawData* imgui_draw_data = ImGui::GetDrawData();
@@ -426,8 +433,6 @@ void Context::render_draw_data(const ImDrawData* draw_data, TextureView* texture
     SGL_CHECK_NOT_NULL(texture_view);
     SGL_CHECK_NOT_NULL(command_encoder);
 
-    if (!m_device->has_feature(Feature::rasterization))
-        return;
     if constexpr (sizeof(ImDrawIdx) != 2 && sizeof(ImDrawIdx) != 4) {
         SGL_THROW("Unsupported ImGui draw data index size: {}", sizeof(ImDrawIdx));
     }
@@ -509,79 +514,70 @@ void Context::render_draw_data(const ImDrawData* draw_data, TextureView* texture
     vertex_buffer->unmap();
     index_buffer->unmap();
 
+    // Allocate triangle data and bbox buffers for the SW rasterizer.
+    if (m_render_mode == RenderMode::sw_rasterizer) {
+        // Calculate total triangles across all draw commands (for batched buffer allocation).
+        uint32_t total_triangles = total_index_count / 3;
 
-    auto pass_encoder = command_encoder->begin_render_pass({
-        .color_attachments = {
-            {
-                .view = texture_view,
-                .load_op = LoadOp::load,
-                .store_op = StoreOp::store,
-            },
-        },
-    });
-    ShaderObject* shader_object = pass_encoder->bind_pipeline(get_pipeline(texture_view->desc().format));
-    ShaderCursor shader_cursor = ShaderCursor(shader_object);
-    shader_cursor["sampler"] = m_sampler;
-    shader_cursor["scale"] = 2.f / float2(draw_data->DisplaySize.x, -draw_data->DisplaySize.y);
-    shader_cursor["offset"] = float2(-1.f, 1.f);
-    shader_cursor["is_srgb_format"] = is_srgb_format;
-    ShaderOffset texture_offset = shader_cursor["texture"].offset();
+        const size_t required_triangle_bytes = size_t(total_triangles) * TRIANGLE_DATA_STRIDE;
+        const size_t required_bbox_bytes = size_t(total_triangles) * BBOX_STRIDE;
 
-    RenderState render_state = {
-        .viewports = {Viewport::from_size(fb_width, fb_height)},
-        .scissor_rects = {ScissorRect{}},
-        .vertex_buffers = {vertex_buffer},
-        .index_buffer = index_buffer,
-        .index_format = sizeof(ImDrawIdx) == 2 ? IndexFormat::uint16 : IndexFormat::uint32,
-    };
-
-    uint32_t vertex_offset = 0;
-    uint32_t index_offset = 0;
-    for (int i = 0; i < draw_data->CmdListsCount; ++i) {
-        const ImDrawList* draw_list = draw_data->CmdLists[i];
-        const uint32_t vertex_count = narrow_cast<uint32_t>(draw_list->VtxBuffer.Size);
-        const uint32_t index_count = narrow_cast<uint32_t>(draw_list->IdxBuffer.Size);
-
-        for (const ImDrawCmd& cmd : draw_list->CmdBuffer) {
-            if (cmd.UserCallback != nullptr)
-                SGL_THROW("ImGui draw callbacks are not supported by the shared draw-data renderer");
-            if (!cmd.GetTexID())
-                SGL_THROW("ImGui draw command contains null texture");
-
-            const float raw_clip_min_x = (cmd.ClipRect.x - draw_data->DisplayPos.x) * draw_data->FramebufferScale.x;
-            const float raw_clip_min_y = (cmd.ClipRect.y - draw_data->DisplayPos.y) * draw_data->FramebufferScale.y;
-            const float raw_clip_max_x = (cmd.ClipRect.z - draw_data->DisplayPos.x) * draw_data->FramebufferScale.x;
-            const float raw_clip_max_y = (cmd.ClipRect.w - draw_data->DisplayPos.y) * draw_data->FramebufferScale.y;
-
-            const float clip_min_x = std::clamp(raw_clip_min_x, 0.f, fb_width);
-            const float clip_min_y = std::clamp(raw_clip_min_y, 0.f, fb_height);
-            const float clip_max_x = std::clamp(raw_clip_max_x, 0.f, fb_width);
-            const float clip_max_y = std::clamp(raw_clip_max_y, 0.f, fb_height);
-            if (clip_max_x <= clip_min_x || clip_max_y <= clip_min_y)
-                continue;
-
-            render_state.scissor_rects[0] = ScissorRect{
-                .min_x = uint32_t(clip_min_x),
-                .min_y = uint32_t(clip_min_y),
-                .max_x = uint32_t(clip_max_x),
-                .max_y = uint32_t(clip_max_y),
-            };
-
-            const uint64_t draw_vertex_offset = uint64_t(cmd.VtxOffset) + uint64_t(vertex_offset);
-            const uint64_t draw_index_offset = uint64_t(cmd.IdxOffset) + uint64_t(index_offset);
-
-            shader_object->set_texture(texture_offset, ref<Texture>(cmd.GetTexID()));
-            pass_encoder->set_render_state(render_state);
-            pass_encoder->draw_indexed({
-                .vertex_count = cmd.ElemCount,
-                .start_vertex_location = narrow_cast<uint32_t>(draw_vertex_offset),
-                .start_index_location = narrow_cast<uint32_t>(draw_index_offset),
+        if (!m_triangle_buffer || m_triangle_buffer->size() < required_triangle_bytes) {
+            m_triangle_buffer = m_device->create_buffer({
+                .size = required_triangle_bytes + 4096,
+                .usage = BufferUsage::shader_resource | BufferUsage::unordered_access,
+                .label = "imgui triangle buffer",
             });
         }
-        index_offset += index_count;
-        vertex_offset += vertex_count;
+
+        if (!m_bbox_buffer || m_bbox_buffer->size() < required_bbox_bytes) {
+            m_bbox_buffer = m_device->create_buffer({
+                .size = required_bbox_bytes + 1024,
+                .usage = BufferUsage::shader_resource | BufferUsage::unordered_access,
+                .label = "imgui bbox buffer",
+            });
+        }
+
+        // Calculate total tile bitmask words needed across all draw commands.
+        uint32_t total_tile_words = 0;
+        ImVec2 clip_off = draw_data->DisplayPos;
+        for (int n = 0; n < draw_data->CmdListsCount; n++) {
+            const ImDrawList* cmd_list = draw_data->CmdLists[n];
+            for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
+                const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+                uint32_t triangle_count = pcmd->ElemCount / 3;
+                if (triangle_count == 0)
+                    continue;
+                int2 clip_min = int2(pcmd->ClipRect.x - clip_off.x, pcmd->ClipRect.y - clip_off.y);
+                int2 clip_max = int2(pcmd->ClipRect.z - clip_off.x, pcmd->ClipRect.w - clip_off.y);
+                if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
+                    continue;
+                uint32_t tiles_x = (uint32_t(clip_max.x - clip_min.x) + TILE_SIZE - 1) / TILE_SIZE;
+                uint32_t tiles_y = (uint32_t(clip_max.y - clip_min.y) + TILE_SIZE - 1) / TILE_SIZE;
+                total_tile_words += tiles_x * tiles_y * TILE_BITMASK_WORDS;
+            }
+        }
+
+        const size_t required_bitmask_bytes = size_t(total_tile_words) * sizeof(uint32_t);
+        if (!m_tile_bitmask_buffer || m_tile_bitmask_buffer->size() < required_bitmask_bytes) {
+            m_tile_bitmask_buffer = m_device->create_buffer({
+                .size = required_bitmask_bytes + 4096,
+                .usage = BufferUsage::shader_resource | BufferUsage::unordered_access,
+                .label = "imgui tile bitmask buffer",
+            });
+        }
     }
-    pass_encoder->end();
+
+    switch (m_render_mode) {
+    case RenderMode::disabled:
+        break;
+    case RenderMode::rasterizer:
+        draw(draw_data, vertex_buffer, index_buffer, texture_view, command_encoder);
+        break;
+    case RenderMode::sw_rasterizer:
+        draw_sw(draw_data, vertex_buffer, index_buffer, texture_view, command_encoder);
+        break;
+    }
 }
 
 void Context::render_draw_data(const ImDrawData* draw_data, Texture* texture, CommandEncoder* command_encoder)
@@ -639,15 +635,42 @@ bool Context::handle_mouse_event(const MouseEvent& event)
     return io.WantCaptureMouse;
 }
 
-RenderPipeline* Context::get_pipeline(Format format)
+void Context::init_rasterizer()
 {
-    auto it = m_pipelines.find(format);
-    if (it != m_pipelines.end())
+    // Setup vertex layout.
+    m_input_layout = m_device->create_input_layout({
+        .input_elements{
+            {.semantic_name = "POSITION", .format = Format::rg32_float, .offset = offsetof(ImDrawVert, pos)},
+            {.semantic_name = "TEXCOORD", .format = Format::rg32_float, .offset = offsetof(ImDrawVert, uv)},
+            {.semantic_name = "COLOR", .format = Format::rgba8_unorm, .offset = offsetof(ImDrawVert, col)},
+        },
+        .vertex_streams{
+            {.stride = sizeof(ImDrawVert)},
+        },
+    });
+
+    // Setup program.
+    m_render_program = m_device->load_program("sgl/ui/imgui.slang", {"vs_main", "fs_main"});
+}
+
+void Context::init_sw_rasterizer()
+{
+    // Create setup triangle pipeline.
+    ref<ShaderProgram> program = m_device->load_program("sgl/ui/imguisw.slang", {"setup_triangles"});
+    m_setup_triangles_pipeline = m_device->create_compute_pipeline({
+        .program = program,
+    });
+}
+
+RenderPipeline* Context::get_render_pipeline(Format format)
+{
+    auto it = m_render_pipelines.find(format);
+    if (it != m_render_pipelines.end())
         return it->second;
 
     // Create pipeline.
     ref<RenderPipeline> pipeline = m_device->create_render_pipeline({
-        .program = m_program,
+        .program = m_render_program,
         .input_layout = m_input_layout,
         .primitive_topology = PrimitiveTopology::triangle_list,
         .targets = {
@@ -668,7 +691,38 @@ RenderPipeline* Context::get_pipeline(Format format)
         },
     });
 
-    m_pipelines.emplace(format, pipeline);
+    m_render_pipelines.emplace(format, pipeline);
+    return pipeline;
+}
+
+ComputePipeline* Context::get_draw_triangles_pipeline(Format format)
+{
+    auto it = m_draw_triangles_pipeline.find(format);
+    if (it != m_draw_triangles_pipeline.end())
+        return it->second;
+
+    const char* slang_format = get_format_info(format).slang_format;
+    if (format == Format::rgba8_unorm_srgb)
+        slang_format = "rgba8";
+    SGL_CHECK(slang_format != nullptr, "Unsupported format for software rasterizer: {}", format);
+
+    std::string name = fmt::format("sgl-ui-imguisw-{}", format);
+    std::string source = fmt::format(
+        "#define FORMAT_ATTR [format(\"{}\")]\n{}",
+        slang_format,
+        m_device->slang_session()->load_source("sgl/ui/imguisw.slang")
+    );
+
+    ref<SlangModule> module = m_device->slang_session()->load_module_from_source(name, source);
+    ref<ShaderProgram> program
+        = m_device->slang_session()->link_program({module}, {module->entry_point("draw_triangles")});
+
+    // Create pipeline.
+    ref<ComputePipeline> pipeline = m_device->create_compute_pipeline({
+        .program = program,
+    });
+
+    m_draw_triangles_pipeline.emplace(format, pipeline);
     return pipeline;
 }
 
@@ -731,6 +785,243 @@ void Context::update_mouse_cursor(sgl::Window* window)
             break;
         }
         window->set_cursor_shape(shape);
+    }
+}
+
+void Context::draw(
+    const ImDrawData* draw_data,
+    Buffer* vertex_buffer,
+    Buffer* index_buffer,
+    TextureView* texture_view,
+    CommandEncoder* command_encoder
+)
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
+
+    // Render command lists.
+    auto pass_encoder = command_encoder->begin_render_pass({
+        .color_attachments = {
+            {
+                .view = texture_view,
+                .load_op = LoadOp::load,
+                .store_op = StoreOp::store,
+            },
+        },
+    });
+    ShaderObject* shader_object = pass_encoder->bind_pipeline(get_render_pipeline(texture_view->desc().format));
+    ShaderCursor shader_cursor = ShaderCursor(shader_object);
+    shader_cursor["sampler"] = m_sampler;
+    shader_cursor["scale"] = 2.f / float2(io.DisplaySize.x, -io.DisplaySize.y);
+    shader_cursor["offset"] = float2(-1.f, 1.f);
+    shader_cursor["is_srgb_format"] = is_srgb_format;
+    ShaderOffset shader_offset_texture = shader_cursor["texture"].offset();
+
+    RenderState render_state = {
+        .viewports = {Viewport::from_size(io.DisplaySize.x, io.DisplaySize.y)},
+        .scissor_rects = {ScissorRect{}},
+        .vertex_buffers = {vertex_buffer},
+        .index_buffer = index_buffer,
+        .index_format = sizeof(ImDrawIdx) == 2 ? IndexFormat::uint16 : IndexFormat::uint32,
+    };
+
+    int vertex_offset = 0;
+    int index_offset = 0;
+    ImVec2 clip_off = draw_data->DisplayPos;
+    ImVec2 inv_scale = ImVec2(1.f / draw_data->FramebufferScale.x, 1.f / draw_data->FramebufferScale.y);
+    for (int n = 0; n < draw_data->CmdListsCount; n++) {
+        const ImDrawList* cmd_list = draw_data->CmdLists[n];
+        for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
+            const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+            SGL_ASSERT(pcmd->UserCallback == nullptr);
+            // Project scissor/clipping rectangles into framebuffer space.
+            ScissorRect clip_rect{
+                .min_x = uint32_t((pcmd->ClipRect.x - clip_off.x) * inv_scale.x),
+                .min_y = uint32_t((pcmd->ClipRect.y - clip_off.y) * inv_scale.y),
+                .max_x = uint32_t((pcmd->ClipRect.z - clip_off.x) * inv_scale.x),
+                .max_y = uint32_t((pcmd->ClipRect.w - clip_off.y) * inv_scale.y),
+            };
+            if (clip_rect.max_x <= clip_rect.min_x || clip_rect.max_y <= clip_rect.min_y)
+                continue;
+
+            // Apply scissor/clipping rectangle, bind texture, draw.
+            render_state.scissor_rects[0] = clip_rect;
+            ref<Texture> texture = ref<Texture>(static_cast<Texture*>(pcmd->GetTexID()));
+            shader_object->set_texture(shader_offset_texture, texture);
+            pass_encoder->set_render_state(render_state);
+            pass_encoder->draw_indexed({
+                .vertex_count = pcmd->ElemCount,
+                .start_vertex_location = pcmd->VtxOffset + vertex_offset,
+                .start_index_location = pcmd->IdxOffset + index_offset,
+            });
+        }
+        index_offset += cmd_list->IdxBuffer.Size;
+        vertex_offset += cmd_list->VtxBuffer.Size;
+    }
+    pass_encoder->end();
+}
+
+void Context::draw_sw(
+    const ImDrawData* draw_data,
+    Buffer* vertex_buffer,
+    Buffer* index_buffer,
+    TextureView* texture_view,
+    CommandEncoder* command_encoder
+)
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    bool is_srgb_format = get_format_info(texture_view->format()).is_srgb_format();
+
+    ImVec2 inv_scale = ImVec2(1.f / draw_data->FramebufferScale.x, 1.f / draw_data->FramebufferScale.y);
+
+    // Pass 1: Setup triangles
+    {
+        auto pass_encoder = command_encoder->begin_compute_pass();
+        ShaderObject* shader_object = pass_encoder->bind_pipeline(m_setup_triangles_pipeline)->get_entry_point(0);
+        ShaderCursor shader_cursor = ShaderCursor(shader_object);
+        shader_cursor["vertices"] = ref(vertex_buffer);
+        shader_cursor["indices"] = ref(index_buffer);
+        shader_cursor["triangles"] = m_triangle_buffer;
+        shader_cursor["bboxes"] = m_bbox_buffer;
+        shader_cursor["tile_bitmasks"] = m_tile_bitmask_buffer;
+        ShaderOffset shader_offset_start_vertex = shader_cursor["start_vertex"].offset();
+        ShaderOffset shader_offset_start_index = shader_cursor["start_index"].offset();
+        ShaderOffset shader_offset_triangle_count = shader_cursor["triangle_count"].offset();
+        ShaderOffset shader_offset_triangle_offset = shader_cursor["triangle_offset"].offset();
+        ShaderOffset shader_offset_clip_min = shader_cursor["clip_min"].offset();
+        ShaderOffset shader_offset_clip_max = shader_cursor["clip_max"].offset();
+        ShaderOffset shader_offset_tile_bitmask_offset = shader_cursor["tile_bitmask_offset"].offset();
+        ShaderOffset shader_offset_tiles_x = shader_cursor["tiles_x"].offset();
+        ShaderOffset shader_offset_tiles_y = shader_cursor["tiles_y"].offset();
+        ShaderOffset shader_offset_bucket_size = shader_cursor["bucket_size"].offset();
+
+        int vertex_offset = 0;
+        int index_offset = 0;
+        uint32_t triangle_offset = 0;
+        uint32_t tile_bitmask_offset = 0;
+        ImVec2 clip_off = draw_data->DisplayPos;
+        for (int n = 0; n < draw_data->CmdListsCount; n++) {
+            const ImDrawList* cmd_list = draw_data->CmdLists[n];
+            for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
+                const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+                SGL_ASSERT(pcmd->UserCallback == nullptr);
+
+                uint32_t triangle_count = pcmd->ElemCount / 3;
+                if (triangle_count == 0)
+                    continue;
+
+                int2 clip_min = int2(
+                    (pcmd->ClipRect.x - clip_off.x) * inv_scale.x,
+                    (pcmd->ClipRect.y - clip_off.y) * inv_scale.y
+                );
+                int2 clip_max = int2(
+                    (pcmd->ClipRect.z - clip_off.x) * inv_scale.x,
+                    (pcmd->ClipRect.w - clip_off.y) * inv_scale.y
+                );
+                uint32_t tiles_x = (uint32_t(clip_max.x - clip_min.x) + TILE_SIZE - 1) / TILE_SIZE;
+                uint32_t tiles_y = (uint32_t(clip_max.y - clip_min.y) + TILE_SIZE - 1) / TILE_SIZE;
+                uint32_t bucket_size = std::max(1u, (triangle_count + 127) / 128);
+                if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y) {
+                    triangle_offset += triangle_count;
+                    continue;
+                }
+
+                shader_object->set_data(shader_offset_start_index, uint32_t(pcmd->IdxOffset + index_offset));
+                shader_object->set_data(shader_offset_start_vertex, uint32_t(pcmd->VtxOffset + vertex_offset));
+                shader_object->set_data(shader_offset_triangle_count, triangle_count);
+                shader_object->set_data(shader_offset_triangle_offset, triangle_offset);
+                shader_object->set_data(shader_offset_clip_min, clip_min);
+                shader_object->set_data(shader_offset_clip_max, clip_max);
+                shader_object->set_data(shader_offset_tile_bitmask_offset, tile_bitmask_offset);
+                shader_object->set_data(shader_offset_tiles_x, tiles_x);
+                shader_object->set_data(shader_offset_tiles_y, tiles_y);
+                shader_object->set_data(shader_offset_bucket_size, bucket_size);
+                pass_encoder->dispatch(uint3(triangle_count, 1, 1));
+
+                triangle_offset += triangle_count;
+                tile_bitmask_offset += tiles_x * tiles_y * TILE_BITMASK_WORDS;
+            }
+            index_offset += cmd_list->IdxBuffer.Size;
+            vertex_offset += cmd_list->VtxBuffer.Size;
+        }
+        pass_encoder->end();
+    }
+
+    // Pass 2: Draw triangles
+    {
+        auto pass_encoder = command_encoder->begin_compute_pass();
+        ShaderObject* shader_object
+            = pass_encoder->bind_pipeline(get_draw_triangles_pipeline(texture_view->desc().format))->get_entry_point(0);
+        ShaderCursor shader_cursor = ShaderCursor(shader_object);
+        shader_cursor["triangles"] = m_triangle_buffer;
+        shader_cursor["bboxes"] = m_bbox_buffer;
+        shader_cursor["tile_bitmasks"] = m_tile_bitmask_buffer;
+        shader_cursor["sampler"] = m_sampler;
+        shader_cursor["output_texture"] = ref(texture_view);
+        shader_cursor["is_srgb_format"] = is_srgb_format;
+        ShaderOffset shader_offset_texture = shader_cursor["texture"].offset();
+        ShaderOffset shader_offset_triangle_count = shader_cursor["triangle_count"].offset();
+        ShaderOffset shader_offset_triangle_offset = shader_cursor["triangle_offset"].offset();
+        ShaderOffset shader_offset_clip_min = shader_cursor["clip_min"].offset();
+        ShaderOffset shader_offset_clip_max = shader_cursor["clip_max"].offset();
+        ShaderOffset shader_offset_tile_bitmask_offset = shader_cursor["tile_bitmask_offset"].offset();
+        ShaderOffset shader_offset_tiles_x = shader_cursor["tiles_x"].offset();
+        ShaderOffset shader_offset_bucket_size = shader_cursor["bucket_size"].offset();
+
+        int vertex_offset = 0;
+        int index_offset = 0;
+        uint32_t triangle_offset = 0;
+        uint32_t tile_bitmask_offset = 0;
+        ImVec2 clip_off = draw_data->DisplayPos;
+        for (int n = 0; n < draw_data->CmdListsCount; n++) {
+            const ImDrawList* cmd_list = draw_data->CmdLists[n];
+            for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
+                const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+                SGL_ASSERT(pcmd->UserCallback == nullptr);
+
+                uint32_t triangle_count = pcmd->ElemCount / 3;
+                if (triangle_count == 0)
+                    continue;
+
+                int2 clip_min = int2(
+                    (pcmd->ClipRect.x - clip_off.x) * inv_scale.x,
+                    (pcmd->ClipRect.y - clip_off.y) * inv_scale.y
+                );
+                int2 clip_max = int2(
+                    (pcmd->ClipRect.z - clip_off.x) * inv_scale.x,
+                    (pcmd->ClipRect.w - clip_off.y) * inv_scale.y
+                );
+                uint32_t tiles_x = (uint32_t(clip_max.x - clip_min.x) + TILE_SIZE - 1) / TILE_SIZE;
+                uint32_t tiles_y = (uint32_t(clip_max.y - clip_min.y) + TILE_SIZE - 1) / TILE_SIZE;
+                uint32_t bucket_size = std::max(1u, (triangle_count + 127) / 128);
+                if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y) {
+                    triangle_offset += triangle_count;
+                    continue;
+                }
+
+                ref<Texture> tex = ref<Texture>(static_cast<Texture*>(pcmd->GetTexID()));
+                shader_object->set_texture(shader_offset_texture, tex);
+                shader_object->set_data(shader_offset_triangle_count, triangle_count);
+                shader_object->set_data(shader_offset_triangle_offset, triangle_offset);
+                shader_object->set_data(shader_offset_clip_min, clip_min);
+                shader_object->set_data(shader_offset_clip_max, clip_max);
+                shader_object->set_data(shader_offset_tile_bitmask_offset, tile_bitmask_offset);
+                shader_object->set_data(shader_offset_tiles_x, tiles_x);
+                shader_object->set_data(shader_offset_bucket_size, bucket_size);
+
+                // Dispatch in tiles covering the clip rect.
+                // dispatch() takes thread counts; each tile is TILE_SIZE x TILE_SIZE threads.
+                pass_encoder->dispatch(uint3(tiles_x * TILE_SIZE, tiles_y * TILE_SIZE, 1));
+
+                triangle_offset += triangle_count;
+                tile_bitmask_offset += tiles_x * tiles_y * TILE_BITMASK_WORDS;
+            }
+            index_offset += cmd_list->IdxBuffer.Size;
+            vertex_offset += cmd_list->VtxBuffer.Size;
+        }
+        pass_encoder->end();
     }
 }
 
