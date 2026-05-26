@@ -230,9 +230,9 @@ class FunctionNode(NativeFunctionNode):
 
                 return_type = np.ndarray
             elif return_type == "tensor":
-                import slangpy
+                from slangpy.types import Tensor
 
-                return_type = slangpy.Tensor
+                return_type = Tensor
             elif return_type == "texture":
                 from slangpy import Texture
 

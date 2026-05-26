@@ -12,11 +12,10 @@ This module tests:
 import pytest
 import numpy as np
 import slangpy as spy
-from slangpy import Tensor
 import math
 from slangpy import DeviceType
 from slangpy.slangpy import Shape
-import slangpy
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 
@@ -144,9 +143,9 @@ uint test_1d_groups(uint grid_cell) {
         zero_count = np.sum((group_ids == group_id) & (thread_ids == 0))
         assert (
             zero_count == 1
-        ), f"Call group {group_id } should have exactly 1 thread with thread_id [0], found {zero_count }"
+        ), f"Call group {group_id} should have exactly 1 thread with thread_id [0], found {zero_count}"
 
-        # Ensure we have a variety of values, not all zeros
+    # Ensure we have a variety of values, not all zeros
     assert np.max(group_ids) > 0, "Expected some non-zero group IDs"
     assert np.max(thread_ids) > 0, "Expected some non-zero thread IDs"
 
@@ -214,20 +213,20 @@ uint test_call_group_math_2d(uint2 grid_cell) {
                 # Validate call_group_id bounds
                 assert (
                     0 <= call_group_id_y[y, x] < grid_shape_y
-                ), f"call_group_id[0] out of bounds at [{y },{x }]: {call_group_id_y [y ,x ]} >= {grid_shape_y }"
+                ), f"call_group_id[0] out of bounds at [{y},{x}]: {call_group_id_y[y, x]} >= {grid_shape_y}"
                 assert (
                     0 <= call_group_id_x[y, x] < grid_shape_x
-                ), f"call_group_id[1] out of bounds at [{y },{x }]: {call_group_id_x [y ,x ]} >= {grid_shape_x }"
+                ), f"call_group_id[1] out of bounds at [{y},{x}]: {call_group_id_x[y, x]} >= {grid_shape_x}"
 
                 # Validate call_group_thread_id bounds
                 assert (
                     0 <= call_group_thread_id_y[y, x] < group_shape[0]
-                ), f"call_group_thread_id[0] out of bounds at [{y },{x }]: {call_group_thread_id_y [y ,x ]} >= {group_shape [0 ]}"
+                ), f"call_group_thread_id[0] out of bounds at [{y},{x}]: {call_group_thread_id_y[y, x]} >= {group_shape[0]}"
                 assert (
                     0 <= call_group_thread_id_x[y, x] < group_shape[1]
-                ), f"call_group_thread_id[1] out of bounds at [{y },{x }]: {call_group_thread_id_x [y ,x ]} >= {group_shape [1 ]}"
+                ), f"call_group_thread_id[1] out of bounds at [{y},{x}]: {call_group_thread_id_x[y, x]} >= {group_shape[1]}"
 
-                # Validate that each call group has exactly one thread with thread_id [0,0]
+        # Validate that each call group has exactly one thread with thread_id [0,0]
         for group_y in range(grid_shape_y):
             for group_x in range(grid_shape_x):
                 # Count threads with [0,0] thread_id in this call group
@@ -242,7 +241,7 @@ uint test_call_group_math_2d(uint2 grid_cell) {
                         ):
                             zero_zero_count += 1
 
-                            # Each call group should have exactly one [0,0] thread (if the group has any threads)
+                # Each call group should have exactly one [0,0] thread (if the group has any threads)
                 group_has_threads = False
                 for y in range(call_shape[0]):
                     for x in range(call_shape[1]):
@@ -255,7 +254,7 @@ uint test_call_group_math_2d(uint2 grid_cell) {
                 if group_has_threads:
                     assert (
                         zero_zero_count == 1
-                    ), f"Call group [{group_y },{group_x }] should have exactly 1 thread with thread_id [0,0], found {zero_zero_count }"
+                    ), f"Call group [{group_y},{group_x}] should have exactly 1 thread with thread_id [0,0], found {zero_zero_count}"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -359,18 +358,18 @@ uint test_edge_case_basic(uint2 grid_cell) {
         for x in range(call_shape[1]):
             assert (
                 group_id_y[y, x] == y
-            ), f"Expected group_id_y={y } at [{y },{x }], got {group_id_y [y ,x ]}"
+            ), f"Expected group_id_y={y} at [{y},{x}], got {group_id_y[y, x]}"
             assert (
                 group_id_x[y, x] == x
-            ), f"Expected group_id_x={x } at [{y },{x }], got {group_id_x [y ,x ]}"
+            ), f"Expected group_id_x={x} at [{y},{x}], got {group_id_x[y, x]}"
             assert (
                 thread_id_y[y, x] == 0
-            ), f"Expected thread_id_y=0 at [{y },{x }], got {thread_id_y [y ,x ]}"
+            ), f"Expected thread_id_y=0 at [{y},{x}], got {thread_id_y[y, x]}"
             assert (
                 thread_id_x[y, x] == 0
-            ), f"Expected thread_id_x=0 at [{y },{x }], got {thread_id_x [y ,x ]}"
+            ), f"Expected thread_id_x=0 at [{y},{x}], got {thread_id_x[y, x]}"
 
-            # Edge case 2: Group larger than call shape
+    # Edge case 2: Group larger than call shape
     large_group_result = module.test_edge_case_basic.call_group_shape(Shape((4, 4)))(
         spy.grid((2, 2)), _result="numpy"
     )
@@ -409,20 +408,20 @@ def test_call_group_shape_valid(
     if dimensionality <= 4:
         param_type = {1: "uint", 2: "uint2", 3: "uint3", 4: "uint4"}[dimensionality]
     else:
-        param_type = f"uint[{dimensionality }]"
+        param_type = f"uint[{dimensionality}]"
     kernel_source = f"""
 import "slangpy";
 
-int test_call_group_math({param_type } grid_pos) {{
+int test_call_group_math({param_type} grid_pos) {{
     // Just test that the functions can be called without error
     CallShapeInfo call_id = CallShapeInfo::get_call_id();
     CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
     CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
     // Return a simple validation that functions executed
-    return (call_id.dimensionality == {dimensionality }) &&
-           (call_group_id.dimensionality == {dimensionality }) &&
-           (call_group_thread_id.dimensionality == {dimensionality });
+    return (call_id.dimensionality == {dimensionality}) &&
+           (call_group_id.dimensionality == {dimensionality}) &&
+           (call_group_thread_id.dimensionality == {dimensionality});
 }}
 """
 
@@ -440,7 +439,7 @@ int test_call_group_math({param_type } grid_pos) {{
     results = result_buffer.to_numpy()
     assert np.all(
         results == 1
-    ), f"Failed for {description }: {call_shape } with groups {call_group_shape }"
+    ), f"Failed for {description}: {call_shape} with groups {call_group_shape}"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -482,7 +481,7 @@ float test_1d(uint grid_pos) {
         module = helpers.create_module(device, kernel_source)
         test_func = module.test_1d
 
-        # Test should fail with expected error
+    # Test should fail with expected error
     with pytest.raises((ValueError, RuntimeError)) as exc_info:
         test_func.call_group_shape(Shape(call_group_shape))(spy.grid(call_shape), _result="numpy")
 
@@ -492,7 +491,7 @@ float test_1d(uint grid_pos) {
     for fragment in expected_error_fragments:
         assert (
             fragment in error_message
-        ), f"Test '{test_name }': Expected '{fragment }' in error message: {error_message }"
+        ), f"Test '{test_name}': Expected '{fragment}' in error message: {error_message}"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -553,11 +552,11 @@ uint3 test_thread_id_patterns(uint2 grid_cell, uint3 thread_id) {
         actual = result_default[0, x]
         assert np.array_equal(
             actual, expected
-        ), f"Default [0,{x }]: expected {expected }, got {actual }"
+        ), f"Default [0,{x}]: expected {expected}, got {actual}"
 
-        # Row 1: thread_id should be 64 + x
-        # Position [y=1,x=0]: call_id_x=0, call_id_y=1, thread_id=1*64+0=64
-        # Position [y=1,x=1]: call_id_x=1, call_id_y=1, thread_id=1*64+1=65
+    # Row 1: thread_id should be 64 + x
+    # Position [y=1,x=0]: call_id_x=0, call_id_y=1, thread_id=1*64+0=64
+    # Position [y=1,x=1]: call_id_x=1, call_id_y=1, thread_id=1*64+1=65
     for x in range(min(10, call_shape[1])):  # Test first 10 positions
         expected_call_id_x = x
         expected_call_id_y = 1
@@ -566,14 +565,14 @@ uint3 test_thread_id_patterns(uint2 grid_cell, uint3 thread_id) {
         actual = result_default[1, x]
         assert np.array_equal(
             actual, expected
-        ), f"Default [1,{x }]: expected {expected }, got {actual }"
+        ), f"Default [1,{x}]: expected {expected}, got {actual}"
 
-        # Last position [y=31,x=63]: call_id_x=63, call_id_y=31, thread_id should be 31*64+63=2047 (total threads - 1)
+    # Last position [y=31,x=63]: call_id_x=63, call_id_y=31, thread_id should be 31*64+63=2047 (total threads - 1)
     expected_31_63 = [63, 31, 31 * call_shape[1] + 63]  # [63, 31, 2047]
     actual_31_63 = result_default[31, 63]
     assert np.array_equal(
         actual_31_63, expected_31_63
-    ), f"Default [31,63]: expected {expected_31_63 }, got {actual_31_63 }"
+    ), f"Default [31,63]: expected {expected_31_63}, got {actual_31_63}"
 
     # Test 2: CALL GROUP CASE (4, 8) groups
     # Expected: Non-linear thread assignment due to spatial group arrangement
@@ -597,22 +596,22 @@ uint3 test_thread_id_patterns(uint2 grid_cell, uint3 thread_id) {
         actual = result_grouped[0, x]
         assert np.array_equal(
             actual, expected
-        ), f"Grouped [0,{x }]: expected {expected }, got {actual }"
+        ), f"Grouped [0,{x}]: expected {expected}, got {actual}"
 
-        # Row 1 key positions: thread_id pattern changes due to spatial grouping
-        # Position [1,0]: In same group as [0,0], should have thread_id offset by group row
-        # Based on (4,8) groups: thread within group gets ID based on position in group
+    # Row 1 key positions: thread_id pattern changes due to spatial grouping
+    # Position [1,0]: In same group as [0,0], should have thread_id offset by group row
+    # Based on (4,8) groups: thread within group gets ID based on position in group
     expected_1_0 = [0, 1, 8]  # 2nd row of first group: base_id + row_offset*group_width
     actual_1_0 = result_grouped[1, 0]
     assert np.array_equal(
         actual_1_0, expected_1_0
-    ), f"Grouped [1,0]: expected {expected_1_0 }, got {actual_1_0 }"
+    ), f"Grouped [1,0]: expected {expected_1_0}, got {actual_1_0}"
 
     expected_1_1 = [1, 1, 9]  # Next column in same row of group
     actual_1_1 = result_grouped[1, 1]
     assert np.array_equal(
         actual_1_1, expected_1_1
-    ), f"Grouped [1,1]: expected {expected_1_1 }, got {actual_1_1 }"
+    ), f"Grouped [1,1]: expected {expected_1_1}, got {actual_1_1}"
 
     # Test cross-group boundaries
     # Position [0,8]: Start of second call group in same row
@@ -622,7 +621,7 @@ uint3 test_thread_id_patterns(uint2 grid_cell, uint3 thread_id) {
     actual_0_8 = result_grouped[0, 8]
     assert np.array_equal(
         actual_0_8, expected_0_8
-    ), f"Grouped [0,8]: expected {expected_0_8 }, got {actual_0_8 }"
+    ), f"Grouped [0,8]: expected {expected_0_8}, got {actual_0_8}"
 
     # Position [4,0]: Start of second row of call groups
     # This moves to next "group row", affecting thread_id assignment
@@ -631,22 +630,22 @@ uint3 test_thread_id_patterns(uint2 grid_cell, uint3 thread_id) {
     actual_4_0 = result_grouped[4, 0]
     assert np.array_equal(
         actual_4_0, expected_4_0
-    ), f"Grouped [4,0]: expected {expected_4_0 }, got {actual_4_0 }"
+    ), f"Grouped [4,0]: expected {expected_4_0}, got {actual_4_0}"
 
     # Verify call_id invariant: call_id should always match [x, y] position
     for y in range(0, call_shape[0], 8):  # Sample every 8th row
         for x in range(0, call_shape[1], 8):  # Sample every 8th column
             call_id_x = result_grouped[y, x, 0]
             call_id_y = result_grouped[y, x, 1]
-            assert call_id_x == x, f"call_id[0] should equal x at [{y },{x }]: got {call_id_x }"
-            assert call_id_y == y, f"call_id[1] should equal y at [{y },{x }]: got {call_id_y }"
+            assert call_id_x == x, f"call_id[0] should equal x at [{y},{x}]: got {call_id_x}"
+            assert call_id_y == y, f"call_id[1] should equal y at [{y},{x}]: got {call_id_y}"
 
-            # Validate last position still gets highest thread_id (total threads - 1)
+    # Validate last position still gets highest thread_id (total threads - 1)
     expected_31_63 = [63, 31, 2047]  # Last thread should still be 2047
     actual_31_63 = result_grouped[31, 63]
     assert np.array_equal(
         actual_31_63, expected_31_63
-    ), f"Grouped [31,63]: expected {expected_31_63 }, got {actual_31_63 }"
+    ), f"Grouped [31,63]: expected {expected_31_63}, got {actual_31_63}"
 
 
 if __name__ == "__main__":

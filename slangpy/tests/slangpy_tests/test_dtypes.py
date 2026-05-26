@@ -8,8 +8,7 @@ import math
 from slangpy import Struct
 from slangpy.core.native import Shape
 from slangpy import DeviceType, BufferUsage
-import slangpy
-from slangpy import Tensor
+from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 
 from typing import Any, Optional, Union, Type, cast
@@ -20,7 +19,7 @@ try:
 except ImportError:
     pytest.skip("Pytorch not installed", allow_module_level=True)
 
-    # Skip all tests in this file if running on MacOS
+# Skip all tests in this file if running on MacOS
 if sys.platform == "darwin":
     pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
 

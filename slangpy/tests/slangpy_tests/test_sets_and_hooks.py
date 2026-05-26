@@ -6,8 +6,7 @@ import pytest
 import numpy as np
 
 from slangpy import DeviceType, Module, ShaderCursor
-import slangpy
-from slangpy import Tensor
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 TEST_MODULE = r"""

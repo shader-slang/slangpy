@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any, Optional
 from slangpy.core.native import CallMode
 
 import slangpy.bindings.typeregistry as tr
-import slangpy
 from slangpy import ModifierID, TypeReflection
 from slangpy.bindings.marshall import BindContext, ReturnContext
 from slangpy.bindings.boundvariable import BoundCall, BoundVariable
@@ -14,6 +13,7 @@ from slangpy.reflection.reflectiontypes import (
     SlangType,
 )
 from slangpy.reflection.typeresolution import resolve_function, ResolvedParam, ResolutionDiagnostic
+from slangpy.types import Tensor
 from slangpy.types.valueref import ValueRef
 
 if TYPE_CHECKING:
@@ -224,7 +224,7 @@ def create_return_value_binding(context: BindContext, signature: BoundCall, retu
         if context.call_dimensionality == 0:
             return_type = ValueRef
         else:
-            return_type = slangpy.Tensor
+            return_type = Tensor
 
     return_ctx = ReturnContext(node.vector_type, context)
     python_type = tr.get_or_create_type(context.layout, return_type, return_ctx)

@@ -2,8 +2,7 @@
 
 import pytest
 from slangpy import DeviceType
-import slangpy
-from slangpy import Tensor
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 MODULE = r"""
@@ -24,7 +23,7 @@ def test_slangtype_struct_to_string(device_type: DeviceType):
 
     # Test that repr() returns a meaningful string
     repr_str = repr(foo_type)
-    print(f"SlangType: {repr_str }")
+    print(f"SlangType: {repr_str}")
 
     # Verify the repr contains expected information
     assert "refl::Type" in repr_str
@@ -44,7 +43,7 @@ def test_slangtype_vector_to_string(device_type: DeviceType):
 
     # Test that repr() returns a meaningful string
     repr_str = repr(foo_type)
-    print(f"SlangType: {repr_str }")
+    print(f"SlangType: {repr_str}")
 
     # Verify the repr contains expected information
     assert "refl::Type" in repr_str
@@ -60,12 +59,12 @@ def test_tensor_to_string(device_type: DeviceType):
     # Create a tensor without gradients
     tensor = Tensor.empty(device, dtype="float", shape=(3, 4))
 
-    # Test that repr() returns a meaningful string
+    # Test that repr() returns a meaningful string - Tensor inherits from NativeTensor
     repr_str = repr(tensor)
-    print(f"Tensor: {repr_str }")
+    print(f"Tensor: {repr_str}")
 
     # Verify the repr contains expected information
-    assert "Tensor" in repr_str
+    assert "NativeTensor" in repr_str
     assert "dtype" in repr_str
     assert "shape" in repr_str
     assert "has_grad_in=false" in repr_str
@@ -77,7 +76,7 @@ def test_tensor_to_string(device_type: DeviceType):
     tensor_with_grads = tensor.with_grads(grad_in, grad_out)
 
     repr_str_grads = repr(tensor_with_grads)
-    print(f"Tensor with grads: {repr_str_grads }")
+    print(f"Tensor with grads: {repr_str_grads}")
     assert "has_grad_in=true" in repr_str_grads
     assert "has_grad_out=true" in repr_str_grads
 
@@ -89,7 +88,7 @@ def test_module_to_string(device_type: DeviceType):
 
     # Test that repr() returns a meaningful string for Module
     repr_str = repr(module)
-    print(f"Module: {repr_str }")
+    print(f"Module: {repr_str}")
 
     # Verify the repr contains expected information
     assert "Module" in repr_str
@@ -108,7 +107,7 @@ def test_slangtype_reflection_to_string(device_type: DeviceType):
 
     # Test that repr() returns a meaningful string for SlangType reflection
     repr_str = repr(foo_type_reflection)
-    print(f"SlangType reflection: {repr_str }")
+    print(f"SlangType reflection: {repr_str}")
 
     # Verify the repr contains expected information - should get the Python SlangType repr
     assert "refl::Type" in repr_str

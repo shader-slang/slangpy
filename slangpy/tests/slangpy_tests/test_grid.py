@@ -6,8 +6,7 @@ import numpy as np
 
 from slangpy import DeviceType
 from slangpy.experimental.gridarg import grid
-import slangpy
-from slangpy import Tensor
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 
@@ -26,24 +25,24 @@ def grid_test(
     gen_args = ""
 
     if datatype == "vector":
-        buffertypename = f"int{dims }"
+        buffertypename = f"int{dims}"
         slangtypename = buffertypename
     elif datatype == "array":
-        buffertypename = f"int[{dims }]"
+        buffertypename = f"int[{dims}]"
         slangtypename = buffertypename
     elif datatype == "genvector":
-        buffertypename = f"int{dims }"
+        buffertypename = f"int{dims}"
         slangtypename = f"vector<int, N>"
         gen_args = "<let N: int>"
     else:
-        raise ValueError(f"Unknown datatype: {datatype }")
+        raise ValueError(f"Unknown datatype: {datatype}")
 
-        # Create function that just dumps input to output for correct sized int
+    # Create function that just dumps input to output for correct sized int
     device = helpers.get_device(device_type)
     module = helpers.create_module(
         device,
         f"""
-{slangtypename } get{gen_args }({slangtypename } input) {{
+{slangtypename} get{gen_args}({slangtypename} input) {{
     return input;
 }}
 """,
@@ -69,7 +68,7 @@ def grid_test(
             strides = tuple([stride for s in shape])
             module.get(grid(len(shape), stride=strides, offset=offsets), _result=res)
 
-            # Should get random numbers
+    # Should get random numbers
     resdata = res.to_numpy().view(np.int32).reshape(shape + (dims,))
     expected = np.indices(shape).transpose(*transpose) * stride + offset
 

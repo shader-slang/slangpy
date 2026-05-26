@@ -4,8 +4,7 @@ import pytest
 import numpy as np
 
 from slangpy import DeviceType, uint3
-import slangpy
-from slangpy import Tensor
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 from typing import Any

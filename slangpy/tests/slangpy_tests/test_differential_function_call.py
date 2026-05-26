@@ -3,9 +3,8 @@ import pytest
 import numpy as np
 
 from slangpy import DeviceType, float3
-import slangpy
-from slangpy import Tensor
-from slangpy.types import diffPair
+from slangpy.types import Tensor, diffPair
+from slangpy.types.tensor import Tensor
 from slangpy.testing import helpers
 
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false

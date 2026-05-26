@@ -5,8 +5,7 @@ import numpy as np
 import numpy.typing as npt
 from slangpy import DeviceType, float3, uint3
 from slangpy.experimental.gridarg import grid
-import slangpy
-from slangpy import Tensor
+from slangpy.types import Tensor
 from slangpy.types.callidarg import call_id
 from slangpy.types.randfloatarg import RandFloatArg, rand_float
 from slangpy.types.threadidarg import thread_id
@@ -25,7 +24,7 @@ def test_thread_id(device_type: DeviceType, dimensions: int, signed: bool):
 
     if dimensions > 0:
         # If dimensions > 0, test passing explicit dimensions into corresponding vector type
-        type_name = f"{inttype }{dimensions }"
+        type_name = f"{inttype}{dimensions}"
         elements = dimensions
         dims = dimensions
     elif dimensions == 0:
@@ -35,17 +34,17 @@ def test_thread_id(device_type: DeviceType, dimensions: int, signed: bool):
         dims = 1
     else:
         # If dimensions == -1, test passing undefined dimensions to 3d vector type
-        type_name = f"{inttype }3"
+        type_name = f"{inttype}3"
         elements = 3
         dims = -1
 
-        # Create function that just dumps input to output
+    # Create function that just dumps input to output
     device = helpers.get_device(device_type)
     kernel_output_values = helpers.create_function_from_module(
         device,
         "thread_ids",
         f"""
-{type_name } thread_ids({type_name } input) {{
+{type_name} thread_ids({type_name} input) {{
     return input;
 }}
 """,
@@ -84,7 +83,7 @@ def test_call_id(device_type: DeviceType, dimensions: int, signed: bool, array: 
 
     if dimensions > 0:
         # If dimensions > 0, test passing explicit dimensions into corresponding vector/array type
-        type_name = f"int[{dimensions }]" if array else f"{inttype }{dimensions }"
+        type_name = f"int[{dimensions}]" if array else f"{inttype}{dimensions}"
         elements = dimensions
         dims = dimensions
     elif dimensions == 0:
@@ -94,17 +93,17 @@ def test_call_id(device_type: DeviceType, dimensions: int, signed: bool, array: 
         dims = 1
     else:
         # If dimensions == -1, test passing undefined dimensions to implicit array or 3d vector type
-        type_name = f"int[3]" if array else f"{inttype }3"
+        type_name = f"int[3]" if array else f"{inttype}3"
         elements = 3
         dims = -1
 
-        # Create function that just dumps input to output
+    # Create function that just dumps input to output
     device = helpers.get_device(device_type)
     kernel_output_values = helpers.create_function_from_module(
         device,
         "call_ids",
         f"""
-{type_name } call_ids({type_name } input) {{
+{type_name} call_ids({type_name} input) {{
     return input;
 }}
 """,
@@ -226,7 +225,8 @@ uint wang_hashes(uint input) {
     data = helpers.read_tensor_from_numpy(results)
     assert np.allclose(data, expected)
 
-    # Dumb test just to make sure hashes aren't completely broken!
+
+# Dumb test just to make sure hashes aren't completely broken!
 
 
 def measure_sequential_hash_quality(hash_func: Callable[[int], npt.NDArray[Any]]):
@@ -354,7 +354,7 @@ def test_rand_float_uniformity(device_type: DeviceType):
         "add_to_bucket",
         f"""
 void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
-    int idx = int(value * ( {bucket_size -1 }));
+    int idx = int(value * ( {bucket_size - 1}));
     bucket.InterlockedAdd(idx * 4, 1);
 }}
 """,
@@ -377,7 +377,7 @@ void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
         rel_diff = abs(bucket - expected_count_per_bucket) / expected_count_per_bucket
         assert rel_diff < 0.005
 
-        # Verify 1 never turns up
+    # Verify 1 never turns up
     assert res[bucket_size - 1] == 0
 
 

@@ -2,9 +2,7 @@
 
 import pytest
 import numpy as np
-import slangpy
-from slangpy import Tensor
-from slangpy import Module
+from slangpy import Module, Tensor
 from slangpy import DeviceType, float3
 from slangpy.testing import helpers
 
@@ -52,7 +50,7 @@ def test_command_buffer(device_type: DeviceType, use_arg: bool):
         polynomial.append_to(command_encoder, a, b, _result=res)
         polynomial.bwds.append_to(command_encoder, a, b, _result=res)
 
-        # Nothing should have happened yet if command buffer is not submitted!
+    # Nothing should have happened yet if command buffer is not submitted!
     res_data = helpers.read_tensor_from_numpy(res).reshape(-1, 3)
     assert not np.allclose(res_data, a_data * a_data + b_data + 1)
 

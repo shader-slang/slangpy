@@ -4,8 +4,7 @@ import pytest
 import numpy as np
 
 from slangpy import DeviceType, float2
-import slangpy
-from slangpy import Tensor
+from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 
 

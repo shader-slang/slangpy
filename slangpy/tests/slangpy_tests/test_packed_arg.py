@@ -3,9 +3,7 @@
 import pytest
 import numpy as np
 
-import slangpy
-from slangpy import Tensor
-from slangpy import DeviceType, pack
+from slangpy import DeviceType, pack, Tensor
 from slangpy.testing import helpers
 
 

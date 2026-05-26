@@ -60,10 +60,9 @@ All tests are parameterized to run on multiple backend devices:
 import pytest
 import numpy as np
 import slangpy as spy
-from slangpy import Tensor
 from slangpy import DeviceType, Device, TextureDesc, TextureUsage, Format, TextureType
 from slangpy.slangpy import Shape
-import slangpy
+from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 import os
 
@@ -372,7 +371,8 @@ float3 vector_transform_with_groups(
     full_source = base_source + "\n" + additional_source
     return helpers.create_module(device, full_source)
 
-    # Autodiff/Tensor Integration Tests
+
+# Autodiff/Tensor Integration Tests
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -490,7 +490,8 @@ def test_tensor_aggregation_with_call_groups(device_type: DeviceType):
         assert result.shape == call_shape
         assert np.all(np.isfinite(result))
 
-        # Tensor Integration Tests
+
+# Tensor Integration Tests
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -571,7 +572,8 @@ def test_tensor_3d_reduce_with_call_groups(device_type: DeviceType):
     assert result.shape == shape
     assert np.all(result >= 0)  # Should be positive due to nature of reduction
 
-    # Texture Integration Tests
+
+# Texture Integration Tests
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -723,7 +725,8 @@ def test_texture_3d_with_call_groups(device_type: DeviceType):
     assert result.shape == (tex_size, tex_size, tex_size, 3)  # Returns float3 (rgb)
     assert np.all(np.isfinite(result))
 
-    # Transform/Mapping Integration Tests
+
+# Transform/Mapping Integration Tests
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -822,7 +825,8 @@ def test_transforms_with_mapping_and_call_groups(device_type: DeviceType):
     assert result.shape == expected_shape
     assert np.all(np.isfinite(result))
 
-    # Edge Cases and Stress Tests
+
+# Edge Cases and Stress Tests
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

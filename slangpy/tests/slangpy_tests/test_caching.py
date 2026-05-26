@@ -2,8 +2,7 @@
 
 import pytest
 from slangpy import DeviceType
-import slangpy
-from slangpy import Tensor
+from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 from typing import Any

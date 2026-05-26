@@ -7,6 +7,7 @@ from .threadidarg import ThreadIdArg, thread_id
 from .callidarg import CallIdArg, call_id
 from .valueref import ValueRef, floatRef, intRef
 from .wanghasharg import WangHashArg, wang_hash
+from .tensor import Tensor
 
 __all__ = [
     "DiffPair",
@@ -23,4 +24,5 @@ __all__ = [
     "intRef",
     "WangHashArg",
     "wang_hash",
+    "Tensor",
 ]

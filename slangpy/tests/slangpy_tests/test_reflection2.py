@@ -2,9 +2,7 @@
 
 import pytest
 
-import slangpy
-from slangpy import Tensor
-from slangpy import DeviceType, TextureUsage, TypeReflection
+from slangpy import DeviceType, Tensor, TextureUsage, TypeReflection
 import slangpy.reflection as r
 from slangpy.core.enums import IOType
 from slangpy.core.function import Function
@@ -16,20 +14,24 @@ from typing import Any, Callable
 
 MODULE = """
 import "slangpy";
-float foo(float a) {return a;}
-float foo2(float a, float b) {return a+b;}
-float foo_v3(float3 a) {return a.x;}
-float foo_ol(float a) {return a;}
-float foo_ol(float a, float b) {return a+b;}
-float foo_generic<T>(T a) {return 0;}
+float foo(float a) { return a; }
+float foo2(float a, float b) { return a+b; }
+float foo_v3(float3 a) { return a.x; }
+float foo_ol(float a) { return a; }
+float foo_ol(float a, float b) { return a+b; }
+float foo_generic<T>(T a) { return 0; }
 struct Foo
-{float3 value;
-    int bar(float a) {}}
+{
+    float3 value;
+    int bar(float a) {}
+}
 
 struct GenericType<A, int N> {}
 struct BoolGenericType<let Enabled: bool> {}
 
-void update(inout float value, out float result, no_diff in float weight) {result = value * weight;}
+void update(inout float value, out float result, no_diff in float weight) {
+    result = value * weight;
+}
 
 void use_textures(Texture2D<float4> texture, RWTexture2D<float4> rw_texture) {}
 
@@ -158,15 +160,15 @@ def test_module_hot_reload_refreshes_existing_reflection_objects(device_type: De
     module_a = device.load_module_from_source(
         "reflection_hot_reload_a",
         """
-struct Foo {float value;};
-float get_value(Foo foo) {return foo.value;}
+struct Foo { float value; };
+float get_value(Foo foo) { return foo.value; }
 """,
     )
     module_b = device.load_module_from_source(
         "reflection_hot_reload_b",
         """
-struct Foo {int value;};
-int get_value(Foo foo) {return foo.value;}
+struct Foo { int value; };
+int get_value(Foo foo) { return foo.value; }
 """,
     )
     module = r.SlangProgramLayout(module_a.layout)
@@ -181,7 +183,7 @@ int get_value(Foo foo) {return foo.value;}
     assert module.require_function_by_name("get_value") is old_function
     assert old_function.return_type is module.scalar_type(TypeReflection.ScalarType.int32)
 
-    wrapped_module = helpers.create_module(device, "float get_value(float value) {return value;}")
+    wrapped_module = helpers.create_module(device, "float get_value(float value) { return value; }")
     function = wrapped_module.get_value
     BaseModule.on_hot_reload(wrapped_module, module_b, module_b.layout)
     assert function._slang_func.return_type is wrapped_module.layout.scalar_type(
@@ -576,10 +578,12 @@ def test_arg_types(device_type: DeviceType, arg_type: tuple[str, Callable[[Any],
         "foo",
         f"""
 import "slangpy";
-struct TestStruct {{float foo;}}
+struct TestStruct {{
+    float foo;
+}}
 interface ITestInterface {{}}
 
-float foo({arg_type [0 ]} a) {{return 0;}}
+float foo({arg_type[0]} a) {{ return 0; }}
 """,
     )
     layout = function.module.layout
@@ -614,7 +618,9 @@ def test_refl_duck_typing(device_type: DeviceType):
     module = helpers.create_module(
         device,
         """
-struct MyStruct: IDifferentiable {int a;}
+struct MyStruct: IDifferentiable {
+    int a;
+}
 """,
     )
     layout = module.layout
@@ -662,7 +668,7 @@ def test_interface(device_type: DeviceType, runa: bool, runb: bool):
         )
         assert func is not None, "Could not specialize function 1"
 
-        # Create a 2nd similar module with IFoo2, Foo2, and test_func2. In this case, Foo2 implements IFoo2 via an extension.
+    # Create a 2nd similar module with IFoo2, Foo2, and test_func2. In this case, Foo2 implements IFoo2 via an extension.
     code = f"""
     interface IFoo2 {{}}
     struct Foo2 {{}}

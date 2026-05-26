@@ -3,9 +3,10 @@ from typing import Any, Optional
 
 import numpy.typing as npt
 
-import slangpy
 from slangpy.core.function import FunctionNode
 from slangpy.core.struct import Struct
+
+from slangpy.types import Tensor
 
 
 class InstanceList:
@@ -115,13 +116,9 @@ class InstanceTensor(InstanceList):
     provides buffer convenience functions for accessing its data.
     """
 
-    def __init__(
-        self, struct: Struct, shape: tuple[int, ...], data: Optional[slangpy.Tensor] = None
-    ):
+    def __init__(self, struct: Struct, shape: tuple[int, ...], data: Optional[Tensor] = None):
         if data is None:
-            data = slangpy.Tensor.empty(
-                struct.device_module.session.device, dtype=struct, shape=shape
-            )
+            data = Tensor.empty(struct.device_module.session.device, dtype=struct, shape=shape)
         super().__init__(struct, data)
         if data is None:
             data = {}
@@ -134,7 +131,7 @@ class InstanceTensor(InstanceList):
         return self._data.shape
 
     @property
-    def tensor(self) -> slangpy.Tensor:
+    def tensor(self) -> Tensor:
         """
         Get the tensor.
         """
