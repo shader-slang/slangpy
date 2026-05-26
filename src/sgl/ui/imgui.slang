@@ -18,21 +18,32 @@ struct VsOut {
     float4 pos : SV_Position;
 };
 
-float srgb_to_linear(float srgb)
+float3 linear_to_srgb(float3 linear)
 {
-    return srgb < 0.04045f ? srgb * (1.f / 12.92f) : pow((srgb + 0.055f) * (1.f / 1.055f), 2.4f);
+    return select(linear >= 0.0031308, pow(linear, 1.0 / 2.4) * 1.055 - 0.055, linear * 12.92);
+}
+
+float4 linear_to_srgb(float4 linear)
+{
+    return float4(linear_to_srgb(linear.rgb), linear.a);
 }
 
 float3 srgb_to_linear(float3 srgb)
 {
-    return float3(srgb_to_linear(srgb.r), srgb_to_linear(srgb.g), srgb_to_linear(srgb.b));
+    return select(srgb >= 0.04045, pow((srgb + 0.055) * (1.0 / 1.055), 2.4), srgb * (1.0 / 12.92));
+}
+
+float4 srgb_to_linear(float4 srgb)
+{
+    return float4(srgb_to_linear(srgb.rgb), srgb.a);
 }
 
 [shader("vertex")]
 VsOut vs_main(VsIn vs_in)
 {
     VsOut vs_out;
-    vs_out.col = vs_in.col;
+    // ImGui outputs sRGB colors, but we want to do all our blending in linear space, so convert to linear here.
+    vs_out.col = srgb_to_linear(vs_in.col);
     vs_out.uv = vs_in.uv;
     vs_out.pos = float4(vs_in.pos * scale + offset, 0.f, 1.f);
     return vs_out;
@@ -43,7 +54,8 @@ float4 fs_main(VsOut vs_out)
     : SV_Target
 {
     float4 col = vs_out.col * texture.Sample(sampler, vs_out.uv);
-    if (is_srgb_format)
-        col.rgb = srgb_to_linear(col.rgb);
+    // If output texture is not sRGB, convert color to sRGB manually.
+    if (!is_srgb_format)
+        col = linear_to_srgb(col);
     return col;
 }

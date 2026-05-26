@@ -13,6 +13,7 @@
 #include "sgl/core/static_vector.h"
 #include "sgl/math/vector_types.h"
 
+#include <functional>
 #include <span>
 
 namespace sgl {
@@ -51,6 +52,24 @@ struct RenderPassDesc {
     std::optional<RenderPassDepthStencilAttachment> depth_stencil_attachment;
 };
 
+using ExecuteCallbackContext = rhi::ExecuteCallbackContext;
+using ExecuteCallbackFunc = rhi::ExecuteCallbackFunc;
+using ExecuteCallbackObjectFunc = rhi::ExecuteCallbackObjectFunc;
+using ExecuteCallback = std::function<void(NativeHandle native_handle)>;
+
+struct ExecuteCallbackDesc {
+    /// Function to call when the callback command is recorded/executed.
+    ExecuteCallbackFunc callback{nullptr};
+
+    /// Optional object retained until the command buffer is reset or destroyed.
+    void* user_object{nullptr};
+    ExecuteCallbackObjectFunc retain_user_object{nullptr};
+    ExecuteCallbackObjectFunc release_user_object{nullptr};
+
+    /// Optional small user-data block copied into the command buffer.
+    const void* user_data{nullptr};
+    size_t user_data_size{0};
+};
 
 class SGL_API PassEncoder : public Object {
     SGL_OBJECT(PassEncoder)
@@ -415,6 +434,25 @@ public:
      * \param index Index of the query.
      */
     void write_timestamp(QueryPool* query_pool, uint32_t index);
+
+    /**
+     * \brief Execute a callback while recording/executing the active native command context.
+     *
+     * The callback descriptor mirrors slang-rhi, including explicit user-object retain/release hooks
+     * and copied user-data. Use user_data for non-retained one-shot data. If user_object is set,
+     * retain_user_object and release_user_object must also be set.
+     */
+    void execute_callback(const ExecuteCallbackDesc& desc);
+
+    /**
+     * \brief Execute a lambda callback while recording/executing the active native command context.
+     *
+     * This is a convenience wrapper around ExecuteCallbackDesc. The callback is
+     * heap allocated and retained until the command buffer releases it, resulting in objects
+     * captured by the lambda are kept alive for the duration of the command buffer.
+     *
+     */
+    void execute_callback(ExecuteCallback callback);
 
     ref<CommandBuffer> finish();
 

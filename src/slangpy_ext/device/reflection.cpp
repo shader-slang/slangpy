@@ -96,6 +96,9 @@ SGL_PY_EXPORT(device_reflection)
         .def_prop_ro("name", &Attribute::name, D(Attribute, name))
         .def_prop_ro("argument_count", &Attribute::argument_count, D(Attribute, argument_count))
         .def("argument_type", &Attribute::argument_type, "index"_a, D(Attribute, argument_type))
+        .def("argument_value_int", &Attribute::argument_value_int, "index"_a)
+        .def("argument_value_float", &Attribute::argument_value_float, "index"_a)
+        .def("argument_value_string", &Attribute::argument_value_string, "index"_a)
         .def("__repr__", &Attribute::to_string);
 
     nb::class_<TypeReflection, BaseReflectionObject> type_reflection(m, "TypeReflection", D(TypeReflection));
@@ -173,6 +176,9 @@ SGL_PY_EXPORT(device_reflection)
         .def_prop_ro("name", &FunctionReflection::name, D(FunctionReflection, name))
         .def_prop_ro("return_type", &FunctionReflection::return_type, D(FunctionReflection, return_type))
         .def_prop_ro("parameters", &FunctionReflection::parameters, D(FunctionReflection, parameters))
+        .def("get_user_attribute_count", &FunctionReflection::get_user_attribute_count)
+        .def("get_user_attribute_by_index", &FunctionReflection::get_user_attribute_by_index, "index"_a)
+        .def("find_user_attribute_by_name", &FunctionReflection::find_user_attribute_by_name, "name"_a)
         .def("has_modifier", &FunctionReflection::has_modifier, "modifier"_a, D(FunctionReflection, has_modifier))
         .def(
             "specialize_with_arg_types",

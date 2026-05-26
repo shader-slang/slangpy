@@ -16,6 +16,7 @@
 #include "sgl/device/fwd.h"
 #include "sgl/device/shader_cursor.h"
 #include "sgl/device/shader_object.h"
+#include "sgl/refl/type.h"
 #include "sgl/utils/slangpy.h"
 #include "utils/torch_bridge.h"
 
@@ -192,75 +193,13 @@ public:
     virtual void read_signature(SignatureBuilder* builder) const override { NB_OVERRIDE(read_signature, builder); }
 };
 
-/// Base class for a slang reflection type
-class NativeSlangType : public Object {
-    SGL_OBJECT(NativeSlangType)
-public:
-    NativeSlangType() = default;
-
-    virtual ~NativeSlangType() {
-
-    };
-
-    /// Get the reflection type.
-    ref<TypeReflection> type_reflection() const { return m_type_reflection; }
-
-    /// Set the reflection type.
-    void set_type_reflection(const ref<TypeReflection>& reflection) { m_type_reflection = reflection; }
-
-    /// Get the shape of the type.
-    const Shape& shape() const { return m_shape; }
-
-    /// Set the shape of the type.
-    void set_shape(const Shape& shape) { m_shape = shape; }
-
-    /// Get the element type of the type (call into Python).
-    ref<NativeSlangType> element_type() const { return _py_element_type(); }
-
-    /// Check if the type has a derivative (call into Python).
-    bool has_derivative() const { return _py_has_derivative(); }
-
-    /// Get the derivative type of the type (call into Python).
-    ref<NativeSlangType> derivative() const { return _py_derivative(); }
-
-    /// Get the uniform type layout of the type (call into Python).
-    ref<TypeLayoutReflection> uniform_type_layout() const { return _py_uniform_type_layout(); }
-
-    /// Get the buffer type layout of the type (call into Python).
-    ref<TypeLayoutReflection> buffer_type_layout() const { return _py_buffer_type_layout(); }
-
-    /// Get string representation of the type.
-    std::string to_string() const override;
-
-    /// Virtual accessors to give native system access to python defined reflection properties
-    virtual ref<NativeSlangType> _py_element_type() const { return nullptr; }
-    virtual bool _py_has_derivative() const { return false; }
-    virtual ref<NativeSlangType> _py_derivative() const { return nullptr; }
-    virtual ref<TypeLayoutReflection> _py_uniform_type_layout() const { return nullptr; }
-    virtual ref<TypeLayoutReflection> _py_buffer_type_layout() const { return nullptr; }
-
-private:
-    ref<TypeReflection> m_type_reflection;
-    Shape m_shape;
-};
-
-/// Nanobind trampoline class for NativeSlangType
-struct PyNativeSlangType : public NativeSlangType {
-    NB_TRAMPOLINE(NativeSlangType, 5);
-    ref<NativeSlangType> _py_element_type() const override { NB_OVERRIDE(_py_element_type); }
-    bool _py_has_derivative() const override { NB_OVERRIDE(_py_has_derivative); }
-    ref<NativeSlangType> _py_derivative() const override { NB_OVERRIDE(_py_derivative); }
-    ref<TypeLayoutReflection> _py_uniform_type_layout() const override { NB_OVERRIDE(_py_uniform_type_layout); }
-    ref<TypeLayoutReflection> _py_buffer_type_layout() const override { NB_OVERRIDE(_py_buffer_type_layout); }
-};
-
 /// Base class for a marshal to a slangpy supported type.
 class NativeMarshall : public Object {
     SGL_OBJECT(NativeMarshall)
 public:
     NativeMarshall() = default;
 
-    NativeMarshall(ref<NativeSlangType> slang_type)
+    NativeMarshall(ref<refl::Type> slang_type)
         : m_slang_type(std::move(slang_type))
     {
     }
@@ -290,10 +229,10 @@ public:
     }
 
     /// Get the slang type.
-    ref<NativeSlangType> slang_type() const { return m_slang_type; }
+    ref<refl::Type> slang_type() const { return m_slang_type; }
 
     /// Set the slang type.
-    void set_slang_type(const ref<NativeSlangType>& slang_type) { m_slang_type = slang_type; }
+    void set_slang_type(const ref<refl::Type>& slang_type) { m_slang_type = slang_type; }
 
     /// Writes call data to a shader cursor before dispatch, optionally writing data for
     /// read back after the kernel has executed. By default, this calls through to
@@ -373,7 +312,7 @@ public:
     /// Code gen only, takes Python types:
     ///   context: BindContext
     /// Override to get the slang type for this variable when a given number of dimensions are removed.
-    virtual ref<NativeSlangType> reduce_type(nb::object context, int dimensions) const
+    virtual ref<refl::Type> reduce_type(nb::object context, int dimensions) const
     {
         SGL_UNUSED(context);
         SGL_UNUSED(dimensions);
@@ -384,7 +323,7 @@ public:
     ///   context: BindContext
     /// Return the slang type for this variable when passed to a parameter of the given type.
     /// Default behaviour is to always cast directly to the bound type.
-    virtual ref<NativeSlangType> resolve_type(nb::object context, const ref<NativeSlangType> bound_type) const
+    virtual ref<refl::Type> resolve_type(nb::object context, const ref<refl::Type> bound_type) const
     {
         SGL_UNUSED(context);
         SGL_UNUSED(bound_type);
@@ -395,8 +334,7 @@ public:
     ///   context: BindContext
     /// Return a list of slang types for a variable when passed to a parameter of the given type.
     /// Default behaviour is to return a list containing the result of resolve_type.
-    virtual std::vector<ref<NativeSlangType>>
-    resolve_types(nb::object context, const ref<NativeSlangType> bound_type) const
+    virtual std::vector<ref<refl::Type>> resolve_types(nb::object context, const ref<refl::Type> bound_type) const
     {
         SGL_UNUSED(context);
         SGL_UNUSED(bound_type);
@@ -405,8 +343,7 @@ public:
 
     /// Code gen only, takes Python types CodeGenBlock, BindContext, BoundVariable.
     /// Calculate the call dimensionality when this value is passed as a given type.
-    virtual int
-    resolve_dimensionality(nb::object context, nb::object binding, ref<NativeSlangType> vector_target_type) const
+    virtual int resolve_dimensionality(nb::object context, nb::object binding, ref<refl::Type> vector_target_type) const
     {
         SGL_UNUSED(context);
         SGL_UNUSED(binding);
@@ -431,7 +368,7 @@ protected:
 
 private:
     Shape m_concrete_shape;
-    ref<NativeSlangType> m_slang_type;
+    ref<refl::Type> m_slang_type;
     bool m_match_call_shape;
 };
 
@@ -484,27 +421,23 @@ struct PyNativeMarshall : public NativeMarshall {
         NB_OVERRIDE(gen_calldata, cgb, context, binding);
     }
 
-    ref<NativeSlangType> reduce_type(nb::object context, int dimensions) const override
+    ref<refl::Type> reduce_type(nb::object context, int dimensions) const override
     {
         NB_OVERRIDE(reduce_type, context, dimensions);
     }
 
-    ref<NativeSlangType> resolve_type(nb::object context, const ref<NativeSlangType> bound_type) const override
+    ref<refl::Type> resolve_type(nb::object context, const ref<refl::Type> bound_type) const override
     {
         NB_OVERRIDE(resolve_type, context, bound_type);
     }
 
-    std::vector<ref<NativeSlangType>>
-    resolve_types(nb::object context, const ref<NativeSlangType> bound_type) const override
+    std::vector<ref<refl::Type>> resolve_types(nb::object context, const ref<refl::Type> bound_type) const override
     {
         NB_OVERRIDE(resolve_types, context, bound_type);
     }
 
-    int resolve_dimensionality(
-        nb::object context,
-        nb::object binding,
-        ref<NativeSlangType> vector_target_type
-    ) const override
+    int
+    resolve_dimensionality(nb::object context, nb::object binding, ref<refl::Type> vector_target_type) const override
     {
         NB_OVERRIDE(resolve_dimensionality, context, binding, vector_target_type);
     }
@@ -542,10 +475,10 @@ public:
     void set_python_type(const ref<NativeMarshall>& python_type) { m_python_type = python_type; }
 
     /// Get the vector slang type.
-    ref<NativeSlangType> vector_type() const { return m_vector_type; }
+    ref<refl::Type> vector_type() const { return m_vector_type; }
 
     /// Set the vector slang type.
-    void set_vector_type(ref<NativeSlangType> vector_type) { m_vector_type = vector_type; }
+    void set_vector_type(ref<refl::Type> vector_type) { m_vector_type = vector_type; }
 
     /// Get the shape being used for the current call.
     Shape get_shape() const { return m_shape; }
@@ -611,7 +544,7 @@ private:
     std::string m_variable_name;
     std::optional<std::map<std::string, ref<NativeBoundVariableRuntime>>> m_children;
     int m_call_dimensionality{0};
-    ref<NativeSlangType> m_vector_type;
+    ref<refl::Type> m_vector_type;
     bool m_is_param_block{false};
     bool m_direct_bind{false};
 };

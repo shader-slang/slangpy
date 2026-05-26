@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include <algorithm>
 #include <sstream>
 #include <cmath>
+#include <cstdint>
+#include <limits>
 
 #include "nanobind.h"
 
@@ -15,7 +18,6 @@
 
 #include "utils/slangpy.h"
 #include "utils/slangpyvalue.h"
-#include "utils/slangpybuffer.h"
 #include "utils/slangpypackedarg.h"
 #include "utils/slangpyfunction.h"
 #include "utils/slangpytorchtensor.h"
@@ -45,6 +47,18 @@ struct GcHelper<slangpy::NativeCallRuntimeOptions> {
 namespace sgl::slangpy {
 
 namespace {
+    // The generated flattening math uses signed 32-bit Slang ints and emits
+    // dispatch_thread_x_stride = dispatch_groups_x * numthreads_x. Use the
+    // conservative max-group-size case (1024 threads) so that stride always
+    // stays representable for any generated SlangPy compute kernel.
+    constexpr uint32_t kSlangPyMaxGeneratedThreadGroupSize = 1024;
+    constexpr uint32_t kSlangPyMaxDispatchThreadGroupsX
+        = uint32_t(std::numeric_limits<int32_t>::max()) / kSlangPyMaxGeneratedThreadGroupSize;
+    static_assert(
+        uint64_t(kSlangPyMaxDispatchThreadGroupsX) * kSlangPyMaxGeneratedThreadGroupSize
+        <= uint64_t(std::numeric_limits<int32_t>::max())
+    );
+
     /// Helper for writing single value to base address with offset
     template<typename T>
     void write_value_helper(void* base_address, size_t offset, const T& value)
@@ -69,32 +83,38 @@ namespace {
             *ptr = data[i];
         }
     }
-} // anonymous namespace
 
-// Implementation of to_string methods
-std::string NativeSlangType::to_string() const
-{
-    if (m_type_reflection) {
-        return fmt::format(
-            "NativeSlangType(\n"
-            "  name = \"{}\",\n"
-            "  shape = {},\n"
-            "  kind = {}\n"
-            ")",
-            m_type_reflection->full_name(),
-            m_shape.to_string(),
-            m_type_reflection->kind()
+    uint3 dispatch_thread_count_from_total_threads(const Device* device, uint3 thread_group_size, int total_threads)
+    {
+        SGL_CHECK(total_threads >= 0, "total_threads must be non-negative, got {}", total_threads);
+        SGL_CHECK(
+            thread_group_size.x > 0,
+            "Compute pipeline has invalid thread group size ({}, {}, {})",
+            thread_group_size.x,
+            thread_group_size.y,
+            thread_group_size.z
         );
-    } else {
-        return fmt::format(
-            "NativeSlangType(\n"
-            "  shape = {},\n"
-            "  type_reflection = None\n"
-            ")",
-            m_shape.to_string()
+
+        const auto& limits = device->info().limits.max_compute_dispatch_thread_groups;
+        const uint64_t dispatch_groups_x = std::min(limits.x, kSlangPyMaxDispatchThreadGroupsX);
+        SGL_CHECK(dispatch_groups_x > 0, "Device reports zero compute dispatch groups in X");
+
+        const uint64_t threads_per_row = dispatch_groups_x * uint64_t(thread_group_size.x);
+        const uint64_t thread_count = uint64_t(total_threads);
+        const uint64_t dispatch_x = std::min(thread_count, threads_per_row);
+        const uint64_t dispatch_y = (thread_count + threads_per_row - 1) / threads_per_row;
+
+        SGL_CHECK(
+            dispatch_y <= limits.y,
+            "SlangPy dispatch of {} logical threads requires {} Y dispatch groups, exceeding device limit {}",
+            total_threads,
+            dispatch_y,
+            limits.y
         );
+
+        return uint3(uint32_t(dispatch_x), uint32_t(dispatch_y), 1);
     }
-}
+} // anonymous namespace
 
 nb::bytes SignatureBuilder::bytes() const
 {
@@ -962,7 +982,9 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
         SGL_ASSERT(pipeline != nullptr);
         ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline));
         bind_call_data(cursor);
-        pass_encoder->dispatch(uint3(total_threads, 1, 1));
+        uint3 dispatch_thread_count
+            = dispatch_thread_count_from_total_threads(m_device.get(), pipeline->thread_group_size(), total_threads);
+        pass_encoder->dispatch(dispatch_thread_count);
         pass_encoder->end();
     } else {
         ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
@@ -1378,29 +1400,6 @@ SGL_PY_EXPORT(utils_slangpy)
             "builder"_a,
             D_NA(NativeObject, read_signature)
         );
-
-    nb::class_<NativeSlangType, PyNativeSlangType, Object>(slangpy, "NativeSlangType") //
-        .def(
-            "__init__",
-            [](NativeSlangType& self)
-            {
-                new (&self) PyNativeSlangType();
-            },
-            D_NA(NativeSlangType, NativeSlangType)
-        )
-        .def_prop_rw(
-            "type_reflection",
-            &NativeSlangType::type_reflection,
-            &NativeSlangType::set_type_reflection,
-            D_NA(NativeSlangType, type_reflection)
-        )
-        .def_prop_rw("shape", &NativeSlangType::shape, &NativeSlangType::set_shape, D_NA(NativeSlangType, shape))
-        .def("_py_element_type", &NativeSlangType::_py_element_type)
-        .def("_py_has_derivative", &NativeSlangType::_py_has_derivative)
-        .def("_py_derivative", &NativeSlangType::_py_derivative)
-        .def("_py_uniform_type_layout", &NativeSlangType::_py_uniform_type_layout)
-        .def("_py_buffer_type_layout", &NativeSlangType::_py_buffer_type_layout)
-        .def("__repr__", &NativeSlangType::to_string);
 
     nb::class_<NativeMarshall, PyNativeMarshall, Object>(slangpy, "NativeMarshall") //
         .def(

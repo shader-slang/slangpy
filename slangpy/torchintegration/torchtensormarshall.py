@@ -127,7 +127,7 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
             element_type=dtype,
             dims=full_dims,
             access=TensorAccess.read_write if writable else TensorAccess.read,
-            tensor_type=TensorType.difftensor if has_derivatives else TensorType.tensor,
+            tensor_kind=TensorType.diff_tensor if has_derivatives else TensorType.tensor,
         )
 
         if not slang_type:

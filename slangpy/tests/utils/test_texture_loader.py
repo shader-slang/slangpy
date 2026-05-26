@@ -254,6 +254,47 @@ def test_load_texture_from_bitmap_file(device_type: spy.DeviceType, filename: st
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_load_rgb_float_texture_with_generated_mips_extends_to_rgba(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+
+    format_support = device.get_format_support(Format.rgba32_float)
+    if (
+        FormatSupport.texture not in format_support
+        or FormatSupport.shader_load not in format_support
+    ):
+        pytest.skip("RGBA32 float format not supported")
+    if spy.Feature.rasterization in device.features:
+        if FormatSupport.render_target not in format_support:
+            pytest.skip("RGBA32 float render target format not supported")
+    elif FormatSupport.shader_uav_store not in format_support:
+        pytest.skip("RGBA32 float UAV format not supported")
+
+    bitmap = Bitmap(
+        pixel_format=PixelFormat.rgb,
+        component_type=ComponentType.float32,
+        width=16,
+        height=8,
+    )
+    image = create_test_array(bitmap.width, bitmap.height, 3, np.float32, (0.0, 1.0))
+    np.array(bitmap, copy=False)[:] = image
+
+    loader = TextureLoader(device)
+    options = TextureLoader.Options()
+    options.generate_mips = True
+    texture = loader.load_texture(bitmap=bitmap, options=options)
+
+    assert texture.format == Format.rgba32_float
+    assert texture.width == bitmap.width
+    assert texture.height == bitmap.height
+    assert texture.mip_count > 1
+
+    data = texture.to_numpy()
+    assert data.shape == (bitmap.height, bitmap.width, 4)
+    assert np.allclose(data[:, :, :3], image, atol=1e-6)
+    assert np.allclose(data[:, :, 3], 1.0, atol=1e-6)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("filename", TEST_DDS_FILES)
 def test_load_texture_from_dds_file(device_type: spy.DeviceType, filename: str):
     device: spy.Device = helpers.get_device(type=device_type)

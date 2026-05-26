@@ -1,0 +1,125 @@
+name: Format PR
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  format:
+    if: >
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/format' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: format-pr-${{ github.event.issue.number }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Get PR metadata
+        id: pr
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.issue.number;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+
+            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pull_number,
+                body: "/format currently supports same-repository branches only."
+              });
+              core.setFailed("/format currently supports same-repository branches only.");
+              return;
+            }
+
+            core.setOutput("head_ref", pr.head.ref);
+
+            try {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pull_number,
+                body: "Formatting requested - I'm on it!"
+              });
+            } catch (error) {
+              core.warning(`Failed to post formatting start comment: ${error.message}`);
+            }
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.pr.outputs.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.9"
+
+      - name: Install pre-commit
+        run: python -m pip install pre-commit
+
+      - name: Run pre-commit on all files
+        id: format
+        shell: bash
+        run: |
+          set +e
+
+          pre-commit run --all-files
+          status=$?
+
+          if ! git diff --quiet; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          exit $status
+
+      - name: Commit and push formatting
+        if: steps.format.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git -c core.hooksPath=/dev/null commit --no-verify -m "Apply automatic formatting"
+          git -c core.hooksPath=/dev/null push origin "HEAD:${{ steps.pr.outputs.head_ref }}"
+
+      - name: Verify pre-commit after formatting
+        if: steps.format.outputs.changed == 'true'
+        run: pre-commit run --all-files
+
+      - name: Comment result
+        if: always() && steps.pr.outputs.head_ref != ''
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const changed = "${{ steps.format.outputs.changed }}" === "true";
+            const conclusion = "${{ job.status }}";
+            let body = "";
+
+            if (conclusion === "success") {
+              body = changed
+                ? "Applied formatting and pushed a commit to this PR."
+                : "No formatting changes were needed.";
+            } else {
+              body = "/format failed. Check the workflow logs for details.";
+            }
+
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.payload.issue.number,
+              body
+            });
