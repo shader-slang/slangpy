@@ -97,7 +97,9 @@ def run_command(
 
     process.communicate()
     if process.returncode != 0:
-        raise RuntimeError(f'Error running "{command}"')
+        err = RuntimeError(f'Error running "{command}"')
+        err.captured_output = out
+        raise err
 
     return out
 
@@ -264,12 +266,21 @@ def install_slangpy_torch(args: Any):
     if in_gha:
         print("::group::pip install slangpy-torch (verbose)")
         sys.stdout.flush()
+    out = ""
     try:
-        run_command(cmd, env=env)
+        out = run_command(cmd, env=env)
+    except RuntimeError as e:
+        out = getattr(e, "captured_output", "")
+        raise
     finally:
         if in_gha:
             print("::endgroup::")
             sys.stdout.flush()
+        # Surface pip's own pass/fail summary outside the collapsed group
+        # so the result is visible without expanding.
+        for line in out.splitlines():
+            if line.startswith("Successfully installed") or line.startswith("ERROR"):
+                print(line)
 
 
 def main():
