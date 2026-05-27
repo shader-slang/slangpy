@@ -279,7 +279,7 @@ def install_slangpy_torch(args: Any):
         # Surface pip's own pass/fail summary outside the collapsed group
         # so the result is visible without expanding.
         for line in out.splitlines():
-            if line.startswith("Successfully installed") or line.startswith("ERROR"):
+            if line.startswith(("Successfully installed", "ERROR")):
                 print(line)
 
 
