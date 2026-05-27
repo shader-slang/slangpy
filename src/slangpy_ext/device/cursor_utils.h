@@ -753,10 +753,16 @@ private:
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
         auto kind = (TypeReflection::Kind)type_layout->getKind();
 
-        // Read uniforms for Tensor unless it is being written directly to a pointer.
+        // Structured Tensor targets can write themselves through ShaderCursor.
+        // BufferCursor targets fall back to the uniform payload for non-pointer fields.
         if (kind != TypeReflection::Kind::pointer && nb::isinstance<sgl::slangpy::Tensor>(nbval)) {
             auto tensor = nb::cast<sgl::slangpy::Tensor*>(nbval);
-            nbval = sgl::slangpy::tensor_uniforms(*tensor);
+            if constexpr (requires { self.set_object(nullptr); }) {
+                self.set(*tensor);
+                return;
+            } else {
+                nbval = sgl::slangpy::tensor_uniforms(*tensor);
+            }
         }
 
         switch (kind) {
@@ -816,14 +822,6 @@ private:
             if (nb::try_cast<BufferView*>(nbval, buffer_view)) {
                 // If we have a view onto a buffer, write the buffer address plus the offset.
                 self.set_pointer(buffer_view->buffer()->device_address() + buffer_view->range().offset);
-                return;
-            }
-
-            sgl::slangpy::Tensor* tensor;
-            if (nb::try_cast<sgl::slangpy::Tensor*>(nbval, tensor)) {
-                // If we have a Tensor, write address of storage plus its byte offset.
-                uint64_t offset = static_cast<uint64_t>(tensor->offset()) * tensor->element_stride();
-                self.set_pointer(tensor->storage()->device_address() + offset);
                 return;
             }
 

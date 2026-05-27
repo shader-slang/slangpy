@@ -478,17 +478,8 @@ void TensorMarshall::write_native_tensor_fields(
 
     if (offsets.is_tensorview) {
         // TensorView path: build TensorViewData struct and write via set_data()
-        TensorViewData tvd = {};
-        // Device address is buffer base + byte offset
-        tvd.data = tensor->storage()->device_address() + tensor->offset() * element_stride();
-
-        const int ndim = static_cast<int>(shape.size());
-        // TensorView strides are in bytes, Tensor strides are in elements
-        for (int i = 0; i < ndim && i < kSlangPyTensorViewMaxDim; i++) {
-            tvd.strides[i] = static_cast<uint32_t>(strides[i] * element_stride());
-            tvd.sizes[i] = static_cast<uint32_t>(shape[i]);
-        }
-        tvd.dimensionCount = static_cast<uint32_t>(ndim);
+        TensorViewData tvd
+            = Tensor::make_tensor_view_data(tensor->storage(), shape, strides, tensor->offset(), element_stride());
         shader_object->set_data(offsets.tensorview_offset, &tvd, sizeof(TensorViewData));
         return;
     }

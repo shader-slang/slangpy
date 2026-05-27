@@ -14,6 +14,7 @@
 #include "sgl/device/cursor_access_wrappers.h"
 
 #include <string_view>
+#include <type_traits>
 
 namespace sgl {
 
@@ -77,6 +78,20 @@ public:
     void set(const T& value) const
     {
         value.write_to_cursor(*this);
+    }
+
+    template<typename T>
+        requires(!std::is_const_v<T> && HasWriteToCursor<T, BufferElementCursor>)
+    void set(const ref<T>& value) const
+    {
+        value->write_to_cursor(*this);
+    }
+
+    template<typename T>
+        requires(HasWriteToCursor<T, BufferElementCursor>)
+    void set(const ref<const T>& value) const
+    {
+        value->write_to_cursor(*this);
     }
 
     template<typename T>

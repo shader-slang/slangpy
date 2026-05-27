@@ -8,6 +8,7 @@
 #include "sgl/device/resource.h"
 #include "sgl/device/sampler.h"
 #include "sgl/device/shader_cursor.h"
+#include "sgl/func/tensor.h"
 #include <fstream>
 #include <filesystem>
 #include <string>
@@ -86,12 +87,16 @@ static_assert(HasWriteToCursor<AccelerationStructure, ShaderCursor>);
 static_assert(HasWriteToCursor<AccelerationStructure, BufferElementCursor>);
 static_assert(HasWriteToCursor<DescriptorHandle, ShaderCursor>);
 static_assert(HasWriteToCursor<DescriptorHandle, BufferElementCursor>);
+static_assert(HasWriteToCursor<func::Tensor, ShaderCursor>);
+static_assert(HasWriteToCursor<func::Tensor, BufferElementCursor>);
 static_assert(requires(const ShaderCursor& cursor, const ref<Buffer>& value) { cursor.set(value); });
 static_assert(requires(const ShaderCursor& cursor, const ref<BufferView>& value) { cursor.set(value); });
 static_assert(requires(const ShaderCursor& cursor, const ref<Texture>& value) { cursor.set(value); });
 static_assert(requires(const ShaderCursor& cursor, const ref<TextureView>& value) { cursor.set(value); });
 static_assert(requires(const ShaderCursor& cursor, const ref<Sampler>& value) { cursor.set(value); });
 static_assert(requires(const ShaderCursor& cursor, const ref<AccelerationStructure>& value) { cursor.set(value); });
+static_assert(requires(const ShaderCursor& cursor, const func::Tensor& value) { cursor.set(value); });
+static_assert(requires(const BufferElementCursor& cursor, const ref<func::Tensor>& value) { cursor.set(value); });
 
 } // namespace
 
