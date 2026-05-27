@@ -291,6 +291,8 @@ Device::Device(const DeviceDesc& desc)
         rhi_device_info.limits.maxComputeDispatchThreadGroups[1],
         rhi_device_info.limits.maxComputeDispatchThreadGroups[2]
     );
+    m_info.limits.min_wave_size = rhi_device_info.limits.minWaveSize;
+    m_info.limits.max_wave_size = rhi_device_info.limits.maxWaveSize;
     m_info.limits.max_viewports = rhi_device_info.limits.maxViewports;
     m_info.limits.max_viewport_dimensions
         = uint2(rhi_device_info.limits.maxViewportDimensions[0], rhi_device_info.limits.maxViewportDimensions[1]);
