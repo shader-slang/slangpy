@@ -727,12 +727,9 @@ SGL_PY_EXPORT(func_tensor)
                ref<Tensor> grad_in,
                ref<Tensor> grad_out)
             {
-                new (self) Tensor(
-                    make_tensor_desc(storage, std::move(dtype), std::move(shape), std::move(strides), offset),
-                    std::move(storage),
-                    std::move(grad_in),
-                    std::move(grad_out)
-                );
+                TensorDesc desc
+                    = make_tensor_desc(storage, std::move(dtype), std::move(shape), std::move(strides), offset);
+                new (self) Tensor(std::move(desc), std::move(storage), std::move(grad_in), std::move(grad_out));
             },
             "storage"_a,
             "dtype"_a,
