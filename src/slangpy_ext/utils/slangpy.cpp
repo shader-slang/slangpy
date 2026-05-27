@@ -15,6 +15,7 @@
 #include "sgl/device/cursor_utils.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/command.h"
+#include "sgl/func/tensor.h"
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
 #include "utils/slangpy.h"
@@ -1197,6 +1198,15 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
         }
     }
 
+    if (!o.is_none()) {
+        const func::Tensor* tensor = nullptr;
+        if (nb::try_cast(o, tensor)) {
+            builder << "Tensor\n";
+            builder.add(tensor->signature());
+            return;
+        }
+    }
+
     // Fast path for basic Python types (int/float) here.
     if (nb::isinstance<int>(o)) {
         builder << "int\n";
@@ -1956,6 +1966,7 @@ SGL_PY_EXPORT(utils_slangpy)
 
 
     nb::class_<Shape>(slangpy, "Shape") //
+        .def(nb::init_implicit<std::vector<int>>(), "shape"_a, D_NA(Shape, Shape))
         .def(
             "__init__",
             [](Shape& self, nb::args args)

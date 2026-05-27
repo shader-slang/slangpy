@@ -28,6 +28,7 @@ SGL_PY_DECLARE(core_timer);
 SGL_PY_DECLARE(core_window);
 
 SGL_PY_DECLARE(native_func);
+SGL_PY_DECLARE(func_tensor);
 
 SGL_PY_DECLARE(device_buffer_cursor);
 SGL_PY_DECLARE(device_child);
@@ -159,6 +160,7 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(native_refl);
     SGL_PY_IMPORT(native_func);
     SGL_PY_IMPORT(utils_slangpy);
+    SGL_PY_IMPORT(func_tensor);
     SGL_PY_IMPORT(utils_slangpy_function);
     SGL_PY_IMPORT(utils_slangpy_packedarg);
     SGL_PY_IMPORT(utils_slangpy_resources);

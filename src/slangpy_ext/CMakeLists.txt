@@ -18,6 +18,7 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     core/timer.cpp
     core/window.cpp
     func/functional.cpp
+    func/tensor.cpp
     device/buffer_cursor.cpp
     device/command.cpp
     device/cursor_utils.h

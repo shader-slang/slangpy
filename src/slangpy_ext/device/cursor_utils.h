@@ -754,10 +754,10 @@ private:
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
         auto kind = (TypeReflection::Kind)type_layout->getKind();
 
-        // Read uniforms for NativeTensor unless it is being written directly to a pointer.
-        if (kind != TypeReflection::Kind::pointer && nb::isinstance<sgl::slangpy::NativeTensor>(nbval)) {
-            auto tensor = nb::cast<sgl::slangpy::NativeTensor*>(nbval);
-            nbval = tensor->uniforms();
+        // Read uniforms for Tensor unless it is being written directly to a pointer.
+        if (kind != TypeReflection::Kind::pointer && nb::isinstance<sgl::slangpy::Tensor>(nbval)) {
+            auto tensor = nb::cast<sgl::slangpy::Tensor*>(nbval);
+            nbval = sgl::slangpy::tensor_uniforms(*tensor);
         }
 
         switch (kind) {
@@ -820,9 +820,9 @@ private:
                 return;
             }
 
-            sgl::slangpy::NativeTensor* tensor;
-            if (nb::try_cast<sgl::slangpy::NativeTensor*>(nbval, tensor)) {
-                // If we have a NativeTensor, write address of storage plus its byte offset.
+            sgl::slangpy::Tensor* tensor;
+            if (nb::try_cast<sgl::slangpy::Tensor*>(nbval, tensor)) {
+                // If we have a Tensor, write address of storage plus its byte offset.
                 uint64_t offset = static_cast<uint64_t>(tensor->offset()) * tensor->element_stride();
                 self.set_pointer(tensor->storage()->device_address() + offset);
                 return;
