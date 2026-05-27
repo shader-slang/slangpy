@@ -13,6 +13,7 @@
 #include "sgl/device/cursor_access_wrappers.h"
 
 #include <string_view>
+#include <type_traits>
 
 namespace sgl {
 
@@ -102,6 +103,22 @@ public:
     void set(const T& value) const
     {
         value.write_to_cursor(*this);
+    }
+
+    /// Let ref-counted values forward to their object's write_to_cursor implementation.
+    template<typename T>
+        requires(!std::is_const_v<T> && HasWriteToCursor<T, ShaderCursor>)
+    void set(const ref<T>& value) const
+    {
+        value->write_to_cursor(*this);
+    }
+
+    /// Let const ref-counted values forward to their object's write_to_cursor implementation.
+    template<typename T>
+        requires(HasWriteToCursor<T, ShaderCursor>)
+    void set(const ref<const T>& value) const
+    {
+        value->write_to_cursor(*this);
     }
 
     /// Fall back to the built-in ShaderCursor setter specializations for non cursor-writer values.

@@ -329,6 +329,17 @@ NativeHandle BufferView::native_handle() const
     return {};
 }
 
+void BufferView::write_to_cursor(const ShaderCursor& cursor) const
+{
+    cursor.set_buffer_view(ref<const BufferView>(this));
+}
+
+void BufferView::write_to_cursor(const BufferElementCursor& cursor) const
+{
+    SGL_UNUSED(cursor);
+    SGL_THROW("BufferView cannot be written to a BufferElementCursor.");
+}
+
 std::string BufferView::to_string() const
 {
     return fmt::format(
@@ -810,6 +821,17 @@ NativeHandle TextureView::native_handle() const
     rhi::NativeHandle rhi_handle = {};
     m_rhi_texture_view->getNativeHandle(&rhi_handle);
     return NativeHandle(rhi_handle);
+}
+
+void TextureView::write_to_cursor(const ShaderCursor& cursor) const
+{
+    cursor.set_texture_view(ref<const TextureView>(this));
+}
+
+void TextureView::write_to_cursor(const BufferElementCursor& cursor) const
+{
+    SGL_UNUSED(cursor);
+    SGL_THROW("TextureView cannot be written to a BufferElementCursor.");
 }
 
 std::string TextureView::to_string() const

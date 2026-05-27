@@ -269,12 +269,6 @@ SGL_API void BufferElementCursor::get(bool1& v) const
 }
 
 template<>
-SGL_API void BufferElementCursor::set(const DescriptorHandle& value) const
-{
-    write_data(m_offset, &value.value, sizeof(value.value));
-}
-
-template<>
 SGL_API void BufferElementCursor::get(DescriptorHandle& value) const
 {
     read_data(m_offset, &value.value, sizeof(value.value));

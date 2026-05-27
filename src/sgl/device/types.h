@@ -15,6 +15,9 @@
 
 namespace sgl {
 
+class BufferElementCursor;
+class ShaderCursor;
+
 /// Represents an address in device memory.
 using DeviceAddress = uint64_t;
 /// Represents an offset in device memory (in bytes).
@@ -225,6 +228,11 @@ struct SGL_API DescriptorHandle {
     bool is_valid() const { return type != DescriptorHandleType::undefined; }
 
     explicit operator bool() const { return is_valid(); }
+
+    /// Write this bindless descriptor handle to a shader cursor.
+    void write_to_cursor(const ShaderCursor& cursor) const;
+    /// Write this bindless descriptor handle value into buffer cursor storage.
+    void write_to_cursor(const BufferElementCursor& cursor) const;
 
     std::string to_string() const;
 };

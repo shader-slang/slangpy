@@ -2,9 +2,22 @@
 
 #include "types.h"
 
+#include "sgl/device/buffer_cursor.h"
+#include "sgl/device/shader_cursor.h"
+
 #include "sgl/core/format.h"
 
 namespace sgl {
+
+void DescriptorHandle::write_to_cursor(const ShaderCursor& cursor) const
+{
+    cursor.set_descriptor_handle(*this);
+}
+
+void DescriptorHandle::write_to_cursor(const BufferElementCursor& cursor) const
+{
+    cursor.set_data(&value, sizeof(value));
+}
 
 std::string DescriptorHandle::to_string() const
 {

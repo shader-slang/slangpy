@@ -441,6 +441,11 @@ public:
     /// Get the native buffer view handle.
     NativeHandle native_handle() const;
 
+    /// Bind this buffer view to a shader cursor.
+    void write_to_cursor(const ShaderCursor& cursor) const;
+    /// Resource view objects cannot be serialized into buffer cursor storage.
+    void write_to_cursor(const BufferElementCursor& cursor) const;
+
     std::string to_string() const override;
 
 private:
@@ -704,6 +709,11 @@ public:
     NativeHandle native_handle() const;
 
     rhi::ITextureView* rhi_texture_view() const { return m_rhi_texture_view.get(); }
+
+    /// Bind this texture view to a shader cursor.
+    void write_to_cursor(const ShaderCursor& cursor) const;
+    /// Resource view objects cannot be serialized into buffer cursor storage.
+    void write_to_cursor(const BufferElementCursor& cursor) const;
 
     std::string to_string() const override;
 

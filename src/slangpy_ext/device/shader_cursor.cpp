@@ -19,28 +19,23 @@ namespace detail {
 
     class ShaderCursorWriteConverterTable : public WriteConverterTable<ShaderCursor> {
     public:
-#define add_type(c_type_name, set_func_name)                                                                           \
+#define add_type(c_type_name)                                                                                          \
     m_write_table[typeid(c_type_name)] = [](ShaderCursor& self, nb::object nbval)                                      \
     {                                                                                                                  \
-        self.set_func_name(nb::cast<ref<c_type_name>>(nbval));                                                         \
+        self.set(nb::cast<ref<c_type_name>>(nbval));                                                                   \
         return true;                                                                                                   \
     };
 
         ShaderCursorWriteConverterTable()
             : WriteConverterTable<ShaderCursor>()
         {
-            add_type(ShaderObject, set_object);
-            add_type(Buffer, set_buffer);
-            add_type(BufferView, set_buffer_view);
-            add_type(Texture, set_texture);
-            add_type(TextureView, set_texture_view);
-            add_type(Sampler, set_sampler);
-            add_type(AccelerationStructure, set_acceleration_structure);
-            m_write_table[typeid(DescriptorHandle)] = [](ShaderCursor& self, nb::object nbval)
-            {
-                self.set_descriptor_handle(nb::cast<DescriptorHandle>(nbval));
-                return true;
-            };
+            add_type(ShaderObject);
+            add_type(Buffer);
+            add_type(BufferView);
+            add_type(Texture);
+            add_type(TextureView);
+            add_type(Sampler);
+            add_type(AccelerationStructure);
         }
 
         bool write_value(ShaderCursor& self, nb::object nbval) override

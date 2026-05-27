@@ -4,7 +4,9 @@
 #include "sgl/device/device.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/buffer_cursor.h"
+#include "sgl/device/raytracing.h"
 #include "sgl/device/resource.h"
+#include "sgl/device/sampler.h"
 #include "sgl/device/shader_cursor.h"
 #include <fstream>
 #include <filesystem>
@@ -74,6 +76,22 @@ static_assert(HasWriteToCursor<BothCursorStruct, ShaderCursor>);
 static_assert(HasWriteToCursor<BothCursorStruct, BufferElementCursor>);
 static_assert(!HasWriteToCursor<NoWriteToCursorStruct, ShaderCursor>);
 static_assert(!HasWriteToCursor<NoWriteToCursorStruct, BufferElementCursor>);
+static_assert(HasWriteToCursor<BufferView, ShaderCursor>);
+static_assert(HasWriteToCursor<BufferView, BufferElementCursor>);
+static_assert(HasWriteToCursor<TextureView, ShaderCursor>);
+static_assert(HasWriteToCursor<TextureView, BufferElementCursor>);
+static_assert(HasWriteToCursor<Sampler, ShaderCursor>);
+static_assert(HasWriteToCursor<Sampler, BufferElementCursor>);
+static_assert(HasWriteToCursor<AccelerationStructure, ShaderCursor>);
+static_assert(HasWriteToCursor<AccelerationStructure, BufferElementCursor>);
+static_assert(HasWriteToCursor<DescriptorHandle, ShaderCursor>);
+static_assert(HasWriteToCursor<DescriptorHandle, BufferElementCursor>);
+static_assert(requires(const ShaderCursor& cursor, const ref<Buffer>& value) { cursor.set(value); });
+static_assert(requires(const ShaderCursor& cursor, const ref<BufferView>& value) { cursor.set(value); });
+static_assert(requires(const ShaderCursor& cursor, const ref<Texture>& value) { cursor.set(value); });
+static_assert(requires(const ShaderCursor& cursor, const ref<TextureView>& value) { cursor.set(value); });
+static_assert(requires(const ShaderCursor& cursor, const ref<Sampler>& value) { cursor.set(value); });
+static_assert(requires(const ShaderCursor& cursor, const ref<AccelerationStructure>& value) { cursor.set(value); });
 
 } // namespace
 
