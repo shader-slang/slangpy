@@ -98,7 +98,7 @@ def run_command(
     process.communicate()
     if process.returncode != 0:
         err = RuntimeError(f'Error running "{command}"')
-        err.captured_output = out
+        err.captured_output = out  # type: ignore[attr-defined]
         raise err
 
     return out
