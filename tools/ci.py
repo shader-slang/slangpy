@@ -247,7 +247,9 @@ def install_slangpy_torch(args: Any):
 
     # -vvv so pip relays the PEP 517 build-backend's stdio live (a hang isn't
     # a failure, so captured output is never flushed); env vars prevent stdio
-    # buffering and any interactive prompt that could wedge the install.
+    # buffering and any interactive prompt that could wedge the install. On
+    # GitHub Actions, wrap the verbose output in a collapsible log group so
+    # the normal case stays readable while diagnostics remain one click away.
     cmd = [
         sys.executable,
         "-m",
@@ -257,7 +259,17 @@ def install_slangpy_torch(args: Any):
         str(slangpy_torch_dir),
         "--no-build-isolation",
     ]
-    run_command(cmd, env={"PYTHONUNBUFFERED": "1", "PIP_NO_INPUT": "1"})
+    env = {"PYTHONUNBUFFERED": "1", "PIP_NO_INPUT": "1"}
+    in_gha = os.environ.get("GITHUB_ACTIONS") == "true"
+    if in_gha:
+        print("::group::pip install slangpy-torch (verbose)")
+        sys.stdout.flush()
+    try:
+        run_command(cmd, env=env)
+    finally:
+        if in_gha:
+            print("::endgroup::")
+            sys.stdout.flush()
 
 
 def main():
