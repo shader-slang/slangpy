@@ -2,20 +2,20 @@
 
 ## Goal
 
-Replace the current split system with one native registration path for simple bindable value types.
+Replace the current split system with one native registration path for cursor-writable value types, with optional simple functional-API fallback metadata.
 
 The desired user model is:
 
 1. A native value type implements `write_to_cursor` for both `ShaderCursor` and `BufferElementCursor`.
-2. The type provides its static Slang type name directly on the class.
-3. The type may provide a static or dynamic signature directly on the class; if it does not, the signature defaults to the C++ class name.
+2. If the type wants the simple `WriteToCursorMarshall` functional fallback, it provides its static Slang type name directly on the class.
+3. Functional fallback types may provide a static or dynamic signature directly on the class; if they do not, the signature defaults to the C++ class name.
 4. The project calls one registration function:
 
 ```cpp
 sgl::cursor_utils::register_cursor_writer<T>();
 ```
 
-That single call registers direct cursor writing and functional-API marshalling through `WriteToCursorMarshall` using the class-owned metadata.
+That single call always registers direct cursor writing. If class-owned Slang metadata is present, it also registers functional-API fallback marshalling through `WriteToCursorMarshall`.
 
 The new policy should be:
 
@@ -25,14 +25,14 @@ The new policy should be:
 - Native registered cursor writers should be identified from the native registry, not from Python-side compatibility predicates.
 - The old cursor-writer caches and `has_registered_type_or_signature` compatibility path should be removed as part of this migration, not preserved as fallback behavior.
 - The registered class is the only metadata surface. Do not introduce a separate traits structure.
-- `slang_type_name` is always required, always static, and always provided by the class.
-- Signature metadata is optional, class-owned, and may be static or value-aware.
-- Imports are optional, static, class-owned, and copied once during registration.
-- Public `register_cursor_writer<T>()` is all-or-nothing: the type must provide both cursor-write paths and functional metadata. Types that only support one cursor kind are not part of the public binding contract.
+- `slang_type_name` is required only for the simple functional fallback path; when present it is always static and class-owned.
+- Signature metadata is optional for functional fallback types, class-owned, and may be static or value-aware.
+- Imports are optional for functional fallback types, static, class-owned, and copied once during registration.
+- Public `register_cursor_writer<T>()` is all-or-nothing for direct cursor writing: the type must provide both cursor-write paths. Functional metadata is an optional bundle so resource types can register direct cursor writers while keeping bespoke functional marshalls.
 
 ## User Class Contract
 
-Minimal static-signature form:
+Minimal static-signature form for simple functional fallback:
 
 ```cpp
 struct MyHandle {
@@ -80,7 +80,19 @@ struct TypedHandle {
 };
 ```
 
-The `write_to_cursor` implementation may be a templated cursor overload or two explicit overloads, but it must compile for both `ShaderCursor&` and `BufferElementCursor&`. If neither `slangpy_signature` nor `write_slangpy_signature(...)` exists, registration should use the C++ class name as the default signature. This signature is only a cache key; it is not used as a visible Slang type name.
+Writer-only form for types that have a bespoke functional API marshall:
+
+```cpp
+struct MyResourceHandle {
+    template<typename TCursor>
+    void write_to_cursor(TCursor& cursor) const
+    {
+        cursor["id"] = id;
+    }
+};
+```
+
+The `write_to_cursor` implementation may be a templated cursor overload or two explicit overloads, but it must compile for both `ShaderCursor&` and `BufferElementCursor&`. If functional metadata is present and neither `slangpy_signature` nor `write_slangpy_signature(...)` exists, registration should use the C++ class name as the default signature. This signature is only a cache key; it is not used as a visible Slang type name.
 
 ## Correction Work Completed
 
@@ -88,27 +100,27 @@ The implementation has been corrected to this contract:
 
 - Removed `CursorWriterTraits<T>` and all trait-specific detection.
 - Removed value-aware `slang_type_name()` support; `T::slang_type_name` is the only Slang type name source.
-- `register_cursor_writer<T>()` now requires `T::slang_type_name` plus `write_to_cursor(...)` support for both `ShaderCursor&` and `BufferElementCursor&`.
-- Every `register_cursor_writer<T>()` registration has functional metadata because the static Slang type name is mandatory.
+- `register_cursor_writer<T>()` now requires `write_to_cursor(...)` support for both `ShaderCursor&` and `BufferElementCursor&`.
+- `T::slang_type_name` is optional and enables simple functional fallback metadata when present.
 - `write_signature(SignatureBuffer&, const void*)` remains in the registry so static and dynamic signatures share one call path.
 - Signature sources are detected in this order:
   1. `value.write_slangpy_signature(SignatureBuffer&) const` for dynamic signatures.
   2. `T::write_slangpy_signature(SignatureBuffer&)` for static function signatures.
   3. `T::slangpy_signature` for static string signatures.
   4. Default C++ class-name signature.
-- The registry stores `slang_type_name` as copied registration data, not as a `const void*` callback.
-- `slangpy_imports()` is static and class-owned only; it is called once at registration and its strings are copied.
+- The registry stores `slang_type_name` as copied registration data for functional fallback entries, not as a `const void*` callback.
+- `slangpy_imports()` is static and class-owned only; it is called once at registration and its strings are copied for functional fallback entries.
 - Tests now put `slang_type_name`, signatures, and imports on the registered class itself.
-- Tests cover missing `T::slang_type_name` and one-cursor-only writers as compile-time rejections via `CanRegisterCursorWriter`.
-- Keep legacy low-level writer wrappers only as internal merge helpers during migration; they should not be the public user-facing metadata path.
+- Tests cover missing `T::slang_type_name` as writer-only registration and one-cursor-only writers as compile-time rejections via `CanRegisterCursorWriter`.
+- Removed the legacy low-level writer wrapper APIs; the native registry now accepts only complete `register_cursor_writer<T>()` entries.
 
 ## Progress So Far
 
 Latest progress update:
 
-- The public cursor-writer registration contract has been tightened to all-or-nothing. `CanRegisterCursorWriter<T>` now requires `T::slang_type_name`, `write_to_cursor(ShaderCursor&)`, and `write_to_cursor(BufferElementCursor&)`.
+- The public cursor-writer registration contract has been tightened to require both cursor paths while keeping functional metadata optional. `CanRegisterCursorWriter<T>` now requires `write_to_cursor(ShaderCursor&)` and `write_to_cursor(BufferElementCursor&)`; `CanRegisterFunctionalCursorWriter<T>` additionally requires `T::slang_type_name`.
 - One-cursor-only types remain useful for cursor `set()` contract tests, but they are compile-time rejected for public `register_cursor_writer<T>()` registration.
-- Native tests now cover default class-name signatures, static string signatures, static function signatures, dynamic value-aware signatures, copied imports, duplicate registration rejection, and migration-only legacy wrapper merge behavior under the stricter contract.
+- Native tests now cover writer-only registrations, default class-name signatures, static string signatures, static function signatures, dynamic value-aware signatures, copied imports, duplicate registration rejection, partial functional metadata rejection, and one-cursor-only compile-time rejection under the stricter contract.
 - Final verification for this checkpoint passed after clang-format updates and a full `pre-commit run --all-files`.
 
 Completed in the current implementation slice:
@@ -123,16 +135,16 @@ Completed in the current implementation slice:
 - Added native C++ coverage in `tests/sgl/device/test_cursors.cpp` for cursor-specific `set()` behavior, both-overload registration, and negative concept checks.
 - Introduced a combined native `CursorWriterTypeInfo` registry in `src/sgl/device/cursor_utils.h/.cpp`.
 - Added `cursor_utils::register_cursor_writer<T>()`.
-- Legacy low-level cursor-writer registration functions now merge into the combined registry instead of using separate storage.
+- Removed legacy low-level cursor-writer registration functions; the combined registry stores only entries that provide both cursor writers, with optional functional metadata.
 - `src/slangpy_ext/device/cursor_utils.h` direct cursor writes now consult the combined native registry and no longer keep `WriteConverterTable::m_native_object_writer_cache`.
-- Static metadata and imports are captured into the native descriptor at registration time from class-owned metadata only.
-- Added native C++ coverage for registry lookup, duplicate rejection, one-cursor registration rejection, static metadata/signature/imports, and legacy wrapper merge behavior.
+- Static metadata and imports are captured into the native descriptor at registration time from class-owned metadata only when the type opts into functional fallback.
+- Added native C++ coverage for registry lookup, duplicate rejection, one-cursor registration rejection, and static metadata/signature/imports.
 - Renamed the Python marshall API to `WriteToCursorMarshall`, `WriteToCursorMarshallInfo`, and `register_write_to_cursor_type`.
 - `WriteToCursorMarshall` now derives from `NativeValueMarshall`, so dispatch uses the native cursor-write fast path rather than Python `create_calldata()`.
 - `slangpy/bindings/typeregistry.py` now falls back to native cursor-writer metadata when Python type registration has no hit.
-- `NativeCallDataCache::get_value_signature()` now uses the native cursor-writer registry for signatures and reports missing Slang metadata from the native descriptor.
+- `NativeCallDataCache::get_value_signature()` now uses the native cursor-writer registry only for entries with functional metadata; writer-only entries fall through to bespoke native/Python signature paths.
 - Removed the old `has_registered_type_or_signature` Python predicate, native callback, and native predicate cache.
-- `get_this` remains the legacy wrapper path for non-cursor-writer objects; registered native cursor writers with `get_this` now fail with a clear conflict error.
+- `get_this` remains the legacy wrapper path for objects not owned by functional cursor-writer metadata; registered functional cursor writers with `get_this` fail with a clear conflict error.
 
 Verification run for this slice:
 
@@ -241,7 +253,6 @@ struct CursorWriterTypeInfo {
     BufferElementCursorObjectWriteFunc write_buffer_cursor;
 
     // Functional API metadata from T::slang_type_name and class-owned signature hooks.
-    bool has_functional_metadata;
     std::string slang_type_name;
     std::function<void(SignatureBuffer&, const void*)> write_signature;
     std::vector<std::string> imports;
@@ -253,8 +264,8 @@ struct CursorWriterTypeInfo {
 - Expose read-only access and lookup helpers for the extension.
 - Remove the separate `shader_cursor_object_writer_registry()` and `buffer_element_cursor_object_writer_registry()` storage.
 - Remove `WriteConverterTable::m_native_object_writer_cache`; registered native object lookup should consult the combined registry directly.
-- Either delete the low-level `register_shader_cursor_object_writer*` / `register_buffer_element_cursor_object_writer*` APIs or make them internal wrappers that merge into the combined registry. They should not remain a second public registration model.
-- Duplicate registration of a fully registered type should fail with a clear error. If internal wrappers are retained during migration, they must have explicit merge semantics and tests.
+- Delete the low-level `register_shader_cursor_object_writer*` / `register_buffer_element_cursor_object_writer*` APIs so they do not remain as a second registration model.
+- Duplicate registration of a registered type should fail with a clear error.
 - Define whether base-type lookup is supported for nanobind-exposed derived types. If supported, document lookup precedence: exact native type first, then registered base type.
 
 Tests to change:
@@ -265,7 +276,7 @@ Tests to add:
 
 - Registering one type creates one registry entry with the expected cursor writers and metadata state.
 - Duplicate registration of the same type is rejected with a clear error.
-- Public `register_cursor_writer<T>()` does not accept one-cursor-only types. Internal low-level wrapper coverage may still verify merge behavior for migration-only one-sided entries.
+- Public `register_cursor_writer<T>()` does not accept one-cursor-only types.
 - Registry lookup by exact native type succeeds.
 - If base lookup is supported, derived nanobind/Python-exposed types resolve to the registered base writer.
 
@@ -286,14 +297,14 @@ void register_cursor_writer();
 
 - Require `T` to satisfy both `HasWriteToCursor<T, ShaderCursor>` and `HasWriteToCursor<T, BufferElementCursor>`.
 - Register both cursor writer functions.
-- Require `T::slang_type_name`, static and convertible to `std::string_view`.
+- Optionally capture `T::slang_type_name` when it is static and convertible to `std::string_view`.
 - Do not support value-aware `slang_type_name()` and do not infer a Slang type from the native C++ type name.
-- Always register functional metadata for `register_cursor_writer<T>()`, because `T::slang_type_name` is mandatory.
-- If a type needs direct cursor writing without SlangPy functional metadata, it should use an internal low-level writer wrapper during migration, not the public `register_cursor_writer<T>()` API.
+- Register functional metadata for `register_cursor_writer<T>()` only when `T::slang_type_name` is present.
+- Direct cursor writing without SlangPy functional metadata is valid for types that keep bespoke functional marshalls.
 
 Functional metadata sources:
 
-- The class must provide:
+- For functional fallback, the class must provide:
 
 ```cpp
 static constexpr std::string_view slang_type_name = "MySlangType";
@@ -328,7 +339,7 @@ Tests to change:
 Tests to add:
 
 - Minimal type with `write_to_cursor` support for both cursor kinds and static `slang_type_name` can register.
-- Minimal type missing static `slang_type_name` is rejected clearly.
+- Minimal type missing static `slang_type_name` registers as writer-only with no functional metadata.
 - Minimal type with only one cursor overload is rejected clearly.
 - Minimal type without explicit signature defaults to the C++ class-name signature.
 - Type with static metadata gets a stable signature.
@@ -408,13 +419,13 @@ Expected edits:
 - Add a Python-visible or extension-internal helper that can create `WriteToCursorMarshall` from native registry metadata when Python `PYTHON_TYPES` has no hit.
 - Have that helper read the copied `CursorWriterTypeInfo::slang_type_name` string directly instead of invoking a value-aware type-name callback.
 - Update `slangpy/bindings/typeregistry.py::get_or_create_type()` or the `BoundVariable` construction path so native registered cursor writer values fall back to the native registry.
-- Update `NativeCallDataCache::get_value_signature()` so native registered cursor writer metadata participates in signature generation.
+- Update `NativeCallDataCache::get_value_signature()` so native registered cursor writer metadata participates in signature generation only when functional metadata is present.
 - Define precedence:
-  - registered cursor writer metadata owns registered cursor writer objects
-  - existing built-in native signatures such as `Texture` and `Buffer` remain unchanged for types not registered as cursor writers
+  - registered functional cursor-writer metadata owns simple fallback marshalling for registered cursor writer objects
+  - existing built-in native signatures such as `Texture` and `Buffer` remain unchanged for types without functional cursor-writer metadata
   - Python-only registered `PYTHON_TYPES` / `PYTHON_SIGNATURES` continue to work for non-native values
-  - `get_this` is only considered for objects not registered as cursor writers
-- Conflict handling should occur when creating a marshall/signature for a Python-visible object. If a registered cursor writer object also exposes `get_this`, fail clearly.
+  - `get_this` is only blocked for objects with functional cursor-writer metadata; writer-only registrations may still use bespoke marshalling paths
+- Conflict handling should occur when creating a marshall/signature for a Python-visible object. If a functional cursor writer object also exposes `get_this`, fail clearly.
 
 Tests to change:
 

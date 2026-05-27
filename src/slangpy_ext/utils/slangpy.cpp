@@ -128,7 +128,7 @@ namespace {
         return nullptr;
     }
 
-    // A value must be owned by either the new cursor-writer path or the legacy get_this path, not both.
+    // A value must be owned by either functional cursor-writer metadata or the legacy get_this path, not both.
     void check_native_cursor_writer_get_this_conflict(nb::handle obj, const std::type_info& type)
     {
         auto get_this = nb::getattr(obj, "get_this", nb::none());
@@ -140,19 +140,15 @@ namespace {
         }
     }
 
-    // Expose native cursor-writer metadata to Python type lookup so it can build WriteToCursorMarshall.
+    // Expose functional cursor-writer metadata to Python type lookup so it can build WriteToCursorMarshall.
     nb::object get_native_cursor_writer_type_info(nb::handle obj)
     {
         void* value = nullptr;
         const auto* info = find_native_cursor_writer(obj, value);
-        if (!info)
+        if (!info || !info->has_functional_metadata())
             return nb::none();
 
         check_native_cursor_writer_get_this_conflict(obj, *info->type);
-
-        if (!info->has_functional_metadata) {
-            SGL_THROW("Registered cursor writer type \"{}\" has no Slang type metadata.", info->type->name());
-        }
 
         SignatureBuffer signature;
         info->write_signature(signature, value);
@@ -199,7 +195,6 @@ uint3 dispatch_thread_count_from_total_threads(const Device* device, uint3 threa
 
     return uint3(uint32_t(dispatch_x), uint32_t(dispatch_y), 1);
 }
-} // anonymous namespace
 
 nb::bytes SignatureBuilder::bytes() const
 {
@@ -1173,15 +1168,15 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
 
         void* cursor_writer_value = nullptr;
         if (const auto* info = find_native_cursor_writer(o, cursor_writer_value)) {
-            check_native_cursor_writer_get_this_conflict(o, *info->type);
-            if (!info->has_functional_metadata) {
-                SGL_THROW("Registered cursor writer type \"{}\" has no Slang type metadata.", info->type->name());
+            if (info->has_functional_metadata()) {
+                check_native_cursor_writer_get_this_conflict(o, *info->type);
+                // Functional cursor-writer entries own their cache key. Writer-only entries fall through to bespoke
+                // native/Python signature paths such as Buffer, Texture, or DescriptorHandle.
+                builder << type_info.name() << "\n";
+                info->write_signature(builder, cursor_writer_value);
+                builder << "\n";
+                return;
             }
-            // Native cursor writers own their cache key. This avoids Python predicates in the hot signature path.
-            builder << type_info.name() << "\n";
-            info->write_signature(builder, cursor_writer_value);
-            builder << "\n";
-            return;
         }
 
         // If we have a native object, can directly request the signature.
@@ -1346,12 +1341,13 @@ nb::object unpack_arg(nb::object arg, bool& out_had_unpack)
     void* cursor_writer_value = nullptr;
     const auto* cursor_writer_info = find_native_cursor_writer(obj, cursor_writer_value);
 
-    // If object has 'get_this', read it unless native cursor-writer marshalling owns the object.
+    // If object has 'get_this', read it unless functional cursor-writer marshalling owns the object.
     auto get_this = nb::getattr(obj, "get_this", nb::none());
-    if (!get_this.is_none() && cursor_writer_info) {
+    const bool cursor_writer_owns_functional_api = cursor_writer_info && cursor_writer_info->has_functional_metadata();
+    if (!get_this.is_none() && cursor_writer_owns_functional_api) {
         check_native_cursor_writer_get_this_conflict(obj, *cursor_writer_info->type);
     }
-    if (!get_this.is_none() && !cursor_writer_info) {
+    if (!get_this.is_none() && !cursor_writer_owns_functional_api) {
         obj = get_this();
         out_had_unpack = true;
     }

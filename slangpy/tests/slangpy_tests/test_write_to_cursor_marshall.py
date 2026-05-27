@@ -4,6 +4,8 @@ import re
 
 import pytest
 
+import slangpy as spy
+import slangpy.testing.helpers as helpers
 from slangpy.bindings import (
     WriteToCursorMarshall,
     WriteToCursorMarshallInfo,
@@ -16,7 +18,7 @@ from slangpy.bindings.typeregistry import (
     lookup_signature_callback,
     lookup_type_callback,
 )
-from slangpy.core.native import NativeSlangType, NativeValueMarshall
+from slangpy.core.native import NativeValueMarshall
 
 
 class CursorValueObject:
@@ -36,11 +38,21 @@ class FakeSlangType:
         self.full_name = full_name
 
 
-class FakeLayout:
-    def find_type_by_name(self, name: str) -> NativeSlangType | None:
-        if name == "CursorValue":
-            return NativeSlangType()
-        return None
+DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES[0:1]
+
+
+def cursor_value_layout(device_type: spy.DeviceType) -> object:
+    device = helpers.get_device(type=device_type)
+    module = helpers.create_module(
+        device,
+        """
+struct CursorValue
+{
+    uint id;
+};
+""",
+    )
+    return module.layout
 
 
 def unregister_write_to_cursor_type(python_type: type) -> None:
@@ -48,7 +60,8 @@ def unregister_write_to_cursor_type(python_type: type) -> None:
     PYTHON_SIGNATURES.pop(python_type, None)
 
 
-def test_registered_write_to_cursor_marshall_type_callback() -> None:
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_registered_write_to_cursor_marshall_type_callback(device_type: spy.DeviceType) -> None:
     try:
         register_write_to_cursor_type(
             CursorValueObject,
@@ -58,15 +71,17 @@ def test_registered_write_to_cursor_marshall_type_callback() -> None:
         type_callback = lookup_type_callback(CursorValueObject)
 
         assert type_callback is not None
-        marshall = type_callback(FakeLayout(), CursorValueObject())
+        marshall = type_callback(cursor_value_layout(device_type), CursorValueObject())
         assert isinstance(marshall, WriteToCursorMarshall)
         assert isinstance(marshall, NativeValueMarshall)
     finally:
         unregister_write_to_cursor_type(CursorValueObject)
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_get_or_create_type_uses_native_cursor_writer_metadata(
     monkeypatch: pytest.MonkeyPatch,
+    device_type: spy.DeviceType,
 ) -> None:
     value = NativeCursorValueObject()
 
@@ -84,12 +99,44 @@ def test_get_or_create_type_uses_native_cursor_writer_metadata(
         get_native_cursor_writer_type_info,
     )
 
-    marshall = get_or_create_type(FakeLayout(), NativeCursorValueObject, value)
+    marshall = get_or_create_type(cursor_value_layout(device_type), NativeCursorValueObject, value)
 
     assert isinstance(marshall, WriteToCursorMarshall)
     assert isinstance(marshall, NativeValueMarshall)
     assert marshall.m_info.signature == "[NativeCursorValueObject]"
     assert marshall.m_info.imports == ("cursor_value.slang",)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_get_or_create_type_prefers_python_registration_over_native_cursor_writer_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    device_type: spy.DeviceType,
+) -> None:
+    def get_native_cursor_writer_type_info(obj: object) -> dict[str, object] | None:
+        raise AssertionError("native cursor-writer fallback should not be consulted")
+
+    monkeypatch.setattr(
+        "slangpy.core.native._get_native_cursor_writer_type_info",
+        get_native_cursor_writer_type_info,
+    )
+
+    try:
+        register_write_to_cursor_type(
+            CursorValueObject,
+            slang_type_name="CursorValue",
+            signature="[PythonRegisteredCursorValueObject]",
+        )
+
+        marshall = get_or_create_type(
+            cursor_value_layout(device_type),
+            CursorValueObject,
+            CursorValueObject(),
+        )
+
+        assert isinstance(marshall, WriteToCursorMarshall)
+        assert marshall.m_info.signature == "[PythonRegisteredCursorValueObject]"
+    finally:
+        unregister_write_to_cursor_type(CursorValueObject)
 
 
 def test_registered_write_to_cursor_marshall_signature() -> None:

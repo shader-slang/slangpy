@@ -22,19 +22,26 @@ namespace cursor_utils {
     {
         SGL_CHECK(info.type != nullptr, "Cursor writer type info must specify a type.");
         SGL_CHECK(
-            bool(info.write_shader_cursor) || bool(info.write_buffer_cursor),
-            "Cursor writer type info for type \"{}\" must provide at least one cursor writer.",
+            bool(info.write_shader_cursor),
+            "Cursor writer type info for type \"{}\" must provide a ShaderCursor writer.",
             info.type->name()
         );
-        if (info.has_functional_metadata) {
+        SGL_CHECK(
+            bool(info.write_buffer_cursor),
+            "Cursor writer type info for type \"{}\" must provide a BufferElementCursor writer.",
+            info.type->name()
+        );
+        const bool has_functional_metadata
+            = !info.slang_type_name.empty() || bool(info.write_signature) || !info.imports.empty();
+        if (has_functional_metadata) {
             SGL_CHECK(
                 !info.slang_type_name.empty(),
-                "Cursor writer type info for type \"{}\" has functional metadata but no Slang type name.",
+                "Functional cursor writer metadata for type \"{}\" must provide a Slang type name.",
                 info.type->name()
             );
             SGL_CHECK(
                 bool(info.write_signature),
-                "Cursor writer type info for type \"{}\" has functional metadata but no signature writer.",
+                "Functional cursor writer metadata for type \"{}\" must provide a signature writer.",
                 info.type->name()
             );
         }
@@ -43,38 +50,7 @@ namespace cursor_utils {
         for (auto& entry : infos) {
             if (!(*entry.type == *info.type))
                 continue;
-
-            // Legacy one-sided registrations can arrive separately; merge them into
-            // the same descriptor while still rejecting duplicate writers.
-            if (info.write_shader_cursor) {
-                if (entry.write_shader_cursor) {
-                    SGL_THROW("ShaderCursor object writer for type \"{}\" is already registered.", info.type->name());
-                }
-                entry.write_shader_cursor = std::move(info.write_shader_cursor);
-            }
-
-            if (info.write_buffer_cursor) {
-                if (entry.write_buffer_cursor) {
-                    SGL_THROW(
-                        "BufferElementCursor object writer for type \"{}\" is already registered.",
-                        info.type->name()
-                    );
-                }
-                entry.write_buffer_cursor = std::move(info.write_buffer_cursor);
-            }
-
-            if (info.has_functional_metadata) {
-                if (entry.has_functional_metadata) {
-                    SGL_THROW("Cursor writer metadata for type \"{}\" is already registered.", info.type->name());
-                }
-                entry.has_functional_metadata = true;
-                entry.slang_type_name = std::move(info.slang_type_name);
-                entry.write_signature = std::move(info.write_signature);
-                entry.signature_kind = info.signature_kind;
-                entry.imports = std::move(info.imports);
-            }
-
-            return;
+            SGL_THROW("Cursor writer type \"{}\" is already registered.", info.type->name());
         }
 
         infos.push_back(std::move(info));
@@ -93,27 +69,6 @@ namespace cursor_utils {
             }
         }
         return nullptr;
-    }
-
-    void register_shader_cursor_object_writer(const std::type_info& type, ShaderCursorObjectWriteFunc write)
-    {
-        SGL_CHECK(bool(write), "ShaderCursor object writer must be callable.");
-
-        CursorWriterTypeInfo info;
-        info.type = &type;
-        info.write_shader_cursor = std::move(write);
-        register_cursor_writer_type(std::move(info));
-    }
-
-    void
-    register_buffer_element_cursor_object_writer(const std::type_info& type, BufferElementCursorObjectWriteFunc write)
-    {
-        SGL_CHECK(bool(write), "BufferElementCursor object writer must be callable.");
-
-        CursorWriterTypeInfo info;
-        info.type = &type;
-        info.write_buffer_cursor = std::move(write);
-        register_cursor_writer_type(std::move(info));
     }
 
     // Helper class for checking if implicit conversion between scalar types is allowed.

@@ -89,44 +89,30 @@ namespace cursor_utils {
     /// Erased writer used by BufferElementCursor to bind a registered native object.
     using BufferElementCursorObjectWriteFunc = std::function<bool(BufferElementCursor&, const void*)>;
 
-    /// Records which class-owned signature hook a cursor writer uses.
-    enum class CursorWriterSignatureKind {
-        none,
-        default_class_name,
-        static_string,
-        static_function,
-        dynamic_function,
-    };
-
-    /// Native registry entry for one bindable value type.
-    ///
-    /// Low-level cursor writers may populate only one cursor callback while migrating existing code.
-    /// Public register_cursor_writer<T>() entries always populate both callbacks and functional metadata.
+    /// Native registry entry for one cursor-writable value type.
+    /// Functional API metadata is optional so types with bespoke marshalls can still register cursor writes.
     struct CursorWriterTypeInfo {
         /// Native C++ type exposed through nanobind.
         const std::type_info* type{nullptr};
 
-        /// Write an object instance into a ShaderCursor, if this type supports it.
+        /// Write an object instance into a ShaderCursor.
         ShaderCursorObjectWriteFunc write_shader_cursor;
-        /// Write an object instance into a BufferElementCursor, if this type supports it.
+        /// Write an object instance into a BufferElementCursor.
         BufferElementCursorObjectWriteFunc write_buffer_cursor;
 
-        /// True when this entry can also build SlangPy functional API marshalling.
-        bool has_functional_metadata{false};
         /// Static Slang type name supplied by T::slang_type_name.
         std::string slang_type_name;
         /// Writes the cache signature for a concrete value instance.
         std::function<void(SignatureBuffer&, const void*)> write_signature;
-        /// Debug/test aid describing which signature source was selected.
-        CursorWriterSignatureKind signature_kind{CursorWriterSignatureKind::none};
         /// Static imports copied from T::slangpy_imports() at registration time.
         std::vector<std::string> imports;
+
+        /// True when this entry can be used to construct WriteToCursorMarshall fallback metadata.
+        bool has_functional_metadata() const { return !slang_type_name.empty(); }
     };
 
-    /// Add or merge a type entry into the combined cursor-writer registry.
-    ///
-    /// Re-registering the same cursor callback or functional metadata is rejected. Separate
-    /// one-sided legacy registrations for the same type are merged into one entry.
+    /// Add a type entry to the cursor-writer registry.
+    /// Duplicate registrations for the same native type are rejected.
     SGL_API void register_cursor_writer_type(CursorWriterTypeInfo info);
 
     /// Return a read-only view of all registered cursor-writer type entries.
@@ -134,64 +120,6 @@ namespace cursor_utils {
 
     /// Find the exact native cursor-writer entry for a std::type_info, if one exists.
     SGL_API const CursorWriterTypeInfo* find_cursor_writer_type_info(const std::type_info& type);
-
-    /// Migration wrapper for registering only a ShaderCursor writer.
-    SGL_API void register_shader_cursor_object_writer(const std::type_info& type, ShaderCursorObjectWriteFunc write);
-    /// Migration wrapper for registering only a BufferElementCursor writer.
-    SGL_API void
-    register_buffer_element_cursor_object_writer(const std::type_info& type, BufferElementCursorObjectWriteFunc write);
-
-    /// Migration wrapper that erases a typed ShaderCursor writer into the combined registry.
-    template<typename T>
-    void register_shader_cursor_object_writer(std::function<bool(ShaderCursor&, const T&)> write)
-    {
-        register_shader_cursor_object_writer(
-            typeid(T),
-            [write = std::move(write)](ShaderCursor& cursor, const void* value)
-            {
-                return write(cursor, *static_cast<const T*>(value));
-            }
-        );
-    }
-
-    /// Migration wrapper that erases a typed BufferElementCursor writer into the combined registry.
-    template<typename T>
-    void register_buffer_element_cursor_object_writer(std::function<bool(BufferElementCursor&, const T&)> write)
-    {
-        register_buffer_element_cursor_object_writer(
-            typeid(T),
-            [write = std::move(write)](BufferElementCursor& cursor, const void* value)
-            {
-                return write(cursor, *static_cast<const T*>(value));
-            }
-        );
-    }
-
-    /// Migration wrapper for types whose ShaderCursor::set(T) implementation should be reused directly.
-    template<typename T>
-    void register_shader_cursor_object_writer()
-    {
-        register_shader_cursor_object_writer<T>(
-            [](ShaderCursor& cursor, const T& value)
-            {
-                cursor = value;
-                return true;
-            }
-        );
-    }
-
-    /// Migration wrapper for types whose BufferElementCursor::set(T) implementation should be reused directly.
-    template<typename T>
-    void register_buffer_element_cursor_object_writer()
-    {
-        register_buffer_element_cursor_object_writer<T>(
-            [](BufferElementCursor& cursor, const T& value)
-            {
-                cursor = value;
-                return true;
-            }
-        );
-    }
 
     namespace detail {
 
@@ -279,26 +207,13 @@ namespace cursor_utils {
         { T::slangpy_imports() };
     };
 
-    /// Public cursor-writer registration contract.
-    ///
-    /// Registered types must provide class-owned Slang metadata and must write through both cursor kinds.
+    /// Public direct cursor-writer registration contract.
     template<typename T>
-    concept CanRegisterCursorWriter = HasTypeStaticSlangTypeName<T> && HasWriteToCursor<T, ShaderCursor>
-        && HasWriteToCursor<T, BufferElementCursor>;
+    concept CanRegisterCursorWriter = HasWriteToCursor<T, ShaderCursor> && HasWriteToCursor<T, BufferElementCursor>;
 
-    /// Select the signature source using the public contract's priority order.
+    /// True when T can also be used as a simple functional API fallback marshall.
     template<typename T>
-    constexpr CursorWriterSignatureKind cursor_writer_signature_kind()
-    {
-        if constexpr (HasValueSignature<T>)
-            return CursorWriterSignatureKind::dynamic_function;
-        else if constexpr (HasTypeStaticSignature<T>)
-            return CursorWriterSignatureKind::static_function;
-        else if constexpr (HasTypeStaticStringSignature<T>)
-            return CursorWriterSignatureKind::static_string;
-        else
-            return CursorWriterSignatureKind::default_class_name;
-    }
+    concept CanRegisterFunctionalCursorWriter = CanRegisterCursorWriter<T> && HasTypeStaticSlangTypeName<T>;
 
     /// Write the SlangPy cache signature for a registered cursor-writer value.
     template<typename T>
@@ -315,28 +230,10 @@ namespace cursor_utils {
             signature.add(detail::cursor_writer_class_name<T>());
     }
 
-    /// Copy an arbitrary iterable of string-like import paths into owned storage.
-    template<typename TImports>
-    void append_cursor_writer_imports(std::vector<std::string>& result, TImports&& imports)
-    {
-        for (auto&& import_path : imports)
-            result.emplace_back(std::string_view(import_path));
-    }
-
-    /// Collect static imports for T once during registration.
-    template<typename T>
-    std::vector<std::string> cursor_writer_imports()
-    {
-        std::vector<std::string> result;
-        if constexpr (HasTypeStaticImports<T>)
-            append_cursor_writer_imports(result, T::slangpy_imports());
-        return result;
-    }
-
-    /// Register T as a native bindable value for both direct cursor writes and the functional API.
+    /// Register T as a native bindable value for direct cursor writes.
     ///
-    /// T owns all metadata: static slang_type_name is required, signature/import metadata is optional,
-    /// and write_to_cursor must compile for both ShaderCursor and BufferElementCursor.
+    /// If T also owns static slang_type_name metadata, it is used as a simple functional API fallback.
+    /// Types with bespoke marshalls should omit that metadata and keep the Python/native marshall as owner.
     template<typename T>
     void register_cursor_writer()
         requires(CanRegisterCursorWriter<T>)
@@ -355,14 +252,17 @@ namespace cursor_utils {
             return true;
         };
 
-        info.has_functional_metadata = true;
-        info.slang_type_name = std::string(std::string_view(T::slang_type_name));
-        info.write_signature = [](SignatureBuffer& signature, const void* value)
-        {
-            write_cursor_writer_signature<T>(signature, value);
-        };
-        info.signature_kind = cursor_writer_signature_kind<T>();
-        info.imports = cursor_writer_imports<T>();
+        if constexpr (HasTypeStaticSlangTypeName<T>) {
+            info.slang_type_name = std::string(std::string_view(T::slang_type_name));
+            info.write_signature = [](SignatureBuffer& signature, const void* value)
+            {
+                write_cursor_writer_signature<T>(signature, value);
+            };
+            if constexpr (HasTypeStaticImports<T>) {
+                for (auto&& import_path : T::slangpy_imports())
+                    info.imports.emplace_back(std::string_view(import_path));
+            }
+        }
 
         register_cursor_writer_type(std::move(info));
     }
