@@ -35,6 +35,7 @@ def _register_hot_reload_hook(device: Device):
 
 class CallDataCache(NativeCallDataCache):
     def lookup_value_signature(self, o: object):
+        """Bridge native signature generation back to Python-only registered value signatures."""
         found, sig = lookup_signature_callback(type(o))
         if not found:
             return None

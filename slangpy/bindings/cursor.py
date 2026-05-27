@@ -20,17 +20,23 @@ from slangpy.core.native import AccessType, NativeValueMarshall
 
 @dataclass(frozen=True)
 class WriteToCursorMarshallInfo:
+    """Metadata needed to marshal values through native cursor-writer registration."""
+
     slang_type_name: str
     signature: str
     imports: tuple[str, ...]
     accepted_type_regex: re.Pattern[str]
 
     def accepts_type(self, slang_type: spyref.SlangType) -> bool:
+        """Return True when a reflected Slang type is compatible with this writer."""
         return self.accepted_type_regex.fullmatch(slang_type.full_name) is not None
 
 
 class WriteToCursorMarshall(NativeValueMarshall):
+    """Marshall for scalar values that are written through the native cursor fast path."""
+
     def __init__(self, layout: spyref.SlangProgramLayout, info: WriteToCursorMarshallInfo):
+        """Resolve the registered Slang type in the current composed program layout."""
         super().__init__()
         self.m_info = info
         slang_type = layout.find_type_by_name(info.slang_type_name)
@@ -44,6 +50,7 @@ class WriteToCursorMarshall(NativeValueMarshall):
     def resolve_types(
         self, context: BindContext, bound_type: spyref.SlangType
     ) -> list[spyref.SlangType]:
+        """Allow binding only to the exact Slang type family accepted by this writer."""
         if self.m_info.accepts_type(bound_type):
             return [bound_type]
         return []
@@ -54,6 +61,7 @@ class WriteToCursorMarshall(NativeValueMarshall):
         binding: BoundVariable,
         vector_target_type: spyref.SlangType,
     ) -> int | None:
+        """Native cursor-writer values bind as scalar values with no vectorized dimensions."""
         if self.m_info.accepts_type(vector_target_type):
             return 0
         return None
@@ -64,12 +72,14 @@ class WriteToCursorMarshall(NativeValueMarshall):
         context: BindContext,
         binding: BoundVariable,
     ) -> None:
+        """Emit imports and use the target Slang type directly as the call-data type."""
         assert binding.vector_type is not None
         for import_name in self.m_info.imports:
             cgb.add_import(import_name)
         binding.gen_calldata_type_name(cgb, binding.vector_type.full_name)
 
     def can_direct_bind(self, binding: BoundVariable) -> bool:
+        """Use direct binding only for read-only scalar values."""
         return can_direct_bind_common(binding) and binding.access[0] == AccessType.read
 
     def gen_trampoline_load(
@@ -79,6 +89,7 @@ class WriteToCursorMarshall(NativeValueMarshall):
         data_name: str,
         value_name: str,
     ) -> bool:
+        """Load the entry-point value directly; writable cursor writers have no readback path."""
         if not binding.direct_bind:
             raise BoundVariableException(
                 "WriteToCursorMarshall only supports read-only scalar direct binding.",
@@ -96,6 +107,13 @@ def register_write_to_cursor_type(
     imports: Iterable[str] = (),
     accepted_type_regex: str | re.Pattern[str] | None = None,
 ) -> None:
+    """
+    Register a Python-visible value type for WriteToCursorMarshall construction.
+
+    This is the Python registry side of the cursor-writer contract. Native values normally
+    arrive through ``register_cursor_writer<T>()`` and are discovered from the native registry;
+    this helper keeps Python-only/future registrations on the same metadata shape.
+    """
     if python_type in PYTHON_TYPES or python_type in PYTHON_SIGNATURES:
         raise ValueError(
             f"Python type '{python_type.__name__}' is already registered with SlangPy."

@@ -86,6 +86,7 @@ namespace {
         }
     }
 
+    // Return the underlying C++ pointer when a Python object is backed by the requested nanobind type.
     bool native_cursor_writer_pointer(const std::type_info& type, nb::handle obj, void*& value)
     {
         return nb::detail::nb_type_get(
@@ -97,6 +98,8 @@ namespace {
         );
     }
 
+    // Resolve a Python-visible native object to a registered cursor-writer entry.
+    // Exact native type wins; registered base classes are considered afterwards for Python subclasses.
     const cursor_utils::CursorWriterTypeInfo* find_native_cursor_writer(nb::handle obj, void*& value)
     {
         auto infos = cursor_utils::cursor_writer_type_infos();
@@ -125,6 +128,7 @@ namespace {
         return nullptr;
     }
 
+    // A value must be owned by either the new cursor-writer path or the legacy get_this path, not both.
     void check_native_cursor_writer_get_this_conflict(nb::handle obj, const std::type_info& type)
     {
         auto get_this = nb::getattr(obj, "get_this", nb::none());
@@ -136,6 +140,7 @@ namespace {
         }
     }
 
+    // Expose native cursor-writer metadata to Python type lookup so it can build WriteToCursorMarshall.
     nb::object get_native_cursor_writer_type_info(nb::handle obj)
     {
         void* value = nullptr;
@@ -164,36 +169,36 @@ namespace {
     }
 } // anonymous namespace
 
-    uint3 dispatch_thread_count_from_total_threads(const Device* device, uint3 thread_group_size, int total_threads)
-    {
-        SGL_CHECK(total_threads >= 0, "total_threads must be non-negative, got {}", total_threads);
-        SGL_CHECK(
-            thread_group_size.x > 0,
-            "Compute pipeline has invalid thread group size ({}, {}, {})",
-            thread_group_size.x,
-            thread_group_size.y,
-            thread_group_size.z
-        );
+uint3 dispatch_thread_count_from_total_threads(const Device* device, uint3 thread_group_size, int total_threads)
+{
+    SGL_CHECK(total_threads >= 0, "total_threads must be non-negative, got {}", total_threads);
+    SGL_CHECK(
+        thread_group_size.x > 0,
+        "Compute pipeline has invalid thread group size ({}, {}, {})",
+        thread_group_size.x,
+        thread_group_size.y,
+        thread_group_size.z
+    );
 
-        const auto& limits = device->info().limits.max_compute_dispatch_thread_groups;
-        const uint64_t dispatch_groups_x = std::min(limits.x, kSlangPyMaxDispatchThreadGroupsX);
-        SGL_CHECK(dispatch_groups_x > 0, "Device reports zero compute dispatch groups in X");
+    const auto& limits = device->info().limits.max_compute_dispatch_thread_groups;
+    const uint64_t dispatch_groups_x = std::min(limits.x, kSlangPyMaxDispatchThreadGroupsX);
+    SGL_CHECK(dispatch_groups_x > 0, "Device reports zero compute dispatch groups in X");
 
-        const uint64_t threads_per_row = dispatch_groups_x * uint64_t(thread_group_size.x);
-        const uint64_t thread_count = uint64_t(total_threads);
-        const uint64_t dispatch_x = std::min(thread_count, threads_per_row);
-        const uint64_t dispatch_y = (thread_count + threads_per_row - 1) / threads_per_row;
+    const uint64_t threads_per_row = dispatch_groups_x * uint64_t(thread_group_size.x);
+    const uint64_t thread_count = uint64_t(total_threads);
+    const uint64_t dispatch_x = std::min(thread_count, threads_per_row);
+    const uint64_t dispatch_y = (thread_count + threads_per_row - 1) / threads_per_row;
 
-        SGL_CHECK(
-            dispatch_y <= limits.y,
-            "SlangPy dispatch of {} logical threads requires {} Y dispatch groups, exceeding device limit {}",
-            total_threads,
-            dispatch_y,
-            limits.y
-        );
+    SGL_CHECK(
+        dispatch_y <= limits.y,
+        "SlangPy dispatch of {} logical threads requires {} Y dispatch groups, exceeding device limit {}",
+        total_threads,
+        dispatch_y,
+        limits.y
+    );
 
-        return uint3(uint32_t(dispatch_x), uint32_t(dispatch_y), 1);
-    }
+    return uint3(uint32_t(dispatch_x), uint32_t(dispatch_y), 1);
+}
 } // anonymous namespace
 
 nb::bytes SignatureBuilder::bytes() const
@@ -1172,6 +1177,7 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
             if (!info->has_functional_metadata) {
                 SGL_THROW("Registered cursor writer type \"{}\" has no Slang type metadata.", info->type->name());
             }
+            // Native cursor writers own their cache key. This avoids Python predicates in the hot signature path.
             builder << type_info.name() << "\n";
             info->write_signature(builder, cursor_writer_value);
             builder << "\n";
@@ -1256,7 +1262,7 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
     auto type_name = nb::str(nb::getattr(o.type(), "__name__"));
     builder << type_name.c_str() << "\n";
 
-    // Use registered value signature before legacy object-unpacking fallbacks.
+    // Python-side registrations and slangpy_signature win over legacy get_this unpacking.
     std::optional<std::string> s = lookup_value_signature(o);
     if (s.has_value()) {
         builder << s->c_str() << "\n";

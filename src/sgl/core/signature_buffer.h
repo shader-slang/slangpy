@@ -20,10 +20,14 @@ public:
     SignatureBuffer(const SignatureBuffer&) = delete;
     SignatureBuffer& operator=(const SignatureBuffer&) = delete;
 
+    /// Append string data exactly as bytes; no separators or terminators are added.
     void add(const std::string& value) { add_bytes(reinterpret_cast<const uint8_t*>(value.data()), value.length()); }
+    /// Append string-view data exactly as bytes; no separators or terminators are added.
     void add(std::string_view value) { add_bytes(reinterpret_cast<const uint8_t*>(value.data()), value.length()); }
+    /// Append a null-terminated string without the trailing null byte.
     void add(const char* value) { add_bytes(reinterpret_cast<const uint8_t*>(value), std::strlen(value)); }
 
+    /// Append a 32-bit value as fixed-width lower-case hexadecimal text.
     void add(uint32_t value)
     {
         static constexpr char hex[] = "0123456789abcdef";
@@ -33,6 +37,7 @@ public:
         add_bytes(buf, 8);
     }
 
+    /// Append a 64-bit value as fixed-width lower-case hexadecimal text.
     void add(uint64_t value)
     {
         static constexpr char hex[] = "0123456789abcdef";
@@ -49,11 +54,13 @@ public:
         return *this;
     }
 
+    /// Return a non-owning view of the accumulated signature bytes.
     std::string_view view() const { return {reinterpret_cast<const char*>(m_buf.data()), m_buf.size()}; }
 
 private:
     short_vector<uint8_t, 1024> m_buf;
 
+    /// Shared append primitive used by all public add overloads.
     void add_bytes(const uint8_t* data, size_t sz)
     {
         size_t old_size = m_buf.size();

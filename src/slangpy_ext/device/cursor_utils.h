@@ -491,6 +491,7 @@ private:
 
     static std::string python_type_name(nb::object nbval) { return nb::cast<std::string>(nb::str(nbval.type())); }
 
+    // Recover the C++ object pointer that backs a nanobind object for a registered native type.
     static bool native_object_pointer(const std::type_info& type, nb::object nbval, void*& value)
     {
         return nb::detail::nb_type_get(
@@ -502,6 +503,7 @@ private:
         );
     }
 
+    // Check whether the registry entry has a writer for this converter's cursor kind.
     static bool has_native_object_writer(const cursor_utils::CursorWriterTypeInfo& info)
     {
         if constexpr (std::same_as<CursorType, ShaderCursor>) {
@@ -511,6 +513,7 @@ private:
         }
     }
 
+    // Invoke the erased writer after confirming the Python object is backed by the registered C++ type.
     bool invoke_native_object_writer(const cursor_utils::CursorWriterTypeInfo& info, CursorType& self, nb::object nbval)
     {
         if (!has_native_object_writer(info))
@@ -531,6 +534,7 @@ private:
         }
     }
 
+    // Try the combined native cursor-writer registry before falling back to dict/list unpacking.
     bool write_registered_native_object(CursorType& self, nb::object nbval)
     {
         auto infos = cursor_utils::cursor_writer_type_infos();
@@ -559,10 +563,10 @@ private:
                 return true;
         }
 
-
         return false;
     }
 
+    // Preserve the legacy get_this wrapper path for values that are not native cursor writers.
     bool try_unpack_and_retry(CursorType& self, nb::object obj)
     {
         bool had_unpack = false;

@@ -96,6 +96,7 @@ public:
         return *this;
     }
 
+    /// Let values that know how to write to ShaderCursor populate this cursor directly.
     template<typename T>
         requires(HasWriteToCursor<T, ShaderCursor>)
     void set(const T& value)
@@ -103,6 +104,7 @@ public:
         value.write_to_cursor(*this);
     }
 
+    /// Fall back to the built-in ShaderCursor setter specializations for non cursor-writer values.
     template<typename T>
         requires(!HasWriteToCursor<T, ShaderCursor>)
     void set(const T& value);

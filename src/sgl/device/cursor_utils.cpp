@@ -8,6 +8,8 @@ namespace cursor_utils {
 
     namespace {
 
+        // Process-wide registry for native cursor-writer descriptors.
+        // Registration happens during extension/module initialization and lookup happens on hot paths.
         std::vector<CursorWriterTypeInfo>& cursor_writer_type_info_registry()
         {
             static std::vector<CursorWriterTypeInfo> infos;
@@ -42,6 +44,8 @@ namespace cursor_utils {
             if (!(*entry.type == *info.type))
                 continue;
 
+            // Legacy one-sided registrations can arrive separately; merge them into
+            // the same descriptor while still rejecting duplicate writers.
             if (info.write_shader_cursor) {
                 if (entry.write_shader_cursor) {
                     SGL_THROW("ShaderCursor object writer for type \"{}\" is already registered.", info.type->name());
