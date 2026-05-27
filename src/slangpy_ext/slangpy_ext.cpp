@@ -27,6 +27,8 @@ SGL_PY_DECLARE(core_thread);
 SGL_PY_DECLARE(core_timer);
 SGL_PY_DECLARE(core_window);
 
+SGL_PY_DECLARE(native_func);
+
 SGL_PY_DECLARE(device_buffer_cursor);
 SGL_PY_DECLARE(device_child);
 SGL_PY_DECLARE(device_command);
@@ -58,11 +60,11 @@ SGL_PY_DECLARE(math_quaternion);
 SGL_PY_DECLARE(ui);
 SGL_PY_DECLARE(ui_widgets);
 
+SGL_PY_DECLARE(native_refl);
+
 SGL_PY_DECLARE(utils_crashpad);
 SGL_PY_DECLARE(utils_renderdoc);
 SGL_PY_DECLARE(utils_slangpy);
-SGL_PY_DECLARE(utils_slangpy_strided_buffer_view);
-SGL_PY_DECLARE(utils_slangpy_buffer);
 SGL_PY_DECLARE(utils_slangpy_function);
 SGL_PY_DECLARE(utils_slangpy_packedarg);
 SGL_PY_DECLARE(utils_slangpy_resources);
@@ -154,9 +156,9 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(utils_crashpad);
     SGL_PY_IMPORT(utils_renderdoc);
 
+    SGL_PY_IMPORT(native_refl);
+    SGL_PY_IMPORT(native_func);
     SGL_PY_IMPORT(utils_slangpy);
-    SGL_PY_IMPORT(utils_slangpy_strided_buffer_view);
-    SGL_PY_IMPORT(utils_slangpy_buffer);
     SGL_PY_IMPORT(utils_slangpy_function);
     SGL_PY_IMPORT(utils_slangpy_packedarg);
     SGL_PY_IMPORT(utils_slangpy_resources);

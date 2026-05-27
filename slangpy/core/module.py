@@ -6,6 +6,7 @@ from slangpy.core.struct import Struct
 
 from slangpy import Pipeline, ShaderTable, SlangModule, Device, Logger
 from slangpy.core.native import NativeCallDataCache
+from slangpy.native_func import BaseModule
 from slangpy.reflection import SlangProgramLayout
 from slangpy.bindings.typeregistry import lookup_signature_callback
 
@@ -43,7 +44,7 @@ class CallDataCache(NativeCallDataCache):
             return None
 
 
-class Module:
+class Module(BaseModule):
     """
     A Slang module, created either by loading a slang file or providing a loaded SGL module.
     """
@@ -54,22 +55,24 @@ class Module:
         options: dict[str, Any] = {},
         link: Sequence[Union["Module", SlangModule]] = [],
     ):
-        super().__init__()
         _register_hot_reload_hook(device_module.session.device)
         assert isinstance(device_module, SlangModule)
-        self.options = options
 
         # Normalize link list to SlangModule instances
-        link_slang_modules = [x.module if isinstance(x, Module) else x for x in link]
+        link_slang_modules = [x.device_module if isinstance(x, Module) else x for x in link]
 
         # Load slangpy module
-        self.slangpy_device_module = device_module.session.load_module("slangpy")
+        slangpy_device_module = device_module.session.load_module("slangpy")
 
         # Always compose the module with slangpy and any links
-        all_modules = [self.slangpy_device_module, device_module] + link_slang_modules
+        all_modules = [slangpy_device_module, device_module] + link_slang_modules
         composed = device_module.session.compose_modules(device_module.name, all_modules)
-        self.device_module = composed
-        self.layout = SlangProgramLayout(composed.layout)
+        layout = SlangProgramLayout(composed.layout)
+
+        super().__init__(composed, layout)
+
+        self.options = options
+        self.slangpy_device_module = slangpy_device_module
 
         # Store link modules (excluding slangpy)
         # TODO: We should remove this, but some applications currently still rely on this.
@@ -84,7 +87,7 @@ class Module:
         self._attr_cache: dict[str, Union[Function, Struct]] = {}
         self._all_functions: weakref.WeakSet[Function] = weakref.WeakSet()
 
-        LOADED_MODULES[self.device_module.name] = self
+        LOADED_MODULES[self.name] = self
 
     @staticmethod
     def load_from_source(
@@ -124,34 +127,6 @@ class Module:
         Load a module from a Slang module.
         """
         return Module(module, options=options, link=link)
-
-    @property
-    def name(self):
-        """
-        The name of the module.
-        """
-        return self.device_module.name
-
-    @property
-    def module(self):
-        """
-        The SGL Slang module this wraps.
-        """
-        return self.device_module
-
-    @property
-    def session(self):
-        """
-        The SGL Slang session this module is part of.
-        """
-        return self.device_module.session
-
-    @property
-    def device(self):
-        """
-        The SGL device this module is part of.
-        """
-        return self.session.device
 
     def find_struct(self, name: str):
         """
@@ -209,8 +184,7 @@ class Module:
         """
         Called by device when the module is hot reloaded.
         """
-        # C++ side handles reload for composed modules; layout returns fresh combined layout.
-        self.layout.on_hot_reload(self.device_module.layout)
+        BaseModule.on_hot_reload(self, self.device_module, self.device_module.layout)
 
         # Create new cache and update all tracked Function objects
         self.call_data_cache = CallDataCache()

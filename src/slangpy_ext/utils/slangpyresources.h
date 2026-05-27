@@ -20,7 +20,7 @@ namespace sgl::slangpy {
 
 class NativeBufferMarshall : public NativeMarshall {
 public:
-    NativeBufferMarshall(ref<NativeSlangType> slang_type, BufferUsage usage)
+    NativeBufferMarshall(ref<refl::Type> slang_type, BufferUsage usage)
         : NativeMarshall(slang_type)
         , m_usage(usage)
     {
@@ -47,8 +47,8 @@ private:
 class NativeTextureMarshall : public NativeMarshall {
 public:
     NativeTextureMarshall(
-        ref<NativeSlangType> slang_type,
-        ref<NativeSlangType> element_type,
+        ref<refl::Type> slang_type,
+        ref<refl::Type> element_type,
         TypeReflection::ResourceShape resource_shape,
         Format format,
         TextureUsage usage,
@@ -66,7 +66,7 @@ public:
     TypeReflection::ResourceShape resource_shape() const { return m_resource_shape; }
     TextureUsage usage() const { return m_usage; }
     int texture_dims() const { return m_texture_dims; }
-    ref<NativeSlangType> slang_element_type() const { return m_slang_element_type; }
+    ref<refl::Type> slang_element_type() const { return m_slang_element_type; }
 
     void write_shader_cursor_pre_dispatch(
         CallContext* context,
@@ -91,12 +91,12 @@ private:
     Format m_format;
     TextureUsage m_usage;
     int m_texture_dims;
-    ref<NativeSlangType> m_slang_element_type;
+    ref<refl::Type> m_slang_element_type;
 };
 
 class NativeDescriptorMarshall : public NativeMarshall {
 public:
-    NativeDescriptorMarshall(ref<NativeSlangType> slang_type, DescriptorHandleType type)
+    NativeDescriptorMarshall(ref<refl::Type> slang_type, DescriptorHandleType type)
         : NativeMarshall(slang_type)
         , m_type(type)
     {

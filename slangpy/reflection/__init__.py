@@ -31,7 +31,6 @@ from .reflectiontypes import (
     SlangField,
     SlangParameter,
     SlangProgramLayout,
-    TYPE_OVERRIDES,
     is_matching_array_type,
     is_unknown,
     is_known,

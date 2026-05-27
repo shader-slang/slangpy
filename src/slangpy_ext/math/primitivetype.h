@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#pragma once
+
 #include "nanobind.h"
 #include "sgl/core/error.h"
 

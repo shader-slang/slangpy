@@ -70,6 +70,35 @@ def test_device_close_handler(device_type: spy.DeviceType):
     assert count == 1
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_execute_callback(device_type: spy.DeviceType):
+    device = helpers.get_device(device_type)
+    expected_handle_types: dict[spy.DeviceType, spy.NativeHandleType] = {
+        spy.DeviceType.d3d12: spy.NativeHandleType.D3D12GraphicsCommandList,
+        spy.DeviceType.vulkan: spy.NativeHandleType.VkCommandBuffer,
+        spy.DeviceType.metal: spy.NativeHandleType.MTLCommandBuffer,
+        spy.DeviceType.cuda: spy.NativeHandleType.CUstream,
+    }
+
+    handles: list[spy.NativeHandle] = []
+
+    def on_execute(native_handle: spy.NativeHandle) -> None:
+        handles.append(native_handle)
+
+    encoder = device.create_command_encoder()
+    encoder.execute_callback(on_execute)
+
+    command_buffer = encoder.finish()
+    device.submit_command_buffer(command_buffer)
+    device.wait()
+
+    assert len(handles) == 1
+    assert handles[0].type == expected_handle_types[device_type]
+    assert handles[0]
+    if device_type != spy.DeviceType.cuda:
+        assert handles[0].value != 0
+
+
 # Checks fix for alignment issues when creating/accessing a small buffer,
 # followed by creating/accessing a texture.
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
