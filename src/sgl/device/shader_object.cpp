@@ -84,7 +84,7 @@ ref<ShaderObject> ShaderObject::get_object(const ShaderOffset& offset)
     return shader_object;
 }
 
-void ShaderObject::set_object(const ShaderOffset& offset, const ref<ShaderObject>& object)
+void ShaderObject::set_object(const ShaderOffset& offset, const ref<const ShaderObject>& object)
 {
     SLANG_RHI_CALL(
         m_shader_object->setObject(rhi_shader_offset(offset), object ? object->rhi_shader_object() : nullptr),
@@ -92,7 +92,7 @@ void ShaderObject::set_object(const ShaderOffset& offset, const ref<ShaderObject
     );
 }
 
-void ShaderObject::set_buffer(const ShaderOffset& offset, const ref<Buffer>& buffer)
+void ShaderObject::set_buffer(const ShaderOffset& offset, const ref<const Buffer>& buffer)
 {
     SLANG_RHI_CALL(
         m_shader_object->setBinding(rhi_shader_offset(offset), rhi::Binding(buffer ? buffer->rhi_buffer() : nullptr)),
@@ -100,7 +100,7 @@ void ShaderObject::set_buffer(const ShaderOffset& offset, const ref<Buffer>& buf
     );
 }
 
-void ShaderObject::set_buffer_view(const ShaderOffset& offset, const ref<BufferView>& buffer_view)
+void ShaderObject::set_buffer_view(const ShaderOffset& offset, const ref<const BufferView>& buffer_view)
 {
     SLANG_RHI_CALL(
         m_shader_object->setBinding(
@@ -114,7 +114,7 @@ void ShaderObject::set_buffer_view(const ShaderOffset& offset, const ref<BufferV
     );
 }
 
-void ShaderObject::set_texture(const ShaderOffset& offset, const ref<Texture>& texture)
+void ShaderObject::set_texture(const ShaderOffset& offset, const ref<const Texture>& texture)
 {
     SLANG_RHI_CALL(
         m_shader_object
@@ -123,7 +123,7 @@ void ShaderObject::set_texture(const ShaderOffset& offset, const ref<Texture>& t
     );
 }
 
-void ShaderObject::set_texture_view(const ShaderOffset& offset, const ref<TextureView>& texture_view)
+void ShaderObject::set_texture_view(const ShaderOffset& offset, const ref<const TextureView>& texture_view)
 {
     SLANG_RHI_CALL(
         m_shader_object->setBinding(
@@ -134,7 +134,7 @@ void ShaderObject::set_texture_view(const ShaderOffset& offset, const ref<Textur
     );
 }
 
-void ShaderObject::set_sampler(const ShaderOffset& offset, const ref<Sampler>& sampler)
+void ShaderObject::set_sampler(const ShaderOffset& offset, const ref<const Sampler>& sampler)
 {
     // CUDA does not support samplers and slang-rhi returns an error when trying to set a sampler.
     // To improve compatibility with binding code for other backends, we skip setting samplers on CUDA.
@@ -149,7 +149,7 @@ void ShaderObject::set_sampler(const ShaderOffset& offset, const ref<Sampler>& s
 
 void ShaderObject::set_acceleration_structure(
     const ShaderOffset& offset,
-    const ref<AccelerationStructure>& acceleration_structure
+    const ref<const AccelerationStructure>& acceleration_structure
 )
 {
     SLANG_RHI_CALL(

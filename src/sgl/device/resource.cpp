@@ -259,12 +259,12 @@ DescriptorHandle Buffer::descriptor_handle_rw() const
     return DescriptorHandle(rhi_handle);
 }
 
-void Buffer::write_to_cursor(ShaderCursor& cursor) const
+void Buffer::write_to_cursor(const ShaderCursor& cursor) const
 {
-    cursor.set_buffer(ref<Buffer>(const_cast<Buffer*>(this)));
+    cursor.set_buffer(ref<const Buffer>(this));
 }
 
-void Buffer::write_to_cursor(BufferElementCursor& cursor) const
+void Buffer::write_to_cursor(const BufferElementCursor& cursor) const
 {
     SGL_UNUSED(cursor);
     SGL_THROW("Buffer cannot be written to a BufferElementCursor.");
@@ -544,12 +544,12 @@ DescriptorHandle Texture::descriptor_handle_combined() const
     return DescriptorHandle(rhi_handle);
 }
 
-void Texture::write_to_cursor(ShaderCursor& cursor) const
+void Texture::write_to_cursor(const ShaderCursor& cursor) const
 {
-    cursor.set_texture(ref<Texture>(const_cast<Texture*>(this)));
+    cursor.set_texture(ref<const Texture>(this));
 }
 
-void Texture::write_to_cursor(BufferElementCursor& cursor) const
+void Texture::write_to_cursor(const BufferElementCursor& cursor) const
 {
     SGL_UNUSED(cursor);
     SGL_THROW("Texture cannot be written to a BufferElementCursor.");

@@ -396,9 +396,9 @@ public:
     DescriptorHandle descriptor_handle_rw() const;
 
     /// Bind this buffer to a shader cursor.
-    void write_to_cursor(ShaderCursor& cursor) const;
+    void write_to_cursor(const ShaderCursor& cursor) const;
     /// Resource objects cannot be serialized into buffer cursor storage.
-    void write_to_cursor(BufferElementCursor& cursor) const;
+    void write_to_cursor(const BufferElementCursor& cursor) const;
     /// Write the SlangPy cache signature used by functional dispatch.
     void write_slangpy_signature(SignatureBuffer& signature) const;
 
@@ -637,9 +637,9 @@ public:
     DescriptorHandle descriptor_handle_combined() const;
 
     /// Bind this texture to a shader cursor.
-    void write_to_cursor(ShaderCursor& cursor) const;
+    void write_to_cursor(const ShaderCursor& cursor) const;
     /// Resource objects cannot be serialized into buffer cursor storage.
-    void write_to_cursor(BufferElementCursor& cursor) const;
+    void write_to_cursor(const BufferElementCursor& cursor) const;
     /// Write the SlangPy cache signature used by functional dispatch.
     void write_slangpy_signature(SignatureBuffer& signature) const;
 

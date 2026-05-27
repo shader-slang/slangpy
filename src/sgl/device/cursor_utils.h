@@ -21,9 +21,9 @@
 
 namespace sgl {
 
-/// True when T can write itself to the exact cursor type that will be passed.
+/// True when T can write itself through the exact cursor type that will be passed.
 template<typename T, typename TCursor>
-concept HasWriteToCursor = requires(const T& obj, TCursor& cursor) {
+concept HasWriteToCursor = requires(const T& obj, const TCursor& cursor) {
     { obj.write_to_cursor(cursor) };
 };
 

@@ -67,14 +67,14 @@ public:
     // Resource binding
     //
 
-    void set_object(const ref<ShaderObject>& object) const;
+    void set_object(const ref<const ShaderObject>& object) const;
 
-    void set_buffer(const ref<Buffer>& buffer) const;
-    void set_buffer_view(const ref<BufferView>& buffer_view) const;
-    void set_texture(const ref<Texture>& texture) const;
-    void set_texture_view(const ref<TextureView>& texture_view) const;
-    void set_sampler(const ref<Sampler>& sampler) const;
-    void set_acceleration_structure(const ref<AccelerationStructure>& acceleration_structure) const;
+    void set_buffer(const ref<const Buffer>& buffer) const;
+    void set_buffer_view(const ref<const BufferView>& buffer_view) const;
+    void set_texture(const ref<const Texture>& texture) const;
+    void set_texture_view(const ref<const TextureView>& texture_view) const;
+    void set_sampler(const ref<const Sampler>& sampler) const;
+    void set_acceleration_structure(const ref<const AccelerationStructure>& acceleration_structure) const;
 
     void set_descriptor_handle(const DescriptorHandle& handle) const;
 
@@ -99,7 +99,7 @@ public:
     /// Let values that know how to write to ShaderCursor populate this cursor directly.
     template<typename T>
         requires(HasWriteToCursor<T, ShaderCursor>)
-    void set(const T& value)
+    void set(const T& value) const
     {
         value.write_to_cursor(*this);
     }
@@ -107,7 +107,7 @@ public:
     /// Fall back to the built-in ShaderCursor setter specializations for non cursor-writer values.
     template<typename T>
         requires(!HasWriteToCursor<T, ShaderCursor>)
-    void set(const T& value);
+    void set(const T& value) const;
 
     void _set_array_unsafe(
         const void* data,

@@ -21,7 +21,7 @@ struct NestedTestStruct {
     uint32_t data = 123;
 
     template<typename TCursor>
-    void write_to_cursor(TCursor& cursor) const
+    void write_to_cursor(const TCursor& cursor) const
     {
         cursor["data"] = data;
     }
@@ -32,7 +32,7 @@ struct TestStruct {
     NestedTestStruct nested;
 
     template<typename TCursor>
-    void write_to_cursor(TCursor& cursor) const
+    void write_to_cursor(const TCursor& cursor) const
     {
         cursor["f0"] = f0;
         cursor["nested"] = nested;
@@ -42,7 +42,7 @@ struct TestStruct {
 struct ShaderCursorOnlyStruct {
     static inline bool wrote = false;
 
-    void write_to_cursor(ShaderCursor& cursor) const
+    void write_to_cursor(const ShaderCursor& cursor) const
     {
         (void)cursor;
         wrote = true;
@@ -52,7 +52,7 @@ struct ShaderCursorOnlyStruct {
 struct BufferCursorOnlyStruct {
     static inline bool wrote = false;
 
-    void write_to_cursor(BufferElementCursor& cursor) const
+    void write_to_cursor(const BufferElementCursor& cursor) const
     {
         (void)cursor;
         wrote = true;
@@ -60,8 +60,8 @@ struct BufferCursorOnlyStruct {
 };
 
 struct BothCursorStruct {
-    void write_to_cursor(ShaderCursor& cursor) const { (void)cursor; }
-    void write_to_cursor(BufferElementCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const ShaderCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const BufferElementCursor& cursor) const { (void)cursor; }
 };
 
 struct NoWriteToCursorStruct { };
@@ -82,13 +82,13 @@ namespace sgl::cursor_tests {
 struct RegistryShaderOnlyStruct {
     static constexpr std::string_view slang_type_name = "RegistryShaderOnly";
 
-    void write_to_cursor(ShaderCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const ShaderCursor& cursor) const { (void)cursor; }
 };
 
 struct RegistryBufferOnlyStruct {
     static constexpr std::string_view slang_type_name = "RegistryBufferOnly";
 
-    void write_to_cursor(BufferElementCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const BufferElementCursor& cursor) const { (void)cursor; }
 };
 
 struct RegistryDefaultSignatureStruct {
@@ -96,13 +96,13 @@ struct RegistryDefaultSignatureStruct {
     static inline bool wrote_shader = false;
     static inline bool wrote_buffer = false;
 
-    void write_to_cursor(ShaderCursor& cursor) const
+    void write_to_cursor(const ShaderCursor& cursor) const
     {
         (void)cursor;
         wrote_shader = true;
     }
 
-    void write_to_cursor(BufferElementCursor& cursor) const
+    void write_to_cursor(const BufferElementCursor& cursor) const
     {
         (void)cursor;
         wrote_buffer = true;
@@ -115,13 +115,13 @@ struct RegistryMetadataStruct {
     static inline bool wrote_buffer = false;
     static inline int imports_calls = 0;
 
-    void write_to_cursor(ShaderCursor& cursor) const
+    void write_to_cursor(const ShaderCursor& cursor) const
     {
         (void)cursor;
         wrote_shader = true;
     }
 
-    void write_to_cursor(BufferElementCursor& cursor) const
+    void write_to_cursor(const BufferElementCursor& cursor) const
     {
         (void)cursor;
         wrote_buffer = true;
@@ -140,8 +140,8 @@ struct RegistryStaticStringSignatureStruct {
     static constexpr std::string_view slang_type_name = "RegistryStaticString";
     static constexpr std::string_view slangpy_signature = "sig:static-string";
 
-    void write_to_cursor(ShaderCursor& cursor) const { (void)cursor; }
-    void write_to_cursor(BufferElementCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const ShaderCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const BufferElementCursor& cursor) const { (void)cursor; }
 };
 
 struct RegistryDynamicSignatureStruct {
@@ -149,8 +149,8 @@ struct RegistryDynamicSignatureStruct {
 
     uint32_t kind = 0;
 
-    void write_to_cursor(ShaderCursor& cursor) const { (void)cursor; }
-    void write_to_cursor(BufferElementCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const ShaderCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const BufferElementCursor& cursor) const { (void)cursor; }
 
     void write_slangpy_signature(SignatureBuffer& sig) const
     {
@@ -163,13 +163,13 @@ struct RegistryMissingSlangTypeNameStruct {
     static inline bool wrote_shader = false;
     static inline bool wrote_buffer = false;
 
-    void write_to_cursor(ShaderCursor& cursor) const
+    void write_to_cursor(const ShaderCursor& cursor) const
     {
         (void)cursor;
         wrote_shader = true;
     }
 
-    void write_to_cursor(BufferElementCursor& cursor) const
+    void write_to_cursor(const BufferElementCursor& cursor) const
     {
         (void)cursor;
         wrote_buffer = true;
@@ -179,15 +179,15 @@ struct RegistryMissingSlangTypeNameStruct {
 struct RegistryWriterOnlyStaticSignatureStruct {
     static constexpr std::string_view slangpy_signature = "sig:writer-only-static";
 
-    void write_to_cursor(ShaderCursor& cursor) const { (void)cursor; }
-    void write_to_cursor(BufferElementCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const ShaderCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const BufferElementCursor& cursor) const { (void)cursor; }
 };
 
 struct RegistryDuplicateStruct {
     static constexpr std::string_view slang_type_name = "RegistryDuplicate";
 
-    void write_to_cursor(ShaderCursor& cursor) const { (void)cursor; }
-    void write_to_cursor(BufferElementCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const ShaderCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(const BufferElementCursor& cursor) const { (void)cursor; }
 };
 
 struct RegistryPartialMetadataStruct { };

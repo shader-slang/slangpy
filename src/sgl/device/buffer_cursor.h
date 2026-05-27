@@ -50,9 +50,9 @@ public:
     bool has_field(std::string_view name) const { return find_field(name).is_valid(); }
     bool has_element(uint32_t index) const { return find_element(index).is_valid(); }
 
-    void set_pointer(uint64_t pointer_value);
+    void set_pointer(uint64_t pointer_value) const;
 
-    void set_data(const void* data, size_t size);
+    void set_data(const void* data, size_t size) const;
 
     template<typename T>
     BufferElementCursor& operator=(const T& value)
@@ -74,14 +74,14 @@ public:
 
     template<typename T>
         requires(HasWriteToCursor<T, BufferElementCursor>)
-    void set(const T& value)
+    void set(const T& value) const
     {
         value.write_to_cursor(*this);
     }
 
     template<typename T>
         requires(!HasWriteToCursor<T, BufferElementCursor>)
-    void set(const T& value);
+    void set(const T& value) const;
 
     void _set_offset(size_t new_offset) { m_offset = new_offset; }
 
