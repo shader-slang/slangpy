@@ -435,12 +435,7 @@ public:
     }
 
     /// Virtual for writing none-basic value types.
-    virtual bool write_value(CursorType& self, nb::object nbval)
-    {
-        SGL_UNUSED(self);
-        SGL_UNUSED(nbval);
-        return false;
-    }
+    virtual bool write_value(CursorType& self, nb::object nbval) { return write_registered_native_object(self, nbval); }
 
     /// Write function inspects the slang type and uses it to try
     /// and convert a Python input to the correct c++ type. For structs
@@ -503,9 +498,22 @@ private:
         );
     }
 
+    // Check whether the registry entry has a writer for this converter's cursor kind.
+    static bool has_native_object_writer(const cursor_utils::CursorWriterTypeInfo& info)
+    {
+        if constexpr (std::same_as<CursorType, ShaderCursor>) {
+            return bool(info.write_shader_cursor);
+        } else {
+            return bool(info.write_buffer_cursor);
+        }
+    }
+
     // Invoke the erased writer after confirming the Python object is backed by the registered C++ type.
     bool invoke_native_object_writer(const cursor_utils::CursorWriterTypeInfo& info, CursorType& self, nb::object nbval)
     {
+        if (!has_native_object_writer(info))
+            return false;
+
         void* value = nullptr;
         if (!native_object_pointer(*info.type, nbval, value) || value == nullptr)
             return false;
@@ -540,6 +548,8 @@ private:
 
         for (const auto& info : infos) {
             if (exact_type && *info.type == *exact_type)
+                continue;
+            if (!has_native_object_writer(info))
                 continue;
             if (!nb::detail::nb_type_isinstance(nbval.ptr(), info.type))
                 continue;

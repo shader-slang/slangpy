@@ -18,7 +18,7 @@ from slangpy.bindings.typeregistry import (
     lookup_signature_callback,
     lookup_type_callback,
 )
-from slangpy.core.native import NativeValueMarshall
+from slangpy.core.native import NativeCallDataCache, NativeValueMarshall, SignatureBuilder
 
 
 class CursorValueObject:
@@ -58,6 +58,13 @@ struct CursorValue
 def unregister_write_to_cursor_type(python_type: type) -> None:
     PYTHON_TYPES.pop(python_type, None)
     PYTHON_SIGNATURES.pop(python_type, None)
+
+
+def native_value_signature(value: object) -> str:
+    cache = NativeCallDataCache()
+    signature = SignatureBuilder()
+    cache.get_value_signature(signature, value)
+    return signature.str
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -137,6 +144,32 @@ def test_get_or_create_type_prefers_python_registration_over_native_cursor_write
         assert marshall.m_info.signature == "[PythonRegisteredCursorValueObject]"
     finally:
         unregister_write_to_cursor_type(CursorValueObject)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_buffer_and_texture_signatures_use_native_cursor_writer_registry(
+    device_type: spy.DeviceType,
+) -> None:
+    device = helpers.get_device(type=device_type)
+
+    buffer = device.create_buffer(
+        size=4,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    assert native_value_signature(buffer) == f"[{int(buffer.desc.usage)}]"
+
+    texture = device.create_texture(
+        width=4,
+        height=4,
+        format=spy.Format.rgba32_float,
+        usage=spy.TextureUsage.shader_resource,
+    )
+    assert native_value_signature(texture) == (
+        f"[{texture.desc.type.value},"
+        f"{int(texture.desc.usage)},"
+        f"{texture.desc.format.value},"
+        f"{int(texture.desc.array_length)}]"
+    )
 
 
 def test_registered_write_to_cursor_marshall_signature() -> None:

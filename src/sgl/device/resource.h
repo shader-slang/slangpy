@@ -22,6 +22,8 @@
 
 namespace sgl {
 
+class SignatureBuffer;
+
 enum class ResourceState : uint32_t {
     undefined = static_cast<uint32_t>(rhi::ResourceState::Undefined),
     general = static_cast<uint32_t>(rhi::ResourceState::General),
@@ -393,6 +395,13 @@ public:
     /// Get bindless descriptor handle for read-write access.
     DescriptorHandle descriptor_handle_rw() const;
 
+    /// Bind this buffer to a shader cursor.
+    void write_to_cursor(ShaderCursor& cursor) const;
+    /// Resource objects cannot be serialized into buffer cursor storage.
+    void write_to_cursor(BufferElementCursor& cursor) const;
+    /// Write the SlangPy cache signature used by functional dispatch.
+    void write_slangpy_signature(SignatureBuffer& signature) const;
+
     virtual rhi::IResource* rhi_resource() const override { return m_rhi_buffer; }
     rhi::IBuffer* rhi_buffer() const { return m_rhi_buffer; }
 
@@ -626,6 +635,13 @@ public:
     DescriptorHandle descriptor_handle_rw() const;
     /// Get bindless combined texture/sampler descriptor handle.
     DescriptorHandle descriptor_handle_combined() const;
+
+    /// Bind this texture to a shader cursor.
+    void write_to_cursor(ShaderCursor& cursor) const;
+    /// Resource objects cannot be serialized into buffer cursor storage.
+    void write_to_cursor(BufferElementCursor& cursor) const;
+    /// Write the SlangPy cache signature used by functional dispatch.
+    void write_slangpy_signature(SignatureBuffer& signature) const;
 
     /// Get the shared resource handle.
     /// Note: Texture must be created with the \c TextureUsage::shared usage flag.

@@ -7,10 +7,23 @@
 #include "sgl/device/device.h"
 #include "sgl/device/formats.h"
 #include "sgl/device/command.h"
+#include "sgl/device/cursor_utils.h"
 
 #include "sgl/core/bitmap.h"
 
 namespace sgl {
+
+namespace {
+
+    void register_resource_cursor_writers()
+    {
+        if (!cursor_utils::find_cursor_writer_type_info(typeid(Buffer)))
+            cursor_utils::register_cursor_writer<Buffer>();
+        if (!cursor_utils::find_cursor_writer_type_info(typeid(Texture)))
+            cursor_utils::register_cursor_writer<Texture>();
+    }
+
+} // namespace
 
 SGL_DICT_TO_DESC_BEGIN(BufferDesc)
 SGL_DICT_TO_DESC_FIELD(size, size_t)
@@ -354,6 +367,8 @@ inline void texture_from_numpy(Texture* self, nb::ndarray<nb::numpy> data, uint3
 SGL_PY_EXPORT(device_resource)
 {
     using namespace sgl;
+
+    register_resource_cursor_writers();
 
     m.attr("ALL_LAYERS") = ALL_LAYERS;
     m.attr("ALL_MIPS") = ALL_MIPS;

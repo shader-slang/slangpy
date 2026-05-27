@@ -145,7 +145,7 @@ namespace {
     {
         void* value = nullptr;
         const auto* info = find_native_cursor_writer(obj, value);
-        if (!info || !info->has_functional_metadata())
+        if (!info || info->slang_type_name.empty())
             return nb::none();
 
         check_native_cursor_writer_get_this_conflict(obj, *info->type);
@@ -1120,40 +1120,6 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
 NativeCallDataCache::NativeCallDataCache()
 {
     m_cache.reserve(1024);
-
-    m_type_signature_table[typeid(Texture)] = [](SignatureBuffer& builder, nb::handle o)
-    {
-        auto tex = nb::cast<Texture*>(o);
-
-        // Note: Using snprintf here as fmt library is quite
-        // a bit slower for this use case. (over 4x).
-        char temp[256];
-        std::snprintf(
-            temp,
-            sizeof(temp),
-            "[%d,%d,%d,%d]",
-            (int)tex->desc().type,
-            (int)tex->desc().usage,
-            (int)tex->desc().format,
-            (int)tex->desc().array_length
-        );
-        builder.add(temp);
-
-        return true;
-    };
-
-    m_type_signature_table[typeid(Buffer)] = [](SignatureBuffer& builder, nb::handle o)
-    {
-        auto buffer = nb::cast<Buffer*>(o);
-
-        // Note: Using snprintf here as fmt library is quite
-        // a bit slower for this use case. (over 4x).
-        char temp[256];
-        std::snprintf(temp, sizeof(temp), "[%d]", (int)buffer->desc().usage);
-        builder.add(temp);
-
-        return true;
-    };
 }
 
 void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::handle o)
@@ -1168,15 +1134,11 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
 
         void* cursor_writer_value = nullptr;
         if (const auto* info = find_native_cursor_writer(o, cursor_writer_value)) {
-            if (info->has_functional_metadata()) {
-                check_native_cursor_writer_get_this_conflict(o, *info->type);
-                // Functional cursor-writer entries own their cache key. Writer-only entries fall through to bespoke
-                // native/Python signature paths such as Buffer, Texture, or DescriptorHandle.
-                builder << type_info.name() << "\n";
-                info->write_signature(builder, cursor_writer_value);
-                builder << "\n";
-                return;
-            }
+            check_native_cursor_writer_get_this_conflict(o, *info->type);
+            // Native cursor-writer entries own their cache key without requiring simple functional fallback metadata.
+            // This is what lets Buffer/Texture keep bespoke marshalls while avoiding the Python signature path.
+            info->write_signature(builder, cursor_writer_value);
+            return;
         }
 
         // If we have a native object, can directly request the signature.
@@ -1188,14 +1150,6 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
             builder << type_info.name() << "\n";
             native_object->read_signature(builder);
             return;
-        }
-
-        // Attempt to use type signature table to lookup type
-        auto it = m_type_signature_table.find(type_info);
-        if (it != m_type_signature_table.end()) {
-            if (it->second(builder, o)) {
-                return;
-            }
         }
     }
 
@@ -1341,13 +1295,12 @@ nb::object unpack_arg(nb::object arg, bool& out_had_unpack)
     void* cursor_writer_value = nullptr;
     const auto* cursor_writer_info = find_native_cursor_writer(obj, cursor_writer_value);
 
-    // If object has 'get_this', read it unless functional cursor-writer marshalling owns the object.
+    // If object has 'get_this', read it unless native cursor-writer metadata owns the object.
     auto get_this = nb::getattr(obj, "get_this", nb::none());
-    const bool cursor_writer_owns_functional_api = cursor_writer_info && cursor_writer_info->has_functional_metadata();
-    if (!get_this.is_none() && cursor_writer_owns_functional_api) {
+    if (!get_this.is_none() && cursor_writer_info) {
         check_native_cursor_writer_get_this_conflict(obj, *cursor_writer_info->type);
     }
-    if (!get_this.is_none() && !cursor_writer_owns_functional_api) {
+    if (!get_this.is_none() && !cursor_writer_info) {
         obj = get_this();
         out_had_unpack = true;
     }

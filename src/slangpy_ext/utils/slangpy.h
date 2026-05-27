@@ -4,7 +4,6 @@
 
 #include <vector>
 #include <map>
-#include <typeindex>
 #include <unordered_map>
 
 #include "nanobind.h"
@@ -871,8 +870,6 @@ private:
 };
 #undef SGL_LOG_FUNC_FAMILY
 
-typedef std::function<bool(SignatureBuffer& builder, nb::handle)> BuildSignatureFunc;
-
 /// Native side of system for caching call data info for given function signatures.
 class NativeCallDataCache : Object {
     SGL_OBJECT(NativeCallDataCache)
@@ -923,7 +920,6 @@ public:
 
 private:
     std::unordered_map<std::string, ref<NativeCallData>, StringHash, StringEqual> m_cache;
-    std::unordered_map<std::type_index, BuildSignatureFunc> m_type_signature_table;
 };
 
 class PyNativeCallDataCache : public NativeCallDataCache {

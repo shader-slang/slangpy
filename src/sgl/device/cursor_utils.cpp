@@ -22,26 +22,20 @@ namespace cursor_utils {
     {
         SGL_CHECK(info.type != nullptr, "Cursor writer type info must specify a type.");
         SGL_CHECK(
-            bool(info.write_shader_cursor),
-            "Cursor writer type info for type \"{}\" must provide a ShaderCursor writer.",
+            bool(info.write_shader_cursor) || bool(info.write_buffer_cursor),
+            "Cursor writer type info for type \"{}\" must provide at least one cursor writer.",
             info.type->name()
         );
         SGL_CHECK(
-            bool(info.write_buffer_cursor),
-            "Cursor writer type info for type \"{}\" must provide a BufferElementCursor writer.",
+            bool(info.write_signature),
+            "Cursor writer type info for type \"{}\" must provide a signature writer.",
             info.type->name()
         );
-        const bool has_functional_metadata
-            = !info.slang_type_name.empty() || bool(info.write_signature) || !info.imports.empty();
-        if (has_functional_metadata) {
+        const bool has_simple_marshall_metadata = !info.slang_type_name.empty() || !info.imports.empty();
+        if (has_simple_marshall_metadata) {
             SGL_CHECK(
                 !info.slang_type_name.empty(),
                 "Functional cursor writer metadata for type \"{}\" must provide a Slang type name.",
-                info.type->name()
-            );
-            SGL_CHECK(
-                bool(info.write_signature),
-                "Functional cursor writer metadata for type \"{}\" must provide a signature writer.",
                 info.type->name()
             );
         }

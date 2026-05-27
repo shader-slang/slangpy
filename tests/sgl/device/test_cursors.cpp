@@ -4,6 +4,7 @@
 #include "sgl/device/device.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/buffer_cursor.h"
+#include "sgl/device/resource.h"
 #include "sgl/device/shader_cursor.h"
 #include <fstream>
 #include <filesystem>
@@ -175,6 +176,13 @@ struct RegistryMissingSlangTypeNameStruct {
     }
 };
 
+struct RegistryWriterOnlyStaticSignatureStruct {
+    static constexpr std::string_view slangpy_signature = "sig:writer-only-static";
+
+    void write_to_cursor(ShaderCursor& cursor) const { (void)cursor; }
+    void write_to_cursor(BufferElementCursor& cursor) const { (void)cursor; }
+};
+
 struct RegistryDuplicateStruct {
     static constexpr std::string_view slang_type_name = "RegistryDuplicate";
 
@@ -184,13 +192,18 @@ struct RegistryDuplicateStruct {
 
 struct RegistryPartialMetadataStruct { };
 struct RegistryImportsWithoutTypeStruct { };
+struct RegistrySignatureOnlyStruct { };
 
 static_assert(cursor_utils::CanRegisterCursorWriter<RegistryMissingSlangTypeNameStruct>);
 static_assert(!cursor_utils::CanRegisterFunctionalCursorWriter<RegistryMissingSlangTypeNameStruct>);
+static_assert(cursor_utils::CanRegisterCursorWriter<RegistryWriterOnlyStaticSignatureStruct>);
+static_assert(!cursor_utils::CanRegisterFunctionalCursorWriter<RegistryWriterOnlyStaticSignatureStruct>);
 static_assert(!cursor_utils::CanRegisterCursorWriter<RegistryShaderOnlyStruct>);
 static_assert(!cursor_utils::CanRegisterCursorWriter<RegistryBufferOnlyStruct>);
 static_assert(cursor_utils::CanRegisterCursorWriter<RegistryDefaultSignatureStruct>);
 static_assert(cursor_utils::CanRegisterFunctionalCursorWriter<RegistryDefaultSignatureStruct>);
+static_assert(cursor_utils::CanRegisterCursorWriter<Buffer>);
+static_assert(cursor_utils::CanRegisterCursorWriter<Texture>);
 
 } // namespace sgl::cursor_tests
 
@@ -227,7 +240,8 @@ TEST_CASE("register_cursor_writer_default_signature_writes_both_cursors")
     REQUIRE(info);
     CHECK(info->write_shader_cursor);
     CHECK(info->write_buffer_cursor);
-    CHECK(info->has_functional_metadata());
+    CHECK(info->write_signature);
+    CHECK_FALSE(info->slang_type_name.empty());
     CHECK_EQ(info->slang_type_name, "RegistryDefault");
 
     RegistryDefaultSignatureStruct value;
@@ -257,7 +271,8 @@ TEST_CASE("register_cursor_writer_static_metadata")
     REQUIRE(info);
     CHECK(info->write_shader_cursor);
     CHECK(info->write_buffer_cursor);
-    CHECK(info->has_functional_metadata());
+    CHECK(info->write_signature);
+    CHECK_FALSE(info->slang_type_name.empty());
     CHECK_EQ(RegistryMetadataStruct::imports_calls, 1);
 
     RegistryMetadataStruct value;
@@ -292,20 +307,43 @@ TEST_CASE("register_cursor_writer_without_functional_metadata")
     REQUIRE(info);
     CHECK(info->write_shader_cursor);
     CHECK(info->write_buffer_cursor);
-    CHECK_FALSE(info->has_functional_metadata());
+    CHECK(info->write_signature);
     CHECK(info->slang_type_name.empty());
-    CHECK_FALSE(bool(info->write_signature));
     CHECK(info->imports.empty());
+
+    RegistryMissingSlangTypeNameStruct value;
+    SignatureBuffer sig;
+    info->write_signature(sig, &value);
+    CHECK(std::string(sig.view()).find("RegistryMissingSlangTypeNameStruct") != std::string::npos);
 
     ShaderCursor shader_cursor{};
     BufferElementCursor buffer_cursor;
-    RegistryMissingSlangTypeNameStruct value;
     RegistryMissingSlangTypeNameStruct::wrote_shader = false;
     RegistryMissingSlangTypeNameStruct::wrote_buffer = false;
     CHECK(info->write_shader_cursor(shader_cursor, &value));
     CHECK(info->write_buffer_cursor(buffer_cursor, &value));
     CHECK(RegistryMissingSlangTypeNameStruct::wrote_shader);
     CHECK(RegistryMissingSlangTypeNameStruct::wrote_buffer);
+}
+
+TEST_CASE("register_cursor_writer_without_functional_metadata_uses_explicit_signature")
+{
+    using namespace sgl::cursor_tests;
+
+    cursor_utils::register_cursor_writer<RegistryWriterOnlyStaticSignatureStruct>();
+
+    const cursor_utils::CursorWriterTypeInfo* info
+        = cursor_utils::find_cursor_writer_type_info(typeid(RegistryWriterOnlyStaticSignatureStruct));
+    REQUIRE(info);
+    CHECK(info->write_shader_cursor);
+    CHECK(info->write_buffer_cursor);
+    CHECK(info->write_signature);
+    CHECK(info->slang_type_name.empty());
+
+    RegistryWriterOnlyStaticSignatureStruct value;
+    SignatureBuffer sig;
+    info->write_signature(sig, &value);
+    CHECK_EQ(std::string(sig.view()), "sig:writer-only-static");
 }
 
 TEST_CASE("register_cursor_writer_type_rejects_partial_functional_metadata")
@@ -336,8 +374,47 @@ TEST_CASE("register_cursor_writer_type_rejects_partial_functional_metadata")
     CHECK_THROWS(cursor_utils::register_cursor_writer_type(std::move(missing_signature)));
 
     auto imports_without_type = make_info(typeid(RegistryImportsWithoutTypeStruct));
+    imports_without_type.write_signature = [](SignatureBuffer& sig, const void* value)
+    {
+        (void)value;
+        sig.add("sig:imports-without-type");
+    };
     imports_without_type.imports.emplace_back("module/a.slang");
     CHECK_THROWS(cursor_utils::register_cursor_writer_type(std::move(imports_without_type)));
+}
+
+TEST_CASE("register_cursor_writer_type_allows_signature_without_functional_metadata")
+{
+    using namespace sgl::cursor_tests;
+
+    cursor_utils::CursorWriterTypeInfo info;
+    info.type = &typeid(RegistrySignatureOnlyStruct);
+    info.write_shader_cursor = [](ShaderCursor& cursor, const void* value)
+    {
+        (void)cursor;
+        (void)value;
+        return true;
+    };
+    info.write_signature = [](SignatureBuffer& sig, const void* value)
+    {
+        (void)value;
+        sig.add("sig:signature-only");
+    };
+
+    cursor_utils::register_cursor_writer_type(std::move(info));
+
+    const cursor_utils::CursorWriterTypeInfo* registered
+        = cursor_utils::find_cursor_writer_type_info(typeid(RegistrySignatureOnlyStruct));
+    REQUIRE(registered);
+    CHECK(registered->write_shader_cursor);
+    CHECK_FALSE(bool(registered->write_buffer_cursor));
+    CHECK(registered->write_signature);
+    CHECK(registered->slang_type_name.empty());
+
+    RegistrySignatureOnlyStruct value;
+    SignatureBuffer sig;
+    registered->write_signature(sig, &value);
+    CHECK_EQ(std::string(sig.view()), "sig:signature-only");
 }
 
 TEST_CASE("register_cursor_writer_static_string_signature")

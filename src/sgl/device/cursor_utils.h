@@ -90,7 +90,10 @@ namespace cursor_utils {
     using BufferElementCursorObjectWriteFunc = std::function<bool(BufferElementCursor&, const void*)>;
 
     /// Native registry entry for one cursor-writable value type.
-    /// Functional API metadata is optional so types with bespoke marshalls can still register cursor writes.
+    ///
+    /// The SlangPy cache signature is required, while the simple WriteToCursorMarshall fallback type name is optional.
+    /// This lets resource types provide native signatures and direct cursor writes while still using bespoke functional
+    /// API marshalls.
     struct CursorWriterTypeInfo {
         /// Native C++ type exposed through nanobind.
         const std::type_info* type{nullptr};
@@ -100,15 +103,12 @@ namespace cursor_utils {
         /// Write an object instance into a BufferElementCursor.
         BufferElementCursorObjectWriteFunc write_buffer_cursor;
 
-        /// Static Slang type name supplied by T::slang_type_name.
+        /// Static Slang type name supplied by T::slang_type_name for the simple functional fallback.
         std::string slang_type_name;
-        /// Writes the cache signature for a concrete value instance.
+        /// Writes the cache signature for a concrete value instance when native signature metadata is available.
         std::function<void(SignatureBuffer&, const void*)> write_signature;
-        /// Static imports copied from T::slangpy_imports() at registration time.
+        /// Static imports copied from T::slangpy_imports() at registration time for the simple functional fallback.
         std::vector<std::string> imports;
-
-        /// True when this entry can be used to construct WriteToCursorMarshall fallback metadata.
-        bool has_functional_metadata() const { return !slang_type_name.empty(); }
     };
 
     /// Add a type entry to the cursor-writer registry.
@@ -218,7 +218,6 @@ namespace cursor_utils {
     /// Write the SlangPy cache signature for a registered cursor-writer value.
     template<typename T>
     void write_cursor_writer_signature(SignatureBuffer& signature, const void* value)
-        requires(HasTypeStaticSlangTypeName<T>)
     {
         if constexpr (HasValueSignature<T>)
             static_cast<const T*>(value)->write_slangpy_signature(signature);
@@ -251,13 +250,13 @@ namespace cursor_utils {
             static_cast<const T*>(value)->write_to_cursor(cursor);
             return true;
         };
+        info.write_signature = [](SignatureBuffer& signature, const void* value)
+        {
+            write_cursor_writer_signature<T>(signature, value);
+        };
 
         if constexpr (HasTypeStaticSlangTypeName<T>) {
             info.slang_type_name = std::string(std::string_view(T::slang_type_name));
-            info.write_signature = [](SignatureBuffer& signature, const void* value)
-            {
-                write_cursor_writer_signature<T>(signature, value);
-            };
             if constexpr (HasTypeStaticImports<T>) {
                 for (auto&& import_path : T::slangpy_imports())
                     info.imports.emplace_back(std::string_view(import_path));

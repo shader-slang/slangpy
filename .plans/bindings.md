@@ -135,16 +135,16 @@ Completed in the current implementation slice:
 - Added native C++ coverage in `tests/sgl/device/test_cursors.cpp` for cursor-specific `set()` behavior, both-overload registration, and negative concept checks.
 - Introduced a combined native `CursorWriterTypeInfo` registry in `src/sgl/device/cursor_utils.h/.cpp`.
 - Added `cursor_utils::register_cursor_writer<T>()`.
-- Removed legacy low-level cursor-writer registration functions; the combined registry stores only entries that provide both cursor writers, with optional functional metadata.
+- Removed legacy low-level cursor-writer registration functions; the public helper still requires both cursor writers, while internal registry entries may provide only the cursor/signature hooks they actually support.
 - `src/slangpy_ext/device/cursor_utils.h` direct cursor writes now consult the combined native registry and no longer keep `WriteConverterTable::m_native_object_writer_cache`.
 - Static metadata and imports are captured into the native descriptor at registration time from class-owned metadata only when the type opts into functional fallback.
 - Added native C++ coverage for registry lookup, duplicate rejection, one-cursor registration rejection, and static metadata/signature/imports.
 - Renamed the Python marshall API to `WriteToCursorMarshall`, `WriteToCursorMarshallInfo`, and `register_write_to_cursor_type`.
 - `WriteToCursorMarshall` now derives from `NativeValueMarshall`, so dispatch uses the native cursor-write fast path rather than Python `create_calldata()`.
 - `slangpy/bindings/typeregistry.py` now falls back to native cursor-writer metadata when Python type registration has no hit.
-- `NativeCallDataCache::get_value_signature()` now uses the native cursor-writer registry only for entries with functional metadata; writer-only entries fall through to bespoke native/Python signature paths.
+- `NativeCallDataCache::get_value_signature()` now uses native cursor-writer signature metadata independently from functional fallback metadata; Buffer/Texture register through `register_cursor_writer<T>()` and keep bespoke Python marshalls.
 - Removed the old `has_registered_type_or_signature` Python predicate, native callback, and native predicate cache.
-- `get_this` remains the legacy wrapper path for objects not owned by functional cursor-writer metadata; registered functional cursor writers with `get_this` fail with a clear conflict error.
+- `get_this` remains the legacy wrapper path for objects not owned by native signature or functional cursor-writer metadata; registered native-owned values with `get_this` fail with a clear conflict error.
 
 Verification run for this slice:
 
@@ -419,13 +419,14 @@ Expected edits:
 - Add a Python-visible or extension-internal helper that can create `WriteToCursorMarshall` from native registry metadata when Python `PYTHON_TYPES` has no hit.
 - Have that helper read the copied `CursorWriterTypeInfo::slang_type_name` string directly instead of invoking a value-aware type-name callback.
 - Update `slangpy/bindings/typeregistry.py::get_or_create_type()` or the `BoundVariable` construction path so native registered cursor writer values fall back to the native registry.
-- Update `NativeCallDataCache::get_value_signature()` so native registered cursor writer metadata participates in signature generation only when functional metadata is present.
+- Update `NativeCallDataCache::get_value_signature()` so native registered cursor writer signature metadata participates in signature generation without requiring simple functional fallback metadata.
 - Define precedence:
+  - registered native signature metadata owns cache signatures for registered cursor writer objects
   - registered functional cursor-writer metadata owns simple fallback marshalling for registered cursor writer objects
   - existing built-in native signatures such as `Texture` and `Buffer` remain unchanged for types without functional cursor-writer metadata
   - Python-only registered `PYTHON_TYPES` / `PYTHON_SIGNATURES` continue to work for non-native values
-  - `get_this` is only blocked for objects with functional cursor-writer metadata; writer-only registrations may still use bespoke marshalling paths
-- Conflict handling should occur when creating a marshall/signature for a Python-visible object. If a functional cursor writer object also exposes `get_this`, fail clearly.
+  - `get_this` is blocked for objects with native signature or functional cursor-writer metadata; direct-write-only registrations may still use bespoke marshalling paths
+- Conflict handling should occur when creating a marshall/signature for a Python-visible object. If a native-owned cursor writer object also exposes `get_this`, fail clearly.
 
 Tests to change:
 

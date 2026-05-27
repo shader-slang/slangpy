@@ -7,15 +7,20 @@
 #include "sgl/device/command.h"
 #include "sgl/device/helpers.h"
 #include "sgl/device/cuda_utils.h"
+#include "sgl/device/buffer_cursor.h"
+#include "sgl/device/shader_cursor.h"
 
 #include "sgl/core/config.h"
 #include "sgl/core/error.h"
+#include "sgl/core/signature_buffer.h"
 #include "sgl/core/string.h"
 #include "sgl/core/maths.h"
 #include "sgl/core/bitmap.h"
 #include "sgl/core/static_vector.h"
 
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
+
+#include <cstdio>
 
 namespace sgl {
 
@@ -252,6 +257,24 @@ DescriptorHandle Buffer::descriptor_handle_rw() const
         m_device
     );
     return DescriptorHandle(rhi_handle);
+}
+
+void Buffer::write_to_cursor(ShaderCursor& cursor) const
+{
+    cursor.set_buffer(ref<Buffer>(const_cast<Buffer*>(this)));
+}
+
+void Buffer::write_to_cursor(BufferElementCursor& cursor) const
+{
+    SGL_UNUSED(cursor);
+    SGL_THROW("Buffer cannot be written to a BufferElementCursor.");
+}
+
+void Buffer::write_slangpy_signature(SignatureBuffer& signature) const
+{
+    char temp[256];
+    std::snprintf(temp, sizeof(temp), "[%d]", int(m_desc.usage));
+    signature.add(temp);
 }
 
 DeviceChild::MemoryUsage Buffer::memory_usage() const
@@ -519,6 +542,32 @@ DescriptorHandle Texture::descriptor_handle_combined() const
     rhi::DescriptorHandle rhi_handle = {};
     m_rhi_texture->getDefaultView()->getCombinedTextureSamplerDescriptorHandle(&rhi_handle);
     return DescriptorHandle(rhi_handle);
+}
+
+void Texture::write_to_cursor(ShaderCursor& cursor) const
+{
+    cursor.set_texture(ref<Texture>(const_cast<Texture*>(this)));
+}
+
+void Texture::write_to_cursor(BufferElementCursor& cursor) const
+{
+    SGL_UNUSED(cursor);
+    SGL_THROW("Texture cannot be written to a BufferElementCursor.");
+}
+
+void Texture::write_slangpy_signature(SignatureBuffer& signature) const
+{
+    char temp[256];
+    std::snprintf(
+        temp,
+        sizeof(temp),
+        "[%d,%d,%d,%d]",
+        int(m_desc.type),
+        int(m_desc.usage),
+        int(m_desc.format),
+        int(m_desc.array_length)
+    );
+    signature.add(temp);
 }
 
 NativeHandle Texture::shared_handle() const
