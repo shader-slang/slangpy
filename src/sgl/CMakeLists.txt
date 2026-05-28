@@ -69,6 +69,8 @@ target_sources(sgl PRIVATE
     core/window.h
 
     device/agility_sdk.h
+    device/any_cursor.cpp
+    device/any_cursor.h
     device/blit.cpp
     device/blit.h
     device/blit.slang

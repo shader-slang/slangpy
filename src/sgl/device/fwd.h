@@ -23,6 +23,11 @@ class Surface;
 class BufferCursor;
 class BufferElementCursor;
 
+// any_cursor.h
+
+class AnyCursor;
+class CursorWritable;
+
 // resource.h
 
 class Resource;
