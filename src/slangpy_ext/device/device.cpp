@@ -59,6 +59,8 @@ SGL_DICT_TO_DESC_FIELD(rhi_validation_log_level, LogLevel)
 SGL_DICT_TO_DESC_FIELD(enable_ray_tracing_validation, bool)
 SGL_DICT_TO_DESC_FIELD(enable_aftermath, bool)
 SGL_DICT_TO_DESC_FIELD(enable_cuda_interop, bool)
+SGL_DICT_TO_DESC_FIELD(enable_cuda_launch_from_gfx, bool)
+SGL_DICT_TO_DESC_FIELD(enable_ray_tracing, bool)
 SGL_DICT_TO_DESC_FIELD(enable_print, bool)
 SGL_DICT_TO_DESC_FIELD(enable_hot_reload, bool)
 SGL_DICT_TO_DESC_FIELD(enable_compilation_reports, bool)
@@ -341,6 +343,12 @@ SGL_PY_EXPORT(device_device)
         )
         .def_rw("enable_aftermath", &DeviceDesc::enable_aftermath, D(DeviceDesc, enable_aftermath))
         .def_rw("enable_cuda_interop", &DeviceDesc::enable_cuda_interop, D(DeviceDesc, enable_cuda_interop))
+        .def_rw(
+            "enable_cuda_launch_from_gfx",
+            &DeviceDesc::enable_cuda_launch_from_gfx,
+            D(DeviceDesc, enable_cuda_launch_from_gfx)
+        )
+        .def_rw("enable_ray_tracing", &DeviceDesc::enable_ray_tracing, D(DeviceDesc, enable_ray_tracing))
         .def_rw("enable_print", &DeviceDesc::enable_print, D(DeviceDesc, enable_print))
         .def_rw("enable_hot_reload", &DeviceDesc::enable_hot_reload, D(DeviceDesc, adapter_luid))
         .def_rw(
@@ -502,6 +510,8 @@ SGL_PY_EXPORT(device_device)
            std::optional<BindlessDesc> bindless_options,
            std::optional<std::vector<std::string>> additional_vulkan_instance_extensions,
            std::optional<std::vector<std::string>> additional_vulkan_device_extensions,
+           bool enable_cuda_launch_from_gfx,
+           bool enable_ray_tracing,
            std::string label = "")
         {
             new (self) Device(
@@ -513,6 +523,8 @@ SGL_PY_EXPORT(device_device)
                  .enable_ray_tracing_validation = enable_ray_tracing_validation,
                  .enable_aftermath = enable_aftermath,
                  .enable_cuda_interop = enable_cuda_interop,
+                 .enable_cuda_launch_from_gfx = enable_cuda_launch_from_gfx,
+                 .enable_ray_tracing = enable_ray_tracing,
                  .enable_print = enable_print,
                  .enable_hot_reload = enable_hot_reload,
                  .enable_compilation_reports = enable_compilation_reports,
@@ -550,6 +562,8 @@ SGL_PY_EXPORT(device_device)
         "bindless_options"_a.none() = nb::none(),
         "additional_vulkan_instance_extensions"_a.none() = nb::none(),
         "additional_vulkan_device_extensions"_a.none() = nb::none(),
+        "enable_cuda_launch_from_gfx"_a = DeviceDesc().enable_cuda_launch_from_gfx,
+        "enable_ray_tracing"_a = DeviceDesc().enable_ray_tracing,
         "label"_a = DeviceDesc().label,
         D(Device, Device)
     );
