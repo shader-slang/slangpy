@@ -1,0 +1,29 @@
+.container {
+    width: 100%;
+}
+
+.toggle .header {
+    display: block;
+    clear: both;
+    padding-bottom: 1em;
+}
+
+.toggle .header:after {
+    content: " ▶";
+}
+
+.toggle .header.open:after {
+    content: " ▼";
+}
+
+th.head {
+    text-align: left;
+}
+
+/*
+Fix for horizontal stacking weirdness in the RTD theme with Python properties:
+https://github.com/readthedocs/sphinx_rtd_theme/issues/1301
+*/
+.py.property {
+    display: block !important;
+}

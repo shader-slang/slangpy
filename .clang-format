@@ -1,0 +1,46 @@
+BasedOnStyle: WebKit
+ColumnLimit: 120
+MaxEmptyLinesToKeep: 2
+SortIncludes: false
+SortUsingDeclarations: false
+SpaceAfterTemplateKeyword: false
+DerivePointerAlignment: false
+PointerAlignment: Left
+FixNamespaceComments: true
+
+AllowAllConstructorInitializersOnNextLine: true
+BreakConstructorInitializers: BeforeComma
+Cpp11BracedListStyle: true
+SpaceBeforeCpp11BracedList: false
+AlwaysBreakTemplateDeclarations: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: false
+AllowShortEnumsOnASingleLine: true
+AllowAllArgumentsOnNextLine: false
+BinPackArguments: false
+AllowAllParametersOfDeclarationOnNextLine: false
+BinPackParameters: false
+ExperimentalAutoDetectBinPacking: false
+AlignAfterOpenBracket: BlockIndent
+BreakBeforeBraces: Custom
+BraceWrapping:
+    AfterCaseLabel: false
+    AfterClass: false
+    AfterControlStatement: Never
+    AfterEnum: false
+    AfterFunction: true
+    AfterNamespace: false
+    AfterStruct: false
+    AfterUnion: false
+    AfterExternBlock: false
+    BeforeCatch: false
+    BeforeElse: false
+    BeforeLambdaBody: true
+    BeforeWhile: false
+    SplitEmptyRecord: false
+
+AlignTrailingComments: true
+ReflowComments: true
+CommentPragmas: '^\\.+'
+PenaltyBreakComment: 0
+QualifierAlignment: Left

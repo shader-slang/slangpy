@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+#pragma once
+#if SGL_ENABLE_NVAPI
+#include "nvapi/nvShaderExtnEnums.h"
+#endif
+import sgl.device.nvapi;

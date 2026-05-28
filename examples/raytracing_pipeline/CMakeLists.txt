@@ -1,0 +1,2 @@
+sgl_add_example(raytracing_pipeline)
+target_sources(raytracing_pipeline PRIVATE raytracing_pipeline.cpp)

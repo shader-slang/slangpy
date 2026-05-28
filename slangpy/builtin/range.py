@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+
+from typing import Any
+
+from slangpy.core.native import AccessType, CallContext, Shape
+from slangpy import TypeReflection
+
+from slangpy.bindings import (
+    PYTHON_TYPES,
+    Marshall,
+    BindContext,
+    BoundVariable,
+    BoundVariableRuntime,
+    CodeGenBlock,
+)
+from slangpy.reflection import (
+    SlangProgramLayout,
+    SlangType,
+    vectorize_type,
+    EXPERIMENTAL_VECTORIZATION,
+    TypeReflection as TR,
+)
+import slangpy.reflection.vectorize as spyvec
+
+
+class RangeMarshall(Marshall):
+    def __init__(self, layout: SlangProgramLayout):
+        super().__init__(layout)
+        st = layout.find_type_by_name(f"RangeType")
+        if st is None:
+            raise ValueError(
+                f"Could not find RangeType slang type. This usually indicates the slangpy module has not been imported."
+            )
+        self.slang_type = st
+
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
+        access = binding.access
+        if access[0] == AccessType.read:
+            binding.gen_calldata_type_name(cgb, self.slang_type.full_name)
+
+    def create_calldata(
+        self, context: CallContext, binding: BoundVariableRuntime, data: range
+    ) -> Any:
+        access = binding.access
+        if access[0] == AccessType.read:
+            return {"start": data.start, "stop": data.stop, "step": data.step}
+
+    def get_shape(self, data: range):
+        s = ((data.stop - data.start) // data.step,)
+        return Shape(s)
+
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        if EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(f"RangeType")
+            return [vectorize_type(marshall, bound_type)]
+        as_scalar = spyvec.scalar_to_scalar(
+            context.layout.scalar_type(TR.ScalarType.int32), bound_type
+        )
+        if as_scalar is not None:
+            return [as_scalar]
+        return None
+
+    def resolve_dimensionality(
+        self,
+        context: BindContext,
+        binding: BoundVariable,
+        vector_target_type: "SlangType",
+    ):
+        return 1 - len(vector_target_type.shape)
+
+
+PYTHON_TYPES[range] = lambda l, x: RangeMarshall(l)

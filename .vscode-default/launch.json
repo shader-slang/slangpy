@@ -1,0 +1,74 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Python C++ Debugger Windows",
+            "type": "pythoncpp",
+            "request": "launch",
+            "pythonConfig": "default",
+            "cppConfig": "default (win) Attach"
+        },
+        {
+            "name": "Python C++ Debugger GDB",
+            "type": "pythoncpp",
+            "request": "launch",
+            "pythonConfig": "default",
+            "cppConfig": "default (gdb) Attach"
+        },
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Selected CMake Target",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${command:cmake.launchTargetDirectory}"
+        },
+        // Useful config for natively debugging the PyTest suite on linux box
+        // Clears LD_LIBRARY_PATH so the system slang in Vulkan doesn't get picked up
+        {
+            "name": "PyTest C++ Debugger GDB",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "-m",
+                "pytest",
+                "-v",
+                "-s",
+                "${workspaceFolder}/slangpy/tests"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": ""
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+
+    ]
+}

@@ -1,0 +1,27 @@
+[submodule "external/nanobind"]
+	path = external/nanobind
+	url = https://github.com/skallweitNV/nanobind.git
+[submodule "external/vcpkg"]
+	path = external/vcpkg
+	url = https://github.com/microsoft/vcpkg.git
+[submodule "data"]
+	path = data
+	url = https://github.com/shader-slang/slangpy-data.git
+[submodule "samples"]
+	path = samples
+	url = https://github.com/shader-slang/slangpy-samples.git
+[submodule "external/fmt"]
+	path = external/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "external/glfw"]
+	path = external/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "external/tevclient"]
+	path = external/tevclient
+	url = https://github.com/westlicht/tevclient.git
+[submodule "external/slang-rhi"]
+	path = external/slang-rhi
+	url = https://github.com/shader-slang/slang-rhi.git
+[submodule "external/nanothread"]
+	path = external/nanothread
+	url = https://github.com/mitsuba-renderer/nanothread.git

@@ -1,0 +1,16 @@
+{
+    "name": "sgl",
+    "version-string": "0.41.0",
+    "dependencies": [
+        "libjpeg-turbo",
+        "libpng",
+        "openexr",
+        "asmjit",
+        "crashpad"
+    ],
+    "vcpkg-configuration": {
+        "overlay-ports": [
+            "./external/vcpkg-overlays"
+        ]
+    }
+}

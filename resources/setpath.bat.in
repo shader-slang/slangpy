@@ -1,0 +1,9 @@
+@echo off
+
+REM ***************************************************************
+REM * This script adds sgl to the current path on Windows.
+REM ***************************************************************
+
+set SGL_DIR=%~dp0
+set PATH=%SGL_DIR%;%PATH%
+set PYTHONPATH=%SGL_DIR%python;%PYTHONPATH%

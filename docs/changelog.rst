@@ -1,0 +1,644 @@
+.. _changelog:
+
+.. cpp:namespace:: sgl
+
+Changelog
+=========
+
+SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
+
+Version 0.41.0 (April 15, 2026)
+-------
+- Rewrite of Tensors and removal of NDBuffer in favour of unified Tensor type.
+  (PR `#697 <https://github.com/shader-slang/slangpy/pull/697>`__)
+- **Kernel generation overhaul**: Rewrote kernel generation with direct binding, entry point arguments,
+  and removal of trampoline functions for cleaner and more efficient generated shaders.
+  (PR `#863 <https://github.com/shader-slang/slangpy/pull/863>`__, PR `#870 <https://github.com/shader-slang/slangpy/pull/870>`__,
+  PR `#876 <https://github.com/shader-slang/slangpy/pull/876>`__, PR `#879 <https://github.com/shader-slang/slangpy/pull/879>`__)
+- **Move cached function call path from Python to C++** for significantly reduced per-call overhead.
+  (PR `#869 <https://github.com/shader-slang/slangpy/pull/869>`__)
+- **Native PyTorch autograd integration**: Full native torch autograd support with ``retain_graph``,
+  proper VRAM lifecycle management, and ``torch.nn.parameter.Parameter`` compatibility.
+  (PR `#816 <https://github.com/shader-slang/slangpy/pull/816>`__, PR `#781 <https://github.com/shader-slang/slangpy/pull/781>`__,
+  PR `#921 <https://github.com/shader-slang/slangpy/pull/921>`__, PR `#891 <https://github.com/shader-slang/slangpy/pull/891>`__)
+- **CUDA performance optimization**: Reduced CUDA context management overhead by ~20× by removing per-call
+  context push/pop from slang-rhi. When using PyTorch interop, the shared primary context is already set
+  by PyTorch, so no user action is typically required. For edge cases, new APIs are exposed:
+
+  - ``device.set_cuda_context_current()`` - Set context for this thread (multi-GPU, multi-threading)
+  - ``device.cuda_context_scope()`` - Context manager for temporary context switching
+
+  (PR `#774 <https://github.com/shader-slang/slangpy/pull/774>`__)
+- **Dispatch hot path optimizations**: Eliminate heap allocations from cached dispatch, pack/unpack
+  optimization, optimized value types, explicit shader object binding, block allocator, cached device
+  addresses, short vector for shader object refs, and optimised uniform setting of tensors.
+  (PR `#872 <https://github.com/shader-slang/slangpy/pull/872>`__, PR `#815 <https://github.com/shader-slang/slangpy/pull/815>`__,
+  PR `#814 <https://github.com/shader-slang/slangpy/pull/814>`__, PR `#812 <https://github.com/shader-slang/slangpy/pull/812>`__,
+  PR `#707 <https://github.com/shader-slang/slangpy/pull/707>`__, PR `#709 <https://github.com/shader-slang/slangpy/pull/709>`__,
+  PR `#708 <https://github.com/shader-slang/slangpy/pull/708>`__, PR `#741 <https://github.com/shader-slang/slangpy/pull/741>`__,
+  PR `#712 <https://github.com/shader-slang/slangpy/pull/712>`__)
+- Add ``DiffTensorView<T>`` and ``TensorView<T>`` support in slangpy with ``_threadcount`` and ``float<N>`` support.
+  (PR `#775 <https://github.com/shader-slang/slangpy/pull/775>`__, PR `#818 <https://github.com/shader-slang/slangpy/pull/818>`__)
+- Add ``loadOnce`` / ``loadUniform`` to ``DiffTensor`` for optimized backward pass memory access.
+  (PR `#910 <https://github.com/shader-slang/slangpy/pull/910>`__)
+- Support reinterpreting ``torch.Tensor`` as ``Tensor<StructType, N>`` for structured GPU data.
+  (PR `#906 <https://github.com/shader-slang/slangpy/pull/906>`__)
+- Add ``torch.bool`` support for ``TensorView``.
+  (PR `#898 <https://github.com/shader-slang/slangpy/pull/898>`__)
+- PyTorch interop optimizations including faster numpy array detection and optimized tensor marshalling.
+  (PR `#759 <https://github.com/shader-slang/slangpy/pull/759>`__, PR `#802 <https://github.com/shader-slang/slangpy/pull/802>`__)
+- Add ``SlangSession::compose_modules`` API for programmatic module composition.
+  (PR `#894 <https://github.com/shader-slang/slangpy/pull/894>`__)
+- Add ``Bitmap::resample()`` functions and reconstruction filters.
+  (PR `#926 <https://github.com/shader-slang/slangpy/pull/926>`__)
+- Add ``sample`` function to ``Tensor``.
+  (PR `#809 <https://github.com/shader-slang/slangpy/pull/809>`__)
+- Support for combined texture/sampler descriptor handles.
+  (PR `#765 <https://github.com/shader-slang/slangpy/pull/765>`__)
+- Add ``TextureLoader::load_texture`` overloads for multiple options and ``format_callback`` for texture conversion.
+  (PR `#767 <https://github.com/shader-slang/slangpy/pull/767>`__, PR `#737 <https://github.com/shader-slang/slangpy/pull/737>`__)
+- Add support for specifying sampler when creating textures and texture views (CUDA).
+  (PR `#748 <https://github.com/shader-slang/slangpy/pull/748>`__)
+- Add ``enable_experimental_features`` option to ``SlangCompilerOptions``.
+  (PR `#771 <https://github.com/shader-slang/slangpy/pull/771>`__)
+- Support generic entrypoints in the functional API.
+  (PR `#670 <https://github.com/shader-slang/slangpy/pull/670>`__)
+- Cooperative Vector improvements.
+  (PR `#699 <https://github.com/shader-slang/slangpy/pull/699>`__)
+- Complete slangpy matrix multiplication support.
+  (PR `#674 <https://github.com/shader-slang/slangpy/pull/674>`__)
+- Extend ``Window`` properties for resizing and positioning.
+  (PR `#698 <https://github.com/shader-slang/slangpy/pull/698>`__)
+- Add ``DescriptorHandle`` default constructor.
+  (PR `#897 <https://github.com/shader-slang/slangpy/pull/897>`__)
+- Add write function for binding.
+  (PR `#893 <https://github.com/shader-slang/slangpy/pull/893>`__)
+- Add ``[Differentiable]`` to getters so they satisfy differentiability constraints for interface requirements.
+  (PR `#895 <https://github.com/shader-slang/slangpy/pull/895>`__)
+- Add spaceship operator (``<=>``) for quaternion, matrix, and vector types.
+  (PR `#927 <https://github.com/shader-slang/slangpy/pull/927>`__)
+- Add ``std::hash`` specializations for vector, matrix, and quaternion types.
+  (PR `#889 <https://github.com/shader-slang/slangpy/pull/889>`__, PR `#888 <https://github.com/shader-slang/slangpy/pull/888>`__)
+- Add comparator to ``TypeConformances``.
+  (PR `#871 <https://github.com/shader-slang/slangpy/pull/871>`__)
+- Add ``SGL_ENUM_FLAGS_INFO`` for improved enum flag introspection.
+  (PR `#932 <https://github.com/shader-slang/slangpy/pull/932>`__)
+- Expose debug options in device constructor.
+  (PR `#710 <https://github.com/shader-slang/slangpy/pull/710>`__)
+- Configure the ``SPIRV_DIS`` downstream compiler path.
+  (PR `#701 <https://github.com/shader-slang/slangpy/pull/701>`__)
+- Add Aftermath flag for GPU crash debugging on supported platforms.
+  (PR `#785 <https://github.com/shader-slang/slangpy/pull/785>`__)
+- Improve ``static_vector`` and ``short_vector`` containers.
+  (PR `#752 <https://github.com/shader-slang/slangpy/pull/752>`__)
+- Crashpad integration for automated crash reporting.
+  (PR `#726 <https://github.com/shader-slang/slangpy/pull/726>`__, PR `#729 <https://github.com/shader-slang/slangpy/pull/729>`__)
+- Initialize logger on first use to avoid initialization order issues.
+  (PR `#931 <https://github.com/shader-slang/slangpy/pull/931>`__)
+- Reduce logging output for cleaner runtime experience.
+  (PR `#890 <https://github.com/shader-slang/slangpy/pull/890>`__)
+- Filter unicode in source files for broader platform compatibility.
+  (PR `#930 <https://github.com/shader-slang/slangpy/pull/930>`__)
+- Wrap remaining Slang API calls with ``SGL_CATCH_INTERNAL_SLANG_ERROR`` for consistent error handling.
+  (PR `#857 <https://github.com/shader-slang/slangpy/pull/857>`__)
+- Fix scalar ``DiffPair`` backward pass codegen.
+  (PR `#917 <https://github.com/shader-slang/slangpy/pull/917>`__)
+- Fix ``slangpy.Tensor`` backward pass through ``DiffTensorView``.
+  (PR `#920 <https://github.com/shader-slang/slangpy/pull/920>`__)
+- Fix crash and incorrect exception with null gradients.
+  (PR `#882 <https://github.com/shader-slang/slangpy/pull/882>`__)
+- Fix zero-size dispatch causing CUDA SIGABRT.
+  (PR `#905 <https://github.com/shader-slang/slangpy/pull/905>`__)
+- Fix array-of-vector return types for numpy and torch.
+  (PR `#873 <https://github.com/shader-slang/slangpy/pull/873>`__)
+- Fix array-type returns.
+  (PR `#676 <https://github.com/shader-slang/slangpy/pull/676>`__)
+- Fix type resolution for arrays of ``StructuredBuffer`` parameters.
+  (PR `#792 <https://github.com/shader-slang/slangpy/pull/792>`__)
+- Fix ``Texture3D`` parameters failing with "invalid dimensionality 1".
+  (PR `#754 <https://github.com/shader-slang/slangpy/pull/754>`__)
+- Fix ``float3`` alignment bug on Metal for gradient accumulation.
+  (PR `#713 <https://github.com/shader-slang/slangpy/pull/713>`__)
+- Fix Blitter and module name issues in the presence of multiple Blitters.
+  (PR `#877 <https://github.com/shader-slang/slangpy/pull/877>`__, PR `#878 <https://github.com/shader-slang/slangpy/pull/878>`__)
+- Fix blit function to use destination texture size for dispatch size calculations.
+  (PR `#669 <https://github.com/shader-slang/slangpy/pull/669>`__)
+- Fix ``KeyCode`` ``WORLD_1`` / ``WORLD_2`` in Python bindings.
+  (PR `#677 <https://github.com/shader-slang/slangpy/pull/677>`__)
+- Fix ``LMDBCache`` eviction and related cache issues.
+  (PR `#739 <https://github.com/shader-slang/slangpy/pull/739>`__, PR `#743 <https://github.com/shader-slang/slangpy/pull/743>`__)
+- Fix ``ShaderCursor::set`` to be const.
+  (PR `#764 <https://github.com/shader-slang/slangpy/pull/764>`__)
+- Fix ``like`` functions on ``Tensor`` to correctly copy usage and other properties.
+  (PR `#880 <https://github.com/shader-slang/slangpy/pull/880>`__)
+- Fix torch bridge copy to/from buffer functions in fallback mode.
+  (PR `#794 <https://github.com/shader-slang/slangpy/pull/794>`__)
+- Accept tensors with null data pointers.
+  (PR `#675 <https://github.com/shader-slang/slangpy/pull/675>`__)
+- Fix handling crashpad reports on POSIX.
+  (PR `#734 <https://github.com/shader-slang/slangpy/pull/734>`__)
+- Update Slang to version 2026.5.2.
+  (PR `#903 <https://github.com/shader-slang/slangpy/pull/903>`__, PR `#856 <https://github.com/shader-slang/slangpy/pull/856>`__,
+  PR `#813 <https://github.com/shader-slang/slangpy/pull/813>`__, PR `#796 <https://github.com/shader-slang/slangpy/pull/796>`__,
+  PR `#772 <https://github.com/shader-slang/slangpy/pull/772>`__, PR `#745 <https://github.com/shader-slang/slangpy/pull/745>`__)
+- Update slang-rhi submodule with PyTorch-style caching allocator and other improvements.
+  (PR `#887 <https://github.com/shader-slang/slangpy/pull/887>`__, PR `#798 <https://github.com/shader-slang/slangpy/pull/798>`__,
+  PR `#747 <https://github.com/shader-slang/slangpy/pull/747>`__, PR `#705 <https://github.com/shader-slang/slangpy/pull/705>`__)
+- Update nanobind.
+  (PR `#700 <https://github.com/shader-slang/slangpy/pull/700>`__)
+- Add wheels-dev workflow for dev/release wheel publishing to internal Artifactory.
+  (PR `#861 <https://github.com/shader-slang/slangpy/pull/861>`__, PR `#849 <https://github.com/shader-slang/slangpy/pull/849>`__)
+- Fix Linux wheel builds for aarch64 and missing build dependencies.
+  (PR `#852 <https://github.com/shader-slang/slangpy/pull/852>`__, PR `#851 <https://github.com/shader-slang/slangpy/pull/851>`__,
+  PR `#850 <https://github.com/shader-slang/slangpy/pull/850>`__)
+- Support cross-repo CI testing from Slang PRs.
+  (PR `#780 <https://github.com/shader-slang/slangpy/pull/780>`__)
+
+This version carries with it some breaking changes, please see the migration guide :ref:`here <tensorupdate>` for details.
+
+Version 0.40.1 (January 7, 2026)
+-------
+- Rebuild of 0.40.0 due to failed PyPI push.
+
+Version 0.40.0 (January 7, 2026)
+-------
+  - Update to Slang version 2025.24.3 with latest shader compilation improvements and bug fixes.
+    (PR `#678 <https://github.com/shader-slang/slangpy/pull/678>`__, PR `#673 <https://github.com/shader-slang/slangpy/pull/673>`__)
+  - Update slang-rhi submodule to latest version with improved stability and performance.
+    (PR `#682 <https://github.com/shader-slang/slangpy/pull/682>`__, PR `#662 <https://github.com/shader-slang/slangpy/pull/662>`__, PR
+  `#659 <https://github.com/shader-slang/slangpy/pull/659>`__, PR `#647 <https://github.com/shader-slang/slangpy/pull/647>`__)
+  - Add Windows ARM64 platform support for improved cross-platform compatibility.
+    (PR `#567 <https://github.com/shader-slang/slangpy/pull/567>`__)
+  - Introduce SGL_SLANG_VERSION CMake cache variable for better build configuration management.
+    (PR `#680 <https://github.com/shader-slang/slangpy/pull/680>`__)
+  - Add float8 data type support for enhanced precision options in GPU computations.
+    (PR `#649 <https://github.com/shader-slang/slangpy/pull/649>`__)
+  - Add rhi.slang module for improved hardware abstraction layer access.
+    (PR `#653 <https://github.com/shader-slang/slangpy/pull/653>`__)
+  - Significant refactor of type inference system for better handling of generics and complex types.
+    (PR `#652 <https://github.com/shader-slang/slangpy/pull/652>`__)
+  - Refactor cooperative vector API for improved performance and usability.
+    (PR `#645 <https://github.com/shader-slang/slangpy/pull/645>`__)
+  - Add support for assigning objects with to_cursor to cursor objects for enhanced data manipulation.
+    (PR `#651 <https://github.com/shader-slang/slangpy/pull/651>`__)
+  - Fix Buffer::get_element() method for proper buffer element access.
+    (PR `#661 <https://github.com/shader-slang/slangpy/pull/661>`__)
+  - Fix module linking to preserve module order when making links unique.
+    (PR `#657 <https://github.com/shader-slang/slangpy/pull/657>`__)
+  - Fix mouse position inclusion in button events for improved UI interaction.
+    (PR `#660 <https://github.com/shader-slang/slangpy/pull/660>`__)
+  - Sort EXR channels when writing via tinyexr for consistent image output format.
+    (PR `#531 <https://github.com/shader-slang/slangpy/pull/531>`__)
+  - Move vcpkg buildtrees to build directory for cleaner project organization.
+    (PR `#650 <https://github.com/shader-slang/slangpy/pull/650>`__)
+  - Disable compiler warnings for cleaner build output.
+    (PR `#656 <https://github.com/shader-slang/slangpy/pull/656>`__)
+  - Fix incorrect Tensor constructor API documentation in autodiff examples.
+    (PR `#628 <https://github.com/shader-slang/slangpy/pull/628>`__)
+
+Version 0.39.0 (November 17, 2025)
+-------
+- Update to Slang version 2025.22.1 with latest shader compilation improvements and bug fixes.
+  (PR `#642 <https://github.com/shader-slang/slangpy/pull/642>`__)
+- Add scalar and vector ``select`` intrinsic functions for conditional value selection.
+  (PR `#641 <https://github.com/shader-slang/slangpy/pull/641>`__)
+- Add support for precompiled modules to enable faster shader loading and compilation.
+  (PR `#637 <https://github.com/shader-slang/slangpy/pull/637>`__)
+- Update to Slang version 2025.22 with CUDA 12.2 support and improved platform compatibility.
+  (PR `#640 <https://github.com/shader-slang/slangpy/pull/640>`__)
+- Add separate module cache from shader cache for improved caching and compilation performance.
+  (PR `#635 <https://github.com/shader-slang/slangpy/pull/635>`__)
+- Add test for extension cache update issue to ensure proper module extension handling.
+  (PR `#631 <https://github.com/shader-slang/slangpy/pull/631>`__)
+- Add ``Texture::descriptor_handle`` getters based on default texture views for improved bindless texture support.
+  (PR `#627 <https://github.com/shader-slang/slangpy/pull/627>`__)
+- Update ``RayTracingPipelineFlags`` with new flag values for enhanced ray tracing configuration.
+  (PR `#634 <https://github.com/shader-slang/slangpy/pull/634>`__)
+- Update slang-rhi submodule to latest version with improved stability.
+  (PR `#633 <https://github.com/shader-slang/slangpy/pull/633>`__)
+- Add GitHub release upload capability to wheels workflow for automated release artifact distribution.
+  (PR `#618 <https://github.com/shader-slang/slangpy/pull/618>`__)
+
+Version 0.38.1 (November 10, 2025)
+-------
+- Update to Slang version 2025.21.2 with latest shader compilation improvements and bug fixes.
+- Optimize PyTorch tensor marshalling to significantly reduce CPU overhead and kernel launch latency when using PyTorch tensors with SlangPy.
+  (PR `#625 <https://github.com/shader-slang/slangpy/pull/625>`__)
+- Fix AccelerationStructureBuildDescConverter for improved ray tracing acceleration structure handling.
+  (PR `#626 <https://github.com/shader-slang/slangpy/pull/626>`__)
+- Fix asmjit usage on older x86_64 processors by improving detection and fallback paths for instruction generation.
+  (PR `#624 <https://github.com/shader-slang/slangpy/pull/624>`__)
+- Verify wheel builds before upload to PyPI to improve package quality and reliability.
+  (PR `#623 <https://github.com/shader-slang/slangpy/pull/623>`__)
+- Sign versioned .so files for improved security and deployment.
+  (PR `#621 <https://github.com/shader-slang/slangpy/pull/621>`__)
+- Update to Slang version 2025.21.1 with additional improvements.
+  (PR `#620 <https://github.com/shader-slang/slangpy/pull/620>`__)
+- Update slang-rhi submodule to latest version with improved stability.
+  (PR `#619 <https://github.com/shader-slang/slangpy/pull/619>`__)
+- Update to Slang version 2025.21 with latest shader compilation improvements and bug fixes.
+  (PR `#615 <https://github.com/shader-slang/slangpy/pull/615>`__)
+- Update slang-rhi submodule to latest version with improved stability and performance.
+  (PR `#612 <https://github.com/shader-slang/slangpy/pull/612>`__, PR `#596 <https://github.com/shader-slang/slangpy/pull/596>`__, PR `#592 <https://github.com/shader-slang/slangpy/pull/592>`__, PR `#579 <https://github.com/shader-slang/slangpy/pull/579>`__)
+- Add support for new acceleration structure types for improved ray tracing capabilities.
+  (PR `#607 <https://github.com/shader-slang/slangpy/pull/607>`__)
+- Implement initial capability support system for better hardware feature detection.
+  (PR `#598 <https://github.com/shader-slang/slangpy/pull/598>`__)
+- Add bindless configuration support for more flexible resource binding.
+  (PR `#597 <https://github.com/shader-slang/slangpy/pull/597>`__)
+- Add labels to SlangPy generated kernels for improved debugging and profiling.
+  (PR `#584 <https://github.com/shader-slang/slangpy/pull/584>`__)
+- Refactor UI API for better usability and consistency.
+  (PR `#591 <https://github.com/shader-slang/slangpy/pull/591>`__)
+- Add support for macOS file dialogs in UI components.
+  (PR `#568 <https://github.com/shader-slang/slangpy/pull/568>`__)
+- Replace BS::thread_pool with nanothread for improved threading performance.
+  (PR `#564 <https://github.com/shader-slang/slangpy/pull/564>`__)
+- Add ability to control per-thread printing for better debugging in multi-threaded scenarios.
+  (PR `#587 <https://github.com/shader-slang/slangpy/pull/587>`__)
+- Add handling of YA bitmaps (found in vMaterials) by extending support to RGBA format.
+  (PR `#588 <https://github.com/shader-slang/slangpy/pull/588>`__)
+- Update SlangPy for library rename and versioning improvements.
+  (PR `#606 <https://github.com/shader-slang/slangpy/pull/606>`__)
+- Fix texture subresource handling when pitches are not provided.
+  (PR `#586 <https://github.com/shader-slang/slangpy/pull/586>`__)
+- Fix blit functionality and improve reliability.
+  (PR `#593 <https://github.com/shader-slang/slangpy/pull/593>`__, PR `#583 <https://github.com/shader-slang/slangpy/pull/583>`__)
+- Remove obsolete Slang math code for cleaner codebase.
+  (PR `#602 <https://github.com/shader-slang/slangpy/pull/602>`__)
+- Add setuptools to requirements for improved build compatibility.
+  (PR `#601 <https://github.com/shader-slang/slangpy/pull/601>`__)
+- Enable Linux aarch64 pip packaging support.
+  (PR `#549 <https://github.com/shader-slang/slangpy/pull/549>`__)
+- Improve test infrastructure with performance labels and PyTorch version locking.
+  (PR `#613 <https://github.com/shader-slang/slangpy/pull/613>`__, PR `#611 <https://github.com/shader-slang/slangpy/pull/611>`__, PR `#605 <https://github.com/shader-slang/slangpy/pull/605>`__)
+- Fix Slang compiler DLL copying for improved deployment.
+  (PR `#609 <https://github.com/shader-slang/slangpy/pull/609>`__)
+- Cleanup pathtracer example and improve code formatting standards.
+  (PR `#590 <https://github.com/shader-slang/slangpy/pull/590>`__, PR `#589 <https://github.com/shader-slang/slangpy/pull/589>`__)
+
+Version 0.38.0 (November 3, 2025)
+-------
+- Yanked due to twine check failures.
+
+Version 0.37.0 (October 15, 2025)
+-------
+
+- Update to Slang version 2025.19 with latest shader compilation improvements and bug fixes.
+  (PR `#572 <https://github.com/shader-slang/slangpy/pull/572>`__, PR `#560 <https://github.com/shader-slang/slangpy/pull/560>`__)
+- Update slang-rhi submodule to latest version with improved stability and bug fixes.
+  (PR `#569 <https://github.com/shader-slang/slangpy/pull/569>`__, PR `#550 <https://github.com/shader-slang/slangpy/pull/550>`__, PR `#541 <https://github.com/shader-slang/slangpy/pull/541>`__)
+- Add persistent shader cache implementation based on LMDB for improved compilation performance and caching across sessions.
+  (PR `#561 <https://github.com/shader-slang/slangpy/pull/561>`__, PR `#555 <https://github.com/shader-slang/slangpy/pull/555>`__)
+- Implement string printing support in shaders for improved debugging capabilities.
+  (PR `#566 <https://github.com/shader-slang/slangpy/pull/566>`__)
+- Add support for calling interface parameters with implementing types.
+  (PR `#562 <https://github.com/shader-slang/slangpy/pull/562>`__)
+- Add nanothread library and improve threading support.
+  (PR `#563 <https://github.com/shader-slang/slangpy/pull/563>`__)
+- Fix import determinism to ensure consistent code generation for shader cache compatibility.
+  (PR `#565 <https://github.com/shader-slang/slangpy/pull/565>`__)
+- Fix texture loader for CUDA and improve platform compatibility.
+  (PR `#545 <https://github.com/shader-slang/slangpy/pull/545>`__, PR `#552 <https://github.com/shader-slang/slangpy/pull/552>`__)
+- Fix compute blit functionality and various bug fixes.
+  (PR `#503 <https://github.com/shader-slang/slangpy/pull/503>`__, PR `#546 <https://github.com/shader-slang/slangpy/pull/546>`__, PR `#554 <https://github.com/shader-slang/slangpy/pull/554>`__, PR `#553 <https://github.com/shader-slang/slangpy/pull/553>`__)
+
+Version 0.36.0 (September 30, 2025)
+-------
+
+- Update to Slang version 2025.18 with latest shader compilation improvements and bug fixes.
+- Update slang-rhi submodule to latest version with improved dependency handling.
+  (PR `#533 <https://github.com/shader-slang/slangpy/pull/533>`__)
+
+Version 0.35.0 (September 18, 2025)
+-------
+
+- Add initial support for ray tracing pipelines, enabling hardware-accelerated ray tracing workflows.
+  (PR `#502 <https://github.com/shader-slang/slangpy/pull/502>`__)
+- Update to latest Slang version (2025.17) with improved shader compilation and platform support.
+  (PR `#507 <https://github.com/shader-slang/slangpy/pull/507>`__)
+- Add helper function to create homogeneous 4x4 transformation matrices from 3x4 matrices.
+  (PR `#506 <https://github.com/shader-slang/slangpy/pull/506>`__)
+- Add new ``load_from_file`` and ``load_from_numpy`` functions for improved data loading workflows.
+  (PR `#513 <https://github.com/shader-slang/slangpy/pull/513>`__)
+- Fix hot reload functionality for built-in reflection data to ensure proper shader recompilation.
+  (PR `#514 <https://github.com/shader-slang/slangpy/pull/514>`__)
+- Fix memory stream loading issues and improve data loading reliability.
+  (PR `#513 <https://github.com/shader-slang/slangpy/pull/513>`__)
+- Rename getter methods throughout the API to follow consistent coding conventions.
+  (PR `#505 <https://github.com/shader-slang/slangpy/pull/505>`__)
+
+Version 0.34.0 (September 9, 2025)
+-------
+
+- Add ``Device.report_heaps()`` method to query internal memory heap status and allocation information.
+- Update to latest Slang version (2025.16.0) with improved CUDA and Metal support.
+  (PR ```#493 <https://github.com/shader-slang/slangpy/pull/493>```__)
+- Add GPU clock locking for consistent benchmark results and implement trimmed mean calculation for more accurate performance measurements.
+  (PR ```#484 <https://github.com/shader-slang/slangpy/pull/484>```__, PR ```#480 <https://github.com/shader-slang/slangpy/pull/480>```__, PR ```#472 <https://github.com/shader-slang/slangpy/pull/472>```__)
+- Support passing call data as entry point parameters on CUDA for improved performance.
+  (PR ```#481 <https://github.com/shader-slang/slangpy/pull/481>```__)
+- Fix multiple memory leaks related to Python object references and improve resource cleanup.
+  (PR ```#488 <https://github.com/shader-slang/slangpy/pull/488>```__)
+- Add benchmark comparison and delta reporting functionality with GPU information in reports.
+  (PR ```#471 <https://github.com/shader-slang/slangpy/pull/471>```__, PR ```#456 <https://github.com/shader-slang/slangpy/pull/456>```__)
+- Rename ```command_buffer``` to ```command_encoder``` for API consistency.
+  (PR ```#487 <https://github.com/shader-slang/slangpy/pull/487>```__)
+- Add ```PassEncoder::write_timestamp``` and timestamp support in ```ComputeKernel::dispatch```.
+  (PR ```#473 <https://github.com/shader-slang/slangpy/pull/473>```__)
+- Optimize ```write_from_numpy``` performance with faster copy options.
+  (PR ```#455 <https://github.com/shader-slang/slangpy/pull/455>```__)
+- Fix PyTorch examples and improve integration.
+  (PR ```#459 <https://github.com/shader-slang/slangpy/pull/459>```__)
+- Add support for platform-specific test isolation via environment variables.
+  (PR ```#478 <https://github.com/shader-slang/slangpy/pull/478>```__)
+- Fix module linking for layout when using ```link``` modules.
+  (PR ```#449 <https://github.com/shader-slang/slangpy/pull/449>```__)
+- Add string conversion functions for slangpy types and improve debugging capabilities.
+  (PR ```#463 <https://github.com/shader-slang/slangpy/pull/463>```__, PR ```#464 <https://github.com/shader-slang/slangpy/pull/464>```__)
+
+Version 0.33.1 (August 25, 2025)
+----------------------------
+
+- Include the missing Slang binary file into the package.
+  (PR `#445 <https://github.com/shader-slang/slangpy/pull/445>`__)
+- Introduce benchmark plugin and testing infrastructure with MongoDB integration for automated performance tracking.
+  (PR `#452 <https://github.com/shader-slang/slangpy/pull/452>`__)
+- Add support for bindless storage buffers in GPU abstraction layer.
+  (PR `#421 <https://github.com/shader-slang/slangpy/pull/421>`__).
+- Fix ``copy_from_torch()`` for CUDA devices and resolve PyTorch integration issues.
+  (PR `#391 <https://github.com/shader-slang/slangpy/pull/391>`__).
+- Introduce unified ``slangpy.testing`` module consolidating all testing utilities and pytest plugin system.
+  (PR `#448 <https://github.com/shader-slang/slangpy/pull/448>`__).
+- Force release all slang-rhi resources during shutdown to prevent memory leaks and segfaults on Linux.
+  (PR `#426 <https://github.com/shader-slang/slangpy/pull/426>`__).
+- Rename ``DeviceResource`` to ``DeviceChild`` for consistency with slang-rhi.
+  (PR `#425 <https://github.com/shader-slang/slangpy/pull/425>`__).
+- Enable more tests across platforms: Linux, CUDA, and Metal support improvements.
+  (PR `#429 <https://github.com/shader-slang/slangpy/pull/429>`__).
+- Fix race condition in hot reload test and improve shader change detection.
+  (PR `#433 <https://github.com/shader-slang/slangpy/pull/433>`__).
+- Force unroll small fixed size loops and globally disable warning 30856 for better compilation.
+  (PR `#437 <https://github.com/shader-slang/slangpy/pull/437>`__).
+
+Version 0.33.0 (August 12, 2025)
+----------------------------
+
+- Update to slang version 2025.14.3.
+  (PR `#409 <https://github.com/shader-slang/slangpy/pull/409>`__).
+- Fix tensor alignment issue when copying data to GPU tensors with vector element types.
+  Metal platform now handles vector alignment correctly to match other platforms.
+  (PR `#418 <https://github.com/shader-slang/slangpy/pull/418>`__).
+- Update samples.
+  (PR `#413 <https://github.com/shader-slang/slangpy/pull/413>`__).
+
+Version 0.32.0 (August 8, 2025)
+----------------------------
+
+- Update to slang version 2025.14.
+- Improve CUDA support.
+- Improve Metal support.
+- Improve PyTorch support.
+  (PR `#362 <https://github.com/shader-slang/slangpy/pull/362>`__).
+- Add support for pointers.
+  (PR `#323 <https://github.com/shader-slang/slangpy/pull/323>`__, PR `#326 <https://github.com/shader-slang/slangpy/pull/326>`__).
+- Add ``SGL_SLANG_DEBUG_INFO`` cmake variable to enable downloading Slang debug info (enabled by default).
+  (PR `#296 <https://github.com/shader-slang/slangpy/pull/296>`__).
+- Add ``sgl::CommandEncoder::generate_mips()`` (``slangpy.CommandEncoder.generate_mips()``) to generate mipmaps for textures.
+  (PR `#293 <https://github.com/shader-slang/slangpy/pull/293>`__).
+- Add optional ``_append_to`` argument to slangpy call functions to append commands to an existing command encoder.
+  (PR `#287 <https://github.com/shader-slang/slangpy/pull/287>`__).
+- Allow creating ``Bitmap`` from non-contiguous arrays.
+  (PR `#282 <https://github.com/shader-slang/slangpy/pull/282>`__).
+
+Version 0.31.0 (June 5, 2025)
+----------------------------
+
+- Update to slang version 2025.10.1.
+- Add support for vectorizing against Python lists.
+- Make ``NDBuffer`` and ``Tensor`` ``empty`` / ``zeros`` APIs consistent.
+- Added ``load_from_image`` for ``NDBuffer`` and ``Tensor``.
+- Fix typings for ``float2x3``, ``float3x2``, ``float4x2`` and ``float4x3``.
+
+Version 0.30.0 (May 27, 2025)
+----------------------------
+
+- Update `slang-rhi` to latest version.
+  Improve CUDA error reporting.
+  Improve debug marker support and add `WinPixEventRuntime`.
+  Fix resource lifetime tracking for entry point arguments.
+  (PR `#236 <https://github.com/shader-slang/slangpy/pull/236>`__).
+
+Version 0.29.0 (May 22, 2025)
+----------------------------
+
+- Update `slang-rhi` to latest version. Make enum infos constexpr.
+  (PR `#234 <https://github.com/shader-slang/slangpy/pull/234>`__).
+- Fix ``sgl::Feature`` (``slangpy.Feature``) to include missing value.
+  (PR `#233 <https://github.com/shader-slang/slangpy/pull/233>`__).
+- Fix registered matrix types in ``PYTHON_TYPES``.
+  (PR `#232 <https://github.com/shader-slang/slangpy/pull/232>`__).
+
+Version 0.28.0 (May 21, 2025)
+----------------------------
+
+- Load PyTorch module lazily to avoid overhead when PyTorch is not used.
+  (PR `#184 <https://github.com/shader-slang/slangpy/pull/184>`__).
+- Improve warning when tev image viewer is not running.
+  (PR `#216 <https://github.com/shader-slang/slangpy/pull/216>`__).
+- Report correct LUID in ``sgl::DeviceInfo::adapter_luid`` (``slangpy.DeviceInfo.adapter_luid``).
+  (PR `#215 <https://github.com/shader-slang/slangpy/pull/215>`__).
+
+
+Version 0.27.0 (May 9, 2025)
+----------------------------
+
+- Package and distribute pytest tests. Fix deploying ``.pyi`` files in wheels + other minor fixes.
+  (PR `#197 <https://github.com/shader-slang/slangpy/pull/197>`__).
+- Introduce basic support for bindless textures and samplers. Currently only supported on D3D12.
+  Add ``sgl::Feature::bindless`` (``slangpy.Feature.bindless``) to detect bindless support.
+  Add ``sgl::DescriptorHandle`` (``slangpy.DescriptorHandle``) to represent bindless descriptor handles.
+  Add ``sgl::Sampler::descriptor_handle()`` (``slangpy.Sampler.descriptor_handle``) to get the descriptor handle for a sampler.
+  Add ``sgl::Texture::descriptor_handle_ro()`` (``slangpy.Texture.descriptor_handle_ro``) to get the read-only descriptor handle for a texture.
+  Add ``sgl::Texture::descriptor_handle_rw()`` (``slangpy.Texture.descriptor_handle_rw``) to get the read-write descriptor handle for a texture.
+  (PR `#196 <https://github.com/shader-slang/slangpy/pull/196>`__).
+- Rename ``sgl::Struct`` to ``sgl::DataStruct`` to match ``slangpy.DataStruct``.
+  Rename ``sgl::StructConverter`` to ``sgl::DataStructConverter``
+  and ``slangpy.StructConverter`` to ``slangpy.DataStructConverter``.
+  (PR `#185 <https://github.com/shader-slang/slangpy/pull/185>`__).
+
+
+Version 0.26.0
+----------------------------
+
+- Port samples to use new combined SlangPy/SGL API
+- CUDA and Metal fixes
+- Initial deployment of wheels for macOS
+
+
+Version 0.25.0
+----------------------------
+
+- Fix deploying slangpy shader files
+
+
+Version 0.24.0
+----------------------------
+
+- Merge SGL (https://github.com/shader-slang/sgl) into SlangPy.
+
+Version 0.23.0
+----------------------------
+
+- Require SGL v0.15.0
+- Refactor of NDBuffer and Tensor to share some underlying type
+- NDBuffer and Tensor support indexing
+
+Version 0.22.0
+----------------------------
+
+- Requre new SGL v0.14.0 with switch to Slang-RHI
+
+Version 0.21.1
+----------------------------
+
+- Fix to numpy version requirement
+- Fixes to examples
+- Add neural network example
+- Require SGL v0.13.1
+
+Version 0.21.0
+----------------------------
+
+- Full Jupyter notebook support
+- Lots of fixes for edge-case hot reload crashes
+- Significantly more robust wang hash and rand float generators
+- Direct return of structs from scalar calls
+- Add diff splatting sample
+- Fix for rare issue involving lookup order of generic functions vs generic types
+- Require SGL v0.13.0
+
+Version 0.20.1
+----------------------------
+
+- Fix scalar wang-hash arg types
+
+Version 0.20.0
+----------------------------
+
+- Add SDF example
+- Transpose vector coordinates
+
+Version 0.19.5
+----------------------------
+
+- Documentation for generators
+- Extra fixes for grid
+
+Version 0.19.4
+----------------------------
+
+- Fix grid issue
+
+Version 0.19.3
+----------------------------
+
+- Update SGL -> 0.12.4
+- Significant improvements to generator types
+- Support textures as output type
+
+Version 0.19.2
+----------------------------
+
+- Update SGL -> 0.12.3
+- Better error messages during generation
+- Fix corrupt error tables
+- Restore detailed error information during dispatch
+
+Version 0.19.1
+----------------------------
+
+- Update SGL -> 0.12.2
+- Fix major issue with texture transposes
+
+Version 0.19.0
+----------------------------
+
+- Add experimental grid type
+
+Version 0.18.2
+----------------------------
+
+- Update SGL -> 0.12.1
+- Rename from_numpy to buffer_from_numpy
+
+Version 0.18.1
+----------------------------
+
+- Fix Python 3.9 typing
+
+Version 0.18.0
+----------------------------
+
+- Long file temp filenames fix
+- Temp fix for resolution of types that involve generics in multiple files
+- Support passing 1D NDBuffer to structured buffer
+- Fix native buffer not being passed to bindings
+- Missing slang field check
+- Avoid synthesizing store methods for none-written nested types
+
+Version 0.17.0
+----------------------------
+
+- Update to latest `nv-sgl` with CoopVec support
+- Native tensor implementation
+- Linux crash fix
+
+Version 0.16.0
+----------------------------
+
+- Native texture and structured buffer implementations
+- Native function dispatches
+- Lots of bug fixes
+
+Version 0.15.2
+----------------------------
+
+- Correctly package slang files in wheel
+
+Version 0.15.0
+----------------------------
+
+- Native buffer takes full reflection layout
+- Add uniforms + cursor api to native buffer
+- Update required version of `nv-sgl` to `0.9.0`
+
+Version 0.14.0
+----------------------------
+
+- Update required version of `nv-sgl` to `0.8.0`
+- Substantial native + python optimizations
+
+Version 0.13.0
+----------------------------
+
+- Update required version of `nv-sgl` to `0.7.0`
+- Native SlangPy backend re-enabled
+- Conversion of NDBuffer to native code
+- PyTorch integration refactor
+
+Version 0.12.0
+----------------------------
+
+- Update required version of `nv-sgl` to `0.6.2`
+- Re-enable broken Vulkan tests
+
+Version 0.12.0
+----------------------------
+
+- Update required version of `nv-sgl` to `0.6.1`
+
+Version 0.10.0
+----------------------------
+
+- Initial test release

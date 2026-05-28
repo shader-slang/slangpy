@@ -1,0 +1,639 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+import hashlib
+import os
+import re
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from slangpy.core.callsignature import *
+from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
+from slangpy.core.native import (
+    AccessType,
+    CallMode,
+    NativeCallData,
+    unpack_args,
+    unpack_kwargs,
+)
+from slangpy.core.function import PipelineType
+
+from slangpy import (
+    SlangCompileError,
+    SlangLinkOptions,
+    NativeHandle,
+    DeviceType,
+    TypeConformance,
+    is_torch_bridge_using_fallback,
+    get_torch_bridge_fallback_reason,
+)
+from slangpy.bindings import (
+    BindContext,
+    BoundCallRuntime,
+    BoundVariableException,
+    CodeGen,
+)
+from slangpy.bindings.boundvariable import BoundCall, BoundVariable
+from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
+from slangpy.reflection import SlangFunction, ITensorType, TensorAccess
+
+if TYPE_CHECKING:
+    from slangpy.core.function import FunctionNode, FunctionBuildInfo
+
+SLANG_PATH = Path(__file__).parent.parent / "slang"
+
+_DUMP_GENERATED_SHADERS = os.environ.get("SLANGPY_DUMP_GENERATED_SHADERS", "false").lower() in (
+    "true",
+    "1",
+)
+
+_DUMP_SLANG_INTERMEDIATES = os.environ.get("SLANGPY_DUMP_SLANG_INTERMEDIATES", "false").lower() in (
+    "true",
+    "1",
+)
+_PRINT_GENERATED_SHADERS = os.environ.get("SLANGPY_PRINT_GENERATED_SHADERS", "false").lower() in (
+    "true",
+    "1",
+)
+_ALLOW_TORCH_FALLBACK = os.environ.get("SLANGPY_ALLOW_TORCH_FALLBACK", "").lower() in (
+    "true",
+    "1",
+)
+
+# OptiX built-in intersection shaders that must not be resolved as user entry points.
+_OPTIX_BUILTIN_INTERSECTION_SHADERS = frozenset(
+    {
+        "__builtin_intersection__sphere",
+        "__builtin_intersection__linear_swept_spheres",
+    }
+)
+
+# Track if we've already warned about torch bridge fallback
+_torch_bridge_warned = False
+
+
+def set_dump_generated_shaders(value: bool):
+    """
+    Specify whether to dump generated shaders to .temp for analysis.
+    """
+    global _DUMP_GENERATED_SHADERS
+    _DUMP_GENERATED_SHADERS = value
+
+
+def set_dump_slang_intermediates(value: bool):
+    """
+    Specify whether to dump slang compiler intermediates for analysis.
+    """
+    global _DUMP_SLANG_INTERMEDIATES
+    _DUMP_SLANG_INTERMEDIATES = value
+
+
+def set_print_generated_shaders(value: bool):
+    """
+    Specify whether to print generated shaders to the terminal for analysis.
+    Can also be controlled via the SLANGPY_PRINT_GENERATED_SHADERS environment variable.
+    """
+    global _PRINT_GENERATED_SHADERS
+    _PRINT_GENERATED_SHADERS = value
+
+
+def set_allow_torch_fallback(value: bool):
+    """
+    Specify whether to allow falling back to the slower Python implementation when PyTorch
+    tensors are detected but the slangpy-torch native bridge is not available. Can also
+    be controlled via the SLANGPY_ALLOW_TORCH_FALLBACK environment variable.
+    """
+    global _ALLOW_TORCH_FALLBACK
+    _ALLOW_TORCH_FALLBACK = value
+
+
+def unpack_arg(arg: Any) -> Any:
+    if hasattr(arg, "get_this"):
+        arg = arg.get_this()
+    if isinstance(arg, dict):
+        arg = {k: unpack_arg(v) for k, v in arg.items()}
+    if isinstance(arg, list):
+        arg = [unpack_arg(v) for v in arg]
+    return arg
+
+
+def pack_arg(arg: Any, unpacked_arg: Any):
+    if hasattr(arg, "update_this"):
+        arg.update_this(unpacked_arg)
+    if isinstance(arg, dict):
+        for k, v in arg.items():
+            pack_arg(v, unpacked_arg[k])
+    if isinstance(arg, list):
+        for i, v in enumerate(arg):
+            pack_arg(v, unpacked_arg[i])
+    return arg
+
+
+class CallData(NativeCallData):
+    def __init__(
+        self,
+        func: "FunctionNode",
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__()
+        build_info = func.calc_build_info()
+        self.build(build_info, *args, **kwargs)
+
+    def build(self, build_info: "FunctionBuildInfo", *args: Any, **kwargs: Any) -> None:
+        self.has_thread_count = "_thread_count" in kwargs
+
+        try:
+
+            # These will be populated later
+            bindings = None
+            slang_function = None
+            diagnostics = ResolutionDiagnostic()
+
+            # Read temps from function
+            return_type = build_info.return_type
+            positional_mapping = build_info.map_args
+            keyword_mapping = build_info.map_kwargs
+            type_conformances = build_info.type_conformances
+            self.call_group_shape = build_info.call_group_shape
+
+            # Store logger from either function or module
+            if build_info.logger is not None:
+                self.logger = build_info.logger
+            else:
+                self.logger = build_info.module.logger
+            self.debug_name = f"{build_info.module.name}::{build_info.function.name}"
+
+            self.log_debug(f"Generating kernel for {build_info.function.name}")
+            self.log_debug(f"  Module: {build_info.module.name}")
+
+            # Store layout and callmode from function
+            self.layout = build_info.module.layout
+            self.call_mode = build_info.call_mode
+
+            # Unpack args (handles IThis wrappers)
+            unpacked_args, args_had_unpack = unpack_args(*args)
+            unpacked_kwargs, kwargs_had_unpack = unpack_kwargs(**kwargs)
+            unpacked_kwargs.pop("_thread_count", None)  # not a Slang parameter
+            self.needs_unpack = args_had_unpack or kwargs_had_unpack
+
+            # If we have torch tensors, enable torch integration
+            from slangpy.torchintegration.detection import detect_torch_tensors
+
+            has_torch, autograd = detect_torch_tensors(tuple(unpacked_args), dict(unpacked_kwargs))
+            if has_torch:
+                import torch
+                import slangpy.torchintegration.torchtensormarshall  # type: ignore (Registers torch.Tensor handler)
+
+                # Error if slangpy-torch native bridge is not available (unless fallback opted in)
+                if is_torch_bridge_using_fallback():
+                    if not _ALLOW_TORCH_FALLBACK:
+                        reason = get_torch_bridge_fallback_reason()
+                        if reason == "incompatible":
+                            raise RuntimeError(
+                                "slangpy-torch is installed but has an incompatible version.\n"
+                                "Upgrade with: pip install --upgrade slangpy-torch --no-build-isolation\n"
+                                "To use the slower Python fallback, set SLANGPY_ALLOW_TORCH_FALLBACK=1, or "
+                                "call set_allow_torch_fallback(True)"
+                            )
+                        else:
+                            raise RuntimeError(
+                                "PyTorch tensors detected but slangpy-torch is not installed.\n"
+                                "Install with: pip install slangpy[torch]\n"
+                                "To use the slower Python fallback, set SLANGPY_ALLOW_TORCH_FALLBACK=1, or "
+                                "call set_allow_torch_fallback(True)"
+                            )
+
+                self.torch_integration = True
+                self.torch_autograd = autograd
+                if return_type is None:
+                    return_type = torch.Tensor
+
+            # Setup context
+            context = BindContext(
+                self.layout,
+                self.call_mode,
+                build_info.module.device_module,
+                build_info.options,
+            )
+
+            # Build the unbound signature from inputs
+            bindings = BoundCall(context, *unpacked_args, **unpacked_kwargs)
+
+            # Apply explicit to the Python variables
+            apply_explicit_vectorization(context, bindings, positional_mapping, keyword_mapping)
+
+            # Perform specialization to get a concrete function reflection
+            resolve_result = specialize(
+                context, bindings, build_info.function, diagnostics, build_info.this_type
+            )
+            if resolve_result is None:
+                raise ResolveException(
+                    f"Could not call function '{build_info.function.name}':\n\n"
+                    f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
+                )
+            slang_function = resolve_result.function
+
+            # Check for differentiability error
+            if not resolve_result.function.differentiable and self.call_mode != CallMode.prim:
+                raise ResolveException(
+                    f"Could not call function '{build_info.function.name}': Function is not differentiable\n\n"
+                    f"{mismatch_info(bindings, build_info.function, str(diagnostics))}\n"
+                )
+
+            # Inject a dummy node into the Python signature if we need a result back
+            if (
+                self.call_mode == CallMode.prim
+                and not "_result" in kwargs
+                and resolve_result.function.return_type is not None
+                and resolve_result.function.return_type.full_name != "void"
+            ):
+                rvalnode = BoundVariable(context, None, None, "_result")
+                bindings.kwargs["_result"] = rvalnode
+
+            # Create bound variable information now that we have concrete data for path sides
+            bindings = bind(context, bindings, resolve_result.function, resolve_result.params)
+
+            # Run Python side implicit vectorization to do any remaining type resolution
+            apply_implicit_vectorization(context, bindings)
+
+            # Should no longer have implicit argument types for anything.
+            assert not bindings.has_implicit_args
+
+            # Calculate overall call dimensionality now that all typing is known.
+            self.call_dimensionality = calculate_call_dimensionality(bindings)
+            context.call_dimensionality = self.call_dimensionality
+            self.log_debug(f"  Call dimensionality: {self.call_dimensionality}")
+
+            # _thread_count is only valid when call_dimensionality is 0
+            if self.has_thread_count and self.call_dimensionality > 0:
+                raise ValueError(
+                    f"_thread_count is only valid for kernels with call dimensionality 0 "
+                    f"(i.e., all parameters are passed as whole buffers/values and the kernel "
+                    f"manages its own thread indexing). This kernel has call dimensionality "
+                    f"{self.call_dimensionality}, meaning the thread count is automatically "
+                    f"inferred from the shapes of the vectorized arguments."
+                )
+
+            # If necessary, create return value node once call dimensionality is known.
+            create_return_value_binding(context, bindings, return_type)
+
+            # Calculate final mappings for bindings that only have known vector type.
+            finalize_mappings(context, bindings)
+
+            # Should no longer have any unresolved mappings for anything.
+            assert not bindings.has_implicit_mappings
+
+            # Calculate differentiability of all variables.
+            calculate_differentiability(context, bindings)
+
+            # Calculate direct binding eligibility for all variables.
+            calculate_direct_binding(bindings)
+
+            # Determine fast path (entry-point params) vs fallback (ParameterBlock<CallData>).
+            # Sum inline-uniform byte size and compare against per-device threshold.
+            inline_size = estimate_entrypoint_arguments_size(bindings, self.call_dimensionality)
+            threshold = build_info.module.device.info.limits.max_entry_point_uniform_size
+            use_entrypoint_args = inline_size <= threshold
+            self.log_debug(
+                f"  Inline uniform size: {inline_size} bytes, "
+                f"threshold: {threshold} bytes, "
+                f"use_entrypoint_args: {use_entrypoint_args}"
+            )
+
+            # Until https://github.com/shader-slang/slang-rhi/pull/676, Vk RTP can't use entry point args,
+            # and on optix, numPayloadValues (dependent on entry point params size) must be <= 32. For
+            # now just disable for RTP. Both fail on dispatch, so simple compilation test isn't enough
+            # to catch it.
+            if build_info.pipeline_type == PipelineType.ray_tracing:
+                use_entrypoint_args = False
+
+            # Disable for Metal until I can figure out how entry point args work properly
+            if build_info.module.device.info.type == DeviceType.metal:
+                use_entrypoint_args = False
+
+            # Try building the shader. If direct args compilation fails (the
+            # threshold is only an approximate heuristic), fall back to
+            # ParameterBlock<CallData>.
+            try:
+                self.use_entrypoint_args = use_entrypoint_args
+                self._try_build_shader(
+                    context,
+                    build_info,
+                    bindings,
+                    type_conformances,
+                )
+            except RuntimeError as e:
+                if not use_entrypoint_args:
+                    raise
+                self.log_debug(
+                    f"  Direct args compilation failed ({e}), "
+                    "retrying with ParameterBlock<CallData>"
+                )
+                self.use_entrypoint_args = False
+                self._try_build_shader(
+                    context,
+                    build_info,
+                    bindings,
+                    type_conformances,
+                )
+
+            # Store the bindings and runtime for later use.
+            self.debug_only_bindings = bindings
+            self.runtime = BoundCallRuntime(bindings)
+
+            # If using autograd, build list of access modes for each tensor argument.
+            if self.torch_autograd:
+                self._build_autograd_access_list(unpacked_args, unpacked_kwargs)
+
+        except BoundVariableException as e:
+            if bindings is not None:
+                ref = (
+                    slang_function
+                    if isinstance(slang_function, SlangFunction)
+                    else build_info.function
+                )
+                raise ValueError(
+                    f"{e.message}\n\n"
+                    f"{bound_exception_info(bindings, ref, e.variable, str(diagnostics))}\n"
+                ) from e
+            else:
+                raise
+        except SlangCompileError as e:
+            if bindings is not None:
+                ref = (
+                    slang_function
+                    if isinstance(slang_function, SlangFunction)
+                    else build_info.function
+                )
+                raise ValueError(
+                    f"Slang compilation error: {e}\n. Use set_dump_generated_shaders to enable dump generated shader to .temp.\n"
+                    f"This most commonly occurs as a result of an invalid explicit type cast, or bug in implicit casting logic.\n\n"
+                    f"{bound_exception_info(bindings, ref, None, str(diagnostics))}\n"
+                ) from e
+            else:
+                raise
+        except KernelGenException as e:
+            if bindings is not None:
+                ref = (
+                    slang_function
+                    if isinstance(slang_function, SlangFunction)
+                    else build_info.function
+                )
+                raise ValueError(
+                    f"Exception in kernel generation: {e.message}.\n\n"
+                    f"{bound_exception_info(bindings, ref, None, str(diagnostics))}\n"
+                ) from e
+            else:
+                raise
+        except ResolveException as e:
+            # Triggered from within calldata, doesn't need augmenting
+            raise
+        except Exception as e:
+            if bindings is not None:
+                ref = (
+                    slang_function
+                    if isinstance(slang_function, SlangFunction)
+                    else build_info.function
+                )
+                raise ValueError(
+                    f"Exception in kernel generation: {e}.\n"
+                    f"{bound_exception_info(bindings, ref, None, str(diagnostics))}\n"
+                ) from e
+            else:
+                raise
+
+    def _try_build_shader(
+        self,
+        context: BindContext,
+        build_info: "FunctionBuildInfo",
+        bindings: BoundCall,
+        type_conformances: list["TypeConformance"],
+    ) -> None:
+        """
+        Generate shader code and build the pipeline.
+
+        Sets self.pipeline, self.device, self.code,
+        and optionally self.shader_table.
+
+        :param context: Binding context.
+        :param build_info: Function build information.
+        :param bindings: Bound call with resolved variables.
+        :param type_conformances: Type conformances for entry point.
+        """
+        context.use_entrypoint_args = self.use_entrypoint_args
+
+        # Generate code.
+        codegen = CodeGen()
+        generate_code(context, build_info, bindings, codegen)
+        # TODO: This is not technically needed anymore because in the case of
+        # linking multiple modules, we already have composed the module to begin with.
+        for link in build_info.module.link:
+            codegen.add_import(link.name)
+        code = codegen.finish(
+            call_data=True,
+            input_load_store=True,
+            header=True,
+            kernel=True,
+            imports=True,
+            prelude=True,
+            trampoline=True,
+            context=True,
+            snippets=True,
+            call_data_structs=True,
+            constants=True,
+        )
+
+        # Optionally write the shader to a file for debugging.
+        sanitized = ""
+        if _DUMP_GENERATED_SHADERS or _DUMP_SLANG_INTERMEDIATES:
+            os.makedirs(".temp", exist_ok=True)
+            santized_module = re.sub(r"[<>, ./:\\]", "_", build_info.module.name)
+            sanitized = re.sub(r"[:<>, ./:\\]", "_", build_info.name)
+            santized_module = santized_module[:50]
+            sanitized = sanitized[:50]
+            fn = f".temp/{santized_module}_{sanitized}{'_backwards' if self.call_mode == CallMode.bwds else ''}"
+            # Some platforms have path length limits that are easily exceeded with nested generics
+            # Be a good citizen here and limit the length of what we generate
+            length_limit = 200
+            if len(fn) > length_limit:
+                fn = fn[:length_limit]
+            fn += "-" + hashlib.sha256(code.encode()).hexdigest()[0:8]
+            fn = fn + ".slang"
+
+            with open(
+                fn,
+                "w",
+            ) as f:
+                f.write("/*\n")
+                f.write(bound_call_table(bindings))
+                f.write("\n*/\n")
+                f.write(code)
+
+        # Optionally print the shader to the terminal for AI analysis.
+        if _PRINT_GENERATED_SHADERS:
+            print("=" * 80)
+            print(f"GENERATED SHADER: {build_info.module.name}::{build_info.name}")
+            if self.call_mode == CallMode.bwds:
+                print("MODE: Backwards")
+            else:
+                print("MODE: Forward")
+            print("=" * 80)
+            print("/* BINDINGS:")
+            print(bound_call_table(bindings))
+            print("*/")
+            print(code)
+            print("=" * 80)
+            print(f"END SHADER: {build_info.module.name}::{build_info.name}")
+            print("=" * 80)
+            print()
+
+        # Hash the code to get a unique identifier for the module.
+        # We add type conformances to the start of the code to ensure that the hash is unique
+        code_minus_header = str(build_info.type_conformances) + code[len(codegen.header) :]
+        hash = hashlib.sha256(code_minus_header.encode()).hexdigest()
+
+        # Check if we've already built this module.
+        if hash in build_info.module.pipeline_cache:
+            # Get pipeline from cache if we have
+            self.pipeline = build_info.module.pipeline_cache[hash]
+            # Get shader table from cache if the pipeline is a raytracing pipeline
+            if build_info.pipeline_type == PipelineType.ray_tracing:
+                self.shader_table = build_info.module.shader_table_cache[hash]
+            self.device = build_info.module.device
+            self.log_debug(f"  Found cached pipeline with hash {hash}")
+
+        else:
+            # Build new module and link it with the one that contains the function being called.
+            self.log_debug(f"  Building new pipeline with hash {hash}")
+            session = build_info.module.session
+            device = session.device
+            module = session.load_module_from_source(hash, code)
+            opts = SlangLinkOptions()
+            opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
+            opts.dump_intermediates_prefix = sanitized
+            if build_info.pipeline_type == PipelineType.compute:
+                # Create compute pipeline
+                ep = module.entry_point(f"compute_main", type_conformances)
+                program = session.link_program(
+                    [module, build_info.module.device_module],
+                    [ep],
+                    opts,
+                )
+                self.pipeline = device.create_compute_pipeline(
+                    program,
+                    defer_target_compilation=True,
+                    label=f"{build_info.module.name}_{build_info.name}_compute_call",
+                )
+                build_info.module.pipeline_cache[hash] = self.pipeline
+            elif build_info.pipeline_type == PipelineType.ray_tracing:
+                # Create ray tracing pipeline
+                eps = [module.entry_point(f"raygen_main", type_conformances)]
+                # Collect hit group names. Either use the provided list, or construct hit group descriptions.
+                hit_group_names = build_info.ray_tracing_hit_group_names or [
+                    hit_group.hit_group_name for hit_group in build_info.ray_tracing_hit_groups
+                ]
+                # Collect entry point names for all hit groups, miss shaders and callable shaders.
+                # dict preserves insertion order; value is unused.
+                entry_point_names: dict[str, None] = {}
+                for hit_group in build_info.ray_tracing_hit_groups:
+                    if hit_group.closest_hit_entry_point:
+                        entry_point_names[hit_group.closest_hit_entry_point] = None
+                    if hit_group.any_hit_entry_point:
+                        entry_point_names[hit_group.any_hit_entry_point] = None
+                    if (
+                        hit_group.intersection_entry_point
+                        and hit_group.intersection_entry_point
+                        not in _OPTIX_BUILTIN_INTERSECTION_SHADERS
+                    ):
+                        entry_point_names[hit_group.intersection_entry_point] = None
+                entry_point_names.update(
+                    (name, None) for name in build_info.ray_tracing_miss_entry_points if name
+                )
+                entry_point_names.update(
+                    (name, None) for name in build_info.ray_tracing_callable_entry_points if name
+                )
+                # Add entry points for every user-defined entry point in the hit groups, miss shaders, and callable shaders.
+                eps.extend(
+                    build_info.module.device_module.entry_point(name) for name in entry_point_names
+                )
+
+                program = session.link_program(
+                    [module, build_info.module.device_module],
+                    eps,
+                    opts,
+                )
+                self.pipeline = device.create_ray_tracing_pipeline(
+                    program,
+                    hit_groups=build_info.ray_tracing_hit_groups,
+                    max_recursion=build_info.ray_tracing_max_recursion,
+                    max_ray_payload_size=build_info.ray_tracing_max_ray_payload_size,
+                    max_attribute_size=build_info.ray_tracing_max_attribute_size,
+                    flags=build_info.ray_tracing_flags,
+                    defer_target_compilation=True,
+                    label=f"{build_info.module.name}_{build_info.name}_rt_call",
+                )
+                build_info.module.pipeline_cache[hash] = self.pipeline
+                self.shader_table = device.create_shader_table(
+                    program,
+                    ray_gen_entry_points=["raygen_main"],
+                    miss_entry_points=build_info.ray_tracing_miss_entry_points,
+                    hit_group_names=hit_group_names,
+                    callable_entry_points=build_info.ray_tracing_callable_entry_points,
+                )
+                build_info.module.shader_table_cache[hash] = self.shader_table
+            else:
+                raise RuntimeError("Unknown pipeline type")
+            self.device = device
+            self.log_debug(f"  Build succesful")
+
+        # Store the code as it's useful for debugging
+        self.code = code
+
+    def _build_autograd_access_list(self, args: list[Any], kwargs: dict[str, Any]) -> None:
+        """
+        Walk args/kwargs in the same recursive order as find_torch_tensors,
+        and for each torch.Tensor encountered, compute the AutogradAccess from
+        the corresponding binding. Stores the result as a flat list on self
+        (NativeCallData.autograd_access_list).
+
+        This MUST be kept in sync with the logic in find_torch_tensors (C++) so the
+        order in which tensors are visited remains the same.
+        """
+        import torch
+
+        from slangpy.core.native import AutogradAccess
+
+        access_list: list[AutogradAccess] = []
+
+        def _recurse(arg: Any, binding: Any) -> None:
+            if isinstance(arg, dict):
+                for k, v in arg.items():
+                    _recurse(v, binding.children[k])
+            elif isinstance(arg, torch.Tensor):
+                if isinstance(binding.vector_type, ITensorType):
+                    ta = binding.vector_type.access
+                    if ta == TensorAccess.read:
+                        access_list.append(AutogradAccess.read)
+                    elif ta == TensorAccess.write:
+                        access_list.append(AutogradAccess.write)
+                    elif ta == TensorAccess.read_write:
+                        access_list.append(AutogradAccess.readwrite)
+                    else:
+                        access_list.append(AutogradAccess.none)
+                else:
+                    a = binding.access[0]
+                    if a == AccessType.read:
+                        access_list.append(AutogradAccess.read)
+                    elif a == AccessType.write:
+                        access_list.append(AutogradAccess.write)
+                    elif a == AccessType.readwrite:
+                        access_list.append(AutogradAccess.readwrite)
+                    else:
+                        access_list.append(AutogradAccess.none)
+
+        for i, arg in enumerate(args):
+            _recurse(arg, self.runtime.args[i])
+        for k, v in kwargs.items():
+            if k in self.runtime.kwargs:
+                _recurse(v, self.runtime.kwargs[k])
+
+        self.autograd_access_list = access_list

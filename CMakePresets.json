@@ -1,0 +1,342 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 15,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "base",
+            "description": "Base configuration inherited by all presets.",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            },
+            "environment": {
+                "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/external/vcpkg-triplets"
+            },
+            "binaryDir": "${sourceDir}/build/${presetName}"
+        },
+        {
+            "name": "windows-base",
+            "description": "Base Windows configuration for specifying Windows SDK.",
+            "hidden": true,
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_SYSTEM_VERSION": "10.0.19041.0",
+                "VCPKG_TARGET_TRIPLET": "x64-windows-static-md-fix"
+            }
+        },
+        {
+            "name": "windows-vs2022-base",
+            "description": "Base Visual Studio 2022 configuration.",
+            "hidden": true,
+            "inherits": "windows-base",
+            "generator": "Visual Studio 17 2022",
+            "architecture": {
+                "value": "x64",
+                "strategy": "set"
+            }
+        },
+        {
+            "name": "windows-vs2022",
+            "inherits": [
+                "windows-vs2022-base"
+            ]
+        },
+        {
+            "name": "windows-msvc-base",
+            "description": "Base configuration using MSVC.",
+            "hidden": true,
+            "inherits": "windows-base",
+            "generator": "Ninja Multi-Config",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl",
+                "CMAKE_CXX_COMPILER": "cl"
+            },
+            "vendor": {
+                "microsoft.com/VisualStudioSettings/CMake/1.0": {
+                    "hostOS": [
+                        "Windows"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "windows-msvc",
+            "inherits": [
+                "windows-msvc-base"
+            ]
+        },
+        {
+            "name": "windows-clang-base",
+            "description": "Base configuration using clang.",
+            "hidden": true,
+            "inherits": "windows-base",
+            "generator": "Ninja Multi-Config",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang.exe",
+                "CMAKE_CXX_COMPILER": "clang++.exe"
+            }
+        },
+        {
+            "name": "windows-clang",
+            "inherits": [
+                "windows-clang-base"
+            ]
+        },
+        {
+            "name": "windows-arm64-base",
+            "description": "Base Windows ARM64 configuration.",
+            "hidden": true,
+            "inherits": "windows-base",
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET": "arm64-windows-static-md-fix"
+            }
+        },
+        {
+            "name": "windows-arm64-msvc-base",
+            "description": "Base Visual Studio 2022 ARM64 configuration.",
+            "hidden": true,
+            "inherits": "windows-arm64-base",
+            "generator": "Ninja Multi-Config",
+            "architecture": {
+                "value": "ARM64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl",
+                "CMAKE_CXX_COMPILER": "cl"
+            }
+        },
+        {
+            "name": "windows-arm64-msvc",
+            "inherits": [
+                "windows-arm64-msvc-base"
+            ],
+            "cacheVariables": {
+                "CMAKE_CXX_FLAGS": "/EHsc",
+                "SGL_WARNINGS_AS_ERRORS": "OFF"
+            }
+        },
+        {
+            "name": "linux-base",
+            "description": "Base Linux configuration.",
+            "hidden": true,
+            "inherits": "base"
+        },
+        {
+            "name": "linux-clang-base",
+            "description": "Base Linux/clang configuration.",
+            "hidden": true,
+            "inherits": "linux-base",
+            "generator": "Ninja Multi-Config",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++"
+            }
+        },
+        {
+            "name": "linux-clang",
+            "inherits": [
+                "linux-clang-base"
+            ]
+        },
+        {
+            "name": "linux-gcc-base",
+            "description": "Base Linux/GCC configuration.",
+            "hidden": true,
+            "inherits": "linux-base",
+            "generator": "Ninja Multi-Config",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++"
+            }
+        },
+        {
+            "name": "linux-gcc",
+            "inherits": [
+                "linux-gcc-base"
+            ]
+        },
+        {
+            "name": "macos-base",
+            "description": "Base macOS configuration.",
+            "hidden": true,
+            "inherits": "base"
+        },
+        {
+            "name": "macos-clang-base",
+            "description": "Base macOS/clang configuration.",
+            "hidden": true,
+            "inherits": "macos-base",
+            "generator": "Ninja Multi-Config",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++"
+            }
+        },
+        {
+            "name": "macos-x64-clang",
+            "inherits": "macos-clang-base",
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET": "x64-osx",
+                "CMAKE_APPLE_SILICON_PROCESSOR": "x86_64"
+            }
+        },
+        {
+            "name": "macos-arm64-clang",
+            "inherits": "macos-clang-base",
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET": "arm64-osx",
+                "CMAKE_APPLE_SILICON_PROCESSOR": "arm64"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "windows-msvc-release",
+            "displayName": "Release",
+            "configurePreset": "windows-msvc",
+            "configuration": "Release"
+        },
+        {
+            "name": "windows-msvc-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "windows-msvc",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "windows-msvc-debug",
+            "displayName": "Debug",
+            "configurePreset": "windows-msvc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "windows-clang-release",
+            "displayName": "Release",
+            "configurePreset": "windows-clang",
+            "configuration": "Release"
+        },
+        {
+            "name": "windows-clang-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "windows-clang",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "windows-clang-debug",
+            "displayName": "Debug",
+            "configurePreset": "windows-clang",
+            "configuration": "Debug"
+        },
+        {
+            "name": "windows-arm64-msvc-release",
+            "displayName": "Release",
+            "configurePreset": "windows-arm64-msvc",
+            "configuration": "Release"
+        },
+        {
+            "name": "windows-arm64-msvc-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "windows-arm64-msvc",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "windows-arm64-msvc-debug",
+            "displayName": "Debug",
+            "configurePreset": "windows-arm64-msvc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux-clang-release",
+            "displayName": "Release",
+            "configurePreset": "linux-clang",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux-clang-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "linux-clang",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "linux-clang-debug",
+            "displayName": "Debug",
+            "configurePreset": "linux-clang",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux-gcc-release",
+            "displayName": "Release",
+            "configurePreset": "linux-gcc",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux-gcc-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "linux-gcc",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "linux-gcc-debug",
+            "displayName": "Debug",
+            "configurePreset": "linux-gcc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "macos-x64-clang-release",
+            "displayName": "Release",
+            "configurePreset": "macos-x64-clang",
+            "configuration": "Release"
+        },
+        {
+            "name": "macos-x64-clang-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "macos-x64-clang",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "macos-x64-clang-debug",
+            "displayName": "Debug",
+            "configurePreset": "macos-x64-clang",
+            "configuration": "Debug"
+        },
+        {
+            "name": "macos-arm64-clang-release",
+            "displayName": "Release",
+            "configurePreset": "macos-arm64-clang",
+            "configuration": "Release"
+        },
+        {
+            "name": "macos-arm64-clang-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "configurePreset": "macos-arm64-clang",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "macos-arm64-clang-debug",
+            "displayName": "Debug",
+            "configurePreset": "macos-arm64-clang",
+            "configuration": "Debug"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "Windows/MSVC",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "windows-msvc",
+            "configuration": "Debug",
+            "environment": {
+                "CTEST_OUTPUT_ON_FAILURE": "1"
+            }
+        }
+    ]
+}

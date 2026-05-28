@@ -1,0 +1,2 @@
+typing_extensions
+numpy >= 1.26.0

@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+        "editorconfig.editorconfig",
+        "ms-vscode.cmake-tools",
+        "ms-vscode.cpptools",
+        "ms-python.python",
+        "benjamin-simmonds.pythoncpp-debug",
+        "shader-slang.slang-language-extension"
+    ]
+}

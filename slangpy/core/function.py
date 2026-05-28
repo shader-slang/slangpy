@@ -1,0 +1,641 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+import hashlib
+from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union, cast, Sequence
+from enum import Enum
+
+from slangpy.core.native import (
+    CallMode,
+    SignatureBuilder,
+    NativeCallRuntimeOptions,
+    NativeFunctionNode,
+    FunctionNodeType,
+)
+
+from slangpy.reflection import SlangFunction, SlangType
+from slangpy import (
+    CommandEncoder,
+    TypeConformance,
+    uint3,
+    Logger,
+    NativeHandle,
+    NativeHandleType,
+    RayTracingPipelineFlags,
+    HitGroupDesc,
+)
+from slangpy.slangpy import Shape
+
+if TYPE_CHECKING:
+    from slangpy.core.calldata import CallData
+    from slangpy.core.module import Module
+    from slangpy.core.struct import Struct
+    from slangpy import HitGroupDescParam
+
+ENABLE_CALLDATA_CACHE = True
+
+
+TCallHook = Callable[["Function"], None]
+
+
+class IThis(Protocol):
+    def get_this(self) -> Any: ...
+
+    def update_this(self, value: Any) -> None: ...
+
+
+class PipelineType(Enum):
+    compute = 0
+    ray_tracing = 1
+
+
+class FunctionBuildInfo:
+    def __init__(self) -> None:
+        super().__init__()
+
+        # Will always be populated by the root
+        self.name: str
+        self.module: "Module"
+        self.function: SlangFunction
+        self.this_type: Optional[SlangType]
+
+        # Optional value that will be set depending on the chain.
+        self.map_args: tuple[Any, ...] = ()
+        self.map_kwargs: dict[str, Any] = {}
+        self.type_conformances: list[TypeConformance] = []
+        self.call_mode: CallMode = CallMode.prim
+        self.options: dict[str, Any] = {}
+        self.constants: dict[str, Any] = {}
+        self.prelude: list[str] = []
+        self.thread_group_size: Optional[uint3] = None
+        self.return_type: Optional[Union[type, str]] = None
+        self.logger: Optional[Logger] = None
+        self.call_group_shape: Optional[Shape] = None
+        self.pipeline_type: PipelineType = PipelineType.compute
+        self.ray_tracing_hit_groups: list[HitGroupDesc] = []
+        self.ray_tracing_miss_entry_points: list[str] = []
+        self.ray_tracing_hit_group_names: Optional[list[str]] = None
+        self.ray_tracing_callable_entry_points: list[str] = []
+        self.ray_tracing_max_recursion: int = 0
+        self.ray_tracing_max_ray_payload_size: int = 0
+        self.ray_tracing_max_attribute_size: int = 8
+        self.ray_tracing_flags: RayTracingPipelineFlags = RayTracingPipelineFlags.none
+
+
+class FunctionNode(NativeFunctionNode):
+    @property
+    def root(self):
+        """
+        Get the root function node
+        """
+        return cast(Function, self._find_native_root())
+
+    @property
+    def name(self):
+        """
+        Get the name of the function.
+        """
+        return self.root._name
+
+    @property
+    def parent(self):
+        """
+        Get the parent function node
+        """
+        return cast(FunctionNode, self._native_parent)
+
+    @property
+    def module(self):
+        """
+        Get the module that the function is part of
+        """
+        return self.root._module
+
+    def torch(self):
+        """
+        Returns a pytorch wrapper around this function
+        """
+        pass
+
+    def bind(self, this: IThis) -> "FunctionNode":
+        """
+        Bind a `this` object to the function. Typically
+        this is called automatically when calling a function on a struct.
+        """
+        return FunctionNodeBind(self, this)
+
+    def map(self, *args: Any, **kwargs: Any):
+        """
+        Apply dimension or type mapping to all or some of the arguments.
+
+        myfunc.map((1,)(0,))(arg1, arg2) # Map arg1 to dimension 1, arg2 to dimension 0
+
+        myfunc.map(module.Foo, module.Bar)(arg1, arg2) # Cast arg1 to Foo, arg2 to Bar
+        """
+        return FunctionNodeMap(self, args, kwargs)
+
+    def set(self, *args: Any, **kwargs: Any):
+        """
+        Specify additional uniform values that should be set whenever the function's kernel
+        is dispatched. Useful for setting constants or other values that are not passed as arguments.
+        """
+        if len(args) > 0 and len(kwargs) > 0:
+            raise ValueError("Set accepts either positional or keyword arguments, not both")
+        if len(args) > 1:
+            raise ValueError("Set accepts only one positional argument (a dictionary or callback)")
+        if len(kwargs) > 0:
+            return FunctionNodeSet(self, kwargs)
+        elif len(args) > 0 and (callable(args[0]) or isinstance(args[0], dict)):
+            return FunctionNodeSet(self, args[0])
+        else:
+            raise ValueError(
+                "Set requires either keyword arguments or 1 dictionary / hook argument"
+            )
+
+    def write(self, fn: Callable, *args: Any, **kwargs: Any):
+        """
+        Specify a writer function that receives a ShaderCursor and optional arguments
+        to write uniforms directly. The function signature should be:
+            fn(cursor: ShaderCursor, *args, **kwargs)
+        """
+        if not callable(fn):
+            raise ValueError("write() requires a callable as the first argument")
+        return FunctionNodeSet(self, (fn, args, kwargs))
+
+    def cuda_stream(self, stream: NativeHandle) -> "FunctionNode":
+        """
+        Specify a CUDA stream to use for the function. This is useful for synchronizing with other
+        CUDA operations or ensuring that the function runs on a specific stream.
+        """
+        return FunctionNodeCUDAStream(self, stream)
+
+    def constants(self, constants: dict[str, Any]):
+        """
+        Specify link time constants that should be set when the function is compiled. These are
+        the most optimal way of specifying unchanging data, however note that changing a constant
+        will result in the function being recompiled.
+        """
+        return FunctionNodeConstants(self, constants)
+
+    def prelude(self, code: str) -> "FunctionNode":
+        """
+        Specify raw Slang source code to inject into the generated kernel module.
+        """
+        return FunctionNodePrelude(self, code)
+
+    def type_conformances(self, type_conformances: list[TypeConformance]):
+        """
+        Specify Slang type conformances to use when compiling the function.
+        """
+        return FunctionNodeTypeConformances(self, type_conformances)
+
+    def ray_tracing(
+        self,
+        hit_groups: Sequence["HitGroupDescParam"],
+        miss_entry_points: Sequence[str] = [],
+        hit_group_names: Optional[Sequence[str]] = None,
+        callable_entry_points: Sequence[str] = [],
+        max_recursion: int = 1,
+        max_ray_payload_size: int = 32,
+        max_attribute_size: int = 8,
+        flags: RayTracingPipelineFlags = RayTracingPipelineFlags.none,
+    ):
+        """
+        Specify the ray tracing pipeline configuration.
+        """
+        return FunctionNodeRayTracing(
+            self,
+            hit_groups,
+            miss_entry_points,
+            hit_group_names,
+            callable_entry_points,
+            max_recursion,
+            max_ray_payload_size,
+            max_attribute_size,
+            flags,
+        )
+
+    @property
+    def bwds(self):
+        """
+        Return a new function object that represents the backwards deriviative of the current function.
+        """
+        return FunctionNodeBwds(self)
+
+    def return_type(self, return_type: Union[type, str]):
+        """
+        Explicitly specify the desired return type from the function.
+        """
+        if isinstance(return_type, str):
+            if return_type == "numpy":
+                import numpy as np
+
+                return_type = np.ndarray
+            elif return_type == "tensor":
+                from slangpy.types import Tensor
+
+                return_type = Tensor
+            elif return_type == "texture":
+                from slangpy import Texture
+
+                return_type = Texture
+            else:
+                raise ValueError(f"Unknown return type '{return_type}'")
+        return FunctionNodeReturnType(self, return_type)
+
+    def thread_group_size(self, thread_group_size: uint3):
+        """
+        Override the default thread group size for the function. Currently only used for
+        raw dispatch.
+        """
+        return FunctionNodeThreadGroupSize(self, thread_group_size)
+
+    def as_func(self) -> "FunctionNode":
+        """
+        Typing helper to cast the function to a function (i.e. a no-op)
+        """
+        return self
+
+    def as_struct(self) -> "Struct":
+        """
+        Typing helper to detect attempting to treat a function as a struct.
+        """
+        raise ValueError("Cannot convert a function to a struct")
+
+    def debug_build_call_data(self, *args: Any, **kwargs: Any):
+        """
+        Debug helper to build call data without dispatching the kernel.
+        """
+        cache = self._find_native_root()._native_cache
+        return cast(
+            "CallData",
+            self._native_build_call_data(cache, *args, **kwargs),
+        )
+
+    def call(self, *args: Any, **kwargs: Any) -> Any:
+        """
+        Call the function with a given set of arguments. This will generate and compile
+        a new kernel if need be, then immediately dispatch it and return any results.
+        """
+        return self(*args, **kwargs)
+
+    def append_to(self, command_encoder: CommandEncoder, *args: Any, **kwargs: Any):
+        """
+        Append the function to a command encoder without dispatching it. As with calling,
+        this will generate and compile a new kernel if need be. However the dispatch
+        is just added to the command list and no results are returned.
+        """
+        cache = self._find_native_root()._native_cache
+        self._native_append_to(cache, command_encoder, *args, **kwargs)
+
+    def dispatch(
+        self,
+        thread_count: uint3,
+        vars: dict[str, Any] = {},
+        command_encoder: Optional[CommandEncoder] = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Perform a raw dispatch, bypassing the majority of SlangPy's typing/code gen logic. This is
+        useful if you just want to explicitly call an existing kernel, or treat a slang function
+        as a kernel entry point directly.
+        """
+        if ENABLE_CALLDATA_CACHE:
+            if self.slangpy_signature == "":
+                build_info = self.calc_build_info()
+                lines = []
+                if build_info.this_type is not None:
+                    lines.append(f"{build_info.this_type.full_name}::{self.name}")
+                else:
+                    lines.append(build_info.name)
+                lines.append(str(build_info.options))
+                lines.append(str(build_info.map_args))
+                lines.append(str(build_info.map_kwargs))
+                lines.append(str(build_info.type_conformances))
+                lines.append(str(build_info.call_mode))
+                lines.append(str(build_info.return_type))
+                lines.append(str(build_info.constants))
+                lines.append(str(build_info.thread_group_size))
+                lines.append(str(build_info.call_group_shape))
+                self.slangpy_signature = "\n".join(lines)
+
+            builder = SignatureBuilder()
+            self.module.call_data_cache.get_args_signature(builder, self, **kwargs)
+            sig = builder.str
+
+            if sig in self.module.dispatch_data_cache:
+                dispatch_data = self.module.dispatch_data_cache[sig]
+                if dispatch_data.device != self.module.device:
+                    raise NameError("Cached CallData is linked to wrong device")
+            else:
+                from slangpy.core.dispatchdata import DispatchData
+
+                dispatch_data = DispatchData(self, **kwargs)
+                self.module.dispatch_data_cache[sig] = dispatch_data
+        else:
+            from slangpy.core.dispatchdata import DispatchData
+
+            dispatch_data = DispatchData(self, **kwargs)
+
+        opts = NativeCallRuntimeOptions()
+        self.gather_runtime_options(opts)
+        dispatch_data.dispatch(opts, thread_count, vars, command_encoder, **kwargs)
+
+    def calc_build_info(self):
+        info = FunctionBuildInfo()
+        self._populate_build_info_recurse(info)
+        return info
+
+    def _populate_build_info_recurse(self, info: FunctionBuildInfo):
+        if self._native_parent is not None:
+            self.parent._populate_build_info_recurse(info)
+        self._populate_build_info(info)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        pass
+
+    def generate_call_data(self, args: Any, kwargs: Any):
+        """
+        Called from NativeFunctionNode::call to generate/build the kernel
+        the first time a function is called with a given set of arguments.
+        """
+        from .calldata import CallData
+
+        return CallData(self, *args, **kwargs)
+
+    def generate_bwds_call_data(self, fwds_call_data: Any, args: Any, kwargs: Any):
+        """
+        Used by native auto-grad hook to generate call data for backwards pass
+        the first time it is needed, after which it is cached on the fwds call data.
+        """
+        from .calldata import CallData
+
+        bwds_node = FunctionNodeBwds(self)
+        return CallData(bwds_node, *args, **kwargs)
+
+    def call_group_shape(self, call_group_shape: Shape):
+        """
+        Specify the call group shape for the function. This determines how the computation
+        is divided into call groups. The shape can be N-dimensional.
+        """
+        return FunctionNodeCallGroupShape(self, call_group_shape)
+
+
+class FunctionNodeBind(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, this: IThis) -> None:
+        super().__init__(parent, FunctionNodeType.this, this)
+
+    @property
+    def this(self):
+        return cast(IThis, self._native_data)
+
+
+class FunctionNodeMap(FunctionNode):
+    def __init__(
+        self,
+        parent: NativeFunctionNode,
+        map_args: tuple[Any],
+        map_kwargs: dict[str, Any],
+    ) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, (map_args, map_kwargs))
+        self.slangpy_signature = str((map_args, map_kwargs))
+
+    @property
+    def mapping(self):
+        return cast(tuple[tuple[Any, ...], dict[str, Any]], self._native_data)
+
+    @property
+    def args(self):
+        return self.mapping[0]
+
+    @property
+    def kwargs(self):
+        return self.mapping[1]
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.map_args = self.args
+        info.map_kwargs = self.kwargs
+
+
+class FunctionNodeSet(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, value: Any) -> None:
+        super().__init__(parent, FunctionNodeType.uniforms, value)
+
+    @property
+    def uniforms(self):
+        return self._native_data
+
+
+class FunctionNodeCUDAStream(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, stream: NativeHandle) -> None:
+        if stream.type != NativeHandleType.CUstream:
+            raise ValueError("Expected a CUDA stream handle")
+        super().__init__(parent, FunctionNodeType.cuda_stream, stream)
+        self.slangpy_signature = str(stream)
+
+    @property
+    def stream(self):
+        return cast(NativeHandle, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.options["cuda_stream"] = self.stream
+
+
+class FunctionNodeConstants(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, constants: dict[str, Any]) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, constants)
+        self.slangpy_signature = str(constants)
+
+    @property
+    def constants(self):
+        return cast(dict[str, Any], self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.constants.update(self.constants)
+
+
+class FunctionNodePrelude(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, code: str) -> None:
+        code = code.replace("\r\n", "\n")
+        super().__init__(parent, FunctionNodeType.kernelgen, code)
+        self.slangpy_signature = "prelude:" + hashlib.sha256(code.encode()).hexdigest()
+
+    @property
+    def code(self) -> str:
+        return cast(str, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo) -> None:
+        info.prelude.append(self.code)
+
+
+class FunctionNodeTypeConformances(FunctionNode):
+    def __init__(
+        self, parent: NativeFunctionNode, type_conformances: list[TypeConformance]
+    ) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, type_conformances)
+        self.slangpy_signature = str(type_conformances)
+
+    @property
+    def type_conformances(self):
+        return cast(list[TypeConformance], self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.type_conformances.extend(self.type_conformances)
+
+
+class FunctionNodeRayTracing(FunctionNode):
+    def __init__(
+        self,
+        parent: NativeFunctionNode,
+        hit_groups: Sequence["HitGroupDescParam"],
+        miss_entry_points: Sequence[str],
+        hit_group_names: Optional[Sequence[str]],
+        callable_entry_points: Sequence[str],
+        max_recursion: int,
+        max_ray_payload_size: int,
+        max_attribute_size: int,
+        flags: RayTracingPipelineFlags,
+    ):
+        super().__init__(
+            parent,
+            FunctionNodeType.ray_tracing,
+            {
+                "hit_groups": [hit_group if isinstance(hit_group, HitGroupDesc) else HitGroupDesc(hit_group) for hit_group in hit_groups],  # type: ignore
+                "miss_entry_points": list(miss_entry_points),
+                "hit_group_names": list(hit_group_names) if hit_group_names is not None else None,
+                "callable_entry_points": list(callable_entry_points),
+                "max_recursion": max_recursion,
+                "max_ray_payload_size": max_ray_payload_size,
+                "max_attribute_size": max_attribute_size,
+                "flags": flags,
+            },
+        )
+        self.slangpy_signature = f"({hit_groups}, {miss_entry_points}, {callable_entry_points}, {max_recursion}, {max_ray_payload_size}, {max_attribute_size}, {flags})"
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        d = cast(dict[str, Any], self._native_data)
+        info.pipeline_type = PipelineType.ray_tracing
+        info.ray_tracing_hit_groups = d["hit_groups"]
+        info.ray_tracing_miss_entry_points = d["miss_entry_points"]
+        info.ray_tracing_hit_group_names = d["hit_group_names"]
+        info.ray_tracing_callable_entry_points = d["callable_entry_points"]
+        info.ray_tracing_max_recursion = d["max_recursion"]
+        info.ray_tracing_max_ray_payload_size = d["max_ray_payload_size"]
+        info.ray_tracing_max_attribute_size = d["max_attribute_size"]
+        info.ray_tracing_flags = d["flags"]
+
+
+class FunctionNodeBwds(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, None)
+        self.slangpy_signature = "bwds"
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.call_mode = CallMode.bwds
+
+
+class FunctionNodeReturnType(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, return_type: Union[type, str]) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, return_type)
+        self.slangpy_signature = str(return_type)
+
+    @property
+    def return_type(self):
+        return cast(Union[type, str], self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.return_type = self.return_type
+
+
+class FunctionNodeThreadGroupSize(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, thread_group_size: uint3) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, thread_group_size)
+        self.slangpy_signature = str(thread_group_size)
+
+    @property
+    def thread_group_size(self):
+        return cast(uint3, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.thread_group_size = self.thread_group_size
+
+
+class FunctionNodeLogger(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, logger: Logger) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, logger)
+        self.slangpy_signature = "logger_" + str(id(logger))
+
+    @property
+    def logger(self):
+        return cast(Logger, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.logger = self.logger
+
+
+class FunctionNodeCallGroupShape(FunctionNode):
+    def __init__(self, parent: NativeFunctionNode, call_group_shape: Shape) -> None:
+        super().__init__(parent, FunctionNodeType.kernelgen, call_group_shape)
+        self.slangpy_signature = str(call_group_shape)
+
+    @property
+    def call_group_shape(self):
+        return cast(Shape, self._native_data)
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.call_group_shape = self.call_group_shape
+
+
+class Function(FunctionNode):
+    def __init__(
+        self,
+        module: "Module",
+        func: Union[str, SlangFunction],
+        struct: Optional["Struct"] = None,
+        options: dict[str, Any] = {},
+    ) -> None:
+        super().__init__(None, FunctionNodeType.kernelgen, None)
+
+        self._module = module
+
+        if isinstance(func, str):
+            if struct is None:
+                sf = module.layout.find_function_by_name(func)
+            else:
+                sf = module.layout.find_function_by_name_in_type(struct.struct, func)
+            if sf is None:
+                raise ValueError(f"Function '{func}' not found")
+            func = sf
+
+        # Track fully specialized name
+        self._name = func.full_name
+        # Store function reflection
+        self._slang_func = func
+
+        # Store type parent name if found
+        if struct is not None:
+            self._this_type = struct.struct
+        else:
+            self._this_type = None
+
+        # Calc hash of input options for signature
+        self._options = options.copy()
+        if not "strict_broadcasting" in self._options:
+            self._options["strict_broadcasting"] = False
+
+        # Generate signature for hashing
+        lines = []
+        if self._this_type is not None:
+            lines.append(f"{self._this_type.full_name}::{self.name}")
+        else:
+            lines.append(self.name)
+        lines.append(str(self._options))
+        self.slangpy_signature = "\n".join(lines)
+
+        # Store native cache pointer for fast C++ call path
+        self._native_cache = module.call_data_cache
+
+    def _populate_build_info(self, info: FunctionBuildInfo):
+        info.name = self.name
+        info.module = self.module
+        info.options.update(self._options)
+        info.function = self._slang_func
+        info.this_type = self._this_type

@@ -1,0 +1,464 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+from typing import Any, cast
+
+from slangpy.core.native import AccessType, CallContext, NativeValueMarshall, unpack_arg
+
+import slangpy
+from slangpy import TypeReflection
+import slangpy.reflection as kfr
+import slangpy.reflection.vectorize as spyvec
+from slangpy import math
+from slangpy.bindings import (
+    PYTHON_SIGNATURES,
+    PYTHON_TYPES,
+    BindContext,
+    BoundVariable,
+    BoundVariableRuntime,
+    CodeGenBlock,
+    can_direct_bind_common,
+)
+from slangpy.reflection.reflectiontypes import (
+    BOOL_TYPES,
+    FLOAT_TYPES,
+    INT_TYPES,
+    SIGNED_INT_TYPES,
+    UNSIGNED_INT_TYPES,
+    SlangType,
+    vectorize_type,
+    TypeReflection,
+    EXPERIMENTAL_VECTORIZATION,
+)
+
+"""
+Common functionality for basic value types such as int, float, vector, matrix etc that aren't
+writable and don't store an additional derivative.
+"""
+
+
+def slang_type_to_return_type(slang_type: kfr.SlangType) -> Any:
+    if isinstance(slang_type, kfr.ScalarType):
+        if slang_type.slang_scalar_type in FLOAT_TYPES:
+            return float
+        elif slang_type.slang_scalar_type in INT_TYPES:
+            return int
+        elif slang_type.slang_scalar_type in BOOL_TYPES:
+            return bool
+    elif isinstance(slang_type, kfr.VectorType):
+        if slang_type.slang_scalar_type in FLOAT_TYPES:
+            return getattr(slangpy, f"float{slang_type.num_elements}")
+        elif slang_type.slang_scalar_type in SIGNED_INT_TYPES:
+            return getattr(slangpy, f"int{slang_type.num_elements}")
+        elif slang_type.slang_scalar_type in UNSIGNED_INT_TYPES:
+            return getattr(slangpy, f"uint{slang_type.num_elements}")
+        elif slang_type.slang_scalar_type in BOOL_TYPES:
+            return getattr(slangpy, f"bool{slang_type.num_elements}")
+    elif isinstance(slang_type, kfr.MatrixType):
+        if slang_type.slang_scalar_type in FLOAT_TYPES:
+            return getattr(slangpy, f"float{slang_type.rows}x{slang_type.cols}")
+        elif slang_type.slang_scalar_type in SIGNED_INT_TYPES:
+            return getattr(slangpy, f"int{slang_type.rows}x{slang_type.cols}")
+        elif slang_type.slang_scalar_type in UNSIGNED_INT_TYPES:
+            return getattr(slangpy, f"uint{slang_type.rows}x{slang_type.cols}")
+        elif slang_type.slang_scalar_type in BOOL_TYPES:
+            return getattr(slangpy, f"bool{slang_type.rows}x{slang_type.cols}")
+    elif isinstance(slang_type, kfr.ArrayType):
+        return list
+    elif isinstance(slang_type, kfr.StructType):
+        return dict
+    elif isinstance(slang_type, kfr.PointerType):
+        # Pointers are represented as uint64_t in slang, so we return int
+        return int
+    else:
+        raise ValueError(f"Slang type {slang_type} has no associated python value type")
+
+
+class ValueMarshall(NativeValueMarshall):
+    def __init__(self, layout: kfr.SlangProgramLayout):
+        super().__init__()
+        self.slang_type: "SlangType"
+
+    def __repr__(self) -> str:
+        return f"Value[dtype={self.slang_type.full_name}]"
+
+    # Values don't store a derivative - they're just a value
+    @property
+    def has_derivative(self) -> bool:
+        return False
+
+    # Values are readonly
+    @property
+    def is_writable(self) -> bool:
+        return False
+
+    def can_direct_bind(self, binding: "BoundVariable") -> bool:
+        return can_direct_bind_common(binding)
+
+    # Call data can only be read access to primal, and simply declares it as a variable
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
+        access = binding.access
+        if access[0] in [AccessType.read, AccessType.readwrite]:
+            assert binding.vector_type is not None
+            if binding.direct_bind:
+                binding.gen_calldata_type_name(cgb, binding.vector_type.full_name)
+            else:
+                binding.gen_calldata_type_name(cgb, f"ValueType<{binding.vector_type.full_name}>")
+        else:
+            binding.gen_calldata_type_name(cgb, "NoneType")
+
+    def gen_trampoline_load(
+        self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str
+    ) -> bool:
+        if not binding.direct_bind:
+            return False
+        if binding.access[0] not in (AccessType.read, AccessType.readwrite):
+            cgb.append_statement(f"{value_name} = {{}}")
+        else:
+            cgb.append_statement(f"{value_name} = {data_name}")
+        return True
+
+    def gen_trampoline_store(
+        self, cgb: CodeGenBlock, binding: "BoundVariable", data_name: str, value_name: str
+    ) -> bool:
+        if not binding.direct_bind:
+            return False
+        # ValueMarshall is read-only - suppress the default store
+        return True
+
+    # Values just return themselves for raw dispatch
+    def create_dispatchdata(self, data: Any) -> Any:
+        return data
+
+    # No need to create any buffers for output data, as we're read only!
+    def create_output(self, context: CallContext, binding: BoundVariableRuntime) -> Any:
+        pass
+
+    # Return the input as output, as it was by definition not changed
+    def read_output(self, context: CallContext, binding: BoundVariableRuntime, data: Any) -> Any:
+        return data
+
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        if EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(
+                f"ValueType<{self.slang_type.full_name}>"
+            )
+            return [vectorize_type(marshall, bound_type)]
+        else:
+            return None
+
+    def reduce_type(self, context: "BindContext", dimensions: int):
+        raise NotImplementedError()
+
+    def resolve_dimensionality(
+        self,
+        context: BindContext,
+        binding: "BoundVariable",
+        vector_target_type: "SlangType",
+    ):
+        """
+        Calculate the call dimensionality when this value is passed as a given type. For example,
+        a 3D buffer passed to a scalar would return 3, but a 3D buffer passed to a 3D buffer would
+        return 0.
+
+        Default implementation simply returns the difference between the dimensionality of this
+        type and the target type.
+        """
+        if self.slang_type is None:
+            raise ValueError(f"Cannot resolve dimensionality of {type(self)} without slang type")
+        return len(self.slang_type.shape) - len(vector_target_type.shape)
+
+    def build_shader_object(self, context: "BindContext", data: Any) -> "slangpy.ShaderObject":
+        unpacked = unpack_arg(data)
+        if self.slang_type is None or self.slang_type.full_name == "Unknown":
+            raise ValueError(f"Cannot build shader object for {type(self)} without slang type")
+        bt = context.layout.find_type_by_name(f"ValueType<{self.slang_type.full_name}>")
+        if bt is None:
+            raise ValueError(f"Could not find Slang type for {self.slang_type.full_name}")
+        so = context.device.create_shader_object(bt.uniform_layout.reflection)
+        cursor = slangpy.ShaderCursor(so)
+        cursor.write({"value": unpacked})
+        return so
+
+
+"""
+Mapping of type reflection enum to slang type name
+"""
+SCALAR_TYPE_NAMES: dict[TypeReflection.ScalarType, str] = {
+    TypeReflection.ScalarType.none: "none",
+    TypeReflection.ScalarType.void: "void",
+    TypeReflection.ScalarType.bool: "bool",
+    TypeReflection.ScalarType.int32: "int",
+    TypeReflection.ScalarType.uint32: "uint",
+    TypeReflection.ScalarType.int64: "int64_t",
+    TypeReflection.ScalarType.uint64: "uint64_t",
+    TypeReflection.ScalarType.float16: "float16_t",
+    TypeReflection.ScalarType.float32: "float",
+    TypeReflection.ScalarType.float64: "float64_t",
+    TypeReflection.ScalarType.int8: "int8_t",
+    TypeReflection.ScalarType.uint8: "uint8_t",
+    TypeReflection.ScalarType.int16: "int16_t",
+    TypeReflection.ScalarType.uint16: "uint16_t",
+}
+SCALAR_TYPE_TO_PYTHON_TYPE: dict[TypeReflection.ScalarType, type] = {
+    TypeReflection.ScalarType.none: type(None),
+    TypeReflection.ScalarType.void: type(None),
+    TypeReflection.ScalarType.bool: bool,
+    TypeReflection.ScalarType.int32: int,
+    TypeReflection.ScalarType.uint32: int,
+    TypeReflection.ScalarType.int64: int,
+    TypeReflection.ScalarType.uint64: int,
+    TypeReflection.ScalarType.float16: float,
+    TypeReflection.ScalarType.float32: float,
+    TypeReflection.ScalarType.float64: float,
+    TypeReflection.ScalarType.int8: int,
+    TypeReflection.ScalarType.uint8: int,
+    TypeReflection.ScalarType.int16: int,
+    TypeReflection.ScalarType.uint16: int,
+}
+SCALAR_TYPE_SIZES: dict[TypeReflection.ScalarType, int] = {
+    TypeReflection.ScalarType.none: 1,
+    TypeReflection.ScalarType.void: 1,
+    TypeReflection.ScalarType.bool: 4,
+    TypeReflection.ScalarType.int32: 4,
+    TypeReflection.ScalarType.uint32: 4,
+    TypeReflection.ScalarType.int64: 8,
+    TypeReflection.ScalarType.uint64: 8,
+    TypeReflection.ScalarType.float16: 2,
+    TypeReflection.ScalarType.float32: 4,
+    TypeReflection.ScalarType.float64: 8,
+    TypeReflection.ScalarType.int8: 1,
+    TypeReflection.ScalarType.uint8: 1,
+    TypeReflection.ScalarType.int16: 2,
+    TypeReflection.ScalarType.uint16: 2,
+}
+
+
+class ScalarMarshall(ValueMarshall):
+    def __init__(self, layout: kfr.SlangProgramLayout, scalar_type: TypeReflection.ScalarType):
+        super().__init__(layout)
+        self.slang_type = layout.scalar_type(scalar_type)
+        self.concrete_shape = self.slang_type.shape
+
+    def reduce_type(self, context: BindContext, dimensions: int):
+        if dimensions > 0:
+            raise ValueError("Cannot reduce scalar type")
+        return self.slang_type
+
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        if EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(
+                f"ValueType<{self.slang_type.full_name}>"
+            )
+            return [vectorize_type(marshall, bound_type)]
+        else:
+            as_vector = spyvec.scalar_to_vector_convertable(self.slang_type, bound_type)
+            if as_vector is not None:
+                return [as_vector]
+            as_scalar = spyvec.scalar_to_scalar_convertable(self.slang_type, bound_type)
+            if as_scalar is not None:
+                return [as_scalar]
+            as_pointer = spyvec.scalar_to_pointer(self.slang_type, bound_type)
+            if as_pointer is not None:
+                return [as_pointer]
+            return None
+
+
+class NoneMarshall(ValueMarshall):
+    def __init__(self, layout: kfr.SlangProgramLayout):
+        super().__init__(layout)
+        self.slang_type = layout.scalar_type(TypeReflection.ScalarType.void)
+
+    def resolve_dimensionality(
+        self,
+        context: BindContext,
+        binding: BoundVariable,
+        vector_target_type: kfr.SlangType,
+    ):
+        # None type can't resolve dimensionality
+        return None
+
+
+class VectorMarshall(ValueMarshall):
+    def __init__(
+        self,
+        layout: kfr.SlangProgramLayout,
+        scalar_type: TypeReflection.ScalarType,
+        num_elements: int,
+    ):
+        super().__init__(layout)
+        self.slang_type = layout.vector_type(scalar_type, num_elements)
+        self.concrete_shape = self.slang_type.shape
+
+    def reduce_type(self, context: "BindContext", dimensions: int):
+        st = cast(kfr.VectorType, self.slang_type)
+        if dimensions == 1:
+            return st.element_type
+        elif dimensions == 0:
+            return st
+        else:
+            raise ValueError("Cannot reduce vector type by more than one dimension")
+
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        st = cast(kfr.VectorType, self.slang_type)
+
+        # If target type is fully generic, allow element type or vector type
+        if isinstance(bound_type, (kfr.UnknownType, kfr.InterfaceType)):
+            results = []
+            results.append(st)
+            results.append(st.element_type)
+            return results
+
+        # Use experimental vectorizer if enabled
+        if EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(
+                f"VectorValueType<{st.element_type.full_name},{st.num_elements}>"
+            )
+            return [vectorize_type(marshall, bound_type)]
+
+        as_vector = spyvec.vector_to_vector(st, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
+        as_scalar = spyvec.scalar_to_scalar(st.element_type, bound_type)
+        if as_scalar is not None:
+            return [as_scalar]
+
+        return None
+
+    # Call data can only be read access to primal, and simply declares it as a variable
+    def gen_calldata(self, cgb: CodeGenBlock, context: BindContext, binding: "BoundVariable"):
+        access = binding.access
+        if access[0] in [AccessType.read, AccessType.readwrite]:
+            st = cast(kfr.VectorType, self.slang_type)
+            et = cast(SlangType, st.element_type)
+            if binding.direct_bind:
+                binding.gen_calldata_type_name(cgb, binding.vector_type.full_name)
+            else:
+                binding.gen_calldata_type_name(
+                    cgb, f"VectorValueType<{et.full_name},{st.num_elements}>"
+                )
+        else:
+            binding.gen_calldata_type_name(cgb, "NoneType")
+
+    def build_shader_object(self, context: "BindContext", data: Any) -> "slangpy.ShaderObject":
+        unpacked = unpack_arg(data)
+        st = cast(kfr.VectorType, self.slang_type)
+        et = cast(SlangType, st.element_type)
+        bt = context.layout.find_type_by_name(f"VectorValueType<{et.full_name},{st.num_elements}>")
+        if bt is None:
+            raise ValueError(f"Could not find Slang type for {self.slang_type.full_name}")
+        so = context.device.create_shader_object(bt.uniform_layout.reflection)
+        cursor = slangpy.ShaderCursor(so)
+        cursor.write({"value": unpacked})
+        return so
+
+
+class MatrixMarshall(ValueMarshall):
+    def __init__(
+        self,
+        layout: kfr.SlangProgramLayout,
+        scalar_type: TypeReflection.ScalarType,
+        rows: int,
+        cols: int,
+    ):
+        super().__init__(layout)
+        self.slang_type = layout.matrix_type(scalar_type, rows, cols)
+        self.concrete_shape = self.slang_type.shape
+
+    def reduce_type(self, context: "BindContext", dimensions: int):
+        st = cast(kfr.MatrixType, self.slang_type)
+        if dimensions == 2:
+            return st.inner_element_type
+        elif dimensions == 1:
+            return st.element_type
+        elif dimensions == 0:
+            return st
+
+    def resolve_types(self, context: BindContext, bound_type: "SlangType"):
+        st = cast(kfr.MatrixType, self.slang_type)
+
+        # If target type is fully generic, allow element type or matrix type
+        if isinstance(bound_type, (kfr.UnknownType, kfr.InterfaceType)):
+            results = []
+            results.append(st)
+            results.append(st.element_type)
+            return results
+
+        # Use experimental vectorizer if enabled
+        if EXPERIMENTAL_VECTORIZATION:
+            marshall = context.layout.require_type_by_name(
+                f"MatrixValueType<{st.inner_element_type.full_name},{st.rows},{st.cols}>"
+            )
+            return [vectorize_type(marshall, bound_type)]
+
+        # Fall back to just checking if binding to a matrix, vector or scalar
+        if isinstance(bound_type, kfr.MatrixType):
+            return [st]
+
+        as_matrix = spyvec.matrix_to_matrix(st, bound_type)
+        if as_matrix is not None:
+            return [as_matrix]
+
+        as_vector = spyvec.vector_to_vector(st.element_type, bound_type)
+        if as_vector is not None:
+            return [as_vector]
+
+        as_scalar = spyvec.scalar_to_scalar(st.inner_element_type, bound_type)
+        if as_scalar is not None:
+            return [as_scalar]
+
+        return None
+
+
+# Point built in python types at their slang equivalents
+PYTHON_TYPES[type(None)] = lambda layout, pytype: NoneMarshall(layout)
+PYTHON_TYPES[bool] = lambda layout, pytype: ScalarMarshall(layout, TypeReflection.ScalarType.bool)
+PYTHON_TYPES[float] = lambda layout, pytype: ScalarMarshall(
+    layout, TypeReflection.ScalarType.float32
+)
+PYTHON_TYPES[int] = lambda layout, pytype: ScalarMarshall(layout, TypeReflection.ScalarType.int32)
+
+PYTHON_SIGNATURES[type(None)] = None
+PYTHON_SIGNATURES[bool] = None
+PYTHON_SIGNATURES[float] = None
+PYTHON_SIGNATURES[int] = None
+
+
+# Python quaternion type
+PYTHON_TYPES[math.quatf] = lambda layout, pytype: VectorMarshall(
+    layout, TypeReflection.ScalarType.float32, 4
+)
+PYTHON_SIGNATURES[math.quatf] = None
+
+# Python versions of vector and matrix types
+for pair in zip(
+    ["int", "float", "bool", "uint", "float16_t"],
+    [
+        TypeReflection.ScalarType.int32,
+        TypeReflection.ScalarType.float32,
+        TypeReflection.ScalarType.bool,
+        TypeReflection.ScalarType.uint32,
+        TypeReflection.ScalarType.float16,
+    ],
+):
+    base_name = pair[0]
+    slang_scalar_type = pair[1]
+
+    for dim in range(1, 5):
+        vec_type: type = getattr(math, f"{base_name}{dim}")
+        if vec_type is not None:
+            t = lambda layout, pytype, dim=dim, st=slang_scalar_type: VectorMarshall(
+                layout, st, dim
+            )
+            PYTHON_TYPES[vec_type] = t
+            PYTHON_SIGNATURES[vec_type] = None
+
+    for row in range(2, 5):
+        for col in range(2, 5):
+            mat_type = getattr(math, f"{base_name}{row}x{col}", None)
+            if mat_type is not None:
+                t = lambda layout, pytype, row=row, st=slang_scalar_type, col=col: MatrixMarshall(
+                    layout, st, row, col
+                )
+                t.python_type = mat_type
+                PYTHON_TYPES[mat_type] = t
+                PYTHON_SIGNATURES[mat_type] = None

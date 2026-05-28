@@ -1,0 +1,7 @@
+# ***************************************************************
+# * This script adds sgl to the current path on Windows.
+# ***************************************************************
+
+$env:SGL_DIR = $PSScriptRoot
+$env:PATH = $env:SGL_DIR + ";" + $env:PATH
+$env:PYTHONPATH = $env:SGL_DIR + "\python" + ";" + $env:PYTHONPATH

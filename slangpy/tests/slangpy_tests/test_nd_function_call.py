@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+import pytest
+import numpy as np
+from slangpy import DeviceType
+from slangpy.types import Tensor
+from slangpy.testing import helpers
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_basic_3d_call(device_type: DeviceType):
+
+    device = helpers.get_device(device_type)
+
+    function = helpers.create_function_from_module(
+        device,
+        "add_numbers_nd",
+        r"""
+void add_numbers_nd(float a, float b, out float c) {
+    c = a + b;
+}
+""",
+    )
+
+    a = Tensor.empty(device, shape=(2, 2), dtype=float)
+    b = Tensor.empty(device, shape=(2, 2), dtype=float)
+    c = Tensor.empty(device, shape=(2, 2), dtype=float)
+
+    a_data = np.random.rand(*a.shape).astype(np.float32)
+    b_data = np.random.rand(*b.shape).astype(np.float32)
+
+    a.storage.copy_from_numpy(a_data)
+    b.storage.copy_from_numpy(b_data)
+
+    function(a, b, c)
+
+    c_expected = a_data + b_data
+    c_data = c.storage.to_numpy().view(np.float32).reshape(*c.shape)
+    assert np.allclose(c_data, c_expected, atol=0.01)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])

@@ -1,0 +1,71 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+#pragma once
+
+#include "sgl/core/block_allocator.h"
+#include "sgl/core/config.h"
+#include "sgl/core/object.h"
+#include "sgl/core/short_vector.h"
+#include "sgl/core/type_utils.h"
+
+#include "sgl/device/fwd.h"
+#include "sgl/device/shader_offset.h"
+#include "sgl/device/resource.h"
+
+#include <slang-rhi.h>
+
+#include <string_view>
+#include <vector>
+
+namespace sgl {
+
+class SGL_API ShaderObject : public Object {
+    SGL_OBJECT(ShaderObject)
+    SGL_DECLARE_BLOCK_ALLOCATED(ShaderObject)
+public:
+    ShaderObject(ref<Device> device, rhi::IShaderObject* shader_object, bool retain = true);
+    virtual ~ShaderObject();
+
+    Device* device() const { return m_device.get(); }
+
+    virtual ref<const TypeLayoutReflection> element_type_layout() const;
+
+    virtual slang::TypeLayoutReflection* slang_element_type_layout() const;
+
+    virtual uint32_t get_entry_point_count() const;
+    virtual ref<ShaderObject> get_entry_point(uint32_t index);
+
+    virtual ref<ShaderObject> get_object(const ShaderOffset& offset);
+    virtual void set_object(const ShaderOffset& offset, const ref<ShaderObject>& object);
+
+    virtual void set_buffer(const ShaderOffset& offset, const ref<Buffer>& buffer);
+    virtual void set_buffer_view(const ShaderOffset& offset, const ref<BufferView>& buffer_view);
+    virtual void set_texture(const ShaderOffset& offset, const ref<Texture>& texture);
+    virtual void set_texture_view(const ShaderOffset& offset, const ref<TextureView>& texture_view);
+    virtual void set_sampler(const ShaderOffset& offset, const ref<Sampler>& sampler);
+    virtual void
+    set_acceleration_structure(const ShaderOffset& offset, const ref<AccelerationStructure>& acceleration_structure);
+    virtual void set_descriptor_handle(const ShaderOffset& offset, const DescriptorHandle& handle);
+    virtual void set_data(const ShaderOffset& offset, const void* data, size_t size);
+
+    /// Reserves a block of memory within the shader object's internal data buffer at the specified offset.
+    /// WARNING: This function bypasses the immutability of a ShaderObject. To use safely, ensure that the address
+    /// returned is immediately populated, not retained. Prefer using set_data unless absolutely necessary.
+    virtual void* reserve_data(const ShaderOffset& offset, size_t size);
+
+    virtual void
+    set_cuda_tensor_view_buffer(const ShaderOffset& offset, const cuda::TensorView& tensor_view, bool is_uav);
+    virtual void set_cuda_tensor_view_pointer(const ShaderOffset& offset, const cuda::TensorView& tensor_view);
+    virtual void get_cuda_interop_buffers(std::vector<ref<cuda::InteropBuffer>>& cuda_interop_buffers) const;
+
+    rhi::IShaderObject* rhi_shader_object() const { return m_shader_object; }
+
+protected:
+    ref<Device> m_device;
+    rhi::IShaderObject* m_shader_object;
+    bool m_retain;
+    short_vector<ref<cuda::InteropBuffer>, 8> m_cuda_interop_buffers;
+    short_vector<ref<ShaderObject>, 8> m_objects;
+};
+
+} // namespace sgl
