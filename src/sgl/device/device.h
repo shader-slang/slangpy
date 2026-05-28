@@ -118,6 +118,20 @@ struct DeviceDesc {
     /// Enable CUDA interoperability.
     bool enable_cuda_interop{false};
 
+    /// Enable launching CUDA kernels from inside graphics command buffers
+    /// (Vulkan only, via VK_NVX_binary_import + VK_NVX_image_view_handle).
+    /// On by default. Set to false if the application doesn't need
+    /// vkCmdCuLaunchKernelNVX; enabling these extensions has been observed
+    /// to interfere with concurrent cuDNN usage on some driver/GPU pairs.
+    bool enable_cuda_launch_from_gfx{true};
+
+    /// Enable Vulkan ray tracing extensions (acceleration_structure,
+    /// ray_tracing_pipeline, ray_query, ray_tracing_position_fetch, plus
+    /// NV variants). On by default. Set to false if the application doesn't
+    /// use ray tracing; enabling these extensions has been observed to
+    /// interfere with concurrent cuDNN usage on some driver/GPU pairs.
+    bool enable_ray_tracing{true};
+
     /// Enable device side printing (adds performance overhead).
     bool enable_print{false};
 
