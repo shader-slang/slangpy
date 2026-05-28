@@ -496,8 +496,6 @@ SGL_PY_EXPORT(device_device)
            bool enable_ray_tracing_validation,
            bool enable_aftermath,
            bool enable_cuda_interop,
-           bool enable_cuda_launch_from_gfx,
-           bool enable_ray_tracing,
            bool enable_print,
            bool enable_hot_reload,
            bool enable_compilation_reports,
@@ -510,6 +508,8 @@ SGL_PY_EXPORT(device_device)
            std::optional<BindlessDesc> bindless_options,
            std::optional<std::vector<std::string>> additional_vulkan_instance_extensions,
            std::optional<std::vector<std::string>> additional_vulkan_device_extensions,
+           bool enable_cuda_launch_from_gfx,
+           bool enable_ray_tracing,
            std::string label = "")
         {
             new (self) Device(
@@ -548,8 +548,6 @@ SGL_PY_EXPORT(device_device)
         "enable_ray_tracing_validation"_a = DeviceDesc().enable_ray_tracing_validation,
         "enable_aftermath"_a = DeviceDesc().enable_aftermath,
         "enable_cuda_interop"_a = DeviceDesc().enable_cuda_interop,
-        "enable_cuda_launch_from_gfx"_a = DeviceDesc().enable_cuda_launch_from_gfx,
-        "enable_ray_tracing"_a = DeviceDesc().enable_ray_tracing,
         "enable_print"_a = DeviceDesc().enable_print,
         "enable_hot_reload"_a = DeviceDesc().enable_hot_reload,
         "enable_compilation_reports"_a = DeviceDesc().enable_compilation_reports,
@@ -562,6 +560,8 @@ SGL_PY_EXPORT(device_device)
         "bindless_options"_a.none() = nb::none(),
         "additional_vulkan_instance_extensions"_a.none() = nb::none(),
         "additional_vulkan_device_extensions"_a.none() = nb::none(),
+        "enable_cuda_launch_from_gfx"_a = DeviceDesc().enable_cuda_launch_from_gfx,
+        "enable_ray_tracing"_a = DeviceDesc().enable_ray_tracing,
         "label"_a = DeviceDesc().label,
         D(Device, Device)
     );
