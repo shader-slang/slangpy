@@ -2673,6 +2673,10 @@ static const char *__doc_sgl_DeviceDesc_enable_compilation_reports = R"doc(Enabl
 
 static const char *__doc_sgl_DeviceDesc_enable_cuda_interop = R"doc(Enable CUDA interoperability.)doc";
 
+static const char *__doc_sgl_DeviceDesc_enable_cuda_launch_from_gfx = R"doc(Enable launching CUDA kernels from inside Vulkan command buffers (via VK_NVX_binary_import + VK_NVX_image_view_handle). On by default. Set false on NVIDIA Linux + Blackwell sm_120 (driver 595.x) if vkCmdCuLaunchKernelNVX isn't needed.)doc";
+
+static const char *__doc_sgl_DeviceDesc_enable_ray_tracing = R"doc(Enable Vulkan ray tracing extensions (acceleration_structure family). On by default. Set false on NVIDIA Linux + Blackwell sm_120 (driver 595.x) if ray tracing isn't used.)doc";
+
 static const char *__doc_sgl_DeviceDesc_enable_debug_layers = R"doc(Enable debug layers.)doc";
 
 static const char *__doc_sgl_DeviceDesc_enable_hot_reload =
