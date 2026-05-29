@@ -14,6 +14,7 @@
 
 #include "utils/slangpy.h"
 #include "utils/slangpypackedarg.h"
+#include "device/cursor_writer.h"
 #include "sgl/device/buffer_cursor.h"
 
 #include <slang.h>
@@ -485,18 +486,6 @@ private:
 
     static std::string python_type_name(nb::object nbval) { return nb::cast<std::string>(nb::str(nbval.type())); }
 
-    // Recover the C++ object pointer that backs a nanobind object for a registered native type.
-    static bool native_object_pointer(const std::type_info& type, nb::object nbval, void*& value)
-    {
-        return nb::detail::nb_type_get(
-            &type,
-            nbval.ptr(),
-            static_cast<uint8_t>(nb::detail::cast_flags::manual),
-            nullptr,
-            &value
-        );
-    }
-
     // Check whether the registry entry has a writer for this converter's cursor kind.
     static bool has_native_object_writer(const cursor_utils::CursorWriterTypeInfo& info)
     {
@@ -507,21 +496,18 @@ private:
         }
     }
 
-    // Invoke the erased writer after confirming the Python object is backed by the registered C++ type.
-    bool invoke_native_object_writer(const cursor_utils::CursorWriterTypeInfo& info, CursorType& self, nb::object nbval)
+    // Invoke the erased writer found by the cached native cursor-writer resolver.
+    bool invoke_native_object_writer(const slangpy::NativeCursorWriterValue& writer, CursorType& self, nb::object nbval)
     {
+        const cursor_utils::CursorWriterTypeInfo& info = *writer.info;
         if (!has_native_object_writer(info))
-            return false;
-
-        void* value = nullptr;
-        if (!native_object_pointer(*info.type, nbval, value) || value == nullptr)
             return false;
 
         try {
             if constexpr (std::same_as<CursorType, ShaderCursor>) {
-                return info.write_shader_cursor(self, value);
+                return info.write_shader_cursor(self, writer.value);
             } else {
-                return info.write_buffer_cursor(self, value);
+                return info.write_buffer_cursor(self, writer.value);
             }
         } catch (const std::exception& err) {
             SGL_THROW("Failed to write object of type {}: {}", python_type_name(nbval), err.what());
@@ -531,33 +517,8 @@ private:
     // Try the combined native cursor-writer registry before falling back to dict/list unpacking.
     bool write_registered_native_object(CursorType& self, nb::object nbval)
     {
-        auto infos = cursor_utils::cursor_writer_type_infos();
-        if (infos.empty())
-            return false;
-
-        nb::handle type = nbval.type();
-        const std::type_info* exact_type = nb::type_check(type) ? &nb::type_info(type) : nullptr;
-
-        if (exact_type) {
-            if (const auto* info = cursor_utils::find_cursor_writer_type_info(*exact_type)) {
-                if (invoke_native_object_writer(*info, self, nbval))
-                    return true;
-            }
-        }
-
-        for (const auto& info : infos) {
-            if (exact_type && *info.type == *exact_type)
-                continue;
-            if (!has_native_object_writer(info))
-                continue;
-            if (!nb::detail::nb_type_isinstance(nbval.ptr(), info.type))
-                continue;
-
-            if (invoke_native_object_writer(info, self, nbval))
-                return true;
-        }
-
-        return false;
+        auto writer = slangpy::find_native_cursor_writer(nbval);
+        return writer ? invoke_native_object_writer(*writer, self, nbval) : false;
     }
 
     // Preserve the legacy get_this wrapper path.
@@ -832,14 +793,6 @@ private:
             // Unwrap constant buffers or parameter blocks
             if (kind != TypeReflection::Kind::struct_)
                 type_layout = type_layout->getElementTypeLayout();
-
-            // Handle shader object if possible.
-            if constexpr (requires { self.set_object(nullptr); }) {
-                if (nb::isinstance<ShaderObject>(nbval)) {
-                    self.set_object(nb::cast<ref<ShaderObject>>(nbval));
-                    return;
-                }
-            }
 
             // Expect a dict for a slang struct.
             if (nb::isinstance<nb::dict>(nbval)) {

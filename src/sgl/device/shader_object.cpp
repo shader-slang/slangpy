@@ -8,6 +8,7 @@
 #include "sgl/device/helpers.h"
 #include "sgl/device/command.h"
 #include "sgl/device/shader.h"
+#include "sgl/device/shader_cursor.h"
 #include "sgl/device/device.h"
 #include "sgl/device/cuda_interop.h"
 
@@ -50,6 +51,11 @@ ShaderObject::~ShaderObject()
 {
     if (m_retain)
         m_shader_object->release();
+}
+
+void ShaderObject::write_to_cursor(const ShaderCursor& cursor, const ShaderObject* value)
+{
+    cursor.set_object(ref<const ShaderObject>(value));
 }
 
 ref<const TypeLayoutReflection> ShaderObject::element_type_layout() const

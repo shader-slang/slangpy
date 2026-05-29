@@ -2,6 +2,12 @@
 
 #include "sgl/device/cursor_utils.h"
 
+#include "sgl/device/raytracing.h"
+#include "sgl/device/resource.h"
+#include "sgl/device/sampler.h"
+#include "sgl/device/shader_object.h"
+#include "sgl/func/tensor.h"
+
 namespace sgl {
 
 namespace cursor_utils {
@@ -9,7 +15,7 @@ namespace cursor_utils {
     namespace {
 
         // Process-wide registry for native cursor-writer descriptors.
-        // Registration happens during extension/module initialization and lookup happens on hot paths.
+        // Built-in registration happens during SGL static initialization and lookup happens on hot paths.
         std::vector<CursorWriterTypeInfo>& cursor_writer_type_info_registry()
         {
             static std::vector<CursorWriterTypeInfo> infos;
@@ -63,6 +69,18 @@ namespace cursor_utils {
             }
         }
         return nullptr;
+    }
+
+    void register_cursor_writers()
+    {
+        register_cursor_writer<Buffer>();
+        register_cursor_writer<BufferView>();
+        register_cursor_writer<Texture>();
+        register_cursor_writer<TextureView>();
+        register_cursor_writer<Sampler>();
+        register_cursor_writer<AccelerationStructure>();
+        register_cursor_writer<ShaderObject>();
+        register_cursor_writer<func::Tensor>();
     }
 
     // Helper class for checking if implicit conversion between scalar types is allowed.

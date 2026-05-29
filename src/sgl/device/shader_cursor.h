@@ -68,9 +68,6 @@ public:
     // Resource binding
     //
 
-    void set(const ref<ShaderObject>& value) const;
-    void set(const ref<const ShaderObject>& value) const;
-
     void set_object(const ref<const ShaderObject>& object) const;
 
     void set_buffer(const ref<const Buffer>& buffer) const;

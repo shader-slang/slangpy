@@ -128,6 +128,9 @@ namespace cursor_utils {
     /// Find the exact native cursor-writer entry for a std::type_info, if one exists.
     SGL_API const CursorWriterTypeInfo* find_cursor_writer_type_info(const std::type_info& type);
 
+    /// Register cursor writers for built-in SGL value types.
+    SGL_API void register_cursor_writers();
+
     template<typename TCursor, typename T>
         requires(HasWriteToCursor<T, TCursor>)
     void write_to_cursor(const TCursor& cursor, const T* value)

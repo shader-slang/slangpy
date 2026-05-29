@@ -636,16 +636,6 @@ template void CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_vector(
 // Setter specializations
 //
 
-void ShaderCursor::set(const ref<ShaderObject>& value) const
-{
-    set_object(value);
-}
-
-void ShaderCursor::set(const ref<const ShaderObject>& value) const
-{
-    set_object(value);
-}
-
 #define SET_SCALAR(type, scalar_type)                                                                                  \
     template<>                                                                                                         \
     SGL_API void ShaderCursor::set(const type& value) const                                                            \

@@ -15,6 +15,7 @@ struct NativeCursorWriterValue {
     void* value;
 };
 
+const cursor_utils::CursorWriterTypeInfo* find_native_cursor_writer_type_info(nb::handle obj);
 std::optional<NativeCursorWriterValue> find_native_cursor_writer(nb::handle obj);
 nb::object get_native_cursor_writer_type_info(nb::handle obj);
 

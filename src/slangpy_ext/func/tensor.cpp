@@ -4,7 +4,6 @@
 
 #include "sgl/device/buffer_cursor.h"
 #include "sgl/device/command.h"
-#include "sgl/device/cursor_utils.h"
 #include "sgl/device/cuda_utils.h"
 #include "sgl/device/device.h"
 #include "sgl/func/base_struct.h"
@@ -15,12 +14,6 @@
 
 namespace sgl::slangpy {
 namespace {
-
-    void register_tensor_cursor_writer()
-    {
-        if (!cursor_utils::find_cursor_writer_type_info(typeid(Tensor)))
-            cursor_utils::register_cursor_writer<Tensor>();
-    }
 
     std::optional<nb::dlpack::dtype> scalartype_to_dtype(TypeReflection::ScalarType scalar_type)
     {
@@ -708,8 +701,6 @@ SGL_PY_EXPORT(func_tensor)
 {
     using namespace sgl;
     using namespace sgl::slangpy;
-
-    register_tensor_cursor_writer();
 
     nb::module_ native_func = nb::module_::import_("slangpy.native_func");
 

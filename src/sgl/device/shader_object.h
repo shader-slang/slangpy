@@ -26,6 +26,8 @@ public:
     ShaderObject(ref<Device> device, rhi::IShaderObject* shader_object, bool retain = true);
     virtual ~ShaderObject();
 
+    static void write_to_cursor(const ShaderCursor& cursor, const ShaderObject* value);
+
     Device* device() const { return m_device.get(); }
 
     virtual ref<const TypeLayoutReflection> element_type_layout() const;

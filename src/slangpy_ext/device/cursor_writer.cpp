@@ -30,12 +30,9 @@ namespace {
         nb::handle type = obj.type();
         const std::type_info* exact_type = nb::type_check(type) ? &nb::type_info(type) : nullptr;
 
-        void* value = nullptr;
         if (exact_type) {
-            if (const auto* info = cursor_utils::find_cursor_writer_type_info(*exact_type)) {
-                if (native_cursor_writer_pointer(*info->type, obj, value) && value != nullptr)
-                    return info;
-            }
+            if (const auto* info = cursor_utils::find_cursor_writer_type_info(*exact_type))
+                return info;
         }
 
         for (const auto& info : infos) {
@@ -43,43 +40,42 @@ namespace {
                 continue;
             if (!nb::detail::nb_type_isinstance(obj.ptr(), info.type))
                 continue;
-            if (native_cursor_writer_pointer(*info.type, obj, value) && value != nullptr)
-                return &info;
+            return &info;
         }
 
         return nullptr;
     }
 
-    const cursor_utils::CursorWriterTypeInfo* find_native_cursor_writer_type_info(nb::handle obj)
-    {
-        auto infos = cursor_utils::cursor_writer_type_infos();
-        if (infos.empty())
-            return nullptr;
+} // namespace
 
-        struct Cache {
-            size_t registry_size = 0;
-            std::unordered_map<PyTypeObject*, const cursor_utils::CursorWriterTypeInfo*> entries;
-        };
-        static Cache cache;
+const cursor_utils::CursorWriterTypeInfo* find_native_cursor_writer_type_info(nb::handle obj)
+{
+    auto infos = cursor_utils::cursor_writer_type_infos();
+    if (infos.empty())
+        return nullptr;
 
-        if (cache.registry_size != infos.size()) {
-            cache.entries.clear();
-            cache.registry_size = infos.size();
-        }
+    struct Cache {
+        size_t registry_size = 0;
+        std::unordered_map<PyTypeObject*, const cursor_utils::CursorWriterTypeInfo*> entries;
+    };
+    static Cache cache;
 
-        // Cache by Python type, including nullptr misses, to avoid repeating the registered-base scan for
-        // ordinary Python values on signature hot paths.
-        PyTypeObject* python_type = Py_TYPE(obj.ptr());
-        auto it = cache.entries.find(python_type);
-        if (it != cache.entries.end())
-            return it->second;
-
-        const cursor_utils::CursorWriterTypeInfo* info = find_native_cursor_writer_type_info_uncached(obj, infos);
-        cache.entries.emplace(python_type, info);
-        return info;
+    if (cache.registry_size != infos.size()) {
+        cache.entries.clear();
+        cache.registry_size = infos.size();
     }
 
-} // namespace
+    // Cache by Python type, including nullptr misses, to avoid repeating the registered-base scan for
+    // ordinary Python values on signature hot paths.
+    PyTypeObject* python_type = Py_TYPE(obj.ptr());
+    auto it = cache.entries.find(python_type);
+    if (it != cache.entries.end())
+        return it->second;
+
+    const cursor_utils::CursorWriterTypeInfo* info = find_native_cursor_writer_type_info_uncached(obj, infos);
+    cache.entries.emplace(python_type, info);
+    return info;
+}
 
 std::optional<NativeCursorWriterValue> find_native_cursor_writer(nb::handle obj)
 {
