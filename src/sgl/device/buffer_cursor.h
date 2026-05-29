@@ -81,15 +81,8 @@ public:
     }
 
     template<typename T>
-        requires(!std::is_const_v<T> && HasWriteToCursor<T, BufferElementCursor>)
-    void set(const ref<T>& value) const
-    {
-        cursor_utils::write_to_cursor(*this, value.get());
-    }
-
-    template<typename T>
         requires(HasWriteToCursor<T, BufferElementCursor>)
-    void set(const ref<const T>& value) const
+    void set(const ref<T>& value) const
     {
         cursor_utils::write_to_cursor(*this, value.get());
     }

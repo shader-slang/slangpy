@@ -107,16 +107,8 @@ public:
 
     /// Let ref-counted values forward to their type's cursor writer.
     template<typename T>
-        requires(!std::is_const_v<T> && HasWriteToCursor<T, ShaderCursor>)
-    void set(const ref<T>& value) const
-    {
-        cursor_utils::write_to_cursor(*this, value.get());
-    }
-
-    /// Let const ref-counted values forward to their type's cursor writer.
-    template<typename T>
         requires(HasWriteToCursor<T, ShaderCursor>)
-    void set(const ref<const T>& value) const
+    void set(const ref<T>& value) const
     {
         cursor_utils::write_to_cursor(*this, value.get());
     }

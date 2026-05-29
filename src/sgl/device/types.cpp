@@ -19,6 +19,7 @@ void DescriptorHandle::write_to_cursor(const ShaderCursor& cursor, const Descrip
 void DescriptorHandle::write_to_cursor(const BufferElementCursor& cursor, const DescriptorHandle* value)
 {
     SGL_CHECK(value, "Cannot write a null descriptor handle pointer to a buffer cursor.");
+    // Buffer cursor storage preserves the raw descriptor payload layout, not the full typed wrapper.
     cursor.set_data(&value->value, sizeof(value->value));
 }
 
