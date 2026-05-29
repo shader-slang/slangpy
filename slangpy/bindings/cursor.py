@@ -100,7 +100,7 @@ class WriteToCursorMarshall(NativeValueMarshall):
         return True
 
 
-def register_write_to_cursor_type(
+def register_cursor_writer_marshal(
     python_type: type,
     *,
     slang_type_name: str,
@@ -202,7 +202,7 @@ def register_cursor_writer_type(
     )
 
     if slang_type_name is not None:
-        register_write_to_cursor_type(
+        register_cursor_writer_marshal(
             python_type,
             slang_type_name=slang_type_name,
             signature=type_signature,
