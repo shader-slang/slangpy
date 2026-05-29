@@ -1121,10 +1121,12 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
     auto type_name = nb::str(nb::getattr(o.type(), "__name__"));
     builder << type_name.c_str() << "\n";
 
-    // Python-side registrations and slangpy_signature win over legacy get_this unpacking.
-    std::optional<std::string> s = lookup_value_signature(o);
-    if (s.has_value()) {
-        builder << s->c_str() << "\n";
+    // Handle objects with get_this method.
+    auto get_this = nb::getattr(o, "get_this", nb::none());
+    if (!get_this.is_none()) {
+        builder << "\nunpack";
+        auto this_ = get_this();
+        get_value_signature(builder, this_);
         return;
     }
 
@@ -1132,15 +1134,6 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
     if (nb::hasattr(o, "slangpy_signature")) {
         auto slangpy_sig = nb::getattr(o, "slangpy_signature");
         builder << nb::str(slangpy_sig).c_str() << "\n";
-        return;
-    }
-
-    // Handle objects with get_this method.
-    auto get_this = nb::getattr(o, "get_this", nb::none());
-    if (!get_this.is_none()) {
-        builder << "\nunpack";
-        auto this_ = get_this();
-        get_value_signature(builder, this_);
         return;
     }
 
@@ -1160,6 +1153,12 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
             }
         }
         return;
+    }
+
+    // Use value_to_id function.
+    std::optional<std::string> s = lookup_value_signature(o);
+    if (s.has_value()) {
+        builder << s->c_str();
     }
     builder << "\n";
 }

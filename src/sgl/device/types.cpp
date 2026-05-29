@@ -19,7 +19,7 @@ void DescriptorHandle::write_to_cursor(const ShaderCursor& cursor, const Descrip
 void DescriptorHandle::write_to_cursor(const BufferElementCursor& cursor, const DescriptorHandle* value)
 {
     SGL_CHECK(value, "Cannot write a null descriptor handle pointer to a buffer cursor.");
-    cursor.set_data(value, sizeof(*value));
+    cursor.set_data(&value->value, sizeof(value->value));
 }
 
 std::string DescriptorHandle::to_string() const

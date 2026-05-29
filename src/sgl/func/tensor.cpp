@@ -111,6 +111,16 @@ namespace {
         auto strides_cursor = cursor.find_field("_strides");
         auto offset_cursor = cursor.find_field("_offset");
 
+        slang::TypeLayoutReflection* shape_layout = shape_cursor.slang_type_layout();
+        const size_t expected_shape_dims = static_cast<size_t>(shape_layout->getElementCount());
+        SGL_CHECK(
+            shape.size() == expected_shape_dims,
+            "\"{}\" expects tensor rank {} but got {}.",
+            cursor_type_name(cursor),
+            expected_shape_dims,
+            shape.size()
+        );
+
         if constexpr (requires { tensor_data_cursor.set_buffer(storage); }) {
             tensor_data_cursor.set_buffer(storage);
         } else {
