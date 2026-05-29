@@ -1,0 +1,4 @@
+interface:
+  display_name: "SlangPy Code Review"
+  short_description: "Run specialist SlangPy code-review agents"
+  default_prompt: "Use $slangpy-code-review to review this SlangPy change with predefined specialist sub-agents."
