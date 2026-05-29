@@ -4,7 +4,6 @@
 
 #include "sgl/device/device.h"
 #include "sgl/device/helpers.h"
-#include "sgl/device/buffer_cursor.h"
 #include "sgl/device/shader_cursor.h"
 
 #include "sgl/core/config.h"
@@ -52,15 +51,9 @@ NativeHandle Sampler::native_handle() const
     return NativeHandle(rhi_handle);
 }
 
-void Sampler::write_to_cursor(const ShaderCursor& cursor) const
+void Sampler::write_to_cursor(const ShaderCursor& cursor, const Sampler* value)
 {
-    cursor.set_sampler(ref<const Sampler>(this));
-}
-
-void Sampler::write_to_cursor(const BufferElementCursor& cursor) const
-{
-    SGL_UNUSED(cursor);
-    SGL_THROW("Sampler cannot be written to a BufferElementCursor.");
+    cursor.set_sampler(ref<const Sampler>(value));
 }
 
 std::string Sampler::to_string() const

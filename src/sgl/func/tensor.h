@@ -81,19 +81,19 @@ public:
     const std::string& signature() const { return m_signature; }
 
     /// Write the SlangPy cache signature used by functional dispatch.
-    void write_slangpy_signature(SignatureBuffer& signature) const;
+    static void write_slangpy_signature(SignatureBuffer& signature, const Tensor* value);
 
-    /// Write this tensor to a shader cursor.
+    /// Write a tensor to a shader cursor.
     ///
     /// Plain Tensor/WTensor/RWTensor/PrimalTensor targets are handled by writing the
     /// cursor's tensor fields directly. Differentiable wrapper targets write the
     /// primal tensor plus any gradient fields that are present on the target type.
-    void write_to_cursor(const ShaderCursor& cursor) const;
+    static void write_to_cursor(const ShaderCursor& cursor, const Tensor* value);
 
-    /// Write this tensor to buffer cursor storage for pointer-backed Tensor fields or TensorView payloads.
+    /// Write a tensor to buffer cursor storage for pointer-backed Tensor fields or TensorView payloads.
     ///
     /// Resource-backed tensor fields require a ShaderCursor and will throw when encountered.
-    void write_to_cursor(const BufferElementCursor& cursor) const;
+    static void write_to_cursor(const BufferElementCursor& cursor, const Tensor* value);
 
     /// Build the POD payload used by Slang TensorView fields.
     static TensorViewData make_tensor_view_data(

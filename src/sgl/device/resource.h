@@ -395,12 +395,10 @@ public:
     /// Get bindless descriptor handle for read-write access.
     DescriptorHandle descriptor_handle_rw() const;
 
-    /// Bind this buffer to a shader cursor.
-    void write_to_cursor(const ShaderCursor& cursor) const;
-    /// Resource objects cannot be serialized into buffer cursor storage.
-    void write_to_cursor(const BufferElementCursor& cursor) const;
+    /// Bind a nullable buffer value to a shader cursor.
+    static void write_to_cursor(const ShaderCursor& cursor, const Buffer* value);
     /// Write the SlangPy cache signature used by functional dispatch.
-    void write_slangpy_signature(SignatureBuffer& signature) const;
+    static void write_slangpy_signature(SignatureBuffer& signature, const Buffer* value);
 
     virtual rhi::IResource* rhi_resource() const override { return m_rhi_buffer; }
     rhi::IBuffer* rhi_buffer() const { return m_rhi_buffer; }
@@ -441,10 +439,8 @@ public:
     /// Get the native buffer view handle.
     NativeHandle native_handle() const;
 
-    /// Bind this buffer view to a shader cursor.
-    void write_to_cursor(const ShaderCursor& cursor) const;
-    /// Resource view objects cannot be serialized into buffer cursor storage.
-    void write_to_cursor(const BufferElementCursor& cursor) const;
+    /// Bind a nullable buffer view value to a shader cursor.
+    static void write_to_cursor(const ShaderCursor& cursor, const BufferView* value);
 
     std::string to_string() const override;
 
@@ -641,12 +637,10 @@ public:
     /// Get bindless combined texture/sampler descriptor handle.
     DescriptorHandle descriptor_handle_combined() const;
 
-    /// Bind this texture to a shader cursor.
-    void write_to_cursor(const ShaderCursor& cursor) const;
-    /// Resource objects cannot be serialized into buffer cursor storage.
-    void write_to_cursor(const BufferElementCursor& cursor) const;
+    /// Bind a nullable texture value to a shader cursor.
+    static void write_to_cursor(const ShaderCursor& cursor, const Texture* value);
     /// Write the SlangPy cache signature used by functional dispatch.
-    void write_slangpy_signature(SignatureBuffer& signature) const;
+    static void write_slangpy_signature(SignatureBuffer& signature, const Texture* value);
 
     /// Get the shared resource handle.
     /// Note: Texture must be created with the \c TextureUsage::shared usage flag.
@@ -710,10 +704,8 @@ public:
 
     rhi::ITextureView* rhi_texture_view() const { return m_rhi_texture_view.get(); }
 
-    /// Bind this texture view to a shader cursor.
-    void write_to_cursor(const ShaderCursor& cursor) const;
-    /// Resource view objects cannot be serialized into buffer cursor storage.
-    void write_to_cursor(const BufferElementCursor& cursor) const;
+    /// Bind a nullable texture view value to a shader cursor.
+    static void write_to_cursor(const ShaderCursor& cursor, const TextureView* value);
 
     std::string to_string() const override;
 

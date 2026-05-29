@@ -464,7 +464,7 @@ void ShaderCursor::set_buffer(const ref<const Buffer>& buffer) const
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
     if (type->getKind() == slang::TypeReflection::Kind::Pointer) {
-        set_pointer(buffer->device_address());
+        set_pointer(buffer ? buffer->device_address() : 0);
     } else {
         SGL_CHECK(is_buffer_resource_type(type), "\"{}\" cannot bind a buffer", m_type_layout->getName());
         m_shader_object->set_buffer(m_offset, buffer);
@@ -476,7 +476,7 @@ void ShaderCursor::set_buffer_view(const ref<const BufferView>& buffer_view) con
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
     if (type->getKind() == slang::TypeReflection::Kind::Pointer) {
-        set_pointer(buffer_view->buffer()->device_address() + buffer_view->range().offset);
+        set_pointer(buffer_view ? buffer_view->buffer()->device_address() + buffer_view->range().offset : 0);
     } else {
         SGL_CHECK(is_buffer_resource_type(type), "\"{}\" cannot bind a buffer view", m_type_layout->getName());
         m_shader_object->set_buffer_view(m_offset, buffer_view);
@@ -636,14 +636,12 @@ template void CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_vector(
 // Setter specializations
 //
 
-template<>
-SGL_API void ShaderCursor::set(const ref<ShaderObject>& value) const
+void ShaderCursor::set(const ref<ShaderObject>& value) const
 {
     set_object(value);
 }
 
-template<>
-SGL_API void ShaderCursor::set(const ref<const ShaderObject>& value) const
+void ShaderCursor::set(const ref<const ShaderObject>& value) const
 {
     set_object(value);
 }

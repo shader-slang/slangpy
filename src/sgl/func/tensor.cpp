@@ -53,6 +53,20 @@ namespace {
     }
 
     template<typename TCursor>
+    bool is_pointer_target(const TCursor& cursor)
+    {
+        slang::TypeLayoutReflection* layout = cursor.slang_type_layout();
+        return layout && TypeReflection::Kind(layout->getKind()) == TypeReflection::Kind::pointer;
+    }
+
+    template<typename TCursor>
+    void write_tensor_pointer_to_cursor_impl(const TCursor& cursor, const Tensor& tensor)
+    {
+        const uint64_t byte_offset = static_cast<uint64_t>(tensor.offset()) * tensor.element_stride();
+        cursor.set_pointer(tensor.storage()->device_address() + byte_offset);
+    }
+
+    template<typename TCursor>
     void write_tensor_view_to_cursor_impl(
         const TCursor& cursor,
         const ref<const Buffer>& storage,
@@ -147,6 +161,11 @@ namespace {
     template<typename TCursor>
     void write_tensor_to_cursor_impl(const Tensor& tensor, const TCursor& cursor)
     {
+        if (is_pointer_target(cursor)) {
+            write_tensor_pointer_to_cursor_impl(cursor, tensor);
+            return;
+        }
+
         if (write_tensor_fields_to_cursor_impl(cursor, tensor))
             return;
 
@@ -265,14 +284,24 @@ TensorViewData Tensor::make_tensor_view_data(
     return data;
 }
 
-void Tensor::write_to_cursor(const ShaderCursor& cursor) const
+void Tensor::write_to_cursor(const ShaderCursor& cursor, const Tensor* value)
 {
-    write_tensor_to_cursor_impl(*this, cursor);
+    if (!value) {
+        SGL_CHECK(is_pointer_target(cursor), "Cannot write a null tensor pointer to a non-pointer shader cursor.");
+        cursor.set_pointer(0);
+        return;
+    }
+    write_tensor_to_cursor_impl(*value, cursor);
 }
 
-void Tensor::write_to_cursor(const BufferElementCursor& cursor) const
+void Tensor::write_to_cursor(const BufferElementCursor& cursor, const Tensor* value)
 {
-    write_tensor_to_cursor_impl(*this, cursor);
+    if (!value) {
+        SGL_CHECK(is_pointer_target(cursor), "Cannot write a null tensor pointer to a non-pointer buffer cursor.");
+        cursor.set_pointer(0);
+        return;
+    }
+    write_tensor_to_cursor_impl(*value, cursor);
 }
 
 void Tensor::update_signature()
@@ -280,10 +309,11 @@ void Tensor::update_signature()
     m_signature = fmt::format("[{},{},{}]", m_desc.dtype->full_name(), m_desc.shape.size(), m_desc.usage);
 }
 
-void Tensor::write_slangpy_signature(SignatureBuffer& signature) const
+void Tensor::write_slangpy_signature(SignatureBuffer& signature, const Tensor* value)
 {
+    SGL_CHECK(value, "Cannot write a SlangPy signature for a null tensor pointer.");
     signature.add("Tensor\n");
-    signature.add(m_signature);
+    signature.add(value->m_signature);
 }
 
 bool Tensor::is_contiguous() const

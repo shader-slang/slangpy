@@ -7,7 +7,6 @@
 #include "sgl/device/command.h"
 #include "sgl/device/helpers.h"
 #include "sgl/device/cuda_utils.h"
-#include "sgl/device/buffer_cursor.h"
 #include "sgl/device/shader_cursor.h"
 
 #include "sgl/core/config.h"
@@ -259,21 +258,16 @@ DescriptorHandle Buffer::descriptor_handle_rw() const
     return DescriptorHandle(rhi_handle);
 }
 
-void Buffer::write_to_cursor(const ShaderCursor& cursor) const
+void Buffer::write_to_cursor(const ShaderCursor& cursor, const Buffer* value)
 {
-    cursor.set_buffer(ref<const Buffer>(this));
+    cursor.set_buffer(ref<const Buffer>(value));
 }
 
-void Buffer::write_to_cursor(const BufferElementCursor& cursor) const
+void Buffer::write_slangpy_signature(SignatureBuffer& signature, const Buffer* value)
 {
-    SGL_UNUSED(cursor);
-    SGL_THROW("Buffer cannot be written to a BufferElementCursor.");
-}
-
-void Buffer::write_slangpy_signature(SignatureBuffer& signature) const
-{
+    SGL_CHECK(value, "Cannot write a SlangPy signature for a null buffer pointer.");
     char temp[256];
-    std::snprintf(temp, sizeof(temp), "[%d]", int(m_desc.usage));
+    std::snprintf(temp, sizeof(temp), "[%d]", int(value->m_desc.usage));
     signature.add(temp);
 }
 
@@ -329,15 +323,9 @@ NativeHandle BufferView::native_handle() const
     return {};
 }
 
-void BufferView::write_to_cursor(const ShaderCursor& cursor) const
+void BufferView::write_to_cursor(const ShaderCursor& cursor, const BufferView* value)
 {
-    cursor.set_buffer_view(ref<const BufferView>(this));
-}
-
-void BufferView::write_to_cursor(const BufferElementCursor& cursor) const
-{
-    SGL_UNUSED(cursor);
-    SGL_THROW("BufferView cannot be written to a BufferElementCursor.");
+    cursor.set_buffer_view(ref<const BufferView>(value));
 }
 
 std::string BufferView::to_string() const
@@ -555,28 +543,23 @@ DescriptorHandle Texture::descriptor_handle_combined() const
     return DescriptorHandle(rhi_handle);
 }
 
-void Texture::write_to_cursor(const ShaderCursor& cursor) const
+void Texture::write_to_cursor(const ShaderCursor& cursor, const Texture* value)
 {
-    cursor.set_texture(ref<const Texture>(this));
+    cursor.set_texture(ref<const Texture>(value));
 }
 
-void Texture::write_to_cursor(const BufferElementCursor& cursor) const
+void Texture::write_slangpy_signature(SignatureBuffer& signature, const Texture* value)
 {
-    SGL_UNUSED(cursor);
-    SGL_THROW("Texture cannot be written to a BufferElementCursor.");
-}
-
-void Texture::write_slangpy_signature(SignatureBuffer& signature) const
-{
+    SGL_CHECK(value, "Cannot write a SlangPy signature for a null texture pointer.");
     char temp[256];
     std::snprintf(
         temp,
         sizeof(temp),
         "[%d,%d,%d,%d]",
-        int(m_desc.type),
-        int(m_desc.usage),
-        int(m_desc.format),
-        int(m_desc.array_length)
+        int(value->m_desc.type),
+        int(value->m_desc.usage),
+        int(value->m_desc.format),
+        int(value->m_desc.array_length)
     );
     signature.add(temp);
 }
@@ -823,15 +806,9 @@ NativeHandle TextureView::native_handle() const
     return NativeHandle(rhi_handle);
 }
 
-void TextureView::write_to_cursor(const ShaderCursor& cursor) const
+void TextureView::write_to_cursor(const ShaderCursor& cursor, const TextureView* value)
 {
-    cursor.set_texture_view(ref<const TextureView>(this));
-}
-
-void TextureView::write_to_cursor(const BufferElementCursor& cursor) const
-{
-    SGL_UNUSED(cursor);
-    SGL_THROW("TextureView cannot be written to a BufferElementCursor.");
+    cursor.set_texture_view(ref<const TextureView>(value));
 }
 
 std::string TextureView::to_string() const

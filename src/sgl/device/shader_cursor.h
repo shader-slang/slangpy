@@ -68,6 +68,9 @@ public:
     // Resource binding
     //
 
+    void set(const ref<ShaderObject>& value) const;
+    void set(const ref<const ShaderObject>& value) const;
+
     void set_object(const ref<const ShaderObject>& object) const;
 
     void set_buffer(const ref<const Buffer>& buffer) const;
@@ -99,31 +102,31 @@ public:
 
     /// Let values that know how to write to ShaderCursor populate this cursor directly.
     template<typename T>
-        requires(HasWriteToCursor<T, ShaderCursor>)
+        requires(!is_ref_v<std::remove_cvref_t<T>> && HasWriteToCursor<T, ShaderCursor>)
     void set(const T& value) const
     {
-        value.write_to_cursor(*this);
+        cursor_utils::write_to_cursor(*this, &value);
     }
 
-    /// Let ref-counted values forward to their object's write_to_cursor implementation.
+    /// Let ref-counted values forward to their type's cursor writer.
     template<typename T>
         requires(!std::is_const_v<T> && HasWriteToCursor<T, ShaderCursor>)
     void set(const ref<T>& value) const
     {
-        value->write_to_cursor(*this);
+        cursor_utils::write_to_cursor(*this, value.get());
     }
 
-    /// Let const ref-counted values forward to their object's write_to_cursor implementation.
+    /// Let const ref-counted values forward to their type's cursor writer.
     template<typename T>
         requires(HasWriteToCursor<T, ShaderCursor>)
     void set(const ref<const T>& value) const
     {
-        value->write_to_cursor(*this);
+        cursor_utils::write_to_cursor(*this, value.get());
     }
 
     /// Fall back to the built-in ShaderCursor setter specializations for non cursor-writer values.
     template<typename T>
-        requires(!HasWriteToCursor<T, ShaderCursor>)
+        requires(!is_ref_v<std::remove_cvref_t<T>> && !HasWriteToCursor<T, ShaderCursor>)
     void set(const T& value) const;
 
     void _set_array_unsafe(

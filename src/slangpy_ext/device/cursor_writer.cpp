@@ -22,8 +22,10 @@ namespace {
         );
     }
 
-    const cursor_utils::CursorWriterTypeInfo*
-    find_native_cursor_writer_type_info_uncached(nb::handle obj, std::span<const cursor_utils::CursorWriterTypeInfo> infos)
+    const cursor_utils::CursorWriterTypeInfo* find_native_cursor_writer_type_info_uncached(
+        nb::handle obj,
+        std::span<const cursor_utils::CursorWriterTypeInfo> infos
+    )
     {
         nb::handle type = obj.type();
         const std::type_info* exact_type = nb::type_check(type) ? &nb::type_info(type) : nullptr;

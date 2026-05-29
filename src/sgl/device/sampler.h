@@ -50,10 +50,8 @@ public:
     /// Get the native sampler handle.
     NativeHandle native_handle() const;
 
-    /// Bind this sampler to a shader cursor.
-    void write_to_cursor(const ShaderCursor& cursor) const;
-    /// Sampler objects cannot be serialized into buffer cursor storage.
-    void write_to_cursor(const BufferElementCursor& cursor) const;
+    /// Bind a nullable sampler value to a shader cursor.
+    static void write_to_cursor(const ShaderCursor& cursor, const Sampler* value);
 
     std::string to_string() const override;
 

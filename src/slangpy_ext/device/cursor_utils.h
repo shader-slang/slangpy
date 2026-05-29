@@ -759,6 +759,8 @@ private:
             try {
                 return m_write_scalar[(int)type->getScalarType()](self, nbval);
             } catch (const std::exception&) {
+                if (write_registered_native_object(self, nbval))
+                    return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
                 throw;
@@ -770,6 +772,8 @@ private:
             try {
                 return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
             } catch (const std::exception&) {
+                if (write_registered_native_object(self, nbval))
+                    return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
                 throw;
@@ -784,6 +788,8 @@ private:
                     nbval
                 );
             } catch (const std::exception&) {
+                if (write_registered_native_object(self, nbval))
+                    return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
                 throw;
@@ -811,6 +817,9 @@ private:
                 self.set_pointer(buffer_view->buffer()->device_address() + buffer_view->range().offset);
                 return;
             }
+
+            if (write_registered_native_object(self, nbval))
+                return;
 
             if (try_unpack_and_retry(self, nbval))
                 return;

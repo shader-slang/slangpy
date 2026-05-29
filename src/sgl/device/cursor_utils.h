@@ -21,10 +21,17 @@
 
 namespace sgl {
 
-/// True when T can write itself through the exact cursor type that will be passed.
+namespace detail {
+    template<typename T>
+    struct CursorWriterOwner {
+        using type = std::remove_const_t<std::remove_cvref_t<T>>;
+    };
+} // namespace detail
+
+/// True when T has a class-owned cursor writer for the exact cursor and nullable value pointer.
 template<typename T, typename TCursor>
-concept HasWriteToCursor = requires(const T& obj, const TCursor& cursor) {
-    { obj.write_to_cursor(cursor) };
+concept HasWriteToCursor = requires(const TCursor& cursor, const typename detail::CursorWriterOwner<T>::type* value) {
+    { detail::CursorWriterOwner<T>::type::write_to_cursor(cursor, value) };
 };
 
 namespace cursor_utils {
@@ -121,6 +128,13 @@ namespace cursor_utils {
     /// Find the exact native cursor-writer entry for a std::type_info, if one exists.
     SGL_API const CursorWriterTypeInfo* find_cursor_writer_type_info(const std::type_info& type);
 
+    template<typename TCursor, typename T>
+        requires(HasWriteToCursor<T, TCursor>)
+    void write_to_cursor(const TCursor& cursor, const T* value)
+    {
+        detail::CursorWriterOwner<T>::type::write_to_cursor(cursor, value);
+    }
+
     namespace detail {
 
         /// Return the compiler-specific spelling that contains T's name.
@@ -187,18 +201,10 @@ namespace cursor_utils {
         { std::string_view(T::slangpy_signature) } -> std::same_as<std::string_view>;
     };
 
-    /// True when T supplies a value-aware cache signature member function.
+    /// True when T supplies a pointer-aware static cache signature function.
     template<typename T>
-    concept HasValueSignature = requires {
-        requires std::is_member_function_pointer_v<decltype(&T::write_slangpy_signature)>;
-    } && requires(const T& value, SignatureBuffer& signature) {
-        { value.write_slangpy_signature(signature) };
-    };
-
-    /// True when T supplies a static function cache signature.
-    template<typename T>
-    concept HasTypeStaticSignature = requires(SignatureBuffer& signature) {
-        { T::write_slangpy_signature(signature) };
+    concept HasStaticValueSignature = requires(SignatureBuffer& signature, const T* value) {
+        { T::write_slangpy_signature(signature, value) };
     };
 
     /// True when T supplies static import metadata copied at registration time.
@@ -209,7 +215,7 @@ namespace cursor_utils {
 
     /// Public direct cursor-writer registration contract.
     template<typename T>
-    concept CanRegisterCursorWriter = HasWriteToCursor<T, ShaderCursor> && HasWriteToCursor<T, BufferElementCursor>;
+    concept CanRegisterCursorWriter = HasWriteToCursor<T, ShaderCursor> || HasWriteToCursor<T, BufferElementCursor>;
 
     /// True when T can also be used as a simple functional API fallback marshall.
     template<typename T>
@@ -219,10 +225,8 @@ namespace cursor_utils {
     template<typename T>
     void write_cursor_writer_signature(SignatureBuffer& signature, const void* value)
     {
-        if constexpr (HasValueSignature<T>)
-            static_cast<const T*>(value)->write_slangpy_signature(signature);
-        else if constexpr (HasTypeStaticSignature<T>)
-            T::write_slangpy_signature(signature);
+        if constexpr (HasStaticValueSignature<T>)
+            T::write_slangpy_signature(signature, static_cast<const T*>(value));
         else if constexpr (HasTypeStaticStringSignature<T>)
             signature.add(std::string_view(T::slangpy_signature));
         else
@@ -240,16 +244,20 @@ namespace cursor_utils {
         CursorWriterTypeInfo info;
         info.type = &typeid(T);
 
-        info.write_shader_cursor = [](ShaderCursor& cursor, const void* value)
-        {
-            static_cast<const T*>(value)->write_to_cursor(cursor);
-            return true;
-        };
-        info.write_buffer_cursor = [](BufferElementCursor& cursor, const void* value)
-        {
-            static_cast<const T*>(value)->write_to_cursor(cursor);
-            return true;
-        };
+        if constexpr (HasWriteToCursor<T, ShaderCursor>) {
+            info.write_shader_cursor = [](ShaderCursor& cursor, const void* value)
+            {
+                write_to_cursor(cursor, static_cast<const T*>(value));
+                return true;
+            };
+        }
+        if constexpr (HasWriteToCursor<T, BufferElementCursor>) {
+            info.write_buffer_cursor = [](BufferElementCursor& cursor, const void* value)
+            {
+                write_to_cursor(cursor, static_cast<const T*>(value));
+                return true;
+            };
+        }
         info.write_signature = [](SignatureBuffer& signature, const void* value)
         {
             write_cursor_writer_signature<T>(signature, value);

@@ -229,10 +229,10 @@ struct SGL_API DescriptorHandle {
 
     explicit operator bool() const { return is_valid(); }
 
-    /// Write this bindless descriptor handle to a shader cursor.
-    void write_to_cursor(const ShaderCursor& cursor) const;
-    /// Write this bindless descriptor handle value into buffer cursor storage.
-    void write_to_cursor(const BufferElementCursor& cursor) const;
+    /// Write a bindless descriptor handle to a shader cursor.
+    static void write_to_cursor(const ShaderCursor& cursor, const DescriptorHandle* value);
+    /// Write a bindless descriptor handle value into buffer cursor storage.
+    static void write_to_cursor(const BufferElementCursor& cursor, const DescriptorHandle* value);
 
     std::string to_string() const;
 };

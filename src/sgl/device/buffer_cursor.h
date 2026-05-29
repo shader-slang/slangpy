@@ -74,28 +74,28 @@ public:
     void get(T& value) const;
 
     template<typename T>
-        requires(HasWriteToCursor<T, BufferElementCursor>)
+        requires(!is_ref_v<std::remove_cvref_t<T>> && HasWriteToCursor<T, BufferElementCursor>)
     void set(const T& value) const
     {
-        value.write_to_cursor(*this);
+        cursor_utils::write_to_cursor(*this, &value);
     }
 
     template<typename T>
         requires(!std::is_const_v<T> && HasWriteToCursor<T, BufferElementCursor>)
     void set(const ref<T>& value) const
     {
-        value->write_to_cursor(*this);
+        cursor_utils::write_to_cursor(*this, value.get());
     }
 
     template<typename T>
         requires(HasWriteToCursor<T, BufferElementCursor>)
     void set(const ref<const T>& value) const
     {
-        value->write_to_cursor(*this);
+        cursor_utils::write_to_cursor(*this, value.get());
     }
 
     template<typename T>
-        requires(!HasWriteToCursor<T, BufferElementCursor>)
+        requires(!is_ref_v<std::remove_cvref_t<T>> && !HasWriteToCursor<T, BufferElementCursor>)
     void set(const T& value) const;
 
     void _set_offset(size_t new_offset) { m_offset = new_offset; }

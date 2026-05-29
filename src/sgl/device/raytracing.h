@@ -304,10 +304,8 @@ public:
 
     rhi::IAccelerationStructure* rhi_acceleration_structure() const { return m_rhi_acceleration_structure; }
 
-    /// Bind this acceleration structure to a shader cursor.
-    void write_to_cursor(const ShaderCursor& cursor) const;
-    /// Acceleration structure objects cannot be serialized into buffer cursor storage.
-    void write_to_cursor(const BufferElementCursor& cursor) const;
+    /// Bind a nullable acceleration structure value to a shader cursor.
+    static void write_to_cursor(const ShaderCursor& cursor, const AccelerationStructure* value);
 
     std::string to_string() const override;
 
