@@ -190,9 +190,9 @@ def register_cursor_writer_type(
             f"Python type '{python_type.__name__}' is already registered with SlangPy."
         )
 
-    from slangpy.core.native import _register_python_cursor_writer_type
+    from slangpy.core.native import register_python_cursor_writer_type
 
-    _register_python_cursor_writer_type(
+    register_python_cursor_writer_type(
         python_type,
         write_shader_cursor,
         write_buffer_cursor,

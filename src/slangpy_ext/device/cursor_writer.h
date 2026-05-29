@@ -41,23 +41,5 @@ void register_python_cursor_writer_type(
     std::string slang_type_name,
     std::vector<std::string> imports
 );
-void unregister_python_cursor_writer_types();
-
-using NativeCursorWriterValue = CursorWriterValue;
-
-inline const cursor_utils::CursorWriterTypeInfo* find_native_cursor_writer_type_info(nb::handle obj)
-{
-    return find_cursor_writer_type_info(obj);
-}
-
-inline std::optional<NativeCursorWriterValue> find_native_cursor_writer(nb::handle obj)
-{
-    return find_cursor_writer(obj);
-}
-
-inline nb::object get_native_cursor_writer_type_info(nb::handle obj)
-{
-    return get_cursor_writer_type_info(obj);
-}
 
 } // namespace sgl::slangpy

@@ -92,7 +92,7 @@ def test_get_or_create_type_uses_native_cursor_writer_metadata(
 ) -> None:
     value = NativeCursorValueObject()
 
-    def get_native_cursor_writer_type_info(obj: object) -> dict[str, object] | None:
+    def get_cursor_writer_type_info(obj: object) -> dict[str, object] | None:
         if obj is value:
             return {
                 "slang_type_name": "CursorValue",
@@ -102,8 +102,8 @@ def test_get_or_create_type_uses_native_cursor_writer_metadata(
         return None
 
     monkeypatch.setattr(
-        "slangpy.core.native._get_native_cursor_writer_type_info",
-        get_native_cursor_writer_type_info,
+        "slangpy.core.native.get_cursor_writer_type_info",
+        get_cursor_writer_type_info,
     )
 
     marshall = get_or_create_type(cursor_value_layout(device_type), NativeCursorValueObject, value)
@@ -119,12 +119,12 @@ def test_get_or_create_type_prefers_python_registration_over_native_cursor_write
     monkeypatch: pytest.MonkeyPatch,
     device_type: spy.DeviceType,
 ) -> None:
-    def get_native_cursor_writer_type_info(obj: object) -> dict[str, object] | None:
+    def get_cursor_writer_type_info(obj: object) -> dict[str, object] | None:
         raise AssertionError("native cursor-writer fallback should not be consulted")
 
     monkeypatch.setattr(
-        "slangpy.core.native._get_native_cursor_writer_type_info",
-        get_native_cursor_writer_type_info,
+        "slangpy.core.native.get_cursor_writer_type_info",
+        get_cursor_writer_type_info,
     )
 
     try:

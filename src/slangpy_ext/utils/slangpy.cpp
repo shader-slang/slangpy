@@ -1357,19 +1357,13 @@ SGL_PY_EXPORT(utils_slangpy)
         );
 
     slangpy.def(
-        "_get_cursor_writer_type_info",
+        "get_cursor_writer_type_info",
         &get_cursor_writer_type_info,
         "value"_a,
         "Returns cursor-writer SlangPy metadata for a Python-visible object."
     );
     slangpy.def(
-        "_get_native_cursor_writer_type_info",
-        &get_cursor_writer_type_info,
-        "value"_a,
-        "Returns cursor-writer SlangPy metadata for a Python-visible object."
-    );
-    slangpy.def(
-        "_register_python_cursor_writer_type",
+        "register_python_cursor_writer_type",
         [](nb::type_object python_type,
            nb::object write_shader_cursor,
            nb::object write_buffer_cursor,
@@ -1393,11 +1387,6 @@ SGL_PY_EXPORT(utils_slangpy)
         "slang_type_name"_a = std::string(),
         "imports"_a = std::vector<std::string>{},
         "Registers a Python type with the shared cursor-writer registry."
-    );
-    slangpy.def(
-        "_unregister_python_cursor_writer_types",
-        &unregister_python_cursor_writer_types,
-        "Removes Python-backed entries from the shared cursor-writer registry."
     );
 
     nb::class_<NativeObject, PyNativeObject, Object>(slangpy, "NativeObject") //

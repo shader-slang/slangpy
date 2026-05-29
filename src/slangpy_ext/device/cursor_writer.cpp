@@ -285,9 +285,4 @@ void register_python_cursor_writer_type(
     );
 }
 
-void unregister_python_cursor_writer_types()
-{
-    cursor_utils::unregister_cursor_writer_types(cursor_utils::CursorWriterTypeKeyKind::python_type);
-}
-
 } // namespace sgl::slangpy
