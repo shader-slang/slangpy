@@ -174,6 +174,8 @@ cmake --build --preset windows-msvc-debug
 | `SGL_LOCAL_SLANG` | OFF | Enable to use a local Slang build |
 | `SGL_LOCAL_SLANG_DIR` | `../slang` | Path to the local Slang repository |
 | `SGL_LOCAL_SLANG_BUILD_DIR` | `build/Debug` | Build directory within the Slang repo |
+| `SGL_LOCAL_RHI` | OFF | Use a local slang-rhi instead of the submodule |
+| `SGL_LOCAL_RHI_DIR` | `../slang-rhi` | Path to the local slang-rhi repository |
 
 ### Workflow
 

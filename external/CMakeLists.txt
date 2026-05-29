@@ -215,6 +215,9 @@ install(FILES ${SLANG_DIR}/include/slang-image-format-defs.h DESTINATION ${CMAKE
 
 # slang-rhi
 
+set(SGL_LOCAL_RHI OFF CACHE BOOL "Use a local slang-rhi instead of the submodule")
+set(SGL_LOCAL_RHI_DIR "${CMAKE_SOURCE_DIR}/../slang-rhi" CACHE PATH "Path to local slang-rhi")
+
 set(SLANG_RHI_BUILD_TESTS OFF)
 set(SLANG_RHI_BUILD_EXAMPLES OFF)
 set(SLANG_RHI_FETCH_SLANG OFF)
@@ -226,10 +229,16 @@ set(SLANG_RHI_BUILD_FROM_SLANG_REPO ON)
 set(SLANG_RHI_FETCH_SLANG OFF)
 set(SLANG_RHI_SLANG_INCLUDE_DIR ${SLANG_INCLUDE_DIR} CACHE STRING "" FORCE)
 set(SLANG_RHI_SLANG_BINARY_DIR ${SLANG_DIR} CACHE STRING "" FORCE)
-add_subdirectory(slang-rhi)
+if(SGL_LOCAL_RHI)
+    add_subdirectory(${SGL_LOCAL_RHI_DIR} ${CMAKE_BINARY_DIR}/slang-rhi)
+    set(SGL_RHI_SOURCE_DIR ${SGL_LOCAL_RHI_DIR})
+else()
+    add_subdirectory(slang-rhi)
+    set(SGL_RHI_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/slang-rhi)
+endif()
 
 # Copy shared slang-rhi-device.h header to shaders directory (wrapped in sgl/device/rhi.slang)
-sgl_copy_shader_file(${CMAKE_CURRENT_SOURCE_DIR}/slang-rhi/include/slang-rhi-device.h slang-rhi)
+sgl_copy_shader_file(${SGL_RHI_SOURCE_DIR}/include/slang-rhi-device.h slang-rhi)
 
 if(TARGET slang-rhi-nvapi)
     get_target_property(NVAPI_DIR slang-rhi-nvapi INTERFACE_INCLUDE_DIRECTORIES)

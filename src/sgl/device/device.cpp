@@ -257,6 +257,8 @@ Device::Device(const DeviceDesc& desc)
         .enableAftermath = m_desc.enable_aftermath,
         .debugCallback = m_debug_logger.get(),
         .enableCompilationReports = m_desc.enable_compilation_reports,
+        .enableCUDALaunchFromGfx = m_desc.enable_cuda_launch_from_gfx,
+        .enableRayTracing = m_desc.enable_ray_tracing,
         .bindless = bindless_desc,
     };
     log_debug("Creating graphics device (type: {}, LUID: {}).", m_desc.type, m_desc.adapter_luid);
