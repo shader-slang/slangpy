@@ -10,10 +10,36 @@
 #include "sgl/refl/type.h"
 #include "sgl/utils/slangpy.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 
+namespace sgl {
+
+class SignatureBuffer;
+
+} // namespace sgl
+
 namespace sgl::func {
+
+/// Maximum dimensions for TensorView interop data.
+static constexpr int kSlangPyTensorViewMaxDim = 5;
+
+/// CPU representation of Slang's TensorView uniform payload.
+struct TensorViewData {
+    uint64_t data;
+    uint32_t strides[kSlangPyTensorViewMaxDim];
+    uint32_t sizes[kSlangPyTensorViewMaxDim];
+    uint32_t dimensionCount;
+};
+static_assert(sizeof(TensorViewData) == 56, "TensorViewData must match Slang's TensorView layout.");
+
+/// CPU representation of Slang's DiffTensorView uniform payload.
+struct DiffTensorViewData {
+    TensorViewData primal;
+    TensorViewData diff;
+};
+static_assert(sizeof(DiffTensorViewData) == 112, "DiffTensorViewData must match Slang's DiffTensorView layout.");
 
 /// Native Tensor descriptor shared by native code and the extension binding layer.
 struct TensorDesc {
@@ -53,6 +79,30 @@ public:
 
     /// Signature fragment used by SlangPy's native call-data cache.
     const std::string& signature() const { return m_signature; }
+
+    /// Write the SlangPy cache signature used by functional dispatch.
+    static void write_slangpy_signature(SignatureBuffer& signature, const Tensor* value);
+
+    /// Write a tensor to a shader cursor.
+    ///
+    /// Plain Tensor/WTensor/RWTensor/PrimalTensor targets are handled by writing the
+    /// cursor's tensor fields directly. Differentiable wrapper targets write the
+    /// primal tensor plus any gradient fields that are present on the target type.
+    static void write_to_cursor(const ShaderCursor& cursor, const Tensor* value);
+
+    /// Write a tensor to buffer cursor storage for pointer-backed Tensor fields or TensorView payloads.
+    ///
+    /// Resource-backed tensor fields require a ShaderCursor and will throw when encountered.
+    static void write_to_cursor(const BufferElementCursor& cursor, const Tensor* value);
+
+    /// Build the POD payload used by Slang TensorView fields.
+    static TensorViewData make_tensor_view_data(
+        const ref<const Buffer>& storage,
+        const slangpy::Shape& shape,
+        const slangpy::Shape& strides,
+        int offset,
+        size_t element_stride
+    );
 
     bool is_contiguous() const;
     ref<BufferCursor> cursor(std::optional<int> start = std::nullopt, std::optional<int> count = std::nullopt) const;

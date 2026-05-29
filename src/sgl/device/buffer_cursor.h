@@ -14,6 +14,7 @@
 #include "sgl/device/cursor_access_wrappers.h"
 
 #include <string_view>
+#include <type_traits>
 
 namespace sgl {
 
@@ -50,9 +51,9 @@ public:
     bool has_field(std::string_view name) const { return find_field(name).is_valid(); }
     bool has_element(uint32_t index) const { return find_element(index).is_valid(); }
 
-    void set_pointer(uint64_t pointer_value);
+    void set_pointer(uint64_t pointer_value) const;
 
-    void set_data(const void* data, size_t size);
+    void set_data(const void* data, size_t size) const;
 
     template<typename T>
     BufferElementCursor& operator=(const T& value)
@@ -73,15 +74,22 @@ public:
     void get(T& value) const;
 
     template<typename T>
-        requires(HasWriteToCursor<T, BufferElementCursor>)
-    void set(const T& value)
+        requires(!is_ref_v<std::remove_cvref_t<T>> && HasWriteToCursor<T, BufferElementCursor>)
+    void set(const T& value) const
     {
-        value.write_to_cursor(*this);
+        cursor_utils::write_to_cursor(*this, &value);
     }
 
     template<typename T>
-        requires(!HasWriteToCursor<T, BufferElementCursor>)
-    void set(const T& value);
+        requires(HasWriteToCursor<T, BufferElementCursor>)
+    void set(const ref<T>& value) const
+    {
+        cursor_utils::write_to_cursor(*this, value.get());
+    }
+
+    template<typename T>
+        requires(!is_ref_v<std::remove_cvref_t<T>> && !HasWriteToCursor<T, BufferElementCursor>)
+    void set(const T& value) const;
 
     void _set_offset(size_t new_offset) { m_offset = new_offset; }
 

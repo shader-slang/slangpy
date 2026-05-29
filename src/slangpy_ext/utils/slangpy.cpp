@@ -14,9 +14,9 @@
 #include "sgl/device/device.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/command.h"
-#include "sgl/func/tensor.h"
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
+#include "device/cursor_writer.h"
 #include "utils/slangpy.h"
 #include "utils/slangpyvalue.h"
 #include "utils/slangpypackedarg.h"
@@ -84,38 +84,38 @@ namespace {
             *ptr = data[i];
         }
     }
-
-    uint3 dispatch_thread_count_from_total_threads(const Device* device, uint3 thread_group_size, int total_threads)
-    {
-        SGL_CHECK(total_threads >= 0, "total_threads must be non-negative, got {}", total_threads);
-        SGL_CHECK(
-            thread_group_size.x > 0,
-            "Compute pipeline has invalid thread group size ({}, {}, {})",
-            thread_group_size.x,
-            thread_group_size.y,
-            thread_group_size.z
-        );
-
-        const auto& limits = device->info().limits.max_compute_dispatch_thread_groups;
-        const uint64_t dispatch_groups_x = std::min(limits.x, kSlangPyMaxDispatchThreadGroupsX);
-        SGL_CHECK(dispatch_groups_x > 0, "Device reports zero compute dispatch groups in X");
-
-        const uint64_t threads_per_row = dispatch_groups_x * uint64_t(thread_group_size.x);
-        const uint64_t thread_count = uint64_t(total_threads);
-        const uint64_t dispatch_x = std::min(thread_count, threads_per_row);
-        const uint64_t dispatch_y = (thread_count + threads_per_row - 1) / threads_per_row;
-
-        SGL_CHECK(
-            dispatch_y <= limits.y,
-            "SlangPy dispatch of {} logical threads requires {} Y dispatch groups, exceeding device limit {}",
-            total_threads,
-            dispatch_y,
-            limits.y
-        );
-
-        return uint3(uint32_t(dispatch_x), uint32_t(dispatch_y), 1);
-    }
 } // anonymous namespace
+
+uint3 dispatch_thread_count_from_total_threads(const Device* device, uint3 thread_group_size, int total_threads)
+{
+    SGL_CHECK(total_threads >= 0, "total_threads must be non-negative, got {}", total_threads);
+    SGL_CHECK(
+        thread_group_size.x > 0,
+        "Compute pipeline has invalid thread group size ({}, {}, {})",
+        thread_group_size.x,
+        thread_group_size.y,
+        thread_group_size.z
+    );
+
+    const auto& limits = device->info().limits.max_compute_dispatch_thread_groups;
+    const uint64_t dispatch_groups_x = std::min(limits.x, kSlangPyMaxDispatchThreadGroupsX);
+    SGL_CHECK(dispatch_groups_x > 0, "Device reports zero compute dispatch groups in X");
+
+    const uint64_t threads_per_row = dispatch_groups_x * uint64_t(thread_group_size.x);
+    const uint64_t thread_count = uint64_t(total_threads);
+    const uint64_t dispatch_x = std::min(thread_count, threads_per_row);
+    const uint64_t dispatch_y = (thread_count + threads_per_row - 1) / threads_per_row;
+
+    SGL_CHECK(
+        dispatch_y <= limits.y,
+        "SlangPy dispatch of {} logical threads requires {} Y dispatch groups, exceeding device limit {}",
+        total_threads,
+        dispatch_y,
+        limits.y
+    );
+
+    return uint3(uint32_t(dispatch_x), uint32_t(dispatch_y), 1);
+}
 
 nb::bytes SignatureBuilder::bytes() const
 {
@@ -1041,40 +1041,6 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
 NativeCallDataCache::NativeCallDataCache()
 {
     m_cache.reserve(1024);
-
-    m_type_signature_table[typeid(Texture)] = [](SignatureBuffer& builder, nb::handle o)
-    {
-        auto tex = nb::cast<Texture*>(o);
-
-        // Note: Using snprintf here as fmt library is quite
-        // a bit slower for this use case. (over 4x).
-        char temp[256];
-        std::snprintf(
-            temp,
-            sizeof(temp),
-            "[%d,%d,%d,%d]",
-            (int)tex->desc().type,
-            (int)tex->desc().usage,
-            (int)tex->desc().format,
-            (int)tex->desc().array_length
-        );
-        builder.add(temp);
-
-        return true;
-    };
-
-    m_type_signature_table[typeid(Buffer)] = [](SignatureBuffer& builder, nb::handle o)
-    {
-        auto buffer = nb::cast<Buffer*>(o);
-
-        // Note: Using snprintf here as fmt library is quite
-        // a bit slower for this use case. (over 4x).
-        char temp[256];
-        std::snprintf(temp, sizeof(temp), "[%d]", (int)buffer->desc().usage);
-        builder.add(temp);
-
-        return true;
-    };
 }
 
 void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::handle o)
@@ -1087,6 +1053,13 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
     if (is_bound_type) {
         const auto& type_info = nb::type_info(type);
 
+        if (auto writer = find_native_cursor_writer(o)) {
+            // Native cursor-writer entries own their cache key without requiring simple functional fallback metadata.
+            // This is what lets Buffer/Texture keep bespoke marshalls while avoiding the Python signature path.
+            writer->info->write_signature(builder, writer->value);
+            return;
+        }
+
         // If we have a native object, can directly request the signature.
         // Use read_signature(SignatureBuffer&) for C++ objects (non-virtual, reads m_signature).
         // For Python subclasses, the fixed signature is set via set_slangpy_signature,
@@ -1095,23 +1068,6 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
         if (nb::try_cast<const NativeObject*>(o, native_object)) {
             builder << type_info.name() << "\n";
             native_object->read_signature(builder);
-            return;
-        }
-
-        // Attempt to use type signature table to lookup type
-        auto it = m_type_signature_table.find(type_info);
-        if (it != m_type_signature_table.end()) {
-            if (it->second(builder, o)) {
-                return;
-            }
-        }
-    }
-
-    if (!o.is_none()) {
-        const func::Tensor* tensor = nullptr;
-        if (nb::try_cast(o, tensor)) {
-            builder << "Tensor\n";
-            builder.add(tensor->signature());
             return;
         }
     }
@@ -1245,9 +1201,11 @@ nb::object unpack_arg(nb::object arg, bool& out_had_unpack)
 {
     auto obj = arg;
 
-    // If object has 'get_this', read it.
-    if (nb::hasattr(obj, "get_this")) {
-        obj = nb::getattr(obj, "get_this")();
+    // Keep this path equivalent to the Python unpack helper; cursor-writer metadata is handled in signature/type
+    // lookup.
+    auto get_this = nb::getattr(obj, "get_this", nb::none());
+    if (!get_this.is_none()) {
+        obj = get_this();
         out_had_unpack = true;
     }
 
@@ -1390,6 +1348,13 @@ SGL_PY_EXPORT(utils_slangpy)
             nb::rv_policy::reference_internal,
             D_NA(SignatureBuilder, bytes)
         );
+
+    slangpy.def(
+        "_get_native_cursor_writer_type_info",
+        &get_native_cursor_writer_type_info,
+        "value"_a,
+        "Returns native cursor-writer SlangPy metadata for a Python-visible native object."
+    );
 
     nb::class_<NativeObject, PyNativeObject, Object>(slangpy, "NativeObject") //
         .def(

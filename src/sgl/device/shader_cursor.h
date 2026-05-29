@@ -13,6 +13,7 @@
 #include "sgl/device/cursor_access_wrappers.h"
 
 #include <string_view>
+#include <type_traits>
 
 namespace sgl {
 
@@ -67,14 +68,14 @@ public:
     // Resource binding
     //
 
-    void set_object(const ref<ShaderObject>& object) const;
+    void set_object(const ref<const ShaderObject>& object) const;
 
-    void set_buffer(const ref<Buffer>& buffer) const;
-    void set_buffer_view(const ref<BufferView>& buffer_view) const;
-    void set_texture(const ref<Texture>& texture) const;
-    void set_texture_view(const ref<TextureView>& texture_view) const;
-    void set_sampler(const ref<Sampler>& sampler) const;
-    void set_acceleration_structure(const ref<AccelerationStructure>& acceleration_structure) const;
+    void set_buffer(const ref<const Buffer>& buffer) const;
+    void set_buffer_view(const ref<const BufferView>& buffer_view) const;
+    void set_texture(const ref<const Texture>& texture) const;
+    void set_texture_view(const ref<const TextureView>& texture_view) const;
+    void set_sampler(const ref<const Sampler>& sampler) const;
+    void set_acceleration_structure(const ref<const AccelerationStructure>& acceleration_structure) const;
 
     void set_descriptor_handle(const DescriptorHandle& handle) const;
 
@@ -90,21 +91,31 @@ public:
     void set_pointer(uint64_t pointer_value) const;
 
     template<typename T>
-    const ShaderCursor& operator=(const T& value) const
+    ShaderCursor& operator=(const T& value)
     {
         set(value);
         return *this;
     }
 
+    /// Let values that know how to write to ShaderCursor populate this cursor directly.
     template<typename T>
-        requires(HasWriteToCursor<T, BufferElementCursor>)
+        requires(!is_ref_v<std::remove_cvref_t<T>> && HasWriteToCursor<T, ShaderCursor>)
     void set(const T& value) const
     {
-        value.write_to_cursor(*this);
+        cursor_utils::write_to_cursor(*this, &value);
     }
 
+    /// Let ref-counted values forward to their type's cursor writer.
     template<typename T>
-        requires(!HasWriteToCursor<T, BufferElementCursor>)
+        requires(HasWriteToCursor<T, ShaderCursor>)
+    void set(const ref<T>& value) const
+    {
+        cursor_utils::write_to_cursor(*this, value.get());
+    }
+
+    /// Fall back to the built-in ShaderCursor setter specializations for non cursor-writer values.
+    template<typename T>
+        requires(!is_ref_v<std::remove_cvref_t<T>> && !HasWriteToCursor<T, ShaderCursor>)
     void set(const T& value) const;
 
     void _set_array_unsafe(

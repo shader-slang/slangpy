@@ -26,6 +26,8 @@ public:
     ShaderObject(ref<Device> device, rhi::IShaderObject* shader_object, bool retain = true);
     virtual ~ShaderObject();
 
+    static void write_to_cursor(const ShaderCursor& cursor, const ShaderObject* value);
+
     Device* device() const { return m_device.get(); }
 
     virtual ref<const TypeLayoutReflection> element_type_layout() const;
@@ -36,15 +38,17 @@ public:
     virtual ref<ShaderObject> get_entry_point(uint32_t index);
 
     virtual ref<ShaderObject> get_object(const ShaderOffset& offset);
-    virtual void set_object(const ShaderOffset& offset, const ref<ShaderObject>& object);
+    virtual void set_object(const ShaderOffset& offset, const ref<const ShaderObject>& object);
 
-    virtual void set_buffer(const ShaderOffset& offset, const ref<Buffer>& buffer);
-    virtual void set_buffer_view(const ShaderOffset& offset, const ref<BufferView>& buffer_view);
-    virtual void set_texture(const ShaderOffset& offset, const ref<Texture>& texture);
-    virtual void set_texture_view(const ShaderOffset& offset, const ref<TextureView>& texture_view);
-    virtual void set_sampler(const ShaderOffset& offset, const ref<Sampler>& sampler);
-    virtual void
-    set_acceleration_structure(const ShaderOffset& offset, const ref<AccelerationStructure>& acceleration_structure);
+    virtual void set_buffer(const ShaderOffset& offset, const ref<const Buffer>& buffer);
+    virtual void set_buffer_view(const ShaderOffset& offset, const ref<const BufferView>& buffer_view);
+    virtual void set_texture(const ShaderOffset& offset, const ref<const Texture>& texture);
+    virtual void set_texture_view(const ShaderOffset& offset, const ref<const TextureView>& texture_view);
+    virtual void set_sampler(const ShaderOffset& offset, const ref<const Sampler>& sampler);
+    virtual void set_acceleration_structure(
+        const ShaderOffset& offset,
+        const ref<const AccelerationStructure>& acceleration_structure
+    );
     virtual void set_descriptor_handle(const ShaderOffset& offset, const DescriptorHandle& handle);
     virtual void set_data(const ShaderOffset& offset, const void* data, size_t size);
 

@@ -304,6 +304,9 @@ public:
 
     rhi::IAccelerationStructure* rhi_acceleration_structure() const { return m_rhi_acceleration_structure; }
 
+    /// Bind a nullable acceleration structure value to a shader cursor.
+    static void write_to_cursor(const ShaderCursor& cursor, const AccelerationStructure* value);
+
     std::string to_string() const override;
 
 private:

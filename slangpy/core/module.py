@@ -8,7 +8,7 @@ from slangpy import Pipeline, ShaderTable, SlangModule, Device, Logger
 from slangpy.core.native import NativeCallDataCache
 from slangpy.native_func import BaseModule
 from slangpy.reflection import SlangProgramLayout
-from slangpy.bindings.typeregistry import PYTHON_SIGNATURES
+from slangpy.bindings.typeregistry import lookup_signature_callback
 
 import weakref
 
@@ -35,7 +35,10 @@ def _register_hot_reload_hook(device: Device):
 
 class CallDataCache(NativeCallDataCache):
     def lookup_value_signature(self, o: object):
-        sig = PYTHON_SIGNATURES.get(type(o))
+        """Bridge native signature generation back to Python-only registered value signatures."""
+        found, sig = lookup_signature_callback(type(o))
+        if not found:
+            return None
         if sig is not None:
             return sig(o)
         else:
