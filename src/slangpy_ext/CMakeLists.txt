@@ -21,6 +21,8 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     func/tensor.cpp
     device/buffer_cursor.cpp
     device/command.cpp
+    device/cursor_writer.h
+    device/cursor_writer.cpp
     device/cursor_utils.h
     device/device_child.cpp
     device/device.cpp

@@ -14,7 +14,6 @@
 
 #include "utils/slangpy.h"
 #include "utils/slangpypackedarg.h"
-#include "utils/slangpytensor.h"
 #include "sgl/device/buffer_cursor.h"
 
 #include <slang.h>
@@ -561,7 +560,7 @@ private:
         return false;
     }
 
-    // Preserve the legacy get_this wrapper path for values that are not native cursor writers.
+    // Preserve the legacy get_this wrapper path.
     bool try_unpack_and_retry(CursorType& self, nb::object obj)
     {
         bool had_unpack = false;
@@ -752,18 +751,6 @@ private:
 
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
         auto kind = (TypeReflection::Kind)type_layout->getKind();
-
-        // Structured Tensor targets can write themselves through ShaderCursor.
-        // BufferCursor targets fall back to the uniform payload for non-pointer fields.
-        if (kind != TypeReflection::Kind::pointer && nb::isinstance<sgl::slangpy::Tensor>(nbval)) {
-            auto tensor = nb::cast<sgl::slangpy::Tensor*>(nbval);
-            if constexpr (requires { self.set_object(nullptr); }) {
-                self.set(*tensor);
-                return;
-            } else {
-                nbval = sgl::slangpy::tensor_uniforms(*tensor);
-            }
-        }
 
         switch (kind) {
         case TypeReflection::Kind::scalar: {

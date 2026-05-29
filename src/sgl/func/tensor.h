@@ -14,6 +14,12 @@
 #include <optional>
 #include <string>
 
+namespace sgl {
+
+class SignatureBuffer;
+
+} // namespace sgl
+
 namespace sgl::func {
 
 /// Maximum dimensions for TensorView interop data.
@@ -73,6 +79,9 @@ public:
 
     /// Signature fragment used by SlangPy's native call-data cache.
     const std::string& signature() const { return m_signature; }
+
+    /// Write the SlangPy cache signature used by functional dispatch.
+    void write_slangpy_signature(SignatureBuffer& signature) const;
 
     /// Write this tensor to a shader cursor.
     ///

@@ -147,7 +147,7 @@ def test_get_or_create_type_prefers_python_registration_over_native_cursor_write
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_buffer_and_texture_signatures_use_native_cursor_writer_registry(
+def test_native_signatures_use_cursor_writer_registry(
     device_type: spy.DeviceType,
 ) -> None:
     device = helpers.get_device(type=device_type)
@@ -157,6 +157,11 @@ def test_buffer_and_texture_signatures_use_native_cursor_writer_registry(
         usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
     )
     assert native_value_signature(buffer) == f"[{int(buffer.desc.usage)}]"
+
+    tensor = spy.Tensor.empty(device, shape=(2, 3), dtype=float)
+    assert (
+        native_value_signature(tensor) == "Tensor\n[float,2,(shader_resource | unordered_access)]"
+    )
 
     texture = device.create_texture(
         width=4,

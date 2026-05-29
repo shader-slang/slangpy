@@ -910,8 +910,7 @@ public:
 
     /// Python override point for value types that are registered only in the Python type registry.
     ///
-    /// Native cursor writers are handled before this hook so signature generation does not need to
-    /// call into Python to decide whether get_this should run.
+    /// Native cursor writers are handled before this hook.
     virtual std::optional<std::string> lookup_value_signature(nb::handle o)
     {
         SGL_UNUSED(o);

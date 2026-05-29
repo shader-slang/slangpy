@@ -2,6 +2,7 @@
 
 #include "sgl/func/tensor.h"
 
+#include "sgl/core/signature_buffer.h"
 #include "sgl/device/buffer_cursor.h"
 #include "sgl/device/command.h"
 #include "sgl/device/device.h"
@@ -277,6 +278,12 @@ void Tensor::write_to_cursor(const BufferElementCursor& cursor) const
 void Tensor::update_signature()
 {
     m_signature = fmt::format("[{},{},{}]", m_desc.dtype->full_name(), m_desc.shape.size(), m_desc.usage);
+}
+
+void Tensor::write_slangpy_signature(SignatureBuffer& signature) const
+{
+    signature.add("Tensor\n");
+    signature.add(m_signature);
 }
 
 bool Tensor::is_contiguous() const
