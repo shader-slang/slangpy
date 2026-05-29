@@ -36,6 +36,10 @@ SlangPy is a native Python extension that provides a high-level interface for wo
 4. **Use type annotations** for all Python function arguments
 5. **Minimize new dependencies** — the project has minimal external deps
 
+## ExecPlans
+
+When writing complex features or significant refactors, use an ExecPlan (as described in `.agents/PLANS.md`) from design to implementation.
+
 ## Architecture
 
 The project has three main layers:
