@@ -19,6 +19,8 @@ from slangpy.bindings.typeregistry import (
 from slangpy.bindings.cursor import (
     WriteToCursorMarshall,
     WriteToCursorMarshallInfo,
+    cursor_writer_type,
+    register_cursor_writer_type,
     register_write_to_cursor_type,
 )
 

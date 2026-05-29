@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import inspect
 import re
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable, get_args, get_type_hints
 
 import slangpy.reflection as spyref
 from slangpy.bindings.boundvariable import (
@@ -149,3 +150,164 @@ def register_write_to_cursor_type(
 
     PYTHON_TYPES[python_type] = create_cursor_marshall
     PYTHON_SIGNATURES[python_type] = cursor_signature
+
+
+def register_cursor_writer_type(
+    python_type: type,
+    *,
+    write_shader_cursor: Callable[[Any, Any], None] | None = None,
+    write_buffer_cursor: Callable[[Any, Any], None] | None = None,
+    slang_type_name: str | None = None,
+    signature: str | None = None,
+    imports: Iterable[str] = (),
+    accepted_type_regex: str | re.Pattern[str] | None = None,
+) -> None:
+    """
+    Register a pure Python type with the native cursor-writer registry.
+
+    The callback receives ``(cursor, value)``. If ``slang_type_name`` is supplied, the
+    type is also registered for ``WriteToCursorMarshall`` construction.
+    """
+    if write_shader_cursor is None and write_buffer_cursor is None:
+        raise ValueError("At least one cursor writer callback must be provided.")
+
+    type_signature = (
+        signature
+        if signature is not None
+        else f"[CursorWriter,{python_type.__module__}.{python_type.__qualname__}]"
+    )
+    import_tuple = tuple(imports)
+
+    if slang_type_name is None and accepted_type_regex is not None:
+        raise ValueError("accepted_type_regex requires slang_type_name.")
+    if slang_type_name is None and import_tuple:
+        raise ValueError("imports requires slang_type_name.")
+
+    if slang_type_name is not None and (
+        python_type in PYTHON_TYPES or python_type in PYTHON_SIGNATURES
+    ):
+        raise ValueError(
+            f"Python type '{python_type.__name__}' is already registered with SlangPy."
+        )
+
+    from slangpy.core.native import _register_python_cursor_writer_type
+
+    _register_python_cursor_writer_type(
+        python_type,
+        write_shader_cursor,
+        write_buffer_cursor,
+        type_signature,
+        slang_type_name or "",
+        list(import_tuple),
+    )
+
+    if slang_type_name is not None:
+        register_write_to_cursor_type(
+            python_type,
+            slang_type_name=slang_type_name,
+            signature=type_signature,
+            imports=import_tuple,
+            accepted_type_regex=accepted_type_regex,
+        )
+
+
+def _cursor_writer_method_cursor_kinds(method: Callable[..., Any]) -> set[str]:
+    signature = inspect.signature(method)
+    params = list(signature.parameters.values())
+    if params and params[0].name in ("self", "cls"):
+        params = params[1:]
+    if not params:
+        raise ValueError("Cursor writer method must take a cursor argument.")
+
+    cursor_param = params[0]
+    hints = get_type_hints(method)
+    cursor_annotation = hints.get(cursor_param.name, cursor_param.annotation)
+    if cursor_annotation is inspect.Signature.empty:
+        raise ValueError(
+            f"Cursor writer method '{method.__name__}' must annotate its cursor argument."
+        )
+
+    annotations = get_args(cursor_annotation) or (cursor_annotation,)
+
+    import slangpy as spy
+
+    kinds: set[str] = set()
+    for annotation in annotations:
+        if annotation is spy.ShaderCursor:
+            kinds.add("shader")
+        elif annotation is spy.BufferElementCursor:
+            kinds.add("buffer")
+
+    if not kinds:
+        raise ValueError(
+            f"Cursor writer method '{method.__name__}' cursor argument must be annotated "
+            "as ShaderCursor, BufferElementCursor, or a union of those cursor types."
+        )
+
+    return kinds
+
+
+def _instance_cursor_writer(method_name: str) -> Callable[[Any, Any], None]:
+    def write(cursor: Any, value: Any) -> None:
+        getattr(value, method_name)(cursor)
+
+    return write
+
+
+def cursor_writer_type(
+    *,
+    slang_type_name: str | None = None,
+    signature: str | None = None,
+    imports: Iterable[str] = (),
+    accepted_type_regex: str | re.Pattern[str] | None = None,
+) -> Callable[[type], type]:
+    """
+    Decorate a class whose methods write instances into Slang cursors.
+
+    Supported method names are ``write_to_cursor`` with an annotated cursor
+    argument, plus explicit ``write_to_shader_cursor`` and
+    ``write_to_buffer_cursor`` methods.
+    """
+
+    def decorate(python_type: type) -> type:
+        write_shader_cursor: Callable[[Any, Any], None] | None = None
+        write_buffer_cursor: Callable[[Any, Any], None] | None = None
+
+        def set_writer(kind: str, method_name: str) -> None:
+            nonlocal write_shader_cursor, write_buffer_cursor
+            writer = _instance_cursor_writer(method_name)
+            if kind == "shader":
+                if write_shader_cursor is not None:
+                    raise ValueError(
+                        f"Python type '{python_type.__name__}' has multiple shader cursor writers."
+                    )
+                write_shader_cursor = writer
+            elif kind == "buffer":
+                if write_buffer_cursor is not None:
+                    raise ValueError(
+                        f"Python type '{python_type.__name__}' has multiple buffer cursor writers."
+                    )
+                write_buffer_cursor = writer
+
+        if hasattr(python_type, "write_to_shader_cursor"):
+            set_writer("shader", "write_to_shader_cursor")
+        if hasattr(python_type, "write_to_buffer_cursor"):
+            set_writer("buffer", "write_to_buffer_cursor")
+
+        if hasattr(python_type, "write_to_cursor"):
+            method = getattr(python_type, "write_to_cursor")
+            for kind in _cursor_writer_method_cursor_kinds(method):
+                set_writer(kind, "write_to_cursor")
+
+        register_cursor_writer_type(
+            python_type,
+            write_shader_cursor=write_shader_cursor,
+            write_buffer_cursor=write_buffer_cursor,
+            slang_type_name=slang_type_name,
+            signature=signature,
+            imports=imports,
+            accepted_type_regex=accepted_type_regex,
+        )
+        return python_type
+
+    return decorate
