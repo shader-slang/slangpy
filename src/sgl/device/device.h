@@ -118,6 +118,20 @@ struct DeviceDesc {
     /// Enable CUDA interoperability.
     bool enable_cuda_interop{false};
 
+    /// Enable launching CUDA kernels from inside graphics command buffers
+    /// (Vulkan only, via VK_NVX_binary_import + VK_NVX_image_view_handle).
+    /// On by default. Set to false if the application doesn't need
+    /// vkCmdCuLaunchKernelNVX; enabling these extensions has been observed
+    /// to interfere with concurrent cuDNN usage on some driver/GPU pairs.
+    bool enable_cuda_launch_from_gfx{true};
+
+    /// Enable Vulkan ray tracing extensions (acceleration_structure,
+    /// ray_tracing_pipeline, ray_query, ray_tracing_position_fetch, plus
+    /// NV variants). On by default. Set to false if the application doesn't
+    /// use ray tracing; enabling these extensions has been observed to
+    /// interfere with concurrent cuDNN usage on some driver/GPU pairs.
+    bool enable_ray_tracing{true};
+
     /// Enable device side printing (adds performance overhead).
     bool enable_print{false};
 
@@ -188,6 +202,13 @@ struct DeviceLimits {
     uint3 max_compute_thread_group_size;
     /// Maximum number of thread groups per dimension in a single dispatch.
     uint3 max_compute_dispatch_thread_groups;
+
+    /// Minimum number of lanes in a wave/subgroup/warp.
+    /// 0 if the size is unknown or not applicable.
+    uint32_t min_wave_size;
+    /// Maximum number of lanes in a wave/subgroup/warp.
+    /// 0 if the size is unknown or not applicable.
+    uint32_t max_wave_size;
 
     /// Maximum number of viewports per pipeline.
     uint32_t max_viewports;
@@ -626,6 +647,16 @@ public:
      * \param queue Command queue to wait for.
      */
     void wait_for_idle(CommandQueueType queue = CommandQueueType::graphics);
+
+    /**
+     * \brief Get timestamp calibration data for a queue.
+     *
+     * This can be used to synchronize CPU and GPU timestamps, which is necessary for accurate profiling and debugging.
+     *
+     * \param queue Command queue to get timestamp calibration data for.
+     * \return Timestamp calibration data
+     */
+    TimestampCalibration get_timestamp_calibration(CommandQueueType queue = CommandQueueType::graphics) const;
 
     /**
      * \brief Synchronize CUDA -> device.

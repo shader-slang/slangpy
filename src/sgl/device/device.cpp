@@ -257,6 +257,8 @@ Device::Device(const DeviceDesc& desc)
         .enableAftermath = m_desc.enable_aftermath,
         .debugCallback = m_debug_logger.get(),
         .enableCompilationReports = m_desc.enable_compilation_reports,
+        .enableCUDALaunchFromGfx = m_desc.enable_cuda_launch_from_gfx,
+        .enableRayTracing = m_desc.enable_ray_tracing,
         .bindless = bindless_desc,
     };
     log_debug("Creating graphics device (type: {}, LUID: {}).", m_desc.type, m_desc.adapter_luid);
@@ -291,6 +293,8 @@ Device::Device(const DeviceDesc& desc)
         rhi_device_info.limits.maxComputeDispatchThreadGroups[1],
         rhi_device_info.limits.maxComputeDispatchThreadGroups[2]
     );
+    m_info.limits.min_wave_size = rhi_device_info.limits.minWaveSize;
+    m_info.limits.max_wave_size = rhi_device_info.limits.maxWaveSize;
     m_info.limits.max_viewports = rhi_device_info.limits.maxViewports;
     m_info.limits.max_viewport_dimensions
         = uint2(rhi_device_info.limits.maxViewportDimensions[0], rhi_device_info.limits.maxViewportDimensions[1]);
@@ -1009,6 +1013,22 @@ void Device::wait_for_idle(CommandQueueType queue)
         SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
         m_rhi_graphics_queue->waitOnHost();
     }
+}
+
+TimestampCalibration Device::get_timestamp_calibration(CommandQueueType queue) const
+{
+    SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
+
+    rhi::TimestampCalibration rhi_calibration;
+    SLANG_RHI_CALL(m_rhi_graphics_queue->getTimestampCalibration(&rhi_calibration), this);
+    return {
+        .cpu_domain = static_cast<CpuTimestampDomain>(rhi_calibration.cpuDomain),
+        .cpu_timestamp = rhi_calibration.cpuTimestamp,
+        .cpu_frequency = rhi_calibration.cpuFrequency,
+        .gpu_timestamp = rhi_calibration.gpuTimestamp,
+        .gpu_frequency = rhi_calibration.gpuFrequency,
+        .max_deviation_ns = rhi_calibration.maxDeviationNs
+    };
 }
 
 void Device::sync_to_cuda(void* cuda_stream)

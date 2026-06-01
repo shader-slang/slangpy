@@ -5,6 +5,8 @@
 #include "sgl/device/shader_object.h"
 #include "sgl/device/device.h"
 #include "sgl/device/resource.h"
+#include "sgl/device/sampler.h"
+#include "sgl/device/raytracing.h"
 #include "sgl/device/cuda_interop.h"
 #include "sgl/device/cursor_utils.h"
 
@@ -457,31 +459,31 @@ inline bool is_acceleration_structure_resource_type(slang::TypeReflection* type)
         == TypeReflection::ResourceShape::acceleration_structure;
 }
 
-void ShaderCursor::set_buffer(const ref<Buffer>& buffer) const
+void ShaderCursor::set_buffer(const ref<const Buffer>& buffer) const
 {
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
     if (type->getKind() == slang::TypeReflection::Kind::Pointer) {
-        set_pointer(buffer->device_address());
+        set_pointer(buffer ? buffer->device_address() : 0);
     } else {
         SGL_CHECK(is_buffer_resource_type(type), "\"{}\" cannot bind a buffer", m_type_layout->getName());
         m_shader_object->set_buffer(m_offset, buffer);
     }
 }
 
-void ShaderCursor::set_buffer_view(const ref<BufferView>& buffer_view) const
+void ShaderCursor::set_buffer_view(const ref<const BufferView>& buffer_view) const
 {
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
     if (type->getKind() == slang::TypeReflection::Kind::Pointer) {
-        set_pointer(buffer_view->buffer()->device_address() + buffer_view->range().offset);
+        set_pointer(buffer_view ? buffer_view->buffer()->device_address() + buffer_view->range().offset : 0);
     } else {
         SGL_CHECK(is_buffer_resource_type(type), "\"{}\" cannot bind a buffer view", m_type_layout->getName());
         m_shader_object->set_buffer_view(m_offset, buffer_view);
     }
 }
 
-void ShaderCursor::set_texture(const ref<Texture>& texture) const
+void ShaderCursor::set_texture(const ref<const Texture>& texture) const
 {
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
@@ -490,7 +492,7 @@ void ShaderCursor::set_texture(const ref<Texture>& texture) const
     m_shader_object->set_texture(m_offset, texture);
 }
 
-void ShaderCursor::set_texture_view(const ref<TextureView>& texture_view) const
+void ShaderCursor::set_texture_view(const ref<const TextureView>& texture_view) const
 {
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
@@ -499,7 +501,7 @@ void ShaderCursor::set_texture_view(const ref<TextureView>& texture_view) const
     m_shader_object->set_texture_view(m_offset, texture_view);
 }
 
-void ShaderCursor::set_sampler(const ref<Sampler>& sampler) const
+void ShaderCursor::set_sampler(const ref<const Sampler>& sampler) const
 {
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
@@ -508,7 +510,7 @@ void ShaderCursor::set_sampler(const ref<Sampler>& sampler) const
     m_shader_object->set_sampler(m_offset, sampler);
 }
 
-void ShaderCursor::set_acceleration_structure(const ref<AccelerationStructure>& acceleration_structure) const
+void ShaderCursor::set_acceleration_structure(const ref<const AccelerationStructure>& acceleration_structure) const
 {
     slang::TypeReflection* type = m_type_layout->getType();
 
@@ -545,7 +547,7 @@ void* ShaderCursor::reserve_data(size_t size) const
 }
 
 
-void ShaderCursor::set_object(const ref<ShaderObject>& object) const
+void ShaderCursor::set_object(const ref<const ShaderObject>& object) const
 {
     slang::TypeReflection* type = m_type_layout->getType();
 
@@ -633,54 +635,6 @@ template void CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_vector(
 //
 // Setter specializations
 //
-
-template<>
-SGL_API void ShaderCursor::set(const ref<ShaderObject>& value) const
-{
-    set_object(value);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const ref<Buffer>& value) const
-{
-    set_buffer(value);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const ref<BufferView>& value) const
-{
-    set_buffer_view(value);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const ref<Texture>& value) const
-{
-    set_texture(value);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const ref<TextureView>& value) const
-{
-    set_texture_view(value);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const ref<Sampler>& value) const
-{
-    set_sampler(value);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const ref<AccelerationStructure>& value) const
-{
-    set_acceleration_structure(value);
-}
-
-template<>
-SGL_API void ShaderCursor::set(const DescriptorHandle& value) const
-{
-    set_descriptor_handle(value);
-}
 
 #define SET_SCALAR(type, scalar_type)                                                                                  \
     template<>                                                                                                         \

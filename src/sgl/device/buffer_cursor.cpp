@@ -111,14 +111,14 @@ BufferElementCursor BufferElementCursor::find_element(uint32_t index) const
     return {};
 }
 
-void BufferElementCursor::set_pointer(uint64_t pointer_value)
+void BufferElementCursor::set_pointer(uint64_t pointer_value) const
 {
     size_t pointer_size = m_type_layout->size();
     SGL_CHECK(pointer_size == 8, "Expected a pointer type with size 8, got {}", pointer_size);
     set_data(&pointer_value, 8);
 }
 
-void BufferElementCursor::set_data(const void* data, size_t size)
+void BufferElementCursor::set_data(const void* data, size_t size) const
 {
     if (m_type_layout->parameter_category() != TypeReflection::ParameterCategory::uniform)
         SGL_THROW("\"{}\" cannot bind data", m_type_layout->name());
@@ -151,7 +151,7 @@ template void CursorWriteWrappers<BufferElementCursor, size_t>::_set_vector(
 
 #define GETSET_SCALAR(type, scalar_type)                                                                               \
     template<>                                                                                                         \
-    SGL_API void BufferElementCursor::set(const type& value)                                                           \
+    SGL_API void BufferElementCursor::set(const type& value) const                                                     \
     {                                                                                                                  \
         _set_scalar(&value, sizeof(value), TypeReflection::ScalarType::scalar_type);                                   \
     }                                                                                                                  \
@@ -163,7 +163,7 @@ template void CursorWriteWrappers<BufferElementCursor, size_t>::_set_vector(
 
 #define GETSET_VECTOR(type, scalar_type)                                                                               \
     template<>                                                                                                         \
-    SGL_API void BufferElementCursor::set(const type& value)                                                           \
+    SGL_API void BufferElementCursor::set(const type& value) const                                                     \
     {                                                                                                                  \
         _set_vector(&value, sizeof(value), TypeReflection::ScalarType::scalar_type, type::dimension);                  \
     }                                                                                                                  \
@@ -175,7 +175,7 @@ template void CursorWriteWrappers<BufferElementCursor, size_t>::_set_vector(
 
 #define GETSET_MATRIX(type, scalar_type)                                                                               \
     template<>                                                                                                         \
-    SGL_API void BufferElementCursor::set(const type& value)                                                           \
+    SGL_API void BufferElementCursor::set(const type& value) const                                                     \
     {                                                                                                                  \
         _set_matrix(&value, sizeof(value), TypeReflection::ScalarType::scalar_type, type::rows, type::cols);           \
     }                                                                                                                  \
@@ -256,7 +256,7 @@ GETSET_SCALAR(double, float64);
 // Note that this applies to our boolN vectors as well, which are currently 1B per element.
 
 template<>
-SGL_API void BufferElementCursor::set(const bool1& v)
+SGL_API void BufferElementCursor::set(const bool1& v) const
 {
     SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
     _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
@@ -266,12 +266,6 @@ SGL_API void BufferElementCursor::get(bool1& v) const
 {
     SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
     _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
-}
-
-template<>
-SGL_API void BufferElementCursor::set(const DescriptorHandle& value)
-{
-    write_data(m_offset, &value.value, sizeof(value.value));
 }
 
 template<>

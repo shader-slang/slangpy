@@ -60,12 +60,12 @@ def test_tensor_to_string(device_type: DeviceType):
     # Create a tensor without gradients
     tensor = Tensor.empty(device, dtype="float", shape=(3, 4))
 
-    # Test that repr() returns a meaningful string - Tensor inherits from NativeTensor
+    # Test that repr() returns a meaningful string.
     repr_str = repr(tensor)
     print(f"Tensor: {repr_str}")
 
     # Verify the repr contains expected information
-    assert "NativeTensor" in repr_str
+    assert repr_str.startswith("Tensor(")
     assert "dtype" in repr_str
     assert "shape" in repr_str
     assert "has_grad_in=false" in repr_str

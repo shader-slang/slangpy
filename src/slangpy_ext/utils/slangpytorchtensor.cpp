@@ -222,7 +222,7 @@ void NativeTorchTensorMarshall::ensure_binding_info_cached(
 {
     if (!m_cached_binding_info.primal.is_valid) {
         ShaderCursor field = cursor[binding->variable_name()];
-        m_cached_binding_info = NativeTensorMarshall::extract_binding_info(field);
+        m_cached_binding_info = TensorMarshall::extract_binding_info(field);
 
         // Determine copy-back flags from the Slang uniform type name.
         //

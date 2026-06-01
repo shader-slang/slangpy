@@ -15,144 +15,32 @@
 #include "sgl/device/fwd.h"
 #include "sgl/device/resource.h"
 #include "sgl/device/shader_offset.h"
+#include "sgl/func/tensor.h"
 
 #include "utils/slangpy.h"
 
 namespace sgl::slangpy {
 
-/// Maximum dimensions for TensorView (matches slang-cuda-prelude.h)
-static constexpr int kSlangPyTensorViewMaxDim = 5;
+using Tensor = func::Tensor;
+using TensorDesc = func::TensorDesc;
+using TensorViewData = func::TensorViewData;
+using DiffTensorViewData = func::DiffTensorViewData;
 
-/// TensorViewData - C++ struct matching TensorView's memory layout.
-struct TensorViewData {
-    uint64_t data;                              // GPU pointer (8 bytes)
-    uint32_t strides[kSlangPyTensorViewMaxDim]; // Strides in bytes (20 bytes)
-    uint32_t sizes[kSlangPyTensorViewMaxDim];   // Shape (20 bytes)
-    uint32_t dimensionCount;                    // Number of dims (4 bytes)
-};
-// 52 bytes of data + 4 bytes padding for 8-byte alignment = 56 bytes
-static_assert(sizeof(TensorViewData) == 56, "TensorViewData must be 56 bytes to match TensorView");
+static constexpr int kSlangPyTensorViewMaxDim = func::kSlangPyTensorViewMaxDim;
 
-/// DiffTensorViewData - C++ struct matching DiffTensorViewData's memory layout in Slang.
-/// Contains primal (56 bytes) + diff (56 bytes) = 112 bytes total.
-struct DiffTensorViewData {
-    TensorViewData primal; // 56 bytes - primal tensor data
-    TensorViewData diff;   // 56 bytes - gradient/diff tensor data
-};
-static_assert(sizeof(DiffTensorViewData) == 112, "DiffTensorViewData must be 112 bytes");
+nb::dict tensor_uniforms(const Tensor& tensor);
 
-class NativeTensor;
 
-struct NativeTensorDesc {
-    ref<refl::Type> dtype;
-    ref<TypeLayoutReflection> element_layout;
-    int offset{0};
-    Shape shape;
-    Shape strides;
-    BufferUsage usage{BufferUsage::shader_resource | BufferUsage::unordered_access};
-    MemoryType memory_type{MemoryType::device_local};
-};
-
-class NativeTensor : public NativeObject {
-    SGL_OBJECT(NativeTensor)
+class TensorMarshall : public NativeMarshall {
 public:
-    NativeTensor(
-        NativeTensorDesc desc,
-        const ref<Buffer>& storage,
-        const ref<NativeTensor>& grad_in,
-        const ref<NativeTensor>& grad_out
-    );
-    virtual ~NativeTensor() { }
-
-    NativeTensorDesc& desc() { return m_desc; }
-    const NativeTensorDesc& desc() const { return m_desc; }
-
-    Device* device() const { return storage()->device(); }
-    const ref<refl::Type>& dtype() const { return m_desc.dtype; }
-    int offset() const { return m_desc.offset; }
-    const Shape& shape() const { return m_desc.shape; }
-    const Shape& strides() const { return m_desc.strides; }
-    int dims() const { return (int)m_desc.shape.size(); }
-    size_t element_count() const { return m_desc.shape.element_count(); }
-    BufferUsage usage() const { return m_desc.usage; }
-    MemoryType memory_type() const { return m_desc.memory_type; }
-    const ref<Buffer>& storage() const { return m_storage; }
-    size_t element_stride() const { return m_desc.element_layout->stride(); }
-
-    bool is_contiguous() const;
-    ref<BufferCursor> cursor(std::optional<int> start = std::nullopt, std::optional<int> count = std::nullopt) const;
-    nb::dict uniforms() const;
-
-    /// Clear tensor storage to zeros.
-    void clear(CommandEncoder* cmd = nullptr);
-
-    /// Copy to CPU memory as a numpy array of matching stride/shape.
-    nb::ndarray<nb::numpy> to_numpy() const;
-
-    /// Map CUDA memory to a torch tensor of matching stride/shape.
-    nb::ndarray<nb::pytorch> to_torch() const;
-
-    /// Copy from CPU memory into tensor storage.
-    void copy_from_numpy(nb::ndarray<nb::numpy> data);
-
-    /// Copy from a torch tensor into tensor storage.
-    void copy_from_torch(nb::object tensor);
-
-    void point_to(ref<NativeTensor> target);
-
-    ref<NativeTensor> view(Shape shape, Shape strides = Shape(), int offset = 0) const;
-    ref<NativeTensor> broadcast_to(const Shape& shape) const;
-    ref<NativeTensor> index(nb::object index_arg) const;
-
-    const ref<NativeTensor>& grad_in() const { return m_grad_in; }
-    void set_grad_in(const ref<NativeTensor>& grad_in) { m_grad_in = grad_in; }
-
-    const ref<NativeTensor>& grad_out() const { return m_grad_out; }
-    void set_grad_out(const ref<NativeTensor>& grad_out) { m_grad_out = grad_out; }
-
-    /// Helper that gets/validates the output grad.
-    ref<NativeTensor> grad() const
-    {
-        SGL_CHECK(m_grad_out, "Tensor has no grad.");
-        return m_grad_out;
-    }
-
-    /// Create a new version of this tensor with associated grads. It is valid for
-    /// both input and output grads to refer to the same tensor. If neither grad_in
-    /// or grad_out are provided, a single new tensor is created and used for both grads.
-    ref<NativeTensor>
-    with_grads(ref<NativeTensor> grad_in = nullptr, ref<NativeTensor> grad_out = nullptr, bool zero = true) const;
-
-    /// Create a new version of this tensor without grads that refers to the same storage.
-    ref<NativeTensor> detach() const;
-
-    /// Get string representation of the tensor.
-    std::string to_string() const override;
-
-protected:
-    void view_inplace(Shape shape, Shape strides = Shape(), int offset = 0);
-    void broadcast_to_inplace(const Shape& shape);
-    void index_inplace(nb::object index_arg);
-    bool maybe_pad_data(nb::ndarray<nb::numpy> data, size_t dtype_size, size_t byte_offset);
-
-private:
-    NativeTensorDesc m_desc;
-    ref<Buffer> m_storage;
-    ref<NativeTensor> m_grad_in;
-    ref<NativeTensor> m_grad_out;
-};
-
-
-class NativeTensorMarshall : public NativeMarshall {
-public:
-    NativeTensorMarshall(
+    TensorMarshall(
         int dims,
         bool writable,
         ref<refl::Type> slang_type,
         ref<refl::Type> slang_element_type,
         ref<TypeLayoutReflection> element_layout,
-        ref<NativeTensorMarshall> d_in,
-        ref<NativeTensorMarshall> d_out
+        ref<TensorMarshall> d_in,
+        ref<TensorMarshall> d_out
     )
         : NativeMarshall(slang_type)
         , m_dims(dims)
@@ -170,8 +58,8 @@ public:
     ref<TypeLayoutReflection> element_layout() const { return m_element_layout; }
     size_t element_stride() const { return m_element_layout->stride(); }
     bool has_derivative() const { return m_d_in != nullptr || m_d_out != nullptr; }
-    ref<NativeTensorMarshall> d_in() const { return m_d_in; }
-    ref<NativeTensorMarshall> d_out() const { return m_d_out; }
+    ref<TensorMarshall> d_in() const { return m_d_in; }
+    ref<TensorMarshall> d_out() const { return m_d_out; }
 
     Shape get_shape(nb::object data) const override;
 
@@ -241,8 +129,8 @@ private:
     bool m_writable;
     ref<refl::Type> m_slang_element_type;
     ref<TypeLayoutReflection> m_element_layout;
-    ref<NativeTensorMarshall> m_d_in;
-    ref<NativeTensorMarshall> m_d_out;
+    ref<TensorMarshall> m_d_in;
+    ref<TensorMarshall> m_d_out;
     mutable CachedBindingInfo m_cached_binding_info;
 
     /// Initialize cached binding info if not already done
@@ -260,7 +148,7 @@ private:
         NativeBoundVariableRuntime* binding,
         ShaderObject* shader_object,
         void* base_address,
-        NativeTensor* primal_tensor,
+        Tensor* primal_tensor,
         nb::list read_back
     ) const;
 
@@ -268,9 +156,9 @@ private:
     // Core Field Writing Methods (Fast Path)
     //
 
-    /// Write NativeTensor fields using pre-cached offsets
+    /// Write Tensor fields using pre-cached offsets
     /// Uses direct memory writes with pre-computed offsets for maximum performance
-    /// Write NativeTensor fields using pre-cached offsets
+    /// Write Tensor fields using pre-cached offsets
     /// Uses direct memory writes with pre-computed offsets for maximum performance
     void write_native_tensor_fields(
         CallContext* context,
@@ -278,7 +166,7 @@ private:
         ShaderObject* shader_object,
         void* base_address,
         const TensorFieldOffsets& offsets,
-        NativeTensor* buffer,
+        Tensor* buffer,
         nb::list read_back
     ) const;
 
@@ -309,8 +197,8 @@ private:
 
 /// Bare minimum overridable functions to allow python marshall
 /// extensions to utilize the majority of native functionality.
-struct PyNativeTensorMarshall : public NativeTensorMarshall {
-    NB_TRAMPOLINE(NativeTensorMarshall, 5);
+struct PyTensorMarshall : public TensorMarshall {
+    NB_TRAMPOLINE(TensorMarshall, 5);
 
     Shape get_shape(nb::object data) const override { NB_OVERRIDE(get_shape, data); }
 
@@ -341,7 +229,7 @@ struct PyNativeTensorMarshall : public NativeTensorMarshall {
     }
 };
 
-class NativeNumpyMarshall : public NativeTensorMarshall {
+class NativeNumpyMarshall : public TensorMarshall {
 public:
     NativeNumpyMarshall(
         int dims,
@@ -350,7 +238,7 @@ public:
         ref<TypeLayoutReflection> element_layout,
         nb::dlpack::dtype dtype
     )
-        : NativeTensorMarshall(dims, true, slang_type, slang_element_type, element_layout, nullptr, nullptr)
+        : TensorMarshall(dims, true, slang_type, slang_element_type, element_layout, nullptr, nullptr)
         , m_dtype(dtype)
     {
     }
@@ -379,7 +267,7 @@ public:
     nb::object create_dispatchdata(nb::object data) const override;
 
 private:
-    ref<NativeTensor> create_tensor(Device* device, const Shape& shape) const;
+    ref<Tensor> create_tensor(Device* device, const Shape& shape) const;
 
     nb::dlpack::dtype m_dtype;
 };

@@ -9,8 +9,9 @@
 #include "sgl/device/fwd.h"
 #include "sgl/device/native_handle.h"
 
-#include <vector>
 #include <map>
+#include <optional>
+#include <vector>
 
 namespace sgl::slangpy {
 
@@ -96,6 +97,12 @@ public:
                 }
             }
         }
+    }
+
+    /// Constructor from a vector of dimensions.
+    Shape(const std::vector<int>& shape)
+        : Shape(std::optional<std::vector<int>>(shape))
+    {
     }
 
     /// Constructor that creates a Shape of a given size with uninitialized values

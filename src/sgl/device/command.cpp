@@ -779,24 +779,6 @@ void CommandEncoder::query_acceleration_structure_properties(
     );
 }
 
-void CommandEncoder::serialize_acceleration_structure(BufferOffsetPair dst, AccelerationStructure* src)
-{
-    SGL_CHECK(m_open, "Command encoder is finished");
-    SGL_CHECK_NOT_NULL(dst.buffer);
-    SGL_CHECK_NOT_NULL(src);
-
-    m_rhi_command_encoder->serializeAccelerationStructure(detail::to_rhi(dst), src->rhi_acceleration_structure());
-}
-
-void CommandEncoder::deserialize_acceleration_structure(AccelerationStructure* dst, BufferOffsetPair src)
-{
-    SGL_CHECK(m_open, "Command encoder is finished");
-    SGL_CHECK_NOT_NULL(dst);
-    SGL_CHECK_NOT_NULL(src.buffer);
-
-    m_rhi_command_encoder->deserializeAccelerationStructure(dst->rhi_acceleration_structure(), detail::to_rhi(src));
-}
-
 void CommandEncoder::convert_coop_vec_matrices(
     Buffer* dst,
     std::span<const CoopVecMatrixDesc> dst_descs,

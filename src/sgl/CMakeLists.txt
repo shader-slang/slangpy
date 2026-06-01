@@ -55,6 +55,7 @@ target_sources(sgl PRIVATE
     core/plugin.h
     core/resolver.h
     core/short_vector.h
+    core/signature_buffer.h
     core/static_vector.h
     core/stream.h
     core/string.cpp
@@ -153,6 +154,8 @@ target_sources(sgl PRIVATE
     func/base_module.h
     func/base_struct.cpp
     func/base_struct.h
+    func/tensor.cpp
+    func/tensor.h
 
     refl/layout.cpp
     refl/layout.h
