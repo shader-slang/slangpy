@@ -12,6 +12,7 @@
 #include "sgl/device/kernel.h"
 #include "sgl/device/raytracing.h"
 #include "sgl/device/query.h"
+#include "sgl/device/profiler.h"
 #include "sgl/device/input_layout.h"
 #include "sgl/device/surface.h"
 #include "sgl/device/shader.h"
@@ -513,7 +514,7 @@ SGL_PY_EXPORT(device_device)
            std::optional<std::vector<std::string>> additional_vulkan_device_extensions,
            bool enable_cuda_launch_from_gfx,
            bool enable_ray_tracing,
-           std::string label = "")
+           std::string label)
         {
             new (self) Device(
                 {.type = type,

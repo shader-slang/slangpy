@@ -21,6 +21,10 @@
 #include "sgl/device/surface.h"
 #include "sgl/device/agility_sdk.h"
 
+#include "sgl/device/profiler.h"
+
+#include "sgl/ui/ui.h"
+
 #include "sgl/utils/tev.h"
 
 #include <map>
@@ -753,6 +757,8 @@ struct App {
     std::unique_ptr<PathTracer> path_tracer;
     std::unique_ptr<Accumulator> accumulator;
     std::unique_ptr<ToneMapper> tone_mapper;
+    ref<Profiler> profiler;
+    ref<ui::Context> ui;
 
     App()
     {
@@ -763,7 +769,7 @@ struct App {
             .resizable = true,
         });
         device = Device::create({
-            // .type = DeviceType::cuda,
+            .type = DeviceType::vulkan,
             .enable_debug_layers = true,
             .compiler_options = {
                 .include_paths = {EXAMPLE_DIR},
@@ -803,10 +809,17 @@ struct App {
         path_tracer = std::make_unique<PathTracer>(device, *scene);
         accumulator = std::make_unique<Accumulator>(device);
         tone_mapper = std::make_unique<ToneMapper>(device);
+
+        profiler = make_ref<Profiler>();
+
+        ui = make_ref<ui::Context>(device);
     }
 
     void on_keyboard_event(const KeyboardEvent& event)
     {
+        if (ui->handle_keyboard_event(event))
+            return;
+
         if (event.type == KeyboardEventType::key_press) {
             if (event.key == KeyCode::escape) {
                 window->close();
@@ -824,7 +837,12 @@ struct App {
         camera_controller->on_keyboard_event(event);
     }
 
-    void on_mouse_event(const MouseEvent& event) { camera_controller->on_mouse_event(event); }
+    void on_mouse_event(const MouseEvent& event)
+    {
+        if (ui->handle_mouse_event(event))
+            return;
+        camera_controller->on_mouse_event(event);
+    }
 
     void on_resize(uint32_t width, uint32_t height)
     {
@@ -859,6 +877,8 @@ struct App {
             if (!surface_texture)
                 continue;
 
+            ui->begin_frame(surface_texture->width(), surface_texture->height(), window);
+
             if (!output_texture || output_texture->width() != surface_texture->width()
                 || output_texture->height() != surface_texture->height()) {
                 output_texture = device->create_texture({
@@ -889,13 +909,34 @@ struct App {
             stage->camera.recompute();
 
             ref<CommandEncoder> command_encoder = device->create_command_encoder();
-            {
-                path_tracer->execute(command_encoder, render_texture, frame);
-                accumulator->execute(command_encoder, render_texture, accum_texture, frame == 0);
-                tone_mapper->execute(command_encoder, accum_texture, output_texture);
 
-                command_encoder->blit(surface_texture, output_texture);
+            {
+                ProfilerScope profiler_scope(profiler);
+
+                SGL_PROFILER_FRAME();
+
+                SGL_PROFILER_ZONE("frame", command_encoder);
+
+                {
+                    SGL_PROFILER_ZONE("path_tracer", command_encoder);
+                    path_tracer->execute(command_encoder, render_texture, frame);
+                }
+
+                {
+                    SGL_PROFILER_ZONE("accumulator", command_encoder);
+                    accumulator->execute(command_encoder, render_texture, accum_texture, frame == 0);
+                }
+
+                {
+                    SGL_PROFILER_ZONE("tone_mapper", command_encoder);
+                    tone_mapper->execute(command_encoder, accum_texture, output_texture);
+                }
             }
+
+            command_encoder->blit(surface_texture, output_texture);
+
+            ui->end_frame(surface_texture, command_encoder);
+
             device->submit_command_buffer(command_encoder->finish());
 
             surface->present();

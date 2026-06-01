@@ -1,0 +1,294 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+#pragma once
+
+#include "sgl/device/fwd.h"
+#include "sgl/device/types.h"
+
+#include "sgl/core/enum.h"
+#include "sgl/core/error.h"
+#include "sgl/core/macros.h"
+#include "sgl/core/object.h"
+
+#include <atomic>
+#include <string>
+#include <string_view>
+
+namespace sgl {
+
+enum class ProfilerZoneFlags : uint32_t {
+    auto_ = 0,
+    cpu = 1 << 0,
+    gpu = 1 << 1,
+    debug_group = 1 << 2,
+    copy_name = 1 << 3,
+};
+SGL_ENUM_CLASS_OPERATORS(ProfilerZoneFlags);
+SGL_ENUM_FLAGS_INFO(
+    ProfilerZoneFlags,
+    {
+        {ProfilerZoneFlags::auto_, "auto"},
+        {ProfilerZoneFlags::cpu, "cpu"},
+        {ProfilerZoneFlags::gpu, "gpu"},
+        {ProfilerZoneFlags::debug_group, "debug_group"},
+        {ProfilerZoneFlags::copy_name, "copy_name"},
+    }
+);
+SGL_ENUM_REGISTER(ProfilerZoneFlags);
+
+enum class ProfilerTimelineType : uint32_t {
+    cpu,
+    gpu,
+};
+SGL_ENUM_INFO(
+    ProfilerTimelineType,
+    {
+        {ProfilerTimelineType::cpu, "cpu"},
+        {ProfilerTimelineType::gpu, "gpu"},
+    }
+);
+SGL_ENUM_REGISTER(ProfilerTimelineType);
+
+/// Descriptor for creating a Profiler.
+struct ProfilerDesc { };
+
+/// Stable metadata for a profiler source callsite.
+struct ProfilerSourceLocation {
+    const char* file;
+    uint32_t line;
+    const char* function;
+};
+
+/// Metadata for a profiler timeline/lane.
+struct ProfilerTimeline {
+    uint64_t timeline_id{0};
+    ProfilerTimelineType type{ProfilerTimelineType::cpu};
+    std::string name;
+    uint64_t thread_id{0};
+    uint64_t device_id{0};
+    CommandQueueType queue{CommandQueueType::graphics};
+};
+
+/// Hierarchical CPU/GPU application profiler.
+class SGL_API Profiler : public Object {
+    SGL_OBJECT(Profiler)
+public:
+    explicit Profiler(ProfilerDesc desc = {});
+    ~Profiler();
+
+    /// Intern or reuse a dynamic source location.
+    static const ProfilerSourceLocation*
+    intern_source_location(std::string_view file, uint32_t line, std::string_view function);
+
+    /// Intern or reuse a dynamic profiler zone name.
+    static const char* intern_name(std::string_view name);
+
+    /// Whether profiling is enabled. When disabled, recording calls are no-ops.
+    bool enabled() const { return m_enabled; }
+
+    /// Enable or disable profiling.
+    void set_enabled(bool enabled) { m_enabled = enabled; }
+
+    /// Whether SlangPy functional calls automatically insert profiler zones.
+    bool auto_zones_enabled() const { return m_auto_zones_enabled; }
+
+    /// Enable or disable automatic SlangPy functional call zones.
+    void set_auto_zones_enabled(bool enabled) { m_auto_zones_enabled = enabled; }
+
+    /// Whether auto GPU zones also emit command debug groups.
+    bool debug_groups_enabled() const { return m_debug_groups_enabled; }
+
+    void set_debug_groups_enabled(bool enabled) { m_debug_groups_enabled = enabled; }
+
+    const ProfilerDesc& desc() const { return m_desc; }
+
+    bool begin_zone(
+        const ProfilerSourceLocation* source_location,
+        const char* name,
+        CommandEncoder* encoder,
+        ProfilerZoneFlags flags
+    ) noexcept;
+    void end_zone(CommandEncoder* encoder) noexcept;
+
+    bool begin_frame(const ProfilerSourceLocation* source_location, const char* name) noexcept;
+    void end_frame() noexcept;
+
+    std::string to_string() const override;
+
+private:
+    ProfilerDesc m_desc;
+    std::atomic<bool> m_enabled{true};
+    std::atomic<bool> m_auto_zones_enabled{true};
+    std::atomic<bool> m_debug_groups_enabled{false};
+
+    friend class ProfilerZoneScope;
+};
+
+// ---------------------------------------------------------------------------
+// Thread-local current profiler stack.
+// ---------------------------------------------------------------------------
+
+/// Push a profiler onto the thread-local current profiler stack.
+/// \param profiler Profiler to push (must not be null).
+SGL_API void push_current_profiler(Profiler* profiler);
+
+/// Pop the top profiler from the thread-local current profiler stack.
+/// Throws if the stack is empty.
+/// \return The popped profiler.
+SGL_API Profiler* pop_current_profiler();
+
+/// Get the current profiler from the top of the thread-local profiler stack.
+/// Throws if the stack is empty.
+/// \return The current profiler.
+SGL_API Profiler* current_profiler();
+
+/// Return the current profiler for the calling thread, or null.
+SGL_API Profiler* current_profiler_or_null();
+
+/// RAII helper that pushes a profiler as current on the calling thread.
+class SGL_API ProfilerScope {
+public:
+    explicit ProfilerScope(Profiler* profiler)
+        : m_profiler(profiler)
+    {
+        push_current_profiler(profiler);
+    }
+
+    ~ProfilerScope()
+    {
+        if (m_active) {
+            SGL_ASSERT(current_profiler() == m_profiler);
+            pop_current_profiler();
+        }
+    }
+
+    // Non-copyable.
+    ProfilerScope(const ProfilerScope&) = delete;
+    ProfilerScope& operator=(const ProfilerScope&) = delete;
+
+    // Movable.
+    ProfilerScope(ProfilerScope&& other) noexcept
+        : m_profiler(other.m_profiler)
+        , m_active(other.m_active)
+    {
+        other.m_profiler = nullptr;
+        other.m_active = false;
+    }
+
+    ProfilerScope& operator=(ProfilerScope&& other) noexcept
+    {
+        if (this != &other) {
+            if (m_active) {
+                SGL_ASSERT(current_profiler() == m_profiler);
+                pop_current_profiler();
+            }
+            m_profiler = other.m_profiler;
+            m_active = other.m_active;
+            other.m_profiler = nullptr;
+            other.m_active = false;
+        }
+        return *this;
+    }
+
+private:
+    Profiler* m_profiler{nullptr};
+    bool m_active{true};
+};
+
+namespace detail {
+
+    /// RAII helper for profiling zones on the current profiler.
+    class SGL_API ProfilerZoneScope {
+    public:
+        explicit ProfilerZoneScope(
+            const ProfilerSourceLocation* source_location,
+            const char* name = nullptr,
+            CommandEncoder* encoder = nullptr,
+            ProfilerZoneFlags flags = ProfilerZoneFlags::auto_
+        ) noexcept
+        {
+            Profiler* profiler = current_profiler_or_null();
+            if (profiler && profiler->begin_zone(source_location, name, encoder, flags))
+                m_profiler = profiler;
+        }
+
+        ~ProfilerZoneScope() noexcept
+        {
+            if (m_profiler)
+                m_profiler->end_zone(m_encoder);
+        }
+
+    private:
+        Profiler* m_profiler{nullptr};
+        CommandEncoder* m_encoder{nullptr};
+
+        SGL_NON_COPYABLE_AND_MOVABLE(ProfilerZoneScope);
+    };
+
+    /// RAII helper for profiler frames on the current profiler.
+    class SGL_API ProfilerFrameScope {
+    public:
+        explicit ProfilerFrameScope(const ProfilerSourceLocation* source_location, const char* name = nullptr) noexcept
+        {
+            Profiler* profiler = current_profiler_or_null();
+            if (profiler && profiler->begin_frame(source_location, name))
+                m_profiler = profiler;
+        }
+
+        ~ProfilerFrameScope() noexcept
+        {
+            if (m_profiler)
+                m_profiler->end_frame();
+        }
+
+    private:
+        Profiler* m_profiler{nullptr};
+
+        SGL_NON_COPYABLE_AND_MOVABLE(ProfilerFrameScope);
+    };
+
+} // namespace detail
+} // namespace sgl
+
+/// Start a profiler zone for the current C++ scope.
+///
+/// The macro always records the callsite source location (`__FILE__`, `__LINE__`, and `__func__`).
+/// Optional arguments are forwarded in fixed order:
+/// - `SGL_PROFILER_ZONE()`
+/// - `SGL_PROFILER_ZONE(name)`
+/// - `SGL_PROFILER_ZONE(name, encoder)`
+/// - `SGL_PROFILER_ZONE(name, encoder, flags)`
+///
+/// `name` must point to stable storage, such as a string literal or a pointer returned by
+/// `Profiler::intern_name()`, unless `flags` includes `ProfilerZoneFlags::copy_name`.
+/// Use explicit `nullptr` placeholders to pass later arguments, e.g.
+/// `SGL_PROFILER_ZONE(nullptr, nullptr, flags)`.
+///
+/// The implementation uses the common `, ##__VA_ARGS__` extension so empty macro arguments work with
+/// the MSVC/GCC-style preprocessors used by this project.
+#define SGL_PROFILER_ZONE(...) SGL_PROFILER_ZONE_IMPL(__COUNTER__, __VA_ARGS__)
+#define SGL_PROFILER_ZONE_IMPL(counter, ...) SGL_PROFILER_ZONE_IMPL2(counter, __VA_ARGS__)
+#define SGL_PROFILER_ZONE_IMPL2(counter, ...)                                                                          \
+    static const ::sgl::ProfilerSourceLocation SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter)              \
+        = {__FILE__, __LINE__, __func__};                                                                              \
+    ::sgl::detail::ProfilerZoneScope SGL_CONCAT_STRINGS(sgl_profiler_zone_, counter)(                                  \
+        &SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter),                                                   \
+        ##__VA_ARGS__                                                                                                  \
+    )
+
+/// Start a profiler frame for the current C++ scope.
+///
+/// The macro records the callsite source location and optionally accepts a stable frame name:
+/// - `SGL_PROFILER_FRAME()`
+/// - `SGL_PROFILER_FRAME(name)`
+///
+/// Like zone names, `name` must point to stable storage.
+#define SGL_PROFILER_FRAME(...) SGL_PROFILER_FRAME_IMPL(__COUNTER__, __VA_ARGS__)
+#define SGL_PROFILER_FRAME_IMPL(counter, ...) SGL_PROFILER_FRAME_IMPL2(counter, __VA_ARGS__)
+#define SGL_PROFILER_FRAME_IMPL2(counter, ...)                                                                         \
+    static const ::sgl::ProfilerSourceLocation SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter)              \
+        = {__FILE__, __LINE__, __func__};                                                                              \
+    ::sgl::detail::ProfilerFrameScope SGL_CONCAT_STRINGS(sgl_profiler_frame_, counter)(                                \
+        &SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter),                                                   \
+        ##__VA_ARGS__                                                                                                  \
+    )

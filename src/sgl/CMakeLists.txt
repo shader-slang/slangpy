@@ -108,6 +108,8 @@ target_sources(sgl PRIVATE
     device/persistent_cache.h
     device/pipeline.cpp
     device/pipeline.h
+    device/profiler.cpp
+    device/profiler.h
     device/print.cpp
     device/print.h
     device/print.slang

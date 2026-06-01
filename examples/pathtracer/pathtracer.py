@@ -684,6 +684,7 @@ class App:
         super().__init__()
         self.window = spy.Window(width=1920, height=1080, title="PathTracer", resizable=True)
         self.device = spy.Device(
+            type=spy.DeviceType.cuda,
             enable_debug_layers=False,
             compiler_options={
                 "include_paths": [EXAMPLE_DIR],
@@ -691,6 +692,8 @@ class App:
         )
         self.surface = self.device.create_surface(self.window)
         self.surface.configure(width=self.window.width, height=self.window.height, vsync=False)
+
+        self.ui = spy.ui.Context(self.device)
 
         self.render_texture: spy.Texture = None  # type: ignore (will be set immediately)
         self.accum_texture: spy.Texture = None  # type: ignore (will be set immediately)
@@ -709,7 +712,13 @@ class App:
         self.accumulator = Accumulator(self.device)
         self.tone_mapper = ToneMapper(self.device)
 
+        self.profiler = spy.Profiler()
+        self.show_profiler = True
+
     def on_keyboard_event(self, event: spy.KeyboardEvent):
+        if self.ui.handle_keyboard_event(event):
+            return
+
         if event.type == spy.KeyboardEventType.key_press:
             if event.key == spy.KeyCode.escape:
                 self.window.close()
@@ -728,6 +737,9 @@ class App:
         self.camera_controller.on_keyboard_event(event)
 
     def on_mouse_event(self, event: spy.MouseEvent):
+        if self.ui.handle_mouse_event(event):
+            return
+
         self.camera_controller.on_mouse_event(event)
 
     def on_resize(self, width: int, height: int):
@@ -754,6 +766,8 @@ class App:
             surface_texture = self.surface.acquire_next_image()
             if not surface_texture:
                 continue
+
+            self.ui.begin_frame(surface_texture.width, surface_texture.height, self.window)
 
             if (
                 self.output_texture == None
@@ -784,13 +798,31 @@ class App:
 
             command_encoder = self.device.create_command_encoder()
 
-            self.path_tracer.execute(command_encoder, self.render_texture, frame)
-            self.accumulator.execute(
-                command_encoder, self.render_texture, self.accum_texture, frame == 0
-            )
-            self.tone_mapper.execute(command_encoder, self.accum_texture, self.output_texture)
+            with self.profiler:
+                with spy.ProfilerFrameScope("frame"):
+                    with spy.ProfilerZoneScope("overall", command_encoder):
+                        with spy.ProfilerZoneScope("path_tracer", command_encoder):
+                            self.path_tracer.execute(command_encoder, self.render_texture, frame)
+
+                        with spy.ProfilerZoneScope("accumulator", command_encoder):
+                            self.accumulator.execute(
+                                command_encoder,
+                                self.render_texture,
+                                self.accum_texture,
+                                frame == 0,
+                            )
+
+                        with spy.ProfilerZoneScope("tone_mapper", command_encoder):
+                            self.tone_mapper.execute(
+                                command_encoder,
+                                self.accum_texture,
+                                self.output_texture,
+                            )
 
             command_encoder.blit(surface_texture, self.output_texture)
+
+            self.ui.end_frame(surface_texture, command_encoder)
+
             self.device.submit_command_buffer(command_encoder.finish())
             del surface_texture
 

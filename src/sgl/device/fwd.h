@@ -108,6 +108,12 @@ class RenderPipeline;
 struct RayTracingPipelineDesc;
 class RayTracingPipeline;
 
+// profiler.h
+
+struct ProfilerDesc;
+struct ProfilerSourceLocation;
+class Profiler;
+
 // query.h
 
 struct QueryPoolDesc;
