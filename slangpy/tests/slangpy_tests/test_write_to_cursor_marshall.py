@@ -198,7 +198,9 @@ def test_register_write_to_cursor_marshall_duplicate_rejected() -> None:
         register_cursor_writer_marshal(DuplicateCursorValueObject, slang_type_name="CursorValue")
 
         with pytest.raises(ValueError, match="already registered"):
-            register_cursor_writer_marshal(DuplicateCursorValueObject, slang_type_name="CursorValue")
+            register_cursor_writer_marshal(
+                DuplicateCursorValueObject, slang_type_name="CursorValue"
+            )
     finally:
         unregister_cursor_writer_marshal(DuplicateCursorValueObject)
 
