@@ -1015,6 +1015,22 @@ void Device::wait_for_idle(CommandQueueType queue)
     }
 }
 
+TimestampCalibration Device::get_timestamp_calibration(CommandQueueType queue) const
+{
+    SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
+
+    rhi::TimestampCalibration rhi_calibration;
+    SLANG_RHI_CALL(m_rhi_graphics_queue->getTimestampCalibration(&rhi_calibration), this);
+    return {
+        .cpu_domain = static_cast<CpuTimestampDomain>(rhi_calibration.cpuDomain),
+        .cpu_timestamp = rhi_calibration.cpuTimestamp,
+        .cpu_frequency = rhi_calibration.cpuFrequency,
+        .gpu_timestamp = rhi_calibration.gpuTimestamp,
+        .gpu_frequency = rhi_calibration.gpuFrequency,
+        .max_deviation_ns = rhi_calibration.maxDeviationNs
+    };
+}
+
 void Device::sync_to_cuda(void* cuda_stream)
 {
     // Signal fence from CUDA, wait for it on graphics queue.

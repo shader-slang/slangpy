@@ -865,6 +865,12 @@ SGL_PY_EXPORT(device_device)
     device
         .def("wait_for_idle", &Device::wait_for_idle, "queue"_a = CommandQueueType::graphics, D(Device, wait_for_idle));
     device.def(
+        "get_timestamp_calibration",
+        &Device::get_timestamp_calibration,
+        "queue"_a = CommandQueueType::graphics,
+        D(Device, get_timestamp_calibration)
+    );
+    device.def(
         "sync_to_cuda",
         [](Device* self, uint64_t cuda_stream)
         {

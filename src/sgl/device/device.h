@@ -649,6 +649,16 @@ public:
     void wait_for_idle(CommandQueueType queue = CommandQueueType::graphics);
 
     /**
+     * \brief Get timestamp calibration data for a queue.
+     *
+     * This can be used to synchronize CPU and GPU timestamps, which is necessary for accurate profiling and debugging.
+     *
+     * \param queue Command queue to get timestamp calibration data for.
+     * \return Timestamp calibration data
+     */
+    TimestampCalibration get_timestamp_calibration(CommandQueueType queue = CommandQueueType::graphics) const;
+
+    /**
      * \brief Synchronize CUDA -> device.
      *
      * This signals a shared CUDA semaphore from the CUDA stream and then waits for the signal on the command queue.

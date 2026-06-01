@@ -350,6 +350,8 @@ static const char *__doc_sgl_AccelerationStructure_rhi_acceleration_structure = 
 
 static const char *__doc_sgl_AccelerationStructure_to_string = R"doc()doc";
 
+static const char *__doc_sgl_AccelerationStructure_write_to_cursor = R"doc(Bind a nullable acceleration structure value to a shader cursor.)doc";
+
 static const char *__doc_sgl_AdapterInfo = R"doc()doc";
 
 static const char *__doc_sgl_AdapterInfo_device_id =
@@ -1189,6 +1191,8 @@ provides read/write tools to access its members via reflection.)doc";
 
 static const char *__doc_sgl_BufferElementCursor_2 = R"doc()doc";
 
+static const char *__doc_sgl_BufferElementCursor_3 = R"doc()doc";
+
 static const char *__doc_sgl_BufferElementCursor_BufferElementCursor = R"doc()doc";
 
 static const char *__doc_sgl_BufferElementCursor_BufferElementCursor_2 = R"doc(Create with none-owning view of specific block of memory)doc";
@@ -1236,6 +1240,8 @@ static const char *__doc_sgl_BufferElementCursor_reinterpret = R"doc(Reinterpret
 static const char *__doc_sgl_BufferElementCursor_set = R"doc()doc";
 
 static const char *__doc_sgl_BufferElementCursor_set_2 = R"doc()doc";
+
+static const char *__doc_sgl_BufferElementCursor_set_3 = R"doc()doc";
 
 static const char *__doc_sgl_BufferElementCursor_set_data = R"doc()doc";
 
@@ -1345,6 +1351,8 @@ static const char *__doc_sgl_BufferView_release_rhi_resources = R"doc()doc";
 
 static const char *__doc_sgl_BufferView_to_string = R"doc()doc";
 
+static const char *__doc_sgl_BufferView_write_to_cursor = R"doc(Bind a nullable buffer view value to a shader cursor.)doc";
+
 static const char *__doc_sgl_Buffer_Buffer = R"doc()doc";
 
 static const char *__doc_sgl_Buffer_class_name = R"doc()doc";
@@ -1438,6 +1446,10 @@ static const char *__doc_sgl_Buffer_struct_size = R"doc()doc";
 static const char *__doc_sgl_Buffer_to_string = R"doc()doc";
 
 static const char *__doc_sgl_Buffer_unmap = R"doc(Unmap the buffer.)doc";
+
+static const char *__doc_sgl_Buffer_write_slangpy_signature = R"doc(Write the SlangPy cache signature used by functional dispatch.)doc";
+
+static const char *__doc_sgl_Buffer_write_to_cursor = R"doc(Bind a nullable buffer value to a shader cursor.)doc";
 
 static const char *__doc_sgl_ColorTargetDesc = R"doc()doc";
 
@@ -1665,8 +1677,6 @@ Parameter ``src_offset``:
 Parameter ``extent``:
     Extent in texels (-1 for maximum possible extent).)doc";
 
-static const char *__doc_sgl_CommandEncoder_deserialize_acceleration_structure = R"doc()doc";
-
 static const char *__doc_sgl_CommandEncoder_execute_callback =
 R"doc(Execute a callback while recording/executing the active native command
 context.
@@ -1735,8 +1745,6 @@ static const char *__doc_sgl_CommandEncoder_release_rhi_resources = R"doc()doc";
 static const char *__doc_sgl_CommandEncoder_resolve_query = R"doc()doc";
 
 static const char *__doc_sgl_CommandEncoder_rhi_command_encoder = R"doc()doc";
-
-static const char *__doc_sgl_CommandEncoder_serialize_acceleration_structure = R"doc()doc";
 
 static const char *__doc_sgl_CommandEncoder_set_buffer_state =
 R"doc(Transition resource state of a buffer and add a barrier if state has
@@ -1985,6 +1993,20 @@ static const char *__doc_sgl_CoopVecMatrixLayout_info = R"doc()doc";
 static const char *__doc_sgl_CoopVecMatrixLayout_row_major = R"doc()doc";
 
 static const char *__doc_sgl_CoopVecMatrixLayout_training_optimal = R"doc()doc";
+
+static const char *__doc_sgl_CpuTimestampDomain = R"doc()doc";
+
+static const char *__doc_sgl_CpuTimestampDomain_clock_monotonic = R"doc()doc";
+
+static const char *__doc_sgl_CpuTimestampDomain_clock_monotonic_raw = R"doc()doc";
+
+static const char *__doc_sgl_CpuTimestampDomain_info = R"doc()doc";
+
+static const char *__doc_sgl_CpuTimestampDomain_mach_absolute_time = R"doc()doc";
+
+static const char *__doc_sgl_CpuTimestampDomain_query_performance_counter = R"doc()doc";
+
+static const char *__doc_sgl_CpuTimestampDomain_unknown = R"doc()doc";
 
 static const char *__doc_sgl_CullMode = R"doc()doc";
 
@@ -2647,6 +2669,10 @@ static const char *__doc_sgl_DescriptorHandle_type = R"doc()doc";
 
 static const char *__doc_sgl_DescriptorHandle_value = R"doc()doc";
 
+static const char *__doc_sgl_DescriptorHandle_write_to_cursor = R"doc(Write a bindless descriptor handle to a shader cursor.)doc";
+
+static const char *__doc_sgl_DescriptorHandle_write_to_cursor_2 = R"doc(Write a bindless descriptor handle value into buffer cursor storage.)doc";
+
 static const char *__doc_sgl_Device = R"doc()doc";
 
 static const char *__doc_sgl_Device_2 = R"doc()doc";
@@ -2701,9 +2727,12 @@ static const char *__doc_sgl_DeviceDesc_enable_compilation_reports = R"doc(Enabl
 
 static const char *__doc_sgl_DeviceDesc_enable_cuda_interop = R"doc(Enable CUDA interoperability.)doc";
 
-static const char *__doc_sgl_DeviceDesc_enable_cuda_launch_from_gfx = R"doc(Enable launching CUDA kernels from inside Vulkan command buffers (via VK_NVX_binary_import). On by default. Set to false if the application doesn't need vkCmdCuLaunchKernelNVX; enabling this extension has been observed to interfere with concurrent cuDNN usage on some driver/GPU pairs.)doc";
-
-static const char *__doc_sgl_DeviceDesc_enable_ray_tracing = R"doc(Enable Vulkan ray tracing extensions (acceleration_structure family). On by default. Set to false if the application doesn't use ray tracing; enabling these extensions has been observed to interfere with concurrent cuDNN usage on some driver/GPU pairs.)doc";
+static const char *__doc_sgl_DeviceDesc_enable_cuda_launch_from_gfx =
+R"doc(Enable launching CUDA kernels from inside graphics command buffers
+(Vulkan only, via VK_NVX_binary_import + VK_NVX_image_view_handle). On
+by default. Set to false if the application doesn't need
+vkCmdCuLaunchKernelNVX; enabling these extensions has been observed to
+interfere with concurrent cuDNN usage on some driver/GPU pairs.)doc";
 
 static const char *__doc_sgl_DeviceDesc_enable_debug_layers = R"doc(Enable debug layers.)doc";
 
@@ -2712,6 +2741,13 @@ R"doc(Enable automatic shader reload in response to file changes. Note:
 Currently windows and linux only.)doc";
 
 static const char *__doc_sgl_DeviceDesc_enable_print = R"doc(Enable device side printing (adds performance overhead).)doc";
+
+static const char *__doc_sgl_DeviceDesc_enable_ray_tracing =
+R"doc(Enable Vulkan ray tracing extensions (acceleration_structure,
+ray_tracing_pipeline, ray_query, ray_tracing_position_fetch, plus NV
+variants). On by default. Set to false if the application doesn't use
+ray tracing; enabling these extensions has been observed to interfere
+with concurrent cuDNN usage on some driver/GPU pairs.)doc";
 
 static const char *__doc_sgl_DeviceDesc_enable_ray_tracing_validation = R"doc(Enable ray-tracing validation.)doc";
 
@@ -3176,6 +3212,18 @@ static const char *__doc_sgl_Device_get_format_support = R"doc(Returns the suppo
 static const char *__doc_sgl_Device_get_native_command_queue_handle =
 R"doc(Returns the native API handle for the command queue: - D3D12:
 ID3D12CommandQueue* - Vulkan: VkQueue (Vulkan))doc";
+
+static const char *__doc_sgl_Device_get_timestamp_calibration =
+R"doc(Get timestamp calibration data for a queue.
+
+This can be used to synchronize CPU and GPU timestamps, which is
+necessary for accurate profiling and debugging.
+
+Parameter ``queue``:
+    Command queue to get timestamp calibration data for.
+
+Returns:
+    Timestamp calibration data)doc";
 
 static const char *__doc_sgl_Device_global_session = R"doc()doc";
 
@@ -3694,6 +3742,8 @@ static const char *__doc_sgl_Feature_sm_6_9 = R"doc()doc";
 static const char *__doc_sgl_Feature_software_device = R"doc()doc";
 
 static const char *__doc_sgl_Feature_surface = R"doc()doc";
+
+static const char *__doc_sgl_Feature_timestamp_calibration = R"doc()doc";
 
 static const char *__doc_sgl_Feature_timestamp_query = R"doc()doc";
 
@@ -6363,6 +6413,8 @@ static const char *__doc_sgl_QueryPool_get_timestamp_results = R"doc()doc";
 
 static const char *__doc_sgl_QueryPool_get_timestamp_results_2 = R"doc()doc";
 
+static const char *__doc_sgl_QueryPool_is_result_ready = R"doc()doc";
+
 static const char *__doc_sgl_QueryPool_m_desc = R"doc()doc";
 
 static const char *__doc_sgl_QueryPool_m_rhi_query_pool = R"doc()doc";
@@ -6370,6 +6422,8 @@ static const char *__doc_sgl_QueryPool_m_rhi_query_pool = R"doc()doc";
 static const char *__doc_sgl_QueryPool_release_rhi_resources = R"doc()doc";
 
 static const char *__doc_sgl_QueryPool_reset = R"doc()doc";
+
+static const char *__doc_sgl_QueryPool_reset_2 = R"doc()doc";
 
 static const char *__doc_sgl_QueryPool_rhi_query_pool = R"doc()doc";
 
@@ -6380,8 +6434,6 @@ static const char *__doc_sgl_QueryType = R"doc()doc";
 static const char *__doc_sgl_QueryType_acceleration_structure_compacted_size = R"doc()doc";
 
 static const char *__doc_sgl_QueryType_acceleration_structure_current_size = R"doc()doc";
-
-static const char *__doc_sgl_QueryType_acceleration_structure_serialized_size = R"doc()doc";
 
 static const char *__doc_sgl_QueryType_info = R"doc()doc";
 
@@ -6941,6 +6993,8 @@ static const char *__doc_sgl_Sampler_rhi_sampler = R"doc()doc";
 
 static const char *__doc_sgl_Sampler_to_string = R"doc()doc";
 
+static const char *__doc_sgl_Sampler_write_to_cursor = R"doc(Bind a nullable sampler value to a shader cursor.)doc";
+
 static const char *__doc_sgl_ScissorRect = R"doc()doc";
 
 static const char *__doc_sgl_ScissorRect_from_size = R"doc()doc";
@@ -6980,6 +7034,8 @@ performance implications of allocating/freeing them repeatedly. This
 is far faster, however does introduce a risk of mem access problems if
 the shader cursor is kept alive longer than the shader object it was
 created from.)doc";
+
+static const char *__doc_sgl_ShaderCursor_3 = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_ShaderCursor = R"doc()doc";
 
@@ -7038,9 +7094,15 @@ immutability of a ShaderObject. To use safely, ensure that the address
 returned is immediately populated, not retained. Prefer using set_data
 unless absolutely necessary.)doc";
 
-static const char *__doc_sgl_ShaderCursor_set = R"doc()doc";
+static const char *__doc_sgl_ShaderCursor_set =
+R"doc(Let values that know how to write to ShaderCursor populate this cursor
+directly.)doc";
 
-static const char *__doc_sgl_ShaderCursor_set_2 = R"doc()doc";
+static const char *__doc_sgl_ShaderCursor_set_2 = R"doc(Let ref-counted values forward to their type's cursor writer.)doc";
+
+static const char *__doc_sgl_ShaderCursor_set_3 =
+R"doc(Fall back to the built-in ShaderCursor setter specializations for non
+cursor-writer values.)doc";
 
 static const char *__doc_sgl_ShaderCursor_set_acceleration_structure = R"doc()doc";
 
@@ -7170,6 +7232,8 @@ static const char *__doc_sgl_ShaderObject_set_texture = R"doc()doc";
 static const char *__doc_sgl_ShaderObject_set_texture_view = R"doc()doc";
 
 static const char *__doc_sgl_ShaderObject_slang_element_type_layout = R"doc()doc";
+
+static const char *__doc_sgl_ShaderObject_write_to_cursor = R"doc()doc";
 
 static const char *__doc_sgl_ShaderOffset =
 R"doc(Represents the offset of a shader variable relative to its enclosing
@@ -7341,6 +7405,42 @@ static const char *__doc_sgl_ShaderTable_release_rhi_resources = R"doc()doc";
 static const char *__doc_sgl_ShaderTable_rhi_shader_table = R"doc()doc";
 
 static const char *__doc_sgl_ShaderTable_to_string = R"doc()doc";
+
+static const char *__doc_sgl_SignatureBuffer =
+R"doc(Stack-allocated signature buffer. Used in hot paths that need cheap,
+append-only signature construction.)doc";
+
+static const char *__doc_sgl_SignatureBuffer_2 = R"doc()doc";
+
+static const char *__doc_sgl_SignatureBuffer_3 = R"doc()doc";
+
+static const char *__doc_sgl_SignatureBuffer_SignatureBuffer = R"doc()doc";
+
+static const char *__doc_sgl_SignatureBuffer_SignatureBuffer_2 = R"doc()doc";
+
+static const char *__doc_sgl_SignatureBuffer_add =
+R"doc(Append string data exactly as bytes; no separators or terminators are
+added.)doc";
+
+static const char *__doc_sgl_SignatureBuffer_add_2 =
+R"doc(Append string-view data exactly as bytes; no separators or terminators
+are added.)doc";
+
+static const char *__doc_sgl_SignatureBuffer_add_3 = R"doc(Append a null-terminated string without the trailing null byte.)doc";
+
+static const char *__doc_sgl_SignatureBuffer_add_4 = R"doc(Append a 32-bit value as fixed-width lower-case hexadecimal text.)doc";
+
+static const char *__doc_sgl_SignatureBuffer_add_5 = R"doc(Append a 64-bit value as fixed-width lower-case hexadecimal text.)doc";
+
+static const char *__doc_sgl_SignatureBuffer_add_bytes = R"doc(Shared append primitive used by all public add overloads.)doc";
+
+static const char *__doc_sgl_SignatureBuffer_m_buf = R"doc()doc";
+
+static const char *__doc_sgl_SignatureBuffer_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_SignatureBuffer_operator_lshift = R"doc()doc";
+
+static const char *__doc_sgl_SignatureBuffer_view = R"doc(Return a non-owning view of the accumulated signature bytes.)doc";
 
 static const char *__doc_sgl_SlangCompileError = R"doc(Exception thrown on compilation errors.)doc";
 
@@ -8335,6 +8435,8 @@ static const char *__doc_sgl_TextureView_texture = R"doc()doc";
 
 static const char *__doc_sgl_TextureView_to_string = R"doc()doc";
 
+static const char *__doc_sgl_TextureView_write_to_cursor = R"doc(Bind a nullable texture view value to a shader cursor.)doc";
+
 static const char *__doc_sgl_Texture_Texture = R"doc()doc";
 
 static const char *__doc_sgl_Texture_Texture_2 = R"doc()doc";
@@ -8427,6 +8529,10 @@ static const char *__doc_sgl_Texture_type = R"doc()doc";
 
 static const char *__doc_sgl_Texture_width = R"doc()doc";
 
+static const char *__doc_sgl_Texture_write_slangpy_signature = R"doc(Write the SlangPy cache signature used by functional dispatch.)doc";
+
+static const char *__doc_sgl_Texture_write_to_cursor = R"doc(Bind a nullable texture value to a shader cursor.)doc";
+
 static const char *__doc_sgl_Timer = R"doc()doc";
 
 static const char *__doc_sgl_Timer_2 = R"doc(High resolution CPU timer.)doc";
@@ -8454,6 +8560,22 @@ static const char *__doc_sgl_Timer_m_start = R"doc()doc";
 static const char *__doc_sgl_Timer_now = R"doc(Current time point in nanoseconds since epoch.)doc";
 
 static const char *__doc_sgl_Timer_reset = R"doc(Reset the timer.)doc";
+
+static const char *__doc_sgl_TimestampCalibration = R"doc()doc";
+
+static const char *__doc_sgl_TimestampCalibration_cpu_domain = R"doc(The domain of the CPU timestamp.)doc";
+
+static const char *__doc_sgl_TimestampCalibration_cpu_frequency = R"doc(The frequency of the CPU timestamp in ticks per second.)doc";
+
+static const char *__doc_sgl_TimestampCalibration_cpu_timestamp = R"doc(The current CPU timestamp.)doc";
+
+static const char *__doc_sgl_TimestampCalibration_gpu_frequency = R"doc(The frequency of the GPU timestamp in ticks per second.)doc";
+
+static const char *__doc_sgl_TimestampCalibration_gpu_timestamp = R"doc(The current GPU timestamp.)doc";
+
+static const char *__doc_sgl_TimestampCalibration_max_deviation_ns =
+R"doc(The maximum deviation between the CPU and GPU timestamps in
+nanoseconds.)doc";
 
 static const char *__doc_sgl_TypeConformance =
 R"doc(Type conformance entry. Type conformances are used to narrow the set
@@ -9512,6 +9634,32 @@ Throws if the stack is empty.
 Returns:
     The current device.)doc";
 
+static const char *__doc_sgl_cursor_utils_CursorWriterTypeInfo =
+R"doc(Native registry entry for one cursor-writable value type.
+
+The SlangPy cache signature is required, while the simple
+WriteToCursorMarshall fallback type name is optional. This lets
+resource types provide native signatures and direct cursor writes
+while still using bespoke functional API marshalls.)doc";
+
+static const char *__doc_sgl_cursor_utils_CursorWriterTypeInfo_imports =
+R"doc(Static imports copied from T::slangpy_imports() at registration time
+for the simple functional fallback.)doc";
+
+static const char *__doc_sgl_cursor_utils_CursorWriterTypeInfo_slang_type_name =
+R"doc(Static Slang type name supplied by T::slang_type_name for the simple
+functional fallback.)doc";
+
+static const char *__doc_sgl_cursor_utils_CursorWriterTypeInfo_type = R"doc(Native C++ type exposed through nanobind.)doc";
+
+static const char *__doc_sgl_cursor_utils_CursorWriterTypeInfo_write_buffer_cursor = R"doc(Write an object instance into a BufferElementCursor.)doc";
+
+static const char *__doc_sgl_cursor_utils_CursorWriterTypeInfo_write_shader_cursor = R"doc(Write an object instance into a ShaderCursor.)doc";
+
+static const char *__doc_sgl_cursor_utils_CursorWriterTypeInfo_write_signature =
+R"doc(Writes the cache signature for a concrete value instance when native
+signature metadata is available.)doc";
+
 static const char *__doc_sgl_cursor_utils_check_array = R"doc()doc";
 
 static const char *__doc_sgl_cursor_utils_check_matrix = R"doc()doc";
@@ -9520,11 +9668,38 @@ static const char *__doc_sgl_cursor_utils_check_scalar = R"doc()doc";
 
 static const char *__doc_sgl_cursor_utils_check_vector = R"doc()doc";
 
+static const char *__doc_sgl_cursor_utils_cursor_writer_type_infos = R"doc(Return a read-only view of all registered cursor-writer type entries.)doc";
+
+static const char *__doc_sgl_cursor_utils_find_cursor_writer_type_info =
+R"doc(Find the exact native cursor-writer entry for a std::type_info, if one
+exists.)doc";
+
 static const char *__doc_sgl_cursor_utils_get_scalar_type_cpu_size = R"doc()doc";
+
+static const char *__doc_sgl_cursor_utils_register_cursor_writer =
+R"doc(Register T as a native bindable value for direct cursor writes.
+
+If T also owns static slang_type_name metadata, it is used as a simple
+functional API fallback. Types with bespoke marshalls should omit that
+metadata and keep the Python/native marshall as owner.)doc";
+
+static const char *__doc_sgl_cursor_utils_register_cursor_writer_type =
+R"doc(Add a type entry to the cursor-writer registry. Duplicate
+registrations for the same native type are rejected.)doc";
+
+static const char *__doc_sgl_cursor_utils_register_cursor_writers = R"doc(Register cursor writers for built-in SGL value types.)doc";
 
 static const char *__doc_sgl_cursor_utils_unwrap_array = R"doc()doc";
 
+static const char *__doc_sgl_cursor_utils_write_cursor_writer_signature =
+R"doc(Write the SlangPy cache signature for a registered cursor-writer
+value.)doc";
+
+static const char *__doc_sgl_cursor_utils_write_to_cursor = R"doc()doc";
+
 static const char *__doc_sgl_data_type_size = R"doc(Get the size of a type in bytes.)doc";
+
+static const char *__doc_sgl_detail_CursorWriterOwner = R"doc()doc";
 
 static const char *__doc_sgl_detail_HostTypeToFormat = R"doc()doc";
 
@@ -9600,6 +9775,8 @@ owned by that device is invalidated.)doc";
 
 static const char *__doc_sgl_detail_on_slang_wrapper_destroyed = R"doc()doc";
 
+static const char *__doc_sgl_detail_strip_class_key = R"doc(Remove MSVC's "class " / "struct " prefix from a type name fragment.)doc";
+
 static const char *__doc_sgl_detail_throw_exception = R"doc()doc";
 
 static const char *__doc_sgl_detail_throw_exception_2 = R"doc()doc";
@@ -9610,7 +9787,13 @@ static const char *__doc_sgl_detail_to_rhi_2 = R"doc()doc";
 
 static const char *__doc_sgl_detail_to_rhi_cooperative_vector_component_type = R"doc()doc";
 
+static const char *__doc_sgl_detail_type_name =
+R"doc(Best-effort default signature name used when T provides no explicit
+signature.)doc";
+
 static const char *__doc_sgl_detail_unused = R"doc()doc";
+
+static const char *__doc_sgl_detail_wrapped_type_name = R"doc(Return the compiler-specific spelling that contains T's name.)doc";
 
 static const char *__doc_sgl_div_round_up = R"doc(Divide a by b and round up to the next integer.)doc";
 
@@ -9776,6 +9959,8 @@ static const char *__doc_sgl_find_enum_info_adl_77 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_78 = R"doc()doc";
 
+static const char *__doc_sgl_find_enum_info_adl_79 = R"doc()doc";
+
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
 static const char *__doc_sgl_flip_bit = R"doc()doc";
@@ -9859,6 +10044,142 @@ static const char *__doc_sgl_func_BaseStruct_shape = R"doc(Return the reflected 
 static const char *__doc_sgl_func_BaseStruct_to_string = R"doc(Return a debug string for this struct base.)doc";
 
 static const char *__doc_sgl_func_BaseStruct_type = R"doc(Return the reflected type for this struct.)doc";
+
+static const char *__doc_sgl_func_DiffTensorViewData = R"doc(CPU representation of Slang's DiffTensorView uniform payload.)doc";
+
+static const char *__doc_sgl_func_DiffTensorViewData_diff = R"doc()doc";
+
+static const char *__doc_sgl_func_DiffTensorViewData_primal = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor =
+R"doc(Native tensor runtime object.
+
+This class deliberately contains no language-binding dependency.
+Adapter conveniences such as NumPy/Torch conversion and indexing
+syntax live in the slangpy extension layer.)doc";
+
+static const char *__doc_sgl_func_TensorDesc =
+R"doc(Native Tensor descriptor shared by native code and the extension
+binding layer.)doc";
+
+static const char *__doc_sgl_func_TensorDesc_dtype = R"doc()doc";
+
+static const char *__doc_sgl_func_TensorDesc_element_layout = R"doc()doc";
+
+static const char *__doc_sgl_func_TensorDesc_memory_type = R"doc()doc";
+
+static const char *__doc_sgl_func_TensorDesc_offset = R"doc()doc";
+
+static const char *__doc_sgl_func_TensorDesc_shape = R"doc()doc";
+
+static const char *__doc_sgl_func_TensorDesc_strides = R"doc()doc";
+
+static const char *__doc_sgl_func_TensorDesc_usage = R"doc()doc";
+
+static const char *__doc_sgl_func_TensorViewData = R"doc(CPU representation of Slang's TensorView uniform payload.)doc";
+
+static const char *__doc_sgl_func_TensorViewData_data = R"doc()doc";
+
+static const char *__doc_sgl_func_TensorViewData_dimensionCount = R"doc()doc";
+
+static const char *__doc_sgl_func_TensorViewData_sizes = R"doc()doc";
+
+static const char *__doc_sgl_func_TensorViewData_strides = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_Tensor = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_broadcast_to = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_broadcast_to_inplace = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_class_name = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_clear = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_cursor = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_desc = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_desc_2 = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_detach = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_device = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_dims = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_dtype = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_element_count = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_element_stride = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_grad = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_grad_in = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_grad_out = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_is_contiguous = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_m_desc = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_m_grad_in = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_m_grad_out = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_m_signature = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_m_storage = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_make_tensor_view_data = R"doc(Build the POD payload used by Slang TensorView fields.)doc";
+
+static const char *__doc_sgl_func_Tensor_memory_type = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_offset = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_point_to = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_set_grad_in = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_set_grad_out = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_shape = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_signature = R"doc(Signature fragment used by SlangPy's native call-data cache.)doc";
+
+static const char *__doc_sgl_func_Tensor_storage = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_strides = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_to_string = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_update_signature = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_usage = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_view = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_view_inplace = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_with_grads = R"doc()doc";
+
+static const char *__doc_sgl_func_Tensor_write_slangpy_signature = R"doc(Write the SlangPy cache signature used by functional dispatch.)doc";
+
+static const char *__doc_sgl_func_Tensor_write_to_cursor =
+R"doc(Write a tensor to a shader cursor.
+
+Plain Tensor/WTensor/RWTensor/PrimalTensor targets are handled by
+writing the cursor's tensor fields directly. Differentiable wrapper
+targets write the primal tensor plus any gradient fields that are
+present on the target type.)doc";
+
+static const char *__doc_sgl_func_Tensor_write_to_cursor_2 =
+R"doc(Write a tensor to buffer cursor storage for pointer-backed Tensor
+fields or TensorView payloads.
+
+Resource-backed tensor fields require a ShaderCursor and will throw
+when encountered.)doc";
 
 static const char *__doc_sgl_get_acceleration_structure_sizes =
 R"doc(Query the device for buffer sizes required for acceleration structure
@@ -12348,19 +12669,21 @@ static const char *__doc_sgl_slangpy_Shape_Shape = R"doc()doc";
 
 static const char *__doc_sgl_slangpy_Shape_Shape_2 = R"doc(Constructor from optional 'tuple'.)doc";
 
-static const char *__doc_sgl_slangpy_Shape_Shape_3 =
+static const char *__doc_sgl_slangpy_Shape_Shape_3 = R"doc(Constructor from a vector of dimensions.)doc";
+
+static const char *__doc_sgl_slangpy_Shape_Shape_4 =
 R"doc(Constructor that creates a Shape of a given size with uninitialized
 values Use this when you need to populate the shape manually)doc";
 
-static const char *__doc_sgl_slangpy_Shape_Shape_4 =
+static const char *__doc_sgl_slangpy_Shape_Shape_5 =
 R"doc(Constructor that creates a Shape of a given size with all elements set
 to a value)doc";
 
-static const char *__doc_sgl_slangpy_Shape_Shape_5 = R"doc(Constructor from initializer list)doc";
+static const char *__doc_sgl_slangpy_Shape_Shape_6 = R"doc(Constructor from initializer list)doc";
 
-static const char *__doc_sgl_slangpy_Shape_Shape_6 = R"doc(Copy constructor.)doc";
+static const char *__doc_sgl_slangpy_Shape_Shape_7 = R"doc(Copy constructor.)doc";
 
-static const char *__doc_sgl_slangpy_Shape_Shape_7 = R"doc(Move constructor.)doc";
+static const char *__doc_sgl_slangpy_Shape_Shape_8 = R"doc(Move constructor.)doc";
 
 static const char *__doc_sgl_slangpy_Shape_Storage = R"doc()doc";
 

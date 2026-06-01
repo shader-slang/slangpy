@@ -505,20 +505,6 @@ SGL_PY_EXPORT(device_command)
             D(CommandEncoder, query_acceleration_structure_properties)
         )
         .def(
-            "serialize_acceleration_structure",
-            &CommandEncoder::serialize_acceleration_structure,
-            "dst"_a,
-            "src"_a,
-            D(CommandEncoder, serialize_acceleration_structure)
-        )
-        .def(
-            "deserialize_acceleration_structure",
-            &CommandEncoder::deserialize_acceleration_structure,
-            "dst"_a,
-            "src"_a,
-            D(CommandEncoder, deserialize_acceleration_structure)
-        )
-        .def(
             "convert_coop_vec_matrices",
             &CommandEncoder::convert_coop_vec_matrices,
             "dst"_a,
