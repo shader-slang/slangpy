@@ -14,6 +14,7 @@ The visible outcome is that code using `SGL_PROFILER_ZONE`, `Profiler::begin_zon
 
 - [x] (2026-06-01) Drafted the initial profiler recording architecture.
 - [x] (2026-06-01) Added realtime per-frame statistics as a first-class design goal.
+- [x] (2026-06-01) Revised event and timeline storage around unbounded fixed-size block chains.
 - [ ] Convert the current profiler shell into CPU event recording with snapshots.
 - [ ] Add worker-owned timeline assembly and live statistics publishing.
 - [ ] Add GPU timestamp query rings and delayed GPU span resolution.
@@ -23,10 +24,16 @@ The visible outcome is that code using `SGL_PROFILER_ZONE`, `Profiler::begin_zon
 ## Surprises and Discoveries
 
 - Observation: Realtime UI/terminal reporting should not call a full trace snapshot every frame.
-  Evidence: Full snapshots copy raw timeline vectors and can grow with retained trace history, while an ImGui window needs a small, bounded per-frame summary.
+  Evidence: Full snapshots copy raw timeline data and can grow with the unbounded main trace, while an ImGui window needs a small, bounded per-frame summary.
 
 - Observation: GPU timing data may naturally lag CPU frame closure.
   Evidence: GPU timestamp queries are only useful after command submission finishes and query results are ready, so live stats need an unresolved or delayed state rather than blocking the caller.
+
+- Observation: The main trace is not necessarily frame based.
+  Evidence: Profiler zones can be recorded outside explicit frames, so frame-count retention is the wrong primitive for the core trace. Frame windows should apply to live stats only.
+
+- Observation: Live reporting and `flush()` need access to events before a producer fills a block.
+  Evidence: Waiting for full event blocks would delay partial-frame stats and make `flush()` miss recently committed zones in mostly empty blocks.
 
 ## Decision Log
 
@@ -35,11 +42,23 @@ The visible outcome is that code using `SGL_PROFILER_ZONE`, `Profiler::begin_zon
   Date/Author: 2026-06-01 / Codex
 
 - Decision: Treat realtime per-frame stats as a separate worker-produced artifact named `LiveStatsStore`, not as a view rebuilt from `ProfilerSnapshot`.
-  Rationale: Polling stats every frame must be cheap, bounded, and non-blocking, while full trace snapshots are for inspection and can copy larger history.
+  Rationale: Polling stats every frame must be cheap, bounded, and non-blocking, while full trace snapshots are for inspection and can copy the larger main trace.
   Date/Author: 2026-06-01 / Codex
 
 - Decision: Publish live stats through double buffering or an atomically swapped immutable snapshot.
   Rationale: Readers such as ImGui and terminal reporting should copy the latest completed stats without taking worker locks or waiting for GPU query resolution.
+  Date/Author: 2026-06-01 / Codex
+
+- Decision: Store producer events in per-producer SPSC streams made from unbounded fixed-size blocks.
+  Rationale: Per-event recording must avoid mutexes and allocation, while block rollover can afford a simpler mutex-protected allocation/acquire path.
+  Date/Author: 2026-06-01 / Codex
+
+- Decision: Let the worker consume committed records from open event blocks, not just sealed or full blocks.
+  Rationale: `flush()` and live stats need visibility into recently written events even when the current block is only partially filled.
+  Date/Author: 2026-06-01 / Codex
+
+- Decision: Store assembled timelines in worker-owned unbounded fixed-size blocks and remove `trace_history_frame_count`.
+  Rationale: The main trace is not inherently frame based; memory limiting and trimming are deferred, while `live_stats_frame_count` remains the bounded frame-window setting for realtime stats.
   Date/Author: 2026-06-01 / Codex
 
 ## Outcomes and Retrospective
@@ -60,10 +79,10 @@ A profiler "zone" is a named scope with a begin and end. A "span" is the complet
 
 Do not add Tracy or any new third-party dependency.
 
-Extend `ProfilerDesc` in `src/sgl/device/profiler.h` with bounded settings:
+Extend `ProfilerDesc` in `src/sgl/device/profiler.h` with profiler storage and realtime settings:
 
-- `event_block_size_bytes`, default 64 KiB.
-- `trace_history_frame_count`, default large enough for debugging but bounded.
+- `event_block_size_bytes`, default 64 KiB, used for producer event stream blocks.
+- `timeline_block_size_bytes`, default 64 KiB, used for worker-owned timeline span blocks unless the implementation uses an equivalent fixed span-count block size.
 - `live_stats_frame_count`, default 120 frames.
 - `gpu_timestamp_query_count`, default sized for typical nested frame profiling.
 - `gpu_frame_settle_latency`, default a small number of frames such as 3.
@@ -72,14 +91,14 @@ Add read-only public structs in `src/sgl/device/profiler.h` and bind them to Pyt
 
 - `ProfilerTraceEvent`: span id, logical event id, parent ids, timeline id, source name/path, frame id, start time, end time, duration, depth, flags, resolved state.
 - `ProfilerTimeline`: keep the existing struct and add fields only if needed for stable display.
-- `ProfilerStats`: total event counts, dropped CPU/GPU counts, unresolved GPU counts, worker backlog, block rollover counts.
+- `ProfilerStats`: total event counts, dropped CPU/GPU counts, unresolved GPU counts, worker backlog, queued event bytes/blocks, timeline bytes/blocks, block rollover counts, and block allocation/acquire failure counts.
 - `ProfilerSnapshot`: copied vectors of timelines, trace events, frame records, and stats for offline inspection.
 - `ProfilerLiveZoneStats`: path/name, depth, CPU last/avg/min/max/count for the published window, GPU last/avg/min/max/count, unresolved GPU sample count, dropped sample count.
 - `ProfilerLiveFrameStats`: published frame id, newest CPU frame id, newest GPU-resolved frame id, latency in frames, frame CPU duration, frame GPU duration if resolved, per-zone stats, and global counters.
 
 Add public methods:
 
-- `void Profiler::flush()`: publish the current thread partial block and wait only for the worker to process currently published CPU/event blocks. It must not wait for GPU completion.
+- `void Profiler::flush()`: commit the calling thread's current event progress and wait only for the worker to process records committed before the flush point. It must not wait for GPU completion.
 - `ProfilerSnapshot Profiler::snapshot() const`: return a stable copied trace snapshot for inspection.
 - `ProfilerStats Profiler::stats() const`: return counters.
 - `ProfilerLiveFrameStats Profiler::live_stats() const`: return the latest worker-published live stats without blocking on the worker or GPU.
@@ -89,13 +108,15 @@ All Python function arguments added as part of this work must have type annotati
 
 ## Plan of Work
 
-First implement CPU-only recording. Add an internal shared `ProfilerState` owned by `Profiler`. Each profiler and producer thread gets a `ThreadRecorder` with fixed-size `EventBlock`s. Zone begin and end write compact records only: record kind, CPU tick, source pointer, logical event id, flags, and optional GPU query references. The hot path must not allocate after a recorder has its current block, and overflow uses drop-and-count rather than blocking.
+First implement CPU-only recording. Add an internal shared `ProfilerState` owned by `Profiler`. Each producer thread gets a `ThreadRecorder` with a per-producer SPSC event stream made from fixed-size `EventBlock`s. Zone begin and end write compact records only: record kind, CPU tick, source pointer, logical event id, flags, and optional GPU query references. Normal per-event writes must not take a mutex or allocate after a recorder has its current block.
+
+Represent each event block with a write offset owned by the producer, a `committed_offset` published with release semantics, and worker reads using acquire semantics. The worker may read all complete records up to the committed offset from the current open block. When a block fills, the producer seals it and grabs or allocates a new block. Rollover may use a mutex around the shared block pool/allocation path if that keeps the design simple. If rollover allocation/acquire fails, drop and count subsequent records until a block is available; do not block per-event handling.
 
 Generate logical event ids without a global atomic per zone. Use a collision-free representation, either a tuple of `producer_id` and `local_counter` or a bit-packed integer with documented bit widths and overflow behavior. The worker derives nesting, parent ids, depth, paths, frame membership, and durations.
 
-Add a worker thread that consumes published blocks and owns `TimelineStore`. `TimelineStore` stores CPU timelines per thread, GPU timelines per profiler-local device/queue pair, append-only span storage, frame ranges, and source-location aggregates. Keep retained trace history bounded by `trace_history_frame_count`.
+Add a worker thread that consumes committed event records from all producer streams and owns `TimelineStore`. `TimelineStore` stores CPU timelines per thread, GPU timelines per profiler-local device/queue pair, frame ranges, source-location aggregates, and append-only span storage in unbounded fixed-size blocks. The main trace is intentionally unbounded for now and must not trim by frame count.
 
-Add `LiveStatsStore` owned by the same worker. This store aggregates recent complete or settled frames into a small display-oriented data model. The worker publishes live stats by swapping an immutable snapshot pointer or flipping a double buffer. `Profiler::live_stats()` only copies the most recently published buffer and must not wait for the worker, GPU fences, or query readiness.
+Add `LiveStatsStore` owned by the same worker. This store aggregates recent complete or settled frames into a small display-oriented data model bounded by `live_stats_frame_count`. The worker publishes live stats by swapping an immutable snapshot pointer or flipping a double buffer. `Profiler::live_stats()` only copies the most recently published buffer and must not wait for the worker, GPU fences, or query readiness.
 
 Define live frame publication rules explicitly. CPU stats for frame N become publishable once `end_frame()` for frame N has been processed. GPU stats for frame N are incorporated when submitted GPU spans for that frame have finished and query results are ready. If GPU data is still unresolved after `gpu_frame_settle_latency` newer frames, publish frame N with CPU stats, any resolved GPU stats, and unresolved GPU counters. Later publications may update rolling GPU aggregates when late GPU spans resolve, but the API must expose the frame ids and latency so UI code can label data as delayed.
 
@@ -148,11 +169,17 @@ If `pre-commit` modifies files, inspect the changes, then rerun `pre-commit run 
 
 CPU recording acceptance: a test with nested zones returns a snapshot containing parent/child spans with stable names, non-negative durations, correct depth, and frame membership. A disabled profiler records no spans and reports no unexpected drops.
 
-Block rollover acceptance: a tiny `event_block_size_bytes` forces rollover, preserves completed events, and increments rollover counters. If blocks are exhausted, the hot path drops and counts events rather than blocking.
+Block rollover acceptance: a tiny `event_block_size_bytes` forces rollover, preserves committed events, and increments rollover counters. If block allocation/acquire fails, the hot path drops and counts events rather than blocking.
 
-Threading acceptance: zones recorded from multiple threads appear on separate CPU timelines. `flush()` publishes the calling thread partial block and returns after worker processing of currently published blocks without waiting for GPU completion.
+Partial-block acceptance: `flush()` sees zones committed in a not-full block and returns after the worker has processed records committed before the flush point.
+
+Threading acceptance: zones recorded from multiple threads appear on separate CPU timelines. Independent producer streams are consumed without a global per-event mutex.
+
+Timeline storage acceptance: a tiny `timeline_block_size_bytes` or equivalent span-count block setting forces timeline rollover, and snapshots include spans stored across multiple timeline blocks.
 
 Live stats acceptance: after several frames with repeated zones, `live_stats()` returns a bounded per-zone aggregate with the latest published frame id and rolling CPU stats. Calling `live_stats()` repeatedly from a frame loop must not block on GPU completion or worker backlog. Tests should verify that it returns the previous published value if the worker has not published a newer one yet.
+
+Stats acceptance: `stats()` reports queued event bytes/blocks, timeline bytes/blocks, block rollover counts, and block allocation/acquire failures where applicable.
 
 GPU acceptance: on devices with timestamp query support, a GPU zone recorded with an encoder appears as a resolved GPU span after submit, wait, and flush. Before the GPU result is ready, live stats report CPU data plus unresolved GPU counts instead of blocking. With a tiny query ring, GPU spans are dropped and counted while CPU spans are preserved.
 
