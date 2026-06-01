@@ -92,10 +92,10 @@ import slangpy;
 [shader("compute")]
 [numthreads(1, 1, 1)]
 void compute_main(
-    Tensor<float, 2> plain,
-    DiffTensor<float, 2> diff,
-    WDiffTensor<float, 2> wdiff,
-    RWDiffTensor<float, 2> rwdiff)
+    uniform Tensor<float, 2> plain,
+    uniform DiffTensor<float, 2> diff,
+    uniform WDiffTensor<float, 2> wdiff,
+    uniform RWDiffTensor<float, 2> rwdiff)
 {
 }
 )"
