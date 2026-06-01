@@ -368,9 +368,6 @@ public:
         std::span<AccelerationStructureQueryDesc> queries
     );
 
-    void serialize_acceleration_structure(BufferOffsetPair dst, AccelerationStructure* src);
-    void deserialize_acceleration_structure(AccelerationStructure* dst, BufferOffsetPair src);
-
     void convert_coop_vec_matrices(
         Buffer* dst,
         std::span<const CoopVecMatrixDesc> dst_descs,

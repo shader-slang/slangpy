@@ -329,6 +329,16 @@ SGL_PY_EXPORT(device_types)
     // ------------------------------------------------------------------------
 
     nb::sgl_enum<QueryType>(m, "QueryType");
+    nb::sgl_enum<CpuTimestampDomain>(m, "CpuTimestampDomain");
+
+    nb::class_<TimestampCalibration>(m, "TimestampCalibration", D(TimestampCalibration))
+        .def(nb::init<>())
+        .def_ro("cpu_domain", &TimestampCalibration::cpu_domain, D(TimestampCalibration, cpu_domain))
+        .def_ro("cpu_timestamp", &TimestampCalibration::cpu_timestamp, D(TimestampCalibration, cpu_timestamp))
+        .def_ro("cpu_frequency", &TimestampCalibration::cpu_frequency, D(TimestampCalibration, cpu_frequency))
+        .def_ro("gpu_timestamp", &TimestampCalibration::gpu_timestamp, D(TimestampCalibration, gpu_timestamp))
+        .def_ro("gpu_frequency", &TimestampCalibration::gpu_frequency, D(TimestampCalibration, gpu_frequency))
+        .def_ro("max_deviation_ns", &TimestampCalibration::max_deviation_ns, D(TimestampCalibration, max_deviation_ns));
 
     // ------------------------------------------------------------------------
     // Raytracing
