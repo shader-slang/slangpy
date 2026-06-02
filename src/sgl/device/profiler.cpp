@@ -353,6 +353,28 @@ struct ProfilerImpl {
 // Profiler
 // ----------------------------------------------------------------------------
 
+namespace {
+
+    std::mutex s_current_profiler_stack_mutex;
+    std::vector<Profiler*> s_current_profiler_stack;
+    std::atomic<Profiler*> s_current_profiler{nullptr};
+
+    void publish_current_profiler_locked() noexcept
+    {
+        Profiler* profiler = s_current_profiler_stack.empty() ? nullptr : s_current_profiler_stack.back();
+        s_current_profiler.store(profiler, std::memory_order_release);
+    }
+
+    void remove_current_profiler_entries(Profiler* profiler) noexcept
+    {
+        std::lock_guard lock(s_current_profiler_stack_mutex);
+        auto new_end = std::remove(s_current_profiler_stack.begin(), s_current_profiler_stack.end(), profiler);
+        s_current_profiler_stack.erase(new_end, s_current_profiler_stack.end());
+        publish_current_profiler_locked();
+    }
+
+} // namespace
+
 Profiler::Profiler(ProfilerDesc desc)
     : m_desc(std::move(desc))
 {
@@ -362,8 +384,7 @@ Profiler::Profiler(ProfilerDesc desc)
 
 Profiler::~Profiler()
 {
-    if (current_profiler_or_null() == this)
-        pop_current_profiler();
+    remove_current_profiler_entries(this);
     // TODO process remaining events and clean up zones
     delete m_impl;
 }
@@ -465,24 +486,6 @@ std::string Profiler::to_string() const
         m_debug_groups_enabled.load()
     );
 }
-
-// ---------------------------------------------------------------------------
-// Application-wide current profiler stack.
-// ---------------------------------------------------------------------------
-
-namespace {
-
-    std::mutex s_current_profiler_stack_mutex;
-    std::vector<Profiler*> s_current_profiler_stack;
-    std::atomic<Profiler*> s_current_profiler{nullptr};
-
-    void publish_current_profiler_locked() noexcept
-    {
-        Profiler* profiler = s_current_profiler_stack.empty() ? nullptr : s_current_profiler_stack.back();
-        s_current_profiler.store(profiler, std::memory_order_release);
-    }
-
-} // namespace
 
 Profiler* current_profiler_or_null()
 {
