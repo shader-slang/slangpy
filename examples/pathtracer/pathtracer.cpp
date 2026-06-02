@@ -407,6 +407,8 @@ struct Scene {
         , stage(stage)
         , camera(stage.camera)
     {
+        SGL_PROFILER_ZONE();
+
         // Prepare material descriptors
         material_descs.resize(stage.materials.size());
         for (size_t i = 0; i < stage.materials.size(); ++i)
@@ -522,6 +524,8 @@ struct Scene {
 
     ref<AccelerationStructure> build_blas(const MeshDesc& mesh_desc)
     {
+        SGL_PROFILER_ZONE();
+
         AccelerationStructureBuildInputTriangles build_input{
             .vertex_buffers = {BufferOffsetPair(vertex_buffer, mesh_desc.vertex_offset * sizeof(Mesh::Vertex))},
             .vertex_format = Format::rgb32_float,
@@ -560,6 +564,8 @@ struct Scene {
 
     ref<AccelerationStructure> build_tlas()
     {
+        SGL_PROFILER_ZONE();
+
         ref<AccelerationStructureInstanceList> instance_list
             = device->create_acceleration_structure_instance_list(instance_descs.size());
 
@@ -629,6 +635,8 @@ struct PathTracer {
         : device(device)
         , scene(scene)
     {
+        SGL_PROFILER_ZONE();
+
         if (USE_RAYTRACING_PIPELINE) {
             program = device->load_program("pathtracer.slang", {"rt_ray_gen", "rt_closest_hit", "rt_miss"});
             rt_pipeline = device->create_ray_tracing_pipeline({
@@ -656,6 +664,8 @@ struct PathTracer {
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> output, uint32_t frame)
     {
+        SGL_PROFILER_ZONE();
+
         if (USE_RAYTRACING_PIPELINE) {
             ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
             ShaderObject* shader_object = pass_encoder->bind_pipeline(rt_pipeline, shader_table);
@@ -687,12 +697,16 @@ struct Accumulator {
     Accumulator(ref<Device> device)
         : device(device)
     {
+        SGL_PROFILER_ZONE();
+
         program = device->load_program("accumulator.slang", {"compute_main"});
         kernel = device->create_compute_kernel({.program = program});
     }
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> input, ref<Texture> output, bool reset = false)
     {
+        SGL_PROFILER_ZONE();
+
         if (!accumulator || accumulator->width() != input->width() || accumulator->height() != input->height()) {
             accumulator = device->create_texture({
                 .format = Format::rgba32_float,
@@ -725,12 +739,16 @@ struct ToneMapper {
     ToneMapper(ref<Device> device)
         : device(device)
     {
+        SGL_PROFILER_ZONE();
+
         program = device->load_program("tone_mapper.slang", {"compute_main"});
         kernel = device->create_compute_kernel({.program = program});
     }
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> input, ref<Texture> output)
     {
+        SGL_PROFILER_ZONE();
+
         kernel->dispatch(
             uint3(input->width(), input->height(), 1),
             [&](ShaderCursor cursor)
@@ -757,11 +775,12 @@ struct App {
     std::unique_ptr<PathTracer> path_tracer;
     std::unique_ptr<Accumulator> accumulator;
     std::unique_ptr<ToneMapper> tone_mapper;
-    ref<Profiler> profiler;
     ref<ui::Context> ui;
 
     App()
     {
+        SGL_PROFILER_ZONE();
+
         window = Window::create({
             .width = 1920,
             .height = 1080,
@@ -809,8 +828,6 @@ struct App {
         path_tracer = std::make_unique<PathTracer>(device, *scene);
         accumulator = std::make_unique<Accumulator>(device);
         tone_mapper = std::make_unique<ToneMapper>(device);
-
-        profiler = make_ref<Profiler>();
 
         ui = make_ref<ui::Context>(device);
     }
@@ -864,6 +881,7 @@ struct App {
         Timer timer;
         while (!window->should_close()) {
             SGL_PROFILER_FRAME();
+            SGL_PROFILER_ZONE("frame");
 
             float dt = float(timer.elapsed_s());
             timer.reset();
@@ -875,7 +893,11 @@ struct App {
 
             if (!surface->config())
                 continue;
-            ref<Texture> surface_texture = surface->acquire_next_image();
+            ref<Texture> surface_texture;
+            {
+                SGL_PROFILER_ZONE("acquire_next_image");
+                surface_texture = surface->acquire_next_image();
+            }
             if (!surface_texture)
                 continue;
 
@@ -912,36 +934,30 @@ struct App {
 
             ref<CommandEncoder> command_encoder = device->create_command_encoder();
 
+            path_tracer->execute(command_encoder, render_texture, frame);
+            accumulator->execute(command_encoder, render_texture, accum_texture, frame == 0);
+            tone_mapper->execute(command_encoder, accum_texture, output_texture);
+
             {
-                SGL_PROFILER_ZONE("frame", command_encoder);
-
-                {
-                    SGL_PROFILER_ZONE("path_tracer", command_encoder);
-                    path_tracer->execute(command_encoder, render_texture, frame);
-                }
-
-                {
-                    SGL_PROFILER_ZONE("accumulator", command_encoder);
-                    accumulator->execute(command_encoder, render_texture, accum_texture, frame == 0);
-                }
-
-                {
-                    SGL_PROFILER_ZONE("tone_mapper", command_encoder);
-                    tone_mapper->execute(command_encoder, accum_texture, output_texture);
-                }
-
-                profiler->tick();
+                SGL_PROFILER_ZONE("blit");
+                command_encoder->blit(surface_texture, output_texture);
             }
-
-            command_encoder->blit(surface_texture, output_texture);
 
             ui->end_frame(surface_texture, command_encoder);
 
-            device->submit_command_buffer(command_encoder->finish());
+            {
+                SGL_PROFILER_ZONE("submit_command_buffer");
+                device->submit_command_buffer(command_encoder->finish());
+            }
 
-            surface->present();
+            {
+                SGL_PROFILER_ZONE("present");
+                surface->present();
+            }
 
             frame++;
+
+            current_profiler()->tick();
         }
 
         device->close();
@@ -952,10 +968,17 @@ int main()
 {
     sgl::static_init();
 
+    ref<Profiler> profiler = make_ref<Profiler>();
+
     {
         App app;
         app.main_loop();
     }
+
+    ref<ProfilerTrace> trace = profiler->trace_snapshot();
+    trace->write_to_json("trace.json");
+
+    profiler.reset();
 
     sgl::static_shutdown();
 }

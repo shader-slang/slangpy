@@ -86,13 +86,16 @@ class SGL_API ProfilerTrace : public Object {
     SGL_OBJECT(ProfilerTrace)
 public:
     struct Timeline {
-        std::vector<ProfilerZone> zones;
+        std::vector<const ProfilerZone*> zones;
     };
 
+    void write_to_json(const std::filesystem::path& path) const;
 
 private:
-    std::shared_ptr<ProfilerTraceStorage> m_storage;
+    std::shared_ptr<ProfilerTraceStorage> m_trace_storage;
     std::vector<Timeline> m_timelines;
+
+    friend class Profiler;
 };
 
 struct ProfilerImpl;
@@ -297,6 +300,15 @@ namespace detail {
 } // namespace detail
 } // namespace sgl
 
+#if SGL_MSVC
+#define SGL_PRETTY_FUNC __FUNCSIG__
+#elif SGL_GCC || SGL_CLANG
+#define SGL_PRETTY_FUNC __PRETTY_FUNCTION__
+#else
+#define SGL_PRETTY_FUNC __func__
+#endif
+
+
 /// Start a profiler zone for the current C++ scope.
 ///
 /// The macro always records the callsite source location (`__FILE__`, `__LINE__`, and `__func__`).
@@ -317,7 +329,7 @@ namespace detail {
 #define SGL_PROFILER_ZONE_IMPL(counter, ...) SGL_PROFILER_ZONE_IMPL2(counter, __VA_ARGS__)
 #define SGL_PROFILER_ZONE_IMPL2(counter, ...)                                                                          \
     static const ::sgl::ProfilerSourceLocation SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter)              \
-        = {__FILE__, __LINE__, __func__};                                                                              \
+        = {__FILE__, __LINE__, SGL_PRETTY_FUNC};                                                                       \
     ::sgl::detail::ProfilerZoneScope SGL_CONCAT_STRINGS(sgl_profiler_zone_, counter)(                                  \
         &SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter),                                                   \
         ##__VA_ARGS__                                                                                                  \
@@ -334,7 +346,7 @@ namespace detail {
 #define SGL_PROFILER_FRAME_IMPL(counter, ...) SGL_PROFILER_FRAME_IMPL2(counter, __VA_ARGS__)
 #define SGL_PROFILER_FRAME_IMPL2(counter, ...)                                                                         \
     static const ::sgl::ProfilerSourceLocation SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter)              \
-        = {__FILE__, __LINE__, __func__};                                                                              \
+        = {__FILE__, __LINE__, SGL_PRETTY_FUNC};                                                                       \
     ::sgl::detail::ProfilerFrameScope SGL_CONCAT_STRINGS(sgl_profiler_frame_, counter)(                                \
         &SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter),                                                   \
         ##__VA_ARGS__                                                                                                  \

@@ -9,7 +9,9 @@
 #include "sgl/core/timer.h"
 
 #include <deque>
+#include <fstream>
 #include <mutex>
+#include <ostream>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -230,8 +232,174 @@ struct ThreadData {
     short_vector<ProfilerZone*> zone_stack;
     short_vector<short_vector<ProfilerZone*>> zone_children_stack;
 
-    std::vector<ProfilerZone*> zones;
+    std::vector<const ProfilerZone*> zones;
 };
+
+// ----------------------------------------------------------------------------
+// ProfilerTrace
+// ----------------------------------------------------------------------------
+
+namespace {
+
+    void write_json_string(std::ostream& stream, const char* value)
+    {
+        stream << '"';
+
+        const char* chunk_begin = value;
+        const char* it = value;
+        while (*it) {
+            const unsigned char c = static_cast<unsigned char>(*it);
+            const char* escaped = nullptr;
+            switch (c) {
+            case '"':
+                escaped = "\\\"";
+                break;
+            case '\\':
+                escaped = "\\\\";
+                break;
+            case '\b':
+                escaped = "\\b";
+                break;
+            case '\f':
+                escaped = "\\f";
+                break;
+            case '\n':
+                escaped = "\\n";
+                break;
+            case '\r':
+                escaped = "\\r";
+                break;
+            case '\t':
+                escaped = "\\t";
+                break;
+            default:
+                break;
+            }
+
+            if (escaped) {
+                stream.write(chunk_begin, it - chunk_begin);
+                stream << escaped;
+                chunk_begin = it + 1;
+            } else if (c < 0x20) {
+                static constexpr char hex[] = "0123456789abcdef";
+                char escape[] = {'\\', 'u', '0', '0', hex[c >> 4], hex[c & 0xf]};
+                stream.write(chunk_begin, it - chunk_begin);
+                stream.write(escape, sizeof(escape));
+                chunk_begin = it + 1;
+            }
+
+            ++it;
+        }
+
+        stream.write(chunk_begin, it - chunk_begin);
+        stream << '"';
+    }
+
+    void write_trace_time_us(std::ostream& stream, uint64_t timestamp_ns)
+    {
+        stream << (timestamp_ns / 1000);
+
+        uint64_t fractional_ns = timestamp_ns % 1000;
+        if (fractional_ns != 0) {
+            char buffer[] = {
+                '.',
+                char('0' + (fractional_ns / 100)),
+                char('0' + ((fractional_ns / 10) % 10)),
+                char('0' + (fractional_ns % 10)),
+            };
+            stream.write(buffer, sizeof(buffer));
+        }
+    }
+
+    void update_base_timestamp(uint64_t& base_timestamp, bool& has_base_timestamp, const ProfilerZone* zone)
+    {
+        if (!has_base_timestamp || zone->start_timestamp < base_timestamp) {
+            base_timestamp = zone->start_timestamp;
+            has_base_timestamp = true;
+        }
+
+        for (const ProfilerZone* child : zone->children)
+            update_base_timestamp(base_timestamp, has_base_timestamp, child);
+    }
+
+    void write_trace_event_separator(std::ostream& stream, bool& first_event)
+    {
+        if (first_event)
+            first_event = false;
+        else
+            stream << ',';
+    }
+
+    void write_trace_metadata_event(std::ostream& stream, size_t timeline_index, bool& first_event)
+    {
+        write_trace_event_separator(stream, first_event);
+        stream << "{\"ph\":\"M\",\"name\":\"thread_name\",\"pid\":0,\"tid\":" << timeline_index
+               << ",\"args\":{\"name\":\"Timeline " << timeline_index << "\"}}";
+    }
+
+    void write_trace_zone(
+        std::ostream& stream,
+        const ProfilerZone* zone,
+        size_t timeline_index,
+        uint64_t base_timestamp,
+        bool& first_event
+    )
+    {
+        write_trace_event_separator(stream, first_event);
+
+        const ProfilerSourceLocation* source_location = zone->source_location;
+        const char* name = zone->name
+            ? zone->name
+            : ((source_location && source_location->function) ? source_location->function : "zone");
+
+        stream << "{\"ph\":\"X\",\"cat\":\"sgl\",\"name\":";
+        write_json_string(stream, name);
+        stream << ",\"pid\":0,\"tid\":" << timeline_index << ",\"ts\":";
+        write_trace_time_us(stream, zone->start_timestamp - base_timestamp);
+        stream << ",\"dur\":";
+        write_trace_time_us(stream, zone->end_timestamp - zone->start_timestamp);
+        stream << ",\"args\":{\"start_timestamp_ns\":" << zone->start_timestamp
+               << ",\"end_timestamp_ns\":" << zone->end_timestamp;
+
+        if (source_location) {
+            stream << ",\"source_file\":";
+            write_json_string(stream, source_location->file ? source_location->file : "");
+            stream << ",\"source_line\":" << source_location->line << ",\"source_function\":";
+            write_json_string(stream, source_location->function ? source_location->function : "");
+        }
+
+        stream << "}}";
+
+        for (const ProfilerZone* child : zone->children)
+            write_trace_zone(stream, child, timeline_index, base_timestamp, first_event);
+    }
+
+} // namespace
+
+void ProfilerTrace::write_to_json(const std::filesystem::path& path) const
+{
+    std::ofstream stream(path, std::ios::out | std::ios::binary);
+    SGL_CHECK(stream.good(), "{}: failed to open profiler trace JSON for writing", path);
+
+    uint64_t base_timestamp = 0;
+    bool has_base_timestamp = false;
+    for (const Timeline& timeline : m_timelines) {
+        for (const ProfilerZone* zone : timeline.zones)
+            update_base_timestamp(base_timestamp, has_base_timestamp, zone);
+    }
+
+    stream << "{\"traceEvents\":[";
+    bool first_event = true;
+    for (size_t timeline_index = 0; timeline_index < m_timelines.size(); ++timeline_index) {
+        const Timeline& timeline = m_timelines[timeline_index];
+        write_trace_metadata_event(stream, timeline_index, first_event);
+        for (const ProfilerZone* zone : timeline.zones)
+            write_trace_zone(stream, zone, timeline_index, base_timestamp, first_event);
+    }
+    stream << "],\"displayTimeUnit\":\"ns\"}";
+
+    SGL_CHECK(stream.good(), "{}: failed to write profiler trace JSON", path);
+}
 
 // ----------------------------------------------------------------------------
 // ProfilerImpl
@@ -403,6 +571,18 @@ const char* Profiler::intern_name(std::string_view name)
 ref<ProfilerTrace> Profiler::trace_snapshot()
 {
     ref<ProfilerTrace> trace = make_ref<ProfilerTrace>();
+    trace->m_trace_storage = m_impl->trace_storage;
+
+    short_vector<ThreadData*> thread_data_storage;
+    {
+        std::lock_guard lock(m_impl->thread_data_mutex);
+        thread_data_storage = m_impl->thread_data_storage;
+    }
+    for (ThreadData* thread_data : thread_data_storage) {
+        ProfilerTrace::Timeline timeline;
+        timeline.zones = thread_data->zones;
+        trace->m_timelines.push_back(std::move(timeline));
+    }
     return trace;
 }
 
