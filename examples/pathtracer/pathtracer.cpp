@@ -664,7 +664,7 @@ struct PathTracer {
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> output, uint32_t frame)
     {
-        SGL_PROFILER_ZONE();
+        SGL_PROFILER_ZONE(nullptr, command_encoder);
 
         if (USE_RAYTRACING_PIPELINE) {
             ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
@@ -705,7 +705,7 @@ struct Accumulator {
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> input, ref<Texture> output, bool reset = false)
     {
-        SGL_PROFILER_ZONE();
+        SGL_PROFILER_ZONE(nullptr, command_encoder);
 
         if (!accumulator || accumulator->width() != input->width() || accumulator->height() != input->height()) {
             accumulator = device->create_texture({
@@ -747,7 +747,7 @@ struct ToneMapper {
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> input, ref<Texture> output)
     {
-        SGL_PROFILER_ZONE();
+        SGL_PROFILER_ZONE(nullptr, command_encoder);
 
         kernel->dispatch(
             uint3(input->width(), input->height(), 1),
@@ -939,7 +939,7 @@ struct App {
             tone_mapper->execute(command_encoder, accum_texture, output_texture);
 
             {
-                SGL_PROFILER_ZONE("blit");
+                SGL_PROFILER_ZONE("blit", command_encoder);
                 command_encoder->blit(surface_texture, output_texture);
             }
 

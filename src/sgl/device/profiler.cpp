@@ -8,6 +8,10 @@
 #include "sgl/core/short_vector.h"
 #include "sgl/core/timer.h"
 
+#include "sgl/device/command.h"
+
+#include <concurrentqueue.h>
+
 #include <deque>
 #include <fstream>
 #include <mutex>
@@ -146,6 +150,8 @@ struct SourceLocationRegistry {
 enum class ProfilerEventType : uint16_t {
     begin_zone,
     end_zone,
+    begin_gpu_zone,
+    end_gpu_zone,
     begin_frame,
     end_frame,
 };
@@ -157,6 +163,16 @@ struct ProfilerEventBeginZone {
 };
 
 struct ProfilerEventEndZone {
+    uint64_t timestamp;
+};
+
+struct ProfilerEventBeginGpuZone {
+    uint64_t timestamp;
+    const ProfilerSourceLocation* source_location;
+    const char* name;
+};
+
+struct ProfilerEventEndGpuZone {
     uint64_t timestamp;
 };
 
@@ -175,6 +191,8 @@ struct ProfilerEvent {
     union {
         ProfilerEventBeginZone begin_zone;
         ProfilerEventEndZone end_zone;
+        ProfilerEventBeginGpuZone begin_gpu_zone;
+        ProfilerEventEndGpuZone end_gpu_zone;
         ProfilerEventBeginFrame begin_frame;
         ProfilerEventEndFrame end_frame;
     };
@@ -227,12 +245,16 @@ struct ThreadData {
 
     ProfilerTraceStorage* trace_storage{nullptr};
 
-    std::deque<ProfilerEvent> queue;
+    moodycamel::ConcurrentQueue<ProfilerEvent> queue;
+    moodycamel::ProducerToken producer_token{queue};
+    moodycamel::ConsumerToken consumer_token{queue};
 
     short_vector<ProfilerZone*> zone_stack;
     short_vector<short_vector<ProfilerZone*>> zone_children_stack;
 
     std::vector<const ProfilerZone*> zones;
+
+    void queue_event(ProfilerEvent&& event) { queue.enqueue(producer_token, event); }
 };
 
 // ----------------------------------------------------------------------------
@@ -453,11 +475,10 @@ struct ProfilerImpl {
         return s_thread_data;
     }
 
-    void queue_event(ThreadData* thread_data, ProfilerEvent&& event) { thread_data->queue.push_back(event); }
-
     void process_events(ThreadData* thread_data)
     {
-        for (const ProfilerEvent& event : thread_data->queue) {
+        ProfilerEvent event;
+        while (thread_data->queue.try_dequeue(thread_data->consumer_token, event)) {
             switch (event.type) {
             case ProfilerEventType::begin_zone: {
                 const ProfilerEventBeginZone& event_data = event.begin_zone;
@@ -496,6 +517,12 @@ struct ProfilerImpl {
 
                 break;
             }
+            case ProfilerEventType::begin_gpu_zone: {
+                break;
+            }
+            case ProfilerEventType::end_gpu_zone: {
+                break;
+            }
             case ProfilerEventType::begin_frame: // No-op for now.
             case ProfilerEventType::end_frame:   // No-op for now.
                 break;
@@ -503,7 +530,6 @@ struct ProfilerImpl {
                 SGL_THROW("Unknown queue event type: {}", static_cast<uint16_t>(event.type));
             }
         }
-        thread_data->queue.clear();
     }
 
     void process_threads()
@@ -607,37 +633,62 @@ bool Profiler::begin_zone(
     SGL_UNUSED(flags);
 
     ThreadData* thread_data = m_impl->get_this_thread_data();
-    m_impl->queue_event(
-        thread_data,
-        {
-            .type = ProfilerEventType::begin_zone,
-            .begin_zone{
+    thread_data->queue_event({
+        .type = ProfilerEventType::begin_zone,
+        .begin_zone{
+            .timestamp = timestamp,
+            .source_location = source_location,
+            .name = name,
+        },
+    });
+
+    if (encoder) {
+        if (is_set(flags, ProfilerZoneFlags::debug_group))
+            encoder->push_debug_group(name, float3(0.5f));
+
+        // encoder->write_timestamp();
+
+        thread_data->queue_event({
+            .type = ProfilerEventType::begin_gpu_zone,
+            .begin_gpu_zone{
                 .timestamp = timestamp,
                 .source_location = source_location,
                 .name = name,
             },
-        }
-    );
+        });
+    }
 
     return true;
 }
 
-void Profiler::end_zone(CommandEncoder* encoder) noexcept
+void Profiler::end_zone(CommandEncoder* encoder, ProfilerZoneFlags flags) noexcept
 {
     SGL_UNUSED(encoder);
+    SGL_UNUSED(flags);
 
     uint64_t timestamp = Timer::now();
 
     ThreadData* thread_data = m_impl->get_this_thread_data();
-    m_impl->queue_event(
-        thread_data,
-        {
-            .type = ProfilerEventType::end_zone,
-            .end_zone{
+    thread_data->queue_event({
+        .type = ProfilerEventType::end_zone,
+        .end_zone{
+            .timestamp = timestamp,
+        },
+    });
+
+    if (encoder) {
+        // encoder->write_timestamp();
+
+        if (is_set(flags, ProfilerZoneFlags::debug_group))
+            encoder->pop_debug_group();
+
+        thread_data->queue_event({
+            .type = ProfilerEventType::end_gpu_zone,
+            .end_gpu_zone{
                 .timestamp = timestamp,
             },
-        }
-    );
+        });
+    }
 }
 
 bool Profiler::begin_frame(const ProfilerSourceLocation* source_location, const char* name) noexcept

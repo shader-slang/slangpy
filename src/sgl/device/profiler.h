@@ -19,19 +19,15 @@
 namespace sgl {
 
 enum class ProfilerZoneFlags : uint32_t {
-    auto_ = 0,
-    cpu = 1 << 0,
-    gpu = 1 << 1,
-    debug_group = 1 << 2,
-    copy_name = 1 << 3,
+    none = 0,
+    debug_group = 1 << 0,
+    copy_name = 1 << 1,
 };
 SGL_ENUM_CLASS_OPERATORS(ProfilerZoneFlags);
 SGL_ENUM_FLAGS_INFO(
     ProfilerZoneFlags,
     {
-        {ProfilerZoneFlags::auto_, "auto"},
-        {ProfilerZoneFlags::cpu, "cpu"},
-        {ProfilerZoneFlags::gpu, "gpu"},
+        {ProfilerZoneFlags::none, "none"},
         {ProfilerZoneFlags::debug_group, "debug_group"},
         {ProfilerZoneFlags::copy_name, "copy_name"},
     }
@@ -146,7 +142,7 @@ public:
         CommandEncoder* encoder,
         ProfilerZoneFlags flags
     ) noexcept;
-    void end_zone(CommandEncoder* encoder) noexcept;
+    void end_zone(CommandEncoder* encoder, ProfilerZoneFlags flags) noexcept;
 
     bool begin_frame(const ProfilerSourceLocation* source_location, const char* name) noexcept;
     void end_frame() noexcept;
@@ -252,25 +248,28 @@ namespace detail {
             const ProfilerSourceLocation* source_location,
             const char* name = nullptr,
             CommandEncoder* encoder = nullptr,
-            ProfilerZoneFlags flags = ProfilerZoneFlags::auto_
+            ProfilerZoneFlags flags = ProfilerZoneFlags::none
         ) noexcept
+            : m_profiler(nullptr)
+            , m_encoder(encoder)
+            , m_flags(flags)
         {
             Profiler* profiler = current_profiler_or_null();
             if (profiler && profiler->begin_zone(source_location, name, encoder, flags)) {
                 m_profiler = profiler;
-                m_encoder = encoder;
             }
         }
 
         ~ProfilerZoneScope() noexcept
         {
             if (m_profiler)
-                m_profiler->end_zone(m_encoder);
+                m_profiler->end_zone(m_encoder, m_flags);
         }
 
     private:
-        Profiler* m_profiler{nullptr};
-        CommandEncoder* m_encoder{nullptr};
+        Profiler* m_profiler;
+        CommandEncoder* m_encoder;
+        ProfilerZoneFlags m_flags;
 
         SGL_NON_COPYABLE_AND_MOVABLE(ProfilerZoneScope);
     };

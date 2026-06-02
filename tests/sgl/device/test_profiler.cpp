@@ -25,30 +25,6 @@ TEST_CASE("profiler static zone macro is callable")
     CHECK(current_profiler_or_null() == nullptr);
 }
 
-TEST_CASE("profiler zone macro supports optional name encoder and flags")
-{
-    CommandEncoder* encoder = nullptr;
-    ProfilerZoneFlags flags = ProfilerZoneFlags::cpu | ProfilerZoneFlags::gpu;
-
-    {
-        ref<Profiler> profiler = make_ref<Profiler>();
-        CHECK(current_profiler() == profiler.get());
-
-        SGL_PROFILER_ZONE();
-        SGL_PROFILER_ZONE("native_literal_zone");
-        SGL_PROFILER_ZONE(nullptr, encoder);
-        SGL_PROFILER_ZONE("native_literal_gpu_zone", encoder);
-        SGL_PROFILER_ZONE(nullptr, nullptr, flags);
-        SGL_PROFILER_ZONE("native_literal_flagged_zone", nullptr, flags);
-        SGL_PROFILER_ZONE(nullptr, encoder, flags);
-        SGL_PROFILER_ZONE("native_literal_gpu_flagged_zone", encoder, flags);
-
-        profiler->tick();
-    }
-
-    CHECK(current_profiler_or_null() == nullptr);
-}
-
 TEST_CASE("profiler zone macro supports explicit interned and dynamic names")
 {
     CommandEncoder* encoder = nullptr;
@@ -65,16 +41,8 @@ TEST_CASE("profiler zone macro supports explicit interned and dynamic names")
 
         SGL_PROFILER_ZONE(name);
         SGL_PROFILER_ZONE(name, encoder);
-        SGL_PROFILER_ZONE(name, nullptr, ProfilerZoneFlags::cpu);
-        SGL_PROFILER_ZONE(name, encoder, ProfilerZoneFlags::cpu | ProfilerZoneFlags::gpu);
         SGL_PROFILER_ZONE(dynamic_name.c_str(), nullptr, ProfilerZoneFlags::copy_name);
         SGL_PROFILER_ZONE(dynamic_name.c_str(), encoder, ProfilerZoneFlags::copy_name);
-        SGL_PROFILER_ZONE(dynamic_name.c_str(), nullptr, ProfilerZoneFlags::copy_name | ProfilerZoneFlags::cpu);
-        SGL_PROFILER_ZONE(
-            dynamic_name.c_str(),
-            encoder,
-            ProfilerZoneFlags::copy_name | ProfilerZoneFlags::cpu | ProfilerZoneFlags::gpu
-        );
 
         profiler->tick();
     }
