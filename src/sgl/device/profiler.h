@@ -161,27 +161,27 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-// Thread-local current profiler stack.
+// Application-wide current profiler stack.
 // ---------------------------------------------------------------------------
 
-/// Push a profiler onto the thread-local current profiler stack.
+/// Push a profiler onto the application-wide current profiler stack.
 /// \param profiler Profiler to push (must not be null).
 SGL_API void push_current_profiler(Profiler* profiler);
 
-/// Pop the top profiler from the thread-local current profiler stack.
+/// Pop the top profiler from the application-wide current profiler stack.
 /// Throws if the stack is empty.
 /// \return The popped profiler.
 SGL_API Profiler* pop_current_profiler();
 
-/// Get the current profiler from the top of the thread-local profiler stack.
+/// Get the current profiler from the top of the application-wide profiler stack.
 /// Throws if the stack is empty.
 /// \return The current profiler.
 SGL_API Profiler* current_profiler();
 
-/// Return the current profiler for the calling thread, or null.
+/// Return the application-wide current profiler, or null.
 SGL_API Profiler* current_profiler_or_null();
 
-/// RAII helper that pushes a profiler as current on the calling thread.
+/// RAII helper that pushes a profiler as application-wide current profiler.
 class SGL_API ProfilerScope {
 public:
     explicit ProfilerScope(Profiler* profiler)

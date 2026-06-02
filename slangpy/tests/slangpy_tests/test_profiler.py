@@ -17,7 +17,7 @@ from slangpy import (
 )
 
 
-def test_profiler_context_manages_tls_stack():
+def test_profiler_context_manages_application_stack():
     profiler = Profiler()
 
     assert current_profiler_or_null() is None
@@ -47,23 +47,24 @@ def test_current_profiler_free_functions_are_lifo():
         current_profiler()
 
 
-def test_current_profiler_is_thread_local():
-    main_profiler = Profiler()
-    thread_profiler = Profiler()
+def test_current_profiler_is_application_wide():
+    profiler = Profiler()
     thread_ready = threading.Event()
+    worker_saw_profiler = False
 
     def thread_main() -> None:
-        with thread_profiler:
-            assert current_profiler() is thread_profiler
-            thread_ready.set()
+        nonlocal worker_saw_profiler
+        worker_saw_profiler = current_profiler() is profiler
+        thread_ready.set()
 
-    with main_profiler:
+    with profiler:
         thread = threading.Thread(target=thread_main)
         thread.start()
         thread.join()
-        assert current_profiler() is main_profiler
+        assert current_profiler() is profiler
 
     assert thread_ready.is_set()
+    assert worker_saw_profiler
     assert current_profiler_or_null() is None
 
 

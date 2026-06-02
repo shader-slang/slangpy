@@ -3,6 +3,8 @@
 #include "testing.h"
 #include "sgl/device/profiler.h"
 
+#include <thread>
+
 using namespace sgl;
 
 TEST_SUITE_BEGIN("device");
@@ -87,6 +89,31 @@ TEST_CASE("current profiler free functions are LIFO")
     CHECK(pop_current_profiler() == profiler_b.get());
     CHECK(current_profiler() == profiler_a.get());
     CHECK(pop_current_profiler() == profiler_a.get());
+    CHECK(current_profiler_or_null() == nullptr);
+}
+
+TEST_CASE("current profiler is application-wide")
+{
+    ref<Profiler> profiler = make_ref<Profiler>();
+    bool worker_saw_profiler = false;
+
+    {
+        ProfilerScope scope(profiler.get());
+
+        std::thread thread(
+            [&]()
+            {
+                worker_saw_profiler = current_profiler_or_null() == profiler.get();
+                SGL_PROFILER_ZONE("worker_zone");
+            }
+        );
+        thread.join();
+
+        profiler->tick();
+        CHECK(current_profiler() == profiler.get());
+    }
+
+    CHECK(worker_saw_profiler);
     CHECK(current_profiler_or_null() == nullptr);
 }
 
