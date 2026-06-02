@@ -44,7 +44,6 @@ SGL_PY_EXPORT(device_profiler)
         .def_rw("type", &ProfilerTimelineInfo::type)
         .def_rw("name", &ProfilerTimelineInfo::name)
         .def_rw("thread_id", &ProfilerTimelineInfo::thread_id)
-        .def_rw("device_id", &ProfilerTimelineInfo::device_id)
         .def_rw("queue", &ProfilerTimelineInfo::queue);
 
     nb::class_<ProfilerTrace, Object>(m, "ProfilerTrace").def("write_to_json", &ProfilerTrace::write_to_json, "path"_a);

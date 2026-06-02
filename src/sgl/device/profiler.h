@@ -76,6 +76,14 @@ struct ProfilerZone {
     std::span<const ProfilerZone*> children;
 };
 
+struct ProfilerFrame {
+    uint64_t start_timestamp;
+    uint64_t end_timestamp;
+    const ProfilerSourceLocation* source_location;
+    const char* name;
+    uint32_t frame_id;
+};
+
 class ProfilerTraceStorage;
 
 class SGL_API ProfilerTrace : public Object {

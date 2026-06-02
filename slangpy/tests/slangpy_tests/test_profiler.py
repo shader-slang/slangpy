@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import threading
+from pathlib import Path
 
 import pytest
 
 from slangpy import (
+    DeviceType,
+    Feature,
     Profiler,
     ProfilerDesc,
-    ProfilerTimeline,
+    ProfilerTrace,
+    ProfilerTimelineInfo,
     ProfilerTimelineType,
     ProfilerZoneFlags,
     current_profiler,
@@ -15,6 +19,7 @@ from slangpy import (
     pop_current_profiler,
     push_current_profiler,
 )
+from slangpy.testing import helpers
 
 
 def test_profiler_context_manages_application_stack():
@@ -112,16 +117,53 @@ def test_profiler_retained_settings_are_mutable():
 
 
 def test_profiler_timeline_public_shape():
-    timeline = ProfilerTimeline()
-    timeline.timeline_id = 5
+    timeline = ProfilerTimelineInfo()
     timeline.type = ProfilerTimelineType.gpu
     timeline.name = "GPU"
 
-    assert timeline.timeline_id == 5
     assert timeline.type == ProfilerTimelineType.gpu
     assert timeline.name == "GPU"
     assert timeline.queue is not None
-    assert ProfilerZoneFlags.gpu & ProfilerZoneFlags.gpu
+    assert ProfilerZoneFlags.copy_name & ProfilerZoneFlags.copy_name
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_slangpy_auto_gpu_zone_trace(device_type: DeviceType, tmp_path: Path) -> None:
+    device = helpers.get_device(device_type)
+    if not device.has_feature(Feature.timestamp_query) or not device.has_feature(
+        Feature.timestamp_calibration
+    ):
+        pytest.skip("Timestamp queries with calibration are not supported")
+
+    function = helpers.create_function_from_module(
+        device,
+        "add_numbers",
+        r"""
+float add_numbers(float a, float b) {
+    return a + b;
+}
+""",
+    )
+
+    profiler = Profiler()
+    try:
+        function(1.0, 2.0)
+        device.wait()
+        profiler.tick()
+
+        trace = profiler.trace_snapshot()
+        assert isinstance(trace, ProfilerTrace)
+
+        path = tmp_path / "slangpy-auto-zone.json"
+        trace.write_to_json(path)
+        text = path.read_text()
+
+        assert "add_numbers" in text
+        assert '"cat":"sgl.cpu"' in text
+        assert '"cat":"sgl.gpu"' in text
+    finally:
+        del profiler
+        assert current_profiler_or_null() is None
 
 
 if __name__ == "__main__":

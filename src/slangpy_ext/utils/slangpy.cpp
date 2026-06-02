@@ -14,6 +14,7 @@
 #include "sgl/device/device.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/command.h"
+#include "sgl/device/profiler.h"
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
 #include "device/cursor_writer.h"
@@ -975,26 +976,43 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
         command_encoder = temp_command_encoder.get();
     }
 
-    bool is_ray_tracing = opts.is_ray_tracing;
+    auto record_dispatch = [&]()
+    {
+        bool is_ray_tracing = opts.is_ray_tracing;
 
-    if (!is_ray_tracing) {
-        ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
-        ComputePipeline* pipeline = dynamic_cast<ComputePipeline*>(m_pipeline.get());
-        SGL_ASSERT(pipeline != nullptr);
-        ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline));
-        bind_call_data(cursor);
-        uint3 dispatch_thread_count
-            = dispatch_thread_count_from_total_threads(m_device.get(), pipeline->thread_group_size(), total_threads);
-        pass_encoder->dispatch(dispatch_thread_count);
-        pass_encoder->end();
+        if (!is_ray_tracing) {
+            ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
+            ComputePipeline* pipeline = dynamic_cast<ComputePipeline*>(m_pipeline.get());
+            SGL_ASSERT(pipeline != nullptr);
+            ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline));
+            bind_call_data(cursor);
+            uint3 dispatch_thread_count = dispatch_thread_count_from_total_threads(
+                m_device.get(),
+                pipeline->thread_group_size(),
+                total_threads
+            );
+            pass_encoder->dispatch(dispatch_thread_count);
+            pass_encoder->end();
+        } else {
+            ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
+            RayTracingPipeline* pipeline = dynamic_cast<RayTracingPipeline*>(m_pipeline.get());
+            SGL_ASSERT(pipeline != nullptr);
+            ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline, m_shader_table));
+            bind_call_data(cursor);
+            pass_encoder->dispatch_rays(0, uint3(total_threads, 1, 1));
+            pass_encoder->end();
+        }
+    };
+
+    if (Profiler* profiler = current_profiler_or_null(); profiler && profiler->auto_zones_enabled()) {
+        static const ProfilerSourceLocation source_location = {__FILE__, __LINE__, SGL_PRETTY_FUNC};
+        const char* zone_name = Profiler::intern_name(m_debug_name.empty() ? "NativeCallData::exec" : m_debug_name);
+        ProfilerZoneFlags zone_flags
+            = profiler->debug_groups_enabled() ? ProfilerZoneFlags::debug_group : ProfilerZoneFlags::none;
+        ::sgl::detail::ProfilerZoneScope zone(&source_location, zone_name, command_encoder, zone_flags);
+        record_dispatch();
     } else {
-        ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
-        RayTracingPipeline* pipeline = dynamic_cast<RayTracingPipeline*>(m_pipeline.get());
-        SGL_ASSERT(pipeline != nullptr);
-        ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline, m_shader_table));
-        bind_call_data(cursor);
-        pass_encoder->dispatch_rays(0, uint3(total_threads, 1, 1));
-        pass_encoder->end();
+        record_dispatch();
     }
 
     // If we created a temporary command encoder, we need to submit it.
