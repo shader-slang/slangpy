@@ -13,6 +13,8 @@
 #include <atomic>
 #include <string>
 #include <string_view>
+#include <memory>
+#include <span>
 
 namespace sgl {
 
@@ -69,6 +71,33 @@ struct ProfilerTimeline {
     CommandQueueType queue{CommandQueueType::graphics};
 };
 
+struct ProfilerZone {
+    uint64_t start_timestamp;
+    uint64_t end_timestamp;
+    const ProfilerSourceLocation* source_location;
+    const char* name;
+    ProfilerZone* parent;
+    std::span<ProfilerZone*> children;
+};
+
+class ProfilerTraceStorage;
+
+class SGL_API ProfilerTrace : public Object {
+    SGL_OBJECT(ProfilerTrace)
+public:
+    struct Timeline {
+        std::vector<ProfilerZone> zones;
+    };
+
+
+
+private:
+    std::shared_ptr<ProfilerTraceStorage> m_storage;
+    std::vector<Timeline> m_timelines;
+};
+
+struct ProfilerImpl;
+
 /// Hierarchical CPU/GPU application profiler.
 class SGL_API Profiler : public Object {
     SGL_OBJECT(Profiler)
@@ -102,6 +131,10 @@ public:
 
     const ProfilerDesc& desc() const { return m_desc; }
 
+    /// Get a snapshot of the current profiler trace data.
+    /// The returned trace is a copy of the data recorded so far, and is not updated with future profiling events.
+    ref<ProfilerTrace> trace_snapshot();
+
     bool begin_zone(
         const ProfilerSourceLocation* source_location,
         const char* name,
@@ -113,6 +146,8 @@ public:
     bool begin_frame(const ProfilerSourceLocation* source_location, const char* name) noexcept;
     void end_frame() noexcept;
 
+    void tick();
+
     std::string to_string() const override;
 
 private:
@@ -120,6 +155,8 @@ private:
     std::atomic<bool> m_enabled{true};
     std::atomic<bool> m_auto_zones_enabled{true};
     std::atomic<bool> m_debug_groups_enabled{false};
+
+    ProfilerImpl* m_impl;
 
     friend class ProfilerZoneScope;
 };

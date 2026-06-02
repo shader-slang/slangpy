@@ -931,6 +931,8 @@ struct App {
                     SGL_PROFILER_ZONE("tone_mapper", command_encoder);
                     tone_mapper->execute(command_encoder, accum_texture, output_texture);
                 }
+
+                profiler->tick();
             }
 
             command_encoder->blit(surface_texture, output_texture);
