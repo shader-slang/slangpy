@@ -312,7 +312,7 @@ struct ProfilerImpl {
                 }
                 auto& children = thread_data->zone_children_stack.back();
                 if (children.size() > 0) {
-                    ProfilerZone** children_data = thread_data->trace_storage->allocate<ProfilerZone*>(children.size());
+                    const ProfilerZone** children_data = thread_data->trace_storage->allocate<const ProfilerZone*>(children.size());
                     std::copy(children.begin(), children.end(), children_data);
                     zone->children = {children_data, children.size()};
                     children.clear();

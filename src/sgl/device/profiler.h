@@ -76,8 +76,8 @@ struct ProfilerZone {
     uint64_t end_timestamp;
     const ProfilerSourceLocation* source_location;
     const char* name;
-    ProfilerZone* parent;
-    std::span<ProfilerZone*> children;
+    const ProfilerZone* parent;
+    std::span<const ProfilerZone*> children;
 };
 
 class ProfilerTraceStorage;
@@ -88,7 +88,6 @@ public:
     struct Timeline {
         std::vector<ProfilerZone> zones;
     };
-
 
 
 private:
@@ -245,8 +244,10 @@ namespace detail {
         ) noexcept
         {
             Profiler* profiler = current_profiler_or_null();
-            if (profiler && profiler->begin_zone(source_location, name, encoder, flags))
+            if (profiler && profiler->begin_zone(source_location, name, encoder, flags)) {
                 m_profiler = profiler;
+                m_encoder = encoder;
+            }
         }
 
         ~ProfilerZoneScope() noexcept
