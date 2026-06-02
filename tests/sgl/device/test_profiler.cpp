@@ -11,13 +11,15 @@ TEST_SUITE_BEGIN("device");
 
 TEST_CASE("profiler static zone macro is callable")
 {
-    ref<Profiler> profiler = make_ref<Profiler>();
-
     {
-        ProfilerScope scope(profiler.get());
+        ref<Profiler> profiler = make_ref<Profiler>();
+        CHECK(current_profiler() == profiler.get());
+
         {
             SGL_PROFILER_ZONE("native_static_zone");
         }
+
+        profiler->tick();
     }
 
     CHECK(current_profiler_or_null() == nullptr);
@@ -25,12 +27,12 @@ TEST_CASE("profiler static zone macro is callable")
 
 TEST_CASE("profiler zone macro supports optional name encoder and flags")
 {
-    ref<Profiler> profiler = make_ref<Profiler>();
     CommandEncoder* encoder = nullptr;
     ProfilerZoneFlags flags = ProfilerZoneFlags::cpu | ProfilerZoneFlags::gpu;
 
     {
-        ProfilerScope scope(profiler.get());
+        ref<Profiler> profiler = make_ref<Profiler>();
+        CHECK(current_profiler() == profiler.get());
 
         SGL_PROFILER_ZONE();
         SGL_PROFILER_ZONE("native_literal_zone");
@@ -40,6 +42,8 @@ TEST_CASE("profiler zone macro supports optional name encoder and flags")
         SGL_PROFILER_ZONE("native_literal_flagged_zone", nullptr, flags);
         SGL_PROFILER_ZONE(nullptr, encoder, flags);
         SGL_PROFILER_ZONE("native_literal_gpu_flagged_zone", encoder, flags);
+
+        profiler->tick();
     }
 
     CHECK(current_profiler_or_null() == nullptr);
@@ -47,7 +51,6 @@ TEST_CASE("profiler zone macro supports optional name encoder and flags")
 
 TEST_CASE("profiler zone macro supports explicit interned and dynamic names")
 {
-    ref<Profiler> profiler = make_ref<Profiler>();
     CommandEncoder* encoder = nullptr;
     const char* name = Profiler::intern_name("native_interned_zone");
     std::string dynamic_name = "native_dynamic_zone";
@@ -57,7 +60,8 @@ TEST_CASE("profiler zone macro supports explicit interned and dynamic names")
     CHECK(std::string_view(name) == "native_interned_zone");
 
     {
-        ProfilerScope scope(profiler.get());
+        ref<Profiler> profiler = make_ref<Profiler>();
+        CHECK(current_profiler() == profiler.get());
 
         SGL_PROFILER_ZONE(name);
         SGL_PROFILER_ZONE(name, encoder);
@@ -71,6 +75,8 @@ TEST_CASE("profiler zone macro supports explicit interned and dynamic names")
             encoder,
             ProfilerZoneFlags::copy_name | ProfilerZoneFlags::cpu | ProfilerZoneFlags::gpu
         );
+
+        profiler->tick();
     }
 
     CHECK(current_profiler_or_null() == nullptr);
@@ -78,27 +84,54 @@ TEST_CASE("profiler zone macro supports explicit interned and dynamic names")
 
 TEST_CASE("current profiler free functions are LIFO")
 {
-    ref<Profiler> profiler_a = make_ref<Profiler>();
-    ref<Profiler> profiler_b = make_ref<Profiler>();
+    {
+        ref<Profiler> profiler_a = make_ref<Profiler>();
+        Profiler* profiler_a_ptr = profiler_a.get();
+        CHECK(current_profiler() == profiler_a_ptr);
 
-    push_current_profiler(profiler_a.get());
-    CHECK(current_profiler() == profiler_a.get());
+        {
+            ref<Profiler> profiler_b = make_ref<Profiler>();
+            Profiler* profiler_b_ptr = profiler_b.get();
+            CHECK(current_profiler() == profiler_b_ptr);
 
-    push_current_profiler(profiler_b.get());
-    CHECK(current_profiler() == profiler_b.get());
-    CHECK(pop_current_profiler() == profiler_b.get());
-    CHECK(current_profiler() == profiler_a.get());
-    CHECK(pop_current_profiler() == profiler_a.get());
+            push_current_profiler(profiler_a_ptr);
+            CHECK(current_profiler() == profiler_a_ptr);
+
+            push_current_profiler(profiler_b_ptr);
+            CHECK(current_profiler() == profiler_b_ptr);
+            CHECK(pop_current_profiler() == profiler_b_ptr);
+            CHECK(current_profiler() == profiler_a_ptr);
+            CHECK(pop_current_profiler() == profiler_a_ptr);
+            CHECK(current_profiler() == profiler_b_ptr);
+        }
+
+        CHECK(current_profiler() == profiler_a_ptr);
+    }
+
+    CHECK(current_profiler_or_null() == nullptr);
+}
+
+TEST_CASE("profiler destruction removes stack entries")
+{
+    {
+        ref<Profiler> profiler = make_ref<Profiler>();
+        Profiler* profiler_ptr = profiler.get();
+
+        CHECK(current_profiler() == profiler_ptr);
+        push_current_profiler(profiler_ptr);
+        CHECK(current_profiler() == profiler_ptr);
+    }
+
     CHECK(current_profiler_or_null() == nullptr);
 }
 
 TEST_CASE("current profiler is application-wide")
 {
-    ref<Profiler> profiler = make_ref<Profiler>();
     bool worker_saw_profiler = false;
 
     {
-        ProfilerScope scope(profiler.get());
+        ref<Profiler> profiler = make_ref<Profiler>();
+        CHECK(current_profiler() == profiler.get());
 
         std::thread thread(
             [&]()
@@ -119,18 +152,23 @@ TEST_CASE("current profiler is application-wide")
 
 TEST_CASE("profiler scope is movable")
 {
-    ref<Profiler> profiler_a = make_ref<Profiler>();
-    ref<Profiler> profiler_b = make_ref<Profiler>();
-
     {
-        ProfilerScope scope_a(profiler_a.get());
-        CHECK(current_profiler() == profiler_a.get());
-
-        ProfilerScope scope_b(profiler_b.get());
+        ref<Profiler> profiler_a = make_ref<Profiler>();
+        ref<Profiler> profiler_b = make_ref<Profiler>();
         CHECK(current_profiler() == profiler_b.get());
 
-        scope_b = std::move(scope_a);
-        CHECK(current_profiler() == profiler_a.get());
+        {
+            ProfilerScope scope_a(profiler_a.get());
+            CHECK(current_profiler() == profiler_a.get());
+
+            ProfilerScope scope_b(profiler_b.get());
+            CHECK(current_profiler() == profiler_b.get());
+
+            scope_b = std::move(scope_a);
+            CHECK(current_profiler() == profiler_a.get());
+        }
+
+        CHECK(current_profiler() == profiler_b.get());
     }
 
     CHECK(current_profiler_or_null() == nullptr);
@@ -156,21 +194,25 @@ TEST_CASE("profiler interned source locations use structured keys")
 
 TEST_CASE("profiler retained settings are mutable")
 {
-    ref<Profiler> profiler = make_ref<Profiler>();
+    {
+        ref<Profiler> profiler = make_ref<Profiler>();
 
-    CHECK(profiler->enabled());
-    profiler->set_enabled(false);
-    CHECK(!profiler->enabled());
+        CHECK(profiler->enabled());
+        profiler->set_enabled(false);
+        CHECK(!profiler->enabled());
 
-    CHECK(profiler->auto_zones_enabled());
-    profiler->set_auto_zones_enabled(false);
-    CHECK(!profiler->auto_zones_enabled());
+        CHECK(profiler->auto_zones_enabled());
+        profiler->set_auto_zones_enabled(false);
+        CHECK(!profiler->auto_zones_enabled());
 
-    CHECK(!profiler->debug_groups_enabled());
-    profiler->set_debug_groups_enabled(true);
-    CHECK(profiler->debug_groups_enabled());
+        CHECK(!profiler->debug_groups_enabled());
+        profiler->set_debug_groups_enabled(true);
+        CHECK(profiler->debug_groups_enabled());
 
-    CHECK(&profiler->desc() != nullptr);
+        CHECK(&profiler->desc() != nullptr);
+    }
+
+    CHECK(current_profiler_or_null() == nullptr);
 }
 
 TEST_SUITE_END();

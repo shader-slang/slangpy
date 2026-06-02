@@ -18,11 +18,16 @@ from slangpy import (
 
 
 def test_profiler_context_manages_application_stack():
-    profiler = Profiler()
-
     assert current_profiler_or_null() is None
+
+    profiler = Profiler()
+    assert current_profiler() is profiler
+
     with profiler:
         assert current_profiler() is profiler
+
+    assert current_profiler() is profiler
+    del profiler
     assert current_profiler_or_null() is None
 
     with pytest.raises(RuntimeError, match="No current profiler"):
@@ -31,7 +36,10 @@ def test_profiler_context_manages_application_stack():
 
 def test_current_profiler_free_functions_are_lifo():
     profiler_a = Profiler()
+    assert current_profiler() is profiler_a
+
     profiler_b = Profiler()
+    assert current_profiler() is profiler_b
 
     push_current_profiler(profiler_a)
     assert current_profiler() is profiler_a
@@ -41,10 +49,25 @@ def test_current_profiler_free_functions_are_lifo():
     assert pop_current_profiler() is profiler_b
     assert current_profiler() is profiler_a
     assert pop_current_profiler() is profiler_a
+    assert current_profiler() is profiler_b
+
+    del profiler_b
+    assert current_profiler() is profiler_a
+
+    del profiler_a
     assert current_profiler_or_null() is None
 
     with pytest.raises(RuntimeError, match="No current profiler"):
         current_profiler()
+
+
+def test_profiler_destruction_removes_stack_entries():
+    profiler = Profiler()
+    push_current_profiler(profiler)
+    assert current_profiler() is profiler
+
+    del profiler
+    assert current_profiler_or_null() is None
 
 
 def test_current_profiler_is_application_wide():
@@ -57,14 +80,14 @@ def test_current_profiler_is_application_wide():
         worker_saw_profiler = current_profiler() is profiler
         thread_ready.set()
 
-    with profiler:
-        thread = threading.Thread(target=thread_main)
-        thread.start()
-        thread.join()
-        assert current_profiler() is profiler
+    thread = threading.Thread(target=thread_main)
+    thread.start()
+    thread.join()
+    assert current_profiler() is profiler
 
     assert thread_ready.is_set()
     assert worker_saw_profiler
+    del profiler
     assert current_profiler_or_null() is None
 
 
@@ -84,6 +107,8 @@ def test_profiler_retained_settings_are_mutable():
     assert profiler.debug_groups_enabled
 
     assert isinstance(profiler.desc, ProfilerDesc)
+    del profiler
+    assert current_profiler_or_null() is None
 
 
 def test_profiler_timeline_public_shape():

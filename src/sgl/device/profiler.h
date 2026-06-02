@@ -98,6 +98,9 @@ private:
 struct ProfilerImpl;
 
 /// Hierarchical CPU/GPU application profiler.
+///
+/// A profiler becomes the application-wide current profiler when constructed and removes itself from the current
+/// stack when destroyed.
 class SGL_API Profiler : public Object {
     SGL_OBJECT(Profiler)
 public:
@@ -163,6 +166,12 @@ private:
 // ---------------------------------------------------------------------------
 // Application-wide current profiler stack.
 // ---------------------------------------------------------------------------
+
+// TODO:
+// The profiler stack stores raw pointers so live profiler construction can automatically push without keeping
+// profilers alive forever. Destruction removes all stack entries for that profiler, but this does not prevent a
+// racing thread from observing a profiler pointer while the profiler is being destroyed. Stronger lifetime
+// guarantees for live switching/destruction require an activation model with retained ownership.
 
 /// Push a profiler onto the application-wide current profiler stack.
 /// \param profiler Profiler to push (must not be null).

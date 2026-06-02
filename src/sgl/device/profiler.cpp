@@ -357,10 +357,13 @@ Profiler::Profiler(ProfilerDesc desc)
     : m_desc(std::move(desc))
 {
     m_impl = new ProfilerImpl(this);
+    push_current_profiler(this);
 }
 
 Profiler::~Profiler()
 {
+    if (current_profiler_or_null() == this)
+        pop_current_profiler();
     // TODO process remaining events and clean up zones
     delete m_impl;
 }
@@ -470,12 +473,12 @@ std::string Profiler::to_string() const
 namespace {
 
     std::mutex s_current_profiler_stack_mutex;
-    std::vector<ref<Profiler>> s_current_profiler_stack;
+    std::vector<Profiler*> s_current_profiler_stack;
     std::atomic<Profiler*> s_current_profiler{nullptr};
 
     void publish_current_profiler_locked() noexcept
     {
-        Profiler* profiler = s_current_profiler_stack.empty() ? nullptr : s_current_profiler_stack.back().get();
+        Profiler* profiler = s_current_profiler_stack.empty() ? nullptr : s_current_profiler_stack.back();
         s_current_profiler.store(profiler, std::memory_order_release);
     }
 
@@ -489,7 +492,7 @@ Profiler* current_profiler_or_null()
 Profiler* current_profiler()
 {
     Profiler* profiler = current_profiler_or_null();
-    SGL_CHECK(profiler, "No current profiler. Use push_current_profiler() or ProfilerScope to set one.");
+    SGL_CHECK(profiler, "No current profiler. Create a Profiler or use push_current_profiler() to set one.");
     return profiler;
 }
 
@@ -498,7 +501,7 @@ void push_current_profiler(Profiler* profiler)
     SGL_CHECK(profiler != nullptr, "Cannot push a null profiler.");
 
     std::lock_guard lock(s_current_profiler_stack_mutex);
-    s_current_profiler_stack.push_back(ref<Profiler>(profiler));
+    s_current_profiler_stack.push_back(profiler);
     publish_current_profiler_locked();
 }
 
@@ -511,7 +514,7 @@ Profiler* pop_current_profiler()
         "No profiler to pop. push_current_profiler()/pop_current_profiler() mismatch."
     );
 
-    Profiler* profiler = s_current_profiler_stack.back().get();
+    Profiler* profiler = s_current_profiler_stack.back();
     s_current_profiler_stack.pop_back();
     publish_current_profiler_locked();
     return profiler;

@@ -48,7 +48,7 @@ SGL_PY_EXPORT(device_profiler)
         .def_rw("device_id", &ProfilerTimeline::device_id)
         .def_rw("queue", &ProfilerTimeline::queue);
 
-    nb::class_<Profiler, Object>(m, "Profiler", "Standalone application profiler.")
+    nb::class_<Profiler, Object>(m, "Profiler", D(Profiler))
         .def(nb::init<ProfilerDesc>(), "desc"_a = ProfilerDesc())
         .def(
             "__enter__",

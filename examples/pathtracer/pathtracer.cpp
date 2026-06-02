@@ -863,6 +863,8 @@ struct App {
         uint32_t frame = 0;
         Timer timer;
         while (!window->should_close()) {
+            SGL_PROFILER_FRAME();
+
             float dt = float(timer.elapsed_s());
             timer.reset();
 
@@ -911,10 +913,6 @@ struct App {
             ref<CommandEncoder> command_encoder = device->create_command_encoder();
 
             {
-                ProfilerScope profiler_scope(profiler);
-
-                SGL_PROFILER_FRAME();
-
                 SGL_PROFILER_ZONE("frame", command_encoder);
 
                 {

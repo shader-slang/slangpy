@@ -6429,7 +6429,7 @@ static const char *__doc_sgl_ProfilerRecording_recorded_spans = R"doc()doc";
 
 static const char *__doc_sgl_ProfilerRecording_thread_id = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerScope = R"doc(RAII helper that pushes a profiler as current on the calling thread.)doc";
+static const char *__doc_sgl_ProfilerScope = R"doc(RAII helper that pushes a profiler as application-wide current profiler.)doc";
 
 static const char *__doc_sgl_ProfilerScope_ProfilerScope = R"doc()doc";
 
@@ -12101,9 +12101,8 @@ Returns:
     The popped device.)doc";
 
 static const char *__doc_sgl_pop_current_profiler =
-R"doc(Pop the top profiler from the thread-local current profiler stack.
-Flushes any pending CPU-only recording for that profiler before
-popping. Throws if the stack is empty.
+R"doc(Pop the top profiler from the application-wide current profiler stack.
+Throws if the stack is empty.
 
 Returns:
     The popped profiler.)doc";
@@ -12123,7 +12122,7 @@ Parameter ``device``:
     Device to push (must not be null).)doc";
 
 static const char *__doc_sgl_push_current_profiler =
-R"doc(Push a profiler onto the thread-local current profiler stack.
+R"doc(Push a profiler onto the application-wide current profiler stack.
 
 Parameter ``profiler``:
     Profiler to push (must not be null).)doc";
