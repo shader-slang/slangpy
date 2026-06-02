@@ -22,8 +22,10 @@
 
 #include <array>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 #include <unordered_set>
 
@@ -259,8 +261,23 @@ struct ShaderCacheStats {
 struct ShaderHotReloadEvent { };
 using ShaderHotReloadCallback = std::function<void(const ShaderHotReloadEvent&)>;
 
-
 using DeviceCloseCallback = std::function<void(Device*)>;
+
+struct CommandRecordingSubmittedEvent {
+    Device* device;
+    CommandRecordingID id{0};
+    CommandBuffer* command_buffer{nullptr};
+    uint64_t submit_id{0};
+};
+
+struct CommandRecordingDiscardedEvent {
+    Device* device;
+    CommandRecordingID id{0};
+};
+
+using CommandRecordingCallbackID = uint64_t;
+using CommandRecordingSubmittedCallback = std::function<void(const CommandRecordingSubmittedEvent&)>;
+using CommandRecordingDiscardedCallback = std::function<void(const CommandRecordingDiscardedEvent&)>;
 
 class SGL_API Device : public Object {
     SGL_OBJECT(Device)
@@ -831,6 +848,17 @@ public:
     void _register_device_child(DeviceChild* device_child);
     void _unregister_device_child(DeviceChild* device_child);
 
+    CommandRecordingCallbackID
+    _register_command_recording_submitted_callback(CommandRecordingSubmittedCallback callback);
+    CommandRecordingCallbackID
+    _register_command_recording_discarded_callback(CommandRecordingDiscardedCallback callback);
+    void _unregister_command_recording_submitted_callback(CommandRecordingCallbackID id);
+    void _unregister_command_recording_discarded_callback(CommandRecordingCallbackID id);
+
+    CommandRecordingID _allocate_command_recording_id();
+    void _notify_command_recording_submitted(CommandRecordingID id, CommandBuffer* command_buffer, uint64_t submit_id);
+    void _notify_command_recording_discarded(CommandRecordingID id);
+
 private:
     ref<refl::Layout> reload_builtin_layout();
 
@@ -865,6 +893,13 @@ private:
 
     /// List of callbacks for shutdown event
     std::vector<DeviceCloseCallback> m_device_close_callbacks;
+
+    CommandRecordingCallbackID m_next_command_recording_callback_id{1};
+    std::mutex m_command_recording_callback_mutex;
+    std::vector<std::pair<CommandRecordingCallbackID, CommandRecordingSubmittedCallback>>
+        m_command_recording_submitted_callbacks;
+    std::vector<std::pair<CommandRecordingCallbackID, CommandRecordingDiscardedCallback>>
+        m_command_recording_discarded_callbacks;
 
     ref<Blitter> m_blitter;
     ref<HotReload> m_hot_reload;

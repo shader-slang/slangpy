@@ -39,6 +39,8 @@
 #include <comdef.h>
 #endif
 
+#include <algorithm>
+#include <atomic>
 #include <mutex>
 
 namespace sgl {
@@ -46,6 +48,7 @@ namespace sgl {
 static std::vector<Device*> s_devices;
 static std::mutex s_devices_mutex;
 static thread_local std::vector<Device*> s_tls_current_device_stack;
+static std::atomic<CommandRecordingID> s_next_command_recording_id{1};
 
 inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
 {
@@ -500,6 +503,11 @@ void Device::close()
 
     m_shader_hot_reload_callbacks.clear();
     m_device_close_callbacks.clear();
+    {
+        std::lock_guard lock(m_command_recording_callback_mutex);
+        m_command_recording_submitted_callbacks.clear();
+        m_command_recording_discarded_callbacks.clear();
+    }
 
     m_blitter.reset();
     m_debug_printer.reset();
@@ -855,7 +863,7 @@ ref<CommandEncoder> Device::create_command_encoder(CommandQueueType queue)
 
     Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder;
     SLANG_RHI_CALL(m_rhi_graphics_queue->createCommandEncoder(rhi_command_encoder.writeRef()), this);
-    return make_ref<CommandEncoder>(ref(this), rhi_command_encoder);
+    return make_ref<CommandEncoder>(ref(this), queue, _allocate_command_recording_id(), rhi_command_encoder);
 }
 
 uint64_t Device::submit_command_buffers(
@@ -988,7 +996,12 @@ uint64_t Device::submit_command_buffers(
         }
     }
 
-    return m_global_fence->signaled_value();
+    const uint64_t submit_id = m_global_fence->signaled_value();
+
+    for (CommandBuffer* command_buffer : command_buffers)
+        command_buffer->_notify_submitted(submit_id);
+
+    return submit_id;
 }
 
 uint64_t Device::submit_command_buffer(CommandBuffer* command_buffer, CommandQueueType queue, NativeHandle cuda_stream)
@@ -1370,6 +1383,103 @@ void Device::_unregister_device_child(DeviceChild* device_child)
 {
     std::lock_guard lock(m_device_children_mutex);
     m_device_children.erase(device_child);
+}
+
+CommandRecordingCallbackID
+Device::_register_command_recording_submitted_callback(CommandRecordingSubmittedCallback callback)
+{
+    SGL_CHECK(static_cast<bool>(callback), "callback must not be empty");
+
+    std::lock_guard lock(m_command_recording_callback_mutex);
+    const CommandRecordingCallbackID id = m_next_command_recording_callback_id++;
+    m_command_recording_submitted_callbacks.emplace_back(id, std::move(callback));
+    return id;
+}
+
+CommandRecordingCallbackID
+Device::_register_command_recording_discarded_callback(CommandRecordingDiscardedCallback callback)
+{
+    SGL_CHECK(static_cast<bool>(callback), "callback must not be empty");
+
+    std::lock_guard lock(m_command_recording_callback_mutex);
+    const CommandRecordingCallbackID id = m_next_command_recording_callback_id++;
+    m_command_recording_discarded_callbacks.emplace_back(id, std::move(callback));
+    return id;
+}
+
+void Device::_unregister_command_recording_submitted_callback(CommandRecordingCallbackID id)
+{
+    std::lock_guard lock(m_command_recording_callback_mutex);
+    m_command_recording_submitted_callbacks.erase(
+        std::remove_if(
+            m_command_recording_submitted_callbacks.begin(),
+            m_command_recording_submitted_callbacks.end(),
+            [id](const auto& entry)
+            {
+                return entry.first == id;
+            }
+        ),
+        m_command_recording_submitted_callbacks.end()
+    );
+}
+
+void Device::_unregister_command_recording_discarded_callback(CommandRecordingCallbackID id)
+{
+    std::lock_guard lock(m_command_recording_callback_mutex);
+    m_command_recording_discarded_callbacks.erase(
+        std::remove_if(
+            m_command_recording_discarded_callbacks.begin(),
+            m_command_recording_discarded_callbacks.end(),
+            [id](const auto& entry)
+            {
+                return entry.first == id;
+            }
+        ),
+        m_command_recording_discarded_callbacks.end()
+    );
+}
+
+CommandRecordingID Device::_allocate_command_recording_id()
+{
+    return s_next_command_recording_id.fetch_add(1, std::memory_order_relaxed);
+}
+
+void Device::_notify_command_recording_submitted(
+    CommandRecordingID id,
+    CommandBuffer* command_buffer,
+    uint64_t submit_id
+)
+{
+    std::vector<std::pair<CommandRecordingCallbackID, CommandRecordingSubmittedCallback>> callbacks;
+    {
+        std::lock_guard lock(m_command_recording_callback_mutex);
+        callbacks = m_command_recording_submitted_callbacks;
+    }
+
+    CommandRecordingSubmittedEvent event{
+        .device = this,
+        .id = id,
+        .command_buffer = command_buffer,
+        .submit_id = submit_id,
+    };
+    for (const auto& [_, callback] : callbacks)
+        callback(event);
+}
+
+void Device::_notify_command_recording_discarded(CommandRecordingID id)
+{
+    std::vector<std::pair<CommandRecordingCallbackID, CommandRecordingDiscardedCallback>> callbacks;
+    {
+        std::lock_guard lock(m_command_recording_callback_mutex);
+        callbacks = m_command_recording_discarded_callbacks;
+    }
+
+    CommandRecordingDiscardedEvent event{
+        .device = this,
+        .id = id,
+    };
+    for (const auto& [_, callback] : callbacks)
+        callback(event);
 }
 
 std::array<NativeHandle, 3> get_cuda_current_context_native_handles()

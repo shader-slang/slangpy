@@ -4,6 +4,8 @@
 
 #include "sgl/core/object.h"
 
+#include <cstdint>
+
 namespace sgl {
 
 // device.h
@@ -128,6 +130,8 @@ struct ShaderTableDesc;
 class ShaderTable;
 
 // command.h
+
+using CommandRecordingID = uint64_t;
 
 class CommandQueue;
 class CommandEncoder;
