@@ -39,14 +39,15 @@ SGL_PY_EXPORT(device_profiler)
             }
         );
 
-    nb::class_<ProfilerTimeline>(m, "ProfilerTimeline", "Metadata for a profiler timeline/lane.")
+    nb::class_<ProfilerTimelineInfo>(m, "ProfilerTimelineInfo", "Metadata for a profiler timeline/lane.")
         .def(nb::init<>())
-        .def_rw("timeline_id", &ProfilerTimeline::timeline_id)
-        .def_rw("type", &ProfilerTimeline::type)
-        .def_rw("name", &ProfilerTimeline::name)
-        .def_rw("thread_id", &ProfilerTimeline::thread_id)
-        .def_rw("device_id", &ProfilerTimeline::device_id)
-        .def_rw("queue", &ProfilerTimeline::queue);
+        .def_rw("type", &ProfilerTimelineInfo::type)
+        .def_rw("name", &ProfilerTimelineInfo::name)
+        .def_rw("thread_id", &ProfilerTimelineInfo::thread_id)
+        .def_rw("device_id", &ProfilerTimelineInfo::device_id)
+        .def_rw("queue", &ProfilerTimelineInfo::queue);
+
+    nb::class_<ProfilerTrace, Object>(m, "ProfilerTrace").def("write_to_json", &ProfilerTrace::write_to_json, "path"_a);
 
     nb::class_<Profiler, Object>(m, "Profiler", D(Profiler))
         .def(nb::init<ProfilerDesc>(), "desc"_a = ProfilerDesc())
@@ -73,7 +74,9 @@ SGL_PY_EXPORT(device_profiler)
         .def_prop_rw("enabled", &Profiler::enabled, &Profiler::set_enabled)
         .def_prop_rw("auto_zones_enabled", &Profiler::auto_zones_enabled, &Profiler::set_auto_zones_enabled)
         .def_prop_rw("debug_groups_enabled", &Profiler::debug_groups_enabled, &Profiler::set_debug_groups_enabled)
-        .def_prop_ro("desc", &Profiler::desc);
+        .def_prop_ro("desc", &Profiler::desc)
+        .def("tick", &Profiler::tick)
+        .def("trace_snapshot", &Profiler::trace_snapshot);
 
     m.def("push_current_profiler", &push_current_profiler, "profiler"_a);
     m.def("pop_current_profiler", &pop_current_profiler, nb::rv_policy::reference);

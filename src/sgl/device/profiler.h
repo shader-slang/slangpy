@@ -15,6 +15,7 @@
 #include <string_view>
 #include <memory>
 #include <span>
+#include <vector>
 
 namespace sgl {
 
@@ -58,8 +59,7 @@ struct ProfilerSourceLocation {
 };
 
 /// Metadata for a profiler timeline/lane.
-struct ProfilerTimeline {
-    uint64_t timeline_id{0};
+struct ProfilerTimelineInfo {
     ProfilerTimelineType type{ProfilerTimelineType::cpu};
     std::string name;
     uint64_t thread_id{0};
@@ -82,6 +82,7 @@ class SGL_API ProfilerTrace : public Object {
     SGL_OBJECT(ProfilerTrace)
 public:
     struct Timeline {
+        ProfilerTimelineInfo info;
         std::vector<const ProfilerZone*> zones;
     };
 

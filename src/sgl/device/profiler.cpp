@@ -242,6 +242,7 @@ private:
 
 struct ThreadData {
     Profiler* profiler{nullptr};
+    std::thread::id thread_id;
 
     ProfilerTraceStorage* trace_storage{nullptr};
 
@@ -352,16 +353,51 @@ namespace {
             stream << ',';
     }
 
-    void write_trace_metadata_event(std::ostream& stream, size_t timeline_index, bool& first_event)
+    const char* timeline_type_name(ProfilerTimelineType type)
     {
+        switch (type) {
+        case ProfilerTimelineType::cpu:
+            return "cpu";
+        case ProfilerTimelineType::gpu:
+            return "gpu";
+        default:
+            return "unknown";
+        }
+    }
+
+    const char* timeline_category(ProfilerTimelineType type)
+    {
+        switch (type) {
+        case ProfilerTimelineType::cpu:
+            return "sgl.cpu";
+        case ProfilerTimelineType::gpu:
+            return "sgl.gpu";
+        default:
+            return "sgl";
+        }
+    }
+
+    void write_trace_metadata_event(
+        std::ostream& stream,
+        size_t timeline_index,
+        const ProfilerTimelineInfo& metadata,
+        bool& first_event
+    )
+    {
+        const std::string default_name = fmt::format("Timeline {}", timeline_index);
+        const std::string& name = metadata.name.empty() ? default_name : metadata.name;
+
         write_trace_event_separator(stream, first_event);
         stream << "{\"ph\":\"M\",\"name\":\"thread_name\",\"pid\":0,\"tid\":" << timeline_index
-               << ",\"args\":{\"name\":\"Timeline " << timeline_index << "\"}}";
+               << ",\"args\":{\"name\":";
+        write_json_string(stream, name.c_str());
+        stream << "}}";
     }
 
     void write_trace_zone(
         std::ostream& stream,
         const ProfilerZone* zone,
+        const ProfilerTimelineInfo& metadata,
         size_t timeline_index,
         uint64_t base_timestamp,
         bool& first_event
@@ -374,14 +410,17 @@ namespace {
             ? zone->name
             : ((source_location && source_location->function) ? source_location->function : "zone");
 
-        stream << "{\"ph\":\"X\",\"cat\":\"sgl\",\"name\":";
+        stream << "{\"ph\":\"X\",\"cat\":";
+        write_json_string(stream, timeline_category(metadata.type));
+        stream << ",\"name\":";
         write_json_string(stream, name);
         stream << ",\"pid\":0,\"tid\":" << timeline_index << ",\"ts\":";
         write_trace_time_us(stream, zone->start_timestamp - base_timestamp);
         stream << ",\"dur\":";
         write_trace_time_us(stream, zone->end_timestamp - zone->start_timestamp);
         stream << ",\"args\":{\"start_timestamp_ns\":" << zone->start_timestamp
-               << ",\"end_timestamp_ns\":" << zone->end_timestamp;
+               << ",\"end_timestamp_ns\":" << zone->end_timestamp << ",\"timeline_type\":";
+        write_json_string(stream, timeline_type_name(metadata.type));
 
         if (source_location) {
             stream << ",\"source_file\":";
@@ -393,7 +432,7 @@ namespace {
         stream << "}}";
 
         for (const ProfilerZone* child : zone->children)
-            write_trace_zone(stream, child, timeline_index, base_timestamp, first_event);
+            write_trace_zone(stream, child, metadata, timeline_index, base_timestamp, first_event);
     }
 
 } // namespace
@@ -414,9 +453,11 @@ void ProfilerTrace::write_to_json(const std::filesystem::path& path) const
     bool first_event = true;
     for (size_t timeline_index = 0; timeline_index < m_timelines.size(); ++timeline_index) {
         const Timeline& timeline = m_timelines[timeline_index];
-        write_trace_metadata_event(stream, timeline_index, first_event);
-        for (const ProfilerZone* zone : timeline.zones)
-            write_trace_zone(stream, zone, timeline_index, base_timestamp, first_event);
+        write_trace_metadata_event(stream, timeline_index, timeline.info, first_event);
+        for (const ProfilerZone* zone : timeline.zones) {
+            write_trace_zone(stream, zone, timeline.info, timeline_index, base_timestamp, first_event);
+            stream << "\n";
+        }
     }
     stream << "],\"displayTimeUnit\":\"ns\"}";
 
@@ -461,6 +502,7 @@ struct ProfilerImpl {
             return it->second;
         ThreadData* thread_data = new ThreadData();
         thread_data->profiler = profiler;
+        thread_data->thread_id = thread_id;
         thread_data->trace_storage = trace_storage.get();
         thread_data_storage.push_back(thread_data);
         thread_data_by_id[thread_id] = thread_data;
@@ -606,6 +648,8 @@ ref<ProfilerTrace> Profiler::trace_snapshot()
     }
     for (ThreadData* thread_data : thread_data_storage) {
         ProfilerTrace::Timeline timeline;
+        timeline.info.type = ProfilerTimelineType::cpu;
+        timeline.info.name = fmt::format("CPU Thread {}", std::hash<std::thread::id>{}(thread_data->thread_id));
         timeline.zones = thread_data->zones;
         trace->m_timelines.push_back(std::move(timeline));
     }
@@ -629,8 +673,8 @@ bool Profiler::begin_zone(
         return false;
     }
 
-    SGL_UNUSED(encoder);
-    SGL_UNUSED(flags);
+    if (name && is_set(flags, ProfilerZoneFlags::copy_name))
+        name = Profiler::intern_name(name);
 
     ThreadData* thread_data = m_impl->get_this_thread_data();
     thread_data->queue_event({
