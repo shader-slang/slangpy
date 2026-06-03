@@ -64,12 +64,12 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
   Rationale: The intended common case is submitted command buffers; v1 should not spend complexity proving safe query reuse for abandoned encoders.
   Date/Author: 2026-06-03 / Codex
 
-- Decision: Correlate CPU and GPU zones with a profiler-assigned `event_id`.
-  Rationale: Realtime frame statistics need to show CPU and GPU time for the same logical zone even though GPU timestamps resolve asynchronously.
+- Decision: Correlate CPU and GPU zones with a worker-assigned logical `event_id`.
+  Rationale: Realtime frame statistics need to show CPU and GPU time for the same logical zone, but minting and wiring that ID on the hot path adds avoidable work. The worker can assign it while processing the ordered CPU/GPU queue events from one `begin_zone()` call.
   Date/Author: 2026-06-03 / Codex
 
 - Decision: Store processed trace/stat data with compact integer IDs instead of raw pointers.
-  Rationale: Source locations, names, timelines, parents, and children are repeated heavily; 32-bit IDs reduce storage and prepare the design for further compacting without bit-packing in v1.
+  Rationale: Source locations, names, timelines, zone children, and roots are repeated heavily; 32-bit IDs reduce storage and prepare the design for further compacting without bit-packing in v1.
   Date/Author: 2026-06-03 / Codex
 
 - Decision: Use zone terminology for public timed records instead of introducing "span".
@@ -77,7 +77,15 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
   Date/Author: 2026-06-03 / Codex
 
 - Decision: Store the minimal durable data per trace zone and derive richer fields for UI/export snapshots.
-  Rationale: Per-zone records dominate profiler memory. Depth, display path, parent event ID, timeline type, duration, and formatted labels can be derived from IDs, dictionaries, timestamps, and parent links when needed.
+  Rationale: Per-zone records dominate profiler memory. Depth, display path, parent event ID, timeline type, duration, parent links, and formatted labels can be derived from IDs, dictionaries, timestamps, timeline roots, and child lists when needed.
+  Date/Author: 2026-06-03 / Codex
+
+- Decision: Store child lists rather than parent IDs in durable trace zones.
+  Rationale: The profiler UI and trace export need to traverse hierarchies frequently; compact child ranges make traversal direct while still avoiding pointer-heavy nested objects.
+  Date/Author: 2026-06-03 / Codex
+
+- Decision: Treat hot-path minimalism as the primary implementation constraint.
+  Rationale: The profiler must remain usable in debug builds and while measuring shader workloads; all work except timestamp query allocation/writes and compact queue writes should move to the worker or `tick()` resolver.
   Date/Author: 2026-06-03 / Codex
 
 ## Outcomes and Retrospective
@@ -94,7 +102,7 @@ The existing implementation already has useful pieces: per-thread queues through
 
 The new design should split the profiler into four conceptual layers:
 
-1. Hot-path recording. This runs inside zone begin/end calls and must stay small, non-blocking, and acceptable in debug builds.
+1. Hot-path recording. This runs inside zone begin/end calls and is the most important performance-sensitive path. It must stay small, non-blocking, and acceptable in debug builds.
 2. Main-thread GPU query resolution. This runs from `Profiler::tick()` because query result access may not be thread safe yet.
 3. Worker-thread processing. This drains queues, resolves stacks, builds frame statistics, and appends optional trace data.
 4. Presentation/export. This exposes flat Python records, writes Chrome JSON, and renders a realtime ImGui window.
@@ -143,11 +151,12 @@ Do not expose backwards-compatible `ProfilerZoneScope` or `ProfilerFrameScope` n
 - source locations: ID, file, line, original function, display function.
 - names: ID and display string.
 - frames: ID, name ID, source ID, start/end timestamps.
-- zones: zone ID, logical event ID, parent zone ID, timeline ID, frame ID, source ID, name ID, start timestamp, and end timestamp.
+- zones: zone ID, logical event ID, child-list range, timeline ID, frame ID, source ID, name ID, start timestamp, and end timestamp.
+- child indices: a compact `uint32_t` array referenced by each zone's child-list range, plus root zone ranges on timelines or frames as needed.
 
-`ProfilerTraceZone` should be the durable per-zone record and should stay deliberately small. Do not store duration, depth, display path, source strings, name strings, parent event ID, timeline type, resolved state, child arrays, or raw pointers in each zone. Derive duration from timestamps, derive depth/path/children from `parent_zone_id`, derive parent event ID from the parent zone, derive CPU/GPU type from the timeline, and keep strings in source/name dictionaries.
+`ProfilerTraceZone` should be the durable per-zone record and should stay deliberately small. Do not store duration, depth, display path, source strings, name strings, parent event ID, parent zone ID, timeline type, resolved state, or raw pointers in each zone. Derive duration from timestamps, derive depth/path/parent information while traversing from timeline/frame roots through child lists, derive CPU/GPU type from the timeline, and keep strings in source/name dictionaries.
 
-`ProfilerTrace::write_to_json(path)` remains, but it should generate Chrome trace JSON from flat zones. It should include metadata timeline events and enough derived args for analysis, including source file, line, display function, event ID, parent event ID, frame ID, raw timestamps, and whether the zone is CPU or GPU.
+`ProfilerTrace::write_to_json(path)` remains, but it should generate Chrome trace JSON from flat zones and child-index arrays. It should include metadata timeline events and enough derived args for analysis, including source file, line, display function, event ID, parent event ID when known during traversal, frame ID, raw timestamps, and whether the zone is CPU or GPU.
 
 `ProfilerStatsSnapshot` should expose a hierarchical tree for the rolling frame-stat window. Each node should include display name, source ID, name ID, path, depth, CPU timing stats, GPU timing stats, sample counts, and unresolved GPU sample count. Timing stats include last, min, max, average, and standard deviation. The stats key should be hierarchical parent path plus source-location ID plus name ID so same-named zones from different callsites do not merge accidentally.
 
@@ -157,9 +166,9 @@ Add `sgl::ui::render_profiler_window(Profiler*, const ProfilerWindowDesc& = {})`
 
 First, simplify the profiler implementation around a single model. Remove the temporary GPU event queue path and delete `GpuContextData` unless a small part of it is reused under a new name. Reconnect the older `ActiveGpuRecording` idea, but reshape it to the new event/zone-record model. The final code should not have two separate GPU recording systems.
 
-Define compact internal IDs. Source locations, names, timelines, frames, logical events, trace zones, and stats nodes should use integer IDs. Use `uint32_t` for dictionary IDs, zone IDs, timeline IDs, frame IDs, parent references, and stats-tree references where practical. Use `uint64_t` for globally increasing logical event IDs if wraparound matters. Raw `ProfilerSourceLocation*` and `const char*` are acceptable only in hot-path event payloads because macros and interned strings naturally provide stable pointers. The worker must translate those pointers to compact IDs.
+Define compact internal IDs. Source locations, names, timelines, frames, logical events, trace zones, child indices, root lists, and stats nodes should use integer IDs. Use `uint32_t` for dictionary IDs, zone IDs, timeline IDs, frame IDs, child-list offsets/counts, root-list offsets/counts, and stats-tree references where practical. Use `uint64_t` for worker-assigned logical event IDs if wraparound matters. Raw `ProfilerSourceLocation*` and `const char*` are acceptable only in hot-path event payloads because macros and interned strings naturally provide stable pointers. The worker must translate those pointers to compact IDs.
 
-Keep durable per-zone storage minimal. A processed trace zone should be close to this shape: `uint32_t zone_id`, `uint64_t event_id`, `uint32_t parent_zone_id`, `uint32_t timeline_id`, `uint32_t frame_id`, `uint32_t source_id`, `uint32_t name_id`, `uint64_t start_timestamp_ns`, and `uint64_t end_timestamp_ns`. Use an invalid ID sentinel for absent parent/frame/name/source values. Add a field only if it cannot be derived cheaply and is needed by more than one consumer.
+Keep durable per-zone storage minimal. A processed trace zone should be close to this shape: `uint32_t zone_id`, `uint64_t event_id`, `uint32_t first_child_index`, `uint32_t child_count`, `uint32_t timeline_id`, `uint32_t frame_id`, `uint32_t source_id`, `uint32_t name_id`, `uint64_t start_timestamp_ns`, and `uint64_t end_timestamp_ns`. Use an invalid ID sentinel for absent frame/name/source values. Store children in a separate compact `uint32_t` zone-ID array. Store timeline/frame roots the same way. Add a field only if it cannot be derived cheaply and is needed by more than one consumer.
 
 Format verbose pretty function names in the worker. Preserve the original function string in the source dictionary, but derive a shorter display function for trace names and UI display. The implementation does not need an elaborate demangler in v1; it should at least strip noisy compiler signature prefixes/suffixes enough that macro-generated C++ function names are readable.
 
@@ -167,40 +176,43 @@ Redesign hot-path events. `begin_zone` should:
 
 - return false immediately when profiling is disabled.
 - read a CPU timestamp.
-- mint a logical `event_id`.
 - read the current global frame ID atomically.
 - copy dynamic names only when requested by flags, otherwise store stable name pointers.
 - enqueue a small CPU begin event to the current thread's queue.
-- if a command encoder is supplied and GPU profiling is supported, write a begin timestamp query and record the GPU begin state for that command recording.
+- if a command encoder is supplied and GPU profiling is supported, acquire or reuse a query pair, write the begin timestamp query, and enqueue a small GPU begin event immediately after the CPU begin event in the same thread queue.
 
 `end_zone` should:
 
 - read a CPU timestamp.
-- enqueue a small CPU end event containing the logical event ID.
-- if a command encoder is supplied, write the matching GPU end timestamp query.
+- enqueue a small CPU end event to the same thread queue.
+- if a command encoder is supplied and the scope owns a GPU query pair, write the matching GPU end timestamp query and enqueue a small GPU end event immediately after the CPU end event.
 - pop a debug group only if this scope pushed one.
 
-Make the RAII zone scope store the logical `event_id` or an opaque token returned by `begin_zone`, not just `Profiler*`. This avoids relying on purely stack-ordered end events when CPU and GPU correlation matters.
+Make the RAII zone scope store an opaque token returned by `begin_zone`, not just `Profiler*`. The token should contain only what `end_zone` needs on the hot path, such as whether the scope is active, whether it pushed a debug group, the command recording ID, and the GPU query pair/end query index if present. It should not require a hot-path logical event ID.
 
-Use per-thread queues for CPU events. The hot path should not allocate trace zones from a trace slab. The queue payload should be compact and fixed-size where possible. Keep queue writes non-blocking as much as `moodycamel::ConcurrentQueue` allows. If allocation or enqueue fails, drop the event or disable that scope gracefully rather than blocking the application.
+Use per-thread queues for CPU and GPU zone events. The hot path should not allocate trace zones from a trace slab, build zone trees, assign source/name dictionary IDs, assign logical event IDs, update stats, or append trace data. The queue payload should be compact and fixed-size where possible. Keep queue writes non-blocking as much as `moodycamel::ConcurrentQueue` allows. If allocation or enqueue fails, drop the event or disable that scope gracefully rather than blocking the application.
+
+Keep GPU hot-path work to the unavoidable minimum. Writing timestamp queries must happen while encoding commands, and query indices must be known before those writes. The fast path should therefore use a per-thread/per-command-recording cached query block cursor so begin/end only reserve indices, write timestamps, and enqueue compact GPU events. Slow-path query block acquisition may lock, but it should happen only when the cached block is exhausted or a new command recording is first seen.
 
 Add a worker thread owned by `ProfilerImpl`. The worker should sleep on a condition variable, wake on queued work or `flush()`, drain all known thread queues, and process resolved GPU batches delivered by `tick()`. The worker owns the expensive work: CPU stack reconstruction, source/name dictionary creation, frame-stat tree updates, optional trace append, and pruning history windows. `tick()` may wake the worker but should not do stack processing except for GPU query result access required on the caller thread.
+
+Let the worker correlate CPU and GPU events from queue order. A GPU begin event from `begin_zone()` must appear immediately after the corresponding CPU begin event in the same producer queue, and a GPU end event must appear immediately after the corresponding CPU end event. The worker assigns the logical `event_id` when it processes the CPU begin event, then attaches the following GPU begin/end events to that logical zone while maintaining a separate GPU stack per command recording. This keeps the hot path from minting or looking up correlation IDs.
 
 Keep trace capture optional and separate from stats. When trace capture is disabled, do not allocate trace zone storage and do not retain full trace history. Stats should still update when `frame_stats_enabled` is true. When trace capture starts, create or clear trace storage according to `start_trace(clear)`. Only events whose begin event occurs while trace capture is active should enter the trace. `trace_snapshot()` should call `tick()` and `flush()` so the returned snapshot includes all data visible before the snapshot request.
 
 Use one application-wide frame model. `begin_frame` opens a global active frame ID, records a frame begin event, and publishes that ID atomically so subsequent zones can attach to it. `end_frame` closes that frame. Nested or overlapping frames should assert in debug builds and be ignored or closed conservatively in release builds. The stats UI is frame based, so ambiguous frame ownership should not be accepted silently.
 
-Handle GPU zones per command recording. All GPU zones can be assumed to be captured from the same thread in v1, but command encoders may be interleaved on that thread. Therefore, maintain a separate zone stack per command recording ID, not one global GPU stack. Each active command recording stores its device, queue, query blocks, current query cursor, GPU zone records, and stack of open zone indices.
+Handle GPU zones per command recording in the worker. All GPU zones can be assumed to be captured from the same thread in v1, but command encoders may be interleaved on that thread. Therefore, maintain a separate worker-side GPU zone stack per command recording ID, not one global GPU stack. The hot path owns only the query-block cursor needed to reserve query indices and write timestamps. The worker owns queued GPU zone records and the stack of open GPU zone indices for each command recording.
 
 Allocate GPU timestamp queries from a large pool per device/queue combination. Use descriptor sizes from `ProfilerDesc`. Allocate fixed-size query blocks to active command recordings. A GPU zone consumes two queries, begin and end. When a query block is exhausted, acquire another block from the same device/queue pool. Submitted query blocks may be recycled after query results have been read. Discarded/unsubmitted blocks may be abandoned for the lifetime of the profiler in v1.
 
-Use submitted command recording callbacks as ownership handoff, not as resolve work. `Device::_register_command_recording_submitted_callback()` should move the active command recording into a pending submit list with its `submit_id`. The callback should not query result readiness or call `get_result()`. `Device::_register_command_recording_discarded_callback()` should remove active recording state and abandon associated query blocks. It does not need to prove query reuse safety.
+Use submitted command recording callbacks as ownership handoff, not as resolve work. `Device::_register_command_recording_submitted_callback()` should move the hot-path query allocation state for that command recording into a pending submit list with its `submit_id`, recording ID, device, queue, and query blocks. The callback should not query result readiness or call `get_result()`. `Device::_register_command_recording_discarded_callback()` should remove active query allocation state and abandon associated query blocks. It does not need to prove query reuse safety.
 
-Resolve GPU timestamps from `Profiler::tick()`. `tick()` should check pending submit IDs with `Device::is_submit_finished()`. For finished submits, capture or use a timestamp calibration for the device/queue, read query results, convert GPU timestamps into the same CPU nanosecond domain used by CPU zones, create resolved GPU zone batches with the original logical event IDs, recycle submitted query blocks, and pass those batches to the worker. If timestamp query or calibration features are missing, GPU zones are not recorded and CPU zones still work.
+Resolve GPU timestamps from `Profiler::tick()`. `tick()` should check pending submit IDs with `Device::is_submit_finished()`. For finished submits, capture or use a timestamp calibration for the device/queue, read query results, convert GPU timestamps into the same CPU nanosecond domain used by CPU zones, create raw GPU timestamp-result batches keyed by command recording ID plus query pool/index, recycle submitted query blocks, and pass those batches to the worker. The worker then joins resolved timestamps to the GPU zones it assembled from queued begin/end events. If timestamp query or calibration features are missing, GPU zones are not recorded and CPU zones still work.
 
 Build frame statistics from CPU and GPU zones. CPU zones update stats when the CPU end event is processed. GPU zones update stats when `tick()` resolves queries, potentially one or more frames later. The `event_id` ties the CPU zone and GPU zone for the same logical instrumented scope together. Stats should keep a rolling window of configurable size and compute last, min, max, average, and standard deviation for CPU and GPU independently. The UI should make unresolved GPU samples visible instead of treating them as zero.
 
-Keep trace data flat. The trace can still be exported as nested-looking Chrome events by using parent IDs and timestamps, but storage should be arrays of records. Children should be represented by IDs or by derived adjacency arrays built for snapshots/UI. Avoid arrays of raw `ProfilerZone*` in permanent trace storage. Do not over-optimize with bit packing in v1; choose clear compact records that can be tightened later.
+Keep trace data flat but child-traversable. The trace can still be exported as nested-looking Chrome events by traversing child ID ranges and timestamps, but storage should be arrays of records plus compact child-index/root-index arrays. Avoid raw `ProfilerZone*`, recursive object ownership, and per-zone `std::vector` allocations in permanent trace storage. Do not over-optimize with bit packing in v1; choose clear compact records that can be tightened later.
 
 Split files lightly. Keep the public API in `src/sgl/device/profiler.h`. Keep the core runtime in `src/sgl/device/profiler.cpp` unless it becomes unwieldy. Move Chrome JSON writing and trace-specific helpers to `src/sgl/device/profiler_trace.cpp` if that makes the core readable. Put the ImGui window in `src/sgl/ui/profiler.h` and `src/sgl/ui/profiler.cpp` so UI code is separate from profiler core. Update `src/sgl/CMakeLists.txt` and `src/slangpy_ext/CMakeLists.txt` for any new files.
 
@@ -212,9 +224,9 @@ Refresh generated docs after the API stabilizes. Run the `slangpy_pydoc` target 
 
 Milestone 1: establish the new API and CPU-only processing path. At the end of this milestone, `Profiler.zone()`, `Profiler.frame()`, C++ zone/frame macros, trace start/stop/snapshot, and CPU frame stats work without GPU timestamps. Run the build and CPU profiler tests. Acceptance is a Python test that starts a trace, records nested CPU zones inside a frame, snapshots flat trace zones, writes JSON, and reads non-empty stats.
 
-Milestone 2: add worker-thread processing. At the end of this milestone, hot-path zone calls only enqueue compact events, and `flush()` waits for the worker to process visible events. Acceptance is a stress test that records zones from multiple CPU threads, calls `flush()`, and verifies complete parent IDs and stats without doing stack assembly on the caller thread.
+Milestone 2: add worker-thread processing. At the end of this milestone, hot-path zone calls only enqueue compact events, and `flush()` waits for the worker to process visible events. Acceptance is a stress test that records zones from multiple CPU threads, calls `flush()`, and verifies child-list traversal and stats without doing stack assembly on the caller thread.
 
-Milestone 3: add GPU query recording and main-thread resolve. At the end of this milestone, manual GPU zones and SlangPy auto zones record begin/end timestamp queries, submitted recordings move to pending submits, `tick()` resolves completed GPU results, and stats/trace show matching CPU and GPU zones by event ID. Acceptance is a GPU test that submits command buffers, waits for submit completion, calls `tick()` and `flush()`, and finds both CPU and GPU samples for the same zone path.
+Milestone 3: add GPU query recording and main-thread resolve. At the end of this milestone, manual GPU zones and SlangPy auto zones reserve query indices and write begin/end timestamp queries on the hot path, but GPU stack assembly and CPU/GPU correlation happen in the worker from queued events. Submitted recordings move to pending submits, `tick()` resolves completed GPU results, and stats/trace show matching CPU and GPU zones by event ID. Acceptance is a GPU test that submits command buffers, waits for submit completion, calls `tick()` and `flush()`, and finds both CPU and GPU samples for the same zone path.
 
 Milestone 4: add ImGui UI and update examples. At the end of this milestone, `slangpy.ui.render_profiler_window(profiler)` draws a hierarchical frame-stat table with CPU/GPU timing columns and pending GPU counts. The path tracer example uses the new API. Acceptance is a build plus a smoke run or code-level test that the UI function is callable between UI begin/end.
 
@@ -259,7 +271,7 @@ The refactor is accepted when these behaviors are demonstrated:
 
 - Constructing `Profiler()` records realtime stats by default but does not retain trace zones until `start_trace()` is called.
 - `start_trace(clear=True)`, `stop_trace()`, `clear_trace()`, and `trace_snapshot()` work from both C++ and Python.
-- A CPU-only trace snapshot exposes flat timelines, sources, names, frames, and zones with stable parent IDs and can write valid Chrome JSON.
+- A CPU-only trace snapshot exposes flat timelines, sources, names, frames, zones, and child-index arrays that can traverse nested zones and write valid Chrome JSON.
 - C++ macros and Python `profiler.zone()` / `profiler.frame()` context managers record nested zones under the current application frame.
 - Frame stats show hierarchical CPU timings with last, min, max, average, standard deviation, and sample count over the configured rolling window.
 - GPU zones written to submitted command buffers produce GPU trace zones after the submit finishes and `tick()` runs.
