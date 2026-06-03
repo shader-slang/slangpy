@@ -20,6 +20,7 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
 - [x] (2026-06-03) Chose v1 defaults: frame statistics enabled by default, trace capture disabled by default.
 - [x] (2026-06-03) Chose v1 GPU policy: do not support discarded/unsubmitted command encoders beyond ignoring them safely.
 - [x] (2026-06-03) Revised this plan to remove backwards-compatibility API requirements and expand the initial profiler requirements into implementation-level guidance.
+- [x] (2026-06-03) Reviewed the plan and resolved clarifying questions: keep the bool-returning hot path API, handle trace start/stop in the worker, disable GPU profiling with a warning on query exhaustion, ignore and warn on overlapping frames, allow Milestone 1 to process synchronously before the worker migration, and let explicit debug-group flags take precedence.
 - [ ] Implement the new public C++ profiler types and Python bindings.
 - [ ] Replace the temporary profiler internals with a single queue, worker, GPU recording, stats, and trace pipeline.
 - [ ] Add the ImGui profiler window and update examples.
@@ -88,6 +89,30 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
   Rationale: The profiler must remain usable in debug builds and while measuring shader workloads; all work except timestamp query allocation/writes and compact queue writes should move to the worker or `tick()` resolver.
   Date/Author: 2026-06-03 / Codex
 
+- Decision: Keep `Profiler::begin_zone()` as a bool-returning hot-path API instead of returning an opaque token.
+  Rationale: The bool path is slightly faster and is enough for v1. The RAII helper stores only the active bool plus the profiler, encoder, and flags it already has. GPU begin/end matching is handled by per-command-recording stacks, not by a per-scope token.
+  Date/Author: 2026-06-03 / User
+
+- Decision: Handle trace start, stop, and clear in the worker instead of sampling trace-enabled state in every zone begin event.
+  Rationale: Trace state should not add a hot-path flag or epoch write to every instrumentation event. Trace control methods can enqueue worker control commands with timestamps, and the worker can decide which begin events fall inside active capture windows.
+  Date/Author: 2026-06-03 / User
+
+- Decision: When GPU query allocation is exhausted, emit a warning and disable GPU profiling for that device/queue.
+  Rationale: Blocking, reallocating unpredictably, or silently dropping partial GPU zones would make profiler behavior harder to reason about. CPU profiling should continue.
+  Date/Author: 2026-06-03 / User
+
+- Decision: Ignore nested or overlapping frame begins and emit a warning.
+  Rationale: The profiler has one application-wide frame model. Ignoring ambiguous frame begins preserves the current frame and makes the problem visible without corrupting frame statistics.
+  Date/Author: 2026-06-03 / User
+
+- Decision: Milestone 1 may process CPU events synchronously before Milestone 2 moves processing to the worker.
+  Rationale: This lets the new public API, flat trace shape, and CPU stats become testable before adding worker-thread lifecycle and synchronization complexity.
+  Date/Author: 2026-06-03 / User
+
+- Decision: `ProfilerZoneFlags::debug_group` takes precedence over `Profiler::debug_groups_enabled()`.
+  Rationale: An explicit per-zone flag should force debug-group behavior for that scope. The profiler-wide setting controls whether automatic SlangPy zones request debug groups by adding that flag.
+  Date/Author: 2026-06-03 / User
+
 ## Outcomes and Retrospective
 
 No implementation has been completed yet. This revision turns the initial design notes into a decision-complete implementation plan and removes the earlier compatibility requirement.
@@ -127,6 +152,7 @@ Replace the current temporary profiler API with a clean API. Do not add compatib
 - `frame_stats_enabled`, `set_frame_stats_enabled`
 - `auto_zones_enabled`, `set_auto_zones_enabled`
 - `debug_groups_enabled`, `set_debug_groups_enabled`
+- `stats_window_size`, `set_stats_window_size`
 - `start_trace(bool clear = true)`
 - `stop_trace()`
 - `clear_trace()`
@@ -160,7 +186,7 @@ Do not expose backwards-compatible `ProfilerZoneScope` or `ProfilerFrameScope` n
 
 `ProfilerStatsSnapshot` should expose a hierarchical tree for the rolling frame-stat window. Each node should include display name, source ID, name ID, path, depth, CPU timing stats, GPU timing stats, sample counts, and unresolved GPU sample count. Timing stats include last, min, max, average, and standard deviation. The stats key should be hierarchical parent path plus source-location ID plus name ID so same-named zones from different callsites do not merge accidentally.
 
-Add `sgl::ui::render_profiler_window(Profiler*, const ProfilerWindowDesc& = {})` and expose it as `slangpy.ui.render_profiler_window(profiler, ...)`. The UI should show the frame-stat hierarchy with CPU/GPU columns and a configurable rolling window size. It should also show pending GPU samples because GPU results arrive asynchronously.
+Add `sgl::ui::render_profiler_window(Profiler*, const ProfilerWindowDesc& = {})` and expose it as `slangpy.ui.render_profiler_window(profiler, ...)`. `ProfilerWindowDesc` should be small in v1: `std::string title = "Profiler"`, `bool show_controls = true`, `bool show_cpu = true`, `bool show_gpu = true`, and `bool show_pending_gpu = true`. The UI should show the frame-stat hierarchy with CPU/GPU columns and, when controls are visible, allow the rolling window size to be edited through `Profiler::set_stats_window_size()`. It should also show pending GPU samples because GPU results arrive asynchronously.
 
 ## Plan of Work
 
@@ -185,26 +211,26 @@ Redesign hot-path events. `begin_zone` should:
 
 - read a CPU timestamp.
 - enqueue a small CPU end event to the same thread queue.
-- if a command encoder is supplied and the scope owns a GPU query pair, write the matching GPU end timestamp query and enqueue a small GPU end event immediately after the CPU end event.
+- if a command encoder is supplied and a matching GPU zone was opened for the current command recording, write the matching GPU end timestamp query and enqueue a small GPU end event immediately after the CPU end event.
 - pop a debug group only if this scope pushed one.
 
-Make the RAII zone scope store an opaque token returned by `begin_zone`, not just `Profiler*`. The token should contain only what `end_zone` needs on the hot path, such as whether the scope is active, whether it pushed a debug group, the command recording ID, and the GPU query pair/end query index if present. It should not require a hot-path logical event ID.
+Keep `begin_zone` as a bool-returning hot-path API. The RAII zone scope should store `Profiler*`, `CommandEncoder*`, `ProfilerZoneFlags`, and the active bool returned by `begin_zone`; it should not introduce an opaque token in v1. `end_zone` finds the matching GPU state through the current command recording's worker/hot-path recording state. The implementation should only push and pop command debug groups when the explicit `ProfilerZoneFlags::debug_group` flag is set; `debug_groups_enabled` controls whether automatic SlangPy zones add that flag.
 
-Use per-thread queues for CPU and GPU zone events. The hot path should not allocate trace zones from a trace slab, build zone trees, assign source/name dictionary IDs, assign logical event IDs, update stats, or append trace data. The queue payload should be compact and fixed-size where possible. Keep queue writes non-blocking as much as `moodycamel::ConcurrentQueue` allows. If allocation or enqueue fails, drop the event or disable that scope gracefully rather than blocking the application.
+Use per-thread queues for CPU and GPU zone events. The hot path should not allocate trace zones from a trace slab, build zone trees, assign source/name dictionary IDs, assign logical event IDs, update stats, append trace data, or sample trace-enabled state. The queue payload should be compact and fixed-size where possible. Keep queue writes non-blocking as much as `moodycamel::ConcurrentQueue` allows. If CPU begin enqueue fails, return false for that scope. If GPU query allocation or enqueue fails for a scope, continue CPU-only unless the failure is query-pool exhaustion, which disables GPU profiling for that device/queue after a warning.
 
-Keep GPU hot-path work to the unavoidable minimum. Writing timestamp queries must happen while encoding commands, and query indices must be known before those writes. The fast path should therefore use a per-thread/per-command-recording cached query block cursor so begin/end only reserve indices, write timestamps, and enqueue compact GPU events. Slow-path query block acquisition may lock, but it should happen only when the cached block is exhausted or a new command recording is first seen.
+Keep GPU hot-path work to the unavoidable minimum. Writing timestamp queries must happen while encoding commands, and query indices must be known before those writes. The fast path should therefore use a per-thread/per-command-recording cached query block cursor so begin/end only reserve indices, write timestamps, and enqueue compact GPU events. Slow-path query block acquisition may lock, but it should happen only when the cached block is exhausted or a new command recording is first seen. If the configured query pool cannot provide another block, call `log_warn_once` or an equivalent one-time warning path and disable GPU profiling for that device/queue while leaving CPU profiling enabled.
 
 Add a worker thread owned by `ProfilerImpl`. The worker should sleep on a condition variable, wake on queued work or `flush()`, drain all known thread queues, and process resolved GPU batches delivered by `tick()`. The worker owns the expensive work: CPU stack reconstruction, source/name dictionary creation, frame-stat tree updates, optional trace append, and pruning history windows. `tick()` may wake the worker but should not do stack processing except for GPU query result access required on the caller thread.
 
 Let the worker correlate CPU and GPU events from queue order. A GPU begin event from `begin_zone()` must appear immediately after the corresponding CPU begin event in the same producer queue, and a GPU end event must appear immediately after the corresponding CPU end event. The worker assigns the logical `event_id` when it processes the CPU begin event, then attaches the following GPU begin/end events to that logical zone while maintaining a separate GPU stack per command recording. This keeps the hot path from minting or looking up correlation IDs.
 
-Keep trace capture optional and separate from stats. When trace capture is disabled, do not allocate trace zone storage and do not retain full trace history. Stats should still update when `frame_stats_enabled` is true. When trace capture starts, create or clear trace storage according to `start_trace(clear)`. Only events whose begin event occurs while trace capture is active should enter the trace. `trace_snapshot()` should call `tick()` and `flush()` so the returned snapshot includes all data visible before the snapshot request.
+Keep trace capture optional and separate from stats. When trace capture is disabled, do not allocate trace zone storage and do not retain full trace history. Stats should still update when `frame_stats_enabled` is true. `start_trace(clear)`, `stop_trace()`, and `clear_trace()` should enqueue worker control commands with `Timer::now()` timestamps; the worker owns trace-active state and applies capture windows by comparing zone begin timestamps to those control timestamps. Only events whose begin timestamp falls inside an active capture window should enter the trace. `trace_snapshot()` should call `tick()` and `flush()` so the returned snapshot includes all data visible before the snapshot request.
 
-Use one application-wide frame model. `begin_frame` opens a global active frame ID, records a frame begin event, and publishes that ID atomically so subsequent zones can attach to it. `end_frame` closes that frame. Nested or overlapping frames should assert in debug builds and be ignored or closed conservatively in release builds. The stats UI is frame based, so ambiguous frame ownership should not be accepted silently.
+Use one application-wide frame model. `begin_frame` opens a global active frame ID, records a frame begin event, and publishes that ID atomically so subsequent zones can attach to it. `end_frame` closes that frame. Nested or overlapping frames should assert in debug builds; in release builds, ignore the new frame begin and emit a warning rather than closing the existing frame. The stats UI is frame based, so ambiguous frame ownership should not be accepted silently.
 
 Handle GPU zones per command recording in the worker. All GPU zones can be assumed to be captured from the same thread in v1, but command encoders may be interleaved on that thread. Therefore, maintain a separate worker-side GPU zone stack per command recording ID, not one global GPU stack. The hot path owns only the query-block cursor needed to reserve query indices and write timestamps. The worker owns queued GPU zone records and the stack of open GPU zone indices for each command recording.
 
-Allocate GPU timestamp queries from a large pool per device/queue combination. Use descriptor sizes from `ProfilerDesc`. Allocate fixed-size query blocks to active command recordings. A GPU zone consumes two queries, begin and end. When a query block is exhausted, acquire another block from the same device/queue pool. Submitted query blocks may be recycled after query results have been read. Discarded/unsubmitted blocks may be abandoned for the lifetime of the profiler in v1.
+Allocate GPU timestamp queries from a large pool per device/queue combination. Use descriptor sizes from `ProfilerDesc`. Allocate fixed-size query blocks to active command recordings. A GPU zone consumes two queries, begin and end. When a query block is exhausted, acquire another block from the same device/queue pool. Submitted query blocks may be recycled after query results have been read. Discarded/unsubmitted blocks may be abandoned for the lifetime of the profiler in v1. If abandoned and pending blocks exhaust the configured pool, emit a warning once and disable GPU profiling for that device/queue until the profiler is destroyed or recreated.
 
 Use submitted command recording callbacks as ownership handoff, not as resolve work. `Device::_register_command_recording_submitted_callback()` should move the hot-path query allocation state for that command recording into a pending submit list with its `submit_id`, recording ID, device, queue, and query blocks. The callback should not query result readiness or call `get_result()`. `Device::_register_command_recording_discarded_callback()` should remove active query allocation state and abandon associated query blocks. It does not need to prove query reuse safety.
 
@@ -222,7 +248,7 @@ Refresh generated docs after the API stabilizes. Run the `slangpy_pydoc` target 
 
 ## Milestones
 
-Milestone 1: establish the new API and CPU-only processing path. At the end of this milestone, `Profiler.zone()`, `Profiler.frame()`, C++ zone/frame macros, trace start/stop/snapshot, and CPU frame stats work without GPU timestamps. Run the build and CPU profiler tests. Acceptance is a Python test that starts a trace, records nested CPU zones inside a frame, snapshots flat trace zones, writes JSON, and reads non-empty stats.
+Milestone 1: establish the new API and CPU-only processing path. At the end of this milestone, `Profiler.zone()`, `Profiler.frame()`, C++ zone/frame macros, trace start/stop/snapshot, and CPU frame stats work without GPU timestamps. This milestone may process CPU queues synchronously in `tick()` and `flush()`; Milestone 2 is responsible for moving that processing to the worker without changing public behavior. Run the build and CPU profiler tests. Acceptance is a Python test that starts a trace, records nested CPU zones inside a frame, snapshots flat trace zones, writes JSON, and reads non-empty stats.
 
 Milestone 2: add worker-thread processing. At the end of this milestone, hot-path zone calls only enqueue compact events, and `flush()` waits for the worker to process visible events. Acceptance is a stress test that records zones from multiple CPU threads, calls `flush()`, and verifies child-list traversal and stats without doing stack assembly on the caller thread.
 
@@ -278,7 +304,9 @@ The refactor is accepted when these behaviors are demonstrated:
 - CPU and GPU stats for the same logical zone correlate through `event_id`.
 - Interleaved command encoders on the same thread maintain independent GPU zone stacks.
 - Query blocks roll over when many GPU zones are recorded.
+- Exhausting GPU timestamp query capacity emits a warning and disables GPU profiling for the affected device/queue while CPU profiling continues.
 - Discarded or unsubmitted GPU command recordings do not crash and do not add GPU zones to stats or trace.
+- Nested or overlapping frame begins are ignored with a warning and do not corrupt the active frame.
 - The ImGui profiler window renders a hierarchy with CPU and GPU columns and indicates unresolved GPU samples.
 - Stale backwards-compatibility Python names are not exposed, and tests/examples use only the new API.
 
@@ -288,11 +316,11 @@ The implementation should be safe to build and test repeatedly. `start_trace(cle
 
 If GPU timestamp features are unsupported on a device, GPU profiling should be disabled for that device and CPU profiling should continue. Tests should skip GPU-specific assertions when `Feature::timestamp_query` or `Feature::timestamp_calibration` is missing.
 
-If generated doc refresh is unavailable because `pybind11_mkdoc` or clang Python support is missing, record the exact error in the ExecPlan and either update `py_doc.h` manually or leave a clearly documented follow-up.
+If generated doc refresh is unavailable because `pybind11_mkdoc` or clang Python support is missing, record the exact error in the ExecPlan and update `py_doc.h` and generated `.pyi` surfaces manually enough that stale profiler symbols are gone. A follow-up is acceptable only for restoring the normal generated-doc workflow, not for leaving obsolete profiler API names in the tree.
 
 ## Interfaces and Dependencies
 
-Use existing dependencies only. Keep `moodycamel::ConcurrentQueue` for per-thread queues. Use existing `Device`, `CommandEncoder`, `CommandBuffer`, `QueryPool`, and command recording callback APIs. Use existing Dear ImGui integration in `src/sgl/ui`.
+Use existing dependencies only. Keep `moodycamel::ConcurrentQueue` for per-thread queues. Use existing `Device`, `CommandEncoder`, `CommandBuffer`, `QueryPool`, and command recording callback APIs. Use existing Dear ImGui integration in `src/sgl/ui`. Use the existing logging helpers such as `log_warn_once` for one-time profiler warnings.
 
 Do not introduce new third-party libraries. Do not add sampling profiler hooks. Do not require command encoders to be submitted for CPU profiling to work.
 
