@@ -28,7 +28,10 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
 - [x] (2026-06-03) Added the ImGui profiler window and updated the path tracer Python example to use `Profiler.frame()` / `Profiler.zone()` plus a per-frame `tick()`.
 - [x] (2026-06-03) Refreshed generated stubs and `py_doc.h`; stale public names `ProfilerZoneScope`, `ProfilerFrameScope`, and `render_overlay` no longer appear in `slangpy`, `src/slangpy_ext`, `tests`, or `examples`.
 - [x] (2026-06-03) Built, ran the profiler Python tests, ran C++ unit tests, ran the stale-name grep, and ran pre-commit successfully.
-- [ ] Move event processing from the synchronous processor to the worker-thread model described in Milestone 3.
+- [x] (2026-06-03) Audited the profiler hot path and moved GPU source/name dictionary resolution out of `begin_zone()` and into completed-query resolution, removing the avoidable `data_mutex` lock from successful GPU zone begins.
+- [x] (2026-06-03) Reworked GPU zones to flow through the per-thread event queue. `Profiler::begin_zone()` now queues the CPU begin event, optionally allocates a timestamp query pair, writes the begin timestamp, and queues a compact GPU begin event; GPU zone records, IDs, nesting, stats links, and frame association are built later while draining that thread's events.
+- [x] (2026-06-03) Made frame association thread-local. Zone events no longer carry `event_id` or `frame_id`; the event processor assigns event IDs and applies only the active frame for the same producing thread.
+- [x] (2026-06-03) Added the worker-thread event processor for per-thread profiler queues. `tick()` and `flush()` can still help drain events, and `tick()` remains responsible for checking GPU submit readiness and reading timestamp query results.
 
 ## Surprises and Discoveries
 
@@ -160,6 +163,18 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
   Rationale: Active GPU recordings need a stable correlation ID before command-buffer submission callbacks hand query batches to the resolver. This adds one atomic increment to the hot path and should be revisited during the worker migration if strict worker-assigned IDs remain required.
   Date/Author: 2026-06-03 / Codex
 
+- Decision: Defer GPU source/name ID resolution until query-batch processing.
+  Rationale: GPU zone begin already has stable source-location and name pointers. Resolving compact dictionary IDs inside `begin_zone()` took `data_mutex` on every successful GPU zone begin; doing it during completed-query processing preserves trace/stat output while keeping the measured path leaner.
+  Date/Author: 2026-06-03 / Codex
+
+- Decision: Route GPU zone metadata through the per-thread event stream.
+  Rationale: The hot path should only allocate timestamp query indices, write timestamps, and enqueue compact events. CPU/GPU correlation, source/name IDs, nesting, stats-node links, and frame IDs are derived later from the ordered events for the producing thread.
+  Date/Author: 2026-06-03 / User/Codex
+
+- Decision: Treat frames as thread-local producer state.
+  Rationale: A frame opened on one thread must not implicitly classify zones produced by other threads. The producer only tracks a lightweight per-thread active-frame guard for RAII correctness; durable frame IDs are assigned by the event processor.
+  Date/Author: 2026-06-03 / User/Codex
+
 ## Outcomes and Retrospective
 
 Implemented the new profiler API and runtime foundation. `ProfilerDesc` now exposes the planned defaults and validation. `ProfilerTrace` exposes flat timelines, sources, names, frames, zones, child indices, and root indices. `ProfilerStats` exposes rolling CPU/GPU timing nodes. C++ macros still use internal RAII guards, while Python now uses `Profiler.zone()` and `Profiler.frame()` context managers with no compatibility aliases for the old public scope names.
@@ -179,7 +194,9 @@ Validated with:
     rg "ProfilerZoneScope|ProfilerFrameScope|render_overlay" slangpy src/slangpy_ext tests examples
     pre-commit run --all-files
 
-The remaining gap against the full plan is Milestone 3 worker migration. `flush()` currently processes visible CPU events synchronously and does not wait for unfinished GPU submissions, which matches the synchronous milestone behavior but is not yet the worker/barrier implementation described later in the plan.
+The worker migration is now in place for event processing. `flush()` waits for queued CPU/GPU zone/frame events to be processed, while unfinished GPU submissions are still resolved later from `tick()` once their timestamp queries are ready.
+
+Follow-up hot-path audit: warmed CPU-only zone/frame begin/end paths remain limited to timestamps, TLS lookup, per-thread frame guard checks, and queue writes after per-thread setup. GPU zone begin now performs CPU event enqueue, optional query allocation, begin timestamp write, and GPU begin event enqueue inline in `Profiler::begin_zone()`. It no longer assigns event/frame IDs or builds GPU zone records on the producer path. It can still take `gpu_mutex` on command-recording cache misses or query-block rollover, and dynamic names with `ProfilerZoneFlags::copy_name` still use the global string interning mutex by design.
 
 ## Context and Orientation
 

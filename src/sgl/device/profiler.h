@@ -266,9 +266,6 @@ private:
     std::atomic<bool> m_debug_groups_enabled{false};
     std::atomic<bool> m_frame_stats_enabled{true};
     std::atomic<uint32_t> m_stats_window_size{120};
-    std::atomic<uint32_t> m_next_event_id{1};
-    std::atomic<uint32_t> m_next_frame_id{0};
-    std::atomic<uint32_t> m_active_frame_id{std::numeric_limits<uint32_t>::max()};
 
     ProfilerImpl* m_impl;
 

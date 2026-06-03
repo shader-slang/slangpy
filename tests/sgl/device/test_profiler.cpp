@@ -7,6 +7,7 @@
 
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <string>
 #include <thread>
 
@@ -40,6 +41,15 @@ bool trace_has_name(const ProfilerTrace& trace, std::string_view name)
             return true;
     }
     return false;
+}
+
+const ProfilerZoneRecord* find_trace_zone(const ProfilerTrace& trace, std::string_view name)
+{
+    for (const ProfilerZoneRecord& zone : trace.zones()) {
+        if (zone.name_id < trace.names().size() && trace.names()[zone.name_id].name == name)
+            return &zone;
+    }
+    return nullptr;
 }
 
 } // namespace
@@ -315,6 +325,40 @@ TEST_CASE("profiler records stats by default without retaining trace")
         ref<ProfilerStats> stats = profiler->stats_snapshot();
         CHECK(stats->completed_frame_count() == 1);
         CHECK(!stats->nodes().empty());
+    }
+
+    CHECK(current_profiler_or_null() == nullptr);
+}
+
+TEST_CASE("profiler frames are thread local")
+{
+    static constexpr uint32_t invalid_id = std::numeric_limits<uint32_t>::max();
+
+    {
+        ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
+
+        {
+            SGL_PROFILER_FRAME("main_frame");
+            SGL_PROFILER_ZONE("main_thread_zone");
+
+            std::thread thread(
+                []()
+                {
+                    SGL_PROFILER_ZONE("worker_thread_zone");
+                }
+            );
+            thread.join();
+        }
+
+        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        const ProfilerZoneRecord* main_zone = find_trace_zone(*trace, "main_thread_zone");
+        const ProfilerZoneRecord* worker_zone = find_trace_zone(*trace, "worker_thread_zone");
+
+        REQUIRE(main_zone);
+        REQUIRE(worker_zone);
+        CHECK(main_zone->frame_id != invalid_id);
+        CHECK(worker_zone->frame_id == invalid_id);
     }
 
     CHECK(current_profiler_or_null() == nullptr);
