@@ -799,12 +799,12 @@ class App:
             command_encoder = self.device.create_command_encoder()
 
             with self.profiler:
-                with spy.ProfilerFrameScope("frame"):
-                    with spy.ProfilerZoneScope("overall", command_encoder):
-                        with spy.ProfilerZoneScope("path_tracer", command_encoder):
+                with self.profiler.frame("frame"):
+                    with self.profiler.zone("overall", command_encoder):
+                        with self.profiler.zone("path_tracer", command_encoder):
                             self.path_tracer.execute(command_encoder, self.render_texture, frame)
 
-                        with spy.ProfilerZoneScope("accumulator", command_encoder):
+                        with self.profiler.zone("accumulator", command_encoder):
                             self.accumulator.execute(
                                 command_encoder,
                                 self.render_texture,
@@ -812,7 +812,7 @@ class App:
                                 frame == 0,
                             )
 
-                        with spy.ProfilerZoneScope("tone_mapper", command_encoder):
+                        with self.profiler.zone("tone_mapper", command_encoder):
                             self.tone_mapper.execute(
                                 command_encoder,
                                 self.accum_texture,
@@ -821,9 +821,11 @@ class App:
 
             command_encoder.blit(surface_texture, self.output_texture)
 
+            spy.ui.render_profiler_window(self.profiler)
             self.ui.end_frame(surface_texture, command_encoder)
 
             self.device.submit_command_buffer(command_encoder.finish())
+            self.profiler.tick()
             del surface_texture
 
             self.surface.present()

@@ -173,6 +173,8 @@ target_sources(sgl PRIVATE
     ui/fwd.h
     ui/imgui.slang
     ui/imguisw.slang
+    ui/profiler.cpp
+    ui/profiler.h
     ui/ui.cpp
     ui/ui.h
     ui/widgets.cpp

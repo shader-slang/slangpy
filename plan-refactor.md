@@ -23,10 +23,12 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
 - [x] (2026-06-03) Reviewed the plan and resolved clarifying questions: keep the bool-returning hot path API, handle trace start/stop in the worker, disable GPU profiling with a warning on query exhaustion, ignore and warn on overlapping frames, allow Milestone 1 to process synchronously before the worker migration, and let explicit debug-group flags take precedence.
 - [x] (2026-06-03) Added a simplicity and speed constraint: do not over-engineer the profiler; keep the implementation as simple as possible while preserving the fast hot path.
 - [x] (2026-06-03) Reviewed this plan with correctness, completeness, clarity, efficiency, and performance passes, then incorporated required fixes for clock-domain conversion, trace epochs, worker teardown, hard GPU query accounting, batched query reads, milestone sequencing, and API wording contradictions.
-- [ ] Implement the new public C++ profiler types and Python bindings.
-- [ ] Replace the temporary profiler internals with one profiler event pipeline built from per-thread producer queues, a worker, GPU recording, stats, and trace storage.
-- [ ] Add the ImGui profiler window and update examples.
-- [ ] Build, run profiler tests, run C++ tests, and run pre-commit.
+- [x] (2026-06-03) Implemented the new public C++ profiler descriptor, flat trace records, stats snapshots, trace controls, and Python bindings.
+- [x] (2026-06-03) Replaced the temporary profiler internals with a unified event pipeline using per-thread producer queues, synchronous `tick()`/`flush()` processing, GPU recording, hard query budgets, stats, and flat trace storage.
+- [x] (2026-06-03) Added the ImGui profiler window and updated the path tracer Python example to use `Profiler.frame()` / `Profiler.zone()` plus a per-frame `tick()`.
+- [x] (2026-06-03) Refreshed generated stubs and `py_doc.h`; stale public names `ProfilerZoneScope`, `ProfilerFrameScope`, and `render_overlay` no longer appear in `slangpy`, `src/slangpy_ext`, `tests`, or `examples`.
+- [x] (2026-06-03) Built, ran the profiler Python tests, ran C++ unit tests, ran the stale-name grep, and ran pre-commit successfully.
+- [ ] Move event processing from the synchronous processor to the worker-thread model described in Milestone 3.
 
 ## Surprises and Discoveries
 
@@ -53,6 +55,12 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
 
 - Observation: Current hot-path queue writes do not make enqueue failure visible to the profiler scope.
   Evidence: `ThreadData::queue_event()` in `src/sgl/device/profiler.cpp` calls `ConcurrentQueue::enqueue()` and does not report failure, while the new plan requires `begin_zone()` to return false when the CPU begin event cannot be queued.
+
+- Observation: Reading an entire fixed-size GPU query block can include unwritten query slots and prevent GPU zones from resolving.
+  Evidence: The first Python profiler test run after reconnecting GPU recording produced GPU timelines but no GPU zones. Tracking `used_query_count` per query block and reading only written timestamps fixed D3D12, Vulkan, and CUDA auto-zone traces.
+
+- Observation: `pre-commit` needs write access to the user's pre-commit cache outside the workspace sandbox.
+  Evidence: The first sandboxed `pre-commit run --all-files` failed with `sqlite3.OperationalError: attempt to write a readonly database` for `C:\Users\Simon Kallweit\.cache\pre-commit`; rerunning with approved escalation succeeded.
 
 ## Decision Log
 
@@ -144,9 +152,34 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
   Rationale: Waking a worker on every zone begin/end would add measurable overhead to the instrumentation path. The hot path should use pre-reserved or allocation-free enqueue operations where the queue implementation supports that without extra hot-path allocation, return false when the CPU begin event cannot be queued, and notify the worker only on an empty-to-nonempty transition, `tick()`, or `flush()`.
   Date/Author: 2026-06-03 / Codex
 
+- Decision: Keep CPU event processing synchronous in this implementation pass and leave worker-thread migration as the remaining follow-up.
+  Rationale: Milestones 1 and 2 explicitly allow proving the API, flat trace shape, CPU stats, GPU query ownership, and CPU/GPU correlation synchronously before introducing worker lifecycle and barrier complexity. The completed implementation keeps the hot path queue-based and validates the final payload shape first.
+  Date/Author: 2026-06-03 / Codex
+
+- Decision: Mint the logical CPU/GPU `event_id` in `begin_zone()` for this synchronous pass.
+  Rationale: Active GPU recordings need a stable correlation ID before command-buffer submission callbacks hand query batches to the resolver. This adds one atomic increment to the hot path and should be revisited during the worker migration if strict worker-assigned IDs remain required.
+  Date/Author: 2026-06-03 / Codex
+
 ## Outcomes and Retrospective
 
-No implementation has been completed yet. This revision turns the initial design notes into a decision-complete implementation plan and removes the earlier compatibility requirement.
+Implemented the new profiler API and runtime foundation. `ProfilerDesc` now exposes the planned defaults and validation. `ProfilerTrace` exposes flat timelines, sources, names, frames, zones, child indices, and root indices. `ProfilerStats` exposes rolling CPU/GPU timing nodes. C++ macros still use internal RAII guards, while Python now uses `Profiler.zone()` and `Profiler.frame()` context managers with no compatibility aliases for the old public scope names.
+
+The old stub GPU timestamp path and pointer-heavy trace tree were replaced by per-thread CPU event queues, synchronous processing in `tick()` / `flush()`, submitted/discarded command recording callbacks, per-device/queue hard query budgets, block-level raw query reads with explicit CPU/GPU timestamp anchors, and flat stat/trace storage. Discarded GPU recordings are ignored safely, submitted GPU zones resolve after `tick()`, and SlangPy automatic zones cache their interned profiler name on `NativeCallData`.
+
+Added `sgl::ui::render_profiler_window()` / `slangpy.ui.render_profiler_window()` and updated `examples/pathtracer/pathtracer.py` to use the new context-manager API.
+
+Validated with:
+
+    cmake --build --preset windows-msvc-debug
+    cmake --build --preset windows-msvc-debug --target slangpy_stub
+    cmake --build --preset windows-msvc-debug --target slangpy_ui_stub
+    cmake --build --preset windows-msvc-debug --target slangpy_pydoc
+    pytest slangpy/tests/slangpy_tests/test_profiler.py -v
+    python tools/ci.py unit-test-cpp
+    rg "ProfilerZoneScope|ProfilerFrameScope|render_overlay" slangpy src/slangpy_ext tests examples
+    pre-commit run --all-files
+
+The remaining gap against the full plan is Milestone 3 worker migration. `flush()` currently processes visible CPU events synchronously and does not wait for unfinished GPU submissions, which matches the synchronous milestone behavior but is not yet the worker/barrier implementation described later in the plan.
 
 ## Context and Orientation
 

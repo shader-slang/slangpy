@@ -1006,10 +1006,11 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
 
     if (Profiler* profiler = current_profiler_or_null(); profiler && profiler->auto_zones_enabled()) {
         static const ProfilerSourceLocation source_location = {__FILE__, __LINE__, SGL_PRETTY_FUNC};
-        const char* zone_name = Profiler::intern_name(m_debug_name.empty() ? "NativeCallData::exec" : m_debug_name);
+        if (!m_profiler_zone_name)
+            m_profiler_zone_name = Profiler::intern_name(m_debug_name.empty() ? "NativeCallData::exec" : m_debug_name);
         ProfilerZoneFlags zone_flags
             = profiler->debug_groups_enabled() ? ProfilerZoneFlags::debug_group : ProfilerZoneFlags::none;
-        ::sgl::detail::ProfilerZoneScope zone(&source_location, zone_name, command_encoder, zone_flags);
+        ::sgl::detail::ZoneGuard zone(&source_location, m_profiler_zone_name, command_encoder, zone_flags);
         record_dispatch();
     } else {
         record_dispatch();

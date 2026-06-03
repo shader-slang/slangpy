@@ -1475,9 +1475,19 @@ static const char *__doc_sgl_CommandBuffer_class_name = R"doc()doc";
 
 static const char *__doc_sgl_CommandBuffer_m_cuda_interop_buffers = R"doc()doc";
 
-static const char *__doc_sgl_CommandBuffer_m_profiler_recording = R"doc()doc";
+static const char *__doc_sgl_CommandBuffer_m_queue = R"doc()doc";
+
+static const char *__doc_sgl_CommandBuffer_m_recording_id = R"doc()doc";
 
 static const char *__doc_sgl_CommandBuffer_m_rhi_command_buffer = R"doc()doc";
+
+static const char *__doc_sgl_CommandBuffer_m_submitted = R"doc()doc";
+
+static const char *__doc_sgl_CommandBuffer_notify_submitted = R"doc()doc";
+
+static const char *__doc_sgl_CommandBuffer_queue = R"doc()doc";
+
+static const char *__doc_sgl_CommandBuffer_recording_id = R"doc()doc";
 
 static const char *__doc_sgl_CommandBuffer_release_rhi_resources = R"doc()doc";
 
@@ -1726,9 +1736,11 @@ static const char *__doc_sgl_CommandEncoder_m_cuda_interop_buffers = R"doc()doc"
 
 static const char *__doc_sgl_CommandEncoder_m_open = R"doc()doc";
 
-static const char *__doc_sgl_CommandEncoder_m_profiler_recording = R"doc()doc";
+static const char *__doc_sgl_CommandEncoder_m_queue = R"doc()doc";
 
 static const char *__doc_sgl_CommandEncoder_m_ray_tracing_pass_encoder = R"doc()doc";
+
+static const char *__doc_sgl_CommandEncoder_m_recording_id = R"doc()doc";
 
 static const char *__doc_sgl_CommandEncoder_m_render_pass_encoder = R"doc()doc";
 
@@ -1743,6 +1755,10 @@ static const char *__doc_sgl_CommandEncoder_pop_debug_group = R"doc(Pop a debug 
 static const char *__doc_sgl_CommandEncoder_push_debug_group = R"doc(Push a debug group.)doc";
 
 static const char *__doc_sgl_CommandEncoder_query_acceleration_structure_properties = R"doc()doc";
+
+static const char *__doc_sgl_CommandEncoder_queue = R"doc()doc";
+
+static const char *__doc_sgl_CommandEncoder_recording_id = R"doc()doc";
 
 static const char *__doc_sgl_CommandEncoder_release_rhi_resources = R"doc()doc";
 
@@ -1820,6 +1836,22 @@ static const char *__doc_sgl_CommandQueueType = R"doc()doc";
 static const char *__doc_sgl_CommandQueueType_graphics = R"doc()doc";
 
 static const char *__doc_sgl_CommandQueueType_info = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingDiscardedEvent = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingDiscardedEvent_device = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingDiscardedEvent_id = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingSubmittedEvent = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingSubmittedEvent_command_buffer = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingSubmittedEvent_device = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingSubmittedEvent_id = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingSubmittedEvent_submit_id = R"doc()doc";
 
 static const char *__doc_sgl_ComparisonFunc = R"doc()doc";
 
@@ -2905,6 +2937,8 @@ static const char *__doc_sgl_DeviceType_wgpu = R"doc()doc";
 
 static const char *__doc_sgl_Device_Device = R"doc()doc";
 
+static const char *__doc_sgl_Device_allocate_command_recording_id = R"doc()doc";
+
 static const char *__doc_sgl_Device_blitter = R"doc()doc";
 
 static const char *__doc_sgl_Device_builtin_layout = R"doc(Return the cached reflection layout for the built-in support module.)doc";
@@ -3266,6 +3300,12 @@ static const char *__doc_sgl_Device_m_capabilities = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_closed = R"doc()doc";
 
+static const char *__doc_sgl_Device_m_command_recording_callback_mutex = R"doc()doc";
+
+static const char *__doc_sgl_Device_m_command_recording_discarded_callbacks = R"doc()doc";
+
+static const char *__doc_sgl_Device_m_command_recording_submitted_callbacks = R"doc()doc";
+
 static const char *__doc_sgl_Device_m_cuda_device = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_cuda_semaphore = R"doc()doc";
@@ -3294,6 +3334,8 @@ static const char *__doc_sgl_Device_m_info = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_module_cache_path = R"doc()doc";
 
+static const char *__doc_sgl_Device_m_next_command_recording_callback_id = R"doc()doc";
+
 static const char *__doc_sgl_Device_m_persistent_cache = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_rhi_device = R"doc()doc";
@@ -3313,6 +3355,10 @@ static const char *__doc_sgl_Device_m_supported_shader_model = R"doc()doc";
 static const char *__doc_sgl_Device_m_supports_cuda_interop = R"doc()doc";
 
 static const char *__doc_sgl_Device_native_handles = R"doc(Get the native device handles.)doc";
+
+static const char *__doc_sgl_Device_notify_command_recording_discarded = R"doc()doc";
+
+static const char *__doc_sgl_Device_notify_command_recording_submitted = R"doc()doc";
 
 static const char *__doc_sgl_Device_on_hot_reload = R"doc(Called by hot reload system after reload occurs, to trigger the hooks.)doc";
 
@@ -3356,6 +3402,10 @@ Parameter ``mip``:
 
 Returns:
     Subresource data in host memory.)doc";
+
+static const char *__doc_sgl_Device_register_command_recording_discarded_callback = R"doc()doc";
+
+static const char *__doc_sgl_Device_register_command_recording_submitted_callback = R"doc()doc";
 
 static const char *__doc_sgl_Device_register_device_child = R"doc()doc";
 
@@ -3493,6 +3543,10 @@ Parameter ``cuda_stream``:
 static const char *__doc_sgl_Device_to_string = R"doc()doc";
 
 static const char *__doc_sgl_Device_type = R"doc(Type of the graphics API used by this device.)doc";
+
+static const char *__doc_sgl_Device_unregister_command_recording_discarded_callback = R"doc()doc";
+
+static const char *__doc_sgl_Device_unregister_command_recording_submitted_callback = R"doc()doc";
 
 static const char *__doc_sgl_Device_unregister_device_child = R"doc()doc";
 
@@ -6299,137 +6353,53 @@ static const char *__doc_sgl_PrimitiveTopology_triangle_strip = R"doc()doc";
 
 static const char *__doc_sgl_Profiler = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_2 = R"doc(Hierarchical CPU/GPU application profiler.)doc";
+static const char *__doc_sgl_Profiler_2 =
+R"doc(Hierarchical CPU/GPU application profiler.
+
+A profiler becomes the application-wide current profiler when
+constructed and removes itself from the current stack when destroyed.)doc";
 
 static const char *__doc_sgl_ProfilerDesc = R"doc()doc";
 
 static const char *__doc_sgl_ProfilerDesc_2 = R"doc(Descriptor for creating a Profiler.)doc";
 
-static const char *__doc_sgl_ProfilerDesc_cpu_stack_depth = R"doc(Maximum nesting depth for CPU/GPU event stacks.)doc";
+static const char *__doc_sgl_ProfilerDesc_auto_zones_enabled = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerDesc_frame_history_size = R"doc(Number of frame summaries/spans to keep in the history ring buffer.)doc";
+static const char *__doc_sgl_ProfilerDesc_debug_groups_enabled = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerDesc_gpu_events_per_command_encoder = R"doc(Maximum number of GPU events that can be recorded per command encoder.)doc";
+static const char *__doc_sgl_ProfilerDesc_frame_stats_enabled = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerZoneScope = R"doc()doc";
+static const char *__doc_sgl_ProfilerDesc_gpu_query_block_size = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerZoneScope_2 = R"doc(RAII helper for profiling zones on the current profiler.)doc";
+static const char *__doc_sgl_ProfilerDesc_gpu_query_pool_size = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerSourceLocation = R"doc()doc";
+static const char *__doc_sgl_ProfilerDesc_stats_window_size = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerSourceLocation_2 = R"doc(Stable metadata for a profiler source callsite/name.)doc";
+static const char *__doc_sgl_ProfilerDesc_trace_enabled_on_start = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerSourceLocation_file = R"doc()doc";
+static const char *__doc_sgl_ProfilerFrameRecord = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerSourceLocation_function = R"doc()doc";
+static const char *__doc_sgl_ProfilerFrameRecord_end_timestamp = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerSourceLocation_line = R"doc()doc";
+static const char *__doc_sgl_ProfilerFrameRecord_id = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerSourceLocation_name = R"doc()doc";
+static const char *__doc_sgl_ProfilerFrameRecord_name_id = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerZoneFlags = R"doc()doc";
+static const char *__doc_sgl_ProfilerFrameRecord_source_id = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerZoneFlags_auto = R"doc()doc";
+static const char *__doc_sgl_ProfilerFrameRecord_start_timestamp = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerZoneFlags_cpu = R"doc()doc";
+static const char *__doc_sgl_ProfilerImpl = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerZoneFlags_debug_group = R"doc()doc";
+static const char *__doc_sgl_ProfilerNameRecord = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerZoneFlags_gpu = R"doc()doc";
+static const char *__doc_sgl_ProfilerNameRecord_id = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerZoneFlags_info = R"doc()doc";
+static const char *__doc_sgl_ProfilerNameRecord_name = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerZoneScope_ProfilerZoneScope = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerZoneScope_ProfilerZoneScope_2 = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerZoneScope_ProfilerZoneScope_3 = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerZoneScope_ProfilerZoneScope_4 = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerZoneScope_active = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerZoneScope_close = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerZoneScope_m_active = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerZoneScope_m_encoder = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerZoneScope_m_profiler = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerZoneScope_m_recording = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerZoneScope_operator_assign = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerZoneScope_operator_assign_2 = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope = R"doc(RAII helper for profiler frames on the current profiler.)doc";
-
-static const char *__doc_sgl_ProfilerFrameRecord = R"doc(A completed or active profiler frame.)doc";
-
-static const char *__doc_sgl_ProfilerFrameRecord_active = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameRecord_duration = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameRecord_end_time = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameRecord_frame_id = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameRecord_name = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameRecord_start_time = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameRecord_thread_id = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope_ProfilerFrameScope = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope_ProfilerFrameScope_2 = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope_ProfilerFrameScope_3 = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope_active = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope_close = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope_frame_id = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope_m_active = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope_m_frame_id = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope_m_profiler = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope_operator_assign = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerFrameScope_operator_assign_2 = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_2 = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_ProfilerRecording = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_class_name = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_device = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_event_stack = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_frame_id = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_next_query_index = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_open_events = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_profiler = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_query_pool = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_recorded_spans = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerRecording_thread_id = R"doc()doc";
-
-static const char *__doc_sgl_ProfilerScope = R"doc(RAII helper that pushes a profiler as application-wide current profiler.)doc";
+static const char *__doc_sgl_ProfilerScope =
+R"doc(RAII helper that pushes a profiler as application-wide current
+profiler.)doc";
 
 static const char *__doc_sgl_ProfilerScope_ProfilerScope = R"doc()doc";
 
@@ -6445,7 +6415,117 @@ static const char *__doc_sgl_ProfilerScope_operator_assign = R"doc()doc";
 
 static const char *__doc_sgl_ProfilerScope_operator_assign_2 = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTimeline = R"doc(Metadata for a profiler timeline/lane.)doc";
+static const char *__doc_sgl_ProfilerSourceLocation = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceLocation_2 = R"doc(Stable metadata for a profiler source callsite.)doc";
+
+static const char *__doc_sgl_ProfilerSourceLocation_file = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceLocation_function = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceLocation_line = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord_display_function = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord_file = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord_line = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord_original_function = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_average_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_last_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_max_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_min_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_sample_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_stddev_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_valid = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_child_index_begin = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_child_index_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_cpu = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_gpu = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_name_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_parent_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_pending_gpu_sample_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_source_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_child_indices = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_class_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_completed_frame_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_child_indices = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_completed_frame_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_names = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_nodes = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_sources = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_window_size = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_names = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_nodes = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_sources = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_window_size = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineInfo = R"doc(Metadata for a profiler timeline/lane.)doc";
+
+static const char *__doc_sgl_ProfilerTimelineInfo_device_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineInfo_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineInfo_queue = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineInfo_thread_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineInfo_type = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_device_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_queue = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_thread_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_type = R"doc()doc";
 
 static const char *__doc_sgl_ProfilerTimelineType = R"doc()doc";
 
@@ -6455,237 +6535,107 @@ static const char *__doc_sgl_ProfilerTimelineType_gpu = R"doc()doc";
 
 static const char *__doc_sgl_ProfilerTimelineType_info = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTimeline_device_id = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTimeline_name = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_child_indices = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTimeline_queue = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_class_name = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTimeline_thread_id = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_frames = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTimeline_timeline_id = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_m_child_indices = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTimeline_type = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_m_frames = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent = R"doc(A CPU or GPU span that can be read from Python.)doc";
+static const char *__doc_sgl_ProfilerTrace_m_names = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_depth = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_m_root_indices = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_duration = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_m_sources = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_end_time = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_m_timelines = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_event_id = R"doc(Logical event id shared by CPU/GPU spans for the same profiler scope.)doc";
+static const char *__doc_sgl_ProfilerTrace_m_zones = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_flags = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_names = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_frame_id = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_root_indices = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_name = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_sources = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_parent_event_id = R"doc(Logical parent event id, if this event was nested.)doc";
+static const char *__doc_sgl_ProfilerTrace_timelines = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_parent_span_id = R"doc(Parent span id on the same timeline, if one exists.)doc";
+static const char *__doc_sgl_ProfilerTrace_write_to_json = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_path = R"doc()doc";
+static const char *__doc_sgl_ProfilerTrace_zones = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_resolved = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneFlags = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_span_id = R"doc(Unique id for this concrete CPU/GPU span.)doc";
+static const char *__doc_sgl_ProfilerZoneFlags_copy_name = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_start_time = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneFlags_debug_group = R"doc()doc";
 
-static const char *__doc_sgl_ProfilerTraceEvent_timeline_id = R"doc(Timeline/lane this span belongs to.)doc";
+static const char *__doc_sgl_ProfilerZoneFlags_info = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventBatch = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneFlags_none = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventBatch_cpu_only = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneRecord = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventBatch_events = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneRecord_child_index_begin = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventBatch_frame_id = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneRecord_child_index_count = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventBatch_queue = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneRecord_end_timestamp = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventBatch_submit_id = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneRecord_event_id = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventBatch_submit_index = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneRecord_frame_id = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventStats = R"doc(Aggregated statistics for a named event path across resolved submits.)doc";
+static const char *__doc_sgl_ProfilerZoneRecord_id = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventStats_avg_cpu_time = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneRecord_name_id = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventStats_avg_gpu_time = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneRecord_source_id = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventStats_cpu_sample_count = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneRecord_start_timestamp = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_EventStats_gpu_sample_count = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_EventStats_last_cpu_time = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_EventStats_last_gpu_time = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_EventStats_max_cpu_time = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_EventStats_max_gpu_time = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_EventStats_min_cpu_time = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_EventStats_min_gpu_time = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_EventStats_unresolved_gpu_sample_count = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_GpuTimelineKey = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_GpuTimelineKeyEqual = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_GpuTimelineKeyEqual_operator_call = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_GpuTimelineKeyHash = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_GpuTimelineKeyHash_operator_call = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_GpuTimelineKey_device = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_GpuTimelineKey_queue = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_OpenEventRecord = R"doc(Internal state for an event while its scope is open.)doc";
-
-static const char *__doc_sgl_Profiler_OpenEventRecord_cpu_span_index = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_OpenEventRecord_depth = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_OpenEventRecord_desc = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_OpenEventRecord_flags = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_OpenEventRecord_gpu_span_index = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_OpenEventRecord_has_debug_group = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_OpenEventRecord_parent_index = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_PendingGpuQuery = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_PendingGpuQuery_event_index = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_PendingGpuQuery_query_end = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_PendingGpuQuery_query_pool_index = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_PendingGpuQuery_query_start = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_PendingSubmit = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_PendingSubmit_batch = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_PendingSubmit_device = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_PendingSubmit_gpu_queries = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_PendingSubmit_query_pools = R"doc()doc";
+static const char *__doc_sgl_ProfilerZoneRecord_timeline_id = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_Profiler = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_RecordedSpan = R"doc(Compact internal span recorded on the hot path.)doc";
-
-static const char *__doc_sgl_Profiler_RecordedSpan_cpu_end = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_RecordedSpan_cpu_start = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_RecordedSpan_gpu = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_RecordedSpan_gpu_query_end = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_RecordedSpan_gpu_query_start = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_RecordedSpan_has_gpu_timestamps = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_RecordedSpan_open_event_index = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_acquire_query_pool = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_active_frame_id = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_append_recorded_events = R"doc()doc";
-
 static const char *__doc_sgl_Profiler_auto_zones_enabled = R"doc(Whether SlangPy functional calls automatically insert profiler zones.)doc";
-
-static const char *__doc_sgl_Profiler_begin_zone = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_begin_zone_2 = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_begin_event_in_recording = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_begin_frame = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_build_frame_records_locked = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_build_trace_events_locked = R"doc()doc";
+static const char *__doc_sgl_Profiler_begin_zone = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_class_name = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_clear = R"doc()doc";
+static const char *__doc_sgl_Profiler_clear_trace = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_compute_all_event_stats_locked = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_current_thread_id = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_debug_groups_enabled = R"doc(Whether auto GPU events also emit command debug groups.)doc";
+static const char *__doc_sgl_Profiler_debug_groups_enabled = R"doc(Whether auto GPU zones also emit command debug groups.)doc";
 
 static const char *__doc_sgl_Profiler_desc = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_detach_device = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_device_id = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_enabled =
 R"doc(Whether profiling is enabled. When disabled, recording calls are no-
 ops.)doc";
 
-static const char *__doc_sgl_Profiler_end_active_event = R"doc()doc";
+static const char *__doc_sgl_Profiler_end_frame = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_end_zone = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_end_event_in_recording = R"doc()doc";
+static const char *__doc_sgl_Profiler_flush = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_end_frame = R"doc()doc";
+static const char *__doc_sgl_Profiler_frame_stats_enabled = R"doc(Whether completed frames update rolling frame statistics.)doc";
 
-static const char *__doc_sgl_Profiler_find_timeline_locked = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_flush_current_thread_recording = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_get_all_event_stats = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_get_event_stats = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_get_frames = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_get_or_create_cpu_timeline_id = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_get_or_create_gpu_timeline_id = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_get_or_create_recording = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_get_recording = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_get_thread_cpu_recording = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_get_timelines = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_get_trace_events = R"doc()doc";
+static const char *__doc_sgl_Profiler_intern_name = R"doc(Intern or reuse a dynamic profiler zone name.)doc";
 
 static const char *__doc_sgl_Profiler_intern_source_location = R"doc(Intern or reuse a dynamic source location.)doc";
-
-static const char *__doc_sgl_Profiler_is_gpu_timeline_locked = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_active_frame = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_m_active_frame_id = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_m_auto_zones_enabled = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_cpu_timelines_by_thread_id = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_m_debug_groups_enabled = R"doc()doc";
 
@@ -6693,59 +6643,15 @@ static const char *__doc_sgl_Profiler_m_desc = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_m_enabled = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_m_free_query_pools = R"doc()doc";
+static const char *__doc_sgl_Profiler_m_frame_stats_enabled = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_m_gpu_timelines_by_key = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_has_active_frame = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_mutex = R"doc()doc";
+static const char *__doc_sgl_Profiler_m_impl = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_m_next_event_id = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_m_next_frame_id = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_m_next_span_id = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_next_submit_index = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_next_timeline_id = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_pending_submits = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_query_pool_mutex = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_registered_devices = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_resolved_frames = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_resolved_submits = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_m_timelines = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_on_submit = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_push_cpu_submit = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_push_resolved_submit = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_register_device = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_release_query_pool = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_render_overlay = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_report = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_resolve = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_resolve_completed = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_resolve_completed_locked = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_resolve_flags = R"doc()doc";
-
-static const char *__doc_sgl_Profiler_resolve_submit = R"doc()doc";
+static const char *__doc_sgl_Profiler_m_stats_window_size = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_set_auto_zones_enabled = R"doc(Enable or disable automatic SlangPy functional call zones.)doc";
 
@@ -6753,9 +6659,26 @@ static const char *__doc_sgl_Profiler_set_debug_groups_enabled = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_set_enabled = R"doc(Enable or disable profiling.)doc";
 
+static const char *__doc_sgl_Profiler_set_frame_stats_enabled = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_set_stats_window_size = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_start_trace = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_stats_snapshot = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_stats_window_size = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_stop_trace = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_tick = R"doc()doc";
+
 static const char *__doc_sgl_Profiler_to_string = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_trim_history = R"doc()doc";
+static const char *__doc_sgl_Profiler_trace_snapshot =
+R"doc(Get a snapshot of the current profiler trace data. The returned trace
+is a copy of the data recorded so far, and is not updated with future
+profiling events.)doc";
 
 static const char *__doc_sgl_ProgramLayout = R"doc()doc";
 
@@ -10098,6 +10021,15 @@ Throws if the stack is empty.
 Returns:
     The current device.)doc";
 
+static const char *__doc_sgl_current_profiler =
+R"doc(Get the current profiler from the top of the application-wide profiler
+stack. Throws if the stack is empty.
+
+Returns:
+    The current profiler.)doc";
+
+static const char *__doc_sgl_current_profiler_or_null = R"doc(Return the application-wide current profiler, or null.)doc";
+
 static const char *__doc_sgl_cursor_utils_CursorWriterTypeInfo =
 R"doc(Native registry entry for one cursor-writable value type.
 
@@ -10165,6 +10097,20 @@ static const char *__doc_sgl_data_type_size = R"doc(Get the size of a type in by
 
 static const char *__doc_sgl_detail_CursorWriterOwner = R"doc()doc";
 
+static const char *__doc_sgl_detail_FrameGuard = R"doc(RAII helper for profiler frames on the current profiler.)doc";
+
+static const char *__doc_sgl_detail_FrameGuard_FrameGuard = R"doc()doc";
+
+static const char *__doc_sgl_detail_FrameGuard_FrameGuard_2 = R"doc()doc";
+
+static const char *__doc_sgl_detail_FrameGuard_FrameGuard_3 = R"doc()doc";
+
+static const char *__doc_sgl_detail_FrameGuard_m_profiler = R"doc()doc";
+
+static const char *__doc_sgl_detail_FrameGuard_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_detail_FrameGuard_operator_assign_2 = R"doc()doc";
+
 static const char *__doc_sgl_detail_HostTypeToFormat = R"doc()doc";
 
 static const char *__doc_sgl_detail_HostTypeToFormat_2 = R"doc()doc";
@@ -10200,6 +10146,24 @@ static const char *__doc_sgl_detail_HostTypeToFormat_16 = R"doc()doc";
 static const char *__doc_sgl_detail_HostTypeToFormat_17 = R"doc()doc";
 
 static const char *__doc_sgl_detail_HostTypeToFormat_18 = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard = R"doc(RAII helper for profiling zones on the current profiler.)doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_ZoneGuard = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_ZoneGuard_2 = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_ZoneGuard_3 = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_m_encoder = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_m_flags = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_m_profiler = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_operator_assign_2 = R"doc()doc";
 
 static const char *__doc_sgl_detail_build_slang_error_message = R"doc()doc";
 
@@ -14522,6 +14486,8 @@ static const char *__doc_sgl_ui_operator_iand_2 = R"doc()doc";
 static const char *__doc_sgl_ui_operator_ior = R"doc()doc";
 
 static const char *__doc_sgl_ui_operator_ior_2 = R"doc()doc";
+
+static const char *__doc_sgl_ui_render_profiler_window = R"doc(Render an ImGui profiler window for a profiler stats snapshot.)doc";
 
 static const char *__doc_std_hash = R"doc()doc";
 

@@ -11,10 +11,11 @@
 #include "sgl/core/object.h"
 
 #include <atomic>
+#include <filesystem>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <memory>
-#include <span>
 #include <vector>
 
 namespace sgl {
@@ -49,7 +50,15 @@ SGL_ENUM_INFO(
 SGL_ENUM_REGISTER(ProfilerTimelineType);
 
 /// Descriptor for creating a Profiler.
-struct ProfilerDesc { };
+struct ProfilerDesc {
+    bool frame_stats_enabled{true};
+    bool trace_enabled_on_start{false};
+    uint32_t stats_window_size{120};
+    uint32_t gpu_query_pool_size{64 * 1024};
+    uint32_t gpu_query_block_size{256};
+    bool auto_zones_enabled{true};
+    bool debug_groups_enabled{false};
+};
 
 /// Stable metadata for a profiler source callsite.
 struct ProfilerSourceLocation {
@@ -67,40 +76,117 @@ struct ProfilerTimelineInfo {
     CommandQueueType queue{CommandQueueType::graphics};
 };
 
-struct ProfilerZone {
-    uint64_t start_timestamp;
-    uint64_t end_timestamp;
-    const ProfilerSourceLocation* source_location;
-    const char* name;
-    const ProfilerZone* parent;
-    std::span<const ProfilerZone*> children;
+struct ProfilerTimelineRecord {
+    uint32_t id{0};
+    ProfilerTimelineType type{ProfilerTimelineType::cpu};
+    std::string name;
+    uint64_t thread_id{0};
+    uint64_t device_id{0};
+    CommandQueueType queue{CommandQueueType::graphics};
 };
 
-struct ProfilerFrame {
-    uint64_t start_timestamp;
-    uint64_t end_timestamp;
-    const ProfilerSourceLocation* source_location;
-    const char* name;
-    uint32_t frame_id;
+struct ProfilerSourceRecord {
+    uint32_t id{0};
+    std::string file;
+    uint32_t line{0};
+    std::string original_function;
+    std::string display_function;
 };
 
-class ProfilerTraceStorage;
+struct ProfilerNameRecord {
+    uint32_t id{0};
+    std::string name;
+};
+
+struct ProfilerFrameRecord {
+    uint32_t id{0};
+    uint32_t name_id{0};
+    uint32_t source_id{0};
+    uint64_t start_timestamp{0};
+    uint64_t end_timestamp{0};
+};
+
+struct ProfilerZoneRecord {
+    uint32_t id{0};
+    uint32_t event_id{0};
+    uint32_t child_index_begin{0};
+    uint32_t child_index_count{0};
+    uint32_t timeline_id{0};
+    uint32_t frame_id{0};
+    uint32_t source_id{0};
+    uint32_t name_id{0};
+    uint64_t start_timestamp{0};
+    uint64_t end_timestamp{0};
+};
 
 class SGL_API ProfilerTrace : public Object {
     SGL_OBJECT(ProfilerTrace)
 public:
-    struct Timeline {
-        ProfilerTimelineInfo info;
-        std::vector<const ProfilerZone*> zones;
-    };
-
     void write_to_json(const std::filesystem::path& path) const;
 
+    const std::vector<ProfilerTimelineRecord>& timelines() const { return m_timelines; }
+    const std::vector<ProfilerSourceRecord>& sources() const { return m_sources; }
+    const std::vector<ProfilerNameRecord>& names() const { return m_names; }
+    const std::vector<ProfilerFrameRecord>& frames() const { return m_frames; }
+    const std::vector<ProfilerZoneRecord>& zones() const { return m_zones; }
+    const std::vector<uint32_t>& child_indices() const { return m_child_indices; }
+    const std::vector<uint32_t>& root_indices() const { return m_root_indices; }
+
 private:
-    std::shared_ptr<ProfilerTraceStorage> m_trace_storage;
-    std::vector<Timeline> m_timelines;
+    std::vector<ProfilerTimelineRecord> m_timelines;
+    std::vector<ProfilerSourceRecord> m_sources;
+    std::vector<ProfilerNameRecord> m_names;
+    std::vector<ProfilerFrameRecord> m_frames;
+    std::vector<ProfilerZoneRecord> m_zones;
+    std::vector<uint32_t> m_child_indices;
+    std::vector<uint32_t> m_root_indices;
 
     friend class Profiler;
+    friend struct ProfilerImpl;
+};
+
+struct ProfilerStatValue {
+    bool valid{false};
+    double last_ms{0.0};
+    double min_ms{0.0};
+    double max_ms{0.0};
+    double average_ms{0.0};
+    double stddev_ms{0.0};
+    uint32_t sample_count{0};
+};
+
+struct ProfilerStatsNode {
+    uint32_t id{0};
+    uint32_t parent_id{0};
+    uint32_t child_index_begin{0};
+    uint32_t child_index_count{0};
+    uint32_t source_id{0};
+    uint32_t name_id{0};
+    uint32_t pending_gpu_sample_count{0};
+    ProfilerStatValue cpu;
+    ProfilerStatValue gpu;
+};
+
+class SGL_API ProfilerStats : public Object {
+    SGL_OBJECT(ProfilerStats)
+public:
+    const std::vector<ProfilerSourceRecord>& sources() const { return m_sources; }
+    const std::vector<ProfilerNameRecord>& names() const { return m_names; }
+    const std::vector<ProfilerStatsNode>& nodes() const { return m_nodes; }
+    const std::vector<uint32_t>& child_indices() const { return m_child_indices; }
+    uint32_t completed_frame_count() const { return m_completed_frame_count; }
+    uint32_t window_size() const { return m_window_size; }
+
+private:
+    std::vector<ProfilerSourceRecord> m_sources;
+    std::vector<ProfilerNameRecord> m_names;
+    std::vector<ProfilerStatsNode> m_nodes;
+    std::vector<uint32_t> m_child_indices;
+    uint32_t m_completed_frame_count{0};
+    uint32_t m_window_size{0};
+
+    friend class Profiler;
+    friend struct ProfilerImpl;
 };
 
 struct ProfilerImpl;
@@ -139,11 +225,23 @@ public:
 
     void set_debug_groups_enabled(bool enabled) { m_debug_groups_enabled = enabled; }
 
+    /// Whether completed frames update rolling frame statistics.
+    bool frame_stats_enabled() const { return m_frame_stats_enabled; }
+    void set_frame_stats_enabled(bool enabled) { m_frame_stats_enabled = enabled; }
+
+    uint32_t stats_window_size() const { return m_stats_window_size; }
+    void set_stats_window_size(uint32_t size);
+
     const ProfilerDesc& desc() const { return m_desc; }
+
+    void start_trace(bool clear = true);
+    void stop_trace();
+    void clear_trace();
 
     /// Get a snapshot of the current profiler trace data.
     /// The returned trace is a copy of the data recorded so far, and is not updated with future profiling events.
     ref<ProfilerTrace> trace_snapshot();
+    ref<ProfilerStats> stats_snapshot();
 
     bool begin_zone(
         const ProfilerSourceLocation* source_location,
@@ -157,6 +255,7 @@ public:
     void end_frame() noexcept;
 
     void tick();
+    void flush();
 
     std::string to_string() const override;
 
@@ -165,10 +264,15 @@ private:
     std::atomic<bool> m_enabled{true};
     std::atomic<bool> m_auto_zones_enabled{true};
     std::atomic<bool> m_debug_groups_enabled{false};
+    std::atomic<bool> m_frame_stats_enabled{true};
+    std::atomic<uint32_t> m_stats_window_size{120};
+    std::atomic<uint32_t> m_next_event_id{1};
+    std::atomic<uint32_t> m_next_frame_id{0};
+    std::atomic<uint32_t> m_active_frame_id{std::numeric_limits<uint32_t>::max()};
 
     ProfilerImpl* m_impl;
 
-    friend class ProfilerZoneScope;
+    friend struct ProfilerImpl;
 };
 
 // ---------------------------------------------------------------------------
@@ -251,9 +355,9 @@ private:
 namespace detail {
 
     /// RAII helper for profiling zones on the current profiler.
-    class SGL_API ProfilerZoneScope {
+    class SGL_API ZoneGuard {
     public:
-        explicit ProfilerZoneScope(
+        explicit ZoneGuard(
             const ProfilerSourceLocation* source_location,
             const char* name = nullptr,
             CommandEncoder* encoder = nullptr,
@@ -269,7 +373,7 @@ namespace detail {
             }
         }
 
-        ~ProfilerZoneScope() noexcept
+        ~ZoneGuard() noexcept
         {
             if (m_profiler)
                 m_profiler->end_zone(m_encoder, m_flags);
@@ -280,20 +384,20 @@ namespace detail {
         CommandEncoder* m_encoder;
         ProfilerZoneFlags m_flags;
 
-        SGL_NON_COPYABLE_AND_MOVABLE(ProfilerZoneScope);
+        SGL_NON_COPYABLE_AND_MOVABLE(ZoneGuard);
     };
 
     /// RAII helper for profiler frames on the current profiler.
-    class SGL_API ProfilerFrameScope {
+    class SGL_API FrameGuard {
     public:
-        explicit ProfilerFrameScope(const ProfilerSourceLocation* source_location, const char* name = nullptr) noexcept
+        explicit FrameGuard(const ProfilerSourceLocation* source_location, const char* name = nullptr) noexcept
         {
             Profiler* profiler = current_profiler_or_null();
             if (profiler && profiler->begin_frame(source_location, name))
                 m_profiler = profiler;
         }
 
-        ~ProfilerFrameScope() noexcept
+        ~FrameGuard() noexcept
         {
             if (m_profiler)
                 m_profiler->end_frame();
@@ -302,7 +406,7 @@ namespace detail {
     private:
         Profiler* m_profiler{nullptr};
 
-        SGL_NON_COPYABLE_AND_MOVABLE(ProfilerFrameScope);
+        SGL_NON_COPYABLE_AND_MOVABLE(FrameGuard);
     };
 
 } // namespace detail
@@ -338,7 +442,7 @@ namespace detail {
 #define SGL_PROFILER_ZONE_IMPL2(counter, ...)                                                                          \
     static const ::sgl::ProfilerSourceLocation SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter)              \
         = {__FILE__, __LINE__, SGL_PRETTY_FUNC};                                                                       \
-    ::sgl::detail::ProfilerZoneScope SGL_CONCAT_STRINGS(sgl_profiler_zone_, counter)(                                  \
+    ::sgl::detail::ZoneGuard SGL_CONCAT_STRINGS(sgl_profiler_zone_, counter)(                                          \
         &SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter),                                                   \
         ##__VA_ARGS__                                                                                                  \
     )
@@ -355,7 +459,7 @@ namespace detail {
 #define SGL_PROFILER_FRAME_IMPL2(counter, ...)                                                                         \
     static const ::sgl::ProfilerSourceLocation SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter)              \
         = {__FILE__, __LINE__, SGL_PRETTY_FUNC};                                                                       \
-    ::sgl::detail::ProfilerFrameScope SGL_CONCAT_STRINGS(sgl_profiler_frame_, counter)(                                \
+    ::sgl::detail::FrameGuard SGL_CONCAT_STRINGS(sgl_profiler_frame_, counter)(                                        \
         &SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter),                                                   \
         ##__VA_ARGS__                                                                                                  \
     )

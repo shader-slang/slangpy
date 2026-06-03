@@ -33,6 +33,15 @@ size_t count_occurrences(std::string_view value, std::string_view pattern)
     return count;
 }
 
+bool trace_has_name(const ProfilerTrace& trace, std::string_view name)
+{
+    for (const ProfilerZoneRecord& zone : trace.zones()) {
+        if (zone.name_id < trace.names().size() && trace.names()[zone.name_id].name == name)
+            return true;
+    }
+    return false;
+}
+
 } // namespace
 
 TEST_CASE("profiler static zone macro is callable")
@@ -63,14 +72,16 @@ TEST_CASE("profiler zone macro supports explicit interned and dynamic names")
 
     {
         ref<Profiler> profiler = make_ref<Profiler>();
-        CHECK(current_profiler() == profiler.get());
+        profiler->start_trace();
 
         SGL_PROFILER_ZONE(name);
         SGL_PROFILER_ZONE(name, encoder);
         SGL_PROFILER_ZONE(dynamic_name.c_str(), nullptr, ProfilerZoneFlags::copy_name);
         SGL_PROFILER_ZONE(dynamic_name.c_str(), encoder, ProfilerZoneFlags::copy_name);
 
-        profiler->tick();
+        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        CHECK(trace_has_name(*trace, "native_interned_zone"));
+        CHECK(trace_has_name(*trace, "native_dynamic_zone"));
     }
 
     CHECK(current_profiler_or_null() == nullptr);
@@ -186,6 +197,33 @@ TEST_CASE("profiler interned source locations use structured keys")
     CHECK(std::string_view(second->function) == "d");
 }
 
+TEST_CASE("profiler descriptor defaults and validation")
+{
+    ProfilerDesc desc;
+    CHECK(desc.frame_stats_enabled);
+    CHECK(!desc.trace_enabled_on_start);
+    CHECK(desc.stats_window_size == 120);
+    CHECK(desc.gpu_query_pool_size == 64 * 1024);
+    CHECK(desc.gpu_query_block_size == 256);
+    CHECK(desc.auto_zones_enabled);
+    CHECK(!desc.debug_groups_enabled);
+
+    desc.stats_window_size = 0;
+    CHECK_THROWS(make_ref<Profiler>(desc));
+
+    desc = {};
+    desc.gpu_query_pool_size = 0;
+    CHECK_THROWS(make_ref<Profiler>(desc));
+
+    desc = {};
+    desc.gpu_query_block_size = 3;
+    CHECK_THROWS(make_ref<Profiler>(desc));
+
+    desc = {};
+    desc.gpu_query_block_size = desc.gpu_query_pool_size + 2;
+    CHECK_THROWS(make_ref<Profiler>(desc));
+}
+
 TEST_CASE("profiler retained settings are mutable")
 {
     {
@@ -203,7 +241,80 @@ TEST_CASE("profiler retained settings are mutable")
         profiler->set_debug_groups_enabled(true);
         CHECK(profiler->debug_groups_enabled());
 
+        CHECK(profiler->frame_stats_enabled());
+        profiler->set_frame_stats_enabled(false);
+        CHECK(!profiler->frame_stats_enabled());
+
+        CHECK(profiler->stats_window_size() == 120);
+        profiler->set_stats_window_size(4);
+        CHECK(profiler->stats_window_size() == 4);
+        CHECK_THROWS(profiler->set_stats_window_size(0));
+
         CHECK(&profiler->desc() != nullptr);
+    }
+
+    CHECK(current_profiler_or_null() == nullptr);
+}
+
+TEST_CASE("profiler records flat cpu trace and stats")
+{
+    ref<ProfilerTrace> retained_trace;
+
+    {
+        ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
+
+        {
+            SGL_PROFILER_FRAME("frame");
+            SGL_PROFILER_ZONE("outer");
+            {
+                SGL_PROFILER_ZONE("inner");
+            }
+        }
+
+        retained_trace = profiler->trace_snapshot();
+        CHECK(retained_trace->frames().size() == 1);
+        CHECK(retained_trace->zones().size() == 2);
+        CHECK(retained_trace->root_indices().size() == 1);
+        CHECK(retained_trace->child_indices().size() == 1);
+        CHECK(trace_has_name(*retained_trace, "outer"));
+        CHECK(trace_has_name(*retained_trace, "inner"));
+
+        ref<ProfilerStats> stats = profiler->stats_snapshot();
+        CHECK(stats->completed_frame_count() == 1);
+        CHECK(stats->nodes().size() >= 2);
+
+        profiler->clear_trace();
+        ref<ProfilerTrace> cleared_trace = profiler->trace_snapshot();
+        CHECK(cleared_trace->zones().empty());
+
+        const std::filesystem::path path = testing::get_case_temp_directory() / "cpu-flat-trace.json";
+        retained_trace->write_to_json(path);
+        const std::string json = read_text_file(path);
+        CHECK(json.find("\"name\":\"outer\"") != std::string::npos);
+    }
+
+    CHECK(retained_trace);
+    CHECK(retained_trace->zones().size() == 2);
+    CHECK(current_profiler_or_null() == nullptr);
+}
+
+TEST_CASE("profiler records stats by default without retaining trace")
+{
+    {
+        ref<Profiler> profiler = make_ref<Profiler>();
+
+        {
+            SGL_PROFILER_FRAME("frame");
+            SGL_PROFILER_ZONE("stats_only_zone");
+        }
+
+        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        CHECK(trace->zones().empty());
+
+        ref<ProfilerStats> stats = profiler->stats_snapshot();
+        CHECK(stats->completed_frame_count() == 1);
+        CHECK(!stats->nodes().empty());
     }
 
     CHECK(current_profiler_or_null() == nullptr);
@@ -217,9 +328,11 @@ TEST_CASE_GPU("profiler records gpu zones in trace json")
 
     {
         ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
         ref<CommandEncoder> encoder = device->create_command_encoder();
 
         {
+            SGL_PROFILER_FRAME("frame");
             SGL_PROFILER_ZONE("gpu_zone", encoder.get());
         }
 
@@ -251,20 +364,24 @@ TEST_CASE_GPU("profiler records gpu zones from multiple command buffers")
         static constexpr size_t command_buffer_count = 16;
 
         ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
         std::vector<ref<CommandBuffer>> command_buffers;
         std::vector<CommandBuffer*> command_buffer_ptrs;
         command_buffers.reserve(command_buffer_count);
         command_buffer_ptrs.reserve(command_buffer_count);
 
-        for (size_t i = 0; i < command_buffer_count; ++i) {
-            ref<CommandEncoder> encoder = device->create_command_encoder();
-            {
-                SGL_PROFILER_ZONE("multi_encoder_gpu_zone", encoder.get());
-            }
+        {
+            SGL_PROFILER_FRAME("frame");
+            for (size_t i = 0; i < command_buffer_count; ++i) {
+                ref<CommandEncoder> encoder = device->create_command_encoder();
+                {
+                    SGL_PROFILER_ZONE("multi_encoder_gpu_zone", encoder.get());
+                }
 
-            ref<CommandBuffer> command_buffer = encoder->finish();
-            command_buffer_ptrs.push_back(command_buffer.get());
-            command_buffers.push_back(std::move(command_buffer));
+                ref<CommandBuffer> command_buffer = encoder->finish();
+                command_buffer_ptrs.push_back(command_buffer.get());
+                command_buffers.push_back(std::move(command_buffer));
+            }
         }
 
         const uint64_t submit_id = device->submit_command_buffers(command_buffer_ptrs);
@@ -292,10 +409,14 @@ TEST_CASE_GPU("profiler records gpu zones across query blocks")
         static constexpr size_t zone_count = 160;
 
         ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
         ref<CommandEncoder> encoder = device->create_command_encoder();
 
-        for (size_t i = 0; i < zone_count; ++i) {
-            SGL_PROFILER_ZONE("many_gpu_zones", encoder.get());
+        {
+            SGL_PROFILER_FRAME("frame");
+            for (size_t i = 0; i < zone_count; ++i) {
+                SGL_PROFILER_ZONE("many_gpu_zones", encoder.get());
+            }
         }
 
         const uint64_t submit_id = device->submit_command_buffer(encoder->finish());
@@ -321,6 +442,7 @@ TEST_CASE_GPU("profiler ignores discarded gpu recordings")
 
     {
         ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
 
         {
             ref<CommandEncoder> discarded_encoder = device->create_command_encoder();
@@ -331,6 +453,7 @@ TEST_CASE_GPU("profiler ignores discarded gpu recordings")
 
         ref<CommandEncoder> encoder = device->create_command_encoder();
         {
+            SGL_PROFILER_FRAME("frame");
             SGL_PROFILER_ZONE("submitted_after_discard_gpu_zone", encoder.get());
         }
 

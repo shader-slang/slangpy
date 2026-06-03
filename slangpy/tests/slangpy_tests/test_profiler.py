@@ -10,6 +10,7 @@ from slangpy import (
     Feature,
     Profiler,
     ProfilerDesc,
+    ProfilerStats,
     ProfilerTrace,
     ProfilerTimelineInfo,
     ProfilerTimelineType,
@@ -20,6 +21,10 @@ from slangpy import (
     push_current_profiler,
 )
 from slangpy.testing import helpers
+
+
+def trace_names(trace: ProfilerTrace) -> set[str]:
+    return {trace.names[zone.name_id].name for zone in trace.zones}
 
 
 def test_profiler_context_manages_application_stack():
@@ -96,6 +101,36 @@ def test_current_profiler_is_application_wide():
     assert current_profiler_or_null() is None
 
 
+def test_profiler_descriptor_defaults_and_validation():
+    desc = ProfilerDesc()
+    assert desc.frame_stats_enabled
+    assert not desc.trace_enabled_on_start
+    assert desc.stats_window_size == 120
+    assert desc.gpu_query_pool_size == 64 * 1024
+    assert desc.gpu_query_block_size == 256
+    assert desc.auto_zones_enabled
+    assert not desc.debug_groups_enabled
+
+    desc.stats_window_size = 0
+    with pytest.raises(RuntimeError):
+        Profiler(desc)
+
+    desc = ProfilerDesc()
+    desc.gpu_query_pool_size = 0
+    with pytest.raises(RuntimeError):
+        Profiler(desc)
+
+    desc = ProfilerDesc()
+    desc.gpu_query_block_size = 3
+    with pytest.raises(RuntimeError):
+        Profiler(desc)
+
+    desc = ProfilerDesc()
+    desc.gpu_query_block_size = desc.gpu_query_pool_size + 2
+    with pytest.raises(RuntimeError):
+        Profiler(desc)
+
+
 def test_profiler_retained_settings_are_mutable():
     profiler = Profiler()
 
@@ -111,6 +146,16 @@ def test_profiler_retained_settings_are_mutable():
     profiler.debug_groups_enabled = True
     assert profiler.debug_groups_enabled
 
+    assert profiler.frame_stats_enabled
+    profiler.frame_stats_enabled = False
+    assert not profiler.frame_stats_enabled
+
+    assert profiler.stats_window_size == 120
+    profiler.stats_window_size = 4
+    assert profiler.stats_window_size == 4
+    with pytest.raises(RuntimeError):
+        profiler.stats_window_size = 0
+
     assert isinstance(profiler.desc, ProfilerDesc)
     del profiler
     assert current_profiler_or_null() is None
@@ -125,6 +170,61 @@ def test_profiler_timeline_public_shape():
     assert timeline.name == "GPU"
     assert timeline.queue is not None
     assert ProfilerZoneFlags.copy_name & ProfilerZoneFlags.copy_name
+
+
+def test_profiler_flat_trace_and_stats(tmp_path: Path) -> None:
+    profiler = Profiler()
+    profiler.start_trace()
+
+    with profiler.frame("frame"):
+        with profiler.zone("outer"):
+            with profiler.zone("inner"):
+                pass
+
+    trace = profiler.trace_snapshot()
+    assert isinstance(trace, ProfilerTrace)
+    assert len(trace.frames) == 1
+    assert len(trace.zones) == 2
+    assert len(trace.root_indices) == 1
+    assert len(trace.child_indices) == 1
+    assert trace_names(trace) == {"outer", "inner"}
+
+    stats = profiler.stats_snapshot()
+    assert isinstance(stats, ProfilerStats)
+    assert stats.completed_frame_count == 1
+    assert len(stats.nodes) >= 2
+    assert any(node.cpu.valid for node in stats.nodes)
+
+    path = tmp_path / "flat-trace.json"
+    trace.write_to_json(path)
+    text = path.read_text()
+    assert '"name":"outer"' in text
+    assert '"cat":"sgl.cpu"' in text
+
+    profiler.clear_trace()
+    assert len(profiler.trace_snapshot().zones) == 0
+    assert len(trace.zones) == 2
+
+    del profiler
+    assert current_profiler_or_null() is None
+
+
+def test_profiler_stats_enabled_without_default_trace():
+    profiler = Profiler()
+
+    with profiler.frame("frame"):
+        with profiler.zone("stats_only_zone"):
+            pass
+
+    trace = profiler.trace_snapshot()
+    assert len(trace.zones) == 0
+
+    stats = profiler.stats_snapshot()
+    assert stats.completed_frame_count == 1
+    assert any(node.cpu.valid for node in stats.nodes)
+
+    del profiler
+    assert current_profiler_or_null() is None
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -146,8 +246,10 @@ float add_numbers(float a, float b) {
     )
 
     profiler = Profiler()
+    profiler.start_trace()
     try:
-        function(1.0, 2.0)
+        with profiler.frame("frame"):
+            function(1.0, 2.0)
         device.wait()
         profiler.tick()
 
