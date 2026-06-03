@@ -21,6 +21,7 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
 - [x] (2026-06-03) Chose v1 GPU policy: do not support discarded/unsubmitted command encoders beyond ignoring them safely.
 - [x] (2026-06-03) Revised this plan to remove backwards-compatibility API requirements and expand the initial profiler requirements into implementation-level guidance.
 - [x] (2026-06-03) Reviewed the plan and resolved clarifying questions: keep the bool-returning hot path API, handle trace start/stop in the worker, disable GPU profiling with a warning on query exhaustion, ignore and warn on overlapping frames, allow Milestone 1 to process synchronously before the worker migration, and let explicit debug-group flags take precedence.
+- [x] (2026-06-03) Added a simplicity and speed constraint: do not over-engineer the profiler; keep the implementation as simple as possible while preserving the fast hot path.
 - [ ] Implement the new public C++ profiler types and Python bindings.
 - [ ] Replace the temporary profiler internals with a single queue, worker, GPU recording, stats, and trace pipeline.
 - [ ] Add the ImGui profiler window and update examples.
@@ -89,6 +90,10 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
   Rationale: The profiler must remain usable in debug builds and while measuring shader workloads; all work except timestamp query allocation/writes and compact queue writes should move to the worker or `tick()` resolver.
   Date/Author: 2026-06-03 / Codex
 
+- Decision: Do not over-engineer the profiler; keep the implementation as simple as possible while staying fast.
+  Rationale: This code runs inside application instrumentation and shader-performance measurement workflows. Extra abstraction, clever generalization, multi-stage pipelines, or premature compaction can make the profiler harder to maintain and slower on the path it is supposed to measure.
+  Date/Author: 2026-06-03 / User
+
 - Decision: Keep `Profiler::begin_zone()` as a bool-returning hot-path API instead of returning an opaque token.
   Rationale: The bool path is slightly faster and is enough for v1. The RAII helper stores only the active bool plus the profiler, encoder, and flags it already has. GPU begin/end matching is handled by per-command-recording stacks, not by a per-scope token.
   Date/Author: 2026-06-03 / User
@@ -131,6 +136,8 @@ The new design should split the profiler into four conceptual layers:
 2. Main-thread GPU query resolution. This runs from `Profiler::tick()` because query result access may not be thread safe yet.
 3. Worker-thread processing. This drains queues, resolves stacks, builds frame statistics, and appends optional trace data.
 4. Presentation/export. This exposes flat Python records, writes Chrome JSON, and renders a realtime ImGui window.
+
+This split is a way to keep responsibilities understandable, not an invitation to build a framework. Prefer straightforward structs, vectors, maps, and one worker thread. Add an abstraction only when it removes real duplication or protects the hot path. Avoid multi-worker schedulers, generic task systems, intricate bit-packing, and speculative extension points in v1.
 
 ## Public Interfaces
 
@@ -190,7 +197,7 @@ Add `sgl::ui::render_profiler_window(Profiler*, const ProfilerWindowDesc& = {})`
 
 ## Plan of Work
 
-First, simplify the profiler implementation around a single model. Remove the temporary GPU event queue path and delete `GpuContextData` unless a small part of it is reused under a new name. Reconnect the older `ActiveGpuRecording` idea, but reshape it to the new event/zone-record model. The final code should not have two separate GPU recording systems.
+First, simplify the profiler implementation around a single model. Remove the temporary GPU event queue path and delete `GpuContextData` unless a small part of it is reused under a new name. Reconnect the older `ActiveGpuRecording` idea, but reshape it to the new event/zone-record model. The final code should not have two separate GPU recording systems. Keep the code boring and direct: prefer a small number of plainly named data structures over layered abstractions, and measure complexity against hot-path cost and maintainability.
 
 Define compact internal IDs. Source locations, names, timelines, frames, logical events, trace zones, child indices, root lists, and stats nodes should use integer IDs. Use `uint32_t` for dictionary IDs, zone IDs, timeline IDs, frame IDs, child-list offsets/counts, root-list offsets/counts, and stats-tree references where practical. Use `uint64_t` for worker-assigned logical event IDs if wraparound matters. Raw `ProfilerSourceLocation*` and `const char*` are acceptable only in hot-path event payloads because macros and interned strings naturally provide stable pointers. The worker must translate those pointers to compact IDs.
 
@@ -238,7 +245,7 @@ Resolve GPU timestamps from `Profiler::tick()`. `tick()` should check pending su
 
 Build frame statistics from CPU and GPU zones. CPU zones update stats when the CPU end event is processed. GPU zones update stats when `tick()` resolves queries, potentially one or more frames later. The `event_id` ties the CPU zone and GPU zone for the same logical instrumented scope together. Stats should keep a rolling window of configurable size and compute last, min, max, average, and standard deviation for CPU and GPU independently. The UI should make unresolved GPU samples visible instead of treating them as zero.
 
-Keep trace data flat but child-traversable. The trace can still be exported as nested-looking Chrome events by traversing child ID ranges and timestamps, but storage should be arrays of records plus compact child-index/root-index arrays. Avoid raw `ProfilerZone*`, recursive object ownership, and per-zone `std::vector` allocations in permanent trace storage. Do not over-optimize with bit packing in v1; choose clear compact records that can be tightened later.
+Keep trace data flat but child-traversable. The trace can still be exported as nested-looking Chrome events by traversing child ID ranges and timestamps, but storage should be arrays of records plus compact child-index/root-index arrays. Avoid raw `ProfilerZone*`, recursive object ownership, and per-zone `std::vector` allocations in permanent trace storage. Do not over-optimize with bit packing, custom allocators beyond what is already needed, or generalized compression schemes in v1; choose clear compact records that can be tightened later if profiling data proves they need it.
 
 Split files lightly. Keep the public API in `src/sgl/device/profiler.h`. Keep the core runtime in `src/sgl/device/profiler.cpp` unless it becomes unwieldy. Move Chrome JSON writing and trace-specific helpers to `src/sgl/device/profiler_trace.cpp` if that makes the core readable. Put the ImGui window in `src/sgl/ui/profiler.h` and `src/sgl/ui/profiler.cpp` so UI code is separate from profiler core. Update `src/sgl/CMakeLists.txt` and `src/slangpy_ext/CMakeLists.txt` for any new files.
 
@@ -320,7 +327,7 @@ If generated doc refresh is unavailable because `pybind11_mkdoc` or clang Python
 
 ## Interfaces and Dependencies
 
-Use existing dependencies only. Keep `moodycamel::ConcurrentQueue` for per-thread queues. Use existing `Device`, `CommandEncoder`, `CommandBuffer`, `QueryPool`, and command recording callback APIs. Use existing Dear ImGui integration in `src/sgl/ui`. Use the existing logging helpers such as `log_warn_once` for one-time profiler warnings.
+Use existing dependencies only. Keep `moodycamel::ConcurrentQueue` for per-thread queues. Use existing `Device`, `CommandEncoder`, `CommandBuffer`, `QueryPool`, and command recording callback APIs. Use existing Dear ImGui integration in `src/sgl/ui`. Use the existing logging helpers such as `log_warn_once` for one-time profiler warnings. Do not add infrastructure that is not directly required by this profiler refactor.
 
 Do not introduce new third-party libraries. Do not add sampling profiler hooks. Do not require command encoders to be submitted for CPU profiling to work.
 
