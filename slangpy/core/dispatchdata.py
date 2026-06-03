@@ -199,9 +199,12 @@ void {reflection.name}_entrypoint({params}) {{
                     [ep],
                     opts,
                 )
+                defer_target_compilation = bool(
+                    build_info.options.get("defer_target_compilation", True)
+                )
                 self.compute_pipeline = device.create_compute_pipeline(
                     program,
-                    defer_target_compilation=True,
+                    defer_target_compilation=defer_target_compilation,
                     label=f"{build_info.module.name}_{build_info.name}_dispatch",
                 )
                 self.device = device
