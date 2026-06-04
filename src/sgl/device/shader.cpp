@@ -277,14 +277,30 @@ void SlangSession::create_session(SlangSessionBuild& build)
     else if (options.matrix_layout == SlangMatrixLayout::column_major)
         session_options.add(slang::CompilerOptionName::MatrixLayoutColumn, true);
 
-    // TODO: Globally disable warning 30856.
-    // This is a workaround for an issue in the Slang compiler:
+    // TODO: Globally disable warning E30856.
+    // warning[E30856]: the extension is non-standard and may not work as intended because the generic parameter 'X' is
+    // not referenced by extension target type 'Y' This is a workaround for an issue in the Slang compiler:
     // https://github.com/shader-slang/slang/issues/8166
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30856"));
-    // TODO: Globally disable warning 41012.
+    // TODO: Globally disable warning E41012.
     // Example: entry point 'foo' uses additional capabilities that are not part of the specified profile 'unknown'.
     // This warning happens on CUDA because we're not properly setting the target profile (i.e. "cuda_sm_x_x").
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("41012"));
+    // TODO: Globally disable warning E31010.
+    // warning[E31010]: Link-time constant sized arrays are a work in progress feature, some aspects of the reflection
+    // API may not work This is a workaround for an issue in the Slang compiler:
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("31010"));
+    // TODO: Globally disable warning E30051.
+    // This is a workaround for an issue in the Slang compiler:
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30051"));
+    // TODO: Globally disable warning E31106.
+    // warning[E31106]: Parameter group type includes some members with types which cannot be included in the same
+    // binding. These types will be moved into another parameter binding slot.
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("31106"));
+    // TODO: Globally disable warning E31107.
+    // warning[E31107]: This member cannot be included in the same binding as some other parts of this struct, and will
+    // be moved into another parameter binding slot.
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("31107"));
 
     // Set warnings.
     for (const auto& warning : options.enable_warnings)
