@@ -23,7 +23,7 @@ float foo_generic<T>(T a) { return 0; }
 struct Foo
 {
     float3 value;
-    int bar(float a) {}
+    int bar(float a) { return 0; }
 }
 
 struct GenericType<A, int N> {}
