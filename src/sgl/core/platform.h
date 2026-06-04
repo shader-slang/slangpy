@@ -169,6 +169,14 @@ save_file_dialog(std::span<const FileDialogFilter> filters = {});
 [[nodiscard]] SGL_API ProcessID current_process_id();
 
 // -------------------------------------------------------------------------------------------------
+// Threads
+// -------------------------------------------------------------------------------------------------
+
+/// Set the name of the current thread for debuggers and profilers.
+/// \return True if the platform accepted the name.
+SGL_API bool set_current_thread_name(std::string_view name);
+
+// -------------------------------------------------------------------------------------------------
 // Memory
 // -------------------------------------------------------------------------------------------------
 

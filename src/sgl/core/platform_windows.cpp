@@ -441,6 +441,48 @@ ProcessID current_process_id()
 }
 
 // -------------------------------------------------------------------------------------------------
+// Threads
+// -------------------------------------------------------------------------------------------------
+
+using SetThreadDescriptionProc = HRESULT(WINAPI*)(HANDLE, PCWSTR);
+
+static SetThreadDescriptionProc get_set_thread_description_proc()
+{
+    auto proc_address = GetProcAddress(GetModuleHandleW(L"kernelbase.dll"), "SetThreadDescription");
+    return reinterpret_cast<SetThreadDescriptionProc>(proc_address);
+}
+
+bool set_current_thread_name(std::string_view name)
+{
+    static SetThreadDescriptionProc proc = get_set_thread_description_proc();
+    if (!proc)
+        return false;
+
+    constexpr size_t MAX_THREAD_NAME_LENGTH = 64;
+    if (name.size() > MAX_THREAD_NAME_LENGTH)
+        name = name.substr(0, MAX_THREAD_NAME_LENGTH);
+
+    constexpr size_t wide_name_buffer_length = MAX_THREAD_NAME_LENGTH + 1;
+    WCHAR wide_name[wide_name_buffer_length] = {};
+    if (!name.empty()) {
+        int name_length = static_cast<int>(name.size());
+        int wide_name_length = MultiByteToWideChar(
+            CP_UTF8,
+            MB_ERR_INVALID_CHARS,
+            name.data(),
+            name_length,
+            wide_name,
+            MAX_THREAD_NAME_LENGTH
+        );
+        if (wide_name_length <= 0 || wide_name_length >= static_cast<int>(wide_name_buffer_length))
+            return false;
+        wide_name[wide_name_length] = L'\0';
+    }
+
+    return SUCCEEDED(proc(GetCurrentThread(), wide_name));
+}
+
+// -------------------------------------------------------------------------------------------------
 // Memory
 // -------------------------------------------------------------------------------------------------
 

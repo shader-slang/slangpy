@@ -11,6 +11,7 @@
 
 #include <signal.h>
 #include <limits.h>
+#include <pthread.h>
 #include <dlfcn.h>
 #include <unistd.h>
 #include <execinfo.h>
@@ -333,6 +334,16 @@ std::optional<std::string> get_environment_variable(const char* name)
 ProcessID current_process_id()
 {
     return static_cast<ProcessID>(getpid());
+}
+
+// -------------------------------------------------------------------------------------------------
+// Threads
+// -------------------------------------------------------------------------------------------------
+
+bool set_current_thread_name(std::string_view name)
+{
+    std::string truncated_name(name.substr(0, 15));
+    return pthread_setname_np(truncated_name.c_str()) == 0;
 }
 
 // -------------------------------------------------------------------------------------------------
