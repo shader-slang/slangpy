@@ -190,6 +190,23 @@ private:
 };
 
 struct ProfilerImpl;
+class Profiler;
+
+/// Opaque state returned by Profiler::begin_zone() and consumed by Profiler::end_zone().
+struct ProfilerZoneToken {
+    Profiler* profiler{nullptr};
+    void* thread_data;
+    CommandEncoder* encoder;
+    QueryPool* query_pool;
+    uint32_t end_query_index;
+    bool debug_group_active;
+};
+
+/// Opaque state returned by Profiler::begin_frame() and consumed by Profiler::end_frame().
+struct ProfilerFrameToken {
+    Profiler* profiler{nullptr};
+    void* thread_data;
+};
 
 /// Hierarchical CPU/GPU application profiler.
 ///
@@ -243,16 +260,16 @@ public:
     ref<ProfilerTrace> trace_snapshot();
     ref<ProfilerStats> stats_snapshot();
 
-    bool begin_zone(
+    ProfilerZoneToken begin_zone(
         const ProfilerSourceLocation* source_location,
         const char* name,
         CommandEncoder* encoder,
         ProfilerZoneFlags flags
     ) noexcept;
-    void end_zone(CommandEncoder* encoder, ProfilerZoneFlags flags) noexcept;
+    void end_zone(ProfilerZoneToken token) noexcept;
 
-    bool begin_frame(const ProfilerSourceLocation* source_location, const char* name) noexcept;
-    void end_frame() noexcept;
+    ProfilerFrameToken begin_frame(const ProfilerSourceLocation* source_location, const char* name) noexcept;
+    void end_frame(ProfilerFrameToken token) noexcept;
 
     void tick();
     void flush();
@@ -360,26 +377,20 @@ namespace detail {
             CommandEncoder* encoder = nullptr,
             ProfilerZoneFlags flags = ProfilerZoneFlags::none
         ) noexcept
-            : m_profiler(nullptr)
-            , m_encoder(encoder)
-            , m_flags(flags)
         {
             Profiler* profiler = current_profiler_or_null();
-            if (profiler && profiler->begin_zone(source_location, name, encoder, flags)) {
-                m_profiler = profiler;
-            }
+            if (profiler)
+                m_token = profiler->begin_zone(source_location, name, encoder, flags);
         }
 
         ~ZoneGuard() noexcept
         {
-            if (m_profiler)
-                m_profiler->end_zone(m_encoder, m_flags);
+            if (m_token.profiler)
+                m_token.profiler->end_zone(m_token);
         }
 
     private:
-        Profiler* m_profiler;
-        CommandEncoder* m_encoder;
-        ProfilerZoneFlags m_flags;
+        ProfilerZoneToken m_token;
 
         SGL_NON_COPYABLE_AND_MOVABLE(ZoneGuard);
     };
@@ -390,18 +401,18 @@ namespace detail {
         explicit FrameGuard(const ProfilerSourceLocation* source_location, const char* name = nullptr) noexcept
         {
             Profiler* profiler = current_profiler_or_null();
-            if (profiler && profiler->begin_frame(source_location, name))
-                m_profiler = profiler;
+            if (profiler)
+                m_token = profiler->begin_frame(source_location, name);
         }
 
         ~FrameGuard() noexcept
         {
-            if (m_profiler)
-                m_profiler->end_frame();
+            if (m_token.profiler)
+                m_token.profiler->end_frame(m_token);
         }
 
     private:
-        Profiler* m_profiler{nullptr};
+        ProfilerFrameToken m_token;
 
         SGL_NON_COPYABLE_AND_MOVABLE(FrameGuard);
     };

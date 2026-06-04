@@ -10,7 +10,6 @@ from slangpy import (
     Feature,
     Profiler,
     ProfilerDesc,
-    ProfilerStats,
     ProfilerTrace,
     ProfilerTimelineInfo,
     ProfilerTimelineType,
@@ -21,10 +20,6 @@ from slangpy import (
     push_current_profiler,
 )
 from slangpy.testing import helpers
-
-
-def trace_names(trace: ProfilerTrace) -> set[str]:
-    return {trace.names[zone.name_id].name for zone in trace.zones}
 
 
 def test_profiler_context_manages_application_stack():
@@ -172,56 +167,11 @@ def test_profiler_timeline_public_shape():
     assert ProfilerZoneFlags.copy_name & ProfilerZoneFlags.copy_name
 
 
-def test_profiler_flat_trace_and_stats(tmp_path: Path) -> None:
-    profiler = Profiler()
-    profiler.start_trace()
-
-    with profiler.frame("frame"):
-        with profiler.zone("outer"):
-            with profiler.zone("inner"):
-                pass
-
-    trace = profiler.trace_snapshot()
-    assert isinstance(trace, ProfilerTrace)
-    assert len(trace.frames) == 1
-    assert len(trace.zones) == 2
-    assert len(trace.root_indices) == 1
-    assert len(trace.child_indices) == 1
-    assert trace_names(trace) == {"outer", "inner"}
-
-    stats = profiler.stats_snapshot()
-    assert isinstance(stats, ProfilerStats)
-    assert stats.completed_frame_count == 1
-    assert len(stats.nodes) >= 2
-    assert any(node.cpu.valid for node in stats.nodes)
-
-    path = tmp_path / "flat-trace.json"
-    trace.write_to_json(path)
-    text = path.read_text()
-    assert '"name":"outer"' in text
-    assert '"cat":"sgl.cpu"' in text
-
-    profiler.clear_trace()
-    assert len(profiler.trace_snapshot().zones) == 0
-    assert len(trace.zones) == 2
-
-    del profiler
-    assert current_profiler_or_null() is None
-
-
-def test_profiler_stats_enabled_without_default_trace():
+def test_profiler_manual_python_zone_and_frame_contexts_are_not_bound():
     profiler = Profiler()
 
-    with profiler.frame("frame"):
-        with profiler.zone("stats_only_zone"):
-            pass
-
-    trace = profiler.trace_snapshot()
-    assert len(trace.zones) == 0
-
-    stats = profiler.stats_snapshot()
-    assert stats.completed_frame_count == 1
-    assert any(node.cpu.valid for node in stats.nodes)
+    assert not hasattr(profiler, "zone")
+    assert not hasattr(profiler, "frame")
 
     del profiler
     assert current_profiler_or_null() is None
@@ -248,8 +198,7 @@ float add_numbers(float a, float b) {
     profiler = Profiler()
     profiler.start_trace()
     try:
-        with profiler.frame("frame"):
-            function(1.0, 2.0)
+        function(1.0, 2.0)
         device.wait()
         profiler.tick()
 

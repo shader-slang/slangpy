@@ -799,25 +799,18 @@ class App:
             command_encoder = self.device.create_command_encoder()
 
             with self.profiler:
-                with self.profiler.frame("frame"):
-                    with self.profiler.zone("overall", command_encoder):
-                        with self.profiler.zone("path_tracer", command_encoder):
-                            self.path_tracer.execute(command_encoder, self.render_texture, frame)
-
-                        with self.profiler.zone("accumulator", command_encoder):
-                            self.accumulator.execute(
-                                command_encoder,
-                                self.render_texture,
-                                self.accum_texture,
-                                frame == 0,
-                            )
-
-                        with self.profiler.zone("tone_mapper", command_encoder):
-                            self.tone_mapper.execute(
-                                command_encoder,
-                                self.accum_texture,
-                                self.output_texture,
-                            )
+                self.path_tracer.execute(command_encoder, self.render_texture, frame)
+                self.accumulator.execute(
+                    command_encoder,
+                    self.render_texture,
+                    self.accum_texture,
+                    frame == 0,
+                )
+                self.tone_mapper.execute(
+                    command_encoder,
+                    self.accum_texture,
+                    self.output_texture,
+                )
 
             command_encoder.blit(surface_texture, self.output_texture)
 

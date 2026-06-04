@@ -97,6 +97,36 @@ TEST_CASE("profiler zone macro supports explicit interned and dynamic names")
     CHECK(current_profiler_or_null() == nullptr);
 }
 
+TEST_CASE("profiler explicit zone and frame tokens record trace data")
+{
+    static const ProfilerSourceLocation source_location = {
+        __FILE__,
+        __LINE__,
+        SGL_PRETTY_FUNC,
+    };
+
+    {
+        ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
+
+        ProfilerFrameToken frame_token = profiler->begin_frame(&source_location, "token_frame");
+        REQUIRE(frame_token.profiler == profiler.get());
+
+        ProfilerZoneToken zone_token
+            = profiler->begin_zone(&source_location, "token_zone", nullptr, ProfilerZoneFlags::none);
+        REQUIRE(zone_token.profiler == profiler.get());
+
+        profiler->end_zone(zone_token);
+        profiler->end_frame(frame_token);
+
+        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        CHECK(trace->frames().size() == 1);
+        CHECK(trace_has_name(*trace, "token_zone"));
+    }
+
+    CHECK(current_profiler_or_null() == nullptr);
+}
+
 TEST_CASE("current profiler free functions are LIFO")
 {
     {

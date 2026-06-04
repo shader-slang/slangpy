@@ -6,88 +6,6 @@
 
 #include "sgl/device/command.h"
 
-#include <string>
-#include <utility>
-
-namespace {
-
-class PyProfilerZoneContext {
-public:
-    PyProfilerZoneContext(
-        sgl::Profiler* profiler,
-        std::string name,
-        sgl::CommandEncoder* encoder,
-        sgl::ProfilerZoneFlags flags
-    )
-        : m_profiler(profiler)
-        , m_name(std::move(name))
-        , m_encoder(encoder)
-        , m_flags(flags)
-    {
-    }
-
-    PyProfilerZoneContext* enter()
-    {
-        if (!m_profiler)
-            return this;
-
-        static const sgl::ProfilerSourceLocation* source_location
-            = sgl::Profiler::intern_source_location("<python>", 0, "Profiler.zone");
-        const char* name = m_name.empty() ? nullptr : sgl::Profiler::intern_name(m_name);
-        m_active = m_profiler->begin_zone(source_location, name, m_encoder, m_flags);
-        return this;
-    }
-
-    void exit(nb::object, nb::object, nb::object)
-    {
-        if (m_active && m_profiler)
-            m_profiler->end_zone(m_encoder, m_flags);
-        m_active = false;
-    }
-
-private:
-    sgl::Profiler* m_profiler{nullptr};
-    std::string m_name;
-    sgl::CommandEncoder* m_encoder{nullptr};
-    sgl::ProfilerZoneFlags m_flags{sgl::ProfilerZoneFlags::none};
-    bool m_active{false};
-};
-
-class PyProfilerFrameContext {
-public:
-    PyProfilerFrameContext(sgl::Profiler* profiler, std::string name)
-        : m_profiler(profiler)
-        , m_name(std::move(name))
-    {
-    }
-
-    PyProfilerFrameContext* enter()
-    {
-        if (!m_profiler)
-            return this;
-
-        static const sgl::ProfilerSourceLocation* source_location
-            = sgl::Profiler::intern_source_location("<python>", 0, "Profiler.frame");
-        const char* name = m_name.empty() ? nullptr : sgl::Profiler::intern_name(m_name);
-        m_active = m_profiler->begin_frame(source_location, name);
-        return this;
-    }
-
-    void exit(nb::object, nb::object, nb::object)
-    {
-        if (m_active && m_profiler)
-            m_profiler->end_frame();
-        m_active = false;
-    }
-
-private:
-    sgl::Profiler* m_profiler{nullptr};
-    std::string m_name;
-    bool m_active{false};
-};
-
-} // namespace
-
 SGL_PY_EXPORT(device_profiler)
 {
     using namespace sgl;
@@ -213,14 +131,6 @@ SGL_PY_EXPORT(device_profiler)
         .def_prop_ro("completed_frame_count", &ProfilerStats::completed_frame_count)
         .def_prop_ro("window_size", &ProfilerStats::window_size);
 
-    nb::class_<PyProfilerZoneContext>(m, "_ProfilerZoneContext")
-        .def("__enter__", &PyProfilerZoneContext::enter, nb::rv_policy::reference_internal)
-        .def("__exit__", &PyProfilerZoneContext::exit, "exc_type"_a.none(), "exc_val"_a.none(), "exc_tb"_a.none());
-
-    nb::class_<PyProfilerFrameContext>(m, "_ProfilerFrameContext")
-        .def("__enter__", &PyProfilerFrameContext::enter, nb::rv_policy::reference_internal)
-        .def("__exit__", &PyProfilerFrameContext::exit, "exc_type"_a.none(), "exc_val"_a.none(), "exc_tb"_a.none());
-
     nb::class_<Profiler, Object>(m, "Profiler", D(Profiler))
         .def(nb::init<ProfilerDesc>(), "desc"_a = ProfilerDesc())
         .def(
@@ -249,30 +159,6 @@ SGL_PY_EXPORT(device_profiler)
         .def_prop_rw("frame_stats_enabled", &Profiler::frame_stats_enabled, &Profiler::set_frame_stats_enabled)
         .def_prop_rw("stats_window_size", &Profiler::stats_window_size, &Profiler::set_stats_window_size)
         .def_prop_ro("desc", &Profiler::desc)
-        .def(
-            "zone",
-            [](Profiler* self, nb::object name, CommandEncoder* command_encoder, ProfilerZoneFlags flags)
-            {
-                std::string zone_name;
-                if (!name.is_none())
-                    zone_name = nb::cast<std::string>(name);
-                return PyProfilerZoneContext(self, std::move(zone_name), command_encoder, flags);
-            },
-            "name"_a = nb::none(),
-            "command_encoder"_a = nullptr,
-            "flags"_a = ProfilerZoneFlags::none
-        )
-        .def(
-            "frame",
-            [](Profiler* self, nb::object name)
-            {
-                std::string frame_name;
-                if (!name.is_none())
-                    frame_name = nb::cast<std::string>(name);
-                return PyProfilerFrameContext(self, std::move(frame_name));
-            },
-            "name"_a = nb::none()
-        )
         .def("start_trace", &Profiler::start_trace, "clear"_a = true)
         .def("stop_trace", &Profiler::stop_trace)
         .def("clear_trace", &Profiler::clear_trace)
