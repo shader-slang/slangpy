@@ -10,7 +10,7 @@ from slangpy.testing import helpers
 SIMPLE_FUNC = """
 import "slangpy";
 float foo(float a) { return a; }
-float intfoo(int a) { return a; }
+float intfoo(int a) { return float(a); }
 T genericfoo<T>(T a) { return a; }
 T genericconstrainedfoo<T: IFloat>(T a) { return a; }
 float3 foo3(float3 a) { return a; }
