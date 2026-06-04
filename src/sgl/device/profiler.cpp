@@ -15,9 +15,10 @@
 #include <concurrentqueue.h>
 
 #include <algorithm>
-#include <condition_variable>
 #include <cmath>
+#include <chrono>
 #include <deque>
+#include <exception>
 #include <fstream>
 #include <limits>
 #include <map>
@@ -377,7 +378,11 @@ namespace {
             timeline_info.thread_id = thread_hash;
         }
 
-        bool queue_event(const ProfilerEvent& event) { return queue.enqueue(producer_token, event); }
+        void queue_event(const ProfilerEvent& event) noexcept
+        {
+            if (!queue.enqueue(producer_token, event))
+                std::terminate();
+        }
     };
 
     struct StatsSample {
@@ -647,8 +652,6 @@ struct ProfilerImpl {
     uint64_t trace_stop_timestamp{0};
     uint64_t trace_epoch_start_timestamp{0};
 
-    std::mutex worker_mutex;
-    std::condition_variable worker_cv;
     std::thread worker_thread;
     std::atomic<bool> worker_stop{false};
     std::atomic<uint32_t> pending_event_count{0};
@@ -723,17 +726,10 @@ struct ProfilerImpl {
         return s_thread_data;
     }
 
-    bool queue_thread_event(ThreadData* thread_data, const ProfilerEvent& event) noexcept
+    void queue_thread_event(ThreadData* thread_data, const ProfilerEvent& event) noexcept
     {
-        const uint32_t previous_count = pending_event_count.fetch_add(1, std::memory_order_acq_rel);
-        if (!thread_data->queue_event(event)) {
-            pending_event_count.fetch_sub(1, std::memory_order_acq_rel);
-            return false;
-        }
-
-        if (previous_count == 0)
-            worker_cv.notify_one();
-        return true;
+        pending_event_count.fetch_add(1, std::memory_order_acq_rel);
+        thread_data->queue_event(event);
     }
 
     uint32_t get_source_id_locked(const ProfilerSourceLocation* source_location)
@@ -1019,10 +1015,12 @@ struct ProfilerImpl {
         ++completed_frame_count;
     }
 
-    void process_events(ThreadData& thread_data)
+    bool process_events(ThreadData& thread_data)
     {
+        bool processed = false;
         ProfilerEvent event;
         while (thread_data.queue.try_dequeue(thread_data.consumer_token, event)) {
+            processed = true;
             try {
                 switch (event.type) {
                 case ProfilerEventType::begin_zone:
@@ -1049,9 +1047,10 @@ struct ProfilerImpl {
 
             pending_event_count.fetch_sub(1, std::memory_order_acq_rel);
         }
+        return processed;
     }
 
-    void process_threads()
+    bool process_threads()
     {
         std::lock_guard process_lock(process_mutex);
         std::vector<ThreadData*> threads;
@@ -1060,28 +1059,21 @@ struct ProfilerImpl {
             threads = thread_data_storage;
         }
 
+        bool processed = false;
         for (ThreadData* thread_data : threads)
-            process_events(*thread_data);
+            processed |= process_events(*thread_data);
+        return processed;
     }
 
     void worker_main() noexcept
     {
         while (true) {
-            std::unique_lock lock(worker_mutex);
-            worker_cv.wait(
-                lock,
-                [this]()
-                {
-                    return worker_stop.load(std::memory_order_acquire)
-                        || pending_event_count.load(std::memory_order_acquire) > 0;
-                }
-            );
-
+            const bool processed = process_threads();
             if (worker_stop.load(std::memory_order_acquire) && pending_event_count.load(std::memory_order_acquire) == 0)
                 return;
 
-            lock.unlock();
-            process_threads();
+            if (!processed)
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
 
@@ -1106,7 +1098,6 @@ struct ProfilerImpl {
     void stop_worker() noexcept
     {
         worker_stop.store(true, std::memory_order_release);
-        worker_cv.notify_all();
         if (worker_thread.joinable())
             worker_thread.join();
 
@@ -1990,16 +1981,15 @@ bool Profiler::begin_zone(
 
     const uint64_t timestamp = Timer::now();
     ThreadData* thread_data = m_impl->get_this_thread_data();
-    if (!m_impl->queue_thread_event(
-            thread_data,
-            {
-                .type = ProfilerEventType::begin_zone,
-                .timestamp = timestamp,
-                .source_location = source_location,
-                .name = name,
-            }
-        ))
-        return false;
+    m_impl->queue_thread_event(
+        thread_data,
+        {
+            .type = ProfilerEventType::begin_zone,
+            .timestamp = timestamp,
+            .source_location = source_location,
+            .name = name,
+        }
+    );
 
     if (encoder) {
         const char* debug_name = name ? name : fallback_zone_name(source_location);
@@ -2025,17 +2015,14 @@ bool Profiler::begin_zone(
                             .end_query_index = query_pair.end_query_index,
                         };
                         recording->query_stack.push_back({.event = gpu_event});
-                        if (m_impl->queue_thread_event(
-                                thread_data,
-                                {
-                                    .type = ProfilerEventType::begin_gpu_zone,
-                                    .gpu = gpu_event,
-                                }
-                            )) {
-                            ++recording->queued_zone_count;
-                        } else {
-                            recording->query_stack.pop_back();
-                        }
+                        m_impl->queue_thread_event(
+                            thread_data,
+                            {
+                                .type = ProfilerEventType::begin_gpu_zone,
+                                .gpu = gpu_event,
+                            }
+                        );
+                        ++recording->queued_zone_count;
                     }
                 }
             }
@@ -2061,13 +2048,14 @@ void Profiler::end_zone(CommandEncoder* encoder, ProfilerZoneFlags flags) noexce
                     encoder->write_timestamp(query.event.query_pool, query.event.end_query_index);
 
                     ThreadData* thread_data = m_impl->get_this_thread_data();
-                    completed = m_impl->queue_thread_event(
+                    m_impl->queue_thread_event(
                         thread_data,
                         {
                             .type = ProfilerEventType::end_gpu_zone,
                             .gpu = query.event,
                         }
                     );
+                    completed = true;
                 } catch (...) {
                 }
                 if (!completed && recording->queued_zone_count > 0)
@@ -2110,16 +2098,15 @@ bool Profiler::begin_frame(const ProfilerSourceLocation* source_location, const 
         return false;
     }
 
-    if (!m_impl->queue_thread_event(
-            thread_data,
-            {
-                .type = ProfilerEventType::begin_frame,
-                .timestamp = timestamp,
-                .source_location = source_location,
-                .name = name,
-            }
-        ))
-        return false;
+    m_impl->queue_thread_event(
+        thread_data,
+        {
+            .type = ProfilerEventType::begin_frame,
+            .timestamp = timestamp,
+            .source_location = source_location,
+            .name = name,
+        }
+    );
 
     thread_data->hot_frame_active = true;
     return true;
