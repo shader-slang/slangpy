@@ -54,14 +54,14 @@ const ProfilerZoneRecord* find_trace_zone(const ProfilerTrace& trace, std::strin
 
 } // namespace
 
-TEST_CASE("profiler static zone macro is callable")
+TEST_CASE("profiler scope macro is callable")
 {
     {
         ref<Profiler> profiler = make_ref<Profiler>();
         CHECK(current_profiler() == profiler.get());
 
         {
-            SGL_PROFILER_ZONE("native_static_zone");
+            SGL_PROFILE_SCOPE("native_static_zone");
         }
 
         profiler->tick();
@@ -70,7 +70,7 @@ TEST_CASE("profiler static zone macro is callable")
     CHECK(current_profiler_or_null() == nullptr);
 }
 
-TEST_CASE("profiler zone macro supports explicit interned and dynamic names")
+TEST_CASE("profiler scope macro supports explicit interned and dynamic names")
 {
     CommandEncoder* encoder = nullptr;
     const char* name = Profiler::intern_name("native_interned_zone");
@@ -84,14 +84,33 @@ TEST_CASE("profiler zone macro supports explicit interned and dynamic names")
         ref<Profiler> profiler = make_ref<Profiler>();
         profiler->start_trace();
 
-        SGL_PROFILER_ZONE(name);
-        SGL_PROFILER_ZONE(name, encoder);
-        SGL_PROFILER_ZONE(dynamic_name.c_str(), nullptr, ProfilerZoneFlags::copy_name);
-        SGL_PROFILER_ZONE(dynamic_name.c_str(), encoder, ProfilerZoneFlags::copy_name);
+        SGL_PROFILE_SCOPE(name);
+        SGL_PROFILE_SCOPE(name, encoder);
+        SGL_PROFILE_SCOPE(dynamic_name.c_str(), nullptr, ProfilerZoneFlags::copy_name);
+        SGL_PROFILE_SCOPE(dynamic_name.c_str(), encoder, ProfilerZoneFlags::copy_name);
 
         ref<ProfilerTrace> trace = profiler->trace_snapshot();
         CHECK(trace_has_name(*trace, "native_interned_zone"));
         CHECK(trace_has_name(*trace, "native_dynamic_zone"));
+    }
+
+    CHECK(current_profiler_or_null() == nullptr);
+}
+
+TEST_CASE("profiler function and frame macros record trace data")
+{
+    {
+        ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
+
+        {
+            SGL_PROFILE_FRAME();
+            SGL_PROFILE_FUNCTION();
+        }
+
+        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        CHECK(trace->frames().size() == 1);
+        CHECK(trace->zones().size() == 1);
     }
 
     CHECK(current_profiler_or_null() == nullptr);
@@ -182,7 +201,7 @@ TEST_CASE("current profiler is application-wide")
             [&]()
             {
                 worker_saw_profiler = current_profiler_or_null() == profiler.get();
-                SGL_PROFILER_ZONE("worker_zone");
+                SGL_PROFILE_SCOPE("worker_zone");
             }
         );
         thread.join();
@@ -305,10 +324,10 @@ TEST_CASE("profiler records flat cpu trace and stats")
         profiler->start_trace();
 
         {
-            SGL_PROFILER_FRAME("frame");
-            SGL_PROFILER_ZONE("outer");
+            SGL_PROFILE_FRAME();
+            SGL_PROFILE_SCOPE("outer");
             {
-                SGL_PROFILER_ZONE("inner");
+                SGL_PROFILE_SCOPE("inner");
             }
         }
 
@@ -345,8 +364,8 @@ TEST_CASE("profiler records stats by default without retaining trace")
         ref<Profiler> profiler = make_ref<Profiler>();
 
         {
-            SGL_PROFILER_FRAME("frame");
-            SGL_PROFILER_ZONE("stats_only_zone");
+            SGL_PROFILE_FRAME();
+            SGL_PROFILE_SCOPE("stats_only_zone");
         }
 
         ref<ProfilerTrace> trace = profiler->trace_snapshot();
@@ -369,13 +388,13 @@ TEST_CASE("profiler frames are thread local")
         profiler->start_trace();
 
         {
-            SGL_PROFILER_FRAME("main_frame");
-            SGL_PROFILER_ZONE("main_thread_zone");
+            SGL_PROFILE_FRAME();
+            SGL_PROFILE_SCOPE("main_thread_zone");
 
             std::thread thread(
                 []()
                 {
-                    SGL_PROFILER_ZONE("worker_thread_zone");
+                    SGL_PROFILE_SCOPE("worker_thread_zone");
                 }
             );
             thread.join();
@@ -406,8 +425,8 @@ TEST_CASE_GPU("profiler records gpu zones in trace json")
         ref<CommandEncoder> encoder = device->create_command_encoder();
 
         {
-            SGL_PROFILER_FRAME("frame");
-            SGL_PROFILER_ZONE("gpu_zone", encoder.get());
+            SGL_PROFILE_FRAME();
+            SGL_PROFILE_SCOPE("gpu_zone", encoder.get());
         }
 
         const uint64_t submit_id = device->submit_command_buffer(encoder->finish());
@@ -445,11 +464,11 @@ TEST_CASE_GPU("profiler records gpu zones from multiple command buffers")
         command_buffer_ptrs.reserve(command_buffer_count);
 
         {
-            SGL_PROFILER_FRAME("frame");
+            SGL_PROFILE_FRAME();
             for (size_t i = 0; i < command_buffer_count; ++i) {
                 ref<CommandEncoder> encoder = device->create_command_encoder();
                 {
-                    SGL_PROFILER_ZONE("multi_encoder_gpu_zone", encoder.get());
+                    SGL_PROFILE_SCOPE("multi_encoder_gpu_zone", encoder.get());
                 }
 
                 ref<CommandBuffer> command_buffer = encoder->finish();
@@ -487,9 +506,9 @@ TEST_CASE_GPU("profiler records gpu zones across query blocks")
         ref<CommandEncoder> encoder = device->create_command_encoder();
 
         {
-            SGL_PROFILER_FRAME("frame");
+            SGL_PROFILE_FRAME();
             for (size_t i = 0; i < zone_count; ++i) {
-                SGL_PROFILER_ZONE("many_gpu_zones", encoder.get());
+                SGL_PROFILE_SCOPE("many_gpu_zones", encoder.get());
             }
         }
 
@@ -521,14 +540,14 @@ TEST_CASE_GPU("profiler ignores discarded gpu recordings")
         {
             ref<CommandEncoder> discarded_encoder = device->create_command_encoder();
             {
-                SGL_PROFILER_ZONE("discarded_gpu_zone", discarded_encoder.get());
+                SGL_PROFILE_SCOPE("discarded_gpu_zone", discarded_encoder.get());
             }
         }
 
         ref<CommandEncoder> encoder = device->create_command_encoder();
         {
-            SGL_PROFILER_FRAME("frame");
-            SGL_PROFILER_ZONE("submitted_after_discard_gpu_zone", encoder.get());
+            SGL_PROFILE_FRAME();
+            SGL_PROFILE_SCOPE("submitted_after_discard_gpu_zone", encoder.get());
         }
 
         const uint64_t submit_id = device->submit_command_buffer(encoder->finish());

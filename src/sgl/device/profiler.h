@@ -429,45 +429,61 @@ namespace detail {
 #endif
 
 
-/// Start a profiler zone for the current C++ scope.
+/// Start a profiler zone named after the current C++ function.
 ///
 /// The macro always records the callsite source location (`__FILE__`, `__LINE__`, and `__func__`).
 /// Optional arguments are forwarded in fixed order:
-/// - `SGL_PROFILER_ZONE()`
-/// - `SGL_PROFILER_ZONE(name)`
-/// - `SGL_PROFILER_ZONE(name, encoder)`
-/// - `SGL_PROFILER_ZONE(name, encoder, flags)`
-///
-/// `name` must point to stable storage, such as a string literal or a pointer returned by
-/// `Profiler::intern_name()`, unless `flags` includes `ProfilerZoneFlags::copy_name`.
-/// Use explicit `nullptr` placeholders to pass later arguments, e.g.
-/// `SGL_PROFILER_ZONE(nullptr, nullptr, flags)`.
+/// - `SGL_PROFILE_FUNCTION()`
+/// - `SGL_PROFILE_FUNCTION(encoder)`
+/// - `SGL_PROFILE_FUNCTION(encoder, flags)`
 ///
 /// The implementation uses the common `, ##__VA_ARGS__` extension so empty macro arguments work with
 /// the MSVC/GCC-style preprocessors used by this project.
-#define SGL_PROFILER_ZONE(...) SGL_PROFILER_ZONE_IMPL(__COUNTER__, __VA_ARGS__)
-#define SGL_PROFILER_ZONE_IMPL(counter, ...) SGL_PROFILER_ZONE_IMPL2(counter, __VA_ARGS__)
-#define SGL_PROFILER_ZONE_IMPL2(counter, ...)                                                                          \
+#define SGL_PROFILE_FUNCTION(...) SGL_PROFILE_FUNCTION_IMPL(__COUNTER__, __VA_ARGS__)
+#define SGL_PROFILE_FUNCTION_IMPL(counter, ...) SGL_PROFILE_FUNCTION_IMPL2(counter, __VA_ARGS__)
+#define SGL_PROFILE_FUNCTION_IMPL2(counter, ...)                                                                       \
     static const ::sgl::ProfilerSourceLocation SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter)              \
         = {__FILE__, __LINE__, SGL_PRETTY_FUNC};                                                                       \
     ::sgl::detail::ZoneGuard SGL_CONCAT_STRINGS(sgl_profiler_zone_, counter)(                                          \
         &SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter),                                                   \
+        nullptr,                                                                                                       \
+        ##__VA_ARGS__                                                                                                  \
+    )
+
+/// Start a named profiler zone for the current C++ scope.
+///
+/// The macro always records the callsite source location (`__FILE__`, `__LINE__`, and `__func__`).
+/// Optional arguments are forwarded in fixed order:
+/// - `SGL_PROFILE_SCOPE(name)`
+/// - `SGL_PROFILE_SCOPE(name, encoder)`
+/// - `SGL_PROFILE_SCOPE(name, encoder, flags)`
+///
+/// `name` must point to stable storage, such as a string literal or a pointer returned by
+/// `Profiler::intern_name()`, unless `flags` includes `ProfilerZoneFlags::copy_name`.
+/// Use explicit `nullptr` placeholders to pass later arguments, e.g.
+/// `SGL_PROFILE_SCOPE(nullptr, nullptr, flags)`.
+///
+/// The implementation uses the common `, ##__VA_ARGS__` extension so empty macro arguments work with
+/// the MSVC/GCC-style preprocessors used by this project.
+#define SGL_PROFILE_SCOPE(name, ...) SGL_PROFILE_SCOPE_IMPL(__COUNTER__, name, __VA_ARGS__)
+#define SGL_PROFILE_SCOPE_IMPL(counter, name, ...) SGL_PROFILE_SCOPE_IMPL2(counter, name, __VA_ARGS__)
+#define SGL_PROFILE_SCOPE_IMPL2(counter, name, ...)                                                                    \
+    static const ::sgl::ProfilerSourceLocation SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter)              \
+        = {__FILE__, __LINE__, SGL_PRETTY_FUNC};                                                                       \
+    ::sgl::detail::ZoneGuard SGL_CONCAT_STRINGS(sgl_profiler_zone_, counter)(                                          \
+        &SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter),                                                   \
+        name,                                                                                                          \
         ##__VA_ARGS__                                                                                                  \
     )
 
 /// Start a profiler frame for the current C++ scope.
 ///
-/// The macro records the callsite source location and optionally accepts a stable frame name:
-/// - `SGL_PROFILER_FRAME()`
-/// - `SGL_PROFILER_FRAME(name)`
-///
-/// Like zone names, `name` must point to stable storage.
-#define SGL_PROFILER_FRAME(...) SGL_PROFILER_FRAME_IMPL(__COUNTER__, __VA_ARGS__)
-#define SGL_PROFILER_FRAME_IMPL(counter, ...) SGL_PROFILER_FRAME_IMPL2(counter, __VA_ARGS__)
-#define SGL_PROFILER_FRAME_IMPL2(counter, ...)                                                                         \
+/// The macro records the callsite source location and names the frame after the current function.
+#define SGL_PROFILE_FRAME() SGL_PROFILE_FRAME_IMPL(__COUNTER__)
+#define SGL_PROFILE_FRAME_IMPL(counter) SGL_PROFILE_FRAME_IMPL2(counter)
+#define SGL_PROFILE_FRAME_IMPL2(counter)                                                                               \
     static const ::sgl::ProfilerSourceLocation SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter)              \
         = {__FILE__, __LINE__, SGL_PRETTY_FUNC};                                                                       \
     ::sgl::detail::FrameGuard SGL_CONCAT_STRINGS(sgl_profiler_frame_, counter)(                                        \
-        &SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter),                                                   \
-        ##__VA_ARGS__                                                                                                  \
+        &SGL_CONCAT_STRINGS(sgl_profiler_source_location_, counter)                                                    \
     )

@@ -25,7 +25,7 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
 - [x] (2026-06-03) Reviewed this plan with correctness, completeness, clarity, efficiency, and performance passes, then incorporated required fixes for clock-domain conversion, trace epochs, worker teardown, hard GPU query accounting, batched query reads, milestone sequencing, and API wording contradictions.
 - [x] (2026-06-03) Implemented the new public C++ profiler descriptor, flat trace records, stats snapshots, trace controls, and Python bindings.
 - [x] (2026-06-03) Replaced the temporary profiler internals with a unified event pipeline using per-thread producer queues, synchronous `tick()`/`flush()` processing, GPU recording, hard query budgets, stats, and flat trace storage.
-- [x] (2026-06-03) Added the ImGui profiler window and updated the path tracer Python example to use `Profiler.frame()` / `Profiler.zone()` plus a per-frame `tick()`.
+- [x] (2026-06-03) Added the ImGui profiler window and initially updated the path tracer Python example to use temporary Python zone/frame context managers plus a per-frame `tick()`. Those manual Python context managers were later removed.
 - [x] (2026-06-03) Refreshed generated stubs and `py_doc.h`; stale public names `ProfilerZoneScope`, `ProfilerFrameScope`, and `render_overlay` no longer appear in `slangpy`, `src/slangpy_ext`, `tests`, or `examples`.
 - [x] (2026-06-03) Built, ran the profiler Python tests, ran C++ unit tests, ran the stale-name grep, and ran pre-commit successfully.
 - [x] (2026-06-03) Audited the profiler hot path and moved GPU source/name dictionary resolution out of `begin_zone()` and into completed-query resolution, removing the avoidable `data_mutex` lock from successful GPU zone begins.
@@ -35,6 +35,7 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
 - [x] (2026-06-04) Replaced the bool-returning zone/frame begin APIs with by-value `ProfilerZoneToken` and `ProfilerFrameToken` payloads. The C++ RAII guards now store tokens, and the zone token keeps only the end-query write state instead of using `ActiveGpuRecording::query_stack`.
 - [x] (2026-06-04) Collapsed GPU begin/end queue events into one GPU-zone metadata event queued from `Profiler::begin_zone()` after the begin timestamp is written. `Profiler::end_zone()` writes the reserved end timestamp and then queues the CPU end event.
 - [x] (2026-06-04) Removed the Python `Profiler.zone()` / `Profiler.frame()` context-manager bindings and updated `examples/pathtracer/pathtracer.py` plus Python profiler tests to avoid manual Python zone/frame scopes.
+- [x] (2026-06-04) Replaced the public C++ profiler macros with `SGL_PROFILE_FUNCTION(...)`, `SGL_PROFILE_SCOPE(name, ...)`, and argument-free `SGL_PROFILE_FRAME()`, all of which pass the source location to the internal guards.
 - [x] (2026-06-04) Validated the token refactor with `pre-commit run --all-files`, `cmake --build --preset windows-msvc-debug`, `python tools/ci.py unit-test-cpp`, and `pytest slangpy/tests/slangpy_tests/test_profiler.py -v`.
 
 ## Surprises and Discoveries
@@ -196,7 +197,7 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
 
 ## Outcomes and Retrospective
 
-Implemented the new profiler API and runtime foundation. `ProfilerDesc` now exposes the planned defaults and validation. `ProfilerTrace` exposes flat timelines, sources, names, frames, zones, child indices, and root indices. `ProfilerStats` exposes rolling CPU/GPU timing nodes. C++ macros use internal RAII guards backed by simple by-value zone/frame tokens. Python no longer exposes manual zone/frame context managers; it keeps profiler configuration, snapshots, current-profiler stack helpers, UI rendering, and automatic SlangPy dispatch zones.
+Implemented the new profiler API and runtime foundation. `ProfilerDesc` now exposes the planned defaults and validation. `ProfilerTrace` exposes flat timelines, sources, names, frames, zones, child indices, and root indices. `ProfilerStats` exposes rolling CPU/GPU timing nodes. C++ macros use `SGL_PROFILE_FUNCTION(...)`, `SGL_PROFILE_SCOPE(name, ...)`, and `SGL_PROFILE_FRAME()` over internal RAII guards backed by simple by-value zone/frame tokens. Python no longer exposes manual zone/frame context managers; it keeps profiler configuration, snapshots, current-profiler stack helpers, UI rendering, and automatic SlangPy dispatch zones.
 
 The old stub GPU timestamp path and pointer-heavy trace tree were replaced by per-thread CPU event queues, synchronous processing in `tick()` / `flush()`, submitted/discarded command recording callbacks, per-device/queue hard query budgets, block-level raw query reads with explicit CPU/GPU timestamp anchors, and flat stat/trace storage. Discarded GPU recordings are ignored safely, submitted GPU zones resolve after `tick()`, and SlangPy automatic zones cache their interned profiler name on `NativeCallData`.
 
@@ -266,6 +267,9 @@ Descriptor validation should be explicit and tested. `stats_window_size` is the 
 - `flush()`
 - `begin_zone(...) -> ProfilerZoneToken` / `end_zone(ProfilerZoneToken)` for C++ internals and macros
 - `begin_frame(...) -> ProfilerFrameToken` / `end_frame(ProfilerFrameToken)` for C++ internals and macros
+- `SGL_PROFILE_FUNCTION(...)`, optionally with command encoder and flags
+- `SGL_PROFILE_SCOPE(name, ...)`, optionally with command encoder and flags
+- `SGL_PROFILE_FRAME()`
 
 Python should expose profiler configuration, application-wide current-profiler stack helpers, snapshots, trace controls, `tick()`, and `flush()`. It should not expose manual Python zone/frame context managers in this design pass; SlangPy automatic dispatch zones continue to use the current profiler when `auto_zones_enabled` is true.
 

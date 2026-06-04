@@ -407,7 +407,7 @@ struct Scene {
         , stage(stage)
         , camera(stage.camera)
     {
-        SGL_PROFILER_ZONE();
+        SGL_PROFILE_FUNCTION();
 
         // Prepare material descriptors
         material_descs.resize(stage.materials.size());
@@ -524,7 +524,7 @@ struct Scene {
 
     ref<AccelerationStructure> build_blas(const MeshDesc& mesh_desc)
     {
-        SGL_PROFILER_ZONE();
+        SGL_PROFILE_FUNCTION();
 
         AccelerationStructureBuildInputTriangles build_input{
             .vertex_buffers = {BufferOffsetPair(vertex_buffer, mesh_desc.vertex_offset * sizeof(Mesh::Vertex))},
@@ -564,7 +564,7 @@ struct Scene {
 
     ref<AccelerationStructure> build_tlas()
     {
-        SGL_PROFILER_ZONE();
+        SGL_PROFILE_FUNCTION();
 
         ref<AccelerationStructureInstanceList> instance_list
             = device->create_acceleration_structure_instance_list(instance_descs.size());
@@ -635,7 +635,7 @@ struct PathTracer {
         : device(device)
         , scene(scene)
     {
-        SGL_PROFILER_ZONE();
+        SGL_PROFILE_FUNCTION();
 
         if (USE_RAYTRACING_PIPELINE) {
             program = device->load_program("pathtracer.slang", {"rt_ray_gen", "rt_closest_hit", "rt_miss"});
@@ -664,7 +664,7 @@ struct PathTracer {
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> output, uint32_t frame)
     {
-        SGL_PROFILER_ZONE(nullptr, command_encoder);
+        SGL_PROFILE_FUNCTION(command_encoder);
 
         if (USE_RAYTRACING_PIPELINE) {
             ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
@@ -697,7 +697,7 @@ struct Accumulator {
     Accumulator(ref<Device> device)
         : device(device)
     {
-        SGL_PROFILER_ZONE();
+        SGL_PROFILE_FUNCTION();
 
         program = device->load_program("accumulator.slang", {"compute_main"});
         kernel = device->create_compute_kernel({.program = program});
@@ -705,7 +705,7 @@ struct Accumulator {
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> input, ref<Texture> output, bool reset = false)
     {
-        SGL_PROFILER_ZONE(nullptr, command_encoder);
+        SGL_PROFILE_FUNCTION(command_encoder);
 
         if (!accumulator || accumulator->width() != input->width() || accumulator->height() != input->height()) {
             accumulator = device->create_texture({
@@ -739,7 +739,7 @@ struct ToneMapper {
     ToneMapper(ref<Device> device)
         : device(device)
     {
-        SGL_PROFILER_ZONE();
+        SGL_PROFILE_FUNCTION();
 
         program = device->load_program("tone_mapper.slang", {"compute_main"});
         kernel = device->create_compute_kernel({.program = program});
@@ -747,7 +747,7 @@ struct ToneMapper {
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> input, ref<Texture> output)
     {
-        SGL_PROFILER_ZONE(nullptr, command_encoder);
+        SGL_PROFILE_FUNCTION(command_encoder);
 
         kernel->dispatch(
             uint3(input->width(), input->height(), 1),
@@ -779,7 +779,7 @@ struct App {
 
     App()
     {
-        SGL_PROFILER_ZONE();
+        SGL_PROFILE_FUNCTION();
 
         window = Window::create({
             .width = 1920,
@@ -880,8 +880,8 @@ struct App {
         uint32_t frame = 0;
         Timer timer;
         while (!window->should_close()) {
-            SGL_PROFILER_FRAME();
-            SGL_PROFILER_ZONE("frame");
+            SGL_PROFILE_FRAME();
+            SGL_PROFILE_SCOPE("frame");
 
             float dt = float(timer.elapsed_s());
             timer.reset();
@@ -895,7 +895,7 @@ struct App {
                 continue;
             ref<Texture> surface_texture;
             {
-                SGL_PROFILER_ZONE("acquire_next_image");
+                SGL_PROFILE_SCOPE("acquire_next_image");
                 surface_texture = surface->acquire_next_image();
             }
             if (!surface_texture)
@@ -939,19 +939,19 @@ struct App {
             tone_mapper->execute(command_encoder, accum_texture, output_texture);
 
             {
-                SGL_PROFILER_ZONE("blit", command_encoder);
+                SGL_PROFILE_SCOPE("blit", command_encoder);
                 command_encoder->blit(surface_texture, output_texture);
             }
 
             ui->end_frame(surface_texture, command_encoder);
 
             {
-                SGL_PROFILER_ZONE("submit_command_buffer");
+                SGL_PROFILE_SCOPE("submit_command_buffer");
                 device->submit_command_buffer(command_encoder->finish());
             }
 
             {
-                SGL_PROFILER_ZONE("present");
+                SGL_PROFILE_SCOPE("present");
                 surface->present();
             }
 
