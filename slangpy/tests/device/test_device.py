@@ -216,7 +216,7 @@ def test_device_import(device_type: spy.DeviceType):
         module_name=f"copy_buffer_{device_type.name}",
         source=r"""
         [shader("compute")]
-        [numthreads(1, 1, 1)]
+        [numthreads(32, 1, 1)]
         void copy_kernel(uint1 tid: SV_DispatchThreadID, StructuredBuffer<int> src, RWStructuredBuffer<int> dst) {
             dst[tid.x] = src[tid.x];
         }
