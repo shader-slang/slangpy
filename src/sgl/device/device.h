@@ -262,6 +262,7 @@ struct ShaderHotReloadEvent { };
 using ShaderHotReloadCallback = std::function<void(const ShaderHotReloadEvent&)>;
 
 using DeviceCloseCallback = std::function<void(Device*)>;
+using DeviceCloseCallbackID = uint64_t;
 
 struct CommandRecordingSubmittedEvent {
     Device* device;
@@ -824,7 +825,7 @@ public:
     /// Register a device close callback, called at start of device close.
     void register_device_close_callback(DeviceCloseCallback call_back)
     {
-        m_device_close_callbacks.push_back(call_back);
+        (void)_register_device_close_callback(std::move(call_back));
     }
 
     cuda::Device* cuda_device() const { return m_cuda_device.get(); }
@@ -852,6 +853,8 @@ public:
     _register_command_recording_submitted_callback(CommandRecordingSubmittedCallback callback);
     CommandRecordingCallbackID
     _register_command_recording_discarded_callback(CommandRecordingDiscardedCallback callback);
+    DeviceCloseCallbackID _register_device_close_callback(DeviceCloseCallback callback);
+    void _unregister_device_close_callback(DeviceCloseCallbackID id);
     void _unregister_command_recording_submitted_callback(CommandRecordingCallbackID id);
     void _unregister_command_recording_discarded_callback(CommandRecordingCallbackID id);
 
@@ -892,7 +895,8 @@ private:
     std::vector<ShaderHotReloadCallback> m_shader_hot_reload_callbacks;
 
     /// List of callbacks for shutdown event
-    std::vector<DeviceCloseCallback> m_device_close_callbacks;
+    std::vector<std::pair<DeviceCloseCallbackID, DeviceCloseCallback>> m_device_close_callbacks;
+    DeviceCloseCallbackID m_next_device_close_callback_id{1};
 
     CommandRecordingCallbackID m_next_command_recording_callback_id{1};
     std::mutex m_command_recording_callback_mutex;

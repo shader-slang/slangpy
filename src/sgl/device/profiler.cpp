@@ -503,6 +503,7 @@ namespace {
         ref<Device> device;
         CommandRecordingCallbackID submitted_callback_id{0};
         CommandRecordingCallbackID discarded_callback_id{0};
+        DeviceCloseCallbackID close_callback_id{0};
     };
 
     struct GpuRecordingThreadCache {
@@ -1278,6 +1279,12 @@ struct ProfilerImpl {
                 on_command_recording_discarded(device, event);
             }
         );
+        registration.close_callback_id = device->_register_device_close_callback(
+            [this](Device* closed_device)
+            {
+                on_device_closing(closed_device);
+            }
+        );
         gpu_device_callback_registrations.push_back(std::move(registration));
     }
 
@@ -1292,6 +1299,7 @@ struct ProfilerImpl {
         for (GpuDeviceCallbackRegistration& registration : registrations) {
             try {
                 if (registration.device) {
+                    registration.device->_unregister_device_close_callback(registration.close_callback_id);
                     registration.device->_unregister_command_recording_submitted_callback(
                         registration.submitted_callback_id
                     );
@@ -1301,6 +1309,68 @@ struct ProfilerImpl {
                 }
             } catch (...) {
             }
+        }
+    }
+
+    void on_device_closing(Device* device) noexcept
+    {
+        if (!device)
+            return;
+
+        std::vector<CommandRecordingID> discarded_recording_ids;
+        {
+            std::lock_guard lock(gpu_mutex);
+
+            for (auto it = active_gpu_recordings.begin(); it != active_gpu_recordings.end();) {
+                if (it->second.device.get() != device) {
+                    ++it;
+                    continue;
+                }
+
+                clear_gpu_recording_cache(it->first);
+                discarded_recording_ids.push_back(it->first);
+                it = active_gpu_recordings.erase(it);
+            }
+
+            for (auto it = pending_gpu_submits.begin(); it != pending_gpu_submits.end();) {
+                bool uses_device = it->device.get() == device;
+                for (const ProfilerGpuRecordingBatch& batch : it->batches)
+                    uses_device |= batch.device.get() == device;
+
+                if (!uses_device) {
+                    ++it;
+                    continue;
+                }
+
+                for (const ProfilerGpuRecordingBatch& batch : it->batches)
+                    discarded_recording_ids.push_back(batch.recording_id);
+                it = pending_gpu_submits.erase(it);
+            }
+
+            for (auto it = gpu_contexts.begin(); it != gpu_contexts.end();) {
+                if (it->first.device == device)
+                    it = gpu_contexts.erase(it);
+                else
+                    ++it;
+            }
+
+            gpu_device_callback_registrations.erase(
+                std::remove_if(
+                    gpu_device_callback_registrations.begin(),
+                    gpu_device_callback_registrations.end(),
+                    [device](const GpuDeviceCallbackRegistration& registration)
+                    {
+                        return registration.device.get() == device;
+                    }
+                ),
+                gpu_device_callback_registrations.end()
+            );
+        }
+
+        if (!discarded_recording_ids.empty()) {
+            std::lock_guard data_lock(data_mutex);
+            for (CommandRecordingID recording_id : discarded_recording_ids)
+                discard_gpu_zone_records_locked(recording_id);
         }
     }
 
@@ -1643,6 +1713,23 @@ struct ProfilerImpl {
         return zones_it != gpu_zones_by_recording_id.end() && zones_it->second.size() >= batch.queued_zone_count;
     }
 
+    void discard_gpu_zone_records_locked(CommandRecordingID recording_id)
+    {
+        discarded_gpu_recording_ids.insert(recording_id);
+
+        auto zones_it = gpu_zones_by_recording_id.find(recording_id);
+        if (zones_it == gpu_zones_by_recording_id.end())
+            return;
+
+        for (const ProfilerGpuZoneRecord& record : zones_it->second) {
+            if (record.stats_node_id != kInvalidProfilerId && record.stats_node_id < stats_nodes.size()
+                && stats_nodes[record.stats_node_id].pending_gpu_sample_count > 0) {
+                --stats_nodes[record.stats_node_id].pending_gpu_sample_count;
+            }
+        }
+        gpu_zones_by_recording_id.erase(zones_it);
+    }
+
     void submit_gpu_recordings(uint64_t submit_id, std::vector<ProfilerGpuRecordingBatch>&& batches) noexcept
     {
         if (batches.empty())
@@ -1720,8 +1807,7 @@ struct ProfilerImpl {
         }
 
         std::lock_guard data_lock(data_mutex);
-        discarded_gpu_recording_ids.insert(event.id);
-        gpu_zones_by_recording_id.erase(event.id);
+        discard_gpu_zone_records_locked(event.id);
     }
 
     void process_gpu_submits()

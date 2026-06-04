@@ -566,4 +566,53 @@ TEST_CASE_GPU("profiler ignores discarded gpu recordings")
     CHECK(current_profiler_or_null() == nullptr);
 }
 
+TEST_CASE_GPU("profiler drops gpu state when device closes before profiler")
+{
+    Device* fixture_device = ctx.device;
+    if (!fixture_device->has_feature(Feature::timestamp_query)
+        || !fixture_device->has_feature(Feature::timestamp_calibration))
+        return;
+
+    {
+        DeviceDesc desc = fixture_device->desc();
+        desc.type = fixture_device->type();
+        desc.adapter_luid = fixture_device->info().adapter_luid;
+        desc.enable_hot_reload = false;
+        desc.label = "profiler_close_callback_test_device";
+
+        ref<Device> device = make_ref<Device>(desc);
+        if (!device->has_feature(Feature::timestamp_query) || !device->has_feature(Feature::timestamp_calibration)) {
+            device->close();
+            return;
+        }
+
+        ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
+
+        ref<CommandEncoder> encoder = device->create_command_encoder();
+        {
+            SGL_PROFILE_FRAME();
+            SGL_PROFILE_SCOPE("closed_device_gpu_zone", encoder.get());
+        }
+
+        device->submit_command_buffer(encoder->finish());
+        device->close();
+
+        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        CHECK(trace_has_name(*trace, "closed_device_gpu_zone"));
+
+        const std::filesystem::path path = testing::get_case_temp_directory() / "closed-device-gpu-zones.json";
+        trace->write_to_json(path);
+        const std::string json = read_text_file(path);
+        CHECK(json.find("\"cat\":\"sgl.cpu\"") != std::string::npos);
+        CHECK(json.find("\"cat\":\"sgl.gpu\"") == std::string::npos);
+
+        ref<ProfilerStats> stats = profiler->stats_snapshot();
+        for (const ProfilerStatsNode& node : stats->nodes())
+            CHECK(node.pending_gpu_sample_count == 0);
+    }
+
+    CHECK(current_profiler_or_null() == nullptr);
+}
+
 TEST_SUITE_END();

@@ -493,7 +493,8 @@ void Device::close()
     wait();
 
     // Handle device close callbacks
-    for (const DeviceCloseCallback& callback : m_device_close_callbacks)
+    auto device_close_callbacks = m_device_close_callbacks;
+    for (const auto& [_, callback] : device_close_callbacks)
         callback(this);
 
     // Make sure Device's ref count is not going to zero when releasing resources.
@@ -1405,6 +1406,30 @@ Device::_register_command_recording_discarded_callback(CommandRecordingDiscarded
     const CommandRecordingCallbackID id = m_next_command_recording_callback_id++;
     m_command_recording_discarded_callbacks.emplace_back(id, std::move(callback));
     return id;
+}
+
+DeviceCloseCallbackID Device::_register_device_close_callback(DeviceCloseCallback callback)
+{
+    SGL_CHECK(static_cast<bool>(callback), "callback must not be empty");
+
+    const DeviceCloseCallbackID id = m_next_device_close_callback_id++;
+    m_device_close_callbacks.emplace_back(id, std::move(callback));
+    return id;
+}
+
+void Device::_unregister_device_close_callback(DeviceCloseCallbackID id)
+{
+    m_device_close_callbacks.erase(
+        std::remove_if(
+            m_device_close_callbacks.begin(),
+            m_device_close_callbacks.end(),
+            [id](const auto& entry)
+            {
+                return entry.first == id;
+            }
+        ),
+        m_device_close_callbacks.end()
+    );
 }
 
 void Device::_unregister_command_recording_submitted_callback(CommandRecordingCallbackID id)

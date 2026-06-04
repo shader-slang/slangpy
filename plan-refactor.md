@@ -36,6 +36,7 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
 - [x] (2026-06-04) Collapsed GPU begin/end queue events into one GPU-zone metadata event queued from `Profiler::begin_zone()` after the begin timestamp is written. `Profiler::end_zone()` writes the reserved end timestamp and then queues the CPU end event.
 - [x] (2026-06-04) Removed the Python `Profiler.zone()` / `Profiler.frame()` context-manager bindings and updated `examples/pathtracer/pathtracer.py` plus Python profiler tests to avoid manual Python zone/frame scopes.
 - [x] (2026-06-04) Replaced the public C++ profiler macros with `SGL_PROFILE_FUNCTION(...)`, `SGL_PROFILE_SCOPE(name, ...)`, and argument-free `SGL_PROFILE_FRAME()`, all of which pass the source location to the internal guards.
+- [x] (2026-06-04) Added unregisterable internal device-close callbacks and made the profiler drop active/pending GPU state for a device as soon as that device starts closing.
 - [x] (2026-06-04) Validated the token refactor with `pre-commit run --all-files`, `cmake --build --preset windows-msvc-debug`, `python tools/ci.py unit-test-cpp`, and `pytest slangpy/tests/slangpy_tests/test_profiler.py -v`.
 
 ## Surprises and Discoveries
@@ -72,6 +73,9 @@ Sampling profiling is not part of this work. This is only an instrumentation pro
 
 - Observation: Returning tokens lets GPU query state stay small while the worker still receives one GPU metadata event.
   Evidence: The 2026-06-04 implementation removed `begin_gpu_zone`, `end_gpu_zone`, `OpenGpuQuery`, and `ActiveGpuRecording::query_stack`; `Profiler::begin_zone()` queues a single `gpu_zone` event containing the reserved begin/end query indices, while `ProfilerZoneToken` keeps only the encoder, query pool, end query index, and debug-group state needed by `Profiler::end_zone()`.
+
+- Observation: A device can close before the profiler is destroyed, so profiler GPU state must not retain closed devices for later query resolution.
+  Evidence: `Device::close()` now runs ID-backed close callbacks before clearing device resources, and the profiler close callback removes active recordings, pending submits, GPU contexts, callback registrations, and unresolved GPU zone records for that device.
 
 ## Decision Log
 
