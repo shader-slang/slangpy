@@ -22,6 +22,7 @@
 #include "sgl/device/agility_sdk.h"
 
 #include "sgl/device/profiler.h"
+#include "sgl/ui/profiler.h"
 
 #include "sgl/ui/ui.h"
 
@@ -943,6 +944,7 @@ struct App {
                 command_encoder->blit(surface_texture, output_texture);
             }
 
+            ui::render_profiler_window();
             ui->end_frame(surface_texture, command_encoder);
 
             {
