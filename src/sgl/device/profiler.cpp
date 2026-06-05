@@ -1246,17 +1246,6 @@ struct ProfilerImpl {
         return inserted_it->second;
     }
 
-    bool gpu_recording_supported(Device* device, CommandQueueType queue) const noexcept
-    {
-        if (!profiler->enabled() || !device)
-            return false;
-        if (queue != CommandQueueType::graphics)
-            return false;
-        if (!device->has_feature(Feature::timestamp_query) || !device->has_feature(Feature::timestamp_calibration))
-            return false;
-        return device->info().timestamp_frequency > 0;
-    }
-
     void ensure_gpu_device_callbacks_registered_locked(Device* device)
     {
         SGL_CHECK_NOT_NULL(device);
@@ -1383,18 +1372,14 @@ struct ProfilerImpl {
         s_gpu_recording_cache = {};
     }
 
-    ActiveGpuRecording* get_cached_active_gpu_recording(CommandRecordingID recording_id) noexcept
-    {
-        if (s_gpu_recording_cache.profiler == this && s_gpu_recording_cache.recording_id == recording_id)
-            return s_gpu_recording_cache.recording;
-        return nullptr;
-    }
-
-    ActiveGpuRecording* get_or_create_active_gpu_recording_slow(CommandEncoder* encoder)
+    ActiveGpuRecording* try_get_or_create_active_gpu_recording_slow(CommandEncoder* encoder)
     {
         SGL_CHECK_NOT_NULL(encoder);
         Device* device = encoder->device();
         SGL_CHECK_NOT_NULL(device);
+
+        if (!device->has_feature(Feature::timestamp_query) || !device->has_feature(Feature::timestamp_calibration))
+            return nullptr;
 
         const CommandRecordingID recording_id = encoder->recording_id();
         SGL_CHECK_NE(recording_id, 0);
@@ -1434,12 +1419,12 @@ struct ProfilerImpl {
         return &inserted_it->second;
     }
 
-    ActiveGpuRecording* get_or_create_active_gpu_recording(CommandEncoder* encoder)
+    ActiveGpuRecording* try_get_or_create_active_gpu_recording(CommandEncoder* encoder)
     {
         const CommandRecordingID recording_id = encoder->recording_id();
-        if (ActiveGpuRecording* recording = get_cached_active_gpu_recording(recording_id))
-            return recording;
-        return get_or_create_active_gpu_recording_slow(encoder);
+        if (s_gpu_recording_cache.profiler == this && s_gpu_recording_cache.recording_id == recording_id)
+            return s_gpu_recording_cache.recording;
+        return try_get_or_create_active_gpu_recording_slow(encoder);
     }
 
     ProfilerGpuQueryBlock acquire_gpu_query_block_locked(Device* device, CommandQueueType queue)
@@ -2028,30 +2013,28 @@ ProfilerZoneToken Profiler::begin_zone(
             token.debug_group_active = true;
         }
 
-        if (m_impl->gpu_recording_supported(encoder->device(), encoder->queue())) {
-            ActiveGpuRecording* recording = m_impl->get_or_create_active_gpu_recording(encoder);
-            if (recording) {
-                ProfilerGpuQueryPair query_pair = m_impl->allocate_gpu_query_pair(*recording);
-                if (query_pair.query_pool) {
-                    encoder->write_timestamp(query_pair.query_pool.get(), query_pair.begin_query_index);
+        ActiveGpuRecording* recording = m_impl->try_get_or_create_active_gpu_recording(encoder);
+        if (recording) {
+            ProfilerGpuQueryPair query_pair = m_impl->allocate_gpu_query_pair(*recording);
+            if (query_pair.query_pool) {
+                encoder->write_timestamp(query_pair.query_pool.get(), query_pair.begin_query_index);
 
-                    m_impl->queue_thread_event(
-                        thread_data,
-                        {
-                            .type = ProfilerEventType::gpu_zone,
-                            .gpu = {
-                                .recording_id = encoder->recording_id(),
-                                .query_pool = query_pair.query_pool.get(),
-                                .begin_query_index = query_pair.begin_query_index,
-                                .end_query_index = query_pair.end_query_index,
-                            },
-                        }
-                    );
-                    ++recording->queued_zone_count;
+                m_impl->queue_thread_event(
+                    thread_data,
+                    {
+                        .type = ProfilerEventType::gpu_zone,
+                        .gpu = {
+                            .recording_id = encoder->recording_id(),
+                            .query_pool = query_pair.query_pool.get(),
+                            .begin_query_index = query_pair.begin_query_index,
+                            .end_query_index = query_pair.end_query_index,
+                        },
+                    }
+                );
+                ++recording->queued_zone_count;
 
-                    token.query_pool = query_pair.query_pool.get();
-                    token.end_query_index = query_pair.end_query_index;
-                }
+                token.query_pool = query_pair.query_pool.get();
+                token.end_query_index = query_pair.end_query_index;
             }
         }
     }
