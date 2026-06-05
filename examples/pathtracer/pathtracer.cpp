@@ -971,12 +971,14 @@ int main()
     sgl::static_init();
 
     ref<Profiler> profiler = make_ref<Profiler>();
+    profiler->start_trace();
 
     {
         App app;
         app.main_loop();
     }
 
+    profiler->stop_trace();
     ref<ProfilerTrace> trace = profiler->trace_snapshot();
     trace->write_to_json("trace.json");
 
