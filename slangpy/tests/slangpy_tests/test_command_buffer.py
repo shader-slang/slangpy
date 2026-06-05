@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import gc
+
 import pytest
 import numpy as np
 from slangpy import Module, Tensor
-from slangpy import DeviceType, float3
+from slangpy import CommandQueueType, DeviceType, float3
 from slangpy.testing import helpers
 
 
@@ -26,6 +28,35 @@ def test_command_buffer(device_type: DeviceType, use_arg: bool):
     polynomial = m.polynomial.as_func()
 
     command_encoder = m.device.create_command_encoder()
+    assert command_encoder.queue == CommandQueueType.graphics
+    assert isinstance(command_encoder.recording_id, int)
+    assert command_encoder.recording_id != 0
+
+    discarded_recording_ids: list[int] = []
+    unregistered_discarded_recording_ids: list[int] = []
+
+    def on_discarded(event: object) -> None:
+        assert event.device == m.device
+        discarded_recording_ids.append(event.id)
+
+    def on_unregistered_discarded(event: object) -> None:
+        unregistered_discarded_recording_ids.append(event.id)
+
+    discarded_callback_id = m.device.register_command_recording_discarded_callback(on_discarded)
+    unregistered_discarded_callback_id = m.device.register_command_recording_discarded_callback(
+        on_unregistered_discarded
+    )
+    assert isinstance(discarded_callback_id, int)
+    assert discarded_callback_id != unregistered_discarded_callback_id
+    m.device.unregister_command_recording_discarded_callback(unregistered_discarded_callback_id)
+
+    discarded_command_encoder = m.device.create_command_encoder()
+    discarded_recording_id = discarded_command_encoder.recording_id
+    del discarded_command_encoder
+    gc.collect()
+    assert discarded_recording_ids == [discarded_recording_id]
+    assert unregistered_discarded_recording_ids == []
+    m.device.unregister_command_recording_discarded_callback(discarded_callback_id)
 
     a = Tensor.empty(m.device, (10,), dtype=float3).with_grads()
     b = Tensor.empty(m.device, (10,), dtype=float3).with_grads()
@@ -55,7 +86,35 @@ def test_command_buffer(device_type: DeviceType, use_arg: bool):
     assert not np.allclose(res_data, a_data * a_data + b_data + 1)
 
     # Submit the command buffer to execute the operations
-    m.device.submit_command_buffer(command_encoder.finish())
+    submitted_events: list[tuple[int, int, int]] = []
+    unregistered_submitted_events: list[int] = []
+
+    def on_submitted(event: object) -> None:
+        assert event.device == m.device
+        submitted_events.append((event.id, event.command_buffer.recording_id, event.submit_id))
+
+    def on_unregistered_submitted(event: object) -> None:
+        unregistered_submitted_events.append(event.id)
+
+    submitted_callback_id = m.device.register_command_recording_submitted_callback(on_submitted)
+    unregistered_submitted_callback_id = m.device.register_command_recording_submitted_callback(
+        on_unregistered_submitted
+    )
+    assert isinstance(submitted_callback_id, int)
+    assert submitted_callback_id != unregistered_submitted_callback_id
+    m.device.unregister_command_recording_submitted_callback(unregistered_submitted_callback_id)
+
+    command_buffer = command_encoder.finish()
+    assert command_buffer.queue == command_encoder.queue
+    assert command_buffer.recording_id == command_encoder.recording_id
+    m.device.submit_command_buffer(command_buffer)
+    assert len(submitted_events) == 1
+    submitted_recording_id, submitted_command_buffer_recording_id, submit_id = submitted_events[0]
+    assert submitted_recording_id == command_buffer.recording_id
+    assert submitted_command_buffer_recording_id == command_buffer.recording_id
+    assert submit_id != 0
+    assert unregistered_submitted_events == []
+    m.device.unregister_command_recording_submitted_callback(submitted_callback_id)
 
     # Now the result should be computed
     res_data = helpers.read_tensor_from_numpy(res).reshape(-1, 3)
