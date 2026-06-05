@@ -569,6 +569,8 @@ SGL_PY_EXPORT(device_command)
         )
         .def("execute_callback", nb::overload_cast<ExecuteCallback>(&CommandEncoder::execute_callback), "callback"_a)
         .def("finish", &CommandEncoder::finish, D(CommandEncoder, finish))
+        .def_prop_ro("queue", &CommandEncoder::queue, D(CommandEncoder, queue))
+        .def_prop_ro("recording_id", &CommandEncoder::recording_id, D(CommandEncoder, recording_id))
         .def_prop_ro("native_handle", &CommandEncoder::native_handle, D(CommandEncoder, native_handle));
 
     nb::class_<PassEncoder, Object>(m, "PassEncoder", D(PassEncoder))
@@ -739,5 +741,7 @@ SGL_PY_EXPORT(device_command)
             D(RayTracingPassEncoder, dispatch_rays)
         );
 
-    nb::class_<CommandBuffer, DeviceChild>(m, "CommandBuffer", D(CommandBuffer));
+    nb::class_<CommandBuffer, DeviceChild>(m, "CommandBuffer", D(CommandBuffer))
+        .def_prop_ro("queue", &CommandBuffer::queue, D(CommandBuffer, queue))
+        .def_prop_ro("recording_id", &CommandBuffer::recording_id, D(CommandBuffer, recording_id));
 }

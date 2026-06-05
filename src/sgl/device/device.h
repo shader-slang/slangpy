@@ -5,6 +5,7 @@
 #include "sgl/device/fwd.h"
 #include "sgl/device/types.h"
 #include "sgl/device/native_handle.h"
+#include "sgl/device/callback_list.h"
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/raytracing.h"
@@ -21,9 +22,12 @@
 #include <slang-rhi.h>
 
 #include <array>
+#include <atomic>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 #include <unordered_set>
 
@@ -255,12 +259,33 @@ struct ShaderCacheStats {
     size_t miss_count;
 };
 
+using DeviceCallbackID = uint64_t;
+
+/// Callback type for device close event.
+using DeviceCloseCallback = std::function<void(Device*)>;
+
 /// Event data for hot reload hook.
 struct ShaderHotReloadEvent { };
+/// Callback type for hot reload hook.
 using ShaderHotReloadCallback = std::function<void(const ShaderHotReloadEvent&)>;
 
+/// Event data for command recording submission callback.
+struct CommandRecordingSubmittedEvent {
+    Device* device;
+    CommandRecordingID id{0};
+    CommandBuffer* command_buffer{nullptr};
+    uint64_t submit_id{0};
+};
+/// Callback type for command recording submission event.
+using CommandRecordingSubmittedCallback = std::function<void(const CommandRecordingSubmittedEvent&)>;
 
-using DeviceCloseCallback = std::function<void(Device*)>;
+/// Event data for command recording discarded callback.
+struct CommandRecordingDiscardedEvent {
+    Device* device;
+    CommandRecordingID id{0};
+};
+/// Callback type for command recording discarded event.
+using CommandRecordingDiscardedCallback = std::function<void(const CommandRecordingDiscardedEvent&)>;
 
 class SGL_API Device : public Object {
     SGL_OBJECT(Device)
@@ -798,17 +823,25 @@ public:
      */
     static bool enable_agility_sdk();
 
-    /// Register a hot reload hook, called immediately after any module is reloaded.
-    void register_shader_hot_reload_callback(ShaderHotReloadCallback call_back)
-    {
-        m_shader_hot_reload_callbacks.push_back(call_back);
-    }
-
     /// Register a device close callback, called at start of device close.
-    void register_device_close_callback(DeviceCloseCallback call_back)
-    {
-        m_device_close_callbacks.push_back(call_back);
-    }
+    DeviceCallbackID register_device_close_callback(DeviceCloseCallback callback);
+    /// Unregister a device close callback.
+    void unregister_device_close_callback(DeviceCallbackID id);
+
+    /// Register a hot reload hook, called immediately after any module is reloaded.
+    DeviceCallbackID register_shader_hot_reload_callback(ShaderHotReloadCallback callback);
+    /// Unregister a hot reload hook.
+    void unregister_shader_hot_reload_callback(DeviceCallbackID id);
+
+    /// Register a callback to be called when a command recording is submitted.
+    DeviceCallbackID register_command_recording_submitted_callback(CommandRecordingSubmittedCallback callback);
+    /// Unregister a command recording submitted callback.
+    void unregister_command_recording_submitted_callback(DeviceCallbackID id);
+
+    /// Register a callback to be called when a command recording is discarded (not submitted).
+    DeviceCallbackID register_command_recording_discarded_callback(CommandRecordingDiscardedCallback callback);
+    /// Unregister a command recording discarded callback.
+    void unregister_command_recording_discarded_callback(DeviceCallbackID id);
 
     cuda::Device* cuda_device() const { return m_cuda_device.get(); }
 
@@ -820,16 +853,15 @@ public:
     HotReload* _hot_reload() { return m_hot_reload; }
 
     /// Called by hot reload system after reload occurs, to trigger the hooks.
-    void _on_hot_reload()
-    {
-        if (m_builtin_layout)
-            reload_builtin_layout();
-        for (auto& hook : m_shader_hot_reload_callbacks)
-            hook({});
-    }
+    void _on_hot_reload();
 
     void _register_device_child(DeviceChild* device_child);
     void _unregister_device_child(DeviceChild* device_child);
+
+    DeviceCallbackID _allocate_callback_id();
+    CommandRecordingID _allocate_command_recording_id();
+    void _notify_command_recording_submitted(CommandRecordingID id, CommandBuffer* command_buffer, uint64_t submit_id);
+    void _notify_command_recording_discarded(CommandRecordingID id);
 
 private:
     ref<refl::Layout> reload_builtin_layout();
@@ -860,11 +892,12 @@ private:
     std::unique_ptr<DebugLogger> m_debug_logger;
     std::unique_ptr<DebugPrinter> m_debug_printer;
 
-    /// List of callbacks for hot reload event
-    std::vector<ShaderHotReloadCallback> m_shader_hot_reload_callbacks;
+    std::atomic<DeviceCallbackID> m_next_callback_id{1};
 
-    /// List of callbacks for shutdown event
-    std::vector<DeviceCloseCallback> m_device_close_callbacks;
+    CallbackList<DeviceCallbackID, DeviceCloseCallback> m_device_close_callbacks;
+    CallbackList<DeviceCallbackID, ShaderHotReloadCallback> m_shader_hot_reload_callbacks;
+    CallbackList<DeviceCallbackID, CommandRecordingSubmittedCallback> m_command_recording_submitted_callbacks;
+    CallbackList<DeviceCallbackID, CommandRecordingDiscardedCallback> m_command_recording_discarded_callbacks;
 
     ref<Blitter> m_blitter;
     ref<HotReload> m_hot_reload;

@@ -39,6 +39,8 @@
 #include <comdef.h>
 #endif
 
+#include <algorithm>
+#include <atomic>
 #include <mutex>
 
 namespace sgl {
@@ -46,6 +48,7 @@ namespace sgl {
 static std::vector<Device*> s_devices;
 static std::mutex s_devices_mutex;
 static thread_local std::vector<Device*> s_tls_current_device_stack;
+static std::atomic<CommandRecordingID> s_next_command_recording_id{1};
 
 inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
 {
@@ -489,17 +492,18 @@ void Device::close()
 
     wait();
 
-    // Handle device close callbacks
-    for (const DeviceCloseCallback& callback : m_device_close_callbacks)
-        callback(this);
+    // Handle device close callbacks.
+    m_device_close_callbacks.notify(this);
 
     // Make sure Device's ref count is not going to zero when releasing resources.
     inc_ref();
 
     m_closed = true;
 
-    m_shader_hot_reload_callbacks.clear();
     m_device_close_callbacks.clear();
+    m_shader_hot_reload_callbacks.clear();
+    m_command_recording_submitted_callbacks.clear();
+    m_command_recording_discarded_callbacks.clear();
 
     m_blitter.reset();
     m_debug_printer.reset();
@@ -855,7 +859,7 @@ ref<CommandEncoder> Device::create_command_encoder(CommandQueueType queue)
 
     Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder;
     SLANG_RHI_CALL(m_rhi_graphics_queue->createCommandEncoder(rhi_command_encoder.writeRef()), this);
-    return make_ref<CommandEncoder>(ref(this), rhi_command_encoder);
+    return make_ref<CommandEncoder>(ref(this), queue, _allocate_command_recording_id(), rhi_command_encoder);
 }
 
 uint64_t Device::submit_command_buffers(
@@ -976,6 +980,11 @@ uint64_t Device::submit_command_buffers(
     };
     SLANG_RHI_CALL(m_rhi_graphics_queue->submit(rhi_submit_desc), this);
 
+    const uint64_t submit_id = m_global_fence->signaled_value();
+
+    for (CommandBuffer* command_buffer : command_buffers)
+        command_buffer->_notify_submitted(submit_id);
+
     // Handle CUDA interop.
     if (m_supports_cuda_interop && needs_cuda_sync) {
         sync_to_device(cuda_stream_ptr);
@@ -988,7 +997,7 @@ uint64_t Device::submit_command_buffers(
         }
     }
 
-    return m_global_fence->signaled_value();
+    return submit_id;
 }
 
 uint64_t Device::submit_command_buffer(CommandBuffer* command_buffer, CommandQueueType queue, NativeHandle cuda_stream)
@@ -1370,6 +1379,89 @@ void Device::_unregister_device_child(DeviceChild* device_child)
 {
     std::lock_guard lock(m_device_children_mutex);
     m_device_children.erase(device_child);
+}
+
+DeviceCallbackID Device::register_device_close_callback(DeviceCloseCallback callback)
+{
+    return m_device_close_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
+}
+
+void Device::unregister_device_close_callback(DeviceCallbackID id)
+{
+    m_device_close_callbacks.unregister_callback(id);
+}
+
+DeviceCallbackID Device::register_shader_hot_reload_callback(ShaderHotReloadCallback callback)
+{
+    return m_shader_hot_reload_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
+}
+
+void Device::unregister_shader_hot_reload_callback(DeviceCallbackID id)
+{
+    m_shader_hot_reload_callbacks.unregister_callback(id);
+}
+
+DeviceCallbackID Device::register_command_recording_submitted_callback(CommandRecordingSubmittedCallback callback)
+{
+    return m_command_recording_submitted_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
+}
+
+void Device::unregister_command_recording_submitted_callback(DeviceCallbackID id)
+{
+    m_command_recording_submitted_callbacks.unregister_callback(id);
+}
+
+DeviceCallbackID Device::register_command_recording_discarded_callback(CommandRecordingDiscardedCallback callback)
+{
+    return m_command_recording_discarded_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
+}
+
+void Device::unregister_command_recording_discarded_callback(DeviceCallbackID id)
+{
+    m_command_recording_discarded_callbacks.unregister_callback(id);
+}
+
+void Device::_on_hot_reload()
+{
+    if (m_builtin_layout)
+        reload_builtin_layout();
+
+    ShaderHotReloadEvent event;
+    m_shader_hot_reload_callbacks.notify(event);
+}
+
+DeviceCallbackID Device::_allocate_callback_id()
+{
+    return m_next_callback_id.fetch_add(1, std::memory_order_relaxed);
+}
+
+CommandRecordingID Device::_allocate_command_recording_id()
+{
+    return s_next_command_recording_id.fetch_add(1, std::memory_order_relaxed);
+}
+
+void Device::_notify_command_recording_submitted(
+    CommandRecordingID id,
+    CommandBuffer* command_buffer,
+    uint64_t submit_id
+)
+{
+    CommandRecordingSubmittedEvent event{
+        .device = this,
+        .id = id,
+        .command_buffer = command_buffer,
+        .submit_id = submit_id,
+    };
+    m_command_recording_submitted_callbacks.notify(event);
+}
+
+void Device::_notify_command_recording_discarded(CommandRecordingID id)
+{
+    CommandRecordingDiscardedEvent event{
+        .device = this,
+        .id = id,
+    };
+    m_command_recording_discarded_callbacks.notify(event);
 }
 
 std::array<NativeHandle, 3> get_cuda_current_context_native_handles()

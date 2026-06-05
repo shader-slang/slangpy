@@ -13,6 +13,9 @@
 
 #include <slang-rhi.h>
 
+#include <array>
+#include <cstdint>
+
 namespace sgl {
 
 class BufferElementCursor;
@@ -26,6 +29,8 @@ using DeviceOffset = uint64_t;
 using DeviceSize = uint64_t;
 /// Adapter LUID (locally unique identifier).
 using AdapterLUID = std::array<uint8_t, 16>;
+/// Unique identifier for a command recording.
+using CommandRecordingID = uint64_t;
 
 enum CommandQueueType : uint32_t {
     graphics = static_cast<uint32_t>(rhi::QueueType::Graphics),

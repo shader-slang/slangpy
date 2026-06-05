@@ -468,8 +468,6 @@ SGL_PY_EXPORT(device_device)
         .def_ro("hit_count", &ShaderCacheStats::hit_count, D(ShaderCacheStats, hit_count))
         .def_ro("miss_count", &ShaderCacheStats::miss_count, D(ShaderCacheStats, miss_count));
 
-    nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
-
     nb::class_<HeapReport>(m, "HeapReport", D(HeapReport))
         .def_rw("label", &HeapReport::label, D(HeapReport, label))
         .def_rw("num_pages", &HeapReport::num_pages, D(HeapReport, num_pages))
@@ -488,6 +486,23 @@ SGL_PY_EXPORT(device_device)
         .def("__exit__", &CudaContextScope::exit, "exc_type"_a.none(), "exc_val"_a.none(), "exc_tb"_a.none());
 
     nb::class_<Device, Object> device(m, "Device", nb::is_weak_referenceable(), D(Device));
+
+    nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
+
+    nb::class_<CommandRecordingSubmittedEvent>(m, "CommandRecordingSubmittedEvent", D(CommandRecordingSubmittedEvent))
+        .def_ro("device", &CommandRecordingSubmittedEvent::device, D(CommandRecordingSubmittedEvent, device))
+        .def_ro("id", &CommandRecordingSubmittedEvent::id, D(CommandRecordingSubmittedEvent, id))
+        .def_ro(
+            "command_buffer",
+            &CommandRecordingSubmittedEvent::command_buffer,
+            D(CommandRecordingSubmittedEvent, command_buffer)
+        )
+        .def_ro("submit_id", &CommandRecordingSubmittedEvent::submit_id, D(CommandRecordingSubmittedEvent, submit_id));
+
+    nb::class_<CommandRecordingDiscardedEvent>(m, "CommandRecordingDiscardedEvent", D(CommandRecordingDiscardedEvent))
+        .def_ro("device", &CommandRecordingDiscardedEvent::device, D(CommandRecordingDiscardedEvent, device))
+        .def_ro("id", &CommandRecordingDiscardedEvent::id, D(CommandRecordingDiscardedEvent, id));
+
     device.def(
         "__init__",
         [](Device* self,
@@ -513,7 +528,7 @@ SGL_PY_EXPORT(device_device)
            std::optional<std::vector<std::string>> additional_vulkan_device_extensions,
            bool enable_cuda_launch_from_gfx,
            bool enable_ray_tracing,
-           std::string label = "")
+           std::string label)
         {
             new (self) Device(
                 {.type = type,
@@ -1203,16 +1218,52 @@ SGL_PY_EXPORT(device_device)
     device.def("flush_print_to_string", &Device::flush_print_to_string, D(Device, flush_print_to_string));
     device.def("wait", &Device::wait, D(Device, wait));
     device.def(
+        "register_device_close_callback",
+        &Device::register_device_close_callback,
+        "callback"_a,
+        D(Device, register_device_close_callback)
+    );
+    device.def(
+        "unregister_device_close_callback",
+        &Device::unregister_device_close_callback,
+        "id"_a,
+        D(Device, unregister_device_close_callback)
+    );
+    device.def(
         "register_shader_hot_reload_callback",
         &Device::register_shader_hot_reload_callback,
         "callback"_a,
         D(Device, register_shader_hot_reload_callback)
     );
     device.def(
-        "register_device_close_callback",
-        &Device::register_device_close_callback,
+        "unregister_shader_hot_reload_callback",
+        &Device::unregister_shader_hot_reload_callback,
+        "id"_a,
+        D_NA(Device, unregister_shader_hot_reload_callback)
+    );
+    device.def(
+        "register_command_recording_submitted_callback",
+        &Device::register_command_recording_submitted_callback,
         "callback"_a,
-        D(Device, register_device_close_callback)
+        D(Device, register_command_recording_submitted_callback)
+    );
+    device.def(
+        "unregister_command_recording_submitted_callback",
+        &Device::unregister_command_recording_submitted_callback,
+        "id"_a,
+        D(Device, unregister_command_recording_submitted_callback)
+    );
+    device.def(
+        "register_command_recording_discarded_callback",
+        &Device::register_command_recording_discarded_callback,
+        "callback"_a,
+        D(Device, register_command_recording_discarded_callback)
+    );
+    device.def(
+        "unregister_command_recording_discarded_callback",
+        &Device::unregister_command_recording_discarded_callback,
+        "id"_a,
+        D(Device, unregister_command_recording_discarded_callback)
     );
     device.def(
         "set_hot_reload_delay",

@@ -1451,6 +1451,34 @@ static const char *__doc_sgl_Buffer_write_slangpy_signature = R"doc(Write the Sl
 
 static const char *__doc_sgl_Buffer_write_to_cursor = R"doc(Bind a nullable buffer value to a shader cursor.)doc";
 
+static const char *__doc_sgl_CallbackList = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_CallbackList = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_CallbackList_2 = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_Entry = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_Entry_callback = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_Entry_id = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_clear = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_m_callbacks = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_m_mutex = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_notify = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_register_callback = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_snapshot = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_unregister_callback = R"doc()doc";
+
 static const char *__doc_sgl_ColorTargetDesc = R"doc()doc";
 
 static const char *__doc_sgl_ColorTargetDesc_alpha = R"doc()doc";
@@ -1475,7 +1503,21 @@ static const char *__doc_sgl_CommandBuffer_class_name = R"doc()doc";
 
 static const char *__doc_sgl_CommandBuffer_m_cuda_interop_buffers = R"doc()doc";
 
+static const char *__doc_sgl_CommandBuffer_m_queue = R"doc()doc";
+
+static const char *__doc_sgl_CommandBuffer_m_recording_id = R"doc()doc";
+
 static const char *__doc_sgl_CommandBuffer_m_rhi_command_buffer = R"doc()doc";
+
+static const char *__doc_sgl_CommandBuffer_m_submitted = R"doc()doc";
+
+static const char *__doc_sgl_CommandBuffer_notify_submitted = R"doc()doc";
+
+static const char *__doc_sgl_CommandBuffer_queue = R"doc(Command queue this command buffer is recorded for.)doc";
+
+static const char *__doc_sgl_CommandBuffer_recording_id =
+R"doc(Command recording ID, which is unique for each recording of a command
+buffer.)doc";
 
 static const char *__doc_sgl_CommandBuffer_release_rhi_resources = R"doc()doc";
 
@@ -1724,7 +1766,11 @@ static const char *__doc_sgl_CommandEncoder_m_cuda_interop_buffers = R"doc()doc"
 
 static const char *__doc_sgl_CommandEncoder_m_open = R"doc()doc";
 
+static const char *__doc_sgl_CommandEncoder_m_queue = R"doc()doc";
+
 static const char *__doc_sgl_CommandEncoder_m_ray_tracing_pass_encoder = R"doc()doc";
+
+static const char *__doc_sgl_CommandEncoder_m_recording_id = R"doc()doc";
 
 static const char *__doc_sgl_CommandEncoder_m_render_pass_encoder = R"doc()doc";
 
@@ -1739,6 +1785,12 @@ static const char *__doc_sgl_CommandEncoder_pop_debug_group = R"doc(Pop a debug 
 static const char *__doc_sgl_CommandEncoder_push_debug_group = R"doc(Push a debug group.)doc";
 
 static const char *__doc_sgl_CommandEncoder_query_acceleration_structure_properties = R"doc()doc";
+
+static const char *__doc_sgl_CommandEncoder_queue = R"doc(Command queue this encoder is recording for.)doc";
+
+static const char *__doc_sgl_CommandEncoder_recording_id =
+R"doc(Command recording ID, which is unique for each recording of a command
+buffer.)doc";
 
 static const char *__doc_sgl_CommandEncoder_release_rhi_resources = R"doc()doc";
 
@@ -1816,6 +1868,22 @@ static const char *__doc_sgl_CommandQueueType = R"doc()doc";
 static const char *__doc_sgl_CommandQueueType_graphics = R"doc()doc";
 
 static const char *__doc_sgl_CommandQueueType_info = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingDiscardedEvent = R"doc(Event data for command recording discarded callback.)doc";
+
+static const char *__doc_sgl_CommandRecordingDiscardedEvent_device = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingDiscardedEvent_id = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingSubmittedEvent = R"doc(Event data for command recording submission callback.)doc";
+
+static const char *__doc_sgl_CommandRecordingSubmittedEvent_command_buffer = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingSubmittedEvent_device = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingSubmittedEvent_id = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingSubmittedEvent_submit_id = R"doc()doc";
 
 static const char *__doc_sgl_ComparisonFunc = R"doc()doc";
 
@@ -2901,6 +2969,10 @@ static const char *__doc_sgl_DeviceType_wgpu = R"doc()doc";
 
 static const char *__doc_sgl_Device_Device = R"doc()doc";
 
+static const char *__doc_sgl_Device_allocate_callback_id = R"doc()doc";
+
+static const char *__doc_sgl_Device_allocate_command_recording_id = R"doc()doc";
+
 static const char *__doc_sgl_Device_blitter = R"doc()doc";
 
 static const char *__doc_sgl_Device_builtin_layout = R"doc(Return the cached reflection layout for the built-in support module.)doc";
@@ -3262,6 +3334,10 @@ static const char *__doc_sgl_Device_m_capabilities = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_closed = R"doc()doc";
 
+static const char *__doc_sgl_Device_m_command_recording_discarded_callbacks = R"doc()doc";
+
+static const char *__doc_sgl_Device_m_command_recording_submitted_callbacks = R"doc()doc";
+
 static const char *__doc_sgl_Device_m_cuda_device = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_cuda_semaphore = R"doc()doc";
@@ -3276,7 +3352,7 @@ static const char *__doc_sgl_Device_m_device_children = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_device_children_mutex = R"doc()doc";
 
-static const char *__doc_sgl_Device_m_device_close_callbacks = R"doc(List of callbacks for shutdown event)doc";
+static const char *__doc_sgl_Device_m_device_close_callbacks = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_features = R"doc()doc";
 
@@ -3290,6 +3366,8 @@ static const char *__doc_sgl_Device_m_info = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_module_cache_path = R"doc()doc";
 
+static const char *__doc_sgl_Device_m_next_callback_id = R"doc()doc";
+
 static const char *__doc_sgl_Device_m_persistent_cache = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_rhi_device = R"doc()doc";
@@ -3298,7 +3376,7 @@ static const char *__doc_sgl_Device_m_rhi_graphics_queue = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_shader_cache_path = R"doc()doc";
 
-static const char *__doc_sgl_Device_m_shader_hot_reload_callbacks = R"doc(List of callbacks for hot reload event)doc";
+static const char *__doc_sgl_Device_m_shader_hot_reload_callbacks = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_slang_capabilities = R"doc()doc";
 
@@ -3309,6 +3387,10 @@ static const char *__doc_sgl_Device_m_supported_shader_model = R"doc()doc";
 static const char *__doc_sgl_Device_m_supports_cuda_interop = R"doc()doc";
 
 static const char *__doc_sgl_Device_native_handles = R"doc(Get the native device handles.)doc";
+
+static const char *__doc_sgl_Device_notify_command_recording_discarded = R"doc()doc";
+
+static const char *__doc_sgl_Device_notify_command_recording_submitted = R"doc()doc";
 
 static const char *__doc_sgl_Device_on_hot_reload = R"doc(Called by hot reload system after reload occurs, to trigger the hooks.)doc";
 
@@ -3352,6 +3434,14 @@ Parameter ``mip``:
 
 Returns:
     Subresource data in host memory.)doc";
+
+static const char *__doc_sgl_Device_register_command_recording_discarded_callback =
+R"doc(Register a callback to be called when a command recording is discarded
+(not submitted).)doc";
+
+static const char *__doc_sgl_Device_register_command_recording_submitted_callback =
+R"doc(Register a callback to be called when a command recording is
+submitted.)doc";
 
 static const char *__doc_sgl_Device_register_device_child = R"doc()doc";
 
@@ -3490,7 +3580,15 @@ static const char *__doc_sgl_Device_to_string = R"doc()doc";
 
 static const char *__doc_sgl_Device_type = R"doc(Type of the graphics API used by this device.)doc";
 
+static const char *__doc_sgl_Device_unregister_command_recording_discarded_callback = R"doc(Unregister a command recording discarded callback.)doc";
+
+static const char *__doc_sgl_Device_unregister_command_recording_submitted_callback = R"doc(Unregister a command recording submitted callback.)doc";
+
 static const char *__doc_sgl_Device_unregister_device_child = R"doc()doc";
+
+static const char *__doc_sgl_Device_unregister_device_close_callback = R"doc(Unregister a device close callback.)doc";
+
+static const char *__doc_sgl_Device_unregister_shader_hot_reload_callback = R"doc(Unregister a hot reload hook.)doc";
 
 static const char *__doc_sgl_Device_upload_buffer_data =
 R"doc(Upload host memory to buffer.
@@ -11598,6 +11696,12 @@ Parameter ``filters``:
 
 Returns:
     The selected file path or nothing if the dialog was cancelled.)doc";
+
+static const char *__doc_sgl_platform_set_current_thread_name =
+R"doc(Set the name of the current thread for debuggers and profilers.
+
+Returns:
+    True if the platform accepted the name.)doc";
 
 static const char *__doc_sgl_platform_set_keyboard_interrupt_handler =
 R"doc(Setup a callback function to be called when Ctrl-C is detected. Use
