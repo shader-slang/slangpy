@@ -1000,13 +1000,13 @@ CommandBuffer::~CommandBuffer()
         m_device->_notify_command_recording_discarded(m_recording_id);
 }
 
-void CommandBuffer::_notify_submitted(uint64_t submit_id) noexcept
+void CommandBuffer::_notify_submitted(uint64_t submit_id)
 {
     if (m_submitted)
         return;
 
-    m_device->_notify_command_recording_submitted(m_recording_id, this, submit_id);
     m_submitted = true;
+    m_device->_notify_command_recording_submitted(m_recording_id, this, submit_id);
 }
 
 std::string CommandBuffer::to_string() const

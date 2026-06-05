@@ -500,7 +500,7 @@ public:
 
     virtual void _release_rhi_resources() override { m_rhi_command_buffer.setNull(); }
 
-    /// Command queue this encoder is recording for.
+    /// Command queue this command buffer is recorded for.
     CommandQueueType queue() const { return m_queue; }
 
     /// Command recording ID, which is unique for each recording of a command buffer.
@@ -508,7 +508,7 @@ public:
 
     rhi::ICommandBuffer* rhi_command_buffer() const { return m_rhi_command_buffer; }
 
-    void _notify_submitted(uint64_t submit_id) noexcept;
+    void _notify_submitted(uint64_t submit_id);
 
     std::string to_string() const override;
 

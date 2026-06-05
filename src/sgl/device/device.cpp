@@ -50,33 +50,6 @@ static std::mutex s_devices_mutex;
 static thread_local std::vector<Device*> s_tls_current_device_stack;
 static std::atomic<CommandRecordingID> s_next_command_recording_id{1};
 
-template<typename T>
-DeviceCallbackID
-register_device_callback(std::vector<std::pair<DeviceCallbackID, T>>& callbacks, DeviceCallbackID& next_id, T callback)
-{
-    SGL_CHECK(static_cast<bool>(callback), "callback must not be empty");
-
-    const DeviceCallbackID id = next_id++;
-    callbacks.emplace_back(id, std::move(callback));
-    return id;
-}
-
-template<typename T>
-void unregister_device_callback(std::vector<std::pair<DeviceCallbackID, T>>& callbacks, DeviceCallbackID id)
-{
-    callbacks.erase(
-        std::remove_if(
-            callbacks.begin(),
-            callbacks.end(),
-            [id](const auto& entry)
-            {
-                return entry.first == id;
-            }
-        ),
-        callbacks.end()
-    );
-}
-
 inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
 {
     AdapterLUID luid;
@@ -520,8 +493,7 @@ void Device::close()
     wait();
 
     // Handle device close callbacks.
-    for (const auto& [_, callback] : m_device_close_callbacks)
-        callback(this);
+    m_device_close_callbacks.notify(this);
 
     // Make sure Device's ref count is not going to zero when releasing resources.
     inc_ref();
@@ -1008,6 +980,11 @@ uint64_t Device::submit_command_buffers(
     };
     SLANG_RHI_CALL(m_rhi_graphics_queue->submit(rhi_submit_desc), this);
 
+    const uint64_t submit_id = m_global_fence->signaled_value();
+
+    for (CommandBuffer* command_buffer : command_buffers)
+        command_buffer->_notify_submitted(submit_id);
+
     // Handle CUDA interop.
     if (m_supports_cuda_interop && needs_cuda_sync) {
         sync_to_device(cuda_stream_ptr);
@@ -1019,11 +996,6 @@ uint64_t Device::submit_command_buffers(
             }
         }
     }
-
-    const uint64_t submit_id = m_global_fence->signaled_value();
-
-    for (CommandBuffer* command_buffer : command_buffers)
-        command_buffer->_notify_submitted(submit_id);
 
     return submit_id;
 }
@@ -1411,42 +1383,56 @@ void Device::_unregister_device_child(DeviceChild* device_child)
 
 DeviceCallbackID Device::register_device_close_callback(DeviceCloseCallback callback)
 {
-    return register_device_callback(m_device_close_callbacks, m_next_callback_id, std::move(callback));
+    return m_device_close_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
 }
 
 void Device::unregister_device_close_callback(DeviceCallbackID id)
 {
-    unregister_device_callback(m_device_close_callbacks, id);
+    m_device_close_callbacks.unregister_callback(id);
 }
 
 DeviceCallbackID Device::register_shader_hot_reload_callback(ShaderHotReloadCallback callback)
 {
-    return register_device_callback(m_shader_hot_reload_callbacks, m_next_callback_id, std::move(callback));
+    return m_shader_hot_reload_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
 }
 
 void Device::unregister_shader_hot_reload_callback(DeviceCallbackID id)
 {
-    unregister_device_callback(m_shader_hot_reload_callbacks, id);
+    m_shader_hot_reload_callbacks.unregister_callback(id);
 }
 
 DeviceCallbackID Device::register_command_recording_submitted_callback(CommandRecordingSubmittedCallback callback)
 {
-    return register_device_callback(m_command_recording_submitted_callbacks, m_next_callback_id, std::move(callback));
+    return m_command_recording_submitted_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
 }
 
 void Device::unregister_command_recording_submitted_callback(DeviceCallbackID id)
 {
-    unregister_device_callback(m_command_recording_submitted_callbacks, id);
+    m_command_recording_submitted_callbacks.unregister_callback(id);
 }
 
 DeviceCallbackID Device::register_command_recording_discarded_callback(CommandRecordingDiscardedCallback callback)
 {
-    return register_device_callback(m_command_recording_discarded_callbacks, m_next_callback_id, std::move(callback));
+    return m_command_recording_discarded_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
 }
 
 void Device::unregister_command_recording_discarded_callback(DeviceCallbackID id)
 {
-    unregister_device_callback(m_command_recording_discarded_callbacks, id);
+    m_command_recording_discarded_callbacks.unregister_callback(id);
+}
+
+void Device::_on_hot_reload()
+{
+    if (m_builtin_layout)
+        reload_builtin_layout();
+
+    ShaderHotReloadEvent event;
+    m_shader_hot_reload_callbacks.notify(event);
+}
+
+DeviceCallbackID Device::_allocate_callback_id()
+{
+    return m_next_callback_id.fetch_add(1, std::memory_order_relaxed);
 }
 
 CommandRecordingID Device::_allocate_command_recording_id()
@@ -1466,8 +1452,7 @@ void Device::_notify_command_recording_submitted(
         .command_buffer = command_buffer,
         .submit_id = submit_id,
     };
-    for (const auto& [_, callback] : m_command_recording_submitted_callbacks)
-        callback(event);
+    m_command_recording_submitted_callbacks.notify(event);
 }
 
 void Device::_notify_command_recording_discarded(CommandRecordingID id)
@@ -1476,8 +1461,7 @@ void Device::_notify_command_recording_discarded(CommandRecordingID id)
         .device = this,
         .id = id,
     };
-    for (const auto& [_, callback] : m_command_recording_discarded_callbacks)
-        callback(event);
+    m_command_recording_discarded_callbacks.notify(event);
 }
 
 std::array<NativeHandle, 3> get_cuda_current_context_native_handles()

@@ -5,6 +5,7 @@
 #include "sgl/device/fwd.h"
 #include "sgl/device/types.h"
 #include "sgl/device/native_handle.h"
+#include "sgl/device/callback_list.h"
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/raytracing.h"
@@ -21,6 +22,7 @@
 #include <slang-rhi.h>
 
 #include <array>
+#include <atomic>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -851,17 +853,12 @@ public:
     HotReload* _hot_reload() { return m_hot_reload; }
 
     /// Called by hot reload system after reload occurs, to trigger the hooks.
-    void _on_hot_reload()
-    {
-        if (m_builtin_layout)
-            reload_builtin_layout();
-        for (auto& [_, hook] : m_shader_hot_reload_callbacks)
-            hook({});
-    }
+    void _on_hot_reload();
 
     void _register_device_child(DeviceChild* device_child);
     void _unregister_device_child(DeviceChild* device_child);
 
+    DeviceCallbackID _allocate_callback_id();
     CommandRecordingID _allocate_command_recording_id();
     void _notify_command_recording_submitted(CommandRecordingID id, CommandBuffer* command_buffer, uint64_t submit_id);
     void _notify_command_recording_discarded(CommandRecordingID id);
@@ -895,13 +892,12 @@ private:
     std::unique_ptr<DebugLogger> m_debug_logger;
     std::unique_ptr<DebugPrinter> m_debug_printer;
 
-    DeviceCallbackID m_next_callback_id{1};
+    std::atomic<DeviceCallbackID> m_next_callback_id{1};
 
-    // Callback lists store pairs of callback ID and callback function, to allow for unregistration.
-    std::vector<std::pair<DeviceCallbackID, DeviceCloseCallback>> m_device_close_callbacks;
-    std::vector<std::pair<DeviceCallbackID, ShaderHotReloadCallback>> m_shader_hot_reload_callbacks;
-    std::vector<std::pair<DeviceCallbackID, CommandRecordingSubmittedCallback>> m_command_recording_submitted_callbacks;
-    std::vector<std::pair<DeviceCallbackID, CommandRecordingDiscardedCallback>> m_command_recording_discarded_callbacks;
+    CallbackList<DeviceCallbackID, DeviceCloseCallback> m_device_close_callbacks;
+    CallbackList<DeviceCallbackID, ShaderHotReloadCallback> m_shader_hot_reload_callbacks;
+    CallbackList<DeviceCallbackID, CommandRecordingSubmittedCallback> m_command_recording_submitted_callbacks;
+    CallbackList<DeviceCallbackID, CommandRecordingDiscardedCallback> m_command_recording_discarded_callbacks;
 
     ref<Blitter> m_blitter;
     ref<HotReload> m_hot_reload;

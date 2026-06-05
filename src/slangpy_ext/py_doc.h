@@ -1451,6 +1451,34 @@ static const char *__doc_sgl_Buffer_write_slangpy_signature = R"doc(Write the Sl
 
 static const char *__doc_sgl_Buffer_write_to_cursor = R"doc(Bind a nullable buffer value to a shader cursor.)doc";
 
+static const char *__doc_sgl_CallbackList = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_CallbackList = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_CallbackList_2 = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_Entry = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_Entry_callback = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_Entry_id = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_clear = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_m_callbacks = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_m_mutex = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_notify = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_register_callback = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_snapshot = R"doc()doc";
+
+static const char *__doc_sgl_CallbackList_unregister_callback = R"doc()doc";
+
 static const char *__doc_sgl_ColorTargetDesc = R"doc()doc";
 
 static const char *__doc_sgl_ColorTargetDesc_alpha = R"doc()doc";
@@ -1485,7 +1513,7 @@ static const char *__doc_sgl_CommandBuffer_m_submitted = R"doc()doc";
 
 static const char *__doc_sgl_CommandBuffer_notify_submitted = R"doc()doc";
 
-static const char *__doc_sgl_CommandBuffer_queue = R"doc(Command queue this encoder is recording for.)doc";
+static const char *__doc_sgl_CommandBuffer_queue = R"doc(Command queue this command buffer is recorded for.)doc";
 
 static const char *__doc_sgl_CommandBuffer_recording_id =
 R"doc(Command recording ID, which is unique for each recording of a command
@@ -2940,6 +2968,8 @@ static const char *__doc_sgl_DeviceType_vulkan = R"doc()doc";
 static const char *__doc_sgl_DeviceType_wgpu = R"doc()doc";
 
 static const char *__doc_sgl_Device_Device = R"doc()doc";
+
+static const char *__doc_sgl_Device_allocate_callback_id = R"doc()doc";
 
 static const char *__doc_sgl_Device_allocate_command_recording_id = R"doc()doc";
 
@@ -11666,6 +11696,12 @@ Parameter ``filters``:
 
 Returns:
     The selected file path or nothing if the dialog was cancelled.)doc";
+
+static const char *__doc_sgl_platform_set_current_thread_name =
+R"doc(Set the name of the current thread for debuggers and profilers.
+
+Returns:
+    True if the platform accepted the name.)doc";
 
 static const char *__doc_sgl_platform_set_keyboard_interrupt_handler =
 R"doc(Setup a callback function to be called when Ctrl-C is detected. Use
