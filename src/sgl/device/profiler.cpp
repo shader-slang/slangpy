@@ -499,6 +499,17 @@ namespace {
         std::vector<ProfilerGpuRecordingBatch> batches;
     };
 
+    enum class ProfilerGpuRecordingEventType : uint8_t {
+        submitted,
+        discarded,
+    };
+
+    struct ProfilerGpuRecordingEvent {
+        ProfilerGpuRecordingEventType type{ProfilerGpuRecordingEventType::submitted};
+        CommandRecordingID recording_id{0};
+        uint64_t submit_id{0};
+    };
+
     struct GpuDeviceCallbackRegistration {
         ref<Device> device;
         CommandRecordingCallbackID submitted_callback_id{0};
@@ -649,6 +660,7 @@ struct ProfilerImpl {
     std::thread worker_thread;
     std::atomic<bool> worker_stop{false};
     std::atomic<uint32_t> pending_event_count{0};
+    std::atomic<uint32_t> pending_gpu_recording_event_count{0};
     std::mutex process_mutex;
 
     std::vector<ThreadData*> thread_data_storage;
@@ -658,6 +670,7 @@ struct ProfilerImpl {
     std::map<GpuContextKey, GpuContext> gpu_contexts;
     std::map<CommandRecordingID, ActiveGpuRecording> active_gpu_recordings;
     std::vector<PendingGpuSubmit> pending_gpu_submits;
+    moodycamel::ConcurrentQueue<ProfilerGpuRecordingEvent> gpu_recording_event_queue;
     std::vector<GpuDeviceCallbackRegistration> gpu_device_callback_registrations;
     std::mutex gpu_mutex;
 
@@ -1039,11 +1052,14 @@ struct ProfilerImpl {
     void worker_main() noexcept
     {
         while (true) {
-            const bool processed = process_threads();
-            if (worker_stop.load(std::memory_order_acquire) && pending_event_count.load(std::memory_order_acquire) == 0)
+            const bool processed_thread_events = process_threads();
+            const bool processed_gpu_recording_events = process_gpu_recording_events();
+            if (worker_stop.load(std::memory_order_acquire) && pending_event_count.load(std::memory_order_acquire) == 0
+                && pending_gpu_recording_event_count.load(std::memory_order_acquire) == 0) {
                 return;
+            }
 
-            if (!processed)
+            if (!processed_thread_events && !processed_gpu_recording_events)
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
@@ -1060,8 +1076,10 @@ struct ProfilerImpl {
 
     void flush_events()
     {
-        while (pending_event_count.load(std::memory_order_acquire) > 0) {
+        while (pending_event_count.load(std::memory_order_acquire) > 0
+               || pending_gpu_recording_event_count.load(std::memory_order_acquire) > 0) {
             process_threads();
+            process_gpu_recording_events();
             std::this_thread::yield();
         }
     }
@@ -1733,17 +1751,44 @@ struct ProfilerImpl {
         }
     }
 
+    void queue_gpu_recording_event(const ProfilerGpuRecordingEvent& event) noexcept
+    {
+        pending_gpu_recording_event_count.fetch_add(1, std::memory_order_acq_rel);
+        if (!gpu_recording_event_queue.enqueue(event))
+            std::terminate();
+    }
+
     void on_command_recording_submitted(Device* device, const CommandRecordingSubmittedEvent& event) noexcept
     {
         if (!device || event.id == 0)
             return;
 
         clear_gpu_recording_cache(event.id);
+        queue_gpu_recording_event({
+            .type = ProfilerGpuRecordingEventType::submitted,
+            .recording_id = event.id,
+            .submit_id = event.submit_id,
+        });
+    }
 
+    void on_command_recording_discarded(Device* device, const CommandRecordingDiscardedEvent& event) noexcept
+    {
+        if (!device || event.id == 0)
+            return;
+
+        clear_gpu_recording_cache(event.id);
+        queue_gpu_recording_event({
+            .type = ProfilerGpuRecordingEventType::discarded,
+            .recording_id = event.id,
+        });
+    }
+
+    void process_command_recording_submitted(CommandRecordingID recording_id, uint64_t submit_id)
+    {
         ActiveGpuRecording recording;
         {
             std::lock_guard lock(gpu_mutex);
-            auto it = active_gpu_recordings.find(event.id);
+            auto it = active_gpu_recordings.find(recording_id);
             if (it == active_gpu_recordings.end())
                 return;
             recording = std::move(it->second);
@@ -1753,33 +1798,22 @@ struct ProfilerImpl {
         if (recording.query_blocks.empty())
             return;
 
-        ref<Device> batch_device = recording.device;
-        CommandQueueType queue = recording.queue;
-        if (event.command_buffer) {
-            batch_device = ref<Device>(event.command_buffer->device());
-            queue = event.command_buffer->queue();
-        }
-
         std::vector<ProfilerGpuRecordingBatch> batches;
         batches.push_back({
-            .recording_id = event.id,
-            .device = std::move(batch_device),
-            .queue = queue,
+            .recording_id = recording_id,
+            .device = recording.device,
+            .queue = recording.queue,
             .queued_zone_count = recording.queued_zone_count,
             .query_blocks = std::move(recording.query_blocks),
         });
-        submit_gpu_recordings(event.submit_id, std::move(batches));
+        submit_gpu_recordings(submit_id, std::move(batches));
     }
 
-    void on_command_recording_discarded(Device* device, const CommandRecordingDiscardedEvent& event) noexcept
+    void process_command_recording_discarded(CommandRecordingID recording_id)
     {
-        if (!device || event.id == 0)
-            return;
-
-        clear_gpu_recording_cache(event.id);
         {
             std::lock_guard lock(gpu_mutex);
-            auto it = active_gpu_recordings.find(event.id);
+            auto it = active_gpu_recordings.find(recording_id);
             if (it != active_gpu_recordings.end()) {
                 ActiveGpuRecording recording = std::move(it->second);
                 active_gpu_recordings.erase(it);
@@ -1792,11 +1826,35 @@ struct ProfilerImpl {
         }
 
         std::lock_guard data_lock(data_mutex);
-        discard_gpu_zone_records_locked(event.id);
+        discard_gpu_zone_records_locked(recording_id);
+    }
+
+    bool process_gpu_recording_events()
+    {
+        bool processed = false;
+        ProfilerGpuRecordingEvent event;
+        while (gpu_recording_event_queue.try_dequeue(event)) {
+            processed = true;
+            try {
+                switch (event.type) {
+                case ProfilerGpuRecordingEventType::submitted:
+                    process_command_recording_submitted(event.recording_id, event.submit_id);
+                    break;
+                case ProfilerGpuRecordingEventType::discarded:
+                    process_command_recording_discarded(event.recording_id);
+                    break;
+                }
+            } catch (...) {
+            }
+            pending_gpu_recording_event_count.fetch_sub(1, std::memory_order_acq_rel);
+        }
+        return processed;
     }
 
     void process_gpu_submits()
     {
+        process_gpu_recording_events();
+
         std::vector<PendingGpuSubmit> ready_submits;
         {
             std::lock_guard lock(gpu_mutex);
