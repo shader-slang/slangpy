@@ -108,8 +108,6 @@ target_sources(sgl PRIVATE
     device/persistent_cache.h
     device/pipeline.cpp
     device/pipeline.h
-    device/profiler.cpp
-    device/profiler.h
     device/print.cpp
     device/print.h
     device/print.slang
@@ -173,8 +171,6 @@ target_sources(sgl PRIVATE
     ui/fwd.h
     ui/imgui.slang
     ui/imguisw.slang
-    ui/profiler.cpp
-    ui/profiler.h
     ui/ui.cpp
     ui/ui.h
     ui/widgets.cpp
@@ -182,6 +178,10 @@ target_sources(sgl PRIVATE
 
     utils/crashpad.cpp
     utils/crashpad.h
+    utils/profiler.cpp
+    utils/profiler.h
+    utils/profiler_ui.cpp
+    utils/profiler_ui.h
     utils/renderdoc.cpp
     utils/renderdoc.h
     utils/slangpy.cpp

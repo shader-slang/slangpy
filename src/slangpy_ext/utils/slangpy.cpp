@@ -14,7 +14,7 @@
 #include "sgl/device/device.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/command.h"
-#include "sgl/device/profiler.h"
+#include "sgl/utils/profiler.h"
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
 #include "device/cursor_writer.h"

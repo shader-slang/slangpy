@@ -3,7 +3,7 @@
 #include "testing.h"
 #include "sgl/device/command.h"
 #include "sgl/device/device.h"
-#include "sgl/device/profiler.h"
+#include "sgl/utils/profiler.h"
 
 #include <fstream>
 #include <iterator>

@@ -110,7 +110,7 @@ class RenderPipeline;
 struct RayTracingPipelineDesc;
 class RayTracingPipeline;
 
-// profiler.h
+// utils/profiler.h
 
 struct ProfilerDesc;
 struct ProfilerSourceLocation;

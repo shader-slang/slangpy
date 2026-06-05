@@ -32,7 +32,6 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     device/kernel.cpp
     device/native_handle.cpp
     device/pipeline.cpp
-    device/profiler.cpp
     device/query.cpp
     device/raytracing.cpp
     device/reflection.cpp
@@ -51,6 +50,7 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     ui/widgets.cpp
     refl/layout.cpp
     utils/crashpad.cpp
+    utils/profiler.cpp
     utils/renderdoc.cpp
     utils/slangpy.h
     utils/slangpy.cpp

@@ -12,7 +12,7 @@
 #include "sgl/device/kernel.h"
 #include "sgl/device/raytracing.h"
 #include "sgl/device/query.h"
-#include "sgl/device/profiler.h"
+#include "sgl/utils/profiler.h"
 #include "sgl/device/input_layout.h"
 #include "sgl/device/surface.h"
 #include "sgl/device/shader.h"

@@ -2,7 +2,7 @@
 
 #include "nanobind.h"
 
-#include "sgl/device/profiler.h"
+#include "sgl/utils/profiler.h"
 
 #include "sgl/device/command.h"
 

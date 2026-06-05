@@ -21,8 +21,8 @@
 #include "sgl/device/surface.h"
 #include "sgl/device/agility_sdk.h"
 
-#include "sgl/device/profiler.h"
-#include "sgl/ui/profiler.h"
+#include "sgl/utils/profiler.h"
+#include "sgl/utils/profiler_ui.h"
 
 #include "sgl/ui/ui.h"
 
@@ -789,7 +789,7 @@ struct App {
             .resizable = true,
         });
         device = Device::create({
-            .type = DeviceType::vulkan,
+            .type = DeviceType::cuda,
             .enable_debug_layers = true,
             .compiler_options = {
                 .include_paths = {EXAMPLE_DIR},

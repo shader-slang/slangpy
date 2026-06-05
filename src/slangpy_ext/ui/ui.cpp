@@ -2,7 +2,7 @@
 
 #include "nanobind.h"
 
-#include "sgl/ui/profiler.h"
+#include "sgl/utils/profiler_ui.h"
 #include "sgl/ui/ui.h"
 #include "sgl/ui/widgets.h"
 
@@ -13,7 +13,7 @@
 #include "sgl/device/device.h"
 #include "sgl/device/command.h"
 #include "sgl/device/fwd.h"
-#include "sgl/device/profiler.h"
+#include "sgl/utils/profiler.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>

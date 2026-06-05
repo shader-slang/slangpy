@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "profiler.h"
+#include "profiler_ui.h"
 
-#include "sgl/device/profiler.h"
+#include "sgl/utils/profiler.h"
 
 #include <imgui.h>
 
