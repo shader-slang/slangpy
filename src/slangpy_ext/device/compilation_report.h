@@ -9,7 +9,7 @@
 #include "sgl/device/shader.h"
 
 #include <algorithm>
-#include <string>
+#include <cstddef>
 
 namespace sgl::detail {
 
@@ -17,10 +17,10 @@ using PyCompilationReport = nb::typed<nb::dict, nb::str, nb::any>;
 using PyCompilationReportList = nb::typed<nb::list, PyCompilationReport>;
 
 template<size_t N>
-std::string fixed_string_to_string(const char (&value)[N])
+nb::str fixed_string_to_py_str(const char (&value)[N])
 {
     const char* end = std::find(value, value + N, '\0');
-    return std::string(value, end);
+    return nb::str(value, static_cast<size_t>(end - value));
 }
 
 inline const char* compilation_pipeline_type_to_string(rhi::CompilationReport::PipelineType type)
@@ -41,7 +41,7 @@ inline nb::dict
 compilation_entry_point_report_to_dict(const rhi::CompilationReport::EntryPointReport& entry_point_report)
 {
     nb::dict result;
-    result["name"] = fixed_string_to_string(entry_point_report.name);
+    result["name"] = fixed_string_to_py_str(entry_point_report.name);
     result["start_time"] = entry_point_report.startTime;
     result["end_time"] = entry_point_report.endTime;
     result["create_time"] = entry_point_report.createTime;
@@ -85,7 +85,7 @@ inline PyCompilationReport compilation_report_to_dict(const rhi::CompilationRepo
         pipeline_reports.append(compilation_pipeline_report_to_dict(report.pipelineReports[i]));
 
     nb::dict result;
-    result["label"] = fixed_string_to_string(report.label);
+    result["label"] = fixed_string_to_py_str(report.label);
     result["alive"] = report.alive;
     result["create_time"] = report.createTime;
     result["compile_time"] = report.compileTime;
@@ -142,8 +142,8 @@ inline void validate_compilation_report_list_blob(ISlangBlob* report_list_blob)
 
 inline PyCompilationReport get_compilation_report(ShaderProgram* program)
 {
-    SGL_CHECK_NOT_NULL(program);
-    SGL_CHECK_NOT_NULL(program->rhi_shader_program());
+    SGL_ASSERT(program);
+    SGL_ASSERT(program->rhi_shader_program());
 
     Slang::ComPtr<ISlangBlob> report_blob;
     SLANG_RHI_CALL(program->rhi_shader_program()->getCompilationReport(report_blob.writeRef()), program->device());
@@ -153,8 +153,8 @@ inline PyCompilationReport get_compilation_report(ShaderProgram* program)
 
 inline PyCompilationReportList get_compilation_reports(Device* device)
 {
-    SGL_CHECK_NOT_NULL(device);
-    SGL_CHECK_NOT_NULL(device->rhi_device());
+    SGL_ASSERT(device);
+    SGL_ASSERT(device->rhi_device());
 
     Slang::ComPtr<ISlangBlob> report_list_blob;
     SLANG_RHI_CALL(device->rhi_device()->getCompilationReportList(report_list_blob.writeRef()), device);
