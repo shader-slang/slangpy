@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "nanobind.h"
+#include "compilation_report.h"
 
 #include "sgl/device/device.h"
 #include "sgl/device/reflection.h"
@@ -1061,6 +1062,12 @@ SGL_PY_EXPORT(device_device)
         "additional_source"_a.none() = nb::none(),
         "link_options"_a.none() = nb::none(),
         D(Device, load_program)
+    );
+    device.def(
+        "get_compilation_reports",
+        &detail::get_compilation_reports,
+        nb::sig("def get_compilation_reports(self) -> list[CompilationReport]"),
+        "Return compilation reports for all shader programs tracked by the device."
     );
 
     device.def(
