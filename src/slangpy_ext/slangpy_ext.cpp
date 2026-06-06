@@ -42,6 +42,7 @@ SGL_PY_DECLARE(device_input_layout);
 SGL_PY_DECLARE(device_kernel);
 SGL_PY_DECLARE(device_native_handle);
 SGL_PY_DECLARE(device_pipeline);
+SGL_PY_DECLARE(device_profiler);
 SGL_PY_DECLARE(device_query);
 SGL_PY_DECLARE(device_raytracing);
 SGL_PY_DECLARE(device_reflection);
@@ -140,6 +141,7 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(device_query);
     SGL_PY_IMPORT(device_input_layout);
     SGL_PY_IMPORT(device_pipeline);
+    SGL_PY_IMPORT(device_profiler);
     SGL_PY_IMPORT(device_reflection);
     SGL_PY_IMPORT(device_shader);
     SGL_PY_IMPORT(device_raytracing);

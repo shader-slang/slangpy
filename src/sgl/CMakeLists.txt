@@ -179,6 +179,10 @@ target_sources(sgl PRIVATE
 
     utils/crashpad.cpp
     utils/crashpad.h
+    utils/profiler.cpp
+    utils/profiler.h
+    utils/profiler_ui.cpp
+    utils/profiler_ui.h
     utils/renderdoc.cpp
     utils/renderdoc.h
     utils/slangpy.cpp

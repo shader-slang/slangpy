@@ -2,6 +2,7 @@
 
 #include "nanobind.h"
 
+#include "sgl/utils/profiler_ui.h"
 #include "sgl/ui/ui.h"
 #include "sgl/ui/widgets.h"
 
@@ -12,6 +13,7 @@
 #include "sgl/device/device.h"
 #include "sgl/device/command.h"
 #include "sgl/device/fwd.h"
+#include "sgl/utils/profiler.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -208,6 +210,15 @@ SGL_PY_EXPORT(ui)
     using namespace sgl;
 
     nb::module_ ui = nb::module_::import_("slangpy.ui");
+
+    ui.def(
+        "render_profiler_window",
+        [](Profiler* profiler)
+        {
+            sgl::ui::render_profiler_window(profiler);
+        },
+        "profiler"_a = nullptr
+    );
 
     nb::class_<ui::Context, Object>(ui, "Context", gc_helper_type_slots<ui::Context>(), D(Context))
         .def(nb::init<ref<Device>>(), "device"_a)
