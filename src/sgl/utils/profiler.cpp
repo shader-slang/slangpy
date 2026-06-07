@@ -35,6 +35,7 @@ namespace sgl {
 namespace {
 
     constexpr uint32_t kInvalidProfilerId = std::numeric_limits<uint32_t>::max();
+    constexpr uint32_t kMaxGpuQueryPoolPagesPerContext = 16;
 
     // ----------------------------------------------------------------------------
     // String/source registries
@@ -318,16 +319,29 @@ namespace {
     enum class ProfilerEventType : uint8_t {
         begin_zone,
         end_zone,
-        gpu_zone,
+        gpu_query_result,
         begin_frame,
         end_frame,
     };
 
+    struct GpuQueryTicket {
+        uint64_t id{0};
+
+        explicit operator bool() const { return id != 0; }
+    };
+
     struct ProfilerGpuEvent {
-        CommandRecordingID recording_id{0};
-        QueryPool* query_pool{nullptr};
-        uint32_t begin_query_index{0};
-        uint32_t end_query_index{0};
+        GpuQueryTicket ticket;
+        uint64_t command_stream_id{0};
+        uint32_t timeline_id{kInvalidProfilerId};
+        CommandQueueType queue{CommandQueueType::graphics};
+    };
+
+    struct ProfilerGpuQueryResultEvent {
+        GpuQueryTicket ticket;
+        QueryResultStatus status{QueryResultStatus::invalid};
+        uint64_t start_timestamp{0};
+        uint64_t end_timestamp{0};
     };
 
     struct ProfilerEvent {
@@ -336,6 +350,18 @@ namespace {
         const ProfilerSourceLocation* source_location{nullptr};
         const char* name{nullptr};
         ProfilerGpuEvent gpu;
+        ProfilerGpuQueryResultEvent gpu_result;
+    };
+
+    struct OpenGpuZone {
+        GpuQueryTicket ticket;
+        uint32_t event_id{kInvalidProfilerId};
+        uint32_t frame_id{kInvalidProfilerId};
+        uint32_t source_id{0};
+        uint32_t name_id{0};
+        uint32_t stats_node_id{kInvalidProfilerId};
+        uint32_t timeline_id{kInvalidProfilerId};
+        std::vector<uint32_t> child_indices;
     };
 
     struct OpenCpuZone {
@@ -347,9 +373,28 @@ namespace {
         uint32_t name_id{0};
         uint64_t start_timestamp{0};
         std::vector<uint32_t> trace_children;
-        std::vector<uint32_t> gpu_children;
         bool gpu_started{false};
         ProfilerGpuEvent gpu;
+    };
+
+    struct ProfilerGpuZoneRecord {
+        GpuQueryTicket ticket;
+        uint32_t event_id{kInvalidProfilerId};
+        uint32_t frame_id{kInvalidProfilerId};
+        uint32_t source_id{0};
+        uint32_t name_id{0};
+        uint32_t stats_node_id{kInvalidProfilerId};
+        uint32_t timeline_id{kInvalidProfilerId};
+        int32_t parent_index{-1};
+        std::vector<uint32_t> child_indices;
+        uint64_t start_timestamp{0};
+        uint64_t end_timestamp{0};
+        uint32_t trace_zone_id{kInvalidProfilerId};
+        bool parent_pending{false};
+        bool query_ready{false};
+        bool stats_pending_counted{false};
+        bool completed{false};
+        bool dropped{false};
     };
 
     struct ThreadData {
@@ -365,6 +410,10 @@ namespace {
         moodycamel::ConsumerToken consumer_token{queue};
 
         std::vector<OpenCpuZone> zone_stack;
+        std::unordered_map<uint64_t, std::vector<OpenGpuZone>> gpu_zone_stack_by_command_stream;
+        std::vector<ProfilerGpuZoneRecord> gpu_zones;
+        std::unordered_map<uint64_t, uint32_t> gpu_zone_by_ticket;
+        std::unordered_map<uint64_t, ProfilerGpuQueryResultEvent> orphan_gpu_query_results;
 
         ThreadData(Profiler* profiler_, std::thread::id thread_id_)
             : profiler(profiler_)
@@ -436,95 +485,60 @@ namespace {
         uint64_t gpu_frequency{0};
     };
 
-    struct ProfilerGpuQueryBlock {
+    struct GpuQuerySlot {
+        GpuQueryTicket ticket;
         ref<QueryPool> query_pool;
-        uint32_t first_query_index{0};
-        uint32_t query_count{0};
-        uint32_t used_query_count{0};
+        uint32_t begin_query_index{0};
+        uint32_t end_query_index{0};
+        uint32_t timeline_id{kInvalidProfilerId};
+        CommandQueueType queue{CommandQueueType::graphics};
+        ThreadData* owner_thread{nullptr};
+        uint64_t command_stream_id{0};
+        bool closed{false};
+        bool pending_emitted{false};
+        bool completed{false};
+    };
+
+    struct ProfilerGpuQueryPage {
+        ref<QueryPool> query_pool;
+        uint32_t allocated_query_count{0};
+        std::vector<GpuQuerySlot> slots;
+    };
+
+    struct ProfilerGpuQueryChunk {
+        GpuQuerySlot* next_slot{nullptr};
+        GpuQuerySlot* end_slot{nullptr};
     };
 
     struct ProfilerGpuQueryPair {
+        GpuQuerySlot* slot{nullptr};
         ref<QueryPool> query_pool;
         uint32_t begin_query_index{0};
         uint32_t end_query_index{0};
+        GpuQueryTicket ticket;
+        uint64_t command_stream_id{0};
+        uint32_t timeline_id{kInvalidProfilerId};
+        CommandQueueType queue{CommandQueueType::graphics};
     };
 
     struct GpuContext {
+        ref<Device> device;
+        CommandQueueType queue{CommandQueueType::graphics};
         ProfilerTimelineInfo timeline_info;
         uint32_t timeline_id{kInvalidProfilerId};
-        ref<QueryPool> query_pool;
-        uint32_t allocated_query_count{0};
         bool disabled{false};
-        std::vector<ProfilerGpuQueryBlock> free_query_blocks;
+        std::vector<ProfilerGpuQueryPage> query_pages;
     };
 
-    struct ProfilerGpuZoneRecord {
-        uint32_t event_id{kInvalidProfilerId};
-        uint32_t frame_id{kInvalidProfilerId};
-        uint32_t source_id{0};
-        uint32_t name_id{0};
-        uint32_t stats_node_id{kInvalidProfilerId};
-        CommandRecordingID recording_id{0};
-        ref<QueryPool> query_pool;
-        uint32_t begin_query_index{0};
-        uint32_t end_query_index{0};
-        int32_t parent_index{-1};
-        std::vector<uint32_t> child_indices;
-    };
-
-    struct ProfilerGpuRecordingBatch {
-        CommandRecordingID recording_id{0};
-        ref<Device> device;
-        CommandQueueType queue{CommandQueueType::graphics};
-        uint32_t queued_zone_count{0};
-        std::vector<ProfilerGpuQueryBlock> query_blocks;
-    };
-
-    struct ActiveGpuRecording {
-        ref<Device> device;
-        CommandQueueType queue{CommandQueueType::graphics};
-        std::thread::id owner_thread_id;
-        std::vector<ProfilerGpuQueryBlock> query_blocks;
-        ref<QueryPool> current_query_pool;
-        uint32_t current_query_block_index{kInvalidProfilerId};
-        uint32_t next_query_index{0};
-        uint32_t current_query_end_index{0};
-        uint32_t queued_zone_count{0};
-    };
-
-    struct PendingGpuSubmit {
-        ref<Device> device;
-        CommandQueueType queue{CommandQueueType::graphics};
-        uint64_t submit_id{0};
-        std::vector<ProfilerGpuRecordingBatch> batches;
-    };
-
-    enum class ProfilerGpuRecordingEventType : uint8_t {
-        submitted,
-        discarded,
-    };
-
-    struct ProfilerGpuRecordingEvent {
-        ProfilerGpuRecordingEventType type{ProfilerGpuRecordingEventType::submitted};
-        CommandRecordingID recording_id{0};
-        uint64_t submit_id{0};
-    };
-
-    struct GpuDeviceCallbackRegistration {
-        ref<Device> device;
-        DeviceCallbackID submitted_callback_id{0};
-        DeviceCallbackID discarded_callback_id{0};
-        DeviceCallbackID close_callback_id{0};
-    };
-
-    struct GpuRecordingThreadCache {
+    struct GpuQueryThreadCache {
         ProfilerImpl* profiler{nullptr};
-        CommandRecordingID recording_id{0};
-        ActiveGpuRecording* recording{nullptr};
+        GpuContext* context{nullptr};
+        GpuQuerySlot* next_slot{nullptr};
+        GpuQuerySlot* end_slot{nullptr};
     };
 
     thread_local ThreadData* s_thread_data{nullptr};
-    thread_local GpuRecordingThreadCache s_gpu_recording_cache;
+    thread_local GpuQueryThreadCache s_gpu_query_cache;
 
 } // namespace
 
@@ -642,11 +656,10 @@ struct ProfilerImpl {
     std::unordered_map<const ProfilerSourceLocation*, uint32_t> source_id_by_pointer;
     std::unordered_map<std::string, uint32_t> name_id_by_value;
     std::unordered_map<uint32_t, uint32_t> trace_frame_id_by_frame_id;
-    std::unordered_map<CommandRecordingID, std::vector<ProfilerGpuZoneRecord>> gpu_zones_by_recording_id;
-    std::unordered_set<CommandRecordingID> discarded_gpu_recording_ids;
 
     std::vector<StatsNodeState> stats_nodes;
     std::unordered_map<StatsNodeKey, uint32_t, StatsNodeKeyHasher> stats_node_id_by_key;
+    uint64_t next_gpu_query_ticket{1};
     uint32_t next_event_id{1};
     uint32_t next_frame_id{0};
     uint32_t completed_frame_count{0};
@@ -660,7 +673,6 @@ struct ProfilerImpl {
     std::thread worker_thread;
     std::atomic<bool> worker_stop{false};
     std::atomic<uint32_t> pending_event_count{0};
-    std::atomic<uint32_t> pending_gpu_recording_event_count{0};
     std::mutex process_mutex;
 
     std::vector<ThreadData*> thread_data_storage;
@@ -668,11 +680,10 @@ struct ProfilerImpl {
     std::mutex thread_data_mutex;
 
     std::map<GpuContextKey, GpuContext> gpu_contexts;
-    std::map<CommandRecordingID, ActiveGpuRecording> active_gpu_recordings;
-    std::vector<PendingGpuSubmit> pending_gpu_submits;
-    moodycamel::ConcurrentQueue<ProfilerGpuRecordingEvent> gpu_recording_event_queue;
-    std::vector<GpuDeviceCallbackRegistration> gpu_device_callback_registrations;
+    moodycamel::ConcurrentQueue<GpuQuerySlot*> closed_gpu_query_slot_queue;
+    std::vector<GpuQuerySlot*> pending_gpu_query_slots;
     std::mutex gpu_mutex;
+    std::mutex gpu_query_process_mutex;
 
     explicit ProfilerImpl(Profiler* profiler_)
         : profiler(profiler_)
@@ -688,7 +699,7 @@ struct ProfilerImpl {
     ~ProfilerImpl()
     {
         stop_worker();
-        unregister_gpu_device_callbacks();
+        clear_gpu_query_cache();
         for (ThreadData* thread_data : thread_data_storage)
             delete thread_data;
     }
@@ -856,67 +867,80 @@ struct ProfilerImpl {
             .source_id = source_id,
             .name_id = name_id,
             .start_timestamp = event.timestamp,
+            .gpu_started = bool(event.gpu.ticket),
+            .gpu = event.gpu,
         });
-    }
 
-    void process_gpu_zone(ThreadData& thread_data, const ProfilerEvent& event)
-    {
-        std::lock_guard lock(data_mutex);
-
-        if (thread_data.zone_stack.empty()) {
-            log_warn_once("Profiler received a GPU zone event without an open CPU zone.");
-            return;
+        if (event.gpu.ticket) {
+            thread_data.gpu_zone_stack_by_command_stream[event.gpu.command_stream_id].push_back({
+                .ticket = event.gpu.ticket,
+                .event_id = event_id,
+                .frame_id = frame_id,
+                .source_id = source_id,
+                .name_id = name_id,
+                .stats_node_id = stats_node_id,
+                .timeline_id = event.gpu.timeline_id,
+            });
         }
-
-        OpenCpuZone& zone = thread_data.zone_stack.back();
-        zone.gpu = event.gpu;
-        zone.gpu_started = true;
     }
 
     void append_gpu_zone_locked(ThreadData& thread_data, OpenCpuZone& zone)
     {
-        if (!zone.gpu_started || !zone.gpu.query_pool || zone.gpu.recording_id == 0) {
-            if (!thread_data.zone_stack.empty()) {
-                OpenCpuZone& parent = thread_data.zone_stack.back();
-                parent.gpu_children
-                    .insert(parent.gpu_children.end(), zone.gpu_children.begin(), zone.gpu_children.end());
-            }
+        if (!zone.gpu_started || !zone.gpu.ticket || zone.gpu.timeline_id == kInvalidProfilerId)
+            return;
+
+        auto stack_it = thread_data.gpu_zone_stack_by_command_stream.find(zone.gpu.command_stream_id);
+        if (stack_it == thread_data.gpu_zone_stack_by_command_stream.end() || stack_it->second.empty()) {
+            log_warn_once("Profiler received a GPU zone end event without an open GPU zone.");
             return;
         }
 
-        if (discarded_gpu_recording_ids.find(zone.gpu.recording_id) != discarded_gpu_recording_ids.end())
+        std::vector<OpenGpuZone>& gpu_stack = stack_it->second;
+        OpenGpuZone open_gpu_zone = std::move(gpu_stack.back());
+        gpu_stack.pop_back();
+
+        if (open_gpu_zone.ticket.id != zone.gpu.ticket.id) {
+            if (gpu_stack.empty())
+                thread_data.gpu_zone_stack_by_command_stream.erase(stack_it);
+            log_warn_once("Profiler received mismatched GPU zone begin/end events.");
             return;
+        }
 
-        const bool has_stats = profiler->frame_stats_enabled() && zone.frame_id != kInvalidProfilerId
-            && zone.stats_node_id != kInvalidProfilerId && zone.stats_node_id < stats_nodes.size();
-        const uint32_t gpu_stats_node_id = has_stats ? zone.stats_node_id : kInvalidProfilerId;
-
-        std::vector<ProfilerGpuZoneRecord>& records = gpu_zones_by_recording_id[zone.gpu.recording_id];
-        const uint32_t gpu_zone_index = uint32_t(records.size());
-        records.push_back({
-            .event_id = zone.event_id,
-            .frame_id = zone.frame_id,
-            .source_id = zone.source_id,
-            .name_id = zone.name_id,
-            .stats_node_id = gpu_stats_node_id,
-            .recording_id = zone.gpu.recording_id,
-            .query_pool = ref<QueryPool>(zone.gpu.query_pool),
-            .begin_query_index = zone.gpu.begin_query_index,
-            .end_query_index = zone.gpu.end_query_index,
-            .child_indices = std::move(zone.gpu_children),
+        const bool has_parent = !gpu_stack.empty();
+        const uint32_t gpu_zone_index = uint32_t(thread_data.gpu_zones.size());
+        thread_data.gpu_zones.push_back({
+            .ticket = open_gpu_zone.ticket,
+            .event_id = open_gpu_zone.event_id,
+            .frame_id = open_gpu_zone.frame_id,
+            .source_id = open_gpu_zone.source_id,
+            .name_id = open_gpu_zone.name_id,
+            .stats_node_id = open_gpu_zone.stats_node_id,
+            .timeline_id = open_gpu_zone.timeline_id,
+            .child_indices = std::move(open_gpu_zone.child_indices),
+            .parent_pending = has_parent,
         });
 
-        ProfilerGpuZoneRecord& gpu_zone = records.back();
+        ProfilerGpuZoneRecord& gpu_zone = thread_data.gpu_zones.back();
         for (uint32_t child_index : gpu_zone.child_indices) {
-            if (child_index < records.size())
-                records[child_index].parent_index = int32_t(gpu_zone_index);
+            if (child_index < thread_data.gpu_zones.size()) {
+                thread_data.gpu_zones[child_index].parent_index = int32_t(gpu_zone_index);
+                thread_data.gpu_zones[child_index].parent_pending = false;
+            }
         }
 
-        if (has_stats)
-            ++stats_nodes[zone.stats_node_id].pending_gpu_sample_count;
+        if (has_parent)
+            gpu_stack.back().child_indices.push_back(gpu_zone_index);
+        else
+            thread_data.gpu_zone_stack_by_command_stream.erase(stack_it);
 
-        if (!thread_data.zone_stack.empty())
-            thread_data.zone_stack.back().gpu_children.push_back(gpu_zone_index);
+        thread_data.gpu_zone_by_ticket[gpu_zone.ticket.id] = gpu_zone_index;
+
+        auto orphan_it = thread_data.orphan_gpu_query_results.find(gpu_zone.ticket.id);
+        if (orphan_it != thread_data.orphan_gpu_query_results.end()) {
+            ProfilerGpuQueryResultEvent result = orphan_it->second;
+            thread_data.orphan_gpu_query_results.erase(orphan_it);
+            apply_gpu_query_result_locked(thread_data, result);
+        }
     }
 
     void process_cpu_end_zone(ThreadData& thread_data, const ProfilerEvent& event)
@@ -1002,6 +1026,158 @@ struct ProfilerImpl {
         ++completed_frame_count;
     }
 
+    void clear_gpu_zone_pending_stats_locked(ProfilerGpuZoneRecord& record)
+    {
+        if (!record.stats_pending_counted)
+            return;
+
+        if (record.stats_node_id != kInvalidProfilerId && record.stats_node_id < stats_nodes.size()
+            && stats_nodes[record.stats_node_id].pending_gpu_sample_count > 0) {
+            --stats_nodes[record.stats_node_id].pending_gpu_sample_count;
+        }
+        record.stats_pending_counted = false;
+    }
+
+    void mark_gpu_zone_pending_locked(ProfilerGpuZoneRecord& record)
+    {
+        if (record.completed || record.stats_pending_counted || record.stats_node_id == kInvalidProfilerId
+            || record.stats_node_id >= stats_nodes.size())
+            return;
+
+        ++stats_nodes[record.stats_node_id].pending_gpu_sample_count;
+        record.stats_pending_counted = true;
+    }
+
+    void drop_gpu_zone_locked(ThreadData& thread_data, uint32_t zone_index)
+    {
+        if (zone_index >= thread_data.gpu_zones.size())
+            return;
+
+        ProfilerGpuZoneRecord& record = thread_data.gpu_zones[zone_index];
+        if (record.completed)
+            return;
+
+        for (uint32_t child_index : record.child_indices)
+            drop_gpu_zone_locked(thread_data, child_index);
+
+        clear_gpu_zone_pending_stats_locked(record);
+        record.completed = true;
+        record.dropped = true;
+    }
+
+    uint32_t try_complete_gpu_zone_locked(ThreadData& thread_data, uint32_t zone_index)
+    {
+        if (zone_index >= thread_data.gpu_zones.size())
+            return kInvalidProfilerId;
+
+        ProfilerGpuZoneRecord& record = thread_data.gpu_zones[zone_index];
+        if (record.completed)
+            return record.trace_zone_id;
+        if (!record.query_ready)
+            return kInvalidProfilerId;
+
+        std::vector<uint32_t> child_zone_ids;
+        for (uint32_t child_index : record.child_indices) {
+            uint32_t child_trace_zone_id = try_complete_gpu_zone_locked(thread_data, child_index);
+            if (child_index < thread_data.gpu_zones.size() && !thread_data.gpu_zones[child_index].completed)
+                return kInvalidProfilerId;
+            if (child_trace_zone_id != kInvalidProfilerId)
+                child_zone_ids.push_back(child_trace_zone_id);
+        }
+
+        uint32_t trace_zone_id = kInvalidProfilerId;
+        if (zone_in_active_trace_window_locked(record.start_timestamp)) {
+            trace_zone_id = uint32_t(trace_zones.size());
+            trace_zones.push_back({
+                .id = trace_zone_id,
+                .event_id = record.event_id,
+                .timeline_id = record.timeline_id,
+                .frame_id = record.frame_id,
+                .source_id = record.source_id,
+                .name_id = record.name_id,
+                .start_timestamp = record.start_timestamp,
+                .end_timestamp = record.end_timestamp,
+            });
+            append_trace_child_range_locked(trace_zones.back(), child_zone_ids);
+            if (record.parent_index < 0 && !record.parent_pending)
+                trace_root_indices.push_back(trace_zone_id);
+        }
+
+        if (profiler->frame_stats_enabled() && record.frame_id != kInvalidProfilerId
+            && record.stats_node_id != kInvalidProfilerId && record.stats_node_id < stats_nodes.size()) {
+            stats_nodes[record.stats_node_id].gpu_samples.push_back({
+                .frame_id = record.frame_id,
+                .value_ms = double(record.end_timestamp - record.start_timestamp) / 1000000.0,
+            });
+        }
+
+        clear_gpu_zone_pending_stats_locked(record);
+        record.trace_zone_id = trace_zone_id;
+        record.completed = true;
+        return trace_zone_id;
+    }
+
+    void try_complete_gpu_zone_and_ancestors_locked(ThreadData& thread_data, uint32_t zone_index)
+    {
+        while (zone_index < thread_data.gpu_zones.size()) {
+            const int32_t parent_index = thread_data.gpu_zones[zone_index].parent_index;
+            (void)try_complete_gpu_zone_locked(thread_data, zone_index);
+            if (!thread_data.gpu_zones[zone_index].completed || parent_index < 0)
+                return;
+            zone_index = uint32_t(parent_index);
+        }
+    }
+
+    void store_orphan_gpu_query_result_locked(ThreadData& thread_data, const ProfilerGpuQueryResultEvent& result)
+    {
+        ProfilerGpuQueryResultEvent& orphan = thread_data.orphan_gpu_query_results[result.ticket.id];
+        if (result.status == QueryResultStatus::ready || result.status == QueryResultStatus::invalid
+            || orphan.status != QueryResultStatus::ready) {
+            orphan = result;
+        }
+    }
+
+    void apply_gpu_query_result_locked(ThreadData& thread_data, const ProfilerGpuQueryResultEvent& result)
+    {
+        if (!result.ticket)
+            return;
+
+        auto zone_it = thread_data.gpu_zone_by_ticket.find(result.ticket.id);
+        if (zone_it == thread_data.gpu_zone_by_ticket.end()) {
+            store_orphan_gpu_query_result_locked(thread_data, result);
+            return;
+        }
+
+        const uint32_t zone_index = zone_it->second;
+        if (zone_index >= thread_data.gpu_zones.size())
+            return;
+
+        ProfilerGpuZoneRecord& record = thread_data.gpu_zones[zone_index];
+        if (record.completed)
+            return;
+
+        switch (result.status) {
+        case QueryResultStatus::pending:
+            mark_gpu_zone_pending_locked(record);
+            break;
+        case QueryResultStatus::invalid:
+            drop_gpu_zone_locked(thread_data, zone_index);
+            break;
+        case QueryResultStatus::ready:
+            record.start_timestamp = result.start_timestamp;
+            record.end_timestamp = std::max(result.start_timestamp, result.end_timestamp);
+            record.query_ready = true;
+            try_complete_gpu_zone_and_ancestors_locked(thread_data, zone_index);
+            break;
+        }
+    }
+
+    void process_gpu_query_result(ThreadData& thread_data, const ProfilerEvent& event)
+    {
+        std::lock_guard lock(data_mutex);
+        apply_gpu_query_result_locked(thread_data, event.gpu_result);
+    }
+
     bool process_events(ThreadData& thread_data)
     {
         bool processed = false;
@@ -1016,8 +1192,8 @@ struct ProfilerImpl {
                 case ProfilerEventType::end_zone:
                     process_cpu_end_zone(thread_data, event);
                     break;
-                case ProfilerEventType::gpu_zone:
-                    process_gpu_zone(thread_data, event);
+                case ProfilerEventType::gpu_query_result:
+                    process_gpu_query_result(thread_data, event);
                     break;
                 case ProfilerEventType::begin_frame:
                     process_begin_frame(thread_data, event);
@@ -1053,13 +1229,12 @@ struct ProfilerImpl {
     {
         while (true) {
             const bool processed_thread_events = process_threads();
-            const bool processed_gpu_recording_events = process_gpu_recording_events();
-            if (worker_stop.load(std::memory_order_acquire) && pending_event_count.load(std::memory_order_acquire) == 0
-                && pending_gpu_recording_event_count.load(std::memory_order_acquire) == 0) {
+            if (worker_stop.load(std::memory_order_acquire)
+                && pending_event_count.load(std::memory_order_acquire) == 0) {
                 return;
             }
 
-            if (!processed_thread_events && !processed_gpu_recording_events)
+            if (!processed_thread_events)
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
@@ -1076,12 +1251,8 @@ struct ProfilerImpl {
 
     void flush_events()
     {
-        while (pending_event_count.load(std::memory_order_acquire) > 0
-               || pending_gpu_recording_event_count.load(std::memory_order_acquire) > 0) {
-            process_threads();
-            process_gpu_recording_events();
+        while (pending_event_count.load(std::memory_order_acquire) > 0)
             std::this_thread::yield();
-        }
     }
 
     void stop_worker() noexcept
@@ -1228,7 +1399,7 @@ struct ProfilerImpl {
     }
 
     // ------------------------------------------------------------------------
-    // GPU recording
+    // GPU queries
     // ------------------------------------------------------------------------
 
     GpuContext& get_or_create_gpu_context_locked(Device* device, CommandQueueType queue)
@@ -1242,6 +1413,8 @@ struct ProfilerImpl {
             return it->second;
 
         GpuContext context;
+        context.device = ref<Device>(device);
+        context.queue = queue;
         context.timeline_info.type = ProfilerTimelineType::gpu;
         context.timeline_info.name = fmt::format("GPU {} {}", device->info().adapter_name, enum_to_string(queue));
         context.timeline_info.device_id = uint64_t(reinterpret_cast<uintptr_t>(device));
@@ -1264,284 +1437,153 @@ struct ProfilerImpl {
         return inserted_it->second;
     }
 
-    void ensure_gpu_device_callbacks_registered_locked(Device* device)
+    void clear_gpu_query_cache(GpuContext* context = nullptr) noexcept
     {
-        SGL_CHECK_NOT_NULL(device);
-        for (const GpuDeviceCallbackRegistration& registration : gpu_device_callback_registrations) {
-            if (registration.device.get() == device)
-                return;
-        }
-
-        GpuDeviceCallbackRegistration registration;
-        registration.device = ref<Device>(device);
-        registration.submitted_callback_id = device->register_command_recording_submitted_callback(
-            [this, device](const CommandRecordingSubmittedEvent& event)
-            {
-                on_command_recording_submitted(device, event);
-            }
-        );
-        registration.discarded_callback_id = device->register_command_recording_discarded_callback(
-            [this, device](const CommandRecordingDiscardedEvent& event)
-            {
-                on_command_recording_discarded(device, event);
-            }
-        );
-        registration.close_callback_id = device->register_device_close_callback(
-            [this](Device* closed_device)
-            {
-                on_device_closing(closed_device);
-            }
-        );
-        gpu_device_callback_registrations.push_back(std::move(registration));
+        if (s_gpu_query_cache.profiler != this)
+            return;
+        if (context && s_gpu_query_cache.context != context)
+            return;
+        s_gpu_query_cache = {};
     }
 
-    void unregister_gpu_device_callbacks() noexcept
+    ProfilerGpuQueryPair allocate_gpu_query_pair_fast(
+        Device* device,
+        CommandQueueType queue,
+        ThreadData* owner_thread,
+        uint64_t command_stream_id
+    ) noexcept
     {
-        std::vector<GpuDeviceCallbackRegistration> registrations;
-        {
-            std::lock_guard lock(gpu_mutex);
-            registrations = std::move(gpu_device_callback_registrations);
-        }
+        GpuQueryThreadCache& cache = s_gpu_query_cache;
+        if (cache.profiler != this || !cache.context || !cache.next_slot)
+            return {};
+        if (cache.context->device.get() != device || cache.context->queue != queue)
+            return {};
+        if (cache.context->disabled || device->is_closed())
+            return {};
+        if (cache.next_slot >= cache.end_slot)
+            return {};
 
-        for (GpuDeviceCallbackRegistration& registration : registrations) {
-            try {
-                if (registration.device) {
-                    registration.device->unregister_device_close_callback(registration.close_callback_id);
-                    registration.device->unregister_command_recording_submitted_callback(
-                        registration.submitted_callback_id
+        GpuQuerySlot* slot = cache.next_slot++;
+        slot->owner_thread = owner_thread;
+        slot->command_stream_id = command_stream_id;
+        slot->closed = false;
+        slot->pending_emitted = false;
+        slot->completed = false;
+
+        ProfilerGpuQueryPair pair{
+            .slot = slot,
+            .query_pool = slot->query_pool,
+            .begin_query_index = slot->begin_query_index,
+            .end_query_index = slot->end_query_index,
+            .ticket = slot->ticket,
+            .command_stream_id = command_stream_id,
+            .timeline_id = cache.context->timeline_id,
+            .queue = queue,
+        };
+        return pair;
+    }
+
+    ProfilerGpuQueryChunk acquire_gpu_query_chunk_locked(GpuContext& context)
+    {
+        if (context.disabled || context.device->is_closed())
+            return {};
+
+        const uint32_t chunk_size = profiler->desc().gpu_query_block_size;
+        const uint32_t pool_size = profiler->desc().gpu_query_pool_size;
+        SGL_ASSERT(chunk_size >= 2 && chunk_size % 2 == 0);
+        SGL_ASSERT(pool_size >= chunk_size && pool_size % 2 == 0);
+
+        while (true) {
+            if (context.query_pages.empty() || context.query_pages.back().allocated_query_count + 2 > pool_size) {
+                if (context.query_pages.size() >= kMaxGpuQueryPoolPagesPerContext) {
+                    context.disabled = true;
+                    log_warn_once(
+                        "Profiler GPU timestamp query page capacity exhausted for device/queue; GPU profiling is "
+                        "disabled for that context."
                     );
-                    registration.device->unregister_command_recording_discarded_callback(
-                        registration.discarded_callback_id
-                    );
+                    return {};
                 }
-            } catch (...) {
+
+                ProfilerGpuQueryPage page{
+                    .query_pool = context.device->create_query_pool({
+                        .type = QueryType::timestamp,
+                        .count = pool_size,
+                    }),
+                };
+                page.slots.reserve(pool_size / 2);
+                context.query_pages.push_back(std::move(page));
             }
+
+            ProfilerGpuQueryPage& page = context.query_pages.back();
+            const uint32_t first_query_index = page.allocated_query_count;
+            uint32_t query_count = std::min(chunk_size, pool_size - first_query_index);
+            query_count -= query_count % 2;
+            if (query_count >= 2) {
+                const size_t first_slot_index = page.slots.size();
+                const uint32_t slot_count = query_count / 2;
+                for (uint32_t i = 0; i < slot_count; ++i) {
+                    const uint32_t begin_query_index = first_query_index + i * 2;
+                    page.slots.push_back({
+                        .ticket = {.id = next_gpu_query_ticket++},
+                        .query_pool = page.query_pool,
+                        .begin_query_index = begin_query_index,
+                        .end_query_index = begin_query_index + 1,
+                        .timeline_id = context.timeline_id,
+                        .queue = context.queue,
+                    });
+                }
+                page.allocated_query_count += query_count;
+                return {
+                    .next_slot = page.slots.data() + first_slot_index,
+                    .end_slot = page.slots.data() + first_slot_index + slot_count,
+                };
+            }
+
+            page.allocated_query_count = pool_size;
         }
     }
 
-    void on_device_closing(Device* device) noexcept
-    {
-        if (!device)
-            return;
-
-        std::vector<CommandRecordingID> discarded_recording_ids;
-        {
-            std::lock_guard lock(gpu_mutex);
-
-            for (auto it = active_gpu_recordings.begin(); it != active_gpu_recordings.end();) {
-                if (it->second.device.get() != device) {
-                    ++it;
-                    continue;
-                }
-
-                clear_gpu_recording_cache(it->first);
-                discarded_recording_ids.push_back(it->first);
-                it = active_gpu_recordings.erase(it);
-            }
-
-            for (auto it = pending_gpu_submits.begin(); it != pending_gpu_submits.end();) {
-                bool uses_device = it->device.get() == device;
-                for (const ProfilerGpuRecordingBatch& batch : it->batches)
-                    uses_device |= batch.device.get() == device;
-
-                if (!uses_device) {
-                    ++it;
-                    continue;
-                }
-
-                for (const ProfilerGpuRecordingBatch& batch : it->batches)
-                    discarded_recording_ids.push_back(batch.recording_id);
-                it = pending_gpu_submits.erase(it);
-            }
-
-            for (auto it = gpu_contexts.begin(); it != gpu_contexts.end();) {
-                if (it->first.device == device)
-                    it = gpu_contexts.erase(it);
-                else
-                    ++it;
-            }
-
-            gpu_device_callback_registrations.erase(
-                std::remove_if(
-                    gpu_device_callback_registrations.begin(),
-                    gpu_device_callback_registrations.end(),
-                    [device](const GpuDeviceCallbackRegistration& registration)
-                    {
-                        return registration.device.get() == device;
-                    }
-                ),
-                gpu_device_callback_registrations.end()
-            );
-        }
-
-        if (!discarded_recording_ids.empty()) {
-            std::lock_guard data_lock(data_mutex);
-            for (CommandRecordingID recording_id : discarded_recording_ids)
-                discard_gpu_zone_records_locked(recording_id);
-        }
-    }
-
-    void clear_gpu_recording_cache(CommandRecordingID recording_id = 0) noexcept
-    {
-        if (s_gpu_recording_cache.profiler != this)
-            return;
-        if (recording_id != 0 && s_gpu_recording_cache.recording_id != recording_id)
-            return;
-        s_gpu_recording_cache = {};
-    }
-
-    ActiveGpuRecording* try_get_or_create_active_gpu_recording_slow(CommandEncoder* encoder)
+    ProfilerGpuQueryPair allocate_gpu_query_pair_slow(CommandEncoder* encoder, ThreadData* owner_thread)
     {
         SGL_CHECK_NOT_NULL(encoder);
         Device* device = encoder->device();
         SGL_CHECK_NOT_NULL(device);
-
+        if (device->is_closed())
+            return {};
         if (!device->has_feature(Feature::timestamp_query) || !device->has_feature(Feature::timestamp_calibration))
-            return nullptr;
+            return {};
 
-        const CommandRecordingID recording_id = encoder->recording_id();
-        SGL_CHECK_NE(recording_id, 0);
-        const std::thread::id thread_id = std::this_thread::get_id();
-
+        const CommandQueueType queue = encoder->queue();
+        const uint64_t command_stream_id = encoder->recording_id();
         std::lock_guard lock(gpu_mutex);
-        ensure_gpu_device_callbacks_registered_locked(device);
+        GpuContext& context = get_or_create_gpu_context_locked(device, queue);
+        if (ProfilerGpuQueryPair pair = allocate_gpu_query_pair_fast(device, queue, owner_thread, command_stream_id);
+            pair.query_pool)
+            return pair;
 
-        auto it = active_gpu_recordings.find(recording_id);
-        if (it != active_gpu_recordings.end()) {
-            if (it->second.owner_thread_id != thread_id) {
-                log_warn_once(
-                    "Profiler GPU zones for one command recording were used from multiple threads; GPU profiling for "
-                    "that recording is ignored."
-                );
-                return nullptr;
-            }
-            s_gpu_recording_cache = {
-                .profiler = this,
-                .recording_id = recording_id,
-                .recording = &it->second,
-            };
-            return &it->second;
-        }
+        ProfilerGpuQueryChunk chunk = acquire_gpu_query_chunk_locked(context);
+        if (!chunk.next_slot)
+            return {};
 
-        ActiveGpuRecording recording;
-        recording.device = ref<Device>(device);
-        recording.queue = encoder->queue();
-        recording.owner_thread_id = thread_id;
-        auto [inserted_it, inserted] = active_gpu_recordings.emplace(recording_id, std::move(recording));
-        SGL_ASSERT(inserted);
-        s_gpu_recording_cache = {
+        s_gpu_query_cache = {
             .profiler = this,
-            .recording_id = recording_id,
-            .recording = &inserted_it->second,
+            .context = &context,
+            .next_slot = chunk.next_slot,
+            .end_slot = chunk.end_slot,
         };
-        return &inserted_it->second;
+        return allocate_gpu_query_pair_fast(device, queue, owner_thread, command_stream_id);
     }
 
-    ActiveGpuRecording* try_get_or_create_active_gpu_recording(CommandEncoder* encoder)
+    ProfilerGpuQueryPair allocate_gpu_query_pair(CommandEncoder* encoder, ThreadData* owner_thread)
     {
-        const CommandRecordingID recording_id = encoder->recording_id();
-        if (s_gpu_recording_cache.profiler == this && s_gpu_recording_cache.recording_id == recording_id)
-            return s_gpu_recording_cache.recording;
-        return try_get_or_create_active_gpu_recording_slow(encoder);
-    }
-
-    ProfilerGpuQueryBlock acquire_gpu_query_block_locked(Device* device, CommandQueueType queue)
-    {
-        SGL_CHECK_NOT_NULL(device);
-        GpuContext& context = get_or_create_gpu_context_locked(device, queue);
-        if (context.disabled)
-            return {};
-
-        if (!context.free_query_blocks.empty()) {
-            ProfilerGpuQueryBlock block = std::move(context.free_query_blocks.back());
-            context.free_query_blocks.pop_back();
-            block.used_query_count = 0;
-            block.query_pool->reset(block.first_query_index, block.query_count);
-            return block;
-        }
-
-        const uint32_t block_size = profiler->desc().gpu_query_block_size;
-        const uint32_t pool_size = profiler->desc().gpu_query_pool_size;
-        if (context.allocated_query_count + block_size > pool_size) {
-            context.disabled = true;
-            log_warn_once(
-                "Profiler GPU timestamp query capacity exhausted for device/queue; GPU profiling is disabled for that "
-                "context."
-            );
-            return {};
-        }
-
-        if (!context.query_pool) {
-            context.query_pool = device->create_query_pool({
-                .type = QueryType::timestamp,
-                .count = pool_size,
-            });
-        }
-
-        ProfilerGpuQueryBlock block{
-            .query_pool = context.query_pool,
-            .first_query_index = context.allocated_query_count,
-            .query_count = block_size,
-            .used_query_count = 0,
-        };
-        context.allocated_query_count += block_size;
-        block.query_pool->reset(block.first_query_index, block.query_count);
-        return block;
-    }
-
-    void
-    release_gpu_query_blocks_locked(Device* device, CommandQueueType queue, std::vector<ProfilerGpuQueryBlock>&& blocks)
-    {
-        if (blocks.empty())
-            return;
-
-        GpuContext& context = get_or_create_gpu_context_locked(device, queue);
-        for (ProfilerGpuQueryBlock& block : blocks) {
-            if (block.query_pool && block.query_count > 0)
-                context.free_query_blocks.push_back(std::move(block));
-        }
-    }
-
-    ProfilerGpuQueryPair allocate_gpu_query_pair_fast(ActiveGpuRecording& recording) noexcept
-    {
-        if (!recording.current_query_pool || recording.next_query_index + 2 > recording.current_query_end_index)
-            return {};
-
-        SGL_ASSERT(recording.current_query_block_index < recording.query_blocks.size());
-        ProfilerGpuQueryPair pair{
-            .query_pool = recording.current_query_pool,
-            .begin_query_index = recording.next_query_index,
-            .end_query_index = recording.next_query_index + 1,
-        };
-        recording.next_query_index += 2;
-        ProfilerGpuQueryBlock& block = recording.query_blocks[recording.current_query_block_index];
-        block.used_query_count = recording.next_query_index - block.first_query_index;
-        return pair;
-    }
-
-    ProfilerGpuQueryPair allocate_gpu_query_pair_slow(ActiveGpuRecording& recording)
-    {
-        std::lock_guard lock(gpu_mutex);
-        if (ProfilerGpuQueryPair pair = allocate_gpu_query_pair_fast(recording); pair.query_pool)
+        SGL_CHECK_NOT_NULL(encoder);
+        Device* device = encoder->device();
+        const CommandQueueType queue = encoder->queue();
+        const uint64_t command_stream_id = encoder->recording_id();
+        if (ProfilerGpuQueryPair pair = allocate_gpu_query_pair_fast(device, queue, owner_thread, command_stream_id);
+            pair.query_pool)
             return pair;
-
-        ProfilerGpuQueryBlock block = acquire_gpu_query_block_locked(recording.device.get(), recording.queue);
-        if (!block.query_pool)
-            return {};
-
-        recording.current_query_pool = block.query_pool;
-        recording.next_query_index = block.first_query_index;
-        recording.current_query_end_index = block.first_query_index + block.query_count;
-        recording.query_blocks.push_back(std::move(block));
-        recording.current_query_block_index = uint32_t(recording.query_blocks.size() - 1);
-        return allocate_gpu_query_pair_fast(recording);
-    }
-
-    ProfilerGpuQueryPair allocate_gpu_query_pair(ActiveGpuRecording& recording)
-    {
-        if (ProfilerGpuQueryPair pair = allocate_gpu_query_pair_fast(recording); pair.query_pool)
-            return pair;
-        return allocate_gpu_query_pair_slow(recording);
+        return allocate_gpu_query_pair_slow(encoder, owner_thread);
     }
 
     static GpuTimestampAnchor capture_gpu_timestamp_anchor(Device* device, CommandQueueType queue)
@@ -1574,340 +1616,134 @@ struct ProfilerImpl {
         return static_cast<uint64_t>(timestamp_ns + 0.5L);
     }
 
-    struct ResolvedGpuQueryBlock {
-        ref<QueryPool> query_pool;
-        uint32_t first_query_index{0};
-        std::vector<uint64_t> results;
-
-        bool contains(QueryPool* pool, uint32_t index) const
-        {
-            return query_pool.get() == pool && index >= first_query_index
-                && index < first_query_index + uint32_t(results.size());
-        }
-
-        uint64_t get(uint32_t index) const { return results[index - first_query_index]; }
-    };
-
-    static uint64_t
-    read_resolved_query(const std::vector<ResolvedGpuQueryBlock>& blocks, QueryPool* query_pool, uint32_t index)
+    void close_gpu_query_slot(GpuQuerySlot* slot) noexcept
     {
-        for (const ResolvedGpuQueryBlock& block : blocks) {
-            if (block.contains(query_pool, index))
-                return block.get(index);
-        }
-        SGL_THROW("Profiler GPU query result was not found in resolved query blocks.");
-    }
-
-    uint32_t resolve_gpu_zone_locked(
-        const std::vector<ProfilerGpuZoneRecord>& zones,
-        const GpuTimestampAnchor& anchor,
-        const std::vector<ResolvedGpuQueryBlock>& query_results,
-        uint32_t timeline_id,
-        size_t zone_index,
-        std::vector<uint32_t>& resolved_zone_ids
-    )
-    {
-        if (zone_index >= zones.size())
-            return kInvalidProfilerId;
-
-        uint32_t& cached_id = resolved_zone_ids[zone_index];
-        if (cached_id != kInvalidProfilerId)
-            return cached_id;
-
-        const ProfilerGpuZoneRecord& record = zones[zone_index];
-        if (!record.query_pool)
-            return kInvalidProfilerId;
-
-        const uint64_t begin_timestamp
-            = read_resolved_query(query_results, record.query_pool.get(), record.begin_query_index);
-        const uint64_t end_timestamp
-            = read_resolved_query(query_results, record.query_pool.get(), record.end_query_index);
-        const uint64_t start_ns = gpu_timestamp_to_cpu_ns(begin_timestamp, anchor);
-        const uint64_t end_ns = std::max(start_ns, gpu_timestamp_to_cpu_ns(end_timestamp, anchor));
-
-        std::vector<uint32_t> child_zone_ids;
-        for (uint32_t child_index : record.child_indices) {
-            uint32_t child_id
-                = resolve_gpu_zone_locked(zones, anchor, query_results, timeline_id, child_index, resolved_zone_ids);
-            if (child_id != kInvalidProfilerId)
-                child_zone_ids.push_back(child_id);
-        }
-
-        uint32_t trace_zone_id = kInvalidProfilerId;
-        if (zone_in_active_trace_window_locked(start_ns)) {
-            trace_zone_id = uint32_t(trace_zones.size());
-            trace_zones.push_back({
-                .id = trace_zone_id,
-                .event_id = record.event_id,
-                .timeline_id = timeline_id,
-                .frame_id = record.frame_id,
-                .source_id = record.source_id,
-                .name_id = record.name_id,
-                .start_timestamp = start_ns,
-                .end_timestamp = end_ns,
-            });
-            append_trace_child_range_locked(trace_zones.back(), child_zone_ids);
-            if (record.parent_index < 0)
-                trace_root_indices.push_back(trace_zone_id);
-        }
-        cached_id = trace_zone_id;
-
-        if (profiler->frame_stats_enabled() && record.frame_id != kInvalidProfilerId
-            && record.stats_node_id != kInvalidProfilerId && record.stats_node_id < stats_nodes.size()) {
-            StatsNodeState& stats_node = stats_nodes[record.stats_node_id];
-            stats_node.gpu_samples.push_back({
-                .frame_id = record.frame_id,
-                .value_ms = double(end_ns - start_ns) / 1000000.0,
-            });
-            if (stats_node.pending_gpu_sample_count > 0)
-                --stats_node.pending_gpu_sample_count;
-        }
-
-        return trace_zone_id;
-    }
-
-    bool resolve_gpu_batch_locked(const ProfilerGpuRecordingBatch& batch, const GpuTimestampAnchor& anchor)
-    {
-        if (batch.queued_zone_count == 0)
-            return true;
-
-        GpuContext& context = get_or_create_gpu_context_locked(batch.device.get(), batch.queue);
-        std::vector<ResolvedGpuQueryBlock> query_results;
-        query_results.reserve(batch.query_blocks.size());
-        for (const ProfilerGpuQueryBlock& block : batch.query_blocks) {
-            if (!block.query_pool || block.used_query_count == 0)
-                continue;
-
-            ResolvedGpuQueryBlock result;
-            result.query_pool = block.query_pool;
-            result.first_query_index = block.first_query_index;
-            result.results.resize(block.used_query_count);
-            block.query_pool->get_results(block.first_query_index, block.used_query_count, result.results);
-            query_results.push_back(std::move(result));
-        }
-
-        std::lock_guard data_lock(data_mutex);
-        auto zones_it = gpu_zones_by_recording_id.find(batch.recording_id);
-        if (zones_it == gpu_zones_by_recording_id.end())
-            return false;
-
-        const std::vector<ProfilerGpuZoneRecord>& zones = zones_it->second;
-        if (zones.size() < batch.queued_zone_count)
-            return false;
-
-        std::vector<uint32_t> resolved_zone_ids(zones.size(), kInvalidProfilerId);
-        for (size_t i = 0; i < zones.size(); ++i) {
-            const ProfilerGpuZoneRecord& record = zones[i];
-            if (record.parent_index >= 0)
-                continue;
-
-            resolve_gpu_zone_locked(zones, anchor, query_results, context.timeline_id, i, resolved_zone_ids);
-        }
-        gpu_zones_by_recording_id.erase(zones_it);
-        return true;
-    }
-
-    bool gpu_events_ready_locked(const ProfilerGpuRecordingBatch& batch) const
-    {
-        if (batch.queued_zone_count == 0)
-            return true;
-
-        auto zones_it = gpu_zones_by_recording_id.find(batch.recording_id);
-        return zones_it != gpu_zones_by_recording_id.end() && zones_it->second.size() >= batch.queued_zone_count;
-    }
-
-    void discard_gpu_zone_records_locked(CommandRecordingID recording_id)
-    {
-        discarded_gpu_recording_ids.insert(recording_id);
-
-        auto zones_it = gpu_zones_by_recording_id.find(recording_id);
-        if (zones_it == gpu_zones_by_recording_id.end())
+        if (!slot || slot->closed)
             return;
 
-        for (const ProfilerGpuZoneRecord& record : zones_it->second) {
-            if (record.stats_node_id != kInvalidProfilerId && record.stats_node_id < stats_nodes.size()
-                && stats_nodes[record.stats_node_id].pending_gpu_sample_count > 0) {
-                --stats_nodes[record.stats_node_id].pending_gpu_sample_count;
-            }
-        }
-        gpu_zones_by_recording_id.erase(zones_it);
-    }
-
-    void submit_gpu_recordings(uint64_t submit_id, std::vector<ProfilerGpuRecordingBatch>&& batches) noexcept
-    {
-        if (batches.empty())
-            return;
-
-        try {
-            PendingGpuSubmit pending;
-            pending.submit_id = submit_id;
-            pending.device = batches.front().device;
-            pending.queue = batches.front().queue;
-            pending.batches = std::move(batches);
-
-            std::lock_guard lock(gpu_mutex);
-            pending_gpu_submits.push_back(std::move(pending));
-        } catch (...) {
-        }
-    }
-
-    void queue_gpu_recording_event(const ProfilerGpuRecordingEvent& event) noexcept
-    {
-        pending_gpu_recording_event_count.fetch_add(1, std::memory_order_acq_rel);
-        if (!gpu_recording_event_queue.enqueue(event))
+        slot->closed = true;
+        if (!closed_gpu_query_slot_queue.enqueue(slot))
             std::terminate();
     }
 
-    void on_command_recording_submitted(Device* device, const CommandRecordingSubmittedEvent& event) noexcept
+    void queue_gpu_query_result(
+        GpuQuerySlot* slot,
+        QueryResultStatus status,
+        uint64_t start_timestamp = 0,
+        uint64_t end_timestamp = 0
+    ) noexcept
     {
-        if (!device || event.id == 0)
+        if (!slot || !slot->owner_thread)
             return;
 
-        clear_gpu_recording_cache(event.id);
-        queue_gpu_recording_event({
-            .type = ProfilerGpuRecordingEventType::submitted,
-            .recording_id = event.id,
-            .submit_id = event.submit_id,
-        });
-    }
-
-    void on_command_recording_discarded(Device* device, const CommandRecordingDiscardedEvent& event) noexcept
-    {
-        if (!device || event.id == 0)
-            return;
-
-        clear_gpu_recording_cache(event.id);
-        queue_gpu_recording_event({
-            .type = ProfilerGpuRecordingEventType::discarded,
-            .recording_id = event.id,
-        });
-    }
-
-    void process_command_recording_submitted(CommandRecordingID recording_id, uint64_t submit_id)
-    {
-        ActiveGpuRecording recording;
-        {
-            std::lock_guard lock(gpu_mutex);
-            auto it = active_gpu_recordings.find(recording_id);
-            if (it == active_gpu_recordings.end())
-                return;
-            recording = std::move(it->second);
-            active_gpu_recordings.erase(it);
-        }
-
-        if (recording.query_blocks.empty())
-            return;
-
-        std::vector<ProfilerGpuRecordingBatch> batches;
-        batches.push_back({
-            .recording_id = recording_id,
-            .device = recording.device,
-            .queue = recording.queue,
-            .queued_zone_count = recording.queued_zone_count,
-            .query_blocks = std::move(recording.query_blocks),
-        });
-        submit_gpu_recordings(submit_id, std::move(batches));
-    }
-
-    void process_command_recording_discarded(CommandRecordingID recording_id)
-    {
-        {
-            std::lock_guard lock(gpu_mutex);
-            auto it = active_gpu_recordings.find(recording_id);
-            if (it != active_gpu_recordings.end()) {
-                ActiveGpuRecording recording = std::move(it->second);
-                active_gpu_recordings.erase(it);
-                release_gpu_query_blocks_locked(
-                    recording.device.get(),
-                    recording.queue,
-                    std::move(recording.query_blocks)
-                );
-            }
-        }
-
-        std::lock_guard data_lock(data_mutex);
-        discard_gpu_zone_records_locked(recording_id);
-    }
-
-    bool process_gpu_recording_events()
-    {
-        bool processed = false;
-        ProfilerGpuRecordingEvent event;
-        while (gpu_recording_event_queue.try_dequeue(event)) {
-            processed = true;
-            try {
-                switch (event.type) {
-                case ProfilerGpuRecordingEventType::submitted:
-                    process_command_recording_submitted(event.recording_id, event.submit_id);
-                    break;
-                case ProfilerGpuRecordingEventType::discarded:
-                    process_command_recording_discarded(event.recording_id);
-                    break;
-                }
-            } catch (...) {
-            }
-            pending_gpu_recording_event_count.fetch_sub(1, std::memory_order_acq_rel);
-        }
-        return processed;
-    }
-
-    void process_gpu_submits()
-    {
-        process_gpu_recording_events();
-
-        std::vector<PendingGpuSubmit> ready_submits;
-        {
-            std::lock_guard lock(gpu_mutex);
-            size_t index = 0;
-            while (index < pending_gpu_submits.size()) {
-                PendingGpuSubmit& pending = pending_gpu_submits[index];
-                if (!pending.device->is_submit_finished(pending.submit_id)) {
-                    ++index;
-                    continue;
-                }
-
-                ready_submits.push_back(std::move(pending));
-                pending_gpu_submits.erase(pending_gpu_submits.begin() + index);
-            }
-        }
-
-        for (PendingGpuSubmit& pending : ready_submits) {
-            bool events_ready = true;
+        queue_thread_event(
+            slot->owner_thread,
             {
-                std::lock_guard data_lock(data_mutex);
-                for (const ProfilerGpuRecordingBatch& batch : pending.batches) {
-                    if (!gpu_events_ready_locked(batch)) {
-                        events_ready = false;
-                        break;
-                    }
-                }
+                .type = ProfilerEventType::gpu_query_result,
+                .gpu_result = {
+                    .ticket = slot->ticket,
+                    .status = status,
+                    .start_timestamp = start_timestamp,
+                    .end_timestamp = end_timestamp,
+                },
             }
-            if (!events_ready) {
-                std::lock_guard lock(gpu_mutex);
-                pending_gpu_submits.push_back(std::move(pending));
-                continue;
-            }
+        );
+    }
 
+    bool process_gpu_query_slot(GpuQuerySlot* slot, std::map<GpuContextKey, GpuTimestampAnchor>& anchors)
+    {
+        if (!slot || slot->completed)
+            return true;
+
+        if (!slot->query_pool || !slot->owner_thread || slot->query_pool->device()->is_closed()) {
+            queue_gpu_query_result(slot, QueryResultStatus::invalid);
+            slot->completed = true;
+            return true;
+        }
+
+        QueryResultStatus status = QueryResultStatus::invalid;
+        try {
+            status = slot->query_pool->result_status(slot->begin_query_index, 2);
+        } catch (...) {
+            status = QueryResultStatus::invalid;
+        }
+
+        switch (status) {
+        case QueryResultStatus::invalid:
+            queue_gpu_query_result(slot, QueryResultStatus::invalid);
+            slot->completed = true;
+            return true;
+        case QueryResultStatus::pending:
+            if (!slot->pending_emitted) {
+                queue_gpu_query_result(slot, QueryResultStatus::pending);
+                slot->pending_emitted = true;
+            }
+            return false;
+        case QueryResultStatus::ready:
+            break;
+        }
+
+        uint64_t timestamps[2] = {};
+        try {
+            slot->query_pool->get_results(slot->begin_query_index, 2, timestamps);
+        } catch (...) {
+            queue_gpu_query_result(slot, QueryResultStatus::invalid);
+            slot->completed = true;
+            return true;
+        }
+
+        Device* device = slot->query_pool->device();
+        GpuContextKey key{
+            .device = device,
+            .queue = slot->queue,
+        };
+        auto anchor_it = anchors.find(key);
+        if (anchor_it == anchors.end()) {
             GpuTimestampAnchor anchor;
             try {
-                anchor = capture_gpu_timestamp_anchor(pending.device.get(), pending.queue);
+                anchor = capture_gpu_timestamp_anchor(device, slot->queue);
             } catch (...) {
                 anchor = {};
             }
-
-            if (anchor.valid) {
-                for (const ProfilerGpuRecordingBatch& batch : pending.batches) {
-                    try {
-                        (void)resolve_gpu_batch_locked(batch, anchor);
-                    } catch (...) {
-                    }
-                }
-            }
-
-            std::lock_guard lock(gpu_mutex);
-            for (ProfilerGpuRecordingBatch& batch : pending.batches)
-                release_gpu_query_blocks_locked(batch.device.get(), batch.queue, std::move(batch.query_blocks));
+            anchor_it = anchors.emplace(key, anchor).first;
         }
+
+        if (!anchor_it->second.valid) {
+            queue_gpu_query_result(slot, QueryResultStatus::invalid);
+            slot->completed = true;
+            return true;
+        }
+
+        const uint64_t start_timestamp = gpu_timestamp_to_cpu_ns(timestamps[0], anchor_it->second);
+        const uint64_t end_timestamp
+            = std::max(start_timestamp, gpu_timestamp_to_cpu_ns(timestamps[1], anchor_it->second));
+        queue_gpu_query_result(slot, QueryResultStatus::ready, start_timestamp, end_timestamp);
+        slot->completed = true;
+        return true;
+    }
+
+    void process_gpu_query_slots()
+    {
+        std::lock_guard lock(gpu_query_process_mutex);
+
+        GpuQuerySlot* closed_slot = nullptr;
+        while (closed_gpu_query_slot_queue.try_dequeue(closed_slot)) {
+            if (closed_slot && !closed_slot->completed)
+                pending_gpu_query_slots.push_back(closed_slot);
+        }
+
+        std::map<GpuContextKey, GpuTimestampAnchor> anchors;
+        pending_gpu_query_slots.erase(
+            std::remove_if(
+                pending_gpu_query_slots.begin(),
+                pending_gpu_query_slots.end(),
+                [this, &anchors](GpuQuerySlot* slot)
+                {
+                    return process_gpu_query_slot(slot, anchors);
+                }
+            ),
+            pending_gpu_query_slots.end()
+        );
     }
 
     SGL_NON_COPYABLE_AND_MOVABLE(ProfilerImpl);
@@ -2051,8 +1887,24 @@ ProfilerZoneToken Profiler::begin_zone(
     token.profiler = this;
     token.thread_data = thread_data;
     token.encoder = encoder;
-    token.query_pool = nullptr;
+    token.gpu_query_slot = nullptr;
     token.debug_group_active = false;
+
+    ProfilerGpuEvent gpu_event;
+
+    if (encoder) {
+        ProfilerGpuQueryPair query_pair = m_impl->allocate_gpu_query_pair(encoder, thread_data);
+        if (query_pair.query_pool) {
+            encoder->write_timestamp(query_pair.query_pool.get(), query_pair.begin_query_index);
+
+            gpu_event.ticket = query_pair.ticket;
+            gpu_event.command_stream_id = query_pair.command_stream_id;
+            gpu_event.timeline_id = query_pair.timeline_id;
+            gpu_event.queue = query_pair.queue;
+
+            token.gpu_query_slot = query_pair.slot;
+        }
+    }
 
     m_impl->queue_thread_event(
         thread_data,
@@ -2061,6 +1913,7 @@ ProfilerZoneToken Profiler::begin_zone(
             .timestamp = timestamp,
             .source_location = source_location,
             .name = name,
+            .gpu = std::move(gpu_event),
         }
     );
 
@@ -2069,31 +1922,6 @@ ProfilerZoneToken Profiler::begin_zone(
         if (is_set(flags, ProfilerZoneFlags::debug_group)) {
             encoder->push_debug_group(debug_name, float3(0.5f));
             token.debug_group_active = true;
-        }
-
-        ActiveGpuRecording* recording = m_impl->try_get_or_create_active_gpu_recording(encoder);
-        if (recording) {
-            ProfilerGpuQueryPair query_pair = m_impl->allocate_gpu_query_pair(*recording);
-            if (query_pair.query_pool) {
-                encoder->write_timestamp(query_pair.query_pool.get(), query_pair.begin_query_index);
-
-                m_impl->queue_thread_event(
-                    thread_data,
-                    {
-                        .type = ProfilerEventType::gpu_zone,
-                        .gpu = {
-                            .recording_id = encoder->recording_id(),
-                            .query_pool = query_pair.query_pool.get(),
-                            .begin_query_index = query_pair.begin_query_index,
-                            .end_query_index = query_pair.end_query_index,
-                        },
-                    }
-                );
-                ++recording->queued_zone_count;
-
-                token.query_pool = query_pair.query_pool.get();
-                token.end_query_index = query_pair.end_query_index;
-            }
         }
     }
 
@@ -2111,8 +1939,10 @@ void Profiler::end_zone(ProfilerZoneToken token) noexcept
 
     const uint64_t timestamp = Timer::now();
 
-    if (token.query_pool) {
-        token.encoder->write_timestamp(token.query_pool, token.end_query_index);
+    if (token.gpu_query_slot) {
+        GpuQuerySlot* slot = static_cast<GpuQuerySlot*>(token.gpu_query_slot);
+        token.encoder->write_timestamp(slot->query_pool.get(), slot->end_query_index);
+        m_impl->close_gpu_query_slot(slot);
     }
 
     if (token.debug_group_active) {
@@ -2190,15 +2020,15 @@ void Profiler::end_frame(ProfilerFrameToken token) noexcept
 
 void Profiler::tick()
 {
-    m_impl->process_threads();
-    m_impl->process_gpu_submits();
+    m_impl->process_gpu_query_slots();
 }
 
 void Profiler::flush()
 {
     tick();
     m_impl->flush_events();
-    m_impl->process_gpu_submits();
+    m_impl->process_gpu_query_slots();
+    m_impl->flush_events();
 }
 
 std::string Profiler::to_string() const

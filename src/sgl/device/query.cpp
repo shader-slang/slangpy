@@ -47,6 +47,28 @@ bool QueryPool::is_result_ready(uint32_t index, uint32_t count)
     return ready;
 }
 
+QueryResultStatus QueryPool::result_status(uint32_t index, uint32_t count)
+{
+    SGL_CHECK(uint64_t(index) + count <= m_desc.count, "'index' / 'count' out of range");
+
+    bool ready = false;
+    size_t before_message_count = detail::get_slang_rhi_message_count(m_device);
+    rhi::Result result = m_rhi_query_pool->isResultReady(index, count, &ready);
+    if (result == SLANG_FAIL)
+        return QueryResultStatus::invalid;
+    if (SLANG_FAILED(result))
+        SGL_THROW(
+            detail::build_slang_rhi_error_message(
+                m_device,
+                "m_rhi_query_pool->isResultReady",
+                result,
+                before_message_count
+            )
+        );
+
+    return ready ? QueryResultStatus::ready : QueryResultStatus::pending;
+}
+
 std::vector<uint64_t> QueryPool::get_results(uint32_t index, uint32_t count)
 {
     std::vector<uint64_t> result(count);

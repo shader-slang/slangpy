@@ -3,8 +3,10 @@
 #include "testing.h"
 #include "sgl/device/command.h"
 #include "sgl/device/device.h"
+#include "sgl/device/query.h"
 #include "sgl/utils/profiler.h"
 
+#include <chrono>
 #include <fstream>
 #include <iterator>
 #include <limits>
@@ -50,6 +52,48 @@ const ProfilerZoneRecord* find_trace_zone(const ProfilerTrace& trace, std::strin
             return &zone;
     }
     return nullptr;
+}
+
+size_t count_trace_zones(const ProfilerTrace& trace, std::string_view name, ProfilerTimelineType timeline_type)
+{
+    size_t count = 0;
+    for (const ProfilerZoneRecord& zone : trace.zones()) {
+        if (zone.name_id >= trace.names().size() || trace.names()[zone.name_id].name != name)
+            continue;
+        if (zone.timeline_id >= trace.timelines().size() || trace.timelines()[zone.timeline_id].type != timeline_type)
+            continue;
+        ++count;
+    }
+    return count;
+}
+
+const ProfilerZoneRecord*
+find_trace_zone(const ProfilerTrace& trace, std::string_view name, ProfilerTimelineType timeline_type)
+{
+    for (const ProfilerZoneRecord& zone : trace.zones()) {
+        if (zone.name_id >= trace.names().size() || trace.names()[zone.name_id].name != name)
+            continue;
+        if (zone.timeline_id >= trace.timelines().size() || trace.timelines()[zone.timeline_id].type != timeline_type)
+            continue;
+        return &zone;
+    }
+    return nullptr;
+}
+
+ref<ProfilerTrace>
+wait_for_trace_zones(Profiler& profiler, std::string_view name, ProfilerTimelineType timeline_type, size_t min_count)
+{
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    ref<ProfilerTrace> trace;
+    do {
+        profiler.tick();
+        trace = profiler.trace_snapshot();
+        if (count_trace_zones(*trace, name, timeline_type) >= min_count)
+            return trace;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    } while (std::chrono::steady_clock::now() < deadline);
+
+    return trace;
 }
 
 } // namespace
@@ -432,9 +476,8 @@ TEST_CASE_GPU("profiler records gpu zones in trace json")
         const uint64_t submit_id = device->submit_command_buffer(encoder->finish());
         profiler->tick();
         device->wait_for_submit(submit_id);
-        profiler->tick();
 
-        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        ref<ProfilerTrace> trace = wait_for_trace_zones(*profiler, "gpu_zone", ProfilerTimelineType::gpu, 1);
         const std::filesystem::path path = testing::get_case_temp_directory() / "gpu-zones.json";
         trace->write_to_json(path);
 
@@ -445,6 +488,29 @@ TEST_CASE_GPU("profiler records gpu zones in trace json")
     }
 
     CHECK(current_profiler_or_null() == nullptr);
+}
+
+TEST_CASE_GPU("timestamp query status distinguishes invalid pending and ready")
+{
+    Device* device = ctx.device;
+    if (!device->has_feature(Feature::timestamp_query))
+        return;
+
+    ref<QueryPool> query_pool = device->create_query_pool({
+        .type = QueryType::timestamp,
+        .count = 2,
+    });
+    CHECK(query_pool->result_status(0, 1) == QueryResultStatus::invalid);
+
+    ref<CommandEncoder> encoder = device->create_command_encoder();
+    encoder->write_timestamp(query_pool.get(), 0);
+
+    const uint64_t submit_id = device->submit_command_buffer(encoder->finish());
+    const QueryResultStatus submitted_status = query_pool->result_status(0, 1);
+    CHECK((submitted_status == QueryResultStatus::pending || submitted_status == QueryResultStatus::ready));
+
+    device->wait_for_submit(submit_id);
+    CHECK(query_pool->result_status(0, 1) == QueryResultStatus::ready);
 }
 
 TEST_CASE_GPU("profiler records gpu zones from multiple command buffers")
@@ -479,9 +545,13 @@ TEST_CASE_GPU("profiler records gpu zones from multiple command buffers")
 
         const uint64_t submit_id = device->submit_command_buffers(command_buffer_ptrs);
         device->wait_for_submit(submit_id);
-        profiler->tick();
 
-        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        ref<ProfilerTrace> trace = wait_for_trace_zones(
+            *profiler,
+            "multi_encoder_gpu_zone",
+            ProfilerTimelineType::gpu,
+            command_buffer_count
+        );
         const std::filesystem::path path = testing::get_case_temp_directory() / "multi-buffer-gpu-zones.json";
         trace->write_to_json(path);
 
@@ -499,9 +569,12 @@ TEST_CASE_GPU("profiler records gpu zones across query blocks")
         return;
 
     {
-        static constexpr size_t zone_count = 160;
+        static constexpr size_t zone_count = 20;
 
-        ref<Profiler> profiler = make_ref<Profiler>();
+        ProfilerDesc desc;
+        desc.gpu_query_pool_size = 8;
+        desc.gpu_query_block_size = 4;
+        ref<Profiler> profiler = make_ref<Profiler>(desc);
         profiler->start_trace();
         ref<CommandEncoder> encoder = device->create_command_encoder();
 
@@ -514,9 +587,9 @@ TEST_CASE_GPU("profiler records gpu zones across query blocks")
 
         const uint64_t submit_id = device->submit_command_buffer(encoder->finish());
         device->wait_for_submit(submit_id);
-        profiler->tick();
 
-        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        ref<ProfilerTrace> trace
+            = wait_for_trace_zones(*profiler, "many_gpu_zones", ProfilerTimelineType::gpu, zone_count);
         const std::filesystem::path path = testing::get_case_temp_directory() / "many-gpu-zones.json";
         trace->write_to_json(path);
 
@@ -552,15 +625,124 @@ TEST_CASE_GPU("profiler ignores discarded gpu recordings")
 
         const uint64_t submit_id = device->submit_command_buffer(encoder->finish());
         device->wait_for_submit(submit_id);
-        profiler->tick();
 
-        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        ref<ProfilerTrace> trace
+            = wait_for_trace_zones(*profiler, "submitted_after_discard_gpu_zone", ProfilerTimelineType::gpu, 1);
         const std::filesystem::path path = testing::get_case_temp_directory() / "discarded-gpu-zones.json";
         trace->write_to_json(path);
 
         const std::string json = read_text_file(path);
         CHECK(json.find("\"cat\":\"sgl.gpu\",\"name\":\"discarded_gpu_zone\"") == std::string::npos);
         CHECK(json.find("\"cat\":\"sgl.gpu\",\"name\":\"submitted_after_discard_gpu_zone\"") != std::string::npos);
+
+        ref<ProfilerStats> stats = profiler->stats_snapshot();
+        for (const ProfilerStatsNode& node : stats->nodes())
+            CHECK(node.pending_gpu_sample_count == 0);
+    }
+
+    CHECK(current_profiler_or_null() == nullptr);
+}
+
+TEST_CASE_GPU("profiler drops gpu zones ticked before submit")
+{
+    Device* device = ctx.device;
+    if (!device->has_feature(Feature::timestamp_query) || !device->has_feature(Feature::timestamp_calibration))
+        return;
+
+    {
+        ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
+        ref<CommandEncoder> encoder = device->create_command_encoder();
+
+        {
+            SGL_PROFILE_FRAME();
+            SGL_PROFILE_SCOPE("late_submit_gpu_zone", encoder.get());
+        }
+
+        profiler->tick();
+        profiler->flush();
+
+        const uint64_t submit_id = device->submit_command_buffer(encoder->finish());
+        device->wait_for_submit(submit_id);
+        profiler->tick();
+        profiler->flush();
+
+        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        CHECK(trace_has_name(*trace, "late_submit_gpu_zone"));
+
+        const std::filesystem::path path = testing::get_case_temp_directory() / "late-submit-gpu-zone.json";
+        trace->write_to_json(path);
+        const std::string json = read_text_file(path);
+        CHECK(json.find("\"cat\":\"sgl.cpu\"") != std::string::npos);
+        CHECK(json.find("\"cat\":\"sgl.gpu\",\"name\":\"late_submit_gpu_zone\"") == std::string::npos);
+
+        ref<ProfilerStats> stats = profiler->stats_snapshot();
+        for (const ProfilerStatsNode& node : stats->nodes())
+            CHECK(node.pending_gpu_sample_count == 0);
+    }
+
+    CHECK(current_profiler_or_null() == nullptr);
+}
+
+TEST_CASE_GPU("profiler resolves gpu hierarchy per command encoder")
+{
+    Device* device = ctx.device;
+    if (!device->has_feature(Feature::timestamp_query) || !device->has_feature(Feature::timestamp_calibration))
+        return;
+
+    {
+        ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
+        ref<CommandEncoder> outer_encoder = device->create_command_encoder();
+        ref<CommandEncoder> inner_encoder = device->create_command_encoder();
+
+        {
+            SGL_PROFILE_FRAME();
+            SGL_PROFILE_SCOPE("outer_stream_gpu_zone", outer_encoder.get());
+            {
+                SGL_PROFILE_SCOPE("inner_stream_gpu_zone", inner_encoder.get());
+            }
+        }
+
+        std::vector<ref<CommandBuffer>> command_buffers;
+        std::vector<CommandBuffer*> command_buffer_ptrs;
+        command_buffers.push_back(outer_encoder->finish());
+        command_buffer_ptrs.push_back(command_buffers.back().get());
+        command_buffers.push_back(inner_encoder->finish());
+        command_buffer_ptrs.push_back(command_buffers.back().get());
+
+        const uint64_t submit_id = device->submit_command_buffers(command_buffer_ptrs);
+        device->wait_for_submit(submit_id);
+
+        (void)wait_for_trace_zones(*profiler, "outer_stream_gpu_zone", ProfilerTimelineType::gpu, 1);
+        ref<ProfilerTrace> trace
+            = wait_for_trace_zones(*profiler, "inner_stream_gpu_zone", ProfilerTimelineType::gpu, 1);
+
+        const ProfilerZoneRecord* outer_gpu
+            = find_trace_zone(*trace, "outer_stream_gpu_zone", ProfilerTimelineType::gpu);
+        const ProfilerZoneRecord* inner_gpu
+            = find_trace_zone(*trace, "inner_stream_gpu_zone", ProfilerTimelineType::gpu);
+        REQUIRE(outer_gpu);
+        REQUIRE(inner_gpu);
+        CHECK(outer_gpu->child_index_count == 0);
+        CHECK(inner_gpu->child_index_count == 0);
+
+        bool outer_gpu_root = false;
+        bool inner_gpu_root = false;
+        for (uint32_t root_index : trace->root_indices()) {
+            if (root_index >= trace->zones().size())
+                continue;
+            const ProfilerZoneRecord& zone = trace->zones()[root_index];
+            if (zone.timeline_id >= trace->timelines().size()
+                || trace->timelines()[zone.timeline_id].type != ProfilerTimelineType::gpu)
+                continue;
+            if (zone.name_id < trace->names().size() && trace->names()[zone.name_id].name == "outer_stream_gpu_zone")
+                outer_gpu_root = true;
+            if (zone.name_id < trace->names().size() && trace->names()[zone.name_id].name == "inner_stream_gpu_zone")
+                inner_gpu_root = true;
+        }
+        CHECK(outer_gpu_root);
+        CHECK(inner_gpu_root);
     }
 
     CHECK(current_profiler_or_null() == nullptr);

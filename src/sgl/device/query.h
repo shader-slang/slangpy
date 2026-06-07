@@ -23,6 +23,12 @@ struct QueryPoolDesc {
     uint32_t count;
 };
 
+enum class QueryResultStatus : uint32_t {
+    invalid,
+    pending,
+    ready,
+};
+
 class SGL_API QueryPool : public DeviceChild {
     SGL_OBJECT(QueryPool)
 public:
@@ -36,6 +42,7 @@ public:
     void reset(uint32_t index, uint32_t count);
 
     bool is_result_ready(uint32_t index, uint32_t count);
+    QueryResultStatus result_status(uint32_t index, uint32_t count);
 
     void get_results(uint32_t index, uint32_t count, std::span<uint64_t> result);
     std::vector<uint64_t> get_results(uint32_t index, uint32_t count);

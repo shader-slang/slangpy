@@ -195,11 +195,10 @@ class Profiler;
 /// Opaque state returned by Profiler::begin_zone() and consumed by Profiler::end_zone().
 struct ProfilerZoneToken {
     Profiler* profiler{nullptr};
-    void* thread_data;
-    CommandEncoder* encoder;
-    QueryPool* query_pool;
-    uint32_t end_query_index;
-    bool debug_group_active;
+    void* thread_data{nullptr};
+    CommandEncoder* encoder{nullptr};
+    void* gpu_query_slot{nullptr};
+    bool debug_group_active{false};
 };
 
 /// Opaque state returned by Profiler::begin_frame() and consumed by Profiler::end_frame().
