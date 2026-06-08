@@ -30,6 +30,8 @@ DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES
 if DeviceType.metal in DEVICE_TYPES:
     DEVICE_TYPES.remove(DeviceType.metal)
 
+requires_cuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+
 
 def get_test_tensors(device: Device, N: int = 4):
     weights = torch.randn(
@@ -170,7 +172,7 @@ def test_add_values_fail(
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 @pytest.mark.parametrize("extra_dims", [0, 1, 3])
 def test_add_vectors_generic_explicit(device_type: DeviceType, extra_dims: int):
-    pytest.skip("Crashes due to slang bug")
+    pytest.skip("Crashes due to Slang compiler bug (#940)")
 
     module = load_test_module(device_type)
 
@@ -284,7 +286,7 @@ def test_polynomials(
     extra_shape = (5,) * extra_dims
 
     if func_name == "polynomial_vectors":
-        pytest.skip("Slang bug currently causing derivatives to return 0")
+        pytest.skip("Slang compiler bug: vector polynomial derivatives return 0 (#940)")
 
     if len(extra_shape + val_shape) == 0:
         pytest.skip("No shape to test")
@@ -348,9 +350,6 @@ def test_add_tensors(device_type: DeviceType, extra_dims: int, grads: bool):
     module[func_name](a, b, res)
 
     compare_tensors(a + b, res)
-
-    # Should this work??
-    # res.backward(torch.ones_like(res))
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -618,6 +617,10 @@ void forward(uint index, DiffTensor<float, 1> x, WDiffTensor<float, 1> y)
     loss = loss_fn(y, targets)
     loss.backward()
 
+    assert x.grad is not None, "Gradients should flow back to x"
+    expected_y = torch.tensor([1.0, 8.0, 27.0, 64.0], device="cuda")
+    assert torch.allclose(y, expected_y), f"y = x^3 mismatch: {y} vs {expected_y}"
+
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_null_grad_idifftensor(device_type: DeviceType):
@@ -647,6 +650,10 @@ void forward(uint index, IDiffTensor<float, 1> x, IWDiffTensor<float, 1> y)
     module.forward(index=grid(shape=(4,)), x=x, y=y)
     loss = loss_fn(y, targets)
     loss.backward()
+
+    assert x.grad is not None, "Gradients should flow back to x"
+    expected_y = torch.tensor([1.0, 8.0, 27.0, 64.0], device="cuda")
+    assert torch.allclose(y, expected_y), f"y = x^3 mismatch: {y} vs {expected_y}"
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -725,6 +732,288 @@ def test_zero_size_dispatch(device_type: DeviceType):
     b = torch.tensor([], dtype=torch.float32, device="cuda")
     result = module.add(a, b)
     assert result.numel() == 0
+
+
+# ============================================================================
+# DiffPair factory paths (torchtensormarshall.py coverage)
+# ============================================================================
+
+from slangpy.torchintegration import diff_pair
+import slangpy.torchintegration.torchtensormarshall as ttm
+
+SCALE_SHADER = r"""
+void scale(float a, float factor, out float result) { result = a * factor; }
+"""
+
+
+def _get_layout(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    func = helpers.create_function_from_module(device, "scale", SCALE_SHADER)
+    return func.module.layout
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diffpair_factory_primal_and_grad(device_type: DeviceType):
+    """create_torch_tensor_marshall with diff_pair (primal+grad, default is_input=True)."""
+    layout = _get_layout(device_type)
+
+    primal = torch.tensor([1.0, 2.0, 3.0], device="cuda", dtype=torch.float32)
+    grad = torch.zeros(3, device="cuda", dtype=torch.float32)
+    pair = diff_pair(primal, grad)
+
+    marshall = ttm.create_torch_tensor_marshall(layout, pair)
+    assert marshall.has_derivative is True
+    assert marshall.dims > 0
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diffpair_factory_grad_only(device_type: DeviceType):
+    """create_torch_tensor_marshall with primal=None falls back to grad for dtype/shape."""
+    layout = _get_layout(device_type)
+
+    grad = torch.tensor([1.0, 2.0], device="cuda", dtype=torch.float32)
+    pair = diff_pair(None, grad)
+
+    marshall = ttm.create_torch_tensor_marshall(layout, pair)
+    assert marshall.has_derivative is True
+    assert marshall.dims == 1
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diffpair_factory_no_grad(device_type: DeviceType):
+    """create_torch_tensor_marshall with grad=None produces no derivative."""
+    layout = _get_layout(device_type)
+
+    primal = torch.tensor([1.0], device="cuda", dtype=torch.float32)
+    pair = diff_pair(primal, None)
+
+    marshall = ttm.create_torch_tensor_marshall(layout, pair)
+    assert marshall.has_derivative is False
+
+
+DIFF_SRC = r"""
+[Differentiable]
+float square(float x) { return x * x; }
+"""
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diffpair_read_signature(device_type: DeviceType):
+    """Calling a function with a DiffPair triggers NativeTorchTensorDiffPair::read_signature.
+
+    NOTE: read_signature is currently unreachable due to a regression in PR #872
+    where the SignatureBuffer optimization bypasses virtual dispatch. Filed as #923.
+    This test exercises the forward pass but does NOT cover read_signature.
+    """
+    device = helpers.get_torch_device(device_type)
+    func = helpers.create_function_from_module(device, "square", DIFF_SRC)
+
+    primal = torch.tensor([2.0, 3.0, 4.0], device="cuda", dtype=torch.float32, requires_grad=True)
+    grad = torch.ones(3, device="cuda", dtype=torch.float32)
+    pair = diff_pair(primal, grad)
+
+    result = func(pair)
+    assert result is not None
+
+
+@pytest.mark.skip(
+    reason="diff_pair(None, grad) triggers interop buffer lifetime race (#929). "
+    "Re-enable with DEVICE_TYPES parametrization once #929 is fixed."
+)
+def test_diffpair_get_shape_grad_only():
+    """NativeTorchTensorMarshall::get_shape falls back to grad when primal=None.
+
+    Skipped: dispatching diff_pair(None, grad) hits a cleanup race in
+    create_zeroed_interop_buffer where an async CUDA memset outlives the
+    interop buffer (#929). Crashes the worker and poisons the CUDA context
+    for subsequent tests. Even CUDA-only + fallback bridge mode triggers it.
+    """
+    device = helpers.get_torch_device(DeviceType.cuda)
+    func = helpers.create_function_from_module(device, "square", DIFF_SRC)
+
+    grad = torch.ones(5, device="cuda", dtype=torch.float32)
+    pair = diff_pair(None, grad)
+
+    result = func(pair)
+    assert result is not None
+
+
+# ============================================================================
+# NativeTorchTensorDiffPair nanobind binding coverage
+# ============================================================================
+
+
+@requires_cuda
+def test_diffpair_repr():
+    """NativeTorchTensorDiffPair.__repr__ formats primal/grad/index/is_input."""
+    primal = torch.tensor([1.0], device="cuda")
+    grad = torch.tensor([0.0], device="cuda")
+    pair = diff_pair(primal, grad)
+
+    r = repr(pair)
+    assert "primal=Tensor" in r
+    assert "grad=Tensor" in r
+    assert "is_input=True" in r
+
+
+def test_diffpair_repr_none():
+    """__repr__ shows None for missing tensors."""
+    pair = diff_pair(None, None)
+    r = repr(pair)
+    assert "primal=None" in r
+    assert "grad=None" in r
+
+
+@requires_cuda
+def test_diffpair_property_setters():
+    """Setting primal and grad properties exercises the nanobind setter lambdas."""
+    pair = diff_pair(None, None)
+    assert pair.primal is None
+    assert pair.grad is None
+
+    t = torch.tensor([1.0, 2.0], device="cuda")
+    pair.primal = t
+    assert pair.primal is not None
+    assert torch.equal(pair.primal, t)
+
+    g = torch.tensor([3.0, 4.0], device="cuda")
+    pair.grad = g
+    assert pair.grad is not None
+    assert torch.equal(pair.grad, g)
+
+
+@requires_cuda
+def test_diffpair_clear_tensors():
+    """clear_tensors() sets both primal and grad to None."""
+    primal = torch.tensor([1.0], device="cuda")
+    grad = torch.tensor([0.0], device="cuda")
+    pair = diff_pair(primal, grad)
+    assert pair.primal is not None
+    assert pair.grad is not None
+
+    pair.clear_tensors()
+    assert pair.primal is None
+    assert pair.grad is None
+
+
+# ============================================================================
+# TorchTensorMarshall properties and type conversion
+# ============================================================================
+
+
+@requires_cuda
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_marshall_properties(device_type: DeviceType):
+    """Access torch_dtype, slang_dtype, repr, is_writable, has_derivative on TorchTensorMarshall."""
+    layout = _get_layout(device_type)
+
+    t = torch.tensor([1.0], device="cuda", dtype=torch.float32)
+    marshall = ttm.create_torch_tensor_marshall(layout, t)
+
+    assert marshall.torch_dtype == torch.float32
+    assert marshall.slang_dtype is not None
+    assert "float" in marshall.slang_dtype.full_name
+    assert marshall.is_writable is True
+    assert marshall.has_derivative is False
+
+    r = repr(marshall)
+    assert "TorchTensor" in r
+    assert "float" in r
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_slang_dtype_to_torch_none_for_non_scalar(device_type: DeviceType):
+    """_slang_dtype_to_torch returns None for non-scalar SlangType."""
+    layout = _get_layout(device_type)
+    vec_type = layout.find_type_by_name("float2")
+    assert ttm._slang_dtype_to_torch(vec_type) is None
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_torch_dtype_to_slang_none_for_unsupported(device_type: DeviceType):
+    """_torch_dtype_to_slang returns None for unsupported torch dtype."""
+    layout = _get_layout(device_type)
+    assert ttm._torch_dtype_to_slang(torch.complex128, layout) is None
+
+
+# ============================================================================
+# Error paths
+# ============================================================================
+
+
+def test_hash_torch_tensor_raises():
+    """hash_torch_tensor always raises ValueError."""
+    with pytest.raises(ValueError, match="should not need a hash"):
+        ttm.hash_torch_tensor(torch.tensor([1.0]))
+
+
+def test_hash_torch_diff_pair_raises():
+    """hash_torch_diff_pair always raises ValueError."""
+    pair = diff_pair(torch.tensor([1.0]), torch.tensor([0.0]))
+    with pytest.raises(ValueError, match="should not need a hash"):
+        ttm.hash_torch_diff_pair(pair)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_factory_unsupported_type_raises(device_type: DeviceType):
+    """Passing a non-tensor to create_torch_tensor_marshall raises ValueError."""
+    layout = _get_layout(device_type)
+    with pytest.raises(ValueError, match="unsupported"):
+        ttm.create_torch_tensor_marshall(layout, "not a tensor")
+
+
+@requires_cuda
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_factory_unsupported_torch_dtype_raises(device_type: DeviceType):
+    """Passing a tensor with unsupported dtype raises ValueError."""
+    layout = _get_layout(device_type)
+    t = torch.tensor([1.0 + 2.0j], dtype=torch.complex64, device="cuda")
+    with pytest.raises(ValueError, match=r"[Uu]nsupported"):
+        ttm.create_torch_tensor_marshall(layout, t)
+
+
+@requires_cuda
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diffpair_factory_unsupported_dtype_raises(device_type: DeviceType):
+    """DiffPair factory raises for unsupported torch dtype."""
+    layout = _get_layout(device_type)
+    primal = torch.tensor([1.0 + 2.0j], dtype=torch.complex64, device="cuda")
+    grad = torch.tensor([0.0 + 0.0j], dtype=torch.complex64, device="cuda")
+    pair = diff_pair(primal, grad)
+    with pytest.raises(ValueError, match=r"[Uu]nsupported"):
+        ttm.create_torch_tensor_marshall(layout, pair)
+
+
+IDENTITY_SRC = r"""
+float identity(float x) { return x; }
+"""
+
+VEC_SRC = r"""
+float2 scale_vec(float2 v) { return v * 2.0; }
+"""
+
+
+@requires_cuda
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_torch_shape_mismatch_error(device_type: DeviceType):
+    """validate_tensor_shape rejects a tensor whose trailing dims don't match the vector type."""
+    device = helpers.get_torch_device(device_type)
+    func = helpers.create_function_from_module(device, "scale_vec", VEC_SRC)
+
+    bad = torch.tensor([[1.0, 2.0, 3.0]], device="cuda", dtype=torch.float32)
+    with pytest.raises(Exception, match="shape"):
+        func(bad)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_torch_cpu_tensor_rejected(device_type: DeviceType):
+    """Non-CUDA torch tensors are rejected by write_shader_cursor_pre_dispatch."""
+    device = helpers.get_torch_device(device_type)
+    func = helpers.create_function_from_module(device, "identity", IDENTITY_SRC)
+
+    cpu_tensor = torch.tensor([1.0, 2.0], dtype=torch.float32)
+    with pytest.raises(Exception, match=r"[Cc][Uu][Dd][Aa]"):
+        func(cpu_tensor)
 
 
 if __name__ == "__main__":
