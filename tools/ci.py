@@ -146,7 +146,7 @@ def unit_test_python(args: Any):
     os.makedirs("reports", exist_ok=True)
     cmd = ["pytest", "slangpy/tests", "-vra"]
     if args.parallel:
-        cmd += ["-n", "auto", "--maxprocesses=4"]
+        cmd += ["-n", "auto", "--maxprocesses=2"]
     run_command(cmd, env=env)
 
 
@@ -154,7 +154,7 @@ def test_examples(args: Any):
     env = get_python_env()
     cmd = ["pytest", "samples/tests", "-vra"]
     if args.parallel:
-        cmd += ["-n", "auto", "--maxprocesses=4"]
+        cmd += ["-n", "auto", "--maxprocesses=2"]
     run_command(cmd, env=env)
 
 
