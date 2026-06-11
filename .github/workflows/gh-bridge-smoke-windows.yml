@@ -8,7 +8,7 @@ permissions: {}
 jobs:
   smoke-windows:
     name: Windows bridge smoke
-    runs-on: [self-hosted, Windows, X64, nvrgfx-wrap]
+    runs-on: [self-hosted, Windows, X64, nvrgfx-bridge]
     timeout-minutes: 10
 
     steps:
