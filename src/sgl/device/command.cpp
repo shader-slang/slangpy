@@ -317,6 +317,8 @@ CommandEncoder::~CommandEncoder()
 
 ref<RenderPassEncoder> CommandEncoder::begin_render_pass(const RenderPassDesc& desc)
 {
+    SGL_CHECK(m_open, "Command encoder is finished");
+
     rhi::RenderPassDesc rhi_desc = {};
 
     short_vector<rhi::RenderPassColorAttachment, 16> rhi_color_attachments;
@@ -361,6 +363,8 @@ ref<RenderPassEncoder> CommandEncoder::begin_render_pass(const RenderPassDesc& d
 
 ref<ComputePassEncoder> CommandEncoder::begin_compute_pass()
 {
+    SGL_CHECK(m_open, "Command encoder is finished");
+
     if (!m_compute_pass_encoder) {
         m_compute_pass_encoder = make_ref<ComputePassEncoder>();
     }
@@ -373,6 +377,8 @@ ref<ComputePassEncoder> CommandEncoder::begin_compute_pass()
 
 ref<RayTracingPassEncoder> CommandEncoder::begin_ray_tracing_pass()
 {
+    SGL_CHECK(m_open, "Command encoder is finished");
+
     if (!m_ray_tracing_pass_encoder) {
         m_ray_tracing_pass_encoder = make_ref<RayTracingPassEncoder>();
     }
