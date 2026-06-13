@@ -439,7 +439,9 @@ TEST_CASE("register_cursor_writer_type_rejects_partial_functional_metadata")
     auto make_info = [](const std::type_info& type)
     {
         cursor_utils::CursorWriterTypeInfo info;
-        info.type = &type;
+        info.key_kind = cursor_utils::CursorWriterTypeKeyKind::native_type_info;
+        info.type_key = &type;
+        info.debug_name = type.name();
         info.write_shader_cursor = [](ShaderCursor& cursor, const void* value)
         {
             (void)cursor;
@@ -474,7 +476,9 @@ TEST_CASE("register_cursor_writer_type_allows_signature_without_functional_metad
     using namespace sgl::cursor_tests;
 
     cursor_utils::CursorWriterTypeInfo info;
-    info.type = &typeid(RegistrySignatureOnlyStruct);
+    info.key_kind = cursor_utils::CursorWriterTypeKeyKind::native_type_info;
+    info.type_key = &typeid(RegistrySignatureOnlyStruct);
+    info.debug_name = "RegistrySignatureOnlyStruct";
     info.write_shader_cursor = [](ShaderCursor& cursor, const void* value)
     {
         (void)cursor;
