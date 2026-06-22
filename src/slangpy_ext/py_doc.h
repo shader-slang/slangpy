@@ -6501,6 +6501,10 @@ static const char *__doc_sgl_QueryPool_desc = R"doc()doc";
 
 static const char *__doc_sgl_QueryPool_get_result = R"doc()doc";
 
+static const char *__doc_sgl_QueryPool_get_result_state = R"doc()doc";
+
+static const char *__doc_sgl_QueryPool_get_result_state_2 = R"doc()doc";
+
 static const char *__doc_sgl_QueryPool_get_results = R"doc()doc";
 
 static const char *__doc_sgl_QueryPool_get_results_2 = R"doc()doc";
@@ -6510,8 +6514,6 @@ static const char *__doc_sgl_QueryPool_get_timestamp_result = R"doc()doc";
 static const char *__doc_sgl_QueryPool_get_timestamp_results = R"doc()doc";
 
 static const char *__doc_sgl_QueryPool_get_timestamp_results_2 = R"doc()doc";
-
-static const char *__doc_sgl_QueryPool_is_result_ready = R"doc()doc";
 
 static const char *__doc_sgl_QueryPool_m_desc = R"doc()doc";
 
@@ -6526,6 +6528,16 @@ static const char *__doc_sgl_QueryPool_reset_2 = R"doc()doc";
 static const char *__doc_sgl_QueryPool_rhi_query_pool = R"doc()doc";
 
 static const char *__doc_sgl_QueryPool_to_string = R"doc()doc";
+
+static const char *__doc_sgl_QueryResultState = R"doc()doc";
+
+static const char *__doc_sgl_QueryResultState_info = R"doc()doc";
+
+static const char *__doc_sgl_QueryResultState_pending = R"doc()doc";
+
+static const char *__doc_sgl_QueryResultState_reset = R"doc()doc";
+
+static const char *__doc_sgl_QueryResultState_resolved = R"doc()doc";
 
 static const char *__doc_sgl_QueryType = R"doc()doc";
 
@@ -10058,6 +10070,8 @@ static const char *__doc_sgl_find_enum_info_adl_77 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_78 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_79 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_80 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 

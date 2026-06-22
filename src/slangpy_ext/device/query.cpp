@@ -38,7 +38,19 @@ SGL_PY_EXPORT(device_query)
             "count"_a,
             D(QueryPool, reset, 2)
         )
-        .def("is_result_ready", &QueryPool::is_result_ready, "index"_a, "count"_a, D(QueryPool, is_result_ready))
+        .def(
+            "get_result_state",
+            nb::overload_cast<uint32_t, uint32_t>(&QueryPool::get_result_state),
+            "index"_a,
+            "count"_a,
+            D(QueryPool, get_result_state)
+        )
+        .def(
+            "get_result_state",
+            nb::overload_cast<uint32_t>(&QueryPool::get_result_state),
+            "index"_a,
+            D(QueryPool, get_result_state, 2)
+        )
         .def("get_result", &QueryPool::get_result, "index"_a, D(QueryPool, get_result))
         .def(
             "get_results",
