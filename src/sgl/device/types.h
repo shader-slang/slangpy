@@ -797,6 +797,22 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(QueryType);
 
+enum class QueryResultState : uint32_t {
+    reset = static_cast<uint32_t>(rhi::QueryResultState::Reset),
+    pending = static_cast<uint32_t>(rhi::QueryResultState::Pending),
+    resolved = static_cast<uint32_t>(rhi::QueryResultState::Resolved),
+};
+
+SGL_ENUM_INFO(
+    QueryResultState,
+    {
+        {QueryResultState::reset, "reset"},
+        {QueryResultState::pending, "pending"},
+        {QueryResultState::resolved, "resolved"},
+    }
+);
+SGL_ENUM_REGISTER(QueryResultState);
+
 enum class CpuTimestampDomain : uint32_t {
     unknown = static_cast<uint32_t>(rhi::CpuTimestampDomain::Unknown),
     query_performance_counter = static_cast<uint32_t>(rhi::CpuTimestampDomain::QueryPerformanceCounter),
