@@ -14,7 +14,6 @@
 #include <filesystem>
 #include <limits>
 #include <string>
-#include <string_view>
 #include <memory>
 #include <vector>
 
@@ -204,13 +203,6 @@ class SGL_API Profiler : public Object {
 public:
     explicit Profiler(ProfilerDesc desc = {});
     ~Profiler();
-
-    /// Intern or reuse a dynamic source location.
-    static const ProfilerSourceLocation*
-    intern_source_location(std::string_view file, uint32_t line, std::string_view function);
-
-    /// Intern or reuse a dynamic profiler zone name.
-    static const char* intern_name(std::string_view name);
 
     /// Whether profiling is enabled. When disabled, recording calls are no-ops.
     bool enabled() const { return m_enabled; }
@@ -434,8 +426,8 @@ namespace detail {
 /// - `SGL_PROFILE_SCOPE(name, encoder)`
 /// - `SGL_PROFILE_SCOPE(name, encoder, flags)`
 ///
-/// `name` must point to stable storage, such as a string literal or a pointer returned by
-/// `Profiler::intern_name()`, unless `flags` includes `ProfilerZoneFlags::copy_name`.
+/// `name` must point to stable storage, such as a string literal, unless `flags` includes
+/// `ProfilerZoneFlags::copy_name`.
 /// Use explicit `nullptr` placeholders to pass later arguments, e.g.
 /// `SGL_PROFILE_SCOPE(nullptr, nullptr, flags)`.
 ///

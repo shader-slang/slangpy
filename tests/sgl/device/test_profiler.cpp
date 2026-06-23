@@ -54,6 +54,11 @@ const ProfilerZoneRecord* find_trace_zone(const ProfilerTrace& trace, std::strin
     return nullptr;
 }
 
+const ProfilerSourceRecord* find_trace_source(const ProfilerTrace& trace, uint32_t id)
+{
+    return id < trace.sources().size() ? &trace.sources()[id] : nullptr;
+}
+
 size_t count_trace_zones(const ProfilerTrace& trace, std::string_view name, ProfilerTimelineType timeline_type)
 {
     size_t count = 0;
@@ -155,15 +160,11 @@ TEST_CASE("profiler scope macro is callable")
     CHECK(current_profiler_or_null() == nullptr);
 }
 
-TEST_CASE("profiler scope macro supports explicit interned and dynamic names")
+TEST_CASE("profiler scope macro supports stable and copied dynamic names")
 {
     CommandEncoder* encoder = nullptr;
-    const char* name = Profiler::intern_name("native_interned_zone");
+    const char* name = "native_stable_zone";
     std::string dynamic_name = "native_dynamic_zone";
-
-    REQUIRE(name != nullptr);
-    CHECK(name == Profiler::intern_name("native_interned_zone"));
-    CHECK(std::string_view(name) == "native_interned_zone");
 
     {
         ref<Profiler> profiler = make_ref<Profiler>();
@@ -178,7 +179,7 @@ TEST_CASE("profiler scope macro supports explicit interned and dynamic names")
         }
 
         ref<ProfilerTrace> trace = profiler->trace_snapshot();
-        CHECK(trace_has_name(*trace, "native_interned_zone"));
+        CHECK(trace_has_name(*trace, "native_stable_zone"));
         CHECK(trace_has_name(*trace, "native_dynamic_zone"));
     }
 
@@ -326,22 +327,60 @@ TEST_CASE("profiler scope is movable")
     CHECK(current_profiler_or_null() == nullptr);
 }
 
-TEST_CASE("profiler interned source locations use structured keys")
+TEST_CASE("profiler source locations use pointer identity and formatted function names")
 {
-    const ProfilerSourceLocation* first = Profiler::intern_source_location("c", 7, "d");
-    const ProfilerSourceLocation* first_again = Profiler::intern_source_location("c", 7, "d");
-    const ProfilerSourceLocation* second = Profiler::intern_source_location("b\nc", 7, "d");
+    static const ProfilerSourceLocation first_source = {"shared.cpp", 7, "void demo::same()"};
+    static const ProfilerSourceLocation same_value_source = {"shared.cpp", 7, "void demo::same()"};
+    static const ProfilerSourceLocation fallback_source = {"fallback.cpp", 11, "float demo::fallback(int)"};
 
-    REQUIRE(first != nullptr);
-    REQUIRE(second != nullptr);
-    CHECK(first == first_again);
-    CHECK(first != second);
-    CHECK(std::string_view(first->file) == "c");
-    CHECK(first->line == 7);
-    CHECK(std::string_view(first->function) == "d");
-    CHECK(std::string_view(second->file) == "b\nc");
-    CHECK(second->line == 7);
-    CHECK(std::string_view(second->function) == "d");
+    {
+        ref<Profiler> profiler = make_ref<Profiler>();
+        profiler->start_trace();
+
+        ProfilerZoneToken first_token
+            = profiler->begin_zone(&first_source, "first_source", nullptr, ProfilerZoneFlags::none);
+        profiler->end_zone(first_token);
+
+        ProfilerZoneToken first_again_token
+            = profiler->begin_zone(&first_source, "first_source_again", nullptr, ProfilerZoneFlags::none);
+        profiler->end_zone(first_again_token);
+
+        ProfilerZoneToken same_value_token
+            = profiler->begin_zone(&same_value_source, "same_value_source", nullptr, ProfilerZoneFlags::none);
+        profiler->end_zone(same_value_token);
+
+        ProfilerZoneToken fallback_token
+            = profiler->begin_zone(&fallback_source, nullptr, nullptr, ProfilerZoneFlags::none);
+        profiler->end_zone(fallback_token);
+
+        ref<ProfilerTrace> trace = profiler->trace_snapshot();
+        const ProfilerZoneRecord* first_zone = find_trace_zone(*trace, "first_source");
+        const ProfilerZoneRecord* first_again_zone = find_trace_zone(*trace, "first_source_again");
+        const ProfilerZoneRecord* same_value_zone = find_trace_zone(*trace, "same_value_source");
+        const ProfilerZoneRecord* fallback_zone = find_trace_zone(*trace, "demo::fallback");
+
+        REQUIRE(first_zone);
+        REQUIRE(first_again_zone);
+        REQUIRE(same_value_zone);
+        REQUIRE(fallback_zone);
+        CHECK(first_zone->source_id == first_again_zone->source_id);
+        CHECK(first_zone->source_id != same_value_zone->source_id);
+
+        const ProfilerSourceRecord* first_record = find_trace_source(*trace, first_zone->source_id);
+        const ProfilerSourceRecord* fallback_record = find_trace_source(*trace, fallback_zone->source_id);
+        REQUIRE(first_record);
+        REQUIRE(fallback_record);
+        CHECK(first_record->file == "shared.cpp");
+        CHECK(first_record->line == 7);
+        CHECK(first_record->original_function == "void demo::same()");
+        CHECK(first_record->display_function == "demo::same");
+        CHECK(fallback_record->file == "fallback.cpp");
+        CHECK(fallback_record->line == 11);
+        CHECK(fallback_record->original_function == "float demo::fallback(int)");
+        CHECK(fallback_record->display_function == "demo::fallback");
+    }
+
+    CHECK(current_profiler_or_null() == nullptr);
 }
 
 TEST_CASE("profiler descriptor defaults and validation")

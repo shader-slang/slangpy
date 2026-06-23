@@ -686,7 +686,7 @@ public:
     void set_debug_name(std::string debug_name)
     {
         m_debug_name = debug_name;
-        m_profiler_zone_name = nullptr;
+        m_profiler_zone_name.clear();
     }
 
     /// Get the logger
@@ -849,7 +849,7 @@ private:
     CallMode m_call_mode{CallMode::prim};
     Shape m_last_call_shape;
     std::string m_debug_name;
-    const char* m_profiler_zone_name{nullptr};
+    std::string m_profiler_zone_name;
     ref<Logger> m_logger;
     Shape m_call_group_shape;
     bool m_torch_integration{false};

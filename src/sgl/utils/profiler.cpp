@@ -17,13 +17,13 @@
 #include <algorithm>
 #include <cmath>
 #include <chrono>
-#include <deque>
 #include <exception>
 #include <fstream>
 #include <limits>
 #include <map>
 #include <mutex>
 #include <ostream>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
@@ -43,23 +43,41 @@ namespace {
 
     struct StringRegistry {
         std::mutex mutex;
-        std::deque<std::string> entries;
-        std::unordered_map<std::string_view, const char*> string_by_value;
+        std::vector<ProfilerNameRecord> records;
+        std::unordered_map<std::string, uint32_t> id_by_value;
 
-        StringRegistry() = default;
-
-        const char* intern(std::string_view value)
+        StringRegistry()
         {
+            records.push_back({});
+            id_by_value.emplace(std::string(), 0);
+        }
+
+        uint32_t get_or_add(std::string_view value)
+        {
+            if (value.empty())
+                return 0;
+
             std::lock_guard lock(mutex);
 
-            auto it = string_by_value.find(value);
-            if (it != string_by_value.end())
+            std::string key(value);
+            auto it = id_by_value.find(key);
+            if (it != id_by_value.end())
                 return it->second;
 
-            const std::string& entry = entries.emplace_back(value);
-            auto [inserted_it, inserted] = string_by_value.emplace(entry, entry.c_str());
+            const uint32_t id = uint32_t(records.size());
+            records.push_back({
+                .id = id,
+                .name = key,
+            });
+            auto [inserted_it, inserted] = id_by_value.emplace(std::move(key), id);
             SGL_ASSERT(inserted);
             return inserted_it->second;
+        }
+
+        ProfilerNameRecord copy_record(uint32_t id)
+        {
+            std::lock_guard lock(mutex);
+            return id < records.size() ? records[id] : ProfilerNameRecord{};
         }
 
         static StringRegistry& get()
@@ -72,74 +90,42 @@ namespace {
     };
 
     struct SourceLocationRegistry {
-        struct Key {
-            std::string_view file;
-            uint32_t line{0};
-            std::string_view function;
-        };
-
-        struct Entry {
-            std::string file;
-            uint32_t line{0};
-            std::string function;
-            ProfilerSourceLocation source_location;
-
-            Entry(std::string file_, uint32_t line_, std::string function_)
-                : file(std::move(file_))
-                , line(line_)
-                , function(std::move(function_))
-            {
-                source_location.file = file.c_str();
-                source_location.line = line;
-                source_location.function = function.c_str();
-            }
-
-            Key key() const
-            {
-                return {
-                    .file = file,
-                    .line = line,
-                    .function = function,
-                };
-            }
-
-            SGL_NON_COPYABLE_AND_MOVABLE(Entry);
-        };
-
-        struct KeyHasher {
-            size_t operator()(const Key& key) const { return sgl::hash(key.file, key.line, key.function); }
-        };
-
-        struct KeyEquals {
-            bool operator()(const Key& a, const Key& b) const
-            {
-                return a.file == b.file && a.line == b.line && a.function == b.function;
-            }
-        };
-
         std::mutex mutex;
-        std::deque<Entry> entries;
-        std::unordered_map<Key, const ProfilerSourceLocation*, KeyHasher, KeyEquals> source_location_by_key;
+        std::vector<ProfilerSourceRecord> records;
+        std::unordered_map<const ProfilerSourceLocation*, uint32_t> id_by_pointer;
 
-        SourceLocationRegistry() = default;
+        SourceLocationRegistry() { records.push_back({}); }
 
-        const ProfilerSourceLocation* intern(std::string_view file, uint32_t line, std::string_view function)
+        uint32_t get_or_add(const ProfilerSourceLocation* source_location)
         {
+            if (!source_location)
+                return 0;
+
             std::lock_guard lock(mutex);
 
-            Key key{
-                .file = file,
-                .line = line,
-                .function = function,
-            };
-            auto it = source_location_by_key.find(key);
-            if (it != source_location_by_key.end())
+            auto it = id_by_pointer.find(source_location);
+            if (it != id_by_pointer.end())
                 return it->second;
 
-            Entry& entry = entries.emplace_back(std::string(file), line, std::string(function));
-            auto [inserted_it, inserted] = source_location_by_key.emplace(entry.key(), &entry.source_location);
+            const char* file = source_location->file ? source_location->file : "";
+            const char* function = source_location->function ? source_location->function : "";
+            const uint32_t id = uint32_t(records.size());
+            records.push_back({
+                .id = id,
+                .file = file,
+                .line = source_location->line,
+                .original_function = function,
+                .display_function = format_function_name(function),
+            });
+            auto [inserted_it, inserted] = id_by_pointer.emplace(source_location, id);
             SGL_ASSERT(inserted);
             return inserted_it->second;
+        }
+
+        ProfilerSourceRecord copy_record(uint32_t id)
+        {
+            std::lock_guard lock(mutex);
+            return id < records.size() ? records[id] : ProfilerSourceRecord{};
         }
 
         static SourceLocationRegistry& get()
@@ -149,6 +135,29 @@ namespace {
         }
 
         SGL_NON_COPYABLE_AND_MOVABLE(SourceLocationRegistry);
+
+    private:
+        static std::string format_function_name(std::string_view function)
+        {
+            if (function.empty())
+                return {};
+
+            size_t paren = function.find('(');
+            if (paren != std::string_view::npos) {
+                size_t end = paren;
+                while (end > 0 && function[end - 1] == ' ')
+                    --end;
+                size_t begin = function.rfind(' ', end == 0 ? 0 : end - 1);
+                if (begin == std::string_view::npos)
+                    begin = 0;
+                else
+                    ++begin;
+                if (begin < end)
+                    return std::string(function.substr(begin, end - begin));
+            }
+
+            return std::string(function);
+        }
     };
 
     const char* timeline_type_name(ProfilerTimelineType type)
@@ -171,39 +180,6 @@ namespace {
             return "sgl.gpu";
         }
         SGL_UNREACHABLE();
-    }
-
-    std::string display_function_name(const ProfilerSourceLocation* source_location)
-    {
-        if (!source_location || !source_location->function)
-            return {};
-
-        std::string_view function(source_location->function);
-        size_t paren = function.find('(');
-        if (paren != std::string_view::npos) {
-            size_t end = paren;
-            while (end > 0 && function[end - 1] == ' ')
-                --end;
-            size_t begin = function.rfind(' ', end == 0 ? 0 : end - 1);
-            if (begin == std::string_view::npos)
-                begin = 0;
-            else
-                ++begin;
-            if (begin < end)
-                return std::string(function.substr(begin, end - begin));
-        }
-
-        return std::string(function);
-    }
-
-    const char* source_file(const ProfilerSourceLocation* source_location)
-    {
-        return source_location && source_location->file ? source_location->file : "";
-    }
-
-    const char* source_function(const ProfilerSourceLocation* source_location)
-    {
-        return source_location && source_location->function ? source_location->function : "";
     }
 
     const char* fallback_zone_name(const ProfilerSourceLocation* source_location)
@@ -348,6 +324,7 @@ namespace {
         uint64_t timestamp{0};
         const ProfilerSourceLocation* source_location{nullptr};
         const char* name{nullptr};
+        uint32_t name_id{0};
         ProfilerGpuEvent gpu;
         ProfilerGpuQueryResultEvent gpu_result;
     };
@@ -690,8 +667,8 @@ struct ProfilerImpl {
     std::vector<uint32_t> trace_child_indices;
     std::vector<uint32_t> trace_root_indices;
 
-    std::unordered_map<const ProfilerSourceLocation*, uint32_t> source_id_by_pointer;
-    std::unordered_map<std::string, uint32_t> name_id_by_value;
+    std::unordered_map<uint32_t, uint32_t> source_id_by_global_id;
+    std::unordered_map<uint32_t, uint32_t> name_id_by_global_id;
 
     std::vector<StatsNodeState> stats_nodes;
     std::unordered_map<StatsNodeKey, uint32_t, StatsNodeKeyHasher> stats_node_id_by_key;
@@ -749,7 +726,8 @@ struct ProfilerImpl {
     {
         trace_sources.push_back({});
         trace_names.push_back({});
-        name_id_by_value.emplace(std::string(), 0);
+        source_id_by_global_id.emplace(0, 0);
+        name_id_by_global_id.emplace(0, 0);
     }
 
     ThreadData* get_or_create_thread_data(std::thread::id thread_id)
@@ -790,44 +768,66 @@ struct ProfilerImpl {
         thread_data->queue_event(event);
     }
 
-    uint32_t get_source_id_locked(const ProfilerSourceLocation* source_location)
+    uint32_t import_source_id_locked(uint32_t global_source_id)
     {
-        if (!source_location)
+        if (global_source_id == 0)
             return 0;
 
-        auto it = source_id_by_pointer.find(source_location);
-        if (it != source_id_by_pointer.end())
+        auto it = source_id_by_global_id.find(global_source_id);
+        if (it != source_id_by_global_id.end())
             return it->second;
 
+        ProfilerSourceRecord record = SourceLocationRegistry::get().copy_record(global_source_id);
+        if (record.id == 0)
+            return 0;
+
         const uint32_t id = uint32_t(trace_sources.size());
-        trace_sources.push_back({
-            .id = id,
-            .file = source_file(source_location),
-            .line = source_location->line,
-            .original_function = source_function(source_location),
-            .display_function = display_function_name(source_location),
-        });
-        source_id_by_pointer[source_location] = id;
+        record.id = id;
+        trace_sources.push_back(std::move(record));
+        source_id_by_global_id.emplace(global_source_id, id);
         return id;
     }
 
-    uint32_t get_name_id_locked(const char* name, const ProfilerSourceLocation* source_location)
+    uint32_t import_name_id_locked(uint32_t global_name_id)
     {
-        std::string display_name = name ? std::string(name) : display_function_name(source_location);
+        if (global_name_id == 0)
+            return 0;
+
+        auto it = name_id_by_global_id.find(global_name_id);
+        if (it != name_id_by_global_id.end())
+            return it->second;
+
+        ProfilerNameRecord record = StringRegistry::get().copy_record(global_name_id);
+        if (record.id == 0)
+            return 0;
+
+        const uint32_t id = uint32_t(trace_names.size());
+        record.id = id;
+        trace_names.push_back(std::move(record));
+        name_id_by_global_id.emplace(global_name_id, id);
+        return id;
+    }
+
+    uint32_t get_source_id_locked(const ProfilerSourceLocation* source_location)
+    {
+        return import_source_id_locked(SourceLocationRegistry::get().get_or_add(source_location));
+    }
+
+    uint32_t get_name_id_locked(const ProfilerEvent& event, uint32_t source_id)
+    {
+        if (event.name_id != 0)
+            return import_name_id_locked(event.name_id);
+
+        std::string display_name;
+        if (event.name) {
+            display_name = event.name;
+        } else if (source_id < trace_sources.size()) {
+            display_name = trace_sources[source_id].display_function;
+        }
         if (display_name.empty())
             display_name = "zone";
 
-        auto it = name_id_by_value.find(display_name);
-        if (it != name_id_by_value.end())
-            return it->second;
-
-        const uint32_t id = uint32_t(trace_names.size());
-        trace_names.push_back({
-            .id = id,
-            .name = display_name,
-        });
-        name_id_by_value.emplace(std::move(display_name), id);
-        return id;
+        return import_name_id_locked(StringRegistry::get().get_or_add(display_name));
     }
 
     bool range_in_trace_window_locked(uint64_t begin_timestamp, uint64_t end_timestamp) const
@@ -879,7 +879,7 @@ struct ProfilerImpl {
         const uint32_t event_id = next_event_id++;
         const uint32_t frame_id = thread_data.active_frame.frame_id;
         const uint32_t source_id = get_source_id_locked(event.source_location);
-        const uint32_t name_id = get_name_id_locked(event.name, event.source_location);
+        const uint32_t name_id = get_name_id_locked(event, source_id);
         const uint32_t parent_stats_node_id
             = thread_data.zone_stack.empty() ? kInvalidProfilerId : thread_data.zone_stack.back().stats_node_id;
         const uint32_t stats_node_id = get_or_create_stats_node_locked(parent_stats_node_id, source_id, name_id);
@@ -1029,7 +1029,7 @@ struct ProfilerImpl {
 
         const uint32_t frame_id = next_frame_id++;
         const uint32_t source_id = get_source_id_locked(event.source_location);
-        const uint32_t name_id = get_name_id_locked(event.name, event.source_location);
+        const uint32_t name_id = get_name_id_locked(event, source_id);
         thread_data.active_frame = {
             .frame_id = frame_id,
             .source_id = source_id,
@@ -1950,17 +1950,6 @@ Profiler::~Profiler()
     delete m_impl;
 }
 
-const ProfilerSourceLocation*
-Profiler::intern_source_location(std::string_view file, uint32_t line, std::string_view function)
-{
-    return SourceLocationRegistry::get().intern(file, line, function);
-}
-
-const char* Profiler::intern_name(std::string_view name)
-{
-    return StringRegistry::get().intern(name);
-}
-
 void Profiler::set_stats_window_size(uint32_t size)
 {
     SGL_CHECK(size >= 1, "stats_window_size must be at least 1.");
@@ -2011,8 +2000,8 @@ ProfilerZoneToken Profiler::begin_zone(
         return token;
     }
 
-    if (name && is_set(flags, ProfilerZoneFlags::copy_name))
-        name = Profiler::intern_name(name);
+    const bool copy_name = name && is_set(flags, ProfilerZoneFlags::copy_name);
+    const uint32_t copied_name_id = copy_name ? StringRegistry::get().get_or_add(name) : 0;
 
     const uint64_t timestamp = Timer::now();
     ThreadData* thread_data = m_impl->get_this_thread_data();
@@ -2043,7 +2032,8 @@ ProfilerZoneToken Profiler::begin_zone(
             .type = ProfilerEventType::begin_zone,
             .timestamp = timestamp,
             .source_location = source_location,
-            .name = name,
+            .name = copy_name ? nullptr : name,
+            .name_id = copied_name_id,
             .gpu = std::move(gpu_event),
         }
     );
@@ -2110,13 +2100,14 @@ ProfilerFrameToken Profiler::begin_frame(const ProfilerSourceLocation* source_lo
     token.profiler = this;
     token.thread_data = thread_data;
 
+    const uint32_t name_id = name ? StringRegistry::get().get_or_add(name) : 0;
     m_impl->queue_thread_event(
         thread_data,
         {
             .type = ProfilerEventType::begin_frame,
             .timestamp = timestamp,
             .source_location = source_location,
-            .name = name,
+            .name_id = name_id,
         }
     );
 

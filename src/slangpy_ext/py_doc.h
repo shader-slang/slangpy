@@ -6681,10 +6681,6 @@ static const char *__doc_sgl_Profiler_end_zone = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_flush = R"doc()doc";
 
-static const char *__doc_sgl_Profiler_intern_name = R"doc(Intern or reuse a dynamic profiler zone name.)doc";
-
-static const char *__doc_sgl_Profiler_intern_source_location = R"doc(Intern or reuse a dynamic source location.)doc";
-
 static const char *__doc_sgl_Profiler_m_auto_zones_enabled = R"doc()doc";
 
 static const char *__doc_sgl_Profiler_m_debug_groups_enabled = R"doc()doc";
