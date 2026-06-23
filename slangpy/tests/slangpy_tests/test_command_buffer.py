@@ -163,5 +163,25 @@ def test_command_buffer(device_type: DeviceType, use_arg: bool):
     polynomial(a, b, _result=res, _append_to=None)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_reuse_finished_command_encoder(device_type: DeviceType):
+    m = load_test_module(device_type)
+    assert m is not None
+
+    polynomial = m.polynomial.as_func()
+
+    a = Tensor.empty(m.device, (10,), dtype=float3)
+    b = Tensor.empty(m.device, (10,), dtype=float3)
+    res = Tensor.empty(m.device, (10,), dtype=float3)
+
+    command_encoder = m.device.create_command_encoder()
+    polynomial.append_to(command_encoder, a, b, _result=res)
+    m.device.submit_command_buffer(command_encoder.finish())
+
+    # Reusing a finished command encoder must raise a clean error rather than crash.
+    with pytest.raises(Exception, match="Command encoder is finished"):
+        polynomial.append_to(command_encoder, a, b, _result=res)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
