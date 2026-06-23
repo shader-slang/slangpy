@@ -32,19 +32,24 @@ void QueryPool::reset(uint32_t index, uint32_t count)
     SLANG_RHI_CALL(m_rhi_query_pool->reset(index, count), m_device);
 }
 
+QueryResultState QueryPool::get_result_state(uint32_t index, uint32_t count)
+{
+    SGL_CHECK(uint64_t(index) + count <= m_desc.count, "'index' / 'count' out of range");
+    rhi::QueryResultState rhi_state;
+    SLANG_RHI_CALL(m_rhi_query_pool->getResultState(index, count, &rhi_state), m_device);
+    return static_cast<QueryResultState>(rhi_state);
+}
+
+QueryResultState QueryPool::get_result_state(uint32_t index)
+{
+    return get_result_state(index, 1);
+}
+
 void QueryPool::get_results(uint32_t index, uint32_t count, std::span<uint64_t> result)
 {
     SGL_CHECK(uint64_t(index) + count <= m_desc.count, "'index' / 'count' out of range");
     SGL_CHECK(result.size() >= count, "'result' buffer too small");
     SLANG_RHI_CALL(m_rhi_query_pool->getResult(index, count, result.data()), m_device);
-}
-
-bool QueryPool::is_result_ready(uint32_t index, uint32_t count)
-{
-    SGL_CHECK(uint64_t(index) + count <= m_desc.count, "'index' / 'count' out of range");
-    bool ready;
-    SLANG_RHI_CALL(m_rhi_query_pool->isResultReady(index, count, &ready), m_device);
-    return ready;
 }
 
 std::vector<uint64_t> QueryPool::get_results(uint32_t index, uint32_t count)
