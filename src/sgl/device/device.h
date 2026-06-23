@@ -5,6 +5,7 @@
 #include "sgl/device/fwd.h"
 #include "sgl/device/types.h"
 #include "sgl/device/native_handle.h"
+#include "sgl/device/callback_list.h"
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/raytracing.h"
@@ -21,9 +22,12 @@
 #include <slang-rhi.h>
 
 #include <array>
+#include <atomic>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 #include <unordered_set>
 
@@ -118,6 +122,20 @@ struct DeviceDesc {
     /// Enable CUDA interoperability.
     bool enable_cuda_interop{false};
 
+    /// Enable launching CUDA kernels from inside graphics command buffers
+    /// (Vulkan only, via VK_NVX_binary_import + VK_NVX_image_view_handle).
+    /// On by default. Set to false if the application doesn't need
+    /// vkCmdCuLaunchKernelNVX; enabling these extensions has been observed
+    /// to interfere with concurrent cuDNN usage on some driver/GPU pairs.
+    bool enable_cuda_launch_from_gfx{true};
+
+    /// Enable Vulkan ray tracing extensions (acceleration_structure,
+    /// ray_tracing_pipeline, ray_query, ray_tracing_position_fetch, plus
+    /// NV variants). On by default. Set to false if the application doesn't
+    /// use ray tracing; enabling these extensions has been observed to
+    /// interfere with concurrent cuDNN usage on some driver/GPU pairs.
+    bool enable_ray_tracing{true};
+
     /// Enable device side printing (adds performance overhead).
     bool enable_print{false};
 
@@ -151,6 +169,12 @@ struct DeviceDesc {
     /// only used for CUDA interoperability.
     std::array<NativeHandle, 3> existing_device_handles;
 
+    /// Additional Vulkan instance extensions to enable when SGL creates the Vulkan instance.
+    std::vector<std::string> additional_vulkan_instance_extensions;
+
+    /// Additional Vulkan device extensions to enable when SGL creates the Vulkan device.
+    std::vector<std::string> additional_vulkan_device_extensions;
+
     /// Debug label
     std::string label;
 };
@@ -182,6 +206,13 @@ struct DeviceLimits {
     uint3 max_compute_thread_group_size;
     /// Maximum number of thread groups per dimension in a single dispatch.
     uint3 max_compute_dispatch_thread_groups;
+
+    /// Minimum number of lanes in a wave/subgroup/warp.
+    /// 0 if the size is unknown or not applicable.
+    uint32_t min_wave_size;
+    /// Maximum number of lanes in a wave/subgroup/warp.
+    /// 0 if the size is unknown or not applicable.
+    uint32_t max_wave_size;
 
     /// Maximum number of viewports per pipeline.
     uint32_t max_viewports;
@@ -228,12 +259,33 @@ struct ShaderCacheStats {
     size_t miss_count;
 };
 
+using DeviceCallbackID = uint64_t;
+
+/// Callback type for device close event.
+using DeviceCloseCallback = std::function<void(Device*)>;
+
 /// Event data for hot reload hook.
 struct ShaderHotReloadEvent { };
+/// Callback type for hot reload hook.
 using ShaderHotReloadCallback = std::function<void(const ShaderHotReloadEvent&)>;
 
+/// Event data for command recording submission callback.
+struct CommandRecordingSubmittedEvent {
+    Device* device;
+    CommandRecordingID id{0};
+    CommandBuffer* command_buffer{nullptr};
+    uint64_t submit_id{0};
+};
+/// Callback type for command recording submission event.
+using CommandRecordingSubmittedCallback = std::function<void(const CommandRecordingSubmittedEvent&)>;
 
-using DeviceCloseCallback = std::function<void(Device*)>;
+/// Event data for command recording discarded callback.
+struct CommandRecordingDiscardedEvent {
+    Device* device;
+    CommandRecordingID id{0};
+};
+/// Callback type for command recording discarded event.
+using CommandRecordingDiscardedCallback = std::function<void(const CommandRecordingDiscardedEvent&)>;
 
 class SGL_API Device : public Object {
     SGL_OBJECT(Device)
@@ -522,6 +574,9 @@ public:
     /// Reload all shader programs.
     void reload_all_programs();
 
+    /// Return the cached reflection layout for the built-in support module.
+    ref<refl::Layout> builtin_layout();
+
     /// Create a root shader object for a shader program.
     ref<ShaderObject> create_root_shader_object(const ShaderProgram* shader_program);
 
@@ -617,6 +672,16 @@ public:
      * \param queue Command queue to wait for.
      */
     void wait_for_idle(CommandQueueType queue = CommandQueueType::graphics);
+
+    /**
+     * \brief Get timestamp calibration data for a queue.
+     *
+     * This can be used to synchronize CPU and GPU timestamps, which is necessary for accurate profiling and debugging.
+     *
+     * \param queue Command queue to get timestamp calibration data for.
+     * \return Timestamp calibration data
+     */
+    TimestampCalibration get_timestamp_calibration(CommandQueueType queue = CommandQueueType::graphics) const;
 
     /**
      * \brief Synchronize CUDA -> device.
@@ -758,17 +823,25 @@ public:
      */
     static bool enable_agility_sdk();
 
-    /// Register a hot reload hook, called immediately after any module is reloaded.
-    void register_shader_hot_reload_callback(ShaderHotReloadCallback call_back)
-    {
-        m_shader_hot_reload_callbacks.push_back(call_back);
-    }
-
     /// Register a device close callback, called at start of device close.
-    void register_device_close_callback(DeviceCloseCallback call_back)
-    {
-        m_device_close_callbacks.push_back(call_back);
-    }
+    DeviceCallbackID register_device_close_callback(DeviceCloseCallback callback);
+    /// Unregister a device close callback.
+    void unregister_device_close_callback(DeviceCallbackID id);
+
+    /// Register a hot reload hook, called immediately after any module is reloaded.
+    DeviceCallbackID register_shader_hot_reload_callback(ShaderHotReloadCallback callback);
+    /// Unregister a hot reload hook.
+    void unregister_shader_hot_reload_callback(DeviceCallbackID id);
+
+    /// Register a callback to be called when a command recording is submitted.
+    DeviceCallbackID register_command_recording_submitted_callback(CommandRecordingSubmittedCallback callback);
+    /// Unregister a command recording submitted callback.
+    void unregister_command_recording_submitted_callback(DeviceCallbackID id);
+
+    /// Register a callback to be called when a command recording is discarded (not submitted).
+    DeviceCallbackID register_command_recording_discarded_callback(CommandRecordingDiscardedCallback callback);
+    /// Unregister a command recording discarded callback.
+    void unregister_command_recording_discarded_callback(DeviceCallbackID id);
 
     cuda::Device* cuda_device() const { return m_cuda_device.get(); }
 
@@ -780,16 +853,19 @@ public:
     HotReload* _hot_reload() { return m_hot_reload; }
 
     /// Called by hot reload system after reload occurs, to trigger the hooks.
-    void _on_hot_reload()
-    {
-        for (auto& hook : m_shader_hot_reload_callbacks)
-            hook({});
-    }
+    void _on_hot_reload();
 
     void _register_device_child(DeviceChild* device_child);
     void _unregister_device_child(DeviceChild* device_child);
 
+    DeviceCallbackID _allocate_callback_id();
+    CommandRecordingID _allocate_command_recording_id();
+    void _notify_command_recording_submitted(CommandRecordingID id, CommandBuffer* command_buffer, uint64_t submit_id);
+    void _notify_command_recording_discarded(CommandRecordingID id);
+
 private:
+    ref<refl::Layout> reload_builtin_layout();
+
     DeviceDesc m_desc;
     DeviceInfo m_info;
     ShaderModel m_supported_shader_model{ShaderModel::unknown};
@@ -805,6 +881,7 @@ private:
     Slang::ComPtr<slang::IGlobalSession> m_global_session;
 
     ref<SlangSession> m_slang_session;
+    ref<refl::Layout> m_builtin_layout;
 
     std::vector<Feature> m_features;
     std::vector<std::string> m_capabilities;
@@ -815,11 +892,12 @@ private:
     std::unique_ptr<DebugLogger> m_debug_logger;
     std::unique_ptr<DebugPrinter> m_debug_printer;
 
-    /// List of callbacks for hot reload event
-    std::vector<ShaderHotReloadCallback> m_shader_hot_reload_callbacks;
+    std::atomic<DeviceCallbackID> m_next_callback_id{1};
 
-    /// List of callbacks for shutdown event
-    std::vector<DeviceCloseCallback> m_device_close_callbacks;
+    CallbackList<DeviceCallbackID, DeviceCloseCallback> m_device_close_callbacks;
+    CallbackList<DeviceCallbackID, ShaderHotReloadCallback> m_shader_hot_reload_callbacks;
+    CallbackList<DeviceCallbackID, CommandRecordingSubmittedCallback> m_command_recording_submitted_callbacks;
+    CallbackList<DeviceCallbackID, CommandRecordingDiscardedCallback> m_command_recording_discarded_callbacks;
 
     ref<Blitter> m_blitter;
     ref<HotReload> m_hot_reload;

@@ -7,15 +7,19 @@
 #include "sgl/device/command.h"
 #include "sgl/device/helpers.h"
 #include "sgl/device/cuda_utils.h"
+#include "sgl/device/shader_cursor.h"
 
 #include "sgl/core/config.h"
 #include "sgl/core/error.h"
+#include "sgl/core/signature_buffer.h"
 #include "sgl/core/string.h"
 #include "sgl/core/maths.h"
 #include "sgl/core/bitmap.h"
 #include "sgl/core/static_vector.h"
 
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
+
+#include <cstdio>
 
 namespace sgl {
 
@@ -254,6 +258,19 @@ DescriptorHandle Buffer::descriptor_handle_rw() const
     return DescriptorHandle(rhi_handle);
 }
 
+void Buffer::write_to_cursor(const ShaderCursor& cursor, const Buffer* value)
+{
+    cursor.set_buffer(ref<const Buffer>(value));
+}
+
+void Buffer::write_slangpy_signature(SignatureBuffer& signature, const Buffer* value)
+{
+    SGL_CHECK(value, "Cannot write a SlangPy signature for a null buffer pointer.");
+    char temp[256];
+    std::snprintf(temp, sizeof(temp), "[%d]", int(value->m_desc.usage));
+    signature.add(temp);
+}
+
 DeviceChild::MemoryUsage Buffer::memory_usage() const
 {
     return {.device = m_desc.size};
@@ -304,6 +321,11 @@ NativeHandle BufferView::native_handle() const
 {
     // TODO
     return {};
+}
+
+void BufferView::write_to_cursor(const ShaderCursor& cursor, const BufferView* value)
+{
+    cursor.set_buffer_view(ref<const BufferView>(value));
 }
 
 std::string BufferView::to_string() const
@@ -519,6 +541,27 @@ DescriptorHandle Texture::descriptor_handle_combined() const
     rhi::DescriptorHandle rhi_handle = {};
     m_rhi_texture->getDefaultView()->getCombinedTextureSamplerDescriptorHandle(&rhi_handle);
     return DescriptorHandle(rhi_handle);
+}
+
+void Texture::write_to_cursor(const ShaderCursor& cursor, const Texture* value)
+{
+    cursor.set_texture(ref<const Texture>(value));
+}
+
+void Texture::write_slangpy_signature(SignatureBuffer& signature, const Texture* value)
+{
+    SGL_CHECK(value, "Cannot write a SlangPy signature for a null texture pointer.");
+    char temp[256];
+    std::snprintf(
+        temp,
+        sizeof(temp),
+        "[%d,%d,%d,%d]",
+        int(value->m_desc.type),
+        int(value->m_desc.usage),
+        int(value->m_desc.format),
+        int(value->m_desc.array_length)
+    );
+    signature.add(temp);
 }
 
 NativeHandle Texture::shared_handle() const
@@ -761,6 +804,11 @@ NativeHandle TextureView::native_handle() const
     rhi::NativeHandle rhi_handle = {};
     m_rhi_texture_view->getNativeHandle(&rhi_handle);
     return NativeHandle(rhi_handle);
+}
+
+void TextureView::write_to_cursor(const ShaderCursor& cursor, const TextureView* value)
+{
+    cursor.set_texture_view(ref<const TextureView>(value));
 }
 
 std::string TextureView::to_string() const

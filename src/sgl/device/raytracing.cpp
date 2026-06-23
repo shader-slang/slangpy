@@ -5,7 +5,9 @@
 #include "sgl/device/device.h"
 #include "sgl/device/helpers.h"
 #include "sgl/device/shader.h"
+#include "sgl/device/shader_cursor.h"
 
+#include "sgl/core/error.h"
 #include "sgl/core/type_utils.h"
 #include "sgl/core/short_vector.h"
 
@@ -144,6 +146,11 @@ AccelerationStructure::~AccelerationStructure() { }
 AccelerationStructureHandle AccelerationStructure::handle() const
 {
     return m_rhi_acceleration_structure->getHandle();
+}
+
+void AccelerationStructure::write_to_cursor(const ShaderCursor& cursor, const AccelerationStructure* value)
+{
+    cursor.set_acceleration_structure(ref<const AccelerationStructure>(value));
 }
 
 std::string AccelerationStructure::to_string() const

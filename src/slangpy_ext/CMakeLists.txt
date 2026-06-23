@@ -17,8 +17,12 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     core/thread.cpp
     core/timer.cpp
     core/window.cpp
+    func/functional.cpp
+    func/tensor.cpp
     device/buffer_cursor.cpp
     device/command.cpp
+    device/cursor_writer.h
+    device/cursor_writer.cpp
     device/cursor_utils.h
     device/device_child.cpp
     device/device.cpp
@@ -44,16 +48,13 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     math/vector.cpp
     ui/ui.cpp
     ui/widgets.cpp
+    refl/layout.cpp
     utils/crashpad.cpp
     utils/renderdoc.cpp
     utils/slangpy.h
     utils/slangpy.cpp
     utils/slangpyvalue.h
     utils/slangpyvalue.cpp
-    utils/slangpystridedbufferview.h
-    utils/slangpystridedbufferview.cpp
-    utils/slangpybuffer.h
-    utils/slangpybuffer.cpp
     utils/slangpyfunction.h
     utils/slangpyfunction.cpp
     utils/slangpypackedarg.h
@@ -126,6 +127,7 @@ nanobind_add_stub(
     OUTPUT ${SLANGPY_PACKAGE_DIR}/__init__.pyi
     DEPENDS slangpy_ext ${SLANGPY_PACKAGE_DIR}/__init__.py
     INCLUDE_PRIVATE # allow us to have functions/variables that start with _
+    PATTERN_FILE ${CMAKE_CURRENT_LIST_DIR}/slangpy_stub_patterns.nb
 )
 
 # Post-process the main stub file.
@@ -135,7 +137,7 @@ postprocess_stub(${SLANGPY_PACKAGE_DIR}/__init__.pyi "")
 install(FILES ${SLANGPY_PACKAGE_DIR}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # Generate submodule stub files.
-foreach(submodule IN ITEMS platform thread math ui tev crashpad renderdoc slangpy)
+foreach(submodule IN ITEMS platform thread math ui tev crashpad renderdoc slangpy native_refl native_func)
     string(REPLACE "." "/" submodule_path ${submodule})
     nanobind_add_stub(
         slangpy_${submodule}_stub
@@ -200,7 +202,9 @@ set(SGL_HEADER_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/app"
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/core"
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/device"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/func"
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/math"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/refl"
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/ui"
     "${CMAKE_CURRENT_SOURCE_DIR}/../sgl/utils"
 )

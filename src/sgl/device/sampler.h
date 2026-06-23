@@ -50,6 +50,9 @@ public:
     /// Get the native sampler handle.
     NativeHandle native_handle() const;
 
+    /// Bind a nullable sampler value to a shader cursor.
+    static void write_to_cursor(const ShaderCursor& cursor, const Sampler* value);
+
     std::string to_string() const override;
 
 private:

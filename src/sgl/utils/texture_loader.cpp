@@ -44,14 +44,42 @@ inline ref<Bitmap> convert_ya_to_rg(const Bitmap* ya_bitmap)
     return rg_bitmap;
 }
 
+inline TextureUsage get_effective_texture_usage(Device* device, const TextureLoader::Options& options)
+{
+    TextureUsage usage = options.usage;
+    if (options.generate_mips) {
+        usage |= device->has_feature(Feature::rasterization) ? TextureUsage::render_target
+                                                             : TextureUsage::unordered_access;
+    }
+    return usage;
+}
+
+inline FormatSupport get_required_format_support(TextureUsage usage)
+{
+    FormatSupport support = FormatSupport::texture;
+    if (is_set(usage, TextureUsage::render_target))
+        support |= FormatSupport::render_target;
+    if (is_set(usage, TextureUsage::unordered_access))
+        support |= FormatSupport::shader_uav_store;
+    return support;
+}
+
+inline bool has_format_support(Device* device, Format format, FormatSupport required_support)
+{
+    return (device->get_format_support(format) & required_support) == required_support;
+}
+
 /**
  * \brief Determine the texture format given a bitmap.
  *
- * Uses the following option flags to affect the format determination:
+ * Uses the following option flags to affect the format
+ * determination:
  * - \c Options::extend_alpha
- *   RGB bitmap that has no supported format will be determined as RGBA (if a RGBA format exists).
- * - \c Options::load_as_srgb
- *   8-bit RGBA bitmap with sRGB gamma will be determined as \c Format::rgba8_unorm_srgb.
+ *   RGB bitmap that has no supported format, or needs renderable usage,
+ * will be determined as RGBA
+ *   (if a RGBA format exists).
+ * - \c Options::load_as_srgb 8-bit RGBA bitmap with sRGB
+ * gamma will be determined as \c Format::rgba8_unorm_srgb.
  * - \c Options::load_as_normalized
  *   8/16-bit integer bitmap will be determined as normalized resource format.
  *
@@ -144,15 +172,24 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
     // Check if bitmap is RGB and we can convert to RGBA.
     bool convert_to_rgba = false;
     if (options.extend_alpha && pixel_format == PixelFormat::rgb) {
-        // Find if the RGB format exists, if it does check if the device supports it
+        TextureUsage effective_usage = get_effective_texture_usage(device, options);
+        FormatSupport required_support = get_required_format_support(effective_usage);
+        bool prefer_rgba = is_set(effective_usage, TextureUsage::render_target)
+            || is_set(effective_usage, TextureUsage::unordered_access);
+
+        // Some backends can sample RGB formats but cannot use them for renderable mip generation.
+        // When alpha extension is enabled, prefer RGBA for renderable usage to keep loading portable.
         bool rgb_format_supported = false;
         if (auto it = FORMAT_TABLE.find(make_key(PixelFormat::rgb, component_type, format_flags));
-            it != FORMAT_TABLE.end() && is_set(device->get_format_support(it->second), FormatSupport::texture))
+            it != FORMAT_TABLE.end() && has_format_support(device, it->second, required_support))
             rgb_format_supported = true;
 
-        bool rgba_format_supported
-            = FORMAT_TABLE.find(make_key(PixelFormat::rgba, component_type, format_flags)) != FORMAT_TABLE.end();
-        if (!rgb_format_supported && rgba_format_supported) {
+        bool rgba_format_supported = false;
+        if (auto it = FORMAT_TABLE.find(make_key(PixelFormat::rgba, component_type, format_flags));
+            it != FORMAT_TABLE.end() && has_format_support(device, it->second, required_support))
+            rgba_format_supported = true;
+
+        if ((!rgb_format_supported || prefer_rgba) && rgba_format_supported) {
             convert_to_rgba = true;
             pixel_format = PixelFormat::rgba;
         }
@@ -258,11 +295,7 @@ inline ref<Texture> create_texture(
         const Bitmap* bitmap = source_image.bitmap;
         bool allocate_mips = options.allocate_mips || options.generate_mips;
 
-        TextureUsage usage = options.usage;
-        if (options.generate_mips) {
-            usage |= device->has_feature(Feature::rasterization) ? TextureUsage::render_target
-                                                                 : TextureUsage::unordered_access;
-        }
+        TextureUsage usage = get_effective_texture_usage(device, options);
 
         ref<Texture> texture = device->create_texture({
             .type = TextureType::texture_2d,
@@ -357,9 +390,7 @@ inline ref<Texture> create_texture_array(
 
     bool allocate_mips = options.allocate_mips || options.generate_mips;
 
-    TextureUsage usage = options.usage;
-    if (options.generate_mips)
-        usage |= TextureUsage::render_target;
+    TextureUsage usage = get_effective_texture_usage(device, options);
 
     ref<Texture> texture;
     uint32_t first_width = 0;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "nanobind.h"
+#include "compilation_report.h"
 
 #include "sgl/device/device.h"
 #include "sgl/device/reflection.h"
@@ -59,6 +60,8 @@ SGL_DICT_TO_DESC_FIELD(rhi_validation_log_level, LogLevel)
 SGL_DICT_TO_DESC_FIELD(enable_ray_tracing_validation, bool)
 SGL_DICT_TO_DESC_FIELD(enable_aftermath, bool)
 SGL_DICT_TO_DESC_FIELD(enable_cuda_interop, bool)
+SGL_DICT_TO_DESC_FIELD(enable_cuda_launch_from_gfx, bool)
+SGL_DICT_TO_DESC_FIELD(enable_ray_tracing, bool)
 SGL_DICT_TO_DESC_FIELD(enable_print, bool)
 SGL_DICT_TO_DESC_FIELD(enable_hot_reload, bool)
 SGL_DICT_TO_DESC_FIELD(enable_compilation_reports, bool)
@@ -69,6 +72,8 @@ SGL_DICT_TO_DESC_FIELD(shader_cache_path, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(shader_cache_size, size_t)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_FIELD(bindless_options, BindlessDesc)
+SGL_DICT_TO_DESC_FIELD(additional_vulkan_instance_extensions, std::vector<std::string>)
+SGL_DICT_TO_DESC_FIELD(additional_vulkan_device_extensions, std::vector<std::string>)
 SGL_DICT_TO_DESC_END()
 
 // Utility functions for doing CoopVec conversions between ndarrays
@@ -339,6 +344,12 @@ SGL_PY_EXPORT(device_device)
         )
         .def_rw("enable_aftermath", &DeviceDesc::enable_aftermath, D(DeviceDesc, enable_aftermath))
         .def_rw("enable_cuda_interop", &DeviceDesc::enable_cuda_interop, D(DeviceDesc, enable_cuda_interop))
+        .def_rw(
+            "enable_cuda_launch_from_gfx",
+            &DeviceDesc::enable_cuda_launch_from_gfx,
+            D(DeviceDesc, enable_cuda_launch_from_gfx)
+        )
+        .def_rw("enable_ray_tracing", &DeviceDesc::enable_ray_tracing, D(DeviceDesc, enable_ray_tracing))
         .def_rw("enable_print", &DeviceDesc::enable_print, D(DeviceDesc, enable_print))
         .def_rw("enable_hot_reload", &DeviceDesc::enable_hot_reload, D(DeviceDesc, adapter_luid))
         .def_rw(
@@ -353,6 +364,16 @@ SGL_PY_EXPORT(device_device)
         .def_rw("shader_cache_path", &DeviceDesc::shader_cache_path, D(DeviceDesc, shader_cache_path))
         .def_rw("shader_cache_size", &DeviceDesc::shader_cache_size, D(DeviceDesc, shader_cache_size))
         .def_rw("existing_device_handles", &DeviceDesc::existing_device_handles, D(DeviceDesc, existing_device_handles))
+        .def_rw(
+            "additional_vulkan_instance_extensions",
+            &DeviceDesc::additional_vulkan_instance_extensions,
+            D(DeviceDesc, additional_vulkan_instance_extensions)
+        )
+        .def_rw(
+            "additional_vulkan_device_extensions",
+            &DeviceDesc::additional_vulkan_device_extensions,
+            D(DeviceDesc, additional_vulkan_device_extensions)
+        )
         .def_rw("label", &DeviceDesc::label, D(DeviceDesc, label));
 
     nb::implicitly_convertible<nb::dict, DeviceDesc>();
@@ -410,6 +431,8 @@ SGL_PY_EXPORT(device_device)
             &DeviceLimits::max_compute_dispatch_thread_groups,
             D(DeviceLimits, max_compute_dispatch_thread_groups)
         )
+        .def_ro("min_wave_size", &DeviceLimits::min_wave_size, D(DeviceLimits, min_wave_size))
+        .def_ro("max_wave_size", &DeviceLimits::max_wave_size, D(DeviceLimits, max_wave_size))
         .def_ro("max_viewports", &DeviceLimits::max_viewports, D(DeviceLimits, max_viewports))
         .def_ro(
             "max_viewport_dimensions",
@@ -445,8 +468,6 @@ SGL_PY_EXPORT(device_device)
         .def_ro("hit_count", &ShaderCacheStats::hit_count, D(ShaderCacheStats, hit_count))
         .def_ro("miss_count", &ShaderCacheStats::miss_count, D(ShaderCacheStats, miss_count));
 
-    nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
-
     nb::class_<HeapReport>(m, "HeapReport", D(HeapReport))
         .def_rw("label", &HeapReport::label, D(HeapReport, label))
         .def_rw("num_pages", &HeapReport::num_pages, D(HeapReport, num_pages))
@@ -465,6 +486,23 @@ SGL_PY_EXPORT(device_device)
         .def("__exit__", &CudaContextScope::exit, "exc_type"_a.none(), "exc_val"_a.none(), "exc_tb"_a.none());
 
     nb::class_<Device, Object> device(m, "Device", nb::is_weak_referenceable(), D(Device));
+
+    nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
+
+    nb::class_<CommandRecordingSubmittedEvent>(m, "CommandRecordingSubmittedEvent", D(CommandRecordingSubmittedEvent))
+        .def_ro("device", &CommandRecordingSubmittedEvent::device, D(CommandRecordingSubmittedEvent, device))
+        .def_ro("id", &CommandRecordingSubmittedEvent::id, D(CommandRecordingSubmittedEvent, id))
+        .def_ro(
+            "command_buffer",
+            &CommandRecordingSubmittedEvent::command_buffer,
+            D(CommandRecordingSubmittedEvent, command_buffer)
+        )
+        .def_ro("submit_id", &CommandRecordingSubmittedEvent::submit_id, D(CommandRecordingSubmittedEvent, submit_id));
+
+    nb::class_<CommandRecordingDiscardedEvent>(m, "CommandRecordingDiscardedEvent", D(CommandRecordingDiscardedEvent))
+        .def_ro("device", &CommandRecordingDiscardedEvent::device, D(CommandRecordingDiscardedEvent, device))
+        .def_ro("id", &CommandRecordingDiscardedEvent::id, D(CommandRecordingDiscardedEvent, id));
+
     device.def(
         "__init__",
         [](Device* self,
@@ -486,7 +524,11 @@ SGL_PY_EXPORT(device_device)
            size_t shader_cache_size,
            std::optional<std::array<NativeHandle, 3>> existing_device_handles,
            std::optional<BindlessDesc> bindless_options,
-           std::string label = "")
+           std::optional<std::vector<std::string>> additional_vulkan_instance_extensions,
+           std::optional<std::vector<std::string>> additional_vulkan_device_extensions,
+           bool enable_cuda_launch_from_gfx,
+           bool enable_ray_tracing,
+           std::string label)
         {
             new (self) Device(
                 {.type = type,
@@ -497,6 +539,8 @@ SGL_PY_EXPORT(device_device)
                  .enable_ray_tracing_validation = enable_ray_tracing_validation,
                  .enable_aftermath = enable_aftermath,
                  .enable_cuda_interop = enable_cuda_interop,
+                 .enable_cuda_launch_from_gfx = enable_cuda_launch_from_gfx,
+                 .enable_ray_tracing = enable_ray_tracing,
                  .enable_print = enable_print,
                  .enable_hot_reload = enable_hot_reload,
                  .enable_compilation_reports = enable_compilation_reports,
@@ -507,6 +551,10 @@ SGL_PY_EXPORT(device_device)
                  .shader_cache_path = shader_cache_path,
                  .shader_cache_size = shader_cache_size,
                  .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
+                 .additional_vulkan_instance_extensions
+                 = additional_vulkan_instance_extensions.value_or(std::vector<std::string>{}),
+                 .additional_vulkan_device_extensions
+                 = additional_vulkan_device_extensions.value_or(std::vector<std::string>{}),
                  .label = label}
             );
         },
@@ -528,6 +576,10 @@ SGL_PY_EXPORT(device_device)
         "shader_cache_size"_a = DeviceDesc().shader_cache_size,
         "existing_device_handles"_a.none() = nb::none(),
         "bindless_options"_a.none() = nb::none(),
+        "additional_vulkan_instance_extensions"_a.none() = nb::none(),
+        "additional_vulkan_device_extensions"_a.none() = nb::none(),
+        "enable_cuda_launch_from_gfx"_a = DeviceDesc().enable_cuda_launch_from_gfx,
+        "enable_ray_tracing"_a = DeviceDesc().enable_ray_tracing,
         "label"_a = DeviceDesc().label,
         D(Device, Device)
     );
@@ -829,6 +881,12 @@ SGL_PY_EXPORT(device_device)
     device
         .def("wait_for_idle", &Device::wait_for_idle, "queue"_a = CommandQueueType::graphics, D(Device, wait_for_idle));
     device.def(
+        "get_timestamp_calibration",
+        &Device::get_timestamp_calibration,
+        "queue"_a = CommandQueueType::graphics,
+        D(Device, get_timestamp_calibration)
+    );
+    device.def(
         "sync_to_cuda",
         [](Device* self, uint64_t cuda_stream)
         {
@@ -1020,6 +1078,12 @@ SGL_PY_EXPORT(device_device)
         "link_options"_a.none() = nb::none(),
         D(Device, load_program)
     );
+    device.def(
+        "get_compilation_reports",
+        &detail::get_compilation_reports,
+        nb::sig("def get_compilation_reports(self) -> list[CompilationReport]"),
+        "Return compilation reports for all shader programs tracked by the device."
+    );
 
     device.def(
         "create_root_shader_object",
@@ -1154,16 +1218,52 @@ SGL_PY_EXPORT(device_device)
     device.def("flush_print_to_string", &Device::flush_print_to_string, D(Device, flush_print_to_string));
     device.def("wait", &Device::wait, D(Device, wait));
     device.def(
+        "register_device_close_callback",
+        &Device::register_device_close_callback,
+        "callback"_a,
+        D(Device, register_device_close_callback)
+    );
+    device.def(
+        "unregister_device_close_callback",
+        &Device::unregister_device_close_callback,
+        "id"_a,
+        D(Device, unregister_device_close_callback)
+    );
+    device.def(
         "register_shader_hot_reload_callback",
         &Device::register_shader_hot_reload_callback,
         "callback"_a,
         D(Device, register_shader_hot_reload_callback)
     );
     device.def(
-        "register_device_close_callback",
-        &Device::register_device_close_callback,
+        "unregister_shader_hot_reload_callback",
+        &Device::unregister_shader_hot_reload_callback,
+        "id"_a,
+        D_NA(Device, unregister_shader_hot_reload_callback)
+    );
+    device.def(
+        "register_command_recording_submitted_callback",
+        &Device::register_command_recording_submitted_callback,
         "callback"_a,
-        D(Device, register_device_close_callback)
+        D(Device, register_command_recording_submitted_callback)
+    );
+    device.def(
+        "unregister_command_recording_submitted_callback",
+        &Device::unregister_command_recording_submitted_callback,
+        "id"_a,
+        D(Device, unregister_command_recording_submitted_callback)
+    );
+    device.def(
+        "register_command_recording_discarded_callback",
+        &Device::register_command_recording_discarded_callback,
+        "callback"_a,
+        D(Device, register_command_recording_discarded_callback)
+    );
+    device.def(
+        "unregister_command_recording_discarded_callback",
+        &Device::unregister_command_recording_discarded_callback,
+        "id"_a,
+        D(Device, unregister_command_recording_discarded_callback)
     );
     device.def(
         "set_hot_reload_delay",

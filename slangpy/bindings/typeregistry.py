@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+import re
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 from slangpy.bindings.marshall import Marshall
@@ -18,6 +19,33 @@ PYTHON_TYPES: dict[type, TTypeLookup] = {}
 PYTHON_SIGNATURES: dict[type, Optional[Callable[[Any], str]]] = {}
 
 
+def _lookup_mro(registry: dict[type, Any], python_type: type) -> tuple[bool, Any]:
+    """Look up an exact type registration, then registrations on Python base classes."""
+    if python_type in registry:
+        return True, registry[python_type]
+
+    for base_type in python_type.__mro__[1:]:
+        if base_type in registry:
+            return True, registry[base_type]
+
+    return False, None
+
+
+def lookup_type_callback(python_type: type) -> Optional[TTypeLookup]:
+    """Return the marshall factory registered for a type or one of its base classes."""
+    found, callback = _lookup_mro(PYTHON_TYPES, python_type)
+    if not found:
+        return None
+    return callback
+
+
+def lookup_signature_callback(
+    python_type: type,
+) -> tuple[bool, Optional[Callable[[Any], str]]]:
+    """Return whether a value-signature callback was registered and the callback itself."""
+    return _lookup_mro(PYTHON_SIGNATURES, python_type)
+
+
 def get_or_create_type(
     layout: "SlangProgramLayout", python_type: Any, value: Any = None
 ) -> NativeMarshall:
@@ -25,8 +53,30 @@ def get_or_create_type(
     Use the type registry to get or create a type marshall for a given python type.
     """
     if isinstance(python_type, type):
-        cb = PYTHON_TYPES.get(python_type)
+        cb = lookup_type_callback(python_type)
         if cb is None:
+            if value is not None:
+                # Native cursor writers register in C++; ask the extension for their copied metadata
+                # only after the Python registry has no match.
+                from slangpy.bindings.cursor import (
+                    WriteToCursorMarshall,
+                    WriteToCursorMarshallInfo,
+                )
+                from slangpy.core.native import _get_native_cursor_writer_type_info
+
+                native_info = _get_native_cursor_writer_type_info(value)
+                if native_info is not None:
+                    return WriteToCursorMarshall(
+                        layout,
+                        WriteToCursorMarshallInfo(
+                            slang_type_name=native_info["slang_type_name"],
+                            signature=native_info["signature"],
+                            imports=tuple(native_info["imports"]),
+                            accepted_type_regex=re.compile(
+                                re.escape(native_info["slang_type_name"])
+                            ),
+                        ),
+                    )
             raise ValueError(f"Unsupported type {python_type}")
         res = cb(layout, value)
         if res is None:

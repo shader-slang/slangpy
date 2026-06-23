@@ -78,6 +78,12 @@ TEST_CASE("environment")
     MESSAGE("PATH:", path.value());
 }
 
+TEST_CASE("set_current_thread_name")
+{
+    CHECK(set_current_thread_name("sgl-test"));
+    CHECK(set_current_thread_name("sgl-test-thread-name"));
+}
+
 TEST_CASE("backtrace")
 {
     StackTrace trace = backtrace();

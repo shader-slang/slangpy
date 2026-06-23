@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 from typing import Any, Optional, cast
-from slangpy.types.tensor import Tensor
-from slangpy.core.native import NativeTensorMarshall, NativeTensor
 
 from slangpy import ShaderObject, ShaderCursor, BufferUsage
+from slangpy.core.native import TensorMarshall as TensorMarshallBase
+from slangpy.types import Tensor
 from slangpy.reflection import (
     SlangProgramLayout,
     SlangType,
@@ -49,7 +49,7 @@ def is_nested_array(a: SlangType):
         a = a.element_type
 
 
-class TensorMarshall(NativeTensorMarshall):
+class TensorMarshall(TensorMarshallBase):
     def __init__(
         self,
         layout: SlangProgramLayout,
@@ -90,8 +90,8 @@ class TensorMarshall(NativeTensorMarshall):
             element_type=element_type,
             dims=dims,
             access=TensorAccess.read_write if writable else TensorAccess.read,
-            tensor_type=(
-                TensorType.difftensor
+            tensor_kind=(
+                TensorType.diff_tensor
                 if (d_in is not None or d_out is not None)
                 else TensorType.tensor
             ),
@@ -171,7 +171,7 @@ class TensorMarshall(NativeTensorMarshall):
 
 
 def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
-    if isinstance(value, NativeTensor):
+    if isinstance(value, Tensor):
         d_in = create_tensor_marshall(layout, value.grad_in) if value.grad_in is not None else None
         d_out = (
             create_tensor_marshall(layout, value.grad_out) if value.grad_out is not None else None
@@ -198,5 +198,4 @@ def create_tensor_marshall(layout: SlangProgramLayout, value: Any):
         raise ValueError(f"Type {type(value)} is unsupported for TensorMarshall")
 
 
-PYTHON_TYPES[NativeTensor] = create_tensor_marshall
 PYTHON_TYPES[Tensor] = create_tensor_marshall

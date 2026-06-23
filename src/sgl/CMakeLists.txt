@@ -55,6 +55,7 @@ target_sources(sgl PRIVATE
     core/plugin.h
     core/resolver.h
     core/short_vector.h
+    core/signature_buffer.h
     core/static_vector.h
     core/stream.h
     core/string.cpp
@@ -74,6 +75,7 @@ target_sources(sgl PRIVATE
     device/blit.slang
     device/buffer_cursor.cpp
     device/buffer_cursor.h
+    device/callback_list.h
     device/command.cpp
     device/command.h
     device/cuda_interop.cpp
@@ -149,10 +151,27 @@ target_sources(sgl PRIVATE
     math/vector_types.h
     math/vector.h
 
+    func/base_module.cpp
+    func/base_module.h
+    func/base_struct.cpp
+    func/base_struct.h
+    func/tensor.cpp
+    func/tensor.h
+
+    refl/layout.cpp
+    refl/layout.h
+    refl/lookup.cpp
+    refl/lookup.h
+    refl/function.cpp
+    refl/function.h
+    refl/type.cpp
+    refl/type.h
+
     stl/bit.h
 
     ui/fwd.h
     ui/imgui.slang
+    ui/imguisw.slang
     ui/ui.cpp
     ui/ui.h
     ui/widgets.cpp
@@ -295,11 +314,29 @@ if(SGL_ENABLE_ASAN)
     )
 endif()
 
+if(SGL_ENABLE_BUILD_METRICS)
+    target_compile_options(sgl
+        PRIVATE
+            # report frontend/backend time per TU
+            $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Bt+>
+            # produce per-TU trace JSON
+            $<$<CXX_COMPILER_ID:Clang>:-ftime-trace -ftime-trace-granularity=500>
+            # print per-pass timing summary
+            $<$<CXX_COMPILER_ID:GNU>:-ftime-report>
+    )
+endif()
+
 if(SGL_ENABLE_PCH)
     target_precompile_headers(sgl
         PRIVATE
-            sgl/sgl_pch.h
+            sgl_pch.h
     )
+    # bitmap.cpp defines STB_IMAGE_IMPLEMENTATION, skip PCH for it.
+    set_source_files_properties(core/bitmap.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+    if(SGL_MACOS)
+        # platform_macos.mm is Objective-C++, incompatible with the C++ PCH.
+        set_source_files_properties(core/platform_macos.mm PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+    endif()
 endif()
 
 target_link_options(sgl

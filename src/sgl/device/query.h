@@ -33,6 +33,10 @@ public:
     const QueryPoolDesc& desc() const { return m_desc; }
 
     void reset();
+    void reset(uint32_t index, uint32_t count);
+
+    QueryResultState get_result_state(uint32_t index, uint32_t count);
+    QueryResultState get_result_state(uint32_t index);
 
     void get_results(uint32_t index, uint32_t count, std::span<uint64_t> result);
     std::vector<uint64_t> get_results(uint32_t index, uint32_t count);

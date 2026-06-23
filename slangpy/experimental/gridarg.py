@@ -11,10 +11,9 @@ from slangpy.bindings import (
     Shape,
 )
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
-from slangpy.reflection import SlangProgramLayout, SlangType, TypeReflection
+from slangpy.reflection import SlangProgramLayout, SlangType
 from slangpy.core.shapes import TShapeOrTuple
 from slangpy.core.native import NativeObject, CallContext
-from slangpy.reflection.reflectiontypes import TYPE_OVERRIDES
 
 
 class GridArg(NativeObject):
@@ -54,15 +53,6 @@ def grid(
     Create a ThreadIdArg to pass to a SlangPy function, which passes the thread id.
     """
     return GridArg(shape, offset, stride)
-
-
-class GridArgType(SlangType):
-    def __init__(self, program: SlangProgramLayout, refl: TypeReflection):
-        args = program.get_resolved_generic_args(refl)
-        assert args is not None
-        assert len(args) == 1
-        assert isinstance(args[0], int)
-        super().__init__(program, refl, local_shape=Shape((-1,) * args[0]))
 
 
 class GridArgMarshall(Marshall):
@@ -114,5 +104,4 @@ class GridArgMarshall(Marshall):
         return self.dims
 
 
-TYPE_OVERRIDES["GridArg"] = GridArgType
 PYTHON_TYPES[GridArg] = lambda l, x: GridArgMarshall(l, x.dims)

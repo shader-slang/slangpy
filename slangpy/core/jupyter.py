@@ -10,8 +10,7 @@ from slangpy import (
     TypeReflection,
 )
 from slangpy.reflection import SlangFunction, SlangType
-from slangpy.types.buffer import NDBuffer, NativeNDBuffer
-from slangpy.types.tensor import Tensor, NativeTensor
+from slangpy.types.tensor import Tensor
 
 from IPython.core.getipython import get_ipython  # type: ignore
 from IPython.core.formatters import DisplayFormatter  # type: ignore
@@ -207,11 +206,7 @@ def format_struct(m: Struct, p: pretty.RepresentationPrinter, cycle: bool):
     )
 
 
-def format_ndbuffer(buf: NativeNDBuffer, p: pretty.RepresentationPrinter, cycle: bool):
-    pprint_all(p, ("Tensor.empty(shape=", buf.shape, ", dtype=", buf.dtype.type_reflection, ")"))
-
-
-def format_tensor(t: NativeTensor, p: pretty.RepresentationPrinter, cycle: bool):
+def format_tensor(t: Tensor, p: pretty.RepresentationPrinter, cycle: bool):
     pprint_all(p, ("Tensor(shape=", t.shape, ", dtype=", t.dtype.type_reflection, ")"))
 
 
@@ -260,10 +255,7 @@ def setup_in_jupyter(device: Device):
     pretty_formatter.for_type(Function, format_function)
     pretty_formatter.for_type(Module, format_module)
     pretty_formatter.for_type(Struct, format_struct)
-    pretty_formatter.for_type(NDBuffer, format_ndbuffer)
-    pretty_formatter.for_type(NativeNDBuffer, format_ndbuffer)
     pretty_formatter.for_type(Tensor, format_tensor)
-    pretty_formatter.for_type(NativeTensor, format_tensor)
     pretty_formatter.for_type(Texture, format_texture)
 
     if device.desc.enable_hot_reload:

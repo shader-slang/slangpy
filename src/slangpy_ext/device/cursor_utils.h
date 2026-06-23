@@ -14,7 +14,7 @@
 
 #include "utils/slangpy.h"
 #include "utils/slangpypackedarg.h"
-#include "utils/slangpystridedbufferview.h"
+#include "device/cursor_writer.h"
 #include "sgl/device/buffer_cursor.h"
 
 #include <slang.h>
@@ -246,6 +246,11 @@ private:
                 m_stack.pop_back();
                 return res;
             }
+            case TypeReflection::Kind::pointer: {
+                uint64_t ptr_value;
+                self._get_data(self._get_offset(), &ptr_value, sizeof(uint64_t));
+                return nb::cast(ptr_value);
+            }
             default:
                 break;
             }
@@ -430,12 +435,7 @@ public:
     }
 
     /// Virtual for writing none-basic value types.
-    virtual bool write_value(CursorType& self, nb::object nbval)
-    {
-        SGL_UNUSED(self);
-        SGL_UNUSED(nbval);
-        return false;
-    }
+    virtual bool write_value(CursorType& self, nb::object nbval) { return write_registered_native_object(self, nbval); }
 
     /// Write function inspects the slang type and uses it to try
     /// and convert a Python input to the correct c++ type. For structs
@@ -484,6 +484,44 @@ private:
 
     std::string build_error() { return fmt::format("{}", fmt::join(m_stack, ".")); }
 
+    static std::string python_type_name(nb::object nbval) { return nb::cast<std::string>(nb::str(nbval.type())); }
+
+    // Check whether the registry entry has a writer for this converter's cursor kind.
+    static bool has_native_object_writer(const cursor_utils::CursorWriterTypeInfo& info)
+    {
+        if constexpr (std::same_as<CursorType, ShaderCursor>) {
+            return bool(info.write_shader_cursor);
+        } else {
+            return bool(info.write_buffer_cursor);
+        }
+    }
+
+    // Invoke the erased writer found by the cached native cursor-writer resolver.
+    bool invoke_native_object_writer(const slangpy::NativeCursorWriterValue& writer, CursorType& self, nb::object nbval)
+    {
+        const cursor_utils::CursorWriterTypeInfo& info = *writer.info;
+        if (!has_native_object_writer(info))
+            return false;
+
+        try {
+            if constexpr (std::same_as<CursorType, ShaderCursor>) {
+                return info.write_shader_cursor(self, writer.value);
+            } else {
+                return info.write_buffer_cursor(self, writer.value);
+            }
+        } catch (const std::exception& err) {
+            SGL_THROW("Failed to write object of type {}: {}", python_type_name(nbval), err.what());
+        }
+    }
+
+    // Try the combined native cursor-writer registry before falling back to dict/list unpacking.
+    bool write_registered_native_object(CursorType& self, nb::object nbval)
+    {
+        auto writer = slangpy::find_native_cursor_writer(nbval);
+        return writer ? invoke_native_object_writer(*writer, self, nbval) : false;
+    }
+
+    // Preserve the legacy get_this wrapper path.
     bool try_unpack_and_retry(CursorType& self, nb::object obj)
     {
         bool had_unpack = false;
@@ -672,12 +710,6 @@ private:
             return;
         }
 
-        // Read uniforms for StridedBufferView
-        if (nb::isinstance<sgl::slangpy::StridedBufferView>(nbval)) {
-            auto view = nb::cast<sgl::slangpy::StridedBufferView*>(nbval);
-            nbval = view->uniforms();
-        }
-
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
         auto kind = (TypeReflection::Kind)type_layout->getKind();
 
@@ -688,6 +720,8 @@ private:
             try {
                 return m_write_scalar[(int)type->getScalarType()](self, nbval);
             } catch (const std::exception&) {
+                if (write_registered_native_object(self, nbval))
+                    return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
                 throw;
@@ -699,6 +733,8 @@ private:
             try {
                 return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
             } catch (const std::exception&) {
+                if (write_registered_native_object(self, nbval))
+                    return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
                 throw;
@@ -713,6 +749,8 @@ private:
                     nbval
                 );
             } catch (const std::exception&) {
+                if (write_registered_native_object(self, nbval))
+                    return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
                 throw;
@@ -741,12 +779,8 @@ private:
                 return;
             }
 
-            sgl::slangpy::StridedBufferView* sbview;
-            if (nb::try_cast<sgl::slangpy::StridedBufferView*>(nbval, sbview)) {
-                // If we have a StridedBufferView, write address of storage plus offset.
-                self.set_pointer(sbview->storage()->device_address() + sbview->offset());
+            if (write_registered_native_object(self, nbval))
                 return;
-            }
 
             if (try_unpack_and_retry(self, nbval))
                 return;
@@ -759,14 +793,6 @@ private:
             // Unwrap constant buffers or parameter blocks
             if (kind != TypeReflection::Kind::struct_)
                 type_layout = type_layout->getElementTypeLayout();
-
-            // Handle shader object if possible.
-            if constexpr (requires { self.set_object(nullptr); }) {
-                if (nb::isinstance<ShaderObject>(nbval)) {
-                    self.set_object(nb::cast<ref<ShaderObject>>(nbval));
-                    return;
-                }
-            }
 
             // Expect a dict for a slang struct.
             if (nb::isinstance<nb::dict>(nbval)) {
@@ -783,6 +809,8 @@ private:
                 }
                 return;
             } else {
+                if (write_registered_native_object(self, nbval))
+                    return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
                 SGL_THROW("Expected dict");
@@ -818,6 +846,8 @@ private:
                 m_stack.pop_back();
                 return;
             } else {
+                if (write_registered_native_object(self, nbval))
+                    return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
                 SGL_THROW("Expected list");

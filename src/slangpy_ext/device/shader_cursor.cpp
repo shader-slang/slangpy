@@ -4,58 +4,19 @@
 
 #include "sgl/device/shader_cursor.h"
 #include "sgl/device/shader_object.h"
-#include "sgl/device/resource.h"
-#include "sgl/device/sampler.h"
-#include "sgl/device/raytracing.h"
 #include "sgl/device/cuda_interop.h"
 
 #include "device/cursor_utils.h"
-
-#include <typeindex>
-#include <unordered_map>
 
 namespace sgl {
 namespace detail {
 
     class ShaderCursorWriteConverterTable : public WriteConverterTable<ShaderCursor> {
     public:
-#define add_type(c_type_name, set_func_name)                                                                           \
-    m_write_table[typeid(c_type_name)] = [](ShaderCursor& self, nb::object nbval)                                      \
-    {                                                                                                                  \
-        self.set_func_name(nb::cast<ref<c_type_name>>(nbval));                                                         \
-        return true;                                                                                                   \
-    };
-
-        ShaderCursorWriteConverterTable()
-            : WriteConverterTable<ShaderCursor>()
-        {
-            add_type(ShaderObject, set_object);
-            add_type(Buffer, set_buffer);
-            add_type(BufferView, set_buffer_view);
-            add_type(Texture, set_texture);
-            add_type(TextureView, set_texture_view);
-            add_type(Sampler, set_sampler);
-            add_type(AccelerationStructure, set_acceleration_structure);
-            m_write_table[typeid(DescriptorHandle)] = [](ShaderCursor& self, nb::object nbval)
-            {
-                self.set_descriptor_handle(nb::cast<DescriptorHandle>(nbval));
-                return true;
-            };
-        }
-
         bool write_value(ShaderCursor& self, nb::object nbval) override
         {
             if (WriteConverterTable<ShaderCursor>::write_value(self, nbval))
                 return true;
-
-            nb::handle type = nbval.type();
-            if (nb::type_check(type)) {
-                const std::type_info& ti = nb::type_info(type);
-                auto it = m_write_table.find(ti);
-                if (it != m_write_table.end()) {
-                    return it->second(self, nbval);
-                }
-            }
 
             nb::ndarray<nb::device::cuda> cudaarray;
             if (nb::try_cast(nbval, cudaarray)) {
@@ -65,9 +26,6 @@ namespace detail {
 
             return false;
         }
-
-    private:
-        std::unordered_map<std::type_index, std::function<bool(ShaderCursor&, nb::object)>> m_write_table;
     };
 
     static ShaderCursorWriteConverterTable _writeconv;
@@ -100,6 +58,15 @@ SGL_PY_EXPORT(device_shader_cursor)
     shader_cursor //
         .def(nb::init<ShaderObject*>(), "shader_object"_a, D(ShaderCursor, ShaderCursor))
         .def_prop_ro("_offset", &ShaderCursor::offset, D(ShaderCursor, offset))
+        .def(
+            "reinterpret",
+            [](ShaderCursor& self, ref<TypeLayoutReflection> new_layout)
+            {
+                return self.reinterpret(new_layout->get_slang_type_layout());
+            },
+            "new_layout"_a,
+            D(ShaderCursor, reinterpret)
+        )
         .def("dereference", &ShaderCursor::dereference, D(ShaderCursor, dereference))
         .def("find_entry_point", &ShaderCursor::find_entry_point, "index"_a, D(ShaderCursor, find_entry_point))
         .def(
