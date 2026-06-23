@@ -680,51 +680,14 @@ private:
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
         auto kind = (TypeReflection::Kind)type_layout->getKind();
 
-        // Read uniforms for NativeTensor unless it is being written directly to a pointer.
-        //
-        // For plain tensor targets, we pass the standard flat uniforms dictionary:
-        //   {_data, _shape, _offset, _strides}
-        //
-        // For DiffTensor-like targets, the destination layout is a struct with nested
-        // fields (_primal, optional _grad_in/_grad_out). In that case, adapt the
-        // source NativeTensor into a nested dictionary so recursive struct writing
-        // populates the correct fields.
+        // Adapt a NativeTensor to the destination layout unless it is written directly to
+        // a pointer. Structure detection is cursor-driven: a plain tensor field exposes
+        // `_data` and receives the flat uniforms, while a DiffTensor field exposes `_primal`
+        // and receives a nested dict (see NativeTensor::uniforms_for_layout). The generic
+        // struct/array recursion below then performs the actual field writes.
         if (kind != TypeReflection::Kind::pointer && nb::isinstance<sgl::slangpy::NativeTensor>(nbval)) {
             auto tensor = nb::cast<sgl::slangpy::NativeTensor*>(nbval);
-            nb::dict uniforms = tensor->uniforms();
-
-            slang::TypeLayoutReflection* target_layout = type_layout;
-            if (kind == TypeReflection::Kind::constant_buffer || kind == TypeReflection::Kind::parameter_block)
-                target_layout = target_layout->getElementTypeLayout();
-
-            bool has_primal = false;
-            bool has_grad_in = false;
-            bool has_grad_out = false;
-
-            if (target_layout && (TypeReflection::Kind)target_layout->getKind() == TypeReflection::Kind::struct_) {
-                for (uint32_t i = 0; i < target_layout->getFieldCount(); i++) {
-                    auto field = target_layout->getFieldByIndex(i);
-                    const char* name = field->getName();
-                    if (strcmp(name, "_primal") == 0)
-                        has_primal = true;
-                    else if (strcmp(name, "_grad_in") == 0)
-                        has_grad_in = true;
-                    else if (strcmp(name, "_grad_out") == 0)
-                        has_grad_out = true;
-                }
-            }
-
-            if (has_primal) {
-                nb::dict nested;
-                nested["_primal"] = uniforms;
-                if (has_grad_in && tensor->grad_in())
-                    nested["_grad_in"] = tensor->grad_in()->uniforms();
-                if (has_grad_out && tensor->grad_out())
-                    nested["_grad_out"] = tensor->grad_out()->uniforms();
-                nbval = nested;
-            } else {
-                nbval = uniforms;
-            }
+            nbval = tensor->uniforms_for_layout(self);
         }
 
         switch (kind) {

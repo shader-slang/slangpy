@@ -9,6 +9,7 @@
 #include "nanobind.h"
 
 #include "sgl/core/macros.h"
+#include "sgl/core/error.h"
 #include "sgl/core/fwd.h"
 #include "sgl/core/object.h"
 
@@ -82,6 +83,37 @@ public:
     bool is_contiguous() const;
     ref<BufferCursor> cursor(std::optional<int> start = std::nullopt, std::optional<int> count = std::nullopt) const;
     nb::dict uniforms() const;
+
+    /// Build the uniform dictionary used when writing this tensor into a struct field,
+    /// selecting the shape from the destination layout probed through @p cursor:
+    ///  - a plain tensor target exposes a `_data` field and receives the flat uniforms;
+    ///  - a DiffTensor target exposes a `_primal` field and receives a nested dictionary,
+    ///    with `_grad_in`/`_grad_out` populated only when the target has the field and the
+    ///    matching gradient tensor is bound (a primal-only write leaves grads unwritten,
+    ///    matching the fast path in write_native_tensor()).
+    /// Structure detection is entirely cursor-driven (the `_data` probe mirrors
+    /// extract_tensor_field_offsets()); `uniforms()` is used only as the leaf-value source.
+    /// The caller writes the returned dict through the generic struct/array recursion, which
+    /// owns the backend-sensitive `_data` pointer-vs-resource and array field writes.
+    template<typename CursorType>
+    nb::dict uniforms_for_layout(const CursorType& cursor) const
+    {
+        if (cursor.has_field("_data"))
+            return uniforms();
+        if (cursor.has_field("_primal")) {
+            nb::dict nested;
+            nested["_primal"] = uniforms();
+            if (m_grad_in && cursor.has_field("_grad_in"))
+                nested["_grad_in"] = m_grad_in->uniforms();
+            if (m_grad_out && cursor.has_field("_grad_out"))
+                nested["_grad_out"] = m_grad_out->uniforms();
+            return nested;
+        }
+        SGL_THROW(
+            "Cannot write a Tensor into a struct field that has neither a '_data' "
+            "(plain tensor) nor a '_primal' (DiffTensor) member."
+        );
+    }
 
     /// Clear tensor storage to zeros.
     void clear(CommandEncoder* cmd = nullptr);

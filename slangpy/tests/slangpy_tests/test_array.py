@@ -493,5 +493,61 @@ void double_buffers(RWStructuredBuffer<int> buffers[4]) {
         assert result[0] == (i + 1) * 20
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_array_of_difftensors_read(device_type: DeviceType):
+    """Read the primal from an array of DiffTensor<float,1> params.
+
+    Regression for #996: a DiffTensor written as a struct field goes through the
+    generic cursor write path, which must adapt the flat tensor uniforms onto the
+    DiffTensor `_primal`/`_grad_out` layout instead of writing them flat.
+    """
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "sum_difftensors",
+        r"""
+float sum_difftensors(DiffTensor<float, 1> tensors[2]) {
+    return tensors[0].load(int[1](0)) + tensors[1].load(int[1](0));
+}
+""",
+    )
+
+    t0 = Tensor.from_numpy(device, np.array([3.0], dtype=np.float32)).with_grads()
+    t1 = Tensor.from_numpy(device, np.array([5.0], dtype=np.float32)).with_grads()
+
+    result = function([t0, t1])
+    assert result == pytest.approx(8.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_array_of_rwdifftensors_write(device_type: DeviceType):
+    """Write the primal of an array of RWDiffTensor<float,1> params.
+
+    Regression for #996: exercises the write path for the full _primal/_grad_in/
+    _grad_out DiffTensor layout nested inside an array.
+    """
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "write_difftensors",
+        r"""
+void write_difftensors(RWDiffTensor<float, 1> tensors[2]) {
+    tensors[0].store(int[1](0), 10.0f);
+    tensors[1].store(int[1](0), 20.0f);
+}
+""",
+    )
+
+    t0 = Tensor.from_numpy(device, np.array([0.0], dtype=np.float32)).with_grads()
+    t1 = Tensor.from_numpy(device, np.array([0.0], dtype=np.float32)).with_grads()
+
+    function([t0, t1])
+
+    assert t0.to_numpy()[0] == pytest.approx(10.0)
+    assert t1.to_numpy()[0] == pytest.approx(20.0)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
