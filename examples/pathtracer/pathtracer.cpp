@@ -21,6 +21,11 @@
 #include "sgl/device/surface.h"
 #include "sgl/device/agility_sdk.h"
 
+#include "sgl/utils/profiler.h"
+#include "sgl/utils/profiler_ui.h"
+
+#include "sgl/ui/ui.h"
+
 #include "sgl/utils/tev.h"
 
 #include <map>
@@ -403,6 +408,8 @@ struct Scene {
         , stage(stage)
         , camera(stage.camera)
     {
+        SGL_PROFILE_FUNCTION();
+
         // Prepare material descriptors
         material_descs.resize(stage.materials.size());
         for (size_t i = 0; i < stage.materials.size(); ++i)
@@ -518,6 +525,8 @@ struct Scene {
 
     ref<AccelerationStructure> build_blas(const MeshDesc& mesh_desc)
     {
+        SGL_PROFILE_FUNCTION();
+
         AccelerationStructureBuildInputTriangles build_input{
             .vertex_buffers = {BufferOffsetPair(vertex_buffer, mesh_desc.vertex_offset * sizeof(Mesh::Vertex))},
             .vertex_format = Format::rgb32_float,
@@ -556,6 +565,8 @@ struct Scene {
 
     ref<AccelerationStructure> build_tlas()
     {
+        SGL_PROFILE_FUNCTION();
+
         ref<AccelerationStructureInstanceList> instance_list
             = device->create_acceleration_structure_instance_list(instance_descs.size());
 
@@ -625,6 +636,8 @@ struct PathTracer {
         : device(device)
         , scene(scene)
     {
+        SGL_PROFILE_FUNCTION();
+
         if (USE_RAYTRACING_PIPELINE) {
             program = device->load_program("pathtracer.slang", {"rt_ray_gen", "rt_closest_hit", "rt_miss"});
             rt_pipeline = device->create_ray_tracing_pipeline({
@@ -652,6 +665,8 @@ struct PathTracer {
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> output, uint32_t frame)
     {
+        SGL_PROFILE_FUNCTION(command_encoder);
+
         if (USE_RAYTRACING_PIPELINE) {
             ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
             ShaderObject* shader_object = pass_encoder->bind_pipeline(rt_pipeline, shader_table);
@@ -683,12 +698,16 @@ struct Accumulator {
     Accumulator(ref<Device> device)
         : device(device)
     {
+        SGL_PROFILE_FUNCTION();
+
         program = device->load_program("accumulator.slang", {"compute_main"});
         kernel = device->create_compute_kernel({.program = program});
     }
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> input, ref<Texture> output, bool reset = false)
     {
+        SGL_PROFILE_FUNCTION(command_encoder);
+
         if (!accumulator || accumulator->width() != input->width() || accumulator->height() != input->height()) {
             accumulator = device->create_texture({
                 .format = Format::rgba32_float,
@@ -721,12 +740,16 @@ struct ToneMapper {
     ToneMapper(ref<Device> device)
         : device(device)
     {
+        SGL_PROFILE_FUNCTION();
+
         program = device->load_program("tone_mapper.slang", {"compute_main"});
         kernel = device->create_compute_kernel({.program = program});
     }
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> input, ref<Texture> output)
     {
+        SGL_PROFILE_FUNCTION(command_encoder);
+
         kernel->dispatch(
             uint3(input->width(), input->height(), 1),
             [&](ShaderCursor cursor)
@@ -753,9 +776,12 @@ struct App {
     std::unique_ptr<PathTracer> path_tracer;
     std::unique_ptr<Accumulator> accumulator;
     std::unique_ptr<ToneMapper> tone_mapper;
+    ref<ui::Context> ui;
 
     App()
     {
+        SGL_PROFILE_FUNCTION();
+
         window = Window::create({
             .width = 1920,
             .height = 1080,
@@ -763,7 +789,7 @@ struct App {
             .resizable = true,
         });
         device = Device::create({
-            // .type = DeviceType::cuda,
+            .type = DeviceType::cuda,
             .enable_debug_layers = true,
             .compiler_options = {
                 .include_paths = {EXAMPLE_DIR},
@@ -803,10 +829,15 @@ struct App {
         path_tracer = std::make_unique<PathTracer>(device, *scene);
         accumulator = std::make_unique<Accumulator>(device);
         tone_mapper = std::make_unique<ToneMapper>(device);
+
+        ui = make_ref<ui::Context>(device);
     }
 
     void on_keyboard_event(const KeyboardEvent& event)
     {
+        if (ui->handle_keyboard_event(event))
+            return;
+
         if (event.type == KeyboardEventType::key_press) {
             if (event.key == KeyCode::escape) {
                 window->close();
@@ -824,7 +855,12 @@ struct App {
         camera_controller->on_keyboard_event(event);
     }
 
-    void on_mouse_event(const MouseEvent& event) { camera_controller->on_mouse_event(event); }
+    void on_mouse_event(const MouseEvent& event)
+    {
+        if (ui->handle_mouse_event(event))
+            return;
+        camera_controller->on_mouse_event(event);
+    }
 
     void on_resize(uint32_t width, uint32_t height)
     {
@@ -845,6 +881,9 @@ struct App {
         uint32_t frame = 0;
         Timer timer;
         while (!window->should_close()) {
+            SGL_PROFILE_FRAME();
+            SGL_PROFILE_SCOPE("frame");
+
             float dt = float(timer.elapsed_s());
             timer.reset();
 
@@ -855,9 +894,15 @@ struct App {
 
             if (!surface->config())
                 continue;
-            ref<Texture> surface_texture = surface->acquire_next_image();
+            ref<Texture> surface_texture;
+            {
+                SGL_PROFILE_SCOPE("acquire_next_image");
+                surface_texture = surface->acquire_next_image();
+            }
             if (!surface_texture)
                 continue;
+
+            ui->begin_frame(surface_texture->width(), surface_texture->height(), window);
 
             if (!output_texture || output_texture->width() != surface_texture->width()
                 || output_texture->height() != surface_texture->height()) {
@@ -889,18 +934,32 @@ struct App {
             stage->camera.recompute();
 
             ref<CommandEncoder> command_encoder = device->create_command_encoder();
-            {
-                path_tracer->execute(command_encoder, render_texture, frame);
-                accumulator->execute(command_encoder, render_texture, accum_texture, frame == 0);
-                tone_mapper->execute(command_encoder, accum_texture, output_texture);
 
+            path_tracer->execute(command_encoder, render_texture, frame);
+            accumulator->execute(command_encoder, render_texture, accum_texture, frame == 0);
+            tone_mapper->execute(command_encoder, accum_texture, output_texture);
+
+            {
+                SGL_PROFILE_SCOPE("blit", command_encoder);
                 command_encoder->blit(surface_texture, output_texture);
             }
-            device->submit_command_buffer(command_encoder->finish());
 
-            surface->present();
+            ui::render_profiler_window();
+            ui->end_frame(surface_texture, command_encoder);
+
+            {
+                SGL_PROFILE_SCOPE("submit_command_buffer");
+                device->submit_command_buffer(command_encoder->finish());
+            }
+
+            {
+                SGL_PROFILE_SCOPE("present");
+                surface->present();
+            }
 
             frame++;
+
+            current_profiler()->tick();
         }
 
         device->close();
@@ -911,10 +970,20 @@ int main()
 {
     sgl::static_init();
 
+    ref<Profiler> profiler = make_ref<Profiler>();
+    sgl::push_current_profiler(profiler);
+    profiler->start_trace();
+
     {
         App app;
         app.main_loop();
     }
+
+    profiler->stop_trace();
+    ref<ProfilerTrace> trace = profiler->trace_snapshot();
+    trace->write_to_json("trace.json");
+
+    profiler.reset();
 
     sgl::static_shutdown();
 }

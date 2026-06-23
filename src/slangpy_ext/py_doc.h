@@ -6391,6 +6391,337 @@ static const char *__doc_sgl_PrimitiveTopology_triangle_list = R"doc()doc";
 
 static const char *__doc_sgl_PrimitiveTopology_triangle_strip = R"doc()doc";
 
+static const char *__doc_sgl_Profiler = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_2 =
+R"doc(Hierarchical CPU/GPU application profiler.
+
+A profiler becomes the application-wide current profiler when
+constructed and removes itself from the current stack when destroyed.)doc";
+
+static const char *__doc_sgl_Profiler_3 =
+R"doc(Hierarchical CPU/GPU application profiler.
+
+A profiler becomes the application-wide current profiler when
+constructed and removes itself from the current stack when destroyed.)doc";
+
+static const char *__doc_sgl_ProfilerDesc = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerDesc_2 = R"doc(Descriptor for creating a Profiler.)doc";
+
+static const char *__doc_sgl_ProfilerDesc_auto_zones_enabled = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerDesc_debug_groups_enabled = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerDesc_gpu_query_pool_size = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerDesc_stats_window_size = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerDesc_trace_enabled_on_start = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameRecord = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameRecord_end_timestamp = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameRecord_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameRecord_name_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameRecord_source_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameRecord_start_timestamp = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameToken =
+R"doc(Opaque state returned by Profiler::begin_frame() and consumed by
+Profiler::end_frame().)doc";
+
+static const char *__doc_sgl_ProfilerFrameToken_profiler = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameToken_thread_data = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerImpl = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerNameRecord = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerNameRecord_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerNameRecord_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope =
+R"doc(RAII helper that pushes a profiler as this thread's current
+profiler.)doc";
+
+static const char *__doc_sgl_ProfilerScope_ProfilerScope = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope_ProfilerScope_2 = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope_ProfilerScope_3 = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope_m_active = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope_m_profiler = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope_operator_assign_2 = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceLocation = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceLocation_2 = R"doc(Stable metadata for a profiler source callsite.)doc";
+
+static const char *__doc_sgl_ProfilerSourceLocation_file = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceLocation_function = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceLocation_line = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord_display_function = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord_file = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord_line = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSourceRecord_original_function = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_average_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_last_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_max_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_min_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_sample_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_stddev_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatValue_valid = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_child_index_begin = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_child_index_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_cpu = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_gpu = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_name_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_parent_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_pending_gpu_sample_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStatsNode_source_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_child_indices = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_class_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_completed_frame_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_child_indices = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_completed_frame_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_names = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_nodes = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_sources = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_m_window_size = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_names = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_nodes = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_sources = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerStats_window_size = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_device_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_queue = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_thread_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineRecord_type = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineType = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineType_cpu = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineType_gpu = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimelineType_info = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_child_indices = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_class_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_frames = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_child_indices = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_frames = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_names = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_root_indices = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_sources = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_timelines = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_zones = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_names = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_root_indices = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_sources = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_timelines = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_write_to_json = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_zones = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneFlags = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneFlags_copy_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneFlags_debug_group = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneFlags_info = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneFlags_none = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneRecord = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneRecord_child_index_begin = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneRecord_child_index_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneRecord_end_timestamp = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneRecord_event_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneRecord_frame_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneRecord_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneRecord_name_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneRecord_source_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneRecord_start_timestamp = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneRecord_timeline_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken =
+R"doc(Opaque state returned by Profiler::begin_zone() and consumed by
+Profiler::end_zone().)doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_debug_group_active = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_encoder = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_end_query_index = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_profiler = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_query_pool = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_thread_data = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_Profiler = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_auto_zones_enabled = R"doc(Whether SlangPy functional calls automatically insert profiler zones.)doc";
+
+static const char *__doc_sgl_Profiler_begin_frame = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_begin_zone = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_class_name = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_clear_trace = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_debug_groups_enabled = R"doc(Whether auto GPU zones also emit command debug groups.)doc";
+
+static const char *__doc_sgl_Profiler_desc = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_enabled =
+R"doc(Whether profiling is enabled. When disabled, recording calls are no-
+ops.)doc";
+
+static const char *__doc_sgl_Profiler_end_frame = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_end_zone = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_flush = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_intern_name = R"doc(Intern or reuse a dynamic profiler zone name.)doc";
+
+static const char *__doc_sgl_Profiler_intern_source_location = R"doc(Intern or reuse a dynamic source location.)doc";
+
+static const char *__doc_sgl_Profiler_m_auto_zones_enabled = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_m_debug_groups_enabled = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_m_desc = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_m_enabled = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_m_impl = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_m_stats_window_size = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_set_auto_zones_enabled = R"doc(Enable or disable automatic SlangPy functional call zones.)doc";
+
+static const char *__doc_sgl_Profiler_set_debug_groups_enabled = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_set_enabled = R"doc(Enable or disable profiling.)doc";
+
+static const char *__doc_sgl_Profiler_set_stats_window_size = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_start_trace = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_stats_snapshot = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_stats_window_size = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_stop_trace = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_tick = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_to_string = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_trace_snapshot =
+R"doc(Get a snapshot of the current profiler trace data. The returned trace
+is a copy of the data recorded so far, and is not updated with future
+profiling events.)doc";
+
 static const char *__doc_sgl_ProgramLayout = R"doc()doc";
 
 static const char *__doc_sgl_ProgramLayout_2 = R"doc()doc";
@@ -9744,6 +10075,15 @@ Throws if the stack is empty.
 Returns:
     The current device.)doc";
 
+static const char *__doc_sgl_current_profiler =
+R"doc(Get the current profiler from the top of the application-wide profiler
+stack. Throws if the stack is empty.
+
+Returns:
+    The current profiler.)doc";
+
+static const char *__doc_sgl_current_profiler_or_null = R"doc(Return the application-wide current profiler, or null.)doc";
+
 static const char *__doc_sgl_cursor_utils_CursorWriterTypeInfo =
 R"doc(Native registry entry for one cursor-writable value type.
 
@@ -9811,6 +10151,20 @@ static const char *__doc_sgl_data_type_size = R"doc(Get the size of a type in by
 
 static const char *__doc_sgl_detail_CursorWriterOwner = R"doc()doc";
 
+static const char *__doc_sgl_detail_FrameGuard = R"doc(RAII helper for profiler frames on the current profiler.)doc";
+
+static const char *__doc_sgl_detail_FrameGuard_FrameGuard = R"doc()doc";
+
+static const char *__doc_sgl_detail_FrameGuard_FrameGuard_2 = R"doc()doc";
+
+static const char *__doc_sgl_detail_FrameGuard_FrameGuard_3 = R"doc()doc";
+
+static const char *__doc_sgl_detail_FrameGuard_m_token = R"doc()doc";
+
+static const char *__doc_sgl_detail_FrameGuard_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_detail_FrameGuard_operator_assign_2 = R"doc()doc";
+
 static const char *__doc_sgl_detail_HostTypeToFormat = R"doc()doc";
 
 static const char *__doc_sgl_detail_HostTypeToFormat_2 = R"doc()doc";
@@ -9846,6 +10200,20 @@ static const char *__doc_sgl_detail_HostTypeToFormat_16 = R"doc()doc";
 static const char *__doc_sgl_detail_HostTypeToFormat_17 = R"doc()doc";
 
 static const char *__doc_sgl_detail_HostTypeToFormat_18 = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard = R"doc(RAII helper for profiling zones on the current profiler.)doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_ZoneGuard = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_ZoneGuard_2 = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_ZoneGuard_3 = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_m_token = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_detail_ZoneGuard_operator_assign_2 = R"doc()doc";
 
 static const char *__doc_sgl_detail_build_slang_error_message = R"doc()doc";
 
@@ -10100,6 +10468,8 @@ static const char *__doc_sgl_flip_bit_11 = R"doc()doc";
 static const char *__doc_sgl_flip_bit_12 = R"doc()doc";
 
 static const char *__doc_sgl_flip_bit_13 = R"doc()doc";
+
+static const char *__doc_sgl_flip_bit_14 = R"doc()doc";
 
 static const char *__doc_sgl_func_BaseModule = R"doc(Base class for functional slangpy module.)doc";
 
@@ -10370,6 +10740,8 @@ static const char *__doc_sgl_is_set_11 = R"doc()doc";
 static const char *__doc_sgl_is_set_12 = R"doc()doc";
 
 static const char *__doc_sgl_is_set_13 = R"doc()doc";
+
+static const char *__doc_sgl_is_set_14 = R"doc()doc";
 
 static const char *__doc_sgl_layout_from_rhilayout = R"doc()doc";
 
@@ -11481,6 +11853,8 @@ static const char *__doc_sgl_operator_band_12 = R"doc()doc";
 
 static const char *__doc_sgl_operator_band_13 = R"doc()doc";
 
+static const char *__doc_sgl_operator_band_14 = R"doc()doc";
+
 static const char *__doc_sgl_operator_bnot = R"doc()doc";
 
 static const char *__doc_sgl_operator_bnot_2 = R"doc()doc";
@@ -11506,6 +11880,8 @@ static const char *__doc_sgl_operator_bnot_11 = R"doc()doc";
 static const char *__doc_sgl_operator_bnot_12 = R"doc()doc";
 
 static const char *__doc_sgl_operator_bnot_13 = R"doc()doc";
+
+static const char *__doc_sgl_operator_bnot_14 = R"doc()doc";
 
 static const char *__doc_sgl_operator_bor = R"doc()doc";
 
@@ -11533,6 +11909,8 @@ static const char *__doc_sgl_operator_bor_12 = R"doc()doc";
 
 static const char *__doc_sgl_operator_bor_13 = R"doc()doc";
 
+static const char *__doc_sgl_operator_bor_14 = R"doc()doc";
+
 static const char *__doc_sgl_operator_iand = R"doc()doc";
 
 static const char *__doc_sgl_operator_iand_2 = R"doc()doc";
@@ -11559,6 +11937,8 @@ static const char *__doc_sgl_operator_iand_12 = R"doc()doc";
 
 static const char *__doc_sgl_operator_iand_13 = R"doc()doc";
 
+static const char *__doc_sgl_operator_iand_14 = R"doc()doc";
+
 static const char *__doc_sgl_operator_ior = R"doc()doc";
 
 static const char *__doc_sgl_operator_ior_2 = R"doc()doc";
@@ -11584,6 +11964,8 @@ static const char *__doc_sgl_operator_ior_11 = R"doc()doc";
 static const char *__doc_sgl_operator_ior_12 = R"doc()doc";
 
 static const char *__doc_sgl_operator_ior_13 = R"doc()doc";
+
+static const char *__doc_sgl_operator_ior_14 = R"doc()doc";
 
 static const char *__doc_sgl_platform_FileDialogFilter = R"doc()doc";
 
@@ -11736,6 +12118,13 @@ stack is empty.
 Returns:
     The popped device.)doc";
 
+static const char *__doc_sgl_pop_current_profiler =
+R"doc(Pop the top profiler from the application-wide current profiler stack.
+Throws if the stack is empty.
+
+Returns:
+    The popped profiler.)doc";
+
 static const char *__doc_sgl_push_current_device =
 R"doc(Push a device onto the thread-local current device stack.
 
@@ -11749,6 +12138,12 @@ device is kept alive (refcount > 0) until popped.
 
 Parameter ``device``:
     Device to push (must not be null).)doc";
+
+static const char *__doc_sgl_push_current_profiler =
+R"doc(Push a profiler onto the application-wide current profiler stack.
+
+Parameter ``profiler``:
+    Profiler to push (must not be null).)doc";
 
 static const char *__doc_sgl_ref = R"doc()doc";
 
@@ -14145,6 +14540,8 @@ static const char *__doc_sgl_ui_operator_iand_2 = R"doc()doc";
 static const char *__doc_sgl_ui_operator_ior = R"doc()doc";
 
 static const char *__doc_sgl_ui_operator_ior_2 = R"doc()doc";
+
+static const char *__doc_sgl_ui_render_profiler_window = R"doc(Render an ImGui profiler window for a profiler stats snapshot.)doc";
 
 static const char *__doc_std_hash = R"doc()doc";
 
