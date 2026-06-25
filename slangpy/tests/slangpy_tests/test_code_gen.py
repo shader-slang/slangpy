@@ -1468,7 +1468,8 @@ float sum_first<let N : int>(uint2 tid, RWTensor<float,2> tensors[N], uint i)
         # No CUDA-specific override on these targets, so behavior is purely
         # threshold-driven. Don't pin a specific value here, just assert the
         # call data built without errors.
-        assert cd is not None and threshold > 0
+        assert cd is not None
+        assert threshold > 0
 
 
 # 46c -----------------------------------------------------------------------
