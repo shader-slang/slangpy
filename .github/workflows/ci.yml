@@ -137,12 +137,31 @@ jobs:
         run: |
           sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
 
-      # Setup Python (no pip cache on self-hosted runners).
-      - name: Setup Python ${{ matrix.python }} (No cache)
-        if: runner.environment == 'self-hosted'
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python }}
+      # Setup Python venv from system Python on self-hosted runners.
+      - name: Setup Python venv (Windows self-hosted)
+        if: runner.environment == 'self-hosted' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $root = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { $env:TEMP }
+          $venv = Join-Path $root "slangpy-python"
+          if (Test-Path -LiteralPath $venv) {
+            Remove-Item -LiteralPath $venv -Recurse -Force
+          }
+          python -m venv $venv
+          & (Join-Path $venv "Scripts\python.exe") -m pip install --upgrade pip
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $venv "Scripts")
+          Add-Content -Path $env:GITHUB_ENV -Value "VIRTUAL_ENV=$venv"
+
+      - name: Setup Python venv (Linux self-hosted)
+        if: runner.environment == 'self-hosted' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          venv="${RUNNER_TEMP:-/tmp}/slangpy-python"
+          rm -rf "${venv}"
+          python3 -m venv "${venv}"
+          "${venv}/bin/python" -m pip install --upgrade pip
+          echo "${venv}/bin" >> "${GITHUB_PATH}"
+          echo "VIRTUAL_ENV=${venv}" >> "${GITHUB_ENV}"
 
       # Setup Python (with pip cache on github-hosted runners).
       - name: Setup Python ${{ matrix.python }} (Pip cache)
