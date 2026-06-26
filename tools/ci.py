@@ -160,6 +160,7 @@ def test_examples(args: Any):
 
 def benchmark_python(args: Any):
     env = get_python_env()
+    env["SLANGPY_ALLOW_TORCH_FALLBACK"] = "1"
 
     # Define available device types per platform
     os_name = get_os()
@@ -193,6 +194,8 @@ def benchmark_python(args: Any):
                 cmd = ["sudo"] + cmd
             run_command(cmd)
 
+        failed_device_types = []
+
         # Run benchmarks for each device type
         for device_type in device_types:
             print(f"Running benchmarks for device type: {device_type}")
@@ -208,9 +211,15 @@ def benchmark_python(args: Any):
                 run_command(cmd, env=env)
             except Exception as e:
                 print(f"Benchmarks failed for device type {device_type}: {e}")
+                failed_device_types.append(device_type)
                 if args.device_type:  # If specific device requested, fail hard
                     raise
                 # Otherwise, continue with other devices
+
+        if failed_device_types:
+            raise RuntimeError(
+                "Benchmarks failed for device type(s): " + ", ".join(failed_device_types)
+            )
     finally:
         # Unlock GPU clocks
         if args.lock_gpu_clocks:
