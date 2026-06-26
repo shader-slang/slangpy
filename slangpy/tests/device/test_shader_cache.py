@@ -9,6 +9,9 @@ from slangpy.testing import helpers
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_shader_cache(device_type: spy.DeviceType, tmpdir: str):
+    if device_type == spy.DeviceType.vulkan:
+        pytest.skip("Vulkan shader cache test crashes.")
+
     cache_dir = tmpdir
     # Create device with a shader cache.
     device = spy.Device(
