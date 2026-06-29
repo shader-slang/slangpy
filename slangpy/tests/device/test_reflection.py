@@ -410,6 +410,7 @@ def test_return_value_modifier(test_id: str, device_type: spy.DeviceType):
         module_name=f"module_from_source_{test_id}",
         source="""
         no_diff int test(int a) {
+            return 0;
         }
     """,
     )

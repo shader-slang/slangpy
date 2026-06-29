@@ -94,6 +94,9 @@ void run_gpu_test(void (*func)(GpuTestContext&))
                     .type = device_type,
                     .enable_debug_layers = true,
                 };
+                desc.compiler_options.include_paths.push_back(
+                    std::filesystem::path(SOURCE_DIR).parent_path() / "slangpy" / "slang"
+                );
                 device = Device::create(desc);
                 if (use_cached_device)
                     g_cached_devices[device_type] = device;

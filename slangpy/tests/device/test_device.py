@@ -41,22 +41,44 @@ def test_device_close_handler(device_type: spy.DeviceType):
 
     # Define a callback that increments a counter and captures the closed device.
     count = 0
+    second_count = 0
+    unregistered_count = 0
     closed_device: Optional[spy.Device] = None
 
-    def on_close(cd: spy.Device):
+    def on_close(cd: spy.Device) -> None:
         nonlocal count
         nonlocal device
         nonlocal closed_device
         assert cd == device
         count += 1
         closed_device = cd
+        device.unregister_device_close_callback(close_callback_id)
+
+    def on_second_close(cd: spy.Device) -> None:
+        nonlocal second_count
+        assert cd == device
+        second_count += 1
+
+    def on_unregistered_close(cd: spy.Device) -> None:
+        nonlocal unregistered_count
+        assert cd == device
+        unregistered_count += 1
 
     # Register device, then close it.
-    device.register_device_close_callback(on_close)
+    close_callback_id = device.register_device_close_callback(on_close)
+    second_close_callback_id = device.register_device_close_callback(on_second_close)
+    unregistered_callback_id = device.register_device_close_callback(on_unregistered_close)
+    assert isinstance(close_callback_id, int)
+    assert isinstance(second_close_callback_id, int)
+    assert isinstance(unregistered_callback_id, int)
+    assert close_callback_id != unregistered_callback_id
+    device.unregister_device_close_callback(unregistered_callback_id)
     device.close()
 
     # Check that the callback was called.
     assert count == 1
+    assert second_count == 1
+    assert unregistered_count == 0
     assert closed_device is not None
 
     # Null the device, but the captured reference should still be
@@ -147,18 +169,38 @@ def test_hot_reload_event(device_type: spy.DeviceType):
 
     # Setup a hook that increments a counter on hot reload.
     count = 0
+    second_count = 0
+    unregistered_count = 0
 
-    def inc_count(x: spy.ShaderHotReloadEvent):
+    def inc_count(_event: spy.ShaderHotReloadEvent) -> None:
         nonlocal count
         count += 1
+        device.unregister_shader_hot_reload_callback(callback_id)
 
-    device.register_shader_hot_reload_callback(inc_count)
+    def inc_second_count(_event: spy.ShaderHotReloadEvent) -> None:
+        nonlocal second_count
+        second_count += 1
+
+    def inc_unregistered_count(_event: spy.ShaderHotReloadEvent) -> None:
+        nonlocal unregistered_count
+        unregistered_count += 1
+
+    callback_id = device.register_shader_hot_reload_callback(inc_count)
+    second_callback_id = device.register_shader_hot_reload_callback(inc_second_count)
+    unregistered_callback_id = device.register_shader_hot_reload_callback(inc_unregistered_count)
+    assert isinstance(callback_id, int)
+    assert isinstance(second_callback_id, int)
+    assert isinstance(unregistered_callback_id, int)
+    assert callback_id != unregistered_callback_id
+    device.unregister_shader_hot_reload_callback(unregistered_callback_id)
 
     # Force hot reload.
     device.reload_all_programs()
 
     # Check count.
     assert count == 1
+    assert second_count == 1
+    assert unregistered_count == 0
 
 
 @pytest.mark.parametrize(
@@ -216,7 +258,7 @@ def test_device_import(device_type: spy.DeviceType):
         module_name=f"copy_buffer_{device_type.name}",
         source=r"""
         [shader("compute")]
-        [numthreads(1, 1, 1)]
+        [numthreads(32, 1, 1)]
         void copy_kernel(uint1 tid: SV_DispatchThreadID, StructuredBuffer<int> src, RWStructuredBuffer<int> dst) {
             dst[tid.x] = src[tid.x];
         }

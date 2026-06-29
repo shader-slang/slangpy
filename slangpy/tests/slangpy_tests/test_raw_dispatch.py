@@ -32,7 +32,7 @@ void func_entrypoint(uint3 dispatchThreadID: SV_DispatchThreadID, RWStructuredBu
 
 [shader("compute")]
 [numthreads(32, 1, 1)]
-void tensor_entrypoint(uint3 dispatchThreadID: SV_DispatchThreadID, RWTensor<uint3,1> buffer) {
+void tensor_entrypoint(uint3 dispatchThreadID: SV_DispatchThreadID, uniform RWTensor<uint3,1> buffer) {
     buffer[dispatchThreadID.x] = dispatchThreadID;
 }
 

@@ -1,0 +1,25 @@
+name: gh-bridge-smoke-windows
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  smoke-windows:
+    name: Windows bridge smoke
+    runs-on: [self-hosted, Windows, X64, nvrgfx-bridge]
+    timeout-minutes: 10
+
+    steps:
+      - name: Print runner context
+        shell: powershell
+        run: |
+          Write-Host "GH bridge Windows smoke"
+          Write-Host "Timestamp: $(Get-Date -Format o)"
+          Write-Host "Runner name: $env:RUNNER_NAME"
+          Write-Host "Runner OS: $env:RUNNER_OS"
+          Write-Host "Runner arch: $env:RUNNER_ARCH"
+          Write-Host "Workflow: $env:GITHUB_WORKFLOW"
+          Write-Host "Run id: $env:GITHUB_RUN_ID"
+          Write-Host "Repository: $env:GITHUB_REPOSITORY"

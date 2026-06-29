@@ -2,9 +2,86 @@
 
 #include "sgl/device/cursor_utils.h"
 
+#include "sgl/device/raytracing.h"
+#include "sgl/device/resource.h"
+#include "sgl/device/sampler.h"
+#include "sgl/device/shader_object.h"
+#include "sgl/func/tensor.h"
+
 namespace sgl {
 
 namespace cursor_utils {
+
+    namespace {
+
+        // Process-wide registry for native cursor-writer descriptors.
+        // Built-in registration happens during SGL static initialization and lookup happens on hot paths.
+        std::vector<CursorWriterTypeInfo>& cursor_writer_type_info_registry()
+        {
+            static std::vector<CursorWriterTypeInfo> infos;
+            return infos;
+        }
+
+    } // namespace
+
+    void register_cursor_writer_type(CursorWriterTypeInfo info)
+    {
+        SGL_CHECK(info.type != nullptr, "Cursor writer type info must specify a type.");
+        SGL_CHECK(
+            bool(info.write_shader_cursor) || bool(info.write_buffer_cursor),
+            "Cursor writer type info for type \"{}\" must provide at least one cursor writer.",
+            info.type->name()
+        );
+        SGL_CHECK(
+            bool(info.write_signature),
+            "Cursor writer type info for type \"{}\" must provide a signature writer.",
+            info.type->name()
+        );
+        const bool has_simple_marshall_metadata = !info.slang_type_name.empty() || !info.imports.empty();
+        if (has_simple_marshall_metadata) {
+            SGL_CHECK(
+                !info.slang_type_name.empty(),
+                "Functional cursor writer metadata for type \"{}\" must provide a Slang type name.",
+                info.type->name()
+            );
+        }
+
+        auto& infos = cursor_writer_type_info_registry();
+        for (auto& entry : infos) {
+            if (!(*entry.type == *info.type))
+                continue;
+            SGL_THROW("Cursor writer type \"{}\" is already registered.", info.type->name());
+        }
+
+        infos.push_back(std::move(info));
+    }
+
+    std::span<const CursorWriterTypeInfo> cursor_writer_type_infos()
+    {
+        return cursor_writer_type_info_registry();
+    }
+
+    const CursorWriterTypeInfo* find_cursor_writer_type_info(const std::type_info& type)
+    {
+        for (const auto& info : cursor_writer_type_info_registry()) {
+            if (*info.type == type) {
+                return &info;
+            }
+        }
+        return nullptr;
+    }
+
+    void register_cursor_writers()
+    {
+        register_cursor_writer<Buffer>();
+        register_cursor_writer<BufferView>();
+        register_cursor_writer<Texture>();
+        register_cursor_writer<TextureView>();
+        register_cursor_writer<Sampler>();
+        register_cursor_writer<AccelerationStructure>();
+        register_cursor_writer<ShaderObject>();
+        register_cursor_writer<func::Tensor>();
+    }
 
     // Helper class for checking if implicit conversion between scalar types is allowed.
     // Note that only conversion between types of the same size is allowed.

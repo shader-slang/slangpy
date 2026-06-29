@@ -18,8 +18,11 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     core/timer.cpp
     core/window.cpp
     func/functional.cpp
+    func/tensor.cpp
     device/buffer_cursor.cpp
     device/command.cpp
+    device/cursor_writer.h
+    device/cursor_writer.cpp
     device/cursor_utils.h
     device/device_child.cpp
     device/device.cpp
@@ -124,6 +127,7 @@ nanobind_add_stub(
     OUTPUT ${SLANGPY_PACKAGE_DIR}/__init__.pyi
     DEPENDS slangpy_ext ${SLANGPY_PACKAGE_DIR}/__init__.py
     INCLUDE_PRIVATE # allow us to have functions/variables that start with _
+    PATTERN_FILE ${CMAKE_CURRENT_LIST_DIR}/slangpy_stub_patterns.nb
 )
 
 # Post-process the main stub file.
