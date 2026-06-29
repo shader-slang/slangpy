@@ -56,6 +56,39 @@ TEST_CASE_GPU("init")
     CHECK(ctx.device);
 }
 
+TEST_CASE_GPU("close_all_devices_keeps_snapshot_alive")
+{
+    DeviceDesc desc = ctx.device->desc();
+    desc.label = "close-all-devices-snapshot-a";
+    ref<Device> device_a = Device::create(desc);
+    desc.label = "close-all-devices-snapshot-b";
+    ref<Device> device_b = Device::create(desc);
+
+    int close_count_a = 0;
+    int close_count_b = 0;
+
+    device_a->register_device_close_callback(
+        [&](Device*)
+        {
+            close_count_a++;
+            device_b->close();
+            device_b = nullptr;
+        }
+    );
+    device_b->register_device_close_callback(
+        [&](Device*)
+        {
+            close_count_b++;
+        }
+    );
+
+    Device::close_all_devices();
+    testing::release_cached_devices();
+
+    CHECK(close_count_a == 1);
+    CHECK(close_count_b == 1);
+}
+
 TEST_CASE_GPU("execute_callback_desc_native_handle")
 {
     ExecuteCallbackTestState state;
