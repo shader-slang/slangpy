@@ -93,6 +93,27 @@ def test_device_close_handler(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_device_close_handler_reentrant_close(device_type: spy.DeviceType):
+    device = helpers.get_device(device_type, use_cache=False)
+
+    count = 0
+
+    def on_close(cd: spy.Device) -> None:
+        nonlocal count
+        count += 1
+        cd.close()
+
+    close_callback_id = device.register_device_close_callback(on_close)
+    assert isinstance(close_callback_id, int)
+
+    device.close()
+    assert count == 1
+
+    device.close()
+    assert count == 1
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_execute_callback(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     expected_handle_types: dict[spy.DeviceType, spy.NativeHandleType] = {
