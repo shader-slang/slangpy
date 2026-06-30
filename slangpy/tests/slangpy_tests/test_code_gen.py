@@ -1438,6 +1438,109 @@ def test_tensor_uses_entrypoint_args(device_type: spy.DeviceType):
     assert cd.use_entrypoint_args is True
 
 
+# 46b -----------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_resource_array_forces_parameter_block_on_cuda(device_type: spy.DeviceType):
+    """A kernel param that is a fixed-size array of resources triggers the
+    ParameterBlock fallback on CUDA, even if its inline-uniform size is below
+    the EPA threshold. Other backends are unaffected by the heuristic.
+    """
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
+    device = helpers.get_device(device_type)
+    src = """
+float sum_first<let N : int>(uint2 tid, RWTensor<float,2> tensors[N], uint i)
+{
+    return tensors[i].load(tid);
+}
+"""
+    tensors = [Tensor.from_numpy(device, np.zeros((4, 4), dtype=np.float32)) for _ in range(4)]
+    out = Tensor.empty(device, shape=(4, 4), dtype=float)
+    func = helpers.create_function_from_module(device, "sum_first<4>", src)
+    cd = func.debug_build_call_data(tid=spy.call_id(), tensors=tensors, i=0, _result=out)
+    if device_type == spy.DeviceType.cuda:
+        # Heuristic fires: array of resources in binding -> PB.
+        assert cd.use_entrypoint_args is False
+    else:
+        # Other backends keep size-based selection (Vulkan small threshold may
+        # still force PB; D3D12 typically keeps EPA at this size).
+        threshold = device.info.limits.max_entry_point_uniform_size
+        # No CUDA-specific override on these targets, so behavior is purely
+        # threshold-driven. Don't pin a specific value here, just assert the
+        # call data built without errors.
+        assert cd is not None
+        assert threshold > 0
+
+
+# 46c -----------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_nested_resource_array_forces_parameter_block_on_cuda(device_type: spy.DeviceType):
+    """A struct kernel param containing a fixed-size array of resources also
+    triggers the heuristic (the actual benchmark shape: TensorList<N>)."""
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
+    device = helpers.get_device(device_type)
+    src = """
+struct TList<let N : int>
+{
+    RWTensor<float,2> tensors[N];
+}
+float sum_first<let N : int>(uint2 tid, TList<N> list, uint i)
+{
+    return list.tensors[i].load(tid);
+}
+"""
+    tensors = [Tensor.from_numpy(device, np.zeros((4, 4), dtype=np.float32)) for _ in range(4)]
+    out = Tensor.empty(device, shape=(4, 4), dtype=float)
+    func = helpers.create_function_from_module(device, "sum_first<4>", src)
+    cd = func.debug_build_call_data(tid=spy.call_id(), list={"tensors": tensors}, i=0, _result=out)
+    if device_type == spy.DeviceType.cuda:
+        assert cd.use_entrypoint_args is False
+
+
+# 46d -----------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_non_resource_array_keeps_entrypoint_args_on_cuda(device_type: spy.DeviceType):
+    """A fixed-size array of non-resource scalars must NOT trigger the
+    resource-array heuristic. Indices/value arrays should keep EPA on CUDA."""
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
+    device = helpers.get_device(device_type)
+    src = """
+float sum_uints<let N : int>(uint values[N])
+{
+    float r = 0;
+    for (int i = 0; i < N; i++) r += float(values[i]);
+    return r;
+}
+"""
+    func = helpers.create_function_from_module(device, "sum_uints<4>", src)
+    cd = func.debug_build_call_data(values=[1, 2, 3, 4])
+    if device_type == spy.DeviceType.cuda:
+        # Non-resource array: heuristic must not fire. Other constraints (size
+        # threshold) keep this small payload on EPA.
+        assert cd.use_entrypoint_args is True
+
+
+# 46e -----------------------------------------------------------------------
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_single_resource_keeps_entrypoint_args_on_cuda(device_type: spy.DeviceType):
+    """A single resource (not in an array) must NOT trigger the heuristic."""
+    if device_type == spy.DeviceType.metal:
+        pytest.skip("Metal doesn't support entry point params.")
+    device = helpers.get_device(device_type)
+    src = """
+float read_one(uint2 tid, RWTensor<float,2> t) { return t.load(tid); }
+"""
+    t = Tensor.from_numpy(device, np.zeros((4, 4), dtype=np.float32))
+    out = Tensor.empty(device, shape=(4, 4), dtype=float)
+    func = helpers.create_function_from_module(device, "read_one", src)
+    cd = func.debug_build_call_data(tid=spy.call_id(), t=t, _result=out)
+    if device_type == spy.DeviceType.cuda:
+        # No array of resources -> heuristic must not fire -> EPA preserved.
+        assert cd.use_entrypoint_args is True
+
+
 # ===========================================================================
 # Additional functional dispatch tests (47-49)
 # ===========================================================================

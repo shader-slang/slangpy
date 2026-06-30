@@ -3,7 +3,7 @@ import hashlib
 import os
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from slangpy.core.callsignature import *
 from slangpy.core.logging import bound_call_table, bound_exception_info, mismatch_info
@@ -34,6 +34,12 @@ from slangpy.bindings import (
 from slangpy.bindings.boundvariable import BoundCall, BoundVariable
 from slangpy.bindings.boundvariableruntime import BoundVariableRuntime
 from slangpy.reflection import SlangFunction, ITensorType, TensorAccess
+from slangpy.reflection.reflectiontypes import (
+    ArrayType,
+    ResourceType,
+    SlangType,
+    StructType,
+)
 
 if TYPE_CHECKING:
     from slangpy.core.function import FunctionNode, FunctionBuildInfo
@@ -68,6 +74,47 @@ _OPTIX_BUILTIN_INTERSECTION_SHADERS = frozenset(
 
 # Track if we've already warned about torch bridge fallback
 _torch_bridge_warned = False
+
+
+def _slang_type_is_or_contains_resource(t: Optional[SlangType], visited: set[int]) -> bool:
+    if t is None or id(t) in visited:
+        return False
+    visited.add(id(t))
+    if isinstance(t, (ResourceType, ITensorType)):
+        return True
+    if isinstance(t, StructType):
+        for f in t.fields.values():
+            if _slang_type_is_or_contains_resource(f.type, visited):
+                return True
+    if isinstance(t, ArrayType):
+        return _slang_type_is_or_contains_resource(t.element_type, visited)
+    return False
+
+
+def _slang_type_contains_resource_array(t: Optional[SlangType], visited: set[int]) -> bool:
+    if t is None or id(t) in visited:
+        return False
+    visited.add(id(t))
+    if isinstance(t, ArrayType):
+        if t.num_elements > 0 and _slang_type_is_or_contains_resource(t.element_type, set()):
+            return True
+        if _slang_type_contains_resource_array(t.element_type, visited):
+            return True
+    if isinstance(t, StructType):
+        for f in t.fields.values():
+            if _slang_type_contains_resource_array(f.type, visited):
+                return True
+    return False
+
+
+def _bindings_contain_resource_array(bindings: BoundCall) -> bool:
+    visited: set[int] = set()
+    # vector_type is the resolved Slang parameter type after vectorization;
+    # slang_type is cleared by _apply_implicit_vectorization, so check vector_type instead.
+    for b in bindings.values():
+        if _slang_type_contains_resource_array(b.vector_type, visited):
+            return True
+    return False
 
 
 def set_dump_generated_shaders(value: bool):
@@ -309,6 +356,28 @@ class CallData(NativeCallData):
             # Disable for Metal until I can figure out how entry point args work properly
             if build_info.module.device.info.type == DeviceType.metal:
                 use_entrypoint_args = False
+
+            # On CUDA, dynamic-address reads from .param memory (where entry-point
+            # uniforms live) produce a serial dependency chain in the generated PTX
+            # whenever the kernel indexes a fixed-size array of resources at a
+            # runtime-computed index. The same kernel routed through
+            # ParameterBlock<CallData> avoids the chain because Slang's CUDA backend
+            # lowers ParameterBlock<T> via __constant__ + global memory, and the
+            # resulting ld.global.nc reads do not serialize.
+            #
+            # This is a SHAPE heuristic: it detects the data layout that enables the
+            # pathological lowering, not whether the kernel actually performs runtime
+            # indexing. Static-indexed resource arrays pay a small one-time PB upload
+            # cost (~5us) but are not miscompiled.
+            if (
+                use_entrypoint_args
+                and build_info.module.device.info.type == DeviceType.cuda
+                and _bindings_contain_resource_array(bindings)
+            ):
+                use_entrypoint_args = False
+                self.log_debug(
+                    "  CUDA resource-array heuristic fired -> forcing ParameterBlock<CallData>"
+                )
 
             # Try building the shader. If direct args compilation fails (the
             # threshold is only an approximate heuristic), fall back to
