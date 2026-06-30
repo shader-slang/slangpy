@@ -110,6 +110,7 @@ enum class Feature : uint32_t {
     programmable_sample_positions2 = static_cast<uint32_t>(rhi::Feature::ProgrammableSamplePositions2),
     // Vulkan specific features
     shader_resource_min_lod = static_cast<uint32_t>(rhi::Feature::ShaderResourceMinLod),
+    shader_abort = static_cast<uint32_t>(rhi::Feature::ShaderAbort),
     // Metal specific features
     argument_buffer_tier2 = static_cast<uint32_t>(rhi::Feature::ArgumentBufferTier2),
     residency_set = static_cast<uint32_t>(rhi::Feature::ResidencySet),
@@ -186,6 +187,7 @@ SGL_ENUM_INFO(
         {Feature::programmable_sample_positions1, "programmable_sample_positions1"},
         {Feature::programmable_sample_positions2, "programmable_sample_positions2"},
         {Feature::shader_resource_min_lod, "shader_resource_min_lod"},
+        {Feature::shader_abort, "shader_abort"},
         {Feature::argument_buffer_tier2, "argument_buffer_tier2"},
         {Feature::residency_set, "residency_set"},
         {Feature::atomic_bfloat16, "atomic_bfloat16"},
