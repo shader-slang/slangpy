@@ -782,13 +782,13 @@ void SlangSession::update_module_cache_and_dependencies()
     }
 }
 
-bool SlangSession::write_module_to_cache(slang::IModule* module)
+void SlangSession::write_module_to_cache(slang::IModule* module)
 {
     std::filesystem::path path{module->getFilePath()};
 
     // Do not cache module if it was loaded from the cache.
     if (path.extension() == ".slang-module")
-        return false;
+        return;
 
     // Check if target path is within the specified root path.
     auto is_sub_path = [](const std::filesystem::path root, const std::filesystem::path& target)
@@ -807,7 +807,7 @@ bool SlangSession::write_module_to_cache(slang::IModule* module)
         }
     }
     if (include_index == size_t(-1))
-        return false;
+        return;
 
     // Determine path of the cached module.
     std::filesystem::path relative = std::filesystem::relative(path, m_data->include_paths[include_index]);
@@ -818,7 +818,7 @@ bool SlangSession::write_module_to_cache(slang::IModule* module)
     Slang::ComPtr<ISlangBlob> module_blob;
     if (!SLANG_SUCCEEDED(module->serialize(module_blob.writeRef())) || !module_blob) {
         log_warn("Failed to serialize cached slang module \"{}\"", module->getName());
-        return false;
+        return;
     }
 
     std::string module_name = module->getName();
@@ -836,21 +836,18 @@ bool SlangSession::write_module_to_cache(slang::IModule* module)
         state->blob = std::move(module_blob);
         const size_t byte_size = state->blob->getBufferSize();
 
-        if (!cache_writer->enqueue(
-                byte_size,
-                [state]() mutable
-                {
-                    write_module_bytes_to_cache(
-                        state->module_name,
-                        state->cache_path,
-                        state->blob->getBufferPointer(),
-                        state->blob->getBufferSize()
-                    );
-                    state->blob.setNull();
-                }
-            ))
-            return false;
-        log_debug("Queued slang module \"{}\" for caching to \"{}\"", module->getName(), cache_path);
+        cache_writer->enqueue(
+            byte_size,
+            [state]() mutable
+            {
+                write_module_bytes_to_cache(
+                    state->module_name,
+                    state->cache_path,
+                    state->blob->getBufferPointer(),
+                    state->blob->getBufferSize()
+                );
+            }
+        );
     } else {
         write_module_bytes_to_cache(
             module_name,
@@ -859,8 +856,6 @@ bool SlangSession::write_module_to_cache(slang::IModule* module)
             module_blob->getBufferSize()
         );
     }
-
-    return true;
 }
 
 std::string SlangSessionData::resolve_module_name(std::string_view module_name) const

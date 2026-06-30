@@ -27,7 +27,9 @@ def test_module_cache(device_type: spy.DeviceType, tmpdir: str):
     assert device.flush_print_to_string().strip() == "Hello module cache!"
     # Close device.
     device.close()
-    assert len(list(Path(cache_dir).rglob("test_module_cache.slang-module"))) == 1
+    module_cache_files = list(Path(cache_dir).rglob("test_module_cache.slang-module"))
+    assert len(module_cache_files) == 1
+    module_cache_mtime_ns = module_cache_files[0].stat().st_mtime_ns
 
     # Re-create device using same module cache location.
     device = spy.Device(
@@ -46,6 +48,7 @@ def test_module_cache(device_type: spy.DeviceType, tmpdir: str):
     assert device.flush_print_to_string().strip() == "Hello module cache!"
     # Close device.
     device.close()
+    assert module_cache_files[0].stat().st_mtime_ns == module_cache_mtime_ns
 
 
 if __name__ == "__main__":
