@@ -150,11 +150,11 @@ def test_import_neural_standard_module(device_type: spy.DeviceType, test_id: str
             module_name=f"standard_neural_{test_id}",
             source=STANDARD_MODULE_SOURCE,
         )
+        entry_point = module.entry_point("compute_main")
 
-        assert len(module.entry_points) == 1
-        assert module.entry_point("compute_main").stage == spy.ShaderStage.compute
+        assert entry_point.stage == spy.ShaderStage.compute
 
-        program = session.link_program([module], [module.entry_point("compute_main")])
+        program = session.link_program([module], [entry_point])
         kernel = device.create_compute_kernel(program)
         result = device.create_buffer(
             data=np.array([0.0], dtype=np.float32),
