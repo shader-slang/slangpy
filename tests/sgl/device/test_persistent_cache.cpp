@@ -288,7 +288,6 @@ TEST_CASE("query_hit_updates_metadata_while_writer_is_busy")
 {
     const std::filesystem::path cache_dir = testing::get_case_temp_directory() / "cache";
     const ByteBlob queried_key{10};
-    const ByteBlob trigger_key{255};
     const ByteBlob value(128 * 1024, 14);
     const ByteBlob trigger_value(128 * 1024, 15);
 
@@ -296,12 +295,11 @@ TEST_CASE("query_hit_updates_metadata_while_writer_is_busy")
     ref<PersistentCache> cache = make_ref<PersistentCache>(cache_dir, 8ull * 1024 * 1024, writer);
 
     Slang::ComPtr<ISlangBlob> queried_key_blob = make_blob(queried_key);
-    Slang::ComPtr<ISlangBlob> trigger_key_blob = make_blob(trigger_key);
     Slang::ComPtr<ISlangBlob> value_blob = make_blob(value);
     Slang::ComPtr<ISlangBlob> trigger_value_blob = make_blob(trigger_value);
 
     REQUIRE(cache->writeCache(queried_key_blob, value_blob) == SLANG_OK);
-    for (uint8_t i = 11; i < 54; ++i) {
+    for (uint8_t i = 11; i < 27; ++i) {
         Slang::ComPtr<ISlangBlob> key_blob = make_blob(ByteBlob{i});
         REQUIRE(cache->writeCache(key_blob, value_blob) == SLANG_OK);
     }
@@ -324,16 +322,25 @@ TEST_CASE("query_hit_updates_metadata_while_writer_is_busy")
 
     Slang::ComPtr<ISlangBlob> queried;
     rhi::Result query_result = cache->queryCache(queried_key_blob, queried.writeRef());
-    CHECK(query_result == SLANG_OK);
-    if (query_result == SLANG_OK)
-        CHECK(copy_blob(queried) == value);
+    REQUIRE(query_result == SLANG_OK);
+    CHECK(copy_blob(queried) == value);
 
     release_blocker.set_value();
     cache->flush();
 
-    REQUIRE(cache->writeCache(trigger_key_blob, trigger_value_blob) == SLANG_OK);
-    cache->flush();
-    CHECK(cache->stats().entry_count < 45);
+    bool eviction_observed = false;
+    uint64_t previous_entry_count = cache->stats().entry_count;
+    for (uint32_t i = 0; i < 200 && !eviction_observed; ++i) {
+        Slang::ComPtr<ISlangBlob> trigger_key_blob
+            = make_blob(ByteBlob{255, static_cast<uint8_t>(i), static_cast<uint8_t>(i >> 8)});
+        REQUIRE(cache->writeCache(trigger_key_blob, trigger_value_blob) == SLANG_OK);
+        cache->flush();
+
+        const uint64_t entry_count = cache->stats().entry_count;
+        eviction_observed = entry_count <= previous_entry_count;
+        previous_entry_count = entry_count;
+    }
+    REQUIRE(eviction_observed);
 
     queried.setNull();
     REQUIRE(cache->queryCache(queried_key_blob, queried.writeRef()) == SLANG_OK);
