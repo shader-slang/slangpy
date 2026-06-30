@@ -69,8 +69,7 @@ PersistentCacheStats PersistentCache::stats() const
 
 void PersistentCache::flush() const
 {
-    if (m_cache_writer)
-        m_cache_writer->flush();
+    m_cache_writer->flush();
 }
 
 SlangResult PersistentCache::queryInterface(const SlangUUID& uuid, void** outObject)
@@ -109,13 +108,15 @@ rhi::Result PersistentCache::writeCache(ISlangBlob* key, ISlangBlob* data)
                     try {
                         cache->set(state->key, state->value);
                     } catch (const std::exception& e) {
-                        log_error("Failed to write to cache in \"{}\": {}", path, e.what());
+                        log_warn("Failed to write to cache in \"{}\": {}", path, e.what());
                     } catch (...) {
-                        log_error("Failed to write to cache in \"{}\": unknown error", path);
+                        log_warn("Failed to write to cache in \"{}\": unknown exception", path);
                     }
                 }
-            ))
+            )) {
+            log_warn("Failed to enqueue cache write in \"{}\".", m_path);
             return SLANG_FAIL;
+        }
 
         return SLANG_OK;
     } catch (const std::exception& e) {
@@ -151,19 +152,21 @@ rhi::Result PersistentCache::queryCache(ISlangBlob* key, ISlangBlob** outData)
         if (success) {
             m_hit_count.fetch_add(1);
             const size_t touch_byte_size = key_data.size();
-            m_cache_writer->enqueue(
-                touch_byte_size,
-                [cache = m_cache, path = m_path, key_data = std::move(key_data)]
-                {
-                    try {
-                        cache->touch(key_data);
-                    } catch (const std::exception& e) {
-                        log_error("Failed to touch cache entry in \"{}\": {}", path, e.what());
-                    } catch (...) {
-                        log_error("Failed to touch cache entry in \"{}\": unknown error", path);
+            if (!m_cache_writer->enqueue(
+                    touch_byte_size,
+                    [cache = m_cache, path = m_path, key_data = std::move(key_data)]
+                    {
+                        try {
+                            cache->touch(key_data);
+                        } catch (const std::exception& e) {
+                            log_warn("Failed to touch cache entry in \"{}\": {}", path, e.what());
+                        } catch (...) {
+                            log_warn("Failed to touch cache entry in \"{}\": unknown exception", path);
+                        }
                     }
-                }
-            );
+                )) {
+                log_warn("Failed to enqueue cache entry touch in \"{}\".", m_path);
+            }
         } else {
             m_miss_count.fetch_add(1);
         }

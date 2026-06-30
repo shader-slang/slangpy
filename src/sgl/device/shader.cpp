@@ -784,6 +784,9 @@ void SlangSession::update_module_cache_and_dependencies()
 
 void SlangSession::write_module_to_cache(slang::IModule* module)
 {
+    if (!module->getFilePath())
+        return;
+
     std::filesystem::path path{module->getFilePath()};
 
     // Do not cache module if it was loaded from the cache.
@@ -836,18 +839,39 @@ void SlangSession::write_module_to_cache(slang::IModule* module)
         state->blob = std::move(module_blob);
         const size_t byte_size = state->blob->getBufferSize();
 
-        cache_writer->enqueue(
-            byte_size,
-            [state]() mutable
-            {
-                write_module_bytes_to_cache(
-                    state->module_name,
-                    state->cache_path,
-                    state->blob->getBufferPointer(),
-                    state->blob->getBufferSize()
-                );
-            }
-        );
+        if (!cache_writer->enqueue(
+                byte_size,
+                [state]() mutable
+                {
+                    try {
+                        write_module_bytes_to_cache(
+                            state->module_name,
+                            state->cache_path,
+                            state->blob->getBufferPointer(),
+                            state->blob->getBufferSize()
+                        );
+                    } catch (const std::exception& e) {
+                        log_warn(
+                            "Failed to write cached slang module \"{}\" to \"{}\": {}",
+                            state->module_name,
+                            state->cache_path,
+                            e.what()
+                        );
+                    } catch (...) {
+                        log_warn(
+                            "Failed to write cached slang module \"{}\" to \"{}\": unknown exception",
+                            state->module_name,
+                            state->cache_path
+                        );
+                    }
+                }
+            )) {
+            log_warn(
+                "Failed to enqueue cache write for slang module \"{}\" to \"{}\".",
+                state->module_name,
+                state->cache_path
+            );
+        }
     } else {
         write_module_bytes_to_cache(
             module_name,

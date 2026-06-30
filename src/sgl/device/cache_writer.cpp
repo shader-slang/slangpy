@@ -143,7 +143,7 @@ void CacheWriter::run()
         } catch (const std::exception& e) {
             log_warn("Cache write job failed: {}", e.what());
         } catch (...) {
-            log_warn("Cache write job failed with an unknown exception.");
+            log_warn("Cache write job failed: unknown exception.");
         }
 
         release(job.byte_size);
