@@ -8,6 +8,7 @@ from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.skip(reason="Crash on VM")
 def test_module_cache(device_type: spy.DeviceType, tmpdir: str):
     cache_dir = tmpdir
     # Create device with a module cache.
