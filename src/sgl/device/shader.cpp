@@ -10,6 +10,7 @@
 #include "sgl/device/slang_utils.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/hot_reload.h"
+#include "sgl/device/cache_writer.h"
 
 #include "sgl/core/type_utils.h"
 #include "sgl/core/platform.h"
@@ -20,11 +21,68 @@
 
 #include <slang.h>
 
+#include <memory>
 #include <random>
 #include <regex>
 #include <set>
+#include <vector>
 
 namespace sgl {
+
+static bool write_module_bytes_to_cache(
+    const std::string& module_name,
+    const std::filesystem::path& cache_path,
+    const void* data,
+    size_t data_size
+)
+{
+    std::filesystem::path tmp_path = cache_path;
+    std::random_device rd;
+    uint64_t uid = rd();
+    tmp_path.replace_extension(".slang-module-" + string::hexlify(&uid, sizeof(uid)));
+
+    std::error_code ec;
+    try {
+        if (std::filesystem::exists(tmp_path, ec))
+            return false;
+        if (ec) {
+            log_warn("Failed to query temporary slang module cache path \"{}\" ({})", tmp_path, ec.message());
+            return false;
+        }
+
+        std::filesystem::create_directories(cache_path.parent_path(), ec);
+        if (ec) {
+            log_warn(
+                "Failed to create directory \"{}\" for slang module cache ({})",
+                cache_path.parent_path(),
+                ec.message()
+            );
+            return false;
+        }
+
+        {
+            FileStream stream(tmp_path, FileStream::Mode::write);
+            if (data_size > 0)
+                stream.write(data, data_size);
+            stream.flush();
+            stream.close();
+        }
+
+        std::filesystem::rename(tmp_path, cache_path, ec);
+        if (ec) {
+            log_warn("Failed to rename cached slang module \"{}\" to \"{}\" ({})", tmp_path, cache_path, ec.message());
+            std::filesystem::remove(tmp_path, ec);
+            return false;
+        }
+    } catch (const std::exception& e) {
+        log_warn("Failed to write cached slang module \"{}\" to \"{}\" ({})", module_name, cache_path, e.what());
+        std::filesystem::remove(tmp_path, ec);
+        return false;
+    }
+
+    log_debug("Cached slang module \"{}\" to \"{}\"", module_name, cache_path);
+    return true;
+}
 
 // ----------------------------------------------------------------------------
 // TypeConformance
@@ -756,39 +814,51 @@ bool SlangSession::write_module_to_cache(slang::IModule* module)
     std::filesystem::path cache_path = m_data->cache_include_paths[include_index] / relative;
     cache_path.replace_extension(".slang-module");
 
-    // Create directories to cache path.
-    std::error_code ec;
-    std::filesystem::create_directories(cache_path.parent_path(), ec);
-    if (ec) {
-        log_warn(
-            "Failed to create directory \"{}\" for slang module cache ({})",
-            cache_path.parent_path(),
-            ec.message()
+    // Serialize module on the caller thread so the queued write owns plain bytes only.
+    Slang::ComPtr<ISlangBlob> module_blob;
+    if (!SLANG_SUCCEEDED(module->serialize(module_blob.writeRef())) || !module_blob) {
+        log_warn("Failed to serialize cached slang module \"{}\"", module->getName());
+        return false;
+    }
+
+    std::string module_name = module->getName();
+
+    if (CacheWriter* cache_writer = m_device->_cache_writer()) {
+        struct WriteState {
+            std::string module_name;
+            std::filesystem::path cache_path;
+            Slang::ComPtr<ISlangBlob> blob;
+        };
+
+        auto state = std::make_shared<WriteState>();
+        state->module_name = std::move(module_name);
+        state->cache_path = cache_path;
+        state->blob = std::move(module_blob);
+        const size_t byte_size = state->blob->getBufferSize();
+
+        if (!cache_writer->enqueue(
+                byte_size,
+                [state]() mutable
+                {
+                    write_module_bytes_to_cache(
+                        state->module_name,
+                        state->cache_path,
+                        state->blob->getBufferPointer(),
+                        state->blob->getBufferSize()
+                    );
+                    state->blob.setNull();
+                }
+            ))
+            return false;
+        log_debug("Queued slang module \"{}\" for caching to \"{}\"", module->getName(), cache_path);
+    } else {
+        write_module_bytes_to_cache(
+            module_name,
+            cache_path,
+            module_blob->getBufferPointer(),
+            module_blob->getBufferSize()
         );
-        return false;
     }
-
-    // Write module to a temporary file.
-    std::filesystem::path tmp_path = cache_path;
-    std::random_device rd;
-    uint64_t uid = rd();
-    tmp_path.replace_extension(".slang-module-" + string::hexlify(&uid, sizeof(uid)));
-    if (std::filesystem::exists(tmp_path))
-        return false;
-    if (!SLANG_SUCCEEDED(module->writeToFile(tmp_path.string().c_str()))) {
-        log_warn("Failed to write cached slang module \"{}\" to \"{}\"", module->getName(), cache_path);
-        return false;
-    }
-
-    // Rename temporary file to cache path.
-    std::filesystem::rename(tmp_path, cache_path, ec);
-    if (ec) {
-        log_warn("Failed to rename cached slang module \"{}\" to \"{}\" ({})", tmp_path, cache_path, ec.message());
-        std::filesystem::remove(tmp_path, ec);
-        return false;
-    }
-
-    log_debug("Cached slang module \"{}\" to \"{}\"", module->getName(), cache_path);
 
     return true;
 }
