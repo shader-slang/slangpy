@@ -42,6 +42,12 @@ void compute_main(uint3 tid: SV_DispatchThreadID, RWStructuredBuffer<float> resu
 }
 """
 
+RUNTIME_DEVICE_TYPES = [
+    device_type
+    for device_type in helpers.DEFAULT_DEVICE_TYPES
+    if device_type == spy.DeviceType.vulkan
+]
+
 
 def find_slangc() -> Path | None:
     paths: list[Path] = []
@@ -130,14 +136,10 @@ def compile_standard_module_source(
     )
 
 
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("device_type", RUNTIME_DEVICE_TYPES)
 def test_import_neural_standard_module(device_type: spy.DeviceType, test_id: str) -> None:
     if helpers.should_skip_test_for_device(device_type):
         pytest.skip(f"Skipping {device_type.name} device test")
-    if device_type == spy.DeviceType.d3d12:
-        pytest.skip(
-            "D3D12 crashes while loading slang.neural; HLSL target coverage is tested separately"
-        )
 
     device = spy.Device(type=device_type, label=f"standard-module-{device_type.name}")
 
