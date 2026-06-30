@@ -77,14 +77,16 @@ jobs:
       - name: Setup CMake/Ninja
         uses: lukka/get-cmake@latest
 
-      # Build latest Slang.
-      # - name: Build latest Slang
-      #   run: |
-      #     git clone --recursive https://github.com/shader-slang/slang.git
-      #     cd slang
-      #     mkdir build
-      #     cmake -B build --preset default
-      #     cmake --build build --config ${{ matrix.config }} --parallel
+      # DNI (do-not-integrate): build Slang from the F PR branch (shader-slang/slang#11747)
+      # so the benchmark exercises the runtime-indexed resource-array __constant__ hoist.
+      # Paired with external/slang-rhi bumped to the dispatch-routing PR (shader-slang/slang-rhi#779).
+      - name: Build Slang (F PR shader-slang/slang#11747 — DNI)
+        run: |
+          git clone --recursive -b haaggarwal/fix-cuda-resource-array https://github.com/shader-slang/slang.git
+          cd slang
+          mkdir build
+          cmake -B build --preset default
+          cmake --build build --config ${{ matrix.config }} --parallel
 
       # Setup.
       - name: Setup
@@ -106,9 +108,10 @@ jobs:
           key: vcpkg-cache-${{ runner.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ hashFiles('vcpkg.json', 'external/vcpkg-triplets/**') }}
 
       # Configure.
+      # DNI (do-not-integrate): point SlangPy at the locally-built F PR Slang
+      # (shader-slang/slang#11747) so the benchmark exercises the hoist.
       - name: Configure
-        # run: python tools/ci.py --cmake-args="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/${{ matrix.config }}" configure
-        run: python tools/ci.py configure
+        run: python tools/ci.py --cmake-args="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/${{ matrix.config }}" configure
 
       # Build.
       - name: Build
