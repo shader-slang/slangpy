@@ -354,7 +354,7 @@ private:
     std::set<ShaderProgram*> m_registered_programs;
 
     void update_module_cache_and_dependencies();
-    bool write_module_to_cache(slang::IModule* module);
+    void write_module_to_cache(slang::IModule* module);
     void create_session(SlangSessionBuild& build);
 
     /// Helper to create a module, updating cache afterwards.

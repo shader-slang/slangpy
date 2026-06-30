@@ -75,6 +75,8 @@ target_sources(sgl PRIVATE
     device/blit.slang
     device/buffer_cursor.cpp
     device/buffer_cursor.h
+    device/cache_writer.cpp
+    device/cache_writer.h
     device/callback_list.h
     device/command.cpp
     device/command.h
