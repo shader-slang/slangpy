@@ -44,12 +44,6 @@ jobs:
           git submodule foreach --recursive git clean -ffdx
           git submodule foreach --recursive git reset --hard
 
-      # Setup Linux.
-      - name: Setup Linux
-        if: startsWith(matrix.os, 'linux') && contains(matrix.runs-on, 'ubuntu-')
-        run: |
-          sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
-
       # Setup Python.
       - name: Setup Python ${{ matrix.python }}
         uses: actions/setup-python@v6
@@ -115,6 +109,10 @@ jobs:
         run: python tools/ci.py build
 
       # Benchmark (Python)
-      - name: Benchmark (Python)
-        if: contains(matrix.flags, 'benchmark')
+      - name: Benchmark (Python, Windows, GPU Clock Locked)
+        if: contains(matrix.flags, 'benchmark') && runner.os == 'Windows'
         run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --mongodb-connection-string "${{ secrets.BENCHMARK_MONGODB_CONNECTION_STRING }}" --mongodb-database-name "nvr-ci" --lock-gpu-clocks
+
+      - name: Benchmark (Python, Linux, GPU Clock Unlocked)
+        if: contains(matrix.flags, 'benchmark') && runner.os == 'Linux'
+        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --mongodb-connection-string "${{ secrets.BENCHMARK_MONGODB_CONNECTION_STRING }}" --mongodb-database-name "nvr-ci"
