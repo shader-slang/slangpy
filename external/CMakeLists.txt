@@ -165,6 +165,8 @@ function(sgl_add_library_slang)
         set(slang_module_version "")
     endif()
 
+    set(slang_standard_module_dir "${slang_lib_dir}/slang-standard-module-${SGL_SLANG_VERSION}")
+
     add_library(slang SHARED IMPORTED GLOBAL)
     if(SGL_WINDOWS)
         # Windows filenames are not versioned
@@ -198,6 +200,12 @@ function(sgl_add_library_slang)
         # sgl_copy_binary(${slang_lib_dir}/libslang-llvm.${slang_lib_suffix} .)
         get_filename_component(slang_resolved_debug_info_base ${slang_resolved} NAME)
         set(slang_resolved_debug_info "lib/${slang_resolved_debug_info_base}.dwarf")
+    endif()
+
+    if(EXISTS "${slang_standard_module_dir}")
+        sgl_copy_binary_directory("${slang_standard_module_dir}" .)
+    else()
+        message(STATUS "Slang standard module directory not found: ${slang_standard_module_dir}")
     endif()
 
     if(NOT SGL_LOCAL_SLANG AND SGL_SLANG_DEBUG_INFO)
