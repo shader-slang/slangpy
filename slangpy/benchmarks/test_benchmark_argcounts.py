@@ -41,6 +41,11 @@ RUN_NATIVE_TENSOR_BENCHMARK = True
 # WARMUPS = 1
 
 
+def skip_if_no_native_torch_bridge() -> None:
+    if not spy.is_torch_bridge_available() or spy.is_torch_bridge_using_fallback():
+        pytest.skip("slangpy-torch native bridge is not installed")
+
+
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
 @pytest.mark.parametrize("count", COUNTS)
 def test_tensor_sum_torch(
@@ -50,6 +55,7 @@ def test_tensor_sum_torch(
         pytest.skip("Torch tensor benchmark is not enabled")
     if not HAS_TORCH:
         pytest.skip("PyTorch is not installed")
+    skip_if_no_native_torch_bridge()
 
     device = helpers.get_torch_device(device_type)
     inputs = [np.random.rand(1, 32).astype(np.float32) for _ in range(count)]
