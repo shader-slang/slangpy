@@ -23,6 +23,7 @@
 #include "sgl/device/hot_reload.h"
 #include "sgl/device/debug_logger.h"
 #include "sgl/device/native_handle_traits.h"
+#include "sgl/device/cache_writer.h"
 #include "sgl/device/persistent_cache.h"
 
 #include "sgl/core/file_system_watcher.h"
@@ -92,7 +93,7 @@ Device::Device(const DeviceDesc& desc)
 #endif
     }
 
-    // Setup module cache.
+    // Setup module cache path.
     if (m_desc.module_cache_path) {
         m_module_cache_path = *m_desc.module_cache_path;
         if (m_module_cache_path.is_relative())
@@ -100,13 +101,22 @@ Device::Device(const DeviceDesc& desc)
         std::filesystem::create_directories(m_module_cache_path);
     }
 
-    // Setup shader cache.
+    // Setup shader cache path.
     if (m_desc.shader_cache_path) {
         m_shader_cache_path = *m_desc.shader_cache_path;
         if (m_shader_cache_path.is_relative())
             m_shader_cache_path = platform::app_data_directory() / m_shader_cache_path;
         std::filesystem::create_directories(m_shader_cache_path);
-        m_persistent_cache = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size);
+    }
+
+    // Setup shared cache writer.
+    if (!m_module_cache_path.empty() || !m_shader_cache_path.empty())
+        m_cache_writer = make_ref<CacheWriter>();
+
+    // Setup shader cache.
+    if (!m_shader_cache_path.empty()) {
+        m_persistent_cache
+            = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size, m_cache_writer);
     }
 
     // Invalidate CUDA interop if using CUDA
@@ -491,6 +501,10 @@ void Device::close()
     log_debug("Closing device {}", fmt::ptr(this));
 
     wait();
+
+    // Flush cache writer to ensure all pending writes are completed.
+    if (m_cache_writer)
+        m_cache_writer->flush();
 
     // Handle device close callbacks.
     m_device_close_callbacks.notify(this);
