@@ -45,7 +45,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID, RWStructuredBuffer<float> resu
 RUNTIME_DEVICE_TYPES = [
     device_type
     for device_type in helpers.DEFAULT_DEVICE_TYPES
-    if device_type == spy.DeviceType.vulkan
+    if device_type in (spy.DeviceType.vulkan, spy.DeviceType.metal)
 ]
 
 
