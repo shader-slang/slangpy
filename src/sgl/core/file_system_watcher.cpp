@@ -78,6 +78,7 @@ FileSystemWatcher::FileSystemWatcher()
     m_thread = std::thread(
         [this]()
         {
+            platform::set_current_thread_name("FileSystemWatcher");
             thread_func();
         }
     );
