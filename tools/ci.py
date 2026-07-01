@@ -224,7 +224,19 @@ def coverage_report(args: Any):
     if not "coverage" in args.flags:
         print("Coverage flag not set, skipping coverage report.")
     os.makedirs("reports", exist_ok=True)
-    run_command(["gcovr", "-r", ".", "-f", "src/sgl", "--html", "reports/coverage.html"])
+    run_command(
+        [
+            "gcovr",
+            "-r",
+            ".",
+            "-f",
+            "src/sgl",
+            "--gcov-ignore-parse-errors",
+            "negative_hits.warn_once_per_file",
+            "--html",
+            "reports/coverage.html",
+        ]
+    )
 
 
 def install_slangpy_torch(args: Any):
