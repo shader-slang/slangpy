@@ -6,6 +6,7 @@ from pathlib import Path
 import slangpy as spy
 from slangpy.testing import helpers
 
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.skip(reason="Crash on VM")
 def test_shader_cache(device_type: spy.DeviceType, tmpdir: str):
