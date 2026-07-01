@@ -42,13 +42,6 @@ runs:
         git submodule foreach --recursive git clean -ffdx
         git submodule foreach --recursive git reset --hard
 
-#    # Setup Linux.
-#    - name: Setup Linux
-#      if: startsWith(inputs.os, 'linux')
-#      shell: bash
-#      run: |
-#        sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
-
     # Setup Python.
     - name: Setup Python ${{ inputs.python }}
       uses: actions/setup-python@v6
