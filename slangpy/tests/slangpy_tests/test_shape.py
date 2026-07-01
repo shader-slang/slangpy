@@ -21,7 +21,7 @@ behavior at 8 dimensions (last inline) and 9 dimensions (first heap).
 """
 
 import pytest
-from slangpy.slangpy import Shape
+from slangpy.slangpy import Shape, SignatureBuilder
 
 
 class TestShapeConstruction:
@@ -123,12 +123,11 @@ class TestShapeCopy:
         assert list(s1.as_list()) == list(s2.as_list())
 
     def test_modify_after_copy(self):
-        """Test that modifying original doesn't affect copy."""
-        s1 = Shape([1, 2, 3])
-        s2 = Shape(s1.as_list())
-        # Note: Shape doesn't have setitem in Python, so we can't modify directly
-        # But we can verify they're independent
-        assert s1 == s2
+        """Test that Shape copies data rather than referencing the source list."""
+        data = [1, 2, 3]
+        s = Shape(data)
+        data[0] = 999
+        assert s[0] == 1
 
 
 class TestShapeOperations:
@@ -157,6 +156,13 @@ class TestShapeOperations:
         s = Shape([1, 2, 3])
         assert s == [1, 2, 3]
         assert s != [1, 2, 4]
+
+    def test_equality_incompatible_type(self):
+        """Test equality returns False for non-Shape/non-list types."""
+        s = Shape([1, 2, 3])
+        assert s != "not a shape"
+        assert s != 42
+        assert s != 3.14
 
     def test_equality_invalid_shapes(self):
         """Test equality of invalid shapes."""
@@ -219,11 +225,14 @@ class TestShapeProperties:
         s3 = Shape(None)
         assert not s3.valid  # None creates invalid shape
 
+    @pytest.mark.skip(
+        reason="Shape.element_count exists in C++ but is not exposed to Python via nanobind. "
+        "Re-enable once the binding is added in slangpy_ext/utils/slangpy.cpp."
+    )
     def test_element_count_simple(self):
-        """Test element_count for simple shape."""
+        """Test element_count property for simple shape."""
         s = Shape([2, 3, 4])
-        # Note: This test assumes Shape has element_count method
-        # If not available in Python, we can skip this test
+        assert s.element_count == 24
 
 
 class TestShapeStrides:
@@ -287,14 +296,11 @@ class TestShapeIndexing:
             assert s[i] == i + 1
 
     def test_negative_indexing(self):
-        """Test negative indexing (if supported)."""
+        """Test negative indexing."""
         s = Shape([10, 20, 30])
-        # Python negative indexing might not be supported in C++
-        # This will fail if not supported, which is expected
-        try:
-            assert s[-1] == 30
-        except (IndexError, RuntimeError):
-            pass  # Expected if not supported
+        assert s[-1] == 30
+        assert s[-2] == 20
+        assert s[-3] == 10
 
     def test_len(self):
         """Test len() function."""
@@ -448,6 +454,21 @@ class TestShapeIteration:
         s = Shape([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         values = [x for x in s.as_list()]
         assert values == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+
+class TestSignatureBuilder:
+    """Test SignatureBuilder utility."""
+
+    def test_bytes_property(self):
+        """SignatureBuilder.bytes returns raw bytes matching str encoding."""
+        sb = SignatureBuilder()
+        sb.add("hello")
+        sb.add("world")
+        b = sb.bytes
+        assert isinstance(b, bytes)
+        assert b"hello" in b
+        assert b"world" in b
+        assert sb.str.encode() == b
 
 
 if __name__ == "__main__":
