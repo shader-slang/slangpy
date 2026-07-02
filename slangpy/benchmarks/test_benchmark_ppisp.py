@@ -842,8 +842,25 @@ def test_ppisp_gpu_backward_slangpy(
     rgb_pair = NativeTorchTensorDiffPair(rgb, torch.zeros_like(rgb), 4, True)
 
     # Upstream gradient (ones)
+    result = torch.empty(batch_size, 3, device=torch_device)
+    func(
+        batch_size=batch_size,
+        num_cameras=NUM_CAMERAS,
+        num_frames=NUM_FRAMES,
+        exposure_params=exposure_params,
+        vignetting_params=vignetting_params,
+        color_params=color_params,
+        crf_params=crf_params,
+        rgb_pixel=rgb,
+        pixel_coord=pixel_coords,
+        camera_idx=camera_idcs,
+        frame_idx=frame_idcs,
+        resolution_w=float(RESOLUTION_W),
+        resolution_h=float(RESOLUTION_H),
+        _result=result,
+    )
     result_grad = torch.ones(batch_size, 3, device=torch_device)
-    result_pair = NativeTorchTensorDiffPair(None, result_grad, 5, False)
+    result_pair = NativeTorchTensorDiffPair(result, result_grad, 5, False)
 
     benchmark_slang_function(
         device,
