@@ -4,6 +4,7 @@
 
 #include "sgl/core/error.h"
 #include "sgl/core/logger.h"
+#include "sgl/core/platform.h"
 
 namespace sgl {
 
@@ -14,6 +15,7 @@ CacheWriter::CacheWriter(size_t max_pending_bytes)
     m_thread = std::thread(
         [this]
         {
+            platform::set_current_thread_name("CacheWriter");
             run();
         }
     );
