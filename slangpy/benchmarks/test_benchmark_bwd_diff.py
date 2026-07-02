@@ -52,6 +52,11 @@ W_VAL = 2.0
 _module_cache: dict[int, spy.Module] = {}
 
 
+def _skip_if_no_native_torch_bridge() -> None:
+    if not spy.is_torch_bridge_available() or spy.is_torch_bridge_using_fallback():
+        pytest.skip("slangpy-torch native bridge is not installed")
+
+
 def _load_module(device: spy.Device) -> spy.Module:
     """Load the benchmark slang module with extensions.slang on the include path."""
     key = id(device)
@@ -233,6 +238,7 @@ def test_bwd_dtv_load(
     benchmark_slang_function: BenchmarkSlangFunction,
 ) -> None:
     """Uniform backward using DiffTensorView load() - atomic contention."""
+    _skip_if_no_native_torch_bridge()
     device = helpers.get_torch_device(device_type)
     module = _load_module(device)
     func = module.require_function("broadcast_dtv")
@@ -249,6 +255,7 @@ def test_bwd_dtv_load_uniform(
     benchmark_slang_function: BenchmarkSlangFunction,
 ) -> None:
     """Uniform backward using DiffTensorView loadUniform() - wave reduction."""
+    _skip_if_no_native_torch_bridge()
     device = helpers.get_torch_device(device_type)
     module = _load_module(device)
     func = module.require_function("broadcast_dtv_uniform")
@@ -302,6 +309,7 @@ def test_bwd_perelement_load(
     benchmark_slang_function: BenchmarkSlangFunction,
 ) -> None:
     """Per-element backward using DiffTensorView load/store (atomic)."""
+    _skip_if_no_native_torch_bridge()
     device = helpers.get_torch_device(device_type)
     module = _load_module(device)
     func = module.require_function("square_dtv")
@@ -318,6 +326,7 @@ def test_bwd_perelement_load_once(
     benchmark_slang_function: BenchmarkSlangFunction,
 ) -> None:
     """Per-element backward using DiffTensorView loadOnce/storeOnce (no atomics)."""
+    _skip_if_no_native_torch_bridge()
     device = helpers.get_torch_device(device_type)
     module = _load_module(device)
     func = module.require_function("square_dtv_once")

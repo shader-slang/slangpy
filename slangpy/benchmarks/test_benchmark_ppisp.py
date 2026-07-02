@@ -55,6 +55,12 @@ def _skip_if_no_slangtorch() -> None:
         pytest.skip("slangtorch is not installed")
 
 
+def _skip_if_no_native_torch_bridge() -> None:
+    _skip_if_no_torch()
+    if not spy.is_torch_bridge_available() or spy.is_torch_bridge_using_fallback():
+        pytest.skip("slangpy-torch native bridge is not installed")
+
+
 def create_test_data(
     batch_size: int,
     num_cameras: int,
@@ -295,7 +301,7 @@ def test_ppisp_forward_slangpy(
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
-    _skip_if_no_torch()
+    _skip_if_no_native_torch_bridge()
     device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
@@ -413,7 +419,7 @@ def test_ppisp_backward_slangpy(
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
-    _skip_if_no_torch()
+    _skip_if_no_native_torch_bridge()
     device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
@@ -499,7 +505,7 @@ def test_ppisp_backward_slangpy_manual_hook(
     Bypasses SlangPy's automatic TorchAutoGradHook to measure the overhead of
     the automatic autograd integration vs doing it manually.
     """
-    _skip_if_no_torch()
+    _skip_if_no_native_torch_bridge()
     device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
@@ -641,7 +647,7 @@ def test_ppisp_cpu_overhead_slangpy(
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
     """Measure SlangPy CPU dispatch overhead for PPISP (forward + backward)."""
-    _skip_if_no_torch()
+    _skip_if_no_native_torch_bridge()
     device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
@@ -743,7 +749,7 @@ def test_ppisp_gpu_forward_slangpy(
     benchmark_slang_function: BenchmarkSlangFunction,
 ) -> None:
     """GPU-timed SlangPy PPISP forward pass (timestamp queries, no CPU overhead)."""
-    _skip_if_no_torch()
+    _skip_if_no_native_torch_bridge()
     device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
@@ -802,7 +808,7 @@ def test_ppisp_gpu_backward_slangpy(
     benchmark_slang_function: BenchmarkSlangFunction,
 ) -> None:
     """GPU-timed SlangPy PPISP backward pass (timestamp queries, no CPU overhead)."""
-    _skip_if_no_torch()
+    _skip_if_no_native_torch_bridge()
     device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
