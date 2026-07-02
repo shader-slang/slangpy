@@ -55,11 +55,6 @@ RUN_SLANGPY_AUTOMATIC_BENCHMARK = True
 AUTOGRAD_TENSOR_SIZE = 32
 
 
-def skip_if_no_native_torch_bridge() -> None:
-    if not spy.is_torch_bridge_available() or spy.is_torch_bridge_using_fallback():
-        pytest.skip("slangpy-torch native bridge is not installed")
-
-
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
 def test_autograd_pure_torch(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
@@ -167,7 +162,6 @@ def test_autograd_slangpy_manual_hook(
         pytest.skip("SlangPy manual hook benchmark is not enabled")
     if not HAS_TORCH:
         pytest.skip("PyTorch is not installed")
-    skip_if_no_native_torch_bridge()
 
     device = helpers.get_torch_device(device_type)
     module = spy.Module(device.load_module("test_benchmark_autograd.slang"))
@@ -189,7 +183,7 @@ def test_autograd_slangpy_manual_hook(
             x = x.detach()
             result = torch.empty_like(x)
             poly_func(a, b, c, x, _result=result)
-            ctx.save_for_backward(x)
+            ctx.save_for_backward(x, result)
             ctx.a = a
             ctx.b = b
             ctx.c = c
@@ -199,10 +193,10 @@ def test_autograd_slangpy_manual_hook(
         def backward(
             ctx: Any, grad_output: torch.Tensor
         ) -> tuple[None, None, None, Optional[torch.Tensor]]:
-            (x,) = ctx.saved_tensors
+            x, result = ctx.saved_tensors
             grad_x = torch.zeros_like(x)
             x_pair = NativeTorchTensorDiffPair(x, grad_x, 0, True)
-            result_pair = NativeTorchTensorDiffPair(None, grad_output, 1, False)
+            result_pair = NativeTorchTensorDiffPair(result, grad_output, 1, False)
             poly_func.bwds(ctx.a, ctx.b, ctx.c, x_pair, _result=result_pair)
             return None, None, None, grad_x
 
@@ -230,7 +224,6 @@ def test_autograd_slangpy_automatic(
         pytest.skip("SlangPy automatic benchmark is not enabled")
     if not HAS_TORCH:
         pytest.skip("PyTorch is not installed")
-    skip_if_no_native_torch_bridge()
 
     device = helpers.get_torch_device(device_type)
     module = spy.Module(device.load_module("test_benchmark_autograd.slang"))

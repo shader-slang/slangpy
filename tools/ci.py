@@ -160,6 +160,7 @@ def test_examples(args: Any):
 
 def benchmark_python(args: Any):
     env = get_python_env()
+    env["SLANGPY_ALLOW_TORCH_FALLBACK"] = "1"
 
     # Define available device types per platform
     os_name = get_os()
