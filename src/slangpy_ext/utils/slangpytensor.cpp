@@ -219,7 +219,7 @@ void TensorMarshall::ensure_binding_info_cached(ShaderCursor cursor, NativeBound
         // reference-typed field (a ConstantBuffer/ParameterBlock sub-object) breaks
         // that assumption: nested field lookups auto-dereference into the
         // sub-object, so the cached offsets would be sub-object-relative while the
-        // write targets the parent object — silent corruption. Tensor types are
+        // write targets the parent object - silent corruption. Tensor types are
         // never passed by reference themselves, and reference-typed *enclosing*
         // structs are dereferenced before recursion (see
         // NativeBoundVariableRuntime::write_shader_cursor_pre_dispatch), so fail
