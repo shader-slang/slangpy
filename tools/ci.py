@@ -19,6 +19,7 @@ PYTEST_BASE_TEMP_DIR = PROJECT_DIR / ".temp" / "pytest"
 
 def pytest_command(test_path: str, *args: str) -> list[str]:
     # Pytest clears --basetemp on startup, so keep it in a dedicated repo-local directory.
+    PYTEST_BASE_TEMP_DIR.parent.mkdir(exist_ok=True)
     return ["pytest", test_path, *args, f"--basetemp={PYTEST_BASE_TEMP_DIR}"]
 
 
