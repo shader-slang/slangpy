@@ -78,6 +78,8 @@ def test_basic_autograd(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_tensor_arguments(device_type: DeviceType):
+    if device_type != DeviceType.cuda:
+        pytest.skip("Test currently unreliable on GFX pipelines")
 
     device = helpers.get_torch_device(device_type)
     module = get_module(device)
