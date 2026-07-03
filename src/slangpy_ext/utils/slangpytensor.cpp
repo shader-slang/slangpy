@@ -214,6 +214,22 @@ void TensorMarshall::ensure_binding_info_cached(ShaderCursor cursor, NativeBound
 {
     if (!m_cached_binding_info.primal.is_valid) {
         ShaderCursor field = cursor[binding->variable_name()];
+        // The cached-offset fast path below assumes the tensor's fields live in
+        // `cursor.shader_object()` at offsets relative to that object. A
+        // reference-typed field (a ConstantBuffer/ParameterBlock sub-object) breaks
+        // that assumption: nested field lookups auto-dereference into the
+        // sub-object, so the cached offsets would be sub-object-relative while the
+        // write targets the parent object — silent corruption. Tensor types are
+        // never passed by reference themselves, and reference-typed *enclosing*
+        // structs are dereferenced before recursion (see
+        // NativeBoundVariableRuntime::write_shader_cursor_pre_dispatch), so fail
+        // loudly if one ever reaches this point.
+        SGL_CHECK(
+            !field.is_reference(),
+            "Tensor binding '{}' is reference-typed (a parameter-group sub-object); "
+            "the cached-offset writer does not support this shape",
+            binding->variable_name()
+        );
         m_cached_binding_info = extract_binding_info(field);
     }
 }

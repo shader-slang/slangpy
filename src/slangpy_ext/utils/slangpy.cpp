@@ -256,6 +256,16 @@ void NativeBoundVariableRuntime::write_shader_cursor_pre_dispatch(
         // We have children, so generate call data for each child and
         // store in a dictionary, then store the dictionary as the call data.
         ShaderCursor child_field = cursor[m_variable_name.c_str()];
+        // A reference-typed field is a ConstantBuffer/ParameterBlock sub-object —
+        // e.g. Slang's CUDA target passes an entry-point uniform struct containing a
+        // fixed-size descriptor array by reference as an implicit ParameterBlock.
+        // Dereference before recursing so that children see a cursor whose
+        // shader_object() owns the offsets they extract: field lookups on a
+        // reference cursor auto-dereference (yielding sub-object-relative offsets),
+        // so a child that cached those offsets but wrote through the parent's
+        // shader object would silently corrupt memory.
+        if (child_field.is_reference())
+            child_field = child_field.dereference();
         for (const auto& [name, child_ref] : *m_children) {
             if (child_ref) {
                 nb::object child_value = value[name.c_str()];
