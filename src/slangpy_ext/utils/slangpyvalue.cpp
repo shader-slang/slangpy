@@ -17,7 +17,7 @@ void NativeValueMarshall::ensure_cached(ShaderCursor cursor, NativeBoundVariable
     if (m_cached.is_valid)
         return;
     ShaderCursor field = cursor[binding->variable_name()];
-    // A reference-typed field is a ConstantBuffer/ParameterBlock sub-object — e.g.
+    // A reference-typed field is a ConstantBuffer/ParameterBlock sub-object - e.g.
     // Slang's CUDA target passes an entry-point uniform struct carrying a fixed-size
     // descriptor array (such as the vectorized-array wrapper Array1DValueType holding
     // tensors) by reference. Nested lookups below auto-dereference into the
