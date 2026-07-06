@@ -12,6 +12,67 @@ from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
 SlangCompileError = RuntimeError if sys.platform == "darwin" else spy.SlangCompileError
 
 
+PROFILE_TEST_SOURCE = """
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void main(uint3 tid: SV_DispatchThreadID) { }
+"""
+
+
+def compile_profile_test_program(
+    device: spy.Device,
+    test_id: str,
+    profile: str | None,
+) -> None:
+    compiler_options = None if profile is None else {"profile": profile}
+    session = device.create_slang_session(compiler_options)
+    profile_tag = profile or "default"
+    module = session.load_module_from_source(
+        module_name=f"profile_{profile_tag}_{test_id}",
+        source=PROFILE_TEST_SOURCE,
+    )
+    program = session.link_program(
+        modules=[module],
+        entry_points=[module.entry_point("main")],
+    )
+    device.create_compute_kernel(program)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_slang_compiler_profile_option(device_type: spy.DeviceType):
+    device = helpers.get_device(device_type)
+    options = spy.SlangCompilerOptions({"profile": device.default_profile})
+    assert options.profile == device.default_profile
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_compile_supported_profiles(test_id: str, device_type: spy.DeviceType):
+    device = helpers.get_device(device_type)
+
+    compile_profile_test_program(device, test_id, None)
+    for profile in device.supported_profiles:
+        compile_profile_test_program(device, test_id, profile)
+
+
+@pytest.mark.skipif(
+    spy.SGL_BUILD_TYPE == "Debug",
+    reason="Expected SGL_CHECK failures break into an attached debugger in debug builds.",
+)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_reject_unsupported_profile(device_type: spy.DeviceType):
+    device = helpers.get_device(device_type)
+    cross_backend_profile = {
+        spy.DeviceType.d3d12: "spirv_1_0",
+        spy.DeviceType.vulkan: "metallib_2_3",
+        spy.DeviceType.metal: "sm_6_0",
+        spy.DeviceType.cuda: "sm_6_0",
+    }[device_type]
+
+    assert not device.has_profile(cross_backend_profile)
+    with pytest.raises(RuntimeError, match="is not supported"):
+        device.create_slang_session({"profile": cross_backend_profile})
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_load_module(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)

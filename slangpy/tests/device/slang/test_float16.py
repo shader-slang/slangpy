@@ -11,18 +11,23 @@ ELEMENT_COUNT = 1024
 
 @pytest.mark.parametrize("view", ["uav", "srv"])
 @pytest.mark.parametrize(
-    "shader_model",
+    "profile",
     [
-        spy.ShaderModel.sm_6_2,
-        spy.ShaderModel.sm_6_3,
-        spy.ShaderModel.sm_6_4,
-        spy.ShaderModel.sm_6_5,
-        spy.ShaderModel.sm_6_6,
-        spy.ShaderModel.sm_6_7,
+        "sm_6_2",
+        "sm_6_3",
+        "sm_6_4",
+        "sm_6_5",
+        "sm_6_6",
+        "sm_6_7",
     ],
 )
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_float16(device_type: spy.DeviceType, shader_model: spy.ShaderModel, view: str):
+def test_float16(device_type: spy.DeviceType, profile: str | None, view: str):
+    if device_type in (spy.DeviceType.cuda, spy.DeviceType.metal):
+        if profile != "sm_6_2":
+            pytest.skip("Target profiles do not apply to this backend")
+        profile = None
+
     device = helpers.get_device(device_type)
 
     np.random.seed(123)
@@ -32,7 +37,7 @@ def test_float16(device_type: spy.DeviceType, shader_model: spy.ShaderModel, vie
         device=device,
         path="test_float16.slang",
         entry_point=f"main_{view}",
-        shader_model=shader_model,
+        profile=profile,
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
             "data": {"data": data},

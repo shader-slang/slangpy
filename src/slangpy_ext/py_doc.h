@@ -1451,6 +1451,50 @@ static const char *__doc_sgl_Buffer_write_slangpy_signature = R"doc(Write the Sl
 
 static const char *__doc_sgl_Buffer_write_to_cursor = R"doc(Bind a nullable buffer value to a shader cursor.)doc";
 
+static const char *__doc_sgl_CacheWriter = R"doc(Background worker for best-effort cache write jobs.)doc";
+
+static const char *__doc_sgl_CacheWriter_2 = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_CacheWriter = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_Job = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_Job_byte_size = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_Job_func = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_class_name = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_enqueue = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_enqueue_2 = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_flush = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_cv = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_jobs = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_max_pending_bytes = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_mutex = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_pending_bytes = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_pending_jobs = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_space_cv = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_stop = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_thread = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_release = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_reserve = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_run = R"doc()doc";
+
 static const char *__doc_sgl_CallbackList = R"doc()doc";
 
 static const char *__doc_sgl_CallbackList_CallbackList = R"doc()doc";
@@ -2977,6 +3021,8 @@ static const char *__doc_sgl_Device_blitter = R"doc()doc";
 
 static const char *__doc_sgl_Device_builtin_layout = R"doc(Return the cached reflection layout for the built-in support module.)doc";
 
+static const char *__doc_sgl_Device_cache_writer = R"doc()doc";
+
 static const char *__doc_sgl_Device_capabilities = R"doc(List of slang capabilities supported by the device.)doc";
 
 static const char *__doc_sgl_Device_class_name = R"doc()doc";
@@ -3238,6 +3284,8 @@ static const char *__doc_sgl_Device_debug_logger = R"doc()doc";
 
 static const char *__doc_sgl_Device_debug_printer = R"doc()doc";
 
+static const char *__doc_sgl_Device_default_profile = R"doc(The default profile for the device.)doc";
+
 static const char *__doc_sgl_Device_desc = R"doc()doc";
 
 static const char *__doc_sgl_Device_enable_agility_sdk =
@@ -3303,6 +3351,8 @@ static const char *__doc_sgl_Device_has_capability = R"doc(Check if the device s
 
 static const char *__doc_sgl_Device_has_feature = R"doc(Check if the device supports a given feature.)doc";
 
+static const char *__doc_sgl_Device_has_profile = R"doc(Check if the device supports a given profile.)doc";
+
 static const char *__doc_sgl_Device_hot_reload = R"doc()doc";
 
 static const char *__doc_sgl_Device_info = R"doc(Device information.)doc";
@@ -3329,6 +3379,8 @@ static const char *__doc_sgl_Device_load_program = R"doc(Load a module and link 
 static const char *__doc_sgl_Device_m_blitter = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_builtin_layout = R"doc()doc";
+
+static const char *__doc_sgl_Device_m_cache_writer = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_capabilities = R"doc()doc";
 
@@ -3382,7 +3434,7 @@ static const char *__doc_sgl_Device_m_slang_capabilities = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_slang_session = R"doc()doc";
 
-static const char *__doc_sgl_Device_m_supported_shader_model = R"doc()doc";
+static const char *__doc_sgl_Device_m_supported_profiles = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_supports_cuda_interop = R"doc()doc";
 
@@ -3554,7 +3606,7 @@ Parameter ``cuda_stream``:
 Returns:
     Submission ID.)doc";
 
-static const char *__doc_sgl_Device_supported_shader_model = R"doc(The highest shader model supported by the device.)doc";
+static const char *__doc_sgl_Device_supported_profiles = R"doc(List of supported profiles (e.g. "sm_6_6", "spirv_1_5").)doc";
 
 static const char *__doc_sgl_Device_supports_cuda_interop = R"doc(True if the device supports CUDA interoperability.)doc";
 
@@ -3811,6 +3863,8 @@ static const char *__doc_sgl_Feature_residency_set = R"doc()doc";
 
 static const char *__doc_sgl_Feature_sampler_feedback = R"doc()doc";
 
+static const char *__doc_sgl_Feature_shader_abort = R"doc()doc";
+
 static const char *__doc_sgl_Feature_shader_execution_reordering = R"doc()doc";
 
 static const char *__doc_sgl_Feature_shader_resource_min_lod = R"doc()doc";
@@ -3820,6 +3874,8 @@ static const char *__doc_sgl_Feature_sm_5_1 = R"doc()doc";
 static const char *__doc_sgl_Feature_sm_6_0 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_sm_6_1 = R"doc()doc";
+
+static const char *__doc_sgl_Feature_sm_6_10 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_sm_6_2 = R"doc()doc";
 
@@ -5168,6 +5224,40 @@ Parameter ``value``:
 Returns:
     True if the key was found, false otherwise.)doc";
 
+static const char *__doc_sgl_LMDBCache_get_impl = R"doc()doc";
+
+static const char *__doc_sgl_LMDBCache_get_readonly =
+R"doc(Get a value from the cache without updating its last-access metadata.
+Throws on error.
+
+Parameter ``key_data``:
+    Pointer to the key data.
+
+Parameter ``key_size``:
+    Size of the key data.
+
+Parameter ``write_value_func``:
+    Function to write the value data.
+
+Parameter ``user_data``:
+    User data passed to the write_value_func.
+
+Returns:
+    True if the key was found, false otherwise.)doc";
+
+static const char *__doc_sgl_LMDBCache_get_readonly_2 =
+R"doc(Get a value from the cache without updating its last-access metadata.
+Throws on error.
+
+Parameter ``key``:
+    Key.
+
+Parameter ``value``:
+    Vector to store the value.
+
+Returns:
+    True if the key was found, false otherwise.)doc";
+
 static const char *__doc_sgl_LMDBCache_m_db = R"doc()doc";
 
 static const char *__doc_sgl_LMDBCache_m_evict_mutex = R"doc()doc";
@@ -5179,6 +5269,8 @@ static const char *__doc_sgl_LMDBCache_m_eviction_threshold_size = R"doc()doc";
 static const char *__doc_sgl_LMDBCache_m_evictions = R"doc()doc";
 
 static const char *__doc_sgl_LMDBCache_m_max_key_size = R"doc()doc";
+
+static const char *__doc_sgl_LMDBCache_max_key_size = R"doc(Maximum key size supported by the database.)doc";
 
 static const char *__doc_sgl_LMDBCache_open_db = R"doc()doc";
 
@@ -5211,6 +5303,28 @@ Parameter ``value``:
     Value.)doc";
 
 static const char *__doc_sgl_LMDBCache_stats = R"doc()doc";
+
+static const char *__doc_sgl_LMDBCache_touch =
+R"doc(Update an entry's last-access metadata without reading its value.
+Throws on error.
+
+Parameter ``key_data``:
+    Pointer to the key data.
+
+Parameter ``key_size``:
+    Size of the key data.
+
+Returns:
+    True if the key was found and touched, false otherwise.)doc";
+
+static const char *__doc_sgl_LMDBCache_touch_2 =
+R"doc(Update an entry's last-access metadata. Throws on error.
+
+Parameter ``key``:
+    Key.
+
+Returns:
+    True if the key was found and touched, false otherwise.)doc";
 
 static const char *__doc_sgl_LMDBCache_usage = R"doc()doc";
 
@@ -6119,7 +6233,11 @@ static const char *__doc_sgl_PersistentCache_addRef = R"doc()doc";
 
 static const char *__doc_sgl_PersistentCache_class_name = R"doc()doc";
 
+static const char *__doc_sgl_PersistentCache_flush = R"doc()doc";
+
 static const char *__doc_sgl_PersistentCache_m_cache = R"doc()doc";
+
+static const char *__doc_sgl_PersistentCache_m_cache_writer = R"doc()doc";
 
 static const char *__doc_sgl_PersistentCache_m_hit_count = R"doc()doc";
 
@@ -7248,28 +7366,6 @@ static const char *__doc_sgl_ShaderCursor_to_string = R"doc()doc";
 
 static const char *__doc_sgl_ShaderHotReloadEvent = R"doc(Event data for hot reload hook.)doc";
 
-static const char *__doc_sgl_ShaderModel = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_info = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_0 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_1 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_2 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_3 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_4 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_5 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_6 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_7 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_unknown = R"doc()doc";
-
 static const char *__doc_sgl_ShaderObject = R"doc()doc";
 
 static const char *__doc_sgl_ShaderObject_2 = R"doc()doc";
@@ -7588,15 +7684,15 @@ static const char *__doc_sgl_SlangCompilerOptions_matrix_layout = R"doc(Specifie
 
 static const char *__doc_sgl_SlangCompilerOptions_optimization = R"doc(Specifies the optimization level.)doc";
 
+static const char *__doc_sgl_SlangCompilerOptions_profile =
+R"doc(Specifies the target profile to use (e.g. "sm_6_6"). Defaults to the
+device's default profile when empty.)doc";
+
 static const char *__doc_sgl_SlangCompilerOptions_report_downstream_time = R"doc(Turn on/off downstream compilation time report.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_report_perf_benchmark =
 R"doc(Turn on/off reporting of time spend in different parts of the
 compiler.)doc";
-
-static const char *__doc_sgl_SlangCompilerOptions_shader_model =
-R"doc(Specifies the shader model to use. Defaults to latest available on the
-device.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_skip_spirv_validation =
 R"doc(Specifies whether or not to skip the validation step after emitting
@@ -10071,8 +10167,6 @@ static const char *__doc_sgl_find_enum_info_adl_78 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_79 = R"doc()doc";
 
-static const char *__doc_sgl_find_enum_info_adl_80 = R"doc()doc";
-
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
 static const char *__doc_sgl_flip_bit = R"doc()doc";
@@ -10318,10 +10412,6 @@ static const char *__doc_sgl_get_format = R"doc(Convert from DXGI to sgl format.
 static const char *__doc_sgl_get_format_2 = R"doc(Convert from Vulkan to sgl format.)doc";
 
 static const char *__doc_sgl_get_format_info = R"doc()doc";
-
-static const char *__doc_sgl_get_shader_model_major_version = R"doc()doc";
-
-static const char *__doc_sgl_get_shader_model_minor_version = R"doc()doc";
 
 static const char *__doc_sgl_get_vulkan_format = R"doc(Convert from sgl to Vulkan format.)doc";
 

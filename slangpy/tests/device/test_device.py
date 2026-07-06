@@ -34,6 +34,34 @@ def test_create_device(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_device_profiles(device_type: spy.DeviceType):
+    device = helpers.get_device(device_type)
+    profiles = device.supported_profiles
+
+    assert len(profiles) == len(set(profiles))
+    assert all(isinstance(profile, str) for profile in profiles)
+    assert all(device.has_profile(profile) for profile in profiles)
+    assert not device.has_profile("invalid_profile")
+    assert device.default_profile == "" or device.default_profile in profiles
+
+    if device_type == spy.DeviceType.d3d12:
+        assert profiles
+        assert all(profile.startswith("sm_6_") for profile in profiles)
+        assert device.default_profile.startswith("sm_6_")
+    elif device_type == spy.DeviceType.vulkan:
+        assert any(profile.startswith("sm_6_") for profile in profiles)
+        assert any(profile.startswith("spirv_1_") for profile in profiles)
+        assert device.default_profile.startswith("spirv_1_")
+    elif device_type == spy.DeviceType.metal:
+        assert profiles
+        assert all(profile.startswith("metallib_") for profile in profiles)
+        assert device.default_profile.startswith("metallib_")
+    else:
+        assert profiles == []
+        assert device.default_profile == ""
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_device_close_handler(device_type: spy.DeviceType):
 
     # Create none-cached device.

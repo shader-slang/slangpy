@@ -142,9 +142,9 @@ struct SlangCompilerOptions {
     /// Specifies a list of preprocessor defines.
     std::map<std::string, std::string> defines;
 
-    /// Specifies the shader model to use.
-    /// Defaults to latest available on the device.
-    ShaderModel shader_model{ShaderModel::unknown};
+    /// Specifies the target profile to use (e.g. "sm_6_6").
+    /// Defaults to the device's default profile when empty.
+    std::string profile;
 
     /// Specifies the matrix layout.
     /// Defaults to row-major.

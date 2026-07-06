@@ -383,17 +383,13 @@ def dispatch_compute(
     textures: dict[str, Texture] = {},
     defines: dict[str, str] = {},
     compiler_options: "spy.SlangCompilerOptionsDict" = {},
-    shader_model: spy.ShaderModel = spy.ShaderModel.sm_6_6,
+    profile: str | None = None,
 ) -> Context:
-    # TODO(slang-rhi): Metal and CUDA don't support shader models.
-    # we should move away from this concept and check features instead.
-    if device.info.type == spy.DeviceType.metal or device.info.type == spy.DeviceType.cuda:
-        shader_model = spy.ShaderModel.sm_6_0
-    if shader_model > device.supported_shader_model:
-        pytest.skip(f"Shader model {str(shader_model)} not supported")
+    if profile is not None and profile not in device.supported_profiles:
+        pytest.skip(f'Profile "{profile}" not supported')
 
     compiler_options["include_paths"] = device.slang_session.desc.compiler_options.include_paths
-    compiler_options["shader_model"] = shader_model
+    compiler_options["profile"] = profile or ""
     compiler_options["defines"] = defines
     compiler_options["debug_info"] = spy.SlangDebugInfoLevel.standard
 
