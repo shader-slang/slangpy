@@ -545,8 +545,8 @@ void Device::close()
 void Device::close_all_devices()
 {
     std::vector<ref<Device>> devices = get_created_devices();
-    for (const ref<Device>& device : devices)
-        device->close();
+    for (auto it = devices.rbegin(); it != devices.rend(); ++it)
+        (*it)->close();
 }
 
 void Device::_release_all_rhi_resources()

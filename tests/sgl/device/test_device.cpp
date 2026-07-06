@@ -71,14 +71,14 @@ TEST_CASE_GPU("close_all_devices_keeps_snapshot_alive")
         [&](Device*)
         {
             close_count_a++;
-            device_b->close();
-            device_b = nullptr;
         }
     );
     device_b->register_device_close_callback(
         [&](Device*)
         {
             close_count_b++;
+            device_a->close();
+            device_a = nullptr;
         }
     );
 
@@ -87,6 +87,7 @@ TEST_CASE_GPU("close_all_devices_keeps_snapshot_alive")
 
     CHECK(close_count_a == 1);
     CHECK(close_count_b == 1);
+    CHECK_THROWS(current_device());
 }
 
 TEST_CASE_GPU("execute_callback_desc_native_handle")
