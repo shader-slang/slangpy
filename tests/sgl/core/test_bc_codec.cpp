@@ -1021,7 +1021,7 @@ TEST_CASE("bc_codec_nvtt3_mipmaps" * doctest::skip(!BCCodec().is_nvtt_available(
             decoded.data(),
             expected_w,
             expected_h,
-            expected_w * 3 * sizeof(uint16_t),
+            static_cast<uint32_t>(expected_w * 3 * sizeof(uint16_t)),
             3,
             BCComponentType::float16,
         };
