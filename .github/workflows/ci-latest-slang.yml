@@ -35,10 +35,10 @@ jobs:
         config: [Debug, Release]
         python: ["3.10"]
         include:
-          - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,header-validation,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,header-validation,coverage,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
-          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Debug, flags: "unit-test,header-validation,crashpad", runs-on: { labels: [Windows, X64, nvrgfx-kernelvm-bridge] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { labels: [Windows, X64, nvrgfx-kernelvm-bridge] } }
+          - { os: linux, platform: x86_64, compiler: gcc, config: Debug, flags: "unit-test,header-validation,coverage,crashpad", runs-on: { labels: [Linux, X64, nvrgfx-kernelvm-bridge] } }
+          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: { labels: [Linux, X64, nvrgfx-kernelvm-bridge] } }
           - { os: macos, platform: aarch64, compiler: clang, config: Debug, flags: "unit-test,header-validation,crashpad", runs-on: macos-latest }
           - { os: macos, platform: aarch64, compiler: clang, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: macos-latest }
 
@@ -78,8 +78,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: windows, platform: x86_64, compiler: msvc, config: Release, python: "3.10", flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Windows, X64] } }
-          - { os: linux, platform: x86_64, compiler: gcc, config: Release, python: "3.10", flags: "unit-test,test-examples,crashpad", runs-on: { group: nvrgfx, labels: [Linux, X64] } }
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, python: "3.10", flags: "unit-test,test-examples,crashpad", runs-on: { labels: [Windows, X64, nvrgfx-kernelvm-bridge] } }
+          - { os: linux, platform: x86_64, compiler: gcc, config: Release, python: "3.10", flags: "unit-test,test-examples,crashpad", runs-on: { labels: [Linux, X64, nvrgfx-kernelvm-bridge] } }
 
     env:
       CI_OS: ${{ matrix.os }}
