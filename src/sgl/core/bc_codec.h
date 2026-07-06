@@ -35,7 +35,7 @@ public:
     void
     decode(const void* data, size_t size, BCFormat format, uint32_t width, uint32_t height, const BCMutableImage& dst);
 
-    /// True if the NVTT3 dynamic library was found and loaded.
+    /// True if NVTT3 support is available.
     static bool is_nvtt_available();
 
     /// True if the given format can be encoded (SW or NVTT3).

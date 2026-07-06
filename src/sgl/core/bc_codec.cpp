@@ -139,6 +139,20 @@ static uint32_t component_byte_size(BCComponentType t)
     return static_cast<uint32_t>(DataStruct::type_size(t));
 }
 
+template<typename T>
+static T read_unaligned_component(const uint8_t* pixel, uint32_t channel)
+{
+    T value;
+    std::memcpy(&value, pixel + static_cast<size_t>(channel) * sizeof(T), sizeof(T));
+    return value;
+}
+
+template<typename T>
+static void write_unaligned_component(uint8_t* pixel, uint32_t channel, T value)
+{
+    std::memcpy(pixel + static_cast<size_t>(channel) * sizeof(T), &value, sizeof(T));
+}
+
 /// Read a component as unsigned-normalized [0,1], signed-normalized [-1,1], or a raw floating-point value.
 static float read_component_as_float(const uint8_t* pixel, uint32_t channel, BCComponentType type)
 {
@@ -148,26 +162,26 @@ static float read_component_as_float(const uint8_t* pixel, uint32_t channel, BCC
     case BCComponentType::int8:
         return std::max(-1.0f, reinterpret_cast<const int8_t*>(pixel)[channel] / 127.0f);
     case BCComponentType::uint16:
-        return reinterpret_cast<const uint16_t*>(pixel)[channel] / 65535.0f;
+        return read_unaligned_component<uint16_t>(pixel, channel) / 65535.0f;
     case BCComponentType::int16:
-        return std::max(-1.0f, reinterpret_cast<const int16_t*>(pixel)[channel] / 32767.0f);
+        return std::max(-1.0f, read_unaligned_component<int16_t>(pixel, channel) / 32767.0f);
     case BCComponentType::float16:
-        return math::float16_to_float32(reinterpret_cast<const uint16_t*>(pixel)[channel]);
+        return math::float16_to_float32(read_unaligned_component<uint16_t>(pixel, channel));
     case BCComponentType::uint32:
-        return static_cast<float>(reinterpret_cast<const uint32_t*>(pixel)[channel] / 4294967295.0);
+        return static_cast<float>(read_unaligned_component<uint32_t>(pixel, channel) / 4294967295.0);
     case BCComponentType::int32:
-        return std::max(-1.0f, static_cast<float>(reinterpret_cast<const int32_t*>(pixel)[channel] / 2147483647.0));
+        return std::max(-1.0f, static_cast<float>(read_unaligned_component<int32_t>(pixel, channel) / 2147483647.0));
     case BCComponentType::float32:
-        return reinterpret_cast<const float*>(pixel)[channel];
+        return read_unaligned_component<float>(pixel, channel);
     case BCComponentType::float64:
-        return static_cast<float>(reinterpret_cast<const double*>(pixel)[channel]);
+        return static_cast<float>(read_unaligned_component<double>(pixel, channel));
     case BCComponentType::uint64:
-        return static_cast<float>(reinterpret_cast<const uint64_t*>(pixel)[channel] / 18446744073709551615.0);
+        return static_cast<float>(read_unaligned_component<uint64_t>(pixel, channel) / 18446744073709551615.0);
     case BCComponentType::int64:
         return std::max(
             -1.0f,
             static_cast<float>(
-                static_cast<long double>(reinterpret_cast<const int64_t*>(pixel)[channel])
+                static_cast<long double>(read_unaligned_component<int64_t>(pixel, channel))
                 / std::numeric_limits<int64_t>::max()
             )
         );
@@ -191,48 +205,66 @@ static void write_component_from_float(uint8_t* pixel, uint32_t channel, BCCompo
             = static_cast<int8_t>(std::clamp(std::round(value * 127.0f), -128.0f, 127.0f));
         break;
     case BCComponentType::uint16:
-        reinterpret_cast<uint16_t*>(pixel)[channel]
-            = static_cast<uint16_t>(std::clamp(value * 65535.0f + 0.5f, 0.0f, 65535.0f));
+        write_unaligned_component<uint16_t>(
+            pixel,
+            channel,
+            static_cast<uint16_t>(std::clamp(value * 65535.0f + 0.5f, 0.0f, 65535.0f))
+        );
         break;
     case BCComponentType::int16:
-        reinterpret_cast<int16_t*>(pixel)[channel]
-            = static_cast<int16_t>(std::clamp(std::round(value * 32767.0f), -32768.0f, 32767.0f));
+        write_unaligned_component<int16_t>(
+            pixel,
+            channel,
+            static_cast<int16_t>(std::clamp(std::round(value * 32767.0f), -32768.0f, 32767.0f))
+        );
         break;
     case BCComponentType::float16:
-        reinterpret_cast<uint16_t*>(pixel)[channel] = math::float32_to_float16(value);
+        write_unaligned_component<uint16_t>(pixel, channel, math::float32_to_float16(value));
         break;
     case BCComponentType::uint32:
-        reinterpret_cast<uint32_t*>(pixel)[channel]
-            = static_cast<uint32_t>(std::clamp(static_cast<double>(value) * 4294967295.0 + 0.5, 0.0, 4294967295.0));
+        write_unaligned_component<uint32_t>(
+            pixel,
+            channel,
+            static_cast<uint32_t>(std::clamp(static_cast<double>(value) * 4294967295.0 + 0.5, 0.0, 4294967295.0))
+        );
         break;
     case BCComponentType::int32:
-        reinterpret_cast<int32_t*>(pixel)[channel] = static_cast<int32_t>(
-            std::clamp(std::round(static_cast<double>(value) * 2147483647.0), -2147483648.0, 2147483647.0)
+        write_unaligned_component<int32_t>(
+            pixel,
+            channel,
+            static_cast<int32_t>(
+                std::clamp(std::round(static_cast<double>(value) * 2147483647.0), -2147483648.0, 2147483647.0)
+            )
         );
         break;
     case BCComponentType::float32:
-        reinterpret_cast<float*>(pixel)[channel] = value;
+        write_unaligned_component<float>(pixel, channel, value);
         break;
     case BCComponentType::float64:
-        reinterpret_cast<double*>(pixel)[channel] = static_cast<double>(value);
+        write_unaligned_component<double>(pixel, channel, static_cast<double>(value));
         break;
     case BCComponentType::uint64:
         if (value <= 0.0f)
-            reinterpret_cast<uint64_t*>(pixel)[channel] = 0;
+            write_unaligned_component<uint64_t>(pixel, channel, 0);
         else if (value >= 1.0f)
-            reinterpret_cast<uint64_t*>(pixel)[channel] = std::numeric_limits<uint64_t>::max();
+            write_unaligned_component<uint64_t>(pixel, channel, std::numeric_limits<uint64_t>::max());
         else
-            reinterpret_cast<uint64_t*>(pixel)[channel]
-                = static_cast<uint64_t>(static_cast<long double>(value) * std::numeric_limits<uint64_t>::max());
+            write_unaligned_component<uint64_t>(
+                pixel,
+                channel,
+                static_cast<uint64_t>(static_cast<long double>(value) * std::numeric_limits<uint64_t>::max())
+            );
         break;
     case BCComponentType::int64:
         if (value <= -1.0f)
-            reinterpret_cast<int64_t*>(pixel)[channel] = std::numeric_limits<int64_t>::min();
+            write_unaligned_component<int64_t>(pixel, channel, std::numeric_limits<int64_t>::min());
         else if (value >= 1.0f)
-            reinterpret_cast<int64_t*>(pixel)[channel] = std::numeric_limits<int64_t>::max();
+            write_unaligned_component<int64_t>(pixel, channel, std::numeric_limits<int64_t>::max());
         else
-            reinterpret_cast<int64_t*>(pixel)[channel] = static_cast<int64_t>(
-                std::round(static_cast<long double>(value) * std::numeric_limits<int64_t>::max())
+            write_unaligned_component<int64_t>(
+                pixel,
+                channel,
+                static_cast<int64_t>(std::round(static_cast<long double>(value) * std::numeric_limits<int64_t>::max()))
             );
         break;
     default:
@@ -683,8 +715,10 @@ static BCCompressedImage nvtt_encode(const BCImage& src, BCFormat format, const 
     NvttMipmapFilter nvtt_mip_filter = mip_filter_to_nvtt(options.mip_filter);
     while (mip_w > 1 || mip_h > 1) {
         ok = nvttSurfaceBuildNextMipmapDefaults(surface, nvtt_mip_filter, 1, nullptr);
-        if (ok != NVTT_True)
-            break;
+        if (ok != NVTT_True) {
+            nvttDestroySurface(surface);
+            SGL_THROW("NVTT3: failed to build next mip level from {}x{}", mip_w, mip_h);
+        }
 
         mip_w = static_cast<uint32_t>(nvttSurfaceWidth(surface));
         mip_h = static_cast<uint32_t>(nvttSurfaceHeight(surface));

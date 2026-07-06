@@ -609,6 +609,88 @@ TEST_CASE("decode_validates_destination_layout")
     CHECK_THROWS(codec.decode(block, sizeof(block), BCFormat::bc1_unorm, 4, 4, bad_pitch));
 }
 
+TEST_CASE("unaligned_component_access")
+{
+    BCCodec codec(false);
+    constexpr uint32_t W = 4;
+    constexpr uint32_t H = 4;
+    constexpr uint32_t CHANNELS = 4;
+    constexpr uint32_t TIGHT_ROW_PITCH = W * CHANNELS * sizeof(float);
+    constexpr uint32_t UNALIGNED_ROW_PITCH = TIGHT_ROW_PITCH + 1;
+
+    std::vector<float> tight_pixels(W * H * CHANNELS);
+    for (size_t i = 0; i < tight_pixels.size(); ++i)
+        tight_pixels[i] = static_cast<float>(i) / static_cast<float>(tight_pixels.size() - 1);
+
+    std::vector<uint8_t> unaligned_pixels(1 + UNALIGNED_ROW_PITCH * H, 0xcd);
+    for (uint32_t y = 0; y < H; ++y) {
+        std::memcpy(
+            unaligned_pixels.data() + 1 + y * UNALIGNED_ROW_PITCH,
+            tight_pixels.data() + y * W * CHANNELS,
+            TIGHT_ROW_PITCH
+        );
+    }
+
+    BCImage tight_src{
+        .data = tight_pixels.data(),
+        .width = W,
+        .height = H,
+        .row_pitch = TIGHT_ROW_PITCH,
+        .channel_count = CHANNELS,
+        .component_type = BCComponentType::float32,
+    };
+    BCImage unaligned_src{
+        .data = unaligned_pixels.data() + 1,
+        .width = W,
+        .height = H,
+        .row_pitch = UNALIGNED_ROW_PITCH,
+        .channel_count = CHANNELS,
+        .component_type = BCComponentType::float32,
+    };
+
+    BCCompressedImage tight_encoded = codec.encode(tight_src, BCFormat::bc4_unorm);
+    BCCompressedImage unaligned_encoded = codec.encode(unaligned_src, BCFormat::bc4_unorm);
+    REQUIRE_EQ(tight_encoded.mip_levels.size(), 1);
+    REQUIRE_EQ(unaligned_encoded.mip_levels.size(), 1);
+    CHECK(tight_encoded.mip_levels[0].data == unaligned_encoded.mip_levels[0].data);
+
+    constexpr uint32_t TIGHT_DST_ROW_PITCH = W * sizeof(float);
+    constexpr uint32_t UNALIGNED_DST_ROW_PITCH = TIGHT_DST_ROW_PITCH + 1;
+    std::vector<float> tight_decoded(W * H);
+    std::vector<uint8_t> unaligned_decoded(1 + UNALIGNED_DST_ROW_PITCH * H, 0xcd);
+    BCMutableImage tight_dst{
+        .data = tight_decoded.data(),
+        .width = W,
+        .height = H,
+        .row_pitch = TIGHT_DST_ROW_PITCH,
+        .channel_count = 1,
+        .component_type = BCComponentType::float32,
+    };
+    BCMutableImage unaligned_dst{
+        .data = unaligned_decoded.data() + 1,
+        .width = W,
+        .height = H,
+        .row_pitch = UNALIGNED_DST_ROW_PITCH,
+        .channel_count = 1,
+        .component_type = BCComponentType::float32,
+    };
+
+    const BCCompressedMip& mip = tight_encoded.mip_levels[0];
+    codec.decode(mip.data.data(), mip.data.size(), BCFormat::bc4_unorm, W, H, tight_dst);
+    codec.decode(mip.data.data(), mip.data.size(), BCFormat::bc4_unorm, W, H, unaligned_dst);
+    for (uint32_t y = 0; y < H; ++y) {
+        for (uint32_t x = 0; x < W; ++x) {
+            float value;
+            std::memcpy(
+                &value,
+                unaligned_decoded.data() + 1 + y * UNALIGNED_DST_ROW_PITCH + x * sizeof(float),
+                sizeof(value)
+            );
+            CHECK(value == tight_decoded[y * W + x]);
+        }
+    }
+}
+
 TEST_CASE("software_mipmaps_honor_row_pitch")
 {
     BCCodec codec(false);

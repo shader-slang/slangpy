@@ -276,7 +276,7 @@ target_compile_options(sgl
         >
         # GCC flags.
         $<$<CXX_COMPILER_ID:GNU>:
-            -Wno-unknown-warning
+            -Wno-psabi
             -Wno-literal-suffix
             -Wno-class-memaccess
             -Wno-strict-aliasing

@@ -585,6 +585,50 @@ TEST_CASE("truncated_resource_data_is_rejected")
     CHECK_THROWS(DDSFile(&stream));
 }
 
+TEST_CASE("write_rejects_resource_size_mismatch")
+{
+    uint8_t blocks[9] = {};
+    for (size_t resource_size : {size_t(7), size_t(9)}) {
+        CAPTURE(resource_size);
+        MemoryStream stream;
+        CHECK_THROWS(
+            DDSFile::write_dds(
+                &stream,
+                DXGI_FORMAT_BC1_UNORM,
+                DDSFile::TextureType::texture_2d,
+                4,
+                4,
+                1,
+                1,
+                1,
+                blocks,
+                resource_size
+            )
+        );
+        CHECK_EQ(stream.size(), 0);
+    }
+}
+
+TEST_CASE("bitmap_rejects_dds_arrays")
+{
+    uint8_t pixels[2][4] = {};
+    MemoryStream stream;
+    DDSFile::write_dds(
+        &stream,
+        DXGI_FORMAT_R8G8B8A8_UNORM,
+        DDSFile::TextureType::texture_2d,
+        1,
+        1,
+        1,
+        1,
+        2,
+        pixels,
+        sizeof(pixels)
+    );
+    stream.seek(0);
+    CHECK_THROWS(Bitmap(&stream, Bitmap::FileFormat::dds));
+}
+
 TEST_CASE("bitmap_rejects_incompatible_uncompressed_dds")
 {
     uint32_t packed_pixel = 0;

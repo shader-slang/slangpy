@@ -643,6 +643,53 @@ namespace detail {
         return true;
     }
 
+    bool get_required_resource_size(
+        DXGIFormat dxgi_format,
+        DDSFile::TextureType type,
+        uint32_t width,
+        uint32_t height,
+        uint32_t depth,
+        uint32_t mip_count,
+        uint32_t array_size,
+        size_t* size
+    )
+    {
+        uint32_t bits_per_pixel_or_block = get_bits_per_pixel_or_block(dxgi_format);
+        uint32_t block_width;
+        uint32_t block_height;
+        get_block_size(dxgi_format, block_width, block_height);
+        if (bits_per_pixel_or_block == 0 || block_width == 0 || block_height == 0)
+            return false;
+
+        size_t result = 0;
+        for (uint32_t mip = 0; mip < mip_count; ++mip) {
+            size_t row_pitch = get_row_pitch(width, bits_per_pixel_or_block, block_width, mip);
+            size_t mip_height = get_mip_dimension(height, mip);
+            size_t row_count = (mip_height + block_height - 1) / block_height;
+            size_t slice_pitch;
+            if (!checked_mul(row_pitch, row_count, &slice_pitch) || slice_pitch > std::numeric_limits<uint32_t>::max())
+                return false;
+
+            size_t mip_size = slice_pitch;
+            if (type == DDSFile::TextureType::texture_3d
+                && !checked_mul(mip_size, get_mip_dimension(depth, mip), &mip_size))
+                return false;
+            if (!checked_add(result, mip_size, &result))
+                return false;
+        }
+
+        if (type != DDSFile::TextureType::texture_3d) {
+            size_t layer_count = array_size;
+            if (type == DDSFile::TextureType::texture_cube && !checked_mul(layer_count, 6, &layer_count))
+                return false;
+            if (!checked_mul(result, layer_count, &result))
+                return false;
+        }
+
+        *size = result;
+        return true;
+    }
+
     /// Size of DXT10 extended DDS header (magic + header + DXT10 header).
     static constexpr size_t DXT10_HEADER_SIZE = sizeof(DDS_MAGIC) + sizeof(Header) + sizeof(HeaderDXT10);
 
@@ -836,33 +883,16 @@ bool DDSFile::get_subresource_offset(uint32_t mip, uint32_t slice, size_t* offse
 
 bool DDSFile::get_required_resource_size(size_t* size) const
 {
-    size_t result = 0;
-    if (m_type == TextureType::texture_3d) {
-        for (uint32_t mip = 0; mip < m_mip_count; ++mip) {
-            uint32_t slice_pitch;
-            get_subresource_pitch(mip, nullptr, &slice_pitch);
-            size_t mip_size;
-            if (!checked_mul(slice_pitch, get_mip_dimension(m_depth, mip), &mip_size)
-                || !checked_add(result, mip_size, &result))
-                return false;
-        }
-    } else {
-        for (uint32_t mip = 0; mip < m_mip_count; ++mip) {
-            uint32_t slice_pitch;
-            get_subresource_pitch(mip, nullptr, &slice_pitch);
-            if (!checked_add(result, slice_pitch, &result))
-                return false;
-        }
-
-        size_t layer_count = m_array_size;
-        if (m_type == TextureType::texture_cube && !checked_mul(layer_count, 6, &layer_count))
-            return false;
-        if (!checked_mul(result, layer_count, &result))
-            return false;
-    }
-
-    *size = result;
-    return true;
+    return detail::get_required_resource_size(
+        DXGIFormat(m_dxgi_format),
+        m_type,
+        m_width,
+        m_height,
+        m_depth,
+        m_mip_count,
+        m_array_size,
+        size
+    );
 }
 
 void DDSFile::get_subresource_pitch(uint32_t mip, uint32_t* row_pitch, uint32_t* slice_pitch) const
@@ -929,6 +959,35 @@ void DDSFile::write_dds(
     SGL_CHECK(mip_count > 0, "DDSFile: mip_count must be > 0");
     SGL_CHECK(array_size > 0, "DDSFile: array_size must be > 0");
     SGL_CHECK(resource_data != nullptr || resource_size == 0, "DDSFile: resource_data is null but resource_size > 0");
+
+    uint32_t max_dimension = std::max({width, height, depth});
+    uint32_t max_mip_count = 1;
+    while (max_dimension > 1) {
+        max_dimension >>= 1;
+        ++max_mip_count;
+    }
+    SGL_CHECK(mip_count <= max_mip_count, "DDSFile: mip_count exceeds the full mip chain");
+
+    size_t required_resource_size;
+    SGL_CHECK(
+        detail::get_required_resource_size(
+            DXGIFormat(dxgi_format),
+            type,
+            width,
+            height,
+            depth,
+            mip_count,
+            array_size,
+            &required_resource_size
+        ),
+        "DDSFile: failed to calculate required resource size"
+    );
+    SGL_CHECK(
+        resource_size == required_resource_size,
+        "DDSFile: resource size mismatch (expected {}, got {})",
+        required_resource_size,
+        resource_size
+    );
 
     uint8_t header_buf[DXT10_HEADER_SIZE];
     encode_header(header_buf, DXGIFormat(dxgi_format), type, width, height, depth, mip_count, array_size);

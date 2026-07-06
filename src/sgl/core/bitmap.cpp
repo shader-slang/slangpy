@@ -2572,6 +2572,7 @@ void Bitmap::read_dds(Stream* stream)
         "Bitmap::read_dds: only 2D textures are supported (got {}).",
         dds.type()
     );
+    SGL_CHECK(dds.array_size() == 1, "Bitmap::read_dds: array textures are not supported.");
 
     Format format = get_format(DXGI_FORMAT(dds.dxgi_format()));
     SGL_CHECK(format != Format::undefined, "Bitmap::read_dds: unsupported DXGI format {}.", dds.dxgi_format());
