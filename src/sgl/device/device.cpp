@@ -21,6 +21,7 @@
 #include "sgl/device/print.h"
 #include "sgl/device/blit.h"
 #include "sgl/device/hot_reload.h"
+#include "sgl/device/reflection.h"
 #include "sgl/device/debug_logger.h"
 #include "sgl/device/native_handle_traits.h"
 #include "sgl/device/cache_writer.h"
@@ -523,6 +524,9 @@ void Device::close()
     m_debug_printer.reset();
 
     m_global_fence.reset();
+
+    // Cached reflection layouts can own shader objects strongly; break those cycles before releasing Slang state.
+    detail::invalidate_reflection_data(this);
 
     m_builtin_layout.reset();
     m_slang_session.reset();
