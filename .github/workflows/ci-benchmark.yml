@@ -71,14 +71,29 @@ jobs:
       - name: Setup CMake/Ninja
         uses: lukka/get-cmake@latest
 
-      # Build latest Slang.
-      # - name: Build latest Slang
-      #   run: |
-      #     git clone --recursive https://github.com/shader-slang/slang.git
-      #     cd slang
-      #     mkdir build
-      #     cmake -B build --preset default
-      #     cmake --build build --config ${{ matrix.config }} --parallel
+      # DNI (do-not-integrate): build Slang from the descriptor-array by-reference fix.
+      # Composition under test (all three, matching real post-merge master):
+      #   - shader-slang/slang#11939  dynamic-index local-copy legalization (the floor)
+      #   - shader-slang/slang#11941  descriptor-table uniforms by reference (merged into #11939)
+      #   - shader-slang/slang#11940  ParameterBlock-of-array emit-crash fix (independent)
+      # #11941 was merged into the floor branch (cuda-param-dynamic-index-floor), so that branch
+      # now carries BOTH #11939 and #11941; we clone it and fetch+merge #11940 so the implicit
+      # ParameterBlock-of-array this fix produces cannot hit the emit crash.
+      # NO slang-rhi bump here — unlike the retired F path (#779), the by-reference fix binds
+      # through the already-supported entry-point parameter-block sub-object path with zero
+      # host changes; SlangPy keeps its own external/slang-rhi pin (host-safety PR #1045).
+      - name: Build Slang (by-reference fix shader-slang/slang#11939+#11941 + #11940 — DNI)
+        run: |
+          git clone --recursive -b haaggarwal/cuda-param-dynamic-index-floor https://github.com/shader-slang/slang.git
+          cd slang
+          git config user.email "ci@slangpy.local"
+          git config user.name "slangpy-ci"
+          git fetch origin haaggarwal/cuda-pb-of-array-emit-fix
+          git merge --no-edit FETCH_HEAD
+          git submodule update --init --recursive
+          mkdir build
+          cmake -B build --preset default
+          cmake --build build --config ${{ matrix.config }} --parallel
 
       # Setup.
       - name: Setup
@@ -100,19 +115,58 @@ jobs:
           key: vcpkg-cache-${{ runner.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ hashFiles('vcpkg.json', 'external/vcpkg-triplets/**') }}
 
       # Configure.
+      # DNI (do-not-integrate): point SlangPy at the locally-built by-reference-fix Slang so the
+      # benchmark exercises the compiler fix. SGL_LOCAL_SLANG swaps only the compiler; SlangPy
+      # keeps its own external/slang-rhi (SGL_LOCAL_RHI stays OFF).
       - name: Configure
-        # run: python tools/ci.py --cmake-args="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/${{ matrix.config }}" configure
-        run: python tools/ci.py configure
+        run: python tools/ci.py --cmake-args="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/${{ matrix.config }}" configure
 
       # Build.
       - name: Build
         run: python tools/ci.py build
 
-      # Benchmark (Python)
+      # Benchmark (Python) — DNI: run pytest directly with --benchmark-save instead of the
+      # Mongo upload path. The nvr-ci Mongo host is not always resolvable from these runners
+      # (getaddrinfo failures), and the Mongo upload exception aborts pytest before the
+      # terminal-summary table prints — so a Mongo outage silently loses all numbers. Saving
+      # to a local JSON makes the run self-contained: the "Name / Min / Max / Mean / Median /
+      # Stddev" table always prints to the log, and the JSON is uploaded as an artifact.
+      # Windows self-hosted runners have no bash — use pwsh. Each pytest is wrapped so a single
+      # device's failure never aborts the step before the others run; the always()-gated unlock
+      # step below is the real safety net that guarantees the shared runner's clocks are released.
       - name: Benchmark (Python, Windows, GPU Clock Locked)
         if: contains(matrix.flags, 'benchmark') && runner.os == 'Windows'
-        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --mongodb-connection-string "${{ secrets.BENCHMARK_MONGODB_CONNECTION_STRING }}" --mongodb-database-name "nvr-ci" --lock-gpu-clocks
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python tools/gpu_clock.py lock --ratio 0.7
+          python -m pytest slangpy/benchmarks -ra --device-types cuda --benchmark-save "dni-$env:RUN_ID-cuda"; $global:LASTEXITCODE = 0
+          python -m pytest slangpy/benchmarks -ra --device-types vulkan --benchmark-save "dni-$env:RUN_ID-vulkan"; $global:LASTEXITCODE = 0
+          python -m pytest slangpy/benchmarks -ra --device-types d3d12 --benchmark-save "dni-$env:RUN_ID-d3d12"; $global:LASTEXITCODE = 0
+        shell: pwsh
+
+      # Safety net: always release the GPU clocks on the shared self-hosted runner, even if the
+      # benchmark step above aborted — otherwise the clocks stay pinned at ratio 0.7 and corrupt
+      # every subsequent job on that runner.
+      - name: Unlock GPU clocks (Windows)
+        if: contains(matrix.flags, 'benchmark') && runner.os == 'Windows' && always()
+        run: python tools/gpu_clock.py unlock
+        shell: pwsh
 
       - name: Benchmark (Python, Linux, GPU Clock Unlocked)
         if: contains(matrix.flags, 'benchmark') && runner.os == 'Linux'
-        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --mongodb-connection-string "${{ secrets.BENCHMARK_MONGODB_CONNECTION_STRING }}" --mongodb-database-name "nvr-ci"
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python -m pytest slangpy/benchmarks -ra --device-types cuda --benchmark-save "dni-${RUN_ID}-cuda" || true
+          python -m pytest slangpy/benchmarks -ra --device-types vulkan --benchmark-save "dni-${RUN_ID}-vulkan" || true
+        shell: bash
+
+      # Upload the saved benchmark JSON(s) so the medians survive even if the log is trimmed.
+      - name: Upload benchmark reports
+        if: contains(matrix.flags, 'benchmark') && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-reports-${{ matrix.os }}
+          path: .benchmarks/**/*.json
+          if-no-files-found: warn
