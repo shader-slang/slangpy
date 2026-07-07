@@ -10,7 +10,8 @@
 # calls m_constantBufferPool.upload() once before replaying commands) - not once
 # per parameter, and not via a per-dispatch __constant__ symbol copy.
 #
-# Usage (on a CUDA machine):
+# Usage (on a CUDA machine, run from slangpy/benchmarks/ so the .slang module
+# is on the search path):
 #
 #   nsys profile -t cuda --stats=true -o byref-separate \
 #       python profile_byref_pool_upload.py --mode separate --dispatches 100
@@ -20,8 +21,10 @@
 # Read the `cuda_api_sum` table of each report:
 #   - separate: ~100 cuMemcpyHtoDAsync (one command buffer per call -> one pooled
 #     upload per dispatch; slangpy's default calling pattern) + fixed setup copies
-#   - batched:  ~1 cuMemcpyHtoDAsync for all 100 dispatches (one command buffer)
-#     + the same fixed setup copies
+#   - batched:  a small flat count (~1 per used global-pool page, e.g. 3-5) for
+#     all 100 dispatches - upload() issues one copy per pool page, so the count
+#     tracks payload volume, not dispatch count, and stays flat as --dispatches
+#     grows + the same fixed setup copies
 #
 # The separate-vs-batched delta isolates the pooled upload from setup traffic
 # (tensor creation, module init), and batched staying at ~1 while --dispatches

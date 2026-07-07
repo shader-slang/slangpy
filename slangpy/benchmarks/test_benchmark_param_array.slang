@@ -54,3 +54,20 @@ float sum_static<let N : int>(uint2 tid, float weights[N])
     }
     return result;
 }
+
+// Launch-bound worst case for the by-reference descriptor-table conversion
+// (shader-slang/slang#11939): the parameter is a descriptor table (a struct
+// carrying a fixed-size tensor array, so it converts to a by-ref ParameterBlock),
+// but it is only STATICALLY indexed - the kernel gains nothing from the
+// conversion, so the per-command-buffer payload upload it adds is pure overhead.
+// Dispatched with a tiny call shape at a high rate, this isolates that fixed
+// per-call cost (one extra cuMemcpyHtoDAsync submit + small async DMA).
+struct StaticTensorList<let N : int>
+{
+    RWTensor<float, 2> tensors[N];
+}
+
+float pick_static_tensor<let N : int>(uint2 tid, StaticTensorList<N> tensor_list)
+{
+    return tensor_list.tensors[0].load(tid);
+}

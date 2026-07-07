@@ -110,3 +110,38 @@ def test_param_array_sum_static(
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
+
+
+# Launch-bound worst case for the by-ref conversion: a *statically indexed*
+# descriptor table. The parameter converts (struct carrying a tensor array), so
+# every dispatch pays the pooled payload upload, but the kernel never runtime-
+# indexes it - the upload is pure per-call overhead. A tiny call shape makes the
+# dispatch launch-bound so that overhead dominates the measurement. Compare the
+# per-call time against a pre-#11939 build (or -cuda-entry-point-params-by-value)
+# to get the hard number for the fixed cost; expect it in the ~5-9us/call range
+# measured for the analogous ParameterBlock routing, and expect sum_static /
+# pick_one to bound it from both sides.
+TINY_CALL_SHAPE = (64, 64)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("count", [4, 16])
+def test_param_array_static_tensor_table_launch_bound(
+    device_type: spy.DeviceType, count: int, benchmark_slang_function: BenchmarkSlangFunction
+):
+    device = helpers.get_device(device_type)
+    inputs = [np.random.rand(*TINY_CALL_SHAPE).astype(np.float32) for _ in range(count)]
+    input_tensors = [spy.Tensor.from_numpy(device, x) for x in inputs]
+    result_tensor = spy.Tensor.empty(device, shape=TINY_CALL_SHAPE, dtype=float)
+
+    module = spy.Module(device.load_module("test_benchmark_param_array.slang"))
+    func = module.require_function(f"pick_static_tensor<{count}>")
+
+    benchmark_slang_function(
+        device,
+        func,
+        tid=spy.call_id(),
+        tensor_list={"tensors": input_tensors},
+        _result=result_tensor,
+    )
+    assert np.allclose(result_tensor.to_numpy(), inputs[0])
