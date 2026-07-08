@@ -6,6 +6,9 @@
 #include "sgl/core/memory_stream.h"
 #include "sgl/device/native_formats.h"
 
+#include <cstring>
+#include <vector>
+
 using namespace sgl;
 
 TEST_SUITE_BEGIN("dds_file");
@@ -354,6 +357,22 @@ static const struct TestItem TEST_ITEMS[] = {
     },
 };
 
+static std::filesystem::path dds_test_path(const char* name)
+{
+    return platform::project_directory() / "data" / "test_images" / "dds" / name;
+}
+
+static std::vector<uint8_t> load_dds_data(const char* name)
+{
+    DDSFile file(dds_test_path(name));
+    return std::vector<uint8_t>(file.data(), file.data() + file.size());
+}
+
+static void write_u32(std::vector<uint8_t>& data, size_t offset, uint32_t value)
+{
+    std::memcpy(data.data() + offset, &value, sizeof(value));
+}
+
 TEST_CASE("non_existing_file")
 {
     CHECK_THROWS(DDSFile("__non_existing__.dds"));
@@ -418,6 +437,65 @@ TEST_CASE("detect_dds_file")
     const uint32_t INVALID_MAGIC = 0xffffffff;
     MemoryStream invalid_stream(&INVALID_MAGIC, sizeof(INVALID_MAGIC));
     CHECK_FALSE(DDSFile::detect_dds_file(&invalid_stream));
+}
+
+TEST_CASE("subresource_offsets_for_npot_mips")
+{
+    DDSFile file(dds_test_path("bc3-unorm-srgb-odd.dds"));
+
+    size_t expected_offset = 0;
+    for (uint32_t mip = 0; mip < file.mip_count(); ++mip) {
+        CHECK_EQ(file.get_subresource_data(mip, 0), file.resource_data() + expected_offset);
+
+        uint32_t slice_pitch;
+        file.get_subresource_pitch(mip, nullptr, &slice_pitch);
+        expected_offset += slice_pitch;
+    }
+    CHECK_LE(expected_offset, file.resource_size());
+}
+
+TEST_CASE("invalid_subresource_indices")
+{
+    DDSFile file(dds_test_path("bc7-unorm-tiny.dds"));
+
+    CHECK_THROWS(file.get_subresource_data(file.mip_count(), 0));
+    CHECK_THROWS(file.get_subresource_data(0, file.array_size()));
+}
+
+TEST_CASE("truncated_resource_data")
+{
+    std::vector<uint8_t> data = load_dds_data("bc7-unorm-tiny.dds");
+    MemoryStream stream(static_cast<const void*>(data.data()), data.size() - 1);
+
+    CHECK_THROWS(DDSFile(&stream));
+}
+
+TEST_CASE("3d_subresource_offsets")
+{
+    // Start from a valid DX10 BC7 header and turn it into a 4x4x4 volume with three mips.
+    // BC7 uses one 16-byte block per 2D slice at every mip in this texture.
+    std::vector<uint8_t> data = load_dds_data("bc7-unorm-tiny.dds");
+    constexpr size_t header_size = 148;
+    constexpr size_t resource_size = 112; // 16 * (4 + 2 + 1)
+    data.resize(header_size + resource_size);
+
+    write_u32(data, 12, 4);  // height
+    write_u32(data, 16, 4);  // width
+    write_u32(data, 24, 4);  // depth
+    write_u32(data, 28, 3);  // mip count
+    write_u32(data, 132, 4); // D3D11_RESOURCE_DIMENSION_TEXTURE3D
+    write_u32(data, 140, 1); // array size
+
+    MemoryStream stream(static_cast<const void*>(data.data()), data.size());
+    DDSFile file(&stream);
+
+    CHECK_EQ(file.type(), DDSFile::TextureType::texture_3d);
+    CHECK_EQ(file.get_subresource_data(0, 0), file.resource_data());
+    CHECK_EQ(file.get_subresource_data(0, 3), file.resource_data() + 48);
+    CHECK_EQ(file.get_subresource_data(1, 0), file.resource_data() + 64);
+    CHECK_EQ(file.get_subresource_data(1, 1), file.resource_data() + 80);
+    CHECK_EQ(file.get_subresource_data(2, 0), file.resource_data() + 96);
+    CHECK_THROWS(file.get_subresource_data(1, 2));
 }
 
 TEST_SUITE_END();

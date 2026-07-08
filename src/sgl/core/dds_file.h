@@ -79,6 +79,8 @@ public:
 
 private:
     bool decode_header(const uint8_t* data, size_t size);
+    bool get_subresource_offset(uint32_t mip, uint32_t slice, size_t* offset) const;
+    bool get_required_resource_size(size_t* size) const;
 
     uint8_t* m_data{nullptr};
     size_t m_size{0};
