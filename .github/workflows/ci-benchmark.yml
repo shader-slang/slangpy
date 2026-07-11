@@ -77,14 +77,20 @@ jobs:
       - name: Setup CMake/Ninja
         uses: lukka/get-cmake@latest
 
-      # Build latest Slang.
-      # - name: Build latest Slang
-      #   run: |
-      #     git clone --recursive https://github.com/shader-slang/slang.git
-      #     cd slang
-      #     mkdir build
-      #     cmake -B build --preset default
-      #     cmake --build build --config ${{ matrix.config }} --parallel
+      # DNI (do-not-integrate): build Slang from the __grid_constant__ const-ref fix.
+      # Under test: shader-slang/slang @ haaggarwal/cuda-grid-constant-uniform (commit 9dccfd65),
+      # based on the floor (#11939 @9586d17f) plus the CUDA emit change that marks entry-point
+      # by-value uniform aggregates `__grid_constant__ const` and forwards their address into
+      # borrow-in callees, removing the per-thread .local depot copy. No by-ref ABI move, no
+      # device<->host memcpy, no slang-rhi bump. SGL_LOCAL_SLANG swaps only the compiler.
+      - name: Build Slang (__grid_constant__ const-ref fix — DNI)
+        run: |
+          git clone --recursive -b haaggarwal/cuda-grid-constant-uniform https://github.com/shader-slang/slang.git
+          cd slang
+          git submodule update --init --recursive
+          mkdir build
+          cmake -B build --preset default
+          cmake --build build --config ${{ matrix.config }} --parallel
 
       # Setup.
       - name: Setup
@@ -106,15 +112,55 @@ jobs:
           key: vcpkg-cache-${{ runner.os }}-${{ matrix.platform }}-${{ matrix.compiler }}-${{ hashFiles('vcpkg.json', 'external/vcpkg-triplets/**') }}
 
       # Configure.
+      # DNI: point SlangPy at the locally-built grid_constant-fix Slang. SGL_LOCAL_SLANG swaps
+      # only the compiler; SlangPy keeps its own external/slang-rhi (SGL_LOCAL_RHI stays OFF).
       - name: Configure
-        # run: python tools/ci.py --cmake-args="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/${{ matrix.config }}" configure
-        run: python tools/ci.py configure
+        run: python tools/ci.py --cmake-args="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/${{ matrix.config }}" configure
 
       # Build.
       - name: Build
         run: python tools/ci.py build
 
-      # Benchmark (Python)
-      - name: Benchmark (Python)
-        if: contains(matrix.flags, 'benchmark')
-        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --mongodb-connection-string "${{ secrets.BENCHMARK_MONGODB_CONNECTION_STRING }}" --mongodb-database-name "nvr-ci" --lock-gpu-clocks
+      # Benchmark (Python) — DNI: run pytest directly with --benchmark-save instead of the Mongo
+      # upload path. The nvr-ci Mongo host is not resolvable from these runners (getaddrinfo
+      # failures) and the upload exception aborts pytest before the terminal-summary table prints,
+      # silently losing all numbers. Saving to local JSON makes the run self-contained: the
+      # Name/Min/Max/Mean/Median/Stddev table always prints to the log, and the JSON is uploaded as
+      # an artifact. Windows self-hosted runners have no bash — use pwsh; each pytest is wrapped so
+      # one device's failure never aborts the step, and the always()-gated unlock below guarantees
+      # the shared runner's clocks are released.
+      - name: Benchmark (Python, Windows, GPU Clock Locked)
+        if: contains(matrix.flags, 'benchmark') && runner.os == 'Windows'
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python tools/gpu_clock.py lock --ratio 0.7
+          python -m pytest slangpy/benchmarks -ra --device-types cuda --benchmark-save "dni-$env:RUN_ID-cuda"; $global:LASTEXITCODE = 0
+          python -m pytest slangpy/benchmarks -ra --device-types vulkan --benchmark-save "dni-$env:RUN_ID-vulkan"; $global:LASTEXITCODE = 0
+          python -m pytest slangpy/benchmarks -ra --device-types d3d12 --benchmark-save "dni-$env:RUN_ID-d3d12"; $global:LASTEXITCODE = 0
+        shell: pwsh
+
+      # Safety net: always release the GPU clocks on the shared self-hosted runner, even if the
+      # benchmark step aborted — otherwise the clocks stay pinned and corrupt subsequent jobs.
+      - name: Unlock GPU clocks (Windows)
+        if: contains(matrix.flags, 'benchmark') && runner.os == 'Windows' && always()
+        run: python tools/gpu_clock.py unlock
+        shell: pwsh
+
+      - name: Benchmark (Python, Linux, GPU Clock Unlocked)
+        if: contains(matrix.flags, 'benchmark') && runner.os == 'Linux'
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python -m pytest slangpy/benchmarks -ra --device-types cuda --benchmark-save "dni-${RUN_ID}-cuda" || true
+          python -m pytest slangpy/benchmarks -ra --device-types vulkan --benchmark-save "dni-${RUN_ID}-vulkan" || true
+        shell: bash
+
+      # Upload the saved benchmark JSON(s) so the medians survive even if the log is trimmed.
+      - name: Upload benchmark reports
+        if: contains(matrix.flags, 'benchmark') && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-reports-${{ matrix.os }}
+          path: .benchmarks/**/*.json
+          if-no-files-found: warn
