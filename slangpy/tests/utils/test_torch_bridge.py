@@ -56,6 +56,92 @@ class TestTorchBridgeAvailability:
             # Restore original state
             slangpy.set_torch_bridge_python_fallback(original)
 
+    def test_native_bridge_version_matches(self):
+        """The installed native slangpy_torch must be ABI-compatible with the
+        version slangpy_ext was compiled against; if not, the compat gate must
+        fall back with reason 'incompatible'. Here the matched pair must NOT be
+        incompatible (positive coherence check)."""
+        try:
+            import slangpy_torch  # noqa: F401
+        except ImportError:
+            pytest.skip("native slangpy_torch not installed; only fallback available")
+
+        reason = slangpy.get_torch_bridge_fallback_reason()
+        assert reason != "incompatible", (
+            "native slangpy_torch is version-incompatible with slangpy_ext "
+            "(TENSOR_BRIDGE_API_VERSION mismatch) - a signature-format change "
+            "likely bumped one side but not the other"
+        )
+        # With a compatible native bridge present, it should be the active path
+        # (unless a test earlier forced fallback and did not restore it).
+        assert slangpy.is_torch_bridge_using_fallback() is False
+
+    def test_stale_bridge_version_is_rejected(self):
+        """Deterministically exercise the INCOMPATIBLE path: a native slangpy_torch
+        whose api_version does not match slangpy_ext's compiled TENSOR_BRIDGE_API_VERSION
+        must be rejected (fallback_reason == 'incompatible'), NOT silently used.
+
+        This is the guard for #1052's version-skew hole: the signature is an
+        output-string FORMAT of the bridge, not a struct field, so info_struct_size
+        can't detect a format change (TensorBridgeInfo layout is unchanged) - only
+        api_version can. If a future format change forgets to bump the version, a
+        stale bridge would pass the gate and silently emit the old format,
+        reintroducing the cache-poisoning bug. We shim a fake slangpy_torch with a
+        deliberately stale api_version (real - 1) but the CORRECT info_struct_size,
+        so ONLY the version differs, and assert the gate rejects it. Runs in a
+        subprocess because the native bridge latches its init once per process.
+        """
+        try:
+            import slangpy_torch  # noqa: F401
+        except ImportError:
+            pytest.skip("native slangpy_torch not installed; nothing to version-check")
+
+        import subprocess
+        import textwrap
+
+        script = textwrap.dedent(
+            """
+            import sys, ctypes, types
+            import torch  # noqa: F401  (libtorch must load before slangpy_torch)
+            import slangpy_torch as real
+            real_ver = real.API_VERSION
+            real_size = real.INFO_STRUCT_SIZE
+
+            class FakeAPI(ctypes.Structure):
+                _fields_ = [("api_version", ctypes.c_int),
+                            ("info_struct_size", ctypes.c_size_t)] + \\
+                           [("fn%d" % i, ctypes.c_void_p) for i in range(8)]
+
+            fake = FakeAPI()
+            fake.api_version = real_ver - 1     # stale vs slangpy_ext's compiled version
+            fake.info_struct_size = real_size   # correct size -> ONLY the version mismatches
+            addr = ctypes.addressof(fake)
+
+            mod = types.ModuleType("slangpy_torch")
+            mod.get_api_ptr = lambda: addr
+            mod.API_VERSION = fake.api_version
+            mod.INFO_STRUCT_SIZE = real_size
+            mod._keep = fake                    # keep the backing struct alive
+            sys.modules["slangpy_torch"] = mod  # shadow before slangpy's bridge inits
+
+            import slangpy
+            slangpy.is_torch_bridge_available()  # trigger lazy bridge init
+            reason = slangpy.get_torch_bridge_fallback_reason()
+            assert reason == "incompatible", "expected 'incompatible', got %r" % reason
+            assert slangpy.is_torch_bridge_using_fallback() is True
+            print("STALE_BRIDGE_REJECTED_OK")
+            """
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+        )
+        assert "STALE_BRIDGE_REJECTED_OK" in result.stdout, (
+            "stale-version bridge was NOT rejected by the compat gate.\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+
     def test_is_torch_tensor_with_tensor(self, torch_bridge_mode: str):
         """Test is_torch_tensor correctly identifies PyTorch tensors."""
         t = torch.zeros(4, 3, 2)

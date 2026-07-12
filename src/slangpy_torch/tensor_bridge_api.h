@@ -190,7 +190,13 @@ typedef void* (*TensorBridge_CreateZerosLikeFn)(void* py_tensor_obj);
 // ============================================================================
 // Version info for ABI compatibility checking
 // ============================================================================
-#define TENSOR_BRIDGE_API_VERSION 7
+// Bump this on ANY change to the API/ABI contract, including the OUTPUT format
+// of a function (not just struct layout): the compat gate in
+// slangpy_ext/utils/torch_bridge.h can only detect a change via api_version or
+// info_struct_size, so a format change that leaves TensorBridgeInfo unchanged
+// is invisible unless api_version is bumped. History: 6->7 for native autograd
+// (#816); 7->8 for the [Dn,Sm]->[Dn,Sm,Gk] signature format (#1052).
+#define TENSOR_BRIDGE_API_VERSION 8
 
 typedef struct TensorBridgeAPI {
     int api_version;
