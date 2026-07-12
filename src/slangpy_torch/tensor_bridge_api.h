@@ -141,7 +141,7 @@ typedef int (*TensorBridge_IsTensorFn)(void* py_tensor_obj);
 //   buffer: Output buffer for signature string
 //   buffer_size: Size of output buffer in bytes
 // Returns: TENSOR_BRIDGE_SUCCESS (0) on success, or a negative TensorBridgeResult on error
-// Format: "[Dn,Sm]" where n=ndim, m=scalar_type
+// Format: "[Dn,Sm,Gk]" where n=ndim, m=scalar_type, k=requires_grad (0/1)
 // This is faster than full extraction when only signature is needed (~15ns)
 typedef int (*TensorBridge_GetSignatureFn)(void* py_tensor_obj, char* buffer, size_t buffer_size);
 

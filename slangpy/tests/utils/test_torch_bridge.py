@@ -229,7 +229,20 @@ class TestTorchTensorExtraction:
         """Test extraction of tensor signature."""
         t = torch.zeros(4, 4, dtype=torch.float32)
         signature = slangpy.extract_torch_tensor_signature(t)
-        assert signature == "[D2,S6]"
+        assert signature == "[D2,S6,G0]"
+
+    def test_signature_distinguishes_requires_grad(self):
+        """Grad-ness must be part of the signature so no-grad and grad calls
+        of the same ndim/dtype resolve to distinct CallData (#1052)."""
+        no_grad = slangpy.extract_torch_tensor_signature(
+            torch.zeros(4, 4, dtype=torch.float32, requires_grad=False)
+        )
+        grad = slangpy.extract_torch_tensor_signature(
+            torch.zeros(4, 4, dtype=torch.float32, requires_grad=True)
+        )
+        assert no_grad == "[D2,S6,G0]"
+        assert grad == "[D2,S6,G1]"
+        assert no_grad != grad
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
