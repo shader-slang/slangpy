@@ -77,12 +77,13 @@ def test_basic_autograd(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_autograd_after_no_grad_call(device_type: DeviceType):
+def test_autograd_after_no_grad_call(device_type: DeviceType, torch_bridge_mode: str):
     # Regression for #1052: a no-grad call must not poison the call-data cache
     # for a later requires_grad call of the same ndim/dtype. The torch cache
     # signature previously omitted requires_grad, so the first no-grad call
     # cached a non-autograd dispatch that the grad call then reused, silently
-    # dropping the autograd hook (grad_fn=None -> backward() fails).
+    # dropping the autograd hook (grad_fn=None -> backward() fails). Runs in
+    # both native and Python-fallback bridge modes via torch_bridge_mode.
     device = helpers.get_torch_device(device_type)
     module = helpers.create_module(device, TEST_CODE)
 
