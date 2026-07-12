@@ -650,6 +650,54 @@ void forward(uint index, IDiffTensor<float, 1> x, IWDiffTensor<float, 1> y)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("a_grad,b_grad", [(True, True), (True, False), (False, True)])
+def test_mixed_requires_grad_idifftensor(device_type: DeviceType, a_grad: bool, b_grad: bool):
+    """
+    Regression for shader-slang/slangpy#1056.
+
+    A [Differentiable] function with two IDiffTensor inputs aborts the process with
+    CUDA_ERROR_ILLEGAL_ADDRESS during backward when only some inputs have
+    requires_grad=True. The compiled backward kernel scatters _grad_out
+    unconditionally for every IDiffTensor param, but dispatch only bound a grad
+    buffer for requires_grad=True inputs, leaving the other's _grad_out a dangling
+    device pointer that the atomic scatter faults on. yes/yes worked; yes/no and
+    no/yes aborted. The autouse torch_bridge_mode fixture exercises both bridge paths.
+    """
+    src = """
+import slangpy;
+
+[Differentiable]
+void mul2(uint index, IDiffTensor<float, 1> a, IDiffTensor<float, 1> b, IWDiffTensor<float, 1> out)
+{
+    out[index] = a[index] * b[index];
+}
+"""
+    import torch
+
+    device = helpers.get_torch_device(device_type)
+    module = helpers.create_module(device, src)
+
+    a = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32, device="cuda", requires_grad=a_grad)
+    b = torch.tensor([5.0, 6.0, 7.0, 8.0], dtype=torch.float32, device="cuda", requires_grad=b_grad)
+    out = torch.zeros(size=(4,), dtype=torch.float32, device="cuda", requires_grad=True)
+
+    module.mul2(index=grid(shape=(4,)), a=a, b=b, out=out)
+    out.sum().backward()
+
+    # sum(a * b): d/da = b, d/db = a. torch reports .grad only for requires_grad leaves.
+    if a_grad:
+        assert a.grad is not None
+        compare_tensors(b.detach(), a.grad)
+    else:
+        assert a.grad is None
+    if b_grad:
+        assert b.grad is not None
+        compare_tensors(a.detach(), b.grad)
+    else:
+        assert b.grad is None
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_nn_parameter_as_input(device_type: DeviceType):
     """
     Test that torch.nn.parameter.Parameter can be passed to a SlangPy function.
