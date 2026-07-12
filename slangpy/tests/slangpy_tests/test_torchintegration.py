@@ -655,13 +655,14 @@ def test_mixed_requires_grad_idifftensor(device_type: DeviceType, a_grad: bool, 
     """
     Regression for shader-slang/slangpy#1056.
 
-    A [Differentiable] function with two IDiffTensor inputs aborts the process with
-    CUDA_ERROR_ILLEGAL_ADDRESS during backward when only some inputs have
-    requires_grad=True. The compiled backward kernel scatters _grad_out
-    unconditionally for every IDiffTensor param, but dispatch only bound a grad
-    buffer for requires_grad=True inputs, leaving the other's _grad_out a dangling
-    device pointer that the atomic scatter faults on. yes/yes worked; yes/no and
-    no/yes aborted. The autouse torch_bridge_mode fixture exercises both bridge paths.
+    A [Differentiable] function with two IDiffTensor inputs failed during backward
+    when only some inputs had requires_grad=True. The compiled backward kernel
+    scatters _grad_out unconditionally for every IDiffTensor param, but dispatch only
+    bound a grad buffer for requires_grad=True inputs. On CUDA the other input's
+    _grad_out was a dangling device pointer the atomic scatter faulted on, aborting
+    the process with CUDA_ERROR_ILLEGAL_ADDRESS; on other backends type resolution
+    rejected the unbound gradient with a TypeError. yes/yes worked; yes/no and no/yes
+    failed. The autouse torch_bridge_mode fixture exercises both bridge paths.
     """
     src = """
 import slangpy;
