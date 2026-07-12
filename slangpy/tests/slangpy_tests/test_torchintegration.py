@@ -61,12 +61,12 @@ def setup_bridge_mode(torch_bridge_mode: str):
 @pytest.mark.parametrize(
     "pair",
     [
-        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6"),
-        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6"),
-        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5"),
-        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3"),
-        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0"),
-        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0"),
+        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6,G0"),
+        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6,G1"),
+        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5,G0"),
+        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3,G0"),
+        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0,G0"),
+        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0,G0"),
     ],
 )
 def test_torch_signature(pair: tuple[torch.Tensor, str]):
