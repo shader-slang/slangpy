@@ -66,9 +66,10 @@ int main(int argc, char** argv)
 
     // Exit with the doctest status directly, bypassing the C runtime's post-main
     // teardown (global destructors, GPU-driver/RHI DLL unload). That phase can fault
-    // intermittently on the GPU CI runners and red an otherwise-green run (#1062);
-    // it runs after all explicit teardown above, so skipping it hides no real signal
-    // (a fault during the test or the explicit teardown still surfaces before here).
+    // intermittently on the GPU CI runners and red an otherwise-green run (#1062).
+    // It runs after all explicit teardown above, so this does not mask CI failure
+    // status: a fault during the test or the explicit teardown surfaces before here,
+    // and a real test failure keeps result != 0.
     std::fflush(nullptr);
     std::_Exit(result);
 }
