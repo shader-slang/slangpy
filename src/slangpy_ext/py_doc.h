@@ -1451,6 +1451,50 @@ static const char *__doc_sgl_Buffer_write_slangpy_signature = R"doc(Write the Sl
 
 static const char *__doc_sgl_Buffer_write_to_cursor = R"doc(Bind a nullable buffer value to a shader cursor.)doc";
 
+static const char *__doc_sgl_CacheWriter = R"doc(Background worker for best-effort cache write jobs.)doc";
+
+static const char *__doc_sgl_CacheWriter_2 = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_CacheWriter = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_Job = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_Job_byte_size = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_Job_func = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_class_name = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_enqueue = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_enqueue_2 = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_flush = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_cv = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_jobs = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_max_pending_bytes = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_mutex = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_pending_bytes = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_pending_jobs = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_space_cv = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_stop = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_m_thread = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_release = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_reserve = R"doc()doc";
+
+static const char *__doc_sgl_CacheWriter_run = R"doc()doc";
+
 static const char *__doc_sgl_CallbackList = R"doc()doc";
 
 static const char *__doc_sgl_CallbackList_CallbackList = R"doc()doc";
@@ -2977,6 +3021,8 @@ static const char *__doc_sgl_Device_blitter = R"doc()doc";
 
 static const char *__doc_sgl_Device_builtin_layout = R"doc(Return the cached reflection layout for the built-in support module.)doc";
 
+static const char *__doc_sgl_Device_cache_writer = R"doc()doc";
+
 static const char *__doc_sgl_Device_capabilities = R"doc(List of slang capabilities supported by the device.)doc";
 
 static const char *__doc_sgl_Device_class_name = R"doc()doc";
@@ -3329,6 +3375,8 @@ static const char *__doc_sgl_Device_load_program = R"doc(Load a module and link 
 static const char *__doc_sgl_Device_m_blitter = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_builtin_layout = R"doc()doc";
+
+static const char *__doc_sgl_Device_m_cache_writer = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_capabilities = R"doc()doc";
 
@@ -3811,6 +3859,8 @@ static const char *__doc_sgl_Feature_residency_set = R"doc()doc";
 
 static const char *__doc_sgl_Feature_sampler_feedback = R"doc()doc";
 
+static const char *__doc_sgl_Feature_shader_abort = R"doc()doc";
+
 static const char *__doc_sgl_Feature_shader_execution_reordering = R"doc()doc";
 
 static const char *__doc_sgl_Feature_shader_resource_min_lod = R"doc()doc";
@@ -3820,6 +3870,8 @@ static const char *__doc_sgl_Feature_sm_5_1 = R"doc()doc";
 static const char *__doc_sgl_Feature_sm_6_0 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_sm_6_1 = R"doc()doc";
+
+static const char *__doc_sgl_Feature_sm_6_10 = R"doc()doc";
 
 static const char *__doc_sgl_Feature_sm_6_2 = R"doc()doc";
 
@@ -5168,6 +5220,40 @@ Parameter ``value``:
 Returns:
     True if the key was found, false otherwise.)doc";
 
+static const char *__doc_sgl_LMDBCache_get_impl = R"doc()doc";
+
+static const char *__doc_sgl_LMDBCache_get_readonly =
+R"doc(Get a value from the cache without updating its last-access metadata.
+Throws on error.
+
+Parameter ``key_data``:
+    Pointer to the key data.
+
+Parameter ``key_size``:
+    Size of the key data.
+
+Parameter ``write_value_func``:
+    Function to write the value data.
+
+Parameter ``user_data``:
+    User data passed to the write_value_func.
+
+Returns:
+    True if the key was found, false otherwise.)doc";
+
+static const char *__doc_sgl_LMDBCache_get_readonly_2 =
+R"doc(Get a value from the cache without updating its last-access metadata.
+Throws on error.
+
+Parameter ``key``:
+    Key.
+
+Parameter ``value``:
+    Vector to store the value.
+
+Returns:
+    True if the key was found, false otherwise.)doc";
+
 static const char *__doc_sgl_LMDBCache_m_db = R"doc()doc";
 
 static const char *__doc_sgl_LMDBCache_m_evict_mutex = R"doc()doc";
@@ -5179,6 +5265,8 @@ static const char *__doc_sgl_LMDBCache_m_eviction_threshold_size = R"doc()doc";
 static const char *__doc_sgl_LMDBCache_m_evictions = R"doc()doc";
 
 static const char *__doc_sgl_LMDBCache_m_max_key_size = R"doc()doc";
+
+static const char *__doc_sgl_LMDBCache_max_key_size = R"doc(Maximum key size supported by the database.)doc";
 
 static const char *__doc_sgl_LMDBCache_open_db = R"doc()doc";
 
@@ -5211,6 +5299,28 @@ Parameter ``value``:
     Value.)doc";
 
 static const char *__doc_sgl_LMDBCache_stats = R"doc()doc";
+
+static const char *__doc_sgl_LMDBCache_touch =
+R"doc(Update an entry's last-access metadata without reading its value.
+Throws on error.
+
+Parameter ``key_data``:
+    Pointer to the key data.
+
+Parameter ``key_size``:
+    Size of the key data.
+
+Returns:
+    True if the key was found and touched, false otherwise.)doc";
+
+static const char *__doc_sgl_LMDBCache_touch_2 =
+R"doc(Update an entry's last-access metadata. Throws on error.
+
+Parameter ``key``:
+    Key.
+
+Returns:
+    True if the key was found and touched, false otherwise.)doc";
 
 static const char *__doc_sgl_LMDBCache_usage = R"doc()doc";
 
@@ -6119,7 +6229,11 @@ static const char *__doc_sgl_PersistentCache_addRef = R"doc()doc";
 
 static const char *__doc_sgl_PersistentCache_class_name = R"doc()doc";
 
+static const char *__doc_sgl_PersistentCache_flush = R"doc()doc";
+
 static const char *__doc_sgl_PersistentCache_m_cache = R"doc()doc";
+
+static const char *__doc_sgl_PersistentCache_m_cache_writer = R"doc()doc";
 
 static const char *__doc_sgl_PersistentCache_m_hit_count = R"doc()doc";
 
@@ -6390,6 +6504,549 @@ static const char *__doc_sgl_PrimitiveTopology_point_list = R"doc()doc";
 static const char *__doc_sgl_PrimitiveTopology_triangle_list = R"doc()doc";
 
 static const char *__doc_sgl_PrimitiveTopology_triangle_strip = R"doc()doc";
+
+static const char *__doc_sgl_Profiler =
+R"doc(Bounded CPU/GPU instrumentation profiler with immutable trace and
+frame-statistics snapshots.)doc";
+
+static const char *__doc_sgl_Profiler_2 =
+R"doc(Bounded CPU/GPU instrumentation profiler with immutable trace and
+frame-statistics snapshots.)doc";
+
+static const char *__doc_sgl_Profiler_3 = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerCallStatistics =
+R"doc(Mergeable duration summary that does not retain individual call
+samples.)doc";
+
+static const char *__doc_sgl_ProfilerCallStatistics_count = R"doc(Number of calls.)doc";
+
+static const char *__doc_sgl_ProfilerCallStatistics_maximum_ms = R"doc(Maximum call duration in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerCallStatistics_mean_ms = R"doc(Arithmetic mean call duration in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerCallStatistics_minimum_ms = R"doc(Minimum call duration in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerCallStatistics_standard_deviation_ms = R"doc(Population standard deviation in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerCallStatistics_total_ms = R"doc(Sum of call durations in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerCaptureDesc = R"doc(Configuration for a bounded profiler capture.)doc";
+
+static const char *__doc_sgl_ProfilerCaptureDesc_max_memory_bytes = R"doc(Maximum capture-owned zone and frame storage in bytes.)doc";
+
+static const char *__doc_sgl_ProfilerCaptureStopReason = R"doc(Reason why a bounded profiler capture stopped recording.)doc";
+
+static const char *__doc_sgl_ProfilerCaptureStopReason_info = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerCaptureStopReason_memory_limit = R"doc(< The capture reached ProfilerCaptureDesc::max_memory_bytes.)doc";
+
+static const char *__doc_sgl_ProfilerCaptureStopReason_user = R"doc(< The capture was stopped explicitly by the user.)doc";
+
+static const char *__doc_sgl_ProfilerDesc = R"doc(Configuration used to construct a Profiler.)doc";
+
+static const char *__doc_sgl_ProfilerDesc_enable_auto_zones = R"doc(Enable automatic zones around SlangPy functional dispatch recording.)doc";
+
+static const char *__doc_sgl_ProfilerDesc_enable_debug_groups = R"doc(Mirror command-encoder profiling zones into backend debug groups.)doc";
+
+static const char *__doc_sgl_ProfilerDesc_frame_stats_window_size =
+R"doc(Maximum completed and ended GPU-pending frames retained in the global
+frame stream.)doc";
+
+static const char *__doc_sgl_ProfilerDesc_gpu_query_pool_size =
+R"doc(Number of timestamp queries shared by GPU zones. Each GPU zone uses
+two queries; the count must be positive and even.)doc";
+
+static const char *__doc_sgl_ProfilerDesc_live_event_capacity = R"doc(Maximum number of CPU and GPU zones retained in live trace snapshots.)doc";
+
+static const char *__doc_sgl_ProfilerDesc_live_frame_count = R"doc(Maximum number of completed frames retained in live trace snapshots.)doc";
+
+static const char *__doc_sgl_ProfilerDesc_thread_event_capacity =
+R"doc(Maximum number of unread CPU events in each producer thread's queue.
+Must be a positive power of two.)doc";
+
+static const char *__doc_sgl_ProfilerDiagnostics = R"doc(Diagnostic counters shared by immutable profiler snapshots.)doc";
+
+static const char *__doc_sgl_ProfilerDiagnostics_gpu_query_exhaustion_count =
+R"doc(Number of GPU zones recorded without GPU timing because no timestamp-
+query pair was available.)doc";
+
+static const char *__doc_sgl_ProfilerDiagnostics_hierarchy_loss_count =
+R"doc(Number of statistics nodes promoted to roots because their parent
+event was unavailable.)doc";
+
+static const char *__doc_sgl_ProfilerDiagnostics_pending_gpu_zone_count =
+R"doc(Number of allocated GPU zones still awaiting submission or timestamp
+resolution.)doc";
+
+static const char *__doc_sgl_ProfilerDiagnostics_producer_drop_count =
+R"doc(Number of producer events dropped because a per-thread event queue or
+zone stack was full.)doc";
+
+static const char *__doc_sgl_ProfilerDiagnostics_thread_event_queue_high_water_mark =
+R"doc(Maximum number of unread events observed in any per-thread producer
+queue.)doc";
+
+static const char *__doc_sgl_ProfilerDurationStatistics = R"doc(Distribution of duration samples in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerDurationStatistics_count = R"doc(Number of samples.)doc";
+
+static const char *__doc_sgl_ProfilerDurationStatistics_maximum_ms = R"doc(Maximum sample duration in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerDurationStatistics_mean_ms = R"doc(Arithmetic mean duration in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerDurationStatistics_minimum_ms = R"doc(Minimum sample duration in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerDurationStatistics_p50_ms = R"doc(Linearly interpolated 50th percentile in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerDurationStatistics_p90_ms = R"doc(Linearly interpolated 90th percentile in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerDurationStatistics_p95_ms = R"doc(Linearly interpolated 95th percentile in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerDurationStatistics_p99_ms = R"doc(Linearly interpolated 99th percentile in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerDurationStatistics_standard_deviation_ms = R"doc(Population standard deviation in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerDurationStatistics_total_ms = R"doc(Sum of sample durations in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerFrame = R"doc(Completed frame boundary stored in a profiler trace.)doc";
+
+static const char *__doc_sgl_ProfilerFrameGpuStatus = R"doc(Availability of one entry's GPU duration in one retained frame.)doc";
+
+static const char *__doc_sgl_ProfilerFrameGpuStatus_absent = R"doc(< The entry had no occurrences; its zero duration is valid.)doc";
+
+static const char *__doc_sgl_ProfilerFrameGpuStatus_complete = R"doc(< All requested GPU timings resolved successfully.)doc";
+
+static const char *__doc_sgl_ProfilerFrameGpuStatus_incomplete = R"doc(< At least one requested GPU timing could not be resolved.)doc";
+
+static const char *__doc_sgl_ProfilerFrameGpuStatus_info = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameGpuStatus_unavailable = R"doc(< The entry occurred but did not request GPU timing.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats =
+R"doc(Immutable snapshot of rolling statistics for the profiler's global
+frame stream.
+
+Sample matrices are row-major with shape (sample_count(),
+entry_count()). All columns are ordered oldest to newest.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsEntry =
+R"doc(Frame-aligned statistics for one hierarchical CPU zone path.
+
+CPU time per frame is the sum of inclusive occurrences at this path.
+Parent and child entries are therefore not additive. GPU time is the
+sum of directly measured occurrences and can exceed elapsed frame time
+when work overlaps.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsEntry_cpu_time_per_call = R"doc(Mergeable statistics over individual CPU occurrences.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsEntry_cpu_time_per_frame = R"doc(Distribution of summed CPU duration per retained frame.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsEntry_gpu_time_per_call = R"doc(Mergeable statistics over individual resolved GPU occurrences.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsEntry_gpu_time_per_frame =
+R"doc(Distribution of summed GPU duration for frames with complete GPU
+measurements.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsEntry_name = R"doc(User-facing profiling-site name.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsEntry_parent_index =
+R"doc(Index of the parent entry in the same frame statistics list, or -1 for
+a root.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsEntry_site_id = R"doc(Profiling site represented by this hierarchical path.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsSampleView = R"doc(Non-owning view of one retained completed frame.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsSampleView_call_count = R"doc(Number of occurrences for each entry.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsSampleView_cpu_time_ms = R"doc(Summed inclusive CPU duration in milliseconds for each entry.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsSampleView_frame_index = R"doc(Monotonically increasing profiler-wide frame index.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsSampleView_frame_time_ms = R"doc(Completed frame duration in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsSampleView_gpu_status = R"doc(GPU timing availability for each entry.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStatsSampleView_gpu_time_ms = R"doc(Summed directly measured GPU duration in milliseconds for each entry.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_class_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_diagnostics = R"doc(Diagnostic counters captured with this snapshot.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_entries =
+R"doc(Hierarchical CPU-zone paths in deterministic parent-before-child
+preorder.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_entry_count = R"doc(Number of hierarchical entries.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_frame_time = R"doc(Distribution of completed frame durations.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_latest_frame_ms = R"doc(Duration of the most recently completed frame in milliseconds.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_m_diagnostics = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_m_entries = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_m_frame_time = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_m_pending_frame_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_m_sample_call_count = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_m_sample_cpu_time_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_m_sample_frame_index = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_m_sample_frame_time_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_m_sample_gpu_status = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_m_sample_gpu_time_ms = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_pending_frame_count = R"doc(Total ended frames still waiting for GPU measurements.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_sample = R"doc(Return a non-owning entry-aligned view of one retained sample.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_sample_call_count =
+R"doc(Row-major occurrence-count matrix with shape (sample_count(),
+entry_count()).)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_sample_count = R"doc(Number of retained completed frames.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_sample_cpu_time_ms =
+R"doc(Row-major CPU-duration matrix with shape (sample_count(),
+entry_count()).)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_sample_frame_index = R"doc(Profiler-wide frame index for each retained sample.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_sample_frame_time_ms = R"doc(Completed frame duration in milliseconds for each retained sample.)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_sample_gpu_status =
+R"doc(Row-major GPU-status matrix with shape (sample_count(),
+entry_count()).)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_sample_gpu_time_ms =
+R"doc(Row-major GPU-duration matrix with shape (sample_count(),
+entry_count()).)doc";
+
+static const char *__doc_sgl_ProfilerFrameStats_to_string =
+R"doc(Return a terminal-oriented representation of the hierarchy, timings,
+and diagnostic counters.)doc";
+
+static const char *__doc_sgl_ProfilerFrameToken = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameToken_frame_index = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameToken_profiler = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrameToken_start_ns = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerFrame_duration_ns = R"doc(Frame duration in nanoseconds.)doc";
+
+static const char *__doc_sgl_ProfilerFrame_index = R"doc(Monotonically increasing profiler-wide frame index.)doc";
+
+static const char *__doc_sgl_ProfilerFrame_site_id = R"doc(Profiling site that names this frame.)doc";
+
+static const char *__doc_sgl_ProfilerFrame_start_ns = R"doc(Frame start time in profiler-clock nanoseconds.)doc";
+
+static const char *__doc_sgl_ProfilerFrame_timeline_id = R"doc(CPU timeline on which the frame was recorded.)doc";
+
+static const char *__doc_sgl_ProfilerImpl = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope_ProfilerScope = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope_ProfilerScope_2 = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope_m_profiler = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerScope_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerSite =
+R"doc(Profiling-site metadata backed by process-lifetime interned strings.
+String views remain valid for the lifetime of the process.)doc";
+
+static const char *__doc_sgl_ProfilerSite_file = R"doc(Source filename supplied when the site was registered.)doc";
+
+static const char *__doc_sgl_ProfilerSite_function = R"doc(Compact qualified function name.)doc";
+
+static const char *__doc_sgl_ProfilerSite_id = R"doc(One-based site identifier referenced by zones and frames.)doc";
+
+static const char *__doc_sgl_ProfilerSite_line = R"doc(One-based source line number, or zero when unavailable.)doc";
+
+static const char *__doc_sgl_ProfilerSite_name = R"doc(User-facing zone or frame name.)doc";
+
+static const char *__doc_sgl_ProfilerTimeline = R"doc(Metadata for one CPU thread or GPU queue timeline.)doc";
+
+static const char *__doc_sgl_ProfilerTimelineType = R"doc(Type of execution timeline stored in a profiler trace.)doc";
+
+static const char *__doc_sgl_ProfilerTimelineType_cpu = R"doc(< CPU thread timeline.)doc";
+
+static const char *__doc_sgl_ProfilerTimelineType_gpu = R"doc(< GPU device queue timeline.)doc";
+
+static const char *__doc_sgl_ProfilerTimelineType_info = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTimeline_device_id = R"doc(Device identity for GPU timelines, otherwise zero.)doc";
+
+static const char *__doc_sgl_ProfilerTimeline_name = R"doc(Human-readable timeline name.)doc";
+
+static const char *__doc_sgl_ProfilerTimeline_queue = R"doc(Command queue type for GPU timelines.)doc";
+
+static const char *__doc_sgl_ProfilerTimeline_thread_id = R"doc(Platform thread identifier for CPU timelines, otherwise zero.)doc";
+
+static const char *__doc_sgl_ProfilerTimeline_type = R"doc(Execution domain represented by the timeline.)doc";
+
+static const char *__doc_sgl_ProfilerTrace =
+R"doc(Immutable profiler trace containing metadata, frame boundaries, and
+chunked CPU/GPU zones.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_2 =
+R"doc(Immutable profiler trace containing metadata, frame boundaries, and
+chunked CPU/GPU zones.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_class_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_diagnostics = R"doc(Diagnostic counters captured with this snapshot.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_frames = R"doc(Completed frame boundaries retained by this trace.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_diagnostics = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_frames = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_memory_bytes = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_sites = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_start_ns = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_stop_ns = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_stop_reason = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_timelines = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_truncated = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_m_zone_chunks = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerTrace_memory_bytes = R"doc(Capture-owned zone and frame storage in bytes.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_query_zones =
+R"doc(Select zones using exact-name, timeline, frame, and timestamp filters.
+Frame and timestamp ranges are half-open. Zones overlap the requested
+timestamp range rather than requiring their complete duration to be
+contained in it. Zones outside frames are excluded whenever a frame
+bound is set.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_sites = R"doc(Process-global profiling sites visible when the snapshot was built.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_start_ns = R"doc(Capture or live-history start time in profiler-clock nanoseconds.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_stop_ns = R"doc(Capture or live-history stop time in profiler-clock nanoseconds.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_stop_reason = R"doc(Reason why capture recording stopped.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_timelines = R"doc(CPU and GPU timelines referenced by this trace.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_truncated = R"doc(Whether a bounded capture stopped at its memory limit.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_write_to_json = R"doc(Stream this trace as Chrome trace-event JSON suitable for Perfetto.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_zone_chunks = R"doc(Immutable structure-of-arrays zone chunks.)doc";
+
+static const char *__doc_sgl_ProfilerTrace_zone_count = R"doc(Total number of zones across all chunks.)doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk =
+R"doc(Immutable structure-of-arrays storage for at most 4096 zones.
+
+Bounded chunks let trace queries and exports process large captures
+without flattening all zones into one allocation. The Python bindings
+expose each column as a zero-copy, read-only NumPy array whose
+lifetime is tied to the chunk.)doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_class_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_correlation_id = R"doc(CPU/GPU correlation identifiers.)doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_duration_ns = R"doc(Zone durations in nanoseconds.)doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_frame_index = R"doc(Profiler-wide frame indices, or UINT32_MAX for zones outside a frame.)doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_correlation_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_duration_ns = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_frame_index = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_parent_index = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_site_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_start_ns = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_timeline_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_parent_index = R"doc(Global zone indices of parents on the same timeline, or -1 for roots.)doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_site_id = R"doc(One-based identifiers into ProfilerTrace::sites().)doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_size = R"doc(Number of zones in this chunk.)doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_start_ns = R"doc(Zone start times in profiler-clock nanoseconds.)doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_timeline_id = R"doc(Indices into ProfilerTrace::timelines().)doc";
+
+static const char *__doc_sgl_ProfilerZoneSelection = R"doc(Immutable set of global zone indices selected from one ProfilerTrace.)doc";
+
+static const char *__doc_sgl_ProfilerZoneSelection_class_name = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneSelection_count = R"doc(Number of selected zones.)doc";
+
+static const char *__doc_sgl_ProfilerZoneSelection_indices = R"doc(Sorted global zone indices into the source trace.)doc";
+
+static const char *__doc_sgl_ProfilerZoneSelection_m_indices = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneSelection_m_trace = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneSelection_statistics = R"doc(Calculate duration statistics for the selected zones.)doc";
+
+static const char *__doc_sgl_ProfilerZoneToken = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_command_encoder = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_correlation_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_debug_group_active = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_frame_index = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_gpu_begin_query = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_gpu_state = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_parent_correlation_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_profiler = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_site_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_stack_index = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_start_ns = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneToken_thread_data = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_Profiler =
+R"doc(Create a profiler. If the current thread has no current profiler, this
+profiler becomes its default. The destructor removes that default
+entry when it remains the stack's sole entry. A default profiler must
+be destroyed on its constructing thread after temporary profiler
+scopes on that thread have ended. Destruction must not race device
+submission, command-buffer discard, or device close operations
+associated with GPU zones.)doc";
+
+static const char *__doc_sgl_Profiler_begin_frame =
+R"doc(Begin the profiler's global frame, or return an invalid token if a
+frame is already open or closing.)doc";
+
+static const char *__doc_sgl_Profiler_begin_zone =
+R"doc(Begin a CPU zone and optionally reserve GPU timestamp queries on a
+command encoder.)doc";
+
+static const char *__doc_sgl_Profiler_capture_active =
+R"doc(Whether a bounded capture is currently recording. A capture stopped by
+its memory limit is ready but inactive.)doc";
+
+static const char *__doc_sgl_Profiler_class_name = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_clear_frame_stats =
+R"doc(Clear completed and pending frame statistics after flushing current
+producer events.)doc";
+
+static const char *__doc_sgl_Profiler_desc =
+R"doc(Constructor configuration. Python exposes this as a copy because
+changing it does not reconfigure the profiler.)doc";
+
+static const char *__doc_sgl_Profiler_discard_capture = R"doc(Discard the active or completed capture without producing a trace.)doc";
+
+static const char *__doc_sgl_Profiler_enable_auto_zones = R"doc(Whether SlangPy functional dispatches create automatic zones.)doc";
+
+static const char *__doc_sgl_Profiler_enable_debug_groups =
+R"doc(Whether command-encoder profiling zones also emit backend debug
+groups.)doc";
+
+static const char *__doc_sgl_Profiler_enabled = R"doc(Whether manual and automatic profiling zones are recorded.)doc";
+
+static const char *__doc_sgl_Profiler_end_frame =
+R"doc(Close a frame previously returned by begin_frame(). The collector
+seals it after all attached zones publish.)doc";
+
+static const char *__doc_sgl_Profiler_end_zone = R"doc(End a zone previously returned by begin_zone().)doc";
+
+static const char *__doc_sgl_Profiler_flush =
+R"doc(Block until the collector consumes events published before this call
+and publishes both snapshot products.)doc";
+
+static const char *__doc_sgl_Profiler_frame_stats_snapshot =
+R"doc(Return the most recently published immutable frame statistics and
+request periodic statistics publication.)doc";
+
+static const char *__doc_sgl_Profiler_live_snapshot =
+R"doc(Return the most recently published immutable live trace and request
+periodic live-trace publication.)doc";
+
+static const char *__doc_sgl_Profiler_m_desc = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_m_enable_auto_zones = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_m_enable_debug_groups = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_m_enabled = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_m_impl = R"doc()doc";
+
+static const char *__doc_sgl_Profiler_register_site =
+R"doc(Register a profiling site in the process-global site registry.
+Metadata is interned and remains valid for the lifetime of the
+process.)doc";
+
+static const char *__doc_sgl_Profiler_release_retired_snapshots =
+R"doc(Release profiler-owned references to snapshots previously handed to
+Python. Python bindings call this while holding the GIL before
+acquiring a new snapshot.)doc";
+
+static const char *__doc_sgl_Profiler_set_enable_auto_zones = R"doc(Enable or disable automatic SlangPy functional dispatch zones.)doc";
+
+static const char *__doc_sgl_Profiler_set_enable_debug_groups = R"doc(Enable or disable backend debug groups for command-encoder zones.)doc";
+
+static const char *__doc_sgl_Profiler_set_enabled = R"doc(Enable or disable all zone and frame recording.)doc";
+
+static const char *__doc_sgl_Profiler_start_capture =
+R"doc(Start a bounded capture after flushing events completed before this
+call.)doc";
+
+static const char *__doc_sgl_Profiler_stop_capture =
+R"doc(Stop and return the current or memory-limited capture.
+
+This performs one tick and flushes completed CPU producer events. It
+does not deliberately wait for submitted GPU work or unresolved
+timestamp queries, but a backend timestamp-calibration refresh
+performed by tick() may synchronize queued GPU work. Call
+Device::wait(), then tick(), before stopping when complete GPU data is
+required.)doc";
+
+static const char *__doc_sgl_Profiler_tick =
+R"doc(Poll submitted GPU timestamp queries and queue resolved measurements
+for the collector.
+
+The poll does not deliberately wait for profiled submissions or
+unresolved queries. On CUDA, refreshing timestamp calibration synchronizes
+queued GPU work.)doc";
+
+static const char *__doc_sgl_Profiler_to_string = R"doc()doc";
 
 static const char *__doc_sgl_ProgramLayout = R"doc()doc";
 
@@ -9744,6 +10401,10 @@ Throws if the stack is empty.
 Returns:
     The current device.)doc";
 
+static const char *__doc_sgl_current_profiler = R"doc(Return the current thread's profiler or throw if none is active.)doc";
+
+static const char *__doc_sgl_current_profiler_or_null = R"doc(Return the current thread's profiler, or nullptr if none is active.)doc";
+
 static const char *__doc_sgl_cursor_utils_CursorWriterTypeInfo =
 R"doc(Native registry entry for one cursor-writable value type.
 
@@ -9847,6 +10508,34 @@ static const char *__doc_sgl_detail_HostTypeToFormat_17 = R"doc()doc";
 
 static const char *__doc_sgl_detail_HostTypeToFormat_18 = R"doc()doc";
 
+static const char *__doc_sgl_detail_ProfilerFrameGuard = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerFrameGuard_ProfilerFrameGuard = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerFrameGuard_ProfilerFrameGuard_2 = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerFrameGuard_ProfilerFrameGuard_3 = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerFrameGuard_m_token = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerFrameGuard_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerFrameGuard_operator_assign_2 = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerZoneGuard = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerZoneGuard_ProfilerZoneGuard = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerZoneGuard_ProfilerZoneGuard_2 = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerZoneGuard_ProfilerZoneGuard_3 = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerZoneGuard_m_token = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerZoneGuard_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_detail_ProfilerZoneGuard_operator_assign_2 = R"doc()doc";
+
 static const char *__doc_sgl_detail_build_slang_error_message = R"doc()doc";
 
 static const char *__doc_sgl_detail_build_slang_rhi_error_message = R"doc()doc";
@@ -9884,6 +10573,10 @@ R"doc(Invalidate reflection data. If device is set, only reflection data
 owned by that device is invalidated.)doc";
 
 static const char *__doc_sgl_detail_on_slang_wrapper_destroyed = R"doc()doc";
+
+static const char *__doc_sgl_detail_profiler_frame_name = R"doc()doc";
+
+static const char *__doc_sgl_detail_profiler_frame_name_2 = R"doc()doc";
 
 static const char *__doc_sgl_detail_strip_class_key = R"doc(Remove MSVC's "class " / "struct " prefix from a type name fragment.)doc";
 
@@ -10072,6 +10765,12 @@ static const char *__doc_sgl_find_enum_info_adl_78 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_79 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_80 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_81 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_82 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_83 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
@@ -11631,6 +12330,8 @@ static const char *__doc_sgl_platform_create_junction = R"doc(Create a junction 
 
 static const char *__doc_sgl_platform_current_process_id = R"doc(Get the process ID of the current process.)doc";
 
+static const char *__doc_sgl_platform_current_thread_id = R"doc(Get the native platform identifier of the current thread.)doc";
+
 static const char *__doc_sgl_platform_debug_break = R"doc(Breaks in debugger (int 3 functionality).)doc";
 
 static const char *__doc_sgl_platform_delete_junction = R"doc(Delete a junction (sof link).)doc";
@@ -11736,6 +12437,8 @@ stack is empty.
 Returns:
     The popped device.)doc";
 
+static const char *__doc_sgl_pop_current_profiler = R"doc()doc";
+
 static const char *__doc_sgl_push_current_device =
 R"doc(Push a device onto the thread-local current device stack.
 
@@ -11749,6 +12452,8 @@ device is kept alive (refcount > 0) until popped.
 
 Parameter ``device``:
     Device to push (must not be null).)doc";
+
+static const char *__doc_sgl_push_current_profiler = R"doc()doc";
 
 static const char *__doc_sgl_ref = R"doc()doc";
 
@@ -14145,6 +14850,13 @@ static const char *__doc_sgl_ui_operator_iand_2 = R"doc()doc";
 static const char *__doc_sgl_ui_operator_ior = R"doc()doc";
 
 static const char *__doc_sgl_ui_operator_ior_2 = R"doc()doc";
+
+static const char *__doc_sgl_ui_render_profiler_window =
+R"doc(Render real-time frame-aligned profiler statistics from cached
+snapshots.
+
+Parameter ``profiler``:
+    Profiler to display, or nullptr to use the current profiler.)doc";
 
 static const char *__doc_std_hash = R"doc()doc";
 

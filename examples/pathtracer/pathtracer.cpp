@@ -21,6 +21,10 @@
 #include "sgl/device/surface.h"
 #include "sgl/device/agility_sdk.h"
 
+#include "sgl/ui/ui.h"
+
+#include "sgl/utils/profiler.h"
+#include "sgl/utils/profiler_ui.h"
 #include "sgl/utils/tev.h"
 
 #include <map>
@@ -652,6 +656,7 @@ struct PathTracer {
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> output, uint32_t frame)
     {
+        SGL_PROFILE_FUNCTION(command_encoder);
         if (USE_RAYTRACING_PIPELINE) {
             ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
             ShaderObject* shader_object = pass_encoder->bind_pipeline(rt_pipeline, shader_table);
@@ -689,6 +694,7 @@ struct Accumulator {
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> input, ref<Texture> output, bool reset = false)
     {
+        SGL_PROFILE_FUNCTION(command_encoder);
         if (!accumulator || accumulator->width() != input->width() || accumulator->height() != input->height()) {
             accumulator = device->create_texture({
                 .format = Format::rgba32_float,
@@ -727,6 +733,7 @@ struct ToneMapper {
 
     void execute(ref<CommandEncoder> command_encoder, ref<Texture> input, ref<Texture> output)
     {
+        SGL_PROFILE_FUNCTION(command_encoder);
         kernel->dispatch(
             uint3(input->width(), input->height(), 1),
             [&](ShaderCursor cursor)
@@ -753,6 +760,9 @@ struct App {
     std::unique_ptr<PathTracer> path_tracer;
     std::unique_ptr<Accumulator> accumulator;
     std::unique_ptr<ToneMapper> tone_mapper;
+    ref<ui::Context> ui_context;
+    ref<Profiler> profiler;
+    bool show_profiler{false};
 
     App()
     {
@@ -763,7 +773,6 @@ struct App {
             .resizable = true,
         });
         device = Device::create({
-            // .type = DeviceType::cuda,
             .enable_debug_layers = true,
             .compiler_options = {
                 .include_paths = {EXAMPLE_DIR},
@@ -775,6 +784,10 @@ struct App {
             .height = window->height(),
             .vsync = false,
         });
+
+        ui_context = make_ref<ui::Context>(device);
+        profiler = make_ref<Profiler>();
+        profiler->set_enabled(false);
 
         window->set_on_keyboard_event(
             [this](const KeyboardEvent& event)
@@ -807,6 +820,9 @@ struct App {
 
     void on_keyboard_event(const KeyboardEvent& event)
     {
+        if (ui_context->handle_keyboard_event(event))
+            return;
+
         if (event.type == KeyboardEventType::key_press) {
             if (event.key == KeyCode::escape) {
                 window->close();
@@ -819,12 +835,22 @@ struct App {
                     bitmap->convert(Bitmap::PixelFormat::rgb, Bitmap::ComponentType::uint8, true)
                         ->write_async("screenshot.png");
                 }
+            } else if (event.key == KeyCode::p) {
+                show_profiler = !show_profiler;
+                if (show_profiler && !profiler->enabled())
+                    profiler->set_enabled(true);
             }
         }
         camera_controller->on_keyboard_event(event);
     }
 
-    void on_mouse_event(const MouseEvent& event) { camera_controller->on_mouse_event(event); }
+    void on_mouse_event(const MouseEvent& event)
+    {
+        if (ui_context->handle_mouse_event(event))
+            return;
+
+        camera_controller->on_mouse_event(event);
+    }
 
     void on_resize(uint32_t width, uint32_t height)
     {
@@ -859,50 +885,64 @@ struct App {
             if (!surface_texture)
                 continue;
 
-            if (!output_texture || output_texture->width() != surface_texture->width()
-                || output_texture->height() != surface_texture->height()) {
-                output_texture = device->create_texture({
-                    .format = Format::rgba32_float,
-                    .width = surface_texture->width(),
-                    .height = surface_texture->height(),
-                    .usage = TextureUsage::shader_resource | TextureUsage::unordered_access,
-                    .label = "output_texture",
-                });
-                render_texture = device->create_texture({
-                    .format = Format::rgba32_float,
-                    .width = surface_texture->width(),
-                    .height = surface_texture->height(),
-                    .usage = TextureUsage::shader_resource | TextureUsage::unordered_access,
-                    .label = "render_texture",
-                });
-                accum_texture = device->create_texture({
-                    .format = Format::rgba32_float,
-                    .width = surface_texture->width(),
-                    .height = surface_texture->height(),
-                    .usage = TextureUsage::shader_resource | TextureUsage::unordered_access,
-                    .label = "accum_texture",
-                });
-            }
-
-            stage->camera.width = surface_texture->width();
-            stage->camera.height = surface_texture->height();
-            stage->camera.recompute();
-
-            ref<CommandEncoder> command_encoder = device->create_command_encoder();
             {
-                path_tracer->execute(command_encoder, render_texture, frame);
-                accumulator->execute(command_encoder, render_texture, accum_texture, frame == 0);
-                tone_mapper->execute(command_encoder, accum_texture, output_texture);
+                SGL_PROFILE_FRAME("pathtracer frame");
+
+                ui_context->begin_frame(surface_texture->width(), surface_texture->height(), window);
+                if (show_profiler)
+                    ui::render_profiler_window(profiler);
+
+                if (!output_texture || output_texture->width() != surface_texture->width()
+                    || output_texture->height() != surface_texture->height()) {
+                    output_texture = device->create_texture({
+                        .format = Format::rgba32_float,
+                        .width = surface_texture->width(),
+                        .height = surface_texture->height(),
+                        .usage = TextureUsage::shader_resource | TextureUsage::unordered_access,
+                        .label = "output_texture",
+                    });
+                    render_texture = device->create_texture({
+                        .format = Format::rgba32_float,
+                        .width = surface_texture->width(),
+                        .height = surface_texture->height(),
+                        .usage = TextureUsage::shader_resource | TextureUsage::unordered_access,
+                        .label = "render_texture",
+                    });
+                    accum_texture = device->create_texture({
+                        .format = Format::rgba32_float,
+                        .width = surface_texture->width(),
+                        .height = surface_texture->height(),
+                        .usage = TextureUsage::shader_resource | TextureUsage::unordered_access,
+                        .label = "accum_texture",
+                    });
+                }
+
+                stage->camera.width = surface_texture->width();
+                stage->camera.height = surface_texture->height();
+                stage->camera.recompute();
+
+                ref<CommandEncoder> command_encoder = device->create_command_encoder();
+                {
+                    SGL_PROFILE_ZONE("render", command_encoder);
+                    path_tracer->execute(command_encoder, render_texture, frame);
+                    accumulator->execute(command_encoder, render_texture, accum_texture, frame == 0);
+                    tone_mapper->execute(command_encoder, accum_texture, output_texture);
+                }
 
                 command_encoder->blit(surface_texture, output_texture);
+                ui_context->end_frame(surface_texture, command_encoder);
+                device->submit_command_buffer(command_encoder->finish());
             }
-            device->submit_command_buffer(command_encoder->finish());
+
+            profiler->tick();
 
             surface->present();
 
             frame++;
         }
 
+        device->wait();
+        profiler->tick();
         device->close();
     }
 };

@@ -444,6 +444,11 @@ ProcessID current_process_id()
 // Threads
 // -------------------------------------------------------------------------------------------------
 
+ThreadID current_thread_id()
+{
+    return static_cast<ThreadID>(GetCurrentThreadId());
+}
+
 using SetThreadDescriptionProc = HRESULT(WINAPI*)(HANDLE, PCWSTR);
 
 static SetThreadDescriptionProc get_set_thread_description_proc()

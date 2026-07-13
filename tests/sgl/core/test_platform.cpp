@@ -3,6 +3,8 @@
 #include "testing.h"
 #include "sgl/core/platform.h"
 
+#include <thread>
+
 using namespace sgl::platform;
 
 TEST_SUITE_BEGIN("platform");
@@ -82,6 +84,22 @@ TEST_CASE("set_current_thread_name")
 {
     CHECK(set_current_thread_name("sgl-test"));
     CHECK(set_current_thread_name("sgl-test-thread-name"));
+}
+
+TEST_CASE("current_thread_id")
+{
+    const sgl::ThreadID main_thread_id = current_thread_id();
+    sgl::ThreadID worker_thread_id{0};
+    std::thread worker(
+        [&]
+        {
+            worker_thread_id = current_thread_id();
+        }
+    );
+    worker.join();
+    CHECK(main_thread_id != 0);
+    CHECK(worker_thread_id != 0);
+    CHECK(worker_thread_id != main_thread_id);
 }
 
 TEST_CASE("backtrace")

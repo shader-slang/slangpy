@@ -51,6 +51,7 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     refl/layout.cpp
     utils/crashpad.cpp
     utils/renderdoc.cpp
+    utils/profiler.cpp
     utils/slangpy.h
     utils/slangpy.cpp
     utils/slangpyvalue.h
