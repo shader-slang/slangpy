@@ -3,6 +3,8 @@
 import pytest
 import sys
 
+import numpy as np
+
 import slangpy as spy
 from slangpy.testing import helpers
 from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
@@ -261,7 +263,12 @@ void main(uint3 tid: SV_DispatchThreadID, uniform RWStructuredBuffer<float> resu
 """
 
 
-def _build_cuda_kernel(
+# NVRTC (the CUDA downstream compiler) only runs when the compute pipeline is
+# created, which is deferred until first dispatch. So the test must dispatch to
+# force any forwarded downstream arg to actually reach NVRTC. An NVRTC failure
+# surfaces from the RHI layer as a plain RuntimeError; SlangCompileError also
+# derives from RuntimeError, so catching RuntimeError covers both paths.
+def _dispatch_cuda_kernel(
     device: spy.Device, downstream_args: list[str], test_id: str, on_link: bool = False
 ) -> None:
     compiler_args = [] if on_link else downstream_args
@@ -273,8 +280,15 @@ def _build_cuda_kernel(
     program = session.link_program(
         [module], [module.entry_point("main")], link_options=link_options
     )
-    # NVRTC runs during PTX codegen here, so any forwarded arg is exercised at this point.
-    device.create_compute_kernel(program)
+    kernel = device.create_compute_kernel(program)
+    result = device.create_buffer(
+        data=np.array([3.0], dtype=np.float32),
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    # NVRTC PTX codegen happens here (pipeline creation is deferred until dispatch).
+    kernel.dispatch(thread_count=[1, 1, 1], result=result)
+    # Loose tolerance: --use_fast_math approximates pow(), so allow small drift.
+    np.testing.assert_allclose(result.to_numpy().view(dtype=np.float32), [9.0], rtol=1e-2)
 
 
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
@@ -284,17 +298,17 @@ def test_cuda_downstream_args_forwarded(test_id: str, device_type: spy.DeviceTyp
         pytest.skip(f"Skipping {device_type.name} device test")
     device = helpers.get_device(type=device_type)
 
-    # A valid NVRTC flag is accepted and the kernel compiles, on both the
+    # A valid NVRTC flag is accepted and the kernel runs, on both the
     # compile-time and link-time downstream_args paths.
-    _build_cuda_kernel(device, ["--use_fast_math"], test_id)
-    _build_cuda_kernel(device, ["--use_fast_math"], test_id, on_link=True)
+    _dispatch_cuda_kernel(device, ["--use_fast_math"], test_id)
+    _dispatch_cuda_kernel(device, ["--use_fast_math"], test_id, on_link=True)
 
-    # A bogus NVRTC flag must now surface as a compile error. Before the fix,
+    # A bogus NVRTC flag must now surface as an error. Before the fix,
     # downstream_args were silently dropped for CUDA, so this raised nothing.
-    with pytest.raises(SlangCompileError):
-        _build_cuda_kernel(device, ["--this-flag-does-not-exist"], test_id)
-    with pytest.raises(SlangCompileError):
-        _build_cuda_kernel(device, ["--this-flag-does-not-exist"], test_id, on_link=True)
+    with pytest.raises(RuntimeError):
+        _dispatch_cuda_kernel(device, ["--this-flag-does-not-exist"], test_id)
+    with pytest.raises(RuntimeError):
+        _dispatch_cuda_kernel(device, ["--this-flag-does-not-exist"], test_id, on_link=True)
 
 
 if __name__ == "__main__":
