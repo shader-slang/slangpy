@@ -773,7 +773,6 @@ struct App {
             .resizable = true,
         });
         device = Device::create({
-            .type = DeviceType::cuda,
             .enable_debug_layers = true,
             .compiler_options = {
                 .include_paths = {EXAMPLE_DIR},
