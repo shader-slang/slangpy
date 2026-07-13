@@ -508,15 +508,6 @@ private:
 };
 
 namespace detail {
-    inline CommandEncoder* profiler_command_encoder() noexcept
-    {
-        return nullptr;
-    }
-    inline CommandEncoder* profiler_command_encoder(CommandEncoder* command_encoder) noexcept
-    {
-        return command_encoder;
-    }
-
     class SGL_API ProfilerZoneGuard {
     public:
         ProfilerZoneGuard(uint32_t site_id, CommandEncoder* command_encoder = nullptr) noexcept;
@@ -563,8 +554,7 @@ namespace detail {
     static const uint32_t SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter)                                             \
         = ::sgl::Profiler::register_site(__FILE__, __LINE__, SGL_PROFILER_FUNCTION_NAME, SGL_PROFILER_FUNCTION_NAME);  \
     ::sgl::detail::ProfilerZoneGuard SGL_CONCAT_STRINGS(_sgl_profiler_zone_, counter)(                                 \
-        SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter),                                                              \
-        ::sgl::detail::profiler_command_encoder(__VA_ARGS__)                                                           \
+        SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter) __VA_OPT__(, ) __VA_ARGS__                                    \
     )
 
 #define SGL_PROFILE_ZONE(name, ...) SGL_PROFILE_ZONE_IMPL(__COUNTER__, name, __VA_ARGS__)
@@ -573,8 +563,7 @@ namespace detail {
     static const uint32_t SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter)                                             \
         = ::sgl::Profiler::register_site(__FILE__, __LINE__, SGL_PROFILER_FUNCTION_NAME, name);                        \
     ::sgl::detail::ProfilerZoneGuard SGL_CONCAT_STRINGS(_sgl_profiler_zone_, counter)(                                 \
-        SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter),                                                              \
-        ::sgl::detail::profiler_command_encoder(__VA_ARGS__)                                                           \
+        SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter) __VA_OPT__(, ) __VA_ARGS__                                    \
     )
 
 #define SGL_PROFILE_FRAME(...) SGL_PROFILE_FRAME_IMPL(__COUNTER__, __VA_ARGS__)

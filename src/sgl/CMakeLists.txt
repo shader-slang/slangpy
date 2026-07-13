@@ -228,6 +228,7 @@ target_compile_options(sgl
         $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:
             /MP                             # enable multi-processor compilation
             /Zi                             # generate debug symbols
+            /Zc:preprocessor                # enable the conforming preprocessor required by C++20 __VA_OPT__
             # Configure warnings
             $<$<BOOL:${SGL_WARNINGS_AS_ERRORS}>:/WX>    # warnings as errors
             /W4                             # increase warning level
