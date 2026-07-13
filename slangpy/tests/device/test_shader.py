@@ -256,7 +256,7 @@ def test_compose_modules_link_program(test_id: str, device_type: spy.DeviceType)
 CUDA_DOWNSTREAM_SOURCE = """
 [shader("compute")]
 [numthreads(1, 1, 1)]
-void main(uint3 tid: SV_DispatchThreadID, uniform RWStructuredBuffer<float> result)
+void compute_main(uint3 tid: SV_DispatchThreadID, uniform RWStructuredBuffer<float> result)
 {
     result[0] = pow(result[0], 2.0f);
 }
@@ -278,7 +278,7 @@ def _dispatch_cuda_kernel(
     )
     link_options = {"downstream_args": downstream_args} if on_link else None
     program = session.link_program(
-        [module], [module.entry_point("main")], link_options=link_options
+        [module], [module.entry_point("compute_main")], link_options=link_options
     )
     kernel = device.create_compute_kernel(program)
     result = device.create_buffer(
@@ -303,12 +303,14 @@ def test_cuda_downstream_args_forwarded(test_id: str, device_type: spy.DeviceTyp
     _dispatch_cuda_kernel(device, ["--use_fast_math"], test_id)
     _dispatch_cuda_kernel(device, ["--use_fast_math"], test_id, on_link=True)
 
-    # A bogus NVRTC flag must now surface as an error. Before the fix,
+    # An invalid NVRTC option value must now surface as an error. Before the fix,
     # downstream_args were silently dropped for CUDA, so this raised nothing.
+    # (An invalid --gpu-architecture value is reliably rejected by NVRTC only if
+    # the arg actually reaches it.)
     with pytest.raises(RuntimeError):
-        _dispatch_cuda_kernel(device, ["--this-flag-does-not-exist"], test_id)
+        _dispatch_cuda_kernel(device, ["--gpu-architecture=compute_999"], test_id)
     with pytest.raises(RuntimeError):
-        _dispatch_cuda_kernel(device, ["--this-flag-does-not-exist"], test_id, on_link=True)
+        _dispatch_cuda_kernel(device, ["--gpu-architecture=compute_999"], test_id, on_link=True)
 
 
 if __name__ == "__main__":
