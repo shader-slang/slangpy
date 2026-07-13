@@ -557,9 +557,9 @@ namespace detail {
 #define SGL_PROFILER_FUNCTION_NAME __func__
 #endif
 
-#define SGL_PROFILE_FUNCTION(...) SGL_PROFILE_FUNCTION_I(__COUNTER__, __VA_ARGS__)
-#define SGL_PROFILE_FUNCTION_I(counter, ...) SGL_PROFILE_FUNCTION_II(counter, __VA_ARGS__)
-#define SGL_PROFILE_FUNCTION_II(counter, ...)                                                                          \
+#define SGL_PROFILE_FUNCTION(...) SGL_PROFILE_FUNCTION_IMPL(__COUNTER__, __VA_ARGS__)
+#define SGL_PROFILE_FUNCTION_IMPL(counter, ...) SGL_PROFILE_FUNCTION_IMPL2(counter, __VA_ARGS__)
+#define SGL_PROFILE_FUNCTION_IMPL2(counter, ...)                                                                       \
     static const uint32_t SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter)                                             \
         = ::sgl::Profiler::register_site(__FILE__, __LINE__, SGL_PROFILER_FUNCTION_NAME, SGL_PROFILER_FUNCTION_NAME);  \
     ::sgl::detail::ProfilerZoneGuard SGL_CONCAT_STRINGS(_sgl_profiler_zone_, counter)(                                 \
@@ -567,9 +567,9 @@ namespace detail {
         ::sgl::detail::profiler_command_encoder(__VA_ARGS__)                                                           \
     )
 
-#define SGL_PROFILE_ZONE(name, ...) SGL_PROFILE_ZONE_I(__COUNTER__, name, __VA_ARGS__)
-#define SGL_PROFILE_ZONE_I(counter, name, ...) SGL_PROFILE_ZONE_II(counter, name, __VA_ARGS__)
-#define SGL_PROFILE_ZONE_II(counter, name, ...)                                                                        \
+#define SGL_PROFILE_ZONE(name, ...) SGL_PROFILE_ZONE_IMPL(__COUNTER__, name, __VA_ARGS__)
+#define SGL_PROFILE_ZONE_IMPL(counter, name, ...) SGL_PROFILE_ZONE_IMPL2(counter, name, __VA_ARGS__)
+#define SGL_PROFILE_ZONE_IMPL2(counter, name, ...)                                                                     \
     static const uint32_t SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter)                                             \
         = ::sgl::Profiler::register_site(__FILE__, __LINE__, SGL_PROFILER_FUNCTION_NAME, name);                        \
     ::sgl::detail::ProfilerZoneGuard SGL_CONCAT_STRINGS(_sgl_profiler_zone_, counter)(                                 \
@@ -577,9 +577,9 @@ namespace detail {
         ::sgl::detail::profiler_command_encoder(__VA_ARGS__)                                                           \
     )
 
-#define SGL_PROFILE_FRAME(...) SGL_PROFILE_FRAME_I(__COUNTER__, __VA_ARGS__)
-#define SGL_PROFILE_FRAME_I(counter, ...) SGL_PROFILE_FRAME_II(counter, __VA_ARGS__)
-#define SGL_PROFILE_FRAME_II(counter, ...)                                                                             \
+#define SGL_PROFILE_FRAME(...) SGL_PROFILE_FRAME_IMPL(__COUNTER__, __VA_ARGS__)
+#define SGL_PROFILE_FRAME_IMPL(counter, ...) SGL_PROFILE_FRAME_IMPL2(counter, __VA_ARGS__)
+#define SGL_PROFILE_FRAME_IMPL2(counter, ...)                                                                          \
     static const uint32_t SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter) = ::sgl::Profiler::register_site(           \
         __FILE__,                                                                                                      \
         __LINE__,                                                                                                      \
