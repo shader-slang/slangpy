@@ -470,8 +470,8 @@ public:
     void clear_frame_stats();
     /// Poll submitted GPU timestamp queries and queue resolved measurements for the collector.
     ///
-    /// The poll does not deliberately wait for profiled submissions or unresolved queries. Refreshing timestamp
-    /// calibration can nevertheless synchronize queued GPU work on some backends, notably CUDA.
+    /// The poll does not deliberately wait for profiled submissions or unresolved queries. On CUDA, refreshing
+    /// timestamp calibration synchronizes queued GPU work.
     void tick();
     /// Block until the collector consumes events published before this call and publishes both snapshot products.
     void flush();

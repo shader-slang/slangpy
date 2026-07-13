@@ -7043,8 +7043,8 @@ R"doc(Poll submitted GPU timestamp queries and queue resolved measurements
 for the collector.
 
 The poll does not deliberately wait for profiled submissions or
-unresolved queries. Refreshing timestamp calibration can nevertheless
-synchronize queued GPU work on some backends, notably CUDA.)doc";
+unresolved queries. On CUDA, refreshing timestamp calibration synchronizes
+queued GPU work.)doc";
 
 static const char *__doc_sgl_Profiler_to_string = R"doc()doc";
 

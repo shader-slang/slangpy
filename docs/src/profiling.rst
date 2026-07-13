@@ -17,10 +17,11 @@ profilers do not replace it; use the ``Profiler`` context manager to select one 
 free-standing ``profile_zone`` and ``profile_function`` contexts use this current profiler, while
 ``profile_frame`` establishes its frame boundaries. These profiling contexts never change the
 current profiler and become no-ops when none is current, so instrumented functions do not need to
-receive or look up a profiler. Supplying a command encoder to a zone or function adds GPU
-timestamps. A frame establishes both the frame timeline and the explicit boundaries used by live
-frame statistics. Zones outside a frame remain available in traces but do not contribute to frame
-statistics.
+receive or look up a profiler. They also become no-ops while the current profiler is disabled, so
+no zones are recorded until it is enabled again. Supplying a command encoder to a zone or function
+adds GPU timestamps. A frame establishes both the frame timeline and the explicit boundaries used
+by live frame statistics. Zones outside a frame remain available in traces but do not contribute to
+frame statistics.
 
 Default activation is thread-local. An automatically installed profiler must be destroyed on its
 constructing thread after temporary profiler contexts on that thread have exited. Its destructor
@@ -42,9 +43,9 @@ submission, command-buffer discard, or device close operations associated with r
     profiler.tick()
 
 ``tick()`` does not deliberately wait for profiled submissions or unresolved timestamp queries.
-Refreshing the mapping between CPU and GPU timestamp clocks can nevertheless synchronize queued
-GPU work on some backends, notably CUDA. Calibration is cached per device queue and refreshed at
-most once every two seconds when resolved timestamp data actually needs conversion.
+On CUDA, refreshing the mapping between CPU and GPU timestamp clocks synchronizes queued GPU work.
+Calibration is cached per device queue and refreshed at most once every two seconds when resolved
+timestamp data actually needs conversion.
 
 ``profile_function`` derives its zone name and profiling-site metadata from its Python caller:
 
