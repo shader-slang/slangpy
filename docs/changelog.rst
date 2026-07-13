@@ -7,6 +7,82 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.43.0 (July 13, 2026)
+-------
+- Native reflection, binding, and tensor overhaul: moved reflection type
+  handling, value conversion, and tensor marshalling into C++ with a native
+  lookup system, rewrote cursor writing to use static functions with pointer
+  arguments, and removed the legacy ``NDBuffer`` type.
+  (PR `#1000 <https://github.com/shader-slang/slangpy/pull/1000>`__,
+  PR `#989 <https://github.com/shader-slang/slangpy/pull/989>`__,
+  PR `#965 <https://github.com/shader-slang/slangpy/pull/965>`__,
+  PR `#1007 <https://github.com/shader-slang/slangpy/pull/1007>`__,
+  PR `#990 <https://github.com/shader-slang/slangpy/pull/990>`__)
+- Add ``CacheWriter`` and use it for module and persistent shader/pipeline
+  caching, with new ``LMDBCache::get_readonly`` and ``touch`` methods.
+  (PR `#1036 <https://github.com/shader-slang/slangpy/pull/1036>`__)
+- Package the Slang standard module directory in the SlangPy wheel next to the
+  bundled Slang compiler library.
+  (PR `#1034 <https://github.com/shader-slang/slangpy/pull/1034>`__)
+- Add a compilation reports API.
+  (PR `#1015 <https://github.com/shader-slang/slangpy/pull/1015>`__)
+- Update query APIs and add a timestamp calibration API; replace
+  ``QueryPool::is_result_ready`` with ``QueryPool::get_result_state``.
+  (PR `#1009 <https://github.com/shader-slang/slangpy/pull/1009>`__,
+  PR `#1028 <https://github.com/shader-slang/slangpy/pull/1028>`__)
+- Add device callbacks and recording ids.
+  (PR `#1018 <https://github.com/shader-slang/slangpy/pull/1018>`__)
+- Add ``min_wave_size`` / ``max_wave_size`` to ``DeviceLimits``.
+  (PR `#1003 <https://github.com/shader-slang/slangpy/pull/1003>`__)
+- Support large dispatches.
+  (PR `#995 <https://github.com/shader-slang/slangpy/pull/995>`__)
+- Add an ImGui software rasterizer for the CUDA fallback path.
+  (PR `#992 <https://github.com/shader-slang/slangpy/pull/992>`__)
+- Honor the deferred target compilation option.
+  (PR `#1013 <https://github.com/shader-slang/slangpy/pull/1013>`__)
+- Set thread names for worker threads and add ``platform::set_current_thread_name``.
+  (PR `#1039 <https://github.com/shader-slang/slangpy/pull/1039>`__,
+  PR `#1017 <https://github.com/shader-slang/slangpy/pull/1017>`__)
+- Improve the device close callback and device stack cleanup.
+  (PR `#1035 <https://github.com/shader-slang/slangpy/pull/1035>`__)
+- Fix a device leak from cached reflection layouts.
+  (PR `#1047 <https://github.com/shader-slang/slangpy/pull/1047>`__)
+- Add error handling when reusing a finished command encoder instead of
+  crashing with an opaque native backtrace.
+  (PR `#1019 <https://github.com/shader-slang/slangpy/pull/1019>`__)
+- Fix handling of ``float16_t`` scalar values.
+  (PR `#1029 <https://github.com/shader-slang/slangpy/pull/1029>`__)
+- Fix compiler warnings and a g++ false-positive warning.
+  (PR `#1010 <https://github.com/shader-slang/slangpy/pull/1010>`__,
+  PR `#1026 <https://github.com/shader-slang/slangpy/pull/1026>`__)
+- Update Slang to version 2026.12.
+  (PR `#1037 <https://github.com/shader-slang/slangpy/pull/1037>`__,
+  PR `#1012 <https://github.com/shader-slang/slangpy/pull/1012>`__,
+  PR `#1016 <https://github.com/shader-slang/slangpy/pull/1016>`__)
+- Update slang-rhi with SHA1 improvements and additional feature reporting.
+  (PR `#1048 <https://github.com/shader-slang/slangpy/pull/1048>`__,
+  PR `#1042 <https://github.com/shader-slang/slangpy/pull/1042>`__,
+  PR `#1027 <https://github.com/shader-slang/slangpy/pull/1027>`__)
+- Add the ``SGL_LOCAL_RHI`` CMake option to build against a local slang-rhi
+  checkout, and require a more recent CMake version.
+  (PR `#999 <https://github.com/shader-slang/slangpy/pull/999>`__,
+  PR `#998 <https://github.com/shader-slang/slangpy/pull/998>`__)
+- Switch the CI bridge to a VM-based bridge across the Windows, Slang, and
+  benchmark workflows, and fix SlangPy test runner labels for Slang PR testing.
+  (PR `#1038 <https://github.com/shader-slang/slangpy/pull/1038>`__,
+  PR `#1041 <https://github.com/shader-slang/slangpy/pull/1041>`__,
+  PR `#1022 <https://github.com/shader-slang/slangpy/pull/1022>`__,
+  PR `#1043 <https://github.com/shader-slang/slangpy/pull/1043>`__)
+- Unify the nightly and release wheel workflows and drop the find-links HTML
+  pages.
+  (PR `#991 <https://github.com/shader-slang/slangpy/pull/991>`__)
+- Add SlangPy code review agents.
+  (PR `#1006 <https://github.com/shader-slang/slangpy/pull/1006>`__)
+- Document AI-assisted contributions in ``CONTRIBUTING.md`` and add SlangPy to
+  the PR tracking project board.
+  (PR `#993 <https://github.com/shader-slang/slangpy/pull/993>`__,
+  PR `#1025 <https://github.com/shader-slang/slangpy/pull/1025>`__)
+
 Version 0.42.0 (May 28, 2026)
 -------
 - Add ``enable_cuda_launch_from_gfx`` and ``enable_ray_tracing`` device options for Vulkan devices.
