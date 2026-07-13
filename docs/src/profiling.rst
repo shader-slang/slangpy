@@ -62,7 +62,7 @@ event timelines are exported to Perfetto rather than rendered in the embedded wi
 
     spy.ui.render_profiler_window(profiler)
 
-See ``examples/window/window.py`` for an interactive integration.
+See ``examples/pathtracer/pathtracer.py`` and ``examples/pathtracer/pathtracer.cpp`` for interactive integrations.
 
 Bounded captures and GPU completion
 -----------------------------------
