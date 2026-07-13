@@ -6873,7 +6873,21 @@ static const char *__doc_sgl_ProfilerZoneChunk_correlation_id = R"doc(CPU/GPU co
 
 static const char *__doc_sgl_ProfilerZoneChunk_duration_ns = R"doc(Zone durations in nanoseconds.)doc";
 
-static const char *__doc_sgl_ProfilerZoneChunk_frame_index = R"doc(Profiler-wide frame indices, or -1 for zones outside a frame.)doc";
+static const char *__doc_sgl_ProfilerZoneChunk_frame_index = R"doc(Profiler-wide frame indices, or UINT32_MAX for zones outside a frame.)doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_correlation_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_duration_ns = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_frame_index = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_parent_index = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_site_id = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_start_ns = R"doc()doc";
+
+static const char *__doc_sgl_ProfilerZoneChunk_m_timeline_id = R"doc()doc";
 
 static const char *__doc_sgl_ProfilerZoneChunk_parent_index = R"doc(Global zone indices of parents on the same timeline, or -1 for roots.)doc";
 
@@ -10560,6 +10574,10 @@ owned by that device is invalidated.)doc";
 
 static const char *__doc_sgl_detail_on_slang_wrapper_destroyed = R"doc()doc";
 
+static const char *__doc_sgl_detail_profiler_frame_name = R"doc()doc";
+
+static const char *__doc_sgl_detail_profiler_frame_name_2 = R"doc()doc";
+
 static const char *__doc_sgl_detail_strip_class_key = R"doc(Remove MSVC's "class " / "struct " prefix from a type name fragment.)doc";
 
 static const char *__doc_sgl_detail_throw_exception = R"doc()doc";
@@ -12312,6 +12330,8 @@ static const char *__doc_sgl_platform_create_junction = R"doc(Create a junction 
 
 static const char *__doc_sgl_platform_current_process_id = R"doc(Get the process ID of the current process.)doc";
 
+static const char *__doc_sgl_platform_current_thread_id = R"doc(Get the native platform identifier of the current thread.)doc";
+
 static const char *__doc_sgl_platform_debug_break = R"doc(Breaks in debugger (int 3 functionality).)doc";
 
 static const char *__doc_sgl_platform_delete_junction = R"doc(Delete a junction (sof link).)doc";
@@ -12418,10 +12438,6 @@ Returns:
     The popped device.)doc";
 
 static const char *__doc_sgl_pop_current_profiler = R"doc()doc";
-
-static const char *__doc_sgl_profiler_frame_name = R"doc()doc";
-
-static const char *__doc_sgl_profiler_frame_name_2 = R"doc()doc";
 
 static const char *__doc_sgl_push_current_device =
 R"doc(Push a device onto the thread-local current device stack.

@@ -2,6 +2,7 @@
 
 #include "testing.h"
 
+#include "sgl/core/platform.h"
 #include "sgl/device/command.h"
 #include "sgl/device/device.h"
 #include "sgl/utils/profiler.h"
@@ -152,8 +153,11 @@ TEST_CASE("capture records hierarchy frames queries and immutable chunks")
     REQUIRE(trace->frames().size() == 1);
     REQUIRE(trace->zone_chunks().size() == 1);
     const auto& chunk = trace->zone_chunks().front();
-    CHECK(chunk->parent_index[0] == 1);
-    CHECK(chunk->parent_index[1] == -1);
+    CHECK(chunk->parent_index()[0] == 1);
+    CHECK(chunk->parent_index()[1] == -1);
+    CHECK(chunk->frame_index().front() != ~uint32_t{0});
+    REQUIRE(trace->timelines().size() == 1);
+    CHECK(trace->timelines().front().thread_id == platform::current_thread_id());
 
     ref<ProfilerZoneSelection> selection = trace->query_zones("inner");
     CHECK(selection->count() == 1);
@@ -493,7 +497,7 @@ TEST_CASE_GPU("GPU hierarchy is scoped to a command recording")
         uint32_t base = 0;
         for (const auto& chunk : trace->zone_chunks()) {
             if (index < base + chunk->size()) {
-                if (chunk->parent_index[index - base] >= 0)
+                if (chunk->parent_index()[index - base] >= 0)
                     ++gpu_child_count;
                 break;
             }

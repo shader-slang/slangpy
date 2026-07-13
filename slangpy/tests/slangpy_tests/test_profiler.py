@@ -177,6 +177,8 @@ def test_capture_hierarchy_queries_and_statistics() -> None:
     assert chunk.duration_ns.dtype == np.uint64
     assert chunk.timeline_id.dtype == np.uint32
     assert chunk.parent_index.dtype == np.int32
+    assert chunk.frame_index.dtype == np.uint32
+    assert np.all(chunk.frame_index != np.iinfo(np.uint32).max)
     assert not chunk.start_ns.flags.writeable
     assert sorted(chunk.parent_index.tolist()) == [-1, 1]
 
@@ -310,9 +312,16 @@ def test_disabled_profiler_does_not_record() -> None:
     profiler = spy.Profiler()
     profiler.enabled = False
     profiler.start_capture()
-    with spy.profile_zone("disabled"):
-        pass
-    assert profiler.stop_capture().zone_count == 0
+    with spy.profile_frame("disabled frame"):
+        with spy.profile_zone("disabled zone"):
+            with spy.profile_function():
+                pass
+    trace = profiler.stop_capture()
+    assert trace.zone_count == 0
+    assert all(site.name not in {"disabled frame", "disabled zone"} for site in trace.sites)
+    assert all(
+        not site.name.endswith("test_disabled_profiler_does_not_record") for site in trace.sites
+    )
 
 
 def test_nested_frames_are_rejected() -> None:
@@ -329,6 +338,8 @@ def test_json_export_and_array_ownership(tmp_path: Path) -> None:
     with spy.profile_zone('json "escape"'):
         pass
     trace = profiler.stop_capture()
+    assert trace.zone_chunks[0].frame_index[0] == np.iinfo(np.uint32).max
+    assert trace.query_zones(frame_begin=0).count == 0
     values = trace.zone_chunks[0].duration_ns
     output = tmp_path / "trace.json"
     trace.write_to_json(output)

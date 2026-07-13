@@ -234,22 +234,32 @@ class SGL_API ProfilerZoneChunk : public Object {
     SGL_OBJECT(ProfilerZoneChunk)
 public:
     /// Number of zones in this chunk.
-    size_t size() const { return start_ns.size(); }
+    size_t size() const { return m_start_ns.size(); }
 
     /// Zone start times in profiler-clock nanoseconds.
-    std::vector<uint64_t> start_ns;
+    const std::vector<uint64_t>& start_ns() const { return m_start_ns; }
     /// Zone durations in nanoseconds.
-    std::vector<uint64_t> duration_ns;
+    const std::vector<uint64_t>& duration_ns() const { return m_duration_ns; }
     /// CPU/GPU correlation identifiers.
-    std::vector<uint64_t> correlation_id;
+    const std::vector<uint64_t>& correlation_id() const { return m_correlation_id; }
     /// Indices into ProfilerTrace::timelines().
-    std::vector<uint32_t> timeline_id;
+    const std::vector<uint32_t>& timeline_id() const { return m_timeline_id; }
     /// One-based identifiers into ProfilerTrace::sites().
-    std::vector<uint32_t> site_id;
+    const std::vector<uint32_t>& site_id() const { return m_site_id; }
     /// Global zone indices of parents on the same timeline, or -1 for roots.
-    std::vector<int32_t> parent_index;
-    /// Profiler-wide frame indices, or -1 for zones outside a frame.
-    std::vector<int32_t> frame_index;
+    const std::vector<int32_t>& parent_index() const { return m_parent_index; }
+    /// Profiler-wide frame indices, or UINT32_MAX for zones outside a frame.
+    const std::vector<uint32_t>& frame_index() const { return m_frame_index; }
+
+private:
+    std::vector<uint64_t> m_start_ns;
+    std::vector<uint64_t> m_duration_ns;
+    std::vector<uint64_t> m_correlation_id;
+    std::vector<uint32_t> m_timeline_id;
+    std::vector<uint32_t> m_site_id;
+    std::vector<int32_t> m_parent_index;
+    std::vector<uint32_t> m_frame_index;
+    friend struct ProfilerImpl;
 };
 
 class ProfilerTrace;

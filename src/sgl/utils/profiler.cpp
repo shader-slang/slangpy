@@ -301,7 +301,7 @@ namespace {
         uint64_t parent_correlation_id{0};
         uint32_t timeline_id{0};
         uint32_t site_id{0};
-        int32_t frame_index{-1};
+        uint32_t frame_index{INVALID_INDEX};
     };
 
 #if SGL_MSVC
@@ -626,22 +626,35 @@ struct ProfilerImpl {
         return uint32_t((state & GLOBAL_FRAME_ZONE_COUNT_MASK) >> 2);
     }
 
+    std::optional<uint32_t> allocate_frame_index()
+    {
+        uint32_t index = next_frame_index.load(std::memory_order_relaxed);
+        while (index != INVALID_INDEX) {
+            if (next_frame_index
+                    .compare_exchange_weak(index, index + 1, std::memory_order_relaxed, std::memory_order_relaxed))
+                return index;
+        }
+        return {};
+    }
+
     bool begin_global_frame(ProfilerFrameToken& token, ThreadData* data, uint32_t site_id, uint64_t start_ns)
     {
         std::lock_guard lock(global_frame_mutex);
         if (global_frame.load(std::memory_order_acquire) != uint64_t(GlobalFrameStatus::inactive))
             return false;
-        const uint32_t frame_index = next_frame_index.fetch_add(1, std::memory_order_relaxed);
+        const std::optional<uint32_t> frame_index = allocate_frame_index();
+        if (!frame_index)
+            return false;
         global_frame_event = {};
         global_frame_event.type = CpuEvent::Type::frame;
         global_frame_event.start_ns = start_ns;
         global_frame_event.timeline_id = data->timeline_id;
         global_frame_event.site_id = site_id;
-        global_frame_event.frame_index = frame_index;
-        global_frame.store(global_frame_state(frame_index, GlobalFrameStatus::open), std::memory_order_release);
+        global_frame_event.frame_index = *frame_index;
+        global_frame.store(global_frame_state(*frame_index, GlobalFrameStatus::open), std::memory_order_release);
         token.profiler = owner;
         token.start_ns = start_ns;
-        token.frame_index = frame_index;
+        token.frame_index = *frame_index;
         return true;
     }
 
@@ -898,7 +911,7 @@ struct ProfilerImpl {
         zone.parent_correlation_id = event.parent_correlation_id;
         zone.timeline_id = event.timeline_id;
         zone.site_id = event.site_id;
-        zone.frame_index = event.frame_index == INVALID_INDEX ? -1 : int32_t(event.frame_index);
+        zone.frame_index = event.frame_index;
         retain_zone(zone);
 
         if (event.frame_index != INVALID_INDEX && event.frame_index >= frame_stats_min_index) {
@@ -920,9 +933,9 @@ struct ProfilerImpl {
         const StoredZone& zone = result.zone;
         if (!result.missing)
             retain_zone(zone);
-        if (zone.frame_index < 0 || uint32_t(zone.frame_index) < frame_stats_min_index)
+        if (zone.frame_index == INVALID_INDEX || zone.frame_index < frame_stats_min_index)
             return;
-        auto pending_it = pending_frames.find(uint32_t(zone.frame_index));
+        auto pending_it = pending_frames.find(zone.frame_index);
         if (pending_it == pending_frames.end())
             return;
         auto zone_it = pending_it->second.zones.find(zone.correlation_id);
@@ -1009,7 +1022,7 @@ struct ProfilerImpl {
                 zone.parent_correlation_id = slot.parent_correlation_id;
                 zone.timeline_id = context.timeline_id;
                 zone.site_id = slot.site_id;
-                zone.frame_index = slot.frame_index == INVALID_INDEX ? -1 : int32_t(slot.frame_index);
+                zone.frame_index = slot.frame_index;
                 results.push_back({zone, true});
             }
         }
@@ -1247,7 +1260,7 @@ struct ProfilerImpl {
                         zone.parent_correlation_id = slot.parent_correlation_id;
                         zone.timeline_id = context.timeline_id;
                         zone.site_id = slot.site_id;
-                        zone.frame_index = slot.frame_index == INVALID_INDEX ? -1 : int32_t(slot.frame_index);
+                        zone.frame_index = slot.frame_index;
                         results.push_back({zone, false});
                     }
                 }
@@ -1308,13 +1321,13 @@ struct ProfilerImpl {
             if (!chunk || chunk->size() == ZONE_CHUNK_SIZE) {
                 chunk = ref<ProfilerZoneChunk>(new ProfilerZoneChunk());
                 const size_t reserve_count = std::min<size_t>(ZONE_CHUNK_SIZE, zones.size() - i);
-                chunk->start_ns.reserve(reserve_count);
-                chunk->duration_ns.reserve(reserve_count);
-                chunk->correlation_id.reserve(reserve_count);
-                chunk->timeline_id.reserve(reserve_count);
-                chunk->site_id.reserve(reserve_count);
-                chunk->parent_index.reserve(reserve_count);
-                chunk->frame_index.reserve(reserve_count);
+                chunk->m_start_ns.reserve(reserve_count);
+                chunk->m_duration_ns.reserve(reserve_count);
+                chunk->m_correlation_id.reserve(reserve_count);
+                chunk->m_timeline_id.reserve(reserve_count);
+                chunk->m_site_id.reserve(reserve_count);
+                chunk->m_parent_index.reserve(reserve_count);
+                chunk->m_frame_index.reserve(reserve_count);
                 trace->m_zone_chunks.push_back(chunk);
             }
             const StoredZone& zone = zones[i];
@@ -1327,13 +1340,13 @@ struct ProfilerImpl {
                         parent = int32_t(it->second);
                 }
             }
-            chunk->start_ns.push_back(zone.start_ns);
-            chunk->duration_ns.push_back(zone.duration_ns);
-            chunk->correlation_id.push_back(zone.correlation_id);
-            chunk->timeline_id.push_back(zone.timeline_id);
-            chunk->site_id.push_back(zone.site_id);
-            chunk->parent_index.push_back(parent);
-            chunk->frame_index.push_back(zone.frame_index);
+            chunk->m_start_ns.push_back(zone.start_ns);
+            chunk->m_duration_ns.push_back(zone.duration_ns);
+            chunk->m_correlation_id.push_back(zone.correlation_id);
+            chunk->m_timeline_id.push_back(zone.timeline_id);
+            chunk->m_site_id.push_back(zone.site_id);
+            chunk->m_parent_index.push_back(parent);
+            chunk->m_frame_index.push_back(zone.frame_index);
         }
         return trace;
     }
@@ -1737,7 +1750,7 @@ ProfilerDurationStatistics ProfilerZoneSelection::statistics() const
     for (const auto& chunk : m_trace->m_zone_chunks) {
         const uint32_t end = base + uint32_t(chunk->size());
         while (selection_index < m_indices.size() && m_indices[selection_index] < end) {
-            durations.push_back(chunk->duration_ns[m_indices[selection_index] - base]);
+            durations.push_back(chunk->duration_ns()[m_indices[selection_index] - base]);
             ++selection_index;
         }
         base = end;
@@ -1816,23 +1829,23 @@ ref<ProfilerZoneSelection> ProfilerTrace::query_zones(
     uint32_t global_index = 0;
     for (const auto& chunk : m_zone_chunks) {
         for (size_t i = 0; i < chunk->size(); ++i, ++global_index) {
-            const ProfilerSite* site = find_site(m_sites, chunk->site_id[i]);
+            const ProfilerSite* site = find_site(m_sites, chunk->site_id()[i]);
             if (name && (!site || site->name != *name))
                 continue;
             if (timeline_type) {
-                const uint32_t id = chunk->timeline_id[i];
+                const uint32_t id = chunk->timeline_id()[i];
                 if (id >= m_timelines.size() || m_timelines[id].type != *timeline_type)
                     continue;
             }
-            const int32_t frame = chunk->frame_index[i];
-            if ((frame_begin || frame_end) && frame < 0)
+            const uint32_t frame = chunk->frame_index()[i];
+            if ((frame_begin || frame_end) && frame == INVALID_INDEX)
                 continue;
-            if (frame_begin && uint32_t(frame) < *frame_begin)
+            if (frame_begin && frame < *frame_begin)
                 continue;
-            if (frame_end && uint32_t(frame) >= *frame_end)
+            if (frame_end && frame >= *frame_end)
                 continue;
-            const uint64_t zone_start = chunk->start_ns[i];
-            const uint64_t zone_end = zone_start + chunk->duration_ns[i];
+            const uint64_t zone_start = chunk->start_ns()[i];
+            const uint64_t zone_end = zone_start + chunk->duration_ns()[i];
             if (range_start_ns && zone_end <= *range_start_ns)
                 continue;
             if (range_end_ns && zone_start >= *range_end_ns)
@@ -1865,12 +1878,13 @@ void ProfilerTrace::write_to_json(const std::filesystem::path& path) const
     for (const auto& chunk : m_zone_chunks) {
         for (size_t i = 0; i < chunk->size(); ++i) {
             separator();
-            const ProfilerSite* site = find_site(m_sites, chunk->site_id[i]);
+            const ProfilerSite* site = find_site(m_sites, chunk->site_id()[i]);
             stream << "{\"ph\":\"X\",\"name\":";
             write_json_string(stream, site ? site->name : "unknown");
-            stream << ",\"pid\":1,\"tid\":" << chunk->timeline_id[i] << ",\"ts\":" << std::fixed << std::setprecision(3)
-                   << double(chunk->start_ns[i]) / 1000.0 << ",\"dur\":" << double(chunk->duration_ns[i]) / 1000.0
-                   << ",\"args\":{\"correlation_id\":" << chunk->correlation_id[i] << "}}";
+            stream << ",\"pid\":1,\"tid\":" << chunk->timeline_id()[i] << ",\"ts\":" << std::fixed
+                   << std::setprecision(3) << double(chunk->start_ns()[i]) / 1000.0
+                   << ",\"dur\":" << double(chunk->duration_ns()[i]) / 1000.0
+                   << ",\"args\":{\"correlation_id\":" << chunk->correlation_id()[i] << "}}";
         }
     }
     struct FlowStart {
@@ -1880,27 +1894,27 @@ void ProfilerTrace::write_to_json(const std::filesystem::path& path) const
     std::unordered_map<uint64_t, FlowStart> cpu_flow_starts;
     for (const auto& chunk : m_zone_chunks) {
         for (size_t i = 0; i < chunk->size(); ++i) {
-            const uint32_t timeline_id = chunk->timeline_id[i];
+            const uint32_t timeline_id = chunk->timeline_id()[i];
             if (timeline_id < m_timelines.size() && m_timelines[timeline_id].type == ProfilerTimelineType::cpu)
-                cpu_flow_starts.emplace(chunk->correlation_id[i], FlowStart{chunk->start_ns[i], timeline_id});
+                cpu_flow_starts.emplace(chunk->correlation_id()[i], FlowStart{chunk->start_ns()[i], timeline_id});
         }
     }
     for (const auto& chunk : m_zone_chunks) {
         for (size_t i = 0; i < chunk->size(); ++i) {
-            const uint32_t timeline_id = chunk->timeline_id[i];
+            const uint32_t timeline_id = chunk->timeline_id()[i];
             if (timeline_id >= m_timelines.size() || m_timelines[timeline_id].type != ProfilerTimelineType::gpu)
                 continue;
-            auto cpu = cpu_flow_starts.find(chunk->correlation_id[i]);
+            auto cpu = cpu_flow_starts.find(chunk->correlation_id()[i]);
             if (cpu == cpu_flow_starts.end())
                 continue;
             separator();
-            stream << "{\"ph\":\"s\",\"cat\":\"cpu_gpu\",\"name\":\"CPU to GPU\",\"id\":" << chunk->correlation_id[i]
+            stream << "{\"ph\":\"s\",\"cat\":\"cpu_gpu\",\"name\":\"CPU to GPU\",\"id\":" << chunk->correlation_id()[i]
                    << ",\"pid\":1,\"tid\":" << cpu->second.timeline_id
                    << ",\"ts\":" << double(cpu->second.timestamp_ns) / 1000.0 << '}';
             separator();
             stream << "{\"ph\":\"f\",\"bp\":\"e\",\"cat\":\"cpu_gpu\",\"name\":\"CPU to GPU\",\"id\":"
-                   << chunk->correlation_id[i] << ",\"pid\":1,\"tid\":" << timeline_id
-                   << ",\"ts\":" << double(chunk->start_ns[i]) / 1000.0 << '}';
+                   << chunk->correlation_id()[i] << ",\"pid\":1,\"tid\":" << timeline_id
+                   << ",\"ts\":" << double(chunk->start_ns()[i]) / 1000.0 << '}';
         }
     }
     for (const ProfilerFrame& frame : m_frames) {

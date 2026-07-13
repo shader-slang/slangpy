@@ -499,7 +499,7 @@ SGL_PY_EXPORT(utils_profiler)
             "start_ns",
             [](ProfilerZoneChunk& self)
             {
-                return readonly_array(self.start_ns, nb::cast(&self, nb::rv_policy::reference));
+                return readonly_array(self.start_ns(), nb::cast(&self, nb::rv_policy::reference));
             },
             D(ProfilerZoneChunk, start_ns)
         )
@@ -507,7 +507,7 @@ SGL_PY_EXPORT(utils_profiler)
             "duration_ns",
             [](ProfilerZoneChunk& self)
             {
-                return readonly_array(self.duration_ns, nb::cast(&self, nb::rv_policy::reference));
+                return readonly_array(self.duration_ns(), nb::cast(&self, nb::rv_policy::reference));
             },
             D(ProfilerZoneChunk, duration_ns)
         )
@@ -515,7 +515,7 @@ SGL_PY_EXPORT(utils_profiler)
             "correlation_id",
             [](ProfilerZoneChunk& self)
             {
-                return readonly_array(self.correlation_id, nb::cast(&self, nb::rv_policy::reference));
+                return readonly_array(self.correlation_id(), nb::cast(&self, nb::rv_policy::reference));
             },
             D(ProfilerZoneChunk, correlation_id)
         )
@@ -523,7 +523,7 @@ SGL_PY_EXPORT(utils_profiler)
             "timeline_id",
             [](ProfilerZoneChunk& self)
             {
-                return readonly_array(self.timeline_id, nb::cast(&self, nb::rv_policy::reference));
+                return readonly_array(self.timeline_id(), nb::cast(&self, nb::rv_policy::reference));
             },
             D(ProfilerZoneChunk, timeline_id)
         )
@@ -531,7 +531,7 @@ SGL_PY_EXPORT(utils_profiler)
             "site_id",
             [](ProfilerZoneChunk& self)
             {
-                return readonly_array(self.site_id, nb::cast(&self, nb::rv_policy::reference));
+                return readonly_array(self.site_id(), nb::cast(&self, nb::rv_policy::reference));
             },
             D(ProfilerZoneChunk, site_id)
         )
@@ -539,7 +539,7 @@ SGL_PY_EXPORT(utils_profiler)
             "parent_index",
             [](ProfilerZoneChunk& self)
             {
-                return readonly_array(self.parent_index, nb::cast(&self, nb::rv_policy::reference));
+                return readonly_array(self.parent_index(), nb::cast(&self, nb::rv_policy::reference));
             },
             D(ProfilerZoneChunk, parent_index)
         )
@@ -547,7 +547,7 @@ SGL_PY_EXPORT(utils_profiler)
             "frame_index",
             [](ProfilerZoneChunk& self)
             {
-                return readonly_array(self.frame_index, nb::cast(&self, nb::rv_policy::reference));
+                return readonly_array(self.frame_index(), nb::cast(&self, nb::rv_policy::reference));
             },
             D(ProfilerZoneChunk, frame_index)
         );
