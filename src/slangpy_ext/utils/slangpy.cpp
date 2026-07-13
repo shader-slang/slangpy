@@ -11,6 +11,7 @@
 #include "sgl/core/macros.h"
 #include "sgl/core/logger.h"
 #include "sgl/utils/slangpy.h"
+#include "sgl/utils/profiler.h"
 #include "sgl/device/device.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/command.h"
@@ -424,6 +425,17 @@ void NativeBoundCallRuntime::write_raw_dispatch_data(nb::dict call_data, nb::dic
     }
 }
 
+void NativeCallData::set_debug_name(std::string debug_name)
+{
+    m_debug_name = std::move(debug_name);
+    m_profiler_site_id = Profiler::register_site(
+        __FILE__,
+        __LINE__,
+        "SlangPy functional dispatch",
+        m_debug_name.empty() ? "SlangPy dispatch" : m_debug_name.c_str()
+    );
+}
+
 nb::object NativeCallData::find_torch_tensors_recurse(nb::object arg, nb::list& pairs, size_t& access_idx)
 {
     auto& bridge = TorchBridge::instance();
@@ -774,7 +786,7 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
             auto& context = m_cached_context;
             ref<NativeBoundVariableRuntime> rv_node = m_runtime->find_kwarg("_result");
             if (rv_node && (!kwargs.contains("_result") || kwargs["_result"].is_none())) {
-                nb::object output = rv_node->python_type()->create_output(context, rv_node.get());
+                nb::object output = rv_node->python_type()->create_output(context, rv_node);
                 kwargs["_result"] = output;
                 unpacked_kwargs["_result"] = output;
             }
@@ -798,7 +810,7 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
     if (!command_encoder && m_call_mode == CallMode::prim) {
         ref<NativeBoundVariableRuntime> rv_node = m_runtime->find_kwarg("_result");
         if (rv_node && (!kwargs.contains("_result") || kwargs["_result"].is_none())) {
-            nb::object output = rv_node->python_type()->create_output(context, rv_node.get());
+            nb::object output = rv_node->python_type()->create_output(context, rv_node);
             kwargs["_result"] = output;
             unpacked_kwargs["_result"] = output;
             // Make a mutable copy of call_shape for populate_call_shape
@@ -972,29 +984,45 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
     ref<CommandEncoder> temp_command_encoder;
     if (command_encoder == nullptr) {
         temp_command_encoder = m_device->create_command_encoder();
-        command_encoder = temp_command_encoder.get();
+        command_encoder = temp_command_encoder;
     }
 
-    bool is_ray_tracing = opts.is_ray_tracing;
+    auto record_dispatch = [&]
+    {
+        if (!opts.is_ray_tracing) {
+            ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
+            ComputePipeline* pipeline = dynamic_cast<ComputePipeline*>(m_pipeline.get());
+            SGL_ASSERT(pipeline != nullptr);
+            ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline));
+            bind_call_data(cursor);
+            uint3 dispatch_thread_count
+                = dispatch_thread_count_from_total_threads(m_device, pipeline->thread_group_size(), total_threads);
+            pass_encoder->dispatch(dispatch_thread_count);
+            pass_encoder->end();
+        } else {
+            ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
+            RayTracingPipeline* pipeline = dynamic_cast<RayTracingPipeline*>(m_pipeline.get());
+            SGL_ASSERT(pipeline != nullptr);
+            ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline, m_shader_table));
+            bind_call_data(cursor);
+            pass_encoder->dispatch_rays(0, uint3(total_threads, 1, 1));
+            pass_encoder->end();
+        }
+    };
 
-    if (!is_ray_tracing) {
-        ref<ComputePassEncoder> pass_encoder = command_encoder->begin_compute_pass();
-        ComputePipeline* pipeline = dynamic_cast<ComputePipeline*>(m_pipeline.get());
-        SGL_ASSERT(pipeline != nullptr);
-        ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline));
-        bind_call_data(cursor);
-        uint3 dispatch_thread_count
-            = dispatch_thread_count_from_total_threads(m_device.get(), pipeline->thread_group_size(), total_threads);
-        pass_encoder->dispatch(dispatch_thread_count);
-        pass_encoder->end();
+    if (Profiler* profiler = current_profiler_or_null(); profiler && profiler->enable_auto_zones()) {
+        if (m_profiler_site_id == 0) {
+            m_profiler_site_id = Profiler::register_site(
+                __FILE__,
+                __LINE__,
+                "SlangPy functional dispatch",
+                m_debug_name.empty() ? "SlangPy dispatch" : m_debug_name.c_str()
+            );
+        }
+        ::sgl::detail::ProfilerZoneGuard zone(m_profiler_site_id, command_encoder);
+        record_dispatch();
     } else {
-        ref<RayTracingPassEncoder> pass_encoder = command_encoder->begin_ray_tracing_pass();
-        RayTracingPipeline* pipeline = dynamic_cast<RayTracingPipeline*>(m_pipeline.get());
-        SGL_ASSERT(pipeline != nullptr);
-        ShaderCursor cursor(pass_encoder->bind_pipeline(pipeline, m_shader_table));
-        bind_call_data(cursor);
-        pass_encoder->dispatch_rays(0, uint3(total_threads, 1, 1));
-        pass_encoder->end();
+        record_dispatch();
     }
 
     // If we created a temporary command encoder, we need to submit it.
@@ -1015,7 +1043,7 @@ NativeCallData::exec(NativeCallRuntimeOptions& opts, CommandEncoder* command_enc
         auto bvr = nb::cast<ref<NativeBoundVariableRuntime>>(t[0]);
         auto rb_val = t[1];
         auto rb_data = t[2];
-        bvr->python_type()->read_calldata(context, bvr.get(), rb_val, rb_data);
+        bvr->python_type()->read_calldata(context, bvr, rb_val, rb_data);
     }
 
     // Pack updated 'this' values back (skip if no args needed unpacking).
