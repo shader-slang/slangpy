@@ -466,6 +466,9 @@ public:
     /// Block until the collector consumes events published before this call and publishes both snapshot products.
     void flush();
 
+    /// The noexcept instrumentation entry points below intentionally call std::terminate if an internal allocation or
+    /// backend operation throws. Such failures indicate violated profiler or backend invariants.
+
     /// Begin a CPU zone and optionally reserve GPU timestamp queries on a command encoder.
     ProfilerZoneToken begin_zone(uint32_t site_id, CommandEncoder* command_encoder = nullptr) noexcept;
     /// End a zone previously returned by begin_zone().
