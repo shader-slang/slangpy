@@ -486,14 +486,6 @@ private:
     friend struct ProfilerImpl;
 };
 
-inline const char* profiler_frame_name()
-{
-    return "frame";
-}
-inline const char* profiler_frame_name(const char* name)
-{
-    return name;
-}
 /// Return the current thread's profiler or throw if none is active.
 SGL_API Profiler* current_profiler();
 /// Return the current thread's profiler, or nullptr if none is active.
@@ -513,6 +505,15 @@ private:
 };
 
 namespace detail {
+    inline CommandEncoder* profiler_command_encoder() noexcept
+    {
+        return nullptr;
+    }
+    inline CommandEncoder* profiler_command_encoder(CommandEncoder* command_encoder) noexcept
+    {
+        return command_encoder;
+    }
+
     class SGL_API ProfilerZoneGuard {
     public:
         ProfilerZoneGuard(uint32_t site_id, CommandEncoder* command_encoder = nullptr) noexcept;
@@ -522,6 +523,15 @@ namespace detail {
         ProfilerZoneToken m_token;
         SGL_NON_COPYABLE_AND_MOVABLE(ProfilerZoneGuard);
     };
+
+    inline const char* profiler_frame_name()
+    {
+        return "frame";
+    }
+    inline const char* profiler_frame_name(const char* name)
+    {
+        return name;
+    }
 
     class SGL_API ProfilerFrameGuard {
     public:
@@ -551,7 +561,7 @@ namespace detail {
         = ::sgl::Profiler::register_site(__FILE__, __LINE__, SGL_PROFILER_FUNCTION_NAME, SGL_PROFILER_FUNCTION_NAME);  \
     ::sgl::detail::ProfilerZoneGuard SGL_CONCAT_STRINGS(_sgl_profiler_zone_, counter)(                                 \
         SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter),                                                              \
-        ##__VA_ARGS__                                                                                                  \
+        ::sgl::detail::profiler_command_encoder(__VA_ARGS__)                                                           \
     )
 
 #define SGL_PROFILE_ZONE(name, ...) SGL_PROFILE_ZONE_I(__COUNTER__, name, __VA_ARGS__)
@@ -561,7 +571,7 @@ namespace detail {
         = ::sgl::Profiler::register_site(__FILE__, __LINE__, SGL_PROFILER_FUNCTION_NAME, name);                        \
     ::sgl::detail::ProfilerZoneGuard SGL_CONCAT_STRINGS(_sgl_profiler_zone_, counter)(                                 \
         SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter),                                                              \
-        ##__VA_ARGS__                                                                                                  \
+        ::sgl::detail::profiler_command_encoder(__VA_ARGS__)                                                           \
     )
 
 #define SGL_PROFILE_FRAME(...) SGL_PROFILE_FRAME_I(__COUNTER__, __VA_ARGS__)
@@ -571,7 +581,7 @@ namespace detail {
         __FILE__,                                                                                                      \
         __LINE__,                                                                                                      \
         SGL_PROFILER_FUNCTION_NAME,                                                                                    \
-        ::sgl::profiler_frame_name(__VA_ARGS__)                                                                        \
+        ::sgl::detail::profiler_frame_name(__VA_ARGS__)                                                                \
     );                                                                                                                 \
     ::sgl::detail::ProfilerFrameGuard SGL_CONCAT_STRINGS(_sgl_profiler_frame_, counter)(                               \
         SGL_CONCAT_STRINGS(_sgl_profiler_site_, counter)                                                               \

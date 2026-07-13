@@ -666,7 +666,7 @@ struct ProfilerImpl {
                 if (global_frame_status(state) != GlobalFrameStatus::open
                     || global_frame_index(state) != token.frame_index)
                     return;
-                const uint64_t closed_state = state & ~GLOBAL_FRAME_STATUS_MASK | uint64_t(GlobalFrameStatus::closed);
+                const uint64_t closed_state = (state & ~GLOBAL_FRAME_STATUS_MASK) | uint64_t(GlobalFrameStatus::closed);
                 if (global_frame.compare_exchange_weak(
                         state,
                         closed_state,
@@ -1020,7 +1020,7 @@ struct ProfilerImpl {
             return nullptr;
         const CommandQueueType queue = encoder->queue();
         for (const auto& context : gpu_contexts) {
-            if (device == context->device && context->queue == queue)
+            if (device == context->device.get() && context->queue == queue)
                 return context->closed.load(std::memory_order_acquire) ? nullptr : context.get();
         }
 
