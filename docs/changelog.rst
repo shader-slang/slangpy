@@ -7,6 +7,65 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.42.0 (May 28, 2026)
+-------
+- Add ``enable_cuda_launch_from_gfx`` and ``enable_ray_tracing`` device options for Vulkan devices.
+  These allow applications to opt out of CUDA launch and ray-tracing extensions that can interfere
+  with concurrent cuDNN usage on some driver/GPU pairs.
+- Add the free-standing device API for creating and managing resources without going through the
+  legacy object-oriented ``Device`` wrappers.
+  (PR `#960 <https://github.com/shader-slang/slangpy/pull/960>`__)
+- Add external ImGui draw data rendering, ``imgui_bundle`` integration, docking support, and UI/window
+  improvements.
+  (PR `#858 <https://github.com/shader-slang/slangpy/pull/858>`__, PR `#944 <https://github.com/shader-slang/slangpy/pull/944>`__,
+  PR `#949 <https://github.com/shader-slang/slangpy/pull/949>`__, PR `#957 <https://github.com/shader-slang/slangpy/pull/957>`__)
+- Add more input event bindings for tests and scripted event creation.
+  (PR `#952 <https://github.com/shader-slang/slangpy/pull/952>`__)
+- Add ``hit_group_names`` to ``ray_tracing()`` and fix ray-tracing pipeline entry point setup.
+  (PR `#975 <https://github.com/shader-slang/slangpy/pull/975>`__, PR `#974 <https://github.com/shader-slang/slangpy/pull/974>`__)
+- Add support for preludes in generated kernels.
+  (PR `#980 <https://github.com/shader-slang/slangpy/pull/980>`__)
+- Automatically marshal Python objects that expose ``get_this()``.
+  (PR `#961 <https://github.com/shader-slang/slangpy/pull/961>`__)
+- Support structured numpy dtypes in ``NDBuffer`` and ``Tensor``.
+  (PR `#636 <https://github.com/shader-slang/slangpy/pull/636>`__, PR `#907 <https://github.com/shader-slang/slangpy/pull/907>`__)
+- Add generic ``bool`` reflection support.
+  (PR `#978 <https://github.com/shader-slang/slangpy/pull/978>`__)
+- Expose function user attributes in reflection.
+  (PR `#983 <https://github.com/shader-slang/slangpy/pull/983>`__)
+- Update slang-rhi and expose callback and feature-list APIs, CUDA fp8 reporting, Vulkan native
+  texture handle support, barrier fixes, acceleration-structure fixes, task-pool improvements, and
+  optional Vulkan extension gating.
+  (PR `#988 <https://github.com/shader-slang/slangpy/pull/988>`__, PR `#973 <https://github.com/shader-slang/slangpy/pull/973>`__,
+  PR `#951 <https://github.com/shader-slang/slangpy/pull/951>`__)
+- Add cursor reinterpretation support and allow reading pointer values as ``uint``.
+  (PR `#789 <https://github.com/shader-slang/slangpy/pull/789>`__, PR `#817 <https://github.com/shader-slang/slangpy/pull/817>`__)
+- Add ASTC format support to the format enumeration and info table.
+  (PR `#953 <https://github.com/shader-slang/slangpy/pull/953>`__)
+- Improve SHA1 performance.
+  (PR `#971 <https://github.com/shader-slang/slangpy/pull/971>`__)
+- Add build metrics tooling and precompiled-header build optimizations.
+  (PR `#969 <https://github.com/shader-slang/slangpy/pull/969>`__)
+- Fix ``SlangSession::load_module_from_source``.
+  (PR `#966 <https://github.com/shader-slang/slangpy/pull/966>`__)
+- Fix handling of layout exceptions, overloads that return ``None`` from reflection, generic parameter
+  forward references, and generated Slang address-of syntax.
+  (PR `#956 <https://github.com/shader-slang/slangpy/pull/956>`__, PR `#976 <https://github.com/shader-slang/slangpy/pull/976>`__,
+  PR `#945 <https://github.com/shader-slang/slangpy/pull/945>`__, PR `#955 <https://github.com/shader-slang/slangpy/pull/955>`__)
+- Fix ``flip_y`` producing non-contiguous arrays in ``load_buffer_data_from_image``.
+  (PR `#937 <https://github.com/shader-slang/slangpy/pull/937>`__)
+- Tweak the torch fallback path.
+  (PR `#946 <https://github.com/shader-slang/slangpy/pull/946>`__)
+- Fix macOS and Windows compiler warnings and compatibility issues.
+  (PR `#911 <https://github.com/shader-slang/slangpy/pull/911>`__, PR `#947 <https://github.com/shader-slang/slangpy/pull/947>`__)
+- Fix Linux aarch64 wheel builds under QEMU.
+  (PR `#942 <https://github.com/shader-slang/slangpy/pull/942>`__)
+- Update GitHub Actions, add remote formatting and pre-commit acknowledgement workflows, and configure
+  CodeRabbit review behavior.
+  (PR `#964 <https://github.com/shader-slang/slangpy/pull/964>`__, PR `#981 <https://github.com/shader-slang/slangpy/pull/981>`__,
+  PR `#982 <https://github.com/shader-slang/slangpy/pull/982>`__, PR `#984 <https://github.com/shader-slang/slangpy/pull/984>`__,
+  PR `#985 <https://github.com/shader-slang/slangpy/pull/985>`__, PR `#972 <https://github.com/shader-slang/slangpy/pull/972>`__)
+
 Version 0.41.0 (April 15, 2026)
 -------
 - Rewrite of Tensors and removal of NDBuffer in favour of unified Tensor type.
