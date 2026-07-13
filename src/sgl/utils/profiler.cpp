@@ -605,13 +605,19 @@ struct ProfilerImpl {
         finalizing = 3,
     };
 
-    static constexpr uint64_t GLOBAL_FRAME_STATUS_MASK = 3;
-    static constexpr uint64_t GLOBAL_FRAME_ZONE_COUNT_INCREMENT = 1ull << 2;
-    static constexpr uint64_t GLOBAL_FRAME_ZONE_COUNT_MASK = 0x3fffffffull << 2;
+    static constexpr uint32_t GLOBAL_FRAME_STATUS_BITS = 2;
+    static constexpr uint32_t GLOBAL_FRAME_ZONE_COUNT_BITS = 30;
+    static constexpr uint32_t GLOBAL_FRAME_INDEX_SHIFT = GLOBAL_FRAME_STATUS_BITS + GLOBAL_FRAME_ZONE_COUNT_BITS;
+    static constexpr uint32_t GLOBAL_FRAME_MAX_ZONE_COUNT = (1u << GLOBAL_FRAME_ZONE_COUNT_BITS) - 1;
+    static constexpr uint64_t GLOBAL_FRAME_STATUS_MASK = (1ull << GLOBAL_FRAME_STATUS_BITS) - 1;
+    static constexpr uint64_t GLOBAL_FRAME_ZONE_COUNT_INCREMENT = 1ull << GLOBAL_FRAME_STATUS_BITS;
+    static constexpr uint64_t GLOBAL_FRAME_ZONE_COUNT_MASK = uint64_t(GLOBAL_FRAME_MAX_ZONE_COUNT)
+        << GLOBAL_FRAME_STATUS_BITS;
 
     static uint64_t global_frame_state(uint32_t frame_index, GlobalFrameStatus status, uint32_t zone_count = 0)
     {
-        return uint64_t(frame_index) << 32 | uint64_t(zone_count) << 2 | uint64_t(status);
+        return uint64_t(frame_index) << GLOBAL_FRAME_INDEX_SHIFT | uint64_t(zone_count) << GLOBAL_FRAME_STATUS_BITS
+            | uint64_t(status);
     }
 
     static GlobalFrameStatus global_frame_status(uint64_t state)
@@ -619,11 +625,11 @@ struct ProfilerImpl {
         return GlobalFrameStatus(state & GLOBAL_FRAME_STATUS_MASK);
     }
 
-    static uint32_t global_frame_index(uint64_t state) { return uint32_t(state >> 32); }
+    static uint32_t global_frame_index(uint64_t state) { return uint32_t(state >> GLOBAL_FRAME_INDEX_SHIFT); }
 
     static uint32_t global_frame_zone_count(uint64_t state)
     {
-        return uint32_t((state & GLOBAL_FRAME_ZONE_COUNT_MASK) >> 2);
+        return uint32_t((state & GLOBAL_FRAME_ZONE_COUNT_MASK) >> GLOBAL_FRAME_STATUS_BITS);
     }
 
     std::optional<uint32_t> allocate_frame_index()
@@ -662,7 +668,7 @@ struct ProfilerImpl {
     {
         uint64_t state = global_frame.load(std::memory_order_acquire);
         while (global_frame_status(state) == GlobalFrameStatus::open) {
-            if (global_frame_zone_count(state) == 0x3fffffffu)
+            if (global_frame_zone_count(state) == GLOBAL_FRAME_MAX_ZONE_COUNT)
                 return;
             if (global_frame.compare_exchange_weak(
                     state,
@@ -1351,6 +1357,61 @@ struct ProfilerImpl {
         return trace;
     }
 
+    bool capture_active() const
+    {
+        std::lock_guard lock(capture_mutex);
+        return capture_state == CaptureState::recording;
+    }
+
+    void start_capture(ProfilerCaptureDesc capture_desc_)
+    {
+        SGL_CHECK(capture_desc_.max_memory_bytes > 0, "max_memory_bytes must be positive");
+        flush();
+
+        std::lock_guard lock(capture_mutex);
+        SGL_CHECK(capture_state == CaptureState::idle, "A capture is already active or awaiting retrieval");
+        capture_desc = capture_desc_;
+        clear_capture_storage();
+        capture_reason = ProfilerCaptureStopReason::user;
+        capture_start_ns = now_ns();
+        capture_stop_ns = 0;
+        capture_state = CaptureState::recording;
+    }
+
+    ref<ProfilerTrace> stop_capture()
+    {
+        tick_gpu();
+        flush();
+
+        std::lock_guard lock(capture_mutex);
+        SGL_CHECK(capture_state != CaptureState::idle, "No active or completed capture");
+        if (capture_state == CaptureState::recording) {
+            capture_state = CaptureState::ready;
+            capture_stop_ns = now_ns();
+            capture_reason = ProfilerCaptureStopReason::user;
+        }
+        ref<ProfilerTrace> result = make_trace(
+            capture_zones,
+            capture_frames,
+            capture_start_ns,
+            capture_stop_ns,
+            capture_reason,
+            capture_reason == ProfilerCaptureStopReason::memory_limit,
+            capture_storage_bytes()
+        );
+        capture_state = CaptureState::idle;
+        clear_capture_storage();
+        return result;
+    }
+
+    void discard_capture()
+    {
+        std::lock_guard lock(capture_mutex);
+        SGL_CHECK(capture_state != CaptureState::idle, "No active or completed capture");
+        capture_state = CaptureState::idle;
+        clear_capture_storage();
+    }
+
     ref<ProfilerFrameStats> make_frame_stats() const
     {
         struct AggregatedNode {
@@ -1966,58 +2027,22 @@ Profiler::~Profiler()
 
 bool Profiler::capture_active() const
 {
-    std::lock_guard lock(m_impl->capture_mutex);
-    return m_impl->capture_state == ProfilerImpl::CaptureState::recording;
+    return m_impl->capture_active();
 }
 
 void Profiler::start_capture(ProfilerCaptureDesc desc)
 {
-    SGL_CHECK(desc.max_memory_bytes > 0, "max_memory_bytes must be positive");
-    flush();
-    std::lock_guard lock(m_impl->capture_mutex);
-    SGL_CHECK(
-        m_impl->capture_state == ProfilerImpl::CaptureState::idle,
-        "A capture is already active or awaiting retrieval"
-    );
-    m_impl->capture_desc = desc;
-    m_impl->clear_capture_storage();
-    m_impl->capture_reason = ProfilerCaptureStopReason::user;
-    m_impl->capture_start_ns = now_ns();
-    m_impl->capture_stop_ns = 0;
-    m_impl->capture_state = ProfilerImpl::CaptureState::recording;
+    m_impl->start_capture(desc);
 }
 
 ref<ProfilerTrace> Profiler::stop_capture()
 {
-    tick();
-    flush();
-    std::lock_guard lock(m_impl->capture_mutex);
-    SGL_CHECK(m_impl->capture_state != ProfilerImpl::CaptureState::idle, "No active or completed capture");
-    if (m_impl->capture_state == ProfilerImpl::CaptureState::recording) {
-        m_impl->capture_state = ProfilerImpl::CaptureState::ready;
-        m_impl->capture_stop_ns = now_ns();
-        m_impl->capture_reason = ProfilerCaptureStopReason::user;
-    }
-    ref<ProfilerTrace> result = m_impl->make_trace(
-        m_impl->capture_zones,
-        m_impl->capture_frames,
-        m_impl->capture_start_ns,
-        m_impl->capture_stop_ns,
-        m_impl->capture_reason,
-        m_impl->capture_reason == ProfilerCaptureStopReason::memory_limit,
-        m_impl->capture_storage_bytes()
-    );
-    m_impl->capture_state = ProfilerImpl::CaptureState::idle;
-    m_impl->clear_capture_storage();
-    return result;
+    return m_impl->stop_capture();
 }
 
 void Profiler::discard_capture()
 {
-    std::lock_guard lock(m_impl->capture_mutex);
-    SGL_CHECK(m_impl->capture_state != ProfilerImpl::CaptureState::idle, "No active or completed capture");
-    m_impl->capture_state = ProfilerImpl::CaptureState::idle;
-    m_impl->clear_capture_storage();
+    m_impl->discard_capture();
 }
 
 ref<ProfilerTrace> Profiler::live_snapshot() const
