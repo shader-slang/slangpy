@@ -552,7 +552,7 @@ struct ProfilerImpl {
         }
 
         auto data = std::make_unique<ThreadData>(desc.thread_event_capacity);
-        const uint64_t thread_id = std::hash<std::thread::id>()(std::this_thread::get_id());
+        const ThreadID thread_id = platform::current_thread_id();
         ThreadData* result = data.get();
         {
             std::lock_guard lock(thread_mutex);

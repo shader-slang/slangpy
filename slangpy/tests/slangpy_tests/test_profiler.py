@@ -146,6 +146,7 @@ def test_python_sites_use_visible_callsite_metadata() -> None:
     assert len(set(same_line_site_ids)) == 1
     assert len(trace.frames) == 2
     assert trace.frames[0].site_id == trace.frames[1].site_id
+    assert trace.timelines[0].thread_id == threading.get_native_id()
 
 
 def test_capture_hierarchy_queries_and_statistics() -> None:
