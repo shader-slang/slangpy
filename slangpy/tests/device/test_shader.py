@@ -294,8 +294,10 @@ def _dispatch_cuda_kernel(
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
 def test_cuda_downstream_args_forwarded(test_id: str, device_type: spy.DeviceType):
     """downstream_args must reach NVRTC on the CUDA target (shader-slang/slangpy#1058)."""
-    if helpers.should_skip_test_for_device(device_type):
-        pytest.skip(f"Skipping {device_type.name} device test")
+    if device_type not in helpers.DEFAULT_DEVICE_TYPES or helpers.should_skip_test_for_device(
+        device_type
+    ):
+        pytest.skip(f"Device type {device_type} not supported.")
     device = helpers.get_device(type=device_type)
 
     # A valid NVRTC flag is accepted and the kernel runs, on both the
