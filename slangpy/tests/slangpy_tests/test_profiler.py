@@ -58,31 +58,31 @@ def test_profiler_configuration() -> None:
 
 
 def test_current_profiler_stack_and_thread_locality() -> None:
-    profiler = spy.Profiler()
-    assert spy.current_profiler() is profiler
-
-    explicit_profiler = spy.Profiler()
-    assert spy.current_profiler() is profiler
-    with explicit_profiler:
-        assert spy.current_profiler() is explicit_profiler
-        with spy.profile_frame("selected frame"):
-            with spy.profile_zone("selected zone"):
-                assert spy.current_profiler() is explicit_profiler
-    assert spy.current_profiler() is profiler
-
-    seen: list[object | None] = []
-    worker = threading.Thread(target=lambda: seen.append(spy.current_profiler_or_null()))
-    worker.start()
-    worker.join()
-    assert seen == [None]
-
-    with spy.profile_zone("default zone"):
-        assert spy.current_profiler() is profiler
-    with spy.profile_frame("default frame"):
+    def exercise_profiler_stack() -> None:
+        profiler = spy.Profiler()
         assert spy.current_profiler() is profiler
 
-    del explicit_profiler
-    del profiler
+        explicit_profiler = spy.Profiler()
+        assert spy.current_profiler() is profiler
+        with explicit_profiler:
+            assert spy.current_profiler() is explicit_profiler
+            with spy.profile_frame("selected frame"):
+                with spy.profile_zone("selected zone"):
+                    assert spy.current_profiler() is explicit_profiler
+        assert spy.current_profiler() is profiler
+
+        seen: list[object | None] = []
+        worker = threading.Thread(target=lambda: seen.append(spy.current_profiler_or_null()))
+        worker.start()
+        worker.join()
+        assert seen == [None]
+
+        with spy.profile_zone("default zone"):
+            assert spy.current_profiler() is profiler
+        with spy.profile_frame("default frame"):
+            assert spy.current_profiler() is profiler
+
+    exercise_profiler_stack()
     assert spy.current_profiler_or_null() is None
 
 
