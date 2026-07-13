@@ -6,11 +6,12 @@ import re
 
 
 class Version:
-    def __init__(self, major: int, minor: int, patch: int):
+    def __init__(self, major: int, minor: int, patch: int, year: Optional[int] = None):
         super().__init__()
         self.major = major
         self.minor = minor
         self.patch = patch
+        self.year = year
 
 
 FileCallback = Callable[[str, Version], str]
@@ -78,6 +79,12 @@ def fix_bibtex_entry(file: str, version: Version) -> str:
         f"version = {{{version.major}.{version.minor}.{version.patch}}}",
         file,
     )
+    if version.year is not None:
+        file = re.sub(
+            r"year = \d+",
+            f"year = {version.year}",
+            file,
+        )
     return file
 
 
@@ -104,6 +111,15 @@ def run(save: bool = False):
     else:
         print("Could not find current version in changelog")
         exit(1)
+
+    # Parse the release year from the changelog heading date, e.g.
+    # "Version 0.43.0 (July 13, 2026)". Left as None (year not touched) when the
+    # date is still a placeholder like "(Month Day, Year)".
+    year_match = re.search(r"Version \d+\.\d+\.\d+ \([^)]*?(\d{4})\)", changlog_content)
+    if year_match:
+        version.year = int(year_match.group(1))
+    else:
+        print("Could not find release year in changelog heading; leaving citation year unchanged")
 
     files = [
         File(root / "src/sgl/sgl.h", fix_sgl_h),
