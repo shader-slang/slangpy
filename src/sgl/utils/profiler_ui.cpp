@@ -33,6 +33,7 @@ namespace {
         Profiler* profiler{nullptr};
         bool paused{false};
         ref<ProfilerFrameStats> stats;
+        std::vector<ImU32> entry_colors;
         ValueMode value_mode{ValueMode::mean};
         GraphMode graph_mode{GraphMode::gpu};
         bool graph_open{true};
@@ -174,20 +175,19 @@ namespace {
         return {mode == ValueMode::mean ? statistics.mean_ms : statistics.p95_ms, true};
     }
 
-    ImU32 entry_color(const ProfilerFrameStats& stats, size_t entry_index)
+    std::vector<ImU32> make_entry_colors(const ProfilerFrameStats& stats)
     {
-        std::vector<uint32_t> path;
-        int32_t index = int32_t(entry_index);
-        while (index >= 0 && size_t(index) < stats.entries().size() && path.size() <= stats.entries().size()) {
-            path.push_back(stats.entries()[size_t(index)].site_id);
-            index = stats.entries()[size_t(index)].parent_index;
-        }
-        uint64_t hash = 1469598103934665603ull;
-        for (auto it = path.rbegin(); it != path.rend(); ++it) {
-            hash ^= *it;
+        std::vector<uint64_t> hashes(stats.entries().size());
+        std::vector<ImU32> colors(stats.entries().size());
+        for (size_t index = 0; index < stats.entries().size(); ++index) {
+            const ProfilerFrameStatsEntry& entry = stats.entries()[index];
+            uint64_t hash = entry.parent_index < 0 ? 1469598103934665603ull : hashes[size_t(entry.parent_index)];
+            hash ^= entry.site_id;
             hash *= 1099511628211ull;
+            hashes[index] = hash;
+            colors[index] = PALETTE[size_t(hash % PALETTE.size())];
         }
-        return PALETTE[size_t(hash % PALETTE.size())];
+        return colors;
     }
 
     ImU32 muted_color(ImU32 color)
@@ -296,8 +296,10 @@ namespace {
         return false;
     }
 
-    void draw_table(UIState& state, const ProfilerFrameStats& stats, float height, int32_t highlighted_entry)
+    void draw_table(UIState& state, float height, int32_t highlighted_entry)
     {
+        const ProfilerFrameStats& stats = *state.stats;
+        const std::vector<ImU32>& entry_colors = state.entry_colors;
         double cpu_root_total = 0.0;
         double gpu_root_total = 0.0;
         for (size_t index = 0; index < stats.entries().size(); ++index) {
@@ -328,7 +330,7 @@ namespace {
 
         for (size_t index = 0; index < stats.entries().size(); ++index) {
             const ProfilerFrameStatsEntry& entry = stats.entries()[index];
-            const ImU32 color = entry_color(stats, index);
+            const ImU32 color = entry_colors[index];
             ImGui::PushID(int(index));
             ImGui::TableNextRow();
             if (highlighted_entry == int32_t(index))
@@ -389,8 +391,10 @@ namespace {
         ImGui::EndTable();
     }
 
-    void draw_graph(UIState& state, const ProfilerFrameStats& stats, float height, int32_t highlighted_entry)
+    void draw_graph(UIState& state, float height, int32_t highlighted_entry)
     {
+        const ProfilerFrameStats& stats = *state.stats;
+        const std::vector<ImU32>& entry_colors = state.entry_colors;
         const bool gpu = state.graph_mode == GraphMode::gpu;
         if (stats.sample_count() == 0) {
             ImGui::TextUnformatted("No completed frame history");
@@ -486,7 +490,7 @@ namespace {
                     continue;
                 const float y0 = plot_bottom - float((band_bottom[index] + band_height[index]) / maximum) * plot_height;
                 const float y1 = plot_bottom - float(band_bottom[index] / maximum) * plot_height;
-                ImU32 color = entry_color(stats, index);
+                ImU32 color = entry_colors[index];
                 if (gpu && !valid_gpu_status(sample.gpu_status[index]))
                     color = muted_color(color);
                 draw->AddRectFilled(ImVec2(x0, y0), ImVec2(std::max(x0 + 1.f, x1), y1), color);
@@ -624,8 +628,10 @@ void render_profiler_window(Profiler* profiler)
     ImGui::SameLine();
     ImGui::Checkbox("Pause display", &state.paused);
 
-    if (!state.paused || !state.stats)
+    if (!state.paused || !state.stats) {
         state.stats = profiler->frame_stats_snapshot();
+        state.entry_colors = state.stats ? make_entry_colors(*state.stats) : std::vector<ImU32>();
+    }
     if (!state.stats) {
         ImGui::TextUnformatted("No frame statistics available");
         ImGui::End();
@@ -669,18 +675,13 @@ void render_profiler_window(Profiler* profiler)
     const int32_t previous_hovered = state.hovered_entry;
     state.hovered_entry = -1;
     const float table_height = std::max(1.f, ImGui::GetContentRegionAvail().y - bottom_height);
-    draw_table(state, *state.stats, table_height, previous_hovered);
+    draw_table(state, table_height, previous_hovered);
 
     ImGui::SetNextItemOpen(state.graph_open, ImGuiCond_Always);
     state.graph_open = ImGui::CollapsingHeader("Graph");
     if (state.graph_open) {
         draw_graph_selector(state);
-        draw_graph(
-            state,
-            *state.stats,
-            GRAPH_HEIGHT,
-            state.hovered_entry >= 0 ? state.hovered_entry : previous_hovered
-        );
+        draw_graph(state, GRAPH_HEIGHT, state.hovered_entry >= 0 ? state.hovered_entry : previous_hovered);
     }
 
     ImGui::SetNextItemOpen(state.diagnostics_open, ImGuiCond_Always);
