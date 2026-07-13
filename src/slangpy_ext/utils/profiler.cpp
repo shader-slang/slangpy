@@ -711,7 +711,7 @@ SGL_PY_EXPORT(utils_profiler)
         [profiler_site_cache](nb::str name, CommandEncoder* command_encoder)
         {
             ref<Profiler> profiler = current_profiler_ref();
-            if (!profiler)
+            if (!profiler || !profiler->enabled())
                 return PyProfilerZoneScope();
             PyProfilerCallSite site = python_caller_site();
             const uint32_t site_id
@@ -727,7 +727,7 @@ SGL_PY_EXPORT(utils_profiler)
         [profiler_site_cache](CommandEncoder* command_encoder)
         {
             ref<Profiler> profiler = current_profiler_ref();
-            if (!profiler)
+            if (!profiler || !profiler->enabled())
                 return PyProfilerZoneScope();
             PyProfilerCallSite site = python_caller_site();
             const uint32_t site_id
@@ -742,7 +742,7 @@ SGL_PY_EXPORT(utils_profiler)
         [profiler_site_cache](nb::str name)
         {
             ref<Profiler> profiler = current_profiler_ref();
-            if (!profiler)
+            if (!profiler || !profiler->enabled())
                 return PyProfilerFrameScope();
             PyProfilerCallSite site = python_caller_site();
             const uint32_t site_id
