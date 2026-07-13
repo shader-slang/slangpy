@@ -128,10 +128,18 @@ TEST_CASE("site metadata is interned and native function names are compact")
         "void example::Widget::update(int) [with T = float]",
         "update"
     );
+    const uint32_t apple_clang_site = Profiler::register_site(
+        "shared-profiler-source.cpp",
+        13,
+        "void (anonymous namespace)::example::Widget::update(int)",
+        "update"
+    );
     profiler->start_capture();
     profiler->end_zone(profiler->begin_zone(gcc_site));
+    profiler->end_zone(profiler->begin_zone(apple_clang_site));
     trace = profiler->stop_capture();
     CHECK(trace->sites().at(gcc_site - 1).function == "example::Widget::update");
+    CHECK(trace->sites().at(apple_clang_site - 1).function == "example::Widget::update");
 }
 
 TEST_CASE("capture records hierarchy frames queries and immutable chunks")

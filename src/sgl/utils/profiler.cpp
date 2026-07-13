@@ -116,7 +116,13 @@ namespace {
             }
             --start;
         }
-        return std::string(prefix.substr(start));
+        std::string result(prefix.substr(start));
+        constexpr std::string_view anonymous_namespace = "(anonymous namespace)::";
+        for (size_t pos = result.find(anonymous_namespace); pos != std::string::npos;
+             pos = result.find(anonymous_namespace)) {
+            result.erase(pos, anonymous_namespace.size());
+        }
+        return result;
     }
 
     struct StringInterner {
