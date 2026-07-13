@@ -251,5 +251,51 @@ def test_compose_modules_link_program(test_id: str, device_type: spy.DeviceType)
     assert len(program.layout.entry_points) == 2
 
 
+CUDA_DOWNSTREAM_SOURCE = """
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void main(uint3 tid: SV_DispatchThreadID, uniform RWStructuredBuffer<float> result)
+{
+    result[0] = pow(result[0], 2.0f);
+}
+"""
+
+
+def _build_cuda_kernel(
+    device: spy.Device, downstream_args: list[str], test_id: str, on_link: bool = False
+) -> None:
+    compiler_args = [] if on_link else downstream_args
+    session = device.create_slang_session(compiler_options={"downstream_args": compiler_args})
+    module = session.load_module_from_source(
+        module_name=f"cuda_downstream_{test_id}", source=CUDA_DOWNSTREAM_SOURCE
+    )
+    link_options = {"downstream_args": downstream_args} if on_link else None
+    program = session.link_program(
+        [module], [module.entry_point("main")], link_options=link_options
+    )
+    # NVRTC runs during PTX codegen here, so any forwarded arg is exercised at this point.
+    device.create_compute_kernel(program)
+
+
+@pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
+def test_cuda_downstream_args_forwarded(test_id: str, device_type: spy.DeviceType):
+    """downstream_args must reach NVRTC on the CUDA target (shader-slang/slangpy#1058)."""
+    if helpers.should_skip_test_for_device(device_type):
+        pytest.skip(f"Skipping {device_type.name} device test")
+    device = helpers.get_device(type=device_type)
+
+    # A valid NVRTC flag is accepted and the kernel compiles, on both the
+    # compile-time and link-time downstream_args paths.
+    _build_cuda_kernel(device, ["--use_fast_math"], test_id)
+    _build_cuda_kernel(device, ["--use_fast_math"], test_id, on_link=True)
+
+    # A bogus NVRTC flag must now surface as a compile error. Before the fix,
+    # downstream_args were silently dropped for CUDA, so this raised nothing.
+    with pytest.raises(SlangCompileError):
+        _build_cuda_kernel(device, ["--this-flag-does-not-exist"], test_id)
+    with pytest.raises(SlangCompileError):
+        _build_cuda_kernel(device, ["--this-flag-does-not-exist"], test_id, on_link=True)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
