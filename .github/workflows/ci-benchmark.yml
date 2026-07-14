@@ -85,7 +85,7 @@ jobs:
       # device<->host memcpy, no slang-rhi bump. SGL_LOCAL_SLANG swaps only the compiler.
       - name: Build Slang (__grid_constant__ const-ref fix — DNI)
         run: |
-          git clone --recursive -b haaggarwal/cuda-grid-constant-uniform https://github.com/shader-slang/slang.git
+          git clone --recursive -b haaggarwal/grid-constant-diag-A1 https://github.com/shader-slang/slang.git
           cd slang
           git submodule update --init --recursive
           mkdir build
