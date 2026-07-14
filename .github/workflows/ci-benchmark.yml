@@ -77,15 +77,15 @@ jobs:
       - name: Setup CMake/Ninja
         uses: lukka/get-cmake@latest
 
-      # DNI (do-not-integrate): build Slang from the __grid_constant__ const-ref fix.
-      # Under test: shader-slang/slang @ haaggarwal/cuda-grid-constant-uniform (commit 9dccfd65),
-      # based on the floor (#11939 @9586d17f) plus the CUDA emit change that marks entry-point
-      # by-value uniform aggregates `__grid_constant__ const` and forwards their address into
-      # borrow-in callees, removing the per-thread .local depot copy. No by-ref ABI move, no
-      # device<->host memcpy, no slang-rhi bump. SGL_LOCAL_SLANG swaps only the compiler.
-      - name: Build Slang (__grid_constant__ const-ref fix — DNI)
+      # DNI (do-not-integrate): build Slang from the forward-only fix that ships in PR #12080.
+      # Under test: shader-slang/slang @ haaggarwal/cuda-grid-constant-fix (commit 25d93101),
+      # the CUDA emit change that forwards the address of an entry-point by-value uniform
+      # aggregate into its borrow-in callee, removing the per-thread .local depot copy. No
+      # __grid_constant__ qualifier, no by-ref ABI move, no slang-rhi bump. SGL_LOCAL_SLANG
+      # swaps only the compiler.
+      - name: Build Slang (forward-only entry-point uniform fix — DNI)
         run: |
-          git clone --recursive -b haaggarwal/grid-constant-diag-A2 https://github.com/shader-slang/slang.git
+          git clone --recursive -b haaggarwal/cuda-grid-constant-fix https://github.com/shader-slang/slang.git
           cd slang
           git submodule update --init --recursive
           mkdir build
