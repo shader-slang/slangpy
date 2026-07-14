@@ -1,0 +1,98 @@
+name: diag-gridconst-ac
+
+# DIAGNOSTIC (do-not-integrate). Decisive A-vs-C experiment for the grid_constant #11774 fix's
+# suspected CUDA correctness regression (test_nested[cuda] degenerate output). Builds the
+# env-gated slang branch haaggarwal/grid-constant-diag-envgate ONCE, builds slangpy against it,
+# then runs the nested example TWICE on the SAME 5090 runner / same NVRTC:
+#   A) SLANG_DISABLE_GRID_CONSTANT unset  -> grid_constant + address-forward ON  (expected: degenerate y)
+#   C) SLANG_DISABLE_GRID_CONSTANT=1      -> optimization OFF, baseline temp-copy (expected: correct y)
+# Holds GPU + toolkit + binary constant, toggling only our transform. A-fail + C-pass => our codegen.
+# Reads the texture directly (tex.to_numpy) to avoid any Git-LFS .expected.npz issues.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ac:
+    runs-on: { labels: [Linux, X64, nvrgfx-kernelvm-bridge] }
+    env:
+      CI_OS: linux
+      CI_PLATFORM: x86_64
+      CI_COMPILER: gcc
+      CI_CONFIG: Release
+      CI_PYTHON: "3.10"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Cleanup submodules
+        run: |
+          git submodule foreach --recursive git clean -ffdx
+          git submodule foreach --recursive git reset --hard
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Setup Python environment
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -r samples/requirements.txt
+
+      - name: Setup CMake/Ninja
+        uses: lukka/get-cmake@latest
+
+      # Build the env-gated diagnostic slang.
+      - name: Build Slang (env-gated diagnostic)
+        run: |
+          git clone --recursive -b haaggarwal/grid-constant-diag-envgate https://github.com/shader-slang/slang.git
+          cd slang
+          git submodule update --init --recursive
+          cmake -B build --preset default
+          cmake --build build --config Release --parallel
+
+      - name: Setup
+        run: python tools/ci.py setup
+
+      - name: Configure
+        run: python tools/ci.py --cmake-args="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/Release" configure
+
+      - name: Build
+        run: python tools/ci.py build
+
+      # Direct A-vs-C probe: run the nested example both ways, read the texture, print y-channel stats.
+      # Writes a tiny driver that mirrors samples/examples/nested/main.py but reads tex.to_numpy()
+      # instead of tev.show, so the comparison is self-contained (no expected.npz / tev needed).
+      - name: A-vs-C probe (test_nested equivalent, same runner)
+        shell: bash
+        run: |
+          cat > /tmp/ac_probe.py <<'PY'
+          import os, numpy as np, slangpy as spy, pathlib
+          ex = pathlib.Path("samples/examples/nested")
+          dev = spy.create_device(include_paths=[ex.absolute()])
+          mod = spy.Module.load_from_file(dev, str(ex / "example.slang"))
+          tex = dev.create_texture(width=128, height=128, format=spy.Format.rgba32_float,
+              usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access)
+          mod.copy_vector(src={"_type":"float4","x":1.0,"y":spy.rand_float(min=0,max=1,dim=1),"z":0.0,"w":1.0}, dest=tex)
+          a = tex.to_numpy()
+          y = a[..., 1]
+          variant = os.environ.get("VARIANT","?")
+          disabled = os.environ.get("SLANG_DISABLE_GRID_CONSTANT")
+          print(f"[{variant}] SLANG_DISABLE_GRID_CONSTANT={disabled!r} "
+                f"y_unique={len(np.unique(y))} y_min={y.min():.6f} y_max={y.max():.6f} y_mean={y.mean():.6f}")
+          # Degenerate (the bug) = ~1 unique value; correct = thousands. Fail loudly on degenerate.
+          if len(np.unique(y)) < 100:
+              print(f"[{variant}] DEGENERATE y (bug reproduced)")
+          else:
+              print(f"[{variant}] CORRECT y (varied)")
+          PY
+          echo "=================== VARIANT A (grid_constant ON) ==================="
+          VARIANT=A python /tmp/ac_probe.py || echo "A: driver exit $?"
+          echo "=================== VARIANT C (grid_constant OFF) =================="
+          VARIANT=C SLANG_DISABLE_GRID_CONSTANT=1 python /tmp/ac_probe.py || echo "C: driver exit $?"
