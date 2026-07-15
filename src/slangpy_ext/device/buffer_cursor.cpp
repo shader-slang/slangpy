@@ -128,6 +128,17 @@ SGL_PY_EXPORT(device_buffer_cursor)
             }
         )
         .def(
+            "__setitem__",
+            [](BufferCursor& self, Py_ssize_t index, nb::object nbval)
+            {
+                index = detail::sanitize_getitem_index(index, self.element_count());
+                auto element = self[uint32_t(index)];
+                detail::_writeconv.write(element, nbval);
+            },
+            "index"_a,
+            "val"_a
+        )
+        .def(
             "__len__",
             [](BufferCursor& self)
             {

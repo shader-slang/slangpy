@@ -13,7 +13,13 @@
 
 #include <slang-rhi.h>
 
+#include <array>
+#include <cstdint>
+
 namespace sgl {
+
+class BufferElementCursor;
+class ShaderCursor;
 
 /// Represents an address in device memory.
 using DeviceAddress = uint64_t;
@@ -23,6 +29,8 @@ using DeviceOffset = uint64_t;
 using DeviceSize = uint64_t;
 /// Adapter LUID (locally unique identifier).
 using AdapterLUID = std::array<uint8_t, 16>;
+/// Unique identifier for a command recording.
+using CommandRecordingID = uint64_t;
 
 enum CommandQueueType : uint32_t {
     graphics = static_cast<uint32_t>(rhi::QueueType::Graphics),
@@ -66,6 +74,7 @@ enum class Feature : uint32_t {
     cluster_acceleration_structure = static_cast<uint32_t>(rhi::Feature::ClusterAccelerationStructure),
     // Other features
     timestamp_query = static_cast<uint32_t>(rhi::Feature::TimestampQuery),
+    timestamp_calibration = static_cast<uint32_t>(rhi::Feature::TimestampCalibration),
     realtime_clock = static_cast<uint32_t>(rhi::Feature::RealtimeClock),
     cooperative_vector = static_cast<uint32_t>(rhi::Feature::CooperativeVector),
     cooperative_matrix = static_cast<uint32_t>(rhi::Feature::CooperativeMatrix),
@@ -81,6 +90,7 @@ enum class Feature : uint32_t {
     sm_6_7 = static_cast<uint32_t>(rhi::Feature::SM_6_7),
     sm_6_8 = static_cast<uint32_t>(rhi::Feature::SM_6_8),
     sm_6_9 = static_cast<uint32_t>(rhi::Feature::SM_6_9),
+    sm_6_10 = static_cast<uint32_t>(rhi::Feature::SM_6_10),
     half = static_cast<uint32_t>(rhi::Feature::Half),
     double_ = static_cast<uint32_t>(rhi::Feature::Double),
     int16 = static_cast<uint32_t>(rhi::Feature::Int16),
@@ -101,6 +111,7 @@ enum class Feature : uint32_t {
     programmable_sample_positions2 = static_cast<uint32_t>(rhi::Feature::ProgrammableSamplePositions2),
     // Vulkan specific features
     shader_resource_min_lod = static_cast<uint32_t>(rhi::Feature::ShaderResourceMinLod),
+    shader_abort = static_cast<uint32_t>(rhi::Feature::ShaderAbort),
     // Metal specific features
     argument_buffer_tier2 = static_cast<uint32_t>(rhi::Feature::ArgumentBufferTier2),
     residency_set = static_cast<uint32_t>(rhi::Feature::ResidencySet),
@@ -143,6 +154,7 @@ SGL_ENUM_INFO(
         {Feature::ray_tracing_validation, "ray_tracing_validation"},
         {Feature::cluster_acceleration_structure, "cluster_acceleration_structure"},
         {Feature::timestamp_query, "timestamp_query"},
+        {Feature::timestamp_calibration, "timestamp_calibration"},
         {Feature::realtime_clock, "realtime_clock"},
         {Feature::cooperative_vector, "cooperative_vector"},
         {Feature::cooperative_matrix, "cooperative_matrix"},
@@ -158,6 +170,7 @@ SGL_ENUM_INFO(
         {Feature::sm_6_7, "sm_6_7"},
         {Feature::sm_6_8, "sm_6_8"},
         {Feature::sm_6_9, "sm_6_9"},
+        {Feature::sm_6_10, "sm_6_10"},
         {Feature::half, "half"},
         {Feature::double_, "double"},
         {Feature::int16, "int16"},
@@ -176,6 +189,7 @@ SGL_ENUM_INFO(
         {Feature::programmable_sample_positions1, "programmable_sample_positions1"},
         {Feature::programmable_sample_positions2, "programmable_sample_positions2"},
         {Feature::shader_resource_min_lod, "shader_resource_min_lod"},
+        {Feature::shader_abort, "shader_abort"},
         {Feature::argument_buffer_tier2, "argument_buffer_tier2"},
         {Feature::residency_set, "residency_set"},
         {Feature::atomic_bfloat16, "atomic_bfloat16"},
@@ -225,6 +239,11 @@ struct SGL_API DescriptorHandle {
     bool is_valid() const { return type != DescriptorHandleType::undefined; }
 
     explicit operator bool() const { return is_valid(); }
+
+    /// Write a bindless descriptor handle to a shader cursor.
+    static void write_to_cursor(const ShaderCursor& cursor, const DescriptorHandle* value);
+    /// Write a bindless descriptor handle value into buffer cursor storage.
+    static void write_to_cursor(const BufferElementCursor& cursor, const DescriptorHandle* value);
 
     std::string to_string() const;
 };
@@ -769,7 +788,6 @@ struct RasterizerDesc {
 enum class QueryType : uint32_t {
     timestamp = static_cast<uint32_t>(rhi::QueryType::Timestamp),
     acceleration_structure_compacted_size = static_cast<uint32_t>(rhi::QueryType::AccelerationStructureCompactedSize),
-    acceleration_structure_serialized_size = static_cast<uint32_t>(rhi::QueryType::AccelerationStructureSerializedSize),
     acceleration_structure_current_size = static_cast<uint32_t>(rhi::QueryType::AccelerationStructureCurrentSize),
 };
 
@@ -778,11 +796,61 @@ SGL_ENUM_INFO(
     {
         {QueryType::timestamp, "timestamp"},
         {QueryType::acceleration_structure_compacted_size, "acceleration_structure_compacted_size"},
-        {QueryType::acceleration_structure_serialized_size, "acceleration_structure_serialized_size"},
         {QueryType::acceleration_structure_current_size, "acceleration_structure_current_size"},
     }
 );
 SGL_ENUM_REGISTER(QueryType);
+
+enum class QueryResultState : uint32_t {
+    reset = static_cast<uint32_t>(rhi::QueryResultState::Reset),
+    pending = static_cast<uint32_t>(rhi::QueryResultState::Pending),
+    resolved = static_cast<uint32_t>(rhi::QueryResultState::Resolved),
+};
+
+SGL_ENUM_INFO(
+    QueryResultState,
+    {
+        {QueryResultState::reset, "reset"},
+        {QueryResultState::pending, "pending"},
+        {QueryResultState::resolved, "resolved"},
+    }
+);
+SGL_ENUM_REGISTER(QueryResultState);
+
+enum class CpuTimestampDomain : uint32_t {
+    unknown = static_cast<uint32_t>(rhi::CpuTimestampDomain::Unknown),
+    query_performance_counter = static_cast<uint32_t>(rhi::CpuTimestampDomain::QueryPerformanceCounter),
+    clock_monotonic = static_cast<uint32_t>(rhi::CpuTimestampDomain::ClockMonotonic),
+    clock_monotonic_raw = static_cast<uint32_t>(rhi::CpuTimestampDomain::ClockMonotonicRaw),
+    mach_absolute_time = static_cast<uint32_t>(rhi::CpuTimestampDomain::MachAbsoluteTime),
+};
+
+SGL_ENUM_INFO(
+    CpuTimestampDomain,
+    {
+        {CpuTimestampDomain::unknown, "unknown"},
+        {CpuTimestampDomain::query_performance_counter, "query_performance_counter"},
+        {CpuTimestampDomain::clock_monotonic, "clock_monotonic"},
+        {CpuTimestampDomain::clock_monotonic_raw, "clock_monotonic_raw"},
+        {CpuTimestampDomain::mach_absolute_time, "mach_absolute_time"},
+    }
+);
+SGL_ENUM_REGISTER(CpuTimestampDomain);
+
+struct TimestampCalibration {
+    /// The domain of the CPU timestamp.
+    CpuTimestampDomain cpu_domain{CpuTimestampDomain::unknown};
+    /// The current CPU timestamp.
+    uint64_t cpu_timestamp{0};
+    /// The frequency of the CPU timestamp in ticks per second.
+    uint64_t cpu_frequency{0};
+    /// The current GPU timestamp.
+    uint64_t gpu_timestamp{0};
+    /// The frequency of the GPU timestamp in ticks per second.
+    uint64_t gpu_frequency{0};
+    /// The maximum deviation between the CPU and GPU timestamps in nanoseconds.
+    uint64_t max_deviation_ns{0};
+};
 
 // ----------------------------------------------------------------------------
 // RayTracing

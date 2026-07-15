@@ -7,6 +7,7 @@
 #include "sgl/core/bitmap.h"
 #include "sgl/core/format.h"
 #include "sgl/core/thread.h"
+#include "sgl/device/cursor_utils.h"
 #include "sgl/device/device.h"
 
 #include "git_version.h"
@@ -41,6 +42,7 @@ void static_init()
     Logger::static_init();
     platform::static_init();
     Bitmap::static_init();
+    cursor_utils::register_cursor_writers();
 }
 
 void static_shutdown()

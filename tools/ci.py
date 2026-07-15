@@ -14,6 +14,13 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
+PYTEST_BASE_TEMP_DIR = PROJECT_DIR / ".temp" / "pytest"
+
+
+def pytest_command(test_path: str, *args: str) -> list[str]:
+    # Pytest clears --basetemp on startup, so keep it in a dedicated repo-local directory.
+    PYTEST_BASE_TEMP_DIR.parent.mkdir(exist_ok=True)
+    return ["pytest", test_path, *args, f"--basetemp={PYTEST_BASE_TEMP_DIR}"]
 
 
 def get_os():
@@ -144,7 +151,7 @@ def typing_check_python(args: Any):
 def unit_test_python(args: Any):
     env = get_python_env()
     os.makedirs("reports", exist_ok=True)
-    cmd = ["pytest", "slangpy/tests", "-vra"]
+    cmd = pytest_command("slangpy/tests", "-vra")
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
     run_command(cmd, env=env)
@@ -152,7 +159,7 @@ def unit_test_python(args: Any):
 
 def test_examples(args: Any):
     env = get_python_env()
-    cmd = ["pytest", "samples/tests", "-vra"]
+    cmd = pytest_command("samples/tests", "-vra")
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
     run_command(cmd, env=env)
@@ -197,7 +204,7 @@ def benchmark_python(args: Any):
         for device_type in device_types:
             print(f"Running benchmarks for device type: {device_type}")
 
-            cmd = ["pytest", "slangpy/benchmarks", "-ra", "--device-types", device_type]
+            cmd = pytest_command("slangpy/benchmarks", "-ra", "--device-types", device_type)
             if args.mongodb_connection_string:
                 cmd += ["--benchmark-upload", args.run_id]
                 cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
@@ -224,7 +231,19 @@ def coverage_report(args: Any):
     if not "coverage" in args.flags:
         print("Coverage flag not set, skipping coverage report.")
     os.makedirs("reports", exist_ok=True)
-    run_command(["gcovr", "-r", ".", "-f", "src/sgl", "--html", "reports/coverage.html"])
+    run_command(
+        [
+            "gcovr",
+            "-r",
+            ".",
+            "-f",
+            "src/sgl",
+            "--gcov-ignore-parse-errors",
+            "negative_hits.warn_once_per_file",
+            "--html",
+            "reports/coverage.html",
+        ]
+    )
 
 
 def install_slangpy_torch(args: Any):

@@ -123,7 +123,7 @@ def test_buffer(device_type: spy.DeviceType, type: str, size_MB: int):
         data = np.random.randint(0, 0xFFFFFFFF, size=check_count, dtype=np.uint32)
         write_buffer.copy_from_numpy(data)
         copy_kernel.dispatch(
-            thread_count=[element_count, 1, 1],
+            thread_count=[check_count, 1, 1],
             src=write_buffer,
             dst=device_buffer,
             src_offset=0,

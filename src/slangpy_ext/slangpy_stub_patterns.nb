@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+slangpy.__prefix__:
+    \from typing import TypedDict
+
+    CompilationEntryPointReport = TypedDict("CompilationEntryPointReport", {
+        "name": str,
+        "start_time": int,
+        "end_time": int,
+        "create_time": float,
+        "compile_time": float,
+        "compile_slang_time": float,
+        "compile_downstream_time": float,
+        "is_cached": bool,
+        "cache_size": int,
+    })
+
+    CompilationPipelineReport = TypedDict("CompilationPipelineReport", {
+        "type": str,
+        "start_time": int,
+        "end_time": int,
+        "create_time": float,
+        "is_cached": bool,
+        "cache_size": int,
+    })
+
+    CompilationReport = TypedDict("CompilationReport", {
+        "label": str,
+        "alive": bool,
+        "create_time": float,
+        "compile_time": float,
+        "compile_slang_time": float,
+        "compile_downstream_time": float,
+        "create_pipeline_time": float,
+        "entry_point_reports": list[CompilationEntryPointReport],
+        "pipeline_reports": list[CompilationPipelineReport],
+    })

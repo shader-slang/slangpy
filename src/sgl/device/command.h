@@ -168,7 +168,13 @@ private:
 class SGL_API CommandEncoder : public DeviceChild {
     SGL_OBJECT(CommandEncoder)
 public:
-    CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder);
+    CommandEncoder(
+        ref<Device> device,
+        CommandQueueType queue,
+        CommandRecordingID recording_id,
+        Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder
+    );
+    ~CommandEncoder();
 
     virtual void _release_rhi_resources() override { m_rhi_command_encoder.setNull(); }
 
@@ -368,9 +374,6 @@ public:
         std::span<AccelerationStructureQueryDesc> queries
     );
 
-    void serialize_acceleration_structure(BufferOffsetPair dst, AccelerationStructure* src);
-    void deserialize_acceleration_structure(AccelerationStructure* dst, BufferOffsetPair src);
-
     void convert_coop_vec_matrices(
         Buffer* dst,
         std::span<const CoopVecMatrixDesc> dst_descs,
@@ -456,6 +459,12 @@ public:
 
     ref<CommandBuffer> finish();
 
+    /// Command queue this encoder is recording for.
+    CommandQueueType queue() const { return m_queue; }
+
+    /// Command recording ID, which is unique for each recording of a command buffer.
+    CommandRecordingID recording_id() const { return m_recording_id; }
+
     /// Get the command encoder handle.
     NativeHandle native_handle() const;
 
@@ -464,6 +473,8 @@ public:
     std::string to_string() const override;
 
 private:
+    CommandQueueType m_queue{CommandQueueType::graphics};
+    CommandRecordingID m_recording_id{0};
     Slang::ComPtr<rhi::ICommandEncoder> m_rhi_command_encoder;
 
     std::vector<ref<cuda::InteropBuffer>> m_cuda_interop_buffers;
@@ -479,16 +490,32 @@ private:
 class SGL_API CommandBuffer : public DeviceChild {
     SGL_OBJECT(CommandBuffer)
 public:
-    CommandBuffer(ref<Device> device, Slang::ComPtr<rhi::ICommandBuffer> rhi_command_buffer);
+    CommandBuffer(
+        ref<Device> device,
+        CommandQueueType queue,
+        CommandRecordingID recording_id,
+        Slang::ComPtr<rhi::ICommandBuffer> rhi_command_buffer
+    );
     ~CommandBuffer();
 
     virtual void _release_rhi_resources() override { m_rhi_command_buffer.setNull(); }
 
+    /// Command queue this command buffer is recorded for.
+    CommandQueueType queue() const { return m_queue; }
+
+    /// Command recording ID, which is unique for each recording of a command buffer.
+    CommandRecordingID recording_id() const { return m_recording_id; }
+
     rhi::ICommandBuffer* rhi_command_buffer() const { return m_rhi_command_buffer; }
+
+    void _notify_submitted(uint64_t submit_id);
 
     std::string to_string() const override;
 
 private:
+    CommandQueueType m_queue{CommandQueueType::graphics};
+    CommandRecordingID m_recording_id{0};
+    bool m_submitted{false};
     Slang::ComPtr<rhi::ICommandBuffer> m_rhi_command_buffer;
 
     std::vector<ref<cuda::InteropBuffer>> m_cuda_interop_buffers;

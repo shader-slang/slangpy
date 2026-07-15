@@ -10,6 +10,7 @@
 #include "sgl/device/slang_utils.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/hot_reload.h"
+#include "sgl/device/cache_writer.h"
 
 #include "sgl/core/type_utils.h"
 #include "sgl/core/platform.h"
@@ -20,11 +21,68 @@
 
 #include <slang.h>
 
+#include <memory>
 #include <random>
 #include <regex>
 #include <set>
+#include <vector>
 
 namespace sgl {
+
+static bool write_module_bytes_to_cache(
+    const std::string& module_name,
+    const std::filesystem::path& cache_path,
+    const void* data,
+    size_t data_size
+)
+{
+    std::filesystem::path tmp_path = cache_path;
+    std::random_device rd;
+    uint64_t uid = rd();
+    tmp_path.replace_extension(".slang-module-" + string::hexlify(&uid, sizeof(uid)));
+
+    std::error_code ec;
+    try {
+        if (std::filesystem::exists(tmp_path, ec))
+            return false;
+        if (ec) {
+            log_warn("Failed to query temporary slang module cache path \"{}\" ({})", tmp_path, ec.message());
+            return false;
+        }
+
+        std::filesystem::create_directories(cache_path.parent_path(), ec);
+        if (ec) {
+            log_warn(
+                "Failed to create directory \"{}\" for slang module cache ({})",
+                cache_path.parent_path(),
+                ec.message()
+            );
+            return false;
+        }
+
+        {
+            FileStream stream(tmp_path, FileStream::Mode::write);
+            if (data_size > 0)
+                stream.write(data, data_size);
+            stream.flush();
+            stream.close();
+        }
+
+        std::filesystem::rename(tmp_path, cache_path, ec);
+        if (ec) {
+            log_warn("Failed to rename cached slang module \"{}\" to \"{}\" ({})", tmp_path, cache_path, ec.message());
+            std::filesystem::remove(tmp_path, ec);
+            return false;
+        }
+    } catch (const std::exception& e) {
+        log_warn("Failed to write cached slang module \"{}\" to \"{}\" ({})", module_name, cache_path, e.what());
+        std::filesystem::remove(tmp_path, ec);
+        return false;
+    }
+
+    log_debug("Cached slang module \"{}\" to \"{}\"", module_name, cache_path);
+    return true;
+}
 
 // ----------------------------------------------------------------------------
 // TypeConformance
@@ -277,14 +335,30 @@ void SlangSession::create_session(SlangSessionBuild& build)
     else if (options.matrix_layout == SlangMatrixLayout::column_major)
         session_options.add(slang::CompilerOptionName::MatrixLayoutColumn, true);
 
-    // TODO: Globally disable warning 30856.
-    // This is a workaround for an issue in the Slang compiler:
+    // TODO: Globally disable warning E30856.
+    // warning[E30856]: the extension is non-standard and may not work as intended because the generic parameter 'X' is
+    // not referenced by extension target type 'Y' This is a workaround for an issue in the Slang compiler:
     // https://github.com/shader-slang/slang/issues/8166
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30856"));
-    // TODO: Globally disable warning 41012.
+    // TODO: Globally disable warning E41012.
     // Example: entry point 'foo' uses additional capabilities that are not part of the specified profile 'unknown'.
     // This warning happens on CUDA because we're not properly setting the target profile (i.e. "cuda_sm_x_x").
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("41012"));
+    // TODO: Globally disable warning E31010.
+    // warning[E31010]: Link-time constant sized arrays are a work in progress feature, some aspects of the reflection
+    // API may not work This is a workaround for an issue in the Slang compiler:
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("31010"));
+    // TODO: Globally disable warning E30051.
+    // This is a workaround for an issue in the Slang compiler:
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30051"));
+    // TODO: Globally disable warning E31106.
+    // warning[E31106]: Parameter group type includes some members with types which cannot be included in the same
+    // binding. These types will be moved into another parameter binding slot.
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("31106"));
+    // TODO: Globally disable warning E31107.
+    // warning[E31107]: This member cannot be included in the same binding as some other parts of this struct, and will
+    // be moved into another parameter binding slot.
+    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("31107"));
 
     // Set warnings.
     for (const auto& warning : options.enable_warnings)
@@ -708,13 +782,16 @@ void SlangSession::update_module_cache_and_dependencies()
     }
 }
 
-bool SlangSession::write_module_to_cache(slang::IModule* module)
+void SlangSession::write_module_to_cache(slang::IModule* module)
 {
+    if (!module->getFilePath())
+        return;
+
     std::filesystem::path path{module->getFilePath()};
 
     // Do not cache module if it was loaded from the cache.
     if (path.extension() == ".slang-module")
-        return false;
+        return;
 
     // Check if target path is within the specified root path.
     auto is_sub_path = [](const std::filesystem::path root, const std::filesystem::path& target)
@@ -733,48 +810,76 @@ bool SlangSession::write_module_to_cache(slang::IModule* module)
         }
     }
     if (include_index == size_t(-1))
-        return false;
+        return;
 
     // Determine path of the cached module.
     std::filesystem::path relative = std::filesystem::relative(path, m_data->include_paths[include_index]);
     std::filesystem::path cache_path = m_data->cache_include_paths[include_index] / relative;
     cache_path.replace_extension(".slang-module");
 
-    // Create directories to cache path.
-    std::error_code ec;
-    std::filesystem::create_directories(cache_path.parent_path(), ec);
-    if (ec) {
-        log_warn(
-            "Failed to create directory \"{}\" for slang module cache ({})",
-            cache_path.parent_path(),
-            ec.message()
+    // Serialize module on the caller thread so the queued write owns plain bytes only.
+    Slang::ComPtr<ISlangBlob> module_blob;
+    if (!SLANG_SUCCEEDED(module->serialize(module_blob.writeRef())) || !module_blob) {
+        log_warn("Failed to serialize cached slang module \"{}\"", module->getName());
+        return;
+    }
+
+    std::string module_name = module->getName();
+
+    if (CacheWriter* cache_writer = m_device->_cache_writer()) {
+        struct WriteState {
+            std::string module_name;
+            std::filesystem::path cache_path;
+            Slang::ComPtr<ISlangBlob> blob;
+        };
+
+        auto state = std::make_shared<WriteState>();
+        state->module_name = std::move(module_name);
+        state->cache_path = cache_path;
+        state->blob = std::move(module_blob);
+        const size_t byte_size = state->blob->getBufferSize();
+
+        if (!cache_writer->enqueue(
+                byte_size,
+                [state]() mutable
+                {
+                    try {
+                        write_module_bytes_to_cache(
+                            state->module_name,
+                            state->cache_path,
+                            state->blob->getBufferPointer(),
+                            state->blob->getBufferSize()
+                        );
+                    } catch (const std::exception& e) {
+                        log_warn(
+                            "Failed to write cached slang module \"{}\" to \"{}\": {}",
+                            state->module_name,
+                            state->cache_path,
+                            e.what()
+                        );
+                    } catch (...) {
+                        log_warn(
+                            "Failed to write cached slang module \"{}\" to \"{}\": unknown exception",
+                            state->module_name,
+                            state->cache_path
+                        );
+                    }
+                }
+            )) {
+            log_warn(
+                "Failed to enqueue cache write for slang module \"{}\" to \"{}\".",
+                state->module_name,
+                state->cache_path
+            );
+        }
+    } else {
+        write_module_bytes_to_cache(
+            module_name,
+            cache_path,
+            module_blob->getBufferPointer(),
+            module_blob->getBufferSize()
         );
-        return false;
     }
-
-    // Write module to a temporary file.
-    std::filesystem::path tmp_path = cache_path;
-    std::random_device rd;
-    uint64_t uid = rd();
-    tmp_path.replace_extension(".slang-module-" + string::hexlify(&uid, sizeof(uid)));
-    if (std::filesystem::exists(tmp_path))
-        return false;
-    if (!SLANG_SUCCEEDED(module->writeToFile(tmp_path.string().c_str()))) {
-        log_warn("Failed to write cached slang module \"{}\" to \"{}\"", module->getName(), cache_path);
-        return false;
-    }
-
-    // Rename temporary file to cache path.
-    std::filesystem::rename(tmp_path, cache_path, ec);
-    if (ec) {
-        log_warn("Failed to rename cached slang module \"{}\" to \"{}\" ({})", tmp_path, cache_path, ec.message());
-        std::filesystem::remove(tmp_path, ec);
-        return false;
-    }
-
-    log_debug("Cached slang module \"{}\" to \"{}\"", module->getName(), cache_path);
-
-    return true;
 }
 
 std::string SlangSessionData::resolve_module_name(std::string_view module_name) const

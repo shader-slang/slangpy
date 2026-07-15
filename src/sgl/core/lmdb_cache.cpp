@@ -176,13 +176,23 @@ void LMDBCache::set(const void* key_data, size_t key_size, const void* value_dat
 
 bool LMDBCache::get(const void* key_data, size_t key_size, WriteValueFunc write_value_func, void* user_data)
 {
+    return get_impl(key_data, key_size, write_value_func, user_data, true);
+}
+
+bool LMDBCache::get_readonly(const void* key_data, size_t key_size, WriteValueFunc write_value_func, void* user_data)
+{
+    return get_impl(key_data, key_size, write_value_func, user_data, false);
+}
+
+bool LMDBCache::touch(const void* key_data, size_t key_size)
+{
     SGL_CHECK(key_size > 0, "Key size must be greater than 0");
     SGL_CHECK(key_size <= m_max_key_size, "Key size exceeds maximum allowed size");
 
     ScopedTransaction txn(m_db.env);
 
     MDB_val mdb_key = {key_size, const_cast<void*>(key_data)};
-    MDB_val mdb_val;
+    MDB_val mdb_val = {};
 
     int result = mdb_get(txn, m_db.dbi_data, &mdb_key, &mdb_val);
     if (result == MDB_NOTFOUND)
@@ -196,9 +206,45 @@ bool LMDBCache::get(const void* key_data, size_t key_size, WriteValueFunc write_
     if (result != MDB_SUCCESS)
         LMDB_THROW("Failed to write metadata", result);
 
+    txn.commit();
+
+    return true;
+}
+
+bool LMDBCache::get_impl(
+    const void* key_data,
+    size_t key_size,
+    WriteValueFunc write_value_func,
+    void* user_data,
+    bool update_last_access
+)
+{
+    SGL_CHECK(key_size > 0, "Key size must be greater than 0");
+    SGL_CHECK(key_size <= m_max_key_size, "Key size exceeds maximum allowed size");
+
+    ScopedTransaction txn(m_db.env, update_last_access ? 0 : MDB_RDONLY);
+
+    MDB_val mdb_key = {key_size, const_cast<void*>(key_data)};
+    MDB_val mdb_val;
+
+    int result = mdb_get(txn, m_db.dbi_data, &mdb_key, &mdb_val);
+    if (result == MDB_NOTFOUND)
+        return false;
+    if (result != MDB_SUCCESS)
+        LMDB_THROW("Failed to read data", result);
+
+    if (update_last_access) {
+        MetaData meta_data{.last_access = get_current_time_ns()};
+        MDB_val mdb_val_meta = {sizeof(MetaData), &meta_data};
+        result = mdb_put(txn, m_db.dbi_meta, &mdb_key, &mdb_val_meta, 0);
+        if (result != MDB_SUCCESS)
+            LMDB_THROW("Failed to write metadata", result);
+    }
+
     write_value_func(mdb_val.mv_data, mdb_val.mv_size, user_data);
 
-    txn.commit();
+    if (update_last_access)
+        txn.commit();
 
     return true;
 }

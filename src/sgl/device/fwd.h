@@ -96,6 +96,7 @@ class ComputeKernel;
 
 // persistent_cache.h
 
+class CacheWriter;
 class PersistentCache;
 
 // pipeline.h

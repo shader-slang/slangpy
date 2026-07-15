@@ -55,6 +55,7 @@ target_sources(sgl PRIVATE
     core/plugin.h
     core/resolver.h
     core/short_vector.h
+    core/signature_buffer.h
     core/static_vector.h
     core/stream.h
     core/string.cpp
@@ -74,6 +75,9 @@ target_sources(sgl PRIVATE
     device/blit.slang
     device/buffer_cursor.cpp
     device/buffer_cursor.h
+    device/cache_writer.cpp
+    device/cache_writer.h
+    device/callback_list.h
     device/command.cpp
     device/command.h
     device/cuda_interop.cpp
@@ -153,6 +157,8 @@ target_sources(sgl PRIVATE
     func/base_module.h
     func/base_struct.cpp
     func/base_struct.h
+    func/tensor.cpp
+    func/tensor.h
 
     refl/layout.cpp
     refl/layout.h
@@ -177,6 +183,10 @@ target_sources(sgl PRIVATE
     utils/crashpad.h
     utils/renderdoc.cpp
     utils/renderdoc.h
+    utils/profiler.cpp
+    utils/profiler.h
+    utils/profiler_ui.cpp
+    utils/profiler_ui.h
     utils/slangpy.cpp
     utils/slangpy.h
     utils/tev.cpp
@@ -218,6 +228,7 @@ target_compile_options(sgl
         $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:
             /MP                             # enable multi-processor compilation
             /Zi                             # generate debug symbols
+            /Zc:preprocessor                # enable the conforming preprocessor required by C++20 __VA_OPT__
             # Configure warnings
             $<$<BOOL:${SGL_WARNINGS_AS_ERRORS}>:/WX>    # warnings as errors
             /W4                             # increase warning level
