@@ -7,6 +7,19 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.43.1 (July 15, 2026)
+-------
+- Add ``cp314`` to the slangpy wheel build matrix so Python 3.14 users install the
+  current release instead of falling back to v0.23.0, and bump ``cibuildwheel`` to
+  3.4.1 (>=3.1.0 is required to build cp314 with the final 3.14 ABI).
+  (PR `#1002 <https://github.com/shader-slang/slangpy/pull/1002>`__)
+- Extend ``slangpy-torch`` Linux and Windows wheel matrices with Python 3.14, excluding
+  PyTorch 2.7.0 and 2.8.0 which do not ship cp314 wheels on the CUDA 12.8 index.
+  (PR `#1002 <https://github.com/shader-slang/slangpy/pull/1002>`__)
+- Add Python version trove classifiers for 3.9 through 3.14 in ``pyproject.toml``,
+  matching the wheel build matrix.
+  (PR `#1002 <https://github.com/shader-slang/slangpy/pull/1002>`__)
+
 Version 0.43.0 (July 13, 2026)
 -------
 - Native reflection, binding, and tensor overhaul: moved reflection type
