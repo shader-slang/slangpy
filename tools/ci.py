@@ -104,7 +104,9 @@ def run_command(
 
     process.communicate()
     if process.returncode != 0:
-        raise RuntimeError(f'Error running "{command}"')
+        err = RuntimeError(f'Error running "{command}"')
+        err.captured_output = out  # type: ignore[attr-defined]
+        raise err
 
     return out
 
@@ -264,9 +266,40 @@ def install_slangpy_torch(args: Any):
     cmd = [sys.executable, "-m", "pip", "install", "wheel"]
     run_command(cmd)
 
-    # Use --no-build-isolation to compile against the user's installed PyTorch
-    cmd = [sys.executable, "-m", "pip", "install", str(slangpy_torch_dir), "--no-build-isolation"]
-    run_command(cmd)
+    # -vvv so pip relays the PEP 517 build-backend's stdio live (a hang isn't
+    # a failure, so captured output is never flushed); env vars prevent stdio
+    # buffering and any interactive prompt that could wedge the install. On
+    # GitHub Actions, wrap the verbose output in a collapsible log group so
+    # the normal case stays readable while diagnostics remain one click away.
+    cmd = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "-vvv",
+        str(slangpy_torch_dir),
+        "--no-build-isolation",
+    ]
+    env = {"PYTHONUNBUFFERED": "1", "PIP_NO_INPUT": "1"}
+    in_gha = os.environ.get("GITHUB_ACTIONS") == "true"
+    if in_gha:
+        print("::group::pip install slangpy-torch (verbose)")
+        sys.stdout.flush()
+    out = ""
+    try:
+        out = run_command(cmd, env=env)
+    except RuntimeError as e:
+        out = getattr(e, "captured_output", "")
+        raise
+    finally:
+        if in_gha:
+            print("::endgroup::")
+            sys.stdout.flush()
+        # Surface pip's own pass/fail summary outside the collapsed group
+        # so the result is visible without expanding.
+        for line in out.splitlines():
+            if line.startswith(("Successfully installed", "ERROR")):
+                print(line)
 
 
 def main():
