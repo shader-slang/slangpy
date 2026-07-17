@@ -32,6 +32,20 @@ def run_command(cmd: list[str]) -> str:
     return subprocess.check_output(cmd, stderr=subprocess.STDOUT, universal_newlines=True).strip()
 
 
+def nvidia_smi_mutation_command(arguments: list[str]) -> list[str]:
+    """
+    Build an nvidia-smi command for an operation that changes GPU state.
+
+    Linux CI grants ci-runner passwordless sudo only for the exact clock
+    lock/reset argument forms used below. The Python process and read-only
+    nvidia-smi queries remain unprivileged.
+    """
+    command = [NVIDIA_SMI, *arguments]
+    if platform.system() == "Linux":
+        command = ["sudo", "-n", "--", *command]
+    return command
+
+
 def get_gpu_name(device_index: int):
     """
     Return the name of the GPU.
@@ -113,10 +127,14 @@ def lock_gpu_clocks(device_index: int, ratio: float, conservative: bool):
     print(f"Selected gpu clock: {locked_gpu_clock} MHz ({locked_gpu_clock / max_gpu_clock:.1%}):")
 
     print("Locking mem clock:")
-    cmd = [NVIDIA_SMI, "-i", str(device_index), f"--lock-memory-clocks={locked_mem_clock}"]
+    cmd = nvidia_smi_mutation_command(
+        ["-i", str(device_index), f"--lock-memory-clocks={locked_mem_clock}"]
+    )
     print(run_command(cmd))
     print("Locking gpu clock")
-    cmd = [NVIDIA_SMI, "-i", str(device_index), f"--lock-gpu-clocks={locked_gpu_clock}"]
+    cmd = nvidia_smi_mutation_command(
+        ["-i", str(device_index), f"--lock-gpu-clocks={locked_gpu_clock}"]
+    )
     print(run_command(cmd))
 
 
@@ -126,9 +144,11 @@ def unlock_gpu_clocks(device_index: int):
     """
     print(f"Selected GPU: {get_gpu_name(device_index)}")
     print("Unlocking mem clock:")
-    print(run_command([NVIDIA_SMI, "-i", str(device_index), "--reset-memory-clocks"]))
+    print(
+        run_command(nvidia_smi_mutation_command(["-i", str(device_index), "--reset-memory-clocks"]))
+    )
     print("Unlocking gpu clock:")
-    print(run_command([NVIDIA_SMI, "-i", str(device_index), "--reset-gpu-clocks"]))
+    print(run_command(nvidia_smi_mutation_command(["-i", str(device_index), "--reset-gpu-clocks"])))
 
 
 def main():

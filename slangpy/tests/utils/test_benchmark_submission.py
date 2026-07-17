@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import ast
 from datetime import datetime, timezone
 from email.message import Message
 from io import BytesIO
@@ -18,6 +19,7 @@ from slangpy.testing.benchmark.fixtures import ReportFixture
 benchmark_api = import_module("slangpy.testing.benchmark.benchview")
 benchmark_plugin = import_module("slangpy.testing.benchmark.plugin")
 ci = import_module("tools.ci")
+gpu_clock = import_module("tools.gpu_clock")
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
@@ -382,6 +384,73 @@ def test_ci_wrapper_forwards_an_explicit_empty_api_url(
     ]
 
 
+def test_linux_ci_wrapper_does_not_run_gpu_clock_python_as_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Elevate only nvidia-smi mutations inside the clock helper."""
+
+    commands: list[list[str]] = []
+
+    def capture_command(
+        command: list[str],
+        shell: bool = True,
+        env: Optional[dict[str, str]] = None,
+    ) -> None:
+        del shell, env
+        commands.append(command)
+
+    monkeypatch.setattr(ci, "get_os", lambda: "linux")
+    monkeypatch.setattr(ci, "run_command", capture_command)
+    ci.benchmark_python(
+        SimpleNamespace(
+            device_type="cuda",
+            lock_gpu_clocks=True,
+            api_url=None,
+            run_id="workflow-123",
+        )
+    )
+
+    assert commands[0][:2] == ["python", str(ci.PROJECT_DIR / "tools/gpu_clock.py")]
+    assert commands[0][2:] == ["lock", "--ratio", "0.7"]
+    assert commands[-1][:2] == ["python", str(ci.PROJECT_DIR / "tools/gpu_clock.py")]
+    assert commands[-1][2:] == ["unlock"]
+    assert all(command[0] != "sudo" for command in (commands[0], commands[-1]))
+
+
+def test_linux_gpu_clock_elevates_only_nvidia_smi_mutations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands: list[list[str]] = []
+
+    def capture_command(command: list[str]) -> str:
+        commands.append(command)
+        return "Test GPU"
+
+    monkeypatch.setattr(gpu_clock.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(gpu_clock, "NVIDIA_SMI", "nvidia-smi")
+    monkeypatch.setattr(gpu_clock, "run_command", capture_command)
+
+    assert gpu_clock.nvidia_smi_mutation_command(["-i", "2", "--lock-gpu-clocks=1234"]) == [
+        "sudo",
+        "-n",
+        "--",
+        "nvidia-smi",
+        "-i",
+        "2",
+        "--lock-gpu-clocks=1234",
+    ]
+    assert gpu_clock.get_gpu_name(2) == "Test GPU"
+    assert commands == [
+        [
+            "nvidia-smi",
+            "-i",
+            "2",
+            "--query-gpu=name",
+            "--format=csv,noheader,nounits",
+        ]
+    ]
+
+
 def test_ordinary_workflow_uses_ci_wrapper_without_historical_logic() -> None:
     """Keep scheduled and manual benchmarks on the normal current-revision path."""
 
@@ -390,12 +459,64 @@ def test_ordinary_workflow_uses_ci_wrapper_without_historical_logic() -> None:
     assert "cron: '0 */4 * * *'" in workflow
     assert "workflow_dispatch:" in workflow
     assert workflow.count("python tools/ci.py benchmark-python") == 2
+    assert workflow.count("--lock-gpu-clocks") == 2
+    assert "Benchmark (Python, Linux, GPU Clock Locked)" in workflow
     assert "BENCHVIEW_API_URL" in workflow
     assert "BENCHVIEW_API_KEY" in workflow
+    assert workflow.count("contains(matrix.flags, 'benchmark')") >= 4
+    assert "contains(matrix.flags, 'unit-test')" not in workflow
+    assert "python tools/ci.py install-slangpy-torch" in workflow
+    assert "python -m pip uninstall slangpy-torch -y" in workflow
     assert "benchmark_ref" not in workflow
     assert "Overlay current BenchView benchmark harness" not in workflow
     assert "run_benchmark_ci.py" not in workflow
     assert "mongodb" not in workflow.lower()
+
+
+def test_cuda_only_ppisp_benchmarks_declare_the_device_dimension() -> None:
+    """Keep CUDA-only PPISP tests out of the non-device benchmark shard."""
+
+    source_path = REPOSITORY_ROOT / "slangpy/benchmarks/test_benchmark_ppisp.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
+    device_tests: list[ast.FunctionDef] = []
+    for node in tree.body:
+        if not isinstance(node, ast.FunctionDef) or not node.name.startswith("test_"):
+            continue
+        if any(
+            isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Attribute)
+            and child.func.attr == "get_torch_device"
+            for child in ast.walk(node)
+        ):
+            device_tests.append(node)
+
+    assert device_tests
+    for test_function in device_tests:
+        parameter_names = [parameter.arg for parameter in test_function.args.args]
+        assert "device_type" in parameter_names, test_function.name
+        get_device_calls = [
+            child
+            for child in ast.walk(test_function)
+            if isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Attribute)
+            and child.func.attr == "get_torch_device"
+        ]
+        assert all(
+            call.args and isinstance(call.args[0], ast.Name) and call.args[0].id == "device_type"
+            for call in get_device_calls
+        ), test_function.name
+
+
+def test_backward_diff_benchmark_uses_the_available_extensions_include() -> None:
+    """Keep extensions.slang and the benchmark include directory aligned."""
+
+    benchmark_directory = REPOSITORY_ROOT / "slangpy/benchmarks"
+    benchmark_source = (benchmark_directory / "test_benchmark_bwd_diff.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert (benchmark_directory / "ppisp/extensions.slang").is_file()
+    assert 'os.path.join(BENCH_DIR, "ppisp")' in benchmark_source
 
 
 def test_submit_posts_bearer_authenticated_json(monkeypatch: pytest.MonkeyPatch) -> None:

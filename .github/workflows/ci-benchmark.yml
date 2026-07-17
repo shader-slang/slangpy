@@ -120,9 +120,9 @@ jobs:
         if: contains(matrix.flags, 'benchmark') && runner.os == 'Windows'
         run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --api-url "${{ env.BENCHVIEW_API_URL }}" --lock-gpu-clocks
 
-      - name: Benchmark (Python, Linux, GPU Clock Unlocked)
+      - name: Benchmark (Python, Linux, GPU Clock Locked)
         if: contains(matrix.flags, 'benchmark') && runner.os == 'Linux'
-        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --api-url "${{ env.BENCHVIEW_API_URL }}"
+        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --api-url "${{ env.BENCHVIEW_API_URL }}" --lock-gpu-clocks
 
       # Cleanup slangpy-torch from persistent self-hosted runners.
       - name: Uninstall slangpy-torch
