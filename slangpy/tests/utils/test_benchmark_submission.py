@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast, Optional, Type
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
 import pytest
@@ -556,12 +556,136 @@ def test_submit_posts_bearer_authenticated_json(monkeypatch: pytest.MonkeyPatch)
     assert receipts == [{"duplicate": False, "transactionId": "tx", "cursor": "0"}]
 
 
+def test_submit_retries_connection_resets_with_the_identical_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recover from ambiguous connection resets by safely repeating one idempotent batch."""
+
+    attempts: list[bytes] = []
+    delays: list[float] = []
+
+    def flaky_urlopen(request: Request, timeout: float) -> FakeResponse:
+        """Reset two connections before accepting the byte-identical third request."""
+
+        assert timeout == 30.0
+        assert isinstance(request.data, bytes)
+        attempts.append(request.data)
+        if len(attempts) < 3:
+            raise URLError(ConnectionResetError(104, "Connection reset by peer"))
+        return FakeResponse(
+            200,
+            json.dumps({"duplicate": True, "transactionId": "tx", "cursor": "0"}).encode(),
+        )
+
+    monkeypatch.setattr(benchmark_api, "urlopen", flaky_urlopen)
+    monkeypatch.setattr(
+        benchmark_api,
+        "sleep",
+        lambda delay: delays.append(delay),
+    )
+    receipts = benchmark_api.submit_benchview_submissions(
+        "http://host/benchview",
+        "secret-write-key",
+        [{"schemaVersion": 1, "idempotencyKey": "stable-key"}],
+        max_attempts=3,
+        retry_delay_seconds=0.25,
+    )
+
+    assert len(attempts) == 3
+    assert attempts[0] == attempts[1] == attempts[2]
+    assert delays == [0.25, 0.5]
+    assert receipts == [{"duplicate": True, "transactionId": "tx", "cursor": "0"}]
+
+
+def test_submit_retries_a_transient_gateway_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Retry temporary proxy failures while leaving permanent HTTP failures terminal."""
+
+    attempts = 0
+    delays: list[float] = []
+
+    def flaky_urlopen(request: Request, timeout: float) -> FakeResponse:
+        """Return one retryable gateway error followed by a normal receipt."""
+
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise HTTPError(
+                request.full_url,
+                503,
+                "Service unavailable",
+                hdrs=Message(),
+                fp=BytesIO(b"temporary"),
+            )
+        return FakeResponse(
+            201,
+            json.dumps({"duplicate": False, "transactionId": "tx", "cursor": "0"}).encode(),
+        )
+
+    monkeypatch.setattr(benchmark_api, "urlopen", flaky_urlopen)
+    monkeypatch.setattr(
+        benchmark_api,
+        "sleep",
+        lambda delay: delays.append(delay),
+    )
+    receipts = benchmark_api.submit_benchview_submissions(
+        "http://host/benchview",
+        "secret-write-key",
+        [{"schemaVersion": 1, "idempotencyKey": "stable-key"}],
+        retry_delay_seconds=0.5,
+    )
+
+    assert attempts == 2
+    assert delays == [0.5]
+    assert receipts == [{"duplicate": False, "transactionId": "tx", "cursor": "0"}]
+
+
+def test_submit_stops_after_the_configured_connection_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bound persistent connection failures instead of retrying a CI submission forever."""
+
+    attempts = 0
+    delays: list[float] = []
+
+    def failing_urlopen(request: Request, timeout: float) -> FakeResponse:
+        """Reset every connection to exercise the terminal retry path."""
+
+        nonlocal attempts
+        attempts += 1
+        raise URLError(ConnectionResetError(104, "Connection reset by peer"))
+
+    monkeypatch.setattr(benchmark_api, "urlopen", failing_urlopen)
+    monkeypatch.setattr(
+        benchmark_api,
+        "sleep",
+        lambda delay: delays.append(delay),
+    )
+    with pytest.raises(benchmark_api.BenchmarkSubmissionError) as error:
+        benchmark_api.submit_benchview_submissions(
+            "http://host/benchview",
+            "secret-write-key",
+            [{"schemaVersion": 1, "idempotencyKey": "stable-key"}],
+            max_attempts=3,
+            retry_delay_seconds=0.25,
+        )
+
+    assert attempts == 3
+    assert delays == [0.25, 0.5]
+    assert "after 3 attempt(s)" in str(error.value)
+
+
 def test_submit_redacts_key_from_http_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prevent a malicious or reflected server diagnostic from disclosing credentials."""
 
     key = "never-print-this-key"
 
+    attempts = 0
+
     def failing_urlopen(request: Request, timeout: float) -> FakeResponse:
+        """Return a permanent authentication failure that must not be retried."""
+
+        nonlocal attempts
+        attempts += 1
         raise HTTPError(
             request.full_url,
             401,
@@ -579,3 +703,4 @@ def test_submit_redacts_key_from_http_failure(monkeypatch: pytest.MonkeyPatch) -
         )
     assert key not in str(error.value)
     assert "<redacted>" in str(error.value)
+    assert attempts == 1

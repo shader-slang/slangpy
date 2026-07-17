@@ -2,10 +2,12 @@
 
 from datetime import datetime, timezone
 import hashlib
+from http.client import HTTPException
 import json
 import math
 import os
 from pathlib import Path
+from time import sleep
 from typing import Any, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -13,9 +15,12 @@ from urllib.request import Request, urlopen
 
 BENCHVIEW_MAX_BODY_BYTES = 8 * 1024 * 1024
 BENCHVIEW_DEFAULT_BATCH_SIZE = 100
+BENCHVIEW_DEFAULT_MAX_SUBMIT_ATTEMPTS = 5
+BENCHVIEW_DEFAULT_RETRY_DELAY_SECONDS = 1.0
 BENCHVIEW_PROJECT_ID = "slangpy"
 BENCHVIEW_REPOSITORY = "https://github.com/shader-slang/slangpy"
 BENCHVIEW_SUITE_ID = "python"
+BENCHVIEW_RETRYABLE_HTTP_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
 
 BenchViewObservation = dict[str, Any]
 BenchViewSubmission = dict[str, Any]
@@ -367,42 +372,89 @@ def _safe_response_text(data: bytes, write_key: str) -> str:
     return text.replace(write_key, "<redacted>")
 
 
+def _retry_delay(attempt: int, base_delay_seconds: float) -> float:
+    """Return the deterministic exponential delay after a failed one-based attempt."""
+
+    return base_delay_seconds * (2 ** (attempt - 1))
+
+
+def _retry_submission(attempt: int, max_attempts: int, delay_seconds: float, failure: str) -> None:
+    """Report a transient failure and wait before another idempotent POST."""
+
+    if attempt < max_attempts:
+        print(
+            f"BenchView submission {failure} on attempt {attempt}/{max_attempts}; "
+            f"retrying in {delay_seconds:g} second(s)."
+        )
+        sleep(delay_seconds)
+
+
 def submit_benchview_submissions(
     api_base_url: str,
     write_key: str,
     submissions: list[BenchViewSubmission],
     timeout_seconds: float = 30.0,
+    max_attempts: int = BENCHVIEW_DEFAULT_MAX_SUBMIT_ATTEMPTS,
+    retry_delay_seconds: float = BENCHVIEW_DEFAULT_RETRY_DELAY_SECONDS,
 ) -> list[dict[str, Any]]:
-    """POST immutable batches with Bearer authentication and return validated receipts."""
+    """POST immutable batches, retrying transient failures with the same idempotency key."""
 
     if not write_key:
         raise BenchmarkSubmissionError("BenchView API write key must be non-empty.")
+    if timeout_seconds <= 0 or not math.isfinite(timeout_seconds):
+        raise BenchmarkSubmissionError("BenchView submission timeout must be positive and finite.")
+    if max_attempts < 1:
+        raise BenchmarkSubmissionError("BenchView submission attempts must be positive.")
+    if retry_delay_seconds < 0 or not math.isfinite(retry_delay_seconds):
+        raise BenchmarkSubmissionError("BenchView retry delay must be non-negative and finite.")
     endpoint = benchview_submission_url(api_base_url)
     receipts: list[dict[str, Any]] = []
     for submission in submissions:
         body = _json_bytes(submission)
-        request = Request(
-            endpoint,
-            data=body,
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {write_key}",
-                "Content-Type": "application/json",
-            },
-        )
-        try:
-            with urlopen(request, timeout=timeout_seconds) as response:
-                status = response.getcode()
-                response_body = response.read(BENCHVIEW_MAX_BODY_BYTES + 1)
-        except HTTPError as error:
-            diagnostic = _safe_response_text(error.read(2049), write_key)
-            raise BenchmarkSubmissionError(
-                f"BenchView rejected a benchmark submission with HTTP {error.code}: {diagnostic}"
-            ) from error
-        except URLError as error:
-            raise BenchmarkSubmissionError(
-                f"Could not reach the BenchView submission endpoint: {error.reason}"
-            ) from error
+        for attempt in range(1, max_attempts + 1):
+            request = Request(
+                endpoint,
+                data=body,
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {write_key}",
+                    "Content-Type": "application/json",
+                },
+            )
+            try:
+                with urlopen(request, timeout=timeout_seconds) as response:
+                    status = response.getcode()
+                    response_body = response.read(BENCHVIEW_MAX_BODY_BYTES + 1)
+            except HTTPError as error:
+                if error.code in BENCHVIEW_RETRYABLE_HTTP_STATUS_CODES and attempt < max_attempts:
+                    error.close()
+                    _retry_submission(
+                        attempt,
+                        max_attempts,
+                        _retry_delay(attempt, retry_delay_seconds),
+                        f"received HTTP {error.code}",
+                    )
+                    continue
+                diagnostic = _safe_response_text(error.read(2049), write_key)
+                raise BenchmarkSubmissionError(
+                    f"BenchView rejected a benchmark submission with HTTP {error.code} "
+                    f"after {attempt} attempt(s): {diagnostic}"
+                ) from error
+            except (URLError, TimeoutError, ConnectionError, HTTPException) as error:
+                if attempt < max_attempts:
+                    _retry_submission(
+                        attempt,
+                        max_attempts,
+                        _retry_delay(attempt, retry_delay_seconds),
+                        "lost its connection",
+                    )
+                    continue
+                reason = error.reason if isinstance(error, URLError) else error
+                raise BenchmarkSubmissionError(
+                    f"Could not reach the BenchView submission endpoint after {attempt} "
+                    f"attempt(s): {reason}"
+                ) from error
+            break
         if status < 200 or status >= 300:
             diagnostic = _safe_response_text(response_body, write_key)
             raise BenchmarkSubmissionError(
