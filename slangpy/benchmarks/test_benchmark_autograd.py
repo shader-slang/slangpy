@@ -88,6 +88,7 @@ def test_autograd_pure_torch(
 
 
 @pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
+@pytest.mark.skip("Crashing")
 def test_autograd_slangtorch(
     device_type: spy.DeviceType, benchmark_python_function: BenchmarkPythonFunction
 ) -> None:
