@@ -532,28 +532,27 @@ def test_ppisp_backward_slangpy_manual_hook(
             crf: torch.Tensor,
         ) -> torch.Tensor:
             # Detach all to avoid triggering SlangPy's automatic autograd
-            ctx.save_for_backward(
-                rgb.detach(),
-                exposure.detach(),
-                vignetting.detach(),
-                color.detach(),
-                crf.detach(),
-            )
+            rgb = rgb.detach()
+            exposure = exposure.detach()
+            vignetting = vignetting.detach()
+            color = color.detach()
+            crf = crf.detach()
             result = func(
                 batch_size=rgb.shape[0],
                 num_cameras=NUM_CAMERAS,
                 num_frames=NUM_FRAMES,
-                exposure_params=exposure.detach(),
-                vignetting_params=vignetting.detach(),
-                color_params=color.detach(),
-                crf_params=crf.detach(),
-                rgb_pixel=rgb.detach(),
+                exposure_params=exposure,
+                vignetting_params=vignetting,
+                color_params=color,
+                crf_params=crf,
+                rgb_pixel=rgb,
                 pixel_coord=pixel_coords,
                 camera_idx=camera_idcs,
                 frame_idx=frame_idcs,
                 resolution_w=float(RESOLUTION_W),
                 resolution_h=float(RESOLUTION_H),
             )
+            ctx.save_for_backward(rgb, exposure, vignetting, color, crf, result)
             return result
 
         @staticmethod
@@ -561,7 +560,7 @@ def test_ppisp_backward_slangpy_manual_hook(
             ctx: Any,
             grad_output: torch.Tensor,
         ) -> tuple[Optional[torch.Tensor], ...]:
-            rgb, exposure, vignetting, color, crf = ctx.saved_tensors
+            rgb, exposure, vignetting, color, crf, result = ctx.saved_tensors
             # Build diff pairs: (primal, grad_buffer, index, is_input)
             exposure_pair = NativeTorchTensorDiffPair(exposure, torch.zeros_like(exposure), 0, True)
             vignetting_pair = NativeTorchTensorDiffPair(
@@ -570,7 +569,7 @@ def test_ppisp_backward_slangpy_manual_hook(
             color_pair = NativeTorchTensorDiffPair(color, torch.zeros_like(color), 2, True)
             crf_pair = NativeTorchTensorDiffPair(crf, torch.zeros_like(crf), 3, True)
             rgb_pair = NativeTorchTensorDiffPair(rgb, torch.zeros_like(rgb), 4, True)
-            result_pair = NativeTorchTensorDiffPair(None, grad_output, 5, False)
+            result_pair = NativeTorchTensorDiffPair(result, grad_output, 5, False)
 
             func.bwds(
                 batch_size=rgb.shape[0],
@@ -841,9 +840,24 @@ def test_ppisp_gpu_backward_slangpy(
     crf_pair = NativeTorchTensorDiffPair(crf_params, torch.zeros_like(crf_params), 3, True)
     rgb_pair = NativeTorchTensorDiffPair(rgb, torch.zeros_like(rgb), 4, True)
 
-    # Upstream gradient (ones)
-    result_grad = torch.ones(batch_size, 3, device=torch_device)
-    result_pair = NativeTorchTensorDiffPair(None, result_grad, 5, False)
+    # Run an untimed forward pass to provide the output primal needed by bwds().
+    result = func(
+        batch_size=batch_size,
+        num_cameras=NUM_CAMERAS,
+        num_frames=NUM_FRAMES,
+        exposure_params=exposure_params,
+        vignetting_params=vignetting_params,
+        color_params=color_params,
+        crf_params=crf_params,
+        rgb_pixel=rgb,
+        pixel_coord=pixel_coords,
+        camera_idx=camera_idcs,
+        frame_idx=frame_idcs,
+        resolution_w=float(RESOLUTION_W),
+        resolution_h=float(RESOLUTION_H),
+    )
+    result_grad = torch.ones_like(result)
+    result_pair = NativeTorchTensorDiffPair(result, result_grad, 5, False)
 
     benchmark_slang_function(
         device,
