@@ -12,6 +12,11 @@ target_sources(sgl PRIVATE
     app/app.cpp
     app/app.h
 
+    core/bc_codec.cpp
+    core/bc_codec.h
+    core/bc_dds.cpp
+    core/bc_dds.h
+    core/bc_types.h
     core/bitmap.cpp
     core/bitmap.h
     core/crypto.cpp
@@ -276,7 +281,7 @@ target_compile_options(sgl
         >
         # GCC flags.
         $<$<CXX_COMPILER_ID:GNU>:
-            -Wno-unknown-warning
+            -Wno-psabi
             -Wno-literal-suffix
             -Wno-class-memaccess
             -Wno-strict-aliasing
@@ -396,6 +401,7 @@ file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TYPE}/include/sgl/c
 #define SGL_HAS_LIBPNG $<BOOL:${SGL_HAS_LIBPNG}>
 #define SGL_HAS_OPENEXR $<BOOL:${SGL_HAS_OPENEXR}>
 #define SGL_HAS_ASMJIT $<BOOL:${SGL_HAS_ASMJIT}>
+#define SGL_HAS_NVTT $<BOOL:${SGL_HAS_NVTT}>
 #define SGL_HAS_CRASHPAD $<BOOL:${SGL_HAS_CRASHPAD}>
 "
 )
@@ -412,6 +418,7 @@ target_link_libraries(sgl
         $<$<NOT:$<BOOL:${SGL_USE_DYNAMIC_CUDA}>>:CUDA::cuda_driver>
         sgl_data
     PRIVATE
+        bc7enc
         git_version
         glfw
         tevclient
@@ -422,6 +429,7 @@ target_link_libraries(sgl
         $<$<BOOL:${SGL_HAS_OPENEXR}>:OpenEXR::OpenEXR>
         $<$<BOOL:${SGL_HAS_ASMJIT}>:asmjit::asmjit>
         $<$<BOOL:${SGL_HAS_CRASHPAD}>:crashpad::crashpad>
+        $<$<BOOL:${SGL_HAS_NVTT}>:NVTT::NVTT>
         # Windows system libraries.
         $<$<PLATFORM_ID:Windows>:Dbghelp>
         # $<$<PLATFORM_ID:Windows>:shcore.lib>
