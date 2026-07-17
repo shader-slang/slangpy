@@ -45,7 +45,10 @@ if(SGL_BUILD_TESTS)
     endif()
     target_include_directories(sgl_tests BEFORE PRIVATE sgl)
     target_link_libraries(sgl_tests PRIVATE sgl header_only)
-    target_compile_definitions(sgl_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_compile_definitions(sgl_tests PRIVATE
+        DOCTEST_CONFIG_USE_STD_HEADERS
+        SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
 
     set_target_properties(sgl_tests PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY}

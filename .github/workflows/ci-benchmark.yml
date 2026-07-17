@@ -1,9 +1,13 @@
 name: ci-benchmark
+run-name: "ci-benchmark: ${{ inputs.revision || github.sha }}"
 
 on:
-  schedule:
-    - cron: '0 */4 * * *' # run every 4 hours
   workflow_dispatch:
+    inputs:
+      revision:
+        description: "Optional exact revision to benchmark; defaults to the selected branch tip"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -34,10 +38,13 @@ jobs:
       CI_FLAGS: ${{ matrix.flags }}
       BENCHVIEW_API_URL: ${{ vars.BENCHVIEW_API_URL }}
       BENCHVIEW_API_KEY: ${{ secrets.BENCHVIEW_API_KEY }}
+      BENCHVIEW_BENCHMARK_REF: ${{ inputs.revision || github.sha }}
+      BENCHVIEW_BENCHMARK_BRANCH: ${{ github.ref_name }}
 
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.revision || github.sha }}
           submodules: recursive
           lfs: true
 

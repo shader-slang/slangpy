@@ -123,6 +123,34 @@ def submission_context() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
     return project_info, machine_info, commit_info
 
 
+def test_historical_source_override_preserves_time_and_replaces_git_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Report the historical target as clean main source after overlaying current Python files."""
+
+    historical_time = datetime(2025, 9, 2, 14, 42, 35, tzinfo=timezone.utc)
+    report: dict[str, Any] = {
+        "commit_info": {
+            "id": "overlay-tree",
+            "time": historical_time,
+            "branch": "detached",
+            "dirty": True,
+        }
+    }
+    target = "f3ad0fd91d8cf4eeb2be3b505765b43482aa952a"
+    monkeypatch.setenv("BENCHVIEW_BENCHMARK_REF", target)
+    monkeypatch.setenv("BENCHVIEW_BENCHMARK_BRANCH", "main")
+
+    benchmark_plugin.apply_benchmark_source_override(cast(Any, report))
+
+    assert report["commit_info"] == {
+        "id": target,
+        "time": historical_time,
+        "branch": "main",
+        "dirty": False,
+    }
+
+
 @pytest.mark.parametrize("metric_id", ["gpu_time", "cpu_time"])
 def test_build_observation_uses_native_identity_and_metric(metric_id: str) -> None:
     """Verify typed dimensions and explicit fixture timing semantics."""
@@ -452,12 +480,14 @@ def test_linux_gpu_clock_elevates_only_nvidia_smi_mutations(
 
 
 def test_ordinary_workflow_uses_ci_wrapper_without_historical_logic() -> None:
-    """Keep scheduled and manual benchmarks on the normal current-revision path."""
+    """Keep branch-tip and exact future benchmarks on the normal current producer path."""
 
     workflow = (REPOSITORY_ROOT / ".github/workflows/ci-benchmark.yml").read_text(encoding="utf-8")
 
-    assert "cron: '0 */4 * * *'" in workflow
+    assert "cron:" not in workflow
     assert "workflow_dispatch:" in workflow
+    assert 'run-name: "ci-benchmark: ${{ inputs.revision || github.sha }}"' in workflow
+    assert "ref: ${{ inputs.revision || github.sha }}" in workflow
     assert workflow.count("python tools/ci.py benchmark-python") == 2
     assert workflow.count("--lock-gpu-clocks") == 2
     assert "Benchmark (Python, Linux, GPU Clock Locked)" in workflow
@@ -467,7 +497,7 @@ def test_ordinary_workflow_uses_ci_wrapper_without_historical_logic() -> None:
     assert "contains(matrix.flags, 'unit-test')" not in workflow
     assert "python tools/ci.py install-slangpy-torch" in workflow
     assert "python -m pip uninstall slangpy-torch -y" in workflow
-    assert "benchmark_ref" not in workflow
+    assert "target_sha" not in workflow
     assert "Overlay current BenchView benchmark harness" not in workflow
     assert "run_benchmark_ci.py" not in workflow
     assert "mongodb" not in workflow.lower()
