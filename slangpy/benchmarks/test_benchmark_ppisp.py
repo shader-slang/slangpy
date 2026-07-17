@@ -37,6 +37,7 @@ NUM_FRAMES = 200
 RESOLUTION_W = 1920
 RESOLUTION_H = 1080
 BATCH_SIZES = [100_000, 1_000_000]
+DEVICE_TYPES = [spy.DeviceType.cuda]
 
 # Fixture parameters: 10 outer x 100 inner = 1000 total timed calls
 ITERATIONS = 10
@@ -146,10 +147,11 @@ def _assert_close(
 
 @pytest.mark.skip(reason="Correctness validated; enable manually when needed")
 @pytest.mark.parametrize("include_pytorch", [False, True], ids=["slang-only", "with-pytorch"])
-def test_ppisp_correctness_forward(include_pytorch: bool) -> None:
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_ppisp_correctness_forward(device_type: spy.DeviceType, include_pytorch: bool) -> None:
     """Verify forward outputs match across backends."""
     _skip_if_no_slangtorch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     torch.manual_seed(42)
@@ -188,10 +190,11 @@ def test_ppisp_correctness_forward(include_pytorch: bool) -> None:
 
 @pytest.mark.skip(reason="Correctness validated; enable manually when needed")
 @pytest.mark.parametrize("include_pytorch", [False, True], ids=["slang-only", "with-pytorch"])
-def test_ppisp_correctness_backward(include_pytorch: bool) -> None:
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_ppisp_correctness_backward(device_type: spy.DeviceType, include_pytorch: bool) -> None:
     """Verify gradients match across backends."""
     _skip_if_no_slangtorch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     torch.manual_seed(42)
@@ -254,12 +257,14 @@ def test_ppisp_correctness_backward(include_pytorch: bool) -> None:
 
 
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_ppisp_forward_pytorch(
+    device_type: spy.DeviceType,
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
     _skip_if_no_torch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from slangpy.benchmarks.ppisp.ppisp_pytorch import PPISPPyTorch
@@ -285,12 +290,14 @@ def test_ppisp_forward_pytorch(
 
 
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_ppisp_forward_slangpy(
+    device_type: spy.DeviceType,
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
     _skip_if_no_torch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from slangpy.benchmarks.ppisp.ppisp_slangpy import PPISPSlangPy
@@ -326,12 +333,14 @@ def test_ppisp_forward_slangpy(
 
 
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_ppisp_forward_slangtorch(
+    device_type: spy.DeviceType,
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
     _skip_if_no_slangtorch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from slangpy.benchmarks.ppisp.ppisp_slangtorch import PPISPSlangtorch
@@ -365,12 +374,14 @@ def test_ppisp_forward_slangtorch(
 
 
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_ppisp_backward_pytorch(
+    device_type: spy.DeviceType,
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
     _skip_if_no_torch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from slangpy.benchmarks.ppisp.ppisp_pytorch import PPISPPyTorch
@@ -397,12 +408,14 @@ def test_ppisp_backward_pytorch(
 
 
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_ppisp_backward_slangpy(
+    device_type: spy.DeviceType,
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
     _skip_if_no_torch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from slangpy.benchmarks.ppisp.ppisp_slangpy import PPISPSlangPy
@@ -439,12 +452,14 @@ def test_ppisp_backward_slangpy(
 
 
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_ppisp_backward_slangtorch(
+    device_type: spy.DeviceType,
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
     _skip_if_no_slangtorch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from slangpy.benchmarks.ppisp.ppisp_slangtorch import PPISPSlangtorch
@@ -474,7 +489,9 @@ def test_ppisp_backward_slangtorch(
 
 
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_ppisp_backward_slangpy_manual_hook(
+    device_type: spy.DeviceType,
     batch_size: int,
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
@@ -484,7 +501,7 @@ def test_ppisp_backward_slangpy_manual_hook(
     the automatic autograd integration vs doing it manually.
     """
     _skip_if_no_torch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from typing import Any, Optional
@@ -619,12 +636,14 @@ CPU_OVERHEAD_SUB_ITERATIONS = 20000
 CPU_OVERHEAD_WARMUPS = 10
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_ppisp_cpu_overhead_slangpy(
+    device_type: spy.DeviceType,
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
     """Measure SlangPy CPU dispatch overhead for PPISP (forward + backward)."""
     _skip_if_no_torch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from slangpy.benchmarks.ppisp.ppisp_slangpy import PPISPSlangPy
@@ -666,12 +685,14 @@ def test_ppisp_cpu_overhead_slangpy(
     )
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_ppisp_cpu_overhead_slangtorch(
+    device_type: spy.DeviceType,
     benchmark_python_function: BenchmarkPythonFunction,
 ) -> None:
     """Measure slangtorch CPU dispatch overhead for PPISP (forward + backward)."""
     _skip_if_no_slangtorch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from slangpy.benchmarks.ppisp.ppisp_slangtorch import PPISPSlangtorch
@@ -716,13 +737,15 @@ def test_ppisp_cpu_overhead_slangtorch(
 
 
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_ppisp_gpu_forward_slangpy(
+    device_type: spy.DeviceType,
     batch_size: int,
     benchmark_slang_function: BenchmarkSlangFunction,
 ) -> None:
     """GPU-timed SlangPy PPISP forward pass (timestamp queries, no CPU overhead)."""
     _skip_if_no_torch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from slangpy.benchmarks.ppisp.ppisp_slangpy import _get_slang_module, _warmup
@@ -773,13 +796,15 @@ def test_ppisp_gpu_forward_slangpy(
 
 
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_ppisp_gpu_backward_slangpy(
+    device_type: spy.DeviceType,
     batch_size: int,
     benchmark_slang_function: BenchmarkSlangFunction,
 ) -> None:
     """GPU-timed SlangPy PPISP backward pass (timestamp queries, no CPU overhead)."""
     _skip_if_no_torch()
-    device = helpers.get_torch_device(spy.DeviceType.cuda)
+    device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from slangpy.benchmarks.ppisp.ppisp_slangpy import _get_slang_module, _warmup
