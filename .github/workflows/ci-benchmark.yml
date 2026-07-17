@@ -32,6 +32,8 @@ jobs:
       CI_CONFIG: ${{ matrix.config }}
       CI_PYTHON: ${{ matrix.python }}
       CI_FLAGS: ${{ matrix.flags }}
+      BENCHVIEW_API_URL: ${{ vars.BENCHVIEW_API_URL }}
+      BENCHVIEW_API_KEY: ${{ secrets.BENCHVIEW_API_KEY }}
 
     steps:
       - uses: actions/checkout@v6
@@ -111,8 +113,8 @@ jobs:
       # Benchmark (Python)
       - name: Benchmark (Python, Windows, GPU Clock Locked)
         if: contains(matrix.flags, 'benchmark') && runner.os == 'Windows'
-        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --mongodb-connection-string "${{ secrets.BENCHMARK_MONGODB_CONNECTION_STRING }}" --mongodb-database-name "nvr-ci" --lock-gpu-clocks
+        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --api-url "${{ env.BENCHVIEW_API_URL }}" --lock-gpu-clocks
 
       - name: Benchmark (Python, Linux, GPU Clock Unlocked)
         if: contains(matrix.flags, 'benchmark') && runner.os == 'Linux'
-        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --mongodb-connection-string "${{ secrets.BENCHMARK_MONGODB_CONNECTION_STRING }}" --mongodb-database-name "nvr-ci"
+        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --api-url "${{ env.BENCHVIEW_API_URL }}"
