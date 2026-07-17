@@ -352,6 +352,40 @@ static const struct TestItem TEST_ITEMS[] = {
         .compressed = true,
         .srgb = false,
     },
+    {
+        .path = "bc7-unorm-nonsquare.dds",
+        .dxgi_format = DXGI_FORMAT_BC7_UNORM,
+        .type = DDSFile::TextureType::texture_2d,
+        .width = 4,
+        .height = 8,
+        .depth = 1,
+        .mip_count = 4,
+        .array_size = 1,
+        .row_pitch = 16,
+        .slice_pitch = 32,
+        .bits_per_pixel_or_block = 128,
+        .block_width = 4,
+        .block_height = 4,
+        .compressed = true,
+        .srgb = false,
+    },
+    {
+        .path = "bc7-unorm-3d.dds",
+        .dxgi_format = DXGI_FORMAT_BC7_UNORM,
+        .type = DDSFile::TextureType::texture_3d,
+        .width = 8,
+        .height = 8,
+        .depth = 4,
+        .mip_count = 4,
+        .array_size = 1,
+        .row_pitch = 32,
+        .slice_pitch = 64,
+        .bits_per_pixel_or_block = 128,
+        .block_width = 4,
+        .block_height = 4,
+        .compressed = true,
+        .srgb = false,
+    },
 };
 
 TEST_CASE("non_existing_file")
@@ -418,6 +452,125 @@ TEST_CASE("detect_dds_file")
     const uint32_t INVALID_MAGIC = 0xffffffff;
     MemoryStream invalid_stream(&INVALID_MAGIC, sizeof(INVALID_MAGIC));
     CHECK_FALSE(DDSFile::detect_dds_file(&invalid_stream));
+}
+
+TEST_CASE("subresource_mip_clamp")
+{
+    std::filesystem::path path
+        = platform::project_directory() / "data" / "test_images" / "dds" / "bc7-unorm-nonsquare.dds";
+    DDSFile dds(path);
+
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(0, &row, &slice);
+        CHECK_EQ(row, 16);   // one 4-pixel block row
+        CHECK_EQ(slice, 32); // two rows of blocks
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(1, &row, &slice);
+        CHECK_EQ(row, 16);
+        CHECK_EQ(slice, 16); // one row of one block
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(2, &row, &slice);
+        CHECK_EQ(row, 16);
+        CHECK_EQ(slice, 16);
+    }
+    // mip 3 hits width >> 3 == 0 - clamp ensures at least one block.
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(3, &row, &slice);
+        CHECK_EQ(row, 16);
+        CHECK_EQ(slice, 16);
+    }
+
+    const uint8_t* base = dds.resource_data();
+    CHECK_EQ(dds.get_subresource_data(0, 0) - base, 0);
+    CHECK_EQ(dds.get_subresource_data(1, 0) - base, 32);
+    CHECK_EQ(dds.get_subresource_data(2, 0) - base, 48);
+    CHECK_EQ(dds.get_subresource_data(3, 0) - base, 64);
+
+    // All subresource pointers are within bounds and monotonic.
+    size_t total = dds.resource_size();
+    CHECK_EQ(total, 80);
+    const uint8_t* prev = nullptr;
+    for (uint32_t m = 0; m < 4; ++m) {
+        const uint8_t* ptr = dds.get_subresource_data(m, 0);
+        size_t offset = ptr - base;
+        CHECK(offset < total);
+        if (prev)
+            CHECK(ptr > prev);
+        prev = ptr;
+    }
+}
+
+TEST_CASE("subresource_3d")
+{
+    // 8x8x4 BC7 3D texture with 4 mips.
+    std::filesystem::path path = platform::project_directory() / "data" / "test_images" / "dds" / "bc7-unorm-3d.dds";
+    DDSFile dds(path);
+
+    CHECK_EQ(dds.type(), DDSFile::TextureType::texture_3d);
+    CHECK_EQ(dds.depth(), 4);
+    CHECK_EQ(dds.mip_count(), 4);
+
+    // Per-slice pitches.
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(0, &row, &slice);
+        CHECK_EQ(row, 32);
+        CHECK_EQ(slice, 64);
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(1, &row, &slice);
+        CHECK_EQ(row, 16);
+        CHECK_EQ(slice, 16);
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(2, &row, &slice);
+        CHECK_EQ(row, 16);
+        CHECK_EQ(slice, 16);
+    }
+
+    const uint8_t* base = dds.resource_data();
+
+    // 3D layout: each mip stores all depth slices contiguously.
+    // mip 0 (depth=4): slice_pitch=64, 4x64=256 bytes
+    CHECK_EQ(dds.get_subresource_data(0, 0) - base, 0);
+    CHECK_EQ(dds.get_subresource_data(0, 1) - base, 64);
+    CHECK_EQ(dds.get_subresource_data(0, 2) - base, 128);
+    CHECK_EQ(dds.get_subresource_data(0, 3) - base, 192);
+
+    // mip 1 (depth=2): slice_pitch=16, offset after mip 0 = 256
+    CHECK_EQ(dds.get_subresource_data(1, 0) - base, 256);
+    CHECK_EQ(dds.get_subresource_data(1, 1) - base, 272);
+
+    // mip 2 (depth=1): slice_pitch=16, offset = 256 + 32 = 288
+    CHECK_EQ(dds.get_subresource_data(2, 0) - base, 288);
+
+    // mip 3 (depth=1): slice_pitch=16, offset = 288 + 16 = 304
+    CHECK_EQ(dds.get_subresource_data(3, 0) - base, 304);
+
+    // Subresource sizes match expected.
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(0, &row, &slice);
+        CHECK_EQ(size_t(slice) * std::max(1u, dds.depth() >> 0), 256);
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(1, &row, &slice);
+        CHECK_EQ(size_t(slice) * std::max(1u, dds.depth() >> 1), 32);
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(2, &row, &slice);
+        CHECK_EQ(size_t(slice) * std::max(1u, dds.depth() >> 2), 16);
+    }
 }
 
 TEST_SUITE_END();
