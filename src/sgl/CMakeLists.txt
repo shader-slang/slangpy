@@ -183,6 +183,10 @@ target_sources(sgl PRIVATE
     utils/crashpad.h
     utils/renderdoc.cpp
     utils/renderdoc.h
+    utils/profiler.cpp
+    utils/profiler.h
+    utils/profiler_ui.cpp
+    utils/profiler_ui.h
     utils/slangpy.cpp
     utils/slangpy.h
     utils/tev.cpp
@@ -224,6 +228,7 @@ target_compile_options(sgl
         $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:
             /MP                             # enable multi-processor compilation
             /Zi                             # generate debug symbols
+            /Zc:preprocessor                # enable the conforming preprocessor required by C++20 __VA_OPT__
             # Configure warnings
             $<$<BOOL:${SGL_WARNINGS_AS_ERRORS}>:/WX>    # warnings as errors
             /W4                             # increase warning level

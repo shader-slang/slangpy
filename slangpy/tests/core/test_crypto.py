@@ -47,5 +47,19 @@ In ac sapien libero."""
     assert sha1.hex_digest() == "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed"
 
 
+def test_sha1_block_boundaries():
+    data = bytes(range(256))
+
+    contiguous = SHA1(data)
+    assert contiguous.hex_digest() == "4916d6bdb7f78e6803698cab32d1586ea457dfc8"
+
+    chunked = SHA1()
+    chunked.update(data[:1])
+    chunked.update(data[1:64])
+    chunked.update(data[64:128])
+    chunked.update(data[128:])
+    assert chunked.digest() == contiguous.digest()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
