@@ -327,9 +327,12 @@ inline ref<Texture> create_texture(
                 uint32_t row_pitch;
                 uint32_t slice_pitch;
                 dds_file->get_subresource_pitch(mip_index, &row_pitch, &slice_pitch);
+                uint32_t mip_depth = dds_file->type() == DDSFile::TextureType::texture_3d
+                    ? std::max(1u, dds_file->depth() >> mip_index)
+                    : 1u;
                 subresource_data.push_back({
                     .data = dds_file->get_subresource_data(mip_index, layer_index),
-                    .size = dds_file->resource_size(),
+                    .size = size_t(slice_pitch) * mip_depth,
                     .row_pitch = row_pitch,
                     .slice_pitch = slice_pitch,
                 });
