@@ -3,9 +3,10 @@
 import pytest
 import sys
 import numpy as np
+from typing import Any, Optional
 
 from slangpy import DeviceType, Device, Module, grid
-from slangpy.core.native import NativeCallDataCache, SignatureBuilder
+from slangpy.core.native import NativeCallDataCache, NativeTorchTensorDiffPair, SignatureBuilder
 from slangpy.testing import helpers
 
 try:
@@ -232,6 +233,55 @@ def test_polynomial_multiple_calls(device_type: DeviceType):
     x.grad.zero_()  # Reset gradients before the second call
     res2.backward(torch.ones_like(res2))
     compare_tensors(2 * a * x + b, x.grad)  # type: ignore
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_polynomial_manual_autograd_hook(device_type: DeviceType):
+    """A manual autograd hook must preserve input and output primals for bwds()."""
+
+    module = load_test_module(device_type)
+
+    a = 2.0
+    b = 4.0
+    c = 1.0
+    x = torch.randn((10,), dtype=torch.float32, device=torch.device("cuda"), requires_grad=True)
+
+    class PolynomialManualHook(torch.autograd.Function):
+        @staticmethod
+        def forward(ctx: Any, x: torch.Tensor) -> torch.Tensor:
+            detached_x = x.detach()
+            result = torch.empty_like(detached_x)
+            module.polynomial(a, b, c, detached_x, _result=result)
+            ctx.save_for_backward(detached_x, result)
+            return result
+
+        @staticmethod
+        def backward(ctx: Any, grad_output: torch.Tensor) -> tuple[Optional[torch.Tensor]]:
+            detached_x, result = ctx.saved_tensors
+            grad_x = torch.zeros_like(detached_x)
+            x_pair = NativeTorchTensorDiffPair(detached_x, grad_x, 0, True)
+            result_pair = NativeTorchTensorDiffPair(result, grad_output, 1, False)
+            module.polynomial.bwds(a, b, c, x_pair, _result=result_pair)
+            return (grad_x,)
+
+    result = PolynomialManualHook.apply(x)
+    compare_tensors(a * x * x + b * x + c, result)
+
+    result.backward(torch.ones_like(result))
+    compare_tensors(2 * a * x + b, x.grad)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_polynomial_manual_bwds_requires_result_primal(device_type: DeviceType):
+    """Reject a missing output primal before it becomes a null GPU address."""
+
+    module = load_test_module(device_type)
+    x = torch.randn((10,), dtype=torch.float32, device=torch.device("cuda"))
+    x_pair = NativeTorchTensorDiffPair(x, torch.zeros_like(x), 0, True)
+    result_pair = NativeTorchTensorDiffPair(None, torch.ones_like(x), 1, False)
+
+    with pytest.raises(RuntimeError, match="primal tensor cannot be None"):
+        module.polynomial.bwds(2.0, 4.0, 1.0, x_pair, _result=result_pair)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)

@@ -183,7 +183,7 @@ def test_autograd_slangpy_manual_hook(
             x = x.detach()
             result = torch.empty_like(x)
             poly_func(a, b, c, x, _result=result)
-            ctx.save_for_backward(x)
+            ctx.save_for_backward(x, result)
             ctx.a = a
             ctx.b = b
             ctx.c = c
@@ -193,10 +193,10 @@ def test_autograd_slangpy_manual_hook(
         def backward(
             ctx: Any, grad_output: torch.Tensor
         ) -> tuple[None, None, None, Optional[torch.Tensor]]:
-            (x,) = ctx.saved_tensors
+            x, result = ctx.saved_tensors
             grad_x = torch.zeros_like(x)
             x_pair = NativeTorchTensorDiffPair(x, grad_x, 0, True)
-            result_pair = NativeTorchTensorDiffPair(None, grad_output, 1, False)
+            result_pair = NativeTorchTensorDiffPair(result, grad_output, 1, False)
             poly_func.bwds(ctx.a, ctx.b, ctx.c, x_pair, _result=result_pair)
             return None, None, None, grad_x
 
