@@ -11,10 +11,10 @@ from slangpy.testing import helpers
 from typing import Any, cast
 
 # Filter default device types to only include those that support pointers
-# TODO: Metal does support pointers but the is a slang bug leading to incorrect Metal shader code
-# https://github.com/shader-slang/slang/issues/7605
 POINTER_DEVICE_TYPES = [
-    x for x in helpers.DEFAULT_DEVICE_TYPES if x in [DeviceType.vulkan, DeviceType.cuda]
+    x
+    for x in helpers.DEFAULT_DEVICE_TYPES
+    if x in [DeviceType.vulkan, DeviceType.cuda, DeviceType.metal]
 ]
 
 
@@ -592,6 +592,8 @@ void test_atomic_float_ptr_access(int call_id, Atomic<float>* af) {
 
 @pytest.mark.parametrize("device_type", POINTER_DEVICE_TYPES)
 def test_atomic_float_in_struct_access(device_type: DeviceType):
+    if device_type == DeviceType.metal:
+        pytest.skip("operator& is not supported on Metal and is being removed from Slang")
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
