@@ -377,10 +377,13 @@ void SlangSession::create_session(SlangSessionBuild& build)
     session_options.add(slang::CompilerOptionName::DebugInformation, int(options.debug_info));
     session_options.add(slang::CompilerOptionName::Optimization, int(options.optimization));
 
-    // Set downstream arguments.
+    // Set downstream arguments. Only DXC (d3d12) and NVRTC (cuda) consume pass-through args.
     if (device_type == DeviceType::d3d12) {
         for (const auto& arg : options.downstream_args)
             session_options.add(slang::CompilerOptionName::DownstreamArgs, "dxc", arg);
+    } else if (device_type == DeviceType::cuda) {
+        for (const auto& arg : options.downstream_args)
+            session_options.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", arg);
     }
 
     // Set downstream argument for optix include path.
@@ -1630,6 +1633,9 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
             if (device->type() == DeviceType::d3d12) {
                 for (const auto& arg : *link_options.downstream_args)
                     link_option_entries.add(slang::CompilerOptionName::DownstreamArgs, "dxc", arg);
+            } else if (device->type() == DeviceType::cuda) {
+                for (const auto& arg : *link_options.downstream_args)
+                    link_option_entries.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", arg);
             }
         }
         if (link_options.dump_intermediates)

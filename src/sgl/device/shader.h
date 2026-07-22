@@ -175,6 +175,9 @@ struct SlangCompilerOptions {
     //
 
     /// Specifies the floating point mode.
+    /// Note: with the default mode the CUDA (NVRTC/PTX) target emits precise transcendentals
+    /// (exp/pow/atan2/...), whereas Vulkan/Metal drivers typically approximate them. For
+    /// transcendental-heavy CUDA kernels, set this to `fast` to enable faster approximations.
     SlangFloatingPointMode floating_point_mode{SlangFloatingPointMode::default_};
 
     /// Specifies the level of debug information to include in the generated code.
@@ -184,6 +187,9 @@ struct SlangCompilerOptions {
     SlangOptimizationLevel optimization{SlangOptimizationLevel::default_};
 
     /// Specifies a list of additional arguments to be passed to the downstream compiler.
+    /// Only forwarded to downstream compilers that accept pass-through arguments: DXC (d3d12)
+    /// and NVRTC (cuda). Ignored for other backends (e.g. `["--use_fast_math"]` reaches NVRTC
+    /// on the cuda target).
     std::vector<std::string> downstream_args;
 
     /// When set will dump the intermediate source output.
