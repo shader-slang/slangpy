@@ -182,12 +182,10 @@ def test_full_torch_copy(device_type: DeviceType):
     try:
         import torch
     except ImportError:
-        pytest.skip("Pytorch not installed", allow_module_level=True)
+        pytest.skip("Pytorch not installed")
 
     if sys.platform == "darwin":
-        pytest.skip(
-            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
-        )
+        pytest.skip("PyTorch requires CUDA, that is not available on macOS")
 
     device = helpers.get_torch_device(device_type)
     shape = (5, 4)
@@ -226,12 +224,10 @@ def test_partial_torch_copy(device_type: DeviceType):
     try:
         import torch
     except ImportError:
-        pytest.skip("Pytorch not installed", allow_module_level=True)
+        pytest.skip("Pytorch not installed")
 
     if sys.platform == "darwin":
-        pytest.skip(
-            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
-        )
+        pytest.skip("PyTorch requires CUDA, that is not available on macOS")
 
     device = helpers.get_torch_device(device_type)
     shape = (5, 4)
@@ -273,12 +269,10 @@ def test_torch_copy_errors(device_type: DeviceType):
     try:
         import torch
     except ImportError:
-        pytest.skip("Pytorch not installed", allow_module_level=True)
+        pytest.skip("Pytorch not installed")
 
     if sys.platform == "darwin":
-        pytest.skip(
-            "PyTorch requires CUDA, that is not available on macOS", allow_module_level=True
-        )
+        pytest.skip("PyTorch requires CUDA, that is not available on macOS")
 
     device = helpers.get_torch_device(device_type)
     shape = (5, 4)
@@ -301,6 +295,185 @@ def test_torch_copy_errors(device_type: DeviceType):
         if torch.cuda.is_available():
             tensor = tensor.cuda()
         buffer_view.copy_from_torch(tensor)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_negative_index(device_type: DeviceType):
+    """Negative index wrapping on StridedBufferView."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.empty(device, dtype="float", shape=(4,))
+    data = np.array([10.0, 20.0, 30.0, 40.0], dtype=np.float32)
+    tensor.copy_from_numpy(data)
+    device.wait_for_idle()
+    assert tensor[-1].to_numpy().item() == pytest.approx(40.0)
+    assert tensor[-2].to_numpy().item() == pytest.approx(30.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_out_of_bounds_index(device_type: DeviceType):
+    """Out-of-bounds index raises IndexError on StridedBufferView."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.empty(device, dtype="float", shape=(4,))
+    with pytest.raises(IndexError):
+        _ = tensor[4]
+    with pytest.raises(IndexError):
+        _ = tensor[-5]
+
+
+@pytest.mark.skipif(sys.platform == "darwin", reason="Torch tests require CUDA")
+def test_copy_from_torch_cpu_fallback():
+    """copy_from_torch with CPU tensor falls back through numpy."""
+    try:
+        import torch
+    except ImportError:
+        pytest.skip("PyTorch not installed")
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA device not available")
+
+    device = helpers.get_device(DeviceType.cuda)
+    tensor = Tensor.empty(device, dtype="float", shape=(4,))
+    cpu_data = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
+    tensor.copy_from_torch(cpu_data)
+    device.wait_for_idle()
+    result = tensor.to_numpy()
+    np.testing.assert_array_almost_equal(result, [1.0, 2.0, 3.0, 4.0])
+
+
+# ============================================================================
+# point_to error guards
+# ============================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_point_to_shape_mismatch(device_type: DeviceType):
+    """point_to rejects views with different shapes."""
+    device = helpers.get_device(device_type)
+    a = Tensor.zeros(device, dtype="float", shape=(4, 4))
+    b = Tensor.zeros(device, dtype="float", shape=(8, 2))
+    with pytest.raises(Exception, match="Shape"):
+        a.point_to(b)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_point_to_element_stride_mismatch(device_type: DeviceType):
+    """point_to rejects views with different element strides (different dtypes)."""
+    device = helpers.get_device(device_type)
+    a = Tensor.zeros(device, dtype="float", shape=(4,))
+    b = Tensor.zeros(device, dtype="double", shape=(4,))
+    with pytest.raises(Exception, match="Element size"):
+        a.point_to(b)
+
+
+# ============================================================================
+# Indexing error paths
+# ============================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_index_illegal_argument_type(device_type: DeviceType):
+    """Indexing with an unsupported type (e.g. string) raises an error."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.zeros(device, dtype="float", shape=(4, 4))
+    with pytest.raises(Exception, match="Illegal argument"):
+        tensor["bad"]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_index_too_many_indices(device_type: DeviceType):
+    """More real indices than dimensions raises an error."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.zeros(device, dtype="float", shape=(4, 4))
+    with pytest.raises(Exception, match="Too many indices"):
+        tensor[0, 0, 0]
+
+
+# ============================================================================
+# copy_from_numpy non-contiguous source
+# ============================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_copy_from_numpy_non_contiguous(device_type: DeviceType):
+    """copy_from_numpy rejects a non-contiguous numpy array."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.zeros(device, dtype="float", shape=(4,))
+    data = np.zeros((8,), dtype=np.float32)
+    non_contiguous = data[::2]
+    with pytest.raises(Exception, match="contiguous"):
+        tensor.copy_from_numpy(non_contiguous)
+
+
+# ============================================================================
+# clear with explicit command encoder
+# ============================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_clear_with_command_encoder(device_type: DeviceType):
+    """clear() accepts an explicit CommandEncoder."""
+    device = helpers.get_device(device_type)
+    tensor = Tensor.empty(device, dtype="float", shape=(4,))
+    data = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    tensor.copy_from_numpy(data)
+    device.wait_for_idle()
+
+    cmd = device.create_command_encoder()
+    tensor.clear(cmd)
+    device.submit_command_buffer(cmd.finish())
+    device.wait_for_idle()
+
+    result = tensor.to_numpy()
+    np.testing.assert_array_equal(result, [0.0, 0.0, 0.0, 0.0])
+
+
+# ============================================================================
+# is_contiguous with singleton dimension
+# ============================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_is_contiguous_singleton_dim(device_type: DeviceType):
+    """is_contiguous skips size-1 dimensions regardless of their stride.
+
+    None indexing inserts a size-1 dim with stride 0, which would fail
+    the normal contiguity check if the singleton skip were missing.
+    """
+    device = helpers.get_device(device_type)
+    tensor = Tensor.zeros(device, dtype="float", shape=(4, 3))
+    view_with_singleton = tensor[None, :, :]
+    assert view_with_singleton.shape == (1, 4, 3)
+    assert view_with_singleton.strides.as_tuple()[0] == 0
+    assert view_with_singleton.is_contiguous()
+
+
+# ============================================================================
+# maybe_pad_data: numpy vector padding for aligned float3
+# ============================================================================
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_copy_from_numpy_float3_padding(device_type: DeviceType):
+    """copy_from_numpy pads (N,3) float32 data when float3 layout stride > 12.
+
+    Exercises maybe_pad_data vector padding path. If the backend uses a
+    12-byte float3 stride (no padding needed), the test is skipped since
+    the padding branch won't be reached.
+    """
+    device = helpers.get_device(device_type)
+    n = 4
+    tensor = Tensor.zeros(device, dtype="float3", shape=(n,))
+
+    buf_size = tensor.storage.size
+    elem_count = tensor.element_count
+    stride = buf_size // elem_count
+    if stride <= 12:
+        pytest.skip("float3 layout stride is 12 (no padding needed on this backend)")
+
+    data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]], dtype=np.float32)
+    tensor.copy_from_numpy(data)
+    device.wait_for_idle()
+    result = tensor.to_numpy()
+    np.testing.assert_array_almost_equal(result[:, :3], data)
 
 
 if __name__ == "__main__":
