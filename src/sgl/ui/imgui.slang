@@ -18,24 +18,24 @@ struct VsOut {
     float4 pos : SV_Position;
 };
 
-float linear_to_srgb(float linear)
+float3 linear_to_srgb(float3 linear)
 {
-    return linear < 0.0031308f ? linear * 12.92f : pow(linear, 1.f / 2.4f) * 1.055f - 0.055f;
+    return select(linear >= 0.0031308, pow(linear, 1.0 / 2.4) * 1.055 - 0.055, linear * 12.92);
 }
 
 float4 linear_to_srgb(float4 linear)
 {
-    return float4(linear_to_srgb(linear.r), linear_to_srgb(linear.g), linear_to_srgb(linear.b), linear.a);
+    return float4(linear_to_srgb(linear.rgb), linear.a);
 }
 
-float srgb_to_linear(float srgb)
+float3 srgb_to_linear(float3 srgb)
 {
-    return srgb < 0.04045f ? srgb * (1.f / 12.92f) : pow((srgb + 0.055f) * (1.f / 1.055f), 2.4f);
+    return select(srgb >= 0.04045, pow((srgb + 0.055) * (1.0 / 1.055), 2.4), srgb * (1.0 / 12.92));
 }
 
 float4 srgb_to_linear(float4 srgb)
 {
-    return float4(srgb_to_linear(srgb.r), srgb_to_linear(srgb.g), srgb_to_linear(srgb.b), srgb.a);
+    return float4(srgb_to_linear(srgb.rgb), srgb.a);
 }
 
 [shader("vertex")]

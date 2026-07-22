@@ -26,8 +26,8 @@ def test_slangtype_struct_to_string(device_type: DeviceType):
     print(f"SlangType: {repr_str}")
 
     # Verify the repr contains expected information
-    assert "SlangType" in repr_str
-    assert "name" in repr_str
+    assert "refl::Type" in repr_str
+    assert "full_name" in repr_str
     assert "Foo" in repr_str
     assert "shape" in repr_str
 
@@ -46,8 +46,8 @@ def test_slangtype_vector_to_string(device_type: DeviceType):
     print(f"SlangType: {repr_str}")
 
     # Verify the repr contains expected information
-    assert "SlangType" in repr_str
-    assert "name" in repr_str
+    assert "refl::Type" in repr_str
+    assert "full_name" in repr_str
     assert "vector<float,3>" in repr_str
     assert "shape" in repr_str
 
@@ -59,12 +59,12 @@ def test_tensor_to_string(device_type: DeviceType):
     # Create a tensor without gradients
     tensor = Tensor.empty(device, dtype="float", shape=(3, 4))
 
-    # Test that repr() returns a meaningful string - Tensor inherits from NativeTensor
+    # Test that repr() returns a meaningful string.
     repr_str = repr(tensor)
     print(f"Tensor: {repr_str}")
 
     # Verify the repr contains expected information
-    assert "NativeTensor" in repr_str
+    assert repr_str.startswith("Tensor(")
     assert "dtype" in repr_str
     assert "shape" in repr_str
     assert "has_grad_in=false" in repr_str
@@ -110,8 +110,8 @@ def test_slangtype_reflection_to_string(device_type: DeviceType):
     print(f"SlangType reflection: {repr_str}")
 
     # Verify the repr contains expected information - should get the Python SlangType repr
-    assert "SlangType" in repr_str
-    assert "name=" in repr_str
+    assert "refl::Type" in repr_str
+    assert "full_name=" in repr_str
     assert "shape=" in repr_str
 
 

@@ -71,6 +71,10 @@ option(SGL_ENABLE_ASAN "Enable address sanitizer" OFF)
 # If enabled, additional targets are generated to validate that headers are self sufficient.
 option(SGL_ENABLE_HEADER_VALIDATION "Enable header validation" OFF)
 
+# Enable/disable build metrics.
+# When enabled, adds compiler timing flags (/Bt+ for MSVC, -ftime-trace for Clang, -ftime-report for GCC).
+option(SGL_ENABLE_BUILD_METRICS "Enable build metrics (compiler timing flags)" OFF)
+
 # Enable/disable Crashpad integration.
 option(SGL_ENABLE_CRASHPAD "Enable Crashpad integration" OFF)
 
@@ -308,6 +312,20 @@ function(sgl_copy_binary src dst_dir)
     set_property(GLOBAL APPEND PROPERTY SGL_BINARY_FILES_DST ${dst})
     cmake_path(SET dst_dir NORMALIZE "${CMAKE_INSTALL_BINDIR}/${dst_dir}")
     install(FILES ${src} DESTINATION ${dst_dir})
+endfunction()
+
+function(sgl_copy_binary_directory src dst_dir)
+    get_filename_component(dirname "${src}" NAME)
+    file(GLOB_RECURSE files CONFIGURE_DEPENDS LIST_DIRECTORIES false RELATIVE "${src}" "${src}/*")
+    foreach(file ${files})
+        set(src_file "${src}/${file}")
+        set(dst_file "${SGL_OUTPUT_DIRECTORY}/${dst_dir}/${dirname}/${file}")
+        set_property(GLOBAL APPEND PROPERTY SGL_BINARY_FILES_SRC "${src_file}")
+        set_property(GLOBAL APPEND PROPERTY SGL_BINARY_FILES_DST "${dst_file}")
+    endforeach()
+
+    cmake_path(SET dst_dir NORMALIZE "${CMAKE_INSTALL_BINDIR}/${dst_dir}")
+    install(DIRECTORY "${src}/" DESTINATION "${dst_dir}/${dirname}")
 endfunction()
 
 function(sgl_copy_library target)

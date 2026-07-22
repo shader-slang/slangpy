@@ -4,6 +4,8 @@
 
 #include "sgl/ui/ui.h"
 #include "sgl/ui/widgets.h"
+#include "sgl/utils/profiler.h"
+#include "sgl/utils/profiler_ui.h"
 
 #include "sgl/core/error.h"
 #include "sgl/core/input.h"
@@ -208,6 +210,13 @@ SGL_PY_EXPORT(ui)
     using namespace sgl;
 
     nb::module_ ui = nb::module_::import_("slangpy.ui");
+
+    ui.def(
+        "render_profiler_window",
+        &sgl::ui::render_profiler_window,
+        "profiler"_a = nullptr,
+        D(render_profiler_window)
+    );
 
     nb::class_<ui::Context, Object>(ui, "Context", gc_helper_type_slots<ui::Context>(), D(Context))
         .def(nb::init<ref<Device>>(), "device"_a)

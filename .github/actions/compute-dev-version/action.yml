@@ -1,0 +1,26 @@
+name: Compute dev version number
+description: >
+  Count the commits since the last change to SGL_VERSION_* in src/sgl/sgl.h
+  and expose the count as the `dev_n` output. Used to build .devN version
+  strings for dev wheel builds.
+
+outputs:
+  dev_n:
+    description: "Commit count since the last SGL_VERSION_* change (or from repo root if none)."
+    value: ${{ steps.compute.outputs.dev_n }}
+
+runs:
+  using: composite
+  steps:
+    - id: compute
+      shell: bash
+      run: |
+        # Some callers run inside a container where the workspace is owned
+        # by a different uid than the one git sees; without this, git
+        # commands below fail with "dubious ownership".
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+        LAST_VER_COMMIT=$(git log -1 -G 'SGL_VERSION_(MAJOR|MINOR|PATCH)' --format=%H -- src/sgl/sgl.h)
+        [ -z "$LAST_VER_COMMIT" ] && LAST_VER_COMMIT=$(git rev-list --max-parents=0 HEAD)
+        DEV_N=$(git rev-list --count "${LAST_VER_COMMIT}..HEAD")
+        echo "dev_n=${DEV_N}" >> "$GITHUB_OUTPUT"

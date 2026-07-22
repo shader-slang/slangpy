@@ -21,8 +21,10 @@
 #include "sgl/device/print.h"
 #include "sgl/device/blit.h"
 #include "sgl/device/hot_reload.h"
+#include "sgl/device/reflection.h"
 #include "sgl/device/debug_logger.h"
 #include "sgl/device/native_handle_traits.h"
+#include "sgl/device/cache_writer.h"
 #include "sgl/device/persistent_cache.h"
 
 #include "sgl/core/file_system_watcher.h"
@@ -31,12 +33,16 @@
 #include "sgl/core/window.h"
 #include "sgl/core/string.h"
 
+#include "sgl/refl/layout.h"
+
 #if SGL_HAS_D3D12
 #include <dxgi.h>
 #include <d3d12.h>
 #include <comdef.h>
 #endif
 
+#include <algorithm>
+#include <atomic>
 #include <mutex>
 
 namespace sgl {
@@ -44,6 +50,7 @@ namespace sgl {
 static std::vector<Device*> s_devices;
 static std::mutex s_devices_mutex;
 static thread_local std::vector<Device*> s_tls_current_device_stack;
+static std::atomic<CommandRecordingID> s_next_command_recording_id{1};
 
 inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
 {
@@ -87,7 +94,7 @@ Device::Device(const DeviceDesc& desc)
 #endif
     }
 
-    // Setup module cache.
+    // Setup module cache path.
     if (m_desc.module_cache_path) {
         m_module_cache_path = *m_desc.module_cache_path;
         if (m_module_cache_path.is_relative())
@@ -95,13 +102,22 @@ Device::Device(const DeviceDesc& desc)
         std::filesystem::create_directories(m_module_cache_path);
     }
 
-    // Setup shader cache.
+    // Setup shader cache path.
     if (m_desc.shader_cache_path) {
         m_shader_cache_path = *m_desc.shader_cache_path;
         if (m_shader_cache_path.is_relative())
             m_shader_cache_path = platform::app_data_directory() / m_shader_cache_path;
         std::filesystem::create_directories(m_shader_cache_path);
-        m_persistent_cache = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size);
+    }
+
+    // Setup shared cache writer.
+    if (!m_module_cache_path.empty() || !m_shader_cache_path.empty())
+        m_cache_writer = make_ref<CacheWriter>();
+
+    // Setup shader cache.
+    if (!m_shader_cache_path.empty()) {
+        m_persistent_cache
+            = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size, m_cache_writer);
     }
 
     // Invalidate CUDA interop if using CUDA
@@ -204,6 +220,25 @@ Device::Device(const DeviceDesc& desc)
         .highestShaderModel = 0,
     };
 
+    std::vector<const char*> additional_vulkan_instance_extensions;
+    additional_vulkan_instance_extensions.reserve(m_desc.additional_vulkan_instance_extensions.size());
+    for (const std::string& extension : m_desc.additional_vulkan_instance_extensions)
+        additional_vulkan_instance_extensions.push_back(extension.c_str());
+
+    std::vector<const char*> additional_vulkan_device_extensions;
+    additional_vulkan_device_extensions.reserve(m_desc.additional_vulkan_device_extensions.size());
+    for (const std::string& extension : m_desc.additional_vulkan_device_extensions)
+        additional_vulkan_device_extensions.push_back(extension.c_str());
+
+    rhi::VulkanDeviceExtendedDesc vulkan_extended_desc{
+        .structType = rhi::StructType::VulkanDeviceExtendedDesc,
+        .instanceExtensionCount = narrow_cast<uint32_t>(additional_vulkan_instance_extensions.size()),
+        .instanceExtensions = additional_vulkan_instance_extensions.data(),
+        .deviceExtensionCount = narrow_cast<uint32_t>(additional_vulkan_device_extensions.size()),
+        .deviceExtensions = additional_vulkan_device_extensions.data(),
+    };
+    d3d12_extended_desc.next = &vulkan_extended_desc;
+
     rhi::BindlessDesc bindless_desc{
         .bufferCount = m_desc.bindless_options.buffer_count,
         .textureCount = m_desc.bindless_options.texture_count,
@@ -236,6 +271,8 @@ Device::Device(const DeviceDesc& desc)
         .enableAftermath = m_desc.enable_aftermath,
         .debugCallback = m_debug_logger.get(),
         .enableCompilationReports = m_desc.enable_compilation_reports,
+        .enableCUDALaunchFromGfx = m_desc.enable_cuda_launch_from_gfx,
+        .enableRayTracing = m_desc.enable_ray_tracing,
         .bindless = bindless_desc,
     };
     log_debug("Creating graphics device (type: {}, LUID: {}).", m_desc.type, m_desc.adapter_luid);
@@ -270,6 +307,8 @@ Device::Device(const DeviceDesc& desc)
         rhi_device_info.limits.maxComputeDispatchThreadGroups[1],
         rhi_device_info.limits.maxComputeDispatchThreadGroups[2]
     );
+    m_info.limits.min_wave_size = rhi_device_info.limits.minWaveSize;
+    m_info.limits.max_wave_size = rhi_device_info.limits.maxWaveSize;
     m_info.limits.max_viewports = rhi_device_info.limits.maxViewports;
     m_info.limits.max_viewport_dimensions
         = uint2(rhi_device_info.limits.maxViewportDimensions[0], rhi_device_info.limits.maxViewportDimensions[1]);
@@ -456,6 +495,10 @@ void Device::close()
     if (m_closed)
         return;
 
+    // Keep the device alive while callbacks and resource teardown may release
+    // the last external owner.
+    ref<Device> keep_alive(this);
+
     // Pop device from thread-local current device stack if it's the current device.
     if (!s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
         pop_current_device();
@@ -464,23 +507,31 @@ void Device::close()
 
     wait();
 
-    // Handle device close callbacks
-    for (const DeviceCloseCallback& callback : m_device_close_callbacks)
-        callback(this);
+    // Flush cache writer to ensure all pending writes are completed.
+    if (m_cache_writer)
+        m_cache_writer->flush();
 
-    // Make sure Device's ref count is not going to zero when releasing resources.
-    inc_ref();
-
+    // Mark the device closed before notifying callbacks so reentrant close()
+    // calls from callbacks are no-ops.
     m_closed = true;
 
-    m_shader_hot_reload_callbacks.clear();
+    // Handle device close callbacks.
+    m_device_close_callbacks.notify(this);
+
     m_device_close_callbacks.clear();
+    m_shader_hot_reload_callbacks.clear();
+    m_command_recording_submitted_callbacks.clear();
+    m_command_recording_discarded_callbacks.clear();
 
     m_blitter.reset();
     m_debug_printer.reset();
 
     m_global_fence.reset();
 
+    // Cached reflection layouts can own shader objects strongly; break those cycles before releasing Slang state.
+    detail::invalidate_reflection_data(this);
+
+    m_builtin_layout.reset();
     m_slang_session.reset();
     m_hot_reload.reset();
 
@@ -489,19 +540,13 @@ void Device::close()
         m_cuda_semaphore.reset();
     }
     m_cuda_device.reset();
-
-    dec_ref();
 }
 
 void Device::close_all_devices()
 {
-    std::vector<Device*> devices;
-    {
-        std::lock_guard lock(s_devices_mutex);
-        devices = s_devices;
-    }
-    for (Device* device : devices)
-        device->close();
+    std::vector<ref<Device>> devices = get_created_devices();
+    for (auto it = devices.rbegin(); it != devices.rend(); ++it)
+        (*it)->close();
 }
 
 void Device::_release_all_rhi_resources()
@@ -707,6 +752,25 @@ void Device::reload_all_programs()
         m_hot_reload->recreate_all_sessions();
 }
 
+ref<refl::Layout> Device::builtin_layout()
+{
+    if (!m_builtin_layout) {
+        ref<SlangModule> module = load_module("slangpy");
+        m_builtin_layout = make_ref<refl::Layout>(module->layout());
+    }
+    return m_builtin_layout;
+}
+
+ref<refl::Layout> Device::reload_builtin_layout()
+{
+    if (!m_builtin_layout)
+        return builtin_layout();
+
+    ref<SlangModule> module = load_module("slangpy");
+    m_builtin_layout->on_hot_reload(module->layout());
+    return m_builtin_layout;
+}
+
 ref<SlangModule> Device::load_module(std::string_view module_name)
 {
     return m_slang_session->load_module(module_name);
@@ -810,7 +874,7 @@ ref<CommandEncoder> Device::create_command_encoder(CommandQueueType queue)
 
     Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder;
     SLANG_RHI_CALL(m_rhi_graphics_queue->createCommandEncoder(rhi_command_encoder.writeRef()), this);
-    return make_ref<CommandEncoder>(ref(this), rhi_command_encoder);
+    return make_ref<CommandEncoder>(ref(this), queue, _allocate_command_recording_id(), rhi_command_encoder);
 }
 
 uint64_t Device::submit_command_buffers(
@@ -931,6 +995,11 @@ uint64_t Device::submit_command_buffers(
     };
     SLANG_RHI_CALL(m_rhi_graphics_queue->submit(rhi_submit_desc), this);
 
+    const uint64_t submit_id = m_global_fence->signaled_value();
+
+    for (CommandBuffer* command_buffer : command_buffers)
+        command_buffer->_notify_submitted(submit_id);
+
     // Handle CUDA interop.
     if (m_supports_cuda_interop && needs_cuda_sync) {
         sync_to_device(cuda_stream_ptr);
@@ -943,7 +1012,7 @@ uint64_t Device::submit_command_buffers(
         }
     }
 
-    return m_global_fence->signaled_value();
+    return submit_id;
 }
 
 uint64_t Device::submit_command_buffer(CommandBuffer* command_buffer, CommandQueueType queue, NativeHandle cuda_stream)
@@ -968,6 +1037,22 @@ void Device::wait_for_idle(CommandQueueType queue)
         SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
         m_rhi_graphics_queue->waitOnHost();
     }
+}
+
+TimestampCalibration Device::get_timestamp_calibration(CommandQueueType queue) const
+{
+    SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
+
+    rhi::TimestampCalibration rhi_calibration;
+    SLANG_RHI_CALL(m_rhi_graphics_queue->getTimestampCalibration(&rhi_calibration), this);
+    return {
+        .cpu_domain = static_cast<CpuTimestampDomain>(rhi_calibration.cpuDomain),
+        .cpu_timestamp = rhi_calibration.cpuTimestamp,
+        .cpu_frequency = rhi_calibration.cpuFrequency,
+        .gpu_timestamp = rhi_calibration.gpuTimestamp,
+        .gpu_frequency = rhi_calibration.gpuFrequency,
+        .max_deviation_ns = rhi_calibration.maxDeviationNs
+    };
 }
 
 void Device::sync_to_cuda(void* cuda_stream)
@@ -1309,6 +1394,89 @@ void Device::_unregister_device_child(DeviceChild* device_child)
 {
     std::lock_guard lock(m_device_children_mutex);
     m_device_children.erase(device_child);
+}
+
+DeviceCallbackID Device::register_device_close_callback(DeviceCloseCallback callback)
+{
+    return m_device_close_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
+}
+
+void Device::unregister_device_close_callback(DeviceCallbackID id)
+{
+    m_device_close_callbacks.unregister_callback(id);
+}
+
+DeviceCallbackID Device::register_shader_hot_reload_callback(ShaderHotReloadCallback callback)
+{
+    return m_shader_hot_reload_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
+}
+
+void Device::unregister_shader_hot_reload_callback(DeviceCallbackID id)
+{
+    m_shader_hot_reload_callbacks.unregister_callback(id);
+}
+
+DeviceCallbackID Device::register_command_recording_submitted_callback(CommandRecordingSubmittedCallback callback)
+{
+    return m_command_recording_submitted_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
+}
+
+void Device::unregister_command_recording_submitted_callback(DeviceCallbackID id)
+{
+    m_command_recording_submitted_callbacks.unregister_callback(id);
+}
+
+DeviceCallbackID Device::register_command_recording_discarded_callback(CommandRecordingDiscardedCallback callback)
+{
+    return m_command_recording_discarded_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
+}
+
+void Device::unregister_command_recording_discarded_callback(DeviceCallbackID id)
+{
+    m_command_recording_discarded_callbacks.unregister_callback(id);
+}
+
+void Device::_on_hot_reload()
+{
+    if (m_builtin_layout)
+        reload_builtin_layout();
+
+    ShaderHotReloadEvent event;
+    m_shader_hot_reload_callbacks.notify(event);
+}
+
+DeviceCallbackID Device::_allocate_callback_id()
+{
+    return m_next_callback_id.fetch_add(1, std::memory_order_relaxed);
+}
+
+CommandRecordingID Device::_allocate_command_recording_id()
+{
+    return s_next_command_recording_id.fetch_add(1, std::memory_order_relaxed);
+}
+
+void Device::_notify_command_recording_submitted(
+    CommandRecordingID id,
+    CommandBuffer* command_buffer,
+    uint64_t submit_id
+)
+{
+    CommandRecordingSubmittedEvent event{
+        .device = this,
+        .id = id,
+        .command_buffer = command_buffer,
+        .submit_id = submit_id,
+    };
+    m_command_recording_submitted_callbacks.notify(event);
+}
+
+void Device::_notify_command_recording_discarded(CommandRecordingID id)
+{
+    CommandRecordingDiscardedEvent event{
+        .device = this,
+        .id = id,
+    };
+    m_command_recording_discarded_callbacks.notify(event);
 }
 
 std::array<NativeHandle, 3> get_cuda_current_context_native_handles()

@@ -82,7 +82,7 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SGL_SLANG_VERSION "2026.5.2" CACHE STRING "Slang version to download when not using a local build")
+set(SGL_SLANG_VERSION "2026.12" CACHE STRING "Slang version to download when not using a local build")
 
 set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SGL_SLANG_VERSION}/slang-${SGL_SLANG_VERSION}")
 
@@ -165,6 +165,8 @@ function(sgl_add_library_slang)
         set(slang_module_version "")
     endif()
 
+    set(slang_standard_module_dir "${slang_lib_dir}/slang-standard-module-${SGL_SLANG_VERSION}")
+
     add_library(slang SHARED IMPORTED GLOBAL)
     if(SGL_WINDOWS)
         # Windows filenames are not versioned
@@ -200,6 +202,12 @@ function(sgl_add_library_slang)
         set(slang_resolved_debug_info "lib/${slang_resolved_debug_info_base}.dwarf")
     endif()
 
+    if(EXISTS "${slang_standard_module_dir}")
+        sgl_copy_binary_directory("${slang_standard_module_dir}" .)
+    else()
+        message(STATUS "Slang standard module directory not found: ${slang_standard_module_dir}")
+    endif()
+
     if(NOT SGL_LOCAL_SLANG AND SGL_SLANG_DEBUG_INFO)
         sgl_download_package(slang_debug_info ${SLANG_DEBUG_INFO_URL})
         sgl_copy_binary(${slang_debug_info_SOURCE_DIR}/${slang_resolved_debug_info} .)
@@ -215,6 +223,9 @@ install(FILES ${SLANG_DIR}/include/slang-image-format-defs.h DESTINATION ${CMAKE
 
 # slang-rhi
 
+set(SGL_LOCAL_RHI OFF CACHE BOOL "Use a local slang-rhi instead of the submodule")
+set(SGL_LOCAL_RHI_DIR "${CMAKE_SOURCE_DIR}/../slang-rhi" CACHE PATH "Path to local slang-rhi")
+
 set(SLANG_RHI_BUILD_TESTS OFF)
 set(SLANG_RHI_BUILD_EXAMPLES OFF)
 set(SLANG_RHI_FETCH_SLANG OFF)
@@ -226,10 +237,16 @@ set(SLANG_RHI_BUILD_FROM_SLANG_REPO ON)
 set(SLANG_RHI_FETCH_SLANG OFF)
 set(SLANG_RHI_SLANG_INCLUDE_DIR ${SLANG_INCLUDE_DIR} CACHE STRING "" FORCE)
 set(SLANG_RHI_SLANG_BINARY_DIR ${SLANG_DIR} CACHE STRING "" FORCE)
-add_subdirectory(slang-rhi)
+if(SGL_LOCAL_RHI)
+    add_subdirectory(${SGL_LOCAL_RHI_DIR} ${CMAKE_BINARY_DIR}/slang-rhi)
+    set(SGL_RHI_SOURCE_DIR ${SGL_LOCAL_RHI_DIR})
+else()
+    add_subdirectory(slang-rhi)
+    set(SGL_RHI_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/slang-rhi)
+endif()
 
 # Copy shared slang-rhi-device.h header to shaders directory (wrapped in sgl/device/rhi.slang)
-sgl_copy_shader_file(${CMAKE_CURRENT_SOURCE_DIR}/slang-rhi/include/slang-rhi-device.h slang-rhi)
+sgl_copy_shader_file(${SGL_RHI_SOURCE_DIR}/include/slang-rhi-device.h slang-rhi)
 
 if(TARGET slang-rhi-nvapi)
     get_target_property(NVAPI_DIR slang-rhi-nvapi INTERFACE_INCLUDE_DIRECTORIES)

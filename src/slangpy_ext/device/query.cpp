@@ -30,14 +30,34 @@ SGL_PY_EXPORT(device_query)
 
     nb::class_<QueryPool, DeviceChild>(m, "QueryPool", D(QueryPool))
         .def_prop_ro("desc", &QueryPool::desc, D(QueryPool, desc))
-        .def("reset", &QueryPool::reset, D(QueryPool, reset))
+        .def("reset", nb::overload_cast<>(&QueryPool::reset), D(QueryPool, reset))
+        .def(
+            "reset",
+            nb::overload_cast<uint32_t, uint32_t>(&QueryPool::reset),
+            "index"_a,
+            "count"_a,
+            D(QueryPool, reset, 2)
+        )
+        .def(
+            "get_result_state",
+            nb::overload_cast<uint32_t, uint32_t>(&QueryPool::get_result_state),
+            "index"_a,
+            "count"_a,
+            D(QueryPool, get_result_state)
+        )
+        .def(
+            "get_result_state",
+            nb::overload_cast<uint32_t>(&QueryPool::get_result_state),
+            "index"_a,
+            D(QueryPool, get_result_state, 2)
+        )
         .def("get_result", &QueryPool::get_result, "index"_a, D(QueryPool, get_result))
         .def(
             "get_results",
             nb::overload_cast<uint32_t, uint32_t>(&QueryPool::get_results),
             "index"_a,
             "count"_a,
-            D(QueryPool, get_results)
+            D(QueryPool, get_results, 2)
         )
         .def("get_timestamp_result", &QueryPool::get_timestamp_result, "index"_a, D(QueryPool, get_timestamp_result))
         .def(
@@ -45,6 +65,6 @@ SGL_PY_EXPORT(device_query)
             nb::overload_cast<uint32_t, uint32_t>(&QueryPool::get_timestamp_results),
             "index"_a,
             "count"_a,
-            D(QueryPool, get_timestamp_results)
+            D(QueryPool, get_timestamp_results, 2)
         );
 }

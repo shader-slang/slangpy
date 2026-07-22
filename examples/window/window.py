@@ -15,7 +15,7 @@ class App:
             compiler_options={"include_paths": [EXAMPLE_DIR]},
         )
         self.surface = self.device.create_surface(self.window)
-        self.surface.configure(width=self.window.width, height=self.window.height)
+        self.surface.configure(width=self.window.width, height=self.window.height, vsync=False)
 
         self.ui = spy.ui.Context(self.device)
 
@@ -91,7 +91,7 @@ class App:
     def on_resize(self, width: int, height: int):
         self.device.wait()
         if width > 0 and height > 0:
-            self.surface.configure(width=width, height=height)
+            self.surface.configure(width=width, height=height, vsync=False)
         else:
             self.surface.unconfigure()
 

@@ -36,6 +36,10 @@ SlangPy is a native Python extension that provides a high-level interface for wo
 4. **Use type annotations** for all Python function arguments
 5. **Minimize new dependencies** — the project has minimal external deps
 
+## ExecPlans
+
+When writing complex features or significant refactors, use an ExecPlan (as described in `.agents/PLANS.md`) from design to implementation.
+
 ## Architecture
 
 The project has three main layers:
@@ -174,6 +178,8 @@ cmake --build --preset windows-msvc-debug
 | `SGL_LOCAL_SLANG` | OFF | Enable to use a local Slang build |
 | `SGL_LOCAL_SLANG_DIR` | `../slang` | Path to the local Slang repository |
 | `SGL_LOCAL_SLANG_BUILD_DIR` | `build/Debug` | Build directory within the Slang repo |
+| `SGL_LOCAL_RHI` | OFF | Use a local slang-rhi instead of the submodule |
+| `SGL_LOCAL_RHI_DIR` | `../slang-rhi` | Path to the local slang-rhi repository |
 
 ### Workflow
 

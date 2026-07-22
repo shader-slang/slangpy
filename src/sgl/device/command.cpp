@@ -23,7 +23,6 @@
 #include "sgl/math/vector.h"
 
 namespace sgl {
-
 namespace detail {
     inline rhi::SubresourceRange rhi_subresource_range(const Texture* texture, uint32_t subresource_index)
     {
@@ -55,6 +54,35 @@ namespace detail {
             .startIndexLocation = draw_args.start_index_location,
         };
     }
+
+    class ExecuteCallbackState : public Object {
+        SGL_OBJECT(ExecuteCallbackState)
+    public:
+        explicit ExecuteCallbackState(ExecuteCallback callback)
+            : m_callback(std::move(callback))
+        {
+        }
+
+        void execute(NativeHandle native_handle) { m_callback(native_handle); }
+
+    private:
+        ExecuteCallback m_callback;
+    };
+
+    void SLANG_MCALL execute_callback(
+        const ExecuteCallbackContext* context,
+        void* user_object,
+        const void* user_data,
+        size_t user_data_size
+    )
+    {
+        SGL_UNUSED(user_data);
+        SGL_UNUSED(user_data_size);
+
+        auto state = static_cast<ExecuteCallbackState*>(user_object);
+        state->execute(NativeHandle(context->nativeHandle));
+    }
+
 } // namespace detail
 
 // ----------------------------------------------------------------------------
@@ -267,15 +295,30 @@ void RayTracingPassEncoder::end()
 // CommandEncoder
 // ----------------------------------------------------------------------------
 
-CommandEncoder::CommandEncoder(ref<Device> device, Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder)
+CommandEncoder::CommandEncoder(
+    ref<Device> device,
+    CommandQueueType queue,
+    CommandRecordingID recording_id,
+    Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder
+)
     : DeviceChild(std::move(device))
+    , m_queue(queue)
+    , m_recording_id(recording_id)
     , m_rhi_command_encoder(std::move(rhi_command_encoder))
     , m_open(true)
 {
 }
 
+CommandEncoder::~CommandEncoder()
+{
+    if (m_open)
+        m_device->_notify_command_recording_discarded(m_recording_id);
+}
+
 ref<RenderPassEncoder> CommandEncoder::begin_render_pass(const RenderPassDesc& desc)
 {
+    SGL_CHECK(m_open, "Command encoder is finished");
+
     rhi::RenderPassDesc rhi_desc = {};
 
     short_vector<rhi::RenderPassColorAttachment, 16> rhi_color_attachments;
@@ -320,6 +363,8 @@ ref<RenderPassEncoder> CommandEncoder::begin_render_pass(const RenderPassDesc& d
 
 ref<ComputePassEncoder> CommandEncoder::begin_compute_pass()
 {
+    SGL_CHECK(m_open, "Command encoder is finished");
+
     if (!m_compute_pass_encoder) {
         m_compute_pass_encoder = make_ref<ComputePassEncoder>();
     }
@@ -332,6 +377,8 @@ ref<ComputePassEncoder> CommandEncoder::begin_compute_pass()
 
 ref<RayTracingPassEncoder> CommandEncoder::begin_ray_tracing_pass()
 {
+    SGL_CHECK(m_open, "Command encoder is finished");
+
     if (!m_ray_tracing_pass_encoder) {
         m_ray_tracing_pass_encoder = make_ref<RayTracingPassEncoder>();
     }
@@ -751,24 +798,6 @@ void CommandEncoder::query_acceleration_structure_properties(
     );
 }
 
-void CommandEncoder::serialize_acceleration_structure(BufferOffsetPair dst, AccelerationStructure* src)
-{
-    SGL_CHECK(m_open, "Command encoder is finished");
-    SGL_CHECK_NOT_NULL(dst.buffer);
-    SGL_CHECK_NOT_NULL(src);
-
-    m_rhi_command_encoder->serializeAccelerationStructure(detail::to_rhi(dst), src->rhi_acceleration_structure());
-}
-
-void CommandEncoder::deserialize_acceleration_structure(AccelerationStructure* dst, BufferOffsetPair src)
-{
-    SGL_CHECK(m_open, "Command encoder is finished");
-    SGL_CHECK_NOT_NULL(dst);
-    SGL_CHECK_NOT_NULL(src.buffer);
-
-    m_rhi_command_encoder->deserializeAccelerationStructure(dst->rhi_acceleration_structure(), detail::to_rhi(src));
-}
-
 void CommandEncoder::convert_coop_vec_matrices(
     Buffer* dst,
     std::span<const CoopVecMatrixDesc> dst_descs,
@@ -879,9 +908,52 @@ void CommandEncoder::write_timestamp(QueryPool* query_pool, uint32_t index)
 {
     SGL_CHECK(m_open, "Command encoder is finished");
     SGL_CHECK_NOT_NULL(query_pool);
-    SGL_CHECK_LE(index, query_pool->desc().count);
+    SGL_CHECK_LT(index, query_pool->desc().count);
 
     m_rhi_command_encoder->writeTimestamp(query_pool->rhi_query_pool(), index);
+}
+
+void CommandEncoder::execute_callback(const ExecuteCallbackDesc& desc)
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+    SGL_CHECK(desc.callback, "callback must not be null");
+    SGL_CHECK(desc.user_data || desc.user_data_size == 0, "user_data must not be null when user_data_size is non-zero");
+    SGL_CHECK(desc.user_data_size > 0 || !desc.user_data, "user_data_size must be non-zero when user_data is set");
+    SGL_CHECK(
+        !desc.user_object || (desc.retain_user_object && desc.release_user_object),
+        "retain_user_object and release_user_object are required when user_object is set"
+    );
+
+    rhi::ExecuteCallbackDesc rhi_desc;
+    rhi_desc.callback = desc.callback;
+    rhi_desc.userObject = desc.user_object;
+    rhi_desc.retainUserObject = desc.retain_user_object;
+    rhi_desc.releaseUserObject = desc.release_user_object;
+    rhi_desc.userData = desc.user_data;
+    rhi_desc.userDataSize = desc.user_data_size;
+    m_rhi_command_encoder->executeCallback(rhi_desc);
+}
+
+void CommandEncoder::execute_callback(ExecuteCallback callback)
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+    SGL_CHECK(static_cast<bool>(callback), "callback must not be empty");
+
+    ref<detail::ExecuteCallbackState> state = make_ref<detail::ExecuteCallbackState>(std::move(callback));
+    execute_callback({
+        .callback = detail::execute_callback,
+        .user_object = state.get(),
+        .retain_user_object =
+            [](void* user_object)
+        {
+            static_cast<detail::ExecuteCallbackState*>(user_object)->inc_ref();
+        },
+        .release_user_object =
+            [](void* user_object)
+        {
+            static_cast<detail::ExecuteCallbackState*>(user_object)->dec_ref();
+        },
+    });
 }
 
 ref<CommandBuffer> CommandEncoder::finish()
@@ -889,7 +961,7 @@ ref<CommandBuffer> CommandEncoder::finish()
     SGL_CHECK(m_open, "Command encoder is finished");
     Slang::ComPtr<rhi::ICommandBuffer> rhi_command_buffer;
     SLANG_RHI_CALL(m_rhi_command_encoder->finish(rhi_command_buffer.writeRef()), m_device);
-    ref<CommandBuffer> command_buffer = make_ref<CommandBuffer>(m_device, rhi_command_buffer);
+    ref<CommandBuffer> command_buffer = make_ref<CommandBuffer>(m_device, m_queue, m_recording_id, rhi_command_buffer);
     m_open = false;
     return command_buffer;
 }
@@ -915,13 +987,33 @@ std::string CommandEncoder::to_string() const
 // CommandBuffer
 // ----------------------------------------------------------------------------
 
-CommandBuffer::CommandBuffer(ref<Device> device, Slang::ComPtr<rhi::ICommandBuffer> command_buffer)
+CommandBuffer::CommandBuffer(
+    ref<Device> device,
+    CommandQueueType queue,
+    CommandRecordingID recording_id,
+    Slang::ComPtr<rhi::ICommandBuffer> command_buffer
+)
     : DeviceChild(std::move(device))
+    , m_queue(queue)
+    , m_recording_id(recording_id)
     , m_rhi_command_buffer(std::move(command_buffer))
 {
 }
 
-CommandBuffer::~CommandBuffer() { }
+CommandBuffer::~CommandBuffer()
+{
+    if (!m_submitted)
+        m_device->_notify_command_recording_discarded(m_recording_id);
+}
+
+void CommandBuffer::_notify_submitted(uint64_t submit_id)
+{
+    if (m_submitted)
+        return;
+
+    m_submitted = true;
+    m_device->_notify_command_recording_submitted(m_recording_id, this, submit_id);
+}
 
 std::string CommandBuffer::to_string() const
 {

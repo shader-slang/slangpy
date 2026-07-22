@@ -141,6 +141,9 @@ class CodeGen:
         #: File header
         self.header = ""
 
+        #: Raw user-provided source injected after imports.
+        self.prelude = CodeGenBlock(self)
+
         #: Main kernel code
         self.kernel = CodeGenBlock(self)
 
@@ -190,6 +193,7 @@ class CodeGen:
         imports: bool = False,
         trampoline: bool = False,
         context: bool = False,
+        prelude: bool = False,
         snippets: bool = False,
         call_data_structs: bool = False,
         constants: bool = False,
@@ -214,6 +218,9 @@ class CodeGen:
             all_code.append("\n")
         if imports:
             all_code = all_code + [f'import "{x}";\n' for x in self.imports]
+            all_code.append("\n")
+        if prelude:
+            all_code = all_code + self.prelude.code
             all_code.append("\n")
         if constants:
             all_code = all_code + self.constants.code

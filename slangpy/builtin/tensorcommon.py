@@ -147,8 +147,8 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
         # middle ground, assume that if a user is providing tensor types that support gradients in a backwards pass, the
         # intention is to write to them.
         grads_used = (
-            bound_type.tensor_type == TensorType.difftensor
-            or bound_type.tensor_type == TensorType.idifftensor
+            bound_type.tensor_kind == TensorType.diff_tensor
+            or bound_type.tensor_kind == TensorType.idiff_tensor
         ) and context.call_mode != CallMode.prim
         if grads_used and context.device.desc.type != DeviceType.cuda:
             if bound_type.has_grad_in and self.d_in is None:
@@ -164,15 +164,15 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
         # ITensor -> Tensor
         # IDiffTensor -> PrimalTensor (primal pass) or DiffTensor (bwd/fwd diff pass)
         # Other tensor types map directly to the bound type
-        if bound_type.tensor_type == TensorType.itensor:
+        if bound_type.tensor_kind == TensorType.itensor:
             tensor_type = TensorType.tensor
-        elif bound_type.tensor_type == TensorType.idifftensor:
+        elif bound_type.tensor_kind == TensorType.idiff_tensor:
             if context.call_mode == CallMode.prim:
-                tensor_type = TensorType.primaltensor
+                tensor_type = TensorType.primal_tensor
             else:
-                tensor_type = TensorType.difftensor
+                tensor_type = TensorType.diff_tensor
         else:
-            tensor_type = bound_type.tensor_type
+            tensor_type = bound_type.tensor_kind
 
         # Element type is taken from the marshall if the target is unknown or generic.
         bound_element_type = bound_type.element_type
@@ -197,7 +197,7 @@ def resolve_types(self: ITensorMarshall, context: BindContext, bound_type: Slang
                 element_type=el_type,
                 dims=dims,
                 access=bound_type.access,
-                tensor_type=tensor_type,
+                tensor_kind=tensor_type,
             )
         ]
 
@@ -378,7 +378,7 @@ def gen_calldata(
             element_type=self.slang_element_type,
             dims=self.dims,
             access=binding.vector_type.access,
-            tensor_type=binding.vector_type.tensor_type,
+            tensor_kind=binding.vector_type.tensor_kind,
         )
     elif isinstance(binding.vector_type, TensorViewType):
         type_name = TensorViewType.build_tensorview_name(binding.vector_type.dtype)
@@ -407,13 +407,13 @@ def gen_calldata(
         if context.call_mode == CallMode.prim or binding.access[1] == AccessType.none:
             tensor_type = TensorType.tensor
         else:
-            tensor_type = TensorType.difftensor
+            tensor_type = TensorType.diff_tensor
 
         type_name = ITensorType.build_tensor_name(
             element_type=self.slang_element_type,
             dims=self.dims,
             access=access,
-            tensor_type=tensor_type,
+            tensor_kind=tensor_type,
         )
     binding.gen_calldata_type_name(cgb, type_name)
 

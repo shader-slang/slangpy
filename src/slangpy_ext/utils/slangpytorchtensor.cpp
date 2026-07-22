@@ -162,8 +162,8 @@ namespace {
 NativeTorchTensorMarshall::NativeTorchTensorMarshall(
     int dims,
     bool writable,
-    ref<NativeSlangType> slang_type,
-    ref<NativeSlangType> slang_element_type,
+    ref<refl::Type> slang_type,
+    ref<refl::Type> slang_element_type,
     ref<TypeLayoutReflection> element_layout,
     ref<NativeTorchTensorMarshall> d_in,
     ref<NativeTorchTensorMarshall> d_out
@@ -222,7 +222,7 @@ void NativeTorchTensorMarshall::ensure_binding_info_cached(
 {
     if (!m_cached_binding_info.primal.is_valid) {
         ShaderCursor field = cursor[binding->variable_name()];
-        m_cached_binding_info = NativeTensorMarshall::extract_binding_info(field);
+        m_cached_binding_info = TensorMarshall::extract_binding_info(field);
 
         // Determine copy-back flags from the Slang uniform type name.
         //
@@ -710,7 +710,7 @@ nb::object NativeTorchTensorMarshall::create_output(CallContext* context, Native
     }
 
     // Map slang scalar type to c10::ScalarType code
-    TypeReflection::ScalarType scalar_type = m_slang_element_type->type_reflection()->scalar_type();
+    TypeReflection::ScalarType scalar_type = m_slang_element_type->reflection()->scalar_type();
     int32_t c10_scalar_type;
     switch (scalar_type) {
     case TypeReflection::ScalarType::uint8:
@@ -801,8 +801,8 @@ SGL_PY_EXPORT(utils_slangpy_torch_tensor)
             [](NativeTorchTensorMarshall& self,
                int dims,
                bool writable,
-               ref<NativeSlangType> slang_type,
-               ref<NativeSlangType> slang_element_type,
+               ref<refl::Type> slang_type,
+               ref<refl::Type> slang_element_type,
                ref<TypeLayoutReflection> element_layout,
                ref<NativeTorchTensorMarshall> d_in,
                ref<NativeTorchTensorMarshall> d_out)

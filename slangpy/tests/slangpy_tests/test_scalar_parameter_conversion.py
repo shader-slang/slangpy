@@ -56,7 +56,7 @@ def test_array_conversion(device_type: DeviceType):
         "array_test",
         f"""
 int array_test(Array<float, 5> x) {{
-    return x[0] + x[1] + x[2] + x[3] + x[4];
+    return int(x[0] + x[1] + x[2] + x[3] + x[4]);
 }}
 """,
     )

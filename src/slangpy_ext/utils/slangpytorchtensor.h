@@ -72,12 +72,12 @@ public:
 /// - Supports arbitrary dimension counts via caller-provided buffers
 ///
 /// This class shares the CachedBindingInfo and TensorFieldOffsets structures with
-/// NativeTensorMarshall to ensure consistent shader data layout.
+/// TensorMarshall to ensure consistent shader data layout.
 class NativeTorchTensorMarshall : public NativeMarshall {
 public:
-    /// Reuse the offset structures from NativeTensorMarshall
-    using TensorFieldOffsets = NativeTensorMarshall::TensorFieldOffsets;
-    using CachedBindingInfo = NativeTensorMarshall::CachedBindingInfo;
+    /// Reuse the offset structures from TensorMarshall
+    using TensorFieldOffsets = TensorMarshall::TensorFieldOffsets;
+    using CachedBindingInfo = TensorMarshall::CachedBindingInfo;
 
     /// Default buffer size for shape/strides storage (covers 99%+ of tensors)
     static constexpr int32_t DEFAULT_BUFFER_CAPACITY = TENSOR_BRIDGE_DEFAULT_DIMS;
@@ -85,8 +85,8 @@ public:
     NativeTorchTensorMarshall(
         int dims,
         bool writable,
-        ref<NativeSlangType> slang_type,
-        ref<NativeSlangType> slang_element_type,
+        ref<refl::Type> slang_type,
+        ref<refl::Type> slang_element_type,
         ref<TypeLayoutReflection> element_layout,
         ref<NativeTorchTensorMarshall> d_in,
         ref<NativeTorchTensorMarshall> d_out
@@ -97,7 +97,7 @@ public:
     // Accessors
     int dims() const { return m_dims; }
     bool writable() const { return m_writable; }
-    ref<NativeSlangType> slang_element_type() const { return m_slang_element_type; }
+    ref<refl::Type> slang_element_type() const { return m_slang_element_type; }
     ref<TypeLayoutReflection> element_layout() const { return m_element_layout; }
     size_t element_stride() const { return m_element_layout->stride(); }
     bool has_derivative() const { return m_d_in != nullptr || m_d_out != nullptr; }
@@ -136,7 +136,7 @@ public:
 private:
     int m_dims;
     bool m_writable;
-    ref<NativeSlangType> m_slang_element_type;
+    ref<refl::Type> m_slang_element_type;
     ref<TypeLayoutReflection> m_element_layout;
     ref<NativeTorchTensorMarshall> m_d_in;
     ref<NativeTorchTensorMarshall> m_d_out;

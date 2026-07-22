@@ -18,6 +18,7 @@ if(SGL_BUILD_TESTS)
         sgl/core/test_object.cpp
         sgl/core/test_platform.cpp
         sgl/core/test_plugin.cpp
+        sgl/core/test_signature_buffer.cpp
         sgl/core/test_short_vector.cpp
         sgl/core/test_static_vector.cpp
         sgl/core/test_stream.cpp
@@ -27,11 +28,21 @@ if(SGL_BUILD_TESTS)
         sgl/device/test_hot_reload.cpp
         sgl/device/test_formats.cpp
         sgl/device/test_shader.cpp
+        sgl/device/test_persistent_cache.cpp
+        sgl/device/test_profiler.cpp
+        sgl/func/test_base_objects.cpp
+        sgl/func/test_tensor.cpp
+        sgl/refl/test_lookup.cpp
+        sgl/refl/test_reflection.cpp
         sgl/math/test_float16.cpp
         sgl/math/test_matrix.cpp
         sgl/math/test_quaternion.cpp
         sgl/math/test_vector.cpp
     )
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # GCC/libstdc++ can emit a false positive for vector-key comparisons in this stress test.
+        set_source_files_properties(sgl/core/test_lmdb_cache.cpp PROPERTIES COMPILE_OPTIONS "-Wno-error=stringop-overread")
+    endif()
     target_include_directories(sgl_tests BEFORE PRIVATE sgl)
     target_link_libraries(sgl_tests PRIVATE sgl header_only)
     target_compile_definitions(sgl_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
