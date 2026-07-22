@@ -76,7 +76,13 @@ def extract_tensor_info(tensor: torch.Tensor) -> Dict[str, Any]:
 
 def get_signature(tensor: torch.Tensor) -> str:
     """
-    Get tensor signature string: "[Dn,Sm]" where n=ndim, m=scalar_type.
+    Get tensor signature string: "[Dn,Sm,Gk]" where n=ndim, m=scalar_type,
+    k=requires_grad (0/1).
+
+    Must stay in lockstep with the native tensor_bridge_get_signature
+    (src/slangpy_torch/torch_bridge_impl.cpp) or the two caches diverge. The
+    grad bit makes grad-ness part of the CallData routing identity so a no-grad
+    call cannot poison the cached autograd flag of a later grad call (#1052).
 
     :param tensor: PyTorch tensor to get signature for.
     :return: Signature string.
@@ -85,7 +91,8 @@ def get_signature(tensor: torch.Tensor) -> str:
     if not isinstance(tensor, torch.Tensor):
         return None
     scalar_type = _SCALAR_TYPE_MAP.get(tensor.dtype, -1)
-    return f"[D{tensor.ndim},S{scalar_type}]"
+    requires_grad = 1 if tensor.requires_grad else 0
+    return f"[D{tensor.ndim},S{scalar_type},G{requires_grad}]"
 
 
 def get_current_cuda_stream(device_index: int) -> int:

@@ -74,7 +74,7 @@ nb::object extract_torch_tensor_info(nb::handle tensor)
 
 /// Extract PyTorch tensor signature string.
 /// @param tensor PyTorch tensor to get signature from.
-/// @return Signature string in format "[Dn,Sm]" where n=ndim, m=scalar_type.
+/// @return Signature string in format "[Dn,Sm,Gk]" where n=ndim, m=scalar_type, k=requires_grad.
 /// @throws std::runtime_error if torch bridge is not available.
 /// @throws std::invalid_argument if object is not a PyTorch tensor.
 std::string extract_torch_tensor_signature(nb::handle tensor)

@@ -61,12 +61,12 @@ def setup_bridge_mode(torch_bridge_mode: str):
 @pytest.mark.parametrize(
     "pair",
     [
-        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6"),
-        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6"),
-        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5"),
-        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3"),
-        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0"),
-        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0"),
+        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6,G0"),
+        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6,G1"),
+        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5,G0"),
+        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3,G0"),
+        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0,G0"),
+        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0,G0"),
     ],
 )
 def test_torch_signature(pair: tuple[torch.Tensor, str]):
@@ -676,12 +676,17 @@ def test_nn_parameter_as_input(device_type: DeviceType):
 
 def test_nn_parameter_signature():
     """
-    Test that torch.nn.parameter.Parameter produces the same signature as torch.Tensor.
+    Test that torch.nn.parameter.Parameter is handled transparently like a
+    torch.Tensor: for the same ndim/dtype AND grad-ness it produces the same
+    signature, and the signature tracks requires_grad the same way for both
+    (grad-ness is part of the cache key since #1052).
     """
     cd = NativeCallDataCache()
 
+    # nn.Parameter defaults to requires_grad=True; compare against a tensor with
+    # matching grad-ness so this asserts type-handling parity, not grad state.
     param = torch.nn.parameter.Parameter(torch.empty((4, 4), dtype=torch.float32).cuda())
-    tensor = torch.empty((4, 4), dtype=torch.float32).cuda()
+    tensor = torch.empty((4, 4), dtype=torch.float32, requires_grad=True).cuda()
 
     sig_param = SignatureBuilder()
     sig_tensor = SignatureBuilder()
@@ -689,6 +694,12 @@ def test_nn_parameter_signature():
     cd.get_value_signature(sig_tensor, tensor)
 
     assert sig_param.str == sig_tensor.str
+
+    # A no-grad tensor of the same ndim/dtype must get a distinct signature (#1052).
+    tensor_nograd = torch.empty((4, 4), dtype=torch.float32).cuda()
+    sig_nograd = SignatureBuilder()
+    cd.get_value_signature(sig_nograd, tensor_nograd)
+    assert sig_nograd.str != sig_param.str
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)

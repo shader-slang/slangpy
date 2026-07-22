@@ -116,8 +116,13 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
 
     int ndim = static_cast<int>(tensor.dim());
     int scalar_type = static_cast<int>(tensor.scalar_type());
+    int requires_grad = tensor.requires_grad() ? 1 : 0;
 
-    // Format: "[Dn,Sm]" - compatible format, no snprintf
+    // Format: "[Dn,Sm,Gk]" - compatible format, no snprintf.
+    // The grad bit (Gk) makes grad-ness part of the CallData routing identity:
+    // the autograd hook is gated on a flag frozen into the cached CallData at
+    // build time, so no-grad and grad calls must resolve to distinct entries
+    // (see #1052). Max length is well within the caller's 64-byte buffer.
     char* p = buffer;
     *p++ = '[';
     *p++ = 'D';
@@ -125,6 +130,9 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
     *p++ = ',';
     *p++ = 'S';
     p = fast_itoa(p, scalar_type);
+    *p++ = ',';
+    *p++ = 'G';
+    p = fast_itoa(p, requires_grad);
     *p++ = ']';
     *p = '\0';
 
