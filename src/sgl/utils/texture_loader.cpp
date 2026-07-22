@@ -369,10 +369,12 @@ inline std::vector<ref<Texture>> create_textures(
         textures[i] = create_texture(device, blitter, command_encoder, source_images[i], options[i]);
         if (i && (i % BATCH_SIZE == 0)) {
             device->submit_command_buffer(command_encoder->finish());
+            device->wait();
             command_encoder = device->create_command_encoder();
         }
     }
     device->submit_command_buffer(command_encoder->finish());
+    device->wait();
 
     return textures;
 }
