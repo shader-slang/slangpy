@@ -738,6 +738,18 @@ struct ProfilerImpl {
     bool drain()
     {
         bool dirty = false;
+        // Snapshot the sealed frames before the per-thread zone queues. A zone is published to
+        // its queue (write_index release-store) before it releases from the global frame, and a
+        // frame seals (pushed under sealed_frame_mutex) only after its last zone releases via the
+        // acq-rel global_frame chain. So if this snapshot observes a frame, the later
+        // acquire-load of write_index is guaranteed to see every published zone of that frame.
+        // Reversing the two snapshots reopens the race where a frame finalizes before its zones
+        // are drained, dropping them from the frame's statistics (shader-slang/slangpy#1072).
+        std::vector<CpuEvent> frame_events;
+        {
+            std::lock_guard lock(sealed_frame_mutex);
+            frame_events.swap(sealed_frame_events);
+        }
         drained_cpu_events.clear();
         {
             std::lock_guard thread_lock(thread_mutex);
@@ -751,14 +763,11 @@ struct ProfilerImpl {
                 thread->read_index.value.store(read, std::memory_order_release);
             }
         }
+        // Consume zones before frame markers so a frame's zones populate pending_frames (and
+        // pending_gpu_count) before its marker triggers finalize_ready_frames().
         for (const CpuEvent& event : drained_cpu_events) {
             consume(event);
             dirty = true;
-        }
-        std::vector<CpuEvent> frame_events;
-        {
-            std::lock_guard lock(sealed_frame_mutex);
-            frame_events.swap(sealed_frame_events);
         }
         for (const CpuEvent& event : frame_events) {
             consume(event);
