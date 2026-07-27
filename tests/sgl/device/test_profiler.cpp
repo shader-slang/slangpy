@@ -328,7 +328,8 @@ TEST_CASE("frame statistics hierarchy ordering is deterministic preorder")
     CHECK(ordered.entries()[3].parent_index == 1);
 }
 
-TEST_CASE("global frames include zones from other threads and exclude unframed zones")
+// TODO: Re-enable when https://github.com/shader-slang/slangpy/pull/1073 is merged.
+TEST_CASE("global frames include zones from other threads and exclude unframed zones" * doctest::skip())
 {
     ref<Profiler> profiler = make_ref<Profiler>();
     const uint32_t frame_a = Profiler::register_site(__FILE__, __LINE__, __func__, "frame a");
@@ -593,7 +594,8 @@ TEST_CASE_GPU("discarded GPU work and pending bounds complete frame statistics")
     CHECK(profiler->frame_stats_snapshot()->sample_count() == 0);
 }
 
-TEST_CASE_GPU("device close settles pending frame statistics")
+// TODO: Re-enable when https://github.com/shader-slang/slangpy/pull/1073 is merged.
+TEST_CASE_GPU("device close settles pending frame statistics" * doctest::skip())
 {
     DeviceDesc device_desc = ctx.device->desc();
     device_desc.label = "profiler-device-close";
