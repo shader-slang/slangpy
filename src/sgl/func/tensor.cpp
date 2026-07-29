@@ -411,6 +411,15 @@ void Tensor::broadcast_to_inplace(const slangpy::Shape& new_shape)
 
 void Tensor::clear(CommandEncoder* cmd)
 {
+    // clear_buffer zeroes via a UAV, which D3D12 rejects on a buffer that lacks the
+    // unordered_access flag (it removes the device). For read-only storage, zero by
+    // uploading a host-side zero-filled staging copy instead (copy path, no UAV needed).
+    if (!is_set(m_storage->desc().usage, BufferUsage::unordered_access)) {
+        std::vector<uint8_t> zeros(m_storage->size(), 0);
+        m_storage->set_data(zeros.data(), zeros.size());
+        return;
+    }
+
     if (cmd) {
         cmd->clear_buffer(m_storage);
     } else {
