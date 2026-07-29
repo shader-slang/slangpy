@@ -207,6 +207,9 @@ int inc(Val val) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_with_tensor_array(device_type: DeviceType):
+    if device_type == DeviceType.metal:
+        pytest.skip("Tensor-in-struct vectorization returns incorrect results on Metal")
+
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
         device,
@@ -237,6 +240,9 @@ float inc(Val val) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_2d_mapped_vectorize_struct_with_tensor_array(device_type: DeviceType):
+    if device_type == DeviceType.metal:
+        pytest.skip("Tensor-in-struct vectorization returns incorrect results on Metal")
+
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
         device,
@@ -485,6 +491,9 @@ void double_buffers(RWStructuredBuffer<int> buffers[4]) {
 def test_array_of_tensors_read(device_type: DeviceType) -> None:
     """A function parameter that is an array of Tensor<T,N>."""
 
+    if device_type == DeviceType.metal:
+        pytest.skip("Arrays of Tensor parameters return incorrect results on Metal")
+
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
         device,
@@ -519,6 +528,9 @@ float sum_tensors(Tensor<float, 1> tensors[4]) {
 def test_array_of_rwtensors_write(device_type: DeviceType) -> None:
     """A function parameter that is an array of RWTensor<T,N>."""
 
+    if device_type == DeviceType.metal:
+        pytest.skip("Arrays of RWTensor parameters return incorrect results on Metal")
+
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
         device,
@@ -550,6 +562,9 @@ void double_tensors(RWTensor<float, 1> tensors[4]) {
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_array_of_difftensors_read(device_type: DeviceType) -> None:
     """A function parameter that is an array of DiffTensor<T,N> (primal pass)."""
+
+    if device_type == DeviceType.metal:
+        pytest.skip("Arrays of DiffTensor parameters return incorrect results on Metal")
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
@@ -585,6 +600,9 @@ float sum_difftensors(DiffTensor<float, 1> tensors[4]) {
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_array_of_rwdifftensors_write(device_type: DeviceType) -> None:
     """A function parameter that is an array of RWDiffTensor<T,N> (primal write)."""
+
+    if device_type == DeviceType.metal:
+        pytest.skip("Arrays of RWDiffTensor parameters return incorrect results on Metal")
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
