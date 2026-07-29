@@ -493,6 +493,10 @@ def test_array_of_tensors_read(device_type: DeviceType) -> None:
 
     if device_type == DeviceType.metal:
         pytest.skip("Arrays of Tensor parameters return incorrect results on Metal")
+    if device_type == DeviceType.d3d12:
+        pytest.skip(
+            "Array dispatch with read-only (shader_resource) Tensor input removes the D3D12 device"
+        )
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
@@ -565,6 +569,10 @@ def test_array_of_difftensors_read(device_type: DeviceType) -> None:
 
     if device_type == DeviceType.metal:
         pytest.skip("Arrays of DiffTensor parameters return incorrect results on Metal")
+    if device_type == DeviceType.d3d12:
+        pytest.skip(
+            "Array dispatch with read-only (shader_resource) Tensor input removes the D3D12 device"
+        )
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
