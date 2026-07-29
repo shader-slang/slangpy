@@ -647,5 +647,72 @@ void double_difftensors(RWDiffTensor<float, 1> tensors[4]) {
         assert np.isclose(out[0], (i + 1) * 20.0)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_zeros_shader_resource_only_does_not_remove_device(device_type: DeviceType) -> None:
+    """A read-only (shader_resource) Tensor.zeros must zero-initialize without a UAV clear.
+
+    Regression for https://github.com/shader-slang/slangpy/issues/1079: on D3D12 the
+    unconditional clear_buffer issued a UAV op against a buffer created without the
+    unordered_access flag, which removed the device. Verify creation succeeds, the buffer
+    reads back as zeros, and the device is still usable afterwards.
+    """
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "identity",
+        r"""
+float identity(float x) { return x; }
+""",
+    )
+
+    t = Tensor.zeros(
+        device,
+        dtype=function.module.float,
+        shape=(4,),
+        usage=BufferUsage.shader_resource,
+    )
+    assert np.array_equal(t.to_numpy(), np.zeros(4, dtype=np.float32))
+
+    # Device must still be alive: a subsequent allocation must succeed.
+    t2 = Tensor.zeros(device, dtype=function.module.float, shape=(2,))
+    assert np.array_equal(t2.to_numpy(), np.zeros(2, dtype=np.float32))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_read_only_tensor_to_writable_param_raises_cleanly(device_type: DeviceType) -> None:
+    """Binding a read-only tensor to a writable (RWTensor) parameter must raise a clean
+    Python exception, not remove the device.
+
+    Satisfies ask #2 of https://github.com/shader-slang/slangpy/issues/1079: a usage/role
+    mismatch surfaces as a normal exception and leaves the device usable.
+    """
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "write_one",
+        r"""
+void write_one(RWTensor<float, 1> t) {
+    t.store(int[1](0), 1.0);
+}
+""",
+    )
+
+    t = Tensor.zeros(
+        device,
+        dtype=function.module.float,
+        shape=(1,),
+        usage=BufferUsage.shader_resource,
+    )
+
+    with pytest.raises(Exception, match="(?i)read-only|writable|unordered_access"):
+        function(t)
+
+    # Device must still be alive after the rejected call.
+    survivor = Tensor.zeros(device, dtype=function.module.float, shape=(1,))
+    assert np.array_equal(survivor.to_numpy(), np.zeros(1, dtype=np.float32))
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
