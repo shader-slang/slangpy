@@ -207,6 +207,7 @@ int inc(Val val) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_vectorize_struct_with_tensor_array(device_type: DeviceType):
+    # https://github.com/shader-slang/slangpy/issues/1079
     if device_type == DeviceType.metal:
         pytest.skip("Tensor-in-struct vectorization returns incorrect results on Metal")
 
@@ -240,6 +241,7 @@ float inc(Val val) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_2d_mapped_vectorize_struct_with_tensor_array(device_type: DeviceType):
+    # https://github.com/shader-slang/slangpy/issues/1079
     if device_type == DeviceType.metal:
         pytest.skip("Tensor-in-struct vectorization returns incorrect results on Metal")
 
@@ -491,6 +493,7 @@ void double_buffers(RWStructuredBuffer<int> buffers[4]) {
 def test_array_of_tensors_read(device_type: DeviceType) -> None:
     """A function parameter that is an array of Tensor<T,N>."""
 
+    # https://github.com/shader-slang/slangpy/issues/1079
     if device_type == DeviceType.metal:
         pytest.skip("Arrays of Tensor parameters return incorrect results on Metal")
     if device_type == DeviceType.d3d12:
@@ -532,6 +535,7 @@ float sum_tensors(Tensor<float, 1> tensors[4]) {
 def test_array_of_rwtensors_write(device_type: DeviceType) -> None:
     """A function parameter that is an array of RWTensor<T,N>."""
 
+    # https://github.com/shader-slang/slangpy/issues/1079
     if device_type == DeviceType.metal:
         pytest.skip("Arrays of RWTensor parameters return incorrect results on Metal")
 
@@ -567,6 +571,7 @@ void double_tensors(RWTensor<float, 1> tensors[4]) {
 def test_array_of_difftensors_read(device_type: DeviceType) -> None:
     """A function parameter that is an array of DiffTensor<T,N> (primal pass)."""
 
+    # https://github.com/shader-slang/slangpy/issues/1079
     if device_type == DeviceType.metal:
         pytest.skip("Arrays of DiffTensor parameters return incorrect results on Metal")
     if device_type == DeviceType.d3d12:
@@ -609,6 +614,7 @@ float sum_difftensors(DiffTensor<float, 1> tensors[4]) {
 def test_array_of_rwdifftensors_write(device_type: DeviceType) -> None:
     """A function parameter that is an array of RWDiffTensor<T,N> (primal write)."""
 
+    # https://github.com/shader-slang/slangpy/issues/1079
     if device_type == DeviceType.metal:
         pytest.skip("Arrays of RWDiffTensor parameters return incorrect results on Metal")
 
