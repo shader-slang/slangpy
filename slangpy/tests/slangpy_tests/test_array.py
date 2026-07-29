@@ -5,7 +5,6 @@ import pytest
 
 from slangpy import BufferUsage, DeviceType, Tensor
 from slangpy.testing import helpers
-from slangpy.types import Tensor
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -604,7 +603,7 @@ void double_difftensors(RWDiffTensor<float, 1> tensors[4]) {
     tensors: list[Tensor] = []
     for i in range(4):
         t = Tensor.zeros(device, dtype=function.module.float, shape=(1,))
-        t = t.with_grads(grad_out=Tensor.zeros_like(t))
+        t = t.with_grads(grad_in=Tensor.zeros_like(t), grad_out=Tensor.zeros_like(t))
         t.copy_from_numpy(np.array([(i + 1) * 10], dtype=np.float32))
         tensors.append(t)
 
