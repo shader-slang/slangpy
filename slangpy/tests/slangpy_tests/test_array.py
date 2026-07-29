@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from slangpy import BufferUsage, DeviceType, Tensor
+from slangpy.core.callsignature import ResolveException
 from slangpy.testing import helpers
 
 
@@ -649,12 +650,8 @@ void double_difftensors(RWDiffTensor<float, 1> tensors[4]) {
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_zeros_shader_resource_only_does_not_remove_device(device_type: DeviceType) -> None:
-    """A read-only (shader_resource) Tensor.zeros must zero-initialize without a UAV clear.
-
-    Regression for https://github.com/shader-slang/slangpy/issues/1079: on D3D12 the
-    unconditional clear_buffer issued a UAV op against a buffer created without the
-    unordered_access flag, which removed the device. Verify creation succeeds, the buffer
-    reads back as zeros, and the device is still usable afterwards.
+    """A read-only (shader_resource, no UAV) tensor zeroes correctly and the device stays
+    usable. See https://github.com/shader-slang/slangpy/issues/1079.
     """
 
     device = helpers.get_device(device_type)
@@ -687,11 +684,8 @@ float identity(float x) { return x; }
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_read_only_tensor_to_writable_param_raises_cleanly(device_type: DeviceType) -> None:
-    """Binding a read-only tensor to a writable (RWTensor) parameter must raise a clean
-    Python exception, not remove the device.
-
-    Satisfies ask #2 of https://github.com/shader-slang/slangpy/issues/1079: a usage/role
-    mismatch surfaces as a normal exception and leaves the device usable.
+    """A read-only tensor bound to a writable RWTensor parameter is rejected at resolution
+    and the device stays usable. See https://github.com/shader-slang/slangpy/issues/1079.
     """
 
     device = helpers.get_device(device_type)
@@ -712,7 +706,9 @@ void write_one(RWTensor<float, 1> t) {
         usage=BufferUsage.shader_resource,
     )
 
-    with pytest.raises(Exception, match="Can't pass a read-only tensor to a writable tensor"):
+    with pytest.raises(
+        ResolveException, match="Can't pass a read-only tensor to a writable tensor"
+    ):
         function(t)
 
     # Device must still be alive after the rejected call.
@@ -724,14 +720,10 @@ void write_one(RWTensor<float, 1> t) {
 def test_array_of_read_only_tensors_to_rwtensor_array_raises_cleanly(
     device_type: DeviceType,
 ) -> None:
-    """Passing a list of read-only tensors to a writable RWTensor<T,N>[k] parameter must
-    raise a clean Python exception and leave the device usable.
-
-    This is the array-context counterpart of ask #2 in
-    https://github.com/shader-slang/slangpy/issues/1079. The array path resolves element
-    types by name (Tensor vs RWTensor) rather than adapting access like the scalar path, so
-    the mismatch must be rejected before any GPU dispatch (which would otherwise remove the
-    D3D12 device on a non-UAV buffer).
+    """A list of read-only tensors bound to a writable RWTensor<T,N>[k] parameter is
+    rejected at resolution and the device stays usable. The array path resolves element
+    types by name (Tensor vs RWTensor) with no access-adaptation, so this is distinct from
+    the scalar case. See https://github.com/shader-slang/slangpy/issues/1079.
     """
 
     device = helpers.get_device(device_type)
@@ -758,11 +750,12 @@ void double_tensors(RWTensor<float, 1> tensors[4]) {
         )
         tensors.append(t)
 
-    with pytest.raises(Exception, match=r"does not match slang type RWTensor<float, 1>\[4\]"):
+    with pytest.raises(
+        ResolveException, match=r"does not match slang type RWTensor<float, 1>\[4\]"
+    ):
         function(tensors)
 
-    # Device must still be alive after the rejected call (the cascade otherwise masquerades
-    # as an infra flake - see issue #1079).
+    # Device must still be alive after the rejected call.
     survivor = Tensor.zeros(device, dtype=function.module.float, shape=(1,))
     assert np.array_equal(survivor.to_numpy(), np.zeros(1, dtype=np.float32))
 
