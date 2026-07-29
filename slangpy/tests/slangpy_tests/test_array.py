@@ -674,6 +674,12 @@ float identity(float x) { return x; }
     )
     assert np.array_equal(t.to_numpy(), np.zeros(4, dtype=np.float32))
 
+    # clear() must actually zero the storage, not merely rely on freshly-allocated memory
+    # happening to be zero: fill with nonzero data, then clear, then read back.
+    t.copy_from_numpy(np.array([1, 2, 3, 4], dtype=np.float32))
+    t.clear()
+    assert np.array_equal(t.to_numpy(), np.zeros(4, dtype=np.float32))
+
     # Device must still be alive: a subsequent allocation must succeed.
     t2 = Tensor.zeros(device, dtype=function.module.float, shape=(2,))
     assert np.array_equal(t2.to_numpy(), np.zeros(2, dtype=np.float32))
@@ -706,7 +712,7 @@ void write_one(RWTensor<float, 1> t) {
         usage=BufferUsage.shader_resource,
     )
 
-    with pytest.raises(Exception, match="(?i)read-only|writable|unordered_access"):
+    with pytest.raises(Exception, match="Can't pass a read-only tensor to a writable tensor"):
         function(t)
 
     # Device must still be alive after the rejected call.
@@ -752,7 +758,7 @@ void double_tensors(RWTensor<float, 1> tensors[4]) {
         )
         tensors.append(t)
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match=r"does not match slang type RWTensor<float, 1>\[4\]"):
         function(tensors)
 
     # Device must still be alive after the rejected call (the cascade otherwise masquerades
