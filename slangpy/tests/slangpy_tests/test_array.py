@@ -714,5 +714,52 @@ void write_one(RWTensor<float, 1> t) {
     assert np.array_equal(survivor.to_numpy(), np.zeros(1, dtype=np.float32))
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_array_of_read_only_tensors_to_rwtensor_array_raises_cleanly(
+    device_type: DeviceType,
+) -> None:
+    """Passing a list of read-only tensors to a writable RWTensor<T,N>[k] parameter must
+    raise a clean Python exception and leave the device usable.
+
+    This is the array-context counterpart of ask #2 in
+    https://github.com/shader-slang/slangpy/issues/1079. The array path resolves element
+    types by name (Tensor vs RWTensor) rather than adapting access like the scalar path, so
+    the mismatch must be rejected before any GPU dispatch (which would otherwise remove the
+    D3D12 device on a non-UAV buffer).
+    """
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "double_tensors",
+        r"""
+void double_tensors(RWTensor<float, 1> tensors[4]) {
+    for (int i = 0; i < 4; i++) {
+        float v = tensors[i].load(int[1](0));
+        tensors[i].store(int[1](0), v * 2.0);
+    }
+}
+""",
+    )
+
+    tensors: list[Tensor] = []
+    for i in range(4):
+        t = Tensor.zeros(
+            device,
+            dtype=function.module.float,
+            shape=(1,),
+            usage=BufferUsage.shader_resource,
+        )
+        tensors.append(t)
+
+    with pytest.raises(Exception):
+        function(tensors)
+
+    # Device must still be alive after the rejected call (the cascade otherwise masquerades
+    # as an infra flake - see issue #1079).
+    survivor = Tensor.zeros(device, dtype=function.module.float, shape=(1,))
+    assert np.array_equal(survivor.to_numpy(), np.zeros(1, dtype=np.float32))
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
