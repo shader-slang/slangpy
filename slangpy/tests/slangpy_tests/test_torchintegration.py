@@ -5,6 +5,7 @@ import sys
 import numpy as np
 
 from slangpy import DeviceType, Device, Module, grid
+from slangpy.core.callsignature import ResolveException
 from slangpy.core.native import NativeCallDataCache, SignatureBuilder
 from slangpy.testing import helpers
 
@@ -61,12 +62,12 @@ def setup_bridge_mode(torch_bridge_mode: str):
 @pytest.mark.parametrize(
     "pair",
     [
-        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6"),
-        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6"),
-        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5"),
-        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3"),
-        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0"),
-        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0"),
+        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6,V1"),
+        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6,V1"),
+        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5,V1"),
+        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3,V1"),
+        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0,V1"),
+        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0,V111"),
     ],
 )
 def test_torch_signature(pair: tuple[torch.Tensor, str]):
@@ -74,6 +75,98 @@ def test_torch_signature(pair: tuple[torch.Tensor, str]):
     sig = SignatureBuilder()
     cd.get_value_signature(sig, pair[0])
     assert sig.str == f"torch\n[{pair[1]}]"
+
+
+def _torch_signature(tensor: torch.Tensor) -> str:
+    cache = NativeCallDataCache()
+    signature = SignatureBuilder()
+    cache.get_value_signature(signature, tensor)
+    return signature.str
+
+
+def test_torch_signature_shape_compatibility() -> None:
+    rgba_small = torch.empty((720, 1280, 4), dtype=torch.float32, device="cuda")
+    rgba_large = torch.empty((1080, 1920, 4), dtype=torch.float32, device="cuda")
+    rgb = torch.empty((720, 1280, 3), dtype=torch.float32, device="cuda")
+    mixed = torch.empty((2, 3, 4), dtype=torch.float32, device="cuda")
+
+    rgba_small_signature = _torch_signature(rgba_small)
+    assert rgba_small_signature == _torch_signature(rgba_large)
+    assert rgba_small_signature != _torch_signature(rgb)
+    assert _torch_signature(mixed) == "torch\n[D3,S6,V234]"
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "shape,dtype,expected",
+    [
+        ((2, 3, 3), torch.float32, 3.0),
+        ((2, 3, 4), torch.float32, 4.0),
+        ((2, 3, 4), torch.float16, 8.0),
+    ],
+)
+def test_select_vector_overload(
+    device_type: DeviceType,
+    shape: tuple[int, ...],
+    dtype: torch.dtype,
+    expected: float,
+) -> None:
+    module = load_test_module(device_type)
+    value = torch.zeros(shape, dtype=dtype, device="cuda")
+
+    result = module.select_vector_overload(value)
+
+    assert isinstance(result, torch.Tensor)
+    assert result.shape == value.shape
+    assert result.dtype == value.dtype
+    assert torch.all(result == expected)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_select_vector_overload_reuses_resolution_compatible_call_data(
+    device_type: DeviceType,
+) -> None:
+    module = load_test_module(device_type)
+    function = module.select_vector_overload.as_func()
+
+    rgba_small = torch.empty((8, 16, 4), dtype=torch.float32, device="cuda")
+    rgba_large = torch.empty((12, 20, 4), dtype=torch.float32, device="cuda")
+    rgb = torch.empty((8, 16, 3), dtype=torch.float32, device="cuda")
+
+    rgba_small_call_data = function.debug_build_call_data(rgba_small)
+    rgba_large_call_data = function.debug_build_call_data(rgba_large)
+    rgb_call_data = function.debug_build_call_data(rgb)
+
+    assert rgba_small_call_data == rgba_large_call_data
+    assert rgba_small_call_data != rgb_call_data
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_select_vector_overload_with_explicit_mapping(device_type: DeviceType) -> None:
+    module = load_test_module(device_type)
+    value = torch.zeros((2, 3, 4), dtype=torch.float32, device="cuda")
+
+    result = module.select_vector_overload.map((1, 0))(value)
+
+    assert isinstance(result, torch.Tensor)
+    assert result.shape == (3, 2, 4)
+    assert torch.all(result == 4.0)
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("matrix_shape", [(2, 3), (3, 2)])
+def test_select_matrix_overload(
+    device_type: DeviceType,
+    matrix_shape: tuple[int, int],
+) -> None:
+    module = load_test_module(device_type)
+    value = torch.randn((5,) + matrix_shape, dtype=torch.float32, device="cuda")
+
+    result = module.select_matrix_overload(value)
+
+    assert isinstance(result, torch.Tensor)
+    assert result.shape == value.shape
+    assert torch.all(result == value)
 
 
 ADD_TESTS = [
@@ -163,7 +256,7 @@ def test_add_values_fail(
     a = torch.randn(extra_shape + val_shape, dtype=torch.float32, device=torch.device("cuda"))
     b = torch.randn(extra_shape + val_shape, dtype=torch.float32, device=torch.device("cuda"))
 
-    with pytest.raises(ValueError, match="does not match expected shape"):
+    with pytest.raises(ResolveException, match="does not match slang type"):
         res = module.add_vectors(a, b)
 
 

@@ -10,6 +10,7 @@ the torch_bridge_mode fixture.
 
 import pytest
 import sys
+import ctypes
 
 try:
     import torch
@@ -67,6 +68,43 @@ class TestTorchBridgeAvailability:
         assert slangpy.is_torch_tensor("hello") is False
         assert slangpy.is_torch_tensor(42) is False
         # Note: None is not accepted by the function (nanobind rejects it)
+
+    def test_native_signature_buffer_size_contract(self):
+        """The native C API requires its fixed allowance plus the tensor rank."""
+        import slangpy_torch
+
+        class TensorBridgeAPI(ctypes.Structure):
+            _fields_ = [
+                ("api_version", ctypes.c_int),
+                ("info_struct_size", ctypes.c_size_t),
+                ("extract", ctypes.c_void_p),
+                ("is_tensor", ctypes.c_void_p),
+                ("get_signature", ctypes.c_void_p),
+            ]
+
+        api = ctypes.cast(
+            slangpy_torch.get_api_ptr(),
+            ctypes.POINTER(TensorBridgeAPI),
+        ).contents
+        get_signature = ctypes.PYFUNCTYPE(
+            ctypes.c_int,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_char),
+            ctypes.c_size_t,
+        )(api.get_signature)
+
+        tensor = torch.empty((4, 3, 2), dtype=torch.float32)
+        required_size = 64 + tensor.ndim
+
+        buffer = ctypes.create_string_buffer(required_size - 1)
+        result = get_signature(ctypes.c_void_p(id(tensor)), buffer, len(buffer))
+        assert result == -5
+        assert buffer.value == b""
+
+        buffer = ctypes.create_string_buffer(required_size)
+        result = get_signature(ctypes.c_void_p(id(tensor)), buffer, len(buffer))
+        assert result == 0
+        assert buffer.value == b"[D3,S6,V432]"
 
 
 class TestTorchTensorExtraction:
@@ -225,11 +263,25 @@ class TestTorchTensorExtraction:
         assert arr[2] == 3.0
         assert arr[3] == 4.0
 
-    def test_extract_tensor_signature(self):
-        """Test extraction of tensor signature."""
-        t = torch.zeros(4, 4, dtype=torch.float32)
-        signature = slangpy.extract_torch_tensor_signature(t)
-        assert signature == "[D2,S6]"
+    @pytest.mark.parametrize(
+        "shape,expected",
+        [
+            ((), "[D0,S6,V]"),
+            ((1, 2, 3, 4), "[D4,S6,V1234]"),
+            ((0, 4), "[D2,S6,Vx4]"),
+            ((5, 1024, 3), "[D3,S6,Vxx3]"),
+            ((2,) * 16, "[D16,S6,V2222222222222222]"),
+        ],
+    )
+    def test_extract_tensor_signature(
+        self,
+        shape: tuple[int, ...],
+        expected: str,
+    ) -> None:
+        """Test bounded shape compatibility in tensor signatures."""
+        tensor = torch.empty(shape, dtype=torch.float32)
+        signature = slangpy.extract_torch_tensor_signature(tensor)
+        assert signature == expected
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")

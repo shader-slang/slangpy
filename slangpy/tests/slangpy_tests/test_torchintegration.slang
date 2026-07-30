@@ -11,6 +11,26 @@ float3 add_vectors(float3 a, float3 b) {
     return a + b;
 }
 
+float3 select_vector_overload(float3 value) {
+    return float3(3.0);
+}
+
+float4 select_vector_overload(float4 value) {
+    return float4(4.0);
+}
+
+half4 select_vector_overload(half4 value) {
+    return half4(8.0h);
+}
+
+float2x3 select_matrix_overload(float2x3 value) {
+    return value;
+}
+
+float3x2 select_matrix_overload(float3x2 value) {
+    return value;
+}
+
 [Differentiable]
 vector<float,N> add_vectors_generic<let N:int>(vector<float,N> a, vector<float,N> b) {
     return a + b;

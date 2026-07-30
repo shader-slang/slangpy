@@ -1138,10 +1138,14 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
 
     // Fast path: Signature for pytorch tensors via torch bridge
     if (TorchBridge::instance().is_available()) {
-        char buffer[64];
-        if (TorchBridge::instance().get_signature(o, buffer, sizeof(buffer)) == 0) {
+        char buffer[TENSOR_BRIDGE_SIGNATURE_BUFFER_SIZE];
+        int result = TorchBridge::instance().get_signature(o, buffer, sizeof(buffer));
+        if (result == TENSOR_BRIDGE_SUCCESS) {
             builder << "torch\n" << buffer;
             return;
+        }
+        if (result == TENSOR_BRIDGE_ERROR_BUFFER_TOO_SMALL) {
+            throw std::runtime_error("Torch tensor signature exceeds the supported buffer size");
         }
     }
 
