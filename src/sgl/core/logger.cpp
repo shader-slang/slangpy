@@ -259,16 +259,25 @@ void Logger::set_level(LogLevel level)
 
 void Logger::log(LogLevel level, const std::string_view msg, LogFrequency frequency)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::set<ref<LoggerOutput>> outputs;
+    std::string name;
 
-    if (level != LogLevel::none && level < m_level)
-        return;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
 
-    if (frequency == LogFrequency::once && is_duplicate(msg))
-        return;
+        if (level != LogLevel::none && level < m_level)
+            return;
 
-    for (const auto& output : m_outputs)
-        output->write(level, m_name, msg);
+        if (frequency == LogFrequency::once && is_duplicate(msg))
+            return;
+
+        // Outputs may re-enter the logger or call into another runtime such as Python.
+        outputs = m_outputs;
+        name = m_name;
+    }
+
+    for (const auto& output : outputs)
+        output->write(level, name, msg);
 }
 
 static ref<Logger> s_logger;
