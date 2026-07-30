@@ -74,6 +74,8 @@ def test_buffer(device_type: spy.DeviceType, type: str, size_MB: int):
     ):
         pytest.skip("MoltenVK does not support large byte buffers")
     if device_type == spy.DeviceType.cuda and type == "buffer_uint":
+        # Paired with the __TARGET_CUDA__ guard on copy_buffer_uint in
+        # test_buffer.slang -- the two must be removed together.
         pytest.skip("CUDA does not support Buffer/RWBuffer resources")
     if device_type == spy.DeviceType.cuda and size_MB > 1024:
         pytest.skip("Large buffers sometimes lead to crashes on CUDA")

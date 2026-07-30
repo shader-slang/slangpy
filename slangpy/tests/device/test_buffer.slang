@@ -26,7 +26,8 @@ void copy_byte_address_buffer(
 // Buffer<uint>
 // Typed Buffer<T>/RWBuffer<T> are unsupported on CUDA (slang diagnoses them as
 // E36107); guarding the entry point keeps the shared module loadable on CUDA for
-// its sibling entry points. See shader-slang/slang#12289.
+// its sibling entry points. See shader-slang/slang#12289. Paired with the CUDA
+// skip for "buffer_uint" in test_buffer.py -- the two must be removed together.
 #ifndef __TARGET_CUDA__
 
 [shader("compute")]
