@@ -13,6 +13,7 @@ if(SGL_BUILD_TESTS)
         sgl/core/test_enum.cpp
         sgl/core/test_file_system_watcher.cpp
         sgl/core/test_lmdb_cache.cpp
+        sgl/core/test_logger.cpp
         sgl/core/test_maths.cpp
         sgl/core/test_memory_mapped_file.cpp
         sgl/core/test_object.cpp

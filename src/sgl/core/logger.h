@@ -39,6 +39,7 @@ public:
     virtual ~LoggerOutput() = default;
 
     /// Write a log message.
+    /// Implementations must support calls from multiple threads.
     /// \param level The log level.
     /// \param module The module name.
     /// \param msg The message.
