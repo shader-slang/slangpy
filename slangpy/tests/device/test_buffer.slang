@@ -24,6 +24,10 @@ void copy_byte_address_buffer(
 }
 
 // Buffer<uint>
+// Typed Buffer<T>/RWBuffer<T> are unsupported on CUDA (slang diagnoses them as
+// E36107); guarding the entry point keeps the shared module loadable on CUDA for
+// its sibling entry points. See shader-slang/slang#12289.
+#ifndef __TARGET_CUDA__
 
 [shader("compute")]
 [numthreads(32, 1, 1)]
@@ -40,6 +44,8 @@ void copy_buffer_uint(
     if (i < count)
         dst[dst_offset + i] = src[src_offset + i];
 }
+
+#endif // __TARGET_CUDA__
 
 // StructuredBuffer<uint>
 
