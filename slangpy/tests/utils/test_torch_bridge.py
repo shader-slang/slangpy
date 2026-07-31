@@ -71,7 +71,7 @@ class TestTorchBridgeAvailability:
 
     def test_native_signature_buffer_size_contract(self):
         """The native C API requires its fixed allowance plus the tensor rank."""
-        import slangpy_torch
+        slangpy_torch = pytest.importorskip("slangpy_torch")
 
         class TensorBridgeAPI(ctypes.Structure):
             _fields_ = [

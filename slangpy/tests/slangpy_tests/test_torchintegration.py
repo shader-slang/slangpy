@@ -4,9 +4,13 @@ import pytest
 import sys
 import numpy as np
 
-from slangpy import DeviceType, Device, Module, grid
+from slangpy import DeviceType, Device, Module, diff_pair, grid
 from slangpy.core.callsignature import ResolveException
-from slangpy.core.native import NativeCallDataCache, SignatureBuilder
+from slangpy.core.native import (
+    NativeCallDataCache,
+    NativeTorchTensorDiffPair,
+    SignatureBuilder,
+)
 from slangpy.testing import helpers
 
 try:
@@ -96,6 +100,34 @@ def test_torch_signature_shape_compatibility() -> None:
     assert _torch_signature(mixed) == "torch\n[D3,S6,V234]"
 
 
+def _diff_pair_signature(pair: NativeTorchTensorDiffPair) -> str:
+    cache = NativeCallDataCache()
+    signature = SignatureBuilder()
+    cache.get_value_signature(signature, pair)
+    return signature.str
+
+
+def test_diff_pair_signature_includes_marshaller_configuration() -> None:
+    float_value = torch.empty((8, 8), dtype=torch.float32, device="cuda")
+    half_value = torch.empty((8, 8), dtype=torch.float16, device="cuda")
+
+    signatures = {
+        _diff_pair_signature(NativeTorchTensorDiffPair(float_value, float_value, is_input=True)),
+        _diff_pair_signature(NativeTorchTensorDiffPair(float_value, float_value, is_input=False)),
+        _diff_pair_signature(NativeTorchTensorDiffPair(float_value, None, is_input=True)),
+        _diff_pair_signature(NativeTorchTensorDiffPair(None, float_value, is_input=False)),
+    }
+    assert len(signatures) == 4
+
+    float_grad_signature = _diff_pair_signature(
+        NativeTorchTensorDiffPair(None, float_value, is_input=False)
+    )
+    half_grad_signature = _diff_pair_signature(
+        NativeTorchTensorDiffPair(None, half_value, is_input=False)
+    )
+    assert float_grad_signature != half_grad_signature
+
+
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 @pytest.mark.parametrize(
     "shape,dtype,expected",
@@ -139,6 +171,82 @@ def test_select_vector_overload_reuses_resolution_compatible_call_data(
 
     assert rgba_small_call_data == rgba_large_call_data
     assert rgba_small_call_data != rgb_call_data
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diff_pair_vector_overload_uses_shape_specific_call_data(
+    device_type: DeviceType,
+) -> None:
+    module = load_test_module(device_type)
+    function = module.select_differentiable_vector_overload.bwds
+
+    float3 = torch.zeros((8, 16, 3), dtype=torch.float32, device="cuda")
+    float4 = torch.zeros((8, 16, 4), dtype=torch.float32, device="cuda")
+
+    float3_call_data = function.debug_build_call_data(
+        diff_pair(float3, torch.zeros_like(float3)),
+        _result=diff_pair(float3, torch.ones_like(float3)),
+    )
+    float4_call_data = function.debug_build_call_data(
+        diff_pair(float4, torch.zeros_like(float4)),
+        _result=diff_pair(float4, torch.ones_like(float4)),
+    )
+
+    assert float3_call_data != float4_call_data
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_diff_pair_scalar_call_data_is_rank_specific(
+    device_type: DeviceType,
+) -> None:
+    module = load_test_module(device_type)
+    function = module.differentiable_identity.bwds
+
+    rank1 = torch.zeros((8,), dtype=torch.float32, device="cuda")
+    rank2 = torch.zeros((8, 8), dtype=torch.float32, device="cuda")
+
+    rank1_call_data = function.debug_build_call_data(
+        diff_pair(rank1, torch.zeros_like(rank1)),
+        _result=diff_pair(rank1, torch.ones_like(rank1)),
+    )
+    rank2_call_data = function.debug_build_call_data(
+        diff_pair(rank2, torch.zeros_like(rank2)),
+        _result=diff_pair(rank2, torch.ones_like(rank2)),
+    )
+
+    assert rank1_call_data != rank2_call_data
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "first_dtype,second_dtype",
+    [
+        (torch.float32, torch.float16),
+        (torch.float16, torch.float32),
+    ],
+    ids=["float_then_half", "half_then_float"],
+)
+def test_diff_pair_scalar_overload_uses_dtype_specific_call_data(
+    device_type: DeviceType,
+    first_dtype: torch.dtype,
+    second_dtype: torch.dtype,
+) -> None:
+    module = load_test_module(device_type)
+    function = module.select_differentiable_scalar_overload.bwds
+
+    first_value = torch.zeros((8, 8), dtype=first_dtype, device="cuda")
+    second_value = torch.zeros((8, 8), dtype=second_dtype, device="cuda")
+
+    first_call_data = function.debug_build_call_data(
+        diff_pair(first_value, torch.zeros_like(first_value)),
+        _result=diff_pair(first_value, torch.ones_like(first_value)),
+    )
+    second_call_data = function.debug_build_call_data(
+        diff_pair(second_value, torch.zeros_like(second_value)),
+        _result=diff_pair(second_value, torch.ones_like(second_value)),
+    )
+
+    assert first_call_data != second_call_data
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)

@@ -23,6 +23,31 @@ half4 select_vector_overload(half4 value) {
     return half4(8.0h);
 }
 
+[Differentiable]
+float differentiable_identity(float value) {
+    return value;
+}
+
+[Differentiable]
+float select_differentiable_scalar_overload(float value) {
+    return value;
+}
+
+[Differentiable]
+half select_differentiable_scalar_overload(half value) {
+    return value;
+}
+
+[Differentiable]
+float3 select_differentiable_vector_overload(float3 value) {
+    return value;
+}
+
+[Differentiable]
+float4 select_differentiable_vector_overload(float4 value) {
+    return value;
+}
+
 float2x3 select_matrix_overload(float2x3 value) {
     return value;
 }

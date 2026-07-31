@@ -1071,6 +1071,24 @@ NativeCallDataCache::NativeCallDataCache()
     m_cache.reserve(1024);
 }
 
+static bool try_append_torch_tensor_signature(SignatureBuffer& builder, nb::handle tensor, std::string_view prefix)
+{
+    auto& bridge = TorchBridge::instance();
+    if (!bridge.is_available())
+        return false;
+
+    char buffer[TENSOR_BRIDGE_SIGNATURE_BUFFER_SIZE];
+    int result = bridge.get_signature(tensor, buffer, sizeof(buffer));
+    if (result == TENSOR_BRIDGE_SUCCESS) {
+        builder << prefix << buffer;
+        return true;
+    }
+    if (result == TENSOR_BRIDGE_ERROR_BUFFER_TOO_SMALL) {
+        throw std::runtime_error("Torch tensor signature exceeds the supported buffer size");
+    }
+    return false;
+}
+
 void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::handle o)
 {
     // Get python type.
@@ -1085,6 +1103,26 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
             // Native cursor-writer entries own their cache key without requiring simple functional fallback metadata.
             // This is what lets Buffer/Texture keep bespoke marshalls while avoiding the Python signature path.
             writer->info->write_signature(builder, writer->value);
+            return;
+        }
+
+        const NativeTorchTensorDiffPair* diff_pair;
+        if (nb::try_cast<const NativeTorchTensorDiffPair*>(o, diff_pair)) {
+            bool has_primal = diff_pair->primal.is_valid() && !diff_pair->primal.is_none();
+            bool has_grad = diff_pair->grad.is_valid() && !diff_pair->grad.is_none();
+            if (!has_primal && !has_grad) {
+                throw nb::value_error("TorchTensorDiffPair must have at least primal or grad tensor");
+            }
+
+            builder << type_info.name() << "\n";
+            builder << (diff_pair->is_input ? "I1" : "I0");
+            builder << (has_primal ? "P1" : "P0");
+            builder << (has_grad ? "G1\n" : "G0\n");
+
+            nb::handle tensor = has_primal ? diff_pair->primal : diff_pair->grad;
+            if (!try_append_torch_tensor_signature(builder, tensor, "")) {
+                throw nb::value_error("TorchTensorDiffPair primal or grad must be a PyTorch tensor");
+            }
             return;
         }
 
@@ -1137,17 +1175,8 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
     }
 
     // Fast path: Signature for pytorch tensors via torch bridge
-    if (TorchBridge::instance().is_available()) {
-        char buffer[TENSOR_BRIDGE_SIGNATURE_BUFFER_SIZE];
-        int result = TorchBridge::instance().get_signature(o, buffer, sizeof(buffer));
-        if (result == TENSOR_BRIDGE_SUCCESS) {
-            builder << "torch\n" << buffer;
-            return;
-        }
-        if (result == TENSOR_BRIDGE_ERROR_BUFFER_TOO_SMALL) {
-            throw std::runtime_error("Torch tensor signature exceeds the supported buffer size");
-        }
-    }
+    if (try_append_torch_tensor_signature(builder, o, "torch\n"))
+        return;
 
     // Add type name.
     auto type_name = nb::str(nb::getattr(o.type(), "__name__"));
