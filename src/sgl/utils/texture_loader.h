@@ -60,6 +60,15 @@ public:
      */
     ref<Texture> load_texture(const Bitmap* bitmap, std::optional<Options> options = {});
 
+    /// Load a texture from an image stream.
+    ///
+    /// The stream must be readable and seekable. All image formats supported
+    /// by the file-path overload, including DDS, are supported.
+    /// @param stream Image data stream.
+    /// @param options Texture loading options.
+    /// @return New texture object.
+    ref<Texture> load_texture(Stream* stream, std::optional<Options> options = {});
+
     /**
      * \brief Load a texture from an image file.
      *
