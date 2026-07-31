@@ -27,6 +27,11 @@ extern "C" {
 // Callers needing more dimensions can provide larger buffers
 #define TENSOR_BRIDGE_DEFAULT_DIMS 16
 
+// Tensor cache signatures require a fixed allowance for rank/dtype formatting,
+// plus one compatibility character per tensor dimension.
+#define TENSOR_BRIDGE_SIGNATURE_BASE_SIZE 64
+#define TENSOR_BRIDGE_SIGNATURE_BUFFER_SIZE 128
+
 // Device type codes (matching c10::DeviceType)
 #define TENSOR_BRIDGE_DEVICE_CPU 0
 #define TENSOR_BRIDGE_DEVICE_CUDA 1
@@ -139,9 +144,12 @@ typedef int (*TensorBridge_IsTensorFn)(void* py_tensor_obj);
 // Parameters:
 //   py_tensor_obj: PyObject* that should be a torch.Tensor
 //   buffer: Output buffer for signature string
-//   buffer_size: Size of output buffer in bytes
+//   buffer_size: Size of output buffer in bytes. Must be at least
+//                TENSOR_BRIDGE_SIGNATURE_BASE_SIZE + tensor rank.
 // Returns: TENSOR_BRIDGE_SUCCESS (0) on success, or a negative TensorBridgeResult on error
-// Format: "[Dn,Sm]" where n=ndim, m=scalar_type
+// Format: "[Dn,Sm,V...]" where n=ndim, m=scalar_type, and V contains one
+// shape compatibility character per dimension: '1' through '4' for those
+// exact extents, or 'x' for zero and extents greater than four.
 // This is faster than full extraction when only signature is needed (~15ns)
 typedef int (*TensorBridge_GetSignatureFn)(void* py_tensor_obj, char* buffer, size_t buffer_size);
 
@@ -190,7 +198,7 @@ typedef void* (*TensorBridge_CreateZerosLikeFn)(void* py_tensor_obj);
 // ============================================================================
 // Version info for ABI compatibility checking
 // ============================================================================
-#define TENSOR_BRIDGE_API_VERSION 7
+#define TENSOR_BRIDGE_API_VERSION 8
 
 typedef struct TensorBridgeAPI {
     int api_version;
