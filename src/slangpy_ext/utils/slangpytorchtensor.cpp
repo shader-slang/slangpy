@@ -270,6 +270,12 @@ void NativeTorchTensorMarshall::write_shader_cursor_pre_dispatch(
     NativeTorchTensorDiffPair* pair;
     if (nb::try_cast(value, pair)) {
         // NativeTorchTensorDiffPair case
+        if (pair->primal.is_none()) {
+            SGL_THROW(
+                "NativeTorchTensorDiffPair primal tensor cannot be None. "
+                "Save the forward primal and pass it to the backward call because Slang replays the forward pass."
+            );
+        }
         primal_value = pair->primal;
         grad_value = pair->grad;
     } else {
