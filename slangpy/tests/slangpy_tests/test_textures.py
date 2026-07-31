@@ -183,7 +183,7 @@ def test_read_write_texture(device_type: DeviceType, slices: int, mips: int, typ
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
-        return
+        pytest.skip("3D texture arrays not supported")
 
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
@@ -236,7 +236,7 @@ def test_read_write_texture_with_resource_views(
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
-        return
+        pytest.skip("3D texture arrays not supported")
 
     # populate a buffer of grid coordinates
     grid_coords_data = make_grid_data(type, slices)
@@ -291,7 +291,7 @@ def test_copy_value(device_type: DeviceType, slices: int, mips: int, type: Textu
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
-        return
+        pytest.skip("3D texture arrays not supported")
 
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
@@ -329,7 +329,7 @@ def test_copy_mip_values_with_resource_views(
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
-        return
+        pytest.skip("3D texture arrays not supported")
 
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
@@ -374,7 +374,7 @@ def test_copy_mip_values_with_all_uav_resource_views(
 
     # No 3d texture arrays.
     if type == TextureType.texture_3d and slices > 1:
-        return
+        pytest.skip("3D texture arrays not supported")
 
     # Create texture and build random data
     src_tex = m.device.create_texture(make_args(type, slices, mips))
@@ -494,11 +494,6 @@ def texture_return_value_impl(
     assert result.format == expected_format
 
     result_np = result.to_numpy()
-    order = list(reversed(range(dims)))
-    if channels > 1:
-        order += [dims]
-    # result_np = result_np.transpose(order)
-
     assert np.allclose(result_np, data.squeeze())
 
 
@@ -608,6 +603,68 @@ def test_texture_3d_broadcast_with_scalar(device_type: DeviceType):
     # tex[2,1,3] = 2.0, value = 3.0, so result should be 6.0
     result = module.sample_texture_3d_with_scalar(3.0, tex)
     assert result == pytest.approx(6.0)
+
+
+# ============================================================================
+# get_texture_shape() standalone function
+# ============================================================================
+
+from slangpy.slangpy import get_texture_shape
+
+
+def _create_simple_texture(device, tex_type, width=16, height=16, depth=16, array_length=1):
+    desc = TextureDesc()
+    desc.type = tex_type
+    desc.format = Format.rgba32_float
+    desc.usage = TextureUsage.shader_resource
+    desc.width = width
+    desc.mip_count = 1
+    desc.array_length = array_length
+    if tex_type in (
+        TextureType.texture_2d,
+        TextureType.texture_2d_array,
+        TextureType.texture_cube,
+        TextureType.texture_cube_array,
+    ):
+        desc.height = height
+    if tex_type == TextureType.texture_3d:
+        desc.height = height
+        desc.depth = depth
+    return device.create_texture(desc)
+
+
+@pytest.mark.parametrize(
+    "tex_type,expected_shape",
+    [
+        (TextureType.texture_1d, (16,)),
+        (TextureType.texture_2d, (16, 16)),
+        (TextureType.texture_3d, (16, 16, 16)),
+        (TextureType.texture_cube, (6, 16, 16)),
+    ],
+    ids=["1d", "2d", "3d", "cube"],
+)
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_get_texture_shape(device_type, tex_type, expected_shape):
+    """get_texture_shape() free function for basic texture types."""
+    device = helpers.get_device(device_type)
+    texture = _create_simple_texture(device, tex_type)
+    shape = get_texture_shape(texture)
+    assert shape.as_tuple() == expected_shape
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_get_texture_shape_array_types(device_type):
+    """get_texture_shape() with array texture types."""
+    device = helpers.get_device(device_type)
+
+    tex_1d_arr = _create_simple_texture(device, TextureType.texture_1d_array, array_length=4)
+    assert get_texture_shape(tex_1d_arr).as_tuple() == (4, 16)
+
+    tex_2d_arr = _create_simple_texture(device, TextureType.texture_2d_array, array_length=3)
+    assert get_texture_shape(tex_2d_arr).as_tuple() == (3, 16, 16)
+
+    tex_cube_arr = _create_simple_texture(device, TextureType.texture_cube_array, array_length=2)
+    assert get_texture_shape(tex_cube_arr).as_tuple() == (2, 6, 16, 16)
 
 
 if __name__ == "__main__":
