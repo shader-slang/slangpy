@@ -1480,13 +1480,13 @@ float2 scale_vec(float2 v) { return v * 2.0; }
 
 @requires_cuda
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
-def test_torch_shape_mismatch_error(device_type: DeviceType):
-    """validate_tensor_shape rejects a tensor whose trailing dims don't match the vector type."""
+def test_torch_vector_dimension_mismatch_error(device_type: DeviceType):
+    """Type resolution rejects a tensor whose trailing dim doesn't match the vector type."""
     device = helpers.get_torch_device(device_type)
     func = helpers.create_function_from_module(device, "scale_vec", VEC_SRC)
 
     bad = torch.tensor([[1.0, 2.0, 3.0]], device="cuda", dtype=torch.float32)
-    with pytest.raises(Exception, match="shape"):
+    with pytest.raises(ResolveException, match="does not match slang type"):
         func(bad)
 
 
