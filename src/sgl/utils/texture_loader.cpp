@@ -260,15 +260,29 @@ inline SourceImage convert_bitmap(Device* device, ref<Bitmap> bitmap, const Text
     };
 }
 
-inline SourceImage load_source_image(const std::filesystem::path& path)
+inline SourceImage load_source_image(Stream* stream)
 {
     SourceImage source_image;
-    FileStream stream(path, FileStream::Mode::read);
-    if (DDSFile::detect_dds_file(&stream)) {
-        source_image.dds_file = ref(new DDSFile(&stream));
+    if (DDSFile::detect_dds_file(stream)) {
+        source_image.dds_file = ref(new DDSFile(stream));
         source_image.format = get_format(DXGI_FORMAT(source_image.dds_file->dxgi_format()));
-    } else if (Bitmap::detect_file_format(&stream) != Bitmap::FileFormat::unknown) {
-        source_image.bitmap = ref(new Bitmap(&stream));
+    } else if (Bitmap::detect_file_format(stream) != Bitmap::FileFormat::unknown) {
+        source_image.bitmap = ref(new Bitmap(stream));
+    }
+    return source_image;
+}
+
+inline SourceImage load_source_image(const std::filesystem::path& path)
+{
+    FileStream stream(path, FileStream::Mode::read);
+    return load_source_image(&stream);
+}
+
+inline SourceImage load_and_convert_source_image(Device* device, Stream* stream, const TextureLoader::Options& options)
+{
+    SourceImage source_image = load_source_image(stream);
+    if (source_image.bitmap) {
+        source_image = convert_bitmap(device, source_image.bitmap, options);
     }
     return source_image;
 }
@@ -370,12 +384,14 @@ inline std::vector<ref<Texture>> create_textures(
     for (size_t i = 0; i < source_images.size(); ++i) {
         thread::task_wait_and_release(source_image_tasks[i]);
         textures[i] = create_texture(device, blitter, command_encoder, source_images[i], options[i]);
-        if (i && (i % BATCH_SIZE == 0)) {
+        if ((i + 1) % BATCH_SIZE == 0 && (i + 1) < source_images.size()) {
             device->submit_command_buffer(command_encoder->finish());
+            device->wait();
             command_encoder = device->create_command_encoder();
         }
     }
     device->submit_command_buffer(command_encoder->finish());
+    device->wait();
 
     return textures;
 }
@@ -460,6 +476,16 @@ ref<Texture> TextureLoader::load_texture(const Bitmap* bitmap, std::optional<Opt
 {
     Options options = options_.value_or(Options{});
     SourceImage source_image = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmap)), options);
+    ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
+    ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, source_image, options);
+    m_device->submit_command_buffer(command_encoder->finish());
+    return texture;
+}
+
+ref<Texture> TextureLoader::load_texture(Stream* stream, std::optional<Options> options_)
+{
+    Options options = options_.value_or(Options{});
+    SourceImage source_image = load_and_convert_source_image(m_device.get(), stream, options);
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
     ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, source_image, options);
     m_device->submit_command_buffer(command_encoder->finish());
