@@ -169,10 +169,11 @@ def test_load_from_source(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_module_property(device_type: DeviceType):
-    """Module.module should return the underlying SlangModule."""
+def test_device_module_property(device_type: DeviceType):
+    """Module.device_module should expose the underlying SlangModule."""
     m = load_test_module(device_type)
-    assert m.module is m.device_module
+    assert m.device_module.name == "test_modules.slang"
+    assert m.device_module.layout is not None
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

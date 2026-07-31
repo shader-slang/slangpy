@@ -12,18 +12,14 @@ if sys.platform == "darwin":
 
 try:
     import torch
-
-    HAS_TORCH = True
 except ImportError:
-    HAS_TORCH = False
-
-pytestmark = pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
+    pytest.skip("PyTorch not installed", allow_module_level=True)
 
 CUDA_TYPES = [DeviceType.cuda] if DeviceType.cuda in helpers.DEFAULT_DEVICE_TYPES else []
 if not CUDA_TYPES:
     pytest.skip("CUDA device type required", allow_module_level=True)
 
-from slangpy.types import NDBuffer
+from slangpy.types import Tensor
 
 # Force torch type registration so pack() can find torch.Tensor
 import slangpy.torchintegration.torchtensormarshall  # noqa: F401
@@ -60,19 +56,19 @@ float read_first(Tensor<float, 1> buf) {
 
 
 # ---------------------------------------------------------------------------
-# Mixed torch.Tensor + NDBuffer in a single call
+# Mixed torch.Tensor + slangpy.Tensor in a single call
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
-def test_torch_input_ndbuffer_output(device_type: DeviceType):
-    """torch.Tensor input, NDBuffer output."""
+def test_torch_input_tensor_output(device_type: DeviceType):
+    """torch.Tensor input, slangpy.Tensor output."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "add_buffers", ADD_SHADER)
 
     a = torch.tensor([1.0, 2.0, 3.0, 4.0], device="cuda", dtype=torch.float32)
-    b = NDBuffer.from_numpy(device, np.array([10.0, 20.0, 30.0, 40.0], dtype=np.float32))
-    c = NDBuffer.zeros(device, shape=(4,), dtype=float)
+    b = Tensor.from_numpy(device, np.array([10.0, 20.0, 30.0, 40.0], dtype=np.float32))
+    c = Tensor.zeros(device, shape=(4,), dtype="float")
 
     func(a, b, c)
 
@@ -80,12 +76,12 @@ def test_torch_input_ndbuffer_output(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", CUDA_TYPES)
-def test_ndbuffer_input_torch_output(device_type: DeviceType):
-    """NDBuffer input, torch.Tensor output."""
+def test_tensor_input_torch_output(device_type: DeviceType):
+    """slangpy.Tensor input, torch.Tensor output."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "add_buffers", ADD_SHADER)
 
-    a = NDBuffer.from_numpy(device, np.array([1.0, 2.0, 3.0], dtype=np.float32))
+    a = Tensor.from_numpy(device, np.array([1.0, 2.0, 3.0], dtype=np.float32))
     b = torch.tensor([10.0, 20.0, 30.0], device="cuda", dtype=torch.float32)
     c = torch.zeros(3, device="cuda", dtype=torch.float32)
 

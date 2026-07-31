@@ -312,19 +312,10 @@ def test_tensor_deprecated_numpy(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_tensor_empty_deprecated_element_count(device_type: DeviceType):
-    """Tensor.empty() with deprecated element_count kwarg."""
-    device = helpers.get_device(device_type)
-    with pytest.warns(DeprecationWarning, match="element_count"):
-        tensor = Tensor.empty(device, dtype="float", element_count=8)
-    assert tensor.shape[0] == 8
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_tensor_empty_no_dtype(device_type: DeviceType):
     """Tensor.empty() with no dtype should raise ValueError."""
     device = helpers.get_device(device_type)
-    with pytest.raises(ValueError, match="Unsupported type"):
+    with pytest.raises(ValueError, match="Element type .* must be specified"):
         Tensor.empty(device, (4,))
 
 
@@ -333,7 +324,7 @@ def test_tensor_empty_no_shape(device_type: DeviceType):
     """Tensor.empty() with empty shape should raise ValueError."""
     device = helpers.get_device(device_type)
     with pytest.raises(ValueError, match="zero dimensions"):
-        Tensor.empty(device, dtype="float")
+        Tensor.empty(device, shape=(), dtype="float")
 
 
 if __name__ == "__main__":

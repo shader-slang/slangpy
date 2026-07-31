@@ -2,7 +2,6 @@
 
 import pytest
 from slangpy import DeviceType, pack
-from slangpy.slangpy import Shape, NativeSlangType
 from slangpy.types import Tensor
 from slangpy.testing import helpers
 
@@ -145,21 +144,6 @@ def test_packed_arg_repr(device_type: DeviceType):
     assert pa.python is not None
     assert pa.shader_object is not None
     assert pa.python_object == 42
-
-
-def test_slangtype_repr_no_reflection():
-    """NativeSlangType.__repr__ without type_reflection.
-
-    Uses NativeSlangType directly because the child class SlangType always
-    requires a TypeReflection argument - there is no public API path that
-    produces a NativeSlangType with type_reflection=None.
-    """
-    st = NativeSlangType()
-    st.shape = Shape([2, 3])
-    r = repr(st)
-    assert "NativeSlangType" in r
-    assert "type_reflection = None" in r
-    assert "shape" in r
 
 
 if __name__ == "__main__":
