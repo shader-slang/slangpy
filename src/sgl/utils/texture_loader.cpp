@@ -446,6 +446,7 @@ inline ref<Texture> create_texture_array(
 
         if (i && (i % BATCH_SIZE == 0)) {
             device->submit_command_buffer(command_encoder->finish());
+            device->wait();
             command_encoder = device->create_command_encoder();
         }
 
@@ -460,6 +461,7 @@ inline ref<Texture> create_texture_array(
             blitter->generate_mips(command_encoder, texture, narrow_cast<uint32_t>(i));
     }
     device->submit_command_buffer(command_encoder->finish());
+    device->wait();
 
     return texture;
 }
