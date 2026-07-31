@@ -118,3 +118,12 @@ void update_particle(Tensor<Particle, 1> particles, float dt, WTensor<Particle, 
         output[i] = result;
     }
 }
+
+[Differentiable]
+float scaled_sum(float scale, float[3] values) {
+    float result = 0.0f;
+    for (int i = 0; i < 3; i++) {
+        result += values[i] * scale;
+    }
+    return result;
+}
