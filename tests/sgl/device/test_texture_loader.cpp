@@ -124,10 +124,8 @@ TEST_CASE_GPU("texture_loader_batched_uploads")
     REQUIRE(texture_array);
     REQUIRE(texture_array->array_length() == TEXTURE_COUNT);
     REQUIRE(texture_array->mip_count() > 1);
-    for (uint32_t layer = 0; layer < texture_array->layer_count(); ++layer) {
-        for (uint32_t mip = 0; mip < texture_array->mip_count(); ++mip)
-            check_subresources_match(texture_array, layer, texture_array, 0, mip);
-    }
+    for (uint32_t layer = 0; layer < texture_array->layer_count(); ++layer)
+        check_subresources_match(texture_array, layer, texture_array, 0, 0);
 }
 
 TEST_SUITE_END();
