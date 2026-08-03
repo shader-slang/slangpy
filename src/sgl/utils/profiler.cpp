@@ -2235,13 +2235,18 @@ void Profiler::end_zone(const ProfilerZoneToken& token) noexcept
     if (data->zone_depth == 0 || token.stack_index + 1 != data->zone_depth
         || data->zone_stack[token.stack_index] != token.correlation_id) {
         data->stack_overflow_count.fetch_add(1, std::memory_order_relaxed);
-        // The zone still holds the reference begin_zone attached, and no event will be published
-        // for it. Release it without counting, or the frame never reaches zero and never seals.
-        if (token.frame_index != INVALID_INDEX)
-            m_impl->release_zone_from_global_frame(token.frame_index);
+        // Hand back the reference begin_zone attached, or the frame never reaches zero and never
+        // seals. A token owns that reference only while its stack slot still holds it, so clearing
+        // the slot here keeps a token that is presented twice from releasing twice.
+        if (data->zone_stack[token.stack_index] == token.correlation_id) {
+            data->zone_stack[token.stack_index] = 0;
+            if (token.frame_index != INVALID_INDEX)
+                m_impl->release_zone_from_global_frame(token.frame_index);
+        }
         return;
     }
     --data->zone_depth;
+    data->zone_stack[data->zone_depth] = 0;
     CpuEvent event;
     event.type = CpuEvent::Type::zone;
     event.start_ns = token.start_ns;
