@@ -757,13 +757,11 @@ struct ProfilerImpl {
     bool drain()
     {
         bool dirty = false;
-        // Snapshot the sealed frames before the per-thread zone queues. A zone is published to
-        // its queue (write_index release-store) before it releases from the global frame, and a
-        // frame seals (pushed under sealed_frame_mutex) only after its last zone releases via the
-        // acq-rel global_frame chain. So if this snapshot observes a frame, the later
-        // acquire-load of write_index is guaranteed to see every published zone of that frame.
-        // Reversing the two snapshots reopens the race where a frame finalizes before its zones
-        // are drained, dropping them from the frame's statistics (shader-slang/slangpy#1072).
+        // Snapshot the sealed frames before the per-thread zone queues, and keep it that way. A
+        // zone is published to its queue (write_index release-store) before it releases from the
+        // global frame, and a frame seals (pushed under sealed_frame_mutex) only after its last
+        // zone releases via the acq-rel global_frame chain. So if this snapshot observes a frame,
+        // the later acquire-load of write_index is guaranteed to see every published zone of it.
         std::vector<CpuEvent> frame_events;
         {
             std::lock_guard lock(sealed_frame_mutex);
@@ -2237,6 +2235,10 @@ void Profiler::end_zone(const ProfilerZoneToken& token) noexcept
     if (data->zone_depth == 0 || token.stack_index + 1 != data->zone_depth
         || data->zone_stack[token.stack_index] != token.correlation_id) {
         data->stack_overflow_count.fetch_add(1, std::memory_order_relaxed);
+        // The zone still holds the reference begin_zone attached, and no event will be published
+        // for it. Release it without counting, or the frame never reaches zero and never seals.
+        if (token.frame_index != INVALID_INDEX)
+            m_impl->release_zone_from_global_frame(token.frame_index);
         return;
     }
     --data->zone_depth;

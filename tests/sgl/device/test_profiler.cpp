@@ -198,6 +198,35 @@ TEST_CASE("zone stack overflow drops only the excess zone")
     CHECK(trace->diagnostics().producer_drop_count == 1);
 }
 
+TEST_CASE("mismatched zone end still lets its global frame seal")
+{
+    ref<Profiler> profiler = make_ref<Profiler>();
+    const uint32_t frame_site = Profiler::register_site(__FILE__, __LINE__, __func__, "mismatch frame");
+    const uint32_t outer_site = Profiler::register_site(__FILE__, __LINE__, __func__, "outer");
+    const uint32_t inner_site = Profiler::register_site(__FILE__, __LINE__, __func__, "inner");
+
+    ProfilerFrameToken frame = profiler->begin_frame(frame_site);
+    ProfilerZoneToken outer = profiler->begin_zone(outer_site);
+    ProfilerZoneToken inner = profiler->begin_zone(inner_site);
+    // Ending out of order makes end_zone reject the outer token, which must still hand back the
+    // frame reference begin_zone took for it.
+    profiler->end_zone(outer);
+    profiler->end_zone(inner);
+    profiler->end_frame(frame);
+    profiler->flush();
+
+    ref<ProfilerFrameStats> stats = profiler->frame_stats_snapshot();
+    CHECK(stats->sample_count() == 1);
+    CHECK(stats->pending_frame_count() == 0);
+
+    // A leaked reference would leave the global frame busy and reject the next frame outright.
+    ProfilerFrameToken next = profiler->begin_frame(frame_site);
+    REQUIRE(next.profiler == profiler);
+    profiler->end_frame(next);
+    profiler->flush();
+    CHECK(profiler->frame_stats_snapshot()->sample_count() == 2);
+}
+
 TEST_CASE("capture collects concurrent producers without drops")
 {
     ProfilerDesc desc;
