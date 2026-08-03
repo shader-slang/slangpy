@@ -1737,6 +1737,10 @@ struct ProfilerImpl {
     uint64_t flush_requested{0};
     uint64_t flush_completed{0};
     std::vector<uint64_t> flush_targets;
+    // flush() must cover all three collector input channels, not just the per-thread CPU queues,
+    // or an event published before the call can be consumed only by a later collector iteration.
+    uint64_t sealed_frame_flush_target{0};
+    uint64_t gpu_result_flush_target{0};
     uint64_t clear_frame_stats_requested{0};
     uint64_t clear_frame_stats_completed{0};
 
@@ -1776,12 +1780,20 @@ struct ProfilerImpl {
     CpuEvent global_frame_event;
     std::mutex sealed_frame_mutex;
     std::vector<CpuEvent> sealed_frame_events;
+    // Monotonic counts of sealed frames published by producers and consumed by the collector,
+    // both guarded by sealed_frame_mutex so flush() can compare them without racing a seal.
+    uint64_t sealed_frames_published{0};
+    uint64_t sealed_frames_consumed{0};
     std::atomic<uint64_t> gpu_query_exhaustion_count{0};
     std::atomic<uint64_t> pending_gpu_zone_count{0};
     std::mutex gpu_mutex;
     std::vector<std::unique_ptr<GpuContext>> gpu_contexts;
     std::mutex gpu_result_mutex;
     std::vector<GpuResult> pending_gpu_results;
+    // Counts only results already published into pending_gpu_results, so flush() waits for
+    // resolved measurements to be consumed without ever waiting on unresolved GPU queries.
+    uint64_t gpu_results_published{0};
+    uint64_t gpu_results_consumed{0};
 };
 
 uint32_t Profiler::register_site(std::string_view file, uint32_t line, std::string_view function, std::string_view name)
