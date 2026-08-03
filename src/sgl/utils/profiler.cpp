@@ -715,8 +715,7 @@ struct ProfilerImpl {
         // Ignore a late count for a frame that already sealed: its marker has been stamped, and a
         // zone published this late is dropped by the collector's frame-index checks anyway.
         const uint64_t state = global_frame.load(std::memory_order_acquire);
-        if (global_frame_index(state) != frame_index
-            || global_frame_status(state) == GlobalFrameStatus::inactive)
+        if (global_frame_index(state) != frame_index || global_frame_status(state) == GlobalFrameStatus::inactive)
             return;
         global_frame_published_zones.fetch_add(1, std::memory_order_acq_rel);
     }
@@ -1839,7 +1838,7 @@ struct ProfilerImpl {
     // when a frame opens and stamped into the frame marker when it seals, so the collector knows
     // how many zone events to expect before the frame's statistics are complete.
     std::atomic<uint32_t> global_frame_published_zones{0};
-    std::mutex sealed_frame_mutex;
+    mutable std::mutex sealed_frame_mutex;
     std::vector<CpuEvent> sealed_frame_events;
     // Monotonic counts of sealed frames published by producers and consumed by the collector,
     // both guarded by sealed_frame_mutex so flush() can compare them without racing a seal.
@@ -1849,7 +1848,7 @@ struct ProfilerImpl {
     std::atomic<uint64_t> pending_gpu_zone_count{0};
     std::mutex gpu_mutex;
     std::vector<std::unique_ptr<GpuContext>> gpu_contexts;
-    std::mutex gpu_result_mutex;
+    mutable std::mutex gpu_result_mutex;
     std::vector<GpuResult> pending_gpu_results;
     // Counts only results already published into pending_gpu_results, so flush() waits for
     // resolved measurements to be consumed without ever waiting on unresolved GPU queries.
