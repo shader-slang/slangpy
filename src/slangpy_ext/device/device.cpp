@@ -703,6 +703,15 @@ SGL_PY_EXPORT(device_device)
     device.def("create_buffer", &Device::create_buffer, "desc"_a, D(Device, create_buffer));
 
     device.def(
+        "create_buffer_from_native_handle",
+        &Device::create_buffer_from_native_handle,
+        "desc"_a,
+        "handle"_a,
+        "Create a buffer wrapping an existing native buffer without copying. The caller must keep "
+        "the allocation alive and synchronize access between the two APIs."
+    );
+
+    device.def(
         "create_texture",
         [](Device* self,
            TextureType type,
