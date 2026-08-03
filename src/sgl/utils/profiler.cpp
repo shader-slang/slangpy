@@ -1659,6 +1659,11 @@ struct ProfilerImpl {
         }
     }
 
+    /// Report whether the collector has consumed everything published before the pending flush.
+    ///
+    /// The side-channel consumed counts are bumped when drain() swaps a queue out, not after it
+    /// consumes the events, so this must only be evaluated by the collector thread once drain() has
+    /// returned. Calling it from anywhere else could observe events counted but not yet applied.
     bool flush_targets_satisfied() const
     {
         if (!flush_pending)
@@ -2197,6 +2202,10 @@ ProfilerZoneToken Profiler::begin_zone(uint32_t site_id, CommandEncoder* command
         return token;
     }
     const uint32_t sequence = ++data->local_sequence;
+    // end_zone uses a zeroed zone stack slot to mean "already released", so this must not produce
+    // zero: it does so only if the timeline half and the sequence half wrap to zero together, which
+    // needs 2^32 timelines and 2^32 zones on one thread. A change to this layout has to preserve
+    // that, and a sequence wrap alone can still let a stale token match a reused slot.
     const uint64_t correlation = (uint64_t(data->timeline_id + 1) << 32) | sequence;
     token.profiler = this;
     token.thread_data = data;
