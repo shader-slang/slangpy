@@ -689,6 +689,192 @@ def test_strided_slice_different_ops(device_type: DeviceType):
     compare_gradients("Linear2 weight gradient", linear2_test.weight.grad, linear2.weight.grad)
 
 
+SLANG_ARRAY_DOT = """
+[Differentiable]
+float dot3(float[3] a, float[3] b) {
+    float result = 0.0f;
+    for (int i = 0; i < 3; i++) {
+        result += a[i] * b[i];
+    }
+    return result;
+}
+"""
+
+
+ARRAY_SLICE_CASES = [
+    pytest.param(4, lambda t: t[:, :3], id="prefix"),
+    pytest.param(4, lambda t: t[:, 1:], id="suffix_offset"),
+    pytest.param(6, lambda t: t[:, ::2], id="strided"),
+    pytest.param(9, lambda t: t.reshape(t.shape[0], 3, 3).diagonal(dim1=1, dim2=2), id="diagonal"),
+]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("source_cols,slicer", ARRAY_SLICE_CASES)
+def test_sliced_tensor_array_gradient_parity(
+    device_type: DeviceType, source_cols: int, slicer: Callable[[torch.Tensor], torch.Tensor]
+):
+    """
+    Test gradient parity for sliced tensors passed as fixed-size array parameters.
+
+    Creates (batch, source_cols) tensors, slices to (batch, 3), and passes them
+    to a Slang function taking float[3]. Covers prefix (zero offset), suffix
+    (non-zero offset), and strided (non-contiguous) slices. Verifies that
+    gradients for the full tensors match PyTorch.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_ARRAY_DOT)
+
+    batch_size = 16
+
+    torch.manual_seed(42)
+    a_control = torch.randn(batch_size, source_cols, device="cuda", requires_grad=True)
+    b_control = torch.randn(batch_size, source_cols, device="cuda", requires_grad=True)
+
+    # Control: pure PyTorch element-wise dot product on slices
+    result_control = (slicer(a_control) * slicer(b_control)).sum(dim=-1)
+    result_control.sum().backward()
+
+    # Test: SlangPy dot3 on the same slices
+    a_test = a_control.clone().detach().requires_grad_(True)
+    b_test = b_control.clone().detach().requires_grad_(True)
+
+    result_test = slang_module.dot3(slicer(a_test), slicer(b_test))
+    result_test.sum().backward()
+
+    assert a_control.grad is not None and a_test.grad is not None
+    assert b_control.grad is not None and b_test.grad is not None
+    compare_gradients("Sliced array param 'a' gradient", a_test.grad, a_control.grad)
+    compare_gradients("Sliced array param 'b' gradient", b_test.grad, b_control.grad)
+
+
+SLANG_VECTOR_DOT = """
+[Differentiable]
+float dot_vectors(float3 a, float3 b) {
+    return dot(a, b);
+}
+"""
+
+VECTOR_GRAD_SLICE_CASES = [
+    pytest.param(4, lambda t: t[:, :3], id="prefix"),
+    pytest.param(4, lambda t: t[:, 1:], id="suffix_offset"),
+    pytest.param(6, lambda t: t[:, ::2], id="strided"),
+    pytest.param(9, lambda t: t.reshape(t.shape[0], 3, 3).diagonal(dim1=1, dim2=2), id="diagonal"),
+]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("source_cols,slicer", VECTOR_GRAD_SLICE_CASES)
+def test_sliced_vector_gradient_parity(
+    device_type: DeviceType,
+    source_cols: int,
+    slicer: Callable[[torch.Tensor], torch.Tensor],
+):
+    """
+    Test gradient parity for sliced tensors passed as float3 vector parameters.
+
+    Creates (batch, source_cols) tensors, slices to (batch, 3), and passes them
+    to a Slang function taking float3. Covers prefix (zero offset), suffix
+    (non-zero offset), and strided (non-contiguous) slices.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_VECTOR_DOT)
+
+    batch_size = 16
+
+    torch.manual_seed(42)
+    a_control = torch.randn(batch_size, source_cols, device="cuda", requires_grad=True)
+    b_control = torch.randn(batch_size, source_cols, device="cuda", requires_grad=True)
+
+    # Control: pure PyTorch dot product on slices
+    result_control = (slicer(a_control) * slicer(b_control)).sum(dim=-1)
+    result_control.sum().backward()
+
+    # Test: SlangPy dot_vectors on the same slices
+    a_test = a_control.clone().detach().requires_grad_(True)
+    b_test = b_control.clone().detach().requires_grad_(True)
+
+    result_test = slang_module.dot_vectors(slicer(a_test), slicer(b_test))
+    result_test.sum().backward()
+
+    assert a_control.grad is not None and a_test.grad is not None
+    assert b_control.grad is not None and b_test.grad is not None
+    compare_gradients("Sliced vector param 'a' gradient", a_test.grad, a_control.grad)
+    compare_gradients("Sliced vector param 'b' gradient", b_test.grad, b_control.grad)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_transposed_array_gradient_parity(device_type: DeviceType):
+    """
+    Test gradient parity for transposed tensors passed as float[3] array params.
+
+    Creates (3, batch) tensors, transposes to (batch, 3). The trailing dimension
+    has non-unit stride. Verifies gradients on the original (3, batch) tensors
+    match between SlangPy and pure PyTorch.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_ARRAY_DOT)
+
+    batch_size = 16
+
+    torch.manual_seed(42)
+    a_base_control = torch.randn(3, batch_size, device="cuda", requires_grad=True)
+    b_base_control = torch.randn(3, batch_size, device="cuda", requires_grad=True)
+
+    a_control = a_base_control.t()
+    b_control = b_base_control.t()
+
+    result_control = (a_control * b_control).sum(dim=-1)
+    result_control.sum().backward()
+
+    a_base_test = a_base_control.clone().detach().requires_grad_(True)
+    b_base_test = b_base_control.clone().detach().requires_grad_(True)
+
+    result_test = slang_module.dot3(a_base_test.t(), b_base_test.t())
+    result_test.sum().backward()
+
+    assert a_base_control.grad is not None and a_base_test.grad is not None
+    assert b_base_control.grad is not None and b_base_test.grad is not None
+    compare_gradients("Transposed array 'a' gradient", a_base_test.grad, a_base_control.grad)
+    compare_gradients("Transposed array 'b' gradient", b_base_test.grad, b_base_control.grad)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_transposed_vector_gradient_parity(device_type: DeviceType):
+    """
+    Test gradient parity for transposed tensors passed as float3 vector params.
+
+    Creates (3, batch) tensors, transposes to (batch, 3). The trailing dimension
+    has non-unit stride. Verifies gradients on the original (3, batch) tensors
+    match between SlangPy and pure PyTorch.
+    """
+    device = helpers.get_torch_device(device_type)
+    slang_module = helpers.create_module(device, SLANG_VECTOR_DOT)
+
+    batch_size = 16
+
+    torch.manual_seed(42)
+    a_base_control = torch.randn(3, batch_size, device="cuda", requires_grad=True)
+    b_base_control = torch.randn(3, batch_size, device="cuda", requires_grad=True)
+
+    a_control = a_base_control.t()
+    b_control = b_base_control.t()
+
+    result_control = (a_control * b_control).sum(dim=-1)
+    result_control.sum().backward()
+
+    a_base_test = a_base_control.clone().detach().requires_grad_(True)
+    b_base_test = b_base_control.clone().detach().requires_grad_(True)
+
+    result_test = slang_module.dot_vectors(a_base_test.t(), b_base_test.t())
+    result_test.sum().backward()
+
+    assert a_base_control.grad is not None and a_base_test.grad is not None
+    assert b_base_control.grad is not None and b_base_test.grad is not None
+    compare_gradients("Transposed vector 'a' gradient", a_base_test.grad, a_base_control.grad)
+    compare_gradients("Transposed vector 'b' gradient", b_base_test.grad, b_base_control.grad)
+
+
 # =============================================================================
 # Multi-Kernel Sequence Tests
 # =============================================================================

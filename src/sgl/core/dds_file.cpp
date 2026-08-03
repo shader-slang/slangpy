@@ -612,7 +612,8 @@ namespace detail {
         // Shift width by mipmap index, round to next block size and round to next byte (for the rare less than 1 byte
         // per pixel formats) E.g. width = 119, mip = 3, BC1 compression
         // ((((119 >> 2) + 4 - 1) / 4) * 64) / 8 = 64 bytes
-        return ((((width >> mip) + block_width - 1) / block_width) * bits_per_pixel_or_block + 7) / 8;
+        uint32_t mip_width = std::max(1u, width >> mip);
+        return (((mip_width + block_width - 1) / block_width) * bits_per_pixel_or_block + 7) / 8;
     }
 
 } // namespace detail
@@ -646,31 +647,31 @@ DDSFile::~DDSFile()
 const uint8_t* DDSFile::get_subresource_data(uint32_t mip, uint32_t slice) const
 {
     size_t offset = 0;
-    size_t mip0_size = m_slice_pitch * 8; // Work in bits
 
     if (m_type == TextureType::texture_3d) {
         for (uint32_t m = 0; m < mip; ++m) {
-            size_t mip_size = mip0_size >> 2 * m;
-            offset += mip_size * m_mip_count;
+            uint32_t slice_pitch;
+            get_subresource_pitch(m, nullptr, &slice_pitch);
+            uint32_t mip_depth = std::max(1u, m_depth >> m);
+            offset += size_t(slice_pitch) * mip_depth;
         }
-        size_t last_mip = mip0_size >> 2 * mip;
-        offset += last_mip * slice;
+        uint32_t slice_pitch;
+        get_subresource_pitch(mip, nullptr, &slice_pitch);
+        offset += size_t(slice_pitch) * slice;
     } else {
         size_t mip_chain_size = 0;
         for (uint32_t m = 0; m < m_mip_count; ++m) {
-            // Divide by 2 in width and height
-            size_t mip_size = mip0_size >> 2 * m;
-            mip_chain_size += mip_size > m_bits_per_pixel_or_block ? mip_size : m_bits_per_pixel_or_block;
+            uint32_t slice_pitch;
+            get_subresource_pitch(m, nullptr, &slice_pitch);
+            mip_chain_size += slice_pitch;
         }
         offset += mip_chain_size * slice;
         for (uint32_t m = 0; m < mip; ++m) {
-            // Divide by 2 in width and height
-            size_t mip_size = mip0_size >> 2 * m;
-            offset += mip_size > m_bits_per_pixel_or_block ? mip_size : m_bits_per_pixel_or_block;
+            uint32_t slice_pitch;
+            get_subresource_pitch(m, nullptr, &slice_pitch);
+            offset += slice_pitch;
         }
     }
-
-    offset /= 8; // Back to bytes
 
     return m_data + m_header_size + offset;
 }
@@ -974,9 +975,6 @@ bool DDSFile::decode_header(const uint8_t* data, size_t size)
     get_block_size(DXGIFormat(m_dxgi_format), m_block_width, m_block_height);
 
     get_subresource_pitch(0, &m_row_pitch, &m_slice_pitch);
-
-    m_row_pitch = get_row_pitch(m_width, m_bits_per_pixel_or_block, m_block_width, 0);
-    m_slice_pitch = m_row_pitch * m_height / m_block_height;
 
     m_header_size = sizeof(DDS_MAGIC) + sizeof(Header) + (dxt10 ? sizeof(HeaderDXT10) : 0);
 
