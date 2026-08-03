@@ -292,6 +292,8 @@ namespace {
         uint32_t site_id{0};
         uint32_t frame_index{INVALID_INDEX};
         GpuTimingStatus gpu_timing_status{GpuTimingStatus::unavailable};
+        // Type::frame only: zones successfully published for the frame, stamped at seal time.
+        uint32_t expected_zone_count{0};
     };
 
     struct StoredZone {
@@ -444,6 +446,8 @@ struct ProfilerImpl {
         ProfilerFrame frame;
         bool ended{false};
         uint64_t pending_gpu_count{0};
+        // Zones the frame marker says were published; only meaningful once ended is true.
+        uint32_t expected_zone_count{0};
         std::unordered_map<uint64_t, PendingFrameZone> zones;
     };
 
@@ -657,6 +661,7 @@ struct ProfilerImpl {
         global_frame_event.timeline_id = data->timeline_id;
         global_frame_event.site_id = site_id;
         global_frame_event.frame_index = *frame_index;
+        global_frame_published_zones.store(0, std::memory_order_relaxed);
         global_frame.store(global_frame_state(*frame_index, GlobalFrameStatus::open), std::memory_order_release);
         token.profiler = owner;
         token.start_ns = start_ns;
@@ -705,6 +710,17 @@ struct ProfilerImpl {
         try_finalize_global_frame(token.frame_index);
     }
 
+    void count_published_zone_in_global_frame(uint32_t frame_index)
+    {
+        // Ignore a late count for a frame that already sealed: its marker has been stamped, and a
+        // zone published this late is dropped by the collector's frame-index checks anyway.
+        const uint64_t state = global_frame.load(std::memory_order_acquire);
+        if (global_frame_index(state) != frame_index
+            || global_frame_status(state) == GlobalFrameStatus::inactive)
+            return;
+        global_frame_published_zones.fetch_add(1, std::memory_order_acq_rel);
+    }
+
     void release_zone_from_global_frame(uint32_t frame_index)
     {
         const uint64_t previous = global_frame.fetch_sub(GLOBAL_FRAME_ZONE_COUNT_INCREMENT, std::memory_order_acq_rel);
@@ -727,6 +743,9 @@ struct ProfilerImpl {
             std::lock_guard lock(global_frame_mutex);
             event = global_frame_event;
         }
+        // Safe to read after the CAS above: every zone of this frame has already released, and a
+        // zone counts itself before releasing, so no further increment for this frame can occur.
+        event.expected_zone_count = global_frame_published_zones.load(std::memory_order_acquire);
         {
             std::lock_guard lock(sealed_frame_mutex);
             sealed_frame_events.push_back(event);
@@ -846,6 +865,18 @@ struct ProfilerImpl {
                 frame_stats_pending_frames.pop_front();
                 continue;
             }
+            // A frame completes only once it ended, every zone the marker promised has arrived, and
+            // its GPU work resolved. Making completion explicit this way keeps frame statistics
+            // correct without depending on the order in which drain() samples its input channels.
+            //
+            // Every path that can prevent a promised zone from arriving must therefore also release
+            // this gate, or the frame pins the pending window forever:
+            //  - a zone dropped by a full ring is never counted (end_zone only counts a successful
+            //    push), so it is not promised in the first place;
+            //  - bound_pending_frames() force-completes the oldest frame on window overflow by
+            //    clearing both this expectation and pending_gpu_count.
+            if (pending_it->second.zones.size() < pending_it->second.expected_zone_count)
+                break;
             if (pending_it->second.pending_gpu_count != 0)
                 break;
             frame_stats_completed_frames.push_back(build_frame_record(std::move(pending_it->second)));
@@ -868,6 +899,8 @@ struct ProfilerImpl {
                     zone.gpu_timing_status = GpuTimingStatus::missing;
             }
             pending_it->second.pending_gpu_count = 0;
+            // Give up on zones that never arrived, so the forced frame cannot pin the window.
+            pending_it->second.expected_zone_count = 0;
         }
         finalize_ready_frames();
     }
@@ -915,6 +948,7 @@ struct ProfilerImpl {
                 PendingFrameData& pending = pending_frames[event.frame_index];
                 pending.frame = frame;
                 pending.ended = true;
+                pending.expected_zone_count = event.expected_zone_count;
                 frame_stats_pending_frames.push_back(event.frame_index);
                 finalize_ready_frames();
                 bound_pending_frames();
@@ -1801,6 +1835,10 @@ struct ProfilerImpl {
     std::mutex global_frame_mutex;
     std::atomic<uint64_t> global_frame{0};
     CpuEvent global_frame_event;
+    // Zones of the currently open global frame that were successfully published to a queue. Reset
+    // when a frame opens and stamped into the frame marker when it seals, so the collector knows
+    // how many zone events to expect before the frame's statistics are complete.
+    std::atomic<uint32_t> global_frame_published_zones{0};
     std::mutex sealed_frame_mutex;
     std::vector<CpuEvent> sealed_frame_events;
     // Monotonic counts of sealed frames published by producers and consumed by the collector,
@@ -2218,9 +2256,14 @@ void Profiler::end_zone(const ProfilerZoneToken& token) noexcept
         event.gpu_timing_status = GpuTimingStatus::pending;
     else
         event.gpu_timing_status = GpuTimingStatus::missing;
-    data->push(event);
-    if (token.frame_index != INVALID_INDEX)
+    const bool published = data->push(event);
+    if (token.frame_index != INVALID_INDEX) {
+        // Count only zones that actually reached a queue, and count before releasing: the release
+        // can seal the frame, and the seal stamps this count into the marker.
+        if (published)
+            m_impl->count_published_zone_in_global_frame(token.frame_index);
         m_impl->release_zone_from_global_frame(token.frame_index);
+    }
 }
 
 ProfilerFrameToken Profiler::begin_frame(uint32_t site_id) noexcept
