@@ -730,6 +730,7 @@ struct ProfilerImpl {
         {
             std::lock_guard lock(sealed_frame_mutex);
             sealed_frame_events.push_back(event);
+            ++sealed_frames_published;
         }
         global_frame.store(uint64_t(GlobalFrameStatus::inactive), std::memory_order_release);
         control_cv.notify_all();
@@ -749,6 +750,7 @@ struct ProfilerImpl {
         {
             std::lock_guard lock(sealed_frame_mutex);
             frame_events.swap(sealed_frame_events);
+            sealed_frames_consumed += frame_events.size();
         }
         drained_cpu_events.clear();
         {
@@ -777,6 +779,7 @@ struct ProfilerImpl {
         {
             std::lock_guard lock(gpu_result_mutex);
             gpu_results.swap(pending_gpu_results);
+            gpu_results_consumed += gpu_results.size();
         }
         for (const GpuResult& result : gpu_results) {
             consume_gpu(result);
@@ -1044,6 +1047,7 @@ struct ProfilerImpl {
         if (!results.empty()) {
             std::lock_guard result_lock(gpu_result_mutex);
             pending_gpu_results.insert(pending_gpu_results.end(), results.begin(), results.end());
+            gpu_results_published += results.size();
         }
     }
 
@@ -1287,6 +1291,7 @@ struct ProfilerImpl {
         if (!results.empty()) {
             std::lock_guard result_lock(gpu_result_mutex);
             pending_gpu_results.insert(pending_gpu_results.end(), results.begin(), results.end());
+            gpu_results_published += results.size();
         }
     }
 
@@ -1617,6 +1622,16 @@ struct ProfilerImpl {
     {
         if (!flush_pending)
             return false;
+        {
+            std::lock_guard lock(sealed_frame_mutex);
+            if (sealed_frames_consumed < sealed_frame_flush_target)
+                return false;
+        }
+        {
+            std::lock_guard lock(gpu_result_mutex);
+            if (gpu_results_consumed < gpu_result_flush_target)
+                return false;
+        }
         std::lock_guard lock(thread_mutex);
         if (flush_targets.size() > threads.size())
             return false;
@@ -1708,6 +1723,14 @@ struct ProfilerImpl {
             flush_targets.reserve(threads.size());
             for (const auto& thread : threads)
                 flush_targets.push_back(thread->write_index.value.load(std::memory_order_acquire));
+        }
+        {
+            std::lock_guard lock(sealed_frame_mutex);
+            sealed_frame_flush_target = sealed_frames_published;
+        }
+        {
+            std::lock_guard lock(gpu_result_mutex);
+            gpu_result_flush_target = gpu_results_published;
         }
         flush_pending = true;
         control_cv.notify_all();
