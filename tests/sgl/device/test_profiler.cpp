@@ -257,6 +257,36 @@ TEST_CASE("re-ending a rejected zone releases its global frame reference once")
     CHECK(stats->entries().front().name == "inner");
 }
 
+TEST_CASE("out of order zone end reclaims its thread zone stack slot")
+{
+    ref<Profiler> profiler = make_ref<Profiler>();
+    const uint32_t outer_site = Profiler::register_site(__FILE__, __LINE__, __func__, "outer");
+    const uint32_t inner_site = Profiler::register_site(__FILE__, __LINE__, __func__, "inner");
+    const uint32_t deep_site = Profiler::register_site(__FILE__, __LINE__, __func__, "deep");
+
+    profiler->start_capture();
+    ProfilerZoneToken outer = profiler->begin_zone(outer_site);
+    ProfilerZoneToken inner = profiler->begin_zone(inner_site);
+    profiler->end_zone(outer);
+    profiler->end_zone(inner);
+
+    // Both zones have finished, so the full 64-deep stack must be available again. A slot left
+    // counted by zone_depth would make the deepest of these zones overflow and be rejected, which
+    // is the only externally visible symptom: the parent lookup reads the same cleared slot either
+    // way, so hierarchy alone cannot tell the two cases apart.
+    // 64 == MAX_ZONE_DEPTH, matching "zone stack overflow drops only the excess zone" above.
+    std::vector<ProfilerZoneToken> tokens;
+    for (uint32_t i = 0; i < 64; ++i)
+        tokens.push_back(profiler->begin_zone(deep_site));
+    for (const ProfilerZoneToken& token : tokens)
+        CHECK(token.profiler == profiler);
+    for (auto it = tokens.rbegin(); it != tokens.rend(); ++it)
+        profiler->end_zone(*it);
+
+    ref<ProfilerTrace> trace = profiler->stop_capture();
+    CHECK(trace->zone_count() == 65);
+}
+
 TEST_CASE("capture collects concurrent producers without drops")
 {
     ProfilerDesc desc;

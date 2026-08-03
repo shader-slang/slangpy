@@ -337,6 +337,16 @@ namespace {
             return true;
         }
 
+        /// Drop stack slots whose zones have already finished, so zone_depth keeps pointing just
+        /// past the innermost live zone. Ending zones out of order finishes a slot below the top,
+        /// and leaving it counted would shrink the usable stack and make it the parent of later
+        /// zones.
+        void release_finished_zone_slots() noexcept
+        {
+            while (zone_depth > 0 && zone_stack[zone_depth - 1] == 0)
+                --zone_depth;
+        }
+
         std::vector<CpuEvent> events;
         uint64_t mask{0};
         RingIndex write_index;
@@ -2242,11 +2252,13 @@ void Profiler::end_zone(const ProfilerZoneToken& token) noexcept
             data->zone_stack[token.stack_index] = 0;
             if (token.frame_index != INVALID_INDEX)
                 m_impl->release_zone_from_global_frame(token.frame_index);
+            data->release_finished_zone_slots();
         }
         return;
     }
     --data->zone_depth;
     data->zone_stack[data->zone_depth] = 0;
+    data->release_finished_zone_slots();
     CpuEvent event;
     event.type = CpuEvent::Type::zone;
     event.start_ns = token.start_ns;
