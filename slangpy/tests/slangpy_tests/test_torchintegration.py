@@ -70,12 +70,12 @@ def setup_bridge_mode(torch_bridge_mode: str):
 @pytest.mark.parametrize(
     "pair",
     [
-        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6,V1,G0"),
-        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6,V1,G1"),
-        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5,V1,G0"),
-        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3,V1,G0"),
-        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0,V1,G0"),
-        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0,V111,G0"),
+        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6,G0,V1"),
+        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6,G1,V1"),
+        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5,G0,V1"),
+        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3,G0,V1"),
+        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0,G0,V1"),
+        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0,G0,V111"),
     ],
 )
 def test_torch_signature(pair: tuple[torch.Tensor, str]):
@@ -101,7 +101,7 @@ def test_torch_signature_shape_compatibility() -> None:
     rgba_small_signature = _torch_signature(rgba_small)
     assert rgba_small_signature == _torch_signature(rgba_large)
     assert rgba_small_signature != _torch_signature(rgb)
-    assert _torch_signature(mixed) == "torch\n[D3,S6,V234,G0]"
+    assert _torch_signature(mixed) == "torch\n[D3,S6,G0,V234]"
 
 
 def _diff_pair_signature(pair: NativeTorchTensorDiffPair) -> str:

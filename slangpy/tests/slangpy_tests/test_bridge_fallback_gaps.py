@@ -58,17 +58,17 @@ class TestGetSignature:
     def test_float32_1d(self):
         t = torch.tensor([1.0], dtype=torch.float32)
         sig = bf.get_signature(t)
-        assert sig == "[D1,S6,V1,G0]"
+        assert sig == "[D1,S6,G0,V1]"
 
     def test_int32_2d(self):
         t = torch.zeros((3, 4), dtype=torch.int32)
         sig = bf.get_signature(t)
-        assert sig == "[D2,S3,V34,G0]"
+        assert sig == "[D2,S3,G0,V34]"
 
     def test_requires_grad_bit(self):
         t = torch.zeros((3, 4), dtype=torch.float32, requires_grad=True)
-        assert bf.get_signature(t) == "[D2,S6,V34,G1]"
-        assert bf.get_signature(t.detach()) == "[D2,S6,V34,G0]"
+        assert bf.get_signature(t) == "[D2,S6,G1,V34]"
+        assert bf.get_signature(t.detach()) == "[D2,S6,G0,V34]"
 
 
 class TestCudaBufferView:

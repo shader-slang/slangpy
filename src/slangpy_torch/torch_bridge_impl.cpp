@@ -123,7 +123,6 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
 
     int ndim = static_cast<int>(tensor.dim());
     int scalar_type = static_cast<int>(tensor.scalar_type());
-    int requires_grad = tensor.requires_grad() ? 1 : 0;
     // The fixed allowance comfortably covers punctuation, the null terminator,
     // decimal rank/dtype values and the grad bit. Each dimension then adds one
     // classifier.
@@ -144,12 +143,12 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
     *p++ = 'S';
     p = fast_itoa(p, scalar_type);
     *p++ = ',';
+    *p++ = 'G';
+    *p++ = tensor.requires_grad() ? '1' : '0';
+    *p++ = ',';
     *p++ = 'V';
     for (int64_t extent : sizes)
         *p++ = shape_compatibility_char(extent);
-    *p++ = ',';
-    *p++ = 'G';
-    p = fast_itoa(p, requires_grad);
     *p++ = ']';
     *p = '\0';
 

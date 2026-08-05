@@ -41,6 +41,16 @@ class TestTorchBridgeAvailability:
         assert isinstance(result, bool)
         assert result is True  # Should be True since torch is installed
 
+        # When the native module is installed it must also be the active path: a
+        # version-incompatible bridge falls back silently, so without this the
+        # suite would stay green with the native path dead.
+        try:
+            import slangpy_torch  # noqa: F401
+        except ImportError:
+            return
+        assert slangpy.get_torch_bridge_fallback_reason() != "incompatible"
+        assert slangpy.is_torch_bridge_using_fallback() is False
+
     def test_fallback_toggle(self):
         """Test that we can toggle between native and fallback modes."""
         original = slangpy.is_torch_bridge_using_fallback()
@@ -56,26 +66,6 @@ class TestTorchBridgeAvailability:
         finally:
             # Restore original state
             slangpy.set_torch_bridge_python_fallback(original)
-
-    def test_native_bridge_version_matches(self):
-        """The installed native slangpy_torch must be ABI-compatible with the
-        version slangpy_ext was compiled against; if not, the compat gate must
-        fall back with reason 'incompatible'. Here the matched pair must NOT be
-        incompatible (positive coherence check)."""
-        try:
-            import slangpy_torch  # noqa: F401
-        except ImportError:
-            pytest.skip("native slangpy_torch not installed; only fallback available")
-
-        reason = slangpy.get_torch_bridge_fallback_reason()
-        assert reason != "incompatible", (
-            "native slangpy_torch is version-incompatible with slangpy_ext "
-            "(TENSOR_BRIDGE_API_VERSION mismatch) - a signature-format change "
-            "likely bumped one side but not the other"
-        )
-        # With a compatible native bridge present, it should be the active path
-        # (unless a test earlier forced fallback and did not restore it).
-        assert slangpy.is_torch_bridge_using_fallback() is False
 
     def test_stale_bridge_version_is_rejected(self):
         """Deterministically exercise the INCOMPATIBLE path: a native slangpy_torch
@@ -190,7 +180,7 @@ class TestTorchBridgeAvailability:
         buffer = ctypes.create_string_buffer(required_size)
         result = get_signature(ctypes.c_void_p(id(tensor)), buffer, len(buffer))
         assert result == 0
-        assert buffer.value == b"[D3,S6,V432,G0]"
+        assert buffer.value == b"[D3,S6,G0,V432]"
 
 
 class TestTorchTensorExtraction:
@@ -352,11 +342,11 @@ class TestTorchTensorExtraction:
     @pytest.mark.parametrize(
         "shape,expected",
         [
-            ((), "[D0,S6,V,G0]"),
-            ((1, 2, 3, 4), "[D4,S6,V1234,G0]"),
-            ((0, 4), "[D2,S6,Vx4,G0]"),
-            ((5, 1024, 3), "[D3,S6,Vxx3,G0]"),
-            ((2,) * 16, "[D16,S6,V2222222222222222,G0]"),
+            ((), "[D0,S6,G0,V]"),
+            ((1, 2, 3, 4), "[D4,S6,G0,V1234]"),
+            ((0, 4), "[D2,S6,G0,Vx4]"),
+            ((5, 1024, 3), "[D3,S6,G0,Vxx3]"),
+            ((2,) * 16, "[D16,S6,G0,V2222222222222222]"),
         ],
     )
     def test_extract_tensor_signature(
@@ -378,8 +368,8 @@ class TestTorchTensorExtraction:
         grad = slangpy.extract_torch_tensor_signature(
             torch.zeros(4, 4, dtype=torch.float32, requires_grad=True)
         )
-        assert no_grad == "[D2,S6,V44,G0]"
-        assert grad == "[D2,S6,V44,G1]"
+        assert no_grad == "[D2,S6,G0,V44]"
+        assert grad == "[D2,S6,G1,V44]"
 
     def test_signature_keeps_shape_compatibility_alongside_grad(self) -> None:
         """The grad bit must not displace the per-dimension shape classifiers
@@ -392,8 +382,8 @@ class TestTorchTensorExtraction:
             rgba = slangpy.extract_torch_tensor_signature(
                 torch.zeros((8, 16, 4), dtype=torch.float32, requires_grad=requires_grad)
             )
-            assert rgb == f"[D3,S6,Vxx3,{bit}]"
-            assert rgba == f"[D3,S6,Vxx4,{bit}]"
+            assert rgb == f"[D3,S6,{bit},Vxx3]"
+            assert rgba == f"[D3,S6,{bit},Vxx4]"
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")

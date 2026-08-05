@@ -147,10 +147,11 @@ typedef int (*TensorBridge_IsTensorFn)(void* py_tensor_obj);
 //   buffer_size: Size of output buffer in bytes. Must be at least
 //                TENSOR_BRIDGE_SIGNATURE_BASE_SIZE + tensor rank.
 // Returns: TENSOR_BRIDGE_SUCCESS (0) on success, or a negative TensorBridgeResult on error
-// Format: "[Dn,Sm,V...,Gk]" where n=ndim, m=scalar_type, V contains one
-// shape compatibility character per dimension: '1' through '4' for those
-// exact extents, or 'x' for zero and extents greater than four, and
-// k=requires_grad (0/1).
+// Format: "[Dn,Sm,Gk,V...]" where n=ndim, m=scalar_type, k=requires_grad (0/1),
+// and V contains one shape compatibility character per dimension: '1' through
+// '4' for those exact extents, or 'x' for zero and extents greater than four.
+// Every fixed-width field precedes the variable-length V run, which is always
+// last.
 // This is faster than full extraction when only signature is needed (~15ns)
 typedef int (*TensorBridge_GetSignatureFn)(void* py_tensor_obj, char* buffer, size_t buffer_size);
 
