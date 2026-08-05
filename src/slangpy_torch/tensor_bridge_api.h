@@ -204,8 +204,6 @@ typedef void* (*TensorBridge_CreateZerosLikeFn)(void* py_tensor_obj);
 // slangpy_ext/utils/torch_bridge.h can only detect a change via api_version or
 // info_struct_size, so a signature-format change that leaves TensorBridgeInfo
 // untouched is invisible unless api_version is bumped.
-// History: 6->7 native autograd (#816); 7->8 signature shape compatibility
-// (#1082); 8->9 signature grad bit (#1052).
 #define TENSOR_BRIDGE_API_VERSION 9
 
 typedef struct TensorBridgeAPI {
