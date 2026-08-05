@@ -77,7 +77,6 @@ class TestTorchBridgeAvailability:
         # (unless a test earlier forced fallback and did not restore it).
         assert slangpy.is_torch_bridge_using_fallback() is False
 
-
     def test_stale_bridge_version_is_rejected(self):
         """Deterministically exercise the INCOMPATIBLE path: a native slangpy_torch
         whose api_version does not match slangpy_ext's compiled TENSOR_BRIDGE_API_VERSION
