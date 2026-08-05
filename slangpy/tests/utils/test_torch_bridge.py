@@ -104,7 +104,7 @@ class TestTorchBridgeAvailability:
         buffer = ctypes.create_string_buffer(required_size)
         result = get_signature(ctypes.c_void_p(id(tensor)), buffer, len(buffer))
         assert result == 0
-        assert buffer.value == b"[D3,S6,V432]"
+        assert buffer.value == b"[D3,S6,V432,G0]"
 
 
 class TestTorchTensorExtraction:
@@ -266,11 +266,11 @@ class TestTorchTensorExtraction:
     @pytest.mark.parametrize(
         "shape,expected",
         [
-            ((), "[D0,S6,V]"),
-            ((1, 2, 3, 4), "[D4,S6,V1234]"),
-            ((0, 4), "[D2,S6,Vx4]"),
-            ((5, 1024, 3), "[D3,S6,Vxx3]"),
-            ((2,) * 16, "[D16,S6,V2222222222222222]"),
+            ((), "[D0,S6,V,G0]"),
+            ((1, 2, 3, 4), "[D4,S6,V1234,G0]"),
+            ((0, 4), "[D2,S6,Vx4,G0]"),
+            ((5, 1024, 3), "[D3,S6,Vxx3,G0]"),
+            ((2,) * 16, "[D16,S6,V2222222222222222,G0]"),
         ],
     )
     def test_extract_tensor_signature(
@@ -282,6 +282,32 @@ class TestTorchTensorExtraction:
         tensor = torch.empty(shape, dtype=torch.float32)
         signature = slangpy.extract_torch_tensor_signature(tensor)
         assert signature == expected
+
+    def test_signature_distinguishes_requires_grad(self) -> None:
+        """Grad-ness must be part of the signature so a no-grad and a grad call of
+        the same rank/dtype/shape resolve to distinct CallData (#1052)."""
+        no_grad = slangpy.extract_torch_tensor_signature(
+            torch.zeros(4, 4, dtype=torch.float32, requires_grad=False)
+        )
+        grad = slangpy.extract_torch_tensor_signature(
+            torch.zeros(4, 4, dtype=torch.float32, requires_grad=True)
+        )
+        assert no_grad == "[D2,S6,V44,G0]"
+        assert grad == "[D2,S6,V44,G1]"
+
+    def test_signature_keeps_shape_compatibility_alongside_grad(self) -> None:
+        """The grad bit must not displace the per-dimension shape classifiers
+        (#1082): tensors differing only in a bounded extent must still differ,
+        at both grad-ness values."""
+        for requires_grad, bit in ((False, "G0"), (True, "G1")):
+            rgb = slangpy.extract_torch_tensor_signature(
+                torch.zeros((8, 16, 3), dtype=torch.float32, requires_grad=requires_grad)
+            )
+            rgba = slangpy.extract_torch_tensor_signature(
+                torch.zeros((8, 16, 4), dtype=torch.float32, requires_grad=requires_grad)
+            )
+            assert rgb == f"[D3,S6,Vxx3,{bit}]"
+            assert rgba == f"[D3,S6,Vxx4,{bit}]"
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
