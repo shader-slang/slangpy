@@ -125,6 +125,24 @@ inline rhi::BufferDesc to_rhi_buffer_desc(const BufferDesc& desc)
     return rhi_desc;
 }
 
+/// Returns the native handle type expected when importing a buffer on the given device type.
+/// Returns NativeHandleType::undefined for backends that don't implement buffer import.
+inline NativeHandleType native_buffer_handle_type(DeviceType device_type)
+{
+    switch (device_type) {
+    case DeviceType::d3d12:
+        return NativeHandleType::D3D12Resource;
+    case DeviceType::vulkan:
+        return NativeHandleType::VkBuffer;
+    case DeviceType::metal:
+        return NativeHandleType::MTLBuffer;
+    case DeviceType::wgpu:
+        return NativeHandleType::WGPUBuffer;
+    default:
+        return NativeHandleType::undefined;
+    }
+}
+
 Buffer::Buffer(ref<Device> device, BufferDesc desc)
     : Resource(std::move(device))
     , m_desc(std::move(desc))
@@ -147,7 +165,20 @@ Buffer::Buffer(ref<Device> device, BufferDesc desc, NativeHandle handle)
     : Resource(std::move(device))
     , m_desc(std::move(desc))
 {
+    NativeHandleType expected_handle_type = native_buffer_handle_type(m_device->type());
+    SGL_CHECK(
+        expected_handle_type != NativeHandleType::undefined,
+        "Creating a buffer from a native handle is not implemented for {} devices.",
+        m_device->type()
+    );
     SGL_CHECK(handle.is_valid(), "Invalid native handle.");
+    SGL_CHECK(
+        handle.type() == expected_handle_type,
+        "Expected a native handle of type {} on a {} device (got {}).",
+        expected_handle_type,
+        m_device->type(),
+        handle.type()
+    );
     SGL_CHECK(
         m_desc.data == nullptr && m_desc.data_size == 0,
         "Initial data cannot be uploaded when wrapping an existing native buffer."
