@@ -157,10 +157,23 @@ public:
     std::string to_string() const override;
 
 private:
+    enum class DerivationKind { overload, specialization };
+
+    struct DerivedFunction {
+        ref<Function> function;
+        DerivationKind kind;
+        std::vector<std::string> type_names;
+    };
+
+    void add_derived_function(ref<Function> function, DerivationKind kind, std::vector<std::string> type_names) const;
+    void refresh_derived_functions();
+
     ref<Layout> m_layout;
     ref<const FunctionReflection> m_reflection;
     ref<Type> m_this_type;
     std::string m_full_name;
+    // Direct children are retained so hot reload can refresh the derivation tree recursively.
+    mutable std::vector<DerivedFunction> m_derived_functions;
 
     mutable std::optional<ref<Type>> m_cached_return_type;
     mutable std::optional<std::vector<ref<Parameter>>> m_cached_parameters;
