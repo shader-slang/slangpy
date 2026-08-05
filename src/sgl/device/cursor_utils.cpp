@@ -8,6 +8,8 @@
 #include "sgl/device/shader_object.h"
 #include "sgl/func/tensor.h"
 
+#include <algorithm>
+
 namespace sgl {
 
 namespace cursor_utils {
@@ -22,38 +24,52 @@ namespace cursor_utils {
             return infos;
         }
 
+        uint64_t& cursor_writer_type_info_registry_generation()
+        {
+            static uint64_t generation = 0;
+            return generation;
+        }
+
+        std::string_view cursor_writer_debug_name(const CursorWriterTypeInfo& info)
+        {
+            if (!info.debug_name.empty())
+                return info.debug_name;
+            return "<unnamed>";
+        }
+
     } // namespace
 
     void register_cursor_writer_type(CursorWriterTypeInfo info)
     {
-        SGL_CHECK(info.type != nullptr, "Cursor writer type info must specify a type.");
+        SGL_CHECK(info.type_key != nullptr, "Cursor writer type info must specify a type key.");
         SGL_CHECK(
             bool(info.write_shader_cursor) || bool(info.write_buffer_cursor),
             "Cursor writer type info for type \"{}\" must provide at least one cursor writer.",
-            info.type->name()
+            cursor_writer_debug_name(info)
         );
         SGL_CHECK(
             bool(info.write_signature),
             "Cursor writer type info for type \"{}\" must provide a signature writer.",
-            info.type->name()
+            cursor_writer_debug_name(info)
         );
         const bool has_simple_marshall_metadata = !info.slang_type_name.empty() || !info.imports.empty();
         if (has_simple_marshall_metadata) {
             SGL_CHECK(
                 !info.slang_type_name.empty(),
                 "Functional cursor writer metadata for type \"{}\" must provide a Slang type name.",
-                info.type->name()
+                cursor_writer_debug_name(info)
             );
         }
 
         auto& infos = cursor_writer_type_info_registry();
         for (auto& entry : infos) {
-            if (!(*entry.type == *info.type))
+            if (entry.key_kind != info.key_kind || entry.type_key != info.type_key)
                 continue;
-            SGL_THROW("Cursor writer type \"{}\" is already registered.", info.type->name());
+            SGL_THROW("Cursor writer type \"{}\" is already registered.", cursor_writer_debug_name(info));
         }
 
         infos.push_back(std::move(info));
+        ++cursor_writer_type_info_registry_generation();
     }
 
     std::span<const CursorWriterTypeInfo> cursor_writer_type_infos()
@@ -64,11 +80,33 @@ namespace cursor_utils {
     const CursorWriterTypeInfo* find_cursor_writer_type_info(const std::type_info& type)
     {
         for (const auto& info : cursor_writer_type_info_registry()) {
-            if (*info.type == type) {
+            if (info.key_kind != CursorWriterTypeKeyKind::native_type_info)
+                continue;
+            if (*static_cast<const std::type_info*>(info.type_key) == type) {
                 return &info;
             }
         }
         return nullptr;
+    }
+
+    void unregister_cursor_writer_types(CursorWriterTypeKeyKind key_kind)
+    {
+        auto& infos = cursor_writer_type_info_registry();
+        const auto old_size = infos.size();
+        std::erase_if(
+            infos,
+            [key_kind](const CursorWriterTypeInfo& info)
+            {
+                return info.key_kind == key_kind;
+            }
+        );
+        if (infos.size() != old_size)
+            ++cursor_writer_type_info_registry_generation();
+    }
+
+    uint64_t cursor_writer_registry_generation()
+    {
+        return cursor_writer_type_info_registry_generation();
     }
 
     void register_cursor_writers()
