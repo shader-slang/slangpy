@@ -57,6 +57,27 @@ class TestTorchBridgeAvailability:
             # Restore original state
             slangpy.set_torch_bridge_python_fallback(original)
 
+    def test_native_bridge_version_matches(self):
+        """The installed native slangpy_torch must be ABI-compatible with the
+        version slangpy_ext was compiled against; if not, the compat gate must
+        fall back with reason 'incompatible'. Here the matched pair must NOT be
+        incompatible (positive coherence check)."""
+        try:
+            import slangpy_torch  # noqa: F401
+        except ImportError:
+            pytest.skip("native slangpy_torch not installed; only fallback available")
+
+        reason = slangpy.get_torch_bridge_fallback_reason()
+        assert reason != "incompatible", (
+            "native slangpy_torch is version-incompatible with slangpy_ext "
+            "(TENSOR_BRIDGE_API_VERSION mismatch) - a signature-format change "
+            "likely bumped one side but not the other"
+        )
+        # With a compatible native bridge present, it should be the active path
+        # (unless a test earlier forced fallback and did not restore it).
+        assert slangpy.is_torch_bridge_using_fallback() is False
+
+
     def test_stale_bridge_version_is_rejected(self):
         """Deterministically exercise the INCOMPATIBLE path: a native slangpy_torch
         whose api_version does not match slangpy_ext's compiled TENSOR_BRIDGE_API_VERSION
