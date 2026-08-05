@@ -147,9 +147,10 @@ typedef int (*TensorBridge_IsTensorFn)(void* py_tensor_obj);
 //   buffer_size: Size of output buffer in bytes. Must be at least
 //                TENSOR_BRIDGE_SIGNATURE_BASE_SIZE + tensor rank.
 // Returns: TENSOR_BRIDGE_SUCCESS (0) on success, or a negative TensorBridgeResult on error
-// Format: "[Dn,Sm,V...]" where n=ndim, m=scalar_type, and V contains one
+// Format: "[Dn,Sm,V...,Gk]" where n=ndim, m=scalar_type, V contains one
 // shape compatibility character per dimension: '1' through '4' for those
-// exact extents, or 'x' for zero and extents greater than four.
+// exact extents, or 'x' for zero and extents greater than four, and
+// k=requires_grad (0/1).
 // This is faster than full extraction when only signature is needed (~15ns)
 typedef int (*TensorBridge_GetSignatureFn)(void* py_tensor_obj, char* buffer, size_t buffer_size);
 
@@ -198,7 +199,14 @@ typedef void* (*TensorBridge_CreateZerosLikeFn)(void* py_tensor_obj);
 // ============================================================================
 // Version info for ABI compatibility checking
 // ============================================================================
-#define TENSOR_BRIDGE_API_VERSION 8
+// Bump this on any change to the API/ABI contract, including the output FORMAT
+// of a function and not just struct layout: the compat gate in
+// slangpy_ext/utils/torch_bridge.h can only detect a change via api_version or
+// info_struct_size, so a signature-format change that leaves TensorBridgeInfo
+// untouched is invisible unless api_version is bumped.
+// History: 6->7 native autograd (#816); 7->8 signature shape compatibility
+// (#1082); 8->9 signature grad bit (#1052).
+#define TENSOR_BRIDGE_API_VERSION 9
 
 typedef struct TensorBridgeAPI {
     int api_version;

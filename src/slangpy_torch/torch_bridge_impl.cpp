@@ -123,14 +123,19 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
 
     int ndim = static_cast<int>(tensor.dim());
     int scalar_type = static_cast<int>(tensor.scalar_type());
+    int requires_grad = tensor.requires_grad() ? 1 : 0;
     // The fixed allowance comfortably covers punctuation, the null terminator,
-    // and decimal rank/dtype values. Each dimension then adds one classifier.
+    // decimal rank/dtype values and the grad bit. Each dimension then adds one
+    // classifier.
     const size_t required_size = TENSOR_BRIDGE_SIGNATURE_BASE_SIZE + static_cast<size_t>(ndim);
     if (buffer_size < required_size)
         return TENSOR_BRIDGE_ERROR_BUFFER_TOO_SMALL;
 
     auto sizes = tensor.sizes();
 
+    // The grad bit makes grad-ness part of the CallData routing identity: the
+    // autograd hook is gated on a flag frozen into the cached CallData at build
+    // time, so no-grad and grad calls must resolve to distinct entries (#1052).
     char* p = buffer;
     *p++ = '[';
     *p++ = 'D';
@@ -142,6 +147,9 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
     *p++ = 'V';
     for (int64_t extent : sizes)
         *p++ = shape_compatibility_char(extent);
+    *p++ = ',';
+    *p++ = 'G';
+    p = fast_itoa(p, requires_grad);
     *p++ = ']';
     *p = '\0';
 
