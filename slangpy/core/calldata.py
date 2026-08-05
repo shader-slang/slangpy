@@ -22,6 +22,7 @@ from slangpy import (
     NativeHandle,
     DeviceType,
     TypeConformance,
+    is_torch_bridge_available,
     is_torch_bridge_using_fallback,
     get_torch_bridge_fallback_reason,
 )
@@ -184,6 +185,7 @@ class CallData(NativeCallData):
                 import slangpy.torchintegration.torchtensormarshall  # type: ignore (Registers torch.Tensor handler)
 
                 # Error if slangpy-torch native bridge is not available (unless fallback opted in)
+                is_torch_bridge_available()
                 if is_torch_bridge_using_fallback():
                     if not _ALLOW_TORCH_FALLBACK:
                         reason = get_torch_bridge_fallback_reason()
