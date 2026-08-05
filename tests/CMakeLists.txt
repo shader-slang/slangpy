@@ -13,6 +13,7 @@ if(SGL_BUILD_TESTS)
         sgl/core/test_enum.cpp
         sgl/core/test_file_system_watcher.cpp
         sgl/core/test_lmdb_cache.cpp
+        sgl/core/test_logger.cpp
         sgl/core/test_maths.cpp
         sgl/core/test_memory_mapped_file.cpp
         sgl/core/test_object.cpp
@@ -28,6 +29,9 @@ if(SGL_BUILD_TESTS)
         sgl/device/test_hot_reload.cpp
         sgl/device/test_formats.cpp
         sgl/device/test_shader.cpp
+        sgl/device/test_texture_loader.cpp
+        sgl/device/test_persistent_cache.cpp
+        sgl/device/test_profiler.cpp
         sgl/func/test_base_objects.cpp
         sgl/func/test_tensor.cpp
         sgl/refl/test_lookup.cpp

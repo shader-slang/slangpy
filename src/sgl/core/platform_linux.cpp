@@ -12,6 +12,7 @@
 #include <cxxabi.h>
 #include <dlfcn.h>
 #include <signal.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <pthread.h>
 #include <pwd.h>
@@ -203,6 +204,11 @@ ProcessID current_process_id()
 // -------------------------------------------------------------------------------------------------
 // Threads
 // -------------------------------------------------------------------------------------------------
+
+ThreadID current_thread_id()
+{
+    return static_cast<ThreadID>(::syscall(SYS_gettid));
+}
 
 bool set_current_thread_name(std::string_view name)
 {

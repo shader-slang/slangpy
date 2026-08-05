@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "sgl/core/lmdb_cache.h"
+#include "sgl/core/fwd.h"
+#include "sgl/device/fwd.h"
 
 #include <slang-rhi.h>
 
@@ -20,10 +21,16 @@ struct PersistentCacheStats {
 class SGL_API PersistentCache : public Object, public rhi::IPersistentCache {
     SGL_OBJECT(PersistentCache)
 public:
-    PersistentCache(const std::filesystem::path& path, size_t max_size = 64ull * 1024 * 1024);
+    PersistentCache(
+        const std::filesystem::path& path,
+        size_t max_size = 64ull * 1024 * 1024,
+        ref<CacheWriter> cache_writer = nullptr
+    );
     ~PersistentCache() override;
 
     PersistentCacheStats stats() const;
+
+    void flush() const;
 
     // ISlangUnknown interface
     virtual SLANG_NO_THROW SlangResult SLANG_MCALL queryInterface(const SlangUUID& uuid, void** outObject) override;
@@ -38,6 +45,7 @@ public:
 private:
     std::filesystem::path m_path;
     ref<LMDBCache> m_cache;
+    ref<CacheWriter> m_cache_writer;
 
     std::atomic<uint64_t> m_hit_count{0};
     std::atomic<uint64_t> m_miss_count{0};

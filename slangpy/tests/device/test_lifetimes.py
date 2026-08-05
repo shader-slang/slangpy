@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import gc
+
 import pytest
 
 import slangpy as spy
@@ -56,6 +58,32 @@ def test_load_module_and_cleanup_in_reverse_order(device_type: spy.DeviceType):
 
     device = None
     module = None
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES[:1])
+def test_module_layout_does_not_keep_closed_device_alive(device_type: spy.DeviceType):
+    created_device_count = len(spy.Device.get_created_devices())
+    device = helpers.get_device(device_type, use_cache=False)
+    module = device.load_module_from_source(
+        module_name="module_with_cached_layout",
+        source=r"""
+        struct Foo {
+            float value;
+        };
+        Foo foo;
+    """,
+    )
+    layout = module.layout
+
+    assert layout is not None
+
+    device.close()
+    layout = None
+    module = None
+    device = None
+    gc.collect()
+
+    assert len(spy.Device.get_created_devices()) == created_device_count
 
 
 def asserting_creation(device_type: spy.DeviceType):

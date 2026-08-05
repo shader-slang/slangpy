@@ -33,6 +33,9 @@ enum class LogFrequency {
 };
 
 /// Abstract base class for logger outputs.
+///
+/// Implementations must be thread-safe. A LoggerOutput can be shared by multiple loggers, and
+/// write() may be called concurrently from multiple threads.
 class SGL_API LoggerOutput : public Object {
     SGL_OBJECT(LoggerOutput)
 public:
@@ -58,6 +61,7 @@ public:
 
     // pytest's stdout/stderr capturing sometimes leads to bad file descriptor exceptions
     // when logging in sgl. By setting IGNORE_PRINT_EXCEPTION, we ignore those exceptions.
+    // Configure this flag before concurrent logging starts; concurrent mutation is not supported.
     static bool IGNORE_PRINT_EXCEPTION;
 
 private:
@@ -197,6 +201,8 @@ private:
     LogLevel m_level{LogLevel::info};
     std::string m_name;
 
+    // Access to the output registry is protected by m_mutex. log() takes a snapshot and calls
+    // LoggerOutput::write() after releasing the mutex, so output implementations must be thread-safe.
     std::set<ref<LoggerOutput>> m_outputs;
     std::set<std::string, std::less<>> m_messages;
 

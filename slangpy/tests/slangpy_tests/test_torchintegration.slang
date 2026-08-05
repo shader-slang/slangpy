@@ -11,6 +11,51 @@ float3 add_vectors(float3 a, float3 b) {
     return a + b;
 }
 
+float3 select_vector_overload(float3 value) {
+    return float3(3.0);
+}
+
+float4 select_vector_overload(float4 value) {
+    return float4(4.0);
+}
+
+half4 select_vector_overload(half4 value) {
+    return half4(8.0h);
+}
+
+[Differentiable]
+float differentiable_identity(float value) {
+    return value;
+}
+
+[Differentiable]
+float select_differentiable_scalar_overload(float value) {
+    return value;
+}
+
+[Differentiable]
+half select_differentiable_scalar_overload(half value) {
+    return value;
+}
+
+[Differentiable]
+float3 select_differentiable_vector_overload(float3 value) {
+    return value;
+}
+
+[Differentiable]
+float4 select_differentiable_vector_overload(float4 value) {
+    return value;
+}
+
+float2x3 select_matrix_overload(float2x3 value) {
+    return value;
+}
+
+float3x2 select_matrix_overload(float3x2 value) {
+    return value;
+}
+
 [Differentiable]
 vector<float,N> add_vectors_generic<let N:int>(vector<float,N> a, vector<float,N> b) {
     return a + b;
@@ -117,4 +162,13 @@ void update_particle(Tensor<Particle, 1> particles, float dt, WTensor<Particle, 
         result.velocity = p.velocity;
         output[i] = result;
     }
+}
+
+[Differentiable]
+float scaled_sum(float scale, float[3] values) {
+    float result = 0.0f;
+    for (int i = 0; i < 3; i++) {
+        result += values[i] * scale;
+    }
+    return result;
 }

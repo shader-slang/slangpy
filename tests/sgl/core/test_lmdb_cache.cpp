@@ -180,6 +180,40 @@ TEST_CASE("simple")
     CHECK(cache.del(key1) == false);
 }
 
+TEST_CASE("readonly_get_and_touch")
+{
+    auto cache_dir = testing::get_case_temp_directory() / "cache";
+    LMDBCache::Options options{.max_size = 8ull * 1024 * 1024};
+    LMDBCache cache(cache_dir, options);
+
+    Blob readonly_key{1};
+    Blob touched_key{2};
+    Blob trigger_key{255};
+    Blob value(128 * 1024, 42);
+    Blob trigger_value(128 * 1024, 43);
+    Blob missing_key = random_data(32);
+    std::vector<uint8_t> temp_value;
+
+    cache.set(readonly_key, value);
+    cache.set(touched_key, value);
+    const size_t eviction_threshold_size = (options.eviction_threshold * options.max_size) / 100;
+    uint8_t next_key = 3;
+    while (cache.usage().used_size <= eviction_threshold_size && next_key < 200)
+        cache.set(Blob{next_key++}, value);
+
+    CHECK(cache.touch(touched_key));
+    CHECK(cache.touch(missing_key) == false);
+    CHECK(cache.get_readonly(readonly_key, temp_value));
+    CHECK(temp_value == value);
+
+    cache.set(trigger_key, trigger_value);
+    CHECK(cache.stats().entries < next_key);
+
+    CHECK(cache.get_readonly(readonly_key, temp_value) == false);
+    CHECK(cache.get_readonly(touched_key, temp_value));
+    CHECK(temp_value == value);
+}
+
 TEST_CASE("persistence")
 {
     auto cache_dir = testing::get_case_temp_directory() / "cache";

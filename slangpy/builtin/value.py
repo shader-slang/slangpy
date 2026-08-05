@@ -416,11 +416,15 @@ PYTHON_TYPES[float] = lambda layout, pytype: ScalarMarshall(
     layout, TypeReflection.ScalarType.float32
 )
 PYTHON_TYPES[int] = lambda layout, pytype: ScalarMarshall(layout, TypeReflection.ScalarType.int32)
+PYTHON_TYPES[math.float16_t] = lambda layout, pytype: ScalarMarshall(
+    layout, TypeReflection.ScalarType.float16
+)
 
 PYTHON_SIGNATURES[type(None)] = None
 PYTHON_SIGNATURES[bool] = None
 PYTHON_SIGNATURES[float] = None
 PYTHON_SIGNATURES[int] = None
+PYTHON_SIGNATURES[math.float16_t] = None
 
 
 # Python quaternion type

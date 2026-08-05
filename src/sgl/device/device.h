@@ -851,6 +851,7 @@ public:
 
     Blitter* _blitter();
     HotReload* _hot_reload() { return m_hot_reload; }
+    CacheWriter* _cache_writer() { return m_cache_writer.get(); }
 
     /// Called by hot reload system after reload occurs, to trigger the hooks.
     void _on_hot_reload();
@@ -874,6 +875,7 @@ private:
 
     std::filesystem::path m_module_cache_path;
     std::filesystem::path m_shader_cache_path;
+    ref<CacheWriter> m_cache_writer;
     ref<PersistentCache> m_persistent_cache;
 
     Slang::ComPtr<rhi::IDevice> m_rhi_device;

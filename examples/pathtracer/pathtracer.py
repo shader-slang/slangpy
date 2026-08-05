@@ -588,29 +588,30 @@ class PathTracer:
             self.pipeline = self.device.create_compute_pipeline(self.program)
 
     def execute(self, command_encoder: spy.CommandEncoder, output: spy.Texture, frame: int):
-        w = output.width
-        h = output.height
+        with spy.profile_function(command_encoder):
+            w = output.width
+            h = output.height
 
-        self.scene.camera.width = w
-        self.scene.camera.height = h
-        self.scene.camera.recompute()
+            self.scene.camera.width = w
+            self.scene.camera.height = h
+            self.scene.camera.recompute()
 
-        if USE_RAYTRACING_PIPELINE:
-            with command_encoder.begin_ray_tracing_pass() as pass_encoder:
-                shader_object = pass_encoder.bind_pipeline(self.rt_pipeline, self.shader_table)
-                cursor = spy.ShaderCursor(shader_object)
-                cursor.g_output = output
-                cursor.g_frame = frame
-                self.scene.bind(cursor.g_scene)
-                pass_encoder.dispatch_rays(0, [w, h, 1])
-        else:
-            with command_encoder.begin_compute_pass() as pass_encoder:
-                shader_object = pass_encoder.bind_pipeline(self.pipeline)
-                cursor = spy.ShaderCursor(shader_object)
-                cursor.g_output = output
-                cursor.g_frame = frame
-                self.scene.bind(cursor.g_scene)
-                pass_encoder.dispatch(thread_count=[w, h, 1])
+            if USE_RAYTRACING_PIPELINE:
+                with command_encoder.begin_ray_tracing_pass() as pass_encoder:
+                    shader_object = pass_encoder.bind_pipeline(self.rt_pipeline, self.shader_table)
+                    cursor = spy.ShaderCursor(shader_object)
+                    cursor.g_output = output
+                    cursor.g_frame = frame
+                    self.scene.bind(cursor.g_scene)
+                    pass_encoder.dispatch_rays(0, [w, h, 1])
+            else:
+                with command_encoder.begin_compute_pass() as pass_encoder:
+                    shader_object = pass_encoder.bind_pipeline(self.pipeline)
+                    cursor = spy.ShaderCursor(shader_object)
+                    cursor.g_output = output
+                    cursor.g_frame = frame
+                    self.scene.bind(cursor.g_scene)
+                    pass_encoder.dispatch(thread_count=[w, h, 1])
 
 
 class Accumulator:
@@ -628,30 +629,31 @@ class Accumulator:
         output: spy.Texture,
         reset: bool = False,
     ):
-        if (
-            self.accumulator == None
-            or self.accumulator.width != input.width
-            or self.accumulator.height != input.height
-        ):
-            self.accumulator = self.device.create_texture(
-                format=spy.Format.rgba32_float,
-                width=input.width,
-                height=input.height,
-                usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
-                label="accumulator",
+        with spy.profile_function(command_encoder):
+            if (
+                self.accumulator == None
+                or self.accumulator.width != input.width
+                or self.accumulator.height != input.height
+            ):
+                self.accumulator = self.device.create_texture(
+                    format=spy.Format.rgba32_float,
+                    width=input.width,
+                    height=input.height,
+                    usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
+                    label="accumulator",
+                )
+            self.kernel.dispatch(
+                thread_count=[input.width, input.height, 1],
+                vars={
+                    "g_accumulator": {
+                        "input": input,
+                        "output": output,
+                        "accumulator": self.accumulator,
+                        "reset": reset,
+                    }
+                },
+                command_encoder=command_encoder,
             )
-        self.kernel.dispatch(
-            thread_count=[input.width, input.height, 1],
-            vars={
-                "g_accumulator": {
-                    "input": input,
-                    "output": output,
-                    "accumulator": self.accumulator,
-                    "reset": reset,
-                }
-            },
-            command_encoder=command_encoder,
-        )
 
 
 class ToneMapper:
@@ -667,16 +669,17 @@ class ToneMapper:
         input: spy.Texture,
         output: spy.Texture,
     ):
-        self.kernel.dispatch(
-            thread_count=[input.width, input.height, 1],
-            vars={
-                "g_tone_mapper": {
-                    "input": input,
-                    "output": output,
-                }
-            },
-            command_encoder=command_encoder,
-        )
+        with spy.profile_function(command_encoder):
+            self.kernel.dispatch(
+                thread_count=[input.width, input.height, 1],
+                vars={
+                    "g_tone_mapper": {
+                        "input": input,
+                        "output": output,
+                    }
+                },
+                command_encoder=command_encoder,
+            )
 
 
 class App:
@@ -691,6 +694,11 @@ class App:
         )
         self.surface = self.device.create_surface(self.window)
         self.surface.configure(width=self.window.width, height=self.window.height, vsync=False)
+
+        self.ui = spy.ui.Context(self.device)
+        self.profiler = spy.Profiler()
+        self.profiler.enabled = False
+        self.show_profiler = False
 
         self.render_texture: spy.Texture = None  # type: ignore (will be set immediately)
         self.accum_texture: spy.Texture = None  # type: ignore (will be set immediately)
@@ -710,6 +718,9 @@ class App:
         self.tone_mapper = ToneMapper(self.device)
 
     def on_keyboard_event(self, event: spy.KeyboardEvent):
+        if self.ui.handle_keyboard_event(event):
+            return
+
         if event.type == spy.KeyboardEventType.key_press:
             if event.key == spy.KeyCode.escape:
                 self.window.close()
@@ -724,10 +735,17 @@ class App:
                         spy.Bitmap.ComponentType.uint8,
                         srgb_gamma=True,
                     ).write_async("screenshot.png")
+            elif event.key == spy.KeyCode.p:
+                self.show_profiler = not self.show_profiler
+                if self.show_profiler and not self.profiler.enabled:
+                    self.profiler.enabled = True
 
         self.camera_controller.on_keyboard_event(event)
 
     def on_mouse_event(self, event: spy.MouseEvent):
+        if self.ui.handle_mouse_event(event):
+            return
+
         self.camera_controller.on_mouse_event(event)
 
     def on_resize(self, width: int, height: int):
@@ -755,43 +773,59 @@ class App:
             if not surface_texture:
                 continue
 
-            if (
-                self.output_texture == None
-                or self.output_texture.width != surface_texture.width
-                or self.output_texture.height != surface_texture.height
-            ):
-                self.output_texture = self.device.create_texture(
-                    format=spy.Format.rgba32_float,
-                    width=surface_texture.width,
-                    height=surface_texture.height,
-                    usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
-                    label="output_texture",
-                )
-                self.render_texture = self.device.create_texture(
-                    format=spy.Format.rgba32_float,
-                    width=surface_texture.width,
-                    height=surface_texture.height,
-                    usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
-                    label="render_texture",
-                )
-                self.accum_texture = self.device.create_texture(
-                    format=spy.Format.rgba32_float,
-                    width=surface_texture.width,
-                    height=surface_texture.height,
-                    usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
-                    label="accum_texture",
-                )
+            with spy.profile_frame("pathtracer frame"):
+                self.ui.begin_frame(surface_texture.width, surface_texture.height)
+                if self.show_profiler:
+                    spy.ui.render_profiler_window(self.profiler)
 
-            command_encoder = self.device.create_command_encoder()
+                if (
+                    self.output_texture == None
+                    or self.output_texture.width != surface_texture.width
+                    or self.output_texture.height != surface_texture.height
+                ):
+                    self.output_texture = self.device.create_texture(
+                        format=spy.Format.rgba32_float,
+                        width=surface_texture.width,
+                        height=surface_texture.height,
+                        usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
+                        label="output_texture",
+                    )
+                    self.render_texture = self.device.create_texture(
+                        format=spy.Format.rgba32_float,
+                        width=surface_texture.width,
+                        height=surface_texture.height,
+                        usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
+                        label="render_texture",
+                    )
+                    self.accum_texture = self.device.create_texture(
+                        format=spy.Format.rgba32_float,
+                        width=surface_texture.width,
+                        height=surface_texture.height,
+                        usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
+                        label="accum_texture",
+                    )
 
-            self.path_tracer.execute(command_encoder, self.render_texture, frame)
-            self.accumulator.execute(
-                command_encoder, self.render_texture, self.accum_texture, frame == 0
-            )
-            self.tone_mapper.execute(command_encoder, self.accum_texture, self.output_texture)
+                command_encoder = self.device.create_command_encoder()
 
-            command_encoder.blit(surface_texture, self.output_texture)
-            self.device.submit_command_buffer(command_encoder.finish())
+                with spy.profile_zone("render", command_encoder):
+                    self.path_tracer.execute(command_encoder, self.render_texture, frame)
+                    self.accumulator.execute(
+                        command_encoder,
+                        self.render_texture,
+                        self.accum_texture,
+                        frame == 0,
+                    )
+                    self.tone_mapper.execute(
+                        command_encoder,
+                        self.accum_texture,
+                        self.output_texture,
+                    )
+
+                command_encoder.blit(surface_texture, self.output_texture)
+                self.ui.end_frame(surface_texture, command_encoder)
+                self.device.submit_command_buffer(command_encoder.finish())
+
+            self.profiler.tick()
             del surface_texture
 
             self.surface.present()
@@ -799,6 +833,7 @@ class App:
             frame += 1
 
         self.device.wait()
+        self.profiler.tick()
 
 
 app = App()

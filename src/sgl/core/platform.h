@@ -4,6 +4,7 @@
 
 #include "sgl/core/macros.h"
 
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -37,6 +38,7 @@ struct WindowHandle {
 using SharedLibraryHandle = void*;
 
 using ProcessID = int;
+using ThreadID = uint64_t;
 
 } // namespace sgl
 
@@ -175,6 +177,9 @@ save_file_dialog(std::span<const FileDialogFilter> filters = {});
 /// Set the name of the current thread for debuggers and profilers.
 /// \return True if the platform accepted the name.
 SGL_API bool set_current_thread_name(std::string_view name);
+
+/// Get the native platform identifier of the current thread.
+[[nodiscard]] SGL_API ThreadID current_thread_id();
 
 // -------------------------------------------------------------------------------------------------
 // Memory

@@ -21,8 +21,10 @@
 #include "sgl/device/print.h"
 #include "sgl/device/blit.h"
 #include "sgl/device/hot_reload.h"
+#include "sgl/device/reflection.h"
 #include "sgl/device/debug_logger.h"
 #include "sgl/device/native_handle_traits.h"
+#include "sgl/device/cache_writer.h"
 #include "sgl/device/persistent_cache.h"
 
 #include "sgl/core/file_system_watcher.h"
@@ -92,7 +94,7 @@ Device::Device(const DeviceDesc& desc)
 #endif
     }
 
-    // Setup module cache.
+    // Setup module cache path.
     if (m_desc.module_cache_path) {
         m_module_cache_path = *m_desc.module_cache_path;
         if (m_module_cache_path.is_relative())
@@ -100,13 +102,22 @@ Device::Device(const DeviceDesc& desc)
         std::filesystem::create_directories(m_module_cache_path);
     }
 
-    // Setup shader cache.
+    // Setup shader cache path.
     if (m_desc.shader_cache_path) {
         m_shader_cache_path = *m_desc.shader_cache_path;
         if (m_shader_cache_path.is_relative())
             m_shader_cache_path = platform::app_data_directory() / m_shader_cache_path;
         std::filesystem::create_directories(m_shader_cache_path);
-        m_persistent_cache = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size);
+    }
+
+    // Setup shared cache writer.
+    if (!m_module_cache_path.empty() || !m_shader_cache_path.empty())
+        m_cache_writer = make_ref<CacheWriter>();
+
+    // Setup shader cache.
+    if (!m_shader_cache_path.empty()) {
+        m_persistent_cache
+            = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size, m_cache_writer);
     }
 
     // Invalidate CUDA interop if using CUDA
@@ -484,6 +495,10 @@ void Device::close()
     if (m_closed)
         return;
 
+    // Keep the device alive while callbacks and resource teardown may release
+    // the last external owner.
+    ref<Device> keep_alive(this);
+
     // Pop device from thread-local current device stack if it's the current device.
     if (!s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
         pop_current_device();
@@ -492,13 +507,16 @@ void Device::close()
 
     wait();
 
+    // Flush cache writer to ensure all pending writes are completed.
+    if (m_cache_writer)
+        m_cache_writer->flush();
+
+    // Mark the device closed before notifying callbacks so reentrant close()
+    // calls from callbacks are no-ops.
+    m_closed = true;
+
     // Handle device close callbacks.
     m_device_close_callbacks.notify(this);
-
-    // Make sure Device's ref count is not going to zero when releasing resources.
-    inc_ref();
-
-    m_closed = true;
 
     m_device_close_callbacks.clear();
     m_shader_hot_reload_callbacks.clear();
@@ -510,6 +528,9 @@ void Device::close()
 
     m_global_fence.reset();
 
+    // Cached reflection layouts can own shader objects strongly; break those cycles before releasing Slang state.
+    detail::invalidate_reflection_data(this);
+
     m_builtin_layout.reset();
     m_slang_session.reset();
     m_hot_reload.reset();
@@ -519,19 +540,13 @@ void Device::close()
         m_cuda_semaphore.reset();
     }
     m_cuda_device.reset();
-
-    dec_ref();
 }
 
 void Device::close_all_devices()
 {
-    std::vector<Device*> devices;
-    {
-        std::lock_guard lock(s_devices_mutex);
-        devices = s_devices;
-    }
-    for (Device* device : devices)
-        device->close();
+    std::vector<ref<Device>> devices = get_created_devices();
+    for (auto it = devices.rbegin(); it != devices.rend(); ++it)
+        (*it)->close();
 }
 
 void Device::_release_all_rhi_resources()

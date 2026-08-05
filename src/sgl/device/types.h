@@ -90,6 +90,7 @@ enum class Feature : uint32_t {
     sm_6_7 = static_cast<uint32_t>(rhi::Feature::SM_6_7),
     sm_6_8 = static_cast<uint32_t>(rhi::Feature::SM_6_8),
     sm_6_9 = static_cast<uint32_t>(rhi::Feature::SM_6_9),
+    sm_6_10 = static_cast<uint32_t>(rhi::Feature::SM_6_10),
     half = static_cast<uint32_t>(rhi::Feature::Half),
     double_ = static_cast<uint32_t>(rhi::Feature::Double),
     int16 = static_cast<uint32_t>(rhi::Feature::Int16),
@@ -110,6 +111,7 @@ enum class Feature : uint32_t {
     programmable_sample_positions2 = static_cast<uint32_t>(rhi::Feature::ProgrammableSamplePositions2),
     // Vulkan specific features
     shader_resource_min_lod = static_cast<uint32_t>(rhi::Feature::ShaderResourceMinLod),
+    shader_abort = static_cast<uint32_t>(rhi::Feature::ShaderAbort),
     // Metal specific features
     argument_buffer_tier2 = static_cast<uint32_t>(rhi::Feature::ArgumentBufferTier2),
     residency_set = static_cast<uint32_t>(rhi::Feature::ResidencySet),
@@ -168,6 +170,7 @@ SGL_ENUM_INFO(
         {Feature::sm_6_7, "sm_6_7"},
         {Feature::sm_6_8, "sm_6_8"},
         {Feature::sm_6_9, "sm_6_9"},
+        {Feature::sm_6_10, "sm_6_10"},
         {Feature::half, "half"},
         {Feature::double_, "double"},
         {Feature::int16, "int16"},
@@ -186,6 +189,7 @@ SGL_ENUM_INFO(
         {Feature::programmable_sample_positions1, "programmable_sample_positions1"},
         {Feature::programmable_sample_positions2, "programmable_sample_positions2"},
         {Feature::shader_resource_min_lod, "shader_resource_min_lod"},
+        {Feature::shader_abort, "shader_abort"},
         {Feature::argument_buffer_tier2, "argument_buffer_tier2"},
         {Feature::residency_set, "residency_set"},
         {Feature::atomic_bfloat16, "atomic_bfloat16"},

@@ -340,6 +340,14 @@ ProcessID current_process_id()
 // Threads
 // -------------------------------------------------------------------------------------------------
 
+ThreadID current_thread_id()
+{
+    uint64_t thread_id{0};
+    const int result = pthread_threadid_np(nullptr, &thread_id);
+    SGL_ASSERT(result == 0);
+    return thread_id;
+}
+
 bool set_current_thread_name(std::string_view name)
 {
     std::string truncated_name(name.substr(0, 15));

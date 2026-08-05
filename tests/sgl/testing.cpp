@@ -111,4 +111,11 @@ void run_gpu_test(void (*func)(GpuTestContext&))
     }
 }
 
+void release_cached_devices()
+{
+    for (auto& [_, device] : g_cached_devices)
+        device->close();
+    g_cached_devices.clear();
+}
+
 } // namespace sgl::testing

@@ -84,6 +84,9 @@ public:
     /// Destructor.
     ~LMDBCache() override;
 
+    /// Maximum key size supported by the database.
+    size_t max_key_size() const { return m_max_key_size; }
+
     /// Set a value in the cache.
     /// Throws on error.
     /// \param key_data Pointer to the key data.
@@ -100,6 +103,23 @@ public:
     /// \param user_data User data passed to the write_value_func.
     /// \return True if the key was found, false otherwise.
     bool get(const void* key_data, size_t key_size, WriteValueFunc write_value_func, void* user_data = nullptr);
+
+    /// Get a value from the cache without updating its last-access metadata.
+    /// Throws on error.
+    /// \param key_data Pointer to the key data.
+    /// \param key_size Size of the key data.
+    /// \param write_value_func Function to write the value data.
+    /// \param user_data User data passed to the write_value_func.
+    /// \return True if the key was found, false otherwise.
+    bool
+    get_readonly(const void* key_data, size_t key_size, WriteValueFunc write_value_func, void* user_data = nullptr);
+
+    /// Update an entry's last-access metadata without reading its value.
+    /// Throws on error.
+    /// \param key_data Pointer to the key data.
+    /// \param key_size Size of the key data.
+    /// \return True if the key was found and touched, false otherwise.
+    bool touch(const void* key_data, size_t key_size);
 
     /// Delete a value from the cache.
     /// Throws on error.
@@ -138,6 +158,33 @@ public:
         );
     }
 
+    /// Get a value from the cache without updating its last-access metadata.
+    /// Throws on error.
+    /// \param key Key.
+    /// \param value Vector to store the value.
+    /// \return True if the key was found, false otherwise.
+    inline bool get_readonly(std::span<const uint8_t> key, std::vector<uint8_t>& value)
+    {
+        return get_readonly(
+            key.data(),
+            key.size(),
+            [](const void* data, size_t size, void* user_data)
+            {
+                reinterpret_cast<std::vector<uint8_t>*>(user_data)->assign(
+                    static_cast<const uint8_t*>(data),
+                    static_cast<const uint8_t*>(data) + size
+                );
+            },
+            &value
+        );
+    }
+
+    /// Update an entry's last-access metadata.
+    /// Throws on error.
+    /// \param key Key.
+    /// \return True if the key was found and touched, false otherwise.
+    inline bool touch(std::span<const uint8_t> key) { return touch(key.data(), key.size()); }
+
     /// Delete a value from the cache.
     /// Throws on error.
     /// \param key Key.
@@ -169,6 +216,14 @@ private:
     using ForEachFunc
         = void (*)(const void* key, size_t key_size, const void* value, size_t value_size, void* user_data);
     void for_each_impl(ForEachFunc callback, void* user_data) const;
+
+    bool get_impl(
+        const void* key_data,
+        size_t key_size,
+        WriteValueFunc write_value_func,
+        void* user_data,
+        bool update_last_access
+    );
 
     void evict(bool force = false);
 
