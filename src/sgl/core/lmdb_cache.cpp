@@ -9,6 +9,8 @@
 
 #include <lmdb.h>
 
+#include <memory>
+
 // Brief overview on how the cache works:
 // - The cache is backed by an LMDB database stored on disk.
 // - There are two databases:
@@ -464,6 +466,10 @@ LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Option
 
     if (int result = mdb_env_create(&db.env); result != MDB_SUCCESS)
         LMDB_THROW("Failed to create environment", result);
+
+    // Close the environment if initialization fails before ownership is transferred to the returned DB.
+    std::unique_ptr<MDB_env, decltype(&mdb_env_close)> env(db.env, &mdb_env_close);
+
     if (int result = mdb_env_set_maxreaders(db.env, 126); result != MDB_SUCCESS)
         LMDB_THROW("Failed to set max readers", result);
     if (int result = mdb_env_set_maxdbs(db.env, 2); result != MDB_SUCCESS)
@@ -492,6 +498,9 @@ LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Option
             .db = db,
         }
     );
+
+    // Release ownership of the environment since it is now managed by the returned DB.
+    env.release();
 
     return db;
 }
