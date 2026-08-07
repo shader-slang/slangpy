@@ -320,7 +320,7 @@ public:
     /// Check if the device supports a given feature.
     bool has_feature(Feature feature) const;
 
-    /// List of slang capabilities supported by the device.
+    /// List of capabilities reported by the device backend.
     const std::vector<std::string>& capabilities() const { return m_capabilities; }
 
     /// Check if the device supports a given capability.
