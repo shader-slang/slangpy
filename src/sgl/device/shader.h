@@ -184,6 +184,8 @@ struct SlangCompilerOptions {
     SlangOptimizationLevel optimization{SlangOptimizationLevel::default_};
 
     /// Specifies a list of additional arguments to be passed to the downstream compiler.
+    /// Only forwarded to downstream compilers that accept pass-through arguments: DXC (D3D12)
+    /// and NVRTC (CUDA). Ignored for other backends.
     std::vector<std::string> downstream_args;
 
     /// When set will dump the intermediate source output.
@@ -209,6 +211,8 @@ struct SlangLinkOptions {
     std::optional<SlangOptimizationLevel> optimization;
 
     /// Specifies a list of additional arguments to be passed to the downstream compiler.
+    /// Only forwarded to downstream compilers that accept pass-through arguments: DXC (D3D12)
+    /// and NVRTC (CUDA). Ignored for other backends.
     std::optional<std::vector<std::string>> downstream_args;
 
     /// When set will dump the intermediate source output.
