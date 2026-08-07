@@ -8225,7 +8225,10 @@ static const char *__doc_sgl_SlangCompilerOptions_disable_warnings = R"doc(Speci
 
 static const char *__doc_sgl_SlangCompilerOptions_downstream_args =
 R"doc(Specifies a list of additional arguments to be passed to the
-downstream compiler.)doc";
+downstream compiler. Only forwarded to downstream compilers that
+accept pass-through arguments: DXC (d3d12) and NVRTC (cuda). Ignored
+for other backends (e.g. ``["--use_fast_math"]`` reaches NVRTC on the
+cuda target).)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_dump_intermediates = R"doc(When set will dump the intermediate source output.)doc";
 
@@ -8235,7 +8238,12 @@ static const char *__doc_sgl_SlangCompilerOptions_enable_experimental_features =
 
 static const char *__doc_sgl_SlangCompilerOptions_enable_warnings = R"doc(Specifies a list of warnings to enable (warning codes or names).)doc";
 
-static const char *__doc_sgl_SlangCompilerOptions_floating_point_mode = R"doc(Specifies the floating point mode.)doc";
+static const char *__doc_sgl_SlangCompilerOptions_floating_point_mode =
+R"doc(Specifies the floating point mode. Note: with the default mode the
+CUDA (NVRTC/PTX) target emits precise transcendentals
+(exp/pow/atan2/...), whereas Vulkan/Metal drivers typically
+approximate them. For transcendental-heavy CUDA kernels, set this to
+`fast` to enable faster approximations.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_include_paths =
 R"doc(Specifies a list of include paths to be used when resolving

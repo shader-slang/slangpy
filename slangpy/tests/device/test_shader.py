@@ -3,6 +3,8 @@
 import pytest
 import sys
 
+import numpy as np
+
 import slangpy as spy
 from slangpy.testing import helpers
 from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
@@ -249,6 +251,68 @@ def test_compose_modules_link_program(test_id: str, device_type: spy.DeviceType)
     assert program is not None
     assert program.layout is not None
     assert len(program.layout.entry_points) == 2
+
+
+CUDA_DOWNSTREAM_SOURCE = """
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void compute_main(uint3 tid: SV_DispatchThreadID, uniform RWStructuredBuffer<float> result)
+{
+    result[0] = pow(result[0], 2.0f);
+}
+"""
+
+
+# NVRTC (the CUDA downstream compiler) only runs when the compute pipeline is
+# created, which is deferred until first dispatch. So the test must dispatch to
+# force any forwarded downstream arg to actually reach NVRTC. An NVRTC failure
+# surfaces from the RHI layer as a plain RuntimeError; SlangCompileError also
+# derives from RuntimeError, so catching RuntimeError covers both paths.
+def _dispatch_cuda_kernel(
+    device: spy.Device, downstream_args: list[str], test_id: str, on_link: bool = False
+) -> None:
+    compiler_args = [] if on_link else downstream_args
+    session = device.create_slang_session(compiler_options={"downstream_args": compiler_args})
+    module = session.load_module_from_source(
+        module_name=f"cuda_downstream_{test_id}", source=CUDA_DOWNSTREAM_SOURCE
+    )
+    link_options = {"downstream_args": downstream_args} if on_link else None
+    program = session.link_program(
+        [module], [module.entry_point("compute_main")], link_options=link_options
+    )
+    kernel = device.create_compute_kernel(program)
+    result = device.create_buffer(
+        data=np.array([3.0], dtype=np.float32),
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    # NVRTC PTX codegen happens here (pipeline creation is deferred until dispatch).
+    kernel.dispatch(thread_count=[1, 1, 1], result=result)
+    # Loose tolerance: --use_fast_math approximates pow(), so allow small drift.
+    np.testing.assert_allclose(result.to_numpy().view(dtype=np.float32), [9.0], rtol=1e-2)
+
+
+@pytest.mark.parametrize("device_type", [spy.DeviceType.cuda])
+def test_cuda_downstream_args_forwarded(test_id: str, device_type: spy.DeviceType):
+    """downstream_args must reach NVRTC on the CUDA target (shader-slang/slangpy#1058)."""
+    if device_type not in helpers.DEFAULT_DEVICE_TYPES or helpers.should_skip_test_for_device(
+        device_type
+    ):
+        pytest.skip(f"Device type {device_type} not supported.")
+    device = helpers.get_device(type=device_type)
+
+    # A valid NVRTC flag is accepted and the kernel runs, on both the
+    # compile-time and link-time downstream_args paths.
+    _dispatch_cuda_kernel(device, ["--use_fast_math"], test_id)
+    _dispatch_cuda_kernel(device, ["--use_fast_math"], test_id, on_link=True)
+
+    # An invalid NVRTC option value must now surface as an error. Before the fix,
+    # downstream_args were silently dropped for CUDA, so this raised nothing.
+    # (An invalid --gpu-architecture value is reliably rejected by NVRTC only if
+    # the arg actually reaches it.)
+    with pytest.raises(RuntimeError):
+        _dispatch_cuda_kernel(device, ["--gpu-architecture=compute_999"], test_id)
+    with pytest.raises(RuntimeError):
+        _dispatch_cuda_kernel(device, ["--gpu-architecture=compute_999"], test_id, on_link=True)
 
 
 if __name__ == "__main__":
