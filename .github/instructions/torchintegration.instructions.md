@@ -85,7 +85,9 @@ Inherits from `NativeTorchTensorMarshall`. Constructed by `create_torch_tensor_m
 - `ReturnContext` → creates output marshall from Slang return type
 
 ### Tensor Signature Format
-`"[Dn,Sm]"` — `n` = ndim, `m` = c10::ScalarType enum value. Example: `[D2,S6]` = 2D float32.
+`"[Dn,Sm,V...,Gk]"` — `n` = ndim, `m` = c10::ScalarType enum value, `V` carries one shape-compatibility character per dimension (`1`–`4` for those exact extents, `x` for zero or greater than four), `k` = `requires_grad` (0/1). Example: `[D2,S6,V44,G1]` = 2D float32, both extents 4, requires grad.
+
+Both the native emitter (`tensor_bridge_get_signature`) and the Python fallback (`bridge_fallback.get_signature`) must produce identical strings, or the two bridge modes key the cache differently.
 
 ## Dispatch Flow (CUDA)
 
