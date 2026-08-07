@@ -116,8 +116,16 @@ Device::Device(const DeviceDesc& desc)
 
     // Setup shader cache.
     if (!m_shader_cache_path.empty()) {
-        m_persistent_cache
-            = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size, m_cache_writer);
+        try {
+            m_persistent_cache
+                = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size, m_cache_writer);
+        } catch (const std::exception& e) {
+            log_warn(
+                "Failed to initialize persistent shader cache in \"{}\": {}. Continuing without it.",
+                m_shader_cache_path,
+                e.what()
+            );
+        }
     }
 
     // Invalidate CUDA interop if using CUDA
