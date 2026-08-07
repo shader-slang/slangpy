@@ -198,6 +198,95 @@ TEST_CASE("zone stack overflow drops only the excess zone")
     CHECK(trace->diagnostics().producer_drop_count == 1);
 }
 
+// The two cases below must stay separate. Presenting the rejected token a second time is what
+// exercises the double-release guard, but it also gives the leaked reference a second chance to be
+// released, which would hide a regression in the rejection path itself.
+TEST_CASE("mismatched zone end still lets its global frame seal")
+{
+    ref<Profiler> profiler = make_ref<Profiler>();
+    const uint32_t frame_site = Profiler::register_site(__FILE__, __LINE__, __func__, "mismatch frame");
+    const uint32_t outer_site = Profiler::register_site(__FILE__, __LINE__, __func__, "outer");
+    const uint32_t inner_site = Profiler::register_site(__FILE__, __LINE__, __func__, "inner");
+
+    ProfilerFrameToken frame = profiler->begin_frame(frame_site);
+    ProfilerZoneToken outer = profiler->begin_zone(outer_site);
+    ProfilerZoneToken inner = profiler->begin_zone(inner_site);
+    // Ending out of order makes end_zone reject the outer token, which must still hand back the
+    // frame reference begin_zone took for it.
+    profiler->end_zone(outer);
+    profiler->end_zone(inner);
+    profiler->end_frame(frame);
+    profiler->flush();
+
+    ref<ProfilerFrameStats> stats = profiler->frame_stats_snapshot();
+    CHECK(stats->sample_count() == 1);
+    CHECK(stats->pending_frame_count() == 0);
+
+    // A leaked reference would leave the global frame busy and reject the next frame outright.
+    ProfilerFrameToken next = profiler->begin_frame(frame_site);
+    REQUIRE(next.profiler == profiler);
+    profiler->end_frame(next);
+    profiler->flush();
+    CHECK(profiler->frame_stats_snapshot()->sample_count() == 2);
+}
+
+TEST_CASE("re-ending a rejected zone releases its global frame reference once")
+{
+    ref<Profiler> profiler = make_ref<Profiler>();
+    const uint32_t frame_site = Profiler::register_site(__FILE__, __LINE__, __func__, "double release frame");
+    const uint32_t outer_site = Profiler::register_site(__FILE__, __LINE__, __func__, "outer");
+    const uint32_t inner_site = Profiler::register_site(__FILE__, __LINE__, __func__, "inner");
+
+    ProfilerFrameToken frame = profiler->begin_frame(frame_site);
+    ProfilerZoneToken outer = profiler->begin_zone(outer_site);
+    ProfilerZoneToken inner = profiler->begin_zone(inner_site);
+    profiler->end_zone(outer);
+    profiler->end_zone(inner);
+    // After the rejection released it, the same token matches the top of the stack again. Releasing
+    // a second time would underflow the frame's zone count, and publishing again would double-count
+    // the zone.
+    profiler->end_zone(outer);
+    profiler->end_frame(frame);
+    profiler->flush();
+
+    ref<ProfilerFrameStats> stats = profiler->frame_stats_snapshot();
+    CHECK(stats->sample_count() == 1);
+    CHECK(stats->pending_frame_count() == 0);
+    // Only the in-order inner zone is recorded; the rejected outer zone is never published.
+    REQUIRE(stats->entries().size() == 1);
+    CHECK(stats->entries().front().name == "inner");
+}
+
+TEST_CASE("out of order zone end reclaims its thread zone stack slot")
+{
+    ref<Profiler> profiler = make_ref<Profiler>();
+    const uint32_t outer_site = Profiler::register_site(__FILE__, __LINE__, __func__, "outer");
+    const uint32_t inner_site = Profiler::register_site(__FILE__, __LINE__, __func__, "inner");
+    const uint32_t deep_site = Profiler::register_site(__FILE__, __LINE__, __func__, "deep");
+
+    profiler->start_capture();
+    ProfilerZoneToken outer = profiler->begin_zone(outer_site);
+    ProfilerZoneToken inner = profiler->begin_zone(inner_site);
+    profiler->end_zone(outer);
+    profiler->end_zone(inner);
+
+    // Both zones have finished, so the full 64-deep stack must be available again. A slot left
+    // counted by zone_depth would make the deepest of these zones overflow and be rejected, which
+    // is the only externally visible symptom: the parent lookup reads the same cleared slot either
+    // way, so hierarchy alone cannot tell the two cases apart.
+    // 64 == MAX_ZONE_DEPTH, matching "zone stack overflow drops only the excess zone" above.
+    std::vector<ProfilerZoneToken> tokens;
+    for (uint32_t i = 0; i < 64; ++i)
+        tokens.push_back(profiler->begin_zone(deep_site));
+    for (const ProfilerZoneToken& token : tokens)
+        CHECK(token.profiler == profiler);
+    for (auto it = tokens.rbegin(); it != tokens.rend(); ++it)
+        profiler->end_zone(*it);
+
+    ref<ProfilerTrace> trace = profiler->stop_capture();
+    CHECK(trace->zone_count() == 65);
+}
+
 TEST_CASE("capture collects concurrent producers without drops")
 {
     ProfilerDesc desc;
@@ -328,8 +417,7 @@ TEST_CASE("frame statistics hierarchy ordering is deterministic preorder")
     CHECK(ordered.entries()[3].parent_index == 1);
 }
 
-// TODO: Re-enable when https://github.com/shader-slang/slangpy/pull/1073 is merged.
-TEST_CASE("global frames include zones from other threads and exclude unframed zones" * doctest::skip())
+TEST_CASE("global frames include zones from other threads and exclude unframed zones")
 {
     ref<Profiler> profiler = make_ref<Profiler>();
     const uint32_t frame_a = Profiler::register_site(__FILE__, __LINE__, __func__, "frame a");
@@ -594,8 +682,7 @@ TEST_CASE_GPU("discarded GPU work and pending bounds complete frame statistics")
     CHECK(profiler->frame_stats_snapshot()->sample_count() == 0);
 }
 
-// TODO: Re-enable when https://github.com/shader-slang/slangpy/pull/1073 is merged.
-TEST_CASE_GPU("device close settles pending frame statistics" * doctest::skip())
+TEST_CASE_GPU("device close settles pending frame statistics")
 {
     DeviceDesc device_desc = ctx.device->desc();
     device_desc.label = "profiler-device-close";

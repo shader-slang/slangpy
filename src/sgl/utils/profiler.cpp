@@ -292,6 +292,8 @@ namespace {
         uint32_t site_id{0};
         uint32_t frame_index{INVALID_INDEX};
         GpuTimingStatus gpu_timing_status{GpuTimingStatus::unavailable};
+        // Type::frame only: zones successfully published for the frame, stamped at seal time.
+        uint32_t expected_zone_count{0};
     };
 
     struct StoredZone {
@@ -333,6 +335,16 @@ namespace {
             uint64_t old = high_water_mark.load(std::memory_order_relaxed);
             while (old < high && !high_water_mark.compare_exchange_weak(old, high, std::memory_order_relaxed)) { }
             return true;
+        }
+
+        /// Drop stack slots whose zones have already finished, so zone_depth keeps pointing just
+        /// past the innermost live zone. Ending zones out of order finishes a slot below the top,
+        /// and leaving it counted would shrink the usable stack and make it the parent of later
+        /// zones.
+        void release_finished_zone_slots() noexcept
+        {
+            while (zone_depth > 0 && zone_stack[zone_depth - 1] == 0)
+                --zone_depth;
         }
 
         std::vector<CpuEvent> events;
@@ -444,6 +456,8 @@ struct ProfilerImpl {
         ProfilerFrame frame;
         bool ended{false};
         uint64_t pending_gpu_count{0};
+        // Zones the frame marker says were published; only meaningful once ended is true.
+        uint32_t expected_zone_count{0};
         std::unordered_map<uint64_t, PendingFrameZone> zones;
     };
 
@@ -657,6 +671,7 @@ struct ProfilerImpl {
         global_frame_event.timeline_id = data->timeline_id;
         global_frame_event.site_id = site_id;
         global_frame_event.frame_index = *frame_index;
+        global_frame_published_zones.store(0, std::memory_order_relaxed);
         global_frame.store(global_frame_state(*frame_index, GlobalFrameStatus::open), std::memory_order_release);
         token.profiler = owner;
         token.start_ns = start_ns;
@@ -705,6 +720,16 @@ struct ProfilerImpl {
         try_finalize_global_frame(token.frame_index);
     }
 
+    void count_published_zone_in_global_frame(uint32_t frame_index)
+    {
+        // Ignore a late count for a frame that already sealed: its marker has been stamped, and a
+        // zone published this late is dropped by the collector's frame-index checks anyway.
+        const uint64_t state = global_frame.load(std::memory_order_acquire);
+        if (global_frame_index(state) != frame_index || global_frame_status(state) == GlobalFrameStatus::inactive)
+            return;
+        global_frame_published_zones.fetch_add(1, std::memory_order_acq_rel);
+    }
+
     void release_zone_from_global_frame(uint32_t frame_index)
     {
         const uint64_t previous = global_frame.fetch_sub(GLOBAL_FRAME_ZONE_COUNT_INCREMENT, std::memory_order_acq_rel);
@@ -727,9 +752,13 @@ struct ProfilerImpl {
             std::lock_guard lock(global_frame_mutex);
             event = global_frame_event;
         }
+        // Safe to read after the CAS above: every zone of this frame has already released, and a
+        // zone counts itself before releasing, so no further increment for this frame can occur.
+        event.expected_zone_count = global_frame_published_zones.load(std::memory_order_acquire);
         {
             std::lock_guard lock(sealed_frame_mutex);
             sealed_frame_events.push_back(event);
+            ++sealed_frames_published;
         }
         global_frame.store(uint64_t(GlobalFrameStatus::inactive), std::memory_order_release);
         control_cv.notify_all();
@@ -738,6 +767,17 @@ struct ProfilerImpl {
     bool drain()
     {
         bool dirty = false;
+        // Snapshot the sealed frames before the per-thread zone queues, and keep it that way. A
+        // zone is published to its queue (write_index release-store) before it releases from the
+        // global frame, and a frame seals (pushed under sealed_frame_mutex) only after its last
+        // zone releases via the acq-rel global_frame chain. So if this snapshot observes a frame,
+        // the later acquire-load of write_index is guaranteed to see every published zone of it.
+        std::vector<CpuEvent> frame_events;
+        {
+            std::lock_guard lock(sealed_frame_mutex);
+            frame_events.swap(sealed_frame_events);
+            sealed_frames_consumed += frame_events.size();
+        }
         drained_cpu_events.clear();
         {
             std::lock_guard thread_lock(thread_mutex);
@@ -751,14 +791,11 @@ struct ProfilerImpl {
                 thread->read_index.value.store(read, std::memory_order_release);
             }
         }
+        // Consume zones before frame markers so a frame's zones populate pending_frames (and
+        // pending_gpu_count) before its marker triggers finalize_ready_frames().
         for (const CpuEvent& event : drained_cpu_events) {
             consume(event);
             dirty = true;
-        }
-        std::vector<CpuEvent> frame_events;
-        {
-            std::lock_guard lock(sealed_frame_mutex);
-            frame_events.swap(sealed_frame_events);
         }
         for (const CpuEvent& event : frame_events) {
             consume(event);
@@ -768,6 +805,7 @@ struct ProfilerImpl {
         {
             std::lock_guard lock(gpu_result_mutex);
             gpu_results.swap(pending_gpu_results);
+            gpu_results_consumed += gpu_results.size();
         }
         for (const GpuResult& result : gpu_results) {
             consume_gpu(result);
@@ -834,6 +872,18 @@ struct ProfilerImpl {
                 frame_stats_pending_frames.pop_front();
                 continue;
             }
+            // A frame completes only once it ended, every zone the marker promised has arrived, and
+            // its GPU work resolved. Making completion explicit this way keeps frame statistics
+            // correct without depending on the order in which drain() samples its input channels.
+            //
+            // Every path that can prevent a promised zone from arriving must therefore also release
+            // this gate, or the frame pins the pending window forever:
+            //  - a zone dropped by a full ring is never counted (end_zone only counts a successful
+            //    push), so it is not promised in the first place;
+            //  - bound_pending_frames() force-completes the oldest frame on window overflow by
+            //    clearing both this expectation and pending_gpu_count.
+            if (pending_it->second.zones.size() < pending_it->second.expected_zone_count)
+                break;
             if (pending_it->second.pending_gpu_count != 0)
                 break;
             frame_stats_completed_frames.push_back(build_frame_record(std::move(pending_it->second)));
@@ -856,6 +906,8 @@ struct ProfilerImpl {
                     zone.gpu_timing_status = GpuTimingStatus::missing;
             }
             pending_it->second.pending_gpu_count = 0;
+            // Give up on zones that never arrived, so the forced frame cannot pin the window.
+            pending_it->second.expected_zone_count = 0;
         }
         finalize_ready_frames();
     }
@@ -903,6 +955,7 @@ struct ProfilerImpl {
                 PendingFrameData& pending = pending_frames[event.frame_index];
                 pending.frame = frame;
                 pending.ended = true;
+                pending.expected_zone_count = event.expected_zone_count;
                 frame_stats_pending_frames.push_back(event.frame_index);
                 finalize_ready_frames();
                 bound_pending_frames();
@@ -1035,6 +1088,7 @@ struct ProfilerImpl {
         if (!results.empty()) {
             std::lock_guard result_lock(gpu_result_mutex);
             pending_gpu_results.insert(pending_gpu_results.end(), results.begin(), results.end());
+            gpu_results_published += results.size();
         }
     }
 
@@ -1278,6 +1332,7 @@ struct ProfilerImpl {
         if (!results.empty()) {
             std::lock_guard result_lock(gpu_result_mutex);
             pending_gpu_results.insert(pending_gpu_results.end(), results.begin(), results.end());
+            gpu_results_published += results.size();
         }
     }
 
@@ -1604,10 +1659,25 @@ struct ProfilerImpl {
         }
     }
 
+    /// Report whether the collector has consumed everything published before the pending flush.
+    ///
+    /// The side-channel consumed counts are bumped when drain() swaps a queue out, not after it
+    /// consumes the events, so this must only be evaluated by the collector thread once drain() has
+    /// returned. Calling it from anywhere else could observe events counted but not yet applied.
     bool flush_targets_satisfied() const
     {
         if (!flush_pending)
             return false;
+        {
+            std::lock_guard lock(sealed_frame_mutex);
+            if (sealed_frames_consumed < sealed_frame_flush_target)
+                return false;
+        }
+        {
+            std::lock_guard lock(gpu_result_mutex);
+            if (gpu_results_consumed < gpu_result_flush_target)
+                return false;
+        }
         std::lock_guard lock(thread_mutex);
         if (flush_targets.size() > threads.size())
             return false;
@@ -1700,6 +1770,14 @@ struct ProfilerImpl {
             for (const auto& thread : threads)
                 flush_targets.push_back(thread->write_index.value.load(std::memory_order_acquire));
         }
+        {
+            std::lock_guard lock(sealed_frame_mutex);
+            sealed_frame_flush_target = sealed_frames_published;
+        }
+        {
+            std::lock_guard lock(gpu_result_mutex);
+            gpu_result_flush_target = gpu_results_published;
+        }
         flush_pending = true;
         control_cv.notify_all();
         control_cv.wait(
@@ -1728,6 +1806,10 @@ struct ProfilerImpl {
     uint64_t flush_requested{0};
     uint64_t flush_completed{0};
     std::vector<uint64_t> flush_targets;
+    // flush() must cover all three collector input channels, not just the per-thread CPU queues,
+    // or an event published before the call can be consumed only by a later collector iteration.
+    uint64_t sealed_frame_flush_target{0};
+    uint64_t gpu_result_flush_target{0};
     uint64_t clear_frame_stats_requested{0};
     uint64_t clear_frame_stats_completed{0};
 
@@ -1765,14 +1847,26 @@ struct ProfilerImpl {
     std::mutex global_frame_mutex;
     std::atomic<uint64_t> global_frame{0};
     CpuEvent global_frame_event;
-    std::mutex sealed_frame_mutex;
+    // Zones of the currently open global frame that were successfully published to a queue. Reset
+    // when a frame opens and stamped into the frame marker when it seals, so the collector knows
+    // how many zone events to expect before the frame's statistics are complete.
+    std::atomic<uint32_t> global_frame_published_zones{0};
+    mutable std::mutex sealed_frame_mutex;
     std::vector<CpuEvent> sealed_frame_events;
+    // Monotonic counts of sealed frames published by producers and consumed by the collector,
+    // both guarded by sealed_frame_mutex so flush() can compare them without racing a seal.
+    uint64_t sealed_frames_published{0};
+    uint64_t sealed_frames_consumed{0};
     std::atomic<uint64_t> gpu_query_exhaustion_count{0};
     std::atomic<uint64_t> pending_gpu_zone_count{0};
     std::mutex gpu_mutex;
     std::vector<std::unique_ptr<GpuContext>> gpu_contexts;
-    std::mutex gpu_result_mutex;
+    mutable std::mutex gpu_result_mutex;
     std::vector<GpuResult> pending_gpu_results;
+    // Counts only results already published into pending_gpu_results, so flush() waits for
+    // resolved measurements to be consumed without ever waiting on unresolved GPU queries.
+    uint64_t gpu_results_published{0};
+    uint64_t gpu_results_consumed{0};
 };
 
 uint32_t Profiler::register_site(std::string_view file, uint32_t line, std::string_view function, std::string_view name)
@@ -2108,6 +2202,10 @@ ProfilerZoneToken Profiler::begin_zone(uint32_t site_id, CommandEncoder* command
         return token;
     }
     const uint32_t sequence = ++data->local_sequence;
+    // end_zone uses a zeroed zone stack slot to mean "already released", so this must not produce
+    // zero: it does so only if the timeline half and the sequence half wrap to zero together, which
+    // needs 2^32 timelines and 2^32 zones on one thread. A change to this layout has to preserve
+    // that, and a sequence wrap alone can still let a stale token match a reused slot.
     const uint64_t correlation = (uint64_t(data->timeline_id + 1) << 32) | sequence;
     token.profiler = this;
     token.thread_data = data;
@@ -2156,9 +2254,20 @@ void Profiler::end_zone(const ProfilerZoneToken& token) noexcept
     if (data->zone_depth == 0 || token.stack_index + 1 != data->zone_depth
         || data->zone_stack[token.stack_index] != token.correlation_id) {
         data->stack_overflow_count.fetch_add(1, std::memory_order_relaxed);
+        // Hand back the reference begin_zone attached, or the frame never reaches zero and never
+        // seals. A token owns that reference only while its stack slot still holds it, so clearing
+        // the slot here keeps a token that is presented twice from releasing twice.
+        if (data->zone_stack[token.stack_index] == token.correlation_id) {
+            data->zone_stack[token.stack_index] = 0;
+            if (token.frame_index != INVALID_INDEX)
+                m_impl->release_zone_from_global_frame(token.frame_index);
+            data->release_finished_zone_slots();
+        }
         return;
     }
     --data->zone_depth;
+    data->zone_stack[data->zone_depth] = 0;
+    data->release_finished_zone_slots();
     CpuEvent event;
     event.type = CpuEvent::Type::zone;
     event.start_ns = token.start_ns;
@@ -2174,9 +2283,14 @@ void Profiler::end_zone(const ProfilerZoneToken& token) noexcept
         event.gpu_timing_status = GpuTimingStatus::pending;
     else
         event.gpu_timing_status = GpuTimingStatus::missing;
-    data->push(event);
-    if (token.frame_index != INVALID_INDEX)
+    const bool published = data->push(event);
+    if (token.frame_index != INVALID_INDEX) {
+        // Count only zones that actually reached a queue, and count before releasing: the release
+        // can seal the frame, and the seal stamps this count into the marker.
+        if (published)
+            m_impl->count_published_zone_in_global_frame(token.frame_index);
         m_impl->release_zone_from_global_frame(token.frame_index);
+    }
 }
 
 ProfilerFrameToken Profiler::begin_frame(uint32_t site_id) noexcept
