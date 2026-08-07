@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from slangpy import BufferUsage, DeviceType, Tensor
+from slangpy.core.callsignature import ResolveException
 from slangpy.testing import helpers
 
 
@@ -496,10 +497,6 @@ def test_array_of_tensors_read(device_type: DeviceType) -> None:
     # https://github.com/shader-slang/slangpy/issues/1079
     if device_type == DeviceType.metal:
         pytest.skip("Arrays of Tensor parameters return incorrect results on Metal")
-    if device_type == DeviceType.d3d12:
-        pytest.skip(
-            "Array dispatch with read-only (shader_resource) Tensor input removes the D3D12 device"
-        )
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
@@ -516,9 +513,11 @@ float sum_tensors(Tensor<float, 1> tensors[4]) {
 """,
     )
 
+    # Read-only Tensor[] param requires read-only inputs (a writable RWTensor would not
+    # resolve against it), so build them with empty() + copy_from_numpy rather than zeros().
     tensors: list[Tensor] = []
     for i in range(4):
-        t = Tensor.zeros(
+        t = Tensor.empty(
             device,
             dtype=function.module.float,
             shape=(1,),
@@ -574,10 +573,6 @@ def test_array_of_difftensors_read(device_type: DeviceType) -> None:
     # https://github.com/shader-slang/slangpy/issues/1079
     if device_type == DeviceType.metal:
         pytest.skip("Arrays of DiffTensor parameters return incorrect results on Metal")
-    if device_type == DeviceType.d3d12:
-        pytest.skip(
-            "Array dispatch with read-only (shader_resource) Tensor input removes the D3D12 device"
-        )
 
     device = helpers.get_device(device_type)
     function = helpers.create_function_from_module(
@@ -594,15 +589,17 @@ float sum_difftensors(DiffTensor<float, 1> tensors[4]) {
 """,
     )
 
+    # Read-only primal via empty() (writable input would not resolve against the read-only
+    # DiffTensor[] param); the gradient is an output, so it is a writable zeros tensor.
     tensors: list[Tensor] = []
     for i in range(4):
-        t = Tensor.zeros(
+        t = Tensor.empty(
             device,
             dtype=function.module.float,
             shape=(1,),
             usage=BufferUsage.shader_resource,
         )
-        t = t.with_grads(grad_out=Tensor.zeros_like(t))
+        t = t.with_grads(grad_out=Tensor.zeros(device, dtype=function.module.float, shape=(1,)))
         t.copy_from_numpy(np.array([(i + 1) * 10], dtype=np.float32))
         tensors.append(t)
 
@@ -645,6 +642,121 @@ void double_difftensors(RWDiffTensor<float, 1> tensors[4]) {
         out = t.to_numpy()
         assert out.shape == (1,)
         assert np.isclose(out[0], (i + 1) * 20.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_clear_read_only_tensor_raises(device_type: DeviceType) -> None:
+    """Clearing a read-only (shader_resource, no UAV) tensor raises cleanly. Clearing is a
+    write and requires unordered_access. Covers both Tensor.zeros(shader_resource) (which
+    clears at creation) and an explicit clear() on a non-writable tensor.
+    See https://github.com/shader-slang/slangpy/issues/1079.
+    """
+
+    device = helpers.get_device(device_type)
+
+    # zeros() clears at creation, so a read-only usage must raise.
+    with pytest.raises(RuntimeError, match="(?i)read-only|unordered_access|write"):
+        Tensor.zeros(
+            device,
+            dtype="float",
+            shape=(4,),
+            usage=BufferUsage.shader_resource,
+        )
+
+    # An explicit clear() on a read-only tensor must raise too (empty() does not clear).
+    ro = Tensor.empty(device, dtype="float", shape=(4,), usage=BufferUsage.shader_resource)
+    with pytest.raises(RuntimeError, match="(?i)read-only|unordered_access|write"):
+        ro.clear()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_clear_writable_tensor_via_command_encoder(device_type: DeviceType) -> None:
+    """clear() on a writable tensor works when routed through a caller-supplied command
+    encoder (the ordered path). See https://github.com/shader-slang/slangpy/issues/1079.
+    """
+
+    device = helpers.get_device(device_type)
+
+    t = Tensor.empty(device, shape=(4,), dtype="float")  # default usage is writable (UAV)
+    t.copy_from_numpy(np.array([1, 2, 3, 4], dtype=np.float32))
+
+    encoder = device.create_command_encoder()
+    t.clear(encoder)
+    device.submit_command_buffer(encoder.finish())
+
+    assert np.array_equal(t.to_numpy(), np.zeros(4, dtype=np.float32))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_read_only_tensor_to_writable_param_raises_cleanly(device_type: DeviceType) -> None:
+    """A read-only tensor bound to a writable RWTensor parameter is rejected at resolution.
+    See https://github.com/shader-slang/slangpy/issues/1079.
+    """
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "write_one",
+        r"""
+void write_one(RWTensor<float, 1> t) {
+    t.store(int[1](0), 1.0);
+}
+""",
+    )
+
+    # Read-only input via empty() (zeros() would raise: clearing needs a writable buffer).
+    t = Tensor.empty(
+        device,
+        dtype=function.module.float,
+        shape=(1,),
+        usage=BufferUsage.shader_resource,
+    )
+
+    with pytest.raises(
+        ResolveException, match="Can't pass a read-only tensor to a writable tensor"
+    ):
+        function(t)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_array_of_read_only_tensors_to_rwtensor_array_raises_cleanly(
+    device_type: DeviceType,
+) -> None:
+    """A list of read-only tensors bound to a writable RWTensor<T,N>[k] parameter is
+    rejected at resolution. The array path resolves element types by name (Tensor vs
+    RWTensor) with no access-adaptation, so this is distinct from the scalar case.
+    See https://github.com/shader-slang/slangpy/issues/1079.
+    """
+
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "double_tensors",
+        r"""
+void double_tensors(RWTensor<float, 1> tensors[4]) {
+    for (int i = 0; i < 4; i++) {
+        float v = tensors[i].load(int[1](0));
+        tensors[i].store(int[1](0), v * 2.0);
+    }
+}
+""",
+    )
+
+    # Read-only inputs via empty() (zeros() would raise: clearing needs a writable buffer).
+    tensors: list[Tensor] = []
+    for i in range(4):
+        t = Tensor.empty(
+            device,
+            dtype=function.module.float,
+            shape=(1,),
+            usage=BufferUsage.shader_resource,
+        )
+        tensors.append(t)
+
+    with pytest.raises(
+        ResolveException, match=r"does not match slang type RWTensor<float, 1>\[4\]"
+    ):
+        function(tensors)
 
 
 if __name__ == "__main__":
