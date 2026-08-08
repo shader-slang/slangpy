@@ -295,6 +295,8 @@ class SGL_API Buffer : public Resource {
 public:
     Buffer(ref<Device> device, BufferDesc desc);
 
+    Buffer(ref<Device> device, BufferDesc desc, NativeHandle handle);
+
     ~Buffer();
 
     virtual void _release_rhi_resources() override { m_rhi_buffer.setNull(); }

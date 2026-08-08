@@ -63,63 +63,92 @@ NativeHandle Resource::native_handle() const
 // Buffer
 // ----------------------------------------------------------------------------
 
-Buffer::Buffer(ref<Device> device, BufferDesc desc)
-    : Resource(std::move(device))
-    , m_desc(std::move(desc))
+inline void process_buffer_desc(BufferDesc& desc)
 {
-    SGL_CHECK(m_desc.size == 0 || m_desc.element_count == 0, "Only one of 'size' or 'element_count' must be set.");
+    SGL_CHECK(desc.size == 0 || desc.element_count == 0, "Only one of 'size' or 'element_count' must be set.");
     SGL_CHECK(
-        m_desc.struct_size == 0 || m_desc.resource_type_layout == nullptr,
+        desc.struct_size == 0 || desc.resource_type_layout == nullptr,
         "Only one of 'struct_size' or 'resource_type_layout' must be set."
     );
 
     // Derive buffer size from initial data.
-    if (m_desc.size == 0 && m_desc.element_count == 0 && m_desc.data && m_desc.data_size > 0)
-        m_desc.size = m_desc.data_size;
+    if (desc.size == 0 && desc.element_count == 0 && desc.data && desc.data_size > 0)
+        desc.size = desc.data_size;
 
     // Derive struct size from the resource type layout.
-    if (m_desc.resource_type_layout) {
+    if (desc.resource_type_layout) {
         SGL_CHECK(
-            m_desc.resource_type_layout->kind() == TypeReflection::Kind::resource
-                && m_desc.resource_type_layout->type()->resource_shape()
+            desc.resource_type_layout->kind() == TypeReflection::Kind::resource
+                && desc.resource_type_layout->type()->resource_shape()
                     == TypeReflection::ResourceShape::structured_buffer,
             "Struct type layout must describe a structured buffer."
         );
-        m_desc.struct_size = m_desc.resource_type_layout->element_type_layout()->stride();
-        m_desc.resource_type_layout = nullptr;
+        desc.struct_size = desc.resource_type_layout->element_type_layout()->stride();
+        desc.resource_type_layout = nullptr;
     }
 
     // Derive buffer size from element count and struct size.
     SGL_CHECK(
-        m_desc.element_count == 0 || m_desc.struct_size > 0,
+        desc.element_count == 0 || desc.struct_size > 0,
         "'element_count' can only be used with 'struct_size' or 'resource_type_layout' set."
     );
-    if (m_desc.element_count > 0) {
-        m_desc.size = m_desc.element_count * m_desc.struct_size;
-        m_desc.element_count = 0;
+    if (desc.element_count > 0) {
+        desc.size = desc.element_count * desc.struct_size;
+        desc.element_count = 0;
     }
 
     // TODO check init_data size
-    SGL_ASSERT(m_desc.size > 0);
+    SGL_ASSERT(desc.size > 0);
 
     SGL_CHECK(
-        (m_desc.data == nullptr && m_desc.data_size == 0) || m_desc.data_size == m_desc.size,
+        (desc.data == nullptr && desc.data_size == 0) || desc.data_size == desc.size,
         "Invalid data size (got {} bytes, expected {} bytes)",
-        m_desc.data_size,
-        m_desc.size
+        desc.data_size,
+        desc.size
     );
+}
 
+inline rhi::BufferDesc to_rhi_buffer_desc(const BufferDesc& desc)
+{
     rhi::BufferDesc rhi_desc;
-    rhi_desc.size = static_cast<uint64_t>(m_desc.size);
-    rhi_desc.elementSize = static_cast<uint32_t>(m_desc.struct_size);
-    rhi_desc.format = static_cast<rhi::Format>(m_desc.format);
-    rhi_desc.memoryType = static_cast<rhi::MemoryType>(m_desc.memory_type);
-    rhi_desc.usage = static_cast<rhi::BufferUsage>(m_desc.usage);
-    rhi_desc.defaultState = static_cast<rhi::ResourceState>(m_desc.default_state);
-    rhi_desc.label = m_desc.label.empty() ? nullptr : m_desc.label.c_str();
+    rhi_desc.size = static_cast<uint64_t>(desc.size);
+    rhi_desc.elementSize = static_cast<uint32_t>(desc.struct_size);
+    rhi_desc.format = static_cast<rhi::Format>(desc.format);
+    rhi_desc.memoryType = static_cast<rhi::MemoryType>(desc.memory_type);
+    rhi_desc.usage = static_cast<rhi::BufferUsage>(desc.usage);
+    rhi_desc.defaultState = static_cast<rhi::ResourceState>(desc.default_state);
+    rhi_desc.label = desc.label.empty() ? nullptr : desc.label.c_str();
 
-    if (m_desc.memory_type == MemoryType::device_local)
+    if (desc.memory_type == MemoryType::device_local)
         rhi_desc.usage |= rhi::BufferUsage::CopySource | rhi::BufferUsage::CopyDestination;
+
+    return rhi_desc;
+}
+
+/// Returns the native handle type expected when importing a buffer on the given device type.
+/// Returns NativeHandleType::undefined for backends that don't implement buffer import.
+inline NativeHandleType native_buffer_handle_type(DeviceType device_type)
+{
+    switch (device_type) {
+    case DeviceType::d3d12:
+        return NativeHandleType::D3D12Resource;
+    case DeviceType::vulkan:
+        return NativeHandleType::VkBuffer;
+    case DeviceType::metal:
+        return NativeHandleType::MTLBuffer;
+    case DeviceType::wgpu:
+        return NativeHandleType::WGPUBuffer;
+    default:
+        return NativeHandleType::undefined;
+    }
+}
+
+Buffer::Buffer(ref<Device> device, BufferDesc desc)
+    : Resource(std::move(device))
+    , m_desc(std::move(desc))
+{
+    process_buffer_desc(m_desc);
+    rhi::BufferDesc rhi_desc = to_rhi_buffer_desc(m_desc);
 
     SLANG_RHI_CALL(m_device->rhi_device()->createBuffer(rhi_desc, nullptr, m_rhi_buffer.writeRef()), m_device);
 
@@ -130,6 +159,38 @@ Buffer::Buffer(ref<Device> device, BufferDesc desc)
     // Clear initial data fields in desc.
     m_desc.data = nullptr;
     m_desc.data_size = 0;
+}
+
+Buffer::Buffer(ref<Device> device, BufferDesc desc, NativeHandle handle)
+    : Resource(std::move(device))
+    , m_desc(std::move(desc))
+{
+    NativeHandleType expected_handle_type = native_buffer_handle_type(m_device->type());
+    SGL_CHECK(
+        expected_handle_type != NativeHandleType::undefined,
+        "Creating a buffer from a native handle is not implemented for {} devices.",
+        m_device->type()
+    );
+    SGL_CHECK(handle.is_valid(), "Invalid native handle.");
+    SGL_CHECK(
+        handle.type() == expected_handle_type,
+        "Expected a native handle of type {} on a {} device (got {}).",
+        expected_handle_type,
+        m_device->type(),
+        handle.type()
+    );
+    SGL_CHECK(
+        m_desc.data == nullptr && m_desc.data_size == 0,
+        "Initial data cannot be uploaded when wrapping an existing native buffer."
+    );
+
+    process_buffer_desc(m_desc);
+    rhi::BufferDesc rhi_desc = to_rhi_buffer_desc(m_desc);
+
+    SLANG_RHI_CALL(
+        m_device->rhi_device()->createBufferFromNativeHandle(handle.to_rhi(), rhi_desc, m_rhi_buffer.writeRef()),
+        m_device
+    );
 }
 
 Buffer::~Buffer()
