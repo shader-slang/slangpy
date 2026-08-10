@@ -279,6 +279,7 @@ Device::Device(const DeviceDesc& desc)
         .enableAftermath = m_desc.enable_aftermath,
         .debugCallback = m_debug_logger.get(),
         .enableCompilationReports = m_desc.enable_compilation_reports,
+        .pipelineCompilationMode = static_cast<rhi::PipelineCompilationMode>(m_desc.pipeline_compilation_mode),
         .enableCUDALaunchFromGfx = m_desc.enable_cuda_launch_from_gfx,
         .enableRayTracing = m_desc.enable_ray_tracing,
         .bindless = bindless_desc,
@@ -1364,6 +1365,7 @@ std::string Device::to_string() const
         "  enable_print = {},\n"
         "  enable_hot_reload = {},\n"
         "  enable_compilation_reports = {},\n"
+        "  pipeline_compilation_mode = {},\n"
         "  supported_shader_model = {},\n"
         "  module_cache_path = \"{}\",\n"
         "  shader_cache_path = \"{}\"\n"
@@ -1379,6 +1381,7 @@ std::string Device::to_string() const
         m_desc.enable_print,
         m_desc.enable_hot_reload,
         m_desc.enable_compilation_reports,
+        m_desc.pipeline_compilation_mode,
         m_supported_shader_model,
         m_module_cache_path,
         m_shader_cache_path

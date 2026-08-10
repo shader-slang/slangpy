@@ -2875,6 +2875,10 @@ static const char *__doc_sgl_DeviceDesc_module_cache_path =
 R"doc(Path to the module cache directory (optional). If a relative path is
 used, the cache is stored in the application data directory.)doc";
 
+static const char *__doc_sgl_DeviceDesc_pipeline_compilation_mode =
+R"doc(Control resolution of deferred pipelines encountered while finishing a
+command encoder.)doc";
+
 static const char *__doc_sgl_DeviceDesc_rhi_validation_log_level =
 R"doc(RHI validation layer log level (only applicable if RHI validation is
 enabled).)doc";
@@ -5394,7 +5398,12 @@ static const char *__doc_sgl_Logger_2 = R"doc()doc";
 
 static const char *__doc_sgl_LoggerOutput = R"doc()doc";
 
-static const char *__doc_sgl_LoggerOutput_2 = R"doc(Abstract base class for logger outputs.)doc";
+static const char *__doc_sgl_LoggerOutput_2 =
+R"doc(Abstract base class for logger outputs.
+
+Implementations must be thread-safe. A LoggerOutput can be shared by
+multiple loggers, and write() may be called concurrently from multiple
+threads.)doc";
 
 static const char *__doc_sgl_LoggerOutput_class_name = R"doc()doc";
 
@@ -6255,6 +6264,14 @@ static const char *__doc_sgl_Pipeline = R"doc()doc";
 
 static const char *__doc_sgl_Pipeline_2 = R"doc(Pipeline base class.)doc";
 
+static const char *__doc_sgl_PipelineCompilationMode = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationMode_info = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationMode_parallel = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationMode_serial = R"doc()doc";
+
 static const char *__doc_sgl_Pipeline_Pipeline = R"doc()doc";
 
 static const char *__doc_sgl_Pipeline_class_name = R"doc()doc";
@@ -7043,8 +7060,8 @@ R"doc(Poll submitted GPU timestamp queries and queue resolved measurements
 for the collector.
 
 The poll does not deliberately wait for profiled submissions or
-unresolved queries. On CUDA, refreshing timestamp calibration synchronizes
-queued GPU work.)doc";
+unresolved queries. On CUDA, refreshing timestamp calibration
+synchronizes queued GPU work.)doc";
 
 static const char *__doc_sgl_Profiler_to_string = R"doc()doc";
 
@@ -8225,9 +8242,9 @@ static const char *__doc_sgl_SlangCompilerOptions_disable_warnings = R"doc(Speci
 
 static const char *__doc_sgl_SlangCompilerOptions_downstream_args =
 R"doc(Specifies a list of additional arguments to be passed to the
-downstream compiler. Only forwarded to downstream compilers that accept
-pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored for other
-backends.)doc";
+downstream compiler. Only forwarded to downstream compilers that
+accept pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored
+for other backends.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_dump_intermediates = R"doc(When set will dump the intermediate source output.)doc";
 
@@ -8380,9 +8397,9 @@ code.)doc";
 
 static const char *__doc_sgl_SlangLinkOptions_downstream_args =
 R"doc(Specifies a list of additional arguments to be passed to the
-downstream compiler. Only forwarded to downstream compilers that accept
-pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored for other
-backends.)doc";
+downstream compiler. Only forwarded to downstream compilers that
+accept pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored
+for other backends.)doc";
 
 static const char *__doc_sgl_SlangLinkOptions_dump_intermediates = R"doc(When set will dump the intermediate source output.)doc";
 
@@ -8993,6 +9010,21 @@ Returns:
     New texture object.)doc";
 
 static const char *__doc_sgl_TextureLoader_load_texture_2 =
+R"doc(Load a texture from an image stream.
+
+The stream must be readable and seekable. All image formats supported
+by the file-path overload, including DDS, are supported.
+
+Parameter ``stream``:
+    Image data stream.
+
+Parameter ``options``:
+    Texture loading options.
+
+Returns:
+    New texture object.)doc";
+
+static const char *__doc_sgl_TextureLoader_load_texture_3 =
 R"doc(Load a texture from an image file.
 
 Parameter ``path``:
@@ -10775,6 +10807,8 @@ static const char *__doc_sgl_find_enum_info_adl_81 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_82 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_83 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_84 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 

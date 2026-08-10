@@ -90,6 +90,20 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(DeviceType);
 
+enum class PipelineCompilationMode : uint32_t {
+    serial = static_cast<uint32_t>(rhi::PipelineCompilationMode::Serial),
+    parallel = static_cast<uint32_t>(rhi::PipelineCompilationMode::Parallel),
+};
+
+SGL_ENUM_INFO(
+    PipelineCompilationMode,
+    {
+        {PipelineCompilationMode::serial, "serial"},
+        {PipelineCompilationMode::parallel, "parallel"},
+    }
+);
+SGL_ENUM_REGISTER(PipelineCompilationMode);
+
 struct BindlessDesc {
     uint32_t buffer_count{1024};
     uint32_t texture_count{1024};
@@ -145,6 +159,9 @@ struct DeviceDesc {
 
     /// Enable compilation reports.
     bool enable_compilation_reports{false};
+
+    /// Control resolution of deferred pipelines encountered while finishing a command encoder.
+    PipelineCompilationMode pipeline_compilation_mode{PipelineCompilationMode::serial};
 
     /// Adapter LUID to select adapter on which the device will be created.
     std::optional<AdapterLUID> adapter_luid;
