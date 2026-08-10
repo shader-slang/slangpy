@@ -65,6 +65,7 @@ SGL_DICT_TO_DESC_FIELD(enable_ray_tracing, bool)
 SGL_DICT_TO_DESC_FIELD(enable_print, bool)
 SGL_DICT_TO_DESC_FIELD(enable_hot_reload, bool)
 SGL_DICT_TO_DESC_FIELD(enable_compilation_reports, bool)
+SGL_DICT_TO_DESC_FIELD(pipeline_compilation_mode, PipelineCompilationMode)
 SGL_DICT_TO_DESC_FIELD(adapter_luid, AdapterLUID)
 SGL_DICT_TO_DESC_FIELD(compiler_options, SlangCompilerOptions)
 SGL_DICT_TO_DESC_FIELD(module_cache_path, std::filesystem::path)
@@ -318,6 +319,7 @@ SGL_PY_EXPORT(device_device)
 
 
     nb::sgl_enum<DeviceType>(m, "DeviceType");
+    nb::sgl_enum<PipelineCompilationMode>(m, "PipelineCompilationMode");
 
     nb::class_<DeviceDesc>(m, "DeviceDesc", D(DeviceDesc))
         .def(nb::init<>())
@@ -356,6 +358,11 @@ SGL_PY_EXPORT(device_device)
             "enable_compilation_reports",
             &DeviceDesc::enable_compilation_reports,
             D(DeviceDesc, enable_compilation_reports)
+        )
+        .def_rw(
+            "pipeline_compilation_mode",
+            &DeviceDesc::pipeline_compilation_mode,
+            D(DeviceDesc, pipeline_compilation_mode)
         )
         .def_rw("adapter_luid", &DeviceDesc::adapter_luid, D(DeviceDesc, adapter_luid))
         .def_rw("compiler_options", &DeviceDesc::compiler_options, D(DeviceDesc, compiler_options))
@@ -517,6 +524,7 @@ SGL_PY_EXPORT(device_device)
            bool enable_print,
            bool enable_hot_reload,
            bool enable_compilation_reports,
+           PipelineCompilationMode pipeline_compilation_mode,
            std::optional<AdapterLUID> adapter_luid,
            std::optional<SlangCompilerOptions> compiler_options,
            std::optional<std::filesystem::path> module_cache_path,
@@ -544,6 +552,7 @@ SGL_PY_EXPORT(device_device)
                  .enable_print = enable_print,
                  .enable_hot_reload = enable_hot_reload,
                  .enable_compilation_reports = enable_compilation_reports,
+                 .pipeline_compilation_mode = pipeline_compilation_mode,
                  .adapter_luid = adapter_luid,
                  .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
                  .bindless_options = bindless_options.value_or(BindlessDesc{}),
@@ -569,6 +578,7 @@ SGL_PY_EXPORT(device_device)
         "enable_print"_a = DeviceDesc().enable_print,
         "enable_hot_reload"_a = DeviceDesc().enable_hot_reload,
         "enable_compilation_reports"_a = DeviceDesc().enable_compilation_reports,
+        "pipeline_compilation_mode"_a = DeviceDesc().pipeline_compilation_mode,
         "adapter_luid"_a.none() = nb::none(),
         "compiler_options"_a.none() = nb::none(),
         "module_cache_path"_a.none() = nb::none(),
