@@ -11,10 +11,20 @@
 #include <mutex>
 #include <vector>
 
+namespace rhi {
+class ITaskPool;
+}
+
 namespace sgl::thread {
 
 SGL_API void static_init();
 SGL_API void static_shutdown();
+
+/// Get the nanothread-backed task pool installed in slang-rhi.
+SGL_API rhi::ITaskPool* rhi_task_pool();
+
+/// Return the nanothread worker ID for the current thread, or zero for a non-worker thread.
+SGL_API uint32_t current_thread_id();
 
 // Import nanothread symbols into sgl::thread namespace.
 using ::Task;
