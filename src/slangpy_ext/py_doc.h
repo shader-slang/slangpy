@@ -3023,7 +3023,7 @@ static const char *__doc_sgl_Device_builtin_layout = R"doc(Return the cached ref
 
 static const char *__doc_sgl_Device_cache_writer = R"doc()doc";
 
-static const char *__doc_sgl_Device_capabilities = R"doc(List of slang capabilities supported by the device.)doc";
+static const char *__doc_sgl_Device_capabilities = R"doc(List of capabilities reported by the device backend.)doc";
 
 static const char *__doc_sgl_Device_class_name = R"doc()doc";
 
@@ -8225,7 +8225,9 @@ static const char *__doc_sgl_SlangCompilerOptions_disable_warnings = R"doc(Speci
 
 static const char *__doc_sgl_SlangCompilerOptions_downstream_args =
 R"doc(Specifies a list of additional arguments to be passed to the
-downstream compiler.)doc";
+downstream compiler. Only forwarded to downstream compilers that accept
+pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored for other
+backends.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_dump_intermediates = R"doc(When set will dump the intermediate source output.)doc";
 
@@ -8378,7 +8380,9 @@ code.)doc";
 
 static const char *__doc_sgl_SlangLinkOptions_downstream_args =
 R"doc(Specifies a list of additional arguments to be passed to the
-downstream compiler.)doc";
+downstream compiler. Only forwarded to downstream compilers that accept
+pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored for other
+backends.)doc";
 
 static const char *__doc_sgl_SlangLinkOptions_dump_intermediates = R"doc(When set will dump the intermediate source output.)doc";
 
