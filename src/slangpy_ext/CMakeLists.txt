@@ -85,6 +85,14 @@ target_include_directories(slangpy_ext PRIVATE
 )
 
 target_link_libraries(slangpy_ext PRIVATE sgl)
+
+# On macOS nanobind resolves CPython symbols against a curated expected-undefined
+# allow-list (external/nanobind/cmake/darwin-ld-cpython.sym), not libpython. That list
+# omits _PyFrame_GetLasti, which profiler.cpp references on Python 3.11+, breaking the
+# link for cp311+ wheels. Declare it expected-undefined here so it resolves at import
+# time like its siblings. See shader-slang/slangpy#1067.
+target_link_options(slangpy_ext PRIVATE "$<$<PLATFORM_ID:Darwin>:LINKER:-U,_PyFrame_GetLasti>")
+
 set_target_properties(slangpy_ext PROPERTIES
     OUTPUT_NAME slangpy_ext
     ARCHIVE_OUTPUT_NAME slangpy_ext
