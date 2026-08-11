@@ -6,10 +6,12 @@
 #include "sgl/core/object.h"
 #include "sgl/core/format.h"
 
-#include <mutex>
-#include <string_view>
-#include <set>
+#include <atomic>
 #include <filesystem>
+#include <memory>
+#include <mutex>
+#include <set>
+#include <string_view>
 
 namespace sgl {
 
@@ -102,24 +104,26 @@ public:
 /// - name_once(msg)
 /// - name_once(fmt, ...)
 /// The once variants only log the message once per program run.
-#define SGL_LOG_FUNC_FAMILY(name, level, log_func)                                                                     \
+#define SGL_LOG_FUNC_FAMILY(name, level)                                                                               \
     inline void name(const std::string_view msg)                                                                       \
     {                                                                                                                  \
-        log_func(level, msg, LogFrequency::always);                                                                    \
+        log(level, msg, LogFrequency::always);                                                                         \
     }                                                                                                                  \
     template<typename... Args>                                                                                         \
     inline void name(fmt::format_string<Args...> fmt, Args&&... args)                                                  \
     {                                                                                                                  \
-        log_func(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::always);                          \
+        if (should_log(level))                                                                                         \
+            log(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::always);                           \
     }                                                                                                                  \
     inline void name##_once(const std::string_view msg)                                                                \
     {                                                                                                                  \
-        log_func(level, msg, LogFrequency::once);                                                                      \
+        log(level, msg, LogFrequency::once);                                                                           \
     }                                                                                                                  \
     template<typename... Args>                                                                                         \
     inline void name##_once(fmt::format_string<Args...> fmt, Args&&... args)                                           \
     {                                                                                                                  \
-        log_func(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::once);                            \
+        if (should_log(level))                                                                                         \
+            log(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::once);                             \
     }
 
 
@@ -182,11 +186,11 @@ public:
     void log(LogLevel level, const std::string_view msg, LogFrequency frequency = LogFrequency::always);
 
     // Define logging functions.
-    SGL_LOG_FUNC_FAMILY(debug, LogLevel::debug, log)
-    SGL_LOG_FUNC_FAMILY(info, LogLevel::info, log)
-    SGL_LOG_FUNC_FAMILY(warn, LogLevel::warn, log)
-    SGL_LOG_FUNC_FAMILY(error, LogLevel::error, log)
-    SGL_LOG_FUNC_FAMILY(fatal, LogLevel::fatal, log)
+    SGL_LOG_FUNC_FAMILY(debug, LogLevel::debug)
+    SGL_LOG_FUNC_FAMILY(info, LogLevel::info)
+    SGL_LOG_FUNC_FAMILY(warn, LogLevel::warn)
+    SGL_LOG_FUNC_FAMILY(error, LogLevel::error)
+    SGL_LOG_FUNC_FAMILY(fatal, LogLevel::fatal)
 
     /// Returns the global logger instance.
     static Logger& get();
@@ -195,27 +199,70 @@ public:
     static void static_shutdown();
 
 private:
+    using OutputSet = std::set<ref<LoggerOutput>>;
+    using OutputSnapshot = std::shared_ptr<const OutputSet>;
+
+    /// Returns the current immutable output set.
+    OutputSnapshot output_snapshot() const;
+
+    /// Publishes an immutable output set and retires the previous set after unlocking.
+    void publish_outputs(OutputSnapshot outputs);
+
+    /// Applies a copy-on-write mutation without copying or destroying output references while locked.
+    /// The mutator returns true if the copied set changed and may be called again after a publication race.
+    template<typename Mutator>
+    void mutate_outputs(Mutator&& mutator);
+
+    /// Returns true if a message at the given level should be logged.
+    bool should_log(LogLevel level) const
+    {
+        return level == LogLevel::none || level >= m_level.load(std::memory_order_relaxed);
+    }
+
     /// Checks if the given message has already been logged.
     bool is_duplicate(const std::string_view msg);
 
-    LogLevel m_level{LogLevel::info};
+    std::atomic<LogLevel> m_level{LogLevel::info};
     std::string m_name;
 
-    // Access to the output registry is protected by m_mutex. log() takes a snapshot and calls
-    // LoggerOutput::write() after releasing the mutex, so output implementations must be thread-safe.
-    std::set<ref<LoggerOutput>> m_outputs;
+    // Published output sets are immutable. log() retains one shared snapshot while holding m_mutex,
+    // then calls LoggerOutput::write() after releasing the mutex. An output removed concurrently may
+    // therefore receive a call already in progress. Output implementations must be thread-safe.
+    OutputSnapshot m_outputs;
     std::set<std::string, std::less<>> m_messages;
 
     mutable std::mutex m_mutex;
 };
 
-// Define global logging functions.
-SGL_LOG_FUNC_FAMILY(log_debug, LogLevel::debug, Logger::get().log)
-SGL_LOG_FUNC_FAMILY(log_info, LogLevel::info, Logger::get().log)
-SGL_LOG_FUNC_FAMILY(log_warn, LogLevel::warn, Logger::get().log)
-SGL_LOG_FUNC_FAMILY(log_error, LogLevel::error, Logger::get().log)
-SGL_LOG_FUNC_FAMILY(log_fatal, LogLevel::fatal, Logger::get().log)
+// Define global logging functions that forward to the global logger. Formatted messages are
+// filtered by the Logger methods before formatting.
+#define SGL_GLOBAL_LOG_FUNC_FAMILY(name)                                                                               \
+    inline void log_##name(const std::string_view msg)                                                                 \
+    {                                                                                                                  \
+        Logger::get().name(msg);                                                                                       \
+    }                                                                                                                  \
+    template<typename... Args>                                                                                         \
+    inline void log_##name(fmt::format_string<Args...> fmt, Args&&... args)                                            \
+    {                                                                                                                  \
+        Logger::get().name(fmt, std::forward<Args>(args)...);                                                          \
+    }                                                                                                                  \
+    inline void log_##name##_once(const std::string_view msg)                                                          \
+    {                                                                                                                  \
+        Logger::get().name##_once(msg);                                                                                \
+    }                                                                                                                  \
+    template<typename... Args>                                                                                         \
+    inline void log_##name##_once(fmt::format_string<Args...> fmt, Args&&... args)                                     \
+    {                                                                                                                  \
+        Logger::get().name##_once(fmt, std::forward<Args>(args)...);                                                   \
+    }
 
+SGL_GLOBAL_LOG_FUNC_FAMILY(debug)
+SGL_GLOBAL_LOG_FUNC_FAMILY(info)
+SGL_GLOBAL_LOG_FUNC_FAMILY(warn)
+SGL_GLOBAL_LOG_FUNC_FAMILY(error)
+SGL_GLOBAL_LOG_FUNC_FAMILY(fatal)
+
+#undef SGL_GLOBAL_LOG_FUNC_FAMILY
 #undef SGL_LOG_FUNC_FAMILY
 
 } // namespace sgl
