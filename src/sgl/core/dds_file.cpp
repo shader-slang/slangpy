@@ -615,7 +615,13 @@ namespace detail {
         return mip >= 32 ? 1u : std::max(1u, value >> mip);
     }
 
-    static uint32_t get_row_pitch(uint32_t width, uint32_t bits_per_pixel_or_block, uint32_t block_width, uint32_t mip)
+    static bool try_get_row_pitch(
+        uint32_t width,
+        uint32_t bits_per_pixel_or_block,
+        uint32_t block_width,
+        uint32_t mip,
+        uint32_t* result
+    )
     {
         // Shift width by mipmap index, round to next block size and round to next byte (for the rare less than 1 byte
         // per pixel formats) E.g. width = 119, mip = 3, BC1 compression
@@ -623,8 +629,20 @@ namespace detail {
         uint32_t mip_width = get_mip_dimension(width, mip);
         uint64_t block_count = (static_cast<uint64_t>(mip_width) + block_width - 1) / block_width;
         uint64_t row_pitch = (block_count * bits_per_pixel_or_block + 7) / 8;
-        SGL_CHECK(row_pitch <= std::numeric_limits<uint32_t>::max(), "DDSFile: row pitch overflow");
-        return static_cast<uint32_t>(row_pitch);
+        if (row_pitch > std::numeric_limits<uint32_t>::max())
+            return false;
+        *result = static_cast<uint32_t>(row_pitch);
+        return true;
+    }
+
+    static uint32_t get_row_pitch(uint32_t width, uint32_t bits_per_pixel_or_block, uint32_t block_width, uint32_t mip)
+    {
+        uint32_t result;
+        SGL_CHECK(
+            try_get_row_pitch(width, bits_per_pixel_or_block, block_width, mip, &result),
+            "DDSFile: row pitch overflow"
+        );
+        return result;
     }
 
     static bool checked_add(size_t a, size_t b, size_t* result)
@@ -663,7 +681,9 @@ namespace detail {
 
         size_t result = 0;
         for (uint32_t mip = 0; mip < mip_count; ++mip) {
-            size_t row_pitch = get_row_pitch(width, bits_per_pixel_or_block, block_width, mip);
+            uint32_t row_pitch;
+            if (!try_get_row_pitch(width, bits_per_pixel_or_block, block_width, mip, &row_pitch))
+                return false;
             size_t mip_height = get_mip_dimension(height, mip);
             size_t row_count = (mip_height + block_height - 1) / block_height;
             size_t slice_pitch;
@@ -973,6 +993,7 @@ void DDSFile::write_dds(
     SGL_CHECK(type == TextureType::texture_3d || depth == 1, "DDSFile: depth must be 1 for non-3D textures");
     SGL_CHECK(mip_count > 0, "DDSFile: mip_count must be > 0");
     SGL_CHECK(array_size > 0, "DDSFile: array_size must be > 0");
+    SGL_CHECK(DXGIFormat(dxgi_format) != DXGIFormat::UNKNOWN, "DDSFile: dxgi_format must not be UNKNOWN");
     SGL_CHECK(resource_data != nullptr || resource_size == 0, "DDSFile: resource_data is null but resource_size > 0");
 
     SGL_CHECK(

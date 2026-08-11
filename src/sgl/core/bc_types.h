@@ -5,11 +5,13 @@
 #include "sgl/core/macros.h"
 #include "sgl/core/data_struct.h"
 #include "sgl/core/bitmap.h"
+#include "sgl/core/rfilter.h"
 #include "sgl/device/formats.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <variant>
 #include <vector>
 
 namespace sgl {

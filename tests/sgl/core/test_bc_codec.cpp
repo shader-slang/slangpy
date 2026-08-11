@@ -3,10 +3,12 @@
 #include "testing.h"
 #include "sgl/core/bc_types.h"
 #include "sgl/core/bc_codec.h"
+#include "sgl/math/float16.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <numeric>
 #include <vector>
 
@@ -513,6 +515,7 @@ TEST_CASE("backend_selection")
 TEST_CASE("can_encode")
 {
     BCEncoder software_encoder(BCEncoderBackend::software);
+    const BCFormat invalid_format = static_cast<BCFormat>(0xffffffffu);
 
     // SW-encodable formats.
     CHECK(software_encoder.can_encode(BCFormat::bc1_unorm));
@@ -524,12 +527,36 @@ TEST_CASE("can_encode")
     CHECK_FALSE(software_encoder.can_encode(BCFormat::bc5_snorm));
     CHECK_FALSE(software_encoder.can_encode(BCFormat::bc6h_ufloat));
     CHECK_FALSE(software_encoder.can_encode(BCFormat::bc6h_sfloat));
+    CHECK_FALSE(software_encoder.can_encode(invalid_format));
 
     if (BCEncoder::is_backend_available(BCEncoderBackend::nvtt_cpu)) {
         BCEncoder nvtt_encoder(BCEncoderBackend::nvtt_cpu);
+        CHECK_FALSE(nvtt_encoder.can_encode(BCFormat::bc4_snorm));
+        CHECK_FALSE(nvtt_encoder.can_encode(BCFormat::bc5_snorm));
         CHECK(nvtt_encoder.can_encode(BCFormat::bc6h_ufloat));
         CHECK(nvtt_encoder.can_encode(BCFormat::bc6h_sfloat));
+        CHECK_FALSE(nvtt_encoder.can_encode(invalid_format));
+
+        auto pixels = make_gradient_rgba(4, 4);
+        BCImage src = make_rgba_image(pixels, 4, 4);
+        CHECK_THROWS(nvtt_encoder.encode(src, invalid_format));
     }
+}
+
+static std::vector<uint8_t> make_filter_pattern_rgba(uint32_t w, uint32_t h)
+{
+    std::vector<uint8_t> pixels(static_cast<size_t>(w) * h * 4);
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (static_cast<size_t>(y) * w + x) * 4;
+            uint32_t hash = (x * 0x1f123bb5u) ^ (y * 0x9e3779b9u) ^ ((x + y) * 0x85ebca6bu);
+            pixels[idx + 0] = static_cast<uint8_t>(hash);
+            pixels[idx + 1] = static_cast<uint8_t>(hash >> 8);
+            pixels[idx + 2] = static_cast<uint8_t>(hash >> 16);
+            pixels[idx + 3] = 255;
+        }
+    }
+    return pixels;
 }
 
 TEST_CASE("decode_snorm")
@@ -567,6 +594,16 @@ TEST_CASE("decode_validates_destination_layout")
 
     BCMutableImage bad_pitch{decoded.data(), 4, 4, 15, 4, BCComponentType::uint8};
     CHECK_THROWS(decode_bc(block, sizeof(block), BCFormat::bc1_unorm, 4, 4, bad_pitch));
+
+    BCMutableImage bad_component_type{
+        decoded.data(),
+        4,
+        4,
+        16,
+        4,
+        static_cast<BCComponentType>(0xffffffffu),
+    };
+    CHECK_THROWS(decode_bc(block, sizeof(block), BCFormat::bc1_unorm, 4, 4, bad_component_type));
 
     BCMutableImage valid_dst{decoded.data(), 4, 4, 16, 4, BCComponentType::uint8};
     CHECK_THROWS(decode_bc(block, sizeof(block), static_cast<BCFormat>(0xffffffffu), 4, 4, valid_dst));
@@ -716,9 +753,9 @@ TEST_CASE("software_mipmaps_preserve_constant_color")
 // 12. BC6H encode error
 //
 
-TEST_CASE("bc6h_encode_error" * doctest::skip(BCEncoder::is_backend_available(BCEncoderBackend::nvtt_cpu)))
+TEST_CASE("bc6h_encode_error")
 {
-    BCEncoder encoder;
+    BCEncoder encoder(BCEncoderBackend::software);
     auto pixels = make_gradient_rgba(4, 4);
     BCImage src = make_rgba_image(pixels, 4, 4);
 
@@ -866,6 +903,99 @@ static std::vector<float> make_hdr_float32_rgb(uint32_t w, uint32_t h)
     return pixels;
 }
 
+static std::vector<float> make_signed_hdr_float32_rgb(uint32_t w, uint32_t h)
+{
+    std::vector<float> pixels(static_cast<size_t>(w) * h * 3);
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (static_cast<size_t>(y) * w + x) * 3;
+            pixels[idx + 0] = -2.0f + static_cast<float>(x) / static_cast<float>(std::max(w - 1, 1u)) * 4.0f;
+            pixels[idx + 1] = -2.0f + static_cast<float>(y) / static_cast<float>(std::max(h - 1, 1u)) * 4.0f;
+            pixels[idx + 2] = 1.5f;
+        }
+    }
+    return pixels;
+}
+
+static std::vector<float> decode_bc6h(const BCCompressedMip& mip, BCFormat format)
+{
+    std::vector<uint16_t> half_data(static_cast<size_t>(mip.width) * mip.height * 3);
+    BCMutableImage dst{
+        .data = half_data.data(),
+        .width = mip.width,
+        .height = mip.height,
+        .row_pitch = static_cast<uint32_t>(mip.width * 3 * sizeof(uint16_t)),
+        .channel_count = 3,
+        .component_type = BCComponentType::float16,
+    };
+    decode_bc(mip.data.data(), mip.data.size(), format, mip.width, mip.height, dst);
+
+    std::vector<float> result(half_data.size());
+    std::transform(
+        half_data.begin(),
+        half_data.end(),
+        result.begin(),
+        [](uint16_t value)
+        {
+            return math::float16_to_float32(value);
+        }
+    );
+    return result;
+}
+
+static void check_hdr_decode_matches(const std::vector<float>& decoded, const std::vector<float>& reference)
+{
+    REQUIRE_EQ(decoded.size(), reference.size());
+    float decoded_min = std::numeric_limits<float>::max();
+    float decoded_max = std::numeric_limits<float>::lowest();
+    float reference_min = std::numeric_limits<float>::max();
+    double squared_error = 0.0;
+    double squared_reference = 0.0;
+    for (size_t i = 0; i < decoded.size(); ++i) {
+        decoded_min = std::min(decoded_min, decoded[i]);
+        decoded_max = std::max(decoded_max, decoded[i]);
+        reference_min = std::min(reference_min, reference[i]);
+        double error = static_cast<double>(decoded[i]) - reference[i];
+        squared_error += error * error;
+        squared_reference += static_cast<double>(reference[i]) * reference[i];
+    }
+
+    CHECK(decoded_max > 1.0f);
+    if (reference_min < -1.0f)
+        CHECK(decoded_min < -1.0f);
+    double relative_rmse = std::sqrt(squared_error / std::max(squared_reference, 1e-20));
+    CHECK(relative_rmse < 0.2);
+}
+
+static std::vector<float> downsample_box_rgb(const std::vector<float>& source, uint32_t width, uint32_t height)
+{
+    uint32_t target_width = std::max(1u, width / 2);
+    uint32_t target_height = std::max(1u, height / 2);
+    std::vector<float> result(static_cast<size_t>(target_width) * target_height * 3);
+    for (uint32_t y = 0; y < target_height; ++y) {
+        uint32_t y_begin = y * 2;
+        uint32_t y_end = std::min(y_begin + 2, height);
+        for (uint32_t x = 0; x < target_width; ++x) {
+            uint32_t x_begin = x * 2;
+            uint32_t x_end = std::min(x_begin + 2, width);
+            float sum[3] = {};
+            uint32_t count = 0;
+            for (uint32_t source_y = y_begin; source_y < y_end; ++source_y) {
+                for (uint32_t source_x = x_begin; source_x < x_end; ++source_x) {
+                    size_t source_index = (static_cast<size_t>(source_y) * width + source_x) * 3;
+                    for (uint32_t channel = 0; channel < 3; ++channel)
+                        sum[channel] += source[source_index + channel];
+                    ++count;
+                }
+            }
+            size_t target_index = (static_cast<size_t>(y) * target_width + x) * 3;
+            for (uint32_t channel = 0; channel < 3; ++channel)
+                result[target_index + channel] = sum[channel] / static_cast<float>(count);
+        }
+    }
+    return result;
+}
+
 TEST_CASE("bc_codec_nvtt3_bc6h" * doctest::skip(!BCEncoder::is_backend_available(BCEncoderBackend::nvtt_cpu)))
 {
     BCEncoder encoder(BCEncoderBackend::nvtt_cpu);
@@ -889,53 +1019,28 @@ TEST_CASE("bc_codec_nvtt3_bc6h" * doctest::skip(!BCEncoder::is_backend_available
         CHECK(compressed.mip_levels[0].width == W);
         CHECK(compressed.mip_levels[0].height == H);
 
-        // Decode to float16 RGB (6 bytes per pixel).
-        std::vector<uint16_t> decoded(W * H * 3, 0);
-        BCMutableImage dst{decoded.data(), W, H, W * 3 * sizeof(uint16_t), 3, BCComponentType::float16};
-        decode_bc(
-            compressed.mip_levels[0].data.data(),
-            compressed.mip_levels[0].data.size(),
-            BCFormat::bc6h_ufloat,
-            W,
-            H,
-            dst
-        );
-
-        // Verify non-zero output.
-        bool any_nonzero = false;
-        for (auto v : decoded)
-            if (v != 0) {
-                any_nonzero = true;
-                break;
-            }
-        CHECK(any_nonzero);
+        std::vector<float> decoded = decode_bc6h(compressed.mip_levels[0], BCFormat::bc6h_ufloat);
+        check_hdr_decode_matches(decoded, pixels);
     }
 
     SUBCASE("bc6h_sfloat")
     {
-        auto compressed = encoder.encode(src, BCFormat::bc6h_sfloat, opts);
+        std::vector<float> signed_pixels = make_signed_hdr_float32_rgb(W, H);
+        BCImage signed_src{
+            .data = signed_pixels.data(),
+            .width = W,
+            .height = H,
+            .row_pitch = W * 3 * sizeof(float),
+            .channel_count = 3,
+            .component_type = BCComponentType::float32,
+        };
+        auto compressed = encoder.encode(signed_src, BCFormat::bc6h_sfloat, opts);
         REQUIRE(compressed.mip_levels.size() == 1);
         CHECK(compressed.mip_levels[0].width == W);
         CHECK(compressed.mip_levels[0].height == H);
 
-        std::vector<uint16_t> decoded(W * H * 3, 0);
-        BCMutableImage dst{decoded.data(), W, H, W * 3 * sizeof(uint16_t), 3, BCComponentType::float16};
-        decode_bc(
-            compressed.mip_levels[0].data.data(),
-            compressed.mip_levels[0].data.size(),
-            BCFormat::bc6h_sfloat,
-            W,
-            H,
-            dst
-        );
-
-        bool any_nonzero = false;
-        for (auto v : decoded)
-            if (v != 0) {
-                any_nonzero = true;
-                break;
-            }
-        CHECK(any_nonzero);
+        std::vector<float> decoded = decode_bc6h(compressed.mip_levels[0], BCFormat::bc6h_sfloat);
+        check_hdr_decode_matches(decoded, signed_pixels);
     }
 }
 
@@ -1026,6 +1131,7 @@ TEST_CASE("bc_codec_nvtt3_mipmaps" * doctest::skip(!BCEncoder::is_backend_availa
     REQUIRE(compressed.mip_levels.size() == 7);
 
     uint32_t expected_w = W, expected_h = H;
+    std::vector<float> expected_pixels = pixels;
     for (size_t i = 0; i < compressed.mip_levels.size(); ++i) {
         CHECK(compressed.mip_levels[i].width == expected_w);
         CHECK(compressed.mip_levels[i].height == expected_h);
@@ -1033,33 +1139,10 @@ TEST_CASE("bc_codec_nvtt3_mipmaps" * doctest::skip(!BCEncoder::is_backend_availa
             compressed.mip_levels[i].data.size() == bc_compressed_size(expected_w, expected_h, BCFormat::bc6h_ufloat)
         );
 
-        // Verify each level decodes successfully.
-        std::vector<uint16_t> decoded(expected_w * expected_h * 3, 0);
-        BCMutableImage dst{
-            decoded.data(),
-            expected_w,
-            expected_h,
-            static_cast<uint32_t>(expected_w * 3 * sizeof(uint16_t)),
-            3,
-            BCComponentType::float16,
-        };
-        decode_bc(
-            compressed.mip_levels[i].data.data(),
-            compressed.mip_levels[i].data.size(),
-            BCFormat::bc6h_ufloat,
-            expected_w,
-            expected_h,
-            dst
-        );
+        std::vector<float> decoded = decode_bc6h(compressed.mip_levels[i], BCFormat::bc6h_ufloat);
+        check_hdr_decode_matches(decoded, expected_pixels);
 
-        bool any_nonzero = false;
-        for (auto v : decoded)
-            if (v != 0) {
-                any_nonzero = true;
-                break;
-            }
-        CHECK(any_nonzero);
-
+        expected_pixels = downsample_box_rgb(expected_pixels, expected_w, expected_h);
         expected_w = std::max(1u, expected_w / 2);
         expected_h = std::max(1u, expected_h / 2);
     }
@@ -1086,32 +1169,16 @@ TEST_CASE("bc_codec_nvtt3_gpu_mipmaps" * doctest::skip(!BCEncoder::is_backend_av
 
     uint32_t expected_w = W;
     uint32_t expected_h = H;
+    std::vector<float> expected_pixels = pixels;
     for (const BCCompressedMip& mip : compressed.mip_levels) {
         CHECK_EQ(mip.width, expected_w);
         CHECK_EQ(mip.height, expected_h);
         CHECK_EQ(mip.data.size(), bc_compressed_size(expected_w, expected_h, BCFormat::bc6h_ufloat));
 
-        std::vector<uint16_t> decoded(expected_w * expected_h * 3, 0);
-        BCMutableImage dst{
-            decoded.data(),
-            expected_w,
-            expected_h,
-            static_cast<uint32_t>(expected_w * 3 * sizeof(uint16_t)),
-            3,
-            BCComponentType::float16,
-        };
-        decode_bc(mip.data.data(), mip.data.size(), BCFormat::bc6h_ufloat, expected_w, expected_h, dst);
-        CHECK(
-            std::any_of(
-                decoded.begin(),
-                decoded.end(),
-                [](uint16_t value)
-                {
-                    return value != 0;
-                }
-            )
-        );
+        std::vector<float> decoded = decode_bc6h(mip, BCFormat::bc6h_ufloat);
+        check_hdr_decode_matches(decoded, expected_pixels);
 
+        expected_pixels = downsample_box_rgb(expected_pixels, expected_w, expected_h);
         expected_w = std::max(1u, expected_w / 2);
         expected_h = std::max(1u, expected_h / 2);
     }
@@ -1119,9 +1186,9 @@ TEST_CASE("bc_codec_nvtt3_gpu_mipmaps" * doctest::skip(!BCEncoder::is_backend_av
 
 TEST_CASE("bc_codec_mipmap_filters")
 {
-    constexpr uint32_t W = 16;
-    constexpr uint32_t H = 8;
-    auto pixels = make_gradient_rgba(W, H);
+    constexpr uint32_t W = 32;
+    constexpr uint32_t H = 16;
+    auto pixels = make_filter_pattern_rgba(W, H);
     BCImage src = make_rgba_image(pixels, W, H);
 
     const BCEncoderBackend backends[] = {
@@ -1138,6 +1205,7 @@ TEST_CASE("bc_codec_mipmap_filters")
     for (BCEncoderBackend backend : backends) {
         if (!BCEncoder::is_backend_available(backend))
             continue;
+        std::vector<std::vector<uint8_t>> filtered_mips;
         for (const BCMipFilter& filter : filters) {
             CAPTURE(static_cast<int>(backend));
             CAPTURE(filter.index());
@@ -1150,18 +1218,12 @@ TEST_CASE("bc_codec_mipmap_filters")
             REQUIRE_EQ(compressed.mip_levels.size(), bc_mip_count(W, H));
             CHECK_EQ(compressed.mip_levels.back().width, 1);
             CHECK_EQ(compressed.mip_levels.back().height, 1);
-            std::vector<uint8_t> decoded = decode_unorm(compressed.mip_levels.back(), BCFormat::bc7_unorm_srgb, 4);
-            CHECK(
-                std::any_of(
-                    decoded.begin(),
-                    decoded.end(),
-                    [](uint8_t value)
-                    {
-                        return value != 0;
-                    }
-                )
-            );
+            filtered_mips.push_back(compressed.mip_levels[1].data);
         }
+        REQUIRE_EQ(filtered_mips.size(), 3);
+        CHECK(filtered_mips[0] != filtered_mips[1]);
+        CHECK(filtered_mips[0] != filtered_mips[2]);
+        CHECK(filtered_mips[1] != filtered_mips[2]);
     }
 }
 

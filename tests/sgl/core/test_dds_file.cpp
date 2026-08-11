@@ -650,6 +650,7 @@ TEST_CASE("bitmap_read_dds")
         {"bc6h-uf16.dds", 409, 204, Bitmap::PixelFormat::rgb, Bitmap::ComponentType::float16, false},
         {"bc7-unorm.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, false},
         {"bc7-unorm-srgb.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, true},
+        {"bc7-unorm-odd.dds", 127, 127, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, false},
     };
 
     for (const auto& item : BITMAP_DDS_ITEMS) {
@@ -675,13 +676,6 @@ TEST_CASE("bitmap_read_dds")
         CHECK_EQ(bmp.width(), 256);
         CHECK_EQ(bmp.height(), 256);
         CHECK_EQ(bmp.pixel_format(), Bitmap::PixelFormat::rgba);
-    }
-
-    // Test odd-sized DDS (non-multiple-of-4).
-    {
-        Bitmap bmp(images_dir / "bc7-unorm-odd.dds");
-        CHECK_FALSE(bmp.empty());
-        CHECK(bmp.buffer_size() > 0);
     }
 }
 
@@ -759,6 +753,27 @@ TEST_CASE("write_rejects_resource_size_mismatch")
         );
         CHECK_EQ(stream.size(), 0);
     }
+}
+
+TEST_CASE("write_rejects_unknown_format")
+{
+    uint8_t pixel[4] = {};
+    MemoryStream stream;
+    CHECK_THROWS(
+        DDSFile::write_dds(
+            &stream,
+            DXGI_FORMAT_UNKNOWN,
+            DDSFile::TextureType::texture_2d,
+            1,
+            1,
+            1,
+            1,
+            1,
+            pixel,
+            sizeof(pixel)
+        )
+    );
+    CHECK_EQ(stream.size(), 0);
 }
 
 TEST_CASE("write_validates_mip_chain_dimensions")

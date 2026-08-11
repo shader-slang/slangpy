@@ -5,7 +5,7 @@
 # Hints:
 #   SGL_NVTT_PREFIX  - Root directory of the NVTT installation
 #
-# The module also searches in ${CMAKE_SOURCE_DIR}/external/nvtt by default.
+# The module also searches in <slangpy>/external/nvtt by default.
 #
 # Result variables:
 #   NVTT_FOUND         - True if NVTT was found
@@ -25,7 +25,8 @@ set(_nvtt_search_paths "")
 if(SGL_NVTT_PREFIX)
     list(APPEND _nvtt_search_paths "${SGL_NVTT_PREFIX}")
 endif()
-list(APPEND _nvtt_search_paths "${CMAKE_SOURCE_DIR}/external/nvtt")
+get_filename_component(_nvtt_project_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+list(APPEND _nvtt_search_paths "${_nvtt_project_root}/external/nvtt")
 
 # --- Header ---
 find_path(NVTT_INCLUDE_DIR

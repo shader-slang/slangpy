@@ -133,6 +133,12 @@ static bool is_srgb(BCFormat f)
         || f == BCFormat::bc7_unorm_srgb;
 }
 
+/// True if the value names a supported BC format.
+static bool is_valid_bc_format(BCFormat f)
+{
+    return bc_format_bytes_per_block(f) != 0;
+}
+
 /// Return the number of bytes per component for BCComponentType.
 static uint32_t component_byte_size(BCComponentType t)
 {
@@ -186,7 +192,7 @@ static float read_component_as_float(const uint8_t* pixel, uint32_t channel, BCC
             )
         );
     default:
-        return 0.0f;
+        SGL_THROW("read_component_as_float: unsupported component type");
     }
 }
 
@@ -268,7 +274,7 @@ static void write_component_from_float(uint8_t* pixel, uint32_t channel, BCCompo
             );
         break;
     default:
-        break;
+        SGL_THROW("write_component_from_float: unsupported component type");
     }
 }
 
@@ -281,14 +287,15 @@ static void extract_rgba8_block(
     uint8_t out_block[BLOCK_DIM * BLOCK_DIM * 4]
 )
 {
-    uint32_t src_pixel_bytes = src.channel_count * component_byte_size(src.component_type);
+    size_t src_pixel_bytes = static_cast<size_t>(src.channel_count) * component_byte_size(src.component_type);
     const uint8_t* src_bytes = static_cast<const uint8_t*>(src.data);
 
     for (uint32_t by = 0; by < BLOCK_DIM; ++by) {
         uint32_t py = std::min(block_y * BLOCK_DIM + by, src.height - 1);
         for (uint32_t bx = 0; bx < BLOCK_DIM; ++bx) {
             uint32_t px = std::min(block_x * BLOCK_DIM + bx, src.width - 1);
-            const uint8_t* pixel = src_bytes + py * src.row_pitch + px * src_pixel_bytes;
+            const uint8_t* pixel
+                = src_bytes + static_cast<size_t>(py) * src.row_pitch + static_cast<size_t>(px) * src_pixel_bytes;
             uint8_t* dst = out_block + (by * BLOCK_DIM + bx) * 4;
 
             if (src.component_type == BCComponentType::uint8) {
@@ -453,8 +460,8 @@ static void copy_block_to_dst(
 {
     const uint8_t* src = static_cast<const uint8_t*>(decoded_block);
     uint8_t* dst_bytes = static_cast<uint8_t*>(dst.data);
-    uint32_t dst_pixel_bytes = dst.channel_count * component_byte_size(dst.component_type);
-    uint32_t decoded_pixel_bytes = decoded_channels * component_byte_size(decoded_type);
+    size_t dst_pixel_bytes = static_cast<size_t>(dst.channel_count) * component_byte_size(dst.component_type);
+    size_t decoded_pixel_bytes = static_cast<size_t>(decoded_channels) * component_byte_size(decoded_type);
 
     // Fast path: if types and channel counts match, use memcpy.
     bool can_memcpy = (decoded_type == dst.component_type) && (decoded_channels == dst.channel_count);
@@ -467,8 +474,10 @@ static void copy_block_to_dst(
             uint32_t px = block_x * BLOCK_DIM + bx;
             if (px >= dst.width)
                 break;
-            const uint8_t* sp = src + by * decoded_pitch + bx * decoded_pixel_bytes;
-            uint8_t* dp = dst_bytes + py * dst.row_pitch + px * dst_pixel_bytes;
+            const uint8_t* sp
+                = src + static_cast<size_t>(by) * decoded_pitch + static_cast<size_t>(bx) * decoded_pixel_bytes;
+            uint8_t* dp
+                = dst_bytes + static_cast<size_t>(py) * dst.row_pitch + static_cast<size_t>(px) * dst_pixel_bytes;
 
             if (can_memcpy) {
                 std::memcpy(dp, sp, dst_pixel_bytes);
@@ -509,12 +518,8 @@ static NvttFormat bc_format_to_nvtt(BCFormat f)
         return NVTT_Format_BC3;
     case BCFormat::bc4_unorm:
         return NVTT_Format_BC4;
-    case BCFormat::bc4_snorm:
-        return NVTT_Format_BC4S;
     case BCFormat::bc5_unorm:
         return NVTT_Format_BC5;
-    case BCFormat::bc5_snorm:
-        return NVTT_Format_BC5S;
     case BCFormat::bc6h_ufloat:
         return NVTT_Format_BC6U;
     case BCFormat::bc6h_sfloat:
@@ -523,7 +528,7 @@ static NvttFormat bc_format_to_nvtt(BCFormat f)
     case BCFormat::bc7_unorm_srgb:
         return NVTT_Format_BC7;
     default:
-        return NVTT_Format_BC1;
+        SGL_THROW("NVTT3: unsupported BC format");
     }
 }
 
@@ -776,7 +781,10 @@ struct BCEncoderImpl {
 struct BCEncoderSWImpl : BCEncoderImpl {
     BCEncoderSWImpl() { ensure_sw_init(); }
 
-    bool can_encode(BCFormat format) const override { return !is_bc6h(format) && !is_snorm(format); }
+    bool can_encode(BCFormat format) const override
+    {
+        return is_valid_bc_format(format) && !is_bc6h(format) && !is_snorm(format);
+    }
 
     BCCompressedImage encode(const BCImage& src, BCFormat format, const BCEncodeOptions& options) override
     {
@@ -842,10 +850,13 @@ struct BCEncoderNVTTImpl : BCEncoderImpl {
     {
     }
 
-    bool can_encode(BCFormat format) const override { return !is_snorm(format); }
+    bool can_encode(BCFormat format) const override { return is_valid_bc_format(format) && !is_snorm(format); }
 
     BCCompressedImage encode(const BCImage& src, BCFormat format, const BCEncodeOptions& options) override
     {
+        // The NVTT Surface pipeline supplies planar float input, which does not
+        // produce valid BC4S/BC5S output. Do not expose those formats until signed
+        // input preparation is implemented for both CPU and GPU paths.
         if (is_snorm(format))
             SGL_THROW("BCEncoderNVTT::encode: BC4/BC5 SNORM encoding is not implemented");
 
