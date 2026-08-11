@@ -66,6 +66,8 @@ static const char *__doc_formatter_format = R"doc()doc";
 
 static const char *__doc_formatter_format_2 = R"doc()doc";
 
+static const char *__doc_rhi_ITaskPool = R"doc()doc";
+
 static const char *__doc_sgl_AccelerationStructure = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructure_2 = R"doc()doc";
@@ -1354,6 +1356,8 @@ static const char *__doc_sgl_BufferView_to_string = R"doc()doc";
 static const char *__doc_sgl_BufferView_write_to_cursor = R"doc(Bind a nullable buffer view value to a shader cursor.)doc";
 
 static const char *__doc_sgl_Buffer_Buffer = R"doc()doc";
+
+static const char *__doc_sgl_Buffer_Buffer_2 = R"doc()doc";
 
 static const char *__doc_sgl_Buffer_class_name = R"doc()doc";
 
@@ -3095,6 +3099,24 @@ Parameter ``data``:
 
 Parameter ``data_size``:
     Size of the initial data in bytes.
+
+Returns:
+    New buffer object.)doc";
+
+static const char *__doc_sgl_Device_create_buffer_from_native_handle =
+R"doc(Create a new buffer wrapping an existing native buffer without
+copying.
+
+The expected handle type depends on the device type: ``D3D12Resource``
+on D3D12, ``VkBuffer`` on Vulkan, ``MTLBuffer`` on Metal,
+``CUdeviceptr`` on CUDA and ``WGPUBuffer`` on WGPU.
+
+Parameter ``desc``:
+    Buffer description. The size must not exceed the native
+    allocation.
+
+Parameter ``handle``:
+    Native buffer handle to wrap.
 
 Returns:
     New buffer object.)doc";
@@ -5886,6 +5908,8 @@ static const char *__doc_sgl_NativeHandleTrait_21 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_22 = R"doc()doc";
 
+static const char *__doc_sgl_NativeHandleTrait_23 = R"doc()doc";
+
 static const char *__doc_sgl_NativeHandleTrait_pack = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_pack_2 = R"doc()doc";
@@ -5926,6 +5950,8 @@ static const char *__doc_sgl_NativeHandleTrait_pack_19 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_pack_20 = R"doc()doc";
 
+static const char *__doc_sgl_NativeHandleTrait_pack_21 = R"doc()doc";
+
 static const char *__doc_sgl_NativeHandleTrait_unpack = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_unpack_2 = R"doc()doc";
@@ -5965,6 +5991,8 @@ static const char *__doc_sgl_NativeHandleTrait_unpack_18 = R"doc()doc";
 static const char *__doc_sgl_NativeHandleTrait_unpack_19 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_unpack_20 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_unpack_21 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleType = R"doc()doc";
 
@@ -14164,6 +14192,10 @@ static const char *__doc_sgl_thread_blocked_range_m_block_size = R"doc()doc";
 
 static const char *__doc_sgl_thread_blocked_range_m_end = R"doc()doc";
 
+static const char *__doc_sgl_thread_current_thread_id =
+R"doc(Return the nanothread worker ID for the current thread, or zero for a
+non-worker thread.)doc";
+
 static const char *__doc_sgl_thread_do_async =
 R"doc(Run a function asynchronously in a new task. See nanothread
 documentation on `task_submit_dep` for details.
@@ -14244,6 +14276,8 @@ Parameter ``parents``:
 
 Returns:
     The new task.)doc";
+
+static const char *__doc_sgl_thread_rhi_task_pool = R"doc(Get the nanothread-backed task pool installed in slang-rhi.)doc";
 
 static const char *__doc_sgl_thread_static_init = R"doc()doc";
 

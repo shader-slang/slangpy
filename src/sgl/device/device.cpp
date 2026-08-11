@@ -579,6 +579,11 @@ ref<Buffer> Device::create_buffer(BufferDesc desc)
     return make_ref<Buffer>(ref<Device>(this), std::move(desc));
 }
 
+ref<Buffer> Device::create_buffer_from_native_handle(BufferDesc desc, NativeHandle handle)
+{
+    return make_ref<Buffer>(ref<Device>(this), std::move(desc), handle);
+}
+
 ref<BufferView> Device::create_buffer_view(Buffer* buffer, BufferViewDesc desc)
 {
     return make_ref<BufferView>(ref<Device>(this), ref<Buffer>(buffer), std::move(desc));
