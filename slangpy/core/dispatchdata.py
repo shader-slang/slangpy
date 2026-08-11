@@ -201,7 +201,7 @@ void {reflection.name}_entrypoint({params}) {{
                     opts,
                 )
                 compilation_policy = build_info.options.get(
-                    "pipeline_compilation_policy", PipelineCompilationPolicy.default
+                    "pipeline_compilation_policy", PipelineCompilationPolicy.deferred
                 )
                 self.compute_pipeline = device.create_compute_pipeline(
                     program,

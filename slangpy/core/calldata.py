@@ -512,7 +512,7 @@ class CallData(NativeCallData):
             opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
             opts.dump_intermediates_prefix = sanitized
             compilation_policy = build_info.options.get(
-                "pipeline_compilation_policy", PipelineCompilationPolicy.default
+                "pipeline_compilation_policy", PipelineCompilationPolicy.deferred
             )
             if build_info.pipeline_type == PipelineType.compute:
                 # Create compute pipeline
