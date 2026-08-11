@@ -14130,6 +14130,8 @@ Parameter ``port``:
 Parameter ``max_retries``:
     Maximum number of retries.)doc";
 
+static const char *__doc_sgl_thread_Task = R"doc(Opaque task type.)doc";
+
 static const char *__doc_sgl_thread_TaskGroup = R"doc(Helper class for managing a group of tasks.)doc";
 
 static const char *__doc_sgl_thread_TaskGroup_TaskGroup = R"doc()doc";
@@ -14192,13 +14194,9 @@ static const char *__doc_sgl_thread_blocked_range_m_block_size = R"doc()doc";
 
 static const char *__doc_sgl_thread_blocked_range_m_end = R"doc()doc";
 
-static const char *__doc_sgl_thread_current_thread_id =
-R"doc(Return the nanothread worker ID for the current thread, or zero for a
-non-worker thread.)doc";
-
 static const char *__doc_sgl_thread_do_async =
-R"doc(Run a function asynchronously in a new task. See nanothread
-documentation on `task_submit_dep` for details.
+R"doc(Run a function asynchronously in a new task. See `task_submit_dep` for
+details.
 
 Parameter ``func``:
     Function to call.
@@ -14213,8 +14211,8 @@ Returns:
     The new task.)doc";
 
 static const char *__doc_sgl_thread_do_async_2 =
-R"doc(Run a function asynchronously in a new task. See nanothread
-documentation on `task_submit_dep` for details.
+R"doc(Run a function asynchronously in a new task. See `task_submit_dep` for
+details.
 
 Parameter ``func``:
     Function to call.
@@ -14241,8 +14239,8 @@ Parameter ``func``:
     argument).)doc";
 
 static const char *__doc_sgl_thread_parallel_for_async =
-R"doc(Run a parallel for-loop asynchronously in a new task. See nanothread
-documentation on `task_submit_dep` for details.
+R"doc(Run a parallel for-loop asynchronously in a new task. See
+`task_submit_dep` for details.
 
 Parameter ``range``:
     Loop range.
@@ -14261,8 +14259,8 @@ Returns:
     The new task.)doc";
 
 static const char *__doc_sgl_thread_parallel_for_async_2 =
-R"doc(Run a parallel for-loop asynchronously in a new task. See nanothread
-documentation on `task_submit_dep` for details.
+R"doc(Run a parallel for-loop asynchronously in a new task. See
+`task_submit_dep` for details.
 
 Parameter ``range``:
     Loop range.
@@ -14277,11 +14275,61 @@ Parameter ``parents``:
 Returns:
     The new task.)doc";
 
-static const char *__doc_sgl_thread_rhi_task_pool = R"doc(Get the nanothread-backed task pool installed in slang-rhi.)doc";
+static const char *__doc_sgl_thread_rhi_task_pool = R"doc(Get the SGL task pool installed in slang-rhi.)doc";
 
 static const char *__doc_sgl_thread_static_init = R"doc()doc";
 
 static const char *__doc_sgl_thread_static_shutdown = R"doc()doc";
+
+static const char *__doc_sgl_thread_task_query = R"doc(Return whether a task has completed.)doc";
+
+static const char *__doc_sgl_thread_task_release = R"doc(Release a task handle.)doc";
+
+static const char *__doc_sgl_thread_task_retain = R"doc(Increase the reference count of a task.)doc";
+
+static const char *__doc_sgl_thread_task_submit_dep =
+R"doc(Submit a task with optional dependencies to the SGL thread pool.
+
+Parameter ``parents``:
+    Parent tasks to wait for before executing.
+
+Parameter ``parent_count``:
+    Number of parent tasks.
+
+Parameter ``size``:
+    Number of work units to execute.
+
+Parameter ``func``:
+    Function called once for each work unit.
+
+Parameter ``payload``:
+    Payload passed to the function.
+
+Parameter ``payload_size``:
+    Size of the payload copied into the task when no deleter is
+    provided.
+
+Parameter ``payload_deleter``:
+    Optional function that releases the payload after execution.
+
+Parameter ``always_async``:
+    Whether to disable synchronous execution of small tasks.
+
+Parameter ``profile``:
+    Whether to collect timing information for this task.
+
+Returns:
+    The submitted task, or nullptr if it completed synchronously.)doc";
+
+static const char *__doc_sgl_thread_task_time = R"doc(Return the execution time of a profiled task in milliseconds.)doc";
+
+static const char *__doc_sgl_thread_task_time_rel =
+R"doc(Return the difference between the start times of two profiled tasks in
+milliseconds.)doc";
+
+static const char *__doc_sgl_thread_task_wait = R"doc(Wait for a task to complete.)doc";
+
+static const char *__doc_sgl_thread_task_wait_and_release = R"doc(Wait for a task to complete and release its handle.)doc";
 
 static const char *__doc_sgl_thread_wait_for_tasks = R"doc(Wait for all tasks in the global task group.)doc";
 

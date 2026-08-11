@@ -404,7 +404,6 @@ target_include_directories(sgl PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TY
 target_link_libraries(sgl
     PUBLIC
         fmt::fmt
-        nanothread
         slang
         slang-rhi
         slang-rhi-vulkan-headers
@@ -412,6 +411,7 @@ target_link_libraries(sgl
         $<$<NOT:$<BOOL:${SGL_USE_DYNAMIC_CUDA}>>:CUDA::cuda_driver>
         sgl_data
     PRIVATE
+        nanothread
         git_version
         glfw
         tevclient

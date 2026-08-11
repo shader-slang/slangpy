@@ -3,7 +3,9 @@
 #include "thread.h"
 
 #include "sgl/core/error.h"
+#include "sgl/core/short_vector.h"
 
+#include <nanothread/nanothread.h>
 #include <slang-rhi.h>
 
 #include <mutex>
@@ -35,7 +37,7 @@ namespace {
         SLANG_NO_THROW uint32_t SLANG_MCALL addRef() override { return 2; }
         SLANG_NO_THROW uint32_t SLANG_MCALL release() override { return 2; }
 
-        SLANG_NO_THROW TaskHandle SLANG_MCALL
+        SLANG_NO_THROW rhi::ITaskPool::TaskHandle SLANG_MCALL
         submitTask(void (*func)(void*), void* payload, void (*payload_deleter)(void*), TaskGroupHandle group) override
         {
             SGL_ASSERT(func);
@@ -44,12 +46,12 @@ namespace {
             SGL_ASSERT(!task_group || task_group->owner == this);
 
             TaskPayload* task_payload = new TaskPayload{func, payload, payload_deleter};
-            Task* task = task_submit(m_pool, 1, execute_task, task_payload, 0, delete_task_payload, 1);
+            ::Task* task = ::task_submit(m_pool, 1, execute_task, task_payload, 0, delete_task_payload, 1);
             SGL_ASSERT(task);
 
             if (task_group) {
                 // The group owns a reference independently of the handle returned to the caller.
-                task_retain(task);
+                ::task_retain(task);
                 std::lock_guard lock(task_group->mutex);
                 task_group->tasks.push_back(task);
             }
@@ -57,16 +59,16 @@ namespace {
             return task;
         }
 
-        SLANG_NO_THROW void SLANG_MCALL releaseTask(TaskHandle task) override
+        SLANG_NO_THROW void SLANG_MCALL releaseTask(rhi::ITaskPool::TaskHandle task) override
         {
             SGL_ASSERT(task);
-            task_release(static_cast<Task*>(task));
+            ::task_release(static_cast<::Task*>(task));
         }
 
-        SLANG_NO_THROW void SLANG_MCALL waitAndReleaseTask(TaskHandle task) override
+        SLANG_NO_THROW void SLANG_MCALL waitAndReleaseTask(rhi::ITaskPool::TaskHandle task) override
         {
             SGL_ASSERT(task);
-            task_wait_and_release(static_cast<Task*>(task));
+            ::task_wait_and_release(static_cast<::Task*>(task));
         }
 
         SLANG_NO_THROW TaskGroupHandle SLANG_MCALL createTaskGroup() override { return new TaskGroup{this}; }
@@ -80,7 +82,7 @@ namespace {
             // A task in one batch may submit more tasks to the same group. Waiting for every
             // task in the batch guarantees that all such submissions are visible before the
             // group can be observed as empty.
-            std::vector<Task*> tasks;
+            std::vector<::Task*> tasks;
             while (true) {
                 {
                     std::lock_guard lock(task_group->mutex);
@@ -89,8 +91,8 @@ namespace {
                     tasks.swap(task_group->tasks);
                 }
 
-                for (Task* task : tasks)
-                    task_wait_and_release(task);
+                for (::Task* task : tasks)
+                    ::task_wait_and_release(task);
                 tasks.clear();
             }
 
@@ -101,7 +103,7 @@ namespace {
         struct TaskGroup {
             NanothreadTaskPool* owner;
             std::mutex mutex;
-            std::vector<Task*> tasks;
+            std::vector<::Task*> tasks;
         };
 
         struct TaskPayload {
@@ -129,7 +131,85 @@ namespace {
 
     NanothreadTaskPool s_rhi_task_pool;
 
+    ::Task* unwrap_task(TaskHandle task)
+    {
+        return reinterpret_cast<::Task*>(task);
+    }
+
+    TaskHandle wrap_task(::Task* task)
+    {
+        return reinterpret_cast<TaskHandle>(task);
+    }
+
 } // namespace
+
+TaskHandle task_submit_dep(
+    const TaskHandle* parents,
+    uint32_t parent_count,
+    uint32_t size,
+    TaskFunc func,
+    void* payload,
+    uint32_t payload_size,
+    TaskPayloadDeleter payload_deleter,
+    bool always_async,
+    bool profile
+)
+{
+    short_vector<const ::Task*, 16> unwrapped_parents;
+    unwrapped_parents.reserve(parent_count);
+    for (uint32_t i = 0; i < parent_count; ++i)
+        unwrapped_parents.push_back(unwrap_task(parents[i]));
+
+    return wrap_task(
+        ::task_submit_dep(
+            nullptr,
+            unwrapped_parents.data(),
+            parent_count,
+            size,
+            func,
+            payload,
+            payload_size,
+            payload_deleter,
+            always_async ? 1 : 0,
+            profile ? 1 : 0
+        )
+    );
+}
+
+void task_retain(TaskHandle task)
+{
+    ::task_retain(unwrap_task(task));
+}
+
+void task_release(TaskHandle task)
+{
+    ::task_release(unwrap_task(task));
+}
+
+void task_wait(TaskHandle task)
+{
+    ::task_wait(unwrap_task(task));
+}
+
+void task_wait_and_release(TaskHandle task)
+{
+    ::task_wait_and_release(unwrap_task(task));
+}
+
+bool task_query(TaskHandle task)
+{
+    return ::task_query(unwrap_task(task));
+}
+
+double task_time(TaskHandle task)
+{
+    return ::task_time(unwrap_task(task));
+}
+
+double task_time_rel(TaskHandle task_1, TaskHandle task_2)
+{
+    return ::task_time_rel(unwrap_task(task_1), unwrap_task(task_2));
+}
 
 void static_init()
 {
@@ -144,11 +224,6 @@ void static_shutdown()
 rhi::ITaskPool* rhi_task_pool()
 {
     return &s_rhi_task_pool;
-}
-
-uint32_t current_thread_id()
-{
-    return pool_thread_id();
 }
 
 TaskGroup& global_task_group()
