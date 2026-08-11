@@ -59,7 +59,6 @@ def test_parallel_pipeline_compilation(test_id: str, device_type: spy.DeviceType
         pipelines = [
             device.create_compute_pipeline(
                 device.link_program([module], [module.entry_point(entry_point)]),
-                defer_target_compilation=True,
             )
             for entry_point in ["add", "multiply"]
         ]
