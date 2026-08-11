@@ -415,6 +415,19 @@ public:
      */
     ref<Buffer> create_buffer(BufferDesc desc);
 
+    /**
+     * \brief Create a new buffer wrapping an existing native buffer without copying.
+     *
+     * The expected handle type depends on the device type: \c D3D12Resource on D3D12,
+     * \c VkBuffer on Vulkan, \c MTLBuffer on Metal, \c CUdeviceptr on CUDA and
+     * \c WGPUBuffer on WGPU.
+     *
+     * \param desc Buffer description. The size must not exceed the native allocation.
+     * \param handle Native buffer handle to wrap.
+     * \return New buffer object.
+     */
+    ref<Buffer> create_buffer_from_native_handle(BufferDesc desc, NativeHandle handle);
+
     /// Create a new buffer view.
     ref<BufferView> create_buffer_view(Buffer* buffer, BufferViewDesc desc);
 
