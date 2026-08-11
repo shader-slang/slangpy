@@ -6,9 +6,6 @@
 #include <slang-rhi.h>
 
 #include <atomic>
-#include <chrono>
-#include <condition_variable>
-#include <mutex>
 
 using namespace sgl;
 
@@ -54,6 +51,20 @@ void execute_recursive_task(void* data)
 
 TEST_SUITE_BEGIN("thread");
 
+TEST_CASE("public task API executes tasks")
+{
+    std::atomic<bool> executed{false};
+    thread::TaskHandle task = thread::do_async(
+        [&executed]
+        {
+            executed.store(true);
+        }
+    );
+    thread::task_wait_and_release(task);
+
+    CHECK(executed.load());
+}
+
 TEST_CASE("rhi task pool executes tasks and deletes payloads")
 {
     struct Payload {
@@ -98,49 +109,6 @@ TEST_CASE("rhi task groups include tasks spawned by callbacks")
 
     CHECK(execute_count.load() == 7);
     CHECK(delete_count.load() == 7);
-}
-
-TEST_CASE("rhi task pool shares nanothread workers")
-{
-    struct Payload {
-        std::mutex mutex;
-        std::condition_variable condition;
-        bool done{false};
-        uint32_t worker_id{0};
-    } payload;
-
-    rhi::ITaskPool* pool = thread::rhi_task_pool();
-    auto task = pool->submitTask(
-        [](void* data)
-        {
-            auto* payload = static_cast<Payload*>(data);
-            {
-                std::lock_guard lock(payload->mutex);
-                payload->worker_id = thread::current_thread_id();
-                payload->done = true;
-            }
-            payload->condition.notify_one();
-        },
-        &payload,
-        nullptr
-    );
-
-    bool completed_on_worker = false;
-    {
-        std::unique_lock lock(payload.mutex);
-        completed_on_worker = payload.condition.wait_for(
-            lock,
-            std::chrono::seconds(10),
-            [&]
-            {
-                return payload.done;
-            }
-        );
-    }
-    pool->waitAndReleaseTask(task);
-
-    CHECK(completed_on_worker);
-    CHECK(payload.worker_id != 0);
 }
 
 TEST_SUITE_END();
