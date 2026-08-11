@@ -2007,7 +2007,7 @@ static const char *__doc_sgl_ComputePipelineDesc = R"doc()doc";
 
 static const char *__doc_sgl_ComputePipelineDesc_2 = R"doc()doc";
 
-static const char *__doc_sgl_ComputePipelineDesc_defer_target_compilation = R"doc()doc";
+static const char *__doc_sgl_ComputePipelineDesc_compilation_policy = R"doc()doc";
 
 static const char *__doc_sgl_ComputePipelineDesc_label = R"doc()doc";
 
@@ -2880,8 +2880,8 @@ R"doc(Path to the module cache directory (optional). If a relative path is
 used, the cache is stored in the application data directory.)doc";
 
 static const char *__doc_sgl_DeviceDesc_pipeline_compilation_mode =
-R"doc(Control resolution of deferred pipelines encountered while finishing a
-command encoder.)doc";
+R"doc(Control the default pipeline compilation policy and resolution of
+deferred pipelines.)doc";
 
 static const char *__doc_sgl_DeviceDesc_rhi_validation_log_level =
 R"doc(RHI validation layer log level (only applicable if RHI validation is
@@ -6300,6 +6300,16 @@ static const char *__doc_sgl_PipelineCompilationMode_parallel = R"doc()doc";
 
 static const char *__doc_sgl_PipelineCompilationMode_serial = R"doc()doc";
 
+static const char *__doc_sgl_PipelineCompilationPolicy = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationPolicy_default = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationPolicy_deferred = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationPolicy_immediate = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationPolicy_info = R"doc()doc";
+
 static const char *__doc_sgl_Pipeline_Pipeline = R"doc()doc";
 
 static const char *__doc_sgl_Pipeline_class_name = R"doc()doc";
@@ -7313,7 +7323,7 @@ static const char *__doc_sgl_RayTracingPipelineDesc = R"doc()doc";
 
 static const char *__doc_sgl_RayTracingPipelineDesc_2 = R"doc()doc";
 
-static const char *__doc_sgl_RayTracingPipelineDesc_defer_target_compilation = R"doc()doc";
+static const char *__doc_sgl_RayTracingPipelineDesc_compilation_policy = R"doc()doc";
 
 static const char *__doc_sgl_RayTracingPipelineDesc_flags = R"doc()doc";
 
@@ -7473,7 +7483,7 @@ static const char *__doc_sgl_RenderPipelineDesc = R"doc()doc";
 
 static const char *__doc_sgl_RenderPipelineDesc_2 = R"doc()doc";
 
-static const char *__doc_sgl_RenderPipelineDesc_defer_target_compilation = R"doc()doc";
+static const char *__doc_sgl_RenderPipelineDesc_compilation_policy = R"doc()doc";
 
 static const char *__doc_sgl_RenderPipelineDesc_depth_stencil = R"doc()doc";
 
@@ -10837,6 +10847,8 @@ static const char *__doc_sgl_find_enum_info_adl_82 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_83 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_84 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_85 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 

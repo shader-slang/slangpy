@@ -58,7 +58,10 @@ def test_compilation_reports(test_id: str, device_type: spy.DeviceType):
             """,
         )
         program = device.link_program([module], [module.entry_point("compute_main")])
-        pipeline = device.create_compute_pipeline(program, defer_target_compilation=False)
+        pipeline = device.create_compute_pipeline(
+            program,
+            compilation_policy=spy.PipelineCompilationPolicy.immediate,
+        )
 
         assert pipeline is not None
 

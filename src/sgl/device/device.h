@@ -160,7 +160,7 @@ struct DeviceDesc {
     /// Enable compilation reports.
     bool enable_compilation_reports{false};
 
-    /// Control resolution of deferred pipelines encountered while finishing a command encoder.
+    /// Control the default pipeline compilation policy and resolution of deferred pipelines.
     PipelineCompilationMode pipeline_compilation_mode{PipelineCompilationMode::serial};
 
     /// Adapter LUID to select adapter on which the device will be created.
