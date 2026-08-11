@@ -262,4 +262,21 @@ TEST_CASE("filtered formatted messages avoid formatting")
     CHECK_EQ(output->m_write_count, 1);
 }
 
+TEST_CASE("filtered formatted once messages avoid formatting")
+{
+    auto logger = Logger::create(LogLevel::info, "test", false);
+    auto output = make_ref<CountingLoggerOutput>();
+    logger->add_output(output);
+    bool formatted = false;
+
+    logger->debug_once("{}", FormatProbe{&formatted});
+    CHECK_FALSE(formatted);
+    CHECK_EQ(output->m_write_count, 0);
+
+    logger->set_level(LogLevel::debug);
+    logger->debug_once("{}", FormatProbe{&formatted});
+    CHECK(formatted);
+    CHECK_EQ(output->m_write_count, 1);
+}
+
 TEST_SUITE_END();
