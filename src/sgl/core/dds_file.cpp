@@ -4,6 +4,10 @@
 
 #include "sgl/core/file_stream.h"
 
+#include <algorithm>
+#include <cstring>
+#include <limits>
+
 // Adapted from https://github.com/redorav/ddspp
 
 // Sources
@@ -606,14 +610,213 @@ namespace detail {
         return;
     }
 
-    inline constexpr uint32_t
-    get_row_pitch(uint32_t width, uint32_t bits_per_pixel_or_block, uint32_t block_width, uint32_t mip)
+    inline constexpr uint32_t get_mip_dimension(uint32_t value, uint32_t mip)
+    {
+        return mip >= 32 ? 1u : std::max(1u, value >> mip);
+    }
+
+    static bool try_get_row_pitch(
+        uint32_t width,
+        uint32_t bits_per_pixel_or_block,
+        uint32_t block_width,
+        uint32_t mip,
+        uint32_t* result
+    )
     {
         // Shift width by mipmap index, round to next block size and round to next byte (for the rare less than 1 byte
         // per pixel formats) E.g. width = 119, mip = 3, BC1 compression
         // ((((119 >> 2) + 4 - 1) / 4) * 64) / 8 = 64 bytes
-        uint32_t mip_width = std::max(1u, width >> mip);
-        return (((mip_width + block_width - 1) / block_width) * bits_per_pixel_or_block + 7) / 8;
+        uint32_t mip_width = get_mip_dimension(width, mip);
+        uint64_t block_count = (static_cast<uint64_t>(mip_width) + block_width - 1) / block_width;
+        uint64_t row_pitch = (block_count * bits_per_pixel_or_block + 7) / 8;
+        if (row_pitch > std::numeric_limits<uint32_t>::max())
+            return false;
+        *result = static_cast<uint32_t>(row_pitch);
+        return true;
+    }
+
+    static uint32_t get_row_pitch(uint32_t width, uint32_t bits_per_pixel_or_block, uint32_t block_width, uint32_t mip)
+    {
+        uint32_t result;
+        SGL_CHECK(
+            try_get_row_pitch(width, bits_per_pixel_or_block, block_width, mip, &result),
+            "DDSFile: row pitch overflow"
+        );
+        return result;
+    }
+
+    static bool checked_add(size_t a, size_t b, size_t* result)
+    {
+        if (b > std::numeric_limits<size_t>::max() - a)
+            return false;
+        *result = a + b;
+        return true;
+    }
+
+    static bool checked_mul(size_t a, size_t b, size_t* result)
+    {
+        if (a != 0 && b > std::numeric_limits<size_t>::max() / a)
+            return false;
+        *result = a * b;
+        return true;
+    }
+
+    static bool get_required_resource_size(
+        DXGIFormat dxgi_format,
+        DDSFile::TextureType type,
+        uint32_t width,
+        uint32_t height,
+        uint32_t depth,
+        uint32_t mip_count,
+        uint32_t array_size,
+        size_t* size
+    )
+    {
+        uint32_t bits_per_pixel_or_block = get_bits_per_pixel_or_block(dxgi_format);
+        uint32_t block_width;
+        uint32_t block_height;
+        get_block_size(dxgi_format, block_width, block_height);
+        if (bits_per_pixel_or_block == 0 || block_width == 0 || block_height == 0)
+            return false;
+
+        size_t result = 0;
+        for (uint32_t mip = 0; mip < mip_count; ++mip) {
+            uint32_t row_pitch;
+            if (!try_get_row_pitch(width, bits_per_pixel_or_block, block_width, mip, &row_pitch))
+                return false;
+            size_t mip_height = get_mip_dimension(height, mip);
+            size_t row_count = (mip_height + block_height - 1) / block_height;
+            size_t slice_pitch;
+            if (!checked_mul(row_pitch, row_count, &slice_pitch) || slice_pitch > std::numeric_limits<uint32_t>::max())
+                return false;
+
+            size_t mip_size = slice_pitch;
+            if (type == DDSFile::TextureType::texture_3d
+                && !checked_mul(mip_size, get_mip_dimension(depth, mip), &mip_size))
+                return false;
+            if (!checked_add(result, mip_size, &result))
+                return false;
+        }
+
+        if (type != DDSFile::TextureType::texture_3d) {
+            size_t layer_count = array_size;
+            if (type == DDSFile::TextureType::texture_cube && !checked_mul(layer_count, 6, &layer_count))
+                return false;
+            if (!checked_mul(result, layer_count, &result))
+                return false;
+        }
+
+        *size = result;
+        return true;
+    }
+
+    static uint32_t get_max_mip_count(DDSFile::TextureType type, uint32_t width, uint32_t height, uint32_t depth)
+    {
+        uint32_t max_dimension = std::max(width, height);
+        if (type == DDSFile::TextureType::texture_3d)
+            max_dimension = std::max(max_dimension, depth);
+
+        uint32_t result = 1;
+        while (max_dimension > 1) {
+            max_dimension >>= 1;
+            ++result;
+        }
+        return result;
+    }
+
+    /// Size of DXT10 extended DDS header (magic + header + DXT10 header).
+    static constexpr size_t DXT10_HEADER_SIZE = sizeof(DDS_MAGIC) + sizeof(Header) + sizeof(HeaderDXT10);
+
+    /// Build a DDS header with DXT10 extended header into a pre-allocated buffer.
+    /// Buffer must be at least DXT10_HEADER_SIZE (148) bytes.
+    static void encode_header(
+        uint8_t* buffer,
+        DXGIFormat dxgi_format,
+        DDSFile::TextureType type,
+        uint32_t width,
+        uint32_t height,
+        uint32_t depth,
+        uint32_t mip_count,
+        uint32_t array_size
+    )
+    {
+        // DDS magic number
+        std::memcpy(buffer, &DDS_MAGIC, sizeof(DDS_MAGIC));
+
+        // Main header
+        Header header{};
+        header.size = sizeof(Header);
+        header.flags
+            = DDS_HEADER_FLAGS_CAPS | DDS_HEADER_FLAGS_HEIGHT | DDS_HEADER_FLAGS_WIDTH | DDS_HEADER_FLAGS_PIXELFORMAT;
+        header.height = height;
+        header.width = width;
+        header.mipMapCount = mip_count;
+
+        if (mip_count > 1)
+            header.flags |= DDS_HEADER_FLAGS_MIPMAP;
+
+        if (type == DDSFile::TextureType::texture_3d) {
+            header.flags |= DDS_HEADER_FLAGS_VOLUME;
+            header.depth = depth;
+        }
+
+        // Compute pitch/linear size for mip 0
+        uint32_t bpp = get_bits_per_pixel_or_block(dxgi_format);
+        uint32_t bw, bh;
+        get_block_size(dxgi_format, bw, bh);
+
+        if (is_compressed(dxgi_format)) {
+            header.flags |= DDS_HEADER_FLAGS_LINEARSIZE;
+            uint32_t row_pitch = get_row_pitch(width, bpp, bw, 0);
+            uint64_t row_count = (static_cast<uint64_t>(height) + bh - 1) / bh;
+            uint64_t linear_size = static_cast<uint64_t>(row_pitch) * row_count;
+            SGL_CHECK(linear_size <= std::numeric_limits<uint32_t>::max(), "DDSFile: linear size overflow");
+            header.pitchOrLinearSize = static_cast<uint32_t>(linear_size);
+        } else {
+            header.flags |= DDS_HEADER_FLAGS_PITCH;
+            header.pitchOrLinearSize = get_row_pitch(width, bpp, bw, 0);
+        }
+
+        // Pixel format - always use DXT10 extended header
+        header.ddspf.size = sizeof(PixelFormat);
+        header.ddspf.flags = DDS_FOURCC;
+        header.ddspf.fourCC = FOURCC_DXT10;
+
+        // Capabilities
+        header.caps = DDS_HEADER_CAPS_TEXTURE;
+        if (mip_count > 1)
+            header.caps |= DDS_HEADER_CAPS_COMPLEX | DDS_HEADER_CAPS_MIPMAP;
+
+        if (type == DDSFile::TextureType::texture_cube) {
+            header.caps |= DDS_HEADER_CAPS_COMPLEX;
+            header.caps2 = DDS_HEADER_CAPS2_CUBEMAP_ALLFACES;
+        } else if (type == DDSFile::TextureType::texture_3d) {
+            header.caps2 = DDS_HEADER_CAPS2_VOLUME;
+        }
+
+        // DXT10 extended header
+        HeaderDXT10 dxt10{};
+        dxt10.dxgiFormat = dxgi_format;
+        dxt10.arraySize = array_size;
+
+        switch (type) {
+        case DDSFile::TextureType::texture_1d:
+            dxt10.resourceDimension = DXGI_Texture1D;
+            break;
+        case DDSFile::TextureType::texture_2d:
+        case DDSFile::TextureType::texture_cube:
+            dxt10.resourceDimension = DXGI_Texture2D;
+            break;
+        case DDSFile::TextureType::texture_3d:
+            dxt10.resourceDimension = DXGI_Texture3D;
+            break;
+        }
+
+        if (type == DDSFile::TextureType::texture_cube)
+            dxt10.miscFlag = DXGI_MISC_FLAG_CUBEMAP;
+
+        std::memcpy(buffer + sizeof(DDS_MAGIC), &header, sizeof(header));
+        std::memcpy(buffer + sizeof(DDS_MAGIC) + sizeof(Header), &dxt10, sizeof(dxt10));
     }
 
 } // namespace detail
@@ -646,41 +849,93 @@ DDSFile::~DDSFile()
 
 const uint8_t* DDSFile::get_subresource_data(uint32_t mip, uint32_t slice) const
 {
-    size_t offset = 0;
+    size_t offset;
+    SGL_CHECK(get_subresource_offset(mip, slice, &offset), "DDSFile: invalid mip/slice or subresource offset overflow");
 
+    uint32_t slice_pitch;
+    get_subresource_pitch(mip, nullptr, &slice_pitch);
+    SGL_CHECK(
+        offset <= resource_size() && slice_pitch <= resource_size() - offset,
+        "DDSFile: subresource data exceeds file size"
+    );
+    return resource_data() + offset;
+}
+
+bool DDSFile::get_subresource_offset(uint32_t mip, uint32_t slice, size_t* offset) const
+{
+    if (mip >= m_mip_count)
+        return false;
+
+    size_t result = 0;
     if (m_type == TextureType::texture_3d) {
+        uint32_t mip_depth = get_mip_dimension(m_depth, mip);
+        if (slice >= mip_depth)
+            return false;
+
         for (uint32_t m = 0; m < mip; ++m) {
             uint32_t slice_pitch;
             get_subresource_pitch(m, nullptr, &slice_pitch);
-            uint32_t mip_depth = std::max(1u, m_depth >> m);
-            offset += size_t(slice_pitch) * mip_depth;
+            size_t mip_size;
+            if (!checked_mul(slice_pitch, get_mip_dimension(m_depth, m), &mip_size)
+                || !checked_add(result, mip_size, &result))
+                return false;
         }
+
         uint32_t slice_pitch;
         get_subresource_pitch(mip, nullptr, &slice_pitch);
-        offset += size_t(slice_pitch) * slice;
+        size_t slice_offset;
+        if (!checked_mul(slice_pitch, slice, &slice_offset) || !checked_add(result, slice_offset, &result))
+            return false;
     } else {
+        size_t layer_count = m_array_size;
+        if (m_type == TextureType::texture_cube && !checked_mul(layer_count, 6, &layer_count))
+            return false;
+        if (slice >= layer_count)
+            return false;
+
         size_t mip_chain_size = 0;
         for (uint32_t m = 0; m < m_mip_count; ++m) {
             uint32_t slice_pitch;
             get_subresource_pitch(m, nullptr, &slice_pitch);
-            mip_chain_size += slice_pitch;
+            if (!checked_add(mip_chain_size, slice_pitch, &mip_chain_size))
+                return false;
         }
-        offset += mip_chain_size * slice;
+        if (!checked_mul(mip_chain_size, slice, &result))
+            return false;
+
         for (uint32_t m = 0; m < mip; ++m) {
             uint32_t slice_pitch;
             get_subresource_pitch(m, nullptr, &slice_pitch);
-            offset += slice_pitch;
+            if (!checked_add(result, slice_pitch, &result))
+                return false;
         }
     }
 
-    return m_data + m_header_size + offset;
+    *offset = result;
+    return true;
+}
+
+bool DDSFile::get_required_resource_size(size_t* size) const
+{
+    return detail::get_required_resource_size(
+        DXGIFormat(m_dxgi_format),
+        m_type,
+        m_width,
+        m_height,
+        m_depth,
+        m_mip_count,
+        m_array_size,
+        size
+    );
 }
 
 void DDSFile::get_subresource_pitch(uint32_t mip, uint32_t* row_pitch, uint32_t* slice_pitch) const
 {
     uint32_t row_pitch_ = get_row_pitch(m_width, m_bits_per_pixel_or_block, m_block_width, mip);
-    uint32_t row_count = (std::max(1u, m_height >> mip) + m_block_height - 1) / m_block_height;
-    uint32_t slice_pitch_ = row_count * row_pitch_;
+    uint32_t row_count = (get_mip_dimension(m_height, mip) + m_block_height - 1) / m_block_height;
+    uint64_t slice_pitch_64 = static_cast<uint64_t>(row_count) * row_pitch_;
+    SGL_CHECK(slice_pitch_64 <= std::numeric_limits<uint32_t>::max(), "DDSFile: slice pitch overflow");
+    uint32_t slice_pitch_ = static_cast<uint32_t>(slice_pitch_64);
 
     if (row_pitch)
         *row_pitch = row_pitch_;
@@ -719,19 +974,96 @@ bool DDSFile::detect_dds_file(Stream* stream)
     return magic == DDS_MAGIC;
 }
 
+void DDSFile::write_dds(
+    Stream* stream,
+    uint32_t dxgi_format,
+    TextureType type,
+    uint32_t width,
+    uint32_t height,
+    uint32_t depth,
+    uint32_t mip_count,
+    uint32_t array_size,
+    const void* resource_data,
+    size_t resource_size
+)
+{
+    SGL_CHECK(width > 0, "DDSFile: width must be > 0");
+    SGL_CHECK(height > 0, "DDSFile: height must be > 0");
+    SGL_CHECK(depth > 0, "DDSFile: depth must be > 0");
+    SGL_CHECK(type == TextureType::texture_3d || depth == 1, "DDSFile: depth must be 1 for non-3D textures");
+    SGL_CHECK(mip_count > 0, "DDSFile: mip_count must be > 0");
+    SGL_CHECK(array_size > 0, "DDSFile: array_size must be > 0");
+    SGL_CHECK(DXGIFormat(dxgi_format) != DXGIFormat::UNKNOWN, "DDSFile: dxgi_format must not be UNKNOWN");
+    SGL_CHECK(resource_data != nullptr || resource_size == 0, "DDSFile: resource_data is null but resource_size > 0");
+
+    SGL_CHECK(
+        mip_count <= detail::get_max_mip_count(type, width, height, depth),
+        "DDSFile: mip_count exceeds the full mip chain"
+    );
+
+    size_t required_resource_size;
+    SGL_CHECK(
+        detail::get_required_resource_size(
+            DXGIFormat(dxgi_format),
+            type,
+            width,
+            height,
+            depth,
+            mip_count,
+            array_size,
+            &required_resource_size
+        ),
+        "DDSFile: failed to calculate required resource size"
+    );
+    SGL_CHECK(
+        resource_size == required_resource_size,
+        "DDSFile: resource size mismatch (expected {}, got {})",
+        required_resource_size,
+        resource_size
+    );
+
+    uint8_t header_buf[DXT10_HEADER_SIZE];
+    encode_header(header_buf, DXGIFormat(dxgi_format), type, width, height, depth, mip_count, array_size);
+
+    stream->write(header_buf, DXT10_HEADER_SIZE);
+    if (resource_size > 0)
+        stream->write(resource_data, resource_size);
+}
+
+void DDSFile::write_dds(
+    const std::filesystem::path& path,
+    uint32_t dxgi_format,
+    TextureType type,
+    uint32_t width,
+    uint32_t height,
+    uint32_t depth,
+    uint32_t mip_count,
+    uint32_t array_size,
+    const void* resource_data,
+    size_t resource_size
+)
+{
+    FileStream stream(path, FileStream::Mode::write);
+    write_dds(&stream, dxgi_format, type, width, height, depth, mip_count, array_size, resource_data, resource_size);
+}
+
 bool DDSFile::decode_header(const uint8_t* data, size_t size)
 {
     // First 4 bytes are the magic DDS number
-    const uint32_t magic = *reinterpret_cast<const uint32_t*>(data);
+    uint32_t magic;
+    std::memcpy(&magic, data, sizeof(magic));
     if (magic != DDS_MAGIC)
         return false;
 
-    const Header header = *reinterpret_cast<const Header*>(data + sizeof(DDS_MAGIC));
+    Header header;
+    std::memcpy(&header, data + sizeof(DDS_MAGIC), sizeof(header));
     const PixelFormat& ddspf = header.ddspf;
     bool dxt10 = is_dxt10(header);
     if (dxt10 && size < sizeof(DDS_MAGIC) + sizeof(Header) + sizeof(HeaderDXT10))
         return false;
-    const HeaderDXT10 dxt10_header = *reinterpret_cast<const HeaderDXT10*>(data + sizeof(DDS_MAGIC) + sizeof(Header));
+    HeaderDXT10 dxt10_header{};
+    if (dxt10)
+        std::memcpy(&dxt10_header, data + sizeof(DDS_MAGIC) + sizeof(Header), sizeof(dxt10_header));
 
     // Read basic data from the header
     m_width = header.width > 0 ? header.width : 1;
@@ -749,6 +1081,8 @@ bool DDSFile::decode_header(const uint8_t* data, size_t size)
         m_dxgi_format = dxt10_header.dxgiFormat;
 
         m_array_size = dxt10_header.arraySize;
+        if (m_array_size == 0)
+            return false;
 
         switch (dxt10_header.resourceDimension) {
         case DXGI_Texture1D:
@@ -770,7 +1104,7 @@ bool DDSFile::decode_header(const uint8_t* data, size_t size)
             m_array_size = 1; // There are no 3D texture arrays
             break;
         default:
-            break;
+            return false;
         }
     } else {
         if (ddspf.flags & DDS_FOURCC) {
@@ -969,14 +1303,27 @@ bool DDSFile::decode_header(const uint8_t* data, size_t size)
         }
     }
 
+    if (m_dxgi_format == UNKNOWN)
+        return false;
+
     m_compressed = is_compressed(DXGIFormat(m_dxgi_format));
     m_srgb = is_srgb(DXGIFormat(m_dxgi_format));
     m_bits_per_pixel_or_block = get_bits_per_pixel_or_block(DXGIFormat(m_dxgi_format));
     get_block_size(DXGIFormat(m_dxgi_format), m_block_width, m_block_height);
+    if (m_bits_per_pixel_or_block == 0 || m_block_width == 0 || m_block_height == 0)
+        return false;
+
+    if (m_mip_count > detail::get_max_mip_count(m_type, m_width, m_height, m_depth))
+        return false;
 
     get_subresource_pitch(0, &m_row_pitch, &m_slice_pitch);
 
     m_header_size = sizeof(DDS_MAGIC) + sizeof(Header) + (dxt10 ? sizeof(HeaderDXT10) : 0);
+
+    size_t required_resource_size;
+    if (m_header_size > size || !get_required_resource_size(&required_resource_size)
+        || required_resource_size > size - m_header_size)
+        return false;
 
     return true;
 }
