@@ -188,7 +188,7 @@ static float read_component_as_float(const uint8_t* pixel, uint32_t channel, BCC
             -1.0f,
             static_cast<float>(
                 static_cast<long double>(read_unaligned_component<int64_t>(pixel, channel))
-                / std::numeric_limits<int64_t>::max()
+                / static_cast<long double>(std::numeric_limits<int64_t>::max())
             )
         );
     default:
@@ -258,7 +258,9 @@ static void write_component_from_float(uint8_t* pixel, uint32_t channel, BCCompo
             write_unaligned_component<uint64_t>(
                 pixel,
                 channel,
-                static_cast<uint64_t>(static_cast<long double>(value) * std::numeric_limits<uint64_t>::max())
+                static_cast<uint64_t>(
+                    static_cast<long double>(value) * static_cast<long double>(std::numeric_limits<uint64_t>::max())
+                )
             );
         break;
     case BCComponentType::int64:
@@ -270,7 +272,9 @@ static void write_component_from_float(uint8_t* pixel, uint32_t channel, BCCompo
             write_unaligned_component<int64_t>(
                 pixel,
                 channel,
-                static_cast<int64_t>(std::round(static_cast<long double>(value) * std::numeric_limits<int64_t>::max()))
+                static_cast<int64_t>(std::round(
+                    static_cast<long double>(value) * static_cast<long double>(std::numeric_limits<int64_t>::max())
+                ))
             );
         break;
     default:
