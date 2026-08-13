@@ -37,12 +37,19 @@ inline rhi::DescriptorHandle rhi_descriptor_handle(const DescriptorHandle& handl
 // ShaderObject
 //
 
-ShaderObject::ShaderObject(ref<Device> device, rhi::IShaderObject* shader_object, bool retain)
+ShaderObject::ShaderObject(
+    ref<Device> device,
+    rhi::IShaderObject* shader_object,
+    slang::IComponentType* slang_component_type,
+    bool retain
+)
     : m_device(std::move(device))
     , m_shader_object(shader_object)
+    , m_slang_component_type(slang_component_type)
     , m_retain(retain)
 
 {
+    SGL_CHECK_NOT_NULL(m_slang_component_type);
     if (m_retain)
         m_shader_object->addRef();
 }
@@ -75,7 +82,8 @@ uint32_t ShaderObject::get_entry_point_count() const
 
 ref<ShaderObject> ShaderObject::get_entry_point(uint32_t index)
 {
-    ref<ShaderObject> shader_object = make_ref<ShaderObject>(m_device, m_shader_object->getEntryPoint(index));
+    ref<ShaderObject> shader_object
+        = make_ref<ShaderObject>(m_device, m_shader_object->getEntryPoint(index), m_slang_component_type);
     // TODO(slang-rhi) this is required to keep shader object's alive (shader cursor uses weak references)
     m_objects.push_back(shader_object);
     return shader_object;
@@ -83,8 +91,11 @@ ref<ShaderObject> ShaderObject::get_entry_point(uint32_t index)
 
 ref<ShaderObject> ShaderObject::get_object(const ShaderOffset& offset)
 {
-    ref<ShaderObject> shader_object
-        = make_ref<ShaderObject>(m_device, m_shader_object->getObject(rhi_shader_offset(offset)));
+    ref<ShaderObject> shader_object = make_ref<ShaderObject>(
+        m_device,
+        m_shader_object->getObject(rhi_shader_offset(offset)),
+        m_slang_component_type
+    );
     // TODO(slang-rhi) this is required to keep shader object's alive (shader cursor uses weak references)
     m_objects.push_back(shader_object);
     return shader_object;
@@ -92,6 +103,13 @@ ref<ShaderObject> ShaderObject::get_object(const ShaderOffset& offset)
 
 void ShaderObject::set_object(const ShaderOffset& offset, const ref<const ShaderObject>& object)
 {
+    if (object && m_slang_component_type->getSession() != object->m_slang_component_type->getSession()) {
+        SGL_THROW(
+            "Cannot bind shader objects from different Slang sessions. The source object may be stale after shader "
+            "hot reload; recreate or repack it before binding."
+        );
+    }
+
     SLANG_RHI_CALL(
         m_shader_object->setObject(rhi_shader_offset(offset), object ? object->rhi_shader_object() : nullptr),
         m_device

@@ -182,7 +182,7 @@ public:
     ref<ComputePassEncoder> begin_compute_pass();
     ref<RayTracingPassEncoder> begin_ray_tracing_pass();
 
-    ShaderObject* _get_root_object(rhi::IShaderObject* rhi_shader_object);
+    ShaderObject* _get_root_object(rhi::IShaderObject* rhi_shader_object, slang::IComponentType* slang_component_type);
 
     /**
      * \brief Copy a buffer region.

@@ -42,6 +42,26 @@ namespace detail {
         SGL_THROW("Unknown reflection owner type");
     }
 
+    slang::IComponentType* get_slang_component_from_owner(const Object* owner)
+    {
+        SGL_CHECK(owner, "Cannot determine Slang component because the reflection owner is unavailable");
+
+        slang::IComponentType* component = nullptr;
+        if (auto* module = dynamic_cast<const SlangModule*>(owner))
+            component = module->slang_component_type();
+        else if (auto* entry_point = dynamic_cast<const SlangEntryPoint*>(owner))
+            component = entry_point->slang_entry_point();
+        else if (auto* program = dynamic_cast<const ShaderProgram*>(owner))
+            component = program->slang_component_type();
+        else if (auto* shader_object = dynamic_cast<const ShaderObject*>(owner))
+            component = shader_object->slang_component_type();
+        else
+            SGL_THROW("Cannot determine Slang component from reflection owner type '{}'", owner->class_name());
+
+        SGL_CHECK(component, "Reflection owner type '{}' has no Slang component", owner->class_name());
+        return component;
+    }
+
     template<typename SGLType, typename SlangType>
     ref<const SGLType> create_reflection_type_from_slang_type(ref<const Object> owner, SlangType* slang_reflection)
     {

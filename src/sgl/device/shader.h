@@ -630,6 +630,9 @@ public:
 
     ReflectionCursor reflection() const { return ReflectionCursor(this); }
 
+    /// Returns the linked Slang component that owns this program's reflection.
+    slang::IComponentType* slang_component_type() const { return m_data->linked_program.get(); }
+
     rhi::IShaderProgram* rhi_shader_program() const { return m_data->rhi_shader_program; }
 
     virtual std::string to_string() const override;
