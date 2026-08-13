@@ -6,6 +6,7 @@
 #include "sgl/core/platform.h"
 
 #include <chrono>
+#include <cstring>
 
 #include <lmdb.h>
 
@@ -377,8 +378,11 @@ void LMDBCache::evict(bool force)
     {
         MDB_val key, val;
         while (mdb_cursor_get(cursor, &key, &val, MDB_NEXT) == MDB_SUCCESS) {
+            SGL_CHECK(val.mv_size == sizeof(MetaData), "Invalid cache metadata size");
+            MetaData meta_data;
+            std::memcpy(&meta_data, val.mv_data, sizeof(meta_data));
             entries.push_back({
-                .last_access = static_cast<const MetaData*>(val.mv_data)->last_access,
+                .last_access = meta_data.last_access,
                 .key = key,
             });
         }
