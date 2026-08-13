@@ -114,7 +114,7 @@ Acceptance also requires no program-derived `TypeLayoutReflection` path in Slang
 
 The configure and build commands are safe to repeat. `--fresh` intentionally regenerates CMake state so no binary compiled against the previous `rhi::IDevice` virtual interface remains. Tests create their data in test-managed temporary directories. If a build or test fails, preserve the output in this plan, fix the smallest relevant issue, rebuild, and rerun the failed command before expanding validation.
 
-Do not reset or overwrite unrelated worktree changes. Do not update or edit the neighboring `C:/src/slang-rhi-side` repository as part of this plan; it is an input fixed at commit `0969630b`.
+Do not reset or overwrite unrelated worktree changes. Do not update or edit the neighboring `C:/src/slang-rhi-side` repository as part of this plan; it is an input fixed at commit `38f18c94`.
 
 ## Artifacts and Notes
 
@@ -142,6 +142,22 @@ After implementation, focused and full validation produced:
     [doctest] test cases: 250 | 250 passed | 0 failed | 8 skipped
     [doctest] assertions: 21437 | 21437 passed | 0 failed
 
+After slang-rhi hardened the owner-aware interfaces in commit `38f18c94`, SlangPy advanced its submodule gitlink, changed `ShaderProgram::slang_component_type()` to query the authoritative `IShaderProgram::getSlangProgram()`, and repeated a fresh configure and rebuild. Validation against the hardened interface produced:
+
+    build/windows-msvc/Debug/sgl_tests.exe -tc=shader_object*
+    [doctest] test cases: 4 | 4 passed | 0 failed
+    [doctest] assertions: 48 | 48 passed | 0 failed
+
+    pytest slangpy/tests/slangpy_tests/test_packed_arg.py -v
+    15 passed in 26.92s
+
+    python tools/ci.py unit-test-cpp
+    [doctest] test cases: 250 | 250 passed | 0 failed | 8 skipped
+    [doctest] assertions: 21491 | 21491 passed | 0 failed
+
+    pre-commit run --all-files
+    all hooks passed
+
 The required slang-rhi interface is:
 
     createShaderObjectFromTypeLayout(slang::IComponentType* slangOwner,
@@ -150,6 +166,6 @@ The required slang-rhi interface is:
 
 ## Interfaces and Dependencies
 
-The implementation uses existing Slang COM ownership through `Slang::ComPtr<slang::IComponentType>` and does not introduce dependencies. `ShaderProgram` must provide a narrow native accessor returning its current linked `slang::IComponentType*`. `ShaderObject` must retain an owning component and provide an internal raw accessor so reflection-owner resolution and session validation can use it. The SGL reflection helper must return the component for each of the four known owner types and throw an explicit SGL error for unsupported owners.
+The implementation uses existing Slang COM ownership through `Slang::ComPtr<slang::IComponentType>` and does not introduce dependencies. `ShaderProgram` provides a narrow native accessor returning the exact linked component reported by `IShaderProgram::getSlangProgram()`. `ShaderObject` must retain an owning component and provide an internal raw accessor so reflection-owner resolution and session validation can use it. The SGL reflection helper must return the component for each of the four known owner types and throw an explicit SGL error for unsupported owners.
 
-Revision note: Initial plan created from `slangpy-cross-session-handoff.md` and direct inspection of the active SlangPy and slang-rhi checkouts. It records the existing submodule discrepancy and the decision to baseline with `SGL_LOCAL_RHI`. Updated through implementation, pre-commit formatting, final acceptance searches, and successful post-format native and Python validation.
+Revision note: Initial plan created from `slangpy-cross-session-handoff.md` and direct inspection of the active SlangPy and slang-rhi checkouts. It records the existing submodule discrepancy and the decision to baseline with `SGL_LOCAL_RHI`. Updated through implementation, pre-commit formatting, final acceptance searches, successful post-format native and Python validation, and the follow-up migration to slang-rhi commit `38f18c94`.

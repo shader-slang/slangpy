@@ -75,7 +75,8 @@ TEST_CASE_GPU("shader_object_preserves_slang_component_owners")
     SUBCASE("module")
     {
         ShaderObjectProgram objects = make_shader_object_program(session, "shader_object_module_owner");
-        ref<ShaderObject> object = ctx.device->create_shader_object(module_parameter_layout(objects.module.get()).get());
+        ref<ShaderObject> object
+            = ctx.device->create_shader_object(module_parameter_layout(objects.module.get()).get());
         CHECK(object->slang_component_type() == objects.module->slang_component_type());
     }
 

@@ -630,8 +630,8 @@ public:
 
     ReflectionCursor reflection() const { return ReflectionCursor(this); }
 
-    /// Returns the linked Slang component that owns this program's reflection.
-    slang::IComponentType* slang_component_type() const { return m_data->linked_program.get(); }
+    /// Returns the exact linked Slang component used by the RHI shader program.
+    slang::IComponentType* slang_component_type() const;
 
     rhi::IShaderProgram* rhi_shader_program() const { return m_data->rhi_shader_program; }
 
