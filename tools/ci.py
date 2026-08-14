@@ -217,7 +217,7 @@ def benchmark_python(args: Any):
                     cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
 
             try:
-                run_command(cmd, env=env)
+                run_command(cmd, shell=False, env=env)
             except Exception as e:
                 print(f"Benchmarks failed for device type {device_type}: {e}")
                 if args.device_type:  # If specific device requested, fail hard

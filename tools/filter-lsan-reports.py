@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#!/usr/bin/env python3
-
 import argparse
 import os
 import pathlib

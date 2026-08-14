@@ -160,10 +160,15 @@ jobs:
 
       - name: Check LeakSanitizer Reports
         if: ${{ always() && matrix.os == 'linux' && steps.sanitizer_options.outcome == 'success' }}
+        env:
+          # This tooling is not instrumented; do not preload the runtimes.
+          LD_PRELOAD: ""
         run: python tools/filter-lsan-reports.py
 
       - name: Upload Sanitizer Reports
         if: ${{ always() && matrix.os == 'linux' }}
+        env:
+          LD_PRELOAD: ""
         uses: actions/upload-artifact@v7
         with:
           name: sanitizer-reports-${{ matrix.os }}-${{ matrix.platform }}

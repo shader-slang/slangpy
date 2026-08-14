@@ -312,8 +312,7 @@ place of the ordinary Python executable when running tests. On Windows, the
 environment helper also copies the matching runtime DLL beside the build output
 and adds its directory to ``PATH``. For example::
 
-    build\windows-clang\RelWithDebInfo\slangpy_sanitizer_python.exe \
-        tools\ci.py unit-test-python --disable-torch
+    build\windows-clang\RelWithDebInfo\slangpy_sanitizer_python.exe tools\ci.py unit-test-python --disable-torch
 
 On macOS, use the corresponding host without the ``.exe`` suffix::
 

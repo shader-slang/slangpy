@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#!/usr/bin/env python3
-
 import argparse
 import os
 import pathlib
 import shutil
 import subprocess
 import sys
+import sysconfig
 from typing import Optional
 
 
@@ -179,6 +178,11 @@ def main() -> int:
         deploy_windows_asan_runtime(binary_dir)
         # The sanitizer host lives outside the Python installation, so CPython
         # cannot reliably derive the standard-library paths from argv[0].
+        if sys.prefix != sys.base_prefix:
+            python_paths = [sysconfig.get_path("purelib")]
+            if existing_pythonpath := os.environ.get("PYTHONPATH"):
+                python_paths.append(existing_pythonpath)
+            append_github_env("PYTHONPATH", os.pathsep.join(python_paths))
         append_github_env("PYTHONHOME", sys.base_prefix)
 
     if "address" in sanitizers:
