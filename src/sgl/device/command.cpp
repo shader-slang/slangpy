@@ -9,6 +9,7 @@
 #include "sgl/device/query.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/raytracing.h"
+#include "sgl/device/shader.h"
 #include "sgl/device/shader_object.h"
 #include "sgl/device/cuda_utils.h"
 #include "sgl/device/cuda_interop.h"
@@ -126,7 +127,8 @@ ShaderObject* RenderPassEncoder::bind_pipeline(RenderPipeline* pipeline)
     SGL_CHECK_NOT_NULL(pipeline);
 
     rhi::IShaderObject* rhi_root_object = m_rhi_render_pass_encoder->bindPipeline(pipeline->rhi_pipeline());
-    ShaderObject* root_object = m_command_encoder->_get_root_object(rhi_root_object);
+    ShaderObject* root_object
+        = m_command_encoder->_get_root_object(rhi_root_object, pipeline->desc().program->slang_component_type());
     if (m_command_encoder->device()->debug_printer())
         m_command_encoder->device()->debug_printer()->bind(ShaderCursor(root_object));
     return root_object;
@@ -209,7 +211,8 @@ ShaderObject* ComputePassEncoder::bind_pipeline(ComputePipeline* pipeline)
 
     m_thread_group_size = pipeline->thread_group_size();
     rhi::IShaderObject* rhi_root_object = m_rhi_compute_pass_encoder->bindPipeline(pipeline->rhi_pipeline());
-    ShaderObject* root_object = m_command_encoder->_get_root_object(rhi_root_object);
+    ShaderObject* root_object
+        = m_command_encoder->_get_root_object(rhi_root_object, pipeline->desc().program->slang_component_type());
     if (m_command_encoder->device()->debug_printer())
         m_command_encoder->device()->debug_printer()->bind(ShaderCursor(root_object));
     return root_object;
@@ -260,7 +263,8 @@ ShaderObject* RayTracingPassEncoder::bind_pipeline(RayTracingPipeline* pipeline,
 
     rhi::IShaderObject* rhi_root_object
         = m_rhi_ray_tracing_pass_encoder->bindPipeline(pipeline->rhi_pipeline(), shader_table->rhi_shader_table());
-    ShaderObject* root_object = m_command_encoder->_get_root_object(rhi_root_object);
+    ShaderObject* root_object
+        = m_command_encoder->_get_root_object(rhi_root_object, pipeline->desc().program->slang_component_type());
     if (m_command_encoder->device()->debug_printer())
         m_command_encoder->device()->debug_printer()->bind(ShaderCursor(root_object));
     return root_object;
@@ -389,9 +393,10 @@ ref<RayTracingPassEncoder> CommandEncoder::begin_ray_tracing_pass()
     return m_ray_tracing_pass_encoder;
 }
 
-ShaderObject* CommandEncoder::_get_root_object(rhi::IShaderObject* rhi_shader_object)
+ShaderObject*
+CommandEncoder::_get_root_object(rhi::IShaderObject* rhi_shader_object, slang::IComponentType* slang_component_type)
 {
-    m_root_object = make_ref<ShaderObject>(m_device, rhi_shader_object, false);
+    m_root_object = make_ref<ShaderObject>(m_device, rhi_shader_object, slang_component_type, false);
     return m_root_object.get();
 }
 

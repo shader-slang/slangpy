@@ -23,12 +23,20 @@ class SGL_API ShaderObject : public Object {
     SGL_OBJECT(ShaderObject)
     SGL_DECLARE_BLOCK_ALLOCATED(ShaderObject)
 public:
-    ShaderObject(ref<Device> device, rhi::IShaderObject* shader_object, bool retain = true);
+    ShaderObject(
+        ref<Device> device,
+        rhi::IShaderObject* shader_object,
+        slang::IComponentType* slang_component_type,
+        bool retain = true
+    );
     virtual ~ShaderObject();
 
     static void write_to_cursor(const ShaderCursor& cursor, const ShaderObject* value);
 
     Device* device() const { return m_device.get(); }
+
+    /// Returns the Slang component that owns this shader object's type layout.
+    slang::IComponentType* slang_component_type() const { return m_slang_component_type.get(); }
 
     virtual ref<const TypeLayoutReflection> element_type_layout() const;
 
@@ -73,6 +81,7 @@ public:
 protected:
     ref<Device> m_device;
     rhi::IShaderObject* m_shader_object;
+    Slang::ComPtr<slang::IComponentType> m_slang_component_type;
     bool m_retain;
     short_vector<ref<cuda::InteropBuffer>, 8> m_cuda_interop_buffers;
     short_vector<ref<ShaderObject>, 8> m_objects;

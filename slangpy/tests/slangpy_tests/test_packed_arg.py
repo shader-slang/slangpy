@@ -123,5 +123,30 @@ float inc(Val val) {
     assert np.array_equal(results, np.array([2, 3, 4, 5], dtype=np.float32))
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_packed_arg_retained_across_hot_reload(device_type: DeviceType):
+    device = helpers.get_device(device_type, use_cache=False)
+    function = helpers.create_function_from_module(
+        device,
+        "copy",
+        r"""
+int copy(int val) {
+    return val;
+}
+""",
+    )
+
+    old_value = pack(function.module, 42)
+    assert function(old_value) == 42
+
+    device.reload_all_programs()
+
+    with pytest.raises(RuntimeError, match="different Slang sessions.*repack"):
+        function(old_value)
+
+    new_value = pack(function.module, 42)
+    assert function(new_value) == 42
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

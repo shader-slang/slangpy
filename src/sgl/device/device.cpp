@@ -835,7 +835,8 @@ ref<ShaderObject> Device::create_root_shader_object(const ShaderProgram* shader_
         this
     );
 
-    ref<ShaderObject> shader_object = make_ref<ShaderObject>(ref<Device>(this), rhi_shader_object);
+    ref<ShaderObject> shader_object
+        = make_ref<ShaderObject>(ref<Device>(this), rhi_shader_object, shader_program->slang_component_type());
 
     // Bind the debug printer to the new shader object, if enabled.
     if (m_debug_printer)
@@ -846,14 +847,20 @@ ref<ShaderObject> Device::create_root_shader_object(const ShaderProgram* shader_
 
 ref<ShaderObject> Device::create_shader_object(const TypeLayoutReflection* type_layout)
 {
+    SGL_CHECK_NOT_NULL(type_layout);
+    slang::IComponentType* slang_component_type = detail::get_slang_component_from_owner(type_layout->owner());
+
     Slang::ComPtr<rhi::IShaderObject> rhi_shader_object;
     SLANG_RHI_CALL(
-        m_rhi_device
-            ->createShaderObjectFromTypeLayout(type_layout->get_slang_type_layout(), rhi_shader_object.writeRef()),
+        m_rhi_device->createShaderObjectFromTypeLayout(
+            slang_component_type,
+            type_layout->get_slang_type_layout(),
+            rhi_shader_object.writeRef()
+        ),
         this
     );
 
-    return make_ref<ShaderObject>(ref<Device>(this), rhi_shader_object);
+    return make_ref<ShaderObject>(ref<Device>(this), rhi_shader_object, slang_component_type);
 }
 
 ref<ShaderObject> Device::create_shader_object(ReflectionCursor cursor)

@@ -1710,6 +1710,14 @@ void ShaderProgram::store_built_data(SlangSessionBuild& build_data)
     }
 }
 
+slang::IComponentType* ShaderProgram::slang_component_type() const
+{
+    SGL_CHECK(m_data && m_data->rhi_shader_program, "Shader program has no active RHI program");
+    slang::IComponentType* component = m_data->rhi_shader_program->getSlangProgram();
+    SGL_CHECK_NOT_NULL(component);
+    return component;
+}
+
 void ShaderProgram::_register_pipeline(Pipeline* pipeline)
 {
     m_registered_pipelines.insert(pipeline);

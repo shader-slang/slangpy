@@ -37,6 +37,9 @@ namespace detail {
     SGL_API ref<const ProgramLayout> from_slang(ref<const Object> owner, slang::ProgramLayout* program_layout);
     SGL_API ref<const Attribute> from_slang(ref<const Object> owner, slang::Attribute* attribute);
 
+    /// Return the Slang component that owns reflection created from an SGL owner object.
+    SGL_API slang::IComponentType* get_slang_component_from_owner(const Object* owner);
+
     SGL_API void on_slang_wrapper_destroyed(void* slang_reflection);
 
     /// Invalidate reflection data. If device is set, only reflection data owned by that device is invalidated.
