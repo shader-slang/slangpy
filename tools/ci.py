@@ -20,7 +20,7 @@ PYTEST_BASE_TEMP_DIR = PROJECT_DIR / ".temp" / "pytest"
 def pytest_command(test_path: str, *args: str) -> list[str]:
     # Pytest clears --basetemp on startup, so keep it in a dedicated repo-local directory.
     PYTEST_BASE_TEMP_DIR.parent.mkdir(exist_ok=True)
-    return ["pytest", test_path, *args, f"--basetemp={PYTEST_BASE_TEMP_DIR}"]
+    return [sys.executable, "-m", "pytest", test_path, *args, f"--basetemp={PYTEST_BASE_TEMP_DIR}"]
 
 
 def get_os():
@@ -109,9 +109,12 @@ def run_command(
     return out
 
 
-def get_python_env():
+def get_python_env(preset: Optional[str] = None) -> dict[str, str]:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(PROJECT_DIR)
+    if preset:
+        slang_bin_dir = PROJECT_DIR / "build" / preset / "_deps" / "slang-src" / "bin"
+        env["PATH"] = os.pathsep.join((str(slang_bin_dir), env.get("PATH", "")))
     return env
 
 
@@ -149,20 +152,22 @@ def typing_check_python(args: Any):
 
 
 def unit_test_python(args: Any):
-    env = get_python_env()
+    env = get_python_env(args.preset)
+    if args.disable_torch:
+        env["SLANGPY_TEST_DISABLE_TORCH"] = "1"
     os.makedirs("reports", exist_ok=True)
     cmd = pytest_command("slangpy/tests", "-vra")
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
-    run_command(cmd, env=env)
+    run_command(cmd, shell=False, env=env)
 
 
 def test_examples(args: Any):
-    env = get_python_env()
+    env = get_python_env(args.preset)
     cmd = pytest_command("samples/tests", "-vra")
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
-    run_command(cmd, env=env)
+    run_command(cmd, shell=False, env=env)
 
 
 def benchmark_python(args: Any):
@@ -212,7 +217,7 @@ def benchmark_python(args: Any):
                     cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
 
             try:
-                run_command(cmd, env=env)
+                run_command(cmd, shell=False, env=env)
             except Exception as e:
                 print(f"Benchmarks failed for device type {device_type}: {e}")
                 if args.device_type:  # If specific device requested, fail hard
@@ -296,6 +301,11 @@ def main():
     parser_test_python = commands.add_parser("unit-test-python", help="run unit tests (python)")
     parser_test_python.add_argument(
         "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
+    parser_test_python.add_argument(
+        "--disable-torch",
+        action="store_true",
+        help="make torch and slangpy_torch unavailable to the test process",
     )
 
     parser_test_examples = commands.add_parser("test-examples", help="run examples tests")

@@ -1,5 +1,6 @@
 
 add_library(sgl SHARED)
+sgl_enable_sanitizers(sgl)
 
 option(SGL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 
@@ -299,31 +300,6 @@ if(SGL_ENABLE_COVERAGE)
     else()
         message(WARNING "gcov not found! Code coverage will not be available.")
     endif()
-endif()
-
-if(SGL_ENABLE_ASAN)
-    target_compile_options(sgl
-        PUBLIC
-            $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:
-                /fsanitize=address
-            >
-            $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
-                -fsanitize=address
-            >
-    )
-    target_link_options(sgl
-        PUBLIC
-            $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
-                -fsanitize=address
-            >
-    )
-    target_compile_definitions(sgl
-        PUBLIC
-            $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:
-                _DISABLE_VECTOR_ANNOTATION
-                _DISABLE_STRING_ANNOTATION
-            >
-    )
 endif()
 
 if(SGL_ENABLE_BUILD_METRICS)

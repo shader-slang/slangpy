@@ -246,10 +246,86 @@ The following table lists the available configuration options:
       - Enable precompiled headers
     * - ``SGL_ENABLE_ASAN``
       - ``OFF``
-      - Enable address sanitizer
+      - Enable AddressSanitizer (Clang only)
+    * - ``SGL_ENABLE_UBSAN``
+      - ``OFF``
+      - Enable UndefinedBehaviorSanitizer (Clang only)
     * - ``SGL_ENABLE_HEADER_VALIDATION``
       - ``OFF``
       - Enable header validation
+
+
+Sanitizer builds
+----------------
+
+SlangPy supports AddressSanitizer (ASan) and UndefinedBehaviorSanitizer
+(UBSan) with Clang. Enabling these options instruments the native SlangPy
+libraries, the Python extension, C++ tests, examples, and the embedded
+``slang-rhi`` library. Prebuilt dependencies such as Slang, Python, and GPU
+drivers are not instrumented.
+
+Configure and build a sanitizer-enabled ``RelWithDebInfo`` build with the
+platform's Clang preset. For example, on Linux use::
+
+    cmake --preset linux-clang --fresh -DSGL_ENABLE_ASAN=ON -DSGL_ENABLE_UBSAN=ON
+    cmake --build --preset linux-clang-relwithdebinfo
+
+On Windows, use Clang 22 or newer and a ``RelWithDebInfo`` build. Clang 22
+includes the fix for incorrect ASan instrumentation of C++ exception catch
+parameters on Windows. Configure both sanitizers with::
+
+    cmake --preset windows-clang --fresh -DSGL_ENABLE_ASAN=ON -DSGL_ENABLE_UBSAN=ON
+    cmake --build --preset windows-clang-relwithdebinfo
+
+``RelWithDebInfo`` is required on Windows because LLVM's UBSan C++ runtime uses
+the release iterator ABI. It retains symbols while avoiding an ABI mismatch
+with the Debug C++ runtime. The ``vptr`` check is disabled on Windows because
+Clang ships its support library with a static-CRT ABI that is incompatible with
+SlangPy's dynamic-CRT dependencies; SlangPy explicitly links the compatible
+core runtime and the remaining UBSan checks are enabled.
+
+On Apple Silicon, use ``macos-arm64-clang`` and
+``macos-arm64-clang-relwithdebinfo`` with both sanitizer options.
+
+On Linux, the native extension is loaded by an ordinary Python executable, so
+test processes must preload the Clang sanitizer runtimes. The helper below
+prints the required environment assignments for local use and writes them
+directly to the GitHub Actions environment when ``GITHUB_ENV`` is present::
+
+    python tools/setup-sanitizer-env.py \
+        --os linux \
+        --sanitizers address,undefined \
+        --binary-dir build/linux-clang/RelWithDebInfo
+
+On Linux, apply the printed environment assignments and run the C++ and Python
+tests normally. Pass the generated leak reports through
+``tools/filter-lsan-reports.py``. The filter fails for leaks originating in
+SlangPy or ``slang-rhi`` and ignores reports whose allocation site is external
+code such as Python or a GPU driver.
+
+On Windows and macOS, loading the sanitizer runtimes only when the SlangPy
+extension is imported is too late for CPython's existing allocations. ASan
+builds on these platforms therefore also produce ``slangpy_sanitizer_python``
+(``.exe`` on Windows). This small executable links the runtimes before it
+initializes stock CPython; CPython itself does not need to be rebuilt. Use it in
+place of the ordinary Python executable when running tests. On Windows, the
+environment helper also copies the matching runtime DLL beside the build output
+and adds its directory to ``PATH``. For example::
+
+    build\windows-clang\RelWithDebInfo\slangpy_sanitizer_python.exe tools\ci.py unit-test-python --disable-torch
+
+On macOS, use the corresponding host without the ``.exe`` suffix::
+
+    build/macos-arm64-clang/RelWithDebInfo/slangpy_sanitizer_python \
+        tools/ci.py unit-test-python --disable-torch
+
+Only instrumented SlangPy and ``slang-rhi`` code receives complete ASan
+coverage; prebuilt Python and GPU driver code does not. Sanitizer tests make
+installed ``torch`` and ``slangpy_torch`` packages unavailable because they
+load separately built native libraries into the instrumented process. Tests
+that require them are skipped in the same way as in an environment where the
+packages are not installed.
+
 
 
 

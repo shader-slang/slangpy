@@ -71,8 +71,11 @@ option(SGL_ENABLE_PCH "Enable precompiled headers" OFF)
 # Enable/disable code coverage.
 option(SGL_ENABLE_COVERAGE "Enable code coverage (gcov)" OFF)
 
-# Enable/disable address sanitizer.
-option(SGL_ENABLE_ASAN "Enable address sanitizer" OFF)
+# Enable/disable sanitizers.
+option(SGL_ENABLE_ASAN "Enable AddressSanitizer (Clang only)" OFF)
+option(SGL_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (Clang only)" OFF)
+
+include(sanitizers)
 
 # Enable/disable header validation.
 # If enabled, additional targets are generated to validate that headers are self sufficient.
@@ -120,7 +123,11 @@ message(STATUS "Architecture: ${SGL_ARCHITECTURE}")
 # -----------------------------------------------------------------------------
 
 if(SGL_BUILD_PYTHON)
-    find_package(Python 3.9 COMPONENTS Interpreter Development.Module REQUIRED)
+    if((SGL_WINDOWS OR SGL_MACOS) AND SGL_ENABLE_ASAN)
+        find_package(Python 3.9 COMPONENTS Interpreter Development.Module Development.Embed REQUIRED)
+    else()
+        find_package(Python 3.9 COMPONENTS Interpreter Development.Module REQUIRED)
+    endif()
 endif()
 
 # -----------------------------------------------------------------------------
@@ -188,6 +195,7 @@ git_version_setup()
 
 macro(sgl_add_example target)
     add_executable(${target})
+    sgl_enable_sanitizers(${target})
     target_link_libraries(${target} PRIVATE sgl)
     target_compile_definitions(${target} PRIVATE SGL_EXAMPLE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY})
@@ -413,6 +421,18 @@ endif()
 
 if(SGL_BUILD_TESTS)
     add_subdirectory(tests)
+endif()
+
+# Windows and macOS cannot reliably load ASan into an existing Python process.
+# This small host links the sanitizer runtime before initializing stock CPython,
+# so the Python interpreter itself does not need to be rebuilt with ASan.
+if((SGL_WINDOWS OR SGL_MACOS) AND SGL_ENABLE_ASAN AND SGL_BUILD_PYTHON)
+    add_executable(slangpy_sanitizer_python tools/sanitizer_python.cpp)
+    sgl_enable_sanitizers(slangpy_sanitizer_python)
+    target_link_libraries(slangpy_sanitizer_python PRIVATE Python::Python)
+    set_target_properties(slangpy_sanitizer_python PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY}
+    )
 endif()
 
 # -----------------------------------------------------------------------------

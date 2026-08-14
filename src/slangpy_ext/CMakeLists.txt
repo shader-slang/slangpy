@@ -72,6 +72,8 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     utils/torch_bridge.cpp
 )
 
+sgl_enable_sanitizers(slangpy_ext)
+
 if(SGL_ENABLE_PCH)
     target_precompile_headers(slangpy_ext
         PRIVATE
@@ -128,42 +130,46 @@ function(postprocess_stub stub_file args)
     )
 endfunction()
 
-# Generate main stub file.
-nanobind_add_stub(
-    slangpy_stub
-    MODULE slangpy
-    PYTHON_PATH ${SLANGPY_PACKAGE_DIR}/..
-    OUTPUT ${SLANGPY_PACKAGE_DIR}/__init__.pyi
-    DEPENDS slangpy_ext ${SLANGPY_PACKAGE_DIR}/__init__.py
-    INCLUDE_PRIVATE # allow us to have functions/variables that start with _
-    PATTERN_FILE ${CMAKE_CURRENT_LIST_DIR}/slangpy_stub_patterns.nb
-)
-
-# Post-process the main stub file.
-postprocess_stub(${SLANGPY_PACKAGE_DIR}/__init__.pyi "")
-
-# Install the main stub file.
-install(FILES ${SLANGPY_PACKAGE_DIR}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-# Generate submodule stub files.
-foreach(submodule IN ITEMS platform thread math ui tev crashpad renderdoc slangpy native_refl native_func)
-    string(REPLACE "." "/" submodule_path ${submodule})
+# Stub generation imports the extension into an unsanitized Python host. The
+# required sanitizer runtime preload is not portable across the Clang runtime
+# layouts used by our CI platforms, so retain the checked-in stubs instead.
+if(NOT SGL_ENABLE_ASAN AND NOT SGL_ENABLE_UBSAN)
+    # Generate main stub file.
     nanobind_add_stub(
-        slangpy_${submodule}_stub
-        MODULE slangpy.${submodule}
+        slangpy_stub
+        MODULE slangpy
         PYTHON_PATH ${SLANGPY_PACKAGE_DIR}/..
-        OUTPUT ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi
-        DEPENDS slangpy_ext ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.py
+        OUTPUT ${SLANGPY_PACKAGE_DIR}/__init__.pyi
+        DEPENDS slangpy_ext ${SLANGPY_PACKAGE_DIR}/__init__.py
         INCLUDE_PRIVATE # allow us to have functions/variables that start with _
+        PATTERN_FILE ${CMAKE_CURRENT_LIST_DIR}/slangpy_stub_patterns.nb
     )
 
-    # Post-process the submodule stub file.
-    postprocess_stub(${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi "--submodule")
+    # Post-process the main stub file.
+    postprocess_stub(${SLANGPY_PACKAGE_DIR}/__init__.pyi "")
 
-    # Install the submodule stub file.
-    install(FILES ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR}/${submodule_path})
+    # Install the main stub file.
+    install(FILES ${SLANGPY_PACKAGE_DIR}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-endforeach()
+    # Generate submodule stub files.
+    foreach(submodule IN ITEMS platform thread math ui tev crashpad renderdoc slangpy native_refl native_func)
+        string(REPLACE "." "/" submodule_path ${submodule})
+        nanobind_add_stub(
+            slangpy_${submodule}_stub
+            MODULE slangpy.${submodule}
+            PYTHON_PATH ${SLANGPY_PACKAGE_DIR}/..
+            OUTPUT ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi
+            DEPENDS slangpy_ext ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.py
+            INCLUDE_PRIVATE # allow us to have functions/variables that start with _
+        )
+
+        # Post-process the submodule stub file.
+        postprocess_stub(${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi "--submodule")
+
+        # Install the submodule stub file.
+        install(FILES ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR}/${submodule_path})
+    endforeach()
+endif()
 
 set(MKDOC_ARGS "")
 
