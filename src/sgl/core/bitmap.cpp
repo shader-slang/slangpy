@@ -63,6 +63,9 @@ derivative works thereof, in binary and source code form.
 
 #include "sgl/stl/bit.h"
 
+#define STBI_MALLOC(size) std::malloc(size)
+#define STBI_REALLOC(data, size) std::realloc(data, size)
+#define STBI_FREE(data) std::free(data)
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -110,6 +113,7 @@ SGL_DIAGNOSTIC_POP
 #endif
 
 #include <algorithm>
+#include <new>
 #include <numeric>
 #include <map>
 #include <mutex>
@@ -164,8 +168,7 @@ Bitmap::Bitmap(
     , m_component_type(component_type)
     , m_width(width)
     , m_height(height)
-    , m_data(reinterpret_cast<uint8_t*>(data))
-    , m_owns_data(false)
+    , m_data(static_cast<uint8_t*>(data))
 {
     SGL_CHECK(
         pixel_format != PixelFormat::multi_channel || channel_count > 0,
@@ -180,10 +183,8 @@ Bitmap::Bitmap(
 
     rebuild_pixel_struct(channel_count, channel_names);
 
-    if (!m_data) {
-        m_data = std::make_unique<uint8_t[]>(buffer_size());
-        m_owns_data = true;
-    }
+    if (!m_data)
+        allocate_data(buffer_size());
 }
 
 Bitmap::Bitmap(const Bitmap& other)
@@ -194,9 +195,9 @@ Bitmap::Bitmap(const Bitmap& other)
     , m_width(other.m_width)
     , m_height(other.m_height)
     , m_srgb_gamma(other.m_srgb_gamma)
-    , m_data(new uint8_t[other.buffer_size()])
 {
-    std::memcpy(m_data.get(), other.m_data.get(), other.buffer_size());
+    allocate_data(other.buffer_size());
+    std::memcpy(m_data, other.m_data, other.buffer_size());
 }
 
 Bitmap::Bitmap(Bitmap&& other)
@@ -206,7 +207,8 @@ Bitmap::Bitmap(Bitmap&& other)
     , m_width(std::exchange(other.m_width, 0))
     , m_height(std::exchange(other.m_height, 0))
     , m_srgb_gamma(std::exchange(other.m_srgb_gamma, false))
-    , m_data(std::move(other.m_data))
+    , m_owned_data(std::move(other.m_owned_data))
+    , m_data(std::exchange(other.m_data, nullptr))
 {
 }
 
@@ -219,12 +221,6 @@ Bitmap::Bitmap(const std::filesystem::path& path, FileFormat format)
 {
     FileStream stream(path, FileStream::Mode::read);
     read(&stream, format);
-}
-
-Bitmap::~Bitmap()
-{
-    if (!m_owns_data)
-        m_data.release();
 }
 
 std::vector<ref<Bitmap>> Bitmap::read_multiple(std::span<std::filesystem::path> paths, FileFormat format)
@@ -351,7 +347,7 @@ void Bitmap::set_srgb_gamma(bool srgb_gamma)
 
 void Bitmap::clear()
 {
-    std::memset(m_data.get(), 0, buffer_size());
+    std::memset(m_data, 0, buffer_size());
 }
 
 void Bitmap::vflip()
@@ -530,7 +526,7 @@ bool Bitmap::operator==(const Bitmap& other) const
 {
     return m_pixel_format == other.m_pixel_format && m_component_type == other.m_component_type
         && *m_pixel_struct == *other.m_pixel_struct && m_width == other.m_width && m_height == other.m_height
-        && m_srgb_gamma == other.m_srgb_gamma && std::memcmp(m_data.get(), other.m_data.get(), buffer_size()) == 0;
+        && m_srgb_gamma == other.m_srgb_gamma && std::memcmp(m_data, other.m_data, buffer_size()) == 0;
 }
 
 std::string Bitmap::to_string() const
@@ -607,6 +603,16 @@ void Bitmap::static_init()
 }
 
 void Bitmap::static_shutdown() { }
+
+void Bitmap::allocate_data(size_t size)
+{
+    auto* data = static_cast<uint8_t*>(std::malloc(std::max<size_t>(size, 1)));
+    if (!data)
+        throw std::bad_alloc();
+
+    m_owned_data.reset(data);
+    m_data = data;
+}
 
 void Bitmap::rebuild_pixel_struct(uint32_t channel_count, const std::vector<std::string>& channel_names)
 {
@@ -820,11 +826,11 @@ void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_
     if (!data)
         SGL_THROW(fmt::format("Failed to read {} file!", format));
 
+    m_owned_data.reset(static_cast<uint8_t*>(data));
+    m_data = m_owned_data.get();
+
     SGL_ASSERT_EQ(m_width, static_cast<uint32_t>(w));
     SGL_ASSERT_EQ(m_height, static_cast<uint32_t>(h));
-
-    m_data = std::unique_ptr<uint8_t[]>(reinterpret_cast<uint8_t*>(data));
-    m_owns_data = true;
 }
 
 // ----------------------------------------------------------------------------
@@ -990,8 +996,7 @@ void Bitmap::read_png(Stream* stream)
     );
 
     size_t size = buffer_size();
-    m_data = std::unique_ptr<uint8_t[]>(new uint8_t[size]);
-    m_owns_data = true;
+    allocate_data(size);
 
     size_t row_bytes = png_get_rowbytes(png_ptr, info_ptr);
     SGL_ASSERT(row_bytes == size / m_height);
@@ -1312,8 +1317,7 @@ void Bitmap::read_jpg(Stream* stream)
 
     size_t row_stride = static_cast<size_t>(cinfo.output_width) * static_cast<size_t>(cinfo.output_components);
 
-    m_data = std::unique_ptr<uint8_t[]>(new uint8_t[buffer_size()]);
-    m_owns_data = true;
+    allocate_data(buffer_size());
 
     JSAMPARRAY scanlines = reinterpret_cast<JSAMPARRAY>(alloca(sizeof(JSAMPROW) * m_height));
     for (size_t i = 0; i < m_height; ++i)
@@ -1385,7 +1389,7 @@ void Bitmap::write_jpg(Stream* stream, int quality) const
 
     // Write scanline by scanline
     for (size_t i = 0; i < m_height; ++i) {
-        const uint8_t* source = m_data.get() + i * m_width * cinfo.input_components;
+        const uint8_t* source = m_data + i * m_width * cinfo.input_components;
         jpeg_write_scanlines(&cinfo, const_cast<JSAMPARRAY>(&source), 1);
     }
 
@@ -1726,15 +1730,14 @@ void Bitmap::read_exr(Stream* stream)
     size_t pixel_count = this->pixel_count();
     size_t row_stride = pixel_stride * m_width;
 
-    m_data = std::unique_ptr<uint8_t[]>(new uint8_t[row_stride * m_height]);
-    m_owns_data = true;
+    allocate_data(row_stride * m_height);
 
 #if 0
     using ResampleBuffer = std::pair<std::string, ref<Bitmap>>;
     std::vector<ResampleBuffer> resample_buffers;
 #endif
 
-    uint8_t* ptr = m_data.get() - (data_window.min.x + data_window.min.y * m_width) * pixel_stride;
+    uint8_t* ptr = m_data - (data_window.min.x + data_window.min.y * m_width) * pixel_stride;
 
     // Tell OpenEXR where the image data should be put.
     Imf::FrameBuffer framebuffer;
@@ -1854,13 +1857,13 @@ void Bitmap::read_exr(Stream* stream)
 
         switch (m_component_type) {
         case ComponentType::float16:
-            convert(reinterpret_cast<math::float16_t*>(m_data.get()));
+            convert(reinterpret_cast<math::float16_t*>(m_data));
             break;
         case ComponentType::float32:
-            convert(reinterpret_cast<float*>(m_data.get()));
+            convert(reinterpret_cast<float*>(m_data));
             break;
         case ComponentType::uint32:
-            convert(reinterpret_cast<uint32_t*>(m_data.get()));
+            convert(reinterpret_cast<uint32_t*>(m_data));
             break;
         default:
             SGL_THROW("Internal error!");
@@ -1935,13 +1938,13 @@ void Bitmap::read_exr(Stream* stream)
 
         switch (m_component_format) {
         case DataStruct::Type::Float16:
-            convert((dr::half*)m_data.get());
+            convert((dr::half*)m_data);
             break;
         case DataStruct::Type::Float32:
-            convert((float*)m_data.get());
+            convert((float*)m_data);
             break;
         case DataStruct::Type::UInt32:
-            convert((uint32_t*)m_data.get());
+            convert((uint32_t*)m_data);
             break;
         default:
             Throw("Internal error!");
@@ -2267,8 +2270,7 @@ void Bitmap::read_exr(Stream* stream)
     size_t pixel_count = this->pixel_count();
     size_t row_stride = pixel_stride * m_width;
 
-    m_data = std::unique_ptr<uint8_t[]>(new uint8_t[row_stride * m_height]);
-    m_owns_data = true;
+    allocate_data(row_stride * m_height);
 
     for (const auto& field : *m_pixel_struct) {
         int channel_index = find_channel_index(field.name);
@@ -2633,11 +2635,10 @@ void Bitmap::read_dds(Stream* stream)
 
         uint32_t bpp = static_cast<uint32_t>(bytes_per_pixel());
         size_t buf_size = buffer_size();
-        m_data = std::make_unique<uint8_t[]>(buf_size);
-        m_owns_data = true;
+        allocate_data(buf_size);
 
         BCMutableImage dst{
-            .data = m_data.get(),
+            .data = m_data,
             .width = m_width,
             .height = m_height,
             .row_pitch = m_width * bpp,
@@ -2718,8 +2719,7 @@ void Bitmap::read_dds(Stream* stream)
         rebuild_pixel_struct();
 
         size_t buf_size = buffer_size();
-        m_data = std::make_unique<uint8_t[]>(buf_size);
-        m_owns_data = true;
+        allocate_data(buf_size);
 
         // Copy mip level 0 data. Only tightly packed rows are supported.
         uint32_t row_pitch, slice_pitch;
@@ -2727,7 +2727,7 @@ void Bitmap::read_dds(Stream* stream)
         uint32_t dst_row_pitch = static_cast<uint32_t>(m_width * bytes_per_pixel());
         const uint8_t* src = dds.get_subresource_data(0, 0);
         SGL_CHECK(row_pitch == dst_row_pitch, "Bitmap::read_dds: unsupported row pitch for format {}.", format);
-        std::memcpy(m_data.get(), src, buf_size);
+        std::memcpy(m_data, src, buf_size);
     }
 }
 

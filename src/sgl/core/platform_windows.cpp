@@ -21,6 +21,7 @@
 #include <winioctl.h>
 #include <DbgHelp.h>
 
+#include <cstddef>
 #include <mutex>
 
 #define WINDOWS_CALL(a)                                                                                                \
@@ -298,7 +299,7 @@ bool create_junction(const std::filesystem::path& link, const std::filesystem::p
     // Set the total size of the data buffer.
 
     // Use DeviceIoControl to set the reparse point data on the file handle.
-    size_t header_size = FIELD_OFFSET(REPARSE_DATA_BUFFER, MountPointReparseBuffer);
+    size_t header_size = offsetof(REPARSE_DATA_BUFFER, MountPointReparseBuffer);
     bool success = DeviceIoControl(
         handle,
         FSCTL_SET_REPARSE_POINT,
@@ -339,7 +340,7 @@ bool delete_junction(const std::filesystem::path& link)
         handle,
         FSCTL_DELETE_REPARSE_POINT,
         &rgdb,
-        REPARSE_GUID_DATA_BUFFER_HEADER_SIZE,
+        static_cast<DWORD>(offsetof(REPARSE_GUID_DATA_BUFFER, GenericReparseBuffer)),
         NULL,
         0,
         NULL,
