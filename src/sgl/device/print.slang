@@ -199,6 +199,54 @@ extension double : IPrintable {
     uint get_printable_data(uint index) { uint2 data; asuint(this, data.x, data.y); return data[index]; }
 }
 
+/// Enum values use the printable representation of their underlying type.
+/// Work around https://github.com/shader-slang/slang/issues/12540: forwarding directly to T.__Tag is incorrectly
+/// diagnosed as recursion when the conformance is invoked through an IPrintable interface value.
+__generic<T : __EnumType>
+extension T : detail::IPrintable
+    where T.__Tag : detail::IPrintable
+{
+    // TODO: Replace the workaround below with this implementation when the Slang issue is fixed:
+    //
+    // static detail::Layout printable_layout() { return T.__Tag::printable_layout(); }
+    // static uint printable_data_count() { return T.__Tag::printable_data_count(); }
+    // uint get_printable_data(uint index)
+    // {
+    //     return __slang_noop_cast<T.__Tag>(this).get_printable_data(index);
+    // }
+
+    static detail::Layout printable_layout()
+    {
+        if (__type_equals<T.__Tag, bool>())
+            return detail::Layout(detail::Kind::scalar, detail::Type::boolean, 0, 0);
+        if (__type_equals<T.__Tag, int8_t>())
+            return detail::Layout(detail::Kind::scalar, detail::Type::int8, 0, 0);
+        if (__type_equals<T.__Tag, int16_t>())
+            return detail::Layout(detail::Kind::scalar, detail::Type::int16, 0, 0);
+        if (__type_equals<T.__Tag, int32_t>())
+            return detail::Layout(detail::Kind::scalar, detail::Type::int32, 0, 0);
+        if (__type_equals<T.__Tag, int64_t>())
+            return detail::Layout(detail::Kind::scalar, detail::Type::int64, 0, 0);
+        if (__type_equals<T.__Tag, uint8_t>())
+            return detail::Layout(detail::Kind::scalar, detail::Type::uint8, 0, 0);
+        if (__type_equals<T.__Tag, uint16_t>())
+            return detail::Layout(detail::Kind::scalar, detail::Type::uint16, 0, 0);
+        if (__type_equals<T.__Tag, uint64_t>())
+            return detail::Layout(detail::Kind::scalar, detail::Type::uint64, 0, 0);
+        return detail::Layout(detail::Kind::scalar, detail::Type::uint32, 0, 0);
+    }
+
+    static uint printable_data_count()
+    {
+        return __type_equals<T.__Tag, int64_t>() || __type_equals<T.__Tag, uint64_t>() ? 2 : 1;
+    }
+
+    uint get_printable_data(uint index)
+    {
+        return uint(__slang_noop_cast<uint64_t>(this) >> (index * 32));
+    }
+}
+
 __generic<T : IPrintable, let N : int>
 extension vector<T, N> : IPrintable {
     [ForceInline]
