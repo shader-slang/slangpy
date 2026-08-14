@@ -5,6 +5,7 @@
 if(SGL_BUILD_TESTS)
 
     add_executable(sgl_tests)
+    sgl_enable_sanitizers(sgl_tests)
     target_sources(sgl_tests PRIVATE
         sgl/sgl_tests.cpp
         sgl/testing.cpp

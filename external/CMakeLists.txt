@@ -247,6 +247,24 @@ set(SLANG_RHI_BUILD_EXAMPLES OFF)
 set(SLANG_RHI_FETCH_SLANG OFF)
 set(SLANG_RHI_ENABLE_D3D11 OFF)
 set(SLANG_RHI_ENABLE_WGPU OFF)
+# A sanitizer-enabled SlangPy build instruments all project-owned native code,
+# including the statically linked slang-rhi implementation.
+set(SLANG_RHI_ENABLE_ASAN ${SGL_ENABLE_ASAN} CACHE BOOL "Enable AddressSanitizer in slang-rhi" FORCE)
+set(SLANG_RHI_ENABLE_UBSAN ${SGL_ENABLE_UBSAN} CACHE BOOL "Enable UndefinedBehaviorSanitizer in slang-rhi" FORCE)
+# ThreadSanitizer support is available in slang-rhi, but SlangPy does not yet
+# expose or test a compatible top-level configuration.
+set(SLANG_RHI_ENABLE_TSAN OFF CACHE BOOL "Enable ThreadSanitizer in slang-rhi" FORCE)
+if(SGL_ENABLE_UBSAN AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # Match the Windows UBSan scope used by SlangPy-owned targets. The vptr
+    # support library has a static-CRT ABI incompatible with our dependencies;
+    # the final owned target explicitly links only the core UBSan runtime.
+    add_compile_options(-fno-sanitize=vptr)
+endif()
+if(SGL_ENABLE_ASAN AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # Keep MSVC STL annotation settings consistent with uninstrumented vcpkg
+    # libraries linked into sgl. slang-rhi remains otherwise ASan-instrumented.
+    add_compile_definitions(_DISABLE_STRING_ANNOTATION _DISABLE_VECTOR_ANNOTATION)
+endif()
 # TODO: We should rename SLANG_RHI_BUILD_FROM_SLANG_REPO to something more generic.
 # We want slang-rhi to support using a `slang` target that is provided from the outside.
 set(SLANG_RHI_BUILD_FROM_SLANG_REPO ON)
@@ -259,6 +277,17 @@ if(SGL_LOCAL_RHI)
 else()
     add_subdirectory(slang-rhi)
     set(SGL_RHI_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/slang-rhi)
+endif()
+
+if(SGL_ENABLE_ASAN AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # Standalone slang-rhi uses the static release CRT for ASan. SlangPy's
+    # x64-windows-static-md-fix vcpkg triplet instead links static libraries
+    # built with the dynamic release CRT, so embedded RHI targets must match it.
+    foreach(target slang-rhi slang-rhi-d3d12ma slang-rhi-vma slang-rhi-resources)
+        if(TARGET ${target})
+            set_property(TARGET ${target} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+        endif()
+    endforeach()
 endif()
 
 # Copy shared slang-rhi-device.h header to shaders directory (wrapped in sgl/device/rhi.slang)
