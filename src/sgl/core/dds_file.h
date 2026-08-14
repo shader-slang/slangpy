@@ -7,6 +7,7 @@
 #include "sgl/core/stream.h"
 
 #include <filesystem>
+#include <vector>
 
 namespace sgl {
 
@@ -38,13 +39,11 @@ public:
     explicit DDSFile(Stream* stream);
     explicit DDSFile(const std::filesystem::path& path);
 
-    ~DDSFile();
+    const uint8_t* data() const { return m_data.data(); }
+    size_t size() const { return m_data.size(); }
 
-    const uint8_t* data() const { return m_data; }
-    size_t size() const { return m_size; }
-
-    const uint8_t* resource_data() const { return m_data + m_header_size; }
-    size_t resource_size() const { return m_size - m_header_size; }
+    const uint8_t* resource_data() const { return m_data.data() + m_header_size; }
+    size_t resource_size() const { return m_data.size() - m_header_size; }
 
     uint32_t dxgi_format() const { return m_dxgi_format; }
     TextureType type() const { return m_type; }
@@ -111,8 +110,7 @@ private:
     bool get_subresource_offset(uint32_t mip, uint32_t slice, size_t* offset) const;
     bool get_required_resource_size(size_t* size) const;
 
-    uint8_t* m_data{nullptr};
-    size_t m_size{0};
+    std::vector<uint8_t> m_data;
 
     uint32_t m_dxgi_format;
     TextureType m_type;
