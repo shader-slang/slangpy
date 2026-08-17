@@ -201,7 +201,7 @@ def main() -> int:
     if "undefined" in sanitizers:
         append_github_env("UBSAN_OPTIONS", "print_stacktrace=1:halt_on_error=1")
     if "thread" in sanitizers:
-        tsan_options = ["halt_on_error=1", "second_deadlock_stack=1"]
+        tsan_options = ["halt_on_error=0", "exitcode=66", "second_deadlock_stack=1"]
         if symbolizer:
             tsan_options.append(
                 f"external_symbolizer_path={sanitizer_path(pathlib.Path(symbolizer))}"

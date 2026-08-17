@@ -180,8 +180,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: linux, platform: x86_64, compiler: clang, preset: linux-clang, config: RelWithDebInfo, runs-on: { labels: [Linux, X64, nvrgfx-kernelvm-bridge] }, tsan_options: "halt_on_error=1:second_deadlock_stack=1:external_symbolizer_path=/usr/bin/llvm-symbolizer" }
-          - { os: macos, platform: aarch64, compiler: clang, preset: macos-arm64-clang, config: RelWithDebInfo, runs-on: macos-latest, tsan_options: "halt_on_error=1:second_deadlock_stack=1" }
+          - { os: linux, platform: x86_64, compiler: clang, preset: linux-clang, config: RelWithDebInfo, runs-on: { labels: [Linux, X64, nvrgfx-kernelvm-bridge] }, tsan_options: "halt_on_error=0:exitcode=66:second_deadlock_stack=1:external_symbolizer_path=/usr/bin/llvm-symbolizer" }
+          - { os: macos, platform: aarch64, compiler: clang, preset: macos-arm64-clang, config: RelWithDebInfo, runs-on: macos-latest, tsan_options: "halt_on_error=0:exitcode=66:second_deadlock_stack=1" }
 
     runs-on: ${{ matrix.runs-on }}
 
