@@ -8,6 +8,7 @@
 #include <nanothread/nanothread.h>
 #include <slang-rhi.h>
 
+#include <exception>
 #include <mutex>
 #include <vector>
 
@@ -115,7 +116,32 @@ namespace {
         static void execute_task(uint32_t, void* payload)
         {
             TaskPayload* task_payload = static_cast<TaskPayload*>(payload);
-            task_payload->func(task_payload->payload);
+            void (*func)(void*) = task_payload->func;
+            void* user_payload = task_payload->payload;
+            void (*user_payload_deleter)(void*) = task_payload->payload_deleter;
+
+            // Nanothread publishes task completion before running its payload deleter. Run the
+            // user deleter as part of the callback so waiters cannot outlive user payload cleanup.
+            task_payload->payload = nullptr;
+            task_payload->payload_deleter = nullptr;
+
+            std::exception_ptr exception;
+            try {
+                func(user_payload);
+            } catch (...) {
+                exception = std::current_exception();
+            }
+
+            try {
+                if (user_payload_deleter)
+                    user_payload_deleter(user_payload);
+            } catch (...) {
+                if (!exception)
+                    exception = std::current_exception();
+            }
+
+            if (exception)
+                std::rethrow_exception(exception);
         }
 
         static void delete_task_payload(void* payload)

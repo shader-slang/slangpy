@@ -6,6 +6,10 @@
 #include <slang-rhi.h>
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 
 using namespace sgl;
 
@@ -18,6 +22,46 @@ struct RecursiveTaskPayload {
     std::atomic<uint32_t>* delete_count;
     uint32_t depth;
 };
+
+struct BlockingDeletePayload {
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool callback_entered{false};
+    bool allow_callback_return{false};
+    bool deleter_entered{false};
+    bool allow_deleter_return{false};
+    bool wait_returned{false};
+};
+
+void execute_blocking_delete_task(void* data)
+{
+    auto* payload = static_cast<BlockingDeletePayload*>(data);
+    std::unique_lock lock(payload->mutex);
+    payload->callback_entered = true;
+    payload->condition.notify_all();
+    payload->condition.wait(
+        lock,
+        [&]
+        {
+            return payload->allow_callback_return;
+        }
+    );
+}
+
+void delete_blocking_task_payload(void* data)
+{
+    auto* payload = static_cast<BlockingDeletePayload*>(data);
+    std::unique_lock lock(payload->mutex);
+    payload->deleter_entered = true;
+    payload->condition.notify_all();
+    payload->condition.wait(
+        lock,
+        [&]
+        {
+            return payload->allow_deleter_return;
+        }
+    );
+}
 
 void delete_recursive_task_payload(void* data)
 {
@@ -94,6 +138,62 @@ TEST_CASE("rhi task pool executes tasks and deletes payloads")
 
     CHECK(execute_count.load() == 1);
     CHECK(delete_count.load() == 1);
+}
+
+TEST_CASE("rhi task wait includes payload deletion")
+{
+    using namespace std::chrono_literals;
+
+    BlockingDeletePayload payload;
+    rhi::ITaskPool* pool = thread::rhi_task_pool();
+    auto task = pool->submitTask(execute_blocking_delete_task, &payload, delete_blocking_task_payload);
+
+    {
+        std::unique_lock lock(payload.mutex);
+        payload.condition.wait(
+            lock,
+            [&]
+            {
+                return payload.callback_entered;
+            }
+        );
+    }
+
+    std::thread waiter(
+        [&]
+        {
+            pool->waitAndReleaseTask(task);
+            std::lock_guard lock(payload.mutex);
+            payload.wait_returned = true;
+            payload.condition.notify_all();
+        }
+    );
+
+    {
+        std::unique_lock lock(payload.mutex);
+        payload.allow_callback_return = true;
+        payload.condition.notify_all();
+        payload.condition.wait(
+            lock,
+            [&]
+            {
+                return payload.deleter_entered;
+            }
+        );
+        CHECK_FALSE(payload.condition.wait_for(
+            lock,
+            100ms,
+            [&]
+            {
+                return payload.wait_returned;
+            }
+        ));
+        payload.allow_deleter_return = true;
+        payload.condition.notify_all();
+    }
+
+    waiter.join();
+    CHECK(payload.wait_returned);
 }
 
 TEST_CASE("rhi task groups include tasks spawned by callbacks")
