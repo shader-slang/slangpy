@@ -50,6 +50,9 @@ void check_execute_callback_native_handle(Device* device, NativeHandle callback_
 
 TEST_CASE("enumerate_adapters")
 {
+    if (!testing::device_tests_enabled())
+        SKIP("device tests disabled by -skip-device-tests");
+
     std::vector<AdapterInfo> adapters = Device::enumerate_adapters();
     CHECK(!adapters.empty());
 }

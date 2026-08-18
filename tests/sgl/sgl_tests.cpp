@@ -11,6 +11,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
+#include "doctest-reporter.h"
+
 SGL_EXPORT_AGILITY_SDK
 
 
@@ -32,6 +34,9 @@ std::string get_current_test_case_name()
 
 int main(int argc, char** argv)
 {
+    if (doctest::parseFlag(argc, argv, "skip-device-tests"))
+        sgl::testing::options().skip_device_tests = true;
+
     sgl::static_init();
 
     sgl::Logger::get().remove_all_outputs();
@@ -46,6 +51,7 @@ int main(int argc, char** argv)
         sgl::testing::static_init();
 
         doctest::Context context(argc, argv);
+        context.setOption("--reporters", "sgl");
 
         // Select specific test suite to run
         // context.setOption("-ts", "formats");

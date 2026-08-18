@@ -16,6 +16,42 @@ using namespace sgl;
 
 TEST_SUITE_BEGIN("bc_codec");
 
+using BCEncoderTestFunc = void (*)(BCEncoderBackend backend);
+
+static void run_bc_encoder_test(BCEncoderBackend backend, BCEncoderTestFunc func)
+{
+    if (backend == BCEncoderBackend::nvtt_gpu && !testing::device_tests_enabled())
+        SKIP("device tests disabled by -skip-device-tests");
+
+    if (!BCEncoder::is_backend_available(backend)) {
+        if (backend == BCEncoderBackend::nvtt_cpu)
+            SKIP("NVTT CPU backend is not available");
+        if (backend == BCEncoderBackend::nvtt_gpu)
+            SKIP("NVTT GPU backend is not available");
+        FAIL("BC encoder backend is not available");
+    }
+
+    func(backend);
+}
+
+#define BC_ENCODER_TEST_CASE_IMPL(name, func)                                                                          \
+    static void func(BCEncoderBackend backend);                                                                        \
+    TEST_CASE(name ".software")                                                                                        \
+    {                                                                                                                  \
+        run_bc_encoder_test(BCEncoderBackend::software, func);                                                         \
+    }                                                                                                                  \
+    TEST_CASE(name ".nvtt_cpu")                                                                                        \
+    {                                                                                                                  \
+        run_bc_encoder_test(BCEncoderBackend::nvtt_cpu, func);                                                         \
+    }                                                                                                                  \
+    TEST_CASE(name ".nvtt_gpu")                                                                                        \
+    {                                                                                                                  \
+        run_bc_encoder_test(BCEncoderBackend::nvtt_gpu, func);                                                         \
+    }                                                                                                                  \
+    static void func(BCEncoderBackend backend)
+
+#define BC_ENCODER_TEST_CASE(name) BC_ENCODER_TEST_CASE_IMPL(name, DOCTEST_ANONYMOUS(bc_encoder_test_))
+
 //
 // 1. Utility functions
 //
@@ -200,9 +236,9 @@ static bool has_near_opaque_alpha(const std::vector<uint8_t>& pixels, uint32_t c
 // 3. Roundtrip per format (4x4 block)
 //
 
-TEST_CASE("roundtrip_4x4")
+BC_ENCODER_TEST_CASE("roundtrip_4x4")
 {
-    BCEncoder encoder;
+    BCEncoder encoder(backend);
     auto pixels = make_gradient_rgba(4, 4);
     BCImage src = make_rgba_image(pixels, 4, 4);
 
@@ -241,9 +277,9 @@ TEST_CASE("roundtrip_4x4")
 // 4. Roundtrip larger image (64x64) with PSNR check
 //
 
-TEST_CASE("roundtrip_64x64")
+BC_ENCODER_TEST_CASE("roundtrip_64x64")
 {
-    BCEncoder encoder;
+    BCEncoder encoder(backend);
     const uint32_t W = 64, H = 64;
     auto pixels = make_gradient_rgba(W, H);
     BCImage src = make_rgba_image(pixels, W, H);
@@ -291,9 +327,9 @@ TEST_CASE("roundtrip_64x64")
 // 5. Non-multiple-of-4 sizes
 //
 
-TEST_CASE("non_multiple_of_4")
+BC_ENCODER_TEST_CASE("non_multiple_of_4")
 {
-    BCEncoder encoder;
+    BCEncoder encoder(backend);
     auto pixels = make_gradient_rgba(13, 7);
     BCImage src = make_rgba_image(pixels, 13, 7);
 
@@ -323,9 +359,9 @@ TEST_CASE("non_multiple_of_4")
 // 6. Small images (1x1, 2x2, 3x3, 4x4)
 //
 
-TEST_CASE("small_images")
+BC_ENCODER_TEST_CASE("small_images")
 {
-    BCEncoder encoder;
+    BCEncoder encoder(backend);
 
     uint32_t sizes[] = {1, 2, 3, 4};
     for (uint32_t s : sizes) {
@@ -357,9 +393,9 @@ TEST_CASE("small_images")
 // 7. Encode with mipmaps
 //
 
-TEST_CASE("encode_with_mipmaps")
+BC_ENCODER_TEST_CASE("encode_with_mipmaps")
 {
-    BCEncoder encoder;
+    BCEncoder encoder(backend);
     const uint32_t W = 64, H = 64;
     auto pixels = make_gradient_rgba(W, H);
     BCImage src = make_rgba_image(pixels, W, H);
@@ -490,12 +526,14 @@ TEST_CASE("backend_selection")
     CHECK(BCEncoder::is_backend_available(BCEncoderBackend::automatic));
     CHECK(BCEncoder::is_backend_available(BCEncoderBackend::software));
 
-    BCEncoder automatic_encoder;
-    BCEncoderBackend expected_backend = BCEncoder::is_backend_available(BCEncoderBackend::nvtt_gpu)
-        ? BCEncoderBackend::nvtt_gpu
-        : (BCEncoder::is_backend_available(BCEncoderBackend::nvtt_cpu) ? BCEncoderBackend::nvtt_cpu
-                                                                       : BCEncoderBackend::software);
-    CHECK_EQ(automatic_encoder.backend(), expected_backend);
+    if (testing::device_tests_enabled()) {
+        BCEncoder automatic_encoder;
+        BCEncoderBackend expected_backend = BCEncoder::is_backend_available(BCEncoderBackend::nvtt_gpu)
+            ? BCEncoderBackend::nvtt_gpu
+            : (BCEncoder::is_backend_available(BCEncoderBackend::nvtt_cpu) ? BCEncoderBackend::nvtt_cpu
+                                                                           : BCEncoderBackend::software);
+        CHECK_EQ(automatic_encoder.backend(), expected_backend);
+    }
 
     if (BCEncoder::is_backend_available(BCEncoderBackend::nvtt_cpu)) {
         BCEncoder nvtt_cpu_encoder(BCEncoderBackend::nvtt_cpu);
@@ -504,11 +542,13 @@ TEST_CASE("backend_selection")
         CHECK_THROWS(BCEncoder{BCEncoderBackend::nvtt_cpu});
     }
 
-    if (BCEncoder::is_backend_available(BCEncoderBackend::nvtt_gpu)) {
-        BCEncoder nvtt_gpu_encoder(BCEncoderBackend::nvtt_gpu);
-        CHECK_EQ(nvtt_gpu_encoder.backend(), BCEncoderBackend::nvtt_gpu);
-    } else {
-        CHECK_THROWS(BCEncoder{BCEncoderBackend::nvtt_gpu});
+    if (testing::device_tests_enabled()) {
+        if (BCEncoder::is_backend_available(BCEncoderBackend::nvtt_gpu)) {
+            BCEncoder nvtt_gpu_encoder(BCEncoderBackend::nvtt_gpu);
+            CHECK_EQ(nvtt_gpu_encoder.backend(), BCEncoderBackend::nvtt_gpu);
+        } else {
+            CHECK_THROWS(BCEncoder{BCEncoderBackend::nvtt_gpu});
+        }
     }
 }
 
@@ -767,9 +807,9 @@ TEST_CASE("bc6h_encode_error")
 // 13. Decode output format
 //
 
-TEST_CASE("decode_output_format")
+BC_ENCODER_TEST_CASE("decode_output_format")
 {
-    BCEncoder encoder;
+    BCEncoder encoder(backend);
 
     SUBCASE("BC4 -> 1ch uint8")
     {
@@ -1148,8 +1188,13 @@ TEST_CASE("bc_codec_nvtt3_mipmaps" * doctest::skip(!BCEncoder::is_backend_availa
     }
 }
 
-TEST_CASE("bc_codec_nvtt3_gpu_mipmaps" * doctest::skip(!BCEncoder::is_backend_available(BCEncoderBackend::nvtt_gpu)))
+TEST_CASE("bc_codec_nvtt3_gpu_mipmaps")
 {
+    if (!testing::device_tests_enabled())
+        SKIP("device tests disabled by -skip-device-tests");
+    if (!BCEncoder::is_backend_available(BCEncoderBackend::nvtt_gpu))
+        SKIP("NVTT GPU backend is not available");
+
     BCEncoder encoder(BCEncoderBackend::nvtt_gpu);
     const uint32_t W = 64, H = 64;
     auto pixels = make_hdr_float32_rgb(W, H);
@@ -1184,47 +1229,37 @@ TEST_CASE("bc_codec_nvtt3_gpu_mipmaps" * doctest::skip(!BCEncoder::is_backend_av
     }
 }
 
-TEST_CASE("bc_codec_mipmap_filters")
+BC_ENCODER_TEST_CASE("bc_codec_mipmap_filters")
 {
     constexpr uint32_t W = 32;
     constexpr uint32_t H = 16;
     auto pixels = make_filter_pattern_rgba(W, H);
     BCImage src = make_rgba_image(pixels, W, H);
 
-    const BCEncoderBackend backends[] = {
-        BCEncoderBackend::software,
-        BCEncoderBackend::nvtt_cpu,
-        BCEncoderBackend::nvtt_gpu,
-    };
     const BCMipFilter filters[] = {
         BoxFilter{},
         TentFilter{1.25f},
         MitchellFilter{0.25f, 0.5f},
     };
 
-    for (BCEncoderBackend backend : backends) {
-        if (!BCEncoder::is_backend_available(backend))
-            continue;
-        std::vector<std::vector<uint8_t>> filtered_mips;
-        for (const BCMipFilter& filter : filters) {
-            CAPTURE(static_cast<int>(backend));
-            CAPTURE(filter.index());
-            BCEncoder encoder(backend);
-            BCEncodeOptions options;
-            options.generate_mipmaps = true;
-            options.mip_filter = filter;
+    std::vector<std::vector<uint8_t>> filtered_mips;
+    for (const BCMipFilter& filter : filters) {
+        CAPTURE(filter.index());
+        BCEncoder encoder(backend);
+        BCEncodeOptions options;
+        options.generate_mipmaps = true;
+        options.mip_filter = filter;
 
-            BCCompressedImage compressed = encoder.encode(src, BCFormat::bc7_unorm_srgb, options);
-            REQUIRE_EQ(compressed.mip_levels.size(), bc_mip_count(W, H));
-            CHECK_EQ(compressed.mip_levels.back().width, 1);
-            CHECK_EQ(compressed.mip_levels.back().height, 1);
-            filtered_mips.push_back(compressed.mip_levels[1].data);
-        }
-        REQUIRE_EQ(filtered_mips.size(), 3);
-        CHECK(filtered_mips[0] != filtered_mips[1]);
-        CHECK(filtered_mips[0] != filtered_mips[2]);
-        CHECK(filtered_mips[1] != filtered_mips[2]);
+        BCCompressedImage compressed = encoder.encode(src, BCFormat::bc7_unorm_srgb, options);
+        REQUIRE_EQ(compressed.mip_levels.size(), bc_mip_count(W, H));
+        CHECK_EQ(compressed.mip_levels.back().width, 1);
+        CHECK_EQ(compressed.mip_levels.back().height, 1);
+        filtered_mips.push_back(compressed.mip_levels[1].data);
     }
+    REQUIRE_EQ(filtered_mips.size(), 3);
+    CHECK(filtered_mips[0] != filtered_mips[1]);
+    CHECK(filtered_mips[0] != filtered_mips[2]);
+    CHECK(filtered_mips[1] != filtered_mips[2]);
 }
 
 TEST_SUITE_END();
