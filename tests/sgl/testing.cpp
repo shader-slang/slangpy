@@ -3,6 +3,7 @@
 #include "testing.h"
 
 #include "sgl/core/macros.h"
+#include "sgl/core/platform.h"
 
 #include "sgl/device/device.h"
 
@@ -13,6 +14,12 @@ namespace sgl::testing {
 
 // Cached devices.
 static std::map<DeviceType, ref<Device>> g_cached_devices;
+
+// Test runner options.
+static TestOptions g_options;
+
+// Runtime skip messages, keyed by doctest's test case data.
+static std::map<const doctest::TestCaseData*, const char*> g_skip_messages;
 
 // Temp directory to create files for teting in.
 static std::filesystem::path g_test_temp_directory;
@@ -57,7 +64,31 @@ std::filesystem::path get_case_temp_directory()
     return path;
 }
 
-void static_init() { }
+void static_init()
+{
+    g_skip_messages.clear();
+}
+
+TestOptions& options()
+{
+    return g_options;
+}
+
+bool device_tests_enabled()
+{
+    return !options().skip_device_tests;
+}
+
+void report_skip(const doctest::detail::TestCase* test_case, const char* reason)
+{
+    g_skip_messages[test_case] = reason;
+}
+
+const char* get_skip_message(const doctest::TestCaseData* test_case)
+{
+    auto it = g_skip_messages.find(test_case);
+    return it != g_skip_messages.end() ? it->second : nullptr;
+}
 
 void static_shutdown()
 {
@@ -69,6 +100,9 @@ void static_shutdown()
 
 void run_gpu_test(void (*func)(GpuTestContext&))
 {
+    if (!device_tests_enabled())
+        SKIP("device tests disabled by -skip-device-tests");
+
 #if SGL_WINDOWS
     std::vector<DeviceType> device_types{DeviceType::d3d12, DeviceType::vulkan};
 #elif SGL_LINUX

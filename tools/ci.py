@@ -143,7 +143,10 @@ def build(args: Any):
 
 
 def unit_test_cpp(args: Any):
-    run_command([f"{args.bin_dir}/sgl_tests"])
+    cmd = [f"{args.bin_dir}/sgl_tests"]
+    if args.skip_device_tests:
+        cmd.append("-skip-device-tests")
+    run_command(cmd)
 
 
 def typing_check_python(args: Any):
@@ -293,6 +296,9 @@ def main():
     parser_build = commands.add_parser("build", help="run cmake build")
 
     parser_test_cpp = commands.add_parser("unit-test-cpp", help="run unit tests (c++)")
+    parser_test_cpp.add_argument(
+        "--skip-device-tests", action="store_true", help="skip tests that require a device"
+    )
 
     parser_typing_check_python = commands.add_parser(
         "typing-check-python", help="run pyright typing checks (python)"
