@@ -18,6 +18,14 @@ BaseModule::BaseModule(ref<SlangModule> module, ref<refl::Layout> layout)
     SGL_CHECK(m_layout, "BaseModule requires a reflection layout");
 }
 
+BaseModule::~BaseModule()
+{
+    // Cached reflection objects retain their layout. Clear them before releasing
+    // the layout to break cycles created while specializing function calls.
+    if (m_layout)
+        m_layout->clear_caches();
+}
+
 Device* BaseModule::device() const
 {
     SGL_CHECK(m_module, "BaseModule has no Slang module");
