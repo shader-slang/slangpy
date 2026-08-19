@@ -1219,6 +1219,19 @@ def test_zero_size_dispatch(device_type: DeviceType):
     assert result.numel() == 0
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_scalar_return_with_torch_input(device_type: DeviceType):
+    """A scalar Slang return with a whole-tensor torch input comes back as a
+    value-correct 0-D torch.Tensor. Distinct-per-index values guard against a
+    silent-zero readback that a constant input would not catch."""
+    module = load_test_module(device_type)
+    tex = torch.arange(16, dtype=torch.float32, device="cuda") * 10.0
+    result = module.read_element(tex, 3.0)
+    assert isinstance(result, torch.Tensor)
+    assert result.shape == ()
+    assert result.item() == pytest.approx(30.0)
+
+
 # ============================================================================
 # DiffPair factory paths (torchtensormarshall.py coverage)
 # ============================================================================
