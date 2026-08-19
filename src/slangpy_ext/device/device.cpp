@@ -65,6 +65,7 @@ SGL_DICT_TO_DESC_FIELD(enable_ray_tracing, bool)
 SGL_DICT_TO_DESC_FIELD(enable_print, bool)
 SGL_DICT_TO_DESC_FIELD(enable_hot_reload, bool)
 SGL_DICT_TO_DESC_FIELD(enable_compilation_reports, bool)
+SGL_DICT_TO_DESC_FIELD(pipeline_compilation_mode, PipelineCompilationMode)
 SGL_DICT_TO_DESC_FIELD(adapter_luid, AdapterLUID)
 SGL_DICT_TO_DESC_FIELD(compiler_options, SlangCompilerOptions)
 SGL_DICT_TO_DESC_FIELD(module_cache_path, std::filesystem::path)
@@ -318,6 +319,7 @@ SGL_PY_EXPORT(device_device)
 
 
     nb::sgl_enum<DeviceType>(m, "DeviceType");
+    nb::sgl_enum<PipelineCompilationMode>(m, "PipelineCompilationMode");
 
     nb::class_<DeviceDesc>(m, "DeviceDesc", D(DeviceDesc))
         .def(nb::init<>())
@@ -356,6 +358,11 @@ SGL_PY_EXPORT(device_device)
             "enable_compilation_reports",
             &DeviceDesc::enable_compilation_reports,
             D(DeviceDesc, enable_compilation_reports)
+        )
+        .def_rw(
+            "pipeline_compilation_mode",
+            &DeviceDesc::pipeline_compilation_mode,
+            D(DeviceDesc, pipeline_compilation_mode)
         )
         .def_rw("adapter_luid", &DeviceDesc::adapter_luid, D(DeviceDesc, adapter_luid))
         .def_rw("compiler_options", &DeviceDesc::compiler_options, D(DeviceDesc, compiler_options))
@@ -517,6 +524,7 @@ SGL_PY_EXPORT(device_device)
            bool enable_print,
            bool enable_hot_reload,
            bool enable_compilation_reports,
+           PipelineCompilationMode pipeline_compilation_mode,
            std::optional<AdapterLUID> adapter_luid,
            std::optional<SlangCompilerOptions> compiler_options,
            std::optional<std::filesystem::path> module_cache_path,
@@ -544,6 +552,7 @@ SGL_PY_EXPORT(device_device)
                  .enable_print = enable_print,
                  .enable_hot_reload = enable_hot_reload,
                  .enable_compilation_reports = enable_compilation_reports,
+                 .pipeline_compilation_mode = pipeline_compilation_mode,
                  .adapter_luid = adapter_luid,
                  .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
                  .bindless_options = bindless_options.value_or(BindlessDesc{}),
@@ -569,6 +578,7 @@ SGL_PY_EXPORT(device_device)
         "enable_print"_a = DeviceDesc().enable_print,
         "enable_hot_reload"_a = DeviceDesc().enable_hot_reload,
         "enable_compilation_reports"_a = DeviceDesc().enable_compilation_reports,
+        "pipeline_compilation_mode"_a = DeviceDesc().pipeline_compilation_mode,
         "adapter_luid"_a.none() = nb::none(),
         "compiler_options"_a.none() = nb::none(),
         "module_cache_path"_a.none() = nb::none(),
@@ -701,6 +711,14 @@ SGL_PY_EXPORT(device_device)
         D(Device, create_buffer)
     );
     device.def("create_buffer", &Device::create_buffer, "desc"_a, D(Device, create_buffer));
+
+    device.def(
+        "create_buffer_from_native_handle",
+        &Device::create_buffer_from_native_handle,
+        "desc"_a,
+        "handle"_a,
+        D(Device, create_buffer_from_native_handle)
+    );
 
     device.def(
         "create_texture",
@@ -1109,16 +1127,19 @@ SGL_PY_EXPORT(device_device)
 
     device.def(
         "create_compute_pipeline",
-        [](Device* self, ref<ShaderProgram> program, bool defer_target_compilation, std::optional<std::string> label)
+        [](Device* self,
+           ref<ShaderProgram> program,
+           PipelineCompilationPolicy compilation_policy,
+           std::optional<std::string> label)
         {
             return self->create_compute_pipeline({
                 .program = std::move(program),
-                .defer_target_compilation = defer_target_compilation,
+                .compilation_policy = compilation_policy,
                 .label = label.value_or(""),
             });
         },
         "program"_a,
-        "defer_target_compilation"_a = ComputePipelineDesc().defer_target_compilation,
+        "compilation_policy"_a = ComputePipelineDesc().compilation_policy,
         "label"_a.none() = nb::none(),
         D(Device, create_compute_pipeline)
     );
@@ -1135,7 +1156,7 @@ SGL_PY_EXPORT(device_device)
            std::optional<DepthStencilDesc> depth_stencil,
            std::optional<RasterizerDesc> rasterizer,
            std::optional<MultisampleDesc> multisample,
-           bool defer_target_compilation,
+           PipelineCompilationPolicy compilation_policy,
            std::optional<std::string> label)
         {
             return self->create_render_pipeline(
@@ -1146,7 +1167,7 @@ SGL_PY_EXPORT(device_device)
                  .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),
                  .rasterizer = rasterizer.value_or(RasterizerDesc{}),
                  .multisample = multisample.value_or(MultisampleDesc{}),
-                 .defer_target_compilation = defer_target_compilation,
+                 .compilation_policy = compilation_policy,
                  .label = label.value_or("")}
             );
         },
@@ -1157,7 +1178,7 @@ SGL_PY_EXPORT(device_device)
         "depth_stencil"_a.none() = nb::none(),
         "rasterizer"_a.none() = nb::none(),
         "multisample"_a.none() = nb::none(),
-        "defer_target_compilation"_a = RenderPipelineDesc().defer_target_compilation,
+        "compilation_policy"_a = RenderPipelineDesc().compilation_policy,
         "label"_a.none() = nb::none(),
         D(Device, create_render_pipeline)
     );
@@ -1172,7 +1193,7 @@ SGL_PY_EXPORT(device_device)
            uint32_t max_ray_payload_size,
            uint32_t max_attribute_size,
            RayTracingPipelineFlags flags,
-           bool defer_target_compilation,
+           PipelineCompilationPolicy compilation_policy,
            std::optional<std::string> label)
         {
             return self->create_ray_tracing_pipeline({
@@ -1182,7 +1203,7 @@ SGL_PY_EXPORT(device_device)
                 .max_ray_payload_size = max_ray_payload_size,
                 .max_attribute_size = max_attribute_size,
                 .flags = flags,
-                .defer_target_compilation = defer_target_compilation,
+                .compilation_policy = compilation_policy,
                 .label = label.value_or(""),
             });
         },
@@ -1192,7 +1213,7 @@ SGL_PY_EXPORT(device_device)
         "max_ray_payload_size"_a = RayTracingPipelineDesc().max_ray_payload_size,
         "max_attribute_size"_a = RayTracingPipelineDesc().max_attribute_size,
         "flags"_a = RayTracingPipelineDesc().flags,
-        "defer_target_compilation"_a = RayTracingPipelineDesc().defer_target_compilation,
+        "compilation_policy"_a = RayTracingPipelineDesc().compilation_policy,
         "label"_a.none() = nb::none(),
         D(Device, create_ray_tracing_pipeline)
     );
@@ -1723,16 +1744,16 @@ SGL_PY_EXPORT(device_device)
 
     m.def(
         "create_compute_pipeline",
-        [](ref<ShaderProgram> program, bool defer_target_compilation, std::optional<std::string> label)
+        [](ref<ShaderProgram> program, PipelineCompilationPolicy compilation_policy, std::optional<std::string> label)
         {
             return create_compute_pipeline({
                 .program = std::move(program),
-                .defer_target_compilation = defer_target_compilation,
+                .compilation_policy = compilation_policy,
                 .label = label.value_or(""),
             });
         },
         "program"_a,
-        "defer_target_compilation"_a = ComputePipelineDesc().defer_target_compilation,
+        "compilation_policy"_a = ComputePipelineDesc().compilation_policy,
         "label"_a.none() = nb::none(),
         D(create_compute_pipeline)
     );
@@ -1752,7 +1773,7 @@ SGL_PY_EXPORT(device_device)
            std::optional<DepthStencilDesc> depth_stencil,
            std::optional<RasterizerDesc> rasterizer,
            std::optional<MultisampleDesc> multisample,
-           bool defer_target_compilation,
+           PipelineCompilationPolicy compilation_policy,
            std::optional<std::string> label)
         {
             return create_render_pipeline(
@@ -1763,7 +1784,7 @@ SGL_PY_EXPORT(device_device)
                  .depth_stencil = depth_stencil.value_or(DepthStencilDesc{}),
                  .rasterizer = rasterizer.value_or(RasterizerDesc{}),
                  .multisample = multisample.value_or(MultisampleDesc{}),
-                 .defer_target_compilation = defer_target_compilation,
+                 .compilation_policy = compilation_policy,
                  .label = label.value_or("")}
             );
         },
@@ -1774,7 +1795,7 @@ SGL_PY_EXPORT(device_device)
         "depth_stencil"_a.none() = nb::none(),
         "rasterizer"_a.none() = nb::none(),
         "multisample"_a.none() = nb::none(),
-        "defer_target_compilation"_a = RenderPipelineDesc().defer_target_compilation,
+        "compilation_policy"_a = RenderPipelineDesc().compilation_policy,
         "label"_a.none() = nb::none(),
         D(create_render_pipeline)
     );
@@ -1793,7 +1814,7 @@ SGL_PY_EXPORT(device_device)
            uint32_t max_ray_payload_size,
            uint32_t max_attribute_size,
            RayTracingPipelineFlags flags,
-           bool defer_target_compilation,
+           PipelineCompilationPolicy compilation_policy,
            std::optional<std::string> label)
         {
             return create_ray_tracing_pipeline({
@@ -1803,7 +1824,7 @@ SGL_PY_EXPORT(device_device)
                 .max_ray_payload_size = max_ray_payload_size,
                 .max_attribute_size = max_attribute_size,
                 .flags = flags,
-                .defer_target_compilation = defer_target_compilation,
+                .compilation_policy = compilation_policy,
                 .label = label.value_or(""),
             });
         },
@@ -1813,7 +1834,7 @@ SGL_PY_EXPORT(device_device)
         "max_ray_payload_size"_a = RayTracingPipelineDesc().max_ray_payload_size,
         "max_attribute_size"_a = RayTracingPipelineDesc().max_attribute_size,
         "flags"_a = RayTracingPipelineDesc().flags,
-        "defer_target_compilation"_a = RayTracingPipelineDesc().defer_target_compilation,
+        "compilation_policy"_a = RayTracingPipelineDesc().compilation_policy,
         "label"_a.none() = nb::none(),
         D(create_ray_tracing_pipeline)
     );

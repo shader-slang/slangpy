@@ -20,6 +20,22 @@
 
 namespace sgl {
 
+enum class PipelineCompilationPolicy : uint32_t {
+    default_ = static_cast<uint32_t>(rhi::PipelineCompilationPolicy::Default),
+    immediate = static_cast<uint32_t>(rhi::PipelineCompilationPolicy::Immediate),
+    deferred = static_cast<uint32_t>(rhi::PipelineCompilationPolicy::Deferred),
+};
+
+SGL_ENUM_INFO(
+    PipelineCompilationPolicy,
+    {
+        {PipelineCompilationPolicy::default_, "default"},
+        {PipelineCompilationPolicy::immediate, "immediate"},
+        {PipelineCompilationPolicy::deferred, "deferred"},
+    }
+);
+SGL_ENUM_REGISTER(PipelineCompilationPolicy);
+
 
 /// Pipeline base class.
 class SGL_API Pipeline : public DeviceChild {
@@ -43,7 +59,7 @@ private:
 
 struct ComputePipelineDesc {
     ref<ShaderProgram> program;
-    bool defer_target_compilation{false};
+    PipelineCompilationPolicy compilation_policy{PipelineCompilationPolicy::default_};
     std::string label;
 };
 
@@ -84,7 +100,7 @@ struct RenderPipelineDesc {
     DepthStencilDesc depth_stencil;
     RasterizerDesc rasterizer;
     MultisampleDesc multisample;
-    bool defer_target_compilation{false};
+    PipelineCompilationPolicy compilation_policy{PipelineCompilationPolicy::default_};
     std::string label;
 };
 
@@ -131,7 +147,7 @@ struct RayTracingPipelineDesc {
     uint32_t max_ray_payload_size{0};
     uint32_t max_attribute_size{8};
     RayTracingPipelineFlags flags{RayTracingPipelineFlags::none};
-    bool defer_target_compilation{false};
+    PipelineCompilationPolicy compilation_policy{PipelineCompilationPolicy::default_};
     std::string label;
 };
 

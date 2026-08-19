@@ -6,8 +6,11 @@
 #include "sgl/core/platform.h"
 
 #include <chrono>
+#include <cstring>
 
 #include <lmdb.h>
+
+#include <memory>
 
 // Brief overview on how the cache works:
 // - The cache is backed by an LMDB database stored on disk.
@@ -375,8 +378,11 @@ void LMDBCache::evict(bool force)
     {
         MDB_val key, val;
         while (mdb_cursor_get(cursor, &key, &val, MDB_NEXT) == MDB_SUCCESS) {
+            SGL_CHECK(val.mv_size == sizeof(MetaData), "Invalid cache metadata size");
+            MetaData meta_data;
+            std::memcpy(&meta_data, val.mv_data, sizeof(meta_data));
             entries.push_back({
-                .last_access = static_cast<const MetaData*>(val.mv_data)->last_access,
+                .last_access = meta_data.last_access,
                 .key = key,
             });
         }
@@ -464,6 +470,10 @@ LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Option
 
     if (int result = mdb_env_create(&db.env); result != MDB_SUCCESS)
         LMDB_THROW("Failed to create environment", result);
+
+    // Close the environment if initialization fails before ownership is transferred to the returned DB.
+    std::unique_ptr<MDB_env, decltype(&mdb_env_close)> env(db.env, &mdb_env_close);
+
     if (int result = mdb_env_set_maxreaders(db.env, 126); result != MDB_SUCCESS)
         LMDB_THROW("Failed to set max readers", result);
     if (int result = mdb_env_set_maxdbs(db.env, 2); result != MDB_SUCCESS)
@@ -492,6 +502,9 @@ LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Option
             .db = db,
         }
     );
+
+    // Release ownership of the environment since it is now managed by the returned DB.
+    env.release();
 
     return db;
 }

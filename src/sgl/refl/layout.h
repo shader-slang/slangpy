@@ -75,6 +75,9 @@ public:
     /// Replace the wrapped low-level layout after hot reload and clear reflection caches.
     void on_hot_reload(ref<const sgl::ProgramLayout> low_level_layout);
 
+    /// Clear cached reflection objects and break their internal reference cycles.
+    void clear_caches();
+
     /// Return a debug string for this layout.
     std::string to_string() const override;
 

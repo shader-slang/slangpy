@@ -6,6 +6,9 @@
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
 
+#include <array>
+#include <fstream>
+
 using namespace sgl;
 
 TEST_SUITE_BEGIN("device");
@@ -47,6 +50,9 @@ void check_execute_callback_native_handle(Device* device, NativeHandle callback_
 
 TEST_CASE("enumerate_adapters")
 {
+    if (!testing::device_tests_enabled())
+        SKIP("device tests disabled by -skip-device-tests");
+
     std::vector<AdapterInfo> adapters = Device::enumerate_adapters();
     CHECK(!adapters.empty());
 }
@@ -54,6 +60,44 @@ TEST_CASE("enumerate_adapters")
 TEST_CASE_GPU("init")
 {
     CHECK(ctx.device);
+}
+
+TEST_CASE_GPU("invalid_shader_cache_is_disabled_without_deleting_cache")
+{
+    const std::filesystem::path cache_dir
+        = testing::get_case_temp_directory() / std::to_string(static_cast<uint32_t>(ctx.device->type()));
+    const std::filesystem::path rhi_cache_dir = cache_dir / "rhi";
+    const std::filesystem::path data_path = rhi_cache_dir / "data.mdb";
+    const std::filesystem::path marker_path = rhi_cache_dir / "marker";
+    std::filesystem::create_directories(rhi_cache_dir);
+
+    std::array<uint8_t, 8192> invalid_data;
+    invalid_data.fill(0xff);
+    {
+        std::ofstream data_file(data_path, std::ios::binary);
+        REQUIRE(data_file);
+        data_file.write(
+            reinterpret_cast<const char*>(invalid_data.data()),
+            static_cast<std::streamsize>(invalid_data.size())
+        );
+        REQUIRE(data_file.good());
+    }
+    {
+        std::ofstream marker_file(marker_path);
+        REQUIRE(marker_file);
+        marker_file << "keep";
+        REQUIRE(marker_file.good());
+    }
+
+    DeviceDesc desc = ctx.device->desc();
+    desc.shader_cache_path = cache_dir;
+    ref<Device> device;
+    CHECK_NOTHROW(device = Device::create(desc));
+    REQUIRE(device);
+    CHECK(device->shader_cache_stats().entry_count == 0);
+    CHECK(std::filesystem::exists(marker_path));
+    CHECK(std::filesystem::file_size(data_path) == invalid_data.size());
+    device->close();
 }
 
 TEST_CASE_GPU("close_all_devices_keeps_snapshot_alive")

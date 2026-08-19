@@ -116,8 +116,16 @@ Device::Device(const DeviceDesc& desc)
 
     // Setup shader cache.
     if (!m_shader_cache_path.empty()) {
-        m_persistent_cache
-            = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size, m_cache_writer);
+        try {
+            m_persistent_cache
+                = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size, m_cache_writer);
+        } catch (const std::exception& e) {
+            log_warn(
+                "Failed to initialize persistent shader cache in \"{}\": {}. Continuing without it.",
+                m_shader_cache_path,
+                e.what()
+            );
+        }
     }
 
     // Invalidate CUDA interop if using CUDA
@@ -271,6 +279,7 @@ Device::Device(const DeviceDesc& desc)
         .enableAftermath = m_desc.enable_aftermath,
         .debugCallback = m_debug_logger.get(),
         .enableCompilationReports = m_desc.enable_compilation_reports,
+        .pipelineCompilationMode = static_cast<rhi::PipelineCompilationMode>(m_desc.pipeline_compilation_mode),
         .enableCUDALaunchFromGfx = m_desc.enable_cuda_launch_from_gfx,
         .enableRayTracing = m_desc.enable_ray_tracing,
         .bindless = bindless_desc,
@@ -568,6 +577,11 @@ ref<Surface> Device::create_surface(WindowHandle window_handle)
 ref<Buffer> Device::create_buffer(BufferDesc desc)
 {
     return make_ref<Buffer>(ref<Device>(this), std::move(desc));
+}
+
+ref<Buffer> Device::create_buffer_from_native_handle(BufferDesc desc, NativeHandle handle)
+{
+    return make_ref<Buffer>(ref<Device>(this), std::move(desc), handle);
 }
 
 ref<BufferView> Device::create_buffer_view(Buffer* buffer, BufferViewDesc desc)
@@ -1356,6 +1370,7 @@ std::string Device::to_string() const
         "  enable_print = {},\n"
         "  enable_hot_reload = {},\n"
         "  enable_compilation_reports = {},\n"
+        "  pipeline_compilation_mode = {},\n"
         "  supported_shader_model = {},\n"
         "  module_cache_path = \"{}\",\n"
         "  shader_cache_path = \"{}\"\n"
@@ -1371,6 +1386,7 @@ std::string Device::to_string() const
         m_desc.enable_print,
         m_desc.enable_hot_reload,
         m_desc.enable_compilation_reports,
+        m_desc.pipeline_compilation_mode,
         m_supported_shader_model,
         m_module_cache_path,
         m_shader_cache_path

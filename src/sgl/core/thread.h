@@ -5,33 +5,86 @@
 #include "sgl/core/macros.h"
 #include "sgl/core/error.h"
 
-#include <nanothread/nanothread.h>
-
+#include <cstddef>
+#include <cstdint>
 #include <type_traits>
 #include <mutex>
 #include <vector>
 
+namespace rhi {
+class ITaskPool;
+}
+
 namespace sgl::thread {
+
+// This API is a thin wrapper around nanothread. Nanothread is linked privately into SGL so all
+// clients route task operations through the single nanothread instance owned by SGL. Exposing
+// nanothread as a public static dependency would give every linked module its own default pool.
 
 SGL_API void static_init();
 SGL_API void static_shutdown();
 
-// Import nanothread symbols into sgl::thread namespace.
-using ::Task;
-using ::task_submit_dep;
-using ::task_release;
-using ::task_wait;
-using ::task_wait_and_release;
-using ::task_query;
-using ::task_time;
-using ::task_time_rel;
-using ::task_retain;
+/// Get the SGL task pool installed in slang-rhi.
+SGL_API rhi::ITaskPool* rhi_task_pool();
 
-/// Task handle type.
+/// Opaque task type.
+struct Task;
+
+/// Opaque task handle type.
 using TaskHandle = Task*;
 
+/// Task callback type.
+using TaskFunc = void (*)(uint32_t index, void* payload);
+
+/// Task payload deleter type.
+using TaskPayloadDeleter = void (*)(void* payload);
+
+/// Submit a task with optional dependencies to the SGL thread pool.
+/// \param parents Parent tasks to wait for before executing.
+/// \param parent_count Number of parent tasks.
+/// \param size Number of work units to execute.
+/// \param func Function called once for each work unit.
+/// \param payload Payload passed to the function.
+/// \param payload_size Size of the payload copied into the task when no deleter is provided.
+/// \param payload_deleter Optional function that releases the payload after execution.
+/// \param always_async Whether to disable synchronous execution of small tasks.
+/// \param profile Whether to collect timing information for this task.
+/// \return The submitted task, or nullptr if it completed synchronously.
+SGL_API TaskHandle task_submit_dep(
+    const TaskHandle* parents,
+    uint32_t parent_count,
+    uint32_t size = 1,
+    TaskFunc func = nullptr,
+    void* payload = nullptr,
+    uint32_t payload_size = 0,
+    TaskPayloadDeleter payload_deleter = nullptr,
+    bool always_async = false,
+    bool profile = false
+);
+
+/// Increase the reference count of a task.
+SGL_API void task_retain(TaskHandle task);
+
+/// Release a task handle.
+SGL_API void task_release(TaskHandle task);
+
+/// Wait for a task to complete.
+SGL_API void task_wait(TaskHandle task);
+
+/// Wait for a task to complete and release its handle.
+SGL_API void task_wait_and_release(TaskHandle task);
+
+/// Return whether a task has completed.
+SGL_API bool task_query(TaskHandle task);
+
+/// Return the execution time of a profiled task in milliseconds.
+SGL_API double task_time(TaskHandle task);
+
+/// Return the difference between the start times of two profiled tasks in milliseconds.
+SGL_API double task_time_rel(TaskHandle task_1, TaskHandle task_2);
+
 /// Run a function asynchronously in a new task.
-/// See nanothread documentation on `task_submit_dep` for details.
+/// See `task_submit_dep` for details.
 /// \param func Function to call.
 /// \param parents Parent tasks to wait for before executing.
 /// \param parent_count Number of parent tasks.
@@ -51,19 +104,9 @@ template<typename Func>
     };
 
     if constexpr (std::is_trivially_copyable_v<BaseFunc> && std::is_trivially_destructible_v<BaseFunc>) {
-        // Payload is trivially copyable/destructible. Let nanothread manage the payload memory.
+        // Payload is trivially copyable/destructible. Let the task implementation manage the payload memory.
         Payload payload{std::forward<Func>(func)};
-        return task_submit_dep(
-            nullptr, // default pool
-            parents,
-            (uint32_t)parent_count,
-            1,
-            callback,
-            &payload,
-            sizeof(Payload),
-            nullptr,
-            1
-        );
+        return task_submit_dep(parents, (uint32_t)parent_count, 1, callback, &payload, sizeof(Payload), nullptr, 1);
     } else {
         // Payload is non-trivially copyable/destructible. Manage payload manually.
         Payload* payload = new Payload{std::forward<Func>(func)};
@@ -71,22 +114,12 @@ template<typename Func>
         {
             delete (Payload*)payload;
         };
-        return task_submit_dep(
-            nullptr, // default pool
-            parents,
-            (uint32_t)parent_count,
-            1,
-            callback,
-            payload,
-            0,
-            deleter,
-            1
-        );
+        return task_submit_dep(parents, (uint32_t)parent_count, 1, callback, payload, 0, deleter, 1);
     }
 }
 
 /// Run a function asynchronously in a new task.
-/// See nanothread documentation on `task_submit_dep` for details.
+/// See `task_submit_dep` for details.
 /// \param func Function to call.
 /// \param parents Parent tasks to wait for before executing.
 /// \return The new task.
@@ -159,16 +192,12 @@ void parallel_for(const blocked_range<Int>& range, Func&& func)
         (*p->f)(blocked_range<Int>(begin, end));
     };
 
-    task_submit_and_wait(
-        nullptr, // default pool
-        range.blocks(),
-        callback,
-        &payload
-    );
+    TaskHandle task = task_submit_dep(nullptr, 0, range.blocks(), callback, &payload, 0, nullptr, false);
+    task_wait_and_release(task);
 }
 
 /// Run a parallel for-loop asynchronously in a new task.
-/// See nanothread documentation on `task_submit_dep` for details.
+/// See `task_submit_dep` for details.
 /// \param range Loop range.
 /// \param func Function to execute (taking a `blocked_range<Int>` as an argument).
 /// \param parents Parent tasks to wait for before executing.
@@ -200,7 +229,6 @@ parallel_for_async(const blocked_range<Int>& range, Func&& func, const TaskHandl
         Payload payload{std::forward<Func>(func), range.begin(), range.end(), range.block_size()};
 
         return task_submit_dep(
-            nullptr, // default pool
             parents,
             (uint32_t)parent_count,
             range.blocks(),
@@ -218,22 +246,12 @@ parallel_for_async(const blocked_range<Int>& range, Func&& func, const TaskHandl
             delete (Payload*)payload;
         };
 
-        return task_submit_dep(
-            nullptr, // default pool
-            parents,
-            (uint32_t)parent_count,
-            range.blocks(),
-            callback,
-            payload,
-            0,
-            deleter,
-            1
-        );
+        return task_submit_dep(parents, (uint32_t)parent_count, range.blocks(), callback, payload, 0, deleter, 1);
     }
 }
 
 /// Run a parallel for-loop asynchronously in a new task.
-/// See nanothread documentation on `task_submit_dep` for details.
+/// See `task_submit_dep` for details.
 /// \param range Loop range.
 /// \param func Function to execute (taking a `blocked_range<Int>` as an argument).
 /// \param parents Parent tasks to wait for before executing.

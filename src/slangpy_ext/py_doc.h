@@ -66,6 +66,8 @@ static const char *__doc_formatter_format = R"doc()doc";
 
 static const char *__doc_formatter_format_2 = R"doc()doc";
 
+static const char *__doc_rhi_ITaskPool = R"doc()doc";
+
 static const char *__doc_sgl_AccelerationStructure = R"doc()doc";
 
 static const char *__doc_sgl_AccelerationStructure_2 = R"doc()doc";
@@ -1355,6 +1357,8 @@ static const char *__doc_sgl_BufferView_write_to_cursor = R"doc(Bind a nullable 
 
 static const char *__doc_sgl_Buffer_Buffer = R"doc()doc";
 
+static const char *__doc_sgl_Buffer_Buffer_2 = R"doc()doc";
+
 static const char *__doc_sgl_Buffer_class_name = R"doc()doc";
 
 static const char *__doc_sgl_Buffer_create_view = R"doc()doc";
@@ -2003,7 +2007,7 @@ static const char *__doc_sgl_ComputePipelineDesc = R"doc()doc";
 
 static const char *__doc_sgl_ComputePipelineDesc_2 = R"doc()doc";
 
-static const char *__doc_sgl_ComputePipelineDesc_defer_target_compilation = R"doc()doc";
+static const char *__doc_sgl_ComputePipelineDesc_compilation_policy = R"doc()doc";
 
 static const char *__doc_sgl_ComputePipelineDesc_label = R"doc()doc";
 
@@ -2875,6 +2879,10 @@ static const char *__doc_sgl_DeviceDesc_module_cache_path =
 R"doc(Path to the module cache directory (optional). If a relative path is
 used, the cache is stored in the application data directory.)doc";
 
+static const char *__doc_sgl_DeviceDesc_pipeline_compilation_mode =
+R"doc(Control the default pipeline compilation policy and resolution of
+deferred pipelines.)doc";
+
 static const char *__doc_sgl_DeviceDesc_rhi_validation_log_level =
 R"doc(RHI validation layer log level (only applicable if RHI validation is
 enabled).)doc";
@@ -3023,7 +3031,7 @@ static const char *__doc_sgl_Device_builtin_layout = R"doc(Return the cached ref
 
 static const char *__doc_sgl_Device_cache_writer = R"doc()doc";
 
-static const char *__doc_sgl_Device_capabilities = R"doc(List of slang capabilities supported by the device.)doc";
+static const char *__doc_sgl_Device_capabilities = R"doc(List of capabilities reported by the device backend.)doc";
 
 static const char *__doc_sgl_Device_class_name = R"doc()doc";
 
@@ -3091,6 +3099,24 @@ Parameter ``data``:
 
 Parameter ``data_size``:
     Size of the initial data in bytes.
+
+Returns:
+    New buffer object.)doc";
+
+static const char *__doc_sgl_Device_create_buffer_from_native_handle =
+R"doc(Create a new buffer wrapping an existing native buffer without
+copying.
+
+The expected handle type depends on the device type: ``D3D12Resource``
+on D3D12, ``VkBuffer`` on Vulkan, ``MTLBuffer`` on Metal,
+``CUdeviceptr`` on CUDA and ``WGPUBuffer`` on WGPU.
+
+Parameter ``desc``:
+    Buffer description. The size must not exceed the native
+    allocation.
+
+Parameter ``handle``:
+    Native buffer handle to wrap.
 
 Returns:
     New buffer object.)doc";
@@ -5394,7 +5420,12 @@ static const char *__doc_sgl_Logger_2 = R"doc()doc";
 
 static const char *__doc_sgl_LoggerOutput = R"doc()doc";
 
-static const char *__doc_sgl_LoggerOutput_2 = R"doc(Abstract base class for logger outputs.)doc";
+static const char *__doc_sgl_LoggerOutput_2 =
+R"doc(Abstract base class for logger outputs.
+
+Implementations must be thread-safe. A LoggerOutput can be shared by
+multiple loggers, and write() may be called concurrently from multiple
+threads.)doc";
 
 static const char *__doc_sgl_LoggerOutput_class_name = R"doc()doc";
 
@@ -5877,6 +5908,8 @@ static const char *__doc_sgl_NativeHandleTrait_21 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_22 = R"doc()doc";
 
+static const char *__doc_sgl_NativeHandleTrait_23 = R"doc()doc";
+
 static const char *__doc_sgl_NativeHandleTrait_pack = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_pack_2 = R"doc()doc";
@@ -5917,6 +5950,8 @@ static const char *__doc_sgl_NativeHandleTrait_pack_19 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_pack_20 = R"doc()doc";
 
+static const char *__doc_sgl_NativeHandleTrait_pack_21 = R"doc()doc";
+
 static const char *__doc_sgl_NativeHandleTrait_unpack = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_unpack_2 = R"doc()doc";
@@ -5956,6 +5991,8 @@ static const char *__doc_sgl_NativeHandleTrait_unpack_18 = R"doc()doc";
 static const char *__doc_sgl_NativeHandleTrait_unpack_19 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleTrait_unpack_20 = R"doc()doc";
+
+static const char *__doc_sgl_NativeHandleTrait_unpack_21 = R"doc()doc";
 
 static const char *__doc_sgl_NativeHandleType = R"doc()doc";
 
@@ -6254,6 +6291,24 @@ static const char *__doc_sgl_PersistentCache_writeCache = R"doc()doc";
 static const char *__doc_sgl_Pipeline = R"doc()doc";
 
 static const char *__doc_sgl_Pipeline_2 = R"doc(Pipeline base class.)doc";
+
+static const char *__doc_sgl_PipelineCompilationMode = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationMode_info = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationMode_parallel = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationMode_serial = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationPolicy = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationPolicy_default = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationPolicy_deferred = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationPolicy_immediate = R"doc()doc";
+
+static const char *__doc_sgl_PipelineCompilationPolicy_info = R"doc()doc";
 
 static const char *__doc_sgl_Pipeline_Pipeline = R"doc()doc";
 
@@ -7043,8 +7098,8 @@ R"doc(Poll submitted GPU timestamp queries and queue resolved measurements
 for the collector.
 
 The poll does not deliberately wait for profiled submissions or
-unresolved queries. On CUDA, refreshing timestamp calibration synchronizes
-queued GPU work.)doc";
+unresolved queries. On CUDA, refreshing timestamp calibration
+synchronizes queued GPU work.)doc";
 
 static const char *__doc_sgl_Profiler_to_string = R"doc()doc";
 
@@ -7268,7 +7323,7 @@ static const char *__doc_sgl_RayTracingPipelineDesc = R"doc()doc";
 
 static const char *__doc_sgl_RayTracingPipelineDesc_2 = R"doc()doc";
 
-static const char *__doc_sgl_RayTracingPipelineDesc_defer_target_compilation = R"doc()doc";
+static const char *__doc_sgl_RayTracingPipelineDesc_compilation_policy = R"doc()doc";
 
 static const char *__doc_sgl_RayTracingPipelineDesc_flags = R"doc()doc";
 
@@ -7428,7 +7483,7 @@ static const char *__doc_sgl_RenderPipelineDesc = R"doc()doc";
 
 static const char *__doc_sgl_RenderPipelineDesc_2 = R"doc()doc";
 
-static const char *__doc_sgl_RenderPipelineDesc_defer_target_compilation = R"doc()doc";
+static const char *__doc_sgl_RenderPipelineDesc_compilation_policy = R"doc()doc";
 
 static const char *__doc_sgl_RenderPipelineDesc_depth_stencil = R"doc()doc";
 
@@ -8225,7 +8280,9 @@ static const char *__doc_sgl_SlangCompilerOptions_disable_warnings = R"doc(Speci
 
 static const char *__doc_sgl_SlangCompilerOptions_downstream_args =
 R"doc(Specifies a list of additional arguments to be passed to the
-downstream compiler.)doc";
+downstream compiler. Only forwarded to downstream compilers that
+accept pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored
+for other backends.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_dump_intermediates = R"doc(When set will dump the intermediate source output.)doc";
 
@@ -8378,7 +8435,9 @@ code.)doc";
 
 static const char *__doc_sgl_SlangLinkOptions_downstream_args =
 R"doc(Specifies a list of additional arguments to be passed to the
-downstream compiler.)doc";
+downstream compiler. Only forwarded to downstream compilers that
+accept pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored
+for other backends.)doc";
 
 static const char *__doc_sgl_SlangLinkOptions_dump_intermediates = R"doc(When set will dump the intermediate source output.)doc";
 
@@ -8989,6 +9048,21 @@ Returns:
     New texture object.)doc";
 
 static const char *__doc_sgl_TextureLoader_load_texture_2 =
+R"doc(Load a texture from an image stream.
+
+The stream must be readable and seekable. All image formats supported
+by the file-path overload, including DDS, are supported.
+
+Parameter ``stream``:
+    Image data stream.
+
+Parameter ``options``:
+    Texture loading options.
+
+Returns:
+    New texture object.)doc";
+
+static const char *__doc_sgl_TextureLoader_load_texture_3 =
 R"doc(Load a texture from an image file.
 
 Parameter ``path``:
@@ -10771,6 +10845,10 @@ static const char *__doc_sgl_find_enum_info_adl_81 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_82 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_83 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_84 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_85 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
@@ -14064,6 +14142,8 @@ Parameter ``port``:
 Parameter ``max_retries``:
     Maximum number of retries.)doc";
 
+static const char *__doc_sgl_thread_Task = R"doc(Opaque task type.)doc";
+
 static const char *__doc_sgl_thread_TaskGroup = R"doc(Helper class for managing a group of tasks.)doc";
 
 static const char *__doc_sgl_thread_TaskGroup_TaskGroup = R"doc()doc";
@@ -14127,8 +14207,8 @@ static const char *__doc_sgl_thread_blocked_range_m_block_size = R"doc()doc";
 static const char *__doc_sgl_thread_blocked_range_m_end = R"doc()doc";
 
 static const char *__doc_sgl_thread_do_async =
-R"doc(Run a function asynchronously in a new task. See nanothread
-documentation on `task_submit_dep` for details.
+R"doc(Run a function asynchronously in a new task. See `task_submit_dep` for
+details.
 
 Parameter ``func``:
     Function to call.
@@ -14143,8 +14223,8 @@ Returns:
     The new task.)doc";
 
 static const char *__doc_sgl_thread_do_async_2 =
-R"doc(Run a function asynchronously in a new task. See nanothread
-documentation on `task_submit_dep` for details.
+R"doc(Run a function asynchronously in a new task. See `task_submit_dep` for
+details.
 
 Parameter ``func``:
     Function to call.
@@ -14171,8 +14251,8 @@ Parameter ``func``:
     argument).)doc";
 
 static const char *__doc_sgl_thread_parallel_for_async =
-R"doc(Run a parallel for-loop asynchronously in a new task. See nanothread
-documentation on `task_submit_dep` for details.
+R"doc(Run a parallel for-loop asynchronously in a new task. See
+`task_submit_dep` for details.
 
 Parameter ``range``:
     Loop range.
@@ -14191,8 +14271,8 @@ Returns:
     The new task.)doc";
 
 static const char *__doc_sgl_thread_parallel_for_async_2 =
-R"doc(Run a parallel for-loop asynchronously in a new task. See nanothread
-documentation on `task_submit_dep` for details.
+R"doc(Run a parallel for-loop asynchronously in a new task. See
+`task_submit_dep` for details.
 
 Parameter ``range``:
     Loop range.
@@ -14207,9 +14287,61 @@ Parameter ``parents``:
 Returns:
     The new task.)doc";
 
+static const char *__doc_sgl_thread_rhi_task_pool = R"doc(Get the SGL task pool installed in slang-rhi.)doc";
+
 static const char *__doc_sgl_thread_static_init = R"doc()doc";
 
 static const char *__doc_sgl_thread_static_shutdown = R"doc()doc";
+
+static const char *__doc_sgl_thread_task_query = R"doc(Return whether a task has completed.)doc";
+
+static const char *__doc_sgl_thread_task_release = R"doc(Release a task handle.)doc";
+
+static const char *__doc_sgl_thread_task_retain = R"doc(Increase the reference count of a task.)doc";
+
+static const char *__doc_sgl_thread_task_submit_dep =
+R"doc(Submit a task with optional dependencies to the SGL thread pool.
+
+Parameter ``parents``:
+    Parent tasks to wait for before executing.
+
+Parameter ``parent_count``:
+    Number of parent tasks.
+
+Parameter ``size``:
+    Number of work units to execute.
+
+Parameter ``func``:
+    Function called once for each work unit.
+
+Parameter ``payload``:
+    Payload passed to the function.
+
+Parameter ``payload_size``:
+    Size of the payload copied into the task when no deleter is
+    provided.
+
+Parameter ``payload_deleter``:
+    Optional function that releases the payload after execution.
+
+Parameter ``always_async``:
+    Whether to disable synchronous execution of small tasks.
+
+Parameter ``profile``:
+    Whether to collect timing information for this task.
+
+Returns:
+    The submitted task, or nullptr if it completed synchronously.)doc";
+
+static const char *__doc_sgl_thread_task_time = R"doc(Return the execution time of a profiled task in milliseconds.)doc";
+
+static const char *__doc_sgl_thread_task_time_rel =
+R"doc(Return the difference between the start times of two profiled tasks in
+milliseconds.)doc";
+
+static const char *__doc_sgl_thread_task_wait = R"doc(Wait for a task to complete.)doc";
+
+static const char *__doc_sgl_thread_task_wait_and_release = R"doc(Wait for a task to complete and release its handle.)doc";
 
 static const char *__doc_sgl_thread_wait_for_tasks = R"doc(Wait for all tasks in the global task group.)doc";
 
