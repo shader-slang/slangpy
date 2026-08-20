@@ -20,8 +20,8 @@ BaseModule::BaseModule(ref<SlangModule> module, ref<refl::Layout> layout)
 
 BaseModule::~BaseModule()
 {
-    // Cached reflection objects retain their layout. Clear them before releasing
-    // the layout to break cycles created while specializing function calls.
+    // Reflection wrappers may outlive their module during Python interpreter shutdown.
+    // Drop the non-owning cache entries so their container storage does not survive with them.
     if (m_layout)
         m_layout->clear_caches();
 }

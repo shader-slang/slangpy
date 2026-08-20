@@ -8,6 +8,25 @@
 
 namespace sgl::refl {
 
+namespace {
+
+    template<typename Map, typename Key>
+    auto find_in_cache(Map& cache, const Key& key)
+    {
+        using Ref = decltype(cache.begin()->second.lock());
+
+        auto it = cache.find(key);
+        if (it == cache.end())
+            return Ref();
+
+        Ref value = it->second.lock();
+        if (!value)
+            cache.erase(it);
+        return value;
+    }
+
+} // namespace
+
 Layout::Layout(ref<const sgl::ProgramLayout> low_level_layout)
     : m_low_level_layout(std::move(low_level_layout))
 {
@@ -19,8 +38,8 @@ ref<Type> Layout::find_type(ref<const TypeReflection> reflection)
     if (!reflection)
         return nullptr;
 
-    if (auto it = m_types_by_reflection.find(reflection.get()); it != m_types_by_reflection.end())
-        return it->second;
+    if (ref<Type> type = find_in_cache(m_types_by_reflection, reflection.get()))
+        return type;
 
     ref<Type> type = create_builtin_type(*this, reflection);
     if (!type)
@@ -33,8 +52,8 @@ ref<Type> Layout::find_type(ref<const TypeReflection> reflection)
 
 ref<Type> Layout::find_type_by_name(std::string_view name)
 {
-    if (auto it = m_types_by_name.find(std::string(name)); it != m_types_by_name.end())
-        return it->second;
+    if (ref<Type> type = find_in_cache(m_types_by_name, std::string(name)))
+        return type;
 
     std::string type_name(name);
     ref<const TypeReflection> reflection = m_low_level_layout->find_type_by_name(type_name.c_str());
@@ -65,13 +84,13 @@ ref<Function> Layout::get_or_create_function(
     if (!reflection)
         return nullptr;
 
-    if (auto it = m_functions_by_reflection.find(reflection.get()); it != m_functions_by_reflection.end()) {
+    if (ref<Function> function = find_in_cache(m_functions_by_reflection, reflection.get())) {
         SGL_CHECK(
-            it->second->this_type() == this_type.get(),
+            function->this_type() == this_type.get(),
             "Function '{}' was requested with inconsistent this_type",
-            it->second->full_name()
+            function->full_name()
         );
-        return it->second;
+        return function;
     }
 
     std::string function_full_name = full_name ? std::move(*full_name) : std::string();
@@ -89,8 +108,8 @@ ref<Function> Layout::get_or_create_function(
 ref<Function> Layout::find_function_by_name(std::string_view name)
 {
     std::string function_name(name);
-    if (auto it = m_functions_by_name.find(function_name); it != m_functions_by_name.end())
-        return it->second;
+    if (ref<Function> function = find_in_cache(m_functions_by_name, function_name))
+        return function;
 
     ref<const FunctionReflection> reflection
         = const_cast<sgl::ProgramLayout*>(m_low_level_layout.get())->find_function_by_name(function_name.c_str());
@@ -113,8 +132,8 @@ ref<Function> Layout::find_function_by_name_in_type(ref<Type> type, std::string_
 
     std::string function_name(name);
     std::string qualified_name = fmt::format("{}::{}", type->full_name(), function_name);
-    if (auto it = m_functions_by_name.find(qualified_name); it != m_functions_by_name.end())
-        return it->second;
+    if (ref<Function> function = find_in_cache(m_functions_by_name, qualified_name))
+        return function;
 
     ref<const TypeReflection> type_reflection = m_low_level_layout->find_type_by_name(type->full_name().c_str());
     SGL_CHECK(type_reflection, "Type '{}' not found", type->full_name());
@@ -197,8 +216,19 @@ void Layout::on_hot_reload(ref<const sgl::ProgramLayout> low_level_layout)
 {
     SGL_CHECK(low_level_layout, "Layout hot reload requires a low-level layout");
 
-    auto old_types_by_name = std::move(m_types_by_name);
-    auto old_functions_by_name = std::move(m_functions_by_name);
+    std::unordered_map<std::string, ref<Type>> old_types_by_name;
+    old_types_by_name.reserve(m_types_by_name.size());
+    for (const auto& [name, entry] : m_types_by_name) {
+        if (ref<Type> type = entry.lock())
+            old_types_by_name.emplace(name, std::move(type));
+    }
+
+    std::unordered_map<std::string, ref<Function>> old_functions_by_name;
+    old_functions_by_name.reserve(m_functions_by_name.size());
+    for (const auto& [name, entry] : m_functions_by_name) {
+        if (ref<Function> function = entry.lock())
+            old_functions_by_name.emplace(name, std::move(function));
+    }
 
     m_low_level_layout = std::move(low_level_layout);
 
@@ -253,16 +283,6 @@ void Layout::on_hot_reload(ref<const sgl::ProgramLayout> low_level_layout)
 
 void Layout::clear_caches()
 {
-    for (const auto& [name, type] : m_types_by_name) {
-        SGL_UNUSED(name);
-        if (type)
-            type->clear_caches();
-    }
-    for (const auto& [name, function] : m_functions_by_name) {
-        SGL_UNUSED(name);
-        if (function)
-            function->clear_caches();
-    }
     m_functions_by_reflection.clear();
     m_functions_by_name.clear();
     m_types_by_reflection.clear();

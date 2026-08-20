@@ -75,7 +75,7 @@ public:
     /// Replace the wrapped low-level layout after hot reload and clear reflection caches.
     void on_hot_reload(ref<const sgl::ProgramLayout> low_level_layout);
 
-    /// Clear cached reflection objects and break their internal reference cycles.
+    /// Drop non-owning reflection cache entries without invalidating live wrappers.
     void clear_caches();
 
     /// Return a debug string for this layout.
@@ -92,10 +92,10 @@ private:
 
     ref<const sgl::ProgramLayout> m_low_level_layout;
     uint64_t m_generation = 0;
-    std::unordered_map<const TypeReflection*, ref<Type>> m_types_by_reflection;
-    std::unordered_map<std::string, ref<Type>> m_types_by_name;
-    std::unordered_map<const FunctionReflection*, ref<Function>> m_functions_by_reflection;
-    std::unordered_map<std::string, ref<Function>> m_functions_by_name;
+    std::unordered_map<const TypeReflection*, weak_ref<Type>> m_types_by_reflection;
+    std::unordered_map<std::string, weak_ref<Type>> m_types_by_name;
+    std::unordered_map<const FunctionReflection*, weak_ref<Function>> m_functions_by_reflection;
+    std::unordered_map<std::string, weak_ref<Function>> m_functions_by_name;
 };
 
 } // namespace sgl::refl

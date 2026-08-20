@@ -4,6 +4,7 @@
 
 #include "sgl/device/device.h"
 #include "sgl/device/shader.h"
+#include "sgl/func/base_module.h"
 #include "sgl/refl/function.h"
 #include "sgl/refl/layout.h"
 #include "sgl/refl/type.h"
@@ -245,6 +246,56 @@ float partial_generic_value<T>(T value, float3 fixed_value) { return 0.0; }
     CHECK(method->this_type() == foo_type.get());
     CHECK(method->full_name() == "eval");
     CHECK(method->return_type() == float_type);
+}
+
+TEST_CASE_GPU("native layout caches do not own reflection objects")
+{
+    ref<SlangModule> module = ctx.device->load_module_from_source(
+        "refl_native_non_owning_cache",
+        R"(
+float add(float lhs, float rhs) { return lhs + rhs; }
+)"
+    );
+
+    ref<refl::Layout> layout = make_ref<refl::Layout>(module->layout());
+    uint64_t layout_ref_count = layout->ref_count();
+
+    {
+        ref<refl::Type> type = layout->require_type_by_name("float");
+        CHECK(layout->require_type_by_name("float").get() == type.get());
+        CHECK(layout->ref_count() == layout_ref_count + 1);
+    }
+    CHECK(layout->ref_count() == layout_ref_count);
+    CHECK(layout->require_type_by_name("float"));
+
+    {
+        ref<refl::Function> function = layout->require_function_by_name("add");
+        CHECK(layout->require_function_by_name("add").get() == function.get());
+        CHECK(layout->ref_count() == layout_ref_count + 1);
+    }
+    CHECK(layout->ref_count() == layout_ref_count);
+    CHECK(layout->require_function_by_name("add"));
+}
+
+TEST_CASE_GPU("functional module teardown clears reflection cache storage")
+{
+    ref<SlangModule> module = ctx.device->load_module_from_source(
+        "refl_functional_module_cache_cleanup",
+        R"(
+float add(float lhs, float rhs) { return lhs + rhs; }
+)"
+    );
+
+    ref<refl::Layout> layout = make_ref<refl::Layout>(module->layout());
+    ref<refl::Type> type = layout->require_type_by_name("float");
+    ref<refl::Function> function = layout->require_function_by_name("add");
+
+    {
+        ref<func::BaseModule> functional_module = make_ref<func::BaseModule>(module, layout);
+    }
+
+    CHECK(layout->require_type_by_name("float").get() != type.get());
+    CHECK(layout->require_function_by_name("add").get() != function.get());
 }
 
 TEST_CASE_GPU("native layout hot reload")
