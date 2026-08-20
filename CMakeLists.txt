@@ -71,6 +71,13 @@ option(SGL_ENABLE_PCH "Enable precompiled headers" OFF)
 # Enable/disable code coverage.
 option(SGL_ENABLE_COVERAGE "Enable code coverage (gcov)" OFF)
 
+# Enable object/reference lifetime diagnostics.
+option(SGL_ENABLE_OBJECT_TRACKING "Enable Object lifetime tracking" OFF)
+option(SGL_ENABLE_REF_TRACKING "Enable Object reference tracking" OFF)
+if(SGL_ENABLE_REF_TRACKING AND NOT SGL_ENABLE_OBJECT_TRACKING)
+    message(FATAL_ERROR "SGL_ENABLE_REF_TRACKING requires SGL_ENABLE_OBJECT_TRACKING")
+endif()
+
 # Enable/disable sanitizers.
 option(SGL_ENABLE_ASAN "Enable AddressSanitizer (Clang only)" OFF)
 option(SGL_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (Clang only)" OFF)

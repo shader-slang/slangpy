@@ -133,7 +133,7 @@ endfunction()
 # Stub generation imports the extension into an unsanitized Python host. The
 # required sanitizer runtime preload is not portable across the Clang runtime
 # layouts used by our CI platforms, so retain the checked-in stubs instead.
-if(NOT SGL_ENABLE_ASAN AND NOT SGL_ENABLE_UBSAN)
+if(NOT SGL_ENABLE_ASAN AND NOT SGL_ENABLE_UBSAN AND NOT SGL_ENABLE_TSAN)
     # Generate main stub file.
     nanobind_add_stub(
         slangpy_stub

@@ -48,6 +48,10 @@ static constexpr bool SGL_TRACK_ALL_REFS{false};
 
 namespace sgl {
 
+namespace detail {
+    class WeakState;
+}
+
 /**
  * \brief Object base class with intrusive reference counting
  *
@@ -62,17 +66,23 @@ namespace sgl {
  * `dec_ref()` removes the last reference, the instance will be deallocated
  * using a `delete` expression handled using a polymorphic destructor.
  *
- * When a subclass of `Object` is constructed to Python or returned from C++ to
- * Python, nanobind will invoke `Object::set_self_py()`, which hands ownership
- * over to Python/nanobind. Any remaining references will be moved from the
- * `m_state` field to the Python reference count. In this mode, `inc_ref()` and
- * `dec_ref()` wrap Python reference counting primitives (`Py_INCREF()` /
- * `Py_DECREF()`) which must be made available by calling the function
- * `object_init_py` once during module initialization. Note that the `m_state`
- * field is also used to store a pointer to the `PyObject *`. Python instance
- * pointers are always aligned (i.e. bit 1 is zero), which disambiguates
- * between the two possible configurations.
+ * A zero value is reserved while ownership is being transferred from native
+ * reference counting to Python.
  *
+ *
+ * Nanobind invokes `Object::set_self_py()` when a subclass is constructed in
+ * Python or returned from C++ to Python.
+ * This hands ownership to Python and
+ * moves remaining native references to the Python reference count. In this
+ *
+ * mode, `inc_ref()` and `dec_ref()` wrap Python reference counting primitives
+ * (`Py_INCREF()` / `Py_DECREF()`),
+ * installed by calling `object_init_py()` once
+ * during module initialization. The `m_state` field stores the
+ * `PyObject*` in
+ * this mode. Python instance pointers are aligned, which disambiguates them
+ * from the odd native
+ * reference-count representation.
  * Within C++, the RAII helper class `ref` (defined below) can be used to keep
  * instances alive. This removes the need to call the `inc_ref()` / `dec_ref()`
  * functions explicitly.
@@ -93,14 +103,12 @@ public:
 #if SGL_ENABLE_OBJECT_TRACKING
     /// Default constructor.
     Object();
-    /// Destructor.
-    virtual ~Object();
 #else
     /// Default constructor.
     Object() = default;
-    /// Destructor.
-    virtual ~Object() = default;
 #endif
+    /// Destructor.
+    virtual ~Object();
 
     /// Copy constructor.
     /// Note: We don't copy the reference counter, so that the new object
@@ -158,7 +166,14 @@ public:
 #endif
 
 private:
+    detail::WeakState* acquire_weak_state() const;
+
+#if SGL_ENABLE_REF_TRACKING
+    void track_ref(uint64_t ref_id) const;
+#endif
+
     mutable std::atomic<uintptr_t> m_state{1};
+    mutable std::atomic<detail::WeakState*> m_weak_state{nullptr};
 
 #if SGL_ENABLE_REF_TRACKING
     struct RefTracker {
@@ -174,7 +189,18 @@ private:
     mutable std::mutex m_ref_trackers_mutex;
     bool m_enable_ref_tracking = SGL_TRACK_ALL_REFS;
 #endif
+
+    friend class detail::WeakState;
+    template<typename>
+    friend class weak_ref;
 };
+
+#if UINTPTR_MAX == UINT64_MAX && !SGL_ENABLE_REF_TRACKING
+static_assert(
+    sizeof(Object) == 3 * sizeof(void*),
+    "Object should contain a vtable pointer and two pointer-sized states"
+);
+#endif
 
 /// Macro to declare the object class name.
 #define SGL_OBJECT(class_)                                                                                             \
@@ -198,8 +224,16 @@ public:                                                                         
 SGL_API void object_init_py(
     void (*object_inc_ref_py)(PyObject*) noexcept,
     void (*object_dec_ref_py)(PyObject*) noexcept,
-    Py_ssize_t_ (*object_ref_cnt_py)(PyObject*) noexcept
+    Py_ssize_t_ (*object_ref_cnt_py)(PyObject*) noexcept,
+    void (*object_run_with_gil_py)(void (*callback)(void*) noexcept, void* context) noexcept
 );
+
+namespace detail {
+    SGL_API void weak_state_inc_ref(WeakState* state) noexcept;
+    SGL_API void weak_state_dec_ref(WeakState* state) noexcept;
+    SGL_API bool weak_state_lock(WeakState* state, uint64_t ref_id) noexcept;
+    SGL_API bool weak_state_expired(const WeakState* state) noexcept;
+} // namespace detail
 
 
 #if SGL_ENABLE_REF_TRACKING
@@ -516,6 +550,173 @@ private:
 
     template<typename T2>
     friend class ref;
+    template<typename T2>
+    friend class weak_ref;
+};
+
+/**
+ * \brief Non-owning reference to an Object.
+ *
+ * A weak reference does not keep its target alive. Call \a lock to
+ * acquire a
+ * temporary strong reference before accessing the target.
+ */
+template<typename T>
+class weak_ref {
+public:
+    /// Default constructor (nullptr).
+    weak_ref() noexcept = default;
+
+    /// Construct a weak reference from nullptr.
+    weak_ref(std::nullptr_t) noexcept { }
+
+    /// Construct a weak reference from a compatible strong reference.
+    template<typename T2>
+    weak_ref(const ref<T2>& r)
+    {
+        assign(r);
+    }
+
+    /// Copy constructor.
+    weak_ref(const weak_ref& r) noexcept
+        : m_ptr(r.m_ptr)
+        , m_state(r.m_state)
+    {
+        if (m_state)
+            detail::weak_state_inc_ref(m_state);
+    }
+
+    /// Construct from a compatible weak reference.
+    template<typename T2>
+    weak_ref(const weak_ref<T2>& r) noexcept
+        : m_ptr(r.m_ptr)
+        , m_state(r.m_state)
+    {
+        static_assert(std::is_convertible_v<T2*, T*>, "Cannot convert between incompatible weak references.");
+        if (m_state)
+            detail::weak_state_inc_ref(m_state);
+    }
+
+    /// Move constructor.
+    weak_ref(weak_ref&& r) noexcept
+        : m_ptr(r.m_ptr)
+        , m_state(r.m_state)
+    {
+        r.m_ptr = nullptr;
+        r.m_state = nullptr;
+    }
+
+    /// Move from a compatible weak reference.
+    template<typename T2>
+    weak_ref(weak_ref<T2>&& r) noexcept
+        : m_ptr(r.m_ptr)
+        , m_state(r.m_state)
+    {
+        static_assert(std::is_convertible_v<T2*, T*>, "Cannot convert between incompatible weak references.");
+        r.m_ptr = nullptr;
+        r.m_state = nullptr;
+    }
+
+    /// Destructor.
+    ~weak_ref()
+    {
+        if (m_state)
+            detail::weak_state_dec_ref(m_state);
+    }
+
+    /// Assign another weak reference.
+    weak_ref& operator=(const weak_ref& r) noexcept
+    {
+        weak_ref(r).swap(*this);
+        return *this;
+    }
+
+    /// Assign a compatible weak reference.
+    template<typename T2>
+    weak_ref& operator=(const weak_ref<T2>& r) noexcept
+    {
+        weak_ref(r).swap(*this);
+        return *this;
+    }
+
+    /// Move another weak reference.
+    weak_ref& operator=(weak_ref&& r) noexcept
+    {
+        weak_ref(std::move(r)).swap(*this);
+        return *this;
+    }
+
+    /// Move a compatible weak reference.
+    template<typename T2>
+    weak_ref& operator=(weak_ref<T2>&& r) noexcept
+    {
+        weak_ref(std::move(r)).swap(*this);
+        return *this;
+    }
+
+    /// Assign a compatible strong reference.
+    template<typename T2>
+    weak_ref& operator=(const ref<T2>& r)
+    {
+        weak_ref(r).swap(*this);
+        return *this;
+    }
+
+    /// Reset to nullptr.
+    void reset() noexcept { weak_ref().swap(*this); }
+
+    /// Acquire a strong reference, or return nullptr if the target expired.
+    ref<T> lock() const noexcept
+    {
+        ref<T> result;
+        if (!m_state)
+            return result;
+
+#if SGL_ENABLE_REF_TRACKING
+        uint64_t ref_id = result.m_ref_id;
+#else
+        uint64_t ref_id = 0;
+#endif
+        if (detail::weak_state_lock(m_state, ref_id))
+            result.m_ptr = m_ptr;
+        return result;
+    }
+
+    /// Return true if the target has expired.
+    /// This result is advisory when other threads may release the target.
+    bool expired() const noexcept { return !m_state || detail::weak_state_expired(m_state); }
+
+    /// Swap two weak references.
+    void swap(weak_ref& r) noexcept
+    {
+        std::swap(m_ptr, r.m_ptr);
+        std::swap(m_state, r.m_state);
+    }
+
+private:
+    template<typename T2>
+    void assign(const ref<T2>& r)
+    {
+        static_assert(
+            std::is_base_of_v<Object, std::remove_const_t<T2>>,
+            "Cannot create weak reference to object not inheriting from Object class."
+        );
+        static_assert(
+            std::is_convertible_v<T2*, T*>,
+            "Cannot create weak reference from incompatible strong reference."
+        );
+
+        if (r.m_ptr) {
+            m_ptr = r.m_ptr;
+            m_state = static_cast<const Object*>(r.m_ptr)->acquire_weak_state();
+        }
+    }
+
+    T* m_ptr{nullptr};
+    detail::WeakState* m_state{nullptr};
+
+    template<typename T2>
+    friend class weak_ref;
 };
 
 template<class T, class... Args>

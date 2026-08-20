@@ -22,6 +22,11 @@ SGL_PY_EXPORT(core_object)
         {
             nb::gil_scoped_acquire guard;
             return Py_REFCNT(o);
+        },
+        [](void (*callback)(void*) noexcept, void* context) noexcept
+        {
+            nb::gil_scoped_acquire guard;
+            callback(context);
         }
     );
 

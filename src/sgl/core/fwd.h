@@ -62,6 +62,8 @@ class Object;
 template<typename>
 class ref;
 template<typename>
+class weak_ref;
+template<typename>
 class breakable_ref;
 
 // short_vector.h

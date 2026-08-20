@@ -338,6 +338,8 @@ target_compile_definitions(sgl
         SGL_DEBUG=$<BOOL:$<CONFIG:Debug>>
         # Always enable asserts unless SGL_DISABLE_ASSERTS is set.
         SGL_ENABLE_ASSERTS=$<NOT:$<BOOL:${SGL_DISABLE_ASSERTS}>>
+        SGL_ENABLE_OBJECT_TRACKING=$<BOOL:${SGL_ENABLE_OBJECT_TRACKING}>
+        SGL_ENABLE_REF_TRACKING=$<BOOL:${SGL_ENABLE_REF_TRACKING}>
         # Windows.
         $<$<PLATFORM_ID:Windows>:NOMINMAX>  # do not define min/max macros
         $<$<PLATFORM_ID:Windows>:UNICODE>   # force character map to unicode
