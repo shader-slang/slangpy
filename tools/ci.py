@@ -154,23 +154,47 @@ def typing_check_python(args: Any):
     run_command(f"pyright", env=env)
 
 
+def run_pytest_with_retry(test_path: str, env: dict[str, str], parallel: bool):
+    # Parallel runs can fail from GPU device contention between xdist workers
+    # rather than a real defect, so retry the failed tests once in a single
+    # process (-n 0) to tell the two apart. Non-parallel runs have no such
+    # contention and are never retried, which also keeps an intermittent
+    # sanitizer finding from being hidden by a rerun.
+    if not parallel:
+        run_command(pytest_command(test_path, "-vra"), shell=False, env=env)
+        return
+
+    # --cache-clear drops any stale last-failed record so the rerun can only
+    # select failures from this attempt; a leftover record could otherwise let
+    # the rerun pass a now-fixed set while a real failure went unnoticed.
+    first = pytest_command(test_path, "-vra", "-n", "auto", "--maxprocesses=4", "--cache-clear")
+    try:
+        run_command(first, shell=False, env=env)
+    except RuntimeError:
+        print("Parallel test run failed; re-running the failed tests sequentially.")
+        sys.stdout.flush()
+        # run_command re-raises on a nonzero exit, so the job stays red unless the
+        # rerun itself passes; its result is never swallowed. If the first attempt
+        # died before recording any failure (e.g. a crash), the rerun's --lf set is
+        # empty; that already stays red (an empty selection exits nonzero, which
+        # run_command treats as failure). --lfnf=all upgrades that to re-running the
+        # whole suite so the real failure is actually re-executed rather than only
+        # inferred from an empty-collection exit code.
+        rerun = pytest_command(test_path, "-vra", "-n", "0", "--lf", "--lfnf=all")
+        run_command(rerun, shell=False, env=env)
+
+
 def unit_test_python(args: Any):
     env = get_python_env(args.preset)
     if args.disable_torch:
         env["SLANGPY_TEST_DISABLE_TORCH"] = "1"
     os.makedirs("reports", exist_ok=True)
-    cmd = pytest_command("slangpy/tests", "-vra")
-    if args.parallel:
-        cmd += ["-n", "auto", "--maxprocesses=4"]
-    run_command(cmd, shell=False, env=env)
+    run_pytest_with_retry("slangpy/tests", env, args.parallel)
 
 
 def test_examples(args: Any):
     env = get_python_env(args.preset)
-    cmd = pytest_command("samples/tests", "-vra")
-    if args.parallel:
-        cmd += ["-n", "auto", "--maxprocesses=4"]
-    run_command(cmd, shell=False, env=env)
+    run_pytest_with_retry("samples/tests", env, args.parallel)
 
 
 def benchmark_python(args: Any):
