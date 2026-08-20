@@ -74,6 +74,7 @@ option(SGL_ENABLE_COVERAGE "Enable code coverage (gcov)" OFF)
 # Enable/disable sanitizers.
 option(SGL_ENABLE_ASAN "Enable AddressSanitizer (Clang only)" OFF)
 option(SGL_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (Clang only)" OFF)
+option(SGL_ENABLE_TSAN "Enable ThreadSanitizer (Linux/macOS Clang only)" OFF)
 
 include(sanitizers)
 

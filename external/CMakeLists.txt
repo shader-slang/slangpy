@@ -61,6 +61,7 @@ if(SGL_LINUX AND SGL_ARCHITECTURE MATCHES "aarch64|arm64")
     set(NANOTHREAD_NATIVE_FLAGS "-march=armv8-a" CACHE STRING "" FORCE)
 endif()
 add_subdirectory(nanothread)
+sgl_enable_sanitizers(nanothread)
 # Disable LTO for nanothread as this causes problems when linking with sgl.
 set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
 target_compile_definitions(nanothread PRIVATE _CRT_SECURE_NO_WARNINGS)
