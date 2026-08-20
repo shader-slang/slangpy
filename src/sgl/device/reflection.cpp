@@ -11,13 +11,42 @@
 
 #include "sgl/math/vector.h"
 
+#include <mutex>
 #include <span>
 
 namespace sgl {
 
 namespace detail {
 
-    static std::map<void*, const BaseReflectionObject*> g_slang_reflection_to_sgl_reflection;
+    struct ReflectionRegistryEntry {
+        const Object* identity;
+        weak_ref<const BaseReflectionObject> reflection;
+    };
+
+    static std::map<void*, ReflectionRegistryEntry> g_slang_reflection_to_sgl_reflection;
+    static std::mutex g_reflection_registry_mutex;
+    static std::mutex g_reflection_creation_mutex;
+
+    static ref<const BaseReflectionObject> find_cached_reflection(void* slang_reflection)
+    {
+        weak_ref<const BaseReflectionObject> reflection;
+        {
+            std::lock_guard lock(g_reflection_registry_mutex);
+            auto it = g_slang_reflection_to_sgl_reflection.find(slang_reflection);
+            if (it == g_slang_reflection_to_sgl_reflection.end())
+                return nullptr;
+            reflection = it->second.reflection;
+        }
+        return reflection.lock();
+    }
+
+    static void erase_cached_reflection(void* slang_reflection, const Object* identity)
+    {
+        std::lock_guard lock(g_reflection_registry_mutex);
+        auto it = g_slang_reflection_to_sgl_reflection.find(slang_reflection);
+        if (it != g_slang_reflection_to_sgl_reflection.end() && it->second.identity == identity)
+            g_slang_reflection_to_sgl_reflection.erase(it);
+    }
 
     /// Extract device from an owner object.
     /// The possible owner types are known so we can query the device.
@@ -45,17 +74,26 @@ namespace detail {
     template<typename SGLType, typename SlangType>
     ref<const SGLType> create_reflection_type_from_slang_type(ref<const Object> owner, SlangType* slang_reflection)
     {
-        if (slang_reflection) {
-            auto it = g_slang_reflection_to_sgl_reflection.find(slang_reflection);
-            if (it != g_slang_reflection_to_sgl_reflection.end()) {
-                return ref((const SGLType*)it->second);
-            } else {
-                auto res = make_ref<const SGLType>(std::move(owner), slang_reflection);
-                g_slang_reflection_to_sgl_reflection[slang_reflection] = res.get();
-                return res;
-            }
-        } else
+        if (!slang_reflection)
             return nullptr;
+
+        if (ref<const BaseReflectionObject> cached = find_cached_reflection(slang_reflection))
+            return static_ref_cast<const SGLType>(cached);
+
+        std::lock_guard creation_lock(g_reflection_creation_mutex);
+
+        if (ref<const BaseReflectionObject> cached = find_cached_reflection(slang_reflection))
+            return static_ref_cast<const SGLType>(cached);
+
+        ref<const SGLType> result = make_ref<const SGLType>(std::move(owner), slang_reflection);
+        {
+            std::lock_guard registry_lock(g_reflection_registry_mutex);
+            g_slang_reflection_to_sgl_reflection.insert_or_assign(
+                slang_reflection,
+                ReflectionRegistryEntry{result.get(), result}
+            );
+        }
+        return result;
     }
 
 #define SGL_FROM_SLANG(type_name)                                                                                      \
@@ -76,26 +114,38 @@ namespace detail {
 
 #undef SGL_FROM_SLANG
 
-    void on_slang_wrapper_destroyed(void* slang_reflection)
+    void on_slang_wrapper_destroyed(void* slang_reflection, const Object* wrapper)
     {
-        g_slang_reflection_to_sgl_reflection.erase(slang_reflection);
+        erase_cached_reflection(slang_reflection, wrapper);
     }
 
     void invalidate_reflection_data(Device* device)
     {
+        std::lock_guard creation_lock(g_reflection_creation_mutex);
+
+        std::vector<std::pair<void*, ReflectionRegistryEntry>> entries;
+        {
+            std::lock_guard registry_lock(g_reflection_registry_mutex);
+            entries.reserve(g_slang_reflection_to_sgl_reflection.size());
+            for (const auto& entry : g_slang_reflection_to_sgl_reflection)
+                entries.push_back(entry);
+        }
+
         // Collect refs to keep objects alive during invalidation.
         std::vector<ref<const BaseReflectionObject>> objects;
 
-        for (auto it = g_slang_reflection_to_sgl_reflection.begin();
-             it != g_slang_reflection_to_sgl_reflection.end();) {
-            const BaseReflectionObject* reflection = it->second;
+        for (const auto& [slang_reflection, entry] : entries) {
+            ref<const BaseReflectionObject> reflection = entry.reflection.lock();
+            if (!reflection) {
+                erase_cached_reflection(slang_reflection, entry.identity);
+                continue;
+            }
+
             Device* owning_device = get_device_from_owner(reflection->owner());
             bool invalidate = (device == nullptr) || (owning_device != nullptr && owning_device == device);
             if (invalidate) {
-                objects.push_back(ref(reflection));
-                it = g_slang_reflection_to_sgl_reflection.erase(it);
-            } else {
-                ++it;
+                objects.push_back(std::move(reflection));
+                erase_cached_reflection(slang_reflection, entry.identity);
             }
         }
 

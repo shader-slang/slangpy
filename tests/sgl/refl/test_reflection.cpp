@@ -9,6 +9,10 @@
 #include "sgl/refl/layout.h"
 #include "sgl/refl/type.h"
 
+#include <array>
+#include <atomic>
+#include <thread>
+
 using namespace sgl;
 
 TEST_SUITE_BEGIN("refl");
@@ -296,6 +300,54 @@ float add(float lhs, float rhs) { return lhs + rhs; }
 
     CHECK(layout->require_type_by_name("float").get() != type.get());
     CHECK(layout->require_function_by_name("add").get() != function.get());
+}
+
+TEST_CASE_GPU("low-level reflection registry concurrent lookup")
+{
+    ref<SlangModule> module = ctx.device->load_module_from_source(
+        "refl_concurrent_registry_lookup",
+        R"(
+struct Foo {
+    float value;
+};
+)"
+    );
+
+    slang::ProgramLayout* slang_layout = module->slang_component_type()->getLayout();
+    REQUIRE(slang_layout);
+
+    static constexpr size_t thread_count = 16;
+    for (uint32_t iteration = 0; iteration < 100; ++iteration) {
+        std::array<ref<const ProgramLayout>, thread_count> layouts;
+        std::array<std::thread, thread_count> threads;
+        std::atomic<size_t> ready{0};
+        std::atomic<bool> go{false};
+
+        for (size_t index = 0; index < thread_count; ++index) {
+            threads[index] = std::thread(
+                [&, index]
+                {
+                    ready.fetch_add(1, std::memory_order_release);
+                    while (!go.load(std::memory_order_acquire))
+                        std::this_thread::yield();
+                    layouts[index] = ProgramLayout::from_slang(module, slang_layout);
+                }
+            );
+        }
+
+        while (ready.load(std::memory_order_acquire) != thread_count)
+            std::this_thread::yield();
+        go.store(true, std::memory_order_release);
+
+        for (std::thread& thread : threads)
+            thread.join();
+        for (const ref<const ProgramLayout>& layout : layouts)
+            REQUIRE(layout.get() == layouts.front().get());
+
+        weak_ref<const ProgramLayout> weak_layout = layouts.front();
+        layouts.fill(nullptr);
+        REQUIRE(weak_layout.expired());
+    }
 }
 
 TEST_CASE_GPU("native layout hot reload")

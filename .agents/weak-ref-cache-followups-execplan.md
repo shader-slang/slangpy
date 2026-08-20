@@ -16,8 +16,9 @@ The work is split into two commits. The first changes the module and device layo
 - [x] (2026-08-20) Chose the module layout cache, device built-in layout cache, and global low-level reflection registry as the first follow-up migrations.
 - [x] (2026-08-20) Converted module and device layout caches to `weak_ref` and added ownership/identity regressions.
 - [x] (2026-08-20) Built, tested, and formatted the independently committable cache conversion milestone.
-- [ ] Convert the global reflection registry to synchronized weak entries and add registry regressions.
-- [ ] Build, test, format, and commit the registry conversion independently.
+- [x] (2026-08-20) Converted the global reflection registry to synchronized weak entries and added a concurrent lookup/expiration regression.
+- [x] (2026-08-20) Built and tested the independently committable registry conversion milestone.
+- [x] (2026-08-20) Ran repository-wide pre-commit checks and prepared the registry conversion commit.
 
 ## Surprises and Discoveries
 
@@ -29,6 +30,9 @@ The work is split into two commits. The first changes the module and device layo
 
 - Observation: the global low-level reflection registry reconstructs `ref<T>` directly from cached raw pointers.
   Evidence: `src/sgl/device/reflection.cpp::create_reflection_type_from_slang_type()` stores `const BaseReflectionObject*` and constructs a new strong reference from it on cache hits without synchronization.
+
+- Observation: locking a native weak reference may acquire the Python GIL when Python owns the object, while Python-owned wrapper destruction unregisters from the registry with the GIL already held.
+  Evidence: holding the registry mutex while promoting a weak reference would create opposite registry-mutex/GIL acquisition orders between lookup and destruction.
 
 ## Decision Log
 
@@ -44,9 +48,13 @@ The work is split into two commits. The first changes the module and device layo
   Rationale: The weak reference makes promotion safe. The raw value is used only for identity when a wrapper destructor unregisters, preventing an older destructor from erasing a replacement entry for a reused Slang pointer.
   Date/Author: 2026-08-20, Codex.
 
+- Decision: Separate registry-map synchronization from cache-miss/invalidation serialization, and never hold the registry mutex while promoting a weak reference.
+  Rationale: The registry mutex protects short map operations. A second creation mutex guarantees one replacement wrapper per Slang pointer and excludes invalidation from creation, while weak promotion outside the registry mutex avoids a GIL/registry lock inversion.
+  Date/Author: 2026-08-20, Codex.
+
 ## Outcomes and Retrospective
 
-The first milestone removes both remaining strong layout-cache edges while preserving live cache identity and hot-reload behavior. Validation passed for the full MSVC debug build, 9 object cases with 2,724 assertions, 3 focused cache/hot-reload cases with 50 assertions, 17 lifetime cases, 100 device reflection cases with 11 expected skips, and 150 high-level reflection cases. The global registry milestone remains pending.
+The first milestone removes both remaining strong layout-cache edges while preserving live cache identity and hot-reload behavior. The second replaces unsafe raw observations in the low-level wrapper registry with synchronized weak entries. Cache misses produce one shared wrapper, expired entries can be replaced, destructor unregistering cannot erase a newer replacement, and invalidation does not hold the registry mutex while weak promotion may acquire the GIL. The combined tree passes the full MSVC debug build, the native object and focused registry/cache suites, and the Python lifetime, reflection, and hot-reload suites.
 
 ## Context and Orientation
 
@@ -113,7 +121,30 @@ First milestone validation:
     pytest slangpy/tests/slangpy_tests/test_reflection2.py -q
     150 passed.
 
-Final commit identifiers will be recorded as the milestones complete.
+    pre-commit run --all-files
+    All hooks passed.
+
+Second milestone validation:
+
+    cmake --build --preset windows-msvc-debug
+    Exit code: 0
+
+    build\windows-msvc\Debug\sgl_tests.exe --test-case="low-level reflection registry concurrent lookup,native layout hot reload,module layout cache is non-owning,builtin lookup layout"
+    4 cases passed; 3,468 assertions passed.
+
+    build\windows-msvc\Debug\sgl_tests.exe --test-suite=object
+    9 cases passed; 2,724 assertions passed.
+
+    pytest slangpy/tests/device/test_lifetimes.py -q
+    17 passed.
+
+    pytest slangpy/tests/device/test_reflection.py -q
+    100 passed, 11 skipped.
+
+    pytest slangpy/tests/slangpy_tests/test_reflection2.py -q
+    150 passed.
+
+The first milestone is commit `c19028fb` (`Use weak references for cached shader layouts`). The second milestone will be recorded by the next commit.
 
 ## Interfaces and Dependencies
 

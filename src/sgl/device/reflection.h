@@ -37,7 +37,7 @@ namespace detail {
     SGL_API ref<const ProgramLayout> from_slang(ref<const Object> owner, slang::ProgramLayout* program_layout);
     SGL_API ref<const Attribute> from_slang(ref<const Object> owner, slang::Attribute* attribute);
 
-    SGL_API void on_slang_wrapper_destroyed(void* slang_reflection);
+    SGL_API void on_slang_wrapper_destroyed(void* slang_reflection, const Object* wrapper);
 
     /// Invalidate reflection data. If device is set, only reflection data owned by that device is invalidated.
     SGL_API void invalidate_reflection_data(Device* device = nullptr);
@@ -214,7 +214,7 @@ public:
         , m_target(target)
     {
     }
-    ~BaseReflectionObjectImpl() { detail::on_slang_wrapper_destroyed(m_target); }
+    ~BaseReflectionObjectImpl() { detail::on_slang_wrapper_destroyed(m_target, this); }
 
     SlangType* slang_target() const
     {
