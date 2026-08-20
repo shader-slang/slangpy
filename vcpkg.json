@@ -14,10 +14,5 @@
                 "crashpad"
             ]
         }
-    },
-    "vcpkg-configuration": {
-        "overlay-ports": [
-            "./external/vcpkg-overlays"
-        ]
     }
 }
