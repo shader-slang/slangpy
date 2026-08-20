@@ -913,7 +913,7 @@ private:
     Slang::ComPtr<slang::IGlobalSession> m_global_session;
 
     ref<SlangSession> m_slang_session;
-    ref<refl::Layout> m_builtin_layout;
+    weak_ref<refl::Layout> m_builtin_layout;
 
     std::vector<Feature> m_features;
     std::vector<std::string> m_capabilities;

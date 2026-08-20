@@ -479,7 +479,7 @@ private:
     SlangModuleDesc m_desc;
     ref<SlangModuleData> m_data;
 
-    mutable ref<const ProgramLayout> m_cached_layout;
+    mutable weak_ref<const ProgramLayout> m_cached_layout;
     mutable std::set<SlangEntryPoint*> m_registered_entry_points;
 };
 

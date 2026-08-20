@@ -926,7 +926,6 @@ SlangModule::SlangModule(ref<SlangSession> session, const SlangModuleDesc& desc)
 
 SlangModule::~SlangModule()
 {
-    m_cached_layout.reset();
     m_session->_unregister_module(this);
 }
 
@@ -1102,8 +1101,8 @@ void SlangModule::populate_build_data(SlangSessionBuild& build_data) const
 
 ref<const ProgramLayout> SlangModule::layout() const
 {
-    if (m_cached_layout)
-        return m_cached_layout;
+    if (ref<const ProgramLayout> layout = m_cached_layout.lock())
+        return layout;
 
     slang::ProgramLayout* layout = nullptr;
     if (m_data->slang_component_type) {
@@ -1115,8 +1114,9 @@ ref<const ProgramLayout> SlangModule::layout() const
     }
 
     SGL_CHECK(layout, "Slang module \"{}\" has no program layout.", name());
-    m_cached_layout = ProgramLayout::from_slang(ref(const_cast<SlangModule*>(this)), layout);
-    return m_cached_layout;
+    ref<const ProgramLayout> result = ProgramLayout::from_slang(ref(const_cast<SlangModule*>(this)), layout);
+    m_cached_layout = result;
+    return result;
 }
 
 std::vector<ref<SlangEntryPoint>> SlangModule::entry_points() const

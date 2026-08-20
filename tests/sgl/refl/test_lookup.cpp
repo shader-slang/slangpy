@@ -66,6 +66,23 @@ TEST_CASE_GPU("builtin lookup layout")
     device->close();
 }
 
+TEST_CASE_GPU("builtin lookup layout cache is non-owning")
+{
+    ref<Device> device = create_slangpy_lookup_device(ctx.device);
+
+    weak_ref<refl::Layout> weak_layout;
+    {
+        ref<refl::Layout> layout = refl::get_builtin_layout(device.get());
+        weak_layout = layout;
+        CHECK(refl::get_builtin_layout(device.get()).get() == layout.get());
+    }
+
+    CHECK(weak_layout.expired());
+    CHECK(refl::get_builtin_layout(device.get()));
+
+    device->close();
+}
+
 TEST_CASE_GPU("native element type lookup")
 {
     ref<SlangModule> module_a = ctx.device->load_module_from_source(

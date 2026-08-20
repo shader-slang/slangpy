@@ -109,4 +109,26 @@ TEST_CASE_GPU("shader")
     }
 }
 
+TEST_CASE_GPU("module layout cache is non-owning")
+{
+    ref<SlangModule> module = ctx.device->load_module_from_source(
+        "module_layout_cache_is_non_owning",
+        R"(
+struct Foo {
+    uint value;
+};
+)"
+    );
+
+    weak_ref<const ProgramLayout> weak_layout;
+    {
+        ref<const ProgramLayout> layout = module->layout();
+        weak_layout = layout;
+        CHECK(module->layout().get() == layout.get());
+    }
+
+    CHECK(weak_layout.expired());
+    CHECK(module->layout());
+}
+
 TEST_SUITE_END();

@@ -768,21 +768,24 @@ void Device::reload_all_programs()
 
 ref<refl::Layout> Device::builtin_layout()
 {
-    if (!m_builtin_layout) {
-        ref<SlangModule> module = load_module("slangpy");
-        m_builtin_layout = make_ref<refl::Layout>(module->layout());
-    }
-    return m_builtin_layout;
+    if (ref<refl::Layout> layout = m_builtin_layout.lock())
+        return layout;
+
+    ref<SlangModule> module = load_module("slangpy");
+    ref<refl::Layout> layout = make_ref<refl::Layout>(module->layout());
+    m_builtin_layout = layout;
+    return layout;
 }
 
 ref<refl::Layout> Device::reload_builtin_layout()
 {
-    if (!m_builtin_layout)
+    ref<refl::Layout> layout = m_builtin_layout.lock();
+    if (!layout)
         return builtin_layout();
 
     ref<SlangModule> module = load_module("slangpy");
-    m_builtin_layout->on_hot_reload(module->layout());
-    return m_builtin_layout;
+    layout->on_hot_reload(module->layout());
+    return layout;
 }
 
 ref<SlangModule> Device::load_module(std::string_view module_name)
@@ -1454,7 +1457,7 @@ void Device::unregister_command_recording_discarded_callback(DeviceCallbackID id
 
 void Device::_on_hot_reload()
 {
-    if (m_builtin_layout)
+    if (ref<refl::Layout> layout = m_builtin_layout.lock())
         reload_builtin_layout();
 
     ShaderHotReloadEvent event;
