@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+import weakref
 from typing import Any, Optional
 
 import numpy.typing as npt
@@ -24,7 +25,9 @@ class InstanceList:
             }
         elif isinstance(data, dict) and not "_type" in data:
             data["_type"] = struct.full_name
-        self._loaded_functions: dict[str, FunctionNode] = {}
+        self._loaded_functions: weakref.WeakValueDictionary[str, FunctionNode] = (
+            weakref.WeakValueDictionary()
+        )
         self.set_data(data)
         self._struct = struct
         self._init = self._try_load_func("__init")

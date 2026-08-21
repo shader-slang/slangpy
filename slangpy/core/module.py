@@ -85,7 +85,9 @@ class Module(BaseModule):
         self.shader_table_cache: dict[str, ShaderTable] = {}
         self.logger: Optional[Logger] = None
 
-        self._attr_cache: dict[str, Union[Function, Struct]] = {}
+        self._attr_cache: weakref.WeakValueDictionary[str, Union[Function, Struct]] = (
+            weakref.WeakValueDictionary()
+        )
         self._all_functions: weakref.WeakSet[Function] = weakref.WeakSet()
 
         LOADED_MODULES[self.name] = self
@@ -196,7 +198,7 @@ class Module(BaseModule):
         self.dispatch_data_cache = {}
         self.pipeline_cache = {}
         self.shader_table_cache = {}
-        self._attr_cache = {}
+        self._attr_cache.clear()
 
     def __getattr__(self, name: str):
         """
