@@ -315,18 +315,6 @@ private:
         _write_vector_from_numpy<c_type>(self, nbarray);                                                               \
     };
 
-#define bool_vector_case(c_type, scalar_type)                                                                          \
-    m_write_vector[(int)TypeReflection::ScalarType::scalar_type][c_type::dimension]                                    \
-        = [](CursorType& self, nb::object nbval)                                                                       \
-    {                                                                                                                  \
-        _write_bool_vector<c_type>(self, nbval);                                                                       \
-    };                                                                                                                 \
-    m_write_vector_from_numpy[(int)TypeReflection::ScalarType::scalar_type][c_type::dimension]                         \
-        = [](CursorType& self, const nb::ndarray<nb::numpy, nb::ro>& nbarray)                                          \
-    {                                                                                                                  \
-        _write_bool_vector_from_numpy<c_type>(self, nbarray);                                                          \
-    };
-
 #define matrix_case(c_type, scalar_type)                                                                               \
     m_write_matrix[(int)TypeReflection::ScalarType::scalar_type][c_type::rows][c_type::cols]                           \
         = [](CursorType& self, nb::object nbval)                                                                       \
@@ -377,22 +365,22 @@ public:
         scalar_case(uintptr_t, uintptr);
 
         // Register converters for all supported vector types.
-        bool_vector_case(bool1, bool_);
+        vector_case(bool1, bool_);
         vector_case(float1, float32);
         vector_case(float16_t1, float16);
         vector_case(int1, int32);
         vector_case(uint1, uint32);
-        bool_vector_case(bool2, bool_);
+        vector_case(bool2, bool_);
         vector_case(float2, float32);
         vector_case(float16_t2, float16);
         vector_case(int2, int32);
         vector_case(uint2, uint32);
-        bool_vector_case(bool3, bool_);
+        vector_case(bool3, bool_);
         vector_case(float3, float32);
         vector_case(float16_t3, float16);
         vector_case(int3, int32);
         vector_case(uint3, uint32);
-        bool_vector_case(bool4, bool_);
+        vector_case(bool4, bool_);
         vector_case(float4, float32);
         vector_case(float16_t4, float16);
         vector_case(int4, int32);
@@ -899,16 +887,6 @@ private:
         self.set(val);
     }
 
-    /// Version of vector write specifically for bool vectors (which are stored as uint32_t)
-    /// TODO: This is only special case to avoid the size check in _write_vector_from_numpy,
-    /// but that already duplicates work of the checks in cursor_utils
-    template<typename ValType>
-        requires IsSpecializationOfVector<ValType>
-    inline static void _write_bool_vector_from_numpy(CursorType& self, const nb::ndarray<nb::numpy, nb::ro>& nbarray)
-    {
-        self._set_vector(nbarray.data(), nbarray.nbytes(), TypeReflection::ScalarType::bool_, ValType::dimension);
-    }
-
     /// Write vector value to buffer element cursor from Python object
     template<typename ValType>
         requires IsSpecializationOfVector<ValType>
@@ -928,39 +906,6 @@ private:
                 dimension *= nbarray.shape(i);
             SGL_CHECK(dimension == ValType::dimension, "numpy array has wrong dimension.");
             _write_vector_from_numpy<ValType>(self, nbarray);
-        } else if (nb::isinstance<nb::sequence>(nbval)) {
-            // A list or tuple. Attempt to cast each element of list to element of vector.
-            auto seq = nb::cast<nb::sequence>(nbval);
-            SGL_CHECK(nb::len(seq) == ValType::dimension, "sequence has wrong dimension.");
-            ValType val;
-            for (int i = 0; i < ValType::dimension; i++) {
-                val[i] = nb::cast<typename ValType::value_type>(seq[i]);
-            }
-            self.set(val);
-        } else {
-            SGL_THROW("Expected numpy array or vector");
-        }
-    }
-
-    /// Bespoke vector implementation for bools.
-    template<typename ValType>
-        requires IsSpecializationOfVector<ValType>
-    inline static void _write_bool_vector(CursorType& self, nb::object nbval)
-    {
-        if (nb::isinstance<ValType>(nbval)) {
-            // A vector of the correct type - just convert it.
-            auto val = nb::cast<ValType>(nbval);
-            self.set(val);
-        } else if (is_numpy_ndarray(nbval)) {
-            // A numpy array. Reinterpret numpy memory as vector type.
-            nb::ndarray<nb::numpy, nb::ro> nbarray = nb::cast<nb::ndarray<nb::numpy, nb::ro>>(nbval);
-            SGL_CHECK(is_ndarray_contiguous(nbarray), "data is not contiguous");
-            SGL_CHECK(nbarray.ndim() == 1 || nbarray.ndim() == 2, "numpy array must have 1 or 2 dimensions.");
-            size_t dimension = 1;
-            for (size_t i = 0; i < nbarray.ndim(); ++i)
-                dimension *= nbarray.shape(i);
-            SGL_CHECK(dimension == ValType::dimension, "numpy array has wrong dimension.");
-            _write_bool_vector_from_numpy<ValType>(self, nbarray);
         } else if (nb::isinstance<nb::sequence>(nbval)) {
             // A list or tuple. Attempt to cast each element of list to element of vector.
             auto seq = nb::cast<nb::sequence>(nbval);
@@ -1002,7 +947,6 @@ private:
 
 #undef scalar_case
 #undef vector_case
-#undef bool_vector_case
 #undef matrix_case
 
 namespace {
@@ -1011,6 +955,9 @@ namespace {
         requires TraversableCursor<CursorType>
     Py_ssize_t len(CursorType& cursor)
     {
+        if (!cursor.is_valid())
+            return 0;
+
         slang::TypeLayoutReflection* slang_type_layout = cursor.slang_type_layout();
         slang::TypeReflection::Kind kind = slang_type_layout->getKind();
         switch (kind) {
@@ -1018,7 +965,7 @@ namespace {
             return Py_ssize_t(slang_type_layout->getElementCount());
             break;
         case slang::TypeReflection::Kind::Matrix:
-            return Py_ssize_t(slang_type_layout->getRowCount() * slang_type_layout->getColumnCount());
+            return Py_ssize_t(slang_type_layout->getRowCount());
             break;
         case slang::TypeReflection::Kind::Vector:
             return Py_ssize_t(slang_type_layout->getColumnCount());
@@ -1141,204 +1088,6 @@ inline void bind_readable_cursor(ReadConverterTable<CursorType>& table, nanobind
             },
             D_NA(CursorType, read)
         );
-}
-
-template<typename CursorType>
-    requires WritableCursor<CursorType>
-inline void bind_writable_cursor_basic_types(nanobind::class_<CursorType>& cursor)
-{
-#define def_setter(type)                                                                                               \
-    cursor.def(                                                                                                        \
-        "__setitem__",                                                                                                 \
-        [](CursorType& self, std::string_view name, type value)                                                        \
-        {                                                                                                              \
-            self[name] = value;                                                                                        \
-        }                                                                                                              \
-    );                                                                                                                 \
-    cursor.def(                                                                                                        \
-        "__setattr__",                                                                                                 \
-        [](CursorType& self, std::string_view name, type value)                                                        \
-        {                                                                                                              \
-            self[name] = value;                                                                                        \
-        }                                                                                                              \
-    );
-
-    def_setter(bool);
-    def_setter(bool1);
-    def_setter(bool2);
-    def_setter(bool3);
-    def_setter(bool4);
-
-    def_setter(uint1);
-    def_setter(uint2);
-    def_setter(uint3);
-    def_setter(uint4);
-
-    def_setter(int1);
-    def_setter(int2);
-    def_setter(int3);
-    def_setter(int4);
-
-    def_setter(float1);
-    def_setter(float2);
-    def_setter(float3);
-    def_setter(float4);
-
-    def_setter(float2x2);
-    def_setter(float3x3);
-    def_setter(float2x4);
-    def_setter(float3x4);
-    def_setter(float4x4);
-
-    def_setter(float16_t2);
-    def_setter(float16_t3);
-    def_setter(float16_t4);
-
-#undef def_setter
-
-    auto set_int_field = [](CursorType& self, std::string_view name, nb::int_ value)
-    {
-        ref<const TypeReflection> type = self[name].type();
-        SGL_CHECK(type->kind() == TypeReflection::Kind::scalar, "Field \"{}\" is not a scalar type.", name);
-        switch (type->scalar_type()) {
-        case TypeReflection::ScalarType::int16:
-            self[name] = nb::cast<int16_t>(value);
-            break;
-        case TypeReflection::ScalarType::int32:
-            self[name] = nb::cast<int32_t>(value);
-            break;
-        case TypeReflection::ScalarType::int64:
-            self[name] = nb::cast<int64_t>(value);
-            break;
-        case TypeReflection::ScalarType::uint16:
-            self[name] = nb::cast<uint16_t>(value);
-            break;
-        case TypeReflection::ScalarType::uint32:
-            self[name] = nb::cast<uint32_t>(value);
-            break;
-        case TypeReflection::ScalarType::uint64:
-            self[name] = nb::cast<uint64_t>(value);
-            break;
-        default:
-            SGL_THROW("Field \"{}\" is not an integer type.");
-            break;
-        }
-    };
-
-    auto set_int_element = [](CursorType& self, int index, nb::int_ value)
-    {
-        ref<const TypeReflection> type = self[index].type();
-        SGL_CHECK(type->kind() == TypeReflection::Kind::scalar, "Element {} is not a scalar type.", index);
-        switch (type->scalar_type()) {
-        case TypeReflection::ScalarType::int16:
-            self[index] = nb::cast<int16_t>(value);
-            break;
-        case TypeReflection::ScalarType::int32:
-            self[index] = nb::cast<int32_t>(value);
-            break;
-        case TypeReflection::ScalarType::int64:
-            self[index] = nb::cast<int64_t>(value);
-            break;
-        case TypeReflection::ScalarType::uint16:
-            self[index] = nb::cast<uint16_t>(value);
-            break;
-        case TypeReflection::ScalarType::uint32:
-            self[index] = nb::cast<uint32_t>(value);
-            break;
-        case TypeReflection::ScalarType::uint64:
-            self[index] = nb::cast<uint64_t>(value);
-            break;
-        default:
-            SGL_THROW("Element {} is not an integer type.");
-            break;
-        }
-    };
-
-    cursor.def("__setitem__", set_int_field);
-    cursor.def("__setitem__", set_int_element);
-    cursor.def("__setattr__", set_int_field);
-
-    auto set_float_field = [](CursorType& self, std::string_view name, nb::float_ value)
-    {
-        ref<const TypeReflection> type = self[name].type();
-        SGL_CHECK(type->kind() == TypeReflection::Kind::scalar, "Field \"{}\" is not a scalar type.", name);
-        switch (type->scalar_type()) {
-        case TypeReflection::ScalarType::float16:
-            self[name] = float16_t(nb::cast<float>(value));
-            break;
-        case TypeReflection::ScalarType::float32:
-            self[name] = nb::cast<float>(value);
-            break;
-        case TypeReflection::ScalarType::float64:
-            self[name] = nb::cast<double>(value);
-            break;
-        default:
-            SGL_THROW("Field \"{}\" is not a floating point type.");
-            break;
-        }
-    };
-
-    auto set_float_element = [](CursorType& self, int index, nb::float_ value)
-    {
-        ref<const TypeReflection> type = self[index].type();
-        SGL_CHECK(type->kind() == TypeReflection::Kind::scalar, "Element {} is not a scalar type.", index);
-        switch (type->scalar_type()) {
-        case TypeReflection::ScalarType::float16:
-            self[index] = float16_t(nb::cast<float>(value));
-            break;
-        case TypeReflection::ScalarType::float32:
-            self[index] = nb::cast<float>(value);
-            break;
-        case TypeReflection::ScalarType::float64:
-            self[index] = nb::cast<double>(value);
-            break;
-        default:
-            SGL_THROW("Element {} is not a floating point type.");
-            break;
-        }
-    };
-
-    cursor.def("__setitem__", set_float_field);
-    cursor.def("__setitem__", set_float_element);
-    cursor.def("__setattr__", set_float_field);
-
-    auto set_numpy_field = [](CursorType& self, std::string_view name, nb::ndarray<nb::numpy> value)
-    {
-        ref<const TypeReflection> type = self[name].type();
-        auto src_scalar_type = dtype_to_scalar_type(value.dtype());
-        SGL_CHECK(src_scalar_type, "numpy array has unsupported dtype.");
-        SGL_CHECK(is_ndarray_contiguous(value), "numpy array is not contiguous.");
-
-        switch (type->kind()) {
-        case TypeReflection::Kind::array:
-            SGL_CHECK(value.ndim() == 1, "numpy array must have 1 dimension.");
-            self[name]._set_array(value.data(), value.nbytes(), *src_scalar_type, narrow_cast<int>(value.shape(0)));
-            break;
-        case TypeReflection::Kind::matrix:
-            SGL_CHECK(value.ndim() == 2, "numpy array must have 2 dimensions.");
-            self[name]._set_matrix(
-                value.data(),
-                value.nbytes(),
-                *src_scalar_type,
-                narrow_cast<int>(value.shape(0)),
-                narrow_cast<int>(value.shape(1))
-            );
-            break;
-        case TypeReflection::Kind::vector: {
-            SGL_CHECK(value.ndim() == 1 || value.ndim() == 2, "numpy array must have 1 or 2 dimensions.");
-            size_t dimension = 1;
-            for (size_t i = 0; i < value.ndim(); ++i)
-                dimension *= value.shape(i);
-            self[name]._set_vector(value.data(), value.nbytes(), *src_scalar_type, narrow_cast<int>(dimension));
-            break;
-        }
-        default:
-            SGL_THROW("Field \"{}\" is not a vector, matrix, or array type.", name);
-        }
-    };
-
-    cursor.def("__setitem__", set_numpy_field);
-    cursor.def("__setattr__", set_numpy_field);
 }
 
 } // namespace sgl

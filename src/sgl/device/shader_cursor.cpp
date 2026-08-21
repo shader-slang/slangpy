@@ -15,11 +15,6 @@
 #include "sgl/math/vector_types.h"
 #include "sgl/math/matrix_types.h"
 
-// TODO: Decide if we want to disable / optimize type checks
-// currently can represent 50% of the cost of writes in
-// certain situations.
-#define SGL_ENABLE_CURSOR_TYPE_CHECKS
-
 namespace sgl {
 
 ShaderCursor::ShaderCursor(ShaderObject* shader_object)
@@ -42,33 +37,6 @@ ShaderCursor::ShaderCursor(ShaderObject* shader_object, slang::TypeLayoutReflect
     SGL_ASSERT(m_offset.is_valid());
 }
 
-ShaderCursor::ShaderCursor(
-    ShaderObject* shader_object,
-    bool need_dereference,
-    slang::TypeLayoutReflection* parent_type_layout
-)
-    : m_type_layout(shader_object->slang_element_type_layout())
-    , m_shader_object(shader_object)
-    , m_offset(ShaderOffset::zero())
-{
-    SGL_ASSERT(m_type_layout);
-    SGL_ASSERT(m_shader_object);
-    SGL_ASSERT(m_offset.is_valid());
-
-    if (need_dereference) {
-        Device* device = m_shader_object->device();
-
-        if (device->type() == DeviceType::metal) {
-            slang::ISession* session = device->slang_session()->get_slang_session();
-            m_type_layout = session->getTypeLayout(
-                parent_type_layout->getElementTypeLayout()->getType(),
-                0,
-                slang::LayoutRules::MetalArgumentBufferTier2
-            );
-        }
-    }
-}
-
 ShaderCursor ShaderCursor::reinterpret(slang::TypeLayoutReflection* new_layout) const
 {
     SGL_CHECK(new_layout, "New layout cannot be null");
@@ -86,6 +54,7 @@ std::string ShaderCursor::to_string() const
 
 bool ShaderCursor::is_reference() const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     switch ((TypeReflection::Kind)m_type_layout->getKind()) {
     case TypeReflection::Kind::constant_buffer:
     case TypeReflection::Kind::parameter_block:
@@ -101,8 +70,8 @@ ShaderCursor ShaderCursor::dereference() const
     switch ((TypeReflection::Kind)m_type_layout->getKind()) {
     case TypeReflection::Kind::constant_buffer:
     case TypeReflection::Kind::parameter_block: {
-        ShaderCursor d = ShaderCursor(m_shader_object->get_object(m_offset), true, m_type_layout);
-        return d;
+        ref<ShaderObject> object = m_shader_object->get_object(m_offset);
+        return ShaderCursor(object.get());
     }
     default:
         return {};
@@ -132,7 +101,7 @@ ShaderCursor ShaderCursor::operator[](uint32_t index) const
 ShaderCursor ShaderCursor::find_field(std::string_view name) const
 {
     if (!is_valid())
-        return *this;
+        return {};
 
     // If the cursor is valid, we want to consider the type of data
     // it is referencing.
@@ -279,6 +248,8 @@ ShaderCursor ShaderCursor::get_field_by_index(int32_t field_index) const
 
     switch ((TypeReflection::Kind)m_type_layout->getKind()) {
     case TypeReflection::Kind::struct_: {
+        if (uint32_t(field_index) >= m_type_layout->getFieldCount())
+            return {};
         slang::VariableLayoutReflection* field_layout = m_type_layout->getFieldByIndex(field_index);
         if (!field_layout)
             return {};
@@ -306,7 +277,7 @@ ShaderCursor ShaderCursor::get_field_by_index(int32_t field_index) const
 ShaderCursor ShaderCursor::find_element(uint32_t index) const
 {
     if (!is_valid())
-        return *this;
+        return {};
 
 #if 0
     if (m_containerType != ShaderObjectContainerType::None) {
@@ -323,6 +294,8 @@ ShaderCursor ShaderCursor::find_element(uint32_t index) const
 
     switch ((TypeReflection::Kind)m_type_layout->getKind()) {
     case TypeReflection::Kind::array: {
+        if (index >= m_type_layout->getElementCount())
+            return {};
         ShaderCursor element_cursor;
         element_cursor.m_shader_object = m_shader_object;
         element_cursor.m_type_layout = m_type_layout->getElementTypeLayout();
@@ -337,8 +310,22 @@ ShaderCursor ShaderCursor::find_element(uint32_t index) const
         return element_cursor;
     } break;
 
-    case TypeReflection::Kind::vector:
+    case TypeReflection::Kind::vector: {
+        if (index >= m_type_layout->getColumnCount())
+            return {};
+        ShaderCursor field_cursor;
+        field_cursor.m_shader_object = m_shader_object;
+        field_cursor.m_type_layout = m_type_layout->getElementTypeLayout();
+        field_cursor.m_offset.uniform_offset = m_offset.uniform_offset
+            + narrow_cast<uint32_t>(m_type_layout->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM)) * index;
+        field_cursor.m_offset.binding_range_index = m_offset.binding_range_index;
+        field_cursor.m_offset.binding_array_index = m_offset.binding_array_index;
+        return field_cursor;
+    } break;
+
     case TypeReflection::Kind::matrix: {
+        if (index >= m_type_layout->getRowCount())
+            return {};
         ShaderCursor field_cursor;
         field_cursor.m_shader_object = m_shader_object;
         field_cursor.m_type_layout = m_type_layout->getElementTypeLayout();
@@ -359,10 +346,10 @@ ShaderCursor ShaderCursor::find_element(uint32_t index) const
 ShaderCursor ShaderCursor::find_entry_point(uint32_t index) const
 {
     if (!is_valid())
-        return *this;
+        return {};
 
-    // TODO check index
-    // uint32_t count = m_shader_object->get_entry_point_count();
+    if (index >= m_shader_object->get_entry_point_count())
+        return {};
     return ShaderCursor(m_shader_object->get_entry_point(index));
 }
 
@@ -373,21 +360,6 @@ ShaderCursor ShaderCursor::find_entry_point(uint32_t index) const
 inline bool is_parameter_block(slang::TypeReflection* type)
 {
     return (TypeReflection::Kind)type->getKind() == TypeReflection::Kind::parameter_block;
-}
-
-inline bool is_resource_type(slang::TypeReflection* type)
-{
-    switch ((TypeReflection::Kind)type->getKind()) {
-    case TypeReflection::Kind::constant_buffer:
-    case TypeReflection::Kind::resource:
-    case TypeReflection::Kind::sampler_state:
-    case TypeReflection::Kind::texture_buffer:
-    case TypeReflection::Kind::shader_storage_buffer:
-    case TypeReflection::Kind::parameter_block:
-        return true;
-    default:
-        return false;
-    }
 }
 
 inline bool is_buffer_resource_type(slang::TypeReflection* type)
@@ -461,6 +433,7 @@ inline bool is_acceleration_structure_resource_type(slang::TypeReflection* type)
 
 void ShaderCursor::set_buffer(const ref<const Buffer>& buffer) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
     if (type->getKind() == slang::TypeReflection::Kind::Pointer) {
@@ -473,6 +446,7 @@ void ShaderCursor::set_buffer(const ref<const Buffer>& buffer) const
 
 void ShaderCursor::set_buffer_view(const ref<const BufferView>& buffer_view) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
     if (type->getKind() == slang::TypeReflection::Kind::Pointer) {
@@ -485,6 +459,7 @@ void ShaderCursor::set_buffer_view(const ref<const BufferView>& buffer_view) con
 
 void ShaderCursor::set_texture(const ref<const Texture>& texture) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
     SGL_CHECK(is_texture_resource_type(type), "\"{}\" cannot bind a texture", m_type_layout->getName());
@@ -494,6 +469,7 @@ void ShaderCursor::set_texture(const ref<const Texture>& texture) const
 
 void ShaderCursor::set_texture_view(const ref<const TextureView>& texture_view) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
     SGL_CHECK(is_texture_resource_type(type), "\"{}\" cannot bind a texture view", m_type_layout->getName());
@@ -503,6 +479,7 @@ void ShaderCursor::set_texture_view(const ref<const TextureView>& texture_view) 
 
 void ShaderCursor::set_sampler(const ref<const Sampler>& sampler) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
     SGL_CHECK(is_sampler_type(type), "\"{}\" cannot bind a sampler", m_type_layout->getName());
@@ -512,6 +489,7 @@ void ShaderCursor::set_sampler(const ref<const Sampler>& sampler) const
 
 void ShaderCursor::set_acceleration_structure(const ref<const AccelerationStructure>& acceleration_structure) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     slang::TypeReflection* type = m_type_layout->getType();
 
     SGL_CHECK(
@@ -525,6 +503,7 @@ void ShaderCursor::set_acceleration_structure(const ref<const AccelerationStruct
 
 void ShaderCursor::set_descriptor_handle(const DescriptorHandle& handle) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     // TODO: check type
     // currently not possible because they are reported differently depending on the backend
     m_shader_object->set_descriptor_handle(m_offset, handle);
@@ -532,6 +511,7 @@ void ShaderCursor::set_descriptor_handle(const DescriptorHandle& handle) const
 
 void ShaderCursor::set_data(const void* data, size_t size) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     if ((TypeReflection::ParameterCategory)m_type_layout->getParameterCategory()
         != TypeReflection::ParameterCategory::uniform)
         SGL_THROW("\"{}\" cannot bind data", m_type_layout->getName());
@@ -540,6 +520,7 @@ void ShaderCursor::set_data(const void* data, size_t size) const
 
 void* ShaderCursor::reserve_data(size_t size) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     if ((TypeReflection::ParameterCategory)m_type_layout->getParameterCategory()
         != TypeReflection::ParameterCategory::uniform)
         SGL_THROW("\"{}\" cannot reserve data", m_type_layout->getName());
@@ -549,6 +530,7 @@ void* ShaderCursor::reserve_data(size_t size) const
 
 void ShaderCursor::set_object(const ref<const ShaderObject>& object) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     slang::TypeReflection* type = m_type_layout->getType();
 
     SGL_CHECK(is_parameter_block(type), "\"{}\" cannot bind an object", m_type_layout->getName());
@@ -558,6 +540,7 @@ void ShaderCursor::set_object(const ref<const ShaderObject>& object) const
 
 void ShaderCursor::set_cuda_tensor_view(const cuda::TensorView& tensor_view) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     slang::TypeReflection* type = cursor_utils::unwrap_array(m_type_layout)->getType();
 
     SGL_CHECK(
@@ -579,41 +562,23 @@ void ShaderCursor::set_cuda_tensor_view(const cuda::TensorView& tensor_view) con
 
 void ShaderCursor::set_pointer(uint64_t pointer_value) const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     size_t pointer_size = m_type_layout->getSize();
     SGL_CHECK(pointer_size == 8, "Expected a pointer type with size 8, got {}", pointer_size);
     set_data(&pointer_value, 8);
 }
 
-void ShaderCursor::_set_array_unsafe(
-    const void* data,
-    size_t size,
-    size_t element_count,
-    TypeReflection::ScalarType cpu_scalar_type
-) const
-{
-    slang::TypeReflection* element_type = cursor_utils::unwrap_array(m_type_layout)->getType();
-    size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);
-
-    size_t element_stride = m_type_layout->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
-    if (element_stride == cpu_element_size) {
-        m_shader_object->set_data(m_offset, data, size);
-    } else {
-        ShaderOffset offset = m_offset;
-        for (size_t i = 0; i < element_count; ++i) {
-            m_shader_object
-                ->set_data(offset, reinterpret_cast<const uint8_t*>(data) + i * cpu_element_size, cpu_element_size);
-            offset.uniform_offset += narrow_cast<uint32_t>(element_stride);
-        }
-    }
-}
-
 void ShaderCursor::_set_data(ShaderOffset offset, const void* data, size_t size) const
 {
+    // CursorWriteWrappers validates the cursor before accessing reflection data.
+    // Treat validity as an internal invariant here to avoid checking it twice in release builds.
+    SGL_ASSERT(is_valid());
     m_shader_object->set_data(offset, data, size);
 }
 
 DeviceType ShaderCursor::_get_device_type() const
 {
+    SGL_CHECK(is_valid(), "Invalid cursor");
     return m_shader_object->device()->type();
 }
 
@@ -658,9 +623,7 @@ template void CursorWriteWrappers<ShaderCursor, ShaderOffset>::_set_vector(
     }
 
 SET_SCALAR(bool, bool_);
-// bool1 case specifically cannot be handled due to:
-// https://github.com/shader-slang/slang/issues/7441
-// SET_VECTOR(bool1, bool_);
+SET_VECTOR(bool1, bool_);
 SET_VECTOR(bool2, bool_);
 SET_VECTOR(bool3, bool_);
 SET_VECTOR(bool4, bool_);
@@ -721,12 +684,5 @@ SET_SCALAR(double, float64);
 #undef SET_SCALAR
 #undef SET_VECTOR
 #undef SET_MATRIX
-
-template<>
-SGL_API void ShaderCursor::set(const bool1& v) const
-{
-    SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
-}
 
 } // namespace sgl

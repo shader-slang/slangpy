@@ -108,6 +108,14 @@ void ShaderObject::set_buffer(const ShaderOffset& offset, const ref<const Buffer
 
 void ShaderObject::set_buffer_view(const ShaderOffset& offset, const ref<const BufferView>& buffer_view)
 {
+    if (!buffer_view) {
+        SLANG_RHI_CALL(
+            m_shader_object->setBinding(rhi_shader_offset(offset), rhi::Binding(static_cast<rhi::IBuffer*>(nullptr))),
+            m_device
+        );
+        return;
+    }
+
     SLANG_RHI_CALL(
         m_shader_object->setBinding(
             rhi_shader_offset(offset),
