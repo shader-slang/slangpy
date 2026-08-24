@@ -174,3 +174,100 @@ jobs:
           name: sanitizer-reports-${{ matrix.os }}-${{ matrix.platform }}
           path: build/${{ matrix.preset }}/${{ matrix.config }}/sanitizer-logs/
           if-no-files-found: ignore
+
+  tsan:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux, platform: x86_64, compiler: clang, preset: linux-clang, config: RelWithDebInfo, runs-on: { labels: [Linux, X64, nvrgfx-kernelvm-bridge] }, llvm_version: 22.1.8, skip_device_tests: true, tsan_options: "halt_on_error=0:exitcode=66:second_deadlock_stack=1" }
+          - { os: macos, platform: aarch64, compiler: clang, preset: macos-arm64-clang, config: RelWithDebInfo, runs-on: macos-latest, skip_device_tests: false, tsan_options: "halt_on_error=0:exitcode=66:second_deadlock_stack=1" }
+
+    runs-on: ${{ matrix.runs-on }}
+
+    env:
+      CI_OS: ${{ matrix.os }}
+      CI_PLATFORM: ${{ matrix.platform }}
+      CI_COMPILER: ${{ matrix.compiler }}
+      CI_CONFIG: ${{ matrix.config }}
+      CI_PYTHON: "3.10"
+      CI_CMAKE_ARGS: "-DSGL_ENABLE_TSAN=ON -DSGL_BUILD_PYTHON=OFF -DSGL_BUILD_EXAMPLES=OFF"
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Cleanup submodules
+        run: |
+          git submodule foreach --recursive git clean -ffdx
+          git submodule foreach --recursive git reset --hard
+
+      - name: Setup CMake/Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Setup Python environment
+        run: python -m pip install -r requirements-dev.txt
+
+      # LLVM 18 can expose a partially initialized thread to TSan interceptors
+      # before attaching its trace slot (llvm/llvm-project#86342). Download a
+      # current compiler and matching runtime without requiring root access.
+      - name: Setup LLVM 22 for Linux TSan
+        if: matrix.os == 'linux'
+        env:
+          LLVM_VERSION: ${{ matrix.llvm_version }}
+        run: |
+          llvm_archive="$RUNNER_TEMP/LLVM-$LLVM_VERSION-Linux-X64.tar.xz"
+          llvm_dir="$RUNNER_TEMP/llvm-$LLVM_VERSION"
+          curl --proto '=https' --tlsv1.2 --fail --location --retry 3 \
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_VERSION/LLVM-$LLVM_VERSION-Linux-X64.tar.xz" \
+            --output "$llvm_archive"
+          mkdir -p "$llvm_dir"
+          tar --extract --xz --file "$llvm_archive" --strip-components=1 --directory "$llvm_dir"
+
+          clang_path="$llvm_dir/bin/clang"
+          clangxx_path="$llvm_dir/bin/clang++"
+          symbolizer_path="$llvm_dir/bin/llvm-symbolizer"
+          "$clang_path" --version
+          "$clangxx_path" --version
+          "$symbolizer_path" --version
+
+          printf 'int main() { return 0; }\n' | \
+            "$clangxx_path" -x c++ -fsanitize=thread -o "$RUNNER_TEMP/tsan-smoke-test" -
+
+          echo "$llvm_dir/bin" >> "$GITHUB_PATH"
+          echo "LLVM_PATH=$llvm_dir" >> "$GITHUB_ENV"
+          echo "CC=$clang_path" >> "$GITHUB_ENV"
+          echo "CXX=$clangxx_path" >> "$GITHUB_ENV"
+
+      - name: Setup repository
+        run: python tools/ci.py setup
+
+      - name: Configure
+        run: python tools/ci.py configure
+
+      - name: Build
+        run: python tools/ci.py build
+
+      - name: Unit Tests (C++, ThreadSanitizer)
+        env:
+          # Keep TSan local to the instrumented executable. Exporting its runtime
+          # through GITHUB_ENV also instruments Node-based post-job actions.
+          LD_PRELOAD: ""
+          DYLD_INSERT_LIBRARIES: ""
+          TSAN_OPTIONS: ${{ matrix.tsan_options }}
+        run: |
+          if [ "${{ matrix.os }}" = "linux" ]; then
+            export TSAN_OPTIONS="$TSAN_OPTIONS:external_symbolizer_path=$LLVM_PATH/bin/llvm-symbolizer"
+          fi
+          if [ "${{ matrix.skip_device_tests }}" = "true" ]; then
+            python tools/ci.py unit-test-cpp --skip-device-tests
+          else
+            python tools/ci.py unit-test-cpp
+          fi
