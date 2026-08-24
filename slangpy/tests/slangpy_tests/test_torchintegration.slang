@@ -172,3 +172,9 @@ float scaled_sum(float scale, float[3] values) {
     }
     return result;
 }
+
+// Scalar return with a whole-tensor input: call dimensionality is 0, so torch
+// integration builds a zero-rank result tensor for it.
+float read_element(ITensor<float, 1> tex, float i) {
+    return tex[int(i)];
+}
