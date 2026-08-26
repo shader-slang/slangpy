@@ -225,6 +225,44 @@ TEST_CASE("capture collects concurrent producers without drops")
     CHECK(trace->timelines().size() == 4);
 }
 
+TEST_CASE("concurrent flush requests publish every preceding producer event")
+{
+    constexpr uint32_t thread_count = 4;
+    constexpr uint32_t zones_per_thread = 64;
+    ProfilerDesc desc;
+    desc.thread_event_capacity = 256;
+    desc.live_event_capacity = thread_count * zones_per_thread;
+    ref<Profiler> profiler = make_ref<Profiler>(desc);
+    const uint32_t site = Profiler::register_site(__FILE__, __LINE__, __func__, "before flush");
+    profiler->start_capture();
+
+    std::atomic<uint32_t> ready{0};
+    std::atomic<bool> flush_together{false};
+    std::vector<std::thread> workers;
+    for (uint32_t thread_index = 0; thread_index < thread_count; ++thread_index) {
+        workers.emplace_back(
+            [&]
+            {
+                for (uint32_t i = 0; i < zones_per_thread; ++i)
+                    profiler->end_zone(profiler->begin_zone(site));
+                ready.fetch_add(1, std::memory_order_release);
+                while (!flush_together.load(std::memory_order_acquire))
+                    std::this_thread::yield();
+                profiler->flush();
+            }
+        );
+    }
+    while (ready.load(std::memory_order_acquire) != thread_count)
+        std::this_thread::yield();
+    flush_together.store(true, std::memory_order_release);
+    for (std::thread& worker : workers)
+        worker.join();
+
+    ref<ProfilerTrace> trace = profiler->stop_capture();
+    CHECK(trace->zone_count() == thread_count * zones_per_thread);
+    CHECK(trace->diagnostics().producer_drop_count == 0);
+}
+
 TEST_CASE("frame statistics align repeated and intermittent zones")
 {
     ProfilerDesc desc;
@@ -328,8 +366,7 @@ TEST_CASE("frame statistics hierarchy ordering is deterministic preorder")
     CHECK(ordered.entries()[3].parent_index == 1);
 }
 
-// TODO: Re-enable when https://github.com/shader-slang/slangpy/pull/1073 is merged.
-TEST_CASE("global frames include zones from other threads and exclude unframed zones" * doctest::skip())
+TEST_CASE("global frames include zones from other threads and exclude unframed zones")
 {
     ref<Profiler> profiler = make_ref<Profiler>();
     const uint32_t frame_a = Profiler::register_site(__FILE__, __LINE__, __func__, "frame a");
@@ -358,6 +395,12 @@ TEST_CASE("global frames include zones from other threads and exclude unframed z
     CHECK(worker_frame_rejected.load(std::memory_order_relaxed));
     profiler->end_frame(frame);
     CHECK(!profiler->begin_frame(frame_b).profiler);
+
+    // The worker's zone and the frame seal are not published yet. A flush is a collector-input
+    // barrier, not a wait for active zones or frames that have not sealed.
+    profiler->flush();
+    CHECK(profiler->frame_stats_snapshot()->sample_count() == 0);
+
     finish_worker.store(true, std::memory_order_release);
     worker.join();
 
@@ -594,8 +637,7 @@ TEST_CASE_GPU("discarded GPU work and pending bounds complete frame statistics")
     CHECK(profiler->frame_stats_snapshot()->sample_count() == 0);
 }
 
-// TODO: Re-enable when https://github.com/shader-slang/slangpy/pull/1073 is merged.
-TEST_CASE_GPU("device close settles pending frame statistics" * doctest::skip())
+TEST_CASE_GPU("device close settles pending frame statistics")
 {
     DeviceDesc device_desc = ctx.device->desc();
     device_desc.label = "profiler-device-close";
