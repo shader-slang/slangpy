@@ -473,7 +473,9 @@ public:
     /// The poll does not deliberately wait for profiled submissions or unresolved queries. On CUDA, refreshing
     /// timestamp calibration synchronizes queued GPU work.
     void tick();
-    /// Block until the collector consumes events published before this call and publishes both snapshot products.
+    /// Block until a collector pass started for this request consumes inputs whose publication happens-before the
+    /// request and publishes both snapshot products. Concurrent publications may be included or deferred. Active
+    /// zones, unsealed frames, and unresolved GPU queries are not published inputs and are not awaited.
     void flush();
 
     /// The noexcept instrumentation entry points below intentionally call std::terminate if an internal allocation or
