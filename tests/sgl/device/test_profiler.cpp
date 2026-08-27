@@ -234,6 +234,9 @@ TEST_CASE("concurrent flush requests publish every preceding producer event")
     desc.live_event_capacity = thread_count * zones_per_thread;
     ref<Profiler> profiler = make_ref<Profiler>(desc);
     const uint32_t site = Profiler::register_site(__FILE__, __LINE__, __func__, "before flush");
+    // Prime snapshot interest before the producer flushes. The later snapshot read must not request
+    // another collector pass that could hide an early flush acknowledgement.
+    (void)profiler->live_snapshot();
     profiler->start_capture();
 
     std::atomic<uint32_t> ready{0};
@@ -257,6 +260,9 @@ TEST_CASE("concurrent flush requests publish every preceding producer event")
     flush_together.store(true, std::memory_order_release);
     for (std::thread& worker : workers)
         worker.join();
+
+    ref<ProfilerTrace> published = profiler->live_snapshot();
+    CHECK(published->zone_count() == thread_count * zones_per_thread);
 
     ref<ProfilerTrace> trace = profiler->stop_capture();
     CHECK(trace->zone_count() == thread_count * zones_per_thread);
