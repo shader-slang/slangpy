@@ -7,6 +7,69 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Version 0.44.0 (August 28, 2026)
+-------
+- Add a GPU/CPU profiler with Python bindings and UI integration, and improve
+  profiler thread safety and event ordering.
+  (PR `#1063 <https://github.com/shader-slang/slangpy/pull/1063>`__,
+  PR `#1124 <https://github.com/shader-slang/slangpy/pull/1124>`__)
+- Add BC texture compression and decompression, DDS support, and fixes for DDS
+  mipmap pitch and 3D texture depth handling.
+  (PR `#1050 <https://github.com/shader-slang/slangpy/pull/1050>`__,
+  PR `#1049 <https://github.com/shader-slang/slangpy/pull/1049>`__)
+- Add pipeline compilation policies and expose parallel pipeline compilation,
+  native buffer handle import, and updated slang-rhi functionality.
+  (PR `#1100 <https://github.com/shader-slang/slangpy/pull/1100>`__,
+  PR `#1097 <https://github.com/shader-slang/slangpy/pull/1097>`__,
+  PR `#1090 <https://github.com/shader-slang/slangpy/pull/1090>`__,
+  PR `#1103 <https://github.com/shader-slang/slangpy/pull/1103>`__,
+  PR `#1104 <https://github.com/shader-slang/slangpy/pull/1104>`__)
+- Improve SlangPy Torch tensor dimensionality, scalar returns, autograd coverage,
+  and tensor marshalling regression coverage.
+  (PR `#1082 <https://github.com/shader-slang/slangpy/pull/1082>`__,
+  PR `#1117 <https://github.com/shader-slang/slangpy/pull/1117>`__,
+  PR `#1078 <https://github.com/shader-slang/slangpy/pull/1078>`__)
+- Add enum value printing and improve device-side printing support.
+  (PR `#1109 <https://github.com/shader-slang/slangpy/pull/1109>`__)
+- Improve persistent and compilation-report cache robustness and cache keys.
+  (PR `#1094 <https://github.com/shader-slang/slangpy/pull/1094>`__,
+  PR `#1126 <https://github.com/shader-slang/slangpy/pull/1126>`__)
+- Improve task and thread management, make nanothread a private dependency, and
+  fix thread-safety, logger deadlock, and layout lifetime issues.
+  (PR `#1098 <https://github.com/shader-slang/slangpy/pull/1098>`__,
+  PR `#1099 <https://github.com/shader-slang/slangpy/pull/1099>`__,
+  PR `#1101 <https://github.com/shader-slang/slangpy/pull/1101>`__,
+  PR `#1113 <https://github.com/shader-slang/slangpy/pull/1113>`__,
+  PR `#1115 <https://github.com/shader-slang/slangpy/pull/1115>`__)
+- Add sanitizer workflows and fix sanitizer-detected undefined behavior, memory,
+  and offset issues.
+  (PR `#1106 <https://github.com/shader-slang/slangpy/pull/1106>`__,
+  PR `#1107 <https://github.com/shader-slang/slangpy/pull/1107>`__,
+  PR `#1108 <https://github.com/shader-slang/slangpy/pull/1108>`__,
+  PR `#1119 <https://github.com/shader-slang/slangpy/pull/1119>`__)
+- Add manylinux 2.28 wheel support, fix macOS Python 3.11+ wheel linking, and
+  make Crashpad optional for embedded and wheel builds.
+  (PR `#925 <https://github.com/shader-slang/slangpy/pull/925>`__,
+  PR `#1068 <https://github.com/shader-slang/slangpy/pull/1068>`__,
+  PR `#1096 <https://github.com/shader-slang/slangpy/pull/1096>`__,
+  PR `#1111 <https://github.com/shader-slang/slangpy/pull/1111>`__)
+- Forward CUDA downstream compiler arguments.
+  (PR `#1095 <https://github.com/shader-slang/slangpy/pull/1095>`__)
+- Update Slang to version 2026.16.1.
+
+Version 0.43.1 (July 15, 2026)
+-------
+- Add ``cp314`` to the slangpy wheel build matrix so Python 3.14 users install the
+  current release instead of falling back to v0.23.0, and bump ``cibuildwheel`` to
+  3.4.1 (>=3.1.0 is required to build cp314 with the final 3.14 ABI).
+  (PR `#1002 <https://github.com/shader-slang/slangpy/pull/1002>`__)
+- Extend ``slangpy-torch`` Linux and Windows wheel matrices with Python 3.14, excluding
+  PyTorch 2.7.0 and 2.8.0 which do not ship cp314 wheels on the CUDA 12.8 index.
+  (PR `#1002 <https://github.com/shader-slang/slangpy/pull/1002>`__)
+- Add Python version trove classifiers for 3.9 through 3.14 in ``pyproject.toml``,
+  matching the wheel build matrix.
+  (PR `#1002 <https://github.com/shader-slang/slangpy/pull/1002>`__)
+
 Version 0.43.0 (July 13, 2026)
 -------
 - Native reflection, binding, and tensor overhaul: moved reflection type

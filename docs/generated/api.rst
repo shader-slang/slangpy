@@ -694,7 +694,7 @@ Constants
 
 .. py:data:: slangpy.SGL_VERSION_MINOR
     :type: int
-    :value: 43
+    :value: 44
 
 
 
@@ -710,7 +710,7 @@ Constants
 
 .. py:data:: slangpy.SGL_VERSION
     :type: str
-    :value: "0.43.0"
+    :value: "0.44.0"
 
 
 
