@@ -56,7 +56,7 @@ SGL_PY_EXPORT(device_shader_cursor)
     nb::class_<ShaderCursor> shader_cursor(m, "ShaderCursor", D(ShaderCursor));
 
     shader_cursor //
-        .def(nb::init<ShaderObject*>(), "shader_object"_a, D(ShaderCursor, ShaderCursor))
+        .def(nb::init<ShaderObject*>(), "shader_object"_a, nb::keep_alive<1, 2>(), D(ShaderCursor, ShaderCursor))
         .def_prop_ro("_offset", &ShaderCursor::offset, D(ShaderCursor, offset))
         .def(
             "reinterpret",

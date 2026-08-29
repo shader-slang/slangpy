@@ -242,13 +242,8 @@ TESTS = [
 ]
 
 
-# Filter out all bool tests for CUDA/Metal backend, as it is not handled correct. See issue:
-# https://github.com/shader-slang/slangpy/issues/274
 def get_tests(device_type: spy.DeviceType):
-    if device_type not in [spy.DeviceType.cuda, spy.DeviceType.metal]:
-        return TESTS
-    tests = [x for x in TESTS if "bool1" not in x[0]]
-    return tests
+    return TESTS
 
 
 def variable_decls(tests: list[Any]):

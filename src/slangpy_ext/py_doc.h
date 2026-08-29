@@ -7928,7 +7928,6 @@ cursor-writer values.)doc";
 
 static const char *__doc_sgl_ShaderCursor_set_acceleration_structure = R"doc()doc";
 
-static const char *__doc_sgl_ShaderCursor_set_array_unsafe = R"doc()doc";
 
 static const char *__doc_sgl_ShaderCursor_set_buffer = R"doc()doc";
 
