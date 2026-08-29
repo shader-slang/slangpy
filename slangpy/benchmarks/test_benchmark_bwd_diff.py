@@ -44,7 +44,7 @@ TENSOR_SIZES = [65536, 1048576, 4194304]
 CORRECTNESS_N = 64
 
 BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
-EXTENSIONS_DIR = os.path.join(os.path.dirname(BENCH_DIR), "..").replace("\\", "/")
+EXTENSIONS_DIR = os.path.join(BENCH_DIR, "ppisp").replace("\\", "/")
 
 W_VAL = 2.0
 
