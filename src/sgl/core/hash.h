@@ -32,6 +32,19 @@ size_t hash(const std::pair<T1, T2>& t)
     return hash_combine(hash(t.first), hash(t.second));
 }
 
+/// Appends one or more values to an existing hash.
+/// @param seed Existing hash value.
+/// @param t1 First value to append.
+/// @param rest Additional values to append.
+/// @return Hash containing the seed followed by the supplied values.
+template<typename T1, typename... Rest>
+size_t hash_append(size_t seed, const T1& t1, const Rest&... rest)
+{
+    size_t result = hash_combine(seed, hash(t1));
+    ((result = hash_combine(result, hash(rest))), ...);
+    return result;
+}
+
 template<typename T>
 struct hasher {
     size_t operator()(const T& t) const { return hash(t); }
