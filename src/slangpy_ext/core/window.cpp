@@ -11,6 +11,7 @@ struct GcHelper<Window> {
     void traverse(Window*, GcVisitor& visitor)
     {
         visitor("on_resize");
+        visitor("on_refresh");
         visitor("on_keyboard_event");
         visitor("on_mouse_event");
         visitor("on_gamepad_event");
@@ -65,6 +66,13 @@ SGL_PY_EXPORT(core_window)
     window.def_prop_rw("cursor_shape", &Window::cursor_shape, &Window::set_cursor_shape, D(Window, cursor_shape));
 
     window.def_prop_rw("on_resize", &Window::on_resize, &Window::set_on_resize, nb::arg().none(), D(Window, on_resize));
+    window.def_prop_rw(
+        "on_refresh",
+        &Window::on_refresh,
+        &Window::set_on_refresh,
+        nb::arg().none(),
+        D(Window, on_refresh)
+    );
     window.def_prop_rw(
         "on_keyboard_event",
         &Window::on_keyboard_event,
