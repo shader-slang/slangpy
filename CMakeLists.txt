@@ -51,6 +51,7 @@ option(SGL_BUILD_EXAMPLES "Build example applications" ON)
 option(SGL_BUILD_TESTS "Build tests" ON)
 option(SGL_BUILD_DOC "Build documentation" OFF)
 option(SGL_GENERATE_SETPATH_SCRIPTS "Generate setpath scripts" ON)
+option(SLANGPY_BUILD_RELEASE_WHEEL "Install third-party notices for a release wheel" OFF)
 
 # Enable building sgl without external dependencies.
 # This is useful when using sgl through cmake add_subdirectory.
@@ -398,6 +399,49 @@ cmrc_add_resource_library(sgl_data
 # -----------------------------------------------------------------------------
 
 add_subdirectory(external)
+
+if(SLANGPY_BUILD_RELEASE_WHEEL)
+    function(slangpy_install_notice src filename)
+        if(NOT EXISTS "${src}")
+            message(FATAL_ERROR "Required SlangPy wheel notice is missing: ${src}")
+        endif()
+        install(
+            FILES "${src}"
+            DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/licenses/third-party
+            RENAME "${filename}"
+        )
+    endfunction()
+
+    function(slangpy_install_fetched_notice package relative_path filename)
+        FetchContent_GetProperties(${package})
+        if(NOT ${package}_POPULATED)
+            message(FATAL_ERROR "Required SlangPy wheel dependency is unavailable: ${package}")
+        endif()
+        slangpy_install_notice("${${package}_SOURCE_DIR}/${relative_path}" "${filename}")
+    endfunction()
+
+    slangpy_install_fetched_notice(slang "LICENSE" "Slang-LICENSE")
+    slangpy_install_fetched_notice(slang "LICENSES/LicenseRef-UOI-NCSA.txt" "Slang-LicenseRef-UOI-NCSA.txt")
+    slangpy_install_fetched_notice(dxc "inc/hlsl/LICENSE.txt" "DXC-LICENSE.txt")
+    slangpy_install_fetched_notice(dxc "LICENSE-LLVM.txt" "DXC-LICENSE-LLVM.txt")
+    slangpy_install_fetched_notice(dxc "LICENSE-MIT.txt" "DXC-LICENSE-MIT.txt")
+    slangpy_install_fetched_notice(dxc "LICENSE-MS.txt" "DXC-LICENSE-MS.txt")
+    slangpy_install_fetched_notice(winpix "license.txt" "WinPix-LICENSE.txt")
+    slangpy_install_fetched_notice(winpix "ThirdPartyNotices.txt" "WinPix-ThirdPartyNotices.txt")
+    slangpy_install_fetched_notice(agility_sdk "LICENSE.txt" "AgilitySDK-LICENSE.txt")
+    slangpy_install_fetched_notice(agility_sdk "LICENSE-CODE.txt" "AgilitySDK-LICENSE-CODE.txt")
+    slangpy_install_fetched_notice(nvapi "License.txt" "NVAPI-LICENSE.txt")
+    slangpy_install_fetched_notice(vulkan_headers "LICENSE.md" "Vulkan-Headers-LICENSE.md")
+    foreach(optix_version IN ITEMS 8_0 8_1 9_0)
+        set(optix_package "optix_${optix_version}")
+        slangpy_install_fetched_notice(${optix_package} "LICENSE.txt" "OptiX-${optix_version}-LICENSE.txt")
+        slangpy_install_fetched_notice(
+            ${optix_package}
+            "license_info.txt"
+            "OptiX-${optix_version}-license_info.txt"
+        )
+    endforeach()
+endif()
 
 message(STATUS "Feature flags:")
 message(STATUS "SGL_HAS_D3D12: ${SGL_HAS_D3D12}")

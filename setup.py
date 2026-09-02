@@ -107,6 +107,7 @@ class CMakeBuild(build_ext):
 
         if BUILD_RELEASE_WHEEL:
             cmake_args += [
+                "-DSLANGPY_BUILD_RELEASE_WHEEL=ON",
                 "-DSGL_PROJECT_DIR=",
                 "-DSGL_SLANG_DEBUG_INFO=OFF",
             ]
