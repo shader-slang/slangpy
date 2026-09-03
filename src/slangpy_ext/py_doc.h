@@ -9931,6 +9931,8 @@ static const char *__doc_sgl_Window_m_on_mouse_event = R"doc()doc";
 
 static const char *__doc_sgl_Window_m_on_resize = R"doc()doc";
 
+static const char *__doc_sgl_Window_m_on_refresh = R"doc()doc";
+
 static const char *__doc_sgl_Window_m_should_close = R"doc()doc";
 
 static const char *__doc_sgl_Window_m_title = R"doc()doc";
@@ -9950,6 +9952,8 @@ static const char *__doc_sgl_Window_on_keyboard_event = R"doc(Event handler to b
 static const char *__doc_sgl_Window_on_mouse_event = R"doc(Event handler to be called when a mouse event occurs.)doc";
 
 static const char *__doc_sgl_Window_on_resize = R"doc(Event handler to be called when the window is resized.)doc";
+
+static const char *__doc_sgl_Window_on_refresh = R"doc(Event handler to be called when the window contents need to be refreshed.)doc";
 
 static const char *__doc_sgl_Window_poll_gamepad_input = R"doc()doc";
 
