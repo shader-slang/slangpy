@@ -231,6 +231,13 @@ struct EventHandlers {
         window->handle_window_size(width, height);
     }
 
+    static void handle_window_refresh(GLFWwindow* glfw_window)
+    {
+        Window* window = static_cast<Window*>(glfwGetWindowUserPointer(glfw_window));
+
+        window->handle_window_refresh();
+    }
+
     static void handle_key(GLFWwindow* glfw_window, int key, int scancode, int action, int mods)
     {
         SGL_UNUSED(scancode);
@@ -383,6 +390,7 @@ Window::Window(WindowDesc desc)
     glfwSetWindowUserPointer(m_window, this);
     glfwSetErrorCallback(&EventHandlers::handle_error);
     glfwSetWindowSizeCallback(m_window, &EventHandlers::handle_window_size);
+    glfwSetWindowRefreshCallback(m_window, &EventHandlers::handle_window_refresh);
     glfwSetKeyCallback(m_window, &EventHandlers::handle_key);
     glfwSetCharCallback(m_window, &EventHandlers::handle_char);
     glfwSetMouseButtonCallback(m_window, &EventHandlers::handle_mouse_button);
@@ -653,6 +661,12 @@ void Window::handle_window_size(uint32_t width, uint32_t height)
     m_height = height;
     if (m_on_resize)
         m_on_resize(m_width, m_height);
+}
+
+void Window::handle_window_refresh()
+{
+    if (m_on_refresh)
+        m_on_refresh();
 }
 
 void Window::handle_keyboard_event(const KeyboardEvent& event)
