@@ -149,12 +149,12 @@ VERSION_REGEX = re.compile(r"^\s*#\s*define\s+SGL_VERSION_([A-Z]+)\s+(.*)$", re.
 
 with open("src/sgl/sgl.h") as f:
     matches = dict(VERSION_REGEX.findall(f.read()))
-    version_override = os.environ.get("SLANGPY_VERSION_OVERRIDE", "")
-    if version_override:
-        version = version_override
-    else:
-        version = "{MAJOR}.{MINOR}.{PATCH}".format(**matches)
+    version = "{MAJOR}.{MINOR}.{PATCH}".format(**matches)
+    version += os.environ.get("SLANGPY_VERSION_SUFFIX", "")
     print(f"version={version}")
+
+if BUILD_RELEASE_WHEEL and not os.environ.get("SLANGPY_VERSION_SUFFIX"):
+    raise RuntimeError("Release-wheel builds require SLANGPY_VERSION_SUFFIX")
 
 with open("README.md", "r") as f:
     long_description = f.read()
