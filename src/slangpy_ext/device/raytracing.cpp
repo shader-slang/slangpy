@@ -23,6 +23,44 @@ SGL_DICT_TO_DESC_FIELD(instance_stride, uint32_t)
 SGL_DICT_TO_DESC_FIELD(instance_count, uint32_t)
 SGL_DICT_TO_DESC_END()
 
+SGL_DICT_TO_DESC_BEGIN(MicromapTriangleDesc)
+SGL_DICT_TO_DESC_FIELD(data_offset, uint32_t)
+SGL_DICT_TO_DESC_FIELD(subdivision_level, uint16_t)
+SGL_DICT_TO_DESC_FIELD(format, OpacityMicromapFormat)
+SGL_DICT_TO_DESC_END()
+
+SGL_DICT_TO_DESC_BEGIN(MicromapUsageCount)
+SGL_DICT_TO_DESC_FIELD(count, uint32_t)
+SGL_DICT_TO_DESC_FIELD(subdivision_level, uint32_t)
+SGL_DICT_TO_DESC_FIELD(format, OpacityMicromapFormat)
+SGL_DICT_TO_DESC_END()
+
+SGL_DICT_TO_DESC_BEGIN(MicromapBuildDesc)
+SGL_DICT_TO_DESC_FIELD(type, MicromapType)
+SGL_DICT_TO_DESC_FIELD(flags, MicromapBuildFlags)
+SGL_DICT_TO_DESC_FIELD(data_buffer, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(descriptor_buffer, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(descriptor_stride, uint32_t)
+SGL_DICT_TO_DESC_FIELD_LIST(histogram, MicromapUsageCount)
+SGL_DICT_TO_DESC_END()
+
+SGL_DICT_TO_DESC_BEGIN(MicromapDesc)
+SGL_DICT_TO_DESC_FIELD(type, MicromapType)
+SGL_DICT_TO_DESC_FIELD(size, DeviceSize)
+SGL_DICT_TO_DESC_FIELD(flags, MicromapBuildFlags)
+SGL_DICT_TO_DESC_FIELD(label, std::string)
+SGL_DICT_TO_DESC_END()
+
+SGL_DICT_TO_DESC_BEGIN(AccelerationStructureOpacityMicromapDesc)
+SGL_DICT_TO_DESC_FIELD(micromap, ref<Micromap>)
+SGL_DICT_TO_DESC_FIELD(indexing_mode, MicromapIndexingMode)
+SGL_DICT_TO_DESC_FIELD(index_buffer, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(index_format, MicromapIndexFormat)
+SGL_DICT_TO_DESC_FIELD(index_stride, uint32_t)
+SGL_DICT_TO_DESC_FIELD(base_micromap_index, uint32_t)
+SGL_DICT_TO_DESC_FIELD_LIST(usage_counts, MicromapUsageCount)
+SGL_DICT_TO_DESC_END()
+
 SGL_DICT_TO_DESC_BEGIN(AccelerationStructureBuildInputTriangles)
 SGL_DICT_TO_DESC_FIELD_LIST(vertex_buffers, BufferOffsetPair)
 SGL_DICT_TO_DESC_FIELD(vertex_format, Format)
@@ -33,6 +71,7 @@ SGL_DICT_TO_DESC_FIELD(index_format, IndexFormat)
 SGL_DICT_TO_DESC_FIELD(index_count, uint32_t)
 SGL_DICT_TO_DESC_FIELD(pre_transform_buffer, BufferOffsetPair)
 SGL_DICT_TO_DESC_FIELD(flags, AccelerationStructureGeometryFlags)
+SGL_DICT_TO_DESC_FIELD(opacity_micromap, std::optional<AccelerationStructureOpacityMicromapDesc>)
 SGL_DICT_TO_DESC_END()
 
 SGL_DICT_TO_DESC_BEGIN(AccelerationStructureBuildInputProceduralPrimitives)
@@ -117,6 +156,144 @@ SGL_PY_EXPORT(device_raytracing)
 
     nb::sgl_enum_flags<AccelerationStructureGeometryFlags>(m, "AccelerationStructureGeometryFlags");
     nb::sgl_enum_flags<AccelerationStructureInstanceFlags>(m, "AccelerationStructureInstanceFlags");
+
+    nb::sgl_enum<MicromapType>(m, "MicromapType");
+    nb::sgl_enum<OpacityMicromapFormat>(m, "OpacityMicromapFormat");
+    nb::sgl_enum<OpacityMicromapSpecialIndex>(m, "OpacityMicromapSpecialIndex");
+    nb::sgl_enum<MicromapIndexingMode>(m, "MicromapIndexingMode");
+    nb::sgl_enum<MicromapIndexFormat>(m, "MicromapIndexFormat");
+    nb::sgl_enum_flags<MicromapBuildFlags>(m, "MicromapBuildFlags");
+
+    nb::class_<MicromapTriangleDesc>(m, "MicromapTriangleDesc", D(MicromapTriangleDesc))
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](MicromapTriangleDesc* self, nb::dict dict)
+            {
+                new (self) MicromapTriangleDesc(dict_to_MicromapTriangleDesc(dict));
+            }
+        )
+        .def_rw("data_offset", &MicromapTriangleDesc::data_offset, D(MicromapTriangleDesc, data_offset))
+        .def_rw(
+            "subdivision_level",
+            &MicromapTriangleDesc::subdivision_level,
+            D(MicromapTriangleDesc, subdivision_level)
+        )
+        .def_rw("format", &MicromapTriangleDesc::format, D(MicromapTriangleDesc, format))
+        .def(
+            "to_numpy",
+            [](MicromapTriangleDesc& self)
+            {
+                size_t shape[1] = {sizeof(MicromapTriangleDesc)};
+                return nb::ndarray<nb::numpy, const uint8_t>(&self, 1, shape, nb::handle());
+            }
+        );
+    nb::implicitly_convertible<nb::dict, MicromapTriangleDesc>();
+
+    nb::class_<MicromapUsageCount>(m, "MicromapUsageCount", D(MicromapUsageCount))
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](MicromapUsageCount* self, nb::dict dict)
+            {
+                new (self) MicromapUsageCount(dict_to_MicromapUsageCount(dict));
+            }
+        )
+        .def_rw("count", &MicromapUsageCount::count, D(MicromapUsageCount, count))
+        .def_rw("subdivision_level", &MicromapUsageCount::subdivision_level, D(MicromapUsageCount, subdivision_level))
+        .def_rw("format", &MicromapUsageCount::format, D(MicromapUsageCount, format));
+    nb::implicitly_convertible<nb::dict, MicromapUsageCount>();
+
+    nb::class_<MicromapBuildDesc>(m, "MicromapBuildDesc", D(MicromapBuildDesc))
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](MicromapBuildDesc* self, nb::dict dict)
+            {
+                new (self) MicromapBuildDesc(dict_to_MicromapBuildDesc(dict));
+            }
+        )
+        .def_rw("type", &MicromapBuildDesc::type, D(MicromapBuildDesc, type))
+        .def_rw("flags", &MicromapBuildDesc::flags, D(MicromapBuildDesc, flags))
+        .def_rw("data_buffer", &MicromapBuildDesc::data_buffer, D(MicromapBuildDesc, data_buffer))
+        .def_rw("descriptor_buffer", &MicromapBuildDesc::descriptor_buffer, D(MicromapBuildDesc, descriptor_buffer))
+        .def_rw("descriptor_stride", &MicromapBuildDesc::descriptor_stride, D(MicromapBuildDesc, descriptor_stride))
+        .def_rw("histogram", &MicromapBuildDesc::histogram, D(MicromapBuildDesc, histogram));
+    nb::implicitly_convertible<nb::dict, MicromapBuildDesc>();
+
+    nb::class_<MicromapSizes>(m, "MicromapSizes", D(MicromapSizes))
+        .def_ro("micromap_size", &MicromapSizes::micromap_size, D(MicromapSizes, micromap_size))
+        .def_ro("scratch_size", &MicromapSizes::scratch_size, D(MicromapSizes, scratch_size));
+
+    nb::class_<MicromapDesc>(m, "MicromapDesc", D(MicromapDesc))
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](MicromapDesc* self, nb::dict dict)
+            {
+                new (self) MicromapDesc(dict_to_MicromapDesc(dict));
+            }
+        )
+        .def_rw("type", &MicromapDesc::type, D(MicromapDesc, type))
+        .def_rw("size", &MicromapDesc::size, D(MicromapDesc, size))
+        .def_rw("flags", &MicromapDesc::flags, D(MicromapDesc, flags))
+        .def_rw("label", &MicromapDesc::label, D(MicromapDesc, label));
+    nb::implicitly_convertible<nb::dict, MicromapDesc>();
+
+    nb::class_<Micromap, Resource>(m, "Micromap", D(Micromap))
+        .def_prop_ro("desc", &Micromap::desc, D(Micromap, desc))
+        .def_prop_ro("device_address", &Micromap::device_address, D(Micromap, device_address));
+
+    nb::class_<AccelerationStructureOpacityMicromapDesc>(
+        m,
+        "AccelerationStructureOpacityMicromapDesc",
+        D(AccelerationStructureOpacityMicromapDesc)
+    )
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](AccelerationStructureOpacityMicromapDesc* self, nb::dict dict)
+            {
+                new (self)
+                    AccelerationStructureOpacityMicromapDesc(dict_to_AccelerationStructureOpacityMicromapDesc(dict));
+            }
+        )
+        .def_rw(
+            "micromap",
+            &AccelerationStructureOpacityMicromapDesc::micromap,
+            D(AccelerationStructureOpacityMicromapDesc, micromap)
+        )
+        .def_rw(
+            "indexing_mode",
+            &AccelerationStructureOpacityMicromapDesc::indexing_mode,
+            D(AccelerationStructureOpacityMicromapDesc, indexing_mode)
+        )
+        .def_rw(
+            "index_buffer",
+            &AccelerationStructureOpacityMicromapDesc::index_buffer,
+            D(AccelerationStructureOpacityMicromapDesc, index_buffer)
+        )
+        .def_rw(
+            "index_format",
+            &AccelerationStructureOpacityMicromapDesc::index_format,
+            D(AccelerationStructureOpacityMicromapDesc, index_format)
+        )
+        .def_rw(
+            "index_stride",
+            &AccelerationStructureOpacityMicromapDesc::index_stride,
+            D(AccelerationStructureOpacityMicromapDesc, index_stride)
+        )
+        .def_rw(
+            "base_micromap_index",
+            &AccelerationStructureOpacityMicromapDesc::base_micromap_index,
+            D(AccelerationStructureOpacityMicromapDesc, base_micromap_index)
+        )
+        .def_rw(
+            "usage_counts",
+            &AccelerationStructureOpacityMicromapDesc::usage_counts,
+            D(AccelerationStructureOpacityMicromapDesc, usage_counts)
+        );
+    nb::implicitly_convertible<nb::dict, AccelerationStructureOpacityMicromapDesc>();
 
     nb::class_<AccelerationStructureInstanceDesc>(
         m,
@@ -240,7 +417,13 @@ SGL_PY_EXPORT(device_raytracing)
         .def_rw("index_format", &AccelerationStructureBuildInputTriangles::index_format)
         .def_rw("index_count", &AccelerationStructureBuildInputTriangles::index_count)
         .def_rw("pre_transform_buffer", &AccelerationStructureBuildInputTriangles::pre_transform_buffer)
-        .def_rw("flags", &AccelerationStructureBuildInputTriangles::flags);
+        .def_rw("flags", &AccelerationStructureBuildInputTriangles::flags)
+        .def_rw(
+            "opacity_micromap",
+            &AccelerationStructureBuildInputTriangles::opacity_micromap,
+            nb::arg().none(),
+            D(AccelerationStructureBuildInputTriangles, opacity_micromap)
+        );
     nb::implicitly_convertible<nb::dict, AccelerationStructureBuildInputTriangles>();
 
     nb::class_<AccelerationStructureBuildInputProceduralPrimitives>(

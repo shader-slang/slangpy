@@ -955,6 +955,25 @@ SGL_PY_EXPORT(device_device)
         "size"_a,
         D(Device, create_acceleration_structure_instance_list)
     );
+    device.def("get_micromap_sizes", &Device::get_micromap_sizes, "desc"_a, D(Device, get_micromap_sizes));
+    device.def(
+        "create_micromap",
+        [](Device* self, MicromapType type, size_t size, MicromapBuildFlags flags, std::string label)
+        {
+            return self->create_micromap({
+                .type = type,
+                .size = size,
+                .flags = flags,
+                .label = std::move(label),
+            });
+        },
+        "type"_a = MicromapDesc().type,
+        "size"_a = MicromapDesc().size,
+        "flags"_a = MicromapDesc().flags,
+        "label"_a = MicromapDesc().label,
+        D(Device, create_micromap)
+    );
+    device.def("create_micromap", &Device::create_micromap, "desc"_a, D(Device, create_micromap));
     device.def(
         "create_shader_table",
         [](Device* self,
@@ -1571,6 +1590,25 @@ SGL_PY_EXPORT(device_device)
         "size"_a,
         D(create_acceleration_structure_instance_list)
     );
+    m.def("get_micromap_sizes", &get_micromap_sizes, "desc"_a, D(get_micromap_sizes));
+    m.def(
+        "create_micromap",
+        [](MicromapType type, size_t size, MicromapBuildFlags flags, std::string label)
+        {
+            return create_micromap({
+                .type = type,
+                .size = size,
+                .flags = flags,
+                .label = std::move(label),
+            });
+        },
+        "type"_a = MicromapDesc().type,
+        "size"_a = MicromapDesc().size,
+        "flags"_a = MicromapDesc().flags,
+        "label"_a = MicromapDesc().label,
+        D(create_micromap)
+    );
+    m.def("create_micromap", nb::overload_cast<MicromapDesc>(&create_micromap), "desc"_a, D(create_micromap));
     m.def(
         "create_shader_table",
         [](ref<ShaderProgram> program,

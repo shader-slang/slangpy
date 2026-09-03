@@ -646,6 +646,22 @@ ref<AccelerationStructureInstanceList> Device::create_acceleration_structure_ins
     return make_ref<AccelerationStructureInstanceList>(ref<Device>(this), size);
 }
 
+MicromapSizes Device::get_micromap_sizes(const MicromapBuildDesc& desc)
+{
+    MicromapBuildDescConverter converter(desc);
+    rhi::MicromapSizes rhi_sizes;
+    SLANG_RHI_CALL(m_rhi_device->getMicromapSizes(converter.rhi_desc, &rhi_sizes), this);
+    return {
+        .micromap_size = rhi_sizes.micromapSize,
+        .scratch_size = rhi_sizes.scratchSize,
+    };
+}
+
+ref<Micromap> Device::create_micromap(MicromapDesc desc)
+{
+    return make_ref<Micromap>(ref<Device>(this), std::move(desc));
+}
+
 ref<ShaderTable> Device::create_shader_table(ShaderTableDesc desc)
 {
     return make_ref<ShaderTable>(ref<Device>(this), std::move(desc));
@@ -1656,6 +1672,16 @@ ref<AccelerationStructure> create_acceleration_structure(AccelerationStructureDe
 ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size)
 {
     return current_device()->create_acceleration_structure_instance_list(size);
+}
+
+MicromapSizes get_micromap_sizes(const MicromapBuildDesc& desc)
+{
+    return current_device()->get_micromap_sizes(desc);
+}
+
+ref<Micromap> create_micromap(MicromapDesc desc)
+{
+    return current_device()->create_micromap(std::move(desc));
 }
 
 ref<ShaderTable> create_shader_table(ShaderTableDesc desc)

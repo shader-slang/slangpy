@@ -18,6 +18,7 @@
 
 #include <slang-rhi.h>
 
+#include <optional>
 #include <variant>
 
 namespace sgl {
@@ -50,6 +51,9 @@ enum class AccelerationStructureInstanceFlags : uint32_t {
     = static_cast<uint32_t>(rhi::AccelerationStructureInstanceFlags::TriangleFrontCounterClockwise),
     force_opaque = static_cast<uint32_t>(rhi::AccelerationStructureInstanceFlags::ForceOpaque),
     no_opaque = static_cast<uint32_t>(rhi::AccelerationStructureInstanceFlags::NoOpaque),
+    force_opacity_micromap_2_state
+    = static_cast<uint32_t>(rhi::AccelerationStructureInstanceFlags::ForceOpacityMicromap2State),
+    disable_opacity_micromaps = static_cast<uint32_t>(rhi::AccelerationStructureInstanceFlags::DisableOpacityMicromaps),
 };
 
 SGL_ENUM_CLASS_OPERATORS(AccelerationStructureInstanceFlags);
@@ -61,6 +65,8 @@ SGL_ENUM_FLAGS_INFO(
         {AccelerationStructureInstanceFlags::triangle_front_counter_clockwise, "triangle_front_counter_clockwise"},
         {AccelerationStructureInstanceFlags::force_opaque, "force_opaque"},
         {AccelerationStructureInstanceFlags::no_opaque, "no_opaque"},
+        {AccelerationStructureInstanceFlags::force_opacity_micromap_2_state, "force_opacity_micromap_2_state"},
+        {AccelerationStructureInstanceFlags::disable_opacity_micromaps, "disable_opacity_micromaps"},
     }
 );
 SGL_ENUM_REGISTER(AccelerationStructureInstanceFlags);
@@ -74,6 +80,159 @@ struct AccelerationStructureInstanceDesc {
     AccelerationStructureHandle acceleration_structure;
 };
 static_assert(sizeof(AccelerationStructureInstanceDesc) == sizeof(rhi::AccelerationStructureInstanceDescGeneric));
+
+enum class MicromapType : uint32_t {
+    opacity = static_cast<uint32_t>(rhi::MicromapType::Opacity),
+};
+SGL_ENUM_INFO(MicromapType, {{MicromapType::opacity, "opacity"}});
+SGL_ENUM_REGISTER(MicromapType);
+
+enum class OpacityMicromapFormat : uint16_t {
+    two_state = static_cast<uint16_t>(rhi::OpacityMicromapFormat::TwoState),
+    four_state = static_cast<uint16_t>(rhi::OpacityMicromapFormat::FourState),
+};
+SGL_ENUM_INFO(
+    OpacityMicromapFormat,
+    {
+        {OpacityMicromapFormat::two_state, "two_state"},
+        {OpacityMicromapFormat::four_state, "four_state"},
+    }
+);
+SGL_ENUM_REGISTER(OpacityMicromapFormat);
+
+enum class OpacityMicromapSpecialIndex : int32_t {
+    fully_transparent = static_cast<int32_t>(rhi::OpacityMicromapSpecialIndex::FullyTransparent),
+    fully_opaque = static_cast<int32_t>(rhi::OpacityMicromapSpecialIndex::FullyOpaque),
+    fully_unknown_transparent = static_cast<int32_t>(rhi::OpacityMicromapSpecialIndex::FullyUnknownTransparent),
+    fully_unknown_opaque = static_cast<int32_t>(rhi::OpacityMicromapSpecialIndex::FullyUnknownOpaque),
+};
+SGL_ENUM_INFO(
+    OpacityMicromapSpecialIndex,
+    {
+        {OpacityMicromapSpecialIndex::fully_transparent, "fully_transparent"},
+        {OpacityMicromapSpecialIndex::fully_opaque, "fully_opaque"},
+        {OpacityMicromapSpecialIndex::fully_unknown_transparent, "fully_unknown_transparent"},
+        {OpacityMicromapSpecialIndex::fully_unknown_opaque, "fully_unknown_opaque"},
+    }
+);
+SGL_ENUM_REGISTER(OpacityMicromapSpecialIndex);
+
+struct MicromapTriangleDesc {
+    uint32_t data_offset{0};
+    uint16_t subdivision_level{0};
+    OpacityMicromapFormat format{OpacityMicromapFormat::two_state};
+};
+static_assert(sizeof(MicromapTriangleDesc) == sizeof(rhi::MicromapTriangleDesc));
+
+struct MicromapUsageCount {
+    uint32_t count{0};
+    uint32_t subdivision_level{0};
+    OpacityMicromapFormat format{OpacityMicromapFormat::two_state};
+};
+
+enum class MicromapIndexingMode : uint32_t {
+    linear = static_cast<uint32_t>(rhi::MicromapIndexingMode::Linear),
+    indexed = static_cast<uint32_t>(rhi::MicromapIndexingMode::Indexed),
+};
+SGL_ENUM_INFO(
+    MicromapIndexingMode,
+    {
+        {MicromapIndexingMode::linear, "linear"},
+        {MicromapIndexingMode::indexed, "indexed"},
+    }
+);
+SGL_ENUM_REGISTER(MicromapIndexingMode);
+
+enum class MicromapIndexFormat : uint32_t {
+    none = static_cast<uint32_t>(rhi::MicromapIndexFormat::None),
+    uint16 = static_cast<uint32_t>(rhi::MicromapIndexFormat::Uint16),
+    uint32 = static_cast<uint32_t>(rhi::MicromapIndexFormat::Uint32),
+};
+SGL_ENUM_INFO(
+    MicromapIndexFormat,
+    {
+        {MicromapIndexFormat::none, "none"},
+        {MicromapIndexFormat::uint16, "uint16"},
+        {MicromapIndexFormat::uint32, "uint32"},
+    }
+);
+SGL_ENUM_REGISTER(MicromapIndexFormat);
+
+enum class MicromapBuildFlags : uint32_t {
+    none = static_cast<uint32_t>(rhi::MicromapBuildFlags::None),
+    prefer_fast_trace = static_cast<uint32_t>(rhi::MicromapBuildFlags::PreferFastTrace),
+    prefer_fast_build = static_cast<uint32_t>(rhi::MicromapBuildFlags::PreferFastBuild),
+    allow_compaction = static_cast<uint32_t>(rhi::MicromapBuildFlags::AllowCompaction),
+};
+SGL_ENUM_CLASS_OPERATORS(MicromapBuildFlags);
+SGL_ENUM_FLAGS_INFO(
+    MicromapBuildFlags,
+    {
+        {MicromapBuildFlags::none, "none"},
+        {MicromapBuildFlags::prefer_fast_trace, "prefer_fast_trace"},
+        {MicromapBuildFlags::prefer_fast_build, "prefer_fast_build"},
+        {MicromapBuildFlags::allow_compaction, "allow_compaction"},
+    }
+);
+SGL_ENUM_REGISTER(MicromapBuildFlags);
+
+struct MicromapBuildDesc {
+    MicromapType type{MicromapType::opacity};
+    MicromapBuildFlags flags{MicromapBuildFlags::none};
+    BufferOffsetPair data_buffer;
+    BufferOffsetPair descriptor_buffer;
+    uint32_t descriptor_stride{sizeof(MicromapTriangleDesc)};
+    std::vector<MicromapUsageCount> histogram;
+};
+
+struct MicromapBuildDescConverter {
+    rhi::MicromapBuildDesc rhi_desc;
+    std::vector<rhi::MicromapUsageCount> rhi_histogram;
+    MicromapBuildDescConverter(const MicromapBuildDesc& desc);
+};
+
+struct MicromapSizes {
+    DeviceSize micromap_size{0};
+    DeviceSize scratch_size{0};
+};
+
+struct MicromapDesc {
+    MicromapType type{MicromapType::opacity};
+    DeviceSize size{0};
+    MicromapBuildFlags flags{MicromapBuildFlags::none};
+    std::string label;
+};
+
+class SGL_API Micromap : public Resource {
+    SGL_OBJECT(Micromap)
+public:
+    Micromap(ref<Device> device, MicromapDesc desc);
+    ~Micromap();
+
+    virtual void _release_rhi_resources() override { m_rhi_micromap.setNull(); }
+
+    const MicromapDesc& desc() const { return m_desc; }
+    DeviceAddress device_address() const { return m_rhi_micromap->getDeviceAddress(); }
+
+    rhi::IMicromap* rhi_micromap() const { return m_rhi_micromap; }
+    virtual rhi::IResource* rhi_resource() const override { return m_rhi_micromap; }
+
+    std::string to_string() const override;
+
+private:
+    MicromapDesc m_desc;
+    Slang::ComPtr<rhi::IMicromap> m_rhi_micromap;
+};
+
+struct AccelerationStructureOpacityMicromapDesc {
+    ref<Micromap> micromap;
+    MicromapIndexingMode indexing_mode{MicromapIndexingMode::linear};
+    BufferOffsetPair index_buffer;
+    MicromapIndexFormat index_format{MicromapIndexFormat::none};
+    uint32_t index_stride{0};
+    uint32_t base_micromap_index{0};
+    std::vector<MicromapUsageCount> usage_counts;
+};
 
 struct AccelerationStructureBuildInputInstances {
     BufferOffsetPair instance_buffer;
@@ -98,6 +257,9 @@ struct AccelerationStructureBuildInputTriangles {
     BufferOffsetPair pre_transform_buffer;
 
     AccelerationStructureGeometryFlags flags{AccelerationStructureGeometryFlags::none};
+
+    /// Optional opacity micromap attachment.
+    std::optional<AccelerationStructureOpacityMicromapDesc> opacity_micromap;
 };
 
 struct AccelerationStructureBuildInputProceduralPrimitives {
@@ -209,6 +371,10 @@ enum class AccelerationStructureBuildFlags : uint32_t {
     prefer_fast_trace = static_cast<uint32_t>(rhi::AccelerationStructureBuildFlags::PreferFastTrace),
     prefer_fast_build = static_cast<uint32_t>(rhi::AccelerationStructureBuildFlags::PreferFastBuild),
     minimize_memory = static_cast<uint32_t>(rhi::AccelerationStructureBuildFlags::MinimizeMemory),
+    allow_opacity_micromap_update
+    = static_cast<uint32_t>(rhi::AccelerationStructureBuildFlags::AllowOpacityMicromapUpdate),
+    allow_disable_opacity_micromaps
+    = static_cast<uint32_t>(rhi::AccelerationStructureBuildFlags::AllowDisableOpacityMicromaps),
 };
 
 SGL_ENUM_CLASS_OPERATORS(AccelerationStructureBuildFlags);
@@ -221,6 +387,8 @@ SGL_ENUM_FLAGS_INFO(
         {AccelerationStructureBuildFlags::prefer_fast_trace, "prefer_fast_trace"},
         {AccelerationStructureBuildFlags::prefer_fast_build, "prefer_fast_build"},
         {AccelerationStructureBuildFlags::minimize_memory, "minimize_memory"},
+        {AccelerationStructureBuildFlags::allow_opacity_micromap_update, "allow_opacity_micromap_update"},
+        {AccelerationStructureBuildFlags::allow_disable_opacity_micromaps, "allow_disable_opacity_micromaps"},
     }
 );
 SGL_ENUM_REGISTER(AccelerationStructureBuildFlags);
@@ -239,6 +407,8 @@ struct AccelerationStructureBuildDescConverter {
     rhi::AccelerationStructureBuildDesc rhi_desc;
     // TODO(slang-rhi) probably use short_vector instead, but short_vector needs some more work
     std::vector<rhi::AccelerationStructureBuildInput> rhi_build_inputs;
+    std::vector<rhi::AccelerationStructureOpacityMicromapDesc> rhi_opacity_micromap_descs;
+    std::vector<std::vector<rhi::MicromapUsageCount>> rhi_opacity_micromap_usage_counts;
     AccelerationStructureBuildDescConverter(const AccelerationStructureBuildDesc& desc);
 };
 
@@ -296,13 +466,20 @@ public:
     AccelerationStructure(ref<Device> device, AccelerationStructureDesc desc);
     ~AccelerationStructure();
 
-    virtual void _release_rhi_resources() override { m_rhi_acceleration_structure.setNull(); }
+    virtual void _release_rhi_resources() override
+    {
+        m_rhi_acceleration_structure.setNull();
+        m_micromap_dependencies.clear();
+    }
 
     const AccelerationStructureDesc& desc() const { return m_desc; }
 
     AccelerationStructureHandle handle() const;
 
     rhi::IAccelerationStructure* rhi_acceleration_structure() const { return m_rhi_acceleration_structure; }
+
+    void set_micromap_dependencies(const AccelerationStructureBuildDesc& desc);
+    void copy_micromap_dependencies(const AccelerationStructure& src);
 
     /// Bind a nullable acceleration structure value to a shader cursor.
     static void write_to_cursor(const ShaderCursor& cursor, const AccelerationStructure* value);
@@ -312,6 +489,7 @@ public:
 private:
     AccelerationStructureDesc m_desc;
     Slang::ComPtr<rhi::IAccelerationStructure> m_rhi_acceleration_structure;
+    std::vector<ref<Micromap>> m_micromap_dependencies;
 };
 
 class SGL_API AccelerationStructureInstanceList : public DeviceChild {

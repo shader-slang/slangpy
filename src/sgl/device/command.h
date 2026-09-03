@@ -363,6 +363,8 @@ public:
         std::span<AccelerationStructureQueryDesc> queries = std::span<AccelerationStructureQueryDesc>()
     );
 
+    void build_micromap(const MicromapBuildDesc& desc, Micromap* dst, BufferOffsetPair scratch_buffer);
+
     void copy_acceleration_structure(
         AccelerationStructure* dst,
         AccelerationStructure* src,

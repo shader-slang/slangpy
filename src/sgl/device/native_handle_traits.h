@@ -75,6 +75,7 @@ SGL_NATIVE_HANDLE(VkPipeline, NativeHandleType::VkPipeline);
 SGL_NATIVE_HANDLE(VkQueue, NativeHandleType::VkQueue);
 SGL_NATIVE_HANDLE(VkCommandBuffer, NativeHandleType::VkCommandBuffer);
 SGL_NATIVE_HANDLE(VkSampler, NativeHandleType::VkSampler);
+SGL_NATIVE_HANDLE(VkMicromapEXT, NativeHandleType::VkMicromapEXT);
 #endif // SGL_HAS_VULKAN
 
 SGL_NATIVE_HANDLE_32(CUdevice, NativeHandleType::CUdevice);

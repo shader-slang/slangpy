@@ -15,11 +15,38 @@
 
 namespace sgl {
 
+MicromapBuildDescConverter::MicromapBuildDescConverter(const MicromapBuildDesc& desc)
+{
+    rhi_histogram.reserve(desc.histogram.size());
+    for (const auto& usage : desc.histogram) {
+        rhi_histogram.push_back({
+            .count = usage.count,
+            .subdivisionLevel = usage.subdivision_level,
+            .format = static_cast<uint32_t>(usage.format),
+        });
+    }
+
+    rhi_desc = {
+        .type = static_cast<rhi::MicromapType>(desc.type),
+        .flags = static_cast<rhi::MicromapBuildFlags>(desc.flags),
+        .dataBuffer = detail::to_rhi(desc.data_buffer),
+        .descriptorBuffer = detail::to_rhi(desc.descriptor_buffer),
+        .descriptorStride = desc.descriptor_stride,
+        .histogram = rhi_histogram.data(),
+        .histogramCount = narrow_cast<uint32_t>(rhi_histogram.size()),
+    };
+}
+
 AccelerationStructureBuildDescConverter::AccelerationStructureBuildDescConverter(
     const AccelerationStructureBuildDesc& desc
 )
 {
-    for (const auto& input : desc.inputs) {
+    rhi_build_inputs.reserve(desc.inputs.size());
+    rhi_opacity_micromap_descs.resize(desc.inputs.size());
+    rhi_opacity_micromap_usage_counts.resize(desc.inputs.size());
+
+    for (size_t input_index = 0; input_index < desc.inputs.size(); ++input_index) {
+        const auto& input = desc.inputs[input_index];
         if (auto* instances = std::get_if<AccelerationStructureBuildInputInstances>(&input)) {
             rhi::AccelerationStructureBuildInput rhi_build_input{
                 .type = rhi::AccelerationStructureBuildInputType::Instances,
@@ -47,6 +74,32 @@ AccelerationStructureBuildDescConverter::AccelerationStructureBuildDescConverter
             };
             for (size_t i = 0; i < triangles->vertex_buffers.size(); ++i)
                 rhi_build_input.triangles.vertexBuffers[i] = detail::to_rhi(triangles->vertex_buffers[i]);
+
+            if (triangles->opacity_micromap) {
+                const auto& opacity_micromap = *triangles->opacity_micromap;
+                auto& rhi_usage_counts = rhi_opacity_micromap_usage_counts[input_index];
+                rhi_usage_counts.reserve(opacity_micromap.usage_counts.size());
+                for (const auto& usage : opacity_micromap.usage_counts) {
+                    rhi_usage_counts.push_back({
+                        .count = usage.count,
+                        .subdivisionLevel = usage.subdivision_level,
+                        .format = static_cast<uint32_t>(usage.format),
+                    });
+                }
+
+                auto& rhi_opacity_micromap = rhi_opacity_micromap_descs[input_index];
+                rhi_opacity_micromap.link = {
+                    .micromap = opacity_micromap.micromap ? opacity_micromap.micromap->rhi_micromap() : nullptr,
+                    .indexingMode = static_cast<rhi::MicromapIndexingMode>(opacity_micromap.indexing_mode),
+                    .indexBuffer = detail::to_rhi(opacity_micromap.index_buffer),
+                    .indexFormat = static_cast<rhi::MicromapIndexFormat>(opacity_micromap.index_format),
+                    .indexStride = opacity_micromap.index_stride,
+                    .baseMicromapIndex = opacity_micromap.base_micromap_index,
+                    .usageCounts = rhi_usage_counts.data(),
+                    .usageCount = narrow_cast<uint32_t>(rhi_usage_counts.size()),
+                };
+                rhi_build_input.triangles.next = &rhi_opacity_micromap;
+            }
             rhi_build_inputs.push_back(rhi_build_input);
         } else if (auto* procedural_primitives
                    = std::get_if<AccelerationStructureBuildInputProceduralPrimitives>(&input)) {
@@ -126,6 +179,35 @@ AccelerationStructureBuildDescConverter::AccelerationStructureBuildDescConverter
     rhi_desc.flags = static_cast<rhi::AccelerationStructureBuildFlags>(desc.flags);
 }
 
+Micromap::Micromap(ref<Device> device, MicromapDesc desc)
+    : Resource(std::move(device))
+    , m_desc(std::move(desc))
+{
+    rhi::MicromapDesc rhi_desc{
+        .type = static_cast<rhi::MicromapType>(m_desc.type),
+        .size = m_desc.size,
+        .flags = static_cast<rhi::MicromapBuildFlags>(m_desc.flags),
+        .label = m_desc.label.c_str(),
+    };
+    SLANG_RHI_CALL(m_device->rhi_device()->createMicromap(rhi_desc, m_rhi_micromap.writeRef()), m_device);
+}
+
+Micromap::~Micromap() { }
+
+std::string Micromap::to_string() const
+{
+    return fmt::format(
+        "Micromap(\n"
+        "  device = {},\n"
+        "  size = {},\n"
+        "  label = {}\n"
+        ")",
+        m_device,
+        m_desc.size,
+        m_desc.label
+    );
+}
+
 AccelerationStructure::AccelerationStructure(ref<Device> device, AccelerationStructureDesc desc)
     : DeviceChild(std::move(device))
     , m_desc(std::move(desc))
@@ -146,6 +228,22 @@ AccelerationStructure::~AccelerationStructure() { }
 AccelerationStructureHandle AccelerationStructure::handle() const
 {
     return m_rhi_acceleration_structure->getHandle();
+}
+
+void AccelerationStructure::set_micromap_dependencies(const AccelerationStructureBuildDesc& desc)
+{
+    m_micromap_dependencies.clear();
+    for (const auto& input : desc.inputs) {
+        if (const auto* triangles = std::get_if<AccelerationStructureBuildInputTriangles>(&input)) {
+            if (triangles->opacity_micromap && triangles->opacity_micromap->micromap)
+                m_micromap_dependencies.push_back(triangles->opacity_micromap->micromap);
+        }
+    }
+}
+
+void AccelerationStructure::copy_micromap_dependencies(const AccelerationStructure& src)
+{
+    m_micromap_dependencies = src.m_micromap_dependencies;
 }
 
 void AccelerationStructure::write_to_cursor(const ShaderCursor& cursor, const AccelerationStructure* value)

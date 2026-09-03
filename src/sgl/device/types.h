@@ -71,6 +71,7 @@ enum class Feature : uint32_t {
     shader_execution_reordering = static_cast<uint32_t>(rhi::Feature::ShaderExecutionReordering),
     ray_tracing_motion_blur = static_cast<uint32_t>(rhi::Feature::RayTracingMotionBlur),
     ray_tracing_validation = static_cast<uint32_t>(rhi::Feature::RayTracingValidation),
+    opacity_micromap = static_cast<uint32_t>(rhi::Feature::OpacityMicromap),
     cluster_acceleration_structure = static_cast<uint32_t>(rhi::Feature::ClusterAccelerationStructure),
     // Other features
     timestamp_query = static_cast<uint32_t>(rhi::Feature::TimestampQuery),
@@ -152,6 +153,7 @@ SGL_ENUM_INFO(
         {Feature::shader_execution_reordering, "shader_execution_reordering"},
         {Feature::ray_tracing_motion_blur, "ray_tracing_motion_blur"},
         {Feature::ray_tracing_validation, "ray_tracing_validation"},
+        {Feature::opacity_micromap, "opacity_micromap"},
         {Feature::cluster_acceleration_structure, "cluster_acceleration_structure"},
         {Feature::timestamp_query, "timestamp_query"},
         {Feature::timestamp_calibration, "timestamp_calibration"},
@@ -862,6 +864,7 @@ enum class RayTracingPipelineFlags : uint8_t {
     skip_procedurals = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::SkipProcedurals),
     enable_spheres = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableSpheres),
     enable_linear_swept_spheres = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableLinearSweptSpheres),
+    enable_opacity_micromaps = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableOpacityMicromaps),
 };
 
 SGL_ENUM_CLASS_OPERATORS(RayTracingPipelineFlags);
@@ -873,6 +876,7 @@ SGL_ENUM_FLAGS_INFO(
         {RayTracingPipelineFlags::skip_procedurals, "skip_procedurals"},
         {RayTracingPipelineFlags::enable_spheres, "enable_spheres"},
         {RayTracingPipelineFlags::enable_linear_swept_spheres, "enable_linear_swept_spheres"},
+        {RayTracingPipelineFlags::enable_opacity_micromaps, "enable_opacity_micromaps"},
     }
 );
 SGL_ENUM_REGISTER(RayTracingPipelineFlags);
