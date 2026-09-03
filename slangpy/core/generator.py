@@ -24,6 +24,22 @@ MAX_GENERATED_THREAD_GROUP_SIZE = 1024
 MAX_DISPATCH_THREAD_GROUPS_X = (2**31 - 1) // MAX_GENERATED_THREAD_GROUP_SIZE
 
 
+def resolve_max_dispatch_groups_x(reported_limit: int) -> int:
+    """
+    Clamp a device's reported max X dispatch-group count to the representable
+    stride ceiling, treating a zero (unset) limit as unbounded.
+
+    A zero limit means the backend did not specify a bound (the CPU backend
+    leaves it unset); emitting a zero group/thread stride would collapse the
+    physical->logical group flattening, so zero maps to the ceiling instead.
+
+    :param reported_limit: ``max_compute_dispatch_thread_groups.x`` from the device.
+    :return: A positive group count no larger than ``MAX_DISPATCH_THREAD_GROUPS_X``.
+    """
+    effective = reported_limit if reported_limit != 0 else MAX_DISPATCH_THREAD_GROUPS_X
+    return min(effective, MAX_DISPATCH_THREAD_GROUPS_X)
+
+
 class KernelGenException(Exception):
     def __init__(self, message: str):
         super().__init__(message)
@@ -463,9 +479,8 @@ def _emit_link_time_constants(
     """
     _emit_user_constants(build_info, cg)
     dispatch_thread_group_size = call_group_size if call_group_size != 1 else 32
-    dispatch_thread_groups_x = min(
-        build_info.module.device.info.limits.max_compute_dispatch_thread_groups.x,
-        MAX_DISPATCH_THREAD_GROUPS_X,
+    dispatch_thread_groups_x = resolve_max_dispatch_groups_x(
+        build_info.module.device.info.limits.max_compute_dispatch_thread_groups.x
     )
     cg.constants.append_statement(f"export static const int call_data_len = {call_data_len}")
     cg.constants.append_statement(f"export static const int call_group_size = {call_group_size}")
