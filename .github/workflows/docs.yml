@@ -1,0 +1,133 @@
+name: documentation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/docs.yml"
+      - ".readthedocs.yml"
+      - "CMakeLists.txt"
+      - "cmake/**"
+      - "docs/**"
+      - "pyproject.toml"
+      - "requirements.txt"
+      - "requirements-dev.txt"
+      - "samples/tutorials/**"
+      - "slangpy/**"
+      - "src/sgl/**/*.h"
+      - "src/sgl/**/*.hpp"
+      - "src/slangpy_ext/**"
+      - "tools/docs.py"
+      - "tools/ci.py"
+      - "tools/postprocess_stub.py"
+      - "vcpkg.json"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/docs.yml"
+      - ".readthedocs.yml"
+      - "CMakeLists.txt"
+      - "cmake/**"
+      - "docs/**"
+      - "pyproject.toml"
+      - "requirements.txt"
+      - "requirements-dev.txt"
+      - "samples/tutorials/**"
+      - "slangpy/**"
+      - "src/sgl/**/*.h"
+      - "src/sgl/**/*.hpp"
+      - "src/slangpy_ext/**"
+      - "tools/docs.py"
+      - "tools/ci.py"
+      - "tools/postprocess_stub.py"
+      - "vcpkg.json"
+  schedule:
+    - cron: "23 4 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-22.04
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: "2"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config ninja-build
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            docs/requirements.txt
+            docs/requirements-native.txt
+
+      - uses: lukka/get-cmake@latest
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -r docs/requirements.txt
+          python -m pip install -r docs/requirements-native.txt
+
+      - name: Configure release build
+        run: cmake --preset linux-gcc -DSGL_BUILD_TESTS=OFF -DSGL_BUILD_EXAMPLES=OFF
+
+      - name: Regenerate native documentation
+        run: |
+          cmake --build --preset linux-gcc-release --target slangpy_pydoc
+          git diff --exit-code -- src/slangpy_ext/py_doc.h
+
+      - name: Build SlangPy and generated stubs
+        run: cmake --build --preset linux-gcc-release
+
+      - name: Validate structured API snapshot and coverage
+        run: |
+          python tools/docs.py inventory
+          git diff --exit-code -- docs/api/api.json
+          python tools/docs.py coverage --check
+
+      - name: Run documentation tests
+        run: pytest slangpy/tests/docs -v
+
+      - name: Build strict documentation
+        run: python tools/docs.py build --api-mode runtime --output-dir docs/_build/html
+
+  linkcheck:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          lfs: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install documentation dependencies
+        run: python -m pip install -r docs/requirements.txt
+
+      - name: Check external links from the source-only snapshot
+        run: |
+          python tools/docs.py prepare --api-mode snapshot
+          python -m sphinx -E -n -W --keep-going -b linkcheck docs docs/_build/linkcheck

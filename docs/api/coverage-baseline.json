@@ -1,0 +1,1997 @@
+{
+  "schema_version": 1,
+  "package_version": "0.43.0",
+  "counts": {
+    "missing": 62,
+    "placeholder": 6,
+    "summary": 93,
+    "complete": 26
+  },
+  "documented": 119,
+  "score": 145,
+  "symbols": [
+    {
+      "name": "slangpy.Tensor",
+      "status": "missing",
+      "missing_parameters": [
+        "storage",
+        "dtype",
+        "shape",
+        "strides",
+        "offset",
+        "grad_in",
+        "grad_out",
+        "desc"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.__init__",
+      "status": "missing",
+      "missing_parameters": [
+        "storage",
+        "dtype",
+        "shape",
+        "strides",
+        "offset",
+        "grad_in",
+        "grad_out",
+        "desc"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.__getitem__",
+      "status": "missing",
+      "missing_parameters": [
+        "arg"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.__repr__",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.__str__",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.broadcast_to",
+      "status": "missing",
+      "missing_parameters": [
+        "shape"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.clear",
+      "status": "missing",
+      "missing_parameters": [
+        "cmd"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.copy_from_numpy",
+      "status": "missing",
+      "missing_parameters": [
+        "data"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.copy_from_torch",
+      "status": "missing",
+      "missing_parameters": [
+        "tensor"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.cursor",
+      "status": "missing",
+      "missing_parameters": [
+        "start",
+        "count"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.detach",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.device",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.dtype",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.element_count",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.empty",
+      "status": "missing",
+      "missing_parameters": [
+        "device",
+        "shape",
+        "dtype",
+        "usage",
+        "memory_type",
+        "program_layout"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.empty_like",
+      "status": "missing",
+      "missing_parameters": [
+        "other"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.from_numpy",
+      "status": "missing",
+      "missing_parameters": [
+        "device",
+        "ndarray",
+        "usage",
+        "memory_type",
+        "program_layout",
+        "target_slang_dtype"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.from_torch",
+      "status": "missing",
+      "missing_parameters": [
+        "device",
+        "tensor",
+        "dtype",
+        "usage",
+        "program_layout"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.grad",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.grad_in",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.grad_out",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.is_contiguous",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.load_from_image",
+      "status": "missing",
+      "missing_parameters": [
+        "device",
+        "path",
+        "flip_y",
+        "linearize",
+        "scale",
+        "offset",
+        "grayscale"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.memory_type",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.numpy",
+      "status": "missing",
+      "missing_parameters": [
+        "device",
+        "ndarray"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.offset",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.point_to",
+      "status": "missing",
+      "missing_parameters": [
+        "target"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.shape",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.storage",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.strides",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.to_numpy",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.to_torch",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.uniforms",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.usage",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.view",
+      "status": "missing",
+      "missing_parameters": [
+        "shape",
+        "strides",
+        "offset"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.with_grads",
+      "status": "missing",
+      "missing_parameters": [
+        "grad_in",
+        "grad_out",
+        "zero"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.zeros",
+      "status": "missing",
+      "missing_parameters": [
+        "device",
+        "shape",
+        "dtype",
+        "usage",
+        "memory_type",
+        "program_layout"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Tensor.zeros_like",
+      "status": "missing",
+      "missing_parameters": [
+        "other"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module",
+      "status": "summary",
+      "missing_parameters": [
+        "device_module",
+        "options",
+        "link"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.__init__",
+      "status": "missing",
+      "missing_parameters": [
+        "device_module",
+        "options",
+        "link"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.__getitem__",
+      "status": "summary",
+      "missing_parameters": [
+        "name"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.__repr__",
+      "status": "summary",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.call_data_cache",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.device",
+      "status": "placeholder",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.device_module",
+      "status": "placeholder",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.dispatch_data_cache",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.find_function",
+      "status": "summary",
+      "missing_parameters": [
+        "name"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.find_function_in_struct",
+      "status": "summary",
+      "missing_parameters": [
+        "struct",
+        "name"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.find_struct",
+      "status": "summary",
+      "missing_parameters": [
+        "name"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.layout",
+      "status": "placeholder",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.link",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.load_from_file",
+      "status": "summary",
+      "missing_parameters": [
+        "device",
+        "path",
+        "options",
+        "link"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.load_from_module",
+      "status": "summary",
+      "missing_parameters": [
+        "device",
+        "module",
+        "options",
+        "link"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.load_from_source",
+      "status": "summary",
+      "missing_parameters": [
+        "device",
+        "name",
+        "source",
+        "options",
+        "link"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.logger",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.name",
+      "status": "placeholder",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.on_hot_reload",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.options",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.pipeline_cache",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.require_function",
+      "status": "summary",
+      "missing_parameters": [
+        "name"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.require_struct",
+      "status": "summary",
+      "missing_parameters": [
+        "name"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.session",
+      "status": "placeholder",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.shader_table_cache",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Module.slangpy_device_module",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function",
+      "status": "missing",
+      "missing_parameters": [
+        "module",
+        "func",
+        "struct",
+        "options"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.__init__",
+      "status": "missing",
+      "missing_parameters": [
+        "module",
+        "func",
+        "struct",
+        "options"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.append_to",
+      "status": "summary",
+      "missing_parameters": [
+        "command_encoder",
+        "args",
+        "kwargs"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.as_func",
+      "status": "summary",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.as_struct",
+      "status": "summary",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.bind",
+      "status": "summary",
+      "missing_parameters": [
+        "this"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.bwds",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.calc_build_info",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.call",
+      "status": "summary",
+      "missing_parameters": [
+        "args",
+        "kwargs"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.call_group_shape",
+      "status": "summary",
+      "missing_parameters": [
+        "call_group_shape"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.constants",
+      "status": "summary",
+      "missing_parameters": [
+        "constants"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.cuda_stream",
+      "status": "summary",
+      "missing_parameters": [
+        "stream"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.debug_build_call_data",
+      "status": "summary",
+      "missing_parameters": [
+        "args",
+        "kwargs"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.dispatch",
+      "status": "summary",
+      "missing_parameters": [
+        "thread_count",
+        "vars",
+        "command_encoder",
+        "kwargs"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.generate_bwds_call_data",
+      "status": "summary",
+      "missing_parameters": [
+        "fwds_call_data",
+        "args",
+        "kwargs"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.generate_call_data",
+      "status": "summary",
+      "missing_parameters": [
+        "args",
+        "kwargs"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.map",
+      "status": "summary",
+      "missing_parameters": [
+        "args",
+        "kwargs"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.module",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.name",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.parent",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.prelude",
+      "status": "summary",
+      "missing_parameters": [
+        "code"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.ray_tracing",
+      "status": "summary",
+      "missing_parameters": [
+        "hit_groups",
+        "miss_entry_points",
+        "hit_group_names",
+        "callable_entry_points",
+        "max_recursion",
+        "max_ray_payload_size",
+        "max_attribute_size",
+        "flags"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.return_type",
+      "status": "summary",
+      "missing_parameters": [
+        "return_type"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.root",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.set",
+      "status": "summary",
+      "missing_parameters": [
+        "args",
+        "kwargs"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.slangpy_signature",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.thread_group_size",
+      "status": "summary",
+      "missing_parameters": [
+        "thread_group_size"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.torch",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.type_conformances",
+      "status": "summary",
+      "missing_parameters": [
+        "type_conformances"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Function.write",
+      "status": "summary",
+      "missing_parameters": [
+        "fn",
+        "args",
+        "kwargs"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device",
+      "status": "missing",
+      "missing_parameters": [
+        "type",
+        "enable_debug_layers",
+        "debug_layers_log_level",
+        "enable_rhi_validation",
+        "rhi_validation_log_level",
+        "enable_ray_tracing_validation",
+        "enable_aftermath",
+        "enable_cuda_interop",
+        "enable_print",
+        "enable_hot_reload",
+        "enable_compilation_reports",
+        "pipeline_compilation_mode",
+        "adapter_luid",
+        "compiler_options",
+        "module_cache_path",
+        "shader_cache_path",
+        "shader_cache_size",
+        "existing_device_handles",
+        "bindless_options",
+        "additional_vulkan_instance_extensions",
+        "additional_vulkan_device_extensions",
+        "enable_cuda_launch_from_gfx",
+        "enable_ray_tracing",
+        "label",
+        "desc"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.__init__",
+      "status": "missing",
+      "missing_parameters": [
+        "type",
+        "enable_debug_layers",
+        "debug_layers_log_level",
+        "enable_rhi_validation",
+        "rhi_validation_log_level",
+        "enable_ray_tracing_validation",
+        "enable_aftermath",
+        "enable_cuda_interop",
+        "enable_print",
+        "enable_hot_reload",
+        "enable_compilation_reports",
+        "pipeline_compilation_mode",
+        "adapter_luid",
+        "compiler_options",
+        "module_cache_path",
+        "shader_cache_path",
+        "shader_cache_size",
+        "existing_device_handles",
+        "bindless_options",
+        "additional_vulkan_instance_extensions",
+        "additional_vulkan_device_extensions",
+        "enable_cuda_launch_from_gfx",
+        "enable_ray_tracing",
+        "label",
+        "desc"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.__enter__",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.__exit__",
+      "status": "missing",
+      "missing_parameters": [
+        "exc_type",
+        "exc_val",
+        "exc_tb"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.__repr__",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.capabilities",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.close",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.compose_modules",
+      "status": "summary",
+      "missing_parameters": [
+        "name",
+        "modules",
+        "type_conformances"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.convert_coop_vec_matrices",
+      "status": "summary",
+      "missing_parameters": [
+        "dst",
+        "dst_descs",
+        "src",
+        "src_descs"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.convert_coop_vec_matrix",
+      "status": "summary",
+      "missing_parameters": [
+        "dst",
+        "dst_descs",
+        "src",
+        "src_descs",
+        "dst_layout",
+        "src_layout"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_acceleration_structure",
+      "status": "summary",
+      "missing_parameters": [
+        "kind",
+        "size",
+        "label",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_acceleration_structure_instance_list",
+      "status": "summary",
+      "missing_parameters": [
+        "size"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_buffer",
+      "status": "summary",
+      "missing_parameters": [
+        "size",
+        "element_count",
+        "struct_size",
+        "resource_type_layout",
+        "format",
+        "memory_type",
+        "usage",
+        "default_state",
+        "label",
+        "data",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_buffer_from_native_handle",
+      "status": "summary",
+      "missing_parameters": [
+        "desc",
+        "handle"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_command_encoder",
+      "status": "summary",
+      "missing_parameters": [
+        "queue"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_compute_kernel",
+      "status": "summary",
+      "missing_parameters": [
+        "program",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_compute_pipeline",
+      "status": "summary",
+      "missing_parameters": [
+        "program",
+        "compilation_policy",
+        "label",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_coop_vec_matrix_desc",
+      "status": "summary",
+      "missing_parameters": [
+        "rows",
+        "cols",
+        "layout",
+        "element_type",
+        "offset",
+        "row_col_stride"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_fence",
+      "status": "summary",
+      "missing_parameters": [
+        "initial_value",
+        "shared",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_input_layout",
+      "status": "summary",
+      "missing_parameters": [
+        "input_elements",
+        "vertex_streams",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_micromap",
+      "status": "summary",
+      "missing_parameters": [
+        "type",
+        "size",
+        "flags",
+        "label",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_query_pool",
+      "status": "summary",
+      "missing_parameters": [
+        "type",
+        "count"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_ray_tracing_pipeline",
+      "status": "summary",
+      "missing_parameters": [
+        "program",
+        "hit_groups",
+        "max_recursion",
+        "max_ray_payload_size",
+        "max_attribute_size",
+        "flags",
+        "compilation_policy",
+        "label",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_render_pipeline",
+      "status": "summary",
+      "missing_parameters": [
+        "program",
+        "input_layout",
+        "primitive_topology",
+        "targets",
+        "depth_stencil",
+        "rasterizer",
+        "multisample",
+        "compilation_policy",
+        "label",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_root_shader_object",
+      "status": "summary",
+      "missing_parameters": [
+        "shader_program"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_sampler",
+      "status": "summary",
+      "missing_parameters": [
+        "min_filter",
+        "mag_filter",
+        "mip_filter",
+        "reduction_op",
+        "address_u",
+        "address_v",
+        "address_w",
+        "mip_lod_bias",
+        "max_anisotropy",
+        "comparison_func",
+        "border_color",
+        "min_lod",
+        "max_lod",
+        "label",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_shader_object",
+      "status": "summary",
+      "missing_parameters": [
+        "type_layout",
+        "cursor"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_shader_table",
+      "status": "summary",
+      "missing_parameters": [
+        "program",
+        "ray_gen_entry_points",
+        "miss_entry_points",
+        "hit_group_names",
+        "callable_entry_points",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_slang_session",
+      "status": "summary",
+      "missing_parameters": [
+        "compiler_options",
+        "add_default_include_paths",
+        "cache_path"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_surface",
+      "status": "summary",
+      "missing_parameters": [
+        "window",
+        "window_handle"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.create_texture",
+      "status": "summary",
+      "missing_parameters": [
+        "type",
+        "format",
+        "width",
+        "height",
+        "depth",
+        "array_length",
+        "mip_count",
+        "sample_count",
+        "sample_quality",
+        "memory_type",
+        "usage",
+        "default_state",
+        "sampler",
+        "label",
+        "data",
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.cuda_context_scope",
+      "status": "summary",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.desc",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.enumerate_adapters",
+      "status": "summary",
+      "missing_parameters": [
+        "type"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.features",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.flush_print",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.flush_print_to_string",
+      "status": "summary",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.get_acceleration_structure_sizes",
+      "status": "summary",
+      "missing_parameters": [
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.get_compilation_reports",
+      "status": "summary",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.get_coop_vec_matrix_size",
+      "status": "summary",
+      "missing_parameters": [
+        "rows",
+        "cols",
+        "layout",
+        "element_type",
+        "row_col_stride"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.get_created_devices",
+      "status": "summary",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.get_format_support",
+      "status": "summary",
+      "missing_parameters": [
+        "format"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.get_micromap_sizes",
+      "status": "summary",
+      "missing_parameters": [
+        "desc"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.get_timestamp_calibration",
+      "status": "summary",
+      "missing_parameters": [
+        "queue"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.has_capability",
+      "status": "summary",
+      "missing_parameters": [
+        "capability"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.has_feature",
+      "status": "summary",
+      "missing_parameters": [
+        "feature"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.hot_reload_check",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.info",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.is_submit_finished",
+      "status": "summary",
+      "missing_parameters": [
+        "id"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.link_program",
+      "status": "summary",
+      "missing_parameters": [
+        "modules",
+        "entry_points",
+        "link_options"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.load_module",
+      "status": "summary",
+      "missing_parameters": [
+        "module_name"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.load_module_from_source",
+      "status": "summary",
+      "missing_parameters": [
+        "module_name",
+        "source",
+        "path"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.load_program",
+      "status": "summary",
+      "missing_parameters": [
+        "module_name",
+        "entry_point_names",
+        "additional_source",
+        "link_options"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.native_handles",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.register_command_recording_discarded_callback",
+      "status": "summary",
+      "missing_parameters": [
+        "callback"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.register_command_recording_submitted_callback",
+      "status": "summary",
+      "missing_parameters": [
+        "callback"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.register_device_close_callback",
+      "status": "summary",
+      "missing_parameters": [
+        "callback"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.register_shader_hot_reload_callback",
+      "status": "summary",
+      "missing_parameters": [
+        "callback"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.reload_all_programs",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.report_heaps",
+      "status": "summary",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.report_live_objects",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.set_cuda_context_current",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.set_hot_reload_delay",
+      "status": "missing",
+      "missing_parameters": [
+        "timeout_ms"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.shader_cache_stats",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.slang_session",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.submit_command_buffer",
+      "status": "summary",
+      "missing_parameters": [
+        "command_buffer",
+        "queue",
+        "cuda_stream"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.submit_command_buffers",
+      "status": "summary",
+      "missing_parameters": [
+        "command_buffers",
+        "wait_fences",
+        "wait_fence_values",
+        "signal_fences",
+        "signal_fence_values",
+        "queue",
+        "cuda_stream"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.supported_shader_model",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.supports_cuda_interop",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.sync_to_cuda",
+      "status": "summary",
+      "missing_parameters": [
+        "cuda_stream"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.sync_to_device",
+      "status": "summary",
+      "missing_parameters": [
+        "cuda_stream"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.unregister_command_recording_discarded_callback",
+      "status": "summary",
+      "missing_parameters": [
+        "id"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.unregister_command_recording_submitted_callback",
+      "status": "summary",
+      "missing_parameters": [
+        "id"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.unregister_device_close_callback",
+      "status": "summary",
+      "missing_parameters": [
+        "id"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.unregister_shader_hot_reload_callback",
+      "status": "placeholder",
+      "missing_parameters": [
+        "id"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.wait",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.wait_for_idle",
+      "status": "summary",
+      "missing_parameters": [
+        "queue"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.Device.wait_for_submit",
+      "status": "summary",
+      "missing_parameters": [
+        "id"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall",
+      "status": "summary",
+      "missing_parameters": [
+        "layout"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.__init__",
+      "status": "missing",
+      "missing_parameters": [
+        "layout"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.__repr__",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.build_shader_object",
+      "status": "summary",
+      "missing_parameters": [
+        "context",
+        "data"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.can_direct_bind",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": true,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.gen_calldata",
+      "status": "summary",
+      "missing_parameters": [
+        "cgb",
+        "context",
+        "binding"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.gen_trampoline_load",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": true,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.gen_trampoline_store",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": true,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.has_derivative",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.is_writable",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.reduce_type",
+      "status": "summary",
+      "missing_parameters": [
+        "context",
+        "dimensions"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.resolve_dimensionality",
+      "status": "summary",
+      "missing_parameters": [
+        "context",
+        "binding",
+        "vector_target_type"
+      ],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.resolve_type",
+      "status": "summary",
+      "missing_parameters": [
+        "context",
+        "bound_type"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.resolve_types",
+      "status": "summary",
+      "missing_parameters": [
+        "context",
+        "bound_type"
+      ],
+      "requires_return": true,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.bindings.Marshall.slang_type",
+      "status": "missing",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    }
+  ]
+}

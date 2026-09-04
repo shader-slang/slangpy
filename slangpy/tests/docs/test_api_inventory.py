@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 import shutil
@@ -330,6 +331,158 @@ def test_render_command_validates_contract_and_excludes_unclassified_names(
     DOCS_TOOL.write_inventory(inventory, inventory_path)
     with pytest.raises(DOCS_TOOL.DocumentationError, match="missing reviewed public names"):
         DOCS_TOOL.render_command(inventory_path, contract_path, output_dir)
+
+
+def test_render_command_rejects_broken_internal_reference(tmp_path: Path) -> None:
+    package_root, contract_path = create_sample_package(tmp_path)
+    inventory = DOCS_TOOL.build_inventory(DOCS_TOOL.load_public_api(contract_path), package_root)
+    symbols = symbol_map(inventory)
+    symbols["sample.Widget"].documentation = DOCS_TOOL.DocumentationRecord(
+        summary="See :py:class:`sample.DoesNotExist`.", status="summary"
+    )
+    inventory_path = tmp_path / "api.json"
+    DOCS_TOOL.write_inventory(inventory, inventory_path)
+
+    with pytest.raises(DOCS_TOOL.DocumentationError, match="broken internal references"):
+        DOCS_TOOL.render_command(inventory_path, contract_path, tmp_path / "rendered")
+
+
+def test_load_inventory_rejects_unknown_schema(tmp_path: Path) -> None:
+    package_root, contract_path = create_sample_package(tmp_path)
+    inventory = DOCS_TOOL.build_inventory(DOCS_TOOL.load_public_api(contract_path), package_root)
+    inventory.schema_version = 999
+    inventory_path = tmp_path / "api.json"
+    DOCS_TOOL.write_inventory(inventory, inventory_path)
+
+    with pytest.raises(DOCS_TOOL.DocumentationError, match="schema version"):
+        DOCS_TOOL.load_inventory(inventory_path)
+
+
+def create_coverage_inventory() -> object:
+    """Create symbols spanning every mechanical coverage classification."""
+    section = "primary"
+    audience = "user"
+
+    def symbol(
+        name: str,
+        documentation: object,
+        signatures: list[str] | None = None,
+    ) -> object:
+        return DOCS_TOOL.ApiSymbol(
+            name=f"sample.{name}",
+            canonical_name=f"sample.{name}",
+            kind="function",
+            section=section,
+            audience=audience,
+            signatures=signatures or [],
+            documentation=documentation,
+        )
+
+    return DOCS_TOOL.ApiInventory(
+        schema_version=1,
+        package_version="1.2.3",
+        sections=[{"id": section, "title": "Primary", "audience": audience}],
+        symbols=[
+            symbol(
+                "missing",
+                DOCS_TOOL.DocumentationRecord(status="missing"),
+                ["missing(value: int) -> str"],
+            ),
+            symbol(
+                "placeholder",
+                DOCS_TOOL.DocumentationRecord(summary="N/A", status="summary"),
+            ),
+            symbol(
+                "summary",
+                DOCS_TOOL.DocumentationRecord(summary="Transform a value.", status="summary"),
+                ["summary(value: tuple[int, str], option: str = 'a,b') -> str"],
+            ),
+            symbol(
+                "complete",
+                DOCS_TOOL.DocumentationRecord(
+                    summary="Transform a value.",
+                    parameters={"value": "Input value."},
+                    returns="Transformed value.",
+                    status="complete",
+                ),
+                ["complete(value: int) -> str"],
+            ),
+            symbol(
+                "property",
+                DOCS_TOOL.DocumentationRecord(summary="Current value.", status="summary"),
+            ),
+            symbol(
+                "example",
+                DOCS_TOOL.DocumentationRecord(
+                    summary="Demonstrate an operation.",
+                    body="Example:\n    run()",
+                    status="complete",
+                ),
+            ),
+        ],
+    )
+
+
+def test_calculate_coverage_classifies_requirements_and_examples() -> None:
+    report = DOCS_TOOL.calculate_coverage(create_coverage_inventory())
+    symbols = {symbol.name: symbol for symbol in report.symbols}
+
+    assert report.counts == {"missing": 1, "placeholder": 1, "summary": 1, "complete": 3}
+    assert report.documented == 4
+    assert report.score == 7
+    assert symbols["sample.summary"].missing_parameters == ["value", "option"]
+    assert symbols["sample.summary"].requires_return
+    assert not symbols["sample.summary"].return_documented
+    assert symbols["sample.complete"].status == "complete"
+    assert symbols["sample.property"].status == "complete"
+    assert symbols["sample.example"].has_examples
+
+
+def test_validate_coverage_rejects_each_regression_class(tmp_path: Path) -> None:
+    inventory = create_coverage_inventory()
+    baseline = DOCS_TOOL.calculate_coverage(inventory)
+    baseline_path = tmp_path / "coverage-baseline.json"
+    DOCS_TOOL.write_coverage_report(baseline, baseline_path)
+
+    new_missing = copy.deepcopy(inventory)
+    new_missing.symbols.append(
+        DOCS_TOOL.ApiSymbol(
+            name="sample.new_public",
+            canonical_name="sample.new_public",
+            kind="function",
+            section="primary",
+            audience="user",
+        )
+    )
+    with pytest.raises(DOCS_TOOL.DocumentationError, match="new public symbols"):
+        DOCS_TOOL.validate_coverage(DOCS_TOOL.calculate_coverage(new_missing), baseline_path)
+
+    completed_regression = copy.deepcopy(inventory)
+    symbol_map(completed_regression)["sample.complete"].documentation.returns = ""
+    with pytest.raises(DOCS_TOOL.DocumentationError, match="completed symbols regressed"):
+        DOCS_TOOL.validate_coverage(
+            DOCS_TOOL.calculate_coverage(completed_regression), baseline_path
+        )
+
+    new_placeholder = copy.deepcopy(inventory)
+    symbol_map(new_placeholder)["sample.missing"].documentation = DOCS_TOOL.DocumentationRecord(
+        summary="N/A", status="placeholder"
+    )
+    with pytest.raises(DOCS_TOOL.DocumentationError, match="new placeholders"):
+        DOCS_TOOL.validate_coverage(DOCS_TOOL.calculate_coverage(new_placeholder), baseline_path)
+
+    total_regression = copy.deepcopy(inventory)
+    symbol_map(total_regression)["sample.summary"].documentation = DOCS_TOOL.DocumentationRecord(
+        status="missing"
+    )
+    with pytest.raises(DOCS_TOOL.DocumentationError, match="documented symbol count decreased"):
+        DOCS_TOOL.validate_coverage(DOCS_TOOL.calculate_coverage(total_regression), baseline_path)
+
+    improvement = copy.deepcopy(inventory)
+    symbol_map(improvement)["sample.missing"].documentation = DOCS_TOOL.DocumentationRecord(
+        summary="New documentation.", status="summary"
+    )
+    DOCS_TOOL.validate_coverage(DOCS_TOOL.calculate_coverage(improvement), baseline_path)
 
 
 def test_slangpy_pilot_inventory_is_complete_and_environment_independent(

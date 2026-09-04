@@ -19,13 +19,14 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 - [x] (2026-09-04) Completed Phase 0: added explicit runtime/snapshot preparation, reproducibility guards, pinned dependencies, strict documentation entry points, and contributor instructions.
 - [x] (2026-09-04) Completed Phase 1: defined the reviewed pilot API and generated a deterministic structured inventory from source and stubs.
 - [x] (2026-09-04) Completed Phase 2: rendered deterministic section pages, cut the API landing page over to the structured reference, and enabled nitpicky Sphinx validation.
-- [ ] Complete Phase 3: add documentation CI, coverage measurement, and regression gates.
+- [x] (2026-09-04) Completed Phase 3: added mechanical coverage measurement, a checked-in ratchet, dedicated documentation CI, and regression gates.
 - [ ] Complete Phase 4: publish Markdown and structured outputs for agents.
 - [ ] Complete Phase 5: establish and run an agent-assisted documentation campaign.
 - [ ] Complete Phase 6: remove the legacy generator and consolidate documentation maintenance.
 - [x] (2026-09-04) Ran the Windows release build, focused documentation tests, runtime and snapshot strict HTML builds, the CMake `doc` target, and pre-commit checks for Phase 0.
 - [x] (2026-09-04) Ran the Windows release build, 17 focused documentation tests, Pyright, repeated inventory generation/checks, the unclassified report, a strict snapshot HTML build, and pre-commit checks for Phase 1.
 - [x] (2026-09-04) Ran the Windows release build, 20 focused documentation tests, Pyright, repeated rendering, runtime and snapshot nitpicky HTML builds, the CMake `doc` target, and pre-commit checks for Phase 2.
+- [x] (2026-09-04) Ran the Windows release build, 24 focused documentation tests, Pyright, inventory, coverage, and rendering checks, runtime and snapshot nitpicky HTML builds, the CMake `doc` target, and pre-commit checks for Phase 3.
 - [ ] Record final outcomes and remaining documentation debt.
 
 ## Surprises and Discoveries
@@ -95,6 +96,12 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 
 - Observation: A reused Sphinx environment retained Python-domain objects from the removed legacy include and reported 79 false duplicate-object warnings on the first CMake `doc` build.
   Evidence: A fresh output directory already passed; adding Sphinx `-E` to the standard build cleared the cached legacy objects and made the existing CMake output directory pass as well.
+
+- Observation: Applying parameter and return requirements mechanically makes one previously summarized record complete and one previously complete record summary-only relative to the coarser Phase 1 counts.
+  Evidence: `docs/api/coverage-baseline.json` records 26 complete, 93 summary, 62 missing, and 6 placeholder symbols; 119 of 187 symbols have at least a real summary and the weighted score is 145.
+
+- Observation: None of the initial 187 pilot records contains an example that the structured documentation model can identify.
+  Evidence: The separate `has_examples` field is false for every symbol in `docs/api/coverage-baseline.json`. This does not reduce the mechanical completeness score, but establishes the example backlog for Phase 5.
 
 ## Decision Log
 
@@ -178,6 +185,22 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
   Rationale: API objects and anchors can move between generated pages during this migration. Reusing a doctree environment can preserve removed domain objects and make build results depend on prior local output.
   Date/Author: 2026-09-04, Codex.
 
+- Decision: Define mechanical completeness from a real summary plus documentation for every public signature parameter and every applicable non-`None` return; track examples independently.
+  Rationale: This produces deterministic coverage from the existing inventory without making examples mandatory for symbols where they add little value. It also exposes the specific missing fields an author must address.
+  Date/Author: 2026-09-04, Codex.
+
+- Decision: Store a deterministic coverage snapshot and reject lower documented counts or scores, regressed complete symbols, removed baseline symbols, and new missing or placeholder public symbols.
+  Rationale: Multiple checks prevent a superficially stable aggregate from hiding regressions in individual APIs. Historical debt remains allowed, while additions must enter the reviewed contract with real documentation.
+  Date/Author: 2026-09-04, Codex.
+
+- Decision: Run built-extension snapshot validation and strict documentation tests in a dedicated Ubuntu workflow, while running external link checking only on a weekly schedule.
+  Rationale: Source and API changes receive deterministic pull-request feedback without allowing transient external websites to block ordinary changes.
+  Date/Author: 2026-09-04, Codex.
+
+- Decision: Treat ordinary narrative `code-block` directives as explicitly illustrative; use doctest, literal inclusion from tested sources, or GPU sample tests when an example is intended to be executable.
+  Rationale: Readers and agents need to distinguish verified examples from explanatory fragments, while GPU-dependent notebooks cannot reliably execute during an ordinary hosted Sphinx build.
+  Date/Author: 2026-09-04, Codex.
+
 ## Outcomes and Retrospective
 
 Phase 0 is complete. `tools/docs.py` is now the explicit preparation, validation, and strict-build entry point; `tools/ci.py docs`, the CMake `doc` target, and Read the Docs all use it with an explicit runtime or snapshot mode. Runtime import failures are fatal, while hosted source-only builds deliberately validate the checked-in snapshot.
@@ -200,7 +223,13 @@ The published `docs/src/api_reference.rst` landing page now links to the structu
 
 Repeated renders were byte-identical, and the structured reference reduced the published pilot from one 22,110-line legacy page to three navigable section pages containing 187 reviewed symbols. Validation completed with a Windows release build, 20 focused documentation tests, a clean Pyright check, successful inventory and render checks, warning-free runtime and source-only Sphinx builds under `-n -W --keep-going`, the CMake `doc` target, and a passing pre-commit run.
 
-The primary remaining work moves to Phase 3: turn the 68 missing or placeholder records into a measured coverage baseline and enforce snapshot, coverage, and internal-reference regressions in dedicated documentation CI. The 1,647 unclassified public-looking names remain a review queue rather than part of the published reference.
+Phase 3 is complete. `tools/docs.py coverage` classifies each reviewed symbol as missing, placeholder, summary, or complete and records missing parameters, return-documentation requirements, and example presence. The deterministic baseline contains 26 complete, 93 summary, 62 missing, and 6 placeholder records. `coverage --check` rejects aggregate coverage loss, score loss, removed baseline symbols, complete-symbol regressions, and new missing or placeholder public symbols. Runtime documentation preparation now includes this check, so both local and hosted paths enforce the same ratchet.
+
+Coverage and rendering validation now reject invalid schema versions, machine-specific absolute paths, stale snapshots, and broken internal Python references. The focused tests deliberately exercise each Phase 3 acceptance failure as well as deterministic coverage classification and every ratchet rule. Contributor documentation describes how to inspect and intentionally update the baseline, and distinguishes executable, included, GPU-tested, and illustrative examples.
+
+The dedicated `.github/workflows/docs.yml` builds SlangPy and its stubs on Ubuntu, verifies regenerated native documentation and the API inventory, runs coverage and focused documentation tests, and builds Sphinx strictly. Relevant documentation, Python, native API, binding, CMake, and tooling paths trigger the workflow; a separate weekly job performs link checking. The workflow definition has been validated locally, but its hosted jobs will receive their first end-to-end execution after the branch is pushed.
+
+Validation completed with a Windows release build, 24 focused documentation tests, a clean Pyright check, successful inventory, coverage, and render checks, warning-free runtime and source-only Sphinx builds under `-n -W --keep-going`, the CMake `doc` target, and a passing pre-commit run. The next work is Phase 4: publish deterministic Markdown and JSON outputs and add bounded `context` and prioritized `tasks` commands for agents. The 68 missing or placeholder pilot records and 1,647 unclassified public-looking names remain deliberate backlogs rather than silently published APIs.
 
 Update this section at the end of each phase with the observable improvements, remaining gaps, and any changes to the following milestones.
 
@@ -554,4 +583,4 @@ Document any dependency or interface changes in the Decision Log. Update this Ex
 
 ## Revision Note
 
-This revision completes Phase 2. It records the deterministic split-page renderer, structured-reference cutover, stable Python-domain anchors, missing-documentation policy, nitpicky validation, legacy comparison, and the coverage backlog carried into Phase 3.
+This revision completes Phase 3. It records the mechanical coverage model and baseline, non-regression rules, internal-reference validation, example policy, dedicated Ubuntu documentation workflow, scheduled link checking, acceptance tests, and the agent-output work carried into Phase 4.
