@@ -131,6 +131,50 @@ SGL_DICT_TO_DESC_FIELD(size, DeviceSize)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_END()
 
+SGL_DICT_TO_DESC_BEGIN(ClusterOperationMoveParams)
+SGL_DICT_TO_DESC_FIELD(type, ClusterOperationMoveType)
+SGL_DICT_TO_DESC_FIELD(max_size, uint32_t)
+SGL_DICT_TO_DESC_END()
+
+SGL_DICT_TO_DESC_BEGIN(ClusterOperationClasBuildParams)
+SGL_DICT_TO_DESC_FIELD(vertex_format, Format)
+SGL_DICT_TO_DESC_FIELD(max_geometry_index, uint32_t)
+SGL_DICT_TO_DESC_FIELD(max_unique_geometry_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD(max_triangle_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD(max_vertex_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD(max_total_triangle_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD(max_total_vertex_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD(min_position_truncate_bit_count, uint32_t)
+SGL_DICT_TO_DESC_END()
+
+SGL_DICT_TO_DESC_BEGIN(ClusterOperationBlasBuildParams)
+SGL_DICT_TO_DESC_FIELD(max_clas_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD(max_total_clas_count, uint32_t)
+SGL_DICT_TO_DESC_END()
+
+SGL_DICT_TO_DESC_BEGIN(ClusterOperationParams)
+SGL_DICT_TO_DESC_FIELD(max_arg_count, uint32_t)
+SGL_DICT_TO_DESC_FIELD(type, ClusterOperationType)
+SGL_DICT_TO_DESC_FIELD(mode, ClusterOperationMode)
+SGL_DICT_TO_DESC_FIELD(flags, ClusterOperationFlags)
+SGL_DICT_TO_DESC_FIELD(move, ClusterOperationMoveParams)
+SGL_DICT_TO_DESC_FIELD(clas, ClusterOperationClasBuildParams)
+SGL_DICT_TO_DESC_FIELD(blas, ClusterOperationBlasBuildParams)
+SGL_DICT_TO_DESC_END()
+
+SGL_DICT_TO_DESC_BEGIN(ClusterOperationDesc)
+SGL_DICT_TO_DESC_FIELD(params, ClusterOperationParams)
+SGL_DICT_TO_DESC_FIELD(arg_count_buffer, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(args_buffer, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(args_buffer_stride, uint64_t)
+SGL_DICT_TO_DESC_FIELD(scratch_buffer, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(addresses_buffer, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(addresses_buffer_stride, size_t)
+SGL_DICT_TO_DESC_FIELD(result_buffer, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(sizes_buffer, BufferOffsetPair)
+SGL_DICT_TO_DESC_FIELD(sizes_buffer_stride, size_t)
+SGL_DICT_TO_DESC_END()
+
 SGL_DICT_TO_DESC_BEGIN(ShaderTableDesc)
 SGL_DICT_TO_DESC_FIELD(program, ref<ShaderProgram>)
 SGL_DICT_TO_DESC_FIELD_LIST(ray_gen_entry_points, std::string)
@@ -146,7 +190,17 @@ SGL_PY_EXPORT(device_raytracing)
     using namespace sgl;
 
     nb::class_<AccelerationStructureHandle>(m, "AccelerationStructureHandle", "Acceleration structure handle.")
-        .def(nb::init<>());
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](AccelerationStructureHandle* self, uint64_t value)
+            {
+                new (self) AccelerationStructureHandle{value};
+            },
+            "value"_a
+        )
+        .def_rw("value", &AccelerationStructureHandle::value);
+    nb::implicitly_convertible<uint64_t, AccelerationStructureHandle>();
 
     nb::sgl_enum_flags<AccelerationStructureGeometryFlags>(m, "AccelerationStructureGeometryFlags");
     nb::sgl_enum_flags<AccelerationStructureInstanceFlags>(m, "AccelerationStructureInstanceFlags");
@@ -619,6 +673,165 @@ SGL_PY_EXPORT(device_raytracing)
             &AccelerationStructureInstanceList::build_input_instances,
             D(AccelerationStructureInstanceList, build_input_instances)
         );
+
+    nb::sgl_enum<ClusterOperationType>(m, "ClusterOperationType");
+    nb::sgl_enum<ClusterOperationMode>(m, "ClusterOperationMode");
+    nb::sgl_enum_flags<ClusterOperationFlags>(m, "ClusterOperationFlags");
+    nb::sgl_enum<ClusterOperationMoveType>(m, "ClusterOperationMoveType");
+
+    nb::class_<ClusterOperationMoveParams>(m, "ClusterOperationMoveParams", D(ClusterOperationMoveParams))
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](ClusterOperationMoveParams* self, nb::dict dict)
+            {
+                new (self) ClusterOperationMoveParams(dict_to_ClusterOperationMoveParams(dict));
+            }
+        )
+        .def_rw("type", &ClusterOperationMoveParams::type, D(ClusterOperationMoveParams, type))
+        .def_rw("max_size", &ClusterOperationMoveParams::max_size, D(ClusterOperationMoveParams, max_size));
+    nb::implicitly_convertible<nb::dict, ClusterOperationMoveParams>();
+
+    nb::class_<ClusterOperationClasBuildParams>(
+        m,
+        "ClusterOperationClasBuildParams",
+        D(ClusterOperationClasBuildParams)
+    )
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](ClusterOperationClasBuildParams* self, nb::dict dict)
+            {
+                new (self) ClusterOperationClasBuildParams(dict_to_ClusterOperationClasBuildParams(dict));
+            }
+        )
+        .def_rw(
+            "vertex_format",
+            &ClusterOperationClasBuildParams::vertex_format,
+            D(ClusterOperationClasBuildParams, vertex_format)
+        )
+        .def_rw(
+            "max_geometry_index",
+            &ClusterOperationClasBuildParams::max_geometry_index,
+            D(ClusterOperationClasBuildParams, max_geometry_index)
+        )
+        .def_rw(
+            "max_unique_geometry_count",
+            &ClusterOperationClasBuildParams::max_unique_geometry_count,
+            D(ClusterOperationClasBuildParams, max_unique_geometry_count)
+        )
+        .def_rw(
+            "max_triangle_count",
+            &ClusterOperationClasBuildParams::max_triangle_count,
+            D(ClusterOperationClasBuildParams, max_triangle_count)
+        )
+        .def_rw(
+            "max_vertex_count",
+            &ClusterOperationClasBuildParams::max_vertex_count,
+            D(ClusterOperationClasBuildParams, max_vertex_count)
+        )
+        .def_rw(
+            "max_total_triangle_count",
+            &ClusterOperationClasBuildParams::max_total_triangle_count,
+            D(ClusterOperationClasBuildParams, max_total_triangle_count)
+        )
+        .def_rw(
+            "max_total_vertex_count",
+            &ClusterOperationClasBuildParams::max_total_vertex_count,
+            D(ClusterOperationClasBuildParams, max_total_vertex_count)
+        )
+        .def_rw(
+            "min_position_truncate_bit_count",
+            &ClusterOperationClasBuildParams::min_position_truncate_bit_count,
+            D(ClusterOperationClasBuildParams, min_position_truncate_bit_count)
+        );
+    nb::implicitly_convertible<nb::dict, ClusterOperationClasBuildParams>();
+
+    nb::class_<ClusterOperationBlasBuildParams>(
+        m,
+        "ClusterOperationBlasBuildParams",
+        D(ClusterOperationBlasBuildParams)
+    )
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](ClusterOperationBlasBuildParams* self, nb::dict dict)
+            {
+                new (self) ClusterOperationBlasBuildParams(dict_to_ClusterOperationBlasBuildParams(dict));
+            }
+        )
+        .def_rw(
+            "max_clas_count",
+            &ClusterOperationBlasBuildParams::max_clas_count,
+            D(ClusterOperationBlasBuildParams, max_clas_count)
+        )
+        .def_rw(
+            "max_total_clas_count",
+            &ClusterOperationBlasBuildParams::max_total_clas_count,
+            D(ClusterOperationBlasBuildParams, max_total_clas_count)
+        );
+    nb::implicitly_convertible<nb::dict, ClusterOperationBlasBuildParams>();
+
+    nb::class_<ClusterOperationParams>(m, "ClusterOperationParams", D(ClusterOperationParams))
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](ClusterOperationParams* self, nb::dict dict)
+            {
+                new (self) ClusterOperationParams(dict_to_ClusterOperationParams(dict));
+            }
+        )
+        .def_rw("max_arg_count", &ClusterOperationParams::max_arg_count, D(ClusterOperationParams, max_arg_count))
+        .def_rw("type", &ClusterOperationParams::type, D(ClusterOperationParams, type))
+        .def_rw("mode", &ClusterOperationParams::mode, D(ClusterOperationParams, mode))
+        .def_rw("flags", &ClusterOperationParams::flags, D(ClusterOperationParams, flags))
+        .def_rw("move", &ClusterOperationParams::move, D(ClusterOperationParams, move))
+        .def_rw("clas", &ClusterOperationParams::clas, D(ClusterOperationParams, clas))
+        .def_rw("blas", &ClusterOperationParams::blas, D(ClusterOperationParams, blas));
+    nb::implicitly_convertible<nb::dict, ClusterOperationParams>();
+
+    nb::class_<ClusterOperationDesc>(m, "ClusterOperationDesc", D(ClusterOperationDesc))
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](ClusterOperationDesc* self, nb::dict dict)
+            {
+                new (self) ClusterOperationDesc(dict_to_ClusterOperationDesc(dict));
+            }
+        )
+        .def_rw("params", &ClusterOperationDesc::params, D(ClusterOperationDesc, params))
+        .def_rw("arg_count_buffer", &ClusterOperationDesc::arg_count_buffer, D(ClusterOperationDesc, arg_count_buffer))
+        .def_rw("args_buffer", &ClusterOperationDesc::args_buffer, D(ClusterOperationDesc, args_buffer))
+        .def_rw(
+            "args_buffer_stride",
+            &ClusterOperationDesc::args_buffer_stride,
+            D(ClusterOperationDesc, args_buffer_stride)
+        )
+        .def_rw("scratch_buffer", &ClusterOperationDesc::scratch_buffer, D(ClusterOperationDesc, scratch_buffer))
+        .def_rw("addresses_buffer", &ClusterOperationDesc::addresses_buffer, D(ClusterOperationDesc, addresses_buffer))
+        .def_rw(
+            "addresses_buffer_stride",
+            &ClusterOperationDesc::addresses_buffer_stride,
+            D(ClusterOperationDesc, addresses_buffer_stride)
+        )
+        .def_rw("result_buffer", &ClusterOperationDesc::result_buffer, D(ClusterOperationDesc, result_buffer))
+        .def_rw("sizes_buffer", &ClusterOperationDesc::sizes_buffer, D(ClusterOperationDesc, sizes_buffer))
+        .def_rw(
+            "sizes_buffer_stride",
+            &ClusterOperationDesc::sizes_buffer_stride,
+            D(ClusterOperationDesc, sizes_buffer_stride)
+        );
+    nb::implicitly_convertible<nb::dict, ClusterOperationDesc>();
+
+    nb::class_<ClusterOperationSizes>(m, "ClusterOperationSizes", D(ClusterOperationSizes))
+        .def_ro("result_size", &ClusterOperationSizes::result_size, D(ClusterOperationSizes, result_size))
+        .def_ro("scratch_size", &ClusterOperationSizes::scratch_size, D(ClusterOperationSizes, scratch_size));
+
+    m.attr("CLUSTER_MAX_TRIANGLE_COUNT") = CLUSTER_MAX_TRIANGLE_COUNT;
+    m.attr("CLUSTER_MAX_VERTEX_COUNT") = CLUSTER_MAX_VERTEX_COUNT;
+    m.attr("CLUSTER_MAX_GEOMETRY_INDEX") = CLUSTER_MAX_GEOMETRY_INDEX;
+    m.attr("CLUSTER_DEFAULT_HANDLE_STRIDE") = CLUSTER_DEFAULT_HANDLE_STRIDE;
+    m.attr("CLUSTER_OUTPUT_ALIGNMENT") = CLUSTER_OUTPUT_ALIGNMENT;
 
     nb::class_<ShaderTableDesc>(m, "ShaderTableDesc", D(ShaderTableDesc))
         .def(nb::init<>())

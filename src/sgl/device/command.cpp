@@ -811,6 +811,25 @@ void CommandEncoder::query_acceleration_structure_properties(
     );
 }
 
+void CommandEncoder::execute_cluster_operation(const ClusterOperationDesc& desc)
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+
+    rhi::ClusterOperationDesc rhi_desc{
+        .params = detail::to_rhi(desc.params),
+        .argCountBuffer = detail::to_rhi(desc.arg_count_buffer),
+        .argsBuffer = detail::to_rhi(desc.args_buffer),
+        .argsBufferStride = desc.args_buffer_stride,
+        .scratchBuffer = detail::to_rhi(desc.scratch_buffer),
+        .addressesBuffer = detail::to_rhi(desc.addresses_buffer),
+        .addressesBufferStride = desc.addresses_buffer_stride,
+        .resultBuffer = detail::to_rhi(desc.result_buffer),
+        .sizesBuffer = detail::to_rhi(desc.sizes_buffer),
+        .sizesBufferStride = desc.sizes_buffer_stride,
+    };
+    m_rhi_command_encoder->executeClusterOperation(rhi_desc);
+}
+
 void CommandEncoder::convert_coop_vec_matrices(
     Buffer* dst,
     std::span<const CoopVecMatrixDesc> dst_descs,

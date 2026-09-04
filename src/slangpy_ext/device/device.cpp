@@ -975,6 +975,12 @@ SGL_PY_EXPORT(device_device)
     );
     device.def("create_micromap", &Device::create_micromap, "desc"_a, D(Device, create_micromap));
     device.def(
+        "get_cluster_operation_sizes",
+        &Device::get_cluster_operation_sizes,
+        "params"_a,
+        D(Device, get_cluster_operation_sizes)
+    );
+    device.def(
         "create_shader_table",
         [](Device* self,
            ref<ShaderProgram> program,
@@ -1609,6 +1615,7 @@ SGL_PY_EXPORT(device_device)
         D(create_micromap)
     );
     m.def("create_micromap", nb::overload_cast<MicromapDesc>(&create_micromap), "desc"_a, D(create_micromap));
+    m.def("get_cluster_operation_sizes", &get_cluster_operation_sizes, "params"_a, D(get_cluster_operation_sizes));
     m.def(
         "create_shader_table",
         [](ref<ShaderProgram> program,

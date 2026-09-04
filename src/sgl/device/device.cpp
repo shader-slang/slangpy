@@ -662,6 +662,16 @@ ref<Micromap> Device::create_micromap(MicromapDesc desc)
     return make_ref<Micromap>(ref<Device>(this), std::move(desc));
 }
 
+ClusterOperationSizes Device::get_cluster_operation_sizes(const ClusterOperationParams& params)
+{
+    rhi::ClusterOperationSizes rhi_sizes;
+    SLANG_RHI_CALL(m_rhi_device->getClusterOperationSizes(detail::to_rhi(params), &rhi_sizes), this);
+    return {
+        .result_size = rhi_sizes.resultSize,
+        .scratch_size = rhi_sizes.scratchSize,
+    };
+}
+
 ref<ShaderTable> Device::create_shader_table(ShaderTableDesc desc)
 {
     return make_ref<ShaderTable>(ref<Device>(this), std::move(desc));
@@ -1682,6 +1692,11 @@ MicromapSizes get_micromap_sizes(const MicromapBuildDesc& desc)
 ref<Micromap> create_micromap(MicromapDesc desc)
 {
     return current_device()->create_micromap(std::move(desc));
+}
+
+ClusterOperationSizes get_cluster_operation_sizes(const ClusterOperationParams& params)
+{
+    return current_device()->get_cluster_operation_sizes(params);
 }
 
 ref<ShaderTable> create_shader_table(ShaderTableDesc desc)

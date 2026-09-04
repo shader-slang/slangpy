@@ -376,6 +376,9 @@ public:
         std::span<AccelerationStructureQueryDesc> queries
     );
 
+    /// Execute an indirect cluster acceleration structure operation.
+    void execute_cluster_operation(const ClusterOperationDesc& desc);
+
     void convert_coop_vec_matrices(
         Buffer* dst,
         std::span<const CoopVecMatrixDesc> dst_descs,

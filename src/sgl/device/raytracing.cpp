@@ -37,6 +37,34 @@ MicromapBuildDescConverter::MicromapBuildDescConverter(const MicromapBuildDesc& 
     };
 }
 
+rhi::ClusterOperationParams detail::to_rhi(const ClusterOperationParams& params)
+{
+    return {
+        .maxArgCount = params.max_arg_count,
+        .type = static_cast<rhi::ClusterOperationType>(params.type),
+        .mode = static_cast<rhi::ClusterOperationMode>(params.mode),
+        .flags = static_cast<rhi::ClusterOperationFlags>(params.flags),
+        .move{
+            .type = static_cast<rhi::ClusterOperationMoveType>(params.move.type),
+            .maxSize = params.move.max_size,
+        },
+        .clas{
+            .vertexFormat = static_cast<rhi::Format>(params.clas.vertex_format),
+            .maxGeometryIndex = params.clas.max_geometry_index,
+            .maxUniqueGeometryCount = params.clas.max_unique_geometry_count,
+            .maxTriangleCount = params.clas.max_triangle_count,
+            .maxVertexCount = params.clas.max_vertex_count,
+            .maxTotalTriangleCount = params.clas.max_total_triangle_count,
+            .maxTotalVertexCount = params.clas.max_total_vertex_count,
+            .minPositionTruncateBitCount = params.clas.min_position_truncate_bit_count,
+        },
+        .blas{
+            .maxClasCount = params.blas.max_clas_count,
+            .maxTotalClasCount = params.blas.max_total_clas_count,
+        },
+    };
+}
+
 AccelerationStructureBuildDescConverter::AccelerationStructureBuildDescConverter(
     const AccelerationStructureBuildDesc& desc
 )
