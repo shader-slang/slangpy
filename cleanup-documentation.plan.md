@@ -18,13 +18,14 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 - [x] (2026-09-04) Recorded the initial architecture and migration decisions in this plan.
 - [x] (2026-09-04) Completed Phase 0: added explicit runtime/snapshot preparation, reproducibility guards, pinned dependencies, strict documentation entry points, and contributor instructions.
 - [x] (2026-09-04) Completed Phase 1: defined the reviewed pilot API and generated a deterministic structured inventory from source and stubs.
-- [ ] Complete Phase 2: render the structured inventory as split Sphinx API pages.
+- [x] (2026-09-04) Completed Phase 2: rendered deterministic section pages, cut the API landing page over to the structured reference, and enabled nitpicky Sphinx validation.
 - [ ] Complete Phase 3: add documentation CI, coverage measurement, and regression gates.
 - [ ] Complete Phase 4: publish Markdown and structured outputs for agents.
 - [ ] Complete Phase 5: establish and run an agent-assisted documentation campaign.
 - [ ] Complete Phase 6: remove the legacy generator and consolidate documentation maintenance.
 - [x] (2026-09-04) Ran the Windows release build, focused documentation tests, runtime and snapshot strict HTML builds, the CMake `doc` target, and pre-commit checks for Phase 0.
 - [x] (2026-09-04) Ran the Windows release build, 17 focused documentation tests, Pyright, repeated inventory generation/checks, the unclassified report, a strict snapshot HTML build, and pre-commit checks for Phase 1.
+- [x] (2026-09-04) Ran the Windows release build, 20 focused documentation tests, Pyright, repeated rendering, runtime and snapshot nitpicky HTML builds, the CMake `doc` target, and pre-commit checks for Phase 2.
 - [ ] Record final outcomes and remaining documentation debt.
 
 ## Surprises and Discoveries
@@ -79,6 +80,21 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 
 - Observation: Static traversal currently reports 1,647 reachable public-looking names outside the deliberately narrow pilot contract.
   Evidence: `python tools/docs.py report-unclassified`. This is a review queue, not an automatically published API surface.
+
+- Observation: Removing the legacy monolithic include eliminates the unresolved annotation noise that prevented nitpicky-reference validation.
+  Evidence: Both runtime and source-only structured builds pass Sphinx `-n -W --keep-going` without an ignore list; the Phase 0 legacy trial produced 394 warnings.
+
+- Observation: Two native docstrings contained RST-sensitive indentation or unmatched asterisks even after they had been normalized into the JSON inventory.
+  Evidence: The first structured build reported three warnings in `Device.cuda_context_scope` and `Function.write`. The renderer now preserves indentation boundaries and escapes documentation asterisks, and the builds pass without warnings.
+
+- Observation: The retained legacy snapshot has 1,269 unique Python directive names, of which 1,264 are outside the 187-symbol structured pilot. All five explicitly reviewed class names occur in both references.
+  Evidence: A direct directive-name comparison between `docs/generated/api.rst`, `docs/api/api.json`, and `docs/public_api.toml`.
+
+- Observation: `clang-format` treats checked-in JSON as formatable input and rewrites the generated inventory into a different layout.
+  Evidence: The first Phase 2 pre-commit pass reformatted `docs/api/api.json`, causing `inventory --check` to fail. `docs/api/` is now excluded from formatting and the inventory was regenerated from its source inputs.
+
+- Observation: A reused Sphinx environment retained Python-domain objects from the removed legacy include and reported 79 false duplicate-object warnings on the first CMake `doc` build.
+  Evidence: A fresh output directory already passed; adding Sphinx `-E` to the standard build cleared the cached legacy objects and made the existing CMake output directory pass as well.
 
 ## Decision Log
 
@@ -142,6 +158,26 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
   Rationale: The old named sections seeded the pilot's `Device` and functional API categories, but copying all reachable or legacy miscellaneous names would prematurely declare them supported. The unclassified report provides the review queue for expanding the contract in later phases.
   Date/Author: 2026-09-04, Codex.
 
+- Decision: Generate one ignored RST file per reviewed API section during every documentation preparation step.
+  Rationale: The checked-in JSON remains the reproducible source-only build input, while temporary renderer output cannot become stale or create noisy generated-page diffs.
+  Date/Author: 2026-09-04, Codex.
+
+- Decision: Register stable, signature-free Python-domain directives and display complete signatures and overloads in Python code blocks.
+  Rationale: This preserves public Python-domain anchors and readable overloads without asking Sphinx to resolve every native annotation embedded in nanobind signatures.
+  Date/Author: 2026-09-04, Codex.
+
+- Decision: Show the neutral `Documentation pending` marker under an explicit `show_missing_documentation` contract option and never render the legacy `N/A` placeholder.
+  Rationale: Missing content should be visible during the pilot, but placeholder presentation remains a deliberate maintainer choice rather than renderer policy.
+  Date/Author: 2026-09-04, Codex.
+
+- Decision: Cut `docs/src/api_reference.rst` over to the structured section pages, retain `docs/generated/api.rst` for comparison, and enable nitpicky-reference mode without suppressions.
+  Rationale: The pilot represents every reviewed name and passes strict builds. Keeping the old snapshot available provides rollback evidence without continuing to publish 1,264 unreviewed legacy directives.
+  Date/Author: 2026-09-04, Codex.
+
+- Decision: Always create a fresh Sphinx environment with `-E` in the documentation entry point.
+  Rationale: API objects and anchors can move between generated pages during this migration. Reusing a doctree environment can preserve removed domain objects and make build results depend on prior local output.
+  Date/Author: 2026-09-04, Codex.
+
 ## Outcomes and Retrospective
 
 Phase 0 is complete. `tools/docs.py` is now the explicit preparation, validation, and strict-build entry point; `tools/ci.py docs`, the CMake `doc` target, and Read the Docs all use it with an explicit runtime or snapshot mode. Runtime import failures are fatal, while hosted source-only builds deliberately validate the checked-in snapshot.
@@ -158,6 +194,14 @@ The pilot snapshot contains 187 records for the five reviewed classes and their 
 
 The structured inventory is not yet rendered into Sphinx pages; that remains Phase 2. The immediate content backlog is visible rather than hidden: 68 pilot records are missing documentation or still use placeholders, and 1,647 public-looking reachable names remain outside the reviewed contract.
 
+Phase 2 is complete. `tools/docs.py render` loads and validates only `docs/api/api.json` and `docs/public_api.toml`, then writes one ignored RST page for each of the Functional API, Device, and Extension Author API sections. Documentation preparation now always recreates those pages, so the Read the Docs snapshot path does not import or compile SlangPy. Rendering validates section metadata, reviewed-name completeness, audiences, source paths, documentation states, unique symbols, and stable anchors before writing output.
+
+The published `docs/src/api_reference.rst` landing page now links to the structured pages and retains its established `sec-api-reference` anchor. Every structured symbol receives a public Python-domain directive and a stable explicit label; overloads, parameters, returns, aliases, properties, enums, source locations, and internal cross-references have rendering coverage. Missing and placeholder documentation displays `Documentation pending` because the contract opts into it, while literal `N/A` is suppressed. The old `docs/generated/api.rst` remains checked in for migration comparison but is excluded from Sphinx and no longer published.
+
+Repeated renders were byte-identical, and the structured reference reduced the published pilot from one 22,110-line legacy page to three navigable section pages containing 187 reviewed symbols. Validation completed with a Windows release build, 20 focused documentation tests, a clean Pyright check, successful inventory and render checks, warning-free runtime and source-only Sphinx builds under `-n -W --keep-going`, the CMake `doc` target, and a passing pre-commit run.
+
+The primary remaining work moves to Phase 3: turn the 68 missing or placeholder records into a measured coverage baseline and enforce snapshot, coverage, and internal-reference regressions in dedicated documentation CI. The 1,647 unclassified public-looking names remain a review queue rather than part of the published reference.
+
 Update this section at the end of each phase with the observable improvements, remaining gaps, and any changes to the following milestones.
 
 ## Context and Orientation
@@ -168,7 +212,7 @@ Native documentation begins as Doxygen-style comments in C++ headers. The `slang
 
 The native build also invokes nanobind's stub generator. It writes `.pyi` files next to the Python package. A `.pyi` file is a Python interface file containing classes, functions, overloads, types, and retained docstrings without executable implementations. These stubs already describe native signatures more reliably than `inspect.signature()`.
 
-The current API renderer is `docs/generate_api.py`. It imports `slangpy`, recursively visits reachable modules and objects, parses docstrings, sorts selected names using `docs/api_order.json`, and writes `docs/generated/api.rst`. `docs/src/api_reference.rst` includes that large file.
+The retained legacy API renderer is `docs/generate_api.py`. It imports `slangpy`, recursively visits reachable modules and objects, parses docstrings, sorts selected names using `docs/api_order.json`, and writes `docs/generated/api.rst`. The current published reference is rendered by `tools/docs.py` from `docs/api/api.json` into ignored section pages under `docs/generated/api/`; `docs/src/api_reference.rst` links to those pages.
 
 `docs/conf.py` runs the generator from a Sphinx `builder-inited` callback and copies notebooks and supporting files from `samples/tutorials` into `docs/src/tutorials`. It catches `ImportError` when SlangPy is unavailable. `.readthedocs.yml` installs documentation dependencies but does not build SlangPy, so the hosted build normally uses the checked-in generated API file.
 
@@ -510,4 +554,4 @@ Document any dependency or interface changes in the Decision Log. Update this Ex
 
 ## Revision Note
 
-This revision completes Phase 1. It records the reviewed pilot API contract, static Griffe/source-stub merge, deterministic JSON snapshot and checks, unclassified review queue, validation results, and the documentation backlog carried into Phase 2.
+This revision completes Phase 2. It records the deterministic split-page renderer, structured-reference cutover, stable Python-domain anchors, missing-documentation policy, nitpicky validation, legacy comparison, and the coverage backlog carried into Phase 3.

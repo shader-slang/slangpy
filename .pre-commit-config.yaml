@@ -39,6 +39,7 @@ exclude: |
       .*\.ipynb|
       build/.*|
       external/.*|
+      docs/api/.*|
       src/sgl/stl/.*|
       src/slangpy_ext/py_doc.h|
       docs/generated/.*|

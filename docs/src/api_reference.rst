@@ -5,24 +5,28 @@
 API reference
 =============
 
-Overview
---------
+This reference is generated from the reviewed public API contract and the
+structured API inventory. It intentionally excludes importable implementation
+details that have not been classified as supported interfaces.
 
-This API reference documentation was automatically generated from
-Python docstrings. The docstrings are generated in the binding code
-from the C++ API comments.
+Primary API
+-----------
 
-The main ``slangpy`` module contains all the basic types
-required to load and call Slang functions from Python.
+* :doc:`Functional API <../generated/api/functional-api>` -- tensors, modules,
+  and callable Slang functions.
+* :doc:`Device <../generated/api/device>` -- GPU device creation and resource
+  management.
 
-The ``slangpy.reflection`` module is a wrapper around the Slang reflection API
-exposed by SlangPy. It is used extensively internally by SlangPy, but is a useful way
-of introspecting the Slang code in general. The most common way to access reflection
-data is by accessing the ``SlangProgramLayout`` of a module via the
-``Module.layout`` attribute.
+Extension API
+-------------
 
-The ``slangpy.bindings`` module contains the tools required to extend SlangPy to
-support new Python types. All slangpy's built-in types are implemented using these
-classes (see ``slangpy/builtin``).
+* :doc:`Extension Author API <../generated/api/extension-api>` -- interfaces
+  used to add Python-to-Slang type bindings.
 
-.. include:: ../generated/api.rst
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+
+   ../generated/api/functional-api
+   ../generated/api/device
+   ../generated/api/extension-api

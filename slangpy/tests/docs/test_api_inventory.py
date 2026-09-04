@@ -79,7 +79,7 @@ class Other:
         encoding="utf-8",
     )
     (package_root / "model.pyi").write_text(
-        '''from typing import overload
+        """from typing import overload
 
 class Widget:
     @overload
@@ -94,12 +94,12 @@ class Widget:
     def convert(self, value: str) -> str: ...
 
 class Other: ...
-''',
+""",
         encoding="utf-8",
     )
     contract = root / "public_api.toml"
     contract.write_text(
-        '''schema_version = 1
+        """schema_version = 1
 package = "sample"
 package_version = "1.2.3"
 
@@ -114,7 +114,7 @@ id = "extension"
 title = "Extension API"
 audience = "extension-author"
 names = []
-''',
+""",
         encoding="utf-8",
     )
     return package_root, contract
@@ -143,9 +143,7 @@ def test_inventory_merges_sources_stubs_overloads_and_aliases(tmp_path: Path) ->
     assert symbols["sample.Widget.convert"].documentation.parameters == {
         "value": "Value to convert."
     }
-    assert symbols["sample.Widget.convert"].documentation.returns == (
-        "Text form of the value."
-    )
+    assert symbols["sample.Widget.convert"].documentation.returns == ("Text form of the value.")
     assert widget.documentation.summary == "Transform sample values."
     assert widget.source.path == "sample/model.py"
 
@@ -223,6 +221,115 @@ def test_inventory_rejects_environment_dependent_data(tmp_path: Path) -> None:
         )
         with pytest.raises(DOCS_TOOL.DocumentationError, match="environment-dependent"):
             DOCS_TOOL.write_inventory(inventory, tmp_path / "api.json")
+
+
+def test_render_sphinx_covers_supported_symbol_shapes(tmp_path: Path) -> None:
+    package_root, contract_path = create_sample_package(tmp_path)
+    inventory = DOCS_TOOL.build_inventory(DOCS_TOOL.load_public_api(contract_path), package_root)
+    inventory.symbols.extend(
+        [
+            DOCS_TOOL.ApiSymbol(
+                name="sample.Mode",
+                canonical_name="sample.Mode",
+                kind="enum",
+                section="primary",
+                audience="user",
+                documentation=DOCS_TOOL.DocumentationRecord(
+                    summary="Select a mode. See :py:class:`sample.Widget`.",
+                    status="summary",
+                ),
+            ),
+            DOCS_TOOL.ApiSymbol(
+                name="sample.Mode.fast",
+                canonical_name="sample.Mode.fast",
+                kind="enum-member",
+                section="primary",
+                audience="user",
+                documentation=DOCS_TOOL.DocumentationRecord(
+                    summary="Use the fast mode.", status="summary"
+                ),
+            ),
+            DOCS_TOOL.ApiSymbol(
+                name="sample.pending",
+                canonical_name="sample.pending",
+                kind="function",
+                section="primary",
+                audience="user",
+                documentation=DOCS_TOOL.DocumentationRecord(summary="N/A", status="placeholder"),
+            ),
+        ]
+    )
+    output_dir = tmp_path / "rendered"
+
+    DOCS_TOOL.render_sphinx(inventory, output_dir, show_missing_documentation=True)
+
+    text = (output_dir / "primary.rst").read_text(encoding="utf-8")
+    assert ".. py:class:: sample.Widget" in text
+    assert ".. py:property:: sample.Widget.label" in text
+    assert ".. py:class:: sample.Mode" in text
+    assert ".. py:attribute:: sample.Mode.fast" in text
+    assert "**Overloads**" in text
+    assert "**Parameters**" in text
+    assert "**Returns:**" in text
+    assert ":py:obj:`sample.AliasWidget`" in text
+    assert ":py:class:`~sample.Widget`" in text
+    assert "See :py:class:`sample.Widget`." in text
+    assert "*Documentation pending.*" in text
+    assert "N/A" not in text
+
+
+def test_render_sphinx_is_deterministic_and_removes_stale_pages(tmp_path: Path) -> None:
+    package_root, contract_path = create_sample_package(tmp_path / "workspace")
+    inventory = DOCS_TOOL.build_inventory(DOCS_TOOL.load_public_api(contract_path), package_root)
+    first_output = tmp_path / "first"
+    second_output = tmp_path / "second"
+    DOCS_TOOL.render_sphinx(inventory, first_output)
+    expected = {path.name: path.read_bytes() for path in sorted(first_output.glob("*.rst"))}
+    (first_output / "stale.rst").write_text(
+        f"{DOCS_TOOL.GENERATED_PAGE_HEADER}\n\nstale\n", encoding="utf-8"
+    )
+    (first_output / "handwritten.rst").write_text("keep me\n", encoding="utf-8")
+
+    DOCS_TOOL.render_sphinx(inventory, first_output)
+    DOCS_TOOL.render_sphinx(inventory, second_output)
+
+    assert not (first_output / "stale.rst").exists()
+    assert (first_output / "handwritten.rst").read_text(encoding="utf-8") == "keep me\n"
+    assert {
+        path.name: path.read_bytes()
+        for path in sorted(first_output.glob("*.rst"))
+        if path.name != "handwritten.rst"
+    } == expected
+    assert {path.name: path.read_bytes() for path in sorted(second_output.glob("*.rst"))} == (
+        expected
+    )
+    assert "Documentation pending" not in (first_output / "primary.rst").read_text(encoding="utf-8")
+
+
+def test_render_command_validates_contract_and_excludes_unclassified_names(
+    tmp_path: Path,
+) -> None:
+    package_root, contract_path = create_sample_package(tmp_path)
+    inventory = DOCS_TOOL.build_inventory(DOCS_TOOL.load_public_api(contract_path), package_root)
+    inventory_path = tmp_path / "api.json"
+    output_dir = tmp_path / "rendered"
+    DOCS_TOOL.write_inventory(inventory, inventory_path)
+
+    DOCS_TOOL.render_command(inventory_path, contract_path, output_dir)
+
+    rendered = "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted(output_dir.glob("*.rst"))
+    )
+    assert "sample.Widget" in rendered
+    assert "sample.AliasWidget" in rendered
+    assert "sample.Other" not in rendered
+
+    inventory.symbols = [
+        symbol for symbol in inventory.symbols if symbol.name != "sample.AliasWidget"
+    ]
+    DOCS_TOOL.write_inventory(inventory, inventory_path)
+    with pytest.raises(DOCS_TOOL.DocumentationError, match="missing reviewed public names"):
+        DOCS_TOOL.render_command(inventory_path, contract_path, output_dir)
 
 
 def test_slangpy_pilot_inventory_is_complete_and_environment_independent(

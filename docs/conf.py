@@ -39,9 +39,10 @@ extensions = [
 source_suffix = ".rst"
 master_doc = "index"
 language = "en"
+nitpicky = True
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "CMakeLists.txt", "generated/*"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "CMakeLists.txt", "generated/api.rst"]
 suppress_warnings = ["nbsphinx.localfile"]
 
 lexers["slang"] = HLSLShaderLexer()

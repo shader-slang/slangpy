@@ -5,6 +5,7 @@ external/nvtt/
 tools/download
 tools/host
 docs/_build/
+/docs/generated/api/
 
 .DS_Store
 *.pyc
