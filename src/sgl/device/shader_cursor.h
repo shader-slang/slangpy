@@ -136,7 +136,7 @@ public:
     DeviceType _get_device_type() const;
 
 private:
-    slang::TypeLayoutReflection* m_type_layout;
+    slang::TypeLayoutReflection* m_type_layout{nullptr};
     ShaderObject* m_shader_object{nullptr};
     ShaderOffset m_offset;
 };
