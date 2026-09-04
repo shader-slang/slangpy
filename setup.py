@@ -154,9 +154,7 @@ with open("src/sgl/sgl.h") as f:
         version = version_override
     else:
         version = "{MAJOR}.{MINOR}.{PATCH}".format(**matches)
-    version_suffix = os.environ.get("SLANGPY_VERSION_SUFFIX", "")
-    if version_suffix:
-        version += version_suffix
+    version += os.environ.get("SLANGPY_VERSION_SUFFIX", "")
     print(f"version={version}")
 
 with open("README.md", "r") as f:
