@@ -4,13 +4,30 @@ from __future__ import annotations
 import re
 import importlib
 import json
-from inspect import isbuiltin, isclass, ismodule
+from inspect import isbuiltin, isclass, ismodule, isroutine
 from pathlib import Path
 
 DIR = Path(__file__).parent
 INDENT = "    "
 
 API_ORDER = json.load(open(DIR / "api_order.json"))
+
+PUBLISHED_DATA_NAMES = {
+    "slangpy.ALL_LAYERS",
+    "slangpy.ALL_MIPS",
+    "slangpy.SGL_VERSION_MAJOR",
+    "slangpy.SGL_VERSION_MINOR",
+    "slangpy.SGL_VERSION_PATCH",
+    "slangpy.SGL_VERSION",
+}
+
+OBJECT_DEFAULT_RE = re.compile(r"= <[^>\n]*\bat 0x[0-9a-fA-F]+>")
+
+
+def normalize_doc(doc: str) -> str:
+    """Normalize recurring native-docstring constructs for reStructuredText."""
+    doc = re.sub(r"``([^`]+)``\(\)", r"``\1()``", doc)
+    return re.sub(r"(?m)^(\s*)Usage:\n", r"\1Usage::\n\n", doc)
 
 
 def parse_signature(signature: str):
@@ -65,7 +82,10 @@ def parse_signature(signature: str):
     # print(args)
     # print(f"new signature: {new_signature}")
 
-    return signature
+    # Some native signatures stringify object-valued defaults using their process
+    # address. Ellipsis is both stable and an accurate indication that the exact
+    # default is an implementation detail.
+    return OBJECT_DEFAULT_RE.sub("= ...", signature)
     return new_signature
 
 
@@ -111,6 +131,7 @@ class Context:
         self.entries = {"*": ""}
         self.current_entry = "*"
         self.visited_modules = set()
+        self.skipped_properties = []
 
     def write(self, text: str):
         lines = text.split("\n")
@@ -143,7 +164,7 @@ def process_method(obj: object, name: str, ctx: Context):
         ctx.write("")
         ctx.push(name)
         if doc:
-            ctx.write(doc + "\n")
+            ctx.write(normalize_doc(doc) + "\n")
         ctx.pop()
         first = False
 
@@ -157,7 +178,7 @@ def process_static_method(obj: object, name: str, ctx: Context):
         ctx.write("")
         ctx.push(name)
         if doc:
-            ctx.write(doc + "\n")
+            ctx.write(normalize_doc(doc) + "\n")
         ctx.pop()
         first = False
 
@@ -170,13 +191,13 @@ def process_property(obj: object, name: str, ctx: Context):
         type = doc[0].split("->")[1].strip()
         doc = "\n".join(doc[1:]).strip()
     except:
-        print(f"Error processing property {name}")
+        ctx.skipped_properties.append(f"{ctx.prefix}.{name}")
         return
     ctx.write(f".. py:property:: {name}")
     ctx.write(f"{INDENT}:type: {type}\n")
     ctx.push(name)
     if doc != "":
-        ctx.write(doc + "\n")
+        ctx.write(normalize_doc(doc) + "\n")
     ctx.pop()
 
 
@@ -199,7 +220,6 @@ def process_class(obj: object, name: str, ctx: Context):
         # print(f"CLASS ALIAS: {ctx.prefix}.{name}")
         ctx.push(name)
         # ctx.write(f":noindex:")
-        ctx.write(f":canonical: {obj.__module__}.{obj.__qualname__}\n")
         ctx.write(f"Alias class: :py:class:`{obj.__module__}.{obj.__qualname__}`\n")
         ctx.pop()
         return
@@ -211,7 +231,7 @@ def process_class(obj: object, name: str, ctx: Context):
         ctx.write(f"Base class: :py:class:`{base.__module__}.{base.__name__}`\n")
 
     if isinstance(obj.__doc__, str):
-        ctx.write(obj.__doc__ + "\n")
+        ctx.write(normalize_doc(obj.__doc__) + "\n")
 
     for cn in obj.__dict__:
         # Skip properties
@@ -234,8 +254,12 @@ def process_class(obj: object, name: str, ctx: Context):
                 print(f"Skipping class {cn} ({type(co)})")
                 continue
             process_class(co, cn, ctx)
+        elif isroutine(co):
+            # Ordinary Python methods are not represented correctly by this legacy
+            # generator. Do not render their process-specific repr as an attribute.
+            continue
         else:
-            if is_enum or cn == "__init__":
+            if is_enum or cn == "__init__" or type(co) not in (bool, float, int, str):
                 continue
             process_attribute(co, cn, ctx)
 
@@ -261,7 +285,7 @@ def process_function(obj: object, name: str, ctx: Context):
         ctx.write("")
         ctx.push(name)
         if doc:
-            ctx.write(doc + "\n")
+            ctx.write(normalize_doc(doc) + "\n")
         ctx.pop()
         first = False
 
@@ -314,11 +338,9 @@ def process_module(obj: object, name: str, ctx: Context):
             ctx.new_entry(cn)
             process_function(co, cn, ctx)
         else:
-            # TODO(docs) skip classes not defined in nanobind
-            if not co.__class__ == int and not co.__class__ == str and not is_extension(co):
-                print(f"Skipping data {cn} ({type(co)})")
+            qualified_name = f"{ctx.prefix}.{cn}"
+            if qualified_name not in PUBLISHED_DATA_NAMES:
                 continue
-
             ctx.new_entry(cn)
             process_data(co, cn, ctx)
 
@@ -351,18 +373,31 @@ def generate_api():
 
     out += "Miscellaneous\n"
     out += "-------------\n\n"
+    unassigned_entries = []
     for entry in entries:
         if entry in added_entries:
             continue
+        if not entries[entry].strip():
+            continue
+        if unassigned_entries:
+            out += "\n----\n\n"
         out += entries[entry] + "\n"
-        out += "\n----\n\n"
-        print(f"Unassigned entry {entry} with content:")
-        print(entries[entry])
+        unassigned_entries.append(entry)
 
+    unvisited_patterns = []
     for section_name, patterns in API_ORDER.items():
         for pattern in patterns:
             if (section_name, pattern) not in visited_api_order:
-                print(f"Unvisited api order pattern {section_name} / {pattern}")
+                unvisited_patterns.append(f"{section_name} / {pattern}")
+
+    if unassigned_entries:
+        print(f"Placed {len(unassigned_entries)} unassigned entries in Miscellaneous")
+    if unvisited_patterns:
+        print(f"Found {len(unvisited_patterns)} API order patterns without matching entries")
+    if ctx.skipped_properties:
+        print(f"Skipped {len(ctx.skipped_properties)} properties without native signature metadata")
+
+    out = "\n".join(line.rstrip() for line in out.splitlines()).rstrip() + "\n"
 
     # Write file if it changed.
     api_path = Path(__file__).parent / "generated" / "api.rst"

@@ -11,8 +11,6 @@
     "Constants": [
         "slangpy.ALL_LAYERS",
         "slangpy.ALL_MIPS",
-        "slangpy.SGL_BUILD_TYPE",
-        "slangpy.SGL_GIT_VERSION",
         "slangpy.SGL_VERSION_MAJOR",
         "slangpy.SGL_VERSION_MINOR",
         "slangpy.SGL_VERSION_PATCH",

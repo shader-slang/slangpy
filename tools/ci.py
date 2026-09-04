@@ -173,6 +173,24 @@ def test_examples(args: Any):
     run_command(cmd, shell=False, env=env)
 
 
+def build_docs(args: Any):
+    """Build documentation from the compiled package with strict validation."""
+    env = get_python_env(args.preset)
+    output_dir = PROJECT_DIR / "build" / args.preset / "docs" / "html"
+    cmd = [
+        sys.executable,
+        str(PROJECT_DIR / "tools" / "docs.py"),
+        "build",
+        "--api-mode",
+        "runtime",
+        "--builder",
+        "html",
+        "--output-dir",
+        str(output_dir),
+    ]
+    run_command(cmd, shell=False, env=env)
+
+
 def benchmark_python(args: Any):
     env = get_python_env()
 
@@ -319,6 +337,8 @@ def main():
         "-p", "--parallel", action="store_true", help="run tests in parallel"
     )
 
+    parser_docs = commands.add_parser("docs", help="build and validate documentation")
+
     parser_benchmark_python = commands.add_parser(
         "benchmark-python", help="run benchmarks (python)"
     )
@@ -401,6 +421,7 @@ def main():
         "typing-check-python": typing_check_python,
         "unit-test-python": unit_test_python,
         "test-examples": test_examples,
+        "docs": build_docs,
         "benchmark-python": benchmark_python,
         "coverage-report": coverage_report,
         "install-slangpy-torch": install_slangpy_torch,

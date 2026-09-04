@@ -16,14 +16,14 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 
 - [x] (2026-09-04) Reviewed the existing documentation, native doc extraction, stub generation, Sphinx configuration, Read the Docs configuration, and CI integration.
 - [x] (2026-09-04) Recorded the initial architecture and migration decisions in this plan.
-- [ ] Complete Phase 0: add immediate reproducibility and leakage safeguards.
+- [x] (2026-09-04) Completed Phase 0: added explicit runtime/snapshot preparation, reproducibility guards, pinned dependencies, strict documentation entry points, and contributor instructions.
 - [ ] Complete Phase 1: define the public API and generate a structured pilot inventory.
 - [ ] Complete Phase 2: render the structured inventory as split Sphinx API pages.
 - [ ] Complete Phase 3: add documentation CI, coverage measurement, and regression gates.
 - [ ] Complete Phase 4: publish Markdown and structured outputs for agents.
 - [ ] Complete Phase 5: establish and run an agent-assisted documentation campaign.
 - [ ] Complete Phase 6: remove the legacy generator and consolidate documentation maintenance.
-- [ ] Run the full project build, relevant tests, documentation build, and pre-commit checks.
+- [x] (2026-09-04) Ran the Windows release build, focused documentation tests, runtime and snapshot strict HTML builds, the CMake `doc` target, and pre-commit checks for Phase 0.
 - [ ] Record final outcomes and remaining documentation debt.
 
 ## Surprises and Discoveries
@@ -57,6 +57,18 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 
 - Observation: The developer guide tells contributors to build a `pydoc` target, while CMake defines `slangpy_pydoc`.
   Evidence: `docs/src/developer_guide/compiling.rst` and `src/slangpy_ext/CMakeLists.txt`.
+
+- Observation: The legacy generator renders ordinary Python methods as attributes whose values contain process-specific memory addresses.
+  Evidence: Existing `docs/generated/api.rst` entries contain values such as `<function Module.load_from_file at 0x...>`.
+
+- Observation: Native signatures can also contain object-valued defaults with process-specific memory addresses, so filtering only generated `:value:` fields is insufficient.
+  Evidence: Consecutive Phase 0 generations initially differed in six signatures, including `Bitmap.resample`, `CommandEncoder.draw_indirect`, and `Profiler.start_capture`.
+
+- Observation: The `pandoc` package previously listed in `docs/requirements.txt` is a Python library and does not provide the Pandoc executable required by nbconvert.
+  Evidence: The first strict notebook build failed with `PandocMissing`; replacing it with `pypandoc-binary` made both notebooks render in a clean pip-installed documentation environment.
+
+- Observation: Enabling Sphinx nitpicky mode against the legacy monolithic runtime reference produces hundreds of unresolved external and malformed native type references.
+  Evidence: The Phase 0 trial reported 394 warnings, dominated by types such as `enum.Enum`, `collections.abc.Sequence`, and nanobind-specific ndarray spellings. The ordinary strict build now passes with zero warnings.
 
 ## Decision Log
 
@@ -96,9 +108,31 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
   Rationale: A non-regression gate can be adopted immediately while high-value APIs are improved incrementally.
   Date/Author: 2026-09-04, Codex.
 
+- Decision: Phase 0 provides explicit `runtime` and `snapshot` preparation modes. Developer and CI builds use `runtime`; Read the Docs uses `snapshot`.
+  Rationale: A source-only hosted build is legitimate, but it must not be selected implicitly after a failed import.
+  Date/Author: 2026-09-04, Codex.
+
+- Decision: Pin Sphinx 7.4.7 during Phase 0 rather than the latest major release.
+  Rationale: Sphinx 7.4.7 supports the project's Python 3.9 minimum while providing strict warning and nitpicky-reference modes. A later Python baseline can update Sphinx separately.
+  Date/Author: 2026-09-04, Codex.
+
+- Decision: Enforce `-W --keep-going` in Phase 0 and defer nitpicky-reference mode until the structured API renderer can normalize native annotations and provide a small reviewed ignore list.
+  Rationale: Strict mode now catches all ordinary Sphinx warnings. Enabling nitpicky mode on the legacy snapshot adds hundreds of unresolved targets that cannot be addressed by a small maintainable exception list; the final pipeline still retains nitpicky mode as a Phase 2/3 requirement.
+  Date/Author: 2026-09-04, Codex.
+
+- Decision: Use `pypandoc-binary` for the documentation environment and add its bundled executable directory to the Sphinx subprocess when no system Pandoc is available.
+  Rationale: This makes the documented pip installation self-contained across supported local and hosted platforms while continuing to prefer a system Pandoc when present.
+  Date/Author: 2026-09-04, Codex.
+
 ## Outcomes and Retrospective
 
-No implementation has occurred yet. The initial review established that the site generator itself does not need immediate replacement. The critical work is to define the public API, consume nanobind's existing structured stubs, remove runtime-value capture, and enforce generation in CI.
+Phase 0 is complete. `tools/docs.py` is now the explicit preparation, validation, and strict-build entry point; `tools/ci.py docs`, the CMake `doc` target, and Read the Docs all use it with an explicit runtime or snapshot mode. Runtime import failures are fatal, while hosted source-only builds deliberately validate the checked-in snapshot.
+
+The legacy snapshot no longer publishes local Git descriptions, build/package paths, callable representations, or object addresses. Consecutive runtime generations produced the same SHA-256 hash (`472CBC5933822DF8C9799174014BFD918EE4A3902713D61249C397A8190C49BF`) during validation. The generator also normalizes unstable object-valued defaults and trailing whitespace.
+
+Validation completed with a full Windows release build, 11 focused tests, warning-free runtime and snapshot Sphinx HTML builds, a warning-free CMake `doc` target build, and a passing `pre-commit run --all-files`. The strict build also exposed and fixed malformed changelog markup, missing cross-reference labels, notebook tooling, and lexer registration.
+
+Remaining debt is intentionally carried into later phases: 792 reachable objects still fall into the legacy `Miscellaneous` section, 80 Python properties lack native signature metadata, nitpicky-reference mode cannot yet be enabled with a small ignore list, and the generated reference remains a monolithic runtime-introspection artifact rather than the planned public structured inventory.
 
 Update this section at the end of each phase with the observable improvements, remaining gaps, and any changes to the following milestones.
 
@@ -452,4 +486,4 @@ Document any dependency or interface changes in the Decision Log. Update this Ex
 
 ## Revision Note
 
-This initial revision converts the documentation review into a six-phase migration. It deliberately preserves the existing publication platform, makes the public API contract and structured snapshot the center of the new system, and separates deterministic build output from agent-assisted authoring.
+This revision completes Phase 0. It records the final runtime/snapshot build contract, deterministic legacy generation, pinned and self-contained notebook tooling, strict warning policy, validation results, and the specific legacy-reference debt carried into Phase 1.

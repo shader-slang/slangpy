@@ -8,7 +8,7 @@ Changelog
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
 Version 0.43.0 (July 13, 2026)
--------
+--------------------------------------------
 - Native reflection, binding, and tensor overhaul: moved reflection type
   handling, value conversion, and tensor marshalling into C++ with a native
   lookup system, rewrote cursor writing to use static functions with pointer
@@ -84,7 +84,7 @@ Version 0.43.0 (July 13, 2026)
   PR `#1025 <https://github.com/shader-slang/slangpy/pull/1025>`__)
 
 Version 0.42.0 (May 28, 2026)
--------
+--------------------------------------------
 - Add ``enable_cuda_launch_from_gfx`` and ``enable_ray_tracing`` device options for Vulkan devices.
   These allow applications to opt out of CUDA launch and ray-tracing extensions that can interfere
   with concurrent cuDNN usage on some driver/GPU pairs.
@@ -143,7 +143,7 @@ Version 0.42.0 (May 28, 2026)
   PR `#985 <https://github.com/shader-slang/slangpy/pull/985>`__, PR `#972 <https://github.com/shader-slang/slangpy/pull/972>`__)
 
 Version 0.41.0 (April 15, 2026)
--------
+--------------------------------------------
 - Rewrite of Tensors and removal of NDBuffer in favour of unified Tensor type.
   (PR `#697 <https://github.com/shader-slang/slangpy/pull/697>`__)
 - **Kernel generation overhaul**: Rewrote kernel generation with direct binding, entry point arguments,
@@ -292,16 +292,16 @@ Version 0.41.0 (April 15, 2026)
 This version carries with it some breaking changes, please see the migration guide :ref:`here <tensorupdate>` for details.
 
 Version 0.40.1 (January 7, 2026)
--------
+--------------------------------------------
 - Rebuild of 0.40.0 due to failed PyPI push.
 
 Version 0.40.0 (January 7, 2026)
--------
+--------------------------------------------
   - Update to Slang version 2025.24.3 with latest shader compilation improvements and bug fixes.
     (PR `#678 <https://github.com/shader-slang/slangpy/pull/678>`__, PR `#673 <https://github.com/shader-slang/slangpy/pull/673>`__)
   - Update slang-rhi submodule to latest version with improved stability and performance.
     (PR `#682 <https://github.com/shader-slang/slangpy/pull/682>`__, PR `#662 <https://github.com/shader-slang/slangpy/pull/662>`__, PR
-  `#659 <https://github.com/shader-slang/slangpy/pull/659>`__, PR `#647 <https://github.com/shader-slang/slangpy/pull/647>`__)
+    PR `#659 <https://github.com/shader-slang/slangpy/pull/659>`__, PR `#647 <https://github.com/shader-slang/slangpy/pull/647>`__)
   - Add Windows ARM64 platform support for improved cross-platform compatibility.
     (PR `#567 <https://github.com/shader-slang/slangpy/pull/567>`__)
   - Introduce SGL_SLANG_VERSION CMake cache variable for better build configuration management.
@@ -332,7 +332,7 @@ Version 0.40.0 (January 7, 2026)
     (PR `#628 <https://github.com/shader-slang/slangpy/pull/628>`__)
 
 Version 0.39.0 (November 17, 2025)
--------
+--------------------------------------------
 - Update to Slang version 2025.22.1 with latest shader compilation improvements and bug fixes.
   (PR `#642 <https://github.com/shader-slang/slangpy/pull/642>`__)
 - Add scalar and vector ``select`` intrinsic functions for conditional value selection.
@@ -355,7 +355,7 @@ Version 0.39.0 (November 17, 2025)
   (PR `#618 <https://github.com/shader-slang/slangpy/pull/618>`__)
 
 Version 0.38.1 (November 10, 2025)
--------
+--------------------------------------------
 - Update to Slang version 2025.21.2 with latest shader compilation improvements and bug fixes.
 - Optimize PyTorch tensor marshalling to significantly reduce CPU overhead and kernel launch latency when using PyTorch tensors with SlangPy.
   (PR `#625 <https://github.com/shader-slang/slangpy/pull/625>`__)
@@ -413,11 +413,11 @@ Version 0.38.1 (November 10, 2025)
   (PR `#590 <https://github.com/shader-slang/slangpy/pull/590>`__, PR `#589 <https://github.com/shader-slang/slangpy/pull/589>`__)
 
 Version 0.38.0 (November 3, 2025)
--------
+--------------------------------------------
 - Yanked due to twine check failures.
 
 Version 0.37.0 (October 15, 2025)
--------
+--------------------------------------------
 
 - Update to Slang version 2025.19 with latest shader compilation improvements and bug fixes.
   (PR `#572 <https://github.com/shader-slang/slangpy/pull/572>`__, PR `#560 <https://github.com/shader-slang/slangpy/pull/560>`__)
@@ -439,14 +439,14 @@ Version 0.37.0 (October 15, 2025)
   (PR `#503 <https://github.com/shader-slang/slangpy/pull/503>`__, PR `#546 <https://github.com/shader-slang/slangpy/pull/546>`__, PR `#554 <https://github.com/shader-slang/slangpy/pull/554>`__, PR `#553 <https://github.com/shader-slang/slangpy/pull/553>`__)
 
 Version 0.36.0 (September 30, 2025)
--------
+--------------------------------------------
 
 - Update to Slang version 2025.18 with latest shader compilation improvements and bug fixes.
 - Update slang-rhi submodule to latest version with improved dependency handling.
   (PR `#533 <https://github.com/shader-slang/slangpy/pull/533>`__)
 
 Version 0.35.0 (September 18, 2025)
--------
+--------------------------------------------
 
 - Add initial support for ray tracing pipelines, enabling hardware-accelerated ray tracing workflows.
   (PR `#502 <https://github.com/shader-slang/slangpy/pull/502>`__)
@@ -464,36 +464,36 @@ Version 0.35.0 (September 18, 2025)
   (PR `#505 <https://github.com/shader-slang/slangpy/pull/505>`__)
 
 Version 0.34.0 (September 9, 2025)
--------
+--------------------------------------------
 
 - Add ``Device.report_heaps()`` method to query internal memory heap status and allocation information.
 - Update to latest Slang version (2025.16.0) with improved CUDA and Metal support.
-  (PR ```#493 <https://github.com/shader-slang/slangpy/pull/493>```__)
+  (PR `#493 <https://github.com/shader-slang/slangpy/pull/493>`__)
 - Add GPU clock locking for consistent benchmark results and implement trimmed mean calculation for more accurate performance measurements.
-  (PR ```#484 <https://github.com/shader-slang/slangpy/pull/484>```__, PR ```#480 <https://github.com/shader-slang/slangpy/pull/480>```__, PR ```#472 <https://github.com/shader-slang/slangpy/pull/472>```__)
+  (PR `#484 <https://github.com/shader-slang/slangpy/pull/484>`__, PR `#480 <https://github.com/shader-slang/slangpy/pull/480>`__, PR `#472 <https://github.com/shader-slang/slangpy/pull/472>`__)
 - Support passing call data as entry point parameters on CUDA for improved performance.
-  (PR ```#481 <https://github.com/shader-slang/slangpy/pull/481>```__)
+  (PR `#481 <https://github.com/shader-slang/slangpy/pull/481>`__)
 - Fix multiple memory leaks related to Python object references and improve resource cleanup.
-  (PR ```#488 <https://github.com/shader-slang/slangpy/pull/488>```__)
+  (PR `#488 <https://github.com/shader-slang/slangpy/pull/488>`__)
 - Add benchmark comparison and delta reporting functionality with GPU information in reports.
-  (PR ```#471 <https://github.com/shader-slang/slangpy/pull/471>```__, PR ```#456 <https://github.com/shader-slang/slangpy/pull/456>```__)
-- Rename ```command_buffer``` to ```command_encoder``` for API consistency.
-  (PR ```#487 <https://github.com/shader-slang/slangpy/pull/487>```__)
-- Add ```PassEncoder::write_timestamp``` and timestamp support in ```ComputeKernel::dispatch```.
-  (PR ```#473 <https://github.com/shader-slang/slangpy/pull/473>```__)
-- Optimize ```write_from_numpy``` performance with faster copy options.
-  (PR ```#455 <https://github.com/shader-slang/slangpy/pull/455>```__)
+  (PR `#471 <https://github.com/shader-slang/slangpy/pull/471>`__, PR `#456 <https://github.com/shader-slang/slangpy/pull/456>`__)
+- Rename ``command_buffer`` to ``command_encoder`` for API consistency.
+  (PR `#487 <https://github.com/shader-slang/slangpy/pull/487>`__)
+- Add ``PassEncoder::write_timestamp`` and timestamp support in ``ComputeKernel::dispatch``.
+  (PR `#473 <https://github.com/shader-slang/slangpy/pull/473>`__)
+- Optimize ``write_from_numpy`` performance with faster copy options.
+  (PR `#455 <https://github.com/shader-slang/slangpy/pull/455>`__)
 - Fix PyTorch examples and improve integration.
-  (PR ```#459 <https://github.com/shader-slang/slangpy/pull/459>```__)
+  (PR `#459 <https://github.com/shader-slang/slangpy/pull/459>`__)
 - Add support for platform-specific test isolation via environment variables.
-  (PR ```#478 <https://github.com/shader-slang/slangpy/pull/478>```__)
-- Fix module linking for layout when using ```link``` modules.
-  (PR ```#449 <https://github.com/shader-slang/slangpy/pull/449>```__)
+  (PR `#478 <https://github.com/shader-slang/slangpy/pull/478>`__)
+- Fix module linking for layout when using ``link`` modules.
+  (PR `#449 <https://github.com/shader-slang/slangpy/pull/449>`__)
 - Add string conversion functions for slangpy types and improve debugging capabilities.
-  (PR ```#463 <https://github.com/shader-slang/slangpy/pull/463>```__, PR ```#464 <https://github.com/shader-slang/slangpy/pull/464>```__)
+  (PR `#463 <https://github.com/shader-slang/slangpy/pull/463>`__, PR `#464 <https://github.com/shader-slang/slangpy/pull/464>`__)
 
 Version 0.33.1 (August 25, 2025)
-----------------------------
+--------------------------------------------
 
 - Include the missing Slang binary file into the package.
   (PR `#445 <https://github.com/shader-slang/slangpy/pull/445>`__)
@@ -517,7 +517,7 @@ Version 0.33.1 (August 25, 2025)
   (PR `#437 <https://github.com/shader-slang/slangpy/pull/437>`__).
 
 Version 0.33.0 (August 12, 2025)
-----------------------------
+--------------------------------------------
 
 - Update to slang version 2025.14.3.
   (PR `#409 <https://github.com/shader-slang/slangpy/pull/409>`__).
@@ -528,7 +528,7 @@ Version 0.33.0 (August 12, 2025)
   (PR `#413 <https://github.com/shader-slang/slangpy/pull/413>`__).
 
 Version 0.32.0 (August 8, 2025)
-----------------------------
+--------------------------------------------
 
 - Update to slang version 2025.14.
 - Improve CUDA support.
@@ -547,7 +547,7 @@ Version 0.32.0 (August 8, 2025)
   (PR `#282 <https://github.com/shader-slang/slangpy/pull/282>`__).
 
 Version 0.31.0 (June 5, 2025)
-----------------------------
+--------------------------------------------
 
 - Update to slang version 2025.10.1.
 - Add support for vectorizing against Python lists.
@@ -556,7 +556,7 @@ Version 0.31.0 (June 5, 2025)
 - Fix typings for ``float2x3``, ``float3x2``, ``float4x2`` and ``float4x3``.
 
 Version 0.30.0 (May 27, 2025)
-----------------------------
+--------------------------------------------
 
 - Update `slang-rhi` to latest version.
   Improve CUDA error reporting.
@@ -565,7 +565,7 @@ Version 0.30.0 (May 27, 2025)
   (PR `#236 <https://github.com/shader-slang/slangpy/pull/236>`__).
 
 Version 0.29.0 (May 22, 2025)
-----------------------------
+--------------------------------------------
 
 - Update `slang-rhi` to latest version. Make enum infos constexpr.
   (PR `#234 <https://github.com/shader-slang/slangpy/pull/234>`__).
@@ -575,7 +575,7 @@ Version 0.29.0 (May 22, 2025)
   (PR `#232 <https://github.com/shader-slang/slangpy/pull/232>`__).
 
 Version 0.28.0 (May 21, 2025)
-----------------------------
+--------------------------------------------
 
 - Load PyTorch module lazily to avoid overhead when PyTorch is not used.
   (PR `#184 <https://github.com/shader-slang/slangpy/pull/184>`__).

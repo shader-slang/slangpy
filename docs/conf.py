@@ -2,14 +2,29 @@
 
 # Configuration file for the Sphinx documentation builder.
 
-import sys
-import shutil
+import re
 from pathlib import Path
-from sphinx.application import Sphinx
+
+from pygments.lexers.graphics import HLSLShaderLexer
+from pygments.lexers.python import PythonLexer
+from sphinx.highlighting import lexers
+
+
+def get_release() -> str:
+    """Read the package version without importing the native extension."""
+    header = (Path(__file__).parent.parent / "src" / "sgl" / "sgl.h").read_text(encoding="utf-8")
+    values = {}
+    for component in ("MAJOR", "MINOR", "PATCH"):
+        match = re.search(rf"^#define SGL_VERSION_{component} (\d+)$", header, re.MULTILINE)
+        if match is None:
+            raise RuntimeError(f"Could not determine SGL_VERSION_{component} from src/sgl/sgl.h")
+        values[component] = match.group(1)
+    return ".".join(values[component] for component in ("MAJOR", "MINOR", "PATCH"))
+
 
 project = "SlangPy"
-release = "0.18.2"
-copyright = "2025, NVIDIA"
+release = get_release()
+copyright = "2025-2026, NVIDIA"
 author = "Simon Kallweit, Chris Cummings, Benedikt Bitterli, Sai Bangaru, Yong He"
 
 extensions = [
@@ -21,21 +36,16 @@ extensions = [
     "nbsphinx",
 ]
 
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3/", None),
-    "sphinx": ("https://www.sphinx-doc.org/en/master/", None),
-}
-intersphinx_disabled_domains = ["std"]
-
-templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-
 source_suffix = ".rst"
 master_doc = "index"
 language = "en"
 
 templates_path = ["_templates"]
-exclude_patterns = ["CMakeLists.txt", "generated/*"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "CMakeLists.txt", "generated/*"]
+suppress_warnings = ["nbsphinx.localfile"]
+
+lexers["slang"] = HLSLShaderLexer()
+lexers["ipython3"] = PythonLexer()
 
 # html configuration
 html_theme = "furo"
@@ -53,31 +63,3 @@ html_theme_options = {
 
 # nbsphinx configuration
 nbsphinx_execute = "never"
-
-
-def initialize(app: Sphinx):
-    # Copy tutorials to src directory.
-    print("Copying tutorials to src directory...")
-    CURRENT_DIR = Path(__file__).parent
-    shutil.copytree(
-        src=CURRENT_DIR / "../samples/tutorials",
-        dst=CURRENT_DIR / "src/tutorials",
-        dirs_exist_ok=True,
-    )
-
-    # Generate API documentation for slangpy module is available.
-    try:
-        print("Generating API documentation...")
-        sys.path.append(str(Path(__file__).parent))
-        from generate_api import generate_api
-
-        sys.path.append(str(Path(__file__).parent.parent))
-        import slangpy  # type: ignore
-
-        generate_api()
-    except ImportError:
-        print("slangpy module not available, skipping API documentation generation.")
-
-
-def setup(app: Sphinx):
-    app.connect("builder-inited", initialize)

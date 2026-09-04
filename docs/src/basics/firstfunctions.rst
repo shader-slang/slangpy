@@ -1,3 +1,5 @@
+.. _firstfunctions:
+
 Your First Function
 ===================
 

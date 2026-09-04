@@ -1,3 +1,5 @@
+:orphan:
+
 .. _tensorupdate:
 
 Migration guide for Tensor update
