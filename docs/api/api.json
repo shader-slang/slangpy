@@ -1,0 +1,4251 @@
+{
+  "schema_version": 1,
+  "package_version": "0.43.0",
+  "sections": [
+    {
+      "id": "functional-api",
+      "title": "Functional API",
+      "audience": "user"
+    },
+    {
+      "id": "device",
+      "title": "Device",
+      "audience": "user"
+    },
+    {
+      "id": "extension-api",
+      "title": "Extension Author API",
+      "audience": "extension-author"
+    }
+  ],
+  "symbols": [
+    {
+      "name": "slangpy.Tensor",
+      "canonical_name": "slangpy.native_func.Tensor",
+      "kind": "class",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "Tensor(storage: slangpy.Buffer, dtype: slangpy.native_refl.Type, shape: slangpy.slangpy.Shape, strides: slangpy.slangpy.Shape = ..., offset: int = 0, grad_in: Tensor | None = None, grad_out: Tensor | None = None) -> None",
+        "Tensor(desc: TensorDesc, storage: slangpy.Buffer, grad_in: Tensor | None = None, grad_out: Tensor | None = None) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 137
+      }
+    },
+    {
+      "name": "slangpy.Tensor.__init__",
+      "canonical_name": "slangpy.native_func.Tensor.__init__",
+      "kind": "constructor",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "__init__(storage: slangpy.Buffer, dtype: slangpy.native_refl.Type, shape: slangpy.slangpy.Shape, strides: slangpy.slangpy.Shape = ..., offset: int = 0, grad_in: Tensor | None = None, grad_out: Tensor | None = None) -> None",
+        "__init__(desc: TensorDesc, storage: slangpy.Buffer, grad_in: Tensor | None = None, grad_out: Tensor | None = None) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 138
+      }
+    },
+    {
+      "name": "slangpy.Tensor.__getitem__",
+      "canonical_name": "slangpy.native_func.Tensor.__getitem__",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "__getitem__(arg: object, /) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 208
+      }
+    },
+    {
+      "name": "slangpy.Tensor.__repr__",
+      "canonical_name": "slangpy.native_func.Tensor.__repr__",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "__repr__() -> str"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 216
+      }
+    },
+    {
+      "name": "slangpy.Tensor.__str__",
+      "canonical_name": "slangpy.native_func.Tensor.__str__",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "__str__() -> str"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 214
+      }
+    },
+    {
+      "name": "slangpy.Tensor.broadcast_to",
+      "canonical_name": "slangpy.native_func.Tensor.broadcast_to",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "broadcast_to(shape: slangpy.slangpy.Shape) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 204
+      }
+    },
+    {
+      "name": "slangpy.Tensor.clear",
+      "canonical_name": "slangpy.native_func.Tensor.clear",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "clear(cmd: slangpy.CommandEncoder | None = None) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 186
+      }
+    },
+    {
+      "name": "slangpy.Tensor.copy_from_numpy",
+      "canonical_name": "slangpy.native_func.Tensor.copy_from_numpy",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "copy_from_numpy(data: NDArray) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 196
+      }
+    },
+    {
+      "name": "slangpy.Tensor.copy_from_torch",
+      "canonical_name": "slangpy.native_func.Tensor.copy_from_torch",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "copy_from_torch(tensor: object) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 198
+      }
+    },
+    {
+      "name": "slangpy.Tensor.cursor",
+      "canonical_name": "slangpy.native_func.Tensor.cursor",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "cursor(start: int | None = None, count: int | None = None) -> slangpy.BufferCursor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 188
+      }
+    },
+    {
+      "name": "slangpy.Tensor.detach",
+      "canonical_name": "slangpy.native_func.Tensor.detach",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "detach() -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 212
+      }
+    },
+    {
+      "name": "slangpy.Tensor.device",
+      "canonical_name": "slangpy.native_func.Tensor.device",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 145
+      }
+    },
+    {
+      "name": "slangpy.Tensor.dtype",
+      "canonical_name": "slangpy.native_func.Tensor.dtype",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 148
+      }
+    },
+    {
+      "name": "slangpy.Tensor.element_count",
+      "canonical_name": "slangpy.native_func.Tensor.element_count",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 160
+      }
+    },
+    {
+      "name": "slangpy.Tensor.empty",
+      "canonical_name": "slangpy.native_func.Tensor.empty",
+      "kind": "staticmethod",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "empty(device: slangpy.Device, shape: slangpy.slangpy.Shape, dtype: object | None = None, usage: slangpy.BufferUsage = 24, memory_type: slangpy.MemoryType = slangpy.MemoryType.device_local, program_layout: slangpy.native_refl.Layout | None = None) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 224
+      }
+    },
+    {
+      "name": "slangpy.Tensor.empty_like",
+      "canonical_name": "slangpy.native_func.Tensor.empty_like",
+      "kind": "staticmethod",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "empty_like(other: Tensor) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 230
+      }
+    },
+    {
+      "name": "slangpy.Tensor.from_numpy",
+      "canonical_name": "slangpy.native_func.Tensor.from_numpy",
+      "kind": "staticmethod",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "from_numpy(device: slangpy.Device, ndarray: object, usage: slangpy.BufferUsage = 24, memory_type: slangpy.MemoryType = slangpy.MemoryType.device_local, program_layout: slangpy.native_refl.Layout | None = None, target_slang_dtype: object | None = None) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 221
+      }
+    },
+    {
+      "name": "slangpy.Tensor.from_torch",
+      "canonical_name": "slangpy.native_func.Tensor.from_torch",
+      "kind": "staticmethod",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "from_torch(device: slangpy.Device, tensor: object, dtype: object, usage: slangpy.BufferUsage = 24, program_layout: slangpy.native_refl.Layout | None = None) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 236
+      }
+    },
+    {
+      "name": "slangpy.Tensor.grad",
+      "canonical_name": "slangpy.native_func.Tensor.grad",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 184
+      }
+    },
+    {
+      "name": "slangpy.Tensor.grad_in",
+      "canonical_name": "slangpy.native_func.Tensor.grad_in",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 172
+      }
+    },
+    {
+      "name": "slangpy.Tensor.grad_out",
+      "canonical_name": "slangpy.native_func.Tensor.grad_out",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 178
+      }
+    },
+    {
+      "name": "slangpy.Tensor.is_contiguous",
+      "canonical_name": "slangpy.native_func.Tensor.is_contiguous",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "is_contiguous() -> bool"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 200
+      }
+    },
+    {
+      "name": "slangpy.Tensor.load_from_image",
+      "canonical_name": "slangpy.native_func.Tensor.load_from_image",
+      "kind": "staticmethod",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "load_from_image(device: slangpy.Device, path: object, flip_y: bool = False, linearize: bool = False, scale: float = 1.0, offset: float = 0.0, grayscale: bool = False) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 239
+      }
+    },
+    {
+      "name": "slangpy.Tensor.memory_type",
+      "canonical_name": "slangpy.native_func.Tensor.memory_type",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 166
+      }
+    },
+    {
+      "name": "slangpy.Tensor.numpy",
+      "canonical_name": "slangpy.native_func.Tensor.numpy",
+      "kind": "staticmethod",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "numpy(device: slangpy.Device, ndarray: object) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 218
+      }
+    },
+    {
+      "name": "slangpy.Tensor.offset",
+      "canonical_name": "slangpy.native_func.Tensor.offset",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 151
+      }
+    },
+    {
+      "name": "slangpy.Tensor.point_to",
+      "canonical_name": "slangpy.native_func.Tensor.point_to",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "point_to(target: Tensor) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 202
+      }
+    },
+    {
+      "name": "slangpy.Tensor.shape",
+      "canonical_name": "slangpy.native_func.Tensor.shape",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 154
+      }
+    },
+    {
+      "name": "slangpy.Tensor.storage",
+      "canonical_name": "slangpy.native_func.Tensor.storage",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 169
+      }
+    },
+    {
+      "name": "slangpy.Tensor.strides",
+      "canonical_name": "slangpy.native_func.Tensor.strides",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 157
+      }
+    },
+    {
+      "name": "slangpy.Tensor.to_numpy",
+      "canonical_name": "slangpy.native_func.Tensor.to_numpy",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "to_numpy() -> NDArray"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 192
+      }
+    },
+    {
+      "name": "slangpy.Tensor.to_torch",
+      "canonical_name": "slangpy.native_func.Tensor.to_torch",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "to_torch() -> NDArray"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 194
+      }
+    },
+    {
+      "name": "slangpy.Tensor.uniforms",
+      "canonical_name": "slangpy.native_func.Tensor.uniforms",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "uniforms() -> dict"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 190
+      }
+    },
+    {
+      "name": "slangpy.Tensor.usage",
+      "canonical_name": "slangpy.native_func.Tensor.usage",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 163
+      }
+    },
+    {
+      "name": "slangpy.Tensor.view",
+      "canonical_name": "slangpy.native_func.Tensor.view",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "view(shape: slangpy.slangpy.Shape, strides: slangpy.slangpy.Shape = ..., offset: int = 0) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 206
+      }
+    },
+    {
+      "name": "slangpy.Tensor.with_grads",
+      "canonical_name": "slangpy.native_func.Tensor.with_grads",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "with_grads(grad_in: Tensor | None = None, grad_out: Tensor | None = None, zero: bool = True) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 210
+      }
+    },
+    {
+      "name": "slangpy.Tensor.zeros",
+      "canonical_name": "slangpy.native_func.Tensor.zeros",
+      "kind": "staticmethod",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "zeros(device: slangpy.Device, shape: slangpy.slangpy.Shape, dtype: object, usage: slangpy.BufferUsage = 24, memory_type: slangpy.MemoryType = slangpy.MemoryType.device_local, program_layout: slangpy.native_refl.Layout | None = None) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 227
+      }
+    },
+    {
+      "name": "slangpy.Tensor.zeros_like",
+      "canonical_name": "slangpy.native_func.Tensor.zeros_like",
+      "kind": "staticmethod",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "zeros_like(other: Tensor) -> Tensor"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/native_func/__init__.pyi",
+        "line": 233
+      }
+    },
+    {
+      "name": "slangpy.Module",
+      "canonical_name": "slangpy.core.module.Module",
+      "kind": "class",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "Module(device_module: SlangModule, options: dict[str, Any] = {}, link: Sequence[Union[Module, SlangModule]] = [])"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "A Slang module, created either by loading a slang file or providing a loaded SGL module.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 48
+      }
+    },
+    {
+      "name": "slangpy.Module.__init__",
+      "canonical_name": "slangpy.core.module.Module.__init__",
+      "kind": "constructor",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "__init__(device_module: SlangModule, options: dict[str, Any] = {}, link: Sequence[Union[Module, SlangModule]] = [])"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 53
+      }
+    },
+    {
+      "name": "slangpy.Module.__getitem__",
+      "canonical_name": "slangpy.core.module.Module.__getitem__",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "__getitem__(name: str)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Item accessor attempts to find either a struct or function with the specified item name (by calling __getattr__).",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 229
+      }
+    },
+    {
+      "name": "slangpy.Module.__repr__",
+      "canonical_name": "slangpy.core.module.Module.__repr__",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "__repr__() -> str"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Return a string representation of the Module for debugging.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 236
+      }
+    },
+    {
+      "name": "slangpy.Module.call_data_cache",
+      "canonical_name": "slangpy.core.module.Module.call_data_cache",
+      "kind": "attribute",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 82
+      }
+    },
+    {
+      "name": "slangpy.Module.device",
+      "canonical_name": "slangpy.native_func.BaseModule.device",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "placeholder"
+      },
+      "source": null
+    },
+    {
+      "name": "slangpy.Module.device_module",
+      "canonical_name": "slangpy.native_func.BaseModule.device_module",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "placeholder"
+      },
+      "source": null
+    },
+    {
+      "name": "slangpy.Module.dispatch_data_cache",
+      "canonical_name": "slangpy.core.module.Module.dispatch_data_cache",
+      "kind": "attribute",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 83
+      }
+    },
+    {
+      "name": "slangpy.Module.find_function",
+      "canonical_name": "slangpy.core.module.Module.find_function",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "find_function(name: str)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Find a function by name, return None if not found.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 151
+      }
+    },
+    {
+      "name": "slangpy.Module.find_function_in_struct",
+      "canonical_name": "slangpy.core.module.Module.find_function_in_struct",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "find_function_in_struct(struct: Union[Struct, str], name: str)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Find a function in a struct by name, return None if not found.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 170
+      }
+    },
+    {
+      "name": "slangpy.Module.find_struct",
+      "canonical_name": "slangpy.core.module.Module.find_struct",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "find_struct(name: str)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Find a struct by name, return None if not found.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 132
+      }
+    },
+    {
+      "name": "slangpy.Module.layout",
+      "canonical_name": "slangpy.native_func.BaseModule.layout",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "placeholder"
+      },
+      "source": null
+    },
+    {
+      "name": "slangpy.Module.link",
+      "canonical_name": "slangpy.core.module.Module.link",
+      "kind": "attribute",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 80
+      }
+    },
+    {
+      "name": "slangpy.Module.load_from_file",
+      "canonical_name": "slangpy.core.module.Module.load_from_file",
+      "kind": "staticmethod",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "load_from_file(device: Device, path: str, options: dict[str, Any] = {}, link: Sequence[Union[Module, SlangModule]] = [])"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Load a module from a file.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 107
+      }
+    },
+    {
+      "name": "slangpy.Module.load_from_module",
+      "canonical_name": "slangpy.core.module.Module.load_from_module",
+      "kind": "staticmethod",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "load_from_module(device: Device, module: SlangModule, options: dict[str, Any] = {}, link: list[Union[Module, SlangModule]] = [])"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Load a module from a Slang module.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 120
+      }
+    },
+    {
+      "name": "slangpy.Module.load_from_source",
+      "canonical_name": "slangpy.core.module.Module.load_from_source",
+      "kind": "staticmethod",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "load_from_source(device: Device, name: str, source: str, options: dict[str, Any] = {}, link: Sequence[Union[Module, SlangModule]] = [])"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Load a module from a string.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 93
+      }
+    },
+    {
+      "name": "slangpy.Module.logger",
+      "canonical_name": "slangpy.core.module.Module.logger",
+      "kind": "attribute",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 86
+      }
+    },
+    {
+      "name": "slangpy.Module.name",
+      "canonical_name": "slangpy.native_func.BaseModule.name",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "placeholder"
+      },
+      "source": null
+    },
+    {
+      "name": "slangpy.Module.on_hot_reload",
+      "canonical_name": "slangpy.core.module.Module.on_hot_reload",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "on_hot_reload()"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Called by device when the module is hot reloaded.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 184
+      }
+    },
+    {
+      "name": "slangpy.Module.options",
+      "canonical_name": "slangpy.core.module.Module.options",
+      "kind": "attribute",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 75
+      }
+    },
+    {
+      "name": "slangpy.Module.pipeline_cache",
+      "canonical_name": "slangpy.core.module.Module.pipeline_cache",
+      "kind": "attribute",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 84
+      }
+    },
+    {
+      "name": "slangpy.Module.require_function",
+      "canonical_name": "slangpy.core.module.Module.require_function",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "require_function(name: str)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Find a function by name, raise an error if not found.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 161
+      }
+    },
+    {
+      "name": "slangpy.Module.require_struct",
+      "canonical_name": "slangpy.core.module.Module.require_struct",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "require_struct(name: str)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Find a struct by name, raise an error if not found.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 142
+      }
+    },
+    {
+      "name": "slangpy.Module.session",
+      "canonical_name": "slangpy.native_func.BaseModule.session",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "placeholder"
+      },
+      "source": null
+    },
+    {
+      "name": "slangpy.Module.shader_table_cache",
+      "canonical_name": "slangpy.core.module.Module.shader_table_cache",
+      "kind": "attribute",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 85
+      }
+    },
+    {
+      "name": "slangpy.Module.slangpy_device_module",
+      "canonical_name": "slangpy.core.module.Module.slangpy_device_module",
+      "kind": "attribute",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/module.py",
+        "line": 76
+      }
+    },
+    {
+      "name": "slangpy.Function",
+      "canonical_name": "slangpy.core.function.Function",
+      "kind": "class",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "Function(module: Module, func: Union[str, SlangFunction], struct: Optional[Struct] = None, options: dict[str, Any] = {}) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 587
+      }
+    },
+    {
+      "name": "slangpy.Function.__init__",
+      "canonical_name": "slangpy.core.function.Function.__init__",
+      "kind": "constructor",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "__init__(module: Module, func: Union[str, SlangFunction], struct: Optional[Struct] = None, options: dict[str, Any] = {}) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 588
+      }
+    },
+    {
+      "name": "slangpy.Function.append_to",
+      "canonical_name": "slangpy.core.function.FunctionNode.append_to",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "append_to(command_encoder: CommandEncoder, *args: Any, **kwargs: Any)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Append the function to a command encoder without dispatching it. As with calling, this will generate and compile a new kernel if need be. However the dispatch is just added to the command list and no results are returned.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 280
+      }
+    },
+    {
+      "name": "slangpy.Function.as_func",
+      "canonical_name": "slangpy.core.function.FunctionNode.as_func",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "as_func() -> FunctionNode"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Typing helper to cast the function to a function (i.e. a no-op)",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 251
+      }
+    },
+    {
+      "name": "slangpy.Function.as_struct",
+      "canonical_name": "slangpy.core.function.FunctionNode.as_struct",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "as_struct() -> Struct"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Typing helper to detect attempting to treat a function as a struct.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 257
+      }
+    },
+    {
+      "name": "slangpy.Function.bind",
+      "canonical_name": "slangpy.core.function.FunctionNode.bind",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "bind(this: IThis) -> FunctionNode"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Bind a `this` object to the function. Typically this is called automatically when calling a function on a struct.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 118
+      }
+    },
+    {
+      "name": "slangpy.Function.bwds",
+      "canonical_name": "slangpy.core.function.FunctionNode.bwds",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "Return a new function object that represents the backwards deriviative of the current function.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 217
+      }
+    },
+    {
+      "name": "slangpy.Function.calc_build_info",
+      "canonical_name": "slangpy.core.function.FunctionNode.calc_build_info",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "calc_build_info()"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 342
+      }
+    },
+    {
+      "name": "slangpy.Function.call",
+      "canonical_name": "slangpy.core.function.FunctionNode.call",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "call(*args: Any, **kwargs: Any) -> Any"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Call the function with a given set of arguments. This will generate and compile a new kernel if need be, then immediately dispatch it and return any results.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 273
+      }
+    },
+    {
+      "name": "slangpy.Function.call_group_shape",
+      "canonical_name": "slangpy.core.function.FunctionNode.call_group_shape",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "call_group_shape(call_group_shape: Shape)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Specify the call group shape for the function. This determines how the computation is divided into call groups. The shape can be N-dimensional.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 374
+      }
+    },
+    {
+      "name": "slangpy.Function.constants",
+      "canonical_name": "slangpy.core.function.FunctionNode.constants",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "constants(constants: dict[str, Any])"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Specify link time constants that should be set when the function is compiled. These are the most optimal way of specifying unchanging data, however note that changing a constant will result in the function being recompiled.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 170
+      }
+    },
+    {
+      "name": "slangpy.Function.cuda_stream",
+      "canonical_name": "slangpy.core.function.FunctionNode.cuda_stream",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "cuda_stream(stream: NativeHandle) -> FunctionNode"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Specify a CUDA stream to use for the function. This is useful for synchronizing with other CUDA operations or ensuring that the function runs on a specific stream.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 163
+      }
+    },
+    {
+      "name": "slangpy.Function.debug_build_call_data",
+      "canonical_name": "slangpy.core.function.FunctionNode.debug_build_call_data",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "debug_build_call_data(*args: Any, **kwargs: Any)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Debug helper to build call data without dispatching the kernel.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 263
+      }
+    },
+    {
+      "name": "slangpy.Function.dispatch",
+      "canonical_name": "slangpy.core.function.FunctionNode.dispatch",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "dispatch(thread_count: uint3, vars: dict[str, Any] = {}, command_encoder: Optional[CommandEncoder] = None, **kwargs: Any) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Perform a raw dispatch, bypassing the majority of SlangPy's typing/code gen logic. This is useful if you just want to explicitly call an existing kernel, or treat a slang function as a kernel entry point directly.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 289
+      }
+    },
+    {
+      "name": "slangpy.Function.generate_bwds_call_data",
+      "canonical_name": "slangpy.core.function.FunctionNode.generate_bwds_call_data",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "generate_bwds_call_data(fwds_call_data: Any, args: Any, kwargs: Any)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Used by native auto-grad hook to generate call data for backwards pass the first time it is needed, after which it is cached on the fwds call data.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 364
+      }
+    },
+    {
+      "name": "slangpy.Function.generate_call_data",
+      "canonical_name": "slangpy.core.function.FunctionNode.generate_call_data",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "generate_call_data(args: Any, kwargs: Any)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Called from NativeFunctionNode::call to generate/build the kernel the first time a function is called with a given set of arguments.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 355
+      }
+    },
+    {
+      "name": "slangpy.Function.map",
+      "canonical_name": "slangpy.core.function.FunctionNode.map",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "map(*args: Any, **kwargs: Any)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Apply dimension or type mapping to all or some of the arguments.",
+        "body": "myfunc.map((1,)(0,))(arg1, arg2) # Map arg1 to dimension 1, arg2 to dimension 0\n\nmyfunc.map(module.Foo, module.Bar)(arg1, arg2) # Cast arg1 to Foo, arg2 to Bar",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 125
+      }
+    },
+    {
+      "name": "slangpy.Function.module",
+      "canonical_name": "slangpy.core.function.FunctionNode.module",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "Get the module that the function is part of",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 106
+      }
+    },
+    {
+      "name": "slangpy.Function.name",
+      "canonical_name": "slangpy.core.function.FunctionNode.name",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "Get the name of the function.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 92
+      }
+    },
+    {
+      "name": "slangpy.Function.parent",
+      "canonical_name": "slangpy.core.function.FunctionNode.parent",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "Get the parent function node",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 99
+      }
+    },
+    {
+      "name": "slangpy.Function.prelude",
+      "canonical_name": "slangpy.core.function.FunctionNode.prelude",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "prelude(code: str) -> FunctionNode"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Specify raw Slang source code to inject into the generated kernel module.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 178
+      }
+    },
+    {
+      "name": "slangpy.Function.ray_tracing",
+      "canonical_name": "slangpy.core.function.FunctionNode.ray_tracing",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "ray_tracing(hit_groups: Sequence[HitGroupDescParam], miss_entry_points: Sequence[str] = [], hit_group_names: Optional[Sequence[str]] = None, callable_entry_points: Sequence[str] = [], max_recursion: int = 1, max_ray_payload_size: int = 32, max_attribute_size: int = 8, flags: RayTracingPipelineFlags = RayTracingPipelineFlags.none)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Specify the ray tracing pipeline configuration.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 190
+      }
+    },
+    {
+      "name": "slangpy.Function.return_type",
+      "canonical_name": "slangpy.core.function.FunctionNode.return_type",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "return_type(return_type: Union[type, str])"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Explicitly specify the desired return type from the function.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 223
+      }
+    },
+    {
+      "name": "slangpy.Function.root",
+      "canonical_name": "slangpy.core.function.FunctionNode.root",
+      "kind": "property",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "Get the root function node",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 85
+      }
+    },
+    {
+      "name": "slangpy.Function.set",
+      "canonical_name": "slangpy.core.function.FunctionNode.set",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "set(*args: Any, **kwargs: Any)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Specify additional uniform values that should be set whenever the function's kernel is dispatched. Useful for setting constants or other values that are not passed as arguments.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 135
+      }
+    },
+    {
+      "name": "slangpy.Function.slangpy_signature",
+      "canonical_name": "slangpy.core.function.Function.slangpy_signature",
+      "kind": "attribute",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 631
+      }
+    },
+    {
+      "name": "slangpy.Function.thread_group_size",
+      "canonical_name": "slangpy.core.function.FunctionNode.thread_group_size",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "thread_group_size(thread_group_size: uint3)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Override the default thread group size for the function. Currently only used for raw dispatch.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 244
+      }
+    },
+    {
+      "name": "slangpy.Function.torch",
+      "canonical_name": "slangpy.core.function.FunctionNode.torch",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "torch()"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Returns a pytorch wrapper around this function",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 112
+      }
+    },
+    {
+      "name": "slangpy.Function.type_conformances",
+      "canonical_name": "slangpy.core.function.FunctionNode.type_conformances",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "type_conformances(type_conformances: list[TypeConformance])"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Specify Slang type conformances to use when compiling the function.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 184
+      }
+    },
+    {
+      "name": "slangpy.Function.write",
+      "canonical_name": "slangpy.core.function.FunctionNode.write",
+      "kind": "method",
+      "section": "functional-api",
+      "audience": "user",
+      "signatures": [
+        "write(fn: Callable, *args: Any, **kwargs: Any)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Specify a writer function that receives a ShaderCursor and optional arguments to write uniforms directly. The function signature should be:     fn(cursor: ShaderCursor, *args, **kwargs)",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/core/function.py",
+        "line": 153
+      }
+    },
+    {
+      "name": "slangpy.Device",
+      "canonical_name": "slangpy.Device",
+      "kind": "class",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "Device(type: DeviceType = DeviceType.automatic, enable_debug_layers: bool = False, debug_layers_log_level: LogLevel = LogLevel.warn, enable_rhi_validation: bool = True, rhi_validation_log_level: LogLevel = LogLevel.warn, enable_ray_tracing_validation: bool = False, enable_aftermath: bool = False, enable_cuda_interop: bool = False, enable_print: bool = False, enable_hot_reload: bool = True, enable_compilation_reports: bool = False, pipeline_compilation_mode: PipelineCompilationMode = PipelineCompilationMode.serial, adapter_luid: Sequence[int] | None = None, compiler_options: SlangCompilerOptionsParam | None = None, module_cache_path: str | os.PathLike | None = None, shader_cache_path: str | os.PathLike | None = None, shader_cache_size: int = 134217728, existing_device_handles: Sequence[NativeHandle] | None = None, bindless_options: BindlessDesc | None = None, additional_vulkan_instance_extensions: Sequence[str] | None = None, additional_vulkan_device_extensions: Sequence[str] | None = None, enable_cuda_launch_from_gfx: bool = True, enable_ray_tracing: bool = True, label: str = '') -> None",
+        "Device(desc: DeviceDescParam) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8093
+      }
+    },
+    {
+      "name": "slangpy.Device.__init__",
+      "canonical_name": "slangpy.Device.__init__",
+      "kind": "constructor",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "__init__(type: DeviceType = DeviceType.automatic, enable_debug_layers: bool = False, debug_layers_log_level: LogLevel = LogLevel.warn, enable_rhi_validation: bool = True, rhi_validation_log_level: LogLevel = LogLevel.warn, enable_ray_tracing_validation: bool = False, enable_aftermath: bool = False, enable_cuda_interop: bool = False, enable_print: bool = False, enable_hot_reload: bool = True, enable_compilation_reports: bool = False, pipeline_compilation_mode: PipelineCompilationMode = PipelineCompilationMode.serial, adapter_luid: Sequence[int] | None = None, compiler_options: SlangCompilerOptionsParam | None = None, module_cache_path: str | os.PathLike | None = None, shader_cache_path: str | os.PathLike | None = None, shader_cache_size: int = 134217728, existing_device_handles: Sequence[NativeHandle] | None = None, bindless_options: BindlessDesc | None = None, additional_vulkan_instance_extensions: Sequence[str] | None = None, additional_vulkan_device_extensions: Sequence[str] | None = None, enable_cuda_launch_from_gfx: bool = True, enable_ray_tracing: bool = True, label: str = '') -> None",
+        "__init__(desc: DeviceDescParam) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8094
+      }
+    },
+    {
+      "name": "slangpy.Device.__enter__",
+      "canonical_name": "slangpy.Device.__enter__",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "__enter__() -> Device"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8153
+      }
+    },
+    {
+      "name": "slangpy.Device.__exit__",
+      "canonical_name": "slangpy.Device.__exit__",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "__exit__(exc_type: object | None, exc_val: object | None, exc_tb: object | None) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8155
+      }
+    },
+    {
+      "name": "slangpy.Device.__repr__",
+      "canonical_name": "slangpy.Object.__repr__",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "__repr__() -> str"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": null
+    },
+    {
+      "name": "slangpy.Device.capabilities",
+      "canonical_name": "slangpy.Device.capabilities",
+      "kind": "property",
+      "section": "device",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "List of capabilities reported by the device backend.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8120
+      }
+    },
+    {
+      "name": "slangpy.Device.close",
+      "canonical_name": "slangpy.Device.close",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "close() -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Close the device.",
+        "body": "This function should be called before the device is released. It waits\nfor all pending work to be completed and releases internal resources,\nremoving all cyclic references that might prevent the device from\nbeing destroyed. After closing the device, no new resources must be\ncreated and no new work must be submitted.\n\n\\note The Python extension will automatically close all open devices\nwhen the interpreter is terminated through an `atexit` handler. If a\ndevice is to be destroyed at runtime, it must be closed explicitly.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8170
+      }
+    },
+    {
+      "name": "slangpy.Device.compose_modules",
+      "canonical_name": "slangpy.Device.compose_modules",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "compose_modules(name: str, modules: Sequence[SlangModule], type_conformances: Sequence[TypeConformance] = []) -> SlangModule"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Compose multiple slang modules into one.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8639
+      }
+    },
+    {
+      "name": "slangpy.Device.convert_coop_vec_matrices",
+      "canonical_name": "slangpy.Device.convert_coop_vec_matrices",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "convert_coop_vec_matrices(dst: bytearray, dst_descs: Sequence[CoopVecMatrixDescParam], src: bytes, src_descs: Sequence[CoopVecMatrixDescParam]) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Convert multiple cooperative vector matrices between formats.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8609
+      }
+    },
+    {
+      "name": "slangpy.Device.convert_coop_vec_matrix",
+      "canonical_name": "slangpy.Device.convert_coop_vec_matrix",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "convert_coop_vec_matrix(dst: bytearray, dst_descs: CoopVecMatrixDescParam, src: bytes, src_descs: CoopVecMatrixDescParam) -> None",
+        "convert_coop_vec_matrix(dst: Annotated[NDArray, dict(device=cpu)], src: Annotated[NDArray, dict(device=cpu)], dst_layout: CoopVecMatrixLayout | None = None, src_layout: CoopVecMatrixLayout | None = None) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Convert multiple cooperative vector matrices between formats.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8612
+      }
+    },
+    {
+      "name": "slangpy.Device.create_acceleration_structure",
+      "canonical_name": "slangpy.Device.create_acceleration_structure",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_acceleration_structure(kind: AccelerationStructureKind = AccelerationStructureKind.unknown, size: int = 0, label: str = '') -> AccelerationStructure",
+        "create_acceleration_structure(desc: AccelerationStructureDescParam) -> AccelerationStructure"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new acceleration structure.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8576
+      }
+    },
+    {
+      "name": "slangpy.Device.create_acceleration_structure_instance_list",
+      "canonical_name": "slangpy.Device.create_acceleration_structure_instance_list",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_acceleration_structure_instance_list(size: int) -> AccelerationStructureInstanceList"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new acceleration structure instance list.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8583
+      }
+    },
+    {
+      "name": "slangpy.Device.create_buffer",
+      "canonical_name": "slangpy.Device.create_buffer",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_buffer(size: int = 0, element_count: int = 0, struct_size: int = 0, resource_type_layout: object | None = None, format: Format = Format.undefined, memory_type: MemoryType = MemoryType.device_local, usage: BufferUsage = 0, default_state: ResourceState = ResourceState.undefined, label: str = '', data: NDArray | None = None) -> Buffer",
+        "create_buffer(desc: BufferDescParam) -> Buffer"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new buffer.",
+        "body": "Parameter ``size``:\n    Buffer size in bytes.\n\nParameter ``element_count``:\n    Buffer size in number of struct elements. Can be used instead of\n    ``size``.\n\nParameter ``struct_size``:\n    Struct size in bytes.\n\nParameter ``resource_type_layout``:\n    Resource type layout of the buffer. Can be used instead of\n    ``struct_size`` to specify the size of the struct.\n\nParameter ``format``:\n    Buffer format. Used when creating typed buffer views.\n\nParameter ``initial_state``:\n    Initial resource state.\n\nParameter ``usage``:\n    Resource usage flags.\n\nParameter ``memory_type``:\n    Memory type.\n\nParameter ``label``:\n    Debug label.\n\nParameter ``data``:\n    Initial data to upload to the buffer.\n\nParameter ``data_size``:\n    Size of the initial data in bytes.\n\nReturns:\n    New buffer object.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8209
+      }
+    },
+    {
+      "name": "slangpy.Device.create_buffer_from_native_handle",
+      "canonical_name": "slangpy.Device.create_buffer_from_native_handle",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_buffer_from_native_handle(desc: BufferDescParam, handle: NativeHandle) -> Buffer"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new buffer wrapping an existing native buffer without copying.",
+        "body": "The expected handle type depends on the device type: ``D3D12Resource``\non D3D12, ``VkBuffer`` on Vulkan, ``MTLBuffer`` on Metal,\n``CUdeviceptr`` on CUDA and ``WGPUBuffer`` on WGPU.\n\nParameter ``desc``:\n    Buffer description. The size must not exceed the native\n    allocation.\n\nParameter ``handle``:\n    Native buffer handle to wrap.\n\nReturns:\n    New buffer object.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8256
+      }
+    },
+    {
+      "name": "slangpy.Device.create_command_encoder",
+      "canonical_name": "slangpy.Device.create_command_encoder",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_command_encoder(queue: CommandQueueType = CommandQueueType.graphics) -> CommandEncoder"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a command encoder.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8432
+      }
+    },
+    {
+      "name": "slangpy.Device.create_compute_kernel",
+      "canonical_name": "slangpy.Device.create_compute_kernel",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_compute_kernel(program: ShaderProgram) -> ComputeKernel",
+        "create_compute_kernel(desc: ComputeKernelDesc) -> ComputeKernel"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a compute kernel.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8685
+      }
+    },
+    {
+      "name": "slangpy.Device.create_compute_pipeline",
+      "canonical_name": "slangpy.Device.create_compute_pipeline",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_compute_pipeline(program: ShaderProgram, compilation_policy: PipelineCompilationPolicy = PipelineCompilationPolicy.default, label: str | None = None) -> ComputePipeline",
+        "create_compute_pipeline(desc: ComputePipelineDescParam) -> ComputePipeline"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a compute pipeline.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8664
+      }
+    },
+    {
+      "name": "slangpy.Device.create_coop_vec_matrix_desc",
+      "canonical_name": "slangpy.Device.create_coop_vec_matrix_desc",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_coop_vec_matrix_desc(rows: int, cols: int, layout: CoopVecMatrixLayout, element_type: DataType, offset: int = 0, row_col_stride: int = 0) -> CoopVecMatrixDesc"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a cooperative vector matrix descriptor.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8606
+      }
+    },
+    {
+      "name": "slangpy.Device.create_fence",
+      "canonical_name": "slangpy.Device.create_fence",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_fence(initial_value: int = 0, shared: bool = False) -> Fence",
+        "create_fence(desc: FenceDescParam) -> Fence"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new fence.",
+        "body": "Parameter ``initial_value``:\n    Initial fence value.\n\nParameter ``shared``:\n    Create a shared fence.\n\nReturns:\n    New fence object.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8382
+      }
+    },
+    {
+      "name": "slangpy.Device.create_input_layout",
+      "canonical_name": "slangpy.Device.create_input_layout",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_input_layout(input_elements: Sequence[InputElementDescParam], vertex_streams: Sequence[VertexStreamDescParam]) -> InputLayout",
+        "create_input_layout(desc: InputLayoutDescParam) -> InputLayout"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new input layout.",
+        "body": "Parameter ``input_elements``:\n    List of input elements (see InputElementDesc for details).\n\nParameter ``vertex_streams``:\n    List of vertex streams (see VertexStreamDesc for details).\n\nReturns:\n    New input layout object.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8414
+      }
+    },
+    {
+      "name": "slangpy.Device.create_micromap",
+      "canonical_name": "slangpy.Device.create_micromap",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_micromap(type: MicromapType = MicromapType.opacity, size: int = 0, flags: MicromapBuildFlags = 0, label: str = '') -> Micromap",
+        "create_micromap(desc: MicromapDescParam) -> Micromap"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new micromap.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8589
+      }
+    },
+    {
+      "name": "slangpy.Device.create_query_pool",
+      "canonical_name": "slangpy.Device.create_query_pool",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_query_pool(type: QueryType, count: int) -> QueryPool"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new query pool.",
+        "body": "Parameter ``type``:\n    Query type.\n\nParameter ``count``:\n    Number of queries in the pool.\n\nReturns:\n    New query pool object.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8400
+      }
+    },
+    {
+      "name": "slangpy.Device.create_ray_tracing_pipeline",
+      "canonical_name": "slangpy.Device.create_ray_tracing_pipeline",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_ray_tracing_pipeline(program: ShaderProgram, hit_groups: Sequence[HitGroupDescParam], max_recursion: int = 0, max_ray_payload_size: int = 0, max_attribute_size: int = 8, flags: RayTracingPipelineFlags = 0, compilation_policy: PipelineCompilationPolicy = PipelineCompilationPolicy.default, label: str | None = None) -> RayTracingPipeline",
+        "create_ray_tracing_pipeline(desc: RayTracingPipelineDescParam) -> RayTracingPipeline"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a ray tracing pipeline.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8678
+      }
+    },
+    {
+      "name": "slangpy.Device.create_render_pipeline",
+      "canonical_name": "slangpy.Device.create_render_pipeline",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_render_pipeline(program: ShaderProgram, input_layout: InputLayout | None, primitive_topology: PrimitiveTopology = PrimitiveTopology.triangle_list, targets: Sequence[ColorTargetDescParam] = [], depth_stencil: DepthStencilDescParam | None = None, rasterizer: RasterizerDescParam | None = None, multisample: MultisampleDescParam | None = None, compilation_policy: PipelineCompilationPolicy = PipelineCompilationPolicy.default, label: str | None = None) -> RenderPipeline",
+        "create_render_pipeline(desc: RenderPipelineDescParam) -> RenderPipeline"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a render pipeline.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8671
+      }
+    },
+    {
+      "name": "slangpy.Device.create_root_shader_object",
+      "canonical_name": "slangpy.Device.create_root_shader_object",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_root_shader_object(shader_program: ShaderProgram) -> ShaderObject"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a root shader object for a shader program.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8653
+      }
+    },
+    {
+      "name": "slangpy.Device.create_sampler",
+      "canonical_name": "slangpy.Device.create_sampler",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_sampler(min_filter: TextureFilteringMode = TextureFilteringMode.linear, mag_filter: TextureFilteringMode = TextureFilteringMode.linear, mip_filter: TextureFilteringMode = TextureFilteringMode.linear, reduction_op: TextureReductionOp = TextureReductionOp.average, address_u: TextureAddressingMode = TextureAddressingMode.wrap, address_v: TextureAddressingMode = TextureAddressingMode.wrap, address_w: TextureAddressingMode = TextureAddressingMode.wrap, mip_lod_bias: float = 0.0, max_anisotropy: int = 1, comparison_func: ComparisonFunc = ComparisonFunc.never, border_color: float4param = ..., min_lod: float = -1000.0, max_lod: float = 1000.0, label: str = '') -> Sampler",
+        "create_sampler(desc: SamplerDescParam) -> Sampler"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new sampler.",
+        "body": "Parameter ``min_filter``:\n    Minification filter.\n\nParameter ``mag_filter``:\n    Magnification filter.\n\nParameter ``mip_filter``:\n    Mip-map filter.\n\nParameter ``reduction_op``:\n    Reduction operation.\n\nParameter ``address_u``:\n    Texture addressing mode for the U coordinate.\n\nParameter ``address_v``:\n    Texture addressing mode for the V coordinate.\n\nParameter ``address_w``:\n    Texture addressing mode for the W coordinate.\n\nParameter ``mip_lod_bias``:\n    Mip-map LOD bias.\n\nParameter ``max_anisotropy``:\n    Maximum anisotropy.\n\nParameter ``comparison_func``:\n    Comparison function.\n\nParameter ``border_color``:\n    Border color.\n\nParameter ``min_lod``:\n    Minimum LOD level.\n\nParameter ``max_lod``:\n    Maximum LOD level.\n\nParameter ``label``:\n    Debug label.\n\nReturns:\n    New sampler object.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8328
+      }
+    },
+    {
+      "name": "slangpy.Device.create_shader_object",
+      "canonical_name": "slangpy.Device.create_shader_object",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_shader_object(type_layout: TypeLayoutReflection) -> ShaderObject",
+        "create_shader_object(cursor: ReflectionCursor) -> ShaderObject"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a shader object from a type layout.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8656
+      }
+    },
+    {
+      "name": "slangpy.Device.create_shader_table",
+      "canonical_name": "slangpy.Device.create_shader_table",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_shader_table(program: ShaderProgram, ray_gen_entry_points: Sequence[str] = [], miss_entry_points: Sequence[str] = [], hit_group_names: Sequence[str] = [], callable_entry_points: Sequence[str] = []) -> ShaderTable",
+        "create_shader_table(desc: ShaderTableDescParam) -> ShaderTable"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new shader table.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8596
+      }
+    },
+    {
+      "name": "slangpy.Device.create_slang_session",
+      "canonical_name": "slangpy.Device.create_slang_session",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_slang_session(compiler_options: SlangCompilerOptionsParam | None = None, add_default_include_paths: bool = True, cache_path: str | os.PathLike | None = None) -> SlangSession"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new slang session.",
+        "body": "Parameter ``compiler_options``:\n    Compiler options (see SlangCompilerOptions for details).\n\nReturns:\n    New slang session object.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8619
+      }
+    },
+    {
+      "name": "slangpy.Device.create_surface",
+      "canonical_name": "slangpy.Device.create_surface",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_surface(window: Window) -> Surface",
+        "create_surface(window_handle: WindowHandle) -> Surface"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new surface.",
+        "body": "Parameter ``window``:\n    Window to create the surface for.\n\nReturns:\n    New surface object.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8185
+      }
+    },
+    {
+      "name": "slangpy.Device.create_texture",
+      "canonical_name": "slangpy.Device.create_texture",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "create_texture(type: TextureType = TextureType.texture_2d, format: Format = Format.undefined, width: int = 1, height: int = 1, depth: int = 1, array_length: int = 1, mip_count: int = 1, sample_count: int = 1, sample_quality: int = 0, memory_type: MemoryType = MemoryType.device_local, usage: TextureUsage = 0, default_state: ResourceState = ResourceState.undefined, sampler: Sampler | None = None, label: str = '', data: NDArray | None = None) -> Texture",
+        "create_texture(desc: TextureDescParam) -> Texture"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Create a new texture.",
+        "body": "Parameter ``type``:\n    Texture type.\n\nParameter ``format``:\n    Texture format.\n\nParameter ``width``:\n    Width in pixels.\n\nParameter ``height``:\n    Height in pixels.\n\nParameter ``depth``:\n    Depth in pixels.\n\nParameter ``array_length``:\n    Array length.\n\nParameter ``mip_count``:\n    Mip level count. Number of mip levels (ALL_MIPS for all mip\n    levels).\n\nParameter ``sample_count``:\n    Number of samples for multisampled textures.\n\nParameter ``quality``:\n    Quality level for multisampled textures.\n\nParameter ``usage``:\n    Resource usage.\n\nParameter ``memory_type``:\n    Memory type.\n\nParameter ``label``:\n    Debug label.\n\nParameter ``data``:\n    Initial data.\n\nReturns:\n    New texture object.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8276
+      }
+    },
+    {
+      "name": "slangpy.Device.cuda_context_scope",
+      "canonical_name": "slangpy.Device.cuda_context_scope",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "cuda_context_scope() -> CudaContextScope"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Returns a context manager that pushes/pops the CUDA context.",
+        "body": "Usage:\n    with device.cuda_context_scope():\n        # CUDA context is active here\n        buffer = device.create_buffer(...)\n    # Previous context is restored\n\nThis is useful for multi-GPU scenarios where you need to temporarily\nswitch to a different device's context.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8139
+      }
+    },
+    {
+      "name": "slangpy.Device.desc",
+      "canonical_name": "slangpy.Device.desc",
+      "kind": "property",
+      "section": "device",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8101
+      }
+    },
+    {
+      "name": "slangpy.Device.enumerate_adapters",
+      "canonical_name": "slangpy.Device.enumerate_adapters",
+      "kind": "staticmethod",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "enumerate_adapters(type: DeviceType = DeviceType.automatic) -> list[AdapterInfo]"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Enumerates all available adapters of a given device type.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8738
+      }
+    },
+    {
+      "name": "slangpy.Device.features",
+      "canonical_name": "slangpy.Device.features",
+      "kind": "property",
+      "section": "device",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "List of features supported by the device.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8116
+      }
+    },
+    {
+      "name": "slangpy.Device.flush_print",
+      "canonical_name": "slangpy.Device.flush_print",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "flush_print() -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Block and flush all shader side debug print output.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8692
+      }
+    },
+    {
+      "name": "slangpy.Device.flush_print_to_string",
+      "canonical_name": "slangpy.Device.flush_print_to_string",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "flush_print_to_string() -> str"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Block and flush all shader side debug print output to a string.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8695
+      }
+    },
+    {
+      "name": "slangpy.Device.get_acceleration_structure_sizes",
+      "canonical_name": "slangpy.Device.get_acceleration_structure_sizes",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "get_acceleration_structure_sizes(desc: AccelerationStructureBuildDescParam) -> AccelerationStructureSizes"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Query the device for buffer sizes required for acceleration structure builds.",
+        "body": "Parameter ``desc``:\n    Acceleration structure build description.\n\nReturns:\n    Acceleration structure sizes.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8564
+      }
+    },
+    {
+      "name": "slangpy.Device.get_compilation_reports",
+      "canonical_name": "slangpy.Device.get_compilation_reports",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "get_compilation_reports() -> list[CompilationReport]"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Return compilation reports for all shader programs tracked by the device.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8648
+      }
+    },
+    {
+      "name": "slangpy.Device.get_coop_vec_matrix_size",
+      "canonical_name": "slangpy.Device.get_coop_vec_matrix_size",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "get_coop_vec_matrix_size(rows: int, cols: int, layout: CoopVecMatrixLayout, element_type: DataType, row_col_stride: int = 0) -> int"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Get the size of a cooperative vector matrix in bytes.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8603
+      }
+    },
+    {
+      "name": "slangpy.Device.get_created_devices",
+      "canonical_name": "slangpy.Device.get_created_devices",
+      "kind": "staticmethod",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "get_created_devices() -> list[Device]"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Lists all created devices",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8742
+      }
+    },
+    {
+      "name": "slangpy.Device.get_format_support",
+      "canonical_name": "slangpy.Device.get_format_support",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "get_format_support(format: Format) -> FormatSupport"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Returns the supported resource states for a given format.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8163
+      }
+    },
+    {
+      "name": "slangpy.Device.get_micromap_sizes",
+      "canonical_name": "slangpy.Device.get_micromap_sizes",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "get_micromap_sizes(desc: MicromapBuildDescParam) -> MicromapSizes"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Query the device for buffer sizes required for a micromap build.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8586
+      }
+    },
+    {
+      "name": "slangpy.Device.get_timestamp_calibration",
+      "canonical_name": "slangpy.Device.get_timestamp_calibration",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "get_timestamp_calibration(queue: CommandQueueType = CommandQueueType.graphics) -> TimestampCalibration"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Get timestamp calibration data for a queue.",
+        "body": "This can be used to synchronize CPU and GPU timestamps, which is\nnecessary for accurate profiling and debugging.\n\nParameter ``queue``:\n    Command queue to get timestamp calibration data for.\n\nReturns:\n    Timestamp calibration data",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8528
+      }
+    },
+    {
+      "name": "slangpy.Device.has_capability",
+      "canonical_name": "slangpy.Device.has_capability",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "has_capability(capability: str) -> bool"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Check if the device supports a given capability.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8160
+      }
+    },
+    {
+      "name": "slangpy.Device.has_feature",
+      "canonical_name": "slangpy.Device.has_feature",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "has_feature(feature: Feature) -> bool"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Check if the device supports a given feature.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8157
+      }
+    },
+    {
+      "name": "slangpy.Device.hot_reload_check",
+      "canonical_name": "slangpy.Device.hot_reload_check",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "hot_reload_check() -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8736
+      }
+    },
+    {
+      "name": "slangpy.Device.info",
+      "canonical_name": "slangpy.Device.info",
+      "kind": "property",
+      "section": "device",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "Device information.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8104
+      }
+    },
+    {
+      "name": "slangpy.Device.is_submit_finished",
+      "canonical_name": "slangpy.Device.is_submit_finished",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "is_submit_finished(id: int) -> bool"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Check if a submission is finished executing.",
+        "body": "Parameter ``id``:\n    Submission ID.\n\nReturns:\n    True if the submission is finished executing.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8501
+      }
+    },
+    {
+      "name": "slangpy.Device.link_program",
+      "canonical_name": "slangpy.Device.link_program",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "link_program(modules: Sequence[SlangModule], entry_points: Sequence[SlangEntryPoint], link_options: SlangLinkOptionsParam | None = None) -> ShaderProgram"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Link modules and entry points into a shader program.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8642
+      }
+    },
+    {
+      "name": "slangpy.Device.load_module",
+      "canonical_name": "slangpy.Device.load_module",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "load_module(module_name: str) -> SlangModule"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Load a slang module by name.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8633
+      }
+    },
+    {
+      "name": "slangpy.Device.load_module_from_source",
+      "canonical_name": "slangpy.Device.load_module_from_source",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "load_module_from_source(module_name: str, source: str, path: str | os.PathLike | None = None) -> SlangModule"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Load a slang module from source code.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8636
+      }
+    },
+    {
+      "name": "slangpy.Device.load_program",
+      "canonical_name": "slangpy.Device.load_program",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "load_program(module_name: str, entry_point_names: Sequence[str], additional_source: str | None = None, link_options: SlangLinkOptionsParam | None = None) -> ShaderProgram"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Load a module and link a shader program in one step.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8645
+      }
+    },
+    {
+      "name": "slangpy.Device.native_handles",
+      "canonical_name": "slangpy.Device.native_handles",
+      "kind": "property",
+      "section": "device",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "Get the native device handles.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8128
+      }
+    },
+    {
+      "name": "slangpy.Device.register_command_recording_discarded_callback",
+      "canonical_name": "slangpy.Device.register_command_recording_discarded_callback",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "register_command_recording_discarded_callback(callback: Callable[[CommandRecordingDiscardedEvent], None]) -> int"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Register a callback to be called when a command recording is discarded (not submitted).",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8725
+      }
+    },
+    {
+      "name": "slangpy.Device.register_command_recording_submitted_callback",
+      "canonical_name": "slangpy.Device.register_command_recording_submitted_callback",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "register_command_recording_submitted_callback(callback: Callable[[CommandRecordingSubmittedEvent], None]) -> int"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Register a callback to be called when a command recording is submitted.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8716
+      }
+    },
+    {
+      "name": "slangpy.Device.register_device_close_callback",
+      "canonical_name": "slangpy.Device.register_device_close_callback",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "register_device_close_callback(callback: Callable[[Device], None]) -> int"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Register a device close callback, called at start of device close.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8701
+      }
+    },
+    {
+      "name": "slangpy.Device.register_shader_hot_reload_callback",
+      "canonical_name": "slangpy.Device.register_shader_hot_reload_callback",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "register_shader_hot_reload_callback(callback: Callable[[ShaderHotReloadEvent], None]) -> int"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Register a hot reload hook, called immediately after any module is reloaded.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8707
+      }
+    },
+    {
+      "name": "slangpy.Device.reload_all_programs",
+      "canonical_name": "slangpy.Device.reload_all_programs",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "reload_all_programs() -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Reload all shader programs.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8630
+      }
+    },
+    {
+      "name": "slangpy.Device.report_heaps",
+      "canonical_name": "slangpy.Device.report_heaps",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "report_heaps() -> list[HeapReport]"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Report status of internal heaps used by the device.",
+        "body": "Returns:\n    List of heap reports containing heap names and allocation\n    information.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8753
+      }
+    },
+    {
+      "name": "slangpy.Device.report_live_objects",
+      "canonical_name": "slangpy.Device.report_live_objects",
+      "kind": "staticmethod",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "report_live_objects() -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Report live objects in the rhi layer. This is useful for checking clean shutdown with all resources released properly.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8746
+      }
+    },
+    {
+      "name": "slangpy.Device.set_cuda_context_current",
+      "canonical_name": "slangpy.Device.set_cuda_context_current",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "set_cuda_context_current() -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Set the CUDA context current on the calling thread. No-op for non-CUDA devices.",
+        "body": "Use this when operating from a thread that doesn't have the CUDA context set,\nor after manually switching to a different context.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8131
+      }
+    },
+    {
+      "name": "slangpy.Device.set_hot_reload_delay",
+      "canonical_name": "slangpy.Device.set_hot_reload_delay",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "set_hot_reload_delay(timeout_ms: int) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8734
+      }
+    },
+    {
+      "name": "slangpy.Device.shader_cache_stats",
+      "canonical_name": "slangpy.Device.shader_cache_stats",
+      "kind": "property",
+      "section": "device",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "Shader cache statistics.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8108
+      }
+    },
+    {
+      "name": "slangpy.Device.slang_session",
+      "canonical_name": "slangpy.Device.slang_session",
+      "kind": "property",
+      "section": "device",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "Default slang session.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8167
+      }
+    },
+    {
+      "name": "slangpy.Device.submit_command_buffer",
+      "canonical_name": "slangpy.Device.submit_command_buffer",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "submit_command_buffer(command_buffer: CommandBuffer, queue: CommandQueueType = CommandQueueType.graphics, cuda_stream: NativeHandle = ...) -> int"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Submit a command buffer to the device.",
+        "body": "The returned submission ID can be used to wait for the submission to\ncomplete.\n\nParameter ``command_buffer``:\n    Command buffer to submit.\n\nParameter ``queue``:\n    Command queue to submit to.\n\nReturns:\n    Submission ID.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8484
+      }
+    },
+    {
+      "name": "slangpy.Device.submit_command_buffers",
+      "canonical_name": "slangpy.Device.submit_command_buffers",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "submit_command_buffers(command_buffers: Sequence[CommandBuffer], wait_fences: Sequence[Fence] = [], wait_fence_values: Sequence[int] = [], signal_fences: Sequence[Fence] = [], signal_fence_values: Sequence[int] = [], queue: CommandQueueType = CommandQueueType.graphics, cuda_stream: NativeHandle = ...) -> int"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Submit a list of command buffers to the device.",
+        "body": "The returned submission ID can be used to wait for the submission to\ncomplete.\n\nThe wait fence values are optional. If not provided, the fence values\nwill be set to AUTO, which means waiting for the last signaled value.\n\nThe signal fence values are optional. If not provided, the fence\nvalues will be set to AUTO, which means incrementing the last signaled\nvalue by 1. *\n\nParameter ``command_buffers``:\n    List of command buffers to submit.\n\nParameter ``wait_fences``:\n    List of fences to wait for before executing the command buffers.\n\nParameter ``wait_fence_values``:\n    List of fence values to wait for before executing the command\n    buffers.\n\nParameter ``signal_fences``:\n    List of fences to signal after executing the command buffers.\n\nParameter ``signal_fence_values``:\n    List of fence values to signal after executing the command\n    buffers.\n\nParameter ``queue``:\n    Command queue to submit to.\n\nParameter ``cuda_stream``:\n    On none-CUDA backends, when interop is enabled, this is the stream\n    to sync with before/after submission (assuming any resources are\n    shared with CUDA) and use for internal copies. If not specified,\n    sync will happen with the NULL (default) CUDA stream. On CUDA\n    backends, this is the CUDA stream to use for the submission. If\n    not specified, the default stream of the command queue will be\n    used, which for CommandQueueType::graphics is the NULL stream. It\n    is an error to specify a stream for none-CUDA backends that have\n    interop disabled.\n\nReturns:\n    Submission ID.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8435
+      }
+    },
+    {
+      "name": "slangpy.Device.supported_shader_model",
+      "canonical_name": "slangpy.Device.supported_shader_model",
+      "kind": "property",
+      "section": "device",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "The highest shader model supported by the device.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8112
+      }
+    },
+    {
+      "name": "slangpy.Device.supports_cuda_interop",
+      "canonical_name": "slangpy.Device.supports_cuda_interop",
+      "kind": "property",
+      "section": "device",
+      "audience": "user",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "True if the device supports CUDA interoperability.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8124
+      }
+    },
+    {
+      "name": "slangpy.Device.sync_to_cuda",
+      "canonical_name": "slangpy.Device.sync_to_cuda",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "sync_to_cuda(cuda_stream: int = 0) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Synchronize CUDA -> device.",
+        "body": "This signals a shared CUDA semaphore from the CUDA stream and then\nwaits for the signal on the command queue.\n\nParameter ``cuda_stream``:\n    CUDA stream",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8542
+      }
+    },
+    {
+      "name": "slangpy.Device.sync_to_device",
+      "canonical_name": "slangpy.Device.sync_to_device",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "sync_to_device(cuda_stream: int = 0) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Synchronize device -> CUDA.",
+        "body": "This waits for a shared CUDA semaphore on the CUDA stream, making sure\nall commands on the device have completed.\n\nParameter ``cuda_stream``:\n    CUDA stream",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8553
+      }
+    },
+    {
+      "name": "slangpy.Device.unregister_command_recording_discarded_callback",
+      "canonical_name": "slangpy.Device.unregister_command_recording_discarded_callback",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "unregister_command_recording_discarded_callback(id: int) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Unregister a command recording discarded callback.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8731
+      }
+    },
+    {
+      "name": "slangpy.Device.unregister_command_recording_submitted_callback",
+      "canonical_name": "slangpy.Device.unregister_command_recording_submitted_callback",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "unregister_command_recording_submitted_callback(id: int) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Unregister a command recording submitted callback.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8722
+      }
+    },
+    {
+      "name": "slangpy.Device.unregister_device_close_callback",
+      "canonical_name": "slangpy.Device.unregister_device_close_callback",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "unregister_device_close_callback(id: int) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Unregister a device close callback.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8704
+      }
+    },
+    {
+      "name": "slangpy.Device.unregister_shader_hot_reload_callback",
+      "canonical_name": "slangpy.Device.unregister_shader_hot_reload_callback",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "unregister_shader_hot_reload_callback(id: int) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "placeholder"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8713
+      }
+    },
+    {
+      "name": "slangpy.Device.wait",
+      "canonical_name": "slangpy.Device.wait",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "wait() -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Wait for all device work to complete.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8698
+      }
+    },
+    {
+      "name": "slangpy.Device.wait_for_idle",
+      "canonical_name": "slangpy.Device.wait_for_idle",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "wait_for_idle(queue: CommandQueueType = CommandQueueType.graphics) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Wait for the command queue to be idle.",
+        "body": "Parameter ``queue``:\n    Command queue to wait for.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8520
+      }
+    },
+    {
+      "name": "slangpy.Device.wait_for_submit",
+      "canonical_name": "slangpy.Device.wait_for_submit",
+      "kind": "method",
+      "section": "device",
+      "audience": "user",
+      "signatures": [
+        "wait_for_submit(id: int) -> None"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Wait for a submission to finish execution.",
+        "body": "Parameter ``id``:\n    Submission ID.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/__init__.pyi",
+        "line": 8512
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall",
+      "canonical_name": "slangpy.bindings.marshall.Marshall",
+      "kind": "class",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "Marshall(layout: SlangProgramLayout)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Base class for a type marshall that describes how to pass a given type to/from a SlangPy kernel. When a kernel is generated, a marshall is instantiated for each Python value. Future calls to the kernel verify type signatures match and then re-use the existing marshalls.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 71
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.__init__",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.__init__",
+      "kind": "constructor",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "__init__(layout: SlangProgramLayout)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 79
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.__repr__",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.__repr__",
+      "kind": "method",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "__repr__()"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 85
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.build_shader_object",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.build_shader_object",
+      "kind": "method",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "build_shader_object(context: BindContext, data: Any) -> ShaderObject"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Build a shader object from the given data. This is called when attempting to finalize a value before passing it as a read only shader object.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 198
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.can_direct_bind",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.can_direct_bind",
+      "kind": "method",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "can_direct_bind(binding: BoundVariable) -> bool"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Whether this marshall supports direct binding for the given variable. Direct binding emits raw Slang types instead of ValueType wrappers. Default: False. Override in subclasses to opt in.",
+        "body": "",
+        "parameters": {
+          "binding": "The bound variable to check."
+        },
+        "returns": "True if this marshall supports direct binding for this variable.",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 143
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.gen_calldata",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.gen_calldata",
+      "kind": "method",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "gen_calldata(cgb: CodeGenBlock, context: BindContext, binding: BoundVariable)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Generate the code for the uniforms that will represent this value in the kernel. Raises exception if not overriden.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 102
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.gen_trampoline_load",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.gen_trampoline_load",
+      "kind": "method",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "gen_trampoline_load(cgb: CodeGenBlock, binding: BoundVariable, data_name: str, value_name: str) -> bool"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Generate custom load code for this parameter.",
+        "body": "Works universally for both root-level trampoline parameters and\nchildren inside composite ``__slangpy_load`` bodies.",
+        "parameters": {
+          "cgb": "Code generation block to append load statements to.",
+          "binding": "The bound variable being loaded.",
+          "data_name": "Expression referencing the stored data (e.g. ``call_data.x`` or ``x``).",
+          "value_name": "Expression referencing the destination value (e.g. ``x`` or ``value.x``)."
+        },
+        "returns": "True if handled (skip standard __slangpy_load), False for default behavior.",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 109
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.gen_trampoline_store",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.gen_trampoline_store",
+      "kind": "method",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "gen_trampoline_store(cgb: CodeGenBlock, binding: BoundVariable, data_name: str, value_name: str) -> bool"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Generate custom store code for this parameter.",
+        "body": "Works universally for both root-level trampoline parameters and\nchildren inside composite ``__slangpy_store`` bodies.",
+        "parameters": {
+          "cgb": "Code generation block to append store statements to.",
+          "binding": "The bound variable being stored.",
+          "data_name": "Expression referencing the stored data (e.g. ``call_data.x`` or ``x``).",
+          "value_name": "Expression referencing the source value (e.g. ``x`` or ``value.x``)."
+        },
+        "returns": "True if handled (skip standard __slangpy_store), False for default behavior.",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 126
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.has_derivative",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.has_derivative",
+      "kind": "property",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "Does value have a derivative. Default: False",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 89
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.is_writable",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.is_writable",
+      "kind": "property",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "Is value writable. Default: False",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 96
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.reduce_type",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.reduce_type",
+      "kind": "method",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "reduce_type(context: BindContext, dimensions: int) -> SlangType"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Get the slang type for this variable when a given number of dimensions are removed. i.e. if the variable is a matrix, reduce_type(1) would return a vector, and reduce_type(2) would return a scalar. Raises exception if needed and not overriden.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 154
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.resolve_dimensionality",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.resolve_dimensionality",
+      "kind": "method",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "resolve_dimensionality(context: BindContext, binding: BoundVariable, vector_target_type: SlangType)"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Calculate the call dimensionality when this value is passed as a given type. For example, a 3D buffer passed to a scalar would return 3, but a 3D buffer passed to a 3D buffer would return 0.",
+        "body": "Default implementation simply returns the difference between the dimensionality of this\ntype and the target type.",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "complete"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 182
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.resolve_type",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.resolve_type",
+      "kind": "method",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "resolve_type(context: BindContext, bound_type: SlangType) -> SlangType"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Return the slang type for this variable when passed to a parameter of the given type. Default behaviour simply attempts to pass its own type, but more complex behaviour can be added to support implicit casts. Default to just casting to itself (i.e. no implicit cast)",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 164
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.resolve_types",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.resolve_types",
+      "kind": "method",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [
+        "resolve_types(context: BindContext, bound_type: SlangType) -> list[SlangType]"
+      ],
+      "aliases": [],
+      "documentation": {
+        "summary": "Return a list of possible slang types for this variable when passed to a parameter of the given type. Default behaviour always returns a list with a single entry, retrieved by calling the legacy resolve_type() method.",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "summary"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 174
+      }
+    },
+    {
+      "name": "slangpy.bindings.Marshall.slang_type",
+      "canonical_name": "slangpy.bindings.marshall.Marshall.slang_type",
+      "kind": "attribute",
+      "section": "extension-api",
+      "audience": "extension-author",
+      "signatures": [],
+      "aliases": [],
+      "documentation": {
+        "summary": "",
+        "body": "",
+        "parameters": {},
+        "returns": "",
+        "raises": [],
+        "status": "missing"
+      },
+      "source": {
+        "path": "slangpy/bindings/marshall.py",
+        "line": 83
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+# Reviewed public API contract for the structured documentation pipeline.
+#
+# Phase 1 intentionally publishes a small pilot. Names reported by
+# `python tools/docs.py report-unclassified` remain review candidates and are
+# not added to the supported reference automatically.
+
+schema_version = 1
+package = "slangpy"
+version_source = "src/sgl/sgl.h"
+
+[[sections]]
+id = "functional-api"
+title = "Functional API"
+audience = "user"
+names = [
+  "slangpy.Tensor",
+  "slangpy.Module",
+  "slangpy.Function",
+]
+
+[[sections]]
+id = "device"
+title = "Device"
+audience = "user"
+names = [
+  "slangpy.Device",
+]
+
+[[sections]]
+id = "extension-api"
+title = "Extension Author API"
+audience = "extension-author"
+names = [
+  "slangpy.bindings.Marshall",
+]

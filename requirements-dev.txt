@@ -6,9 +6,11 @@ pytest-xdist
 pytest-cov
 pyright
 deepdiff
+griffe==1.15.0
 isort
 autoflake
 libcst
 pymongo
 setuptools
 imageio
+tomli==2.2.1; python_version < "3.11"

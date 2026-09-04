@@ -17,13 +17,14 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 - [x] (2026-09-04) Reviewed the existing documentation, native doc extraction, stub generation, Sphinx configuration, Read the Docs configuration, and CI integration.
 - [x] (2026-09-04) Recorded the initial architecture and migration decisions in this plan.
 - [x] (2026-09-04) Completed Phase 0: added explicit runtime/snapshot preparation, reproducibility guards, pinned dependencies, strict documentation entry points, and contributor instructions.
-- [ ] Complete Phase 1: define the public API and generate a structured pilot inventory.
+- [x] (2026-09-04) Completed Phase 1: defined the reviewed pilot API and generated a deterministic structured inventory from source and stubs.
 - [ ] Complete Phase 2: render the structured inventory as split Sphinx API pages.
 - [ ] Complete Phase 3: add documentation CI, coverage measurement, and regression gates.
 - [ ] Complete Phase 4: publish Markdown and structured outputs for agents.
 - [ ] Complete Phase 5: establish and run an agent-assisted documentation campaign.
 - [ ] Complete Phase 6: remove the legacy generator and consolidate documentation maintenance.
 - [x] (2026-09-04) Ran the Windows release build, focused documentation tests, runtime and snapshot strict HTML builds, the CMake `doc` target, and pre-commit checks for Phase 0.
+- [x] (2026-09-04) Ran the Windows release build, 17 focused documentation tests, Pyright, repeated inventory generation/checks, the unclassified report, a strict snapshot HTML build, and pre-commit checks for Phase 1.
 - [ ] Record final outcomes and remaining documentation debt.
 
 ## Surprises and Discoveries
@@ -69,6 +70,15 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 
 - Observation: Enabling Sphinx nitpicky mode against the legacy monolithic runtime reference produces hundreds of unresolved external and malformed native type references.
   Evidence: The Phase 0 trial reported 394 warnings, dominated by types such as `enum.Enum`, `collections.abc.Sequence`, and nanobind-specific ndarray spellings. The ordinary strict build now passes with zero warnings.
+
+- Observation: Griffe's ordinary source/stub merge does not retain every overload-only member from the generated nanobind stubs, while visiting the `.pyi` modules directly does retain their overload sets.
+  Evidence: During the Phase 1 pilot, direct stub traversal recovered native constructors and methods such as `Device.create_buffer` that were absent from the automatically merged view.
+
+- Observation: The five-class Phase 1 inventory expands to 187 class and member records. Of these, 119 have at least a summary, 62 have no documentation, and 6 retain an explicit placeholder.
+  Evidence: `docs/api/api.json` contains 5 classes, 5 constructors, 120 methods, 33 properties, 14 static methods, and 10 attributes; 19 records have multiple overload signatures and 181 have repository-relative source references.
+
+- Observation: Static traversal currently reports 1,647 reachable public-looking names outside the deliberately narrow pilot contract.
+  Evidence: `python tools/docs.py report-unclassified`. This is a review queue, not an automatically published API surface.
 
 ## Decision Log
 
@@ -124,6 +134,14 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
   Rationale: This makes the documented pip installation self-contained across supported local and hosted platforms while continuing to prefer a system Pandoc when present.
   Date/Author: 2026-09-04, Codex.
 
+- Decision: Pin Griffe 1.15.0 for the inventory implementation and explicitly merge its static source view with separately visited generated stub modules.
+  Rationale: Griffe 1.15.0 supports SlangPy's Python 3.9 minimum, while Griffe 2 requires Python 3.10. Separate stub traversal preserves nanobind overload-only members without importing SlangPy.
+  Date/Author: 2026-09-04, Codex.
+
+- Decision: Keep the Phase 1 contract deliberately narrow: `Tensor`, `Module`, `Function`, and `Device` are the primary user pilot, while `Marshall` establishes a separate extension-author audience.
+  Rationale: The old named sections seeded the pilot's `Device` and functional API categories, but copying all reachable or legacy miscellaneous names would prematurely declare them supported. The unclassified report provides the review queue for expanding the contract in later phases.
+  Date/Author: 2026-09-04, Codex.
+
 ## Outcomes and Retrospective
 
 Phase 0 is complete. `tools/docs.py` is now the explicit preparation, validation, and strict-build entry point; `tools/ci.py docs`, the CMake `doc` target, and Read the Docs all use it with an explicit runtime or snapshot mode. Runtime import failures are fatal, while hosted source-only builds deliberately validate the checked-in snapshot.
@@ -133,6 +151,12 @@ The legacy snapshot no longer publishes local Git descriptions, build/package pa
 Validation completed with a full Windows release build, 11 focused tests, warning-free runtime and snapshot Sphinx HTML builds, a warning-free CMake `doc` target build, and a passing `pre-commit run --all-files`. The strict build also exposed and fixed malformed changelog markup, missing cross-reference labels, notebook tooling, and lexer registration.
 
 Remaining debt is intentionally carried into later phases: 792 reachable objects still fall into the legacy `Miscellaneous` section, 80 Python properties lack native signature metadata, nitpicky-reference mode cannot yet be enabled with a small ignore list, and the generated reference remains a monolithic runtime-introspection artifact rather than the planned public structured inventory.
+
+Phase 1 is complete. `docs/public_api.toml` now separates the primary user and extension-author audiences, and `tools/docs.py inventory` creates the checked-in, renderer-independent `docs/api/api.json` without importing SlangPy. The inventory combines ordinary Python documentation with native `.pyi` signatures, expands each reviewed class into its constructors, properties, methods, and attributes, normalizes aliases and paths, and rejects environment-dependent data. `inventory --check` detects a missing or stale snapshot, while `report-unclassified` exposes review candidates without publishing them.
+
+The pilot snapshot contains 187 records for the five reviewed classes and their members. Consecutive generations produced the same SHA-256 hash (`9D337085F757BA771D3CC7B25438E86E18A36F2211BEB008D6413E69CB0E9BCB`), and synthetic-package tests proved byte stability across different workspace paths. Validation completed with a Windows release build, 17 focused documentation tests, a clean Pyright check, successful generation/check/report CLI runs, a warning-free strict snapshot HTML build, and a passing pre-commit run.
+
+The structured inventory is not yet rendered into Sphinx pages; that remains Phase 2. The immediate content backlog is visible rather than hidden: 68 pilot records are missing documentation or still use placeholders, and 1,647 public-looking reachable names remain outside the reviewed contract.
 
 Update this section at the end of each phase with the observable improvements, remaining gaps, and any changes to the following milestones.
 
@@ -486,4 +510,4 @@ Document any dependency or interface changes in the Decision Log. Update this Ex
 
 ## Revision Note
 
-This revision completes Phase 0. It records the final runtime/snapshot build contract, deterministic legacy generation, pinned and self-contained notebook tooling, strict warning policy, validation results, and the specific legacy-reference debt carried into Phase 1.
+This revision completes Phase 1. It records the reviewed pilot API contract, static Griffe/source-stub merge, deterministic JSON snapshot and checks, unclassified review queue, validation results, and the documentation backlog carried into Phase 2.

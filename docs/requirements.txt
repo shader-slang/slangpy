@@ -1,5 +1,7 @@
 sphinx==7.4.7
 sphinx_copybutton==0.5.2
 furo==2024.8.6
+griffe==1.15.0
 nbsphinx==0.9.8
 pypandoc-binary==1.17
+tomli==2.2.1; python_version < "3.11"
