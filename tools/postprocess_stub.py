@@ -41,7 +41,6 @@ DESCRIPTOR_CONVERT_TYPES = {
     "MultisampleDesc": True,
     "MicromapBuildDesc": True,
     "MicromapDesc": True,
-    "MicromapTriangleDesc": True,
     "MicromapUsageCount": True,
     "QueryPoolDesc": True,
     "RasterizerDesc": True,

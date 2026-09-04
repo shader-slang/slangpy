@@ -117,13 +117,6 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(OpacityMicromapSpecialIndex);
 
-struct MicromapTriangleDesc {
-    uint32_t data_offset{0};
-    uint16_t subdivision_level{0};
-    OpacityMicromapFormat format{OpacityMicromapFormat::two_state};
-};
-static_assert(sizeof(MicromapTriangleDesc) == sizeof(rhi::MicromapTriangleDesc));
-
 struct MicromapUsageCount {
     uint32_t count{0};
     uint32_t subdivision_level{0};
@@ -181,7 +174,7 @@ struct MicromapBuildDesc {
     MicromapBuildFlags flags{MicromapBuildFlags::none};
     BufferOffsetPair data_buffer;
     BufferOffsetPair descriptor_buffer;
-    uint32_t descriptor_stride{sizeof(MicromapTriangleDesc)};
+    uint32_t descriptor_stride{sizeof(rhi::MicromapTriangleDesc)};
     std::vector<MicromapUsageCount> histogram;
 };
 

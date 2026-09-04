@@ -23,12 +23,6 @@ SGL_DICT_TO_DESC_FIELD(instance_stride, uint32_t)
 SGL_DICT_TO_DESC_FIELD(instance_count, uint32_t)
 SGL_DICT_TO_DESC_END()
 
-SGL_DICT_TO_DESC_BEGIN(MicromapTriangleDesc)
-SGL_DICT_TO_DESC_FIELD(data_offset, uint32_t)
-SGL_DICT_TO_DESC_FIELD(subdivision_level, uint16_t)
-SGL_DICT_TO_DESC_FIELD(format, OpacityMicromapFormat)
-SGL_DICT_TO_DESC_END()
-
 SGL_DICT_TO_DESC_BEGIN(MicromapUsageCount)
 SGL_DICT_TO_DESC_FIELD(count, uint32_t)
 SGL_DICT_TO_DESC_FIELD(subdivision_level, uint32_t)
@@ -163,32 +157,6 @@ SGL_PY_EXPORT(device_raytracing)
     nb::sgl_enum<MicromapIndexingMode>(m, "MicromapIndexingMode");
     nb::sgl_enum<MicromapIndexFormat>(m, "MicromapIndexFormat");
     nb::sgl_enum_flags<MicromapBuildFlags>(m, "MicromapBuildFlags");
-
-    nb::class_<MicromapTriangleDesc>(m, "MicromapTriangleDesc", D(MicromapTriangleDesc))
-        .def(nb::init<>())
-        .def(
-            "__init__",
-            [](MicromapTriangleDesc* self, nb::dict dict)
-            {
-                new (self) MicromapTriangleDesc(dict_to_MicromapTriangleDesc(dict));
-            }
-        )
-        .def_rw("data_offset", &MicromapTriangleDesc::data_offset, D(MicromapTriangleDesc, data_offset))
-        .def_rw(
-            "subdivision_level",
-            &MicromapTriangleDesc::subdivision_level,
-            D(MicromapTriangleDesc, subdivision_level)
-        )
-        .def_rw("format", &MicromapTriangleDesc::format, D(MicromapTriangleDesc, format))
-        .def(
-            "to_numpy",
-            [](MicromapTriangleDesc& self)
-            {
-                size_t shape[1] = {sizeof(MicromapTriangleDesc)};
-                return nb::ndarray<nb::numpy, const uint8_t>(&self, 1, shape, nb::handle());
-            }
-        );
-    nb::implicitly_convertible<nb::dict, MicromapTriangleDesc>();
 
     nb::class_<MicromapUsageCount>(m, "MicromapUsageCount", D(MicromapUsageCount))
         .def(nb::init<>())
