@@ -91,7 +91,15 @@ inline std::optional<nb::dlpack::dtype> resource_format_to_dtype(Format format)
     }
 }
 
-static const char* __doc_sgl_buffer_to_numpy = R"doc()doc";
+static const char* __doc_sgl_buffer_to_numpy = R"doc(
+Copy the complete buffer into a new CPU NumPy array.
+
+Device-local buffers are read back synchronously. Typed, uncompressed formats
+produce a scalar or channel-shaped array; other buffers produce a flat
+``uint8`` array. The result owns its CPU allocation and does not alias the GPU.
+
+:return: A NumPy array containing a copy of the buffer bytes.
+)doc";
 
 nb::ndarray<nb::numpy> buffer_to_numpy(Buffer* self)
 {
@@ -125,7 +133,19 @@ nb::ndarray<nb::numpy> buffer_to_numpy(Buffer* self)
     }
 }
 
-static const char* __doc_sgl_buffer_from_numpy = R"doc()doc";
+static const char* __doc_sgl_buffer_from_numpy = R"doc(
+Copy a contiguous NumPy array into the start of this buffer.
+
+:param data: Contiguous source array whose byte size does not exceed the buffer.
+:raises RuntimeError: If the array is non-contiguous or larger than the buffer.
+
+Example:
+
+.. code-block:: python
+
+    buffer.copy_from_numpy(values)
+    copied = buffer.to_numpy()
+)doc";
 
 void buffer_copy_from_numpy(Buffer* self, nb::ndarray<nb::numpy> data)
 {
@@ -173,7 +193,24 @@ buffer_to_torch(Buffer* self, DataType type, std::vector<size_t> shape, std::vec
     );
 }
 
-static const char* __doc_sgl_texture_to_numpy = R"doc()doc";
+static const char* __doc_sgl_texture_to_numpy = R"doc(
+Copy one texture subresource into a tightly packed CPU NumPy array.
+
+This operation waits for device-local readback. Uncompressed formats with a
+supported scalar layout produce spatial and channel dimensions; other formats
+produce a flat ``uint8`` array.
+
+:param layer: Array or cube-face layer to read.
+:param mip: Mip level to read.
+:return: A NumPy array containing a copy of the selected subresource.
+:raises RuntimeError: If ``layer`` or ``mip`` is out of range.
+
+Example:
+
+.. code-block:: python
+
+    pixels = texture.to_numpy(layer=0, mip=0)
+)doc";
 
 /**
  * Python binding wrapper for returning the content of a texture as a numpy array.
@@ -280,7 +317,21 @@ nb::ndarray<nb::numpy> texture_to_numpy(Texture* self, uint32_t layer, uint32_t 
     }
 }
 
-static const char* __doc_sgl_texture_from_numpy = R"doc()doc";
+static const char* __doc_sgl_texture_from_numpy = R"doc(
+Copy a tightly packed NumPy array into one texture subresource.
+
+:param data: Contiguous source array matching the selected mip's shape, channel
+    count, and byte size.
+:param layer: Array or cube-face layer to update.
+:param mip: Mip level to update.
+:raises RuntimeError: If the array layout or subresource index is invalid.
+
+Example:
+
+.. code-block:: python
+
+    texture.copy_from_numpy(pixels, layer=0, mip=0)
+)doc";
 
 SubresourceData
 texture_build_subresource_data_for_upload(Texture* self, nb::ndarray<nb::numpy> data, uint32_t layer, uint32_t mip)

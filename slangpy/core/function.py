@@ -585,6 +585,32 @@ class FunctionNodeCallGroupShape(FunctionNode):
 
 
 class Function(FunctionNode):
+    """
+    A callable Slang function with automatic Python-to-GPU data marshalling.
+
+    Users normally obtain a function through attribute access on
+    :class:`slangpy.Module`. The first call for an argument signature resolves
+    types, generates and compiles a kernel, and caches that call data; later calls
+    with the same signature reuse it.
+
+    :param module: Functional module that owns the function.
+    :param func: Reflected Slang function or a name to resolve in ``module``.
+    :param struct: Optional reflected struct for an instance method.
+    :param options: Functional-call options, copied when the function is created.
+
+    Example:
+
+    .. code-block:: python
+
+        import slangpy as spy
+
+        device = spy.create_device()
+        module = spy.Module.load_from_source(
+            device, "example", "float square(float x) { return x * x; }"
+        )
+        result = module.square(4.0)
+    """
+
     def __init__(
         self,
         module: "Module",
@@ -592,6 +618,15 @@ class Function(FunctionNode):
         struct: Optional["Struct"] = None,
         options: dict[str, Any] = {},
     ) -> None:
+        """
+        Create a callable wrapper for one reflected Slang function.
+
+        :param module: Functional module that owns the function.
+        :param func: Reflected function or a function name to resolve.
+        :param struct: Optional struct that supplies an instance-method receiver.
+        :param options: Functional-call options for kernel generation and dispatch.
+        :raises ValueError: If a string function name cannot be resolved.
+        """
         super().__init__(None, FunctionNodeType.kernelgen, None)
 
         self._module = module

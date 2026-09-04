@@ -2,61 +2,57 @@
   "schema_version": 1,
   "package_version": "0.43.0",
   "counts": {
-    "missing": 2146,
-    "placeholder": 149,
-    "summary": 240,
-    "complete": 352
+    "missing": 2098,
+    "placeholder": 144,
+    "summary": 184,
+    "complete": 473
   },
-  "documented": 592,
-  "score": 944,
+  "documented": 657,
+  "score": 1130,
   "symbols": [
     {
+      "name": "slangpy.create_device",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": true,
+      "has_examples": true
+    },
+    {
+      "name": "slangpy.create_torch_device",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": true,
+      "has_examples": true
+    },
+    {
       "name": "slangpy.Tensor",
-      "status": "missing",
-      "missing_parameters": [
-        "storage",
-        "dtype",
-        "shape",
-        "strides",
-        "offset",
-        "grad_in",
-        "grad_out",
-        "desc"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
-      "has_examples": false
+      "has_examples": true
     },
     {
       "name": "slangpy.Tensor.__init__",
-      "status": "missing",
-      "missing_parameters": [
-        "storage",
-        "dtype",
-        "shape",
-        "strides",
-        "offset",
-        "grad_in",
-        "grad_out",
-        "desc"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.__getitem__",
-      "status": "missing",
-      "missing_parameters": [
-        "arg"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.__repr__",
-      "status": "missing",
+      "status": "summary",
       "missing_parameters": [],
       "requires_return": true,
       "return_documented": false,
@@ -64,7 +60,7 @@
     },
     {
       "name": "slangpy.Tensor.__str__",
-      "status": "missing",
+      "status": "summary",
       "missing_parameters": [],
       "requires_return": true,
       "return_documented": false,
@@ -72,66 +68,55 @@
     },
     {
       "name": "slangpy.Tensor.broadcast_to",
-      "status": "missing",
-      "missing_parameters": [
-        "shape"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.clear",
-      "status": "missing",
-      "missing_parameters": [
-        "cmd"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.copy_from_numpy",
-      "status": "missing",
-      "missing_parameters": [
-        "data"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.copy_from_torch",
-      "status": "missing",
-      "missing_parameters": [
-        "tensor"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.cursor",
-      "status": "missing",
-      "missing_parameters": [
-        "start",
-        "count"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.detach",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.device",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -139,7 +124,7 @@
     },
     {
       "name": "slangpy.Tensor.dtype",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -147,7 +132,7 @@
     },
     {
       "name": "slangpy.Tensor.element_count",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -155,69 +140,47 @@
     },
     {
       "name": "slangpy.Tensor.empty",
-      "status": "missing",
-      "missing_parameters": [
-        "device",
-        "shape",
-        "dtype",
-        "usage",
-        "memory_type",
-        "program_layout"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.empty_like",
-      "status": "missing",
-      "missing_parameters": [
-        "other"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.from_numpy",
-      "status": "missing",
-      "missing_parameters": [
-        "device",
-        "ndarray",
-        "usage",
-        "memory_type",
-        "program_layout",
-        "target_slang_dtype"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.from_torch",
-      "status": "missing",
-      "missing_parameters": [
-        "device",
-        "tensor",
-        "dtype",
-        "usage",
-        "program_layout"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.grad",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.grad_in",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -225,7 +188,7 @@
     },
     {
       "name": "slangpy.Tensor.grad_out",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -233,7 +196,7 @@
     },
     {
       "name": "slangpy.Tensor.is_contiguous",
-      "status": "missing",
+      "status": "summary",
       "missing_parameters": [],
       "requires_return": true,
       "return_documented": false,
@@ -241,23 +204,15 @@
     },
     {
       "name": "slangpy.Tensor.load_from_image",
-      "status": "missing",
-      "missing_parameters": [
-        "device",
-        "path",
-        "flip_y",
-        "linearize",
-        "scale",
-        "offset",
-        "grayscale"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.memory_type",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -265,7 +220,7 @@
     },
     {
       "name": "slangpy.Tensor.numpy",
-      "status": "missing",
+      "status": "summary",
       "missing_parameters": [
         "device",
         "ndarray"
@@ -276,7 +231,7 @@
     },
     {
       "name": "slangpy.Tensor.offset",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -284,17 +239,15 @@
     },
     {
       "name": "slangpy.Tensor.point_to",
-      "status": "missing",
-      "missing_parameters": [
-        "target"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.shape",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -302,7 +255,7 @@
     },
     {
       "name": "slangpy.Tensor.storage",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -310,7 +263,7 @@
     },
     {
       "name": "slangpy.Tensor.strides",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -318,31 +271,31 @@
     },
     {
       "name": "slangpy.Tensor.to_numpy",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.to_torch",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.uniforms",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.usage",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -350,73 +303,48 @@
     },
     {
       "name": "slangpy.Tensor.view",
-      "status": "missing",
-      "missing_parameters": [
-        "shape",
-        "strides",
-        "offset"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.with_grads",
-      "status": "missing",
-      "missing_parameters": [
-        "grad_in",
-        "grad_out",
-        "zero"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.zeros",
-      "status": "missing",
-      "missing_parameters": [
-        "device",
-        "shape",
-        "dtype",
-        "usage",
-        "memory_type",
-        "program_layout"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Tensor.zeros_like",
-      "status": "missing",
-      "missing_parameters": [
-        "other"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Module",
-      "status": "summary",
-      "missing_parameters": [
-        "device_module",
-        "options",
-        "link"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
-      "has_examples": false
+      "has_examples": true
     },
     {
       "name": "slangpy.Module.__init__",
-      "status": "missing",
-      "missing_parameters": [
-        "device_module",
-        "options",
-        "link"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -449,7 +377,7 @@
     },
     {
       "name": "slangpy.Module.device",
-      "status": "placeholder",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -457,7 +385,7 @@
     },
     {
       "name": "slangpy.Module.device_module",
-      "status": "placeholder",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -504,7 +432,7 @@
     },
     {
       "name": "slangpy.Module.layout",
-      "status": "placeholder",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -520,42 +448,26 @@
     },
     {
       "name": "slangpy.Module.load_from_file",
-      "status": "summary",
-      "missing_parameters": [
-        "device",
-        "path",
-        "options",
-        "link"
-      ],
-      "requires_return": false,
-      "return_documented": false,
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Module.load_from_module",
-      "status": "summary",
-      "missing_parameters": [
-        "device",
-        "module",
-        "options",
-        "link"
-      ],
-      "requires_return": false,
-      "return_documented": false,
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Module.load_from_source",
-      "status": "summary",
-      "missing_parameters": [
-        "device",
-        "name",
-        "source",
-        "options",
-        "link"
-      ],
-      "requires_return": false,
-      "return_documented": false,
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -568,7 +480,7 @@
     },
     {
       "name": "slangpy.Module.name",
-      "status": "placeholder",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -620,7 +532,7 @@
     },
     {
       "name": "slangpy.Module.session",
-      "status": "placeholder",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -644,26 +556,16 @@
     },
     {
       "name": "slangpy.Function",
-      "status": "missing",
-      "missing_parameters": [
-        "module",
-        "func",
-        "struct",
-        "options"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
-      "has_examples": false
+      "has_examples": true
     },
     {
       "name": "slangpy.Function.__init__",
-      "status": "missing",
-      "missing_parameters": [
-        "module",
-        "func",
-        "struct",
-        "options"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -948,6 +850,86 @@
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
+    },
+    {
+      "name": "slangpy.DiffPair",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": true
+    },
+    {
+      "name": "slangpy.DiffPair.__init__",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.DiffPair.get",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": true,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.DiffPair.grad",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.DiffPair.needs_grad",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.DiffPair.primal",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.DiffPair.set",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.DiffPair.slangpy_signature",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": false,
+      "return_documented": false,
+      "has_examples": false
+    },
+    {
+      "name": "slangpy.diffPair",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": true,
+      "has_examples": true
+    },
+    {
+      "name": "slangpy.floatDiffPair",
+      "status": "complete",
+      "missing_parameters": [],
+      "requires_return": true,
+      "return_documented": true,
+      "has_examples": true
     },
     {
       "name": "slangpy.DataType",
@@ -1296,10 +1278,6 @@
       "name": "slangpy.Bitmap.resample",
       "status": "summary",
       "missing_parameters": [
-        "target",
-        "filter",
-        "bc",
-        "clamp",
         "width",
         "height"
       ],
@@ -1309,10 +1287,10 @@
     },
     {
       "name": "slangpy.Bitmap.split",
-      "status": "summary",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -1376,11 +1354,8 @@
     },
     {
       "name": "slangpy.DataStruct.__init__",
-      "status": "summary",
-      "missing_parameters": [
-        "pack",
-        "byte_order"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -1567,11 +1542,8 @@
     },
     {
       "name": "slangpy.DataStructConverter.__init__",
-      "status": "summary",
-      "missing_parameters": [
-        "src",
-        "dst"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -1752,7 +1724,6 @@
       "name": "slangpy.SHA1.update",
       "status": "summary",
       "missing_parameters": [
-        "data",
         "str"
       ],
       "requires_return": true,
@@ -1901,50 +1872,40 @@
     },
     {
       "name": "slangpy.Logger.__init__",
-      "status": "summary",
-      "missing_parameters": [
-        "level",
-        "name",
-        "use_default_outputs"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
     },
     {
       "name": "slangpy.Logger.add_console_output",
-      "status": "summary",
-      "missing_parameters": [
-        "colored"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Logger.add_debug_console_output",
-      "status": "summary",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Logger.add_file_output",
-      "status": "summary",
-      "missing_parameters": [
-        "path"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Logger.add_output",
-      "status": "summary",
-      "missing_parameters": [
-        "output"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -2047,12 +2008,8 @@
     },
     {
       "name": "slangpy.Logger.log",
-      "status": "summary",
-      "missing_parameters": [
-        "level",
-        "msg",
-        "frequency"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -2075,20 +2032,16 @@
     },
     {
       "name": "slangpy.Logger.remove_output",
-      "status": "summary",
-      "missing_parameters": [
-        "output"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
     },
     {
       "name": "slangpy.Logger.use_same_outputs",
-      "status": "summary",
-      "missing_parameters": [
-        "other"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -2133,9 +2086,7 @@
       "name": "slangpy.LoggerOutput.write",
       "status": "summary",
       "missing_parameters": [
-        "level",
-        "name",
-        "msg"
+        "name"
       ],
       "requires_return": false,
       "return_documented": false,
@@ -2207,12 +2158,8 @@
     },
     {
       "name": "slangpy.log",
-      "status": "summary",
-      "missing_parameters": [
-        "level",
-        "msg",
-        "frequency"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -2453,14 +2400,8 @@
     },
     {
       "name": "slangpy.Window.__init__",
-      "status": "summary",
-      "missing_parameters": [
-        "width",
-        "height",
-        "title",
-        "mode",
-        "resizable"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -2579,11 +2520,8 @@
     },
     {
       "name": "slangpy.Window.resize",
-      "status": "summary",
-      "missing_parameters": [
-        "width",
-        "height"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -4326,10 +4264,10 @@
     },
     {
       "name": "slangpy.platform.choose_folder_dialog",
-      "status": "summary",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -4382,12 +4320,10 @@
     },
     {
       "name": "slangpy.platform.open_file_dialog",
-      "status": "summary",
-      "missing_parameters": [
-        "filters"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -4416,12 +4352,10 @@
     },
     {
       "name": "slangpy.platform.save_file_dialog",
-      "status": "summary",
-      "missing_parameters": [
-        "filters"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -5620,7 +5554,7 @@
     },
     {
       "name": "slangpy.Buffer",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -5628,13 +5562,11 @@
     },
     {
       "name": "slangpy.Buffer.copy_from_numpy",
-      "status": "missing",
-      "missing_parameters": [
-        "data"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
-      "has_examples": false
+      "has_examples": true
     },
     {
       "name": "slangpy.Buffer.desc",
@@ -5694,10 +5626,10 @@
     },
     {
       "name": "slangpy.Buffer.to_numpy",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -6442,12 +6374,8 @@
     },
     {
       "name": "slangpy.CommandEncoder.blit",
-      "status": "summary",
-      "missing_parameters": [
-        "dst",
-        "src",
-        "filter"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -6580,32 +6508,16 @@
     },
     {
       "name": "slangpy.CommandEncoder.copy_buffer",
-      "status": "summary",
-      "missing_parameters": [
-        "dst",
-        "dst_offset",
-        "src",
-        "src_offset",
-        "size"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
     },
     {
       "name": "slangpy.CommandEncoder.copy_buffer_to_texture",
-      "status": "summary",
-      "missing_parameters": [
-        "dst",
-        "dst_layer",
-        "dst_mip",
-        "dst_offset",
-        "src",
-        "src_offset",
-        "src_size",
-        "src_row_pitch",
-        "extent"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -6614,13 +6526,6 @@
       "name": "slangpy.CommandEncoder.copy_texture",
       "status": "summary",
       "missing_parameters": [
-        "dst",
-        "dst_subresource_range",
-        "dst_offset",
-        "src",
-        "src_subresource_range",
-        "src_offset",
-        "extent",
         "dst_layer",
         "dst_mip",
         "src_layer",
@@ -6632,18 +6537,8 @@
     },
     {
       "name": "slangpy.CommandEncoder.copy_texture_to_buffer",
-      "status": "summary",
-      "missing_parameters": [
-        "dst",
-        "dst_offset",
-        "dst_size",
-        "dst_row_pitch",
-        "src",
-        "src_layer",
-        "src_mip",
-        "src_offset",
-        "extent"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -6687,11 +6582,8 @@
     },
     {
       "name": "slangpy.CommandEncoder.insert_debug_marker",
-      "status": "summary",
-      "missing_parameters": [
-        "name",
-        "color"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -6766,11 +6658,8 @@
     },
     {
       "name": "slangpy.CommandEncoder.set_buffer_state",
-      "status": "summary",
-      "missing_parameters": [
-        "buffer",
-        "state"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -6779,8 +6668,6 @@
       "name": "slangpy.CommandEncoder.set_texture_state",
       "status": "summary",
       "missing_parameters": [
-        "texture",
-        "state",
         "range"
       ],
       "requires_return": false,
@@ -6818,11 +6705,8 @@
     },
     {
       "name": "slangpy.CommandEncoder.write_timestamp",
-      "status": "summary",
-      "missing_parameters": [
-        "query_pool",
-        "index"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -7785,33 +7669,18 @@
     },
     {
       "name": "slangpy.Device.create_buffer",
-      "status": "summary",
-      "missing_parameters": [
-        "size",
-        "element_count",
-        "struct_size",
-        "resource_type_layout",
-        "format",
-        "memory_type",
-        "usage",
-        "default_state",
-        "label",
-        "data",
-        "desc"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
-      "has_examples": false
+      "return_documented": true,
+      "has_examples": true
     },
     {
       "name": "slangpy.Device.create_buffer_from_native_handle",
-      "status": "summary",
-      "missing_parameters": [
-        "desc",
-        "handle"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -7867,24 +7736,20 @@
       "name": "slangpy.Device.create_fence",
       "status": "summary",
       "missing_parameters": [
-        "initial_value",
-        "shared",
         "desc"
       ],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Device.create_input_layout",
       "status": "summary",
       "missing_parameters": [
-        "input_elements",
-        "vertex_streams",
         "desc"
       ],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -7903,13 +7768,10 @@
     },
     {
       "name": "slangpy.Device.create_query_pool",
-      "status": "summary",
-      "missing_parameters": [
-        "type",
-        "count"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -7963,24 +7825,10 @@
       "name": "slangpy.Device.create_sampler",
       "status": "summary",
       "missing_parameters": [
-        "min_filter",
-        "mag_filter",
-        "mip_filter",
-        "reduction_op",
-        "address_u",
-        "address_v",
-        "address_w",
-        "mip_lod_bias",
-        "max_anisotropy",
-        "comparison_func",
-        "border_color",
-        "min_lod",
-        "max_lod",
-        "label",
         "desc"
       ],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -8013,49 +7861,30 @@
       "name": "slangpy.Device.create_slang_session",
       "status": "summary",
       "missing_parameters": [
-        "compiler_options",
         "add_default_include_paths",
         "cache_path"
       ],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Device.create_surface",
       "status": "summary",
       "missing_parameters": [
-        "window",
         "window_handle"
       ],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Device.create_texture",
-      "status": "summary",
-      "missing_parameters": [
-        "type",
-        "format",
-        "width",
-        "height",
-        "depth",
-        "array_length",
-        "mip_count",
-        "sample_count",
-        "sample_quality",
-        "memory_type",
-        "usage",
-        "default_state",
-        "sampler",
-        "label",
-        "data",
-        "desc"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
-      "has_examples": false
+      "return_documented": true,
+      "has_examples": true
     },
     {
       "name": "slangpy.Device.cuda_context_scope",
@@ -8109,12 +7938,10 @@
     },
     {
       "name": "slangpy.Device.get_acceleration_structure_sizes",
-      "status": "summary",
-      "missing_parameters": [
-        "desc"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -8169,12 +7996,10 @@
     },
     {
       "name": "slangpy.Device.get_timestamp_calibration",
-      "status": "summary",
-      "missing_parameters": [
-        "queue"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -8215,12 +8040,10 @@
     },
     {
       "name": "slangpy.Device.is_submit_finished",
-      "status": "summary",
-      "missing_parameters": [
-        "id"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -8237,38 +8060,27 @@
     },
     {
       "name": "slangpy.Device.load_module",
-      "status": "summary",
-      "missing_parameters": [
-        "module_name"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
-      "has_examples": false
+      "return_documented": true,
+      "has_examples": true
     },
     {
       "name": "slangpy.Device.load_module_from_source",
-      "status": "summary",
-      "missing_parameters": [
-        "module_name",
-        "source",
-        "path"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
-      "has_examples": false
+      "return_documented": true,
+      "has_examples": true
     },
     {
       "name": "slangpy.Device.load_program",
-      "status": "summary",
-      "missing_parameters": [
-        "module_name",
-        "entry_point_names",
-        "additional_source",
-        "link_options"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
-      "has_examples": false
+      "return_documented": true,
+      "has_examples": true
     },
     {
       "name": "slangpy.Device.native_handles",
@@ -8328,10 +8140,10 @@
     },
     {
       "name": "slangpy.Device.report_heaps",
-      "status": "summary",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -8380,28 +8192,18 @@
       "name": "slangpy.Device.submit_command_buffer",
       "status": "summary",
       "missing_parameters": [
-        "command_buffer",
-        "queue",
         "cuda_stream"
       ],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.Device.submit_command_buffers",
-      "status": "summary",
-      "missing_parameters": [
-        "command_buffers",
-        "wait_fences",
-        "wait_fence_values",
-        "signal_fences",
-        "signal_fence_values",
-        "queue",
-        "cuda_stream"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -8422,20 +8224,16 @@
     },
     {
       "name": "slangpy.Device.sync_to_cuda",
-      "status": "summary",
-      "missing_parameters": [
-        "cuda_stream"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
     },
     {
       "name": "slangpy.Device.sync_to_device",
-      "status": "summary",
-      "missing_parameters": [
-        "cuda_stream"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -8490,20 +8288,16 @@
     },
     {
       "name": "slangpy.Device.wait_for_idle",
-      "status": "summary",
-      "missing_parameters": [
-        "queue"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
     },
     {
       "name": "slangpy.Device.wait_for_submit",
-      "status": "summary",
-      "missing_parameters": [
-        "id"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -9760,12 +9554,10 @@
     },
     {
       "name": "slangpy.Fence.signal",
-      "status": "summary",
-      "missing_parameters": [
-        "value"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -9778,11 +9570,8 @@
     },
     {
       "name": "slangpy.Fence.wait",
-      "status": "summary",
-      "missing_parameters": [
-        "value",
-        "timeout_ns"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -12131,11 +11920,8 @@
     },
     {
       "name": "slangpy.PassEncoder.insert_debug_marker",
-      "status": "summary",
-      "missing_parameters": [
-        "name",
-        "color"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -12161,11 +11947,8 @@
     },
     {
       "name": "slangpy.PassEncoder.write_timestamp",
-      "status": "summary",
-      "missing_parameters": [
-        "query_pool",
-        "index"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -14910,7 +14693,7 @@
     },
     {
       "name": "slangpy.SlangModule",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -15081,38 +14864,27 @@
     },
     {
       "name": "slangpy.SlangSession.load_module",
-      "status": "summary",
-      "missing_parameters": [
-        "module_name"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
-      "has_examples": false
+      "return_documented": true,
+      "has_examples": true
     },
     {
       "name": "slangpy.SlangSession.load_module_from_source",
-      "status": "summary",
-      "missing_parameters": [
-        "module_name",
-        "source",
-        "path"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
-      "has_examples": false
+      "return_documented": true,
+      "has_examples": true
     },
     {
       "name": "slangpy.SlangSession.load_program",
-      "status": "summary",
-      "missing_parameters": [
-        "module_name",
-        "entry_point_names",
-        "additional_source",
-        "link_options"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
-      "has_examples": false
+      "return_documented": true,
+      "has_examples": true
     },
     {
       "name": "slangpy.SlangSession.load_source",
@@ -15570,7 +15342,7 @@
     },
     {
       "name": "slangpy.Texture",
-      "status": "missing",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
@@ -15586,15 +15358,11 @@
     },
     {
       "name": "slangpy.Texture.copy_from_numpy",
-      "status": "missing",
-      "missing_parameters": [
-        "data",
-        "layer",
-        "mip"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
-      "has_examples": false
+      "has_examples": true
     },
     {
       "name": "slangpy.Texture.create_view",
@@ -15767,14 +15535,11 @@
     },
     {
       "name": "slangpy.Texture.to_numpy",
-      "status": "missing",
-      "missing_parameters": [
-        "layer",
-        "mip"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
-      "has_examples": false
+      "return_documented": true,
+      "has_examples": true
     },
     {
       "name": "slangpy.Texture.type",
@@ -21112,12 +20877,8 @@
     },
     {
       "name": "slangpy.ui.Context.begin_frame",
-      "status": "summary",
-      "missing_parameters": [
-        "width",
-        "height",
-        "window"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -21126,8 +20887,6 @@
       "name": "slangpy.ui.Context.end_frame",
       "status": "summary",
       "missing_parameters": [
-        "texture_view",
-        "command_encoder",
         "texture"
       ],
       "requires_return": false,
@@ -21136,22 +20895,18 @@
     },
     {
       "name": "slangpy.ui.Context.handle_keyboard_event",
-      "status": "summary",
-      "missing_parameters": [
-        "event"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.ui.Context.handle_mouse_event",
-      "status": "summary",
-      "missing_parameters": [
-        "event"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -23774,10 +23529,8 @@
     },
     {
       "name": "slangpy.ui.render_profiler_window",
-      "status": "summary",
-      "missing_parameters": [
-        "profiler"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false
@@ -23838,36 +23591,30 @@
       "name": "slangpy.TextureLoader.load_texture",
       "status": "summary",
       "missing_parameters": [
-        "bitmap",
-        "options",
         "path"
       ],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.TextureLoader.load_texture_array",
       "status": "summary",
       "missing_parameters": [
-        "bitmaps",
-        "options",
         "paths"
       ],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.TextureLoader.load_textures",
       "status": "summary",
       "missing_parameters": [
-        "bitmaps",
-        "options",
         "paths"
       ],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -23880,26 +23627,26 @@
     },
     {
       "name": "slangpy.renderdoc.end_frame_capture",
-      "status": "summary",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.renderdoc.is_available",
-      "status": "summary",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
       "name": "slangpy.renderdoc.is_frame_capturing",
-      "status": "summary",
+      "status": "complete",
       "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -23912,13 +23659,10 @@
     },
     {
       "name": "slangpy.renderdoc.start_frame_capture",
-      "status": "summary",
-      "missing_parameters": [
-        "device",
-        "window"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": true,
-      "return_documented": false,
+      "return_documented": true,
       "has_examples": false
     },
     {
@@ -24564,12 +24308,8 @@
     },
     {
       "name": "slangpy.slangpy.NativeCallData.log",
-      "status": "summary",
-      "missing_parameters": [
-        "level",
-        "msg",
-        "frequency"
-      ],
+      "status": "complete",
+      "missing_parameters": [],
       "requires_return": false,
       "return_documented": false,
       "has_examples": false

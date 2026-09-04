@@ -378,6 +378,22 @@ To update documentation extracted from C++ comments, run the
     # Configure
     cmake --preset windows-msvc
 
+On Windows, make ``libclang.dll`` discoverable before running the extraction
+target. For a default LLVM installation, use:
+
+.. code-block:: powershell
+
+    $env:LIBCLANG_PATH = "C:\Program Files\LLVM\bin\libclang.dll"
+
+The exact path may differ for a custom LLVM installation. If libclang is not
+discoverable, ``pybind11_mkdoc`` can report failures from its worker threads
+without updating ``py_doc.h``; always inspect the target output and the
+resulting diff.
+
+Then regenerate and rebuild:
+
+.. code-block:: bash
+
     # Regenerate docstrings extracted from C++ headers
     cmake --build --preset windows-msvc-release --target slangpy_pydoc
 

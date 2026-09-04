@@ -9,7 +9,7 @@ import re
 import shutil
 import sys
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pytest
@@ -31,6 +31,57 @@ def load_docs_tool() -> ModuleType:
 
 
 DOCS_TOOL = load_docs_tool()
+
+
+def test_doc_record_parses_pybind11_mkdoc_fields() -> None:
+    obj = SimpleNamespace(
+        docstring=SimpleNamespace(
+            value="""Create a resource.
+
+Parameter ``size``:
+    Resource size in bytes.
+
+Returns:
+    The new resource.
+
+Raises ``ValueError``:
+    If the size is invalid.
+"""
+        )
+    )
+
+    documentation = DOCS_TOOL._doc_record(obj)
+
+    assert documentation.summary == "Create a resource."
+    assert documentation.parameters == {"size": "Resource size in bytes."}
+    assert documentation.returns == "The new resource."
+    assert documentation.raises == ["ValueError: If the size is invalid."]
+
+
+def test_doc_record_preserves_field_continuations_and_code_indentation() -> None:
+    obj = SimpleNamespace(
+        docstring=SimpleNamespace(
+            value="""Create a resource.
+
+Example:
+
+.. code-block:: python
+
+    resource = create_resource()
+
+:param size: Resource size in
+    bytes.
+:return: The new
+    resource.
+"""
+        )
+    )
+
+    documentation = DOCS_TOOL._doc_record(obj)
+
+    assert documentation.body.endswith("    resource = create_resource()")
+    assert documentation.parameters == {"size": "Resource size in bytes."}
+    assert documentation.returns == "The new resource."
 
 
 def create_sample_package(root: Path) -> tuple[Path, Path]:
@@ -807,7 +858,8 @@ def test_slangpy_reviewed_inventory_is_complete_and_environment_independent(
     assert "slangpy.CommandEncoder.begin_compute_pass" in symbols
     assert "slangpy.float4.x" in symbols
     assert "slangpy.ui.Window.title" in symbols
-    assert "slangpy.DiffPair" not in symbols
+    assert "slangpy.DiffPair" in symbols
+    assert "slangpy.build_dir" not in symbols
 
     output = tmp_path / "api.json"
     DOCS_TOOL.write_inventory(inventory, output)
@@ -820,3 +872,53 @@ def test_slangpy_reviewed_inventory_is_complete_and_environment_independent(
         for symbol in data["symbols"]
         if (source := symbol["source"]) is not None
     )
+
+
+def test_phase5_primary_workflows_are_documented_and_have_tested_examples() -> None:
+    config = DOCS_TOOL.load_public_api(PROJECT_DIR / "docs" / "public_api.toml")
+    inventory = DOCS_TOOL.build_inventory(config, PROJECT_DIR / "slangpy")
+    coverage = {symbol.name: symbol for symbol in DOCS_TOOL.calculate_coverage(inventory).symbols}
+
+    primary_classes = (
+        "slangpy.Tensor",
+        "slangpy.Module",
+        "slangpy.Function",
+        "slangpy.DiffPair",
+    )
+    for name in primary_classes:
+        assert coverage[name].status == "complete"
+        assert coverage[name].has_examples
+        assert all(
+            symbol.status != "placeholder"
+            for symbol_name, symbol in coverage.items()
+            if symbol_name == name or symbol_name.startswith(f"{name}.")
+        )
+
+    campaign_entry_points = (
+        "slangpy.create_device",
+        "slangpy.create_torch_device",
+        "slangpy.diffPair",
+        "slangpy.floatDiffPair",
+        "slangpy.Buffer",
+        "slangpy.Buffer.copy_from_numpy",
+        "slangpy.Buffer.to_numpy",
+        "slangpy.Texture",
+        "slangpy.Texture.copy_from_numpy",
+        "slangpy.Texture.to_numpy",
+        "slangpy.Device.create_buffer",
+        "slangpy.Device.create_texture",
+        "slangpy.Device.load_module",
+        "slangpy.Device.load_module_from_source",
+        "slangpy.Device.load_program",
+        "slangpy.SlangSession.load_module",
+        "slangpy.SlangSession.load_module_from_source",
+        "slangpy.SlangSession.load_program",
+        "slangpy.SlangModule",
+    )
+    assert all(coverage[name].status == "complete" for name in campaign_entry_points)
+
+    example_tests = (PROJECT_DIR / "samples" / "tests" / "examples" / "test_examples.py").read_text(
+        encoding="utf-8"
+    )
+    for test_name in ("test_buffers", "test_first_function_scalar", "test_textures"):
+        assert f"def {test_name}(" in example_tests

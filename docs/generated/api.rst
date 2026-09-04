@@ -1846,7 +1846,7 @@ Device
 
     Base class: :py:class:`slangpy.Resource`
 
-
+    Contiguous GPU buffer storage owned by a Device.
 
     .. py:property:: desc
         :type: slangpy.BufferDesc
@@ -1878,7 +1878,27 @@ Device
 
     .. py:method:: to_numpy(self) -> numpy.ndarray[]
 
+        Copy the complete buffer into a new CPU NumPy array.
+
+        Device-local buffers are read back synchronously. Typed, uncompressed formats
+        produce a scalar or channel-shaped array; other buffers produce a flat
+        ``uint8`` array. The result owns its CPU allocation and does not alias the GPU.
+
+        :return: A NumPy array containing a copy of the buffer bytes.
+
     .. py:method:: copy_from_numpy(self, data: numpy.ndarray[]) -> None
+
+        Copy a contiguous NumPy array into the start of this buffer.
+
+        :param data: Contiguous source array whose byte size does not exceed the buffer.
+        :raises RuntimeError: If the array is non-contiguous or larger than the buffer.
+
+        Example:
+
+        .. code-block:: python
+
+            buffer.copy_from_numpy(values)
+            copied = buffer.to_numpy()
 
     .. py:method:: to_torch(self, type: slangpy.DataType = DataType.void, shape: collections.abc.Sequence[int] = [], strides: collections.abc.Sequence[int] = [], offset: int = 0) -> torch.Tensor[device='cuda']
 
@@ -2935,26 +2955,29 @@ Device
         Parameter ``format``:
             Buffer format. Used when creating typed buffer views.
 
-        Parameter ``initial_state``:
-            Initial resource state.
+        Parameter ``memory_type``:
+            Memory type.
 
         Parameter ``usage``:
             Resource usage flags.
 
-        Parameter ``memory_type``:
-            Memory type.
+        Parameter ``default_state``:
+            Initial resource state.
 
         Parameter ``label``:
             Debug label.
 
         Parameter ``data``:
-            Initial data to upload to the buffer.
+            Optional contiguous NumPy data used to initialize the buffer.
 
-        Parameter ``data_size``:
-            Size of the initial data in bytes.
+        Parameter ``desc``:
+            Alternative complete buffer descriptor.
 
         Returns:
             New buffer object.
+
+        Example: ``buffer = device.create_buffer(size=1024,
+        usage=spy.BufferUsage.shader_resource)``.
 
     .. py:method:: create_buffer(self, desc: slangpy.BufferDesc) -> slangpy.Buffer
         :no-index:
@@ -3007,23 +3030,35 @@ Device
         Parameter ``sample_count``:
             Number of samples for multisampled textures.
 
-        Parameter ``quality``:
+        Parameter ``sample_quality``:
             Quality level for multisampled textures.
+
+        Parameter ``memory_type``:
+            Memory type.
 
         Parameter ``usage``:
             Resource usage.
 
-        Parameter ``memory_type``:
-            Memory type.
+        Parameter ``default_state``:
+            Initial resource state.
+
+        Parameter ``sampler``:
+            Default sampler for combined texture and sampler access.
 
         Parameter ``label``:
             Debug label.
 
         Parameter ``data``:
-            Initial data.
+            Optional contiguous NumPy data used to initialize the texture.
+
+        Parameter ``desc``:
+            Alternative complete texture descriptor.
 
         Returns:
             New texture object.
+
+        Example: ``texture = device.create_texture(width=128, height=128,
+        format=spy.Format.rgba32_float)``.
 
     .. py:method:: create_texture(self, desc: slangpy.TextureDesc) -> slangpy.Texture
         :no-index:
@@ -3325,11 +3360,41 @@ Device
 
     .. py:method:: load_module(self, module_name: str) -> slangpy.SlangModule
 
-        Load a slang module by name.
+        Load a Slang module by name using this device's session and configured
+        search paths.
+
+        Parameter ``module_name``:
+            Module name or path understood by the Slang session.
+
+        Returns:
+            The loaded low-level module.
+
+        Throws:
+            Exception if Slang cannot find or compile the module.
+
+        Example: ``module = device.load_module("shaders.compute")``.
 
     .. py:method:: load_module_from_source(self, module_name: str, source: str, path: str | os.PathLike | None = None) -> slangpy.SlangModule
 
-        Load a slang module from source code.
+        Compile a Slang module from source code using this device's session.
+
+        Parameter ``module_name``:
+            Stable name used by the compiler and module cache.
+
+        Parameter ``source``:
+            Complete Slang source text.
+
+        Parameter ``path``:
+            Optional source path used for diagnostics and relative resolution.
+
+        Returns:
+            The compiled low-level module.
+
+        Throws:
+            Exception if Slang compilation fails.
+
+        Example: ``module = device.load_module_from_source("example",
+        source)``.
 
     .. py:method:: compose_modules(self, name: str, modules: collections.abc.Sequence[slangpy.SlangModule], type_conformances: collections.abc.Sequence[slangpy.TypeConformance] = []) -> slangpy.SlangModule
 
@@ -3341,7 +3406,27 @@ Device
 
     .. py:method:: load_program(self, module_name: str, entry_point_names: collections.abc.Sequence[str], additional_source: str | None = None, link_options: slangpy.SlangLinkOptions | None = None) -> slangpy.ShaderProgram
 
-        Load a module and link a shader program in one step.
+        Load a module and link selected entry points into a shader program.
+
+        Parameter ``module_name``:
+            Module name or path understood by the Slang session.
+
+        Parameter ``entry_point_names``:
+            Entry points to link.
+
+        Parameter ``additional_source``:
+            Optional source compiled and linked with the module.
+
+        Parameter ``link_options``:
+            Optional program link settings.
+
+        Returns:
+            The linked shader program.
+
+        Throws:
+            Exception if loading, compilation, or linking fails.
+
+        Example: ``program = device.load_program("compute", ["main"])``.
 
     .. py:method:: get_compilation_reports(self) -> list[CompilationReport]
 
@@ -5507,7 +5592,7 @@ Device
 
     Base class: :py:class:`slangpy.Object`
 
-
+    Compiled Slang module owned by a SlangSession.
 
     .. py:property:: session
         :type: slangpy.SlangSession
@@ -5582,11 +5667,40 @@ Device
 
     .. py:method:: load_module(self, module_name: str) -> slangpy.SlangModule
 
-        Load a module by name.
+        Load a module by name using the session's configured search paths.
+
+        Parameter ``module_name``:
+            Module name or path understood by Slang.
+
+        Returns:
+            The loaded module, owned by this session.
+
+        Throws:
+            Exception if Slang cannot find or compile the module.
+
+        Example: ``module = session.load_module("shaders.compute")``.
 
     .. py:method:: load_module_from_source(self, module_name: str, source: str, path: str | os.PathLike | None = None) -> slangpy.SlangModule
 
-        Load a module from string source code.
+        Compile a module from string source code.
+
+        Parameter ``module_name``:
+            Stable name used by the compiler and module cache.
+
+        Parameter ``source``:
+            Complete Slang source text.
+
+        Parameter ``path``:
+            Optional source path used for diagnostics and relative resolution.
+
+        Returns:
+            The compiled module, owned by this session.
+
+        Throws:
+            Exception if Slang compilation fails.
+
+        Example: ``module = session.load_module_from_source("example",
+        source)``.
 
     .. py:method:: compose_modules(self, name: str, modules: collections.abc.Sequence[slangpy.SlangModule], type_conformances: collections.abc.Sequence[slangpy.TypeConformance] = []) -> slangpy.SlangModule
 
@@ -5600,9 +5714,27 @@ Device
 
     .. py:method:: load_program(self, module_name: str, entry_point_names: collections.abc.Sequence[str], additional_source: str | None = None, link_options: slangpy.SlangLinkOptions | None = None) -> slangpy.ShaderProgram
 
-        Load a program from a given module with a set of entry points.
-        Internally this simply wraps link_program without requiring the user
-        to explicitly load modules.
+        Load a module and link selected entry points into a shader program.
+
+        Parameter ``module_name``:
+            Module name or path understood by Slang.
+
+        Parameter ``entry_point_names``:
+            Entry points to link.
+
+        Parameter ``additional_source``:
+            Optional source compiled and linked with the module.
+
+        Parameter ``link_options``:
+            Optional program link settings.
+
+        Returns:
+            The linked shader program.
+
+        Throws:
+            Exception if loading, compilation, or linking fails.
+
+        Example: ``program = session.load_program("compute", ["main"])``.
 
     .. py:method:: load_source(self, module_name: str) -> str
 
@@ -5846,7 +5978,8 @@ Device
 
     Base class: :py:class:`slangpy.Resource`
 
-
+    Typed one-, two-, or three-dimensional GPU image storage owned by a
+    Device.
 
     .. py:property:: desc
         :type: slangpy.TextureDesc
@@ -5925,7 +6058,38 @@ Device
 
     .. py:method:: to_numpy(self, layer: int = 0, mip: int = 0) -> numpy.ndarray[]
 
+        Copy one texture subresource into a tightly packed CPU NumPy array.
+
+        This operation waits for device-local readback. Uncompressed formats with a
+        supported scalar layout produce spatial and channel dimensions; other formats
+        produce a flat ``uint8`` array.
+
+        :param layer: Array or cube-face layer to read.
+        :param mip: Mip level to read.
+        :return: A NumPy array containing a copy of the selected subresource.
+        :raises RuntimeError: If ``layer`` or ``mip`` is out of range.
+
+        Example:
+
+        .. code-block:: python
+
+            pixels = texture.to_numpy(layer=0, mip=0)
+
     .. py:method:: copy_from_numpy(self, data: numpy.ndarray[], layer: int = 0, mip: int = 0) -> None
+
+        Copy a tightly packed NumPy array into one texture subresource.
+
+        :param data: Contiguous source array matching the selected mip's shape, channel
+            count, and byte size.
+        :param layer: Array or cube-face layer to update.
+        :param mip: Mip level to update.
+        :raises RuntimeError: If the array layout or subresource index is invalid.
+
+        Example:
+
+        .. code-block:: python
+
+            texture.copy_from_numpy(pixels, layer=0, mip=0)
 
 
 
@@ -15439,40 +15603,41 @@ Miscellaneous
 
     Base class: :py:class:`slangpy.Object`
 
-    N/A
+    Base class for functional slangpy module.
 
     .. py:method:: __init__(self, module: object, layout: object) -> None
 
-        N/A
+        Create a native functional module base from a compiled Slang module
+        and reflection layout.
 
     .. py:method:: on_hot_reload(self, module: object, low_level_layout: object) -> None
 
-        N/A
+        Refresh the module and layout after a Slang hot reload.
 
     .. py:property:: device_module
         :type: slangpy.SlangModule
 
-        N/A
+        Return the compiled Slang module.
 
     .. py:property:: layout
         :type: slangpy.native_refl.Layout
 
-        N/A
+        Return the reflection layout for this module.
 
     .. py:property:: session
         :type: slangpy.SlangSession
 
-        N/A
+        Return the low-level Slang session that loaded this module.
 
     .. py:property:: device
         :type: slangpy.Device
 
-        N/A
+        Return the device that owns this module.
 
     .. py:property:: name
         :type: str
 
-        N/A
+        Return the module name.
 
 
 
@@ -15574,7 +15739,48 @@ Miscellaneous
 
     Base class: :py:class:`slangpy.Object`
 
+
+    N-dimensional typed GPU data used by SlangPy functional calls.
+
+    Tensor views carry a reflected Slang element type, logical shape and strides,
+    and an offset into a shared :class:`slangpy.Buffer`. Construct tensors with
+    ``empty``, ``zeros``, or ``from_numpy`` unless existing storage is required.
+
+    :param storage: Buffer containing tensor elements.
+    :param dtype: Reflected Slang element type.
+    :param shape: Logical element dimensions.
+    :param strides: Element strides. Omit to select contiguous strides.
+    :param offset: Element offset into ``storage``.
+    :param grad_in: Optional gradient read during backward dispatch.
+    :param grad_out: Optional gradient written during backward dispatch.
+    :param desc: Alternative descriptor containing type, layout, shape, and usage metadata.
+
+    Example:
+
+    .. code-block:: python
+
+        import numpy as np
+        import slangpy as spy
+
+        device = spy.create_device()
+        values = np.arange(8, dtype=np.float32)
+        tensor = spy.Tensor.from_numpy(device, values)
+        result = tensor.to_numpy()
+
+
     .. py:method:: __init__(self, storage: slangpy.Buffer, dtype: slangpy.native_refl.Type, shape: slangpy.slangpy.Shape, strides: slangpy.slangpy.Shape = [invalid], offset: int = 0, grad_in: slangpy.native_func.Tensor | None = None, grad_out: slangpy.native_func.Tensor | None = None) -> None
+
+        Create a tensor view over an existing GPU buffer.
+
+        :param storage: Buffer containing tensor elements.
+        :param dtype: Reflected Slang element type.
+        :param shape: Logical element dimensions.
+        :param strides: Element strides. Omit to select contiguous strides.
+        :param offset: Element offset into ``storage``.
+        :param grad_in: Optional gradient read during backward dispatch.
+        :param grad_out: Optional gradient written during backward dispatch.
+        :param desc: Alternative tensor descriptor. When supplied, ``dtype``, ``shape``,
+            ``strides``, and ``offset`` come from this descriptor.
 
     .. py:method:: __init__(self, desc: slangpy.native_func.TensorDesc, storage: slangpy.Buffer, grad_in: slangpy.native_func.Tensor | None = None, grad_out: slangpy.native_func.Tensor | None = None) -> None
         :no-index:
@@ -15582,80 +15788,280 @@ Miscellaneous
     .. py:property:: device
         :type: slangpy.Device
 
+        Return the device that owns the storage buffer.
+
     .. py:property:: dtype
         :type: slangpy.native_refl.Type
+
+        Return the reflected Slang element type.
 
     .. py:property:: offset
         :type: int
 
+        Return the element offset into the storage buffer.
+
     .. py:property:: shape
         :type: slangpy.slangpy.Shape
+
+        Return the logical tensor dimensions.
 
     .. py:property:: strides
         :type: slangpy.slangpy.Shape
 
+        Return the element strides for each logical dimension.
+
     .. py:property:: element_count
         :type: int
+
+        Return the product of the logical dimensions.
 
     .. py:property:: usage
         :type: slangpy.BufferUsage
 
+        Return the buffer usage flags inherited from the tensor descriptor.
+
     .. py:property:: memory_type
         :type: slangpy.MemoryType
+
+        Return the storage memory type.
 
     .. py:property:: storage
         :type: slangpy.Buffer
 
+        Return the underlying storage buffer.
+
     .. py:property:: grad_in
         :type: slangpy.native_func.Tensor
+
+        Return the optional gradient read during backward dispatch.
 
     .. py:property:: grad_out
         :type: slangpy.native_func.Tensor
 
+        Return the optional gradient written during backward dispatch.
+
     .. py:property:: grad
         :type: slangpy.native_func.Tensor
 
+        Return the output gradient tensor.
+
+        Returns:
+            The output gradient.
+
+        Throws:
+            Exception if no output gradient is attached.
+
     .. py:method:: clear(self, cmd: slangpy.CommandEncoder | None = None) -> None
+
+        Clear tensor storage to zero.
+
+        Parameter ``cmd``:
+            Optional command encoder to append the clear to. Without one, the
+            operation is submitted immediately.
 
     .. py:method:: cursor(self, start: int | None = None, count: int | None = None) -> slangpy.BufferCursor
 
+        Create a cursor over tensor storage for structured CPU reads and
+        writes.
+
+        Parameter ``start``:
+            Optional first flattened element.
+
+        Parameter ``count``:
+            Optional number of flattened elements.
+
+        Returns:
+            A buffer cursor over the selected storage range.
+
     .. py:method:: uniforms(self) -> dict
+
+        Return the raw fields used to bind this tensor to Slang.
+
+        :return: A dictionary containing storage, shape, offset, and strides.
 
     .. py:method:: to_numpy(self) -> numpy.ndarray[]
 
+        Copy tensor data to a new CPU NumPy array.
+
+        Device-local storage is read back synchronously. The returned array owns its
+        CPU allocation and does not alias GPU storage.
+
+        :return: A NumPy view of the copied data with the tensor's logical shape and strides.
+
     .. py:method:: to_torch(self) -> torch.Tensor[]
+
+        Expose shared CUDA tensor storage as a PyTorch tensor without copying.
+
+        The storage must support CUDA interop. The returned PyTorch tensor retains the
+        SlangPy tensor as its owner, and callers must synchronize cross-framework work.
+
+        :return: A PyTorch tensor aliasing the same CUDA allocation.
 
     .. py:method:: copy_from_numpy(self, data: numpy.ndarray[]) -> None
 
+        Copy a contiguous NumPy array into contiguous tensor storage.
+
+        The source byte size must fit the remaining storage. Vector values may be
+        zero-padded to the reflected Slang buffer stride.
+
+        :param data: Contiguous NumPy array to copy.
+
     .. py:method:: copy_from_torch(self, tensor: object) -> None
+
+        Copy a PyTorch tensor into this tensor's storage.
+
+        CUDA data uses a device-to-device copy when shared storage is available;
+        otherwise the source is copied through a CPU NumPy array.
+
+        :param tensor: PyTorch tensor whose data will be copied.
 
     .. py:method:: is_contiguous(self) -> bool
 
+        Return whether the logical shape and strides describe contiguous
+        storage.
+
     .. py:method:: point_to(self, target: slangpy.native_func.Tensor) -> None
+
+        Retarget this tensor to the metadata and storage of another tensor.
+
+        Parameter ``target``:
+            Tensor whose storage and view metadata to adopt.
 
     .. py:method:: broadcast_to(self, shape: slangpy.slangpy.Shape) -> slangpy.native_func.Tensor
 
+        Return a zero-copy view broadcast to a compatible shape.
+
+        Parameter ``shape``:
+            Target logical dimensions.
+
+        Returns:
+            A tensor sharing storage with zero strides in broadcast
+            dimensions.
+
     .. py:method:: view(self, shape: slangpy.slangpy.Shape, strides: slangpy.slangpy.Shape = [invalid], offset: int = 0) -> slangpy.native_func.Tensor
+
+        Return a zero-copy strided view into the same storage.
+
+        Parameter ``shape``:
+            Logical dimensions of the view.
+
+        Parameter ``strides``:
+            Element strides, or an empty shape to select contiguous strides.
+
+        Parameter ``offset``:
+            Additional element offset relative to this tensor.
+
+        Returns:
+            A tensor sharing this tensor's storage and gradients.
 
     .. py:method:: with_grads(self, grad_in: slangpy.native_func.Tensor | None = None, grad_out: slangpy.native_func.Tensor | None = None, zero: bool = True) -> slangpy.native_func.Tensor
 
+        Return a tensor view with gradient storage attached.
+
+        Parameter ``grad_in``:
+            Optional gradient read by backward dispatch.
+
+        Parameter ``grad_out``:
+            Optional gradient written by backward dispatch.
+
+        Parameter ``zero``:
+            Clear supplied or newly allocated gradients before returning.
+
+        Returns:
+            A tensor sharing primal storage and using the requested gradients.
+
     .. py:method:: detach(self) -> slangpy.native_func.Tensor
+
+        Return a tensor sharing primal storage with no gradients attached.
+
+        Returns:
+            A non-differentiable tensor view.
 
     .. py:staticmethod:: numpy(device: slangpy.Device, ndarray: object) -> slangpy.native_func.Tensor
 
+        Deprecated alias for :py:meth:`slangpy.Tensor.from_numpy`.
+
     .. py:staticmethod:: from_numpy(device: slangpy.Device, ndarray: object, usage: slangpy.BufferUsage = 24, memory_type: slangpy.MemoryType = MemoryType.device_local, program_layout: slangpy.native_refl.Layout | None = None, target_slang_dtype: object | None = None) -> slangpy.native_func.Tensor
+
+        Allocate a tensor and initialize it from a NumPy array.
+
+        Scalar NumPy dtypes are mapped automatically. Structured arrays require a
+        matching explicit Slang type and C-contiguous storage.
+
+        :param device: Device that allocates the storage buffer.
+        :param ndarray: NumPy array providing shape, strides, type, and initial data.
+        :param usage: Buffer usage flags.
+        :param memory_type: Storage memory type.
+        :param program_layout: Optional layout used to resolve Slang types.
+        :param target_slang_dtype: Explicit Slang element type for structured or overridden mappings.
+        :return: A tensor initialized with a copy of ``ndarray``.
+        :raises ValueError: If the NumPy dtype, shape, strides, or structured layout is unsupported.
 
     .. py:staticmethod:: empty(device: slangpy.Device, shape: slangpy.slangpy.Shape, dtype: object | None = None, usage: slangpy.BufferUsage = 24, memory_type: slangpy.MemoryType = MemoryType.device_local, program_layout: slangpy.native_refl.Layout | None = None) -> slangpy.native_func.Tensor
 
+        Allocate an uninitialized contiguous tensor.
+
+        :param device: Device that allocates the storage buffer.
+        :param shape: Non-empty logical tensor dimensions.
+        :param dtype: Slang element type or resolvable type name.
+        :param usage: Buffer usage flags.
+        :param memory_type: Storage memory type.
+        :param program_layout: Optional layout used to resolve a type name.
+        :return: A newly allocated tensor with unspecified contents.
+
     .. py:staticmethod:: zeros(device: slangpy.Device, shape: slangpy.slangpy.Shape, dtype: object, usage: slangpy.BufferUsage = 24, memory_type: slangpy.MemoryType = MemoryType.device_local, program_layout: slangpy.native_refl.Layout | None = None) -> slangpy.native_func.Tensor
+
+        Allocate a contiguous tensor and clear its storage to zero.
+
+        :param device: Device that allocates the storage buffer.
+        :param shape: Non-empty logical tensor dimensions.
+        :param dtype: Slang element type or resolvable type name.
+        :param usage: Buffer usage flags.
+        :param memory_type: Storage memory type.
+        :param program_layout: Optional layout used to resolve a type name.
+        :return: A newly allocated zero-filled tensor.
 
     .. py:staticmethod:: empty_like(other: slangpy.native_func.Tensor) -> slangpy.native_func.Tensor
 
+        Allocate an uninitialized contiguous tensor matching another tensor.
+
+        :param other: Tensor supplying shape, type, usage, and memory type.
+        :return: A new tensor with unspecified contents and no attached gradients.
+
     .. py:staticmethod:: zeros_like(other: slangpy.native_func.Tensor) -> slangpy.native_func.Tensor
+
+        Allocate a zero-filled contiguous tensor matching another tensor.
+
+        :param other: Tensor supplying shape, type, usage, and memory type.
+        :return: A new zero-filled tensor with no attached gradients.
 
     .. py:staticmethod:: from_torch(device: slangpy.Device, tensor: object, dtype: object, usage: slangpy.BufferUsage = 24, program_layout: slangpy.native_refl.Layout | None = None) -> slangpy.native_func.Tensor
 
+        Allocate shared tensor storage and initialize it from a PyTorch tensor.
+
+        The last PyTorch dimension stores the scalar components of one Slang element
+        and must be contiguous.
+
+        :param device: Device that allocates the storage buffer.
+        :param tensor: PyTorch tensor containing initial data.
+        :param dtype: Slang element type or resolvable type name.
+        :param usage: Buffer usage flags added to the required shared usage.
+        :param program_layout: Optional layout used to resolve ``dtype``.
+        :return: A tensor initialized with a copy of the PyTorch data.
+        :raises ValueError: If shape or scalar layout is incompatible with ``dtype``.
+
     .. py:staticmethod:: load_from_image(device: slangpy.Device, path: object, flip_y: bool = False, linearize: bool = False, scale: float = 1.0, offset: float = 0.0, grayscale: bool = False) -> slangpy.native_func.Tensor
+
+        Load an image file into a floating-point tensor.
+
+        :param device: Device that allocates the tensor.
+        :param path: Image path accepted by SlangPy's image loader.
+        :param flip_y: Flip rows vertically while loading.
+        :param linearize: Convert color values from sRGB to linear space.
+        :param scale: Scale applied to loaded values.
+        :param offset: Offset added to loaded values.
+        :param grayscale: Convert the image to a single channel.
+        :return: A tensor containing the processed image data.
 
 
 
@@ -16608,6 +17014,32 @@ Miscellaneous
     Base class: :py:class:`slangpy.core.function.FunctionNode`
 
 
+        A callable Slang function with automatic Python-to-GPU data marshalling.
+
+        Users normally obtain a function through attribute access on
+        :class:`slangpy.Module`. The first call for an argument signature resolves
+        types, generates and compiles a kernel, and caches that call data; later calls
+        with the same signature reuse it.
+
+        :param module: Functional module that owns the function.
+        :param func: Reflected Slang function or a name to resolve in ``module``.
+        :param struct: Optional reflected struct for an instance method.
+        :param options: Functional-call options, copied when the function is created.
+
+        Example:
+
+        .. code-block:: python
+
+            import slangpy as spy
+
+            device = spy.create_device()
+            module = spy.Module.load_from_source(
+                device, "example", "float square(float x) { return x * x; }"
+            )
+            result = module.square(4.0)
+
+
+
 
 ----
 
@@ -17013,7 +17445,27 @@ Miscellaneous
     Base class: :py:class:`slangpy.native_func.BaseModule`
 
 
-        A Slang module, created either by loading a slang file or providing a loaded SGL module.
+        Expose the functions and types in a loaded Slang module to the functional API.
+
+        A ``Module`` composes the supplied low-level module with SlangPy's support
+        module and any explicitly linked modules. Functions and structs are resolved
+        lazily through attribute or item access and cached on the wrapper.
+
+        :param device_module: Low-level compiled Slang module to wrap.
+        :param options: Functional-call options inherited by functions and structs.
+        :param link: Additional high- or low-level modules to compose into the program.
+
+        Example:
+
+        .. code-block:: python
+
+            import slangpy as spy
+
+            device = spy.create_device()
+            module = spy.Module.load_from_source(
+                device, "example", "float add(float a, float b) { return a + b; }"
+            )
+            assert module.add(2.0, 3.0) == 5.0
 
 
 
@@ -18298,8 +18750,27 @@ Miscellaneous
 .. py:class:: slangpy.types.diffpair.DiffPair
 
 
-        A pair of values, one representing the primal value and the other representing the gradient value.
-        Typically only required when wanting to output gradients from scalar calls to a function.
+        Pair a primal Python value with its derivative seed or gradient result.
+
+        ``DiffPair`` is primarily useful for differentiable scalar calls. Tensor
+        workflows normally use :meth:`slangpy.Tensor.with_grads` instead. When a
+        value is omitted, the primal defaults to ``0.0`` and the derivative defaults
+        to the primal value's zero-initialized Python type.
+
+        :param p: Primal value, or ``None`` to use ``0.0``.
+        :param d: Derivative value, or ``None`` to construct a zero value matching
+            the primal type.
+        :param needs_grad: Whether functional dispatch should track a derivative.
+
+        Example:
+
+        .. code-block:: python
+
+            import slangpy as spy
+
+            pair = spy.DiffPair(2.0, 1.0)
+            assert pair.primal == 2.0
+            assert pair.grad == 1.0
 
 
 

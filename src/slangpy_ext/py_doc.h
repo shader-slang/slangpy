@@ -1249,9 +1249,14 @@ static const char *__doc_sgl_BoxFilter_eval = R"doc()doc";
 
 static const char *__doc_sgl_BoxFilter_radius = R"doc()doc";
 
-static const char *__doc_sgl_Buffer = R"doc()doc";
+static const char *__doc_sgl_Buffer = R"doc(Contiguous GPU buffer storage owned by a Device.)doc";
 
-static const char *__doc_sgl_Buffer_2 = R"doc()doc";
+static const char *__doc_sgl_Buffer_2 =
+R"doc(Contiguous GPU buffer storage owned by a Device.
+
+Create buffers with Device::create_buffer(). Host transfers copy data
+rather than aliasing NumPy memory. Reading device-local memory waits
+for GPU readback.)doc";
 
 static const char *__doc_sgl_BufferCursor =
 R"doc(Represents a list of elements in a block of memory, and provides
@@ -3264,26 +3269,29 @@ Parameter ``resource_type_layout``:
 Parameter ``format``:
     Buffer format. Used when creating typed buffer views.
 
-Parameter ``initial_state``:
-    Initial resource state.
+Parameter ``memory_type``:
+    Memory type.
 
 Parameter ``usage``:
     Resource usage flags.
 
-Parameter ``memory_type``:
-    Memory type.
+Parameter ``default_state``:
+    Initial resource state.
 
 Parameter ``label``:
     Debug label.
 
 Parameter ``data``:
-    Initial data to upload to the buffer.
+    Optional contiguous NumPy data used to initialize the buffer.
 
-Parameter ``data_size``:
-    Size of the initial data in bytes.
+Parameter ``desc``:
+    Alternative complete buffer descriptor.
 
 Returns:
-    New buffer object.)doc";
+    New buffer object.
+
+Example: ``buffer = device.create_buffer(size=1024,
+usage=spy.BufferUsage.shader_resource)``.)doc";
 
 static const char *__doc_sgl_Device_create_buffer_from_native_handle =
 R"doc(Create a new buffer wrapping an existing native buffer without
@@ -3466,23 +3474,35 @@ Parameter ``mip_count``:
 Parameter ``sample_count``:
     Number of samples for multisampled textures.
 
-Parameter ``quality``:
+Parameter ``sample_quality``:
     Quality level for multisampled textures.
+
+Parameter ``memory_type``:
+    Memory type.
 
 Parameter ``usage``:
     Resource usage.
 
-Parameter ``memory_type``:
-    Memory type.
+Parameter ``default_state``:
+    Initial resource state.
+
+Parameter ``sampler``:
+    Default sampler for combined texture and sampler access.
 
 Parameter ``label``:
     Debug label.
 
 Parameter ``data``:
-    Initial data.
+    Optional contiguous NumPy data used to initialize the texture.
+
+Parameter ``desc``:
+    Alternative complete texture descriptor.
 
 Returns:
-    New texture object.)doc";
+    New texture object.
+
+Example: ``texture = device.create_texture(width=128, height=128,
+format=spy.Format.rgba32_float)``.)doc";
 
 static const char *__doc_sgl_Device_create_texture_from_resource = R"doc(Create a texture from an existing RHI resource.)doc";
 
@@ -3578,11 +3598,64 @@ Returns:
 
 static const char *__doc_sgl_Device_link_program = R"doc(Link modules and entry points into a shader program.)doc";
 
-static const char *__doc_sgl_Device_load_module = R"doc(Load a slang module by name.)doc";
+static const char *__doc_sgl_Device_load_module =
+R"doc(Load a Slang module by name using this device's session and configured
+search paths.
 
-static const char *__doc_sgl_Device_load_module_from_source = R"doc(Load a slang module from source code.)doc";
+Parameter ``module_name``:
+    Module name or path understood by the Slang session.
 
-static const char *__doc_sgl_Device_load_program = R"doc(Load a module and link a shader program in one step.)doc";
+Returns:
+    The loaded low-level module.
+
+Throws:
+    Exception if Slang cannot find or compile the module.
+
+Example: ``module = device.load_module("shaders.compute")``.)doc";
+
+static const char *__doc_sgl_Device_load_module_from_source =
+R"doc(Compile a Slang module from source code using this device's session.
+
+Parameter ``module_name``:
+    Stable name used by the compiler and module cache.
+
+Parameter ``source``:
+    Complete Slang source text.
+
+Parameter ``path``:
+    Optional source path used for diagnostics and relative resolution.
+
+Returns:
+    The compiled low-level module.
+
+Throws:
+    Exception if Slang compilation fails.
+
+Example: ``module = device.load_module_from_source("example",
+source)``.)doc";
+
+static const char *__doc_sgl_Device_load_program =
+R"doc(Load a module and link selected entry points into a shader program.
+
+Parameter ``module_name``:
+    Module name or path understood by the Slang session.
+
+Parameter ``entry_point_names``:
+    Entry points to link.
+
+Parameter ``additional_source``:
+    Optional source compiled and linked with the module.
+
+Parameter ``link_options``:
+    Optional program link settings.
+
+Returns:
+    The linked shader program.
+
+Throws:
+    Exception if loading, compilation, or linking fails.
+
+Example: ``program = device.load_program("compute", ["main"])``.)doc";
 
 static const char *__doc_sgl_Device_m_blitter = R"doc()doc";
 
@@ -6032,14 +6105,6 @@ static const char *__doc_sgl_MicromapSizes = R"doc()doc";
 static const char *__doc_sgl_MicromapSizes_micromap_size = R"doc()doc";
 
 static const char *__doc_sgl_MicromapSizes_scratch_size = R"doc()doc";
-
-static const char *__doc_sgl_MicromapTriangleDesc = R"doc()doc";
-
-static const char *__doc_sgl_MicromapTriangleDesc_data_offset = R"doc()doc";
-
-static const char *__doc_sgl_MicromapTriangleDesc_format = R"doc()doc";
-
-static const char *__doc_sgl_MicromapTriangleDesc_subdivision_level = R"doc()doc";
 
 static const char *__doc_sgl_MicromapType = R"doc()doc";
 
@@ -8815,9 +8880,14 @@ static const char *__doc_sgl_SlangMatrixLayout_info = R"doc()doc";
 
 static const char *__doc_sgl_SlangMatrixLayout_row_major = R"doc()doc";
 
-static const char *__doc_sgl_SlangModule = R"doc()doc";
+static const char *__doc_sgl_SlangModule = R"doc(Compiled Slang module owned by a SlangSession.)doc";
 
-static const char *__doc_sgl_SlangModule_2 = R"doc()doc";
+static const char *__doc_sgl_SlangModule_2 =
+R"doc(Compiled Slang module owned by a SlangSession.
+
+A module retains the information required for hot reload and exposes
+its reflected layout and entry points. Load modules through
+SlangSession or Device.)doc";
 
 static const char *__doc_sgl_SlangModuleData = R"doc()doc";
 
@@ -9024,14 +9094,63 @@ static const char *__doc_sgl_SlangSession_get_slang_session = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_link_program = R"doc(Link a program with a set of modules and entry points.)doc";
 
-static const char *__doc_sgl_SlangSession_load_module = R"doc(Load a module by name.)doc";
+static const char *__doc_sgl_SlangSession_load_module =
+R"doc(Load a module by name using the session's configured search paths.
 
-static const char *__doc_sgl_SlangSession_load_module_from_source = R"doc(Load a module from string source code.)doc";
+Parameter ``module_name``:
+    Module name or path understood by Slang.
+
+Returns:
+    The loaded module, owned by this session.
+
+Throws:
+    Exception if Slang cannot find or compile the module.
+
+Example: ``module = session.load_module("shaders.compute")``.)doc";
+
+static const char *__doc_sgl_SlangSession_load_module_from_source =
+R"doc(Compile a module from string source code.
+
+Parameter ``module_name``:
+    Stable name used by the compiler and module cache.
+
+Parameter ``source``:
+    Complete Slang source text.
+
+Parameter ``path``:
+    Optional source path used for diagnostics and relative resolution.
+
+Returns:
+    The compiled module, owned by this session.
+
+Throws:
+    Exception if Slang compilation fails.
+
+Example: ``module = session.load_module_from_source("example",
+source)``.)doc";
 
 static const char *__doc_sgl_SlangSession_load_program =
-R"doc(Load a program from a given module with a set of entry points.
-Internally this simply wraps link_program without requiring the user
-to explicitly load modules.)doc";
+R"doc(Load a module and link selected entry points into a shader program.
+
+Parameter ``module_name``:
+    Module name or path understood by Slang.
+
+Parameter ``entry_point_names``:
+    Entry points to link.
+
+Parameter ``additional_source``:
+    Optional source compiled and linked with the module.
+
+Parameter ``link_options``:
+    Optional program link settings.
+
+Returns:
+    The linked shader program.
+
+Throws:
+    Exception if loading, compilation, or linking fails.
+
+Example: ``program = session.load_program("compute", ["main"])``.)doc";
 
 static const char *__doc_sgl_SlangSession_load_source = R"doc(Load the source code for a given module.)doc";
 
@@ -9287,9 +9406,17 @@ static const char *__doc_sgl_TentFilter_m_radius = R"doc()doc";
 
 static const char *__doc_sgl_TentFilter_radius = R"doc()doc";
 
-static const char *__doc_sgl_Texture = R"doc()doc";
+static const char *__doc_sgl_Texture =
+R"doc(Typed one-, two-, or three-dimensional GPU image storage owned by a
+Device.)doc";
 
-static const char *__doc_sgl_Texture_2 = R"doc()doc";
+static const char *__doc_sgl_Texture_2 =
+R"doc(Typed one-, two-, or three-dimensional GPU image storage owned by a
+Device.
+
+Create textures with Device::create_texture(). Host transfers address
+one array layer and mip level at a time and may wait for device-local
+readback.)doc";
 
 static const char *__doc_sgl_Texture_3 = R"doc()doc";
 
@@ -11353,11 +11480,36 @@ static const char *__doc_sgl_func_DiffTensorViewData_diff = R"doc()doc";
 static const char *__doc_sgl_func_DiffTensorViewData_primal = R"doc()doc";
 
 static const char *__doc_sgl_func_Tensor =
-R"doc(Native tensor runtime object.
+R"doc(N-dimensional typed GPU data used by SlangPy functional calls.
 
 This class deliberately contains no language-binding dependency.
 Adapter conveniences such as NumPy/Torch conversion and indexing
-syntax live in the slangpy extension layer.)doc";
+syntax live in the slangpy extension layer.
+
+Parameter ``storage``:
+    Buffer containing tensor elements.
+
+Parameter ``dtype``:
+    Reflected Slang element type.
+
+Parameter ``shape``:
+    Logical element dimensions.
+
+Parameter ``strides``:
+    Element strides. An empty value selects contiguous strides.
+
+Parameter ``offset``:
+    Element offset into storage.
+
+Parameter ``grad_in``:
+    Optional gradient read during backward dispatch.
+
+Parameter ``grad_out``:
+    Optional gradient written during backward dispatch.
+
+Parameter ``desc``:
+    Alternative descriptor containing type, shape, layout, and usage
+    metadata.)doc";
 
 static const char *__doc_sgl_func_TensorDesc =
 R"doc(Native Tensor descriptor shared by native code and the extension
@@ -11389,39 +11541,76 @@ static const char *__doc_sgl_func_TensorViewData_strides = R"doc()doc";
 
 static const char *__doc_sgl_func_Tensor_Tensor = R"doc()doc";
 
-static const char *__doc_sgl_func_Tensor_broadcast_to = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_broadcast_to =
+R"doc(Return a zero-copy view broadcast to a compatible shape.
+
+Parameter ``shape``:
+    Target logical dimensions.
+
+Returns:
+    A tensor sharing storage with zero strides in broadcast
+    dimensions.)doc";
 
 static const char *__doc_sgl_func_Tensor_broadcast_to_inplace = R"doc()doc";
 
 static const char *__doc_sgl_func_Tensor_class_name = R"doc()doc";
 
-static const char *__doc_sgl_func_Tensor_clear = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_clear =
+R"doc(Clear tensor storage to zero.
 
-static const char *__doc_sgl_func_Tensor_cursor = R"doc()doc";
+Parameter ``cmd``:
+    Optional command encoder to append the clear to. Without one, the
+    operation is submitted immediately.)doc";
+
+static const char *__doc_sgl_func_Tensor_cursor =
+R"doc(Create a cursor over tensor storage for structured CPU reads and
+writes.
+
+Parameter ``start``:
+    Optional first flattened element.
+
+Parameter ``count``:
+    Optional number of flattened elements.
+
+Returns:
+    A buffer cursor over the selected storage range.)doc";
 
 static const char *__doc_sgl_func_Tensor_desc = R"doc()doc";
 
 static const char *__doc_sgl_func_Tensor_desc_2 = R"doc()doc";
 
-static const char *__doc_sgl_func_Tensor_detach = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_detach =
+R"doc(Return a tensor sharing primal storage with no gradients attached.
 
-static const char *__doc_sgl_func_Tensor_device = R"doc()doc";
+Returns:
+    A non-differentiable tensor view.)doc";
+
+static const char *__doc_sgl_func_Tensor_device = R"doc(Return the device that owns the storage buffer.)doc";
 
 static const char *__doc_sgl_func_Tensor_dims = R"doc()doc";
 
-static const char *__doc_sgl_func_Tensor_dtype = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_dtype = R"doc(Return the reflected Slang element type.)doc";
 
-static const char *__doc_sgl_func_Tensor_element_count = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_element_count = R"doc(Return the product of the logical dimensions.)doc";
 
 static const char *__doc_sgl_func_Tensor_element_stride = R"doc()doc";
 
-static const char *__doc_sgl_func_Tensor_grad = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_grad =
+R"doc(Return the output gradient tensor.
 
-static const char *__doc_sgl_func_Tensor_grad_in = R"doc()doc";
+Returns:
+    The output gradient.
 
-static const char *__doc_sgl_func_Tensor_grad_out = R"doc()doc";
+Throws:
+    Exception if no output gradient is attached.)doc";
 
-static const char *__doc_sgl_func_Tensor_is_contiguous = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_grad_in = R"doc(Return the optional gradient read during backward dispatch.)doc";
+
+static const char *__doc_sgl_func_Tensor_grad_out = R"doc(Return the optional gradient written during backward dispatch.)doc";
+
+static const char *__doc_sgl_func_Tensor_is_contiguous =
+R"doc(Return whether the logical shape and strides describe contiguous
+storage.)doc";
 
 static const char *__doc_sgl_func_Tensor_m_desc = R"doc()doc";
 
@@ -11435,35 +11624,67 @@ static const char *__doc_sgl_func_Tensor_m_storage = R"doc()doc";
 
 static const char *__doc_sgl_func_Tensor_make_tensor_view_data = R"doc(Build the POD payload used by Slang TensorView fields.)doc";
 
-static const char *__doc_sgl_func_Tensor_memory_type = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_memory_type = R"doc(Return the storage memory type.)doc";
 
-static const char *__doc_sgl_func_Tensor_offset = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_offset = R"doc(Return the element offset into the storage buffer.)doc";
 
-static const char *__doc_sgl_func_Tensor_point_to = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_point_to =
+R"doc(Retarget this tensor to the metadata and storage of another tensor.
+
+Parameter ``target``:
+    Tensor whose storage and view metadata to adopt.)doc";
 
 static const char *__doc_sgl_func_Tensor_set_grad_in = R"doc()doc";
 
 static const char *__doc_sgl_func_Tensor_set_grad_out = R"doc()doc";
 
-static const char *__doc_sgl_func_Tensor_shape = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_shape = R"doc(Return the logical tensor dimensions.)doc";
 
 static const char *__doc_sgl_func_Tensor_signature = R"doc(Signature fragment used by SlangPy's native call-data cache.)doc";
 
-static const char *__doc_sgl_func_Tensor_storage = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_storage = R"doc(Return the underlying storage buffer.)doc";
 
-static const char *__doc_sgl_func_Tensor_strides = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_strides = R"doc(Return the element strides for each logical dimension.)doc";
 
-static const char *__doc_sgl_func_Tensor_to_string = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_to_string =
+R"doc(Return a concise representation containing type, shape, and gradient
+state.)doc";
 
 static const char *__doc_sgl_func_Tensor_update_signature = R"doc()doc";
 
-static const char *__doc_sgl_func_Tensor_usage = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_usage = R"doc(Return the buffer usage flags inherited from the tensor descriptor.)doc";
 
-static const char *__doc_sgl_func_Tensor_view = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_view =
+R"doc(Return a zero-copy strided view into the same storage.
+
+Parameter ``shape``:
+    Logical dimensions of the view.
+
+Parameter ``strides``:
+    Element strides, or an empty shape to select contiguous strides.
+
+Parameter ``offset``:
+    Additional element offset relative to this tensor.
+
+Returns:
+    A tensor sharing this tensor's storage and gradients.)doc";
 
 static const char *__doc_sgl_func_Tensor_view_inplace = R"doc()doc";
 
-static const char *__doc_sgl_func_Tensor_with_grads = R"doc()doc";
+static const char *__doc_sgl_func_Tensor_with_grads =
+R"doc(Return a tensor view with gradient storage attached.
+
+Parameter ``grad_in``:
+    Optional gradient read by backward dispatch.
+
+Parameter ``grad_out``:
+    Optional gradient written by backward dispatch.
+
+Parameter ``zero``:
+    Clear supplied or newly allocated gradients before returning.
+
+Returns:
+    A tensor sharing primal storage and using the requested gradients.)doc";
 
 static const char *__doc_sgl_func_Tensor_write_slangpy_signature = R"doc(Write the SlangPy cache signature used by functional dispatch.)doc";
 

@@ -287,10 +287,22 @@ public:
     Device* device() const { return m_device; }
     const SlangSessionDesc& desc() const { return m_desc; }
 
-    /// Load a module by name.
+    /// Load a module by name using the session's configured search paths.
+    /// @param module_name Module name or path understood by Slang.
+    /// @return The loaded module, owned by this session.
+    /// @throws Exception if Slang cannot find or compile the module.
+    ///
+    /// Example: ``module = session.load_module("shaders.compute")``.
     ref<SlangModule> load_module(std::string_view module_name);
 
-    /// Load a module from string source code.
+    /// Compile a module from string source code.
+    /// @param module_name Stable name used by the compiler and module cache.
+    /// @param source Complete Slang source text.
+    /// @param path Optional source path used for diagnostics and relative resolution.
+    /// @return The compiled module, owned by this session.
+    /// @throws Exception if Slang compilation fails.
+    ///
+    /// Example: ``module = session.load_module_from_source("example", source)``.
     ref<SlangModule> load_module_from_source(
         std::string_view module_name,
         std::string_view source,
@@ -312,9 +324,15 @@ public:
         std::optional<SlangLinkOptions> link_options = {}
     );
 
-    /// Load a program from a given module with a set of entry
-    /// points. Internally this simply wraps link_program without
-    /// requiring the user to explicitly load modules.
+    /// Load a module and link selected entry points into a shader program.
+    /// @param module_name Module name or path understood by Slang.
+    /// @param entry_point_names Entry points to link.
+    /// @param additional_source Optional source compiled and linked with the module.
+    /// @param link_options Optional program link settings.
+    /// @return The linked shader program.
+    /// @throws Exception if loading, compilation, or linking fails.
+    ///
+    /// Example: ``program = session.load_program("compute", ["main"])``.
     ref<ShaderProgram> load_program(
         std::string_view module_name,
         std::vector<std::string_view> entry_point_names,
@@ -401,6 +419,10 @@ struct SlangModuleData : Object {
     std::filesystem::path path;
 };
 
+/// Compiled Slang module owned by a SlangSession.
+///
+/// A module retains the information required for hot reload and exposes its
+/// reflected layout and entry points. Load modules through SlangSession or Device.
 class SGL_API SlangModule : public Object {
     SGL_OBJECT(SlangModule)
 public:

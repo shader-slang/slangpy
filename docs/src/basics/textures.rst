@@ -3,7 +3,9 @@ Brighten A Texture
 
 In this example, we'll use SlangPy to read from and write to a texture, showcasing simple broadcasting and ``inout`` parameters. To view the results, you'll need `tev <https://github.com/Tom94/tev>`_.
 
-You can find the complete code for this example `here <https://github.com/shader-slang/slangpy-samples/tree/main/examples/textures>`_.
+The complete code is checked in at ``samples/examples/textures/main.py`` and is
+executed by ``samples/tests/examples/test_examples.py``. The snippets below are
+illustrative excerpts of that tested workflow.
 
 Slang Code
 ----------

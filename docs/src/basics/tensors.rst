@@ -7,6 +7,10 @@ SlangPy provides a single multidimensional container type, named ``Tensor``, whi
 
 Note: if updating from pre-0.41, see :ref:`tensorupdate` for migration instructions.
 
+The complete workflow in ``samples/examples/buffers/main.py`` is executed by
+``samples/tests/examples/test_examples.py``. The smaller snippets below are
+illustrative excerpts of that tested example.
+
 The ``Tensor`` type takes some basic storage and adds:
 
 - **Data type**: A ``SlangType``, which can be a primitive type (e.g., float, vector) or a user-defined Slang struct.

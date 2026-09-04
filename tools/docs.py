@@ -531,31 +531,83 @@ def _doc_record(*objects: Any | None) -> DocumentationRecord:
     if raw.strip().upper() == "N/A":
         return DocumentationRecord(status="placeholder")
     raw = re.sub(r"``([^`]+)``\(\)", r"``\1()``", raw)
+    raw = _normalize_mkdoc_fields(raw)
 
     parameters: dict[str, str] = {}
     raises: list[str] = []
     returns = ""
     narrative: list[str] = []
-    for line in raw.splitlines():
+    lines = raw.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
         stripped = line.strip()
         parameter = re.match(r":param\s+([^:]+):\s*(.*)", stripped)
         returned = re.match(r":returns?:\s*(.*)", stripped)
         raised = re.match(r":raises?\s+([^:]+):\s*(.*)", stripped)
-        if parameter:
-            parameters[parameter.group(1)] = parameter.group(2).strip()
-        elif returned:
-            returns = returned.group(1).strip()
-        elif raised:
-            raises.append(f"{raised.group(1)}: {raised.group(2).strip()}".rstrip(": "))
-        elif not stripped.startswith(":type") and not stripped.startswith(":rtype"):
+        field = parameter or returned or raised
+        if field is not None:
+            description = field.group(field.lastindex or 0).strip()
+            index += 1
+            while index < len(lines) and lines[index].strip() and lines[index][:1].isspace():
+                description = " ".join((description, lines[index].strip())).strip()
+                index += 1
+            if parameter:
+                parameters[parameter.group(1)] = description
+            elif returned:
+                returns = description
+            else:
+                assert raised is not None
+                raises.append(f"{raised.group(1)}: {description}".rstrip(": "))
+            continue
+        if not stripped.startswith(":type") and not stripped.startswith(":rtype"):
             narrative.append(line.rstrip())
+        index += 1
 
     narrative_text = "\n".join(narrative).strip()
-    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", narrative_text) if part.strip()]
-    summary = " ".join(paragraphs[0].splitlines()) if paragraphs else ""
+    paragraphs = [
+        part.strip("\n") for part in re.split(r"\n[ \t]*\n", narrative_text) if part.strip()
+    ]
+    summary = " ".join(line.strip() for line in paragraphs[0].splitlines()) if paragraphs else ""
     body = "\n\n".join(paragraphs[1:])
     status = "complete" if body or parameters or returns or raises else "summary"
     return DocumentationRecord(summary, body, parameters, returns, raises, status)
+
+
+def _normalize_mkdoc_fields(raw: str) -> str:
+    """Convert pybind11_mkdoc field blocks to Sphinx docstring fields."""
+    lines = raw.splitlines()
+    normalized: list[str] = []
+    index = 0
+    field_re = re.compile(
+        r"^(Parameter)\s+``([^`]+)``:\s*$|^(Returns?):\s*$|^(Raises?)\s+``([^`]+)``:\s*$"
+    )
+    while index < len(lines):
+        match = field_re.match(lines[index].strip())
+        if match is None:
+            normalized.append(lines[index])
+            index += 1
+            continue
+
+        index += 1
+        description: list[str] = []
+        while index < len(lines):
+            line = lines[index]
+            if field_re.match(line.strip()):
+                break
+            if line.strip() and not line[:1].isspace():
+                break
+            if line.strip():
+                description.append(line.strip())
+            index += 1
+        text_value = " ".join(description)
+        if match.group(1) is not None:
+            normalized.append(f":param {match.group(2)}: {text_value}")
+        elif match.group(3) is not None:
+            normalized.append(f":return: {text_value}")
+        else:
+            normalized.append(f":raises {match.group(5)}: {text_value}")
+    return "\n".join(normalized)
 
 
 def _overloads(parent: Any | None, name: str) -> list[Any]:

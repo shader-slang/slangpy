@@ -22,7 +22,8 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 - [x] (2026-09-04) Completed Phase 3: added mechanical coverage measurement, a checked-in ratchet, dedicated documentation CI, and regression gates.
 - [x] (2026-09-05) Completed Phase 3.5: restored every named legacy SGL section to the structured reference and re-baselined the imported documentation debt.
 - [x] (2026-09-05) Completed Phase 4: published per-page Markdown and structured outputs, a curated agent index, bounded symbol context, and prioritized documentation tasks.
-- [ ] Complete Phase 5: establish and run an agent-assisted documentation campaign.
+- [x] (2026-09-05) Implemented Phase 5: established and ran the first agent-assisted documentation campaign over primary user workflows.
+- [ ] Finish the Phase 5 post-regeneration verification checkpoint described below.
 - [ ] Complete Phase 6: remove the legacy generator and consolidate documentation maintenance.
 - [x] (2026-09-04) Ran the Windows release build, focused documentation tests, runtime and snapshot strict HTML builds, the CMake `doc` target, and pre-commit checks for Phase 0.
 - [x] (2026-09-04) Ran the Windows release build, 17 focused documentation tests, Pyright, repeated inventory generation/checks, the unclassified report, a strict snapshot HTML build, and pre-commit checks for Phase 1.
@@ -30,6 +31,8 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 - [x] (2026-09-04) Ran the Windows release build, 24 focused documentation tests, Pyright, inventory, coverage, and rendering checks, runtime and snapshot nitpicky HTML builds, the CMake `doc` target, and pre-commit checks for Phase 3.
 - [x] (2026-09-05) Ran the Windows release build, 27 focused documentation tests, Pyright, inventory and coverage checks, source-only and runtime nitpicky HTML builds, the CMake `doc` target, and pre-commit checks for Phase 3.5.
 - [x] (2026-09-05) Ran the Windows release build, 31 focused documentation tests, Pyright, inventory and coverage checks, source-only and runtime agent-output builds, the CMake `doc` target, and pre-commit checks for Phase 4.
+- [x] (2026-09-05) Ran the Windows release build, 34 focused documentation tests, 799 relevant behavioral cases, 12 checked-in examples, Pyright, inventory and coverage checks, source-only and runtime strict builds, the CMake `doc` target, and pre-commit checks during Phase 5 implementation.
+- [ ] Repeat the strict documentation and pre-commit gates after the final formatted native-header regeneration, then inspect the final diff.
 - [ ] Record final outcomes and remaining documentation debt.
 
 ## Surprises and Discoveries
@@ -120,6 +123,18 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 
 - Observation: The restored reference produces 43 Markdown pages totaling 1,052,836 bytes; the Device page alone is 405,070 bytes.
   Evidence: The Phase 4 strict snapshot build. A combined `llms-full.txt` would duplicate a large corpus and be less useful than selecting pages through the curated index or structured API data.
+
+- Observation: `pybind11_mkdoc` emits Doxygen fields as ``Parameter ``name``:``, ``Returns:``, and ``Raises ``Type``:`` blocks rather than Sphinx field lists.
+  Evidence: Before Phase 5 normalization, existing native parameter and return documentation was classified as narrative text; recognizing the emitted form raised the coverage score without changing those authoritative comments.
+
+- Observation: On Windows, `pybind11_mkdoc` can exit successfully after its worker threads fail to locate `libclang.dll`, leaving the generated header unchanged.
+  Evidence: The first Phase 5 `slangpy_pydoc` invocation printed a libclang error for every worker but returned exit code zero. Setting `LIBCLANG_PATH` to the installed LLVM library produced the expected `py_doc.h` changes; the contributor guide now makes this requirement explicit.
+
+- Observation: Documentation attached to a later C++ class definition can lose to an earlier forward declaration during native extraction.
+  Evidence: `Buffer`, `Texture`, and `SlangModule` remained empty in the generated doc header until concise public summaries were added to their declarations in `src/sgl/device/fwd.h`; the full definitions retain the detailed documentation.
+
+- Observation: Doxygen code blocks are emitted as Markdown fences by `pybind11_mkdoc`, which are not valid inside the generated RST reference.
+  Evidence: The first Phase 5 strict build reported an unmatched inline literal in `Device.create_texture`. Short native examples now use RST-safe inline literals, and the strict build passes.
 
 ## Decision Log
 
@@ -243,6 +258,18 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
   Rationale: An agent receives useful implementation evidence without crawling the repository, importing SlangPy, mutating source files, or embedding absolute workspace paths. Search result limits keep the artifact bounded.
   Date/Author: 2026-09-05, Codex.
 
+- Decision: Expand the functional public contract with the device helpers and differential-pair family used by the first workflow campaign.
+  Rationale: `create_device`, `create_torch_device`, `DiffPair`, `diffPair`, and `floatDiffPair` are primary user entry points already exported by `slangpy`; explicitly reviewing them is preferable to leaving them in the unclassified queue while documenting their workflows.
+  Date/Author: 2026-09-05, Codex.
+
+- Decision: Normalize `pybind11_mkdoc` field blocks and Sphinx field continuations in the structured inventory.
+  Rationale: Mechanical coverage and rendered pages must retain existing authoritative parameter, return, and exception text. This is a representation fix, not generated documentation or an inferred content guarantee.
+  Date/Author: 2026-09-05, Codex.
+
+- Decision: Link the introductory function, buffer, and texture narratives to checked-in sample programs exercised by `samples/tests/examples/test_examples.py`.
+  Rationale: Primary workflow examples should have executable evidence and one source of truth rather than copied snippets that can drift away from tests.
+  Date/Author: 2026-09-05, Codex.
+
 ## Outcomes and Retrospective
 
 Phase 0 is complete. `tools/docs.py` is now the explicit preparation, validation, and strict-build entry point; `tools/ci.py docs`, the CMake `doc` target, and Read the Docs all use it with an explicit runtime or snapshot mode. Runtime import failures are fatal, while hosted source-only builds deliberately validate the checked-in snapshot.
@@ -286,6 +313,28 @@ Phase 4 is complete. The pinned `sphinx-llm` integration produces a clean Markdo
 `tools/docs.py context` now assembles a read-only, repository-relative package containing one symbol's signatures, documentation, gaps, canonical source, relevant native declarations and Python bindings, related public symbols, tests, and examples. The real `slangpy.Module` artifact is bounded to at most 8 native declarations, 8 bindings, 12 tests, 12 examples, and 24 related symbols. `tools/docs.py tasks` emits either Markdown or schema-versioned JSON, can filter by public API section, and orders incomplete symbols by the reviewed contract before coverage status.
 
 Validation completed with a Windows release build, 31 focused documentation tests, a clean Pyright check, successful inventory and coverage checks, warning-free source-only and runtime Sphinx builds under `-n -W --keep-going`, the CMake `doc` target, agent-output validation, and a passing repository-wide pre-commit run. The remaining 2,535 incomplete public records are now directly available as prioritized Phase 5 work rather than an undifferentiated set of blanks.
+
+Phase 5 implementation is complete, with final post-regeneration verification deliberately paused. The first bounded campaign started from generated context packages for device creation, `Module`, `Function`, `Tensor`, `DiffPair`, buffer and texture creation and transfer, and device/session shader loading. Python behavior is documented in its implementation; native behavior is documented on public C++ declarations or adjacent wrapper-only bindings, and `py_doc.h` and nanobind stubs were regenerated rather than edited for content.
+
+The functional contract now explicitly includes the device helpers and differential-pair family. All named campaign entry points are mechanically complete. `Tensor`, `Module`, `Function`, and `DiffPair` contain no placeholder descendants, and the five inherited `Module` placeholders were eliminated. The reviewed 2,899-symbol baseline now contains 473 complete, 184 summary-only, 2,098 missing, and 144 placeholder records, for a score of 1,130. Compared with the Phase 3.5 migration baseline, complete records increased by 121 and the score by 186 despite adding 12 newly reviewed symbols.
+
+Introductory function, buffer, and texture pages now include source from or point to checked-in examples exercised across D3D12, Vulkan, and CUDA. Relevant behavioral validation completed with 634 passes and 165 supported skips; the selected workflow examples added 12 passes. The documentation parser now preserves multiline Sphinx fields and understands native mkdoc parameter, return, and exception blocks, preventing valid native documentation from being discarded or rendered out of place.
+
+Validation completed during implementation with a Windows release build, 34 focused documentation tests, deterministic inventory and raised coverage checks, warning-free source-only and runtime Sphinx builds under `-n -W --keep-going`, the CMake `doc` target, Pyright, agent-output validation, and a repository-wide pre-commit run. After formatting, the native documentation header and extension were regenerated once more; the release build, inventory check, coverage check, Pyright, and all 34 documentation tests pass in that final state. A final strict snapshot build, CMake `doc` build, pre-commit pass, and diff review remain for the next session. Remaining content debt is deliberately outside this campaign: 2,426 records are not yet complete, including 144 historical placeholders, and should be addressed in prioritized families rather than mechanically filled.
+
+### Next-session checkpoint
+
+Resume from the existing working tree; do not redo the documentation campaign or regenerate context packages. Complete the paused Phase 5 verification in this order:
+
+1. Run `python tools/docs.py build --api-mode snapshot --output-dir docs/_build/phase5-snapshot`.
+2. Run `cmake --build --preset windows-msvc-release --target doc`, which exercises the runtime documentation path.
+3. Run `pre-commit run --all-files`; if it changes files, rebuild and repeat the directly affected inventory, documentation tests, strict build, and pre-commit checks.
+4. Run `python tools/docs.py inventory --check`, `python tools/docs.py coverage --check`, and `git diff --check`, then review `git status --short` and the complete diff.
+5. If those checks pass without further generated changes, mark the Phase 5 verification items complete and update this checkpoint with the final results.
+
+After that checkpoint, documentation content can continue in bounded campaigns generated by `tools/docs.py tasks`. Prioritize incomplete descendants of the primary workflow families before extension-author and low-level graphics debt; preserve the ratchet and do not fill internal or unreviewed names merely to raise the score.
+
+Phase 6 remains a separate consolidation step and should begin only after the structured reference has been the default for at least one release cycle. Its work is to remove the retained legacy generator and giant RST snapshot, consolidate the source-to-output and agent-task instructions in `docs/README.md`, and verify that local, CI, and Read the Docs paths use only the structured pipeline.
 
 Update this section at the end of each phase with the observable improvements, remaining gaps, and any changes to the following milestones.
 
@@ -649,4 +698,4 @@ Document any dependency or interface changes in the Decision Log. Update this Ex
 
 ## Revision Note
 
-This revision completes Phase 3.5. It records restoration of the named legacy SGL sections, the reviewed migration baseline, inheritance-aware expansion, deterministic case-collision handling, strict expanded builds, and the remaining unclassified review queue carried into Phase 4.
+This revision records the Phase 5 implementation checkpoint. It captures the first context-driven documentation campaign, its public-contract expansion, authoritative Python and native documentation improvements, tested workflow examples, the raised coverage baseline, the exact paused verification steps, and the later Phase 6 consolidation gate.

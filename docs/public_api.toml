@@ -14,9 +14,14 @@ id = "functional-api"
 title = "Functional API"
 audience = "user"
 names = [
+  "slangpy.create_device",
+  "slangpy.create_torch_device",
   "slangpy.Tensor",
   "slangpy.Module",
   "slangpy.Function",
+  "slangpy.DiffPair",
+  "slangpy.diffPair",
+  "slangpy.floatDiffPair",
 ]
 
 [[sections]]

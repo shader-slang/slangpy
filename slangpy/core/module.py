@@ -47,7 +47,27 @@ class CallDataCache(NativeCallDataCache):
 
 class Module(BaseModule):
     """
-    A Slang module, created either by loading a slang file or providing a loaded SGL module.
+    Expose the functions and types in a loaded Slang module to the functional API.
+
+    A ``Module`` composes the supplied low-level module with SlangPy's support
+    module and any explicitly linked modules. Functions and structs are resolved
+    lazily through attribute or item access and cached on the wrapper.
+
+    :param device_module: Low-level compiled Slang module to wrap.
+    :param options: Functional-call options inherited by functions and structs.
+    :param link: Additional high- or low-level modules to compose into the program.
+
+    Example:
+
+    .. code-block:: python
+
+        import slangpy as spy
+
+        device = spy.create_device()
+        module = spy.Module.load_from_source(
+            device, "example", "float add(float a, float b) { return a + b; }"
+        )
+        assert module.add(2.0, 3.0) == 5.0
     """
 
     def __init__(
@@ -55,7 +75,14 @@ class Module(BaseModule):
         device_module: SlangModule,
         options: dict[str, Any] = {},
         link: Sequence[Union["Module", SlangModule]] = [],
-    ):
+    ) -> None:
+        """
+        Initialize a functional wrapper around an already loaded Slang module.
+
+        :param device_module: Low-level module returned by a device or Slang session.
+        :param options: Functional-call options inherited by resolved objects.
+        :param link: Additional modules to compose with ``device_module``.
+        """
         _register_hot_reload_hook(device_module.session.device)
         assert isinstance(device_module, SlangModule)
 
@@ -97,9 +124,16 @@ class Module(BaseModule):
         source: str,
         options: dict[str, Any] = {},
         link: Sequence[Union["Module", SlangModule]] = [],
-    ):
+    ) -> "Module":
         """
-        Load a module from a string.
+        Compile Slang source and return its functional module wrapper.
+
+        :param device: Device whose Slang session compiles the source.
+        :param name: Stable module name used by the compiler and module cache.
+        :param source: Complete Slang source text.
+        :param options: Functional-call options inherited by resolved objects.
+        :param link: Additional modules to compose with the compiled module.
+        :return: The compiled functional module.
         """
         module = device.load_module_from_source(name, source)
         return Module(module, options=options, link=link)
@@ -110,9 +144,15 @@ class Module(BaseModule):
         path: str,
         options: dict[str, Any] = {},
         link: Sequence[Union["Module", SlangModule]] = [],
-    ):
+    ) -> "Module":
         """
-        Load a module from a file.
+        Load a Slang module through the device's configured search paths.
+
+        :param device: Device whose Slang session loads the module.
+        :param path: Module name or path understood by the Slang session.
+        :param options: Functional-call options inherited by resolved objects.
+        :param link: Additional modules to compose with the loaded module.
+        :return: The loaded functional module.
         """
         module = device.load_module(path)
         return Module(module, options=options, link=link)
@@ -123,9 +163,16 @@ class Module(BaseModule):
         module: SlangModule,
         options: dict[str, Any] = {},
         link: list[Union["Module", SlangModule]] = [],
-    ):
+    ) -> "Module":
         """
-        Load a module from a Slang module.
+        Wrap an existing low-level Slang module for functional calls.
+
+        :param device: Retained for API consistency. The supplied module's session
+            determines the owning device.
+        :param module: Existing low-level module to wrap.
+        :param options: Functional-call options inherited by resolved objects.
+        :param link: Additional modules to compose with ``module``.
+        :return: The functional module wrapper.
         """
         return Module(module, options=options, link=link)
 

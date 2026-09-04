@@ -31,11 +31,40 @@ def create_device(
     pipeline_compilation_mode: PipelineCompilationMode = PipelineCompilationMode.serial,
     existing_device_handles: Optional[Sequence[NativeHandle]] = None,
     bindless_options: Optional[BindlessDesc] = None,
-):
+) -> Device:
     """
-    Create a device with basic settings for SlangPy. For full control over device init,
-    use sgl.create_device directly, being sure to add slangpy.SHADER_PATH
-    to the list of include paths for the compiler.
+    Create a GPU device configured for SlangPy's functional API.
+
+    The built-in SlangPy shader library is prepended to ``include_paths``. The
+    ``SLANGPY_DEVICE_TYPE_OVERRIDE`` environment variable can override ``type``
+    with ``d3d12``, ``vulkan``, ``cuda``, or ``metal``. In a Jupyter kernel, the
+    returned device is also registered with SlangPy's notebook integration.
+
+    :param type: Backend to create, or ``automatic`` to select an available backend.
+    :param enable_debug_layers: Enable backend validation and debug layers.
+    :param adapter_luid: Optional adapter LUID as the two 32-bit integer components
+        used on Windows.
+    :param include_paths: Additional search paths for Slang modules and includes.
+    :param enable_cuda_interop: Enable CUDA sharing support on a graphics backend.
+    :param enable_print: Enable Slang ``print`` output from GPU programs.
+    :param enable_hot_reload: Watch loaded shader modules for changes.
+    :param enable_compilation_reports: Retain shader compilation reports on the device.
+    :param pipeline_compilation_mode: Select serial or asynchronous pipeline compilation.
+    :param existing_device_handles: Native handles used to wrap an existing device or
+        CUDA context.
+    :param bindless_options: Optional bindless descriptor configuration.
+    :return: The configured :class:`slangpy.Device`.
+
+    Example:
+
+    .. code-block:: python
+
+        import slangpy as spy
+
+        device = spy.create_device(enable_debug_layers=True)
+
+    For complete control over initialization, construct :class:`slangpy.Device`
+    directly and include ``slangpy.SHADER_PATH`` in its compiler search paths.
     """
 
     shaderpath = str(pathlib.Path(__file__).parent.parent.absolute() / "slang")
@@ -86,16 +115,33 @@ def create_torch_device(
     enable_hot_reload: bool = True,
     enable_compilation_reports: bool = False,
     pipeline_compilation_mode: PipelineCompilationMode = PipelineCompilationMode.serial,
-):
+) -> Device:
     """
-    Helper to create a device configured properly for PyTorch integration. If device type is CUDA,
-    slangpy will attempt to directly share the CUDA context with PyTorch. This is the recommended
-    way of using SlangPy with PyTorch.
+    Create a SlangPy device that interoperates with the active PyTorch CUDA device.
 
-    If device type is not CUDA (eg d3d12, vulkan), this will create a device with cuda interop enabled,
-    and rely on shared memory + semaphores to syncronize between SlangPy and PyTorch. This approach
-    works, and is valuable if access to graphics features (such as a rasterizer) is critical, but hardware
-    context switching and memcpys are expensive, resulting in substantially worse performance.
+    A CUDA SlangPy device reuses PyTorch's current CUDA context. Other backends are
+    created with CUDA interop enabled and synchronize through shared resources; that
+    path permits graphics features but can incur context switches and copies.
+
+    :param type: SlangPy backend to create.
+    :param torch_device: PyTorch CUDA device or device index. The current device is
+        used when omitted.
+    :param enable_debug_layers: Enable backend validation and debug layers.
+    :param include_paths: Additional Slang module and include search paths.
+    :param enable_print: Enable Slang ``print`` output from GPU programs.
+    :param enable_hot_reload: Watch loaded shader modules for changes.
+    :param enable_compilation_reports: Retain shader compilation reports on the device.
+    :param pipeline_compilation_mode: Select serial or asynchronous pipeline compilation.
+    :return: A device sharing or interoperating with PyTorch's CUDA context.
+    :raises ImportError: If PyTorch is not installed.
+
+    Example:
+
+    .. code-block:: python
+
+        import slangpy as spy
+
+        device = spy.create_torch_device(spy.DeviceType.cuda)
     """
 
     # Import and init torch

@@ -16,7 +16,7 @@ SGL_PY_EXPORT(native_func)
 
     nb::module_ native_func = nb::module_::import_("slangpy.native_func");
 
-    nb::class_<func::BaseModule, sgl::Object>(native_func, "BaseModule", D_NA(BaseModule))
+    nb::class_<func::BaseModule, sgl::Object>(native_func, "BaseModule", D(func, BaseModule))
         .def(
             "__init__",
             [](func::BaseModule* self, nb::object module, nb::object layout)
@@ -28,7 +28,7 @@ SGL_PY_EXPORT(native_func)
             },
             "module"_a,
             "layout"_a,
-            D_NA(BaseModule, BaseModule)
+            D(func, BaseModule, BaseModule)
         )
         .def(
             "on_hot_reload",
@@ -41,7 +41,7 @@ SGL_PY_EXPORT(native_func)
             },
             "module"_a,
             "low_level_layout"_a,
-            D_NA(BaseModule, on_hot_reload)
+            D(func, BaseModule, on_hot_reload)
         )
         .def_prop_ro(
             "device_module",
@@ -49,7 +49,7 @@ SGL_PY_EXPORT(native_func)
             {
                 return sgl::ref<sgl::SlangModule>(self.module());
             },
-            D_NA(BaseModule, device_module)
+            D(func, BaseModule, module)
         )
         .def_prop_ro(
             "layout",
@@ -57,7 +57,7 @@ SGL_PY_EXPORT(native_func)
             {
                 return sgl::ref<refl::Layout>(self.layout());
             },
-            D_NA(BaseModule, layout)
+            D(func, BaseModule, layout)
         )
         .def_prop_ro(
             "session",
@@ -65,11 +65,11 @@ SGL_PY_EXPORT(native_func)
             {
                 return self.module()->session();
             },
-            D_NA(BaseModule, session)
+            "Return the low-level Slang session that loaded this module."
         )
-        .def_prop_ro("device", &func::BaseModule::device, D_NA(BaseModule, device))
-        .def_prop_ro("name", &func::BaseModule::name, D_NA(BaseModule, name))
-        .def("__repr__", &func::BaseModule::to_string, D_NA(BaseModule, to_string));
+        .def_prop_ro("device", &func::BaseModule::device, D(func, BaseModule, device))
+        .def_prop_ro("name", &func::BaseModule::name, D(func, BaseModule, name))
+        .def("__repr__", &func::BaseModule::to_string, D(func, BaseModule, to_string));
 
     nb::class_<func::BaseStruct, sgl::Object>(native_func, "BaseStruct", D_NA(BaseStruct))
         .def(

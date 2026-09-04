@@ -28,12 +28,14 @@ class BufferElementCursor;
 class Resource;
 
 struct BufferDesc;
+/// Contiguous GPU buffer storage owned by a Device.
 class Buffer;
 
 struct BufferViewDesc;
 class BufferView;
 
 struct TextureDesc;
+/// Typed one-, two-, or three-dimensional GPU image storage owned by a Device.
 class Texture;
 
 struct TextureViewDesc;
@@ -54,6 +56,7 @@ class Fence;
 struct SlangSessionDesc;
 class SlangSession;
 
+/// Compiled Slang module owned by a SlangSession.
 class SlangModule;
 class SlangComponentType;
 class SlangGlobalScope;

@@ -15,6 +15,182 @@
 namespace sgl::slangpy {
 namespace {
 
+    constexpr const char* kTensorDoc = R"doc(
+N-dimensional typed GPU data used by SlangPy functional calls.
+
+Tensor views carry a reflected Slang element type, logical shape and strides,
+and an offset into a shared :class:`slangpy.Buffer`. Construct tensors with
+``empty``, ``zeros``, or ``from_numpy`` unless existing storage is required.
+
+:param storage: Buffer containing tensor elements.
+:param dtype: Reflected Slang element type.
+:param shape: Logical element dimensions.
+:param strides: Element strides. Omit to select contiguous strides.
+:param offset: Element offset into ``storage``.
+:param grad_in: Optional gradient read during backward dispatch.
+:param grad_out: Optional gradient written during backward dispatch.
+:param desc: Alternative descriptor containing type, layout, shape, and usage metadata.
+
+Example:
+
+.. code-block:: python
+
+    import numpy as np
+    import slangpy as spy
+
+    device = spy.create_device()
+    values = np.arange(8, dtype=np.float32)
+    tensor = spy.Tensor.from_numpy(device, values)
+    result = tensor.to_numpy()
+)doc";
+
+    constexpr const char* kTensorInitDoc = R"doc(
+Create a tensor view over an existing GPU buffer.
+
+:param storage: Buffer containing tensor elements.
+:param dtype: Reflected Slang element type.
+:param shape: Logical element dimensions.
+:param strides: Element strides. Omit to select contiguous strides.
+:param offset: Element offset into ``storage``.
+:param grad_in: Optional gradient read during backward dispatch.
+:param grad_out: Optional gradient written during backward dispatch.
+:param desc: Alternative tensor descriptor. When supplied, ``dtype``, ``shape``,
+    ``strides``, and ``offset`` come from this descriptor.
+)doc";
+
+    constexpr const char* kTensorUniformsDoc = R"doc(
+Return the raw fields used to bind this tensor to Slang.
+
+:return: A dictionary containing storage, shape, offset, and strides.
+)doc";
+
+    constexpr const char* kTensorToNumpyDoc = R"doc(
+Copy tensor data to a new CPU NumPy array.
+
+Device-local storage is read back synchronously. The returned array owns its
+CPU allocation and does not alias GPU storage.
+
+:return: A NumPy view of the copied data with the tensor's logical shape and strides.
+)doc";
+
+    constexpr const char* kTensorToTorchDoc = R"doc(
+Expose shared CUDA tensor storage as a PyTorch tensor without copying.
+
+The storage must support CUDA interop. The returned PyTorch tensor retains the
+SlangPy tensor as its owner, and callers must synchronize cross-framework work.
+
+:return: A PyTorch tensor aliasing the same CUDA allocation.
+)doc";
+
+    constexpr const char* kTensorCopyFromNumpyDoc = R"doc(
+Copy a contiguous NumPy array into contiguous tensor storage.
+
+The source byte size must fit the remaining storage. Vector values may be
+zero-padded to the reflected Slang buffer stride.
+
+:param data: Contiguous NumPy array to copy.
+)doc";
+
+    constexpr const char* kTensorCopyFromTorchDoc = R"doc(
+Copy a PyTorch tensor into this tensor's storage.
+
+CUDA data uses a device-to-device copy when shared storage is available;
+otherwise the source is copied through a CPU NumPy array.
+
+:param tensor: PyTorch tensor whose data will be copied.
+)doc";
+
+    constexpr const char* kTensorIndexDoc = R"doc(
+Return a zero-copy tensor view selected by Python indexing.
+
+Integers, positive-step slices, ellipsis, and ``None`` axes are supported.
+
+:param arg: Index or tuple of indices.
+:return: A tensor sharing storage with this tensor.
+)doc";
+
+    constexpr const char* kTensorEmptyDoc = R"doc(
+Allocate an uninitialized contiguous tensor.
+
+:param device: Device that allocates the storage buffer.
+:param shape: Non-empty logical tensor dimensions.
+:param dtype: Slang element type or resolvable type name.
+:param usage: Buffer usage flags.
+:param memory_type: Storage memory type.
+:param program_layout: Optional layout used to resolve a type name.
+:return: A newly allocated tensor with unspecified contents.
+)doc";
+
+    constexpr const char* kTensorZerosDoc = R"doc(
+Allocate a contiguous tensor and clear its storage to zero.
+
+:param device: Device that allocates the storage buffer.
+:param shape: Non-empty logical tensor dimensions.
+:param dtype: Slang element type or resolvable type name.
+:param usage: Buffer usage flags.
+:param memory_type: Storage memory type.
+:param program_layout: Optional layout used to resolve a type name.
+:return: A newly allocated zero-filled tensor.
+)doc";
+
+    constexpr const char* kTensorEmptyLikeDoc = R"doc(
+Allocate an uninitialized contiguous tensor matching another tensor.
+
+:param other: Tensor supplying shape, type, usage, and memory type.
+:return: A new tensor with unspecified contents and no attached gradients.
+)doc";
+
+    constexpr const char* kTensorZerosLikeDoc = R"doc(
+Allocate a zero-filled contiguous tensor matching another tensor.
+
+:param other: Tensor supplying shape, type, usage, and memory type.
+:return: A new zero-filled tensor with no attached gradients.
+)doc";
+
+    constexpr const char* kTensorFromNumpyDoc = R"doc(
+Allocate a tensor and initialize it from a NumPy array.
+
+Scalar NumPy dtypes are mapped automatically. Structured arrays require a
+matching explicit Slang type and C-contiguous storage.
+
+:param device: Device that allocates the storage buffer.
+:param ndarray: NumPy array providing shape, strides, type, and initial data.
+:param usage: Buffer usage flags.
+:param memory_type: Storage memory type.
+:param program_layout: Optional layout used to resolve Slang types.
+:param target_slang_dtype: Explicit Slang element type for structured or overridden mappings.
+:return: A tensor initialized with a copy of ``ndarray``.
+:raises ValueError: If the NumPy dtype, shape, strides, or structured layout is unsupported.
+)doc";
+
+    constexpr const char* kTensorFromTorchDoc = R"doc(
+Allocate shared tensor storage and initialize it from a PyTorch tensor.
+
+The last PyTorch dimension stores the scalar components of one Slang element
+and must be contiguous.
+
+:param device: Device that allocates the storage buffer.
+:param tensor: PyTorch tensor containing initial data.
+:param dtype: Slang element type or resolvable type name.
+:param usage: Buffer usage flags added to the required shared usage.
+:param program_layout: Optional layout used to resolve ``dtype``.
+:return: A tensor initialized with a copy of the PyTorch data.
+:raises ValueError: If shape or scalar layout is incompatible with ``dtype``.
+)doc";
+
+    constexpr const char* kTensorLoadImageDoc = R"doc(
+Load an image file into a floating-point tensor.
+
+:param device: Device that allocates the tensor.
+:param path: Image path accepted by SlangPy's image loader.
+:param flip_y: Flip rows vertically while loading.
+:param linearize: Convert color values from sRGB to linear space.
+:param scale: Scale applied to loaded values.
+:param offset: Offset added to loaded values.
+:param grayscale: Convert the image to a single channel.
+:return: A tensor containing the processed image data.
+)doc";
+
     std::optional<nb::dlpack::dtype> scalartype_to_dtype(TypeReflection::ScalarType scalar_type)
     {
         switch (scalar_type) {
@@ -714,7 +890,7 @@ SGL_PY_EXPORT(func_tensor)
         .def_rw("usage", &TensorDesc::usage)
         .def_rw("memory_type", &TensorDesc::memory_type);
 
-    nb::class_<Tensor, Object> tensor(native_func, "Tensor");
+    nb::class_<Tensor, Object> tensor(native_func, "Tensor", kTensorDoc);
     tensor
         .def(
             "__init__",
@@ -737,7 +913,8 @@ SGL_PY_EXPORT(func_tensor)
             "strides"_a = Shape(),
             "offset"_a = 0,
             "grad_in"_a.none() = nullptr,
-            "grad_out"_a.none() = nullptr
+            "grad_out"_a.none() = nullptr,
+            kTensorInitDoc
         )
         .def(
             "__init__",
@@ -748,48 +925,57 @@ SGL_PY_EXPORT(func_tensor)
             "desc"_a,
             "storage"_a,
             "grad_in"_a.none() = nullptr,
-            "grad_out"_a.none() = nullptr
+            "grad_out"_a.none() = nullptr,
+            kTensorInitDoc
         )
-        .def_prop_ro("device", &Tensor::device)
-        .def_prop_ro("dtype", &Tensor::dtype)
-        .def_prop_ro("offset", &Tensor::offset)
-        .def_prop_ro("shape", &Tensor::shape)
-        .def_prop_ro("strides", &Tensor::strides)
-        .def_prop_ro("element_count", &Tensor::element_count)
-        .def_prop_ro("usage", &Tensor::usage)
-        .def_prop_ro("memory_type", &Tensor::memory_type)
-        .def_prop_ro("storage", &Tensor::storage)
-        .def_prop_rw("grad_in", &Tensor::grad_in, &Tensor::set_grad_in, nb::none())
-        .def_prop_rw("grad_out", &Tensor::grad_out, &Tensor::set_grad_out, nb::none())
-        .def_prop_ro("grad", &Tensor::grad)
-        .def("clear", &Tensor::clear, "cmd"_a.none() = nullptr)
-        .def("cursor", &Tensor::cursor, "start"_a.none() = std::nullopt, "count"_a.none() = std::nullopt)
-        .def("uniforms", &tensor_uniforms)
-        .def("to_numpy", &tensor_to_numpy)
-        .def("to_torch", &tensor_to_torch)
-        .def("copy_from_numpy", &tensor_copy_from_numpy, "data"_a)
-        .def("copy_from_torch", &tensor_copy_from_torch, "tensor"_a)
-        .def("is_contiguous", &Tensor::is_contiguous)
-        .def("point_to", &Tensor::point_to, "target"_a)
-        .def("broadcast_to", &Tensor::broadcast_to, "shape"_a)
-        .def("view", &Tensor::view, "shape"_a, "strides"_a = Shape(), "offset"_a = 0)
-        .def("__getitem__", &tensor_index)
+        .def_prop_ro("device", &Tensor::device, D(func, Tensor, device))
+        .def_prop_ro("dtype", &Tensor::dtype, D(func, Tensor, dtype))
+        .def_prop_ro("offset", &Tensor::offset, D(func, Tensor, offset))
+        .def_prop_ro("shape", &Tensor::shape, D(func, Tensor, shape))
+        .def_prop_ro("strides", &Tensor::strides, D(func, Tensor, strides))
+        .def_prop_ro("element_count", &Tensor::element_count, D(func, Tensor, element_count))
+        .def_prop_ro("usage", &Tensor::usage, D(func, Tensor, usage))
+        .def_prop_ro("memory_type", &Tensor::memory_type, D(func, Tensor, memory_type))
+        .def_prop_ro("storage", &Tensor::storage, D(func, Tensor, storage))
+        .def_prop_rw("grad_in", &Tensor::grad_in, &Tensor::set_grad_in, nb::none(), D(func, Tensor, grad_in))
+        .def_prop_rw("grad_out", &Tensor::grad_out, &Tensor::set_grad_out, nb::none(), D(func, Tensor, grad_out))
+        .def_prop_ro("grad", &Tensor::grad, D(func, Tensor, grad))
+        .def("clear", &Tensor::clear, "cmd"_a.none() = nullptr, D(func, Tensor, clear))
+        .def(
+            "cursor",
+            &Tensor::cursor,
+            "start"_a.none() = std::nullopt,
+            "count"_a.none() = std::nullopt,
+            D(func, Tensor, cursor)
+        )
+        .def("uniforms", &tensor_uniforms, kTensorUniformsDoc)
+        .def("to_numpy", &tensor_to_numpy, kTensorToNumpyDoc)
+        .def("to_torch", &tensor_to_torch, kTensorToTorchDoc)
+        .def("copy_from_numpy", &tensor_copy_from_numpy, "data"_a, kTensorCopyFromNumpyDoc)
+        .def("copy_from_torch", &tensor_copy_from_torch, "tensor"_a, kTensorCopyFromTorchDoc)
+        .def("is_contiguous", &Tensor::is_contiguous, D(func, Tensor, is_contiguous))
+        .def("point_to", &Tensor::point_to, "target"_a, D(func, Tensor, point_to))
+        .def("broadcast_to", &Tensor::broadcast_to, "shape"_a, D(func, Tensor, broadcast_to))
+        .def("view", &Tensor::view, "shape"_a, "strides"_a = Shape(), "offset"_a = 0, D(func, Tensor, view))
+        .def("__getitem__", &tensor_index, kTensorIndexDoc)
         .def(
             "with_grads",
             &Tensor::with_grads,
             "grad_in"_a.none() = nullptr,
             "grad_out"_a.none() = nullptr,
-            "zero"_a = true
+            "zero"_a = true,
+            D(func, Tensor, with_grads)
         )
-        .def("detach", &Tensor::detach)
+        .def("detach", &Tensor::detach, D(func, Tensor, detach))
         .def(
             "__str__",
             [](const Tensor& self)
             {
                 return nb::str(nb::cast(tensor_to_numpy(self)));
-            }
+            },
+            "Copy tensor data to CPU and return its NumPy-style string representation."
         )
-        .def("__repr__", &Tensor::to_string)
+        .def("__repr__", &Tensor::to_string, D(func, Tensor, to_string))
         .def_static(
             "numpy",
             [](Device* device, nb::object ndarray)
@@ -810,7 +996,8 @@ SGL_PY_EXPORT(func_tensor)
                 );
             },
             "device"_a,
-            "ndarray"_a
+            "ndarray"_a,
+            "Deprecated alias for :py:meth:`slangpy.Tensor.from_numpy`."
         )
         .def_static(
             "from_numpy",
@@ -820,7 +1007,8 @@ SGL_PY_EXPORT(func_tensor)
             "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
             "memory_type"_a = MemoryType::device_local,
             "program_layout"_a.none() = nullptr,
-            "target_slang_dtype"_a.none() = nb::none()
+            "target_slang_dtype"_a.none() = nb::none(),
+            kTensorFromNumpyDoc
         )
         .def_static(
             "empty",
@@ -830,7 +1018,8 @@ SGL_PY_EXPORT(func_tensor)
             "dtype"_a.none() = nb::none(),
             "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
             "memory_type"_a = MemoryType::device_local,
-            "program_layout"_a.none() = nullptr
+            "program_layout"_a.none() = nullptr,
+            kTensorEmptyDoc
         )
         .def_static(
             "zeros",
@@ -840,10 +1029,11 @@ SGL_PY_EXPORT(func_tensor)
             "dtype"_a,
             "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
             "memory_type"_a = MemoryType::device_local,
-            "program_layout"_a.none() = nullptr
+            "program_layout"_a.none() = nullptr,
+            kTensorZerosDoc
         )
-        .def_static("empty_like", &tensor_empty_like, "other"_a)
-        .def_static("zeros_like", &tensor_zeros_like, "other"_a)
+        .def_static("empty_like", &tensor_empty_like, "other"_a, kTensorEmptyLikeDoc)
+        .def_static("zeros_like", &tensor_zeros_like, "other"_a, kTensorZerosLikeDoc)
         .def_static(
             "from_torch",
             &tensor_from_torch,
@@ -851,7 +1041,8 @@ SGL_PY_EXPORT(func_tensor)
             "tensor"_a,
             "dtype"_a,
             "usage"_a = BufferUsage::shader_resource | BufferUsage::unordered_access,
-            "program_layout"_a.none() = nullptr
+            "program_layout"_a.none() = nullptr,
+            kTensorFromTorchDoc
         )
         .def_static(
             "load_from_image",
@@ -862,6 +1053,7 @@ SGL_PY_EXPORT(func_tensor)
             "linearize"_a = false,
             "scale"_a = 1.0f,
             "offset"_a = 0.0f,
-            "grayscale"_a = false
+            "grayscale"_a = false,
+            kTensorLoadImageDoc
         );
 }

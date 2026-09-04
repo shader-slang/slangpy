@@ -405,13 +405,15 @@ public:
      * \param struct_size Struct size in bytes.
      * \param resource_type_layout Resource type layout of the buffer. Can be used instead of \c struct_size to specify the size of the struct.
      * \param format Buffer format. Used when creating typed buffer views.
-     * \param initial_state Initial resource state.
-     * \param usage Resource usage flags.
      * \param memory_type Memory type.
+     * \param usage Resource usage flags.
+     * \param default_state Initial resource state.
      * \param label Debug label.
-     * \param data Initial data to upload to the buffer.
-     * \param data_size Size of the initial data in bytes.
+     * \param data Optional contiguous NumPy data used to initialize the buffer.
+     * \param desc Alternative complete buffer descriptor.
      * \return New buffer object.
+     *
+     * Example: ``buffer = device.create_buffer(size=1024, usage=spy.BufferUsage.shader_resource)``.
      */
     ref<Buffer> create_buffer(BufferDesc desc);
 
@@ -442,12 +444,17 @@ public:
      * \param array_length Array length.
      * \param mip_count Mip level count. Number of mip levels (ALL_MIPS for all mip levels).
      * \param sample_count Number of samples for multisampled textures.
-     * \param quality Quality level for multisampled textures.
-     * \param usage Resource usage.
+     * \param sample_quality Quality level for multisampled textures.
      * \param memory_type Memory type.
+     * \param usage Resource usage.
+     * \param default_state Initial resource state.
+     * \param sampler Default sampler for combined texture and sampler access.
      * \param label Debug label.
-     * \param data Initial data.
+     * \param data Optional contiguous NumPy data used to initialize the texture.
+     * \param desc Alternative complete texture descriptor.
      * \return New texture object.
+     *
+     * Example: ``texture = device.create_texture(width=128, height=128, format=spy.Format.rgba32_float)``.
      */
     ref<Texture> create_texture(TextureDesc desc);
 
@@ -575,10 +582,22 @@ public:
      */
     ref<SlangSession> create_slang_session(SlangSessionDesc desc);
 
-    /// Load a slang module by name.
+    /// Load a Slang module by name using this device's session and configured search paths.
+    /// @param module_name Module name or path understood by the Slang session.
+    /// @return The loaded low-level module.
+    /// @throws Exception if Slang cannot find or compile the module.
+    ///
+    /// Example: ``module = device.load_module("shaders.compute")``.
     ref<SlangModule> load_module(std::string_view module_name);
 
-    /// Load a slang module from source code.
+    /// Compile a Slang module from source code using this device's session.
+    /// @param module_name Stable name used by the compiler and module cache.
+    /// @param source Complete Slang source text.
+    /// @param path Optional source path used for diagnostics and relative resolution.
+    /// @return The compiled low-level module.
+    /// @throws Exception if Slang compilation fails.
+    ///
+    /// Example: ``module = device.load_module_from_source("example", source)``.
     ref<SlangModule> load_module_from_source(
         std::string_view module_name,
         std::string_view source,
@@ -599,7 +618,15 @@ public:
         std::optional<SlangLinkOptions> link_options = {}
     );
 
-    /// Load a module and link a shader program in one step.
+    /// Load a module and link selected entry points into a shader program.
+    /// @param module_name Module name or path understood by the Slang session.
+    /// @param entry_point_names Entry points to link.
+    /// @param additional_source Optional source compiled and linked with the module.
+    /// @param link_options Optional program link settings.
+    /// @return The linked shader program.
+    /// @throws Exception if loading, compilation, or linking fails.
+    ///
+    /// Example: ``program = device.load_program("compute", ["main"])``.
     ref<ShaderProgram> load_program(
         std::string_view module_name,
         std::vector<std::string_view> entry_point_names,

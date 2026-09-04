@@ -300,6 +300,10 @@ struct BufferDesc {
     size_t data_size{0};
 };
 
+/// Contiguous GPU buffer storage owned by a Device.
+///
+/// Create buffers with Device::create_buffer(). Host transfers copy data rather
+/// than aliasing NumPy memory. Reading device-local memory waits for GPU readback.
 class SGL_API Buffer : public Resource {
     SGL_OBJECT(Buffer)
 public:
@@ -577,6 +581,10 @@ struct SubresourceLayout {
 
 SubresourceLayout layout_from_rhilayout(const rhi::SubresourceLayout& rhi_layout);
 
+/// Typed one-, two-, or three-dimensional GPU image storage owned by a Device.
+///
+/// Create textures with Device::create_texture(). Host transfers address one
+/// array layer and mip level at a time and may wait for device-local readback.
 class SGL_API Texture : public Resource {
     SGL_OBJECT(Texture)
 public:
