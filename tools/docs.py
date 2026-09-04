@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib
 import json
 import os
@@ -405,6 +406,7 @@ def _doc_record(*objects: Any | None) -> DocumentationRecord:
         return DocumentationRecord()
     if raw.strip().upper() == "N/A":
         return DocumentationRecord(status="placeholder")
+    raw = re.sub(r"``([^`]+)``\(\)", r"``\1()``", raw)
 
     parameters: dict[str, str] = {}
     raises: list[str] = []
@@ -504,6 +506,7 @@ def _class_symbols(
     pair: _ObjectPair,
     section: PublicApiSection,
     repository_root: Path,
+    published_class_canonical_names: set[str],
 ) -> list[ApiSymbol]:
     source = pair.source
     stub = pair.stub
@@ -536,10 +539,19 @@ def _class_symbols(
     for parent in (source, stub):
         if parent is None:
             continue
+        direct_members = getattr(parent, "members", {})
+        member_names.update(direct_members)
         try:
-            member_names.update(parent.all_members)
+            inherited_members = parent.all_members
         except (AttributeError, KeyError):
-            member_names.update(getattr(parent, "members", {}))
+            inherited_members = {}
+        for name, member in inherited_members.items():
+            if name in direct_members:
+                continue
+            canonical_path = str(getattr(member, "canonical_path", ""))
+            declaring_class = canonical_path.rsplit(".", 1)[0]
+            if declaring_class not in published_class_canonical_names:
+                member_names.add(name)
         member_names.update(getattr(parent, "overloads", {}))
 
     allowed_special = {
@@ -601,7 +613,7 @@ def build_inventory(config: PublicApiConfig, package_root: Path) -> ApiInventory
     package = _StaticPackage(package_root, config.package)
     discovered = package.discover_public_names()
     selected: set[str] = set()
-    symbols: list[ApiSymbol] = []
+    selected_pairs: list[tuple[_ObjectPair, PublicApiSection]] = []
 
     for section in config.sections:
         section_names = list(section.names)
@@ -616,23 +628,39 @@ def build_inventory(config: PublicApiConfig, package_root: Path) -> ApiInventory
                     f"Public API symbol '{name}' from section '{section.id}' was not found"
                 )
             selected.add(name)
-            representative = pair.source if pair.source is not None else pair.stub
-            if getattr(representative, "is_class", False):
-                symbols.extend(_class_symbols(pair, section, package_root.parent))
-            else:
-                symbols.append(
-                    ApiSymbol(
-                        name=name,
-                        canonical_name=pair.canonical_name,
-                        kind=_kind(representative, name.rsplit(".", 1)[-1]),
-                        section=section.id,
-                        audience=section.audience,
-                        signatures=_signatures(pair.stub if pair.stub is not None else pair.source),
-                        documentation=_doc_record(pair.source, pair.stub),
-                        source=_source_reference(pair.source, package_root.parent)
-                        or _source_reference(pair.stub, package_root.parent),
-                    )
+            selected_pairs.append((pair, section))
+
+    published_class_canonical_names = {
+        pair.canonical_name
+        for pair, _section in selected_pairs
+        if getattr(pair.source if pair.source is not None else pair.stub, "is_class", False)
+    }
+    symbols: list[ApiSymbol] = []
+    for pair, section in selected_pairs:
+        representative = pair.source if pair.source is not None else pair.stub
+        if getattr(representative, "is_class", False):
+            symbols.extend(
+                _class_symbols(
+                    pair,
+                    section,
+                    package_root.parent,
+                    published_class_canonical_names,
                 )
+            )
+        else:
+            symbols.append(
+                ApiSymbol(
+                    name=pair.published_name,
+                    canonical_name=pair.canonical_name,
+                    kind=_kind(representative, pair.published_name.rsplit(".", 1)[-1]),
+                    section=section.id,
+                    audience=section.audience,
+                    signatures=_signatures(pair.stub if pair.stub is not None else pair.source),
+                    documentation=_doc_record(pair.source, pair.stub),
+                    source=_source_reference(pair.source, package_root.parent)
+                    or _source_reference(pair.stub, package_root.parent),
+                )
+            )
 
     inventory = ApiInventory(
         schema_version=1,
@@ -1184,6 +1212,23 @@ def _api_anchor(name: str) -> str:
     return "api-" + re.sub(r"[^a-z0-9_]+", "-", name.lower()).strip("-")
 
 
+def _api_anchors(symbols: Sequence[ApiSymbol]) -> dict[str, str]:
+    """Return stable anchors, disambiguating names that differ only by case."""
+    names_by_anchor: dict[str, list[str]] = {}
+    for symbol in symbols:
+        names_by_anchor.setdefault(_api_anchor(symbol.name), []).append(symbol.name)
+
+    anchors: dict[str, str] = {}
+    for base_anchor, names in names_by_anchor.items():
+        if len(names) == 1:
+            anchors[names[0]] = base_anchor
+            continue
+        for name in sorted(names):
+            digest = hashlib.sha256(name.encode("utf-8")).hexdigest()[:8]
+            anchors[name] = f"{base_anchor}-{digest}"
+    return anchors
+
+
 def _directive_for_kind(kind: str) -> str:
     return {
         "attribute": "attribute",
@@ -1222,10 +1267,11 @@ def _safe_documentation_text(text: str) -> str:
 
 def _render_symbol(
     symbol: ApiSymbol,
+    anchor: str,
     class_names: set[str],
     show_missing_documentation: bool,
 ) -> list[str]:
-    lines = [f".. _{_api_anchor(symbol.name)}:", ""]
+    lines = [f".. _{anchor}:", ""]
     if symbol.kind in {"class", "enum"}:
         title = symbol.name.rsplit(".", 1)[-1]
         lines.extend([title, "-" * len(title), ""])
@@ -1294,6 +1340,7 @@ def _render_symbol(
 def _render_section(
     section: dict[str, str],
     symbols: list[ApiSymbol],
+    anchors: dict[str, str],
     show_missing_documentation: bool,
 ) -> str:
     title = section["title"]
@@ -1311,7 +1358,14 @@ def _render_section(
     ]
     class_names = {symbol.name for symbol in symbols if symbol.kind in {"class", "enum"}}
     for symbol in symbols:
-        lines.extend(_render_symbol(symbol, class_names, show_missing_documentation))
+        lines.extend(
+            _render_symbol(
+                symbol,
+                anchors[symbol.name],
+                class_names,
+                show_missing_documentation,
+            )
+        )
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -1333,14 +1387,9 @@ def render_sphinx(
             f"Refusing to render API pages into protected directory: {output_dir}"
         )
 
-    anchors: dict[str, str] = {}
-    for symbol in inventory.symbols:
-        anchor = _api_anchor(symbol.name)
-        if anchor in anchors and anchors[anchor] != symbol.name:
-            raise DocumentationError(
-                f"API symbols '{anchors[anchor]}' and '{symbol.name}' have the same anchor"
-            )
-        anchors[anchor] = symbol.name
+    anchors = _api_anchors(inventory.symbols)
+    if len(set(anchors.values())) != len(anchors):
+        raise DocumentationError("API symbols have duplicate stable anchors")
     for section in inventory.sections:
         if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", section["id"]):
             raise DocumentationError(
@@ -1353,7 +1402,7 @@ def render_sphinx(
         output_path = output_dir / f"{section['id']}.rst"
         expected_paths.add(output_path.resolve())
         symbols = [symbol for symbol in inventory.symbols if symbol.section == section["id"]]
-        text = _render_section(section, symbols, show_missing_documentation)
+        text = _render_section(section, symbols, anchors, show_missing_documentation)
         if not output_path.is_file() or output_path.read_text(encoding="utf-8") != text:
             output_path.write_text(text, encoding="utf-8")
     for stale_path in output_dir.glob("*.rst"):

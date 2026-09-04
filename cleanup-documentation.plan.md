@@ -20,6 +20,7 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 - [x] (2026-09-04) Completed Phase 1: defined the reviewed pilot API and generated a deterministic structured inventory from source and stubs.
 - [x] (2026-09-04) Completed Phase 2: rendered deterministic section pages, cut the API landing page over to the structured reference, and enabled nitpicky Sphinx validation.
 - [x] (2026-09-04) Completed Phase 3: added mechanical coverage measurement, a checked-in ratchet, dedicated documentation CI, and regression gates.
+- [x] (2026-09-05) Completed Phase 3.5: restored every named legacy SGL section to the structured reference and re-baselined the imported documentation debt.
 - [ ] Complete Phase 4: publish Markdown and structured outputs for agents.
 - [ ] Complete Phase 5: establish and run an agent-assisted documentation campaign.
 - [ ] Complete Phase 6: remove the legacy generator and consolidate documentation maintenance.
@@ -27,6 +28,7 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 - [x] (2026-09-04) Ran the Windows release build, 17 focused documentation tests, Pyright, repeated inventory generation/checks, the unclassified report, a strict snapshot HTML build, and pre-commit checks for Phase 1.
 - [x] (2026-09-04) Ran the Windows release build, 20 focused documentation tests, Pyright, repeated rendering, runtime and snapshot nitpicky HTML builds, the CMake `doc` target, and pre-commit checks for Phase 2.
 - [x] (2026-09-04) Ran the Windows release build, 24 focused documentation tests, Pyright, inventory, coverage, and rendering checks, runtime and snapshot nitpicky HTML builds, the CMake `doc` target, and pre-commit checks for Phase 3.
+- [x] (2026-09-05) Ran the Windows release build, 27 focused documentation tests, Pyright, inventory and coverage checks, source-only and runtime nitpicky HTML builds, the CMake `doc` target, and pre-commit checks for Phase 3.5.
 - [ ] Record final outcomes and remaining documentation debt.
 
 ## Surprises and Discoveries
@@ -102,6 +104,15 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 
 - Observation: None of the initial 187 pilot records contains an example that the structured documentation model can identify.
   Evidence: The separate `has_examples` field is false for every symbol in `docs/api/coverage-baseline.json`. This does not reduce the mechanical completeness score, but establishes the example backlog for Phase 5.
+
+- Observation: The named legacy API order currently matches 348 statically discoverable entry points and expands to 2,887 class and member records in the structured model.
+  Evidence: The Phase 3.5 inventory has 14 sections and 2,887 symbols. It leaves 1,300 reachable public-looking names unclassified instead of importing the legacy generator's automatic `Miscellaneous` bucket.
+
+- Observation: Naively expanding every inherited member produced 3,861 records and repeated base-class APIs across most SGL subclasses.
+  Evidence: `Function` and `Module` need inherited members from unpublished implementation bases, while `Buffer`, `Device`, and UI subclasses inherit from bases that are themselves published. Filtering only the latter reduces the inventory to 2,887 records without losing the high-level inherited API.
+
+- Observation: The full SGL surface contains public names that differ only by case.
+  Evidence: `slangpy.DataStruct.Field` and `slangpy.DataStruct.field` normalized to the same original label. The renderer now adds deterministic SHA-256 suffixes only to colliding labels and leaves all existing non-colliding labels unchanged.
 
 ## Decision Log
 
@@ -201,6 +212,18 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
   Rationale: Readers and agents need to distinguish verified examples from explanatory fragments, while GPU-dependent notebooks cannot reliably execute during an ordinary hosted Sphinx build.
   Date/Author: 2026-09-04, Codex.
 
+- Decision: Restore all named sections and patterns from `docs/api_order.json` to the structured public contract, but continue to exclude automatically assigned `Miscellaneous` entries.
+  Rationale: These sections represent the intentionally organized SGL reference users previously had. The miscellaneous bucket mixes new public candidates, generated helper types, implementation internals, testing utilities, and machine-specific data, so publishing it wholesale would turn reachability into an unsupported API promise.
+  Date/Author: 2026-09-05, Codex.
+
+- Decision: Show inherited members when their declaring base is not published, and suppress them when the base has its own public reference entry.
+  Rationale: This preserves essential `Function` and `Module` behavior inherited from internal implementation bases without duplicating `Object`, `Resource`, `DeviceChild`, and UI base APIs across every subclass.
+  Date/Author: 2026-09-05, Codex.
+
+- Decision: Replace the pilot coverage snapshot with a reviewed Phase 3.5 migration baseline of 2,887 symbols.
+  Rationale: Existing SGL documentation debt must be admitted once as historical debt so the full reference can be restored. The resulting baseline immediately becomes the new ratchet; future additions remain subject to the Phase 3 rules.
+  Date/Author: 2026-09-05, Codex.
+
 ## Outcomes and Retrospective
 
 Phase 0 is complete. `tools/docs.py` is now the explicit preparation, validation, and strict-build entry point; `tools/ci.py docs`, the CMake `doc` target, and Read the Docs all use it with an explicit runtime or snapshot mode. Runtime import failures are fatal, while hosted source-only builds deliberately validate the checked-in snapshot.
@@ -230,6 +253,14 @@ Coverage and rendering validation now reject invalid schema versions, machine-sp
 The dedicated `.github/workflows/docs.yml` builds SlangPy and its stubs on Ubuntu, verifies regenerated native documentation and the API inventory, runs coverage and focused documentation tests, and builds Sphinx strictly. Relevant documentation, Python, native API, binding, CMake, and tooling paths trigger the workflow; a separate weekly job performs link checking. The workflow definition has been validated locally, but its hosted jobs will receive their first end-to-end execution after the branch is pushed.
 
 Validation completed with a Windows release build, 24 focused documentation tests, a clean Pyright check, successful inventory, coverage, and render checks, warning-free runtime and source-only Sphinx builds under `-n -W --keep-going`, the CMake `doc` target, and a passing pre-commit run. The next work is Phase 4: publish deterministic Markdown and JSON outputs and add bounded `context` and prioritized `tasks` commands for agents. The 68 missing or placeholder pilot records and 1,647 unclassified public-looking names remain deliberate backlogs rather than silently published APIs.
+
+Phase 3.5 restores the intentionally curated low-level reference before agent-oriented output is generated. `docs/public_api.toml` now carries the named Core, Constants, Logging, Windowing, Platform, Threading, Device, Application, Math, UI, Utilities, and SlangPy sections from the legacy API order alongside the functional and extension-author sections. The landing page links all 14 generated pages. Every currently discoverable name matched by a legacy section or pattern is present in the structured inventory; the automatically populated `Miscellaneous` set remains excluded.
+
+The expanded snapshot contains 2,887 symbols: 352 complete, 240 summary-only, 2,146 missing, and 149 placeholder records, for a score of 944. These counts make the inherited SGL debt explicit and become the replacement coverage ratchet. Static traversal now reports 1,300 unclassified public-looking names, including generated parameter helpers, newer uncategorized APIs, implementation modules, and testing utilities that require separate support-boundary review.
+
+Scaling the renderer required deterministic disambiguation for case-colliding labels, normalization of native ``name``() call markup, and inheritance-aware member expansion. Non-colliding anchors remain unchanged. Members inherited from unpublished implementation bases remain on their public subclass, while members inherited from another published class are documented once on that base.
+
+Validation completed with a Windows release build, 27 focused documentation tests, a clean Pyright check over the tool and expanded tests, successful inventory and coverage checks, warning-free source-only and runtime Sphinx builds under `-n -W --keep-going`, the CMake `doc` target, and a passing repository-wide pre-commit run. Phase 4 can now generate agent-oriented outputs from the restored reviewed surface rather than the five-class pilot.
 
 Update this section at the end of each phase with the observable improvements, remaining gaps, and any changes to the following milestones.
 
@@ -333,6 +364,16 @@ Configure the workflow to run when documentation, Python package source, native 
 Examples in narrative documentation must be either executable tests, included from tested source files, or explicitly marked as illustrative. GPU-dependent notebooks may remain disabled in the ordinary Sphinx build, but they should be exercised through the existing sample tests on a supported GPU CI job when feasible.
 
 Acceptance for this phase is demonstrated by tests that deliberately add an undocumented public symbol, an absolute path, a stale generated snapshot, and a broken internal reference and observe the appropriate CI failures.
+
+### Phase 3.5: Restore the curated SGL API before publishing agent outputs
+
+Migrate every named section and pattern from `docs/api_order.json` into `docs/public_api.toml`, preserving the established conceptual groups while continuing to exclude the automatically assigned `Miscellaneous` entries. Keep the functional API and extension-author sections introduced by the pilot.
+
+Extend and harden inventory rendering for the full surface. Public subclasses should show inherited members from unpublished implementation bases, but should link readers to separately published bases rather than duplicating those bases' members. Stable labels must remain deterministic when public names differ only by case, and native documentation normalization must keep the expanded pages warning-free.
+
+Replace the pilot coverage snapshot with one explicitly reviewed migration baseline. This is a one-time admission of historical SGL documentation debt, not a relaxation of the Phase 3 ratchet. Update the API landing page to expose every restored section and add tests proving the legacy named surface is represented while a known miscellaneous-only name remains unpublished.
+
+Acceptance for this phase is that every currently discoverable entry point matched by a named legacy section appears in the structured inventory, all section pages pass strict nitpicky Sphinx builds, the expanded snapshot and coverage baseline are deterministic, and future additions remain subject to the normal coverage checks.
 
 ### Phase 4: Publish outputs designed for agents
 
@@ -583,4 +624,4 @@ Document any dependency or interface changes in the Decision Log. Update this Ex
 
 ## Revision Note
 
-This revision completes Phase 3. It records the mechanical coverage model and baseline, non-regression rules, internal-reference validation, example policy, dedicated Ubuntu documentation workflow, scheduled link checking, acceptance tests, and the agent-output work carried into Phase 4.
+This revision completes Phase 3.5. It records restoration of the named legacy SGL sections, the reviewed migration baseline, inheritance-aware expansion, deterministic case-collision handling, strict expanded builds, and the remaining unclassified review queue carried into Phase 4.

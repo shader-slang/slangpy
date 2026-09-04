@@ -5,10 +5,12 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -121,7 +123,7 @@ names = []
     return package_root, contract
 
 
-def symbol_map(inventory: object) -> dict[str, object]:
+def symbol_map(inventory: Any) -> dict[str, Any]:
     """Index inventory symbols by their published names."""
     return {symbol.name: symbol for symbol in inventory.symbols}
 
@@ -147,6 +149,65 @@ def test_inventory_merges_sources_stubs_overloads_and_aliases(tmp_path: Path) ->
     assert symbols["sample.Widget.convert"].documentation.returns == ("Text form of the value.")
     assert widget.documentation.summary == "Transform sample values."
     assert widget.source.path == "sample/model.py"
+
+
+def test_inventory_includes_inherited_members_only_from_unpublished_bases(
+    tmp_path: Path,
+) -> None:
+    package_root, contract_path = create_sample_package(tmp_path)
+    model_path = package_root / "model.py"
+    model_path.write_text(
+        model_path.read_text(encoding="utf-8")
+        + "\nclass InternalBase:\n"
+        + "    def inherited_api(self) -> None:\n"
+        + "        pass\n"
+        + "\nclass Child(Widget):\n"
+        + "    def child_method(self) -> None:\n"
+        + "        pass\n"
+        + "\nclass InternalChild(InternalBase):\n"
+        + "    pass\n",
+        encoding="utf-8",
+    )
+    init_path = package_root / "__init__.py"
+    init_path.write_text(
+        init_path.read_text(encoding="utf-8").replace(
+            "from .model import Other, Widget, Widget as AliasWidget",
+            "from .model import Child, InternalChild, Other, Widget, Widget as AliasWidget",
+        ),
+        encoding="utf-8",
+    )
+    contract_path.write_text(
+        contract_path.read_text(encoding="utf-8").replace(
+            'names = ["sample.Widget", "sample.AliasWidget"]',
+            'names = ["sample.Widget", "sample.AliasWidget", "sample.Child", '
+            '"sample.InternalChild"]',
+        ),
+        encoding="utf-8",
+    )
+
+    inventory = DOCS_TOOL.build_inventory(DOCS_TOOL.load_public_api(contract_path), package_root)
+    symbols = symbol_map(inventory)
+
+    assert "sample.Child.child_method" in symbols
+    assert "sample.Child.convert" not in symbols
+    assert "sample.InternalChild.inherited_api" in symbols
+
+
+def test_inventory_normalizes_native_docstring_call_markup(tmp_path: Path) -> None:
+    package_root, contract_path = create_sample_package(tmp_path)
+    model_path = package_root / "model.py"
+    model_path.write_text(
+        model_path.read_text(encoding="utf-8").replace(
+            '"""Convert a value.', '"""Call ``helper``().'
+        ),
+        encoding="utf-8",
+    )
+
+    inventory = DOCS_TOOL.build_inventory(DOCS_TOOL.load_public_api(contract_path), package_root)
+
+    assert symbol_map(inventory)["sample.Widget.convert"].documentation.summary == (
+        "Call ``helper()``."
+    )
 
 
 def test_inventory_is_byte_stable_across_runs_and_workspaces(tmp_path: Path) -> None:
@@ -307,6 +368,32 @@ def test_render_sphinx_is_deterministic_and_removes_stale_pages(tmp_path: Path) 
     assert "Documentation pending" not in (first_output / "primary.rst").read_text(encoding="utf-8")
 
 
+def test_render_sphinx_disambiguates_case_colliding_anchors(tmp_path: Path) -> None:
+    inventory = DOCS_TOOL.ApiInventory(
+        schema_version=1,
+        package_version="1.0.0",
+        sections=[{"id": "primary", "title": "Primary", "audience": "user"}],
+        symbols=[
+            DOCS_TOOL.ApiSymbol(
+                name=name,
+                canonical_name=name,
+                kind="attribute",
+                section="primary",
+                audience="user",
+            )
+            for name in ("sample.Record.Field", "sample.Record.field")
+        ],
+    )
+
+    DOCS_TOOL.render_sphinx(inventory, tmp_path / "rendered")
+
+    anchors = DOCS_TOOL._api_anchors(inventory.symbols)
+    assert len(set(anchors.values())) == 2
+    assert all(anchor.startswith("api-sample-record-field-") for anchor in anchors.values())
+    text = (tmp_path / "rendered" / "primary.rst").read_text(encoding="utf-8")
+    assert all(f".. _{anchor}:" in text for anchor in anchors.values())
+
+
 def test_render_command_validates_contract_and_excludes_unclassified_names(
     tmp_path: Path,
 ) -> None:
@@ -358,7 +445,7 @@ def test_load_inventory_rejects_unknown_schema(tmp_path: Path) -> None:
         DOCS_TOOL.load_inventory(inventory_path)
 
 
-def create_coverage_inventory() -> object:
+def create_coverage_inventory() -> Any:
     """Create symbols spanning every mechanical coverage classification."""
     section = "primary"
     audience = "user"
@@ -485,7 +572,7 @@ def test_validate_coverage_rejects_each_regression_class(tmp_path: Path) -> None
     DOCS_TOOL.validate_coverage(DOCS_TOOL.calculate_coverage(improvement), baseline_path)
 
 
-def test_slangpy_pilot_inventory_is_complete_and_environment_independent(
+def test_slangpy_reviewed_inventory_is_complete_and_environment_independent(
     tmp_path: Path,
 ) -> None:
     config = DOCS_TOOL.load_public_api(PROJECT_DIR / "docs" / "public_api.toml")
@@ -504,6 +591,41 @@ def test_slangpy_pilot_inventory_is_complete_and_environment_independent(
         assert symbols[class_name].signatures
         for member_name in member_names:
             assert f"{class_name}.{member_name}" in symbols
+
+    expected_sections = {
+        "application",
+        "constants",
+        "core",
+        "device",
+        "extension-api",
+        "functional-api",
+        "logging",
+        "math",
+        "platform",
+        "slangpy",
+        "threading",
+        "ui",
+        "utilities",
+        "windowing",
+    }
+    assert {section.id for section in config.sections} == expected_sections
+    legacy_order = json.loads((PROJECT_DIR / "docs" / "api_order.json").read_text(encoding="utf-8"))
+    discovered = DOCS_TOOL._StaticPackage(
+        PROJECT_DIR / "slangpy", config.package
+    ).discover_public_names()
+    legacy_matches = {
+        name
+        for patterns in legacy_order.values()
+        for pattern in patterns
+        for name in discovered
+        if re.fullmatch(pattern, name)
+    }
+    assert legacy_matches <= set(symbols)
+    assert "slangpy.Buffer.copy_from_numpy" in symbols
+    assert "slangpy.CommandEncoder.begin_compute_pass" in symbols
+    assert "slangpy.float4.x" in symbols
+    assert "slangpy.ui.Window.title" in symbols
+    assert "slangpy.DiffPair" not in symbols
 
     output = tmp_path / "api.json"
     DOCS_TOOL.write_inventory(inventory, output)

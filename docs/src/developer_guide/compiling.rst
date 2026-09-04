@@ -384,12 +384,14 @@ Generate and validate the structured API snapshot with:
     python tools/docs.py render
     python tools/docs.py coverage --check
 
-The reviewed public surface is defined in ``docs/public_api.toml``. To list
-reachable public-looking names that are not yet in that contract, run
-``python tools/docs.py report-unclassified``. Unclassified names are review
-candidates; they are not added to the published API automatically. The
-generated section pages are ignored by Git and are recreated by every
-documentation preparation or build.
+The reviewed public surface is defined in ``docs/public_api.toml``. It includes
+the named Core, Device, Math, UI, and other sections migrated from the legacy
+API order, but deliberately excludes the legacy generator's automatically
+populated ``Miscellaneous`` section. To list reachable public-looking names
+that are not yet in the contract, run ``python tools/docs.py
+report-unclassified``. Unclassified names are review candidates; they are not
+added to the published API automatically. The generated section pages are
+ignored by Git and are recreated by every documentation preparation or build.
 
 Regenerate the retained legacy snapshot and run a strict HTML build of the
 structured reference with:
@@ -422,6 +424,11 @@ the reported changes:
     python tools/docs.py coverage
     python tools/docs.py coverage --output docs/api/coverage-baseline.json
     python tools/docs.py coverage --check
+
+Expanding the contract to include an existing API family requires a reviewed
+migration baseline in the same change. This admits pre-existing documentation
+debt for that family; after the baseline is checked in, the ordinary ratchet
+again rejects undocumented additions and regressions.
 
 Documentation examples
 ^^^^^^^^^^^^^^^^^^^^^^

@@ -1,8 +1,8 @@
 # Reviewed public API contract for the structured documentation pipeline.
 #
-# Phase 1 intentionally publishes a small pilot. Names reported by
-# `python tools/docs.py report-unclassified` remain review candidates and are
-# not added to the supported reference automatically.
+# The named sections preserve the curated legacy SGL API. Reachable names outside
+# these names and narrowly scoped patterns remain review candidates and are not
+# published automatically.
 
 schema_version = 1
 package = "slangpy"
@@ -20,11 +20,318 @@ names = [
 ]
 
 [[sections]]
+id = "core"
+title = "Core"
+audience = "user"
+names = [
+  "slangpy.DataType",
+  "slangpy.Object",
+  "slangpy.Bitmap",
+  "slangpy.DataStruct",
+  "slangpy.DataStructConverter",
+  "slangpy.Timer",
+  "slangpy.SHA1",
+]
+
+[[sections]]
+id = "constants"
+title = "Constants"
+audience = "user"
+names = [
+  "slangpy.ALL_LAYERS",
+  "slangpy.ALL_MIPS",
+  "slangpy.SGL_VERSION_MAJOR",
+  "slangpy.SGL_VERSION_MINOR",
+  "slangpy.SGL_VERSION_PATCH",
+  "slangpy.SGL_VERSION",
+]
+
+[[sections]]
+id = "logging"
+title = "Logging"
+audience = "user"
+names = [
+  "slangpy.LogLevel",
+  "slangpy.LogFrequency",
+  "slangpy.Logger",
+  "slangpy.LoggerOutput",
+  "slangpy.ConsoleLoggerOutput",
+  "slangpy.FileLoggerOutput",
+  "slangpy.DebugConsoleLoggerOutput",
+]
+patterns = [
+  'slangpy\.log[\w]*',
+]
+
+[[sections]]
+id = "windowing"
+title = "Windowing"
+audience = "user"
+names = [
+  "slangpy.CursorMode",
+  "slangpy.CursorShape",
+  "slangpy.WindowMode",
+  "slangpy.Window",
+  "slangpy.MouseButton",
+  "slangpy.KeyModifierFlags",
+  "slangpy.KeyModifier",
+  "slangpy.KeyCode",
+  "slangpy.KeyboardEventType",
+  "slangpy.KeyboardEvent",
+  "slangpy.MouseEventType",
+  "slangpy.MouseEvent",
+  "slangpy.GamepadEventType",
+  "slangpy.GamepadButton",
+  "slangpy.GamepadEvent",
+  "slangpy.GamepadState",
+]
+
+[[sections]]
+id = "platform"
+title = "Platform"
+audience = "user"
+patterns = [
+  'slangpy\.platform\.[\w]+',
+]
+
+[[sections]]
+id = "threading"
+title = "Threading"
+audience = "user"
+patterns = [
+  'slangpy\.thread\.[\w]+',
+]
+
+[[sections]]
 id = "device"
 title = "Device"
 audience = "user"
 names = [
+  "slangpy.AccelerationStructure",
+  "slangpy.AccelerationStructureBuildDesc",
+  "slangpy.AccelerationStructureBuildFlags",
+  "slangpy.AccelerationStructureBuildInputInstances",
+  "slangpy.AccelerationStructureBuildInputMotionOptions",
+  "slangpy.AccelerationStructureBuildInputProceduralPrimitives",
+  "slangpy.AccelerationStructureBuildInputTriangles",
+  "slangpy.AccelerationStructureBuildMode",
+  "slangpy.AccelerationStructureCopyMode",
+  "slangpy.AccelerationStructureDesc",
+  "slangpy.AccelerationStructureGeometryFlags",
+  "slangpy.AccelerationStructureHandle",
+  "slangpy.AccelerationStructureInstanceDesc",
+  "slangpy.AccelerationStructureInstanceFlags",
+  "slangpy.AccelerationStructureInstanceList",
+  "slangpy.AccelerationStructureKind",
+  "slangpy.AccelerationStructureQueryDesc",
+  "slangpy.AccelerationStructureSizes",
+  "slangpy.AdapterInfo",
+  "slangpy.AspectBlendDesc",
+  "slangpy.BaseReflectionObject",
+  "slangpy.BlendFactor",
+  "slangpy.BlendOp",
+  "slangpy.Buffer",
+  "slangpy.BufferCursor",
+  "slangpy.BufferDesc",
+  "slangpy.BufferElementCursor",
+  "slangpy.BufferOffsetPair",
+  "slangpy.BufferRange",
+  "slangpy.BufferUsage",
+  "slangpy.ColorTargetDesc",
+  "slangpy.CommandBuffer",
+  "slangpy.CommandEncoder",
+  "slangpy.CommandQueueType",
+  "slangpy.ComparisonFunc",
+  "slangpy.ComputeKernel",
+  "slangpy.ComputeKernelDesc",
+  "slangpy.ComputePassEncoder",
+  "slangpy.ComputePipeline",
+  "slangpy.ComputePipelineDesc",
+  "slangpy.CoopVecMatrixDesc",
+  "slangpy.CoopVecMatrixLayout",
+  "slangpy.CullMode",
+  "slangpy.DeclReflection",
+  "slangpy.DeclReflectionChildList",
+  "slangpy.DeclReflectionIndexedChildList",
+  "slangpy.DepthStencilDesc",
+  "slangpy.DepthStencilOpDesc",
+  "slangpy.DescriptorHandle",
   "slangpy.Device",
+  "slangpy.DeviceChild",
+  "slangpy.DeviceDesc",
+  "slangpy.DeviceInfo",
+  "slangpy.DeviceLimits",
+  "slangpy.DeviceType",
+  "slangpy.DrawArguments",
+  "slangpy.EntryPointLayout",
+  "slangpy.EntryPointLayoutParameterList",
+  "slangpy.Feature",
+  "slangpy.Fence",
+  "slangpy.FenceDesc",
+  "slangpy.FillMode",
+  "slangpy.Format",
+  "slangpy.FormatChannels",
+  "slangpy.FormatInfo",
+  "slangpy.FormatSupport",
+  "slangpy.FormatType",
+  "slangpy.FrontFaceMode",
+  "slangpy.FunctionReflection",
+  "slangpy.FunctionReflectionOverloadList",
+  "slangpy.FunctionReflectionParameterList",
+  "slangpy.get_format_info",
+  "slangpy.HitGroupDesc",
+  "slangpy.IndexFormat",
+  "slangpy.InputElementDesc",
+  "slangpy.InputLayout",
+  "slangpy.InputLayoutDesc",
+  "slangpy.InputSlotClass",
+  "slangpy.Kernel",
+  "slangpy.LoadOp",
+  "slangpy.LogicOp",
+  "slangpy.MemoryType",
+  "slangpy.ModifierID",
+  "slangpy.MultisampleDesc",
+  "slangpy.NativeHandle",
+  "slangpy.NativeHandleType",
+  "slangpy.PassEncoder",
+  "slangpy.Pipeline",
+  "slangpy.PrimitiveTopology",
+  "slangpy.ProgramLayout",
+  "slangpy.ProgramLayoutEntryPointList",
+  "slangpy.ProgramLayoutParameterList",
+  "slangpy.QueryPool",
+  "slangpy.QueryPoolDesc",
+  "slangpy.QueryType",
+  "slangpy.RasterizerDesc",
+  "slangpy.RayTracingPassEncoder",
+  "slangpy.RayTracingPipeline",
+  "slangpy.RayTracingPipelineDesc",
+  "slangpy.RayTracingPipelineFlags",
+  "slangpy.ReflectionCursor",
+  "slangpy.RenderPassColorAttachment",
+  "slangpy.RenderPassDepthStencilAttachment",
+  "slangpy.RenderPassDesc",
+  "slangpy.RenderPassEncoder",
+  "slangpy.RenderPipeline",
+  "slangpy.RenderPipelineDesc",
+  "slangpy.RenderState",
+  "slangpy.RenderTargetWriteMask",
+  "slangpy.Resource",
+  "slangpy.ResourceState",
+  "slangpy.Sampler",
+  "slangpy.SamplerDesc",
+  "slangpy.ScissorRect",
+  "slangpy.ShaderCacheStats",
+  "slangpy.ShaderCursor",
+  "slangpy.ShaderHotReloadEvent",
+  "slangpy.ShaderModel",
+  "slangpy.ShaderObject",
+  "slangpy.ShaderOffset",
+  "slangpy.ShaderProgram",
+  "slangpy.ShaderStage",
+  "slangpy.ShaderTable",
+  "slangpy.ShaderTableDesc",
+  "slangpy.SlangCompileError",
+  "slangpy.SlangCompilerOptions",
+  "slangpy.SlangDebugInfoLevel",
+  "slangpy.SlangEntryPoint",
+  "slangpy.SlangFloatingPointMode",
+  "slangpy.SlangLinkOptions",
+  "slangpy.SlangMatrixLayout",
+  "slangpy.SlangModule",
+  "slangpy.SlangOptimizationLevel",
+  "slangpy.SlangSession",
+  "slangpy.SlangSessionDesc",
+  "slangpy.StencilOp",
+  "slangpy.StoreOp",
+  "slangpy.SubresourceLayout",
+  "slangpy.SubresourceRange",
+  "slangpy.Surface",
+  "slangpy.SurfaceConfig",
+  "slangpy.SurfaceInfo",
+  "slangpy.Texture",
+  "slangpy.TextureAddressingMode",
+  "slangpy.TextureAspect",
+  "slangpy.TextureDesc",
+  "slangpy.TextureFilteringMode",
+  "slangpy.TextureReductionOp",
+  "slangpy.TextureType",
+  "slangpy.TextureUsage",
+  "slangpy.TextureView",
+  "slangpy.TextureViewDesc",
+  "slangpy.TypeConformance",
+  "slangpy.TypeLayoutReflection",
+  "slangpy.TypeLayoutReflectionFieldList",
+  "slangpy.TypeReflection",
+  "slangpy.TypeReflectionFieldList",
+  "slangpy.VariableLayoutReflection",
+  "slangpy.VariableReflection",
+  "slangpy.VertexStreamDesc",
+  "slangpy.Viewport",
+  "slangpy.WindowHandle",
+]
+
+[[sections]]
+id = "application"
+title = "Application"
+audience = "user"
+names = [
+  "slangpy.AppDesc",
+  "slangpy.App",
+  "slangpy.AppWindowDesc",
+  "slangpy.AppWindow",
+]
+
+[[sections]]
+id = "math"
+title = "Math"
+audience = "user"
+patterns = [
+  'slangpy\.math\.float[\d]',
+  'slangpy\.float[\d]',
+  'slangpy\.math\.int[\d]',
+  'slangpy\.int[\d]',
+  'slangpy\.math\.uint[\d]',
+  'slangpy\.uint[\d]',
+  'slangpy\.math\.bool[\d]',
+  'slangpy\.bool[\d]',
+  'slangpy\.math\.float16_t',
+  'slangpy\.float16_t',
+  'slangpy\.math\.float16_t[\d]',
+  'slangpy\.float16_t[\d]',
+  'slangpy\.math\.float[\d]x[\d]',
+  'slangpy\.float[\d]x[\d]',
+  'slangpy\.math\.quatf',
+  'slangpy\.quatf',
+  'slangpy\.math\.[\w]+',
+]
+
+[[sections]]
+id = "ui"
+title = "UI"
+audience = "user"
+patterns = [
+  'slangpy\.ui\.[\w]+',
+]
+
+[[sections]]
+id = "utilities"
+title = "Utilities"
+audience = "user"
+names = [
+  "slangpy.TextureLoader",
+]
+patterns = [
+  'slangpy\.tev\.[\w]+',
+  'slangpy\.renderdoc\.[\w]+',
+]
+
+[[sections]]
+id = "slangpy"
+title = "SlangPy"
+audience = "user"
+patterns = [
+  'slangpy\.slangpy\.[\w]+',
 ]
 
 [[sections]]
