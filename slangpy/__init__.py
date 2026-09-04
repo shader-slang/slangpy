@@ -35,6 +35,9 @@ from . import types
 # Bring all shared types into the top level namespace
 from .types import *
 
+# Portable NumPy layouts for GPU-side slang-rhi records
+from . import gpu_structs
+
 # Bring tested experimental types into top level namespace
 from .experimental.gridarg import grid
 
