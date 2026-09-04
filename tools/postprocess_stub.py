@@ -20,6 +20,7 @@ DESCRIPTOR_CONVERT_TYPES = {
     "AccelerationStructureBuildInputTriangles": True,
     "AccelerationStructureDesc": True,
     "AccelerationStructureInstanceDesc": True,
+    "AccelerationStructureOpacityMicromapDesc": True,
     "AccelerationStructureQueryDesc": True,
     "AppDesc": True,
     "AppWindowDesc": True,
@@ -38,6 +39,9 @@ DESCRIPTOR_CONVERT_TYPES = {
     "InputElementDesc": True,
     "InputLayoutDesc": True,
     "MultisampleDesc": True,
+    "MicromapBuildDesc": True,
+    "MicromapDesc": True,
+    "MicromapUsageCount": True,
     "QueryPoolDesc": True,
     "RasterizerDesc": True,
     "RayTracingPipelineDesc": True,
@@ -147,11 +151,11 @@ class FindConvertableToDictionaryTypes(cst.CSTVisitor):
             # Not an init function but we're in a valid descriptor class, so
             # so we want to record any setter types.
             if self._is_setter(node):
-                self.stack[-1].fields.append(
-                    FCDFieldInfo(
-                        node.name, node.params.posonly_params[1].annotation.annotation  # type: ignore (bad libcst typing info)
+                params = (*node.params.posonly_params, *node.params.params)
+                if len(params) >= 2 and params[1].annotation is not None:
+                    self.stack[-1].fields.append(
+                        FCDFieldInfo(node.name, params[1].annotation.annotation)
                     )
-                )
 
     def _annotation_name_equals(self, annotation: Optional[cst.Annotation], name: str):
         if annotation is not None:

@@ -519,6 +519,12 @@ public:
     /// Create a new acceleration structure instance list.
     ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size);
 
+    /// Query the device for buffer sizes required for a micromap build.
+    MicromapSizes get_micromap_sizes(const MicromapBuildDesc& desc);
+
+    /// Create a new micromap.
+    ref<Micromap> create_micromap(MicromapDesc desc);
+
     /// Create a new shader table.
     ref<ShaderTable> create_shader_table(ShaderTableDesc desc);
 
@@ -1134,6 +1140,12 @@ SGL_API ref<AccelerationStructure> create_acceleration_structure(AccelerationStr
 
 /// Create a new acceleration structure instance list.
 SGL_API ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size);
+
+/// Query the current device for buffer sizes required for a micromap build.
+SGL_API MicromapSizes get_micromap_sizes(const MicromapBuildDesc& desc);
+
+/// Create a new micromap on the current device.
+SGL_API ref<Micromap> create_micromap(MicromapDesc desc);
 
 /// Create a new shader table.
 SGL_API ref<ShaderTable> create_shader_table(ShaderTableDesc desc);

@@ -752,6 +752,17 @@ void CommandEncoder::build_acceleration_structure(
         narrow_cast<uint32_t>(rhi_queries.size()),
         rhi_queries.data()
     );
+
+    dst->set_micromap_dependencies(desc);
+}
+
+void CommandEncoder::build_micromap(const MicromapBuildDesc& desc, Micromap* dst, BufferOffsetPair scratch_buffer)
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+    SGL_CHECK_NOT_NULL(dst);
+
+    MicromapBuildDescConverter converter(desc);
+    m_rhi_command_encoder->buildMicromap(converter.rhi_desc, dst->rhi_micromap(), detail::to_rhi(scratch_buffer));
 }
 
 void CommandEncoder::copy_acceleration_structure(
@@ -768,6 +779,8 @@ void CommandEncoder::copy_acceleration_structure(
         src->rhi_acceleration_structure(),
         static_cast<rhi::AccelerationStructureCopyMode>(mode)
     );
+
+    dst->copy_micromap_dependencies(*src);
 }
 
 void CommandEncoder::query_acceleration_structure_properties(
