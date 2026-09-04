@@ -110,7 +110,12 @@ jobs:
           SLANGPY_PR: ${{ github.event.client_payload.slangpy_cherry_pick_pr }}
         run: |
           set -euo pipefail
-          pr="${SLANGPY_PR//[[:space:]]/}"
+          # Trim leading and trailing whitespace only. Whitespace *inside* the value
+          # has to survive so that a malformed "12 34" fails the digit check below
+          # instead of collapsing into 1234 and cherry-picking a different PR.
+          pr="$SLANGPY_PR"
+          pr="${pr#"${pr%%[![:space:]]*}"}"
+          pr="${pr%"${pr##*[![:space:]]}"}"
           # An empty value means "nothing to cherry-pick", not an error. Slang CI sends
           # this field empty whenever no cherry-pick is active, and older Slang CI does
           # not send it at all, so both must behave exactly like an ordinary run.
@@ -136,7 +141,10 @@ jobs:
           if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
             git fetch --unshallow origin
           fi
-          git fetch origin "pull/${SLANGPY_PR}/head:slangpy-pr-under-test"
+          # --force because these jobs run on reused self-hosted workspaces, where a
+          # slangpy-pr-under-test ref left behind by an earlier run will not
+          # fast-forward to a different PR and would fail the fetch.
+          git fetch --force origin "pull/${SLANGPY_PR}/head:slangpy-pr-under-test"
           git merge --no-edit slangpy-pr-under-test
           echo "::notice::Merged SlangPy PR #${SLANGPY_PR} into main for this run"
 
