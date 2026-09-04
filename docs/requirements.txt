@@ -1,4 +1,5 @@
 sphinx==7.4.7
+sphinx-llm==0.4.1
 sphinx_copybutton==0.5.2
 furo==2024.8.6
 griffe==1.15.0

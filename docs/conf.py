@@ -32,6 +32,7 @@ extensions = [
     "sphinx.ext.doctest",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
+    "sphinx_llm.txt",
     "sphinx_copybutton",
     "nbsphinx",
 ]
@@ -45,6 +46,17 @@ templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "CMakeLists.txt", "generated/api.rst"]
 suppress_warnings = ["nbsphinx.localfile"]
 
+# Agent-facing Markdown and llms.txt output. Do not enable ``sphinx_llm.docref``:
+# that optional extension generates summaries through networked model calls and
+# can rewrite source files.
+llms_txt_description = (
+    "SlangPy is a Python interface for GPU programming with Slang, including "
+    "automatic data marshalling, differentiation, and low-level graphics APIs."
+)
+llms_txt_build_parallel = False
+llms_txt_suffix_mode = "replace"
+llms_txt_full_build = False
+
 lexers["slang"] = HLSLShaderLexer()
 lexers["ipython3"] = PythonLexer()
 
@@ -52,6 +64,7 @@ lexers["ipython3"] = PythonLexer()
 html_theme = "furo"
 html_title = "SlangPy"
 html_static_path = ["_static"]
+html_extra_path = ["generated/site"]
 html_css_files = ["theme_overrides.css"]
 html_theme_options = {
     "light_css_variables": {

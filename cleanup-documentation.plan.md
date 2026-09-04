@@ -21,7 +21,7 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 - [x] (2026-09-04) Completed Phase 2: rendered deterministic section pages, cut the API landing page over to the structured reference, and enabled nitpicky Sphinx validation.
 - [x] (2026-09-04) Completed Phase 3: added mechanical coverage measurement, a checked-in ratchet, dedicated documentation CI, and regression gates.
 - [x] (2026-09-05) Completed Phase 3.5: restored every named legacy SGL section to the structured reference and re-baselined the imported documentation debt.
-- [ ] Complete Phase 4: publish Markdown and structured outputs for agents.
+- [x] (2026-09-05) Completed Phase 4: published per-page Markdown and structured outputs, a curated agent index, bounded symbol context, and prioritized documentation tasks.
 - [ ] Complete Phase 5: establish and run an agent-assisted documentation campaign.
 - [ ] Complete Phase 6: remove the legacy generator and consolidate documentation maintenance.
 - [x] (2026-09-04) Ran the Windows release build, focused documentation tests, runtime and snapshot strict HTML builds, the CMake `doc` target, and pre-commit checks for Phase 0.
@@ -29,6 +29,7 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 - [x] (2026-09-04) Ran the Windows release build, 20 focused documentation tests, Pyright, repeated rendering, runtime and snapshot nitpicky HTML builds, the CMake `doc` target, and pre-commit checks for Phase 2.
 - [x] (2026-09-04) Ran the Windows release build, 24 focused documentation tests, Pyright, inventory, coverage, and rendering checks, runtime and snapshot nitpicky HTML builds, the CMake `doc` target, and pre-commit checks for Phase 3.
 - [x] (2026-09-05) Ran the Windows release build, 27 focused documentation tests, Pyright, inventory and coverage checks, source-only and runtime nitpicky HTML builds, the CMake `doc` target, and pre-commit checks for Phase 3.5.
+- [x] (2026-09-05) Ran the Windows release build, 31 focused documentation tests, Pyright, inventory and coverage checks, source-only and runtime agent-output builds, the CMake `doc` target, and pre-commit checks for Phase 4.
 - [ ] Record final outcomes and remaining documentation debt.
 
 ## Surprises and Discoveries
@@ -113,6 +114,12 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
 
 - Observation: The full SGL surface contains public names that differ only by case.
   Evidence: `slangpy.DataStruct.Field` and `slangpy.DataStruct.field` normalized to the same original label. The renderer now adds deterministic SHA-256 suffixes only to colliding labels and leaves all existing non-colliding labels unchanged.
+
+- Observation: The released `sphinx-llm` 0.4.1 package generates useful per-page Markdown but does not implement the custom `llms.txt` source override described by the current upstream documentation.
+  Evidence: Its installed `sphinx_llm.txt` extension exposes enabled, description, parallel-build, suffix-mode, and full-build settings only. The first build therefore generated an automatic sitemap, and `tools/docs.py` now replaces it deterministically with the reviewed index after Sphinx succeeds.
+
+- Observation: The restored reference produces 43 Markdown pages totaling 1,052,836 bytes; the Device page alone is 405,070 bytes.
+  Evidence: The Phase 4 strict snapshot build. A combined `llms-full.txt` would duplicate a large corpus and be less useful than selecting pages through the curated index or structured API data.
 
 ## Decision Log
 
@@ -224,6 +231,18 @@ The existing Sphinx, Furo, Read the Docs, RST, and notebook infrastructure will 
   Rationale: Existing SGL documentation debt must be admitted once as historical debt so the full reference can be restored. The resulting baseline immediately becomes the new ratchet; future additions remain subject to the Phase 3 rules.
   Date/Author: 2026-09-05, Codex.
 
+- Decision: Pin `sphinx-llm` 0.4.1 and enable only its `sphinx_llm.txt` extension, with serial Markdown generation, replacement suffixes, and full-corpus output disabled.
+  Rationale: This version supports the project's Python 3.9 minimum and produces Markdown without network access. Excluding `sphinx_llm.docref` prevents model calls and source rewriting, while serial generation avoids nested-build races.
+  Date/Author: 2026-09-05, Codex.
+
+- Decision: Generate the curated `llms.txt` in `tools/docs.py` after Sphinx completes and validate it byte-for-byte.
+  Rationale: This works with the pinned release, keeps selection and descriptions under review, normalizes links across Windows and POSIX, and prevents upstream sitemap behavior from silently changing the published agent entry point.
+  Date/Author: 2026-09-05, Codex.
+
+- Decision: Build symbol context from the checked-in inventory plus bounded, deterministic searches of explicit source, binding, test, example, and documentation roots.
+  Rationale: An agent receives useful implementation evidence without crawling the repository, importing SlangPy, mutating source files, or embedding absolute workspace paths. Search result limits keep the artifact bounded.
+  Date/Author: 2026-09-05, Codex.
+
 ## Outcomes and Retrospective
 
 Phase 0 is complete. `tools/docs.py` is now the explicit preparation, validation, and strict-build entry point; `tools/ci.py docs`, the CMake `doc` target, and Read the Docs all use it with an explicit runtime or snapshot mode. Runtime import failures are fatal, while hosted source-only builds deliberately validate the checked-in snapshot.
@@ -261,6 +280,12 @@ The expanded snapshot contains 2,887 symbols: 352 complete, 240 summary-only, 2,
 Scaling the renderer required deterministic disambiguation for case-colliding labels, normalization of native ``name``() call markup, and inheritance-aware member expansion. Non-colliding anchors remain unchanged. Members inherited from unpublished implementation bases remain on their public subclass, while members inherited from another published class are documented once on that base.
 
 Validation completed with a Windows release build, 27 focused documentation tests, a clean Pyright check over the tool and expanded tests, successful inventory and coverage checks, warning-free source-only and runtime Sphinx builds under `-n -W --keep-going`, the CMake `doc` target, and a passing repository-wide pre-commit run. Phase 4 can now generate agent-oriented outputs from the restored reviewed surface rather than the five-class pilot.
+
+Phase 4 is complete. The pinned `sphinx-llm` integration produces a clean Markdown counterpart for every Sphinx page. The normal strict HTML build publishes a reviewed `llms.txt`, schema-versioned `/api/api.json` and `/api/coverage.json`, and validates representative narrative, native API, Python API, and notebook-derived Markdown. The 1.05 MB page corpus remains split across 43 files; `llms-full.txt` is disabled so consumers can retrieve only the relevant page.
+
+`tools/docs.py context` now assembles a read-only, repository-relative package containing one symbol's signatures, documentation, gaps, canonical source, relevant native declarations and Python bindings, related public symbols, tests, and examples. The real `slangpy.Module` artifact is bounded to at most 8 native declarations, 8 bindings, 12 tests, 12 examples, and 24 related symbols. `tools/docs.py tasks` emits either Markdown or schema-versioned JSON, can filter by public API section, and orders incomplete symbols by the reviewed contract before coverage status.
+
+Validation completed with a Windows release build, 31 focused documentation tests, a clean Pyright check, successful inventory and coverage checks, warning-free source-only and runtime Sphinx builds under `-n -W --keep-going`, the CMake `doc` target, agent-output validation, and a passing repository-wide pre-commit run. The remaining 2,535 incomplete public records are now directly available as prioritized Phase 5 work rather than an undifferentiated set of blanks.
 
 Update this section at the end of each phase with the observable improvements, remaining gaps, and any changes to the following milestones.
 

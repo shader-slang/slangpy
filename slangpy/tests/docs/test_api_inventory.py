@@ -572,6 +572,188 @@ def test_validate_coverage_rejects_each_regression_class(tmp_path: Path) -> None
     DOCS_TOOL.validate_coverage(DOCS_TOOL.calculate_coverage(improvement), baseline_path)
 
 
+def test_prepare_agent_site_assets_publishes_versioned_json(tmp_path: Path) -> None:
+    package_root, contract_path = create_sample_package(tmp_path / "repository")
+    inventory = DOCS_TOOL.build_inventory(DOCS_TOOL.load_public_api(contract_path), package_root)
+    inventory_path = tmp_path / "api.json"
+    output_dir = tmp_path / "site"
+    DOCS_TOOL.write_inventory(inventory, inventory_path)
+
+    DOCS_TOOL.prepare_agent_site_assets(inventory_path, output_dir)
+
+    published_inventory = json.loads((output_dir / "api" / "api.json").read_text(encoding="utf-8"))
+    published_coverage = json.loads(
+        (output_dir / "api" / "coverage.json").read_text(encoding="utf-8")
+    )
+    assert published_inventory["schema_version"] == 1
+    assert published_coverage["schema_version"] == 1
+    assert published_coverage["symbols"]
+
+
+def test_generate_context_is_bounded_and_repository_relative(tmp_path: Path) -> None:
+    repository_root = tmp_path / "repository"
+    package_root, contract_path = create_sample_package(repository_root)
+    (repository_root / "src" / "sgl").mkdir(parents=True)
+    (repository_root / "src" / "sgl" / "widget.h").write_text(
+        "class Widget { str convert(int value); };\n", encoding="utf-8"
+    )
+    (repository_root / "src" / "slangpy_ext").mkdir(parents=True)
+    (repository_root / "src" / "slangpy_ext" / "widget.cpp").write_text(
+        'type.def("convert", &Widget::convert);\n', encoding="utf-8"
+    )
+    (repository_root / "slangpy" / "tests").mkdir(parents=True)
+    (repository_root / "slangpy" / "tests" / "test_widget.py").write_text(
+        "sample.Widget(1).convert(2)\n", encoding="utf-8"
+    )
+    (repository_root / "samples" / "examples").mkdir(parents=True)
+    (repository_root / "samples" / "examples" / "widget.py").write_text(
+        "sample.Widget(1).convert(2)\n", encoding="utf-8"
+    )
+    inventory = DOCS_TOOL.build_inventory(DOCS_TOOL.load_public_api(contract_path), package_root)
+    symbol_map(inventory)["sample.Widget.convert"].source = DOCS_TOOL.SourceReference(
+        "sample/model.pyi", 8
+    )
+
+    text = DOCS_TOOL.generate_context(inventory, "sample.Widget.convert", repository_root)
+
+    assert "# Documentation context: `sample.Widget.convert`" in text
+    assert "convert(value: int) -> str" in text
+    assert "Value to convert." in text
+    assert "## Documentation gaps" in text
+    assert "- example" in text
+    assert "sample/model.py" in text
+    assert "src/sgl/widget.h#L1" in text
+    assert "src/slangpy_ext/widget.cpp#L1" in text
+    assert "slangpy/tests/test_widget.py#L1" in text
+    assert "samples/examples/widget.py#L1" in text
+    assert "`sample.Widget`" in text
+    assert str(repository_root) not in text
+
+
+def test_documentation_tasks_follow_api_then_status_priority() -> None:
+    config = DOCS_TOOL.PublicApiConfig(
+        schema_version=1,
+        package="sample",
+        package_version="1.0.0",
+        sections=(
+            DOCS_TOOL.PublicApiSection(
+                id="high", title="High", audience="user", names=("sample.High",)
+            ),
+            DOCS_TOOL.PublicApiSection(
+                id="low", title="Low", audience="user", names=("sample.Low",)
+            ),
+        ),
+    )
+    inventory = DOCS_TOOL.ApiInventory(
+        schema_version=1,
+        package_version="1.0.0",
+        sections=[
+            {"id": "high", "title": "High", "audience": "user"},
+            {"id": "low", "title": "Low", "audience": "user"},
+        ],
+        symbols=[
+            DOCS_TOOL.ApiSymbol(
+                name="sample.High",
+                canonical_name="sample.High",
+                kind="class",
+                section="high",
+                audience="user",
+                signatures=["High(value: int) -> None"],
+                documentation=DOCS_TOOL.DocumentationRecord(
+                    summary="High priority API.", status="summary"
+                ),
+            ),
+            DOCS_TOOL.ApiSymbol(
+                name="sample.High.missing",
+                canonical_name="sample.High.missing",
+                kind="method",
+                section="high",
+                audience="user",
+            ),
+            DOCS_TOOL.ApiSymbol(
+                name="sample.Low",
+                canonical_name="sample.Low",
+                kind="class",
+                section="low",
+                audience="user",
+            ),
+        ],
+    )
+
+    tasks = DOCS_TOOL.calculate_documentation_tasks(inventory, config)
+
+    assert [task.name for task in tasks] == [
+        "sample.High.missing",
+        "sample.High",
+        "sample.Low",
+    ]
+    assert tasks[0].missing_fields == ["summary", "example"]
+    assert tasks[1].missing_fields == ["parameters: value", "example"]
+    assert [
+        task.name for task in DOCS_TOOL.calculate_documentation_tasks(inventory, config, "low")
+    ] == ["sample.Low"]
+    json_output = json.loads(DOCS_TOOL._tasks_json(inventory, tasks, None))
+    assert json_output["schema_version"] == 1
+    assert json_output["count"] == 3
+    markdown = DOCS_TOOL._tasks_markdown(inventory, tasks, None)
+    assert "`sample.High.missing`" in markdown
+    with pytest.raises(DOCS_TOOL.DocumentationError, match="Unknown public API section"):
+        DOCS_TOOL.calculate_documentation_tasks(inventory, config, "unknown")
+
+
+def test_validate_agent_outputs_covers_representative_page_types(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs"
+    output_dir = tmp_path / "html"
+    source_pages = {
+        "src/basics/firstfunctions.rst": "Your First Function\n===================\n",
+        "generated/api/device.rst": "Device\n======\n",
+        "generated/api/functional-api.rst": "Functional API\n==============\n",
+        "src/tutorials/compute_shader.ipynb": "{}\n",
+    }
+    markdown_pages = {
+        "src/basics/firstfunctions.md": "# Your First Function\n\n```python\npass\n```\n",
+        "generated/api/device.md": (
+            "# Device\n\n`slangpy.Device`\n\n```python\nDevice()\n```\n\n"
+            "**Source:** [device.pyi](slangpy/device.pyi#L1)\n"
+        ),
+        "generated/api/functional-api.md": (
+            "# Functional API\n\n[`slangpy.Module`](#slangpy.Module)\n\n"
+            "```python\nModule()\n```\n"
+        ),
+        "src/tutorials/compute_shader.md": "# Compute Shader\n\n```c#\n[numthreads(1, 1, 1)]\n```\n",
+    }
+    for relative, content in source_pages.items():
+        path = docs_dir / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    for relative, content in markdown_pages.items():
+        path = output_dir / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    inventory = DOCS_TOOL.ApiInventory(
+        schema_version=1,
+        package_version="1.0.0",
+        sections=[],
+        symbols=[],
+    )
+    DOCS_TOOL.write_inventory(inventory, output_dir / "api" / "api.json")
+    DOCS_TOOL.write_coverage_report(
+        DOCS_TOOL.calculate_coverage(inventory), output_dir / "api" / "coverage.json"
+    )
+    monkeypatch.setattr(DOCS_TOOL, "DOCS_DIR", docs_dir)
+    monkeypatch.setattr(DOCS_TOOL, "GENERATED_API_PATH", docs_dir / "generated" / "api.rst")
+    DOCS_TOOL.write_curated_llms(output_dir)
+
+    DOCS_TOOL.validate_agent_outputs(output_dir)
+
+    (output_dir / "src" / "tutorials" / "compute_shader.md").unlink()
+    with pytest.raises(DOCS_TOOL.DocumentationError, match="missing pages"):
+        DOCS_TOOL.validate_agent_outputs(output_dir)
+
+
 def test_slangpy_reviewed_inventory_is_complete_and_environment_independent(
     tmp_path: Path,
 ) -> None:

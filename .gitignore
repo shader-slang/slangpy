@@ -6,6 +6,7 @@ tools/download
 tools/host
 docs/_build/
 /docs/generated/api/
+/docs/generated/site/
 
 .DS_Store
 *.pyc
