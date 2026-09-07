@@ -513,6 +513,12 @@ SGL_PY_EXPORT(device_command)
             D(CommandEncoder, query_acceleration_structure_properties)
         )
         .def(
+            "execute_cluster_operation",
+            &CommandEncoder::execute_cluster_operation,
+            "desc"_a,
+            D(CommandEncoder, execute_cluster_operation)
+        )
+        .def(
             "convert_coop_vec_matrices",
             &CommandEncoder::convert_coop_vec_matrices,
             "dst"_a,

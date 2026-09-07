@@ -524,6 +524,142 @@ struct ShaderTableDesc {
     std::vector<std::string> callable_entry_points;
 };
 
+// ----------------------------------------------------------------------------
+// Cluster acceleration structures
+// ----------------------------------------------------------------------------
+
+enum class ClusterOperationType : uint32_t {
+    move_objects = static_cast<uint32_t>(rhi::ClusterOperationType::MoveObjects),
+    clas_from_triangles = static_cast<uint32_t>(rhi::ClusterOperationType::CLASFromTriangles),
+    blas_from_clas = static_cast<uint32_t>(rhi::ClusterOperationType::BLASFromCLAS),
+    templates_from_triangles = static_cast<uint32_t>(rhi::ClusterOperationType::TemplatesFromTriangles),
+    clas_from_templates = static_cast<uint32_t>(rhi::ClusterOperationType::CLASFromTemplates),
+};
+SGL_ENUM_INFO(
+    ClusterOperationType,
+    {
+        {ClusterOperationType::move_objects, "move_objects"},
+        {ClusterOperationType::clas_from_triangles, "clas_from_triangles"},
+        {ClusterOperationType::blas_from_clas, "blas_from_clas"},
+        {ClusterOperationType::templates_from_triangles, "templates_from_triangles"},
+        {ClusterOperationType::clas_from_templates, "clas_from_templates"},
+    }
+);
+SGL_ENUM_REGISTER(ClusterOperationType);
+
+enum class ClusterOperationMode : uint32_t {
+    implicit_destinations = static_cast<uint32_t>(rhi::ClusterOperationMode::ImplicitDestinations),
+    explicit_destinations = static_cast<uint32_t>(rhi::ClusterOperationMode::ExplicitDestinations),
+    get_sizes = static_cast<uint32_t>(rhi::ClusterOperationMode::GetSizes),
+};
+SGL_ENUM_INFO(
+    ClusterOperationMode,
+    {
+        {ClusterOperationMode::implicit_destinations, "implicit_destinations"},
+        {ClusterOperationMode::explicit_destinations, "explicit_destinations"},
+        {ClusterOperationMode::get_sizes, "get_sizes"},
+    }
+);
+SGL_ENUM_REGISTER(ClusterOperationMode);
+
+enum class ClusterOperationFlags : uint32_t {
+    none = static_cast<uint32_t>(rhi::ClusterOperationFlags::None),
+    fast_trace = static_cast<uint32_t>(rhi::ClusterOperationFlags::FastTrace),
+    fast_build = static_cast<uint32_t>(rhi::ClusterOperationFlags::FastBuild),
+    no_overlap = static_cast<uint32_t>(rhi::ClusterOperationFlags::NoOverlap),
+    allow_omm = static_cast<uint32_t>(rhi::ClusterOperationFlags::AllowOMM),
+};
+SGL_ENUM_CLASS_OPERATORS(ClusterOperationFlags);
+SGL_ENUM_FLAGS_INFO(
+    ClusterOperationFlags,
+    {
+        {ClusterOperationFlags::none, "none"},
+        {ClusterOperationFlags::fast_trace, "fast_trace"},
+        {ClusterOperationFlags::fast_build, "fast_build"},
+        {ClusterOperationFlags::no_overlap, "no_overlap"},
+        {ClusterOperationFlags::allow_omm, "allow_omm"},
+    }
+);
+SGL_ENUM_REGISTER(ClusterOperationFlags);
+
+enum class ClusterOperationMoveType : uint32_t {
+    bottom_level = static_cast<uint32_t>(rhi::ClusterOperationMoveType::BottomLevel),
+    cluster_level = static_cast<uint32_t>(rhi::ClusterOperationMoveType::ClusterLevel),
+    template_ = static_cast<uint32_t>(rhi::ClusterOperationMoveType::Template),
+};
+SGL_ENUM_INFO(
+    ClusterOperationMoveType,
+    {
+        {ClusterOperationMoveType::bottom_level, "bottom_level"},
+        {ClusterOperationMoveType::cluster_level, "cluster_level"},
+        {ClusterOperationMoveType::template_, "template"},
+    }
+);
+SGL_ENUM_REGISTER(ClusterOperationMoveType);
+
+struct ClusterOperationMoveParams {
+    ClusterOperationMoveType type{ClusterOperationMoveType::bottom_level};
+    uint32_t max_size{0};
+};
+
+struct ClusterOperationClasBuildParams {
+    Format vertex_format{Format::rgb32_float};
+    uint32_t max_geometry_index{0};
+    uint32_t max_unique_geometry_count{1};
+    uint32_t max_triangle_count{0};
+    uint32_t max_vertex_count{0};
+    uint32_t max_total_triangle_count{0};
+    uint32_t max_total_vertex_count{0};
+    uint32_t min_position_truncate_bit_count{0};
+};
+
+struct ClusterOperationBlasBuildParams {
+    uint32_t max_clas_count{0};
+    uint32_t max_total_clas_count{0};
+};
+
+struct ClusterOperationParams {
+    uint32_t max_arg_count{0};
+    ClusterOperationType type{ClusterOperationType::clas_from_triangles};
+    ClusterOperationMode mode{ClusterOperationMode::implicit_destinations};
+    ClusterOperationFlags flags{ClusterOperationFlags::none};
+    ClusterOperationMoveParams move;
+    ClusterOperationClasBuildParams clas;
+    ClusterOperationBlasBuildParams blas;
+};
+
+namespace detail {
+    SGL_API rhi::ClusterOperationParams to_rhi(const ClusterOperationParams& params);
+}
+
+struct ClusterOperationDesc {
+    ClusterOperationParams params;
+    BufferOffsetPair arg_count_buffer;
+    BufferOffsetPair args_buffer;
+    uint64_t args_buffer_stride{0};
+    BufferOffsetPair scratch_buffer;
+    BufferOffsetPair addresses_buffer;
+    size_t addresses_buffer_stride{rhi::kClusterDefaultHandleStride};
+    BufferOffsetPair result_buffer;
+    BufferOffsetPair sizes_buffer;
+    size_t sizes_buffer_stride{sizeof(uint32_t)};
+};
+
+struct ClusterOperationSizes {
+    DeviceSize result_size{0};
+    DeviceSize scratch_size{0};
+};
+
+static constexpr uint32_t CLUSTER_MAX_TRIANGLE_COUNT = rhi::kClusterMaxTriangleCount;
+static constexpr uint32_t CLUSTER_MAX_VERTEX_COUNT = rhi::kClusterMaxVertexCount;
+static constexpr uint32_t CLUSTER_MAX_GEOMETRY_INDEX = rhi::kClusterMaxGeometryIndex;
+static constexpr uint32_t CLUSTER_DEFAULT_HANDLE_STRIDE = rhi::kClusterDefaultHandleStride;
+static constexpr uint32_t CLUSTER_OUTPUT_ALIGNMENT = rhi::kClusterOutputAlignment;
+
+// ----------------------------------------------------------------------------
+// ShaderTable
+// ----------------------------------------------------------------------------
+
 class SGL_API ShaderTable : public DeviceChild {
     SGL_OBJECT(ShaderTable)
 public:

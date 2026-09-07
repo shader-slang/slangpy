@@ -25,14 +25,7 @@ def test_opacity_micromap_trace(device_type: spy.DeviceType) -> None:
         label="opacity_data",
     )
 
-    triangle_desc_dtype = np.dtype(
-        [
-            ("data_offset", np.uint32),
-            ("subdivision_level", np.uint16),
-            ("format", np.uint16),
-        ]
-    )
-    triangle_descs = np.zeros(32, dtype=triangle_desc_dtype)
+    triangle_descs = np.zeros(32, dtype=spy.gpu_structs.micromap_triangle_desc_dtype)
     triangle_descs[0] = (0, 0, spy.OpacityMicromapFormat.two_state.value)
     triangle_descs[1] = (1, 0, spy.OpacityMicromapFormat.two_state.value)
     triangle_descs[2] = (2, 1, spy.OpacityMicromapFormat.two_state.value)

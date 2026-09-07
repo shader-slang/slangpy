@@ -864,6 +864,7 @@ enum class RayTracingPipelineFlags : uint8_t {
     skip_procedurals = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::SkipProcedurals),
     enable_spheres = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableSpheres),
     enable_linear_swept_spheres = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableLinearSweptSpheres),
+    enable_clusters = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableClusters),
     enable_opacity_micromaps = static_cast<uint8_t>(rhi::RayTracingPipelineFlags::EnableOpacityMicromaps),
 };
 
@@ -876,6 +877,7 @@ SGL_ENUM_FLAGS_INFO(
         {RayTracingPipelineFlags::skip_procedurals, "skip_procedurals"},
         {RayTracingPipelineFlags::enable_spheres, "enable_spheres"},
         {RayTracingPipelineFlags::enable_linear_swept_spheres, "enable_linear_swept_spheres"},
+        {RayTracingPipelineFlags::enable_clusters, "enable_clusters"},
         {RayTracingPipelineFlags::enable_opacity_micromaps, "enable_opacity_micromaps"},
     }
 );

@@ -1701,6 +1701,128 @@ static const char *__doc_sgl_CallbackList_snapshot = R"doc()doc";
 
 static const char *__doc_sgl_CallbackList_unregister_callback = R"doc()doc";
 
+static const char *__doc_sgl_ClusterOperationBlasBuildParams = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationBlasBuildParams_max_clas_count = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationBlasBuildParams_max_total_clas_count = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationClasBuildParams = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationClasBuildParams_max_geometry_index = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationClasBuildParams_max_total_triangle_count = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationClasBuildParams_max_total_vertex_count = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationClasBuildParams_max_triangle_count = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationClasBuildParams_max_unique_geometry_count = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationClasBuildParams_max_vertex_count = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationClasBuildParams_min_position_truncate_bit_count = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationClasBuildParams_vertex_format = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationDesc = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationDesc_addresses_buffer = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationDesc_addresses_buffer_stride = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationDesc_arg_count_buffer = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationDesc_args_buffer = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationDesc_args_buffer_stride = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationDesc_params = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationDesc_result_buffer = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationDesc_scratch_buffer = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationDesc_sizes_buffer = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationDesc_sizes_buffer_stride = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationFlags = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationFlags_allow_omm = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationFlags_fast_build = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationFlags_fast_trace = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationFlags_info = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationFlags_no_overlap = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationFlags_none = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMode = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMode_explicit_destinations = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMode_get_sizes = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMode_implicit_destinations = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMode_info = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMoveParams = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMoveParams_max_size = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMoveParams_type = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMoveType = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMoveType_bottom_level = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMoveType_cluster_level = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMoveType_info = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationMoveType_template = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationParams = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationParams_blas = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationParams_clas = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationParams_flags = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationParams_max_arg_count = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationParams_mode = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationParams_move = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationParams_type = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationSizes = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationSizes_result_size = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationSizes_scratch_size = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationType = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationType_blas_from_clas = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationType_clas_from_templates = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationType_clas_from_triangles = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationType_info = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationType_move_objects = R"doc()doc";
+
+static const char *__doc_sgl_ClusterOperationType_templates_from_triangles = R"doc()doc";
+
 static const char *__doc_sgl_ColorTargetDesc = R"doc()doc";
 
 static const char *__doc_sgl_ColorTargetDesc_alpha = R"doc()doc";
@@ -1960,6 +2082,8 @@ This is a convenience wrapper around ExecuteCallbackDesc. The callback
 is heap allocated and retained until the command buffer releases it,
 resulting in objects captured by the lambda are kept alive for the
 duration of the command buffer.)doc";
+
+static const char *__doc_sgl_CommandEncoder_execute_cluster_operation = R"doc(Execute an indirect cluster acceleration structure operation.)doc";
 
 static const char *__doc_sgl_CommandEncoder_finish = R"doc()doc";
 
@@ -3530,6 +3654,8 @@ Parameter ``desc``:
 
 Returns:
     Acceleration structure sizes.)doc";
+
+static const char *__doc_sgl_Device_get_cluster_operation_sizes = R"doc(Query the device for buffer sizes required for a cluster operation.)doc";
 
 static const char *__doc_sgl_Device_get_coop_vec_matrix_size = R"doc(Get the size of a cooperative vector matrix in bytes.)doc";
 
@@ -6033,14 +6159,6 @@ static const char *__doc_sgl_MicromapSizes_micromap_size = R"doc()doc";
 
 static const char *__doc_sgl_MicromapSizes_scratch_size = R"doc()doc";
 
-static const char *__doc_sgl_MicromapTriangleDesc = R"doc()doc";
-
-static const char *__doc_sgl_MicromapTriangleDesc_data_offset = R"doc()doc";
-
-static const char *__doc_sgl_MicromapTriangleDesc_format = R"doc()doc";
-
-static const char *__doc_sgl_MicromapTriangleDesc_subdivision_level = R"doc()doc";
-
 static const char *__doc_sgl_MicromapType = R"doc()doc";
 
 static const char *__doc_sgl_MicromapType_info = R"doc()doc";
@@ -7692,6 +7810,8 @@ static const char *__doc_sgl_RayTracingPipelineDesc_max_recursion = R"doc()doc";
 static const char *__doc_sgl_RayTracingPipelineDesc_program = R"doc()doc";
 
 static const char *__doc_sgl_RayTracingPipelineFlags = R"doc()doc";
+
+static const char *__doc_sgl_RayTracingPipelineFlags_enable_clusters = R"doc()doc";
 
 static const char *__doc_sgl_RayTracingPipelineFlags_enable_linear_swept_spheres = R"doc()doc";
 
@@ -10457,7 +10577,7 @@ static const char *__doc_sgl_breakable_ref_operator_bool = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_operator_mul = R"doc()doc";
 
-static const char *__doc_sgl_breakable_ref_operator_sgl_ref = R"doc()doc";
+static const char *__doc_sgl_breakable_ref_operator_ref = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_operator_sub = R"doc()doc";
 
@@ -11058,6 +11178,8 @@ static const char *__doc_sgl_detail_to_rhi = R"doc()doc";
 
 static const char *__doc_sgl_detail_to_rhi_2 = R"doc()doc";
 
+static const char *__doc_sgl_detail_to_rhi_3 = R"doc()doc";
+
 static const char *__doc_sgl_detail_to_rhi_cooperative_vector_component_type = R"doc()doc";
 
 static const char *__doc_sgl_detail_type_name =
@@ -11258,6 +11380,14 @@ static const char *__doc_sgl_find_enum_info_adl_90 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_91 = R"doc()doc";
 
+static const char *__doc_sgl_find_enum_info_adl_92 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_93 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_94 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_95 = R"doc()doc";
+
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
 static const char *__doc_sgl_flip_bit = R"doc()doc";
@@ -11287,6 +11417,8 @@ static const char *__doc_sgl_flip_bit_12 = R"doc()doc";
 static const char *__doc_sgl_flip_bit_13 = R"doc()doc";
 
 static const char *__doc_sgl_flip_bit_14 = R"doc()doc";
+
+static const char *__doc_sgl_flip_bit_15 = R"doc()doc";
 
 static const char *__doc_sgl_format_to_bc_format = R"doc(Convert RHI Format to BCFormat (returns nullopt if not a BC format).)doc";
 
@@ -11492,6 +11624,10 @@ Parameter ``desc``:
 Returns:
     Acceleration structure sizes.)doc";
 
+static const char *__doc_sgl_get_cluster_operation_sizes =
+R"doc(Query the current device for buffer sizes required for a cluster
+operation.)doc";
+
 static const char *__doc_sgl_get_coop_vec_matrix_size = R"doc(Get the size of a cooperative vector matrix in bytes.)doc";
 
 static const char *__doc_sgl_get_cuda_current_context_native_handles =
@@ -11580,6 +11716,8 @@ static const char *__doc_sgl_is_set_12 = R"doc()doc";
 static const char *__doc_sgl_is_set_13 = R"doc()doc";
 
 static const char *__doc_sgl_is_set_14 = R"doc()doc";
+
+static const char *__doc_sgl_is_set_15 = R"doc()doc";
 
 static const char *__doc_sgl_layout_from_rhilayout = R"doc()doc";
 
@@ -12693,6 +12831,8 @@ static const char *__doc_sgl_operator_band_13 = R"doc()doc";
 
 static const char *__doc_sgl_operator_band_14 = R"doc()doc";
 
+static const char *__doc_sgl_operator_band_15 = R"doc()doc";
+
 static const char *__doc_sgl_operator_bnot = R"doc()doc";
 
 static const char *__doc_sgl_operator_bnot_2 = R"doc()doc";
@@ -12720,6 +12860,8 @@ static const char *__doc_sgl_operator_bnot_12 = R"doc()doc";
 static const char *__doc_sgl_operator_bnot_13 = R"doc()doc";
 
 static const char *__doc_sgl_operator_bnot_14 = R"doc()doc";
+
+static const char *__doc_sgl_operator_bnot_15 = R"doc()doc";
 
 static const char *__doc_sgl_operator_bor = R"doc()doc";
 
@@ -12749,6 +12891,8 @@ static const char *__doc_sgl_operator_bor_13 = R"doc()doc";
 
 static const char *__doc_sgl_operator_bor_14 = R"doc()doc";
 
+static const char *__doc_sgl_operator_bor_15 = R"doc()doc";
+
 static const char *__doc_sgl_operator_iand = R"doc()doc";
 
 static const char *__doc_sgl_operator_iand_2 = R"doc()doc";
@@ -12777,6 +12921,8 @@ static const char *__doc_sgl_operator_iand_13 = R"doc()doc";
 
 static const char *__doc_sgl_operator_iand_14 = R"doc()doc";
 
+static const char *__doc_sgl_operator_iand_15 = R"doc()doc";
+
 static const char *__doc_sgl_operator_ior = R"doc()doc";
 
 static const char *__doc_sgl_operator_ior_2 = R"doc()doc";
@@ -12804,6 +12950,8 @@ static const char *__doc_sgl_operator_ior_12 = R"doc()doc";
 static const char *__doc_sgl_operator_ior_13 = R"doc()doc";
 
 static const char *__doc_sgl_operator_ior_14 = R"doc()doc";
+
+static const char *__doc_sgl_operator_ior_15 = R"doc()doc";
 
 static const char *__doc_sgl_platform_FileDialogFilter = R"doc()doc";
 
