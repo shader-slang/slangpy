@@ -175,6 +175,7 @@ public:
     // events
 
     using ResizeCallback = std::function<void(uint32_t /* width */, uint32_t /* height */)>;
+    using RefreshCallback = std::function<void()>;
     using KeyboardEventCallback = std::function<void(const KeyboardEvent& /* event */)>;
     using MouseEventCallback = std::function<void(const MouseEvent& /* event */)>;
     using GamepadEventCallback = std::function<void(const GamepadEvent& /* event */)>;
@@ -184,6 +185,10 @@ public:
     /// Event handler to be called when the window is resized.
     const ResizeCallback& on_resize() const { return m_on_resize; }
     void set_on_resize(ResizeCallback on_resize) { m_on_resize = std::move(on_resize); }
+
+    /// Event handler to be called when the window contents need to be refreshed.
+    const RefreshCallback& on_refresh() const { return m_on_refresh; }
+    void set_on_refresh(RefreshCallback on_refresh) { m_on_refresh = std::move(on_refresh); }
 
     /// Event handler to be called when a keyboard event occurs.
     const KeyboardEventCallback& on_keyboard_event() const { return m_on_keyboard_event; }
@@ -220,6 +225,7 @@ private:
     void poll_gamepad_input();
 
     void handle_window_size(uint32_t width, uint32_t height);
+    void handle_window_refresh();
     void handle_keyboard_event(const KeyboardEvent& event);
     void handle_mouse_event(const MouseEvent& event);
     void handle_gamepad_event(const GamepadEvent& event);
@@ -243,6 +249,7 @@ private:
     GamepadState m_gamepad_prev_state;
 
     ResizeCallback m_on_resize;
+    RefreshCallback m_on_refresh;
     KeyboardEventCallback m_on_keyboard_event;
     MouseEventCallback m_on_mouse_event;
     GamepadEventCallback m_on_gamepad_event;

@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 cmake_policy(SET CMP0077 NEW)
+if(POLICY CMP0177)
+    cmake_policy(SET CMP0177 NEW)
+endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(utils)
@@ -74,6 +77,7 @@ option(SGL_ENABLE_COVERAGE "Enable code coverage (gcov)" OFF)
 # Enable/disable sanitizers.
 option(SGL_ENABLE_ASAN "Enable AddressSanitizer (Clang only)" OFF)
 option(SGL_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (Clang only)" OFF)
+option(SGL_ENABLE_TSAN "Enable ThreadSanitizer (Linux/macOS Clang only)" OFF)
 
 include(sanitizers)
 

@@ -61,6 +61,7 @@ if(SGL_LINUX AND SGL_ARCHITECTURE MATCHES "aarch64|arm64")
     set(NANOTHREAD_NATIVE_FLAGS "-march=armv8-a" CACHE STRING "" FORCE)
 endif()
 add_subdirectory(nanothread)
+sgl_enable_sanitizers(nanothread)
 # Disable LTO for nanothread as this causes problems when linking with sgl.
 set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
 target_compile_definitions(nanothread PRIVATE _CRT_SECURE_NO_WARNINGS)
@@ -91,7 +92,7 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SGL_SLANG_VERSION "2026.12" CACHE STRING "Slang version to download when not using a local build")
+set(SGL_SLANG_VERSION "2026.16.1" CACHE STRING "Slang version to download when not using a local build")
 
 set(SGL_SLANG_GLIBC_COMPAT OFF CACHE BOOL "Download glibc-2.28-compatible Slang binaries (for manylinux wheels)")
 
