@@ -21,21 +21,11 @@ class SGL_API CursorWriteWrappers {
 
     // The array/vector of elements has two special cases where things are not tightly packed
     //
-    // First one is bool, with the following options:
-    //                cpu_element_size | element_stride | element_size
-    // HLSL                          1 |              4 |            4
-    // CUDA - array                  1 |              1 |            1
-    // CUDA - vector (old)           1 |              4 |            1
-    // CUDA - vector (new)           1 |              1 |            1
+    // First one is bool. HLSL uniform layouts use four-byte bool elements, while
+    // CUDA layouts use one-byte elements.
     //
     // When element_size != cpu_element_size, we need to convert between bool and uint32_t.
     // This is necessary to make sure we do not accidentally ignore bits 8-31 in either read or write.
-    //
-    // Further caveat is that CUDA - vector (old) says that the element_size == 1, but is actually implemented using int
-    // in the backend, which is then cast to bool. But if we use that knowledge (to avoid ignoring bits 8-31),
-    // we break future compatibility. So for CUDA vector (old), we are ignoring bits 8-31 in the boolX implementations,
-    // and as such CUDA code that reports "true" because the stored value is 256, will report "false" on the CPU.
-    //
     //
     // The other case is float4x3, where in HLSL we have a row-stride of 16B in some cases.
 
@@ -49,17 +39,6 @@ class SGL_API CursorWriteWrappers {
         // CPU is assumed tightly packed, i.e., stride and size are the same value.
         size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);
         size_t element_stride = _get_slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
-        // CUDA misreports the actual element stride, see https://github.com/shader-slang/slang/issues/7441
-        // In the old implementation, bool2-4 are implemented as int2-4, and even though bool1 is implemented as int1,
-        // the actual emitted code is bool. So for bool2-4, the element stride is 4, for bool1 it remains at 1.
-        // The check for the total size == sizeof(int) * element_count is to disable this on newer Slang implementation,
-        // where bool1-4 is implemented as an actual struct of 1-4 bools.
-        if (cpu_scalar_type == TypeReflection::ScalarType::bool_ && _get_device_type_internal() == DeviceType::cuda
-            && _get_slang_type_layout()->getKind() == slang::TypeReflection::Kind::Vector
-            && _get_slang_type_layout()->getSize() == sizeof(int) * element_count) {
-            if (element_count > 1)
-                element_stride = 4;
-        }
         size_t element_size = _get_slang_type_layout()->getElementTypeLayout()->getSize();
 
         SGL_CHECK(
@@ -125,6 +104,7 @@ public:
     void
     _set_array(const void* data, size_t size, TypeReflection::ScalarType cpu_scalar_type, size_t element_count) const
     {
+        SGL_CHECK(_is_valid_internal(), "Invalid cursor");
 #ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
         cursor_utils::check_array(_get_slang_type_layout(), size, cpu_scalar_type, element_count);
 #endif
@@ -133,6 +113,7 @@ public:
 
     void _set_scalar(const void* data, size_t size, TypeReflection::ScalarType cpu_scalar_type) const
     {
+        SGL_CHECK(_is_valid_internal(), "Invalid cursor");
 #ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
         cursor_utils::check_scalar(_get_slang_type_layout(), size, cpu_scalar_type);
 #else
@@ -154,6 +135,7 @@ public:
 
     void _set_vector(const void* data, size_t size, TypeReflection::ScalarType cpu_scalar_type, int dimension) const
     {
+        SGL_CHECK(_is_valid_internal(), "Invalid cursor");
 #ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
         cursor_utils::check_vector(_get_slang_type_layout(), size, cpu_scalar_type, dimension);
 #endif
@@ -164,6 +146,7 @@ public:
     void
     _set_matrix(const void* data, size_t size, TypeReflection::ScalarType cpu_scalar_type, int rows, int cols) const
     {
+        SGL_CHECK(_is_valid_internal(), "Invalid cursor");
         // matrix has element type (rows) which has element type (individual cells).
         // we are currently shortcuiting that logic only handling the case where float3x3 is in memory
         // represented as float3x4.
@@ -216,7 +199,7 @@ private:
         return static_cast<const BaseCursor*>(this)->slang_type_layout();
     }
 
-    DeviceType _get_device_type_internal() const { return static_cast<const BaseCursor*>(this)->_get_device_type(); }
+    bool _is_valid_internal() const { return static_cast<const BaseCursor*>(this)->is_valid(); }
 };
 
 template<typename BaseCursor, typename TOffset>
@@ -233,17 +216,6 @@ class SGL_API CursorReadWrappers {
         // CPU is assumed tightly packed, i.e., stride and size are the same value.
         size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);
         size_t element_stride = _get_slang_type_layout()->getElementStride(SLANG_PARAMETER_CATEGORY_UNIFORM);
-        // CUDA misreports the actual element stride, see https://github.com/shader-slang/slang/issues/7441
-        // In the old implementation, bool2-4 are implemented as int2-4, and even though bool1 is implemented as int1,
-        // the actual emitted code is bool. So for bool2-4, the element stride is 4, for bool1 it remains at 1.
-        // The check for the total size == sizeof(int) * element_count is to disable this on newer Slang implementation,
-        // where bool1-4 is implemented as an actual struct of 1-4 bools.
-        if (cpu_scalar_type == TypeReflection::ScalarType::bool_ && _get_device_type_internal() == DeviceType::cuda
-            && _get_slang_type_layout()->getKind() == slang::TypeReflection::Kind::Vector
-            && _get_slang_type_layout()->getSize() == sizeof(int) * element_count) {
-            if (element_count > 1)
-                element_stride = 4;
-        }
         size_t element_size = _get_slang_type_layout()->getElementTypeLayout()->getSize();
 
         SGL_CHECK(
@@ -304,6 +276,7 @@ class SGL_API CursorReadWrappers {
 public:
     void _get_array(void* data, size_t size, TypeReflection::ScalarType cpu_scalar_type, size_t element_count) const
     {
+        SGL_CHECK(_is_valid_internal(), "Invalid cursor");
 #ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
         cursor_utils::check_array(_get_slang_type_layout(), size, cpu_scalar_type, element_count);
 #endif
@@ -312,6 +285,7 @@ public:
 
     void _get_scalar(void* data, size_t size, TypeReflection::ScalarType cpu_scalar_type) const
     {
+        SGL_CHECK(_is_valid_internal(), "Invalid cursor");
 #ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
         cursor_utils::check_scalar(_get_slang_type_layout(), size, cpu_scalar_type);
 #endif
@@ -333,6 +307,7 @@ public:
 
     void _get_vector(void* data, size_t size, TypeReflection::ScalarType cpu_scalar_type, int dimension) const
     {
+        SGL_CHECK(_is_valid_internal(), "Invalid cursor");
 #ifdef SGL_ENABLE_CURSOR_TYPE_CHECKS
         cursor_utils::check_vector(_get_slang_type_layout(), size, cpu_scalar_type, dimension);
 #else
@@ -344,6 +319,7 @@ public:
 
     void _get_matrix(void* data, size_t size, TypeReflection::ScalarType cpu_scalar_type, int rows, int cols) const
     {
+        SGL_CHECK(_is_valid_internal(), "Invalid cursor");
         // matrix has element type (rows) which has element type (individual cells).
         // we are currently shortcuiting that logic only handling the case where float3x3 is in memory
         // represented as float3x4.
@@ -397,7 +373,7 @@ private:
         return static_cast<const BaseCursor*>(this)->slang_type_layout();
     }
 
-    DeviceType _get_device_type_internal() const { return static_cast<const BaseCursor*>(this)->_get_device_type(); }
+    bool _is_valid_internal() const { return static_cast<const BaseCursor*>(this)->is_valid(); }
 };
 
 

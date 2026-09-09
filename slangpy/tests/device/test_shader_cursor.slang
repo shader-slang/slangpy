@@ -28,6 +28,7 @@ struct Test {
 uniform bool u_bool_false;
 uniform bool u_bool_true;
 
+uniform bool1 u_bool1;
 uniform bool2 u_bool2;
 uniform bool3 u_bool3;
 uniform bool4 u_bool4;
@@ -203,6 +204,7 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
     writer.write(u_bool_false);
     writer.write(u_bool_true);
 
+    writer.write(u_bool1);
     writer.write(u_bool2);
     writer.write(u_bool3);
     writer.write(u_bool4);

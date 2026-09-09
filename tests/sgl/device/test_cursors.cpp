@@ -295,6 +295,21 @@ static_assert(cursor_utils::CanRegisterCursorWriter<Texture>);
 
 TEST_SUITE_BEGIN("cursors");
 
+TEST_CASE("invalid_shader_cursor_fails_safely")
+{
+    ShaderCursor cursor;
+
+    CHECK_FALSE(cursor.is_valid());
+    CHECK_FALSE(cursor.find_field("field").is_valid());
+    CHECK_FALSE(cursor.get_field_by_index(0).is_valid());
+    CHECK_FALSE(cursor.find_element(0).is_valid());
+    CHECK_FALSE(cursor.find_entry_point(0).is_valid());
+    CHECK_THROWS(cursor.is_reference());
+    CHECK_THROWS(cursor.dereference());
+    CHECK_THROWS(cursor.set(1));
+    CHECK_THROWS(cursor.set_data(nullptr, 0));
+}
+
 TEST_CASE("shader_cursor_set_uses_shader_cursor_contract")
 {
     ShaderCursorOnlyStruct::wrote = false;
@@ -670,7 +685,13 @@ TEST_CASE_GPU("shader_cursor_set_allows_null_resource_refs")
         R"(
 [shader("compute")]
 [numthreads(1, 1, 1)]
-void compute_main(StructuredBuffer<uint> buffer)
+void compute_main(
+    StructuredBuffer<uint> buffer,
+    StructuredBuffer<uint> buffer_view,
+    Texture2D<float4> texture,
+    Texture2D<float4> texture_view,
+    SamplerState sampler,
+    RaytracingAccelerationStructure acceleration_structure)
 {
 }
 )"
@@ -680,7 +701,54 @@ void compute_main(StructuredBuffer<uint> buffer)
     ShaderCursor entry_point = ShaderCursor(root_object.get()).find_entry_point(0);
 
     ref<Buffer> buffer;
+    ref<BufferView> buffer_view;
+    ref<Texture> texture;
+    ref<TextureView> texture_view;
+    ref<Sampler> sampler;
+    ref<AccelerationStructure> acceleration_structure;
     CHECK_NOTHROW(entry_point["buffer"].set(buffer));
+    CHECK_NOTHROW(entry_point["buffer_view"].set(buffer_view));
+    CHECK_NOTHROW(entry_point["texture"].set(texture));
+    CHECK_NOTHROW(entry_point["texture_view"].set(texture_view));
+    CHECK_NOTHROW(entry_point["sampler"].set(sampler));
+    CHECK_NOTHROW(entry_point["acceleration_structure"].set(acceleration_structure));
+}
+
+TEST_CASE_GPU("shader_cursor_navigation_rejects_out_of_range_indices")
+{
+    ref<SlangModule> module = ctx.device->load_module_from_source(
+        "shader_cursor_bounds",
+        R"(
+struct Data
+{
+    int value;
+};
+
+uniform int values[2];
+uniform int3 vector_value;
+uniform float2x2 matrix_value;
+uniform Data data;
+
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void compute_main(int entry_value)
+{
+}
+)"
+    );
+    ref<ShaderProgram> program = ctx.device->link_program({module}, {module->entry_point("compute_main")});
+    ref<ShaderObject> root_object = ctx.device->create_root_shader_object(program);
+    ShaderCursor root(root_object.get());
+
+    CHECK_FALSE(root.find_element(0).is_valid());
+    CHECK_FALSE(root.get_field_by_index(1'000'000).is_valid());
+    CHECK_FALSE(root["values"].find_element(2).is_valid());
+    CHECK_FALSE(root["vector_value"].find_element(3).is_valid());
+    CHECK_FALSE(root["matrix_value"].find_element(2).is_valid());
+    CHECK_FALSE(root["data"].get_field_by_index(1).is_valid());
+
+    CHECK(root.find_entry_point(0).is_valid());
+    CHECK_FALSE(root.find_entry_point(1).is_valid());
 }
 
 TEST_SUITE_END();
