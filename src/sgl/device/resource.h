@@ -45,6 +45,9 @@ enum class ResourceState : uint32_t {
     acceleration_structure_read = static_cast<uint32_t>(rhi::ResourceState::AccelerationStructureRead),
     acceleration_structure_write = static_cast<uint32_t>(rhi::ResourceState::AccelerationStructureWrite),
     acceleration_structure_build_output = static_cast<uint32_t>(rhi::ResourceState::AccelerationStructureBuildInput),
+    micromap_build_input = static_cast<uint32_t>(rhi::ResourceState::MicromapBuildInput),
+    micromap_read = static_cast<uint32_t>(rhi::ResourceState::MicromapRead),
+    micromap_write = static_cast<uint32_t>(rhi::ResourceState::MicromapWrite),
 };
 
 SGL_ENUM_INFO(
@@ -70,6 +73,9 @@ SGL_ENUM_INFO(
         {ResourceState::acceleration_structure_read, "acceleration_structure_read"},
         {ResourceState::acceleration_structure_write, "acceleration_structure_write"},
         {ResourceState::acceleration_structure_build_output, "acceleration_structure_build_output"},
+        {ResourceState::micromap_build_input, "micromap_build_input"},
+        {ResourceState::micromap_read, "micromap_read"},
+        {ResourceState::micromap_write, "micromap_write"},
     }
 );
 SGL_ENUM_REGISTER(ResourceState);
@@ -86,6 +92,8 @@ enum class BufferUsage : uint32_t {
     copy_destination = static_cast<uint32_t>(rhi::BufferUsage::CopyDestination),
     acceleration_structure = static_cast<uint32_t>(rhi::BufferUsage::AccelerationStructure),
     acceleration_structure_build_input = static_cast<uint32_t>(rhi::BufferUsage::AccelerationStructureBuildInput),
+    micromap_build_input = static_cast<uint32_t>(rhi::BufferUsage::MicromapBuildInput),
+    micromap_storage = static_cast<uint32_t>(rhi::BufferUsage::MicromapStorage),
     shader_table = static_cast<uint32_t>(rhi::BufferUsage::ShaderTable),
     shared = static_cast<uint32_t>(rhi::BufferUsage::Shared),
 };
@@ -105,6 +113,8 @@ SGL_ENUM_FLAGS_INFO(
         {BufferUsage::copy_destination, "copy_destination"},
         {BufferUsage::acceleration_structure, "acceleration_structure"},
         {BufferUsage::acceleration_structure_build_input, "acceleration_structure_build_input"},
+        {BufferUsage::micromap_build_input, "micromap_build_input"},
+        {BufferUsage::micromap_storage, "micromap_storage"},
         {BufferUsage::shader_table, "shader_table"},
         {BufferUsage::shared, "shared"},
     }
