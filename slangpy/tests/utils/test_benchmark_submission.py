@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import ast
+import sys
 from datetime import datetime, timezone
 from email.message import Message
 from io import BytesIO
@@ -340,12 +341,12 @@ def test_ci_wrapper_passes_benchview_options_to_pytest(
 
     def capture_command(
         command: list[str],
-        shell: bool = True,
+        shell: bool = False,
         env: Optional[dict[str, str]] = None,
     ) -> None:
         """Capture the generated command without starting benchmark subprocesses."""
 
-        assert shell is True
+        assert shell is False
         assert env is not None
         commands.append(command)
 
@@ -362,12 +363,12 @@ def test_ci_wrapper_passes_benchview_options_to_pytest(
 
     assert len(commands) == 1
     assert commands[0][:6] == [
+        sys.executable,
+        "-m",
         "pytest",
         "slangpy/benchmarks",
         "-ra",
         "--device-types",
-        "cuda",
-        f"--basetemp={ci.PYTEST_BASE_TEMP_DIR}",
     ]
     assert commands[0][-4:] == [
         "--benchmark-submit",
@@ -386,7 +387,7 @@ def test_ci_wrapper_forwards_an_explicit_empty_api_url(
 
     def capture_command(
         command: list[str],
-        shell: bool = True,
+        shell: bool = False,
         env: Optional[dict[str, str]] = None,
     ) -> None:
         """Capture the command generated for an explicitly configured API URL."""
@@ -421,7 +422,7 @@ def test_linux_ci_wrapper_does_not_run_gpu_clock_python_as_root(
 
     def capture_command(
         command: list[str],
-        shell: bool = True,
+        shell: bool = False,
         env: Optional[dict[str, str]] = None,
     ) -> None:
         del shell, env
