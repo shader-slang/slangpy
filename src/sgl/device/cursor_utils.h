@@ -97,14 +97,24 @@ namespace cursor_utils {
     /// Erased writer used by BufferElementCursor to bind a registered native object.
     using BufferElementCursorObjectWriteFunc = std::function<bool(BufferElementCursor&, const void*)>;
 
-    /// Native registry entry for one cursor-writable value type.
+    /// Opaque registry key kind for one cursor-writable value type.
+    enum class CursorWriterTypeKeyKind {
+        native_type_info,
+        python_type,
+    };
+
+    /// Registry entry for one cursor-writable value type.
     ///
     /// The SlangPy cache signature is required, while the simple WriteToCursorMarshall fallback type name is optional.
     /// This lets resource types provide native signatures and direct cursor writes while still using bespoke functional
     /// API marshalls.
     struct CursorWriterTypeInfo {
-        /// Native C++ type exposed through nanobind.
-        const std::type_info* type{nullptr};
+        /// Domain of the opaque type key.
+        CursorWriterTypeKeyKind key_kind{CursorWriterTypeKeyKind::native_type_info};
+        /// Opaque type identity. Native entries store &typeid(T); extension entries may store a Python type pointer.
+        const void* type_key{nullptr};
+        /// Human-readable type name used for diagnostics and signatures.
+        std::string debug_name;
 
         /// Write an object instance into a ShaderCursor.
         ShaderCursorObjectWriteFunc write_shader_cursor;
@@ -128,6 +138,12 @@ namespace cursor_utils {
 
     /// Find the exact native cursor-writer entry for a std::type_info, if one exists.
     SGL_API const CursorWriterTypeInfo* find_cursor_writer_type_info(const std::type_info& type);
+
+    /// Unregister all cursor-writer entries for the specified key kind.
+    SGL_API void unregister_cursor_writer_types(CursorWriterTypeKeyKind key_kind);
+
+    /// Monotonic generation changed whenever the cursor-writer registry mutates.
+    SGL_API uint64_t cursor_writer_registry_generation();
 
     /// Register cursor writers for built-in SGL value types.
     SGL_API void register_cursor_writers();
@@ -192,7 +208,9 @@ namespace cursor_utils {
         requires(CanRegisterCursorWriter<T>)
     {
         CursorWriterTypeInfo info;
-        info.type = &typeid(T);
+        info.key_kind = CursorWriterTypeKeyKind::native_type_info;
+        info.type_key = &typeid(T);
+        info.debug_name = std::string(detail::type_name<T>());
 
         if constexpr (HasWriteToCursor<T, ShaderCursor>) {
             info.write_shader_cursor = [](ShaderCursor& cursor, const void* value)

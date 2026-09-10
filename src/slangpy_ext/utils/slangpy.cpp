@@ -1099,7 +1099,7 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
     if (is_bound_type) {
         const auto& type_info = nb::type_info(type);
 
-        if (auto writer = find_native_cursor_writer(o)) {
+        if (auto writer = find_cursor_writer(o)) {
             // Native cursor-writer entries own their cache key without requiring simple functional fallback metadata.
             // This is what lets Buffer/Texture keep bespoke marshalls while avoiding the Python signature path.
             writer->info->write_signature(builder, writer->value);
@@ -1177,6 +1177,13 @@ void NativeCallDataCache::get_value_signature(SignatureBuffer& builder, nb::hand
     // Fast path: Signature for pytorch tensors via torch bridge
     if (try_append_torch_tensor_signature(builder, o, "torch\n"))
         return;
+
+    if (!is_bound_type) {
+        if (auto writer = find_cursor_writer(o)) {
+            writer->info->write_signature(builder, writer->value);
+            return;
+        }
+    }
 
     // Add type name.
     auto type_name = nb::str(nb::getattr(o.type(), "__name__"));
@@ -1411,10 +1418,36 @@ SGL_PY_EXPORT(utils_slangpy)
         );
 
     slangpy.def(
-        "_get_native_cursor_writer_type_info",
-        &get_native_cursor_writer_type_info,
+        "get_cursor_writer_type_info",
+        &get_cursor_writer_type_info,
         "value"_a,
-        "Returns native cursor-writer SlangPy metadata for a Python-visible native object."
+        "Returns cursor-writer SlangPy metadata for a Python-visible object."
+    );
+    slangpy.def(
+        "register_python_cursor_writer_type",
+        [](nb::type_object python_type,
+           nb::object write_shader_cursor,
+           nb::object write_buffer_cursor,
+           nb::object write_signature,
+           std::string slang_type_name,
+           std::vector<std::string> imports)
+        {
+            register_python_cursor_writer_type(
+                python_type,
+                write_shader_cursor,
+                write_buffer_cursor,
+                write_signature,
+                std::move(slang_type_name),
+                std::move(imports)
+            );
+        },
+        "python_type"_a,
+        "write_shader_cursor"_a = nb::none(),
+        "write_buffer_cursor"_a = nb::none(),
+        "write_signature"_a = nb::none(),
+        "slang_type_name"_a = std::string(),
+        "imports"_a = std::vector<std::string>{},
+        "Registers a Python type with the shared cursor-writer registry."
     );
 
     nb::class_<NativeObject, PyNativeObject, Object>(slangpy, "NativeObject") //

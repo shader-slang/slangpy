@@ -19,7 +19,9 @@ from slangpy.bindings.typeregistry import (
 from slangpy.bindings.cursor import (
     WriteToCursorMarshall,
     WriteToCursorMarshallInfo,
-    register_write_to_cursor_type,
+    cursor_writer_type,
+    register_cursor_writer_type,
+    register_cursor_writer_marshal,
 )
 
 from slangpy.core.native import AccessType, CallContext, Shape

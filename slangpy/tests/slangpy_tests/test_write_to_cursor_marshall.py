@@ -9,7 +9,7 @@ import slangpy.testing.helpers as helpers
 from slangpy.bindings import (
     WriteToCursorMarshall,
     WriteToCursorMarshallInfo,
-    register_write_to_cursor_type,
+    register_cursor_writer_marshal,
 )
 from slangpy.bindings.typeregistry import (
     PYTHON_SIGNATURES,
@@ -55,7 +55,7 @@ struct CursorValue
     return module.layout
 
 
-def unregister_write_to_cursor_type(python_type: type) -> None:
+def unregister_cursor_writer_marshal(python_type: type) -> None:
     PYTHON_TYPES.pop(python_type, None)
     PYTHON_SIGNATURES.pop(python_type, None)
 
@@ -70,7 +70,7 @@ def native_value_signature(value: object) -> str:
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_registered_write_to_cursor_marshall_type_callback(device_type: spy.DeviceType) -> None:
     try:
-        register_write_to_cursor_type(
+        register_cursor_writer_marshal(
             CursorValueObject,
             slang_type_name="CursorValue",
             signature="[CursorValueObject]",
@@ -82,7 +82,7 @@ def test_registered_write_to_cursor_marshall_type_callback(device_type: spy.Devi
         assert isinstance(marshall, WriteToCursorMarshall)
         assert isinstance(marshall, NativeValueMarshall)
     finally:
-        unregister_write_to_cursor_type(CursorValueObject)
+        unregister_cursor_writer_marshal(CursorValueObject)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -92,7 +92,7 @@ def test_get_or_create_type_uses_native_cursor_writer_metadata(
 ) -> None:
     value = NativeCursorValueObject()
 
-    def get_native_cursor_writer_type_info(obj: object) -> dict[str, object] | None:
+    def get_cursor_writer_type_info(obj: object) -> dict[str, object] | None:
         if obj is value:
             return {
                 "slang_type_name": "CursorValue",
@@ -102,8 +102,8 @@ def test_get_or_create_type_uses_native_cursor_writer_metadata(
         return None
 
     monkeypatch.setattr(
-        "slangpy.core.native._get_native_cursor_writer_type_info",
-        get_native_cursor_writer_type_info,
+        "slangpy.core.native.get_cursor_writer_type_info",
+        get_cursor_writer_type_info,
     )
 
     marshall = get_or_create_type(cursor_value_layout(device_type), NativeCursorValueObject, value)
@@ -119,16 +119,16 @@ def test_get_or_create_type_prefers_python_registration_over_native_cursor_write
     monkeypatch: pytest.MonkeyPatch,
     device_type: spy.DeviceType,
 ) -> None:
-    def get_native_cursor_writer_type_info(obj: object) -> dict[str, object] | None:
+    def get_cursor_writer_type_info(obj: object) -> dict[str, object] | None:
         raise AssertionError("native cursor-writer fallback should not be consulted")
 
     monkeypatch.setattr(
-        "slangpy.core.native._get_native_cursor_writer_type_info",
-        get_native_cursor_writer_type_info,
+        "slangpy.core.native.get_cursor_writer_type_info",
+        get_cursor_writer_type_info,
     )
 
     try:
-        register_write_to_cursor_type(
+        register_cursor_writer_marshal(
             CursorValueObject,
             slang_type_name="CursorValue",
             signature="[PythonRegisteredCursorValueObject]",
@@ -143,7 +143,7 @@ def test_get_or_create_type_prefers_python_registration_over_native_cursor_write
         assert isinstance(marshall, WriteToCursorMarshall)
         assert marshall.m_info.signature == "[PythonRegisteredCursorValueObject]"
     finally:
-        unregister_write_to_cursor_type(CursorValueObject)
+        unregister_cursor_writer_marshal(CursorValueObject)
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
@@ -179,7 +179,7 @@ def test_native_signatures_use_cursor_writer_registry(
 
 def test_registered_write_to_cursor_marshall_signature() -> None:
     try:
-        register_write_to_cursor_type(
+        register_cursor_writer_marshal(
             CursorValueObject,
             slang_type_name="CursorValue",
             signature="[CursorValueObject]",
@@ -190,17 +190,19 @@ def test_registered_write_to_cursor_marshall_signature() -> None:
         assert signature_callback is not None
         assert signature_callback(CursorValueObject()) == "[CursorValueObject]"
     finally:
-        unregister_write_to_cursor_type(CursorValueObject)
+        unregister_cursor_writer_marshal(CursorValueObject)
 
 
 def test_register_write_to_cursor_marshall_duplicate_rejected() -> None:
     try:
-        register_write_to_cursor_type(DuplicateCursorValueObject, slang_type_name="CursorValue")
+        register_cursor_writer_marshal(DuplicateCursorValueObject, slang_type_name="CursorValue")
 
         with pytest.raises(ValueError, match="already registered"):
-            register_write_to_cursor_type(DuplicateCursorValueObject, slang_type_name="CursorValue")
+            register_cursor_writer_marshal(
+                DuplicateCursorValueObject, slang_type_name="CursorValue"
+            )
     finally:
-        unregister_write_to_cursor_type(DuplicateCursorValueObject)
+        unregister_cursor_writer_marshal(DuplicateCursorValueObject)
 
 
 def test_write_to_cursor_marshall_info_accepts_fullmatch_regex() -> None:
