@@ -40,13 +40,23 @@ jobs:
       CI_FLAGS: ${{ matrix.flags }}
       BACKFILL_TARGET_SHA: ${{ inputs.target_sha }}
       BACKFILL_FLOOR_SHA: f3ad0fd91d8cf4eeb2be3b505765b43482aa952a
-      BACKFILL_CLONE_DIR: ${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}
       BENCHVIEW_API_URL: ${{ vars.BENCHVIEW_API_URL }}
       BENCHVIEW_API_KEY: ${{ secrets.BENCHVIEW_API_KEY }}
       BENCHVIEW_BENCHMARK_REF: ${{ inputs.target_sha }}
       BENCHVIEW_BENCHMARK_BRANCH: main
 
     steps:
+      - name: Set clone directory (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "BACKFILL_CLONE_DIR=${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Set clone directory (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: echo "BACKFILL_CLONE_DIR=${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}" >> "$GITHUB_ENV"
+
       - name: Setup Python ${{ matrix.python }}
         uses: actions/setup-python@v6
         with:
