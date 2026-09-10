@@ -149,15 +149,21 @@ jobs:
             // for the merge to find a merge base in; without this the merge below fails
             // with "refusing to merge unrelated histories". Deepening only here keeps
             // the ordinary, non-cherry-picked runs on the cheap shallow checkout.
+            //
+            // --no-recurse-submodules because only this repository's history is needed
+            // to find that merge base. Recursing made the fetch also walk the
+            // submodules, where a recorded commit that has since been force-pushed away
+            // upstream fails the whole step with "remote error: upload-pack: not our
+            // ref". actions/checkout has already placed the submodules this build needs.
             const shallow = await exec.getExecOutput('git', ['rev-parse', '--is-shallow-repository']);
             if (shallow.stdout.trim() === 'true') {
-              await exec.exec('git', ['fetch', '--unshallow', 'origin']);
+              await exec.exec('git', ['fetch', '--unshallow', '--no-recurse-submodules', 'origin']);
             }
 
             // --force because these jobs run on reused self-hosted workspaces, where a
             // slangpy-pr-under-test ref left behind by an earlier run will not
             // fast-forward to a different PR and would fail the fetch.
-            await exec.exec('git', ['fetch', '--force', 'origin', `pull/${pr}/head:slangpy-pr-under-test`]);
+            await exec.exec('git', ['fetch', '--force', '--no-recurse-submodules', 'origin', `pull/${pr}/head:slangpy-pr-under-test`]);
             await exec.exec('git', ['merge', '--no-edit', 'slangpy-pr-under-test']);
 
             core.notice(`Merged SlangPy PR #${pr} into main for this run`);
