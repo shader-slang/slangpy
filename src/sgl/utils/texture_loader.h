@@ -36,7 +36,8 @@ public:
     struct SGL_API Options {
         /// Load 8/16-bit integer data as normalized resource format.
         bool load_as_normalized{true};
-        /// Use \c Format::rgba8_unorm_srgb format if bitmap is 8-bit RGBA with sRGB gamma.
+        /// Use \c Format::rgba8_unorm_srgb for 8-bit color bitmaps with sRGB gamma.
+        /// Luminance-only color bitmaps are expanded to RGBA.
         bool load_as_srgb{true};
         /// Extend RGB to RGBA if the RGB texture format cannot support the requested usage.
         bool extend_alpha{true};

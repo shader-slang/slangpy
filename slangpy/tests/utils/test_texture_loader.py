@@ -5,6 +5,7 @@ import numpy as np
 import numpy.typing as npt
 import enum
 from dataclasses import dataclass
+from pathlib import Path
 
 import slangpy as spy
 from slangpy import TextureLoader, Bitmap, Format, DataStruct, FormatSupport
@@ -32,6 +33,9 @@ class FormatEntry:
 
 # fmt: off
 FORMATS = [
+    # PixelFormat.y
+    FormatEntry(PixelFormat.y, ComponentType.uint8, Format.r8_unorm, Flags.load_as_normalized),
+    FormatEntry(PixelFormat.y, ComponentType.uint8, Format.rgba8_unorm_srgb, Flags.load_as_srgb),
     # PixelFormat.r
     FormatEntry(PixelFormat.r, ComponentType.int8, Format.r8_sint, Flags.none),
     FormatEntry(PixelFormat.r, ComponentType.int8, Format.r8_snorm, Flags.load_as_normalized),
@@ -206,6 +210,10 @@ def test_load_texture_from_bitmap(device_type: spy.DeviceType, format: FormatEnt
             axis=2,
         )
 
+    if format.pixel_format == PixelFormat.y and format.flags & Flags.load_as_srgb:
+        image = np.repeat(image[:, :, np.newaxis], 4, axis=2)
+        image[:, :, 3] = 255
+
     if format.pixel_format == PixelFormat.ya:
         image = np.concatenate(
             (
@@ -251,6 +259,26 @@ def test_load_texture_from_bitmap_file(device_type: spy.DeviceType, filename: st
     bitmap_ref = Bitmap(path).convert(pixel_format=Bitmap.PixelFormat.rgba)
 
     assert np.all(np.array(bitmap, copy=False) == np.array(bitmap_ref, copy=False))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_load_luminance_srgb_from_bitmap_file(tmp_path: Path, device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    image = np.array([[64, 192]], dtype=np.uint8)
+    bitmap = Bitmap(image, pixel_format=PixelFormat.y, srgb_gamma=True)
+    path = tmp_path / "luminance.png"
+    bitmap.write(path)
+
+    loader = TextureLoader(device)
+    srgb_texture = loader.load_texture(path, options={"load_as_srgb": True})
+    linear_texture = loader.load_texture(path, options={"load_as_srgb": False})
+
+    assert srgb_texture.format == Format.rgba8_unorm_srgb
+    assert srgb_texture.mip_count == 1
+    assert srgb_texture.to_numpy().tolist() == [[[64, 64, 64, 255], [192, 192, 192, 255]]]
+    assert linear_texture.format == Format.r8_unorm
+    assert linear_texture.mip_count == 1
+    assert linear_texture.to_numpy().tolist() == [[64, 192]]
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
