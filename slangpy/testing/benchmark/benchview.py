@@ -71,6 +71,18 @@ def _normalize_source_path(filename: str) -> str:
     return source.as_posix().removeprefix("./")
 
 
+def _sanitize_test_id(test_id: str) -> str:
+    """Sanitize test ID to match BenchView schema: ^[A-Za-z0-9][A-Za-z0-9._:/-]*$"""
+    import re
+
+    # Replace brackets and other invalid chars with underscores
+    sanitized = re.sub(r"[^A-Za-z0-9._:/-]", "_", test_id)
+    # Ensure it starts with alphanumeric
+    if sanitized and not sanitized[0].isalnum():
+        sanitized = "t" + sanitized
+    return sanitized
+
+
 def _normalize_dimension(name: str, value: Any) -> str:
     """Preserve legacy string dimensions while shortening device enum text."""
 
@@ -107,7 +119,7 @@ def build_benchview_observation(
         source["line"] = source_line
     observation: BenchViewObservation = {
         "test": {
-            "id": f"{source_file}:{function_name}",
+            "id": _sanitize_test_id(f"{source_file}:{function_name}"),
             "name": function_name,
             "source": source,
         },
