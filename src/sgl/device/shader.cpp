@@ -404,11 +404,14 @@ void SlangSession::create_session(SlangSessionBuild& build)
     if (options.enable_experimental_features)
         session_options.add(slang::CompilerOptionName::ExperimentalFeature, true);
 
-    // Add hlsl_nvapi capability.
-    session_options.add(
-        slang::CompilerOptionName::Capability,
-        int(m_device->global_session()->findCapability("hlsl_nvapi"))
-    );
+    // Must match the guard on linking the NVAPI Slang module below: Slang rejects an explicitly
+    // requested capability that the compilation target cannot satisfy.
+    if (SGL_HAS_NVAPI && device_type == DeviceType::d3d12) {
+        session_options.add(
+            slang::CompilerOptionName::Capability,
+            int(m_device->global_session()->findCapability("hlsl_nvapi"))
+        );
+    }
     // TODO: Pass all detected capabilities to the session.
     // This currently leads to slang compilation errors and needs more investigation.
     // for (SlangCapabilityID capability : m_device->_slang_capabilities()) {
