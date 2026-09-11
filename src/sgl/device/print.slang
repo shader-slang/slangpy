@@ -257,7 +257,7 @@ extension vector<T, N> : IPrintable {
     uint get_printable_data(uint index) { return this[index / T::printable_data_count()].get_printable_data(index % T::printable_data_count()); }
 };
 
-__generic<T : IPrintable, let R : int, let C : int, let L : int>
+__generic<T : IPrintable, let R : int, let C : int, let L : MatrixLayoutMode>
 extension matrix<T, R, C, L> : IPrintable {
     [ForceInline]
     static Layout printable_layout() { return Layout(Kind::matrix, T::printable_layout().type, R, C); }
