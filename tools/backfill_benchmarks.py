@@ -448,7 +448,10 @@ def dispatch_oldest_pending(
         state.repository,
         state.workflow,
         workflow_ref=state.branch,
-        inputs={"target_sha": record.sha},
+        inputs={
+            "target_sha": record.sha,
+            "commit_date": record.committed_at.strftime("%Y-%m-%d"),
+        },
     )
     record.status = "dispatched"
     record.run_id = result.run_id

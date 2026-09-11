@@ -1,5 +1,5 @@
 name: backfill-benchmark
-run-name: "backfill-benchmark: ${{ inputs.target_sha }}"
+run-name: "backfill-benchmark: ${{ inputs.target_sha }} (${{ inputs.commit_date }})"
 
 on:
   workflow_dispatch:
@@ -7,6 +7,10 @@ on:
       target_sha:
         description: "Exact historical main commit to benchmark"
         required: true
+        type: string
+      commit_date:
+        description: "Commit date for display (YYYY-MM-DD)"
+        required: false
         type: string
 
 permissions:
