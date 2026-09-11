@@ -13,6 +13,7 @@ slangpy.__prefix__:
         "compile_downstream_time": float,
         "is_cached": bool,
         "cache_size": int,
+        "cache_key": str | None,
     })
 
     CompilationPipelineReport = TypedDict("CompilationPipelineReport", {
@@ -22,6 +23,7 @@ slangpy.__prefix__:
         "create_time": float,
         "is_cached": bool,
         "cache_size": int,
+        "cache_key": str | None,
     })
 
     CompilationReport = TypedDict("CompilationReport", {

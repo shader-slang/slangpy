@@ -76,7 +76,11 @@ def extract_tensor_info(tensor: torch.Tensor) -> Dict[str, Any]:
 
 def get_signature(tensor: torch.Tensor) -> str:
     """
-    Get tensor signature string: "[Dn,Sm]" where n=ndim, m=scalar_type.
+    Get tensor signature string with bounded shape compatibility.
+
+    The format is "[Dn,Sm,V...]", where each tensor dimension contributes its
+    exact extent when it is 1 through 4, or "x" for zero and extents greater
+    than four.
 
     :param tensor: PyTorch tensor to get signature for.
     :return: Signature string.
@@ -85,7 +89,8 @@ def get_signature(tensor: torch.Tensor) -> str:
     if not isinstance(tensor, torch.Tensor):
         return None
     scalar_type = _SCALAR_TYPE_MAP.get(tensor.dtype, -1)
-    return f"[D{tensor.ndim},S{scalar_type}]"
+    shape_compatibility = "".join(str(size) if 1 <= size <= 4 else "x" for size in tensor.shape)
+    return f"[D{tensor.ndim},S{scalar_type},V{shape_compatibility}]"
 
 
 def get_current_cuda_stream(device_index: int) -> int:

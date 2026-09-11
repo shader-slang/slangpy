@@ -5,6 +5,7 @@
 #include "sgl/core/macros.h"
 
 #include "../nanobind.h"
+#include <cstring>
 #include <stdexcept>
 #include <string>
 
@@ -569,11 +570,15 @@ private:
         init_python_fallback();
         auto res = m_py_get_signature(nb::handle(obj));
         if (res.is_none()) {
-            return -1;
+            return TENSOR_BRIDGE_ERROR_NOT_TENSOR;
         } else {
             std::string sig = nb::cast<std::string>(res);
-            snprintf(buffer, buffer_size, "%s", sig.c_str());
-            return 0;
+            if (!buffer)
+                return TENSOR_BRIDGE_ERROR_NULL_OUTPUT;
+            if (sig.size() + 1 > buffer_size)
+                return TENSOR_BRIDGE_ERROR_BUFFER_TOO_SMALL;
+            std::memcpy(buffer, sig.c_str(), sig.size() + 1);
+            return TENSOR_BRIDGE_SUCCESS;
         }
     }
 

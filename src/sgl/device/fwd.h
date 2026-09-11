@@ -119,6 +119,8 @@ class QueryPool;
 struct AccelerationStructureDesc;
 class AccelerationStructure;
 class AccelerationStructureInstanceList;
+struct MicromapDesc;
+class Micromap;
 struct ShaderTableDesc;
 class ShaderTable;
 

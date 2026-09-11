@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 from slangpy import DataType, BufferUsage, TypeReflection
 import torch
 import torch.nn
@@ -55,6 +55,13 @@ _torch_to_data_type = {
     torch.bool: DataType.bool,
 }
 
+ShapeCompatibility = tuple[Optional[int], ...]
+
+
+def _shape_compatibility(shape: Sequence[int]) -> ShapeCompatibility:
+    """Classify dimensions without retaining resolution-dependent extents."""
+    return tuple(size if 1 <= size <= 4 else None for size in shape)
+
 
 def _slang_dtype_to_torch(slang_dtype: SlangType) -> Optional["torch.dtype"]:
     if isinstance(slang_dtype, ScalarType):
@@ -99,6 +106,7 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
         torch_dtype: torch.dtype,
         slang_dtype: SlangType,
         dims: int,
+        shape_compatibility: Optional[ShapeCompatibility],
         d_in: Optional["TorchTensorMarshall"],
         d_out: Optional["TorchTensorMarshall"],
     ):
@@ -141,6 +149,7 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
         self._layout = layout
         self._torch_dtype = torch_dtype
         self._slang_dtype = slang_dtype
+        self._shape_compatibility = shape_compatibility
 
         # Initialize base class (sets d_in, d_out, dims, writable etc in C++)
         super().__init__(
@@ -180,7 +189,19 @@ class TorchTensorMarshall(NativeTorchTensorMarshall):
         """Resolve types during binding phase."""
         if isinstance(bound_type, DiffTensorViewType):
             return self._resolve_difftensorview(context, bound_type)
+        if isinstance(bound_type, (VectorType, MatrixType)):
+            target_shape = bound_type.shape.as_tuple()
+            if not self._matches_trailing_shape(target_shape):
+                return []
         return spytc.resolve_types(self, context, bound_type)
+
+    def _matches_trailing_shape(self, target_shape: tuple[int, ...]) -> bool:
+        """Check that a concrete vector or matrix fits the source tensor."""
+        if self._shape_compatibility is None:
+            return True
+        if len(target_shape) > len(self._shape_compatibility):
+            return False
+        return self._shape_compatibility[-len(target_shape) :] == target_shape
 
     def _resolve_difftensorview(self, context: BindContext, bound_type: DiffTensorViewType):
         """Resolve DiffTensorView types for torch tensors."""
@@ -265,6 +286,7 @@ def create_torch_tensor_marshall(layout: SlangProgramLayout, value: Any):
             value.bind_context.call_dimensionality,
             None,
             None,
+            None,
         )
     elif isinstance(value, NativeTorchTensorDiffPair):
         # DiffPair: create marshall with gradient support
@@ -276,9 +298,11 @@ def create_torch_tensor_marshall(layout: SlangProgramLayout, value: Any):
         if primal is not None and not (isinstance(primal, type(None))):
             torch_dtype = primal.dtype
             dims = len(primal.shape)
+            shape_compatibility = _shape_compatibility(primal.shape)
         elif grad is not None and not (isinstance(grad, type(None))):
             torch_dtype = grad.dtype
             dims = len(grad.shape)
+            shape_compatibility = _shape_compatibility(grad.shape)
         else:
             raise ValueError("TorchTensorDiffPair must have at least primal or grad tensor")
 
@@ -296,6 +320,7 @@ def create_torch_tensor_marshall(layout: SlangProgramLayout, value: Any):
                 torch_dtype,
                 slang_dtype,
                 dims,
+                shape_compatibility,
                 None,
                 None,
             )
@@ -309,6 +334,7 @@ def create_torch_tensor_marshall(layout: SlangProgramLayout, value: Any):
             torch_dtype,
             slang_dtype,
             dims,
+            shape_compatibility,
             d_in,  # d_in - for reading gradients (output case)
             d_out,  # d_out - for writing gradients (input case)
         )
@@ -323,6 +349,7 @@ def create_torch_tensor_marshall(layout: SlangProgramLayout, value: Any):
             torch_dtype,
             slang_dtype,
             len(value.shape),
+            _shape_compatibility(value.shape),
             None,
             None,
         )

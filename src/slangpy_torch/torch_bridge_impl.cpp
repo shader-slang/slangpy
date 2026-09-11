@@ -102,11 +102,18 @@ static inline char* fast_itoa(char* p, int val)
     return p;
 }
 
+static inline char shape_compatibility_char(int64_t extent)
+{
+    return extent >= 1 && extent <= 4 ? static_cast<char>('0' + extent) : 'x';
+}
+
 // Fast signature extraction - returns TENSOR_BRIDGE_SUCCESS on success
 extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t buffer_size)
 {
     if (!py_obj)
         return TENSOR_BRIDGE_ERROR_NULL_OBJECT;
+    if (!buffer)
+        return TENSOR_BRIDGE_ERROR_NULL_OUTPUT;
 
     PyObject* obj = static_cast<PyObject*>(py_obj);
     if (!THPVariable_Check(obj))
@@ -116,8 +123,14 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
 
     int ndim = static_cast<int>(tensor.dim());
     int scalar_type = static_cast<int>(tensor.scalar_type());
+    // The fixed allowance comfortably covers punctuation, the null terminator,
+    // and decimal rank/dtype values. Each dimension then adds one classifier.
+    const size_t required_size = TENSOR_BRIDGE_SIGNATURE_BASE_SIZE + static_cast<size_t>(ndim);
+    if (buffer_size < required_size)
+        return TENSOR_BRIDGE_ERROR_BUFFER_TOO_SMALL;
 
-    // Format: "[Dn,Sm]" - compatible format, no snprintf
+    auto sizes = tensor.sizes();
+
     char* p = buffer;
     *p++ = '[';
     *p++ = 'D';
@@ -125,6 +138,10 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
     *p++ = ',';
     *p++ = 'S';
     p = fast_itoa(p, scalar_type);
+    *p++ = ',';
+    *p++ = 'V';
+    for (int64_t extent : sizes)
+        *p++ = shape_compatibility_char(extent);
     *p++ = ']';
     *p = '\0';
 

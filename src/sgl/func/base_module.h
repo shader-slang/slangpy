@@ -17,6 +17,7 @@ class SGL_API BaseModule : public Object {
 public:
     /// Create a native functional module base from a compiled Slang module and reflection layout.
     BaseModule(ref<SlangModule> module, ref<refl::Layout> layout);
+    ~BaseModule() override;
 
     /// Return the compiled Slang module.
     SlangModule* module() const { return m_module.get(); }

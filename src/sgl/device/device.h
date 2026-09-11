@@ -90,6 +90,20 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(DeviceType);
 
+enum class PipelineCompilationMode : uint32_t {
+    serial = static_cast<uint32_t>(rhi::PipelineCompilationMode::Serial),
+    parallel = static_cast<uint32_t>(rhi::PipelineCompilationMode::Parallel),
+};
+
+SGL_ENUM_INFO(
+    PipelineCompilationMode,
+    {
+        {PipelineCompilationMode::serial, "serial"},
+        {PipelineCompilationMode::parallel, "parallel"},
+    }
+);
+SGL_ENUM_REGISTER(PipelineCompilationMode);
+
 struct BindlessDesc {
     uint32_t buffer_count{1024};
     uint32_t texture_count{1024};
@@ -145,6 +159,9 @@ struct DeviceDesc {
 
     /// Enable compilation reports.
     bool enable_compilation_reports{false};
+
+    /// Control the default pipeline compilation policy and resolution of deferred pipelines.
+    PipelineCompilationMode pipeline_compilation_mode{PipelineCompilationMode::serial};
 
     /// Adapter LUID to select adapter on which the device will be created.
     std::optional<AdapterLUID> adapter_luid;
@@ -320,7 +337,7 @@ public:
     /// Check if the device supports a given feature.
     bool has_feature(Feature feature) const;
 
-    /// List of slang capabilities supported by the device.
+    /// List of capabilities reported by the device backend.
     const std::vector<std::string>& capabilities() const { return m_capabilities; }
 
     /// Check if the device supports a given capability.
@@ -397,6 +414,19 @@ public:
      * \return New buffer object.
      */
     ref<Buffer> create_buffer(BufferDesc desc);
+
+    /**
+     * \brief Create a new buffer wrapping an existing native buffer without copying.
+     *
+     * The expected handle type depends on the device type: \c D3D12Resource on D3D12,
+     * \c VkBuffer on Vulkan, \c MTLBuffer on Metal, \c CUdeviceptr on CUDA and
+     * \c WGPUBuffer on WGPU.
+     *
+     * \param desc Buffer description. The size must not exceed the native allocation.
+     * \param handle Native buffer handle to wrap.
+     * \return New buffer object.
+     */
+    ref<Buffer> create_buffer_from_native_handle(BufferDesc desc, NativeHandle handle);
 
     /// Create a new buffer view.
     ref<BufferView> create_buffer_view(Buffer* buffer, BufferViewDesc desc);
@@ -488,6 +518,15 @@ public:
 
     /// Create a new acceleration structure instance list.
     ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size);
+
+    /// Query the device for buffer sizes required for a micromap build.
+    MicromapSizes get_micromap_sizes(const MicromapBuildDesc& desc);
+
+    /// Create a new micromap.
+    ref<Micromap> create_micromap(MicromapDesc desc);
+
+    /// Query the device for buffer sizes required for a cluster operation.
+    ClusterOperationSizes get_cluster_operation_sizes(const ClusterOperationParams& params);
 
     /// Create a new shader table.
     ref<ShaderTable> create_shader_table(ShaderTableDesc desc);
@@ -1104,6 +1143,15 @@ SGL_API ref<AccelerationStructure> create_acceleration_structure(AccelerationStr
 
 /// Create a new acceleration structure instance list.
 SGL_API ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size);
+
+/// Query the current device for buffer sizes required for a micromap build.
+SGL_API MicromapSizes get_micromap_sizes(const MicromapBuildDesc& desc);
+
+/// Create a new micromap on the current device.
+SGL_API ref<Micromap> create_micromap(MicromapDesc desc);
+
+/// Query the current device for buffer sizes required for a cluster operation.
+SGL_API ClusterOperationSizes get_cluster_operation_sizes(const ClusterOperationParams& params);
 
 /// Create a new shader table.
 SGL_API ref<ShaderTable> create_shader_table(ShaderTableDesc desc);

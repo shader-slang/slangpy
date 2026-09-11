@@ -54,11 +54,18 @@ derivative works thereof, in binary and source code form.
 #include "sgl/core/string.h"
 #include "sgl/core/thread.h"
 #include "sgl/core/type_utils.h"
+#include "sgl/core/dds_file.h"
+#include "sgl/core/bc_codec.h"
+#include "sgl/core/bc_types.h"
+#include "sgl/device/native_formats.h"
 
 #include "sgl/math/scalar_types.h"
 
 #include "sgl/stl/bit.h"
 
+#define STBI_MALLOC(size) std::malloc(size)
+#define STBI_REALLOC(data, size) std::realloc(data, size)
+#define STBI_FREE(data) std::free(data)
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -106,6 +113,7 @@ SGL_DIAGNOSTIC_POP
 #endif
 
 #include <algorithm>
+#include <new>
 #include <numeric>
 #include <map>
 #include <mutex>
@@ -113,6 +121,38 @@ SGL_DIAGNOSTIC_POP
 SGL_DISABLE_MSVC_WARNING(4611)
 
 namespace sgl {
+
+namespace {
+
+    void check_path_write_format(const std::filesystem::path& path, Bitmap::FileFormat format)
+    {
+        bool is_dds = format == Bitmap::FileFormat::dds;
+        if (format == Bitmap::FileFormat::auto_)
+            is_dds = string::to_lower(path.extension().string()) == ".dds";
+        SGL_CHECK(!is_dds, "Bitmap: writing DDS files is not supported");
+    }
+
+    bool is_direct_bitmap_format(Format format, const FormatInfo& info)
+    {
+        if (info.is_compressed || info.is_depth_stencil() || info.channel_count < 1 || info.channel_count > 4
+            || info.type == FormatType::unknown)
+            return false;
+
+        if (format == Format::bgra8_unorm || format == Format::bgra8_unorm_srgb || format == Format::bgrx8_unorm
+            || format == Format::bgrx8_unorm_srgb)
+            return false;
+
+        uint32_t channel_bits = info.channel_bit_count[0];
+        if (channel_bits != 8 && channel_bits != 16 && channel_bits != 32)
+            return false;
+        for (uint32_t channel = 1; channel < info.channel_count; ++channel) {
+            if (info.channel_bit_count[channel] != channel_bits)
+                return false;
+        }
+        return info.bytes_per_block == info.channel_count * (channel_bits / 8);
+    }
+
+} // namespace
 
 Bitmap::Bitmap(
     PixelFormat pixel_format,
@@ -128,8 +168,7 @@ Bitmap::Bitmap(
     , m_component_type(component_type)
     , m_width(width)
     , m_height(height)
-    , m_data(reinterpret_cast<uint8_t*>(data))
-    , m_owns_data(false)
+    , m_data(static_cast<uint8_t*>(data))
 {
     SGL_CHECK(
         pixel_format != PixelFormat::multi_channel || channel_count > 0,
@@ -144,10 +183,8 @@ Bitmap::Bitmap(
 
     rebuild_pixel_struct(channel_count, channel_names);
 
-    if (!m_data) {
-        m_data = std::make_unique<uint8_t[]>(buffer_size());
-        m_owns_data = true;
-    }
+    if (!m_data)
+        allocate_data(buffer_size());
 }
 
 Bitmap::Bitmap(const Bitmap& other)
@@ -158,9 +195,9 @@ Bitmap::Bitmap(const Bitmap& other)
     , m_width(other.m_width)
     , m_height(other.m_height)
     , m_srgb_gamma(other.m_srgb_gamma)
-    , m_data(new uint8_t[other.buffer_size()])
 {
-    std::memcpy(m_data.get(), other.m_data.get(), other.buffer_size());
+    allocate_data(other.buffer_size());
+    std::memcpy(m_data, other.m_data, other.buffer_size());
 }
 
 Bitmap::Bitmap(Bitmap&& other)
@@ -170,7 +207,8 @@ Bitmap::Bitmap(Bitmap&& other)
     , m_width(std::exchange(other.m_width, 0))
     , m_height(std::exchange(other.m_height, 0))
     , m_srgb_gamma(std::exchange(other.m_srgb_gamma, false))
-    , m_data(std::move(other.m_data))
+    , m_owned_data(std::move(other.m_owned_data))
+    , m_data(std::exchange(other.m_data, nullptr))
 {
 }
 
@@ -183,12 +221,6 @@ Bitmap::Bitmap(const std::filesystem::path& path, FileFormat format)
 {
     FileStream stream(path, FileStream::Mode::read);
     read(&stream, format);
-}
-
-Bitmap::~Bitmap()
-{
-    if (!m_owns_data)
-        m_data.release();
 }
 
 std::vector<ref<Bitmap>> Bitmap::read_multiple(std::span<std::filesystem::path> paths, FileFormat format)
@@ -270,12 +302,14 @@ void Bitmap::write(Stream* stream, FileFormat format, int quality) const
 
 void Bitmap::write(const std::filesystem::path& path, FileFormat format, int quality) const
 {
+    check_path_write_format(path, format);
     auto stream = make_ref<FileStream>(path, FileStream::Mode::write);
     write(stream, format, quality);
 }
 
 void Bitmap::write_async(const std::filesystem::path& path, FileFormat format, int quality) const
 {
+    check_path_write_format(path, format);
     // Increment reference count to ensure that the bitmap is not destroyed before written.
     this->inc_ref();
     thread::global_task_group().do_async(
@@ -313,7 +347,7 @@ void Bitmap::set_srgb_gamma(bool srgb_gamma)
 
 void Bitmap::clear()
 {
-    std::memset(m_data.get(), 0, buffer_size());
+    std::memset(m_data, 0, buffer_size());
 }
 
 void Bitmap::vflip()
@@ -492,7 +526,7 @@ bool Bitmap::operator==(const Bitmap& other) const
 {
     return m_pixel_format == other.m_pixel_format && m_component_type == other.m_component_type
         && *m_pixel_struct == *other.m_pixel_struct && m_width == other.m_width && m_height == other.m_height
-        && m_srgb_gamma == other.m_srgb_gamma && std::memcmp(m_data.get(), other.m_data.get(), buffer_size()) == 0;
+        && m_srgb_gamma == other.m_srgb_gamma && std::memcmp(m_data, other.m_data, buffer_size()) == 0;
 }
 
 std::string Bitmap::to_string() const
@@ -539,6 +573,9 @@ Bitmap::FileFormat Bitmap::detect_file_format(Stream* stream)
     } else if (header[0] == 0x76 && header[1] == 0x2F && //
                header[2] == 0x31 && header[3] == 0x01) {
         format = FileFormat::exr;
+    } else if (header[0] == 0x44 && header[1] == 0x44 && //
+               header[2] == 0x53 && header[3] == 0x20) {
+        format = FileFormat::dds;
     } else {
         // Check for TGAv1 file
         char spec[10];
@@ -566,6 +603,16 @@ void Bitmap::static_init()
 }
 
 void Bitmap::static_shutdown() { }
+
+void Bitmap::allocate_data(size_t size)
+{
+    auto* data = static_cast<uint8_t*>(std::malloc(std::max<size_t>(size, 1)));
+    if (!data)
+        throw std::bad_alloc();
+
+    m_owned_data.reset(data);
+    m_data = data;
+}
 
 void Bitmap::rebuild_pixel_struct(uint32_t channel_count, const std::vector<std::string>& channel_names)
 {
@@ -640,6 +687,9 @@ void Bitmap::read(Stream* stream, FileFormat format)
         break;
     case FileFormat::exr:
         read_exr(stream);
+        break;
+    case FileFormat::dds:
+        read_dds(stream);
         break;
     default:
         SGL_THROW("Unknown file format!");
@@ -776,11 +826,11 @@ void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_
     if (!data)
         SGL_THROW(fmt::format("Failed to read {} file!", format));
 
+    m_owned_data.reset(static_cast<uint8_t*>(data));
+    m_data = m_owned_data.get();
+
     SGL_ASSERT_EQ(m_width, static_cast<uint32_t>(w));
     SGL_ASSERT_EQ(m_height, static_cast<uint32_t>(h));
-
-    m_data = std::unique_ptr<uint8_t[]>(reinterpret_cast<uint8_t*>(data));
-    m_owns_data = true;
 }
 
 // ----------------------------------------------------------------------------
@@ -946,8 +996,7 @@ void Bitmap::read_png(Stream* stream)
     );
 
     size_t size = buffer_size();
-    m_data = std::unique_ptr<uint8_t[]>(new uint8_t[size]);
-    m_owns_data = true;
+    allocate_data(size);
 
     size_t row_bytes = png_get_rowbytes(png_ptr, info_ptr);
     SGL_ASSERT(row_bytes == size / m_height);
@@ -1268,8 +1317,7 @@ void Bitmap::read_jpg(Stream* stream)
 
     size_t row_stride = static_cast<size_t>(cinfo.output_width) * static_cast<size_t>(cinfo.output_components);
 
-    m_data = std::unique_ptr<uint8_t[]>(new uint8_t[buffer_size()]);
-    m_owns_data = true;
+    allocate_data(buffer_size());
 
     JSAMPARRAY scanlines = reinterpret_cast<JSAMPARRAY>(alloca(sizeof(JSAMPROW) * m_height));
     for (size_t i = 0; i < m_height; ++i)
@@ -1341,7 +1389,7 @@ void Bitmap::write_jpg(Stream* stream, int quality) const
 
     // Write scanline by scanline
     for (size_t i = 0; i < m_height; ++i) {
-        const uint8_t* source = m_data.get() + i * m_width * cinfo.input_components;
+        const uint8_t* source = m_data + i * m_width * cinfo.input_components;
         jpeg_write_scanlines(&cinfo, const_cast<JSAMPARRAY>(&source), 1);
     }
 
@@ -1682,15 +1730,14 @@ void Bitmap::read_exr(Stream* stream)
     size_t pixel_count = this->pixel_count();
     size_t row_stride = pixel_stride * m_width;
 
-    m_data = std::unique_ptr<uint8_t[]>(new uint8_t[row_stride * m_height]);
-    m_owns_data = true;
+    allocate_data(row_stride * m_height);
 
 #if 0
     using ResampleBuffer = std::pair<std::string, ref<Bitmap>>;
     std::vector<ResampleBuffer> resample_buffers;
 #endif
 
-    uint8_t* ptr = m_data.get() - (data_window.min.x + data_window.min.y * m_width) * pixel_stride;
+    uint8_t* ptr = m_data - (data_window.min.x + data_window.min.y * m_width) * pixel_stride;
 
     // Tell OpenEXR where the image data should be put.
     Imf::FrameBuffer framebuffer;
@@ -1810,13 +1857,13 @@ void Bitmap::read_exr(Stream* stream)
 
         switch (m_component_type) {
         case ComponentType::float16:
-            convert(reinterpret_cast<math::float16_t*>(m_data.get()));
+            convert(reinterpret_cast<math::float16_t*>(m_data));
             break;
         case ComponentType::float32:
-            convert(reinterpret_cast<float*>(m_data.get()));
+            convert(reinterpret_cast<float*>(m_data));
             break;
         case ComponentType::uint32:
-            convert(reinterpret_cast<uint32_t*>(m_data.get()));
+            convert(reinterpret_cast<uint32_t*>(m_data));
             break;
         default:
             SGL_THROW("Internal error!");
@@ -1891,13 +1938,13 @@ void Bitmap::read_exr(Stream* stream)
 
         switch (m_component_format) {
         case DataStruct::Type::Float16:
-            convert((dr::half*)m_data.get());
+            convert((dr::half*)m_data);
             break;
         case DataStruct::Type::Float32:
-            convert((float*)m_data.get());
+            convert((float*)m_data);
             break;
         case DataStruct::Type::UInt32:
-            convert((uint32_t*)m_data.get());
+            convert((uint32_t*)m_data);
             break;
         default:
             Throw("Internal error!");
@@ -2223,8 +2270,7 @@ void Bitmap::read_exr(Stream* stream)
     size_t pixel_count = this->pixel_count();
     size_t row_stride = pixel_stride * m_width;
 
-    m_data = std::unique_ptr<uint8_t[]>(new uint8_t[row_stride * m_height]);
-    m_owns_data = true;
+    allocate_data(row_stride * m_height);
 
     for (const auto& field : *m_pixel_struct) {
         int channel_index = find_channel_index(field.name);
@@ -2513,6 +2559,176 @@ ref<Bitmap> Bitmap::resample(
     resample(result.get(), filter, bc, clamp);
 
     return result;
+}
+
+// ----------------------------------------------------------------------------
+// DDS I/O
+// ----------------------------------------------------------------------------
+
+void Bitmap::read_dds(Stream* stream)
+{
+    DDSFile dds(stream);
+
+    SGL_CHECK(
+        dds.type() == DDSFile::TextureType::texture_2d,
+        "Bitmap::read_dds: only 2D textures are supported (got {}).",
+        dds.type()
+    );
+    SGL_CHECK(dds.array_size() == 1, "Bitmap::read_dds: array textures are not supported.");
+
+    Format format = get_format(DXGI_FORMAT(dds.dxgi_format()));
+    SGL_CHECK(format != Format::undefined, "Bitmap::read_dds: unsupported DXGI format {}.", dds.dxgi_format());
+
+    const FormatInfo& info = get_format_info(format);
+
+    if (info.is_compressed) {
+        // BC compressed format - decode mip level 0.
+        auto bc_format = format_to_bc_format(format);
+        SGL_CHECK(bc_format.has_value(), "Bitmap::read_dds: unsupported compressed format {}.", format);
+
+        // Determine output pixel format and component type from BC format.
+        PixelFormat pixel_format;
+        ComponentType component_type;
+        uint32_t channel_count;
+        switch (*bc_format) {
+        case BCFormat::bc4_unorm:
+            pixel_format = PixelFormat::r;
+            component_type = ComponentType::uint8;
+            channel_count = 1;
+            break;
+        case BCFormat::bc4_snorm:
+            pixel_format = PixelFormat::r;
+            component_type = ComponentType::int8;
+            channel_count = 1;
+            break;
+        case BCFormat::bc5_unorm:
+            pixel_format = PixelFormat::rg;
+            component_type = ComponentType::uint8;
+            channel_count = 2;
+            break;
+        case BCFormat::bc5_snorm:
+            pixel_format = PixelFormat::rg;
+            component_type = ComponentType::int8;
+            channel_count = 2;
+            break;
+        case BCFormat::bc6h_ufloat:
+        case BCFormat::bc6h_sfloat:
+            pixel_format = PixelFormat::rgb;
+            component_type = ComponentType::float16;
+            channel_count = 3;
+            break;
+        default:
+            // BC1, BC2, BC3, BC7 all decode to RGBA uint8.
+            pixel_format = PixelFormat::rgba;
+            component_type = ComponentType::uint8;
+            channel_count = 4;
+            break;
+        }
+
+        m_pixel_format = pixel_format;
+        m_component_type = component_type;
+        m_width = dds.width();
+        m_height = dds.height();
+        m_srgb_gamma = dds.srgb();
+
+        rebuild_pixel_struct();
+
+        uint32_t bpp = static_cast<uint32_t>(bytes_per_pixel());
+        size_t buf_size = buffer_size();
+        allocate_data(buf_size);
+
+        BCMutableImage dst{
+            .data = m_data,
+            .width = m_width,
+            .height = m_height,
+            .row_pitch = m_width * bpp,
+            .channel_count = channel_count,
+            .component_type = component_type,
+        };
+
+        uint32_t row_pitch, slice_pitch;
+        dds.get_subresource_pitch(0, &row_pitch, &slice_pitch);
+
+        decode_bc(dds.get_subresource_data(0, 0), slice_pitch, *bc_format, m_width, m_height, dst);
+    } else {
+        // Only formats with a homogeneous, tightly packed R/RG/RGB/RGBA layout can be represented directly.
+        SGL_CHECK(
+            is_direct_bitmap_format(format, info),
+            "Bitmap::read_dds: uncompressed format {} is not directly representable as a Bitmap.",
+            format
+        );
+        uint32_t channel_count = info.channel_count;
+
+        PixelFormat pixel_format;
+        switch (channel_count) {
+        case 1:
+            pixel_format = PixelFormat::r;
+            break;
+        case 2:
+            pixel_format = PixelFormat::rg;
+            break;
+        case 3:
+            pixel_format = PixelFormat::rgb;
+            break;
+        case 4:
+            pixel_format = PixelFormat::rgba;
+            break;
+        default:
+            SGL_THROW("Bitmap::read_dds: unsupported channel count {} for format {}.", channel_count, format);
+        }
+
+        ComponentType component_type;
+        uint32_t bits = info.channel_bit_count[0];
+        switch (info.type) {
+        case FormatType::float_:
+            component_type = (bits == 16) ? ComponentType::float16 : ComponentType::float32;
+            break;
+        case FormatType::unorm:
+        case FormatType::unorm_srgb:
+            component_type = (bits <= 8) ? ComponentType::uint8 : ComponentType::uint16;
+            break;
+        case FormatType::snorm:
+            component_type = (bits <= 8) ? ComponentType::int8 : ComponentType::int16;
+            break;
+        case FormatType::uint:
+            if (bits <= 8)
+                component_type = ComponentType::uint8;
+            else if (bits <= 16)
+                component_type = ComponentType::uint16;
+            else
+                component_type = ComponentType::uint32;
+            break;
+        case FormatType::sint:
+            if (bits <= 8)
+                component_type = ComponentType::int8;
+            else if (bits <= 16)
+                component_type = ComponentType::int16;
+            else
+                component_type = ComponentType::int32;
+            break;
+        default:
+            SGL_THROW("Bitmap::read_dds: unsupported format type for {}.", format);
+        }
+
+        m_pixel_format = pixel_format;
+        m_component_type = component_type;
+        m_width = dds.width();
+        m_height = dds.height();
+        m_srgb_gamma = (info.type == FormatType::unorm_srgb);
+
+        rebuild_pixel_struct();
+
+        size_t buf_size = buffer_size();
+        allocate_data(buf_size);
+
+        // Copy mip level 0 data. Only tightly packed rows are supported.
+        uint32_t row_pitch, slice_pitch;
+        dds.get_subresource_pitch(0, &row_pitch, &slice_pitch);
+        uint32_t dst_row_pitch = static_cast<uint32_t>(m_width * bytes_per_pixel());
+        const uint8_t* src = dds.get_subresource_data(0, 0);
+        SGL_CHECK(row_pitch == dst_row_pitch, "Bitmap::read_dds: unsupported row pitch for format {}.", format);
+        std::memcpy(m_data, src, buf_size);
+    }
 }
 
 } // namespace sgl

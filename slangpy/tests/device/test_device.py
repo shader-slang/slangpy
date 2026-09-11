@@ -5,6 +5,7 @@ import numpy as np
 
 import slangpy as spy
 from slangpy.testing import helpers
+from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
 
 from typing import Optional
 
@@ -21,6 +22,7 @@ def test_create_device(device_type: spy.DeviceType):
     assert device.desc.type == device_type
     assert device.desc.enable_debug_layers == True
     assert device.desc.enable_rhi_validation == True
+    assert device.desc.pipeline_compilation_mode == spy.PipelineCompilationMode.serial
 
     assert device.info.type == device_type
     assert device.info.adapter_name != ""
@@ -31,6 +33,52 @@ def test_create_device(device_type: spy.DeviceType):
         spy.DeviceType.cuda: "CUDA",
     }
     assert device.info.api_name == API_NAMES[device_type]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_parallel_pipeline_compilation(test_id: str, device_type: spy.DeviceType):
+    device = spy.create_device(
+        type=device_type,
+        pipeline_compilation_mode=spy.PipelineCompilationMode.parallel,
+    )
+    try:
+        assert device.desc.pipeline_compilation_mode == spy.PipelineCompilationMode.parallel
+
+        module = device.load_module_from_source(
+            module_name=f"parallel_pipeline_compilation_{test_id}",
+            source="""
+                [shader("compute")]
+                [numthreads(1, 1, 1)]
+                void add(RWStructuredBuffer<float> buffer) { buffer[0] += 1.0; }
+
+                [shader("compute")]
+                [numthreads(1, 1, 1)]
+                void multiply(RWStructuredBuffer<float> buffer) { buffer[0] *= 2.0; }
+            """,
+        )
+        pipelines = [
+            device.create_compute_pipeline(
+                device.link_program([module], [module.entry_point(entry_point)]),
+            )
+            for entry_point in ["add", "multiply"]
+        ]
+        buffer = device.create_buffer(
+            data=np.array([1.0], dtype=np.float32),
+            usage=spy.BufferUsage.unordered_access | spy.BufferUsage.shader_resource,
+        )
+
+        command_encoder = device.create_command_encoder()
+        for pipeline in pipelines:
+            with command_encoder.begin_compute_pass() as compute_pass:
+                shader_object = compute_pass.bind_pipeline(pipeline)
+                spy.ShaderCursor(shader_object).find_entry_point(0)["buffer"] = buffer
+                compute_pass.dispatch(thread_count=[1, 1, 1])
+
+        device.submit_command_buffer(command_encoder.finish())
+        device.wait()
+        assert buffer.to_numpy().view(np.float32)[0] == 4.0
+    finally:
+        device.close()
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

@@ -52,7 +52,7 @@ void Object::inc_ref() const noexcept
 
 void Object::dec_ref(bool dealloc) const noexcept
 {
-    uintptr_t value = m_state.load(std::memory_order_relaxed);
+    uintptr_t value = m_state.load(std::memory_order_acquire);
 
     while (true) {
         if (value & 1) {
@@ -63,11 +63,11 @@ void Object::dec_ref(bool dealloc) const noexcept
                 if (dealloc) {
                     delete this;
                 } else {
-                    m_state.store(1, std::memory_order_relaxed);
+                    m_state.store(1, std::memory_order_release);
                 }
             } else {
                 if (!m_state
-                         .compare_exchange_weak(value, value - 2, std::memory_order_relaxed, std::memory_order_relaxed))
+                         .compare_exchange_weak(value, value - 2, std::memory_order_acq_rel, std::memory_order_acquire))
                     continue;
             }
         } else {

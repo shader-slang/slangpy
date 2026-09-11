@@ -13,8 +13,6 @@ from slangpy.testing import helpers
 # to test the ParameterBlock binding.
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_parameter_block(device_type: spy.DeviceType):
-    if device_type == spy.DeviceType.metal:
-        pytest.skip("Crash in slang-rhi due to invalid reflection data")
 
     # Create device
     device = helpers.get_device(type=device_type)

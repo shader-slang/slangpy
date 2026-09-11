@@ -3,6 +3,27 @@
 import sgl.device.print;
 import test_print_module2;
 
+enum class SignedEnum : int16_t {
+    negative = -12345,
+};
+
+enum class UnsignedEnum : uint32_t {
+    positive = 4000000000,
+};
+
+enum class WideEnum : uint64_t {
+    wide = 10000000000000,
+};
+
+enum class SignedWideEnum : int64_t {
+    negative = -10000000000000,
+};
+
+enum class BoolEnum : bool {
+    no = false,
+    yes = true,
+};
+
 [shader("compute")]
 [numthreads(1, 1, 1)]
 void compute_main(uint3 tid: SV_DispatchThreadID)
@@ -76,6 +97,15 @@ void compute_main(uint3 tid: SV_DispatchThreadID)
         uint64_t.maxValue,
         uint64_t(12345),
         uint64_t(23456)
+    );
+    print(
+        "enum: signed={}, unsigned={}, wide={}, signed_wide={}, false={}, true={}",
+        SignedEnum::negative,
+        UnsignedEnum::positive,
+        WideEnum::wide,
+        SignedWideEnum::negative,
+        BoolEnum::no,
+        BoolEnum::yes
     );
     print(
         "float16: min={}, max={}, -123.45={:.5}, 123.45={:.5}",
