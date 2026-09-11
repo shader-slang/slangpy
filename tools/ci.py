@@ -200,6 +200,7 @@ def benchmark_python(args: Any):
         # Run for all device types plus nodevice tests
         device_types = device_types + ["nodevice"]
 
+    failed_devices = []
     try:
         # Lock GPU clocks
         if args.lock_gpu_clocks:
@@ -224,7 +225,13 @@ def benchmark_python(args: Any):
                 print(f"Benchmarks failed for device type {device_type}: {e}")
                 if args.device_type:  # If specific device requested, fail hard
                     raise
-                # Otherwise, continue with other devices
+                # Otherwise, track failure and continue with other devices
+                failed_devices.append((device_type, str(e)))
+
+        # Fail if any device types had errors
+        if failed_devices:
+            summary = "; ".join(f"{dt}" for dt, _ in failed_devices)
+            raise RuntimeError(f"Benchmarks failed for device type(s): {summary}")
     finally:
         # Unlock GPU clocks
         if args.lock_gpu_clocks:
