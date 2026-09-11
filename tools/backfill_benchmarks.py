@@ -553,6 +553,7 @@ def run_backfill_scheduler(
     dry_run: bool,
     output: Callable[[str], None] = print,
     revspec_shas: Optional[list[str]] = None,
+    verbose: bool = False,
 ) -> int:
     """Discover history, reconcile state, and dispatch at most one commit per interval.
 
@@ -605,6 +606,9 @@ def run_backfill_scheduler(
         f"commit(s), {len(runs)} existing run(s), {len(pending_records(state))} pending "
         f"(low-discrepancy order)."
     )
+    if verbose:
+        for record in sorted(state.records.values(), key=lambda r: (r.committed_at, r.sha)):
+            output(f"  {record.sha[:12]} [{record.status}] {record.message[:60]}")
     if dry_run:
         for record in pending_records(state):
             output(f"Would dispatch {store.workflow} for {record.sha} from {store.branch}.")
@@ -651,6 +655,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--state-file", type=Path, default=DEFAULT_STATE_PATH)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--once", action="store_true")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
     parser.add_argument(
         "--revspec",
         metavar="RANGE",
@@ -698,6 +703,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             once=args.once,
             dry_run=args.dry_run,
             revspec_shas=revspec_shas,
+            verbose=args.verbose,
         )
     except KeyboardInterrupt:
         print("Backfill interrupted; durable state is ready for restart.", file=sys.stderr)
