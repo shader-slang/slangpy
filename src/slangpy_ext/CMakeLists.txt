@@ -151,6 +151,8 @@ if(NOT SGL_ENABLE_ASAN AND NOT SGL_ENABLE_UBSAN)
     # Install the main stub file.
     install(FILES ${SLANGPY_PACKAGE_DIR}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+    set(SLANGPY_STUB_TARGETS slangpy_stub)
+
     # Generate submodule stub files.
     foreach(submodule IN ITEMS platform thread math ui tev crashpad renderdoc slangpy native_refl native_func)
         string(REPLACE "." "/" submodule_path ${submodule})
@@ -168,7 +170,13 @@ if(NOT SGL_ENABLE_ASAN AND NOT SGL_ENABLE_UBSAN)
 
         # Install the submodule stub file.
         install(FILES ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR}/${submodule_path})
+
+        list(APPEND SLANGPY_STUB_TARGETS slangpy_${submodule}_stub)
     endforeach()
+
+    add_custom_target(slangpy_stubs ALL
+        DEPENDS ${SLANGPY_STUB_TARGETS}
+    )
 endif()
 
 set(MKDOC_ARGS "")
