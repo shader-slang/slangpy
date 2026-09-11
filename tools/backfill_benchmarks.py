@@ -317,7 +317,11 @@ def reconcile_records(
     now: datetime,
     grace: timedelta,
 ) -> bool:
-    """Resolve deterministic titles and release expired uncertain dispatch markers."""
+    """Resolve deterministic titles and release expired uncertain dispatch markers.
+
+    Only successful runs are considered complete. Failed or cancelled runs are
+    reset to pending so they can be retried.
+    """
 
     matching_runs: dict[str, WorkflowRun] = {}
     for run in sorted(runs, key=lambda item: (item.created_at, item.run_id), reverse=True):
@@ -327,14 +331,26 @@ def reconcile_records(
     for record in state.records.values():
         matching = matching_runs.get(backfill_run_title(record.sha))
         if matching is not None:
-            if (
-                record.status != "dispatched"
-                or record.run_id != matching.run_id
-                or record.run_url != matching.html_url
-            ):
-                record.status = "dispatched"
-                record.run_id = matching.run_id
-                record.run_url = matching.html_url
+            # Only mark as dispatched if the run succeeded
+            if matching.conclusion == "success":
+                if (
+                    record.status != "dispatched"
+                    or record.run_id != matching.run_id
+                    or record.run_url != matching.html_url
+                ):
+                    record.status = "dispatched"
+                    record.run_id = matching.run_id
+                    record.run_url = matching.html_url
+                    changed = True
+            # If run is still in progress, keep current state
+            elif matching.status != "completed":
+                pass
+            # Failed/cancelled runs: reset to pending for retry
+            elif record.status != "pending":
+                record.status = "pending"
+                record.dispatch_started_at = None
+                record.run_id = None
+                record.run_url = None
                 changed = True
             continue
         if (
