@@ -39,6 +39,9 @@ public:
         /// Use \c Format::rgba8_unorm_srgb for 8-bit color bitmaps with sRGB gamma.
         /// Luminance-only color bitmaps are expanded to RGBA.
         bool load_as_srgb{true};
+        /// Expand luminance-only bitmaps to RGBA for consumers that require RGB channels.
+        /// Preserves the component type and gamma encoding; explicit R/RG bitmaps are unchanged.
+        bool load_as_rgb{false};
         /// Extend RGB to RGBA if the RGB texture format cannot support the requested usage.
         bool extend_alpha{true};
         /// Strategy for handling YA (greyscale + alpha) bitmaps.
