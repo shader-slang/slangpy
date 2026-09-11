@@ -213,8 +213,8 @@ void FileSystemWatcher::_notify_change(
         std::lock_guard<std::mutex> lock(m_queued_events_mutex);
 #endif
         m_queued_events.push_back(event);
+        m_last_event = now;
     }
-    m_last_event = now;
 }
 
 void FileSystemWatcher::update()

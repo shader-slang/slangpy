@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import gc
 import os
 import pytest
 import inspect
@@ -61,6 +62,7 @@ def pytest_sessionstart(session: pytest.Session):
 @pytest.hookimpl(trylast=True)
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
     close_all_devices()
+    gc.collect()
 
 
 @pytest.hookimpl(trylast=True)

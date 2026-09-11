@@ -5,14 +5,18 @@
 if(SGL_BUILD_TESTS)
 
     add_executable(sgl_tests)
+    sgl_enable_sanitizers(sgl_tests)
     target_sources(sgl_tests PRIVATE
         sgl/sgl_tests.cpp
         sgl/testing.cpp
         sgl/core/test_block_allocator.cpp
+        sgl/core/test_bc_codec.cpp
+        sgl/core/test_bc_dds.cpp
         sgl/core/test_dds_file.cpp
         sgl/core/test_enum.cpp
         sgl/core/test_file_system_watcher.cpp
         sgl/core/test_lmdb_cache.cpp
+        sgl/core/test_logger.cpp
         sgl/core/test_maths.cpp
         sgl/core/test_memory_mapped_file.cpp
         sgl/core/test_object.cpp
@@ -23,11 +27,13 @@ if(SGL_BUILD_TESTS)
         sgl/core/test_static_vector.cpp
         sgl/core/test_stream.cpp
         sgl/core/test_string.cpp
+        sgl/core/test_thread.cpp
         sgl/device/test_cursors.cpp
         sgl/device/test_device.cpp
         sgl/device/test_hot_reload.cpp
         sgl/device/test_formats.cpp
         sgl/device/test_shader.cpp
+        sgl/device/test_texture_loader.cpp
         sgl/device/test_persistent_cache.cpp
         sgl/device/test_profiler.cpp
         sgl/func/test_base_objects.cpp
@@ -49,6 +55,11 @@ if(SGL_BUILD_TESTS)
         DOCTEST_CONFIG_USE_STD_HEADERS
         SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     )
+    if(SGL_ENABLE_TSAN AND SGL_LINUX)
+        # LLVM TSan can assert if doctest's signal handler runs while TSan is
+        # intercepting fork(). Let TSan handle fatal signals in this build.
+        target_compile_definitions(sgl_tests PRIVATE DOCTEST_CONFIG_NO_POSIX_SIGNALS)
+    endif()
 
     set_target_properties(sgl_tests PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY}

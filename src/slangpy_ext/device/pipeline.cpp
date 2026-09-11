@@ -9,6 +9,7 @@
 namespace sgl {
 SGL_DICT_TO_DESC_BEGIN(ComputePipelineDesc)
 SGL_DICT_TO_DESC_FIELD(program, ref<ShaderProgram>)
+SGL_DICT_TO_DESC_FIELD(compilation_policy, PipelineCompilationPolicy)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_END()
 
@@ -20,6 +21,7 @@ SGL_DICT_TO_DESC_FIELD(targets, std::vector<ColorTargetDesc>)
 SGL_DICT_TO_DESC_FIELD(depth_stencil, DepthStencilDesc)
 SGL_DICT_TO_DESC_FIELD(rasterizer, RasterizerDesc)
 SGL_DICT_TO_DESC_FIELD(multisample, MultisampleDesc)
+SGL_DICT_TO_DESC_FIELD(compilation_policy, PipelineCompilationPolicy)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_END()
 
@@ -37,6 +39,7 @@ SGL_DICT_TO_DESC_FIELD(max_recursion, uint32_t)
 SGL_DICT_TO_DESC_FIELD(max_ray_payload_size, uint32_t)
 SGL_DICT_TO_DESC_FIELD(max_attribute_size, uint32_t)
 SGL_DICT_TO_DESC_FIELD(flags, RayTracingPipelineFlags)
+SGL_DICT_TO_DESC_FIELD(compilation_policy, PipelineCompilationPolicy)
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_END()
 } // namespace sgl
@@ -44,6 +47,8 @@ SGL_DICT_TO_DESC_END()
 SGL_PY_EXPORT(device_pipeline)
 {
     using namespace sgl;
+
+    nb::sgl_enum<PipelineCompilationPolicy>(m, "PipelineCompilationPolicy");
 
     nb::class_<Pipeline, DeviceChild>(m, "Pipeline", D(Pipeline));
 
@@ -57,6 +62,7 @@ SGL_PY_EXPORT(device_pipeline)
             }
         )
         .def_rw("program", &ComputePipelineDesc::program, D(ComputePipelineDesc, program))
+        .def_rw("compilation_policy", &ComputePipelineDesc::compilation_policy)
         .def_rw("label", &ComputePipelineDesc::label, D(ComputePipelineDesc, label));
     nb::implicitly_convertible<nb::dict, ComputePipelineDesc>();
 
@@ -84,6 +90,7 @@ SGL_PY_EXPORT(device_pipeline)
         .def_rw("depth_stencil", &RenderPipelineDesc::depth_stencil, D(RenderPipelineDesc, depth_stencil))
         .def_rw("rasterizer", &RenderPipelineDesc::rasterizer, D(RenderPipelineDesc, rasterizer))
         .def_rw("multisample", &RenderPipelineDesc::multisample, D(RenderPipelineDesc, multisample))
+        .def_rw("compilation_policy", &RenderPipelineDesc::compilation_policy)
         .def_rw("label", &RenderPipelineDesc::label, D(RenderPipelineDesc, label));
 
     nb::class_<RenderPipeline, Pipeline>(m, "RenderPipeline", D(RenderPipeline)) //
@@ -147,6 +154,7 @@ SGL_PY_EXPORT(device_pipeline)
             D(RayTracingPipelineDesc, max_attribute_size)
         )
         .def_rw("flags", &RayTracingPipelineDesc::flags, D(RayTracingPipelineDesc, flags))
+        .def_rw("compilation_policy", &RayTracingPipelineDesc::compilation_policy)
         .def_rw("label", &RayTracingPipelineDesc::label, D(RayTracingPipelineDesc, label));
     nb::implicitly_convertible<nb::dict, RayTracingPipelineDesc>();
 

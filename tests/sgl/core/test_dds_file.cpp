@@ -2,9 +2,13 @@
 
 #include "testing.h"
 #include "sgl/core/dds_file.h"
+#include "sgl/core/bitmap.h"
+#include "sgl/core/file_stream.h"
 #include "sgl/core/platform.h"
 #include "sgl/core/memory_stream.h"
 #include "sgl/device/native_formats.h"
+
+#include <cstring>
 
 using namespace sgl;
 
@@ -107,7 +111,7 @@ static const struct TestItem TEST_ITEMS[] = {
         .mip_count = 1,
         .array_size = 1,
         .row_pitch = 16,
-        .slice_pitch = 4,
+        .slice_pitch = 16,
         .bits_per_pixel_or_block = 128,
         .block_width = 4,
         .block_height = 4,
@@ -141,7 +145,7 @@ static const struct TestItem TEST_ITEMS[] = {
         .mip_count = 10,
         .array_size = 1,
         .row_pitch = 2480,
-        .slice_pitch = 283960,
+        .slice_pitch = 285200,
         .bits_per_pixel_or_block = 128,
         .block_width = 4,
         .block_height = 4,
@@ -158,7 +162,7 @@ static const struct TestItem TEST_ITEMS[] = {
         .mip_count = 2,
         .array_size = 1,
         .row_pitch = 16,
-        .slice_pitch = 12,
+        .slice_pitch = 16,
         .bits_per_pixel_or_block = 128,
         .block_width = 4,
         .block_height = 4,
@@ -192,7 +196,7 @@ static const struct TestItem TEST_ITEMS[] = {
         .mip_count = 7,
         .array_size = 1,
         .row_pitch = 512,
-        .slice_pitch = 16256,
+        .slice_pitch = 16384,
         .bits_per_pixel_or_block = 128,
         .block_width = 4,
         .block_height = 4,
@@ -209,7 +213,7 @@ static const struct TestItem TEST_ITEMS[] = {
         .mip_count = 1,
         .array_size = 1,
         .row_pitch = 16,
-        .slice_pitch = 4,
+        .slice_pitch = 16,
         .bits_per_pixel_or_block = 128,
         .block_width = 4,
         .block_height = 4,
@@ -260,7 +264,7 @@ static const struct TestItem TEST_ITEMS[] = {
         .mip_count = 1,
         .array_size = 1,
         .row_pitch = 16,
-        .slice_pitch = 4,
+        .slice_pitch = 16,
         .bits_per_pixel_or_block = 128,
         .block_width = 4,
         .block_height = 4,
@@ -311,7 +315,7 @@ static const struct TestItem TEST_ITEMS[] = {
         .mip_count = 7,
         .array_size = 1,
         .row_pitch = 512,
-        .slice_pitch = 16256,
+        .slice_pitch = 16384,
         .bits_per_pixel_or_block = 128,
         .block_width = 4,
         .block_height = 4,
@@ -345,7 +349,41 @@ static const struct TestItem TEST_ITEMS[] = {
         .mip_count = 1,
         .array_size = 1,
         .row_pitch = 16,
-        .slice_pitch = 4,
+        .slice_pitch = 16,
+        .bits_per_pixel_or_block = 128,
+        .block_width = 4,
+        .block_height = 4,
+        .compressed = true,
+        .srgb = false,
+    },
+    {
+        .path = "bc7-unorm-nonsquare.dds",
+        .dxgi_format = DXGI_FORMAT_BC7_UNORM,
+        .type = DDSFile::TextureType::texture_2d,
+        .width = 4,
+        .height = 8,
+        .depth = 1,
+        .mip_count = 4,
+        .array_size = 1,
+        .row_pitch = 16,
+        .slice_pitch = 32,
+        .bits_per_pixel_or_block = 128,
+        .block_width = 4,
+        .block_height = 4,
+        .compressed = true,
+        .srgb = false,
+    },
+    {
+        .path = "bc7-unorm-3d.dds",
+        .dxgi_format = DXGI_FORMAT_BC7_UNORM,
+        .type = DDSFile::TextureType::texture_3d,
+        .width = 8,
+        .height = 8,
+        .depth = 4,
+        .mip_count = 4,
+        .array_size = 1,
+        .row_pitch = 32,
+        .slice_pitch = 64,
         .bits_per_pixel_or_block = 128,
         .block_width = 4,
         .block_height = 4,
@@ -418,6 +456,449 @@ TEST_CASE("detect_dds_file")
     const uint32_t INVALID_MAGIC = 0xffffffff;
     MemoryStream invalid_stream(&INVALID_MAGIC, sizeof(INVALID_MAGIC));
     CHECK_FALSE(DDSFile::detect_dds_file(&invalid_stream));
+}
+
+TEST_CASE("subresource_mip_clamp")
+{
+    std::filesystem::path path
+        = platform::project_directory() / "data" / "test_images" / "dds" / "bc7-unorm-nonsquare.dds";
+    DDSFile dds(path);
+
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(0, &row, &slice);
+        CHECK_EQ(row, 16);   // one 4-pixel block row
+        CHECK_EQ(slice, 32); // two rows of blocks
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(1, &row, &slice);
+        CHECK_EQ(row, 16);
+        CHECK_EQ(slice, 16); // one row of one block
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(2, &row, &slice);
+        CHECK_EQ(row, 16);
+        CHECK_EQ(slice, 16);
+    }
+    // mip 3 hits width >> 3 == 0 - clamp ensures at least one block.
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(3, &row, &slice);
+        CHECK_EQ(row, 16);
+        CHECK_EQ(slice, 16);
+    }
+
+    const uint8_t* base = dds.resource_data();
+    CHECK_EQ(dds.get_subresource_data(0, 0) - base, 0);
+    CHECK_EQ(dds.get_subresource_data(1, 0) - base, 32);
+    CHECK_EQ(dds.get_subresource_data(2, 0) - base, 48);
+    CHECK_EQ(dds.get_subresource_data(3, 0) - base, 64);
+
+    // All subresource pointers are within bounds and monotonic.
+    size_t total = dds.resource_size();
+    CHECK_EQ(total, 80);
+    const uint8_t* prev = nullptr;
+    for (uint32_t m = 0; m < 4; ++m) {
+        const uint8_t* ptr = dds.get_subresource_data(m, 0);
+        size_t offset = ptr - base;
+        CHECK(offset < total);
+        if (prev)
+            CHECK(ptr > prev);
+        prev = ptr;
+    }
+}
+
+TEST_CASE("subresource_3d")
+{
+    // 8x8x4 BC7 3D texture with 4 mips.
+    std::filesystem::path path = platform::project_directory() / "data" / "test_images" / "dds" / "bc7-unorm-3d.dds";
+    DDSFile dds(path);
+
+    CHECK_EQ(dds.type(), DDSFile::TextureType::texture_3d);
+    CHECK_EQ(dds.depth(), 4);
+    CHECK_EQ(dds.mip_count(), 4);
+
+    // Per-slice pitches.
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(0, &row, &slice);
+        CHECK_EQ(row, 32);
+        CHECK_EQ(slice, 64);
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(1, &row, &slice);
+        CHECK_EQ(row, 16);
+        CHECK_EQ(slice, 16);
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(2, &row, &slice);
+        CHECK_EQ(row, 16);
+        CHECK_EQ(slice, 16);
+    }
+
+    const uint8_t* base = dds.resource_data();
+
+    // 3D layout: each mip stores all depth slices contiguously.
+    // mip 0 (depth=4): slice_pitch=64, 4x64=256 bytes
+    CHECK_EQ(dds.get_subresource_data(0, 0) - base, 0);
+    CHECK_EQ(dds.get_subresource_data(0, 1) - base, 64);
+    CHECK_EQ(dds.get_subresource_data(0, 2) - base, 128);
+    CHECK_EQ(dds.get_subresource_data(0, 3) - base, 192);
+
+    // mip 1 (depth=2): slice_pitch=16, offset after mip 0 = 256
+    CHECK_EQ(dds.get_subresource_data(1, 0) - base, 256);
+    CHECK_EQ(dds.get_subresource_data(1, 1) - base, 272);
+
+    // mip 2 (depth=1): slice_pitch=16, offset = 256 + 32 = 288
+    CHECK_EQ(dds.get_subresource_data(2, 0) - base, 288);
+
+    // mip 3 (depth=1): slice_pitch=16, offset = 288 + 16 = 304
+    CHECK_EQ(dds.get_subresource_data(3, 0) - base, 304);
+
+    // Subresource sizes match expected.
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(0, &row, &slice);
+        CHECK_EQ(size_t(slice) * std::max(1u, dds.depth() >> 0), 256);
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(1, &row, &slice);
+        CHECK_EQ(size_t(slice) * std::max(1u, dds.depth() >> 1), 32);
+    }
+    {
+        uint32_t row, slice;
+        dds.get_subresource_pitch(2, &row, &slice);
+        CHECK_EQ(size_t(slice) * std::max(1u, dds.depth() >> 2), 16);
+    }
+}
+
+TEST_CASE("write_read_roundtrip")
+{
+    std::filesystem::path images_dir = platform::project_directory() / "data" / "test_images" / "dds";
+
+    for (const TestItem& item : TEST_ITEMS) {
+        CAPTURE(item.path);
+
+        DDSFile original(images_dir / item.path);
+
+        // Write directly to memory stream using static write_dds.
+        MemoryStream stream;
+        DDSFile::write_dds(
+            &stream,
+            original.dxgi_format(),
+            original.type(),
+            original.width(),
+            original.height(),
+            original.depth(),
+            original.mip_count(),
+            original.array_size(),
+            original.resource_data(),
+            original.resource_size()
+        );
+
+        // Read back.
+        stream.seek(0);
+        DDSFile read_back(&stream);
+
+        // Verify metadata matches.
+        CHECK_EQ(read_back.dxgi_format(), original.dxgi_format());
+        CHECK_EQ(read_back.type(), original.type());
+        CHECK_EQ(read_back.width(), original.width());
+        CHECK_EQ(read_back.height(), original.height());
+        CHECK_EQ(read_back.depth(), original.depth());
+        CHECK_EQ(read_back.mip_count(), original.mip_count());
+        CHECK_EQ(read_back.array_size(), original.array_size());
+        CHECK_EQ(read_back.row_pitch(), original.row_pitch());
+        CHECK_EQ(read_back.slice_pitch(), original.slice_pitch());
+        CHECK_EQ(read_back.bits_per_pixel_or_block(), original.bits_per_pixel_or_block());
+        CHECK_EQ(read_back.block_width(), original.block_width());
+        CHECK_EQ(read_back.block_height(), original.block_height());
+        CHECK_EQ(read_back.compressed(), original.compressed());
+        CHECK_EQ(read_back.srgb(), original.srgb());
+
+        // Verify resource data is byte-identical.
+        CHECK_EQ(read_back.resource_size(), original.resource_size());
+        CHECK(std::memcmp(read_back.resource_data(), original.resource_data(), original.resource_size()) == 0);
+    }
+}
+
+TEST_CASE("bitmap_read_dds")
+{
+    std::filesystem::path images_dir = platform::project_directory() / "data" / "test_images" / "dds";
+
+    struct BitmapDDSTestItem {
+        const char* path;
+        uint32_t width;
+        uint32_t height;
+        Bitmap::PixelFormat pixel_format;
+        Bitmap::ComponentType component_type;
+        bool srgb;
+    };
+
+    static const BitmapDDSTestItem BITMAP_DDS_ITEMS[] = {
+        {"bc1-unorm.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, false},
+        {"bc1-unorm-srgb.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, true},
+        {"bc3-unorm.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, false},
+        {"bc3-unorm-srgb.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, true},
+        {"bc4-unorm.dds", 256, 256, Bitmap::PixelFormat::r, Bitmap::ComponentType::uint8, false},
+        {"bc5-unorm.dds", 256, 256, Bitmap::PixelFormat::rg, Bitmap::ComponentType::uint8, false},
+        {"bc6h-uf16.dds", 409, 204, Bitmap::PixelFormat::rgb, Bitmap::ComponentType::float16, false},
+        {"bc7-unorm.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, false},
+        {"bc7-unorm-srgb.dds", 256, 256, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, true},
+        {"bc7-unorm-odd.dds", 127, 127, Bitmap::PixelFormat::rgba, Bitmap::ComponentType::uint8, false},
+    };
+
+    for (const auto& item : BITMAP_DDS_ITEMS) {
+        CAPTURE(item.path);
+
+        Bitmap bmp(images_dir / item.path);
+        CHECK_EQ(bmp.width(), item.width);
+        CHECK_EQ(bmp.height(), item.height);
+        CHECK_EQ(bmp.pixel_format(), item.pixel_format);
+        CHECK_EQ(bmp.component_type(), item.component_type);
+        CHECK_EQ(bmp.srgb_gamma(), item.srgb);
+        CHECK_FALSE(bmp.empty());
+        CHECK(bmp.buffer_size() > 0);
+    }
+
+    // Detect the DDS signature from a stream that carries no filename.
+    {
+        FileStream file(images_dir / "bc7-unorm.dds", FileStream::Mode::read);
+        std::vector<uint8_t> bytes(file.size());
+        file.read(bytes.data(), bytes.size());
+        MemoryStream stream(bytes.data(), bytes.size());
+        Bitmap bmp(&stream, Bitmap::FileFormat::auto_);
+        CHECK_EQ(bmp.width(), 256);
+        CHECK_EQ(bmp.height(), 256);
+        CHECK_EQ(bmp.pixel_format(), Bitmap::PixelFormat::rgba);
+    }
+}
+
+TEST_CASE("subresource_offsets_for_npot_mips")
+{
+    // BC1 mip sizes for 13x7 are 64, 16, 8, and 8 bytes.
+    std::vector<uint8_t> data(96);
+    std::memset(data.data(), 0x10, 64);
+    std::memset(data.data() + 64, 0x20, 16);
+    std::memset(data.data() + 80, 0x30, 8);
+    std::memset(data.data() + 88, 0x40, 8);
+
+    MemoryStream stream;
+    DDSFile::write_dds(
+        &stream,
+        DXGI_FORMAT_BC1_UNORM,
+        DDSFile::TextureType::texture_2d,
+        13,
+        7,
+        1,
+        4,
+        1,
+        data.data(),
+        data.size()
+    );
+    stream.seek(0);
+    DDSFile dds(&stream);
+
+    CHECK_EQ(dds.get_subresource_data(0, 0)[0], 0x10);
+    CHECK_EQ(dds.get_subresource_data(1, 0)[0], 0x20);
+    CHECK_EQ(dds.get_subresource_data(2, 0)[0], 0x30);
+    CHECK_EQ(dds.get_subresource_data(3, 0)[0], 0x40);
+}
+
+TEST_CASE("truncated_resource_data_is_rejected")
+{
+    uint8_t block[8] = {};
+    MemoryStream stream;
+    DDSFile::write_dds(
+        &stream,
+        DXGI_FORMAT_BC1_UNORM,
+        DDSFile::TextureType::texture_2d,
+        4,
+        4,
+        1,
+        1,
+        1,
+        block,
+        sizeof(block)
+    );
+    stream.truncate(stream.size() - 1);
+    stream.seek(0);
+    CHECK_THROWS(DDSFile(&stream));
+}
+
+TEST_CASE("write_rejects_resource_size_mismatch")
+{
+    uint8_t blocks[9] = {};
+    for (size_t resource_size : {size_t(7), size_t(9)}) {
+        CAPTURE(resource_size);
+        MemoryStream stream;
+        CHECK_THROWS(
+            DDSFile::write_dds(
+                &stream,
+                DXGI_FORMAT_BC1_UNORM,
+                DDSFile::TextureType::texture_2d,
+                4,
+                4,
+                1,
+                1,
+                1,
+                blocks,
+                resource_size
+            )
+        );
+        CHECK_EQ(stream.size(), 0);
+    }
+}
+
+TEST_CASE("write_rejects_unknown_format")
+{
+    uint8_t pixel[4] = {};
+    MemoryStream stream;
+    CHECK_THROWS(
+        DDSFile::write_dds(
+            &stream,
+            DXGI_FORMAT_UNKNOWN,
+            DDSFile::TextureType::texture_2d,
+            1,
+            1,
+            1,
+            1,
+            1,
+            pixel,
+            sizeof(pixel)
+        )
+    );
+    CHECK_EQ(stream.size(), 0);
+}
+
+TEST_CASE("write_validates_mip_chain_dimensions")
+{
+    uint8_t pixel[4] = {};
+    MemoryStream invalid_depth_stream;
+    CHECK_THROWS(
+        DDSFile::write_dds(
+            &invalid_depth_stream,
+            DXGI_FORMAT_R8G8B8A8_UNORM,
+            DDSFile::TextureType::texture_2d,
+            1,
+            1,
+            8,
+            1,
+            1,
+            pixel,
+            sizeof(pixel)
+        )
+    );
+
+    MemoryStream invalid_mip_stream;
+    CHECK_THROWS(
+        DDSFile::write_dds(
+            &invalid_mip_stream,
+            DXGI_FORMAT_R8G8B8A8_UNORM,
+            DDSFile::TextureType::texture_2d,
+            1,
+            1,
+            1,
+            2,
+            1,
+            pixel,
+            sizeof(pixel)
+        )
+    );
+
+    // A 1x1x8 volume has four valid mip levels with 15 texels in total.
+    std::vector<uint8_t> volume_data(15 * 4);
+    MemoryStream volume_stream;
+    DDSFile::write_dds(
+        &volume_stream,
+        DXGI_FORMAT_R8G8B8A8_UNORM,
+        DDSFile::TextureType::texture_3d,
+        1,
+        1,
+        8,
+        4,
+        1,
+        volume_data.data(),
+        volume_data.size()
+    );
+    volume_stream.seek(0);
+    DDSFile volume(&volume_stream);
+    CHECK_EQ(volume.type(), DDSFile::TextureType::texture_3d);
+    CHECK_EQ(volume.depth(), 8);
+    CHECK_EQ(volume.mip_count(), 4);
+}
+
+TEST_CASE("bitmap_rejects_dds_arrays")
+{
+    uint8_t pixels[2][4] = {};
+    MemoryStream stream;
+    DDSFile::write_dds(
+        &stream,
+        DXGI_FORMAT_R8G8B8A8_UNORM,
+        DDSFile::TextureType::texture_2d,
+        1,
+        1,
+        1,
+        1,
+        2,
+        pixels,
+        sizeof(pixels)
+    );
+    stream.seek(0);
+    CHECK_THROWS(Bitmap(&stream, Bitmap::FileFormat::dds));
+}
+
+TEST_CASE("bitmap_rejects_incompatible_uncompressed_dds")
+{
+    uint32_t packed_pixel = 0;
+    for (uint32_t format : {DXGI_FORMAT_R10G10B10A2_UNORM, DXGI_FORMAT_B8G8R8A8_UNORM}) {
+        MemoryStream stream;
+        DDSFile::write_dds(
+            &stream,
+            format,
+            DDSFile::TextureType::texture_2d,
+            1,
+            1,
+            1,
+            1,
+            1,
+            &packed_pixel,
+            sizeof(packed_pixel)
+        );
+        stream.seek(0);
+        CHECK_THROWS(Bitmap(&stream, Bitmap::FileFormat::dds));
+    }
+}
+
+TEST_CASE("bitmap_reads_direct_uncompressed_dds")
+{
+    uint8_t pixels[] = {1, 2, 3, 4, 5, 6, 7, 8};
+    MemoryStream stream;
+    DDSFile::write_dds(
+        &stream,
+        DXGI_FORMAT_R8G8B8A8_UNORM,
+        DDSFile::TextureType::texture_2d,
+        2,
+        1,
+        1,
+        1,
+        1,
+        pixels,
+        sizeof(pixels)
+    );
+    stream.seek(0);
+    Bitmap bitmap(&stream, Bitmap::FileFormat::dds);
+
+    CHECK_EQ(bitmap.pixel_format(), Bitmap::PixelFormat::rgba);
+    CHECK_EQ(bitmap.component_type(), Bitmap::ComponentType::uint8);
+    CHECK_FALSE(bitmap.srgb_gamma());
+    CHECK_EQ(bitmap.buffer_size(), sizeof(pixels));
+    CHECK(std::memcmp(bitmap.data(), pixels, sizeof(pixels)) == 0);
 }
 
 TEST_SUITE_END();

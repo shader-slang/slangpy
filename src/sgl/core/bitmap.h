@@ -53,6 +53,7 @@ derivative works thereof, in binary and source code form.
 #include "sgl/core/data_struct.h"
 #include "sgl/core/rfilter.h"
 
+#include <cstdlib>
 #include <filesystem>
 #include <future>
 #include <memory>
@@ -74,6 +75,7 @@ public:
         tga,
         hdr,
         exr,
+        dds,
     };
 
     SGL_ENUM_INFO(
@@ -87,6 +89,7 @@ public:
             {FileFormat::tga, "tga"},
             {FileFormat::hdr, "hdr"},
             {FileFormat::exr, "exr"},
+            {FileFormat::dds, "dds"},
         }
     );
 
@@ -145,9 +148,6 @@ public:
     /// Move constructor.
     Bitmap(Bitmap&& other);
 
-    /// Destructor.
-    ~Bitmap();
-
     /// Load a list of bitmaps from multiple paths. Uses multi-threading to load bitmaps in parallel.
     static std::vector<ref<Bitmap>>
     read_multiple(std::span<std::filesystem::path> paths, FileFormat format = FileFormat::auto_);
@@ -198,22 +198,22 @@ public:
     size_t buffer_size() const { return pixel_count() * bytes_per_pixel(); }
 
     /// The raw image data.
-    void* data() { return m_data.get(); }
-    const void* data() const { return m_data.get(); }
+    void* data() { return m_data; }
+    const void* data() const { return m_data; }
 
     /// The raw image data as uint8_t.
-    uint8_t* uint8_data() { return m_data.get(); }
-    const uint8_t* uint8_data() const { return m_data.get(); }
+    uint8_t* uint8_data() { return m_data; }
+    const uint8_t* uint8_data() const { return m_data; }
 
     template<typename T>
     T* data_as()
     {
-        return reinterpret_cast<T*>(m_data.get());
+        return reinterpret_cast<T*>(m_data);
     }
     template<typename T>
     const T* data_as() const
     {
-        return reinterpret_cast<const T*>(m_data.get());
+        return reinterpret_cast<const T*>(m_data);
     }
 
     /// True if bitmap is empty.
@@ -296,6 +296,8 @@ public:
     static void static_shutdown();
 
 private:
+    void allocate_data(size_t size);
+
     void rebuild_pixel_struct(uint32_t channel_count = 0, const std::vector<std::string>& channel_names = {});
 
     void read(Stream* stream, FileFormat format);
@@ -326,14 +328,17 @@ private:
     void read_exr(Stream* stream);
     void write_exr(Stream* stream, int quality) const;
 
+    void read_dds(Stream* stream);
+
     PixelFormat m_pixel_format;
     ComponentType m_component_type;
     ref<DataStruct> m_pixel_struct;
     uint32_t m_width;
     uint32_t m_height;
     bool m_srgb_gamma;
-    std::unique_ptr<uint8_t[]> m_data;
-    bool m_owns_data;
+    using OwnedData = std::unique_ptr<uint8_t, decltype(&std::free)>;
+    OwnedData m_owned_data{nullptr, &std::free};
+    uint8_t* m_data{nullptr};
 };
 
 SGL_ENUM_REGISTER(Bitmap::FileFormat);

@@ -111,6 +111,8 @@ def close_all_devices():
         print(f"Closing device on shutdown {device.desc.label}")
         device.close()
 
+    DEVICE_CACHE.clear()
+
 
 def close_leaked_devices():
     # Ensure any devices that aren't part of the device cache are cleaned up.

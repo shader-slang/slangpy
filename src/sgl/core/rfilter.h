@@ -92,6 +92,8 @@ struct MitchellFilter {
     {
     }
     float radius() const { return 2.f; }
+    float b() const { return m_b; }
+    float c() const { return m_c; }
     float eval(float x) const
     {
         x = std::abs(x);

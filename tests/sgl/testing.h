@@ -31,6 +31,13 @@ std::filesystem::path get_case_temp_directory();
 void static_init();
 void static_shutdown();
 
+struct TestOptions {
+    bool skip_device_tests{false};
+};
+
+/// Return the test runner options.
+TestOptions& options();
+
 struct GpuTestContext {
     Device* device;
 };
@@ -38,6 +45,15 @@ struct GpuTestContext {
 void run_gpu_test(void (*func)(GpuTestContext&));
 
 void release_cached_devices();
+
+/// Return whether device-backed tests are enabled.
+bool device_tests_enabled();
+
+/// Record that the current test was skipped at runtime.
+void report_skip(const doctest::detail::TestCase* test_case, const char* reason);
+
+/// Return the runtime skip reason for a test, or nullptr if it was not skipped.
+const char* get_skip_message(const doctest::TestCaseData* test_case);
 
 } // namespace sgl::testing
 
@@ -52,3 +68,13 @@ void release_cached_devices();
 
 
 #define TEST_CASE_GPU(name) DOCTEST_TEST_CASE_GPU(DOCTEST_ANONYMOUS(gpu_test), name)
+
+
+// doctest does not support skipping tests at runtime. This macro records the skip for the custom reporter and returns
+// from the current test function. The reason must be a string literal, and the macro must be used in the main scope of
+// the test function.
+#define SKIP(reason)                                                                                                   \
+    do {                                                                                                               \
+        ::sgl::testing::report_skip(::doctest::getContextOptions()->currentTest, "" reason);                           \
+        return;                                                                                                        \
+    } while (false)

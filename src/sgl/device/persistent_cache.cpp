@@ -5,10 +5,14 @@
 #include "sgl/core/error.h"
 #include "sgl/core/logger.h"
 #include "sgl/core/lmdb_cache.h"
+#include "sgl/core/platform.h"
 #include "sgl/device/cache_writer.h"
 
+#include <chrono>
 #include <cstring>
 #include <memory>
+#include <string>
+#include <thread>
 #include <vector>
 
 namespace sgl {
@@ -29,25 +33,33 @@ PersistentCache::PersistentCache(const std::filesystem::path& path, size_t max_s
     LMDBCache::Options options{
         .max_size = max_size,
     };
-    const int MAX_ATTEMPTS = 3;
+    constexpr int MAX_ATTEMPTS = 6;
+    constexpr auto initial_retry_delay = std::chrono::milliseconds(20);
+    const auto retry_jitter = std::chrono::milliseconds(platform::current_process_id() % 17);
+    std::string last_error;
     for (int attempt = 1; attempt <= MAX_ATTEMPTS; ++attempt) {
         try {
             m_cache = make_ref<LMDBCache>(m_path, options);
             break;
         } catch (const std::exception& e) {
-            log_error("Failed to open cache in \"{}\" (attempt {}/{}): {} ", m_path, attempt, MAX_ATTEMPTS, e.what());
-            if (attempt < MAX_ATTEMPTS) {
-                // Try deleting the cache directory so next attempt creates a new cache.
-                std::error_code ec;
-                std::filesystem::remove_all(m_path, ec);
-                if (ec) {
-                    log_warn("Failed to delete cache directory \"{}\": {}", m_path, ec.message());
-                }
-            }
+            last_error = e.what();
+            if (attempt == MAX_ATTEMPTS)
+                break;
+
+            const auto retry_delay = initial_retry_delay * (1 << (attempt - 1)) + retry_jitter;
+            log_warn(
+                "Failed to open cache in \"{}\" (attempt {}/{}): {}; retrying in {} ms.",
+                m_path,
+                attempt,
+                MAX_ATTEMPTS,
+                e.what(),
+                retry_delay.count()
+            );
+            std::this_thread::sleep_for(retry_delay);
         }
     }
     if (!m_cache) {
-        SGL_THROW("Failed to open cache in \"{}\" after {} attempts!", m_path, MAX_ATTEMPTS);
+        SGL_THROW("Failed to open cache in \"{}\" after {} attempts: {}", m_path, MAX_ATTEMPTS, last_error);
     }
 }
 

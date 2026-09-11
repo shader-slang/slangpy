@@ -9,6 +9,7 @@ from slangpy import (
     TypeLayoutReflection,
     TypeReflection,
     DeviceType,
+    PipelineCompilationMode,
     Device,
     NativeHandle,
     get_cuda_current_context_native_handles,
@@ -27,6 +28,7 @@ def create_device(
     enable_print: bool = False,
     enable_hot_reload: bool = True,
     enable_compilation_reports: bool = False,
+    pipeline_compilation_mode: PipelineCompilationMode = PipelineCompilationMode.serial,
     existing_device_handles: Optional[Sequence[NativeHandle]] = None,
     bindless_options: Optional[BindlessDesc] = None,
 ):
@@ -61,6 +63,7 @@ def create_device(
         enable_print=enable_print,
         enable_hot_reload=enable_hot_reload,
         enable_compilation_reports=enable_compilation_reports,
+        pipeline_compilation_mode=pipeline_compilation_mode,
         existing_device_handles=existing_device_handles,
         bindless_options=bindless_options,
     )
@@ -82,6 +85,7 @@ def create_torch_device(
     enable_print: bool = False,
     enable_hot_reload: bool = True,
     enable_compilation_reports: bool = False,
+    pipeline_compilation_mode: PipelineCompilationMode = PipelineCompilationMode.serial,
 ):
     """
     Helper to create a device configured properly for PyTorch integration. If device type is CUDA,
@@ -120,6 +124,7 @@ def create_torch_device(
         enable_print=enable_print,
         enable_hot_reload=enable_hot_reload,
         enable_compilation_reports=enable_compilation_reports,
+        pipeline_compilation_mode=pipeline_compilation_mode,
         existing_device_handles=handles,
     )
 

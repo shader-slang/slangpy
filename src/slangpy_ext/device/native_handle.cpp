@@ -34,5 +34,13 @@ SGL_PY_EXPORT(device_native_handle)
                 return NativeHandle(reinterpret_cast<CUstream>(stream));
             },
             "stream"_a
+        )
+        .def_static(
+            "from_cuda_device_ptr",
+            [](uint64_t device_ptr)
+            {
+                return NativeHandle(static_cast<CUdeviceptr>(device_ptr));
+            },
+            "device_ptr"_a
         );
 }
