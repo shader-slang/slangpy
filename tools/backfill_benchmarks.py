@@ -8,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -36,6 +38,63 @@ DEFAULT_POLL_SECONDS = 60.0
 DEFAULT_DISPATCH_GRACE = timedelta(minutes=10)
 
 BackfillStatus = Literal["pending", "dispatching", "dispatched"]
+
+
+def van_der_corput_order(n: int) -> list[int]:
+    """Return indices 0..n-1 in van der Corput (base-2) low-discrepancy order.
+
+    This ordering provides good coverage of the entire range early on.
+    The first few indices for n=8 would be: 0, 4, 2, 6, 1, 5, 3, 7
+    (i.e., halves, then quarters, then eighths, etc.)
+    """
+    if n <= 0:
+        return []
+    if n == 1:
+        return [0]
+
+    # Generate van der Corput sequence values and pair with indices
+    def vdc(i: int, base: int = 2) -> float:
+        result = 0.0
+        denom = 1.0
+        while i > 0:
+            denom *= base
+            i, remainder = divmod(i, base)
+            result += remainder / denom
+        return result
+
+    indexed = [(vdc(i), i) for i in range(n)]
+    indexed.sort(key=lambda x: x[0])
+    return [idx for _, idx in indexed]
+
+
+def resolve_revspec_commits(revspec: str) -> list[str]:
+    """Resolve a git revision specification to a list of commit SHAs (oldest first).
+
+    Args:
+        revspec: A git revision range (e.g., "HEAD~10..HEAD", "main..feature").
+
+    Returns:
+        List of commit SHAs in chronological order (oldest first).
+    """
+    git_path = shutil.which("git")
+    if git_path is None:
+        raise RuntimeError("git is required for revspec support but was not found.")
+
+    cmd = [
+        git_path,
+        "rev-list",
+        "--reverse",  # oldest first
+        revspec,
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", check=False)
+    if result.returncode != 0:
+        raise RuntimeError(f"git rev-list failed: {result.stderr.strip()}")
+
+    shas = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+    return shas
+
+
 ResultType = TypeVar("ResultType")
 
 
@@ -317,7 +376,11 @@ def reconcile_records(
     now: datetime,
     grace: timedelta,
 ) -> bool:
-    """Resolve deterministic titles and release expired uncertain dispatch markers."""
+    """Resolve deterministic titles and release expired uncertain dispatch markers.
+
+    Only successful runs are considered complete. Failed or cancelled runs are
+    reset to pending so they can be retried.
+    """
 
     matching_runs: dict[str, WorkflowRun] = {}
     for run in sorted(runs, key=lambda item: (item.created_at, item.run_id), reverse=True):
@@ -327,14 +390,26 @@ def reconcile_records(
     for record in state.records.values():
         matching = matching_runs.get(backfill_run_title(record.sha))
         if matching is not None:
-            if (
-                record.status != "dispatched"
-                or record.run_id != matching.run_id
-                or record.run_url != matching.html_url
-            ):
-                record.status = "dispatched"
-                record.run_id = matching.run_id
-                record.run_url = matching.html_url
+            # Only mark as dispatched if the run succeeded
+            if matching.conclusion == "success":
+                if (
+                    record.status != "dispatched"
+                    or record.run_id != matching.run_id
+                    or record.run_url != matching.html_url
+                ):
+                    record.status = "dispatched"
+                    record.run_id = matching.run_id
+                    record.run_url = matching.html_url
+                    changed = True
+            # If run is still in progress, keep current state
+            elif matching.status != "completed":
+                pass
+            # Failed/cancelled runs: reset to pending for retry
+            elif record.status != "pending":
+                record.status = "pending"
+                record.dispatch_started_at = None
+                record.run_id = None
+                record.run_url = None
                 changed = True
             continue
         if (
@@ -369,12 +444,19 @@ def active_backfill_count(
 
 
 def pending_records(state: BackfillState) -> list[BackfillRecord]:
-    """Return pending commits in stable oldest-first dispatch order."""
+    """Return pending commits in low-discrepancy (van der Corput) order.
 
-    return sorted(
+    This ordering provides good coverage of the entire commit range early on,
+    processing commits near the middle first, then quarters, then eighths, etc.
+    """
+    pending = sorted(
         (record for record in state.records.values() if record.status == "pending"),
         key=lambda record: (record.committed_at, record.sha),
     )
+    if len(pending) > 1:
+        indices = van_der_corput_order(len(pending))
+        pending = [pending[i] for i in indices]
+    return pending
 
 
 def incomplete_records(state: BackfillState) -> list[BackfillRecord]:
@@ -433,7 +515,7 @@ def dispatch_oldest_pending(
     now: datetime,
     output: Callable[[str], None] = print,
 ) -> Optional[DispatchResult]:
-    """Publish write-ahead state, dispatch one oldest commit, and save returned details."""
+    """Publish write-ahead state, dispatch one commit, and save returned details."""
 
     pending = pending_records(state)
     if not pending:
@@ -470,9 +552,14 @@ def run_backfill_scheduler(
     once: bool,
     dry_run: bool,
     output: Callable[[str], None] = print,
+    revspec_shas: Optional[list[str]] = None,
 ) -> int:
-    """Discover history, reconcile state, and dispatch at most one commit per interval."""
+    """Discover history, reconcile state, and dispatch at most one commit per interval.
 
+    Args:
+        revspec_shas: If provided, only these commit SHAs will be scheduled.
+                      Commits below the floor are warned about but still included.
+    """
     if poll_seconds < 0:
         raise ValueError("Backfill poll interval must be non-negative.")
     now = now_provider().astimezone(timezone.utc)
@@ -487,6 +574,24 @@ def run_backfill_scheduler(
         sleep=sleep,
     )
     supported = supported_commits(commits, store.lower_bound)
+    supported_sha_set = {c.sha for c in supported}
+
+    # If revspec provided, filter to only those commits (but warn about those below floor)
+    if revspec_shas is not None:
+        below_floor = [sha for sha in revspec_shas if sha not in supported_sha_set]
+        if below_floor:
+            output(
+                f"WARNING: {len(below_floor)} commit(s) from revspec are below the supported "
+                f"floor ({store.lower_bound[:12]}):"
+            )
+            for sha in below_floor[:5]:
+                output(f"  - {sha[:12]}")
+            if len(below_floor) > 5:
+                output(f"  ... and {len(below_floor) - 5} more")
+        # Filter supported to only include revspec commits (keeps floor filtering intact)
+        revspec_set = set(revspec_shas)
+        supported = [c for c in supported if c.sha in revspec_set]
+
     state = store.load()
     merge_discovered_commits(state, supported)
     runs = retry_read_operation(
@@ -497,7 +602,8 @@ def run_backfill_scheduler(
     reconcile_records(state, runs, now, DEFAULT_DISPATCH_GRACE)
     output(
         f"Backfill {store.workflow} from {store.lower_bound}: {len(supported)} supported "
-        f"commit(s), {len(runs)} existing run(s), {len(pending_records(state))} pending."
+        f"commit(s), {len(runs)} existing run(s), {len(pending_records(state))} pending "
+        f"(low-discrepancy order)."
     )
     if dry_run:
         for record in pending_records(state):
@@ -545,6 +651,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--state-file", type=Path, default=DEFAULT_STATE_PATH)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--once", action="store_true")
+    parser.add_argument(
+        "--revspec",
+        metavar="RANGE",
+        help="Git revision range to select specific commits for benchmarking "
+        "(e.g., 'HEAD~10..HEAD', 'main..feature'). Commits below the supported floor "
+        f"({SUPPORTED_FLOOR_SHA[:12]}) will be warned about.",
+    )
     return parser
 
 
@@ -552,6 +665,20 @@ def main(argv: Optional[list[str]] = None) -> int:
     """Run the backfill scheduler with durable Ctrl+C and operator error behavior."""
 
     args = _parser().parse_args(argv)
+
+    # Resolve revspec if provided
+    revspec_shas: Optional[list[str]] = None
+    if args.revspec:
+        try:
+            revspec_shas = resolve_revspec_commits(args.revspec)
+            print(f"Resolved revspec '{args.revspec}' to {len(revspec_shas)} commit(s).")
+            if not revspec_shas:
+                print("No commits matched the revision range.", file=sys.stderr)
+                return 1
+        except RuntimeError as error:
+            print(str(error), file=sys.stderr)
+            return 1
+
     store = BackfillStateStore(
         args.state_file,
         repository=args.repository,
@@ -570,6 +697,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             poll_seconds=DEFAULT_POLL_SECONDS,
             once=args.once,
             dry_run=args.dry_run,
+            revspec_shas=revspec_shas,
         )
     except KeyboardInterrupt:
         print("Backfill interrupted; durable state is ready for restart.", file=sys.stderr)
