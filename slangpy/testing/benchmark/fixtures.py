@@ -6,8 +6,9 @@ from slangpy.core.function import FunctionNodeBwds
 import numpy as np
 from typing import Any, Callable, Optional, Union
 from time import time, sleep
-from datetime import datetime
+from datetime import datetime, timezone
 
+from .benchview import build_benchview_observation
 from .report import BenchmarkReport
 
 DEFAULT_ITERATIONS = 2000
@@ -26,6 +27,8 @@ class ReportFixture:
         device: Optional[spy.Device],
         data: list[float],
         cpu_time: float,
+        metric_id: Optional[str] = None,
+        metric_name: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         """Generate and store a benchmark report with the given data."""
@@ -50,15 +53,23 @@ class ReportFixture:
             trimmed_data = sorted_data
         trimmed_mean = float(np.mean(trimmed_data))
 
+        observed_at = datetime.now(timezone.utc)
+        samples = [float(d) for d in data]
+        filename = str(self.node.location[0]).replace("\\", "/")
+        function_name = self.node.originalname
+        if metric_id is None:
+            metric_id = "cpu_time" if "_cpu" in function_name else "gpu_time"
+        if metric_name is None:
+            metric_name = "CPU time" if metric_id == "cpu_time" else "GPU time"
         report: BenchmarkReport = {
             "name": self.node.name,
-            "filename": str(self.node.location[0]).replace("\\", "/"),
-            "function": self.node.originalname,
+            "filename": filename,
+            "function": function_name,
             "params": params,
             "meta": meta,
-            "timestamp": datetime.now(),
+            "timestamp": observed_at,
             "cpu_time": cpu_time,
-            "data": [float(d) for d in data],
+            "data": samples,
             "min": float(np.min(data)),
             "max": float(np.max(data)),
             "mean": trimmed_mean,
@@ -67,6 +78,20 @@ class ReportFixture:
         }
 
         self.config._benchmark_context["benchmark_reports"].append(report)  # type: ignore
+        self.config._benchmark_context["benchmark_observations"].append(  # type: ignore
+            build_benchview_observation(
+                filename=filename,
+                function_name=function_name,
+                display_name=self.node.name,
+                parameters=params,
+                samples=samples,
+                observed_at=observed_at,
+                metric_id=metric_id,
+                metric_name=metric_name,
+                adapter_name=meta.get("adapter_name"),
+                source_line=int(self.node.location[1]) + 1,
+            )
+        )
 
 
 class BenchmarkSlangFunction:
@@ -106,7 +131,14 @@ class BenchmarkSlangFunction:
         cpu_time = end_time - start_time
 
         # Use the report fixture to generate and store the report
-        self.report_fixture(device, deltas, cpu_time, **kwargs)
+        self.report_fixture(
+            device,
+            deltas,
+            cpu_time,
+            metric_id="gpu_time",
+            metric_name="GPU time",
+            **kwargs,
+        )
 
 
 class BenchmarkComputeKernel:
@@ -147,7 +179,14 @@ class BenchmarkComputeKernel:
         cpu_time = end_time - start_time
 
         # Use the report fixture to generate and store the report
-        self.report_fixture(device, deltas, cpu_time, **kwargs)
+        self.report_fixture(
+            device,
+            deltas,
+            cpu_time,
+            metric_id="gpu_time",
+            metric_name="GPU time",
+            **kwargs,
+        )
 
 
 class BenchmarkPythonFunction:

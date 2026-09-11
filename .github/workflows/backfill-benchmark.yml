@@ -1,0 +1,153 @@
+name: backfill-benchmark
+run-name: "backfill-benchmark: ${{ inputs.target_sha }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "Exact historical main commit to benchmark"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  checks: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows, linux]
+        config: [Release]
+        python: ["3.10"]
+        include:
+          - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "benchmark", runs-on: { labels: [Windows, X64, nvrgfx-perf-kernelvm-bridge] } }
+          - { os: linux, platform: x86_64, compiler: gcc, config: Release, flags: "benchmark", runs-on: { labels: [Linux, X64, nvrgfx-perf-kernelvm-bridge] } }
+
+    env:
+      CI_OS: ${{ matrix.os }}
+      CI_PLATFORM: ${{ matrix.platform }}
+      CI_COMPILER: ${{ matrix.compiler }}
+      CI_CONFIG: ${{ matrix.config }}
+      CI_PYTHON: ${{ matrix.python }}
+      CI_FLAGS: ${{ matrix.flags }}
+      BACKFILL_TARGET_SHA: ${{ inputs.target_sha }}
+      BACKFILL_FLOOR_SHA: f3ad0fd91d8cf4eeb2be3b505765b43482aa952a
+      BACKFILL_CLONE_DIR: ${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}
+      BENCHVIEW_API_URL: ${{ vars.BENCHVIEW_API_URL }}
+      BENCHVIEW_API_KEY: ${{ secrets.BENCHVIEW_API_KEY }}
+      BENCHVIEW_BENCHMARK_REF: ${{ inputs.target_sha }}
+      BENCHVIEW_BENCHMARK_BRANCH: main
+
+    steps:
+      - name: Setup Python ${{ matrix.python }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Setup MSVC
+        uses: step-security/msvc-dev-cmd@v1
+
+      - name: Setup CMake/Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Clone historical source
+        run: |
+          git clone --recursive "https://github.com/${{ github.repository }}.git" "${{ env.BACKFILL_CLONE_DIR }}"
+          git -C "${{ env.BACKFILL_CLONE_DIR }}" checkout --detach "${{ inputs.target_sha }}"
+
+      - name: Validate supported history boundary
+        run: |
+          echo "Validating target ${{ inputs.target_sha }} against earliest supported commit ${{ env.BACKFILL_FLOOR_SHA }}"
+          git -C "${{ env.BACKFILL_CLONE_DIR }}" merge-base --is-ancestor "${{ env.BACKFILL_FLOOR_SHA }}" "${{ inputs.target_sha }}"
+
+      - name: Synchronize historical submodules and LFS
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
+          git lfs pull
+
+      - name: Setup historical Python environment
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -r samples/requirements.txt
+          python -m pip install pytest-github-actions-annotate-failures
+
+      - name: Setup PyTorch environment
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        run: |
+          python -m pip install torch==2.8.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+      - name: Historical setup
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        run: python tools/ci.py setup
+
+      - name: Historical configure
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        run: python tools/ci.py configure
+
+      - name: Historical build
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        run: python tools/ci.py build
+
+      - name: Overlay current BenchView benchmark harness
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        run: git checkout "${{ github.sha }}" -- tools/ci.py tools/gpu_clock.py slangpy/testing/benchmark
+
+      - name: Install slangpy-torch bridge when present
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        run: python tools/ci.py install-slangpy-torch
+
+      - name: Benchmark historical source (Windows)
+        if: runner.os == 'Windows'
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --api-url "${{ env.BENCHVIEW_API_URL }}" --lock-gpu-clocks
+
+      - name: Benchmark historical source (Linux)
+        if: runner.os == 'Linux'
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --api-url "${{ env.BENCHVIEW_API_URL }}" --lock-gpu-clocks
+
+      - name: Uninstall slangpy-torch
+        if: always()
+        run: python -m pip uninstall slangpy-torch -y
+        continue-on-error: true
+
+      - name: Safely remove temporary clone (Windows)
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $candidate = [IO.Path]::GetFullPath($env:BACKFILL_CLONE_DIR).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+          $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+          $parent = [IO.Directory]::GetParent($candidate)
+          $name = [IO.Path]::GetFileName($candidate)
+          if ($null -eq $parent -or -not [StringComparer]::OrdinalIgnoreCase.Equals($parent.FullName, $runnerTemp)) {
+            throw "Refusing to remove clone outside runner.temp: $candidate"
+          }
+          if (-not $name.StartsWith("slangpy-backfill-", [StringComparison]::Ordinal)) {
+            throw "Refusing to remove unexpected directory name: $name"
+          }
+          if (Test-Path -LiteralPath $candidate) {
+            Remove-Item -LiteralPath $candidate -Recurse -Force
+          }
+
+      - name: Safely remove temporary clone (Linux)
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          candidate="$(realpath -m -- "$BACKFILL_CLONE_DIR")"
+          runner_temp="$(realpath -m -- "$RUNNER_TEMP")"
+          if [[ "$(dirname -- "$candidate")" != "$runner_temp" ]]; then
+            echo "Refusing to remove clone outside runner.temp: $candidate" >&2
+            exit 1
+          fi
+          if [[ "$(basename -- "$candidate")" != slangpy-backfill-* ]]; then
+            echo "Refusing to remove unexpected directory name: $(basename -- "$candidate")" >&2
+            exit 1
+          fi
+          rm -rf -- "$candidate"
