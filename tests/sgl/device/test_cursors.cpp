@@ -551,6 +551,22 @@ TEST_CASE("register_cursor_writer_duplicate_rejected")
     CHECK_THROWS(cursor_utils::register_cursor_writer<RegistryDuplicateStruct>());
 }
 
+TEST_CASE("shader_cursor_typed_write_without_type_layout_throws")
+{
+    // A cursor with no resolved type layout must raise a catchable error rather than dereference a
+    // null TypeLayoutReflection* and crash the host process. ShaderCursor::find_element assigns a
+    // child cursor's layout directly from getElementTypeLayout(), which can be null and bypasses the
+    // constructor's assert, so is_valid() (offset-only) is not enough to keep it out of typed access.
+    ShaderCursor cursor{};
+    REQUIRE_FALSE(cursor.slang_type_layout());
+
+    float scalar = 1.0f;
+    CHECK_THROWS(cursor.set(scalar));
+
+    float array[3] = {1.0f, 2.0f, 3.0f};
+    CHECK_THROWS(cursor._set_array(array, sizeof(array), TypeReflection::ScalarType::float32, 3));
+}
+
 TEST_CASE_GPU("write_to_cursor")
 {
 

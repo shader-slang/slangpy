@@ -711,6 +711,11 @@ private:
         }
 
         slang::TypeLayoutReflection* type_layout = self.slang_type_layout();
+        SGL_CHECK(
+            type_layout != nullptr,
+            "Cannot marshal value: cursor has no resolved type layout (the layout could not be reflected on the "
+            "current backend)."
+        );
         auto kind = (TypeReflection::Kind)type_layout->getKind();
 
         switch (kind) {
