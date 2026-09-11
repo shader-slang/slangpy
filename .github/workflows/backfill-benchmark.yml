@@ -97,7 +97,7 @@ jobs:
 
       - name: Overlay current BenchView benchmark harness
         working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: git checkout "${{ github.sha }}" -- tools/ci.py tools/gpu_clock.py slangpy/testing/benchmark
+        run: git checkout "${{ github.sha }}" -- tools/ci.py tools/gpu_clock.py slangpy/testing/benchmark slangpy/testing/helpers.py slangpy/testing/plugin.py
 
       - name: Install slangpy-torch bridge when present
         working-directory: ${{ env.BACKFILL_CLONE_DIR }}
