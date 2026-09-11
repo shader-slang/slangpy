@@ -70,12 +70,12 @@ def setup_bridge_mode(torch_bridge_mode: str):
 @pytest.mark.parametrize(
     "pair",
     [
-        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6,V1"),
-        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6,V1"),
-        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5,V1"),
-        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3,V1"),
-        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0,V1"),
-        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0,V111"),
+        (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6,G0,V1"),
+        (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6,G1,V1"),
+        (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5,G0,V1"),
+        (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3,G0,V1"),
+        (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0,G0,V1"),
+        (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0,G0,V111"),
     ],
 )
 def test_torch_signature(pair: tuple[torch.Tensor, str]):
@@ -101,7 +101,7 @@ def test_torch_signature_shape_compatibility() -> None:
     rgba_small_signature = _torch_signature(rgba_small)
     assert rgba_small_signature == _torch_signature(rgba_large)
     assert rgba_small_signature != _torch_signature(rgb)
-    assert _torch_signature(mixed) == "torch\n[D3,S6,V234]"
+    assert _torch_signature(mixed) == "torch\n[D3,S6,G0,V234]"
 
 
 def _diff_pair_signature(pair: NativeTorchTensorDiffPair) -> str:
@@ -1172,8 +1172,11 @@ def test_nn_parameter_signature():
     """
     cd = NativeCallDataCache()
 
+    # nn.Parameter defaults to requires_grad=True, so the tensor it is compared
+    # against needs matching grad-ness for this to assert type-handling parity
+    # rather than the grad bit added in #1052.
     param = torch.nn.parameter.Parameter(torch.empty((4, 4), dtype=torch.float32).cuda())
-    tensor = torch.empty((4, 4), dtype=torch.float32).cuda()
+    tensor = torch.empty((4, 4), dtype=torch.float32, requires_grad=True).cuda()
 
     sig_param = SignatureBuilder()
     sig_tensor = SignatureBuilder()
@@ -1181,6 +1184,11 @@ def test_nn_parameter_signature():
     cd.get_value_signature(sig_tensor, tensor)
 
     assert sig_param.str == sig_tensor.str
+
+    tensor_nograd = torch.empty((4, 4), dtype=torch.float32).cuda()
+    sig_nograd = SignatureBuilder()
+    cd.get_value_signature(sig_nograd, tensor_nograd)
+    assert sig_nograd.str != sig_param.str
 
 
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
