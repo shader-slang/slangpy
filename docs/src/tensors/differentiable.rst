@@ -69,7 +69,7 @@ From Python, we can evaluate this function and compute gradients:
     # Forward pass: evaluate polynomial
     # Result: 2*x^2 + 8*x - 1
     module.polynomial(idx=spy.grid(x.shape), a=2, b=8, c=-1, x=x, result=result)
-    print(result.to_numpy())  # [9., 27., 53., 87.]
+    print(result.to_numpy())  # [9., 23., 41., 63.]
 
     # Attach gradients to result and set to 1
     result = result.with_grads()
