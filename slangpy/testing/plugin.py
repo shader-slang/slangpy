@@ -18,7 +18,7 @@ from .helpers import (
 )
 from . import crashpad
 
-CRASHPAD_SUPPORT = spy.crashpad.is_supported()
+CRASHPAD_SUPPORT = crashpad.is_supported()
 
 # Torch bridge mode values for parametrization
 TORCH_BRIDGE_MODES = ["native", "fallback"]

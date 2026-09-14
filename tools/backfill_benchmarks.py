@@ -32,12 +32,13 @@ DEFAULT_WORKFLOW = "backfill-benchmark.yml"
 DEFAULT_STATE_PATH = Path(".temp/benchmark-backfill-state.json")
 SUPPORTED_FLOOR_SHA = "f3ad0fd91d8cf4eeb2be3b505765b43482aa952a"
 SUPPORTED_FLOOR_TIME = datetime(2025, 9, 2, 14, 42, 35, tzinfo=timezone.utc)
-STATE_SCHEMA_VERSION = 2
+STATE_SCHEMA_VERSION = 3
 MAX_ACTIVE_RUNS = 4
+MAX_DISPATCH_ATTEMPTS = 3
 DEFAULT_POLL_SECONDS = 60.0
 DEFAULT_DISPATCH_GRACE = timedelta(minutes=10)
 
-BackfillStatus = Literal["pending", "dispatching", "dispatched"]
+BackfillStatus = Literal["pending", "dispatching", "dispatched", "failed"]
 
 
 def van_der_corput_order(n: int) -> list[int]:
@@ -114,6 +115,7 @@ class BackfillRecord:
     dispatch_started_at: Optional[datetime] = None
     run_id: Optional[int] = None
     run_url: Optional[str] = None
+    attempts: int = 0
 
 
 @dataclass
@@ -259,11 +261,16 @@ class BackfillStateStore:
         if not isinstance(value, dict):
             raise BackfillStateError(f"state commit {index} must be a JSON object")
         status = value.get("status")
-        if status not in ("pending", "dispatching", "dispatched"):
+        if status not in ("pending", "dispatching", "dispatched", "failed"):
             raise BackfillStateError(f"state commit {index} has invalid status {status!r}")
         run_id = value.get("runId")
         if run_id is not None and (not isinstance(run_id, int) or isinstance(run_id, bool)):
             raise BackfillStateError(f"state commit {index} runId must be an integer or null")
+        attempts = value.get("attempts", 0)
+        if not isinstance(attempts, int) or isinstance(attempts, bool) or attempts < 0:
+            raise BackfillStateError(
+                f"state commit {index} attempts must be a non-negative integer"
+            )
         record = BackfillRecord(
             sha=_required_string(value.get("sha"), f"commits[{index}].sha"),
             committed_at=_parse_time(value.get("committedAt"), f"commits[{index}].committedAt"),
@@ -275,6 +282,7 @@ class BackfillStateStore:
             ),
             run_id=run_id,
             run_url=value.get("runUrl"),
+            attempts=attempts,
         )
         if record.run_url is not None and not isinstance(record.run_url, str):
             raise BackfillStateError(f"state commit {index} runUrl must be a string or null")
@@ -308,6 +316,7 @@ class BackfillStateStore:
                     ),
                     "runId": record.run_id,
                     "runUrl": record.run_url,
+                    "attempts": record.attempts,
                 }
                 for record in sorted(
                     state.records.values(), key=lambda item: (item.committed_at, item.sha)
@@ -379,7 +388,8 @@ def reconcile_records(
     """Resolve deterministic titles and release expired uncertain dispatch markers.
 
     Only successful runs are considered complete. Failed or cancelled runs are
-    reset to pending so they can be retried.
+    reset to pending so they can be retried, until MAX_DISPATCH_ATTEMPTS is
+    reached, after which the commit is marked failed and no longer scheduled.
     """
 
     matching_runs: dict[str, WorkflowRun] = {}
@@ -390,8 +400,9 @@ def reconcile_records(
     for record in state.records.values():
         matching = matching_runs.get(backfill_run_title(record.sha))
         if matching is not None:
-            # Only mark as dispatched if the run succeeded
-            if matching.conclusion == "success":
+            # A run that is still queued or in progress must claim the record, or the
+            # uncertain-dispatch grace would expire and request the same commit again.
+            if matching.status != "completed" or matching.conclusion == "success":
                 if (
                     record.status != "dispatched"
                     or record.run_id != matching.run_id
@@ -401,15 +412,13 @@ def reconcile_records(
                     record.run_id = matching.run_id
                     record.run_url = matching.html_url
                     changed = True
-            # If run is still in progress, keep current state
-            elif matching.status != "completed":
-                pass
-            # Failed/cancelled runs: reset to pending for retry
-            elif record.status != "pending":
-                record.status = "pending"
+            # Failed and cancelled runs are retried until the attempt budget is spent.
+            elif record.status not in ("pending", "failed"):
+                exhausted = record.attempts >= MAX_DISPATCH_ATTEMPTS
+                record.status = "failed" if exhausted else "pending"
                 record.dispatch_started_at = None
-                record.run_id = None
-                record.run_url = None
+                record.run_id = matching.run_id if exhausted else None
+                record.run_url = matching.html_url if exhausted else None
                 changed = True
             continue
         if (
@@ -463,7 +472,11 @@ def incomplete_records(state: BackfillState) -> list[BackfillRecord]:
     """Return commits that are pending or awaiting uncertain-dispatch reconciliation."""
 
     return sorted(
-        (record for record in state.records.values() if record.status != "dispatched"),
+        (
+            record
+            for record in state.records.values()
+            if record.status not in ("dispatched", "failed")
+        ),
         key=lambda record: (record.committed_at, record.sha),
     )
 
@@ -525,6 +538,7 @@ def dispatch_oldest_pending(
     record.dispatch_started_at = now
     record.run_id = None
     record.run_url = None
+    record.attempts += 1
     store.save(state)
     result = github.dispatch_workflow(
         state.repository,
@@ -641,7 +655,17 @@ def run_backfill_scheduler(
             "Workflow capacity poll",
             sleep=sleep,
         )
+    exhausted = sorted(
+        (record for record in state.records.values() if record.status == "failed"),
+        key=lambda record: (record.committed_at, record.sha),
+    )
     output("All supported commits have been requested.")
+    if exhausted:
+        output(
+            f"{len(exhausted)} commit(s) failed {MAX_DISPATCH_ATTEMPTS} time(s) and were given up on:"
+        )
+        for record in exhausted:
+            output(f"  {record.sha[:12]} {record.run_url or ''}")
     return 0
 
 

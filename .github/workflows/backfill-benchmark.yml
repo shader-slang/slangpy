@@ -111,7 +111,28 @@ jobs:
 
       - name: Overlay current BenchView benchmark harness
         working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: git checkout "${{ github.sha }}" -- tools/ci.py tools/gpu_clock.py slangpy/testing/benchmark slangpy/testing/helpers.py slangpy/testing/plugin.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The dispatching branch can be rewritten while a run is queued, so the
+          # run's own commit is not guaranteed to be present in the fresh clone.
+          if git cat-file -e "${{ github.sha }}^{commit}" 2>/dev/null; then
+            harness="${{ github.sha }}"
+          elif git fetch --no-tags origin "${{ github.sha }}"; then
+            harness=FETCH_HEAD
+          else
+            echo "Harness commit ${{ github.sha }} is unavailable; using ${{ github.ref_name }}."
+            git fetch --no-tags origin "${{ github.ref_name }}"
+            harness=FETCH_HEAD
+          fi
+          git checkout "$harness" -- \
+            tools/ci.py \
+            tools/gpu_clock.py \
+            slangpy/testing/benchmark \
+            slangpy/testing/helpers.py \
+            slangpy/testing/plugin.py \
+            slangpy/testing/crashpad.py \
+            slangpy/benchmarks
 
       - name: Install slangpy-torch bridge when present
         working-directory: ${{ env.BACKFILL_CLONE_DIR }}

@@ -408,7 +408,10 @@ def test_backfill_workflow_guards_boundary_builds_before_overlay_and_cleans_safe
         encoding="utf-8"
     )
 
-    assert 'run-name: "backfill-benchmark: ${{ inputs.target_sha }}"' in workflow
+    assert (
+        'run-name: "backfill-benchmark: ${{ inputs.target_sha }} (${{ inputs.commit_date }})"'
+        in workflow
+    )
     assert "required: true" in workflow
     assert (
         "${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}"
@@ -430,10 +433,21 @@ def test_backfill_workflow_guards_boundary_builds_before_overlay_and_cleans_safe
     assert workflow.index("Overlay current BenchView benchmark harness") < workflow.index(
         "Benchmark historical source"
     )
-    assert (
-        'git checkout "${{ github.sha }}" -- tools/ci.py tools/gpu_clock.py '
-        "slangpy/testing/benchmark"
-    ) in workflow
+    # The harness must be pinned to the dispatching commit, with a fallback for when
+    # that commit has been rewritten away while the run was queued.
+    assert 'git cat-file -e "${{ github.sha }}^{commit}"' in workflow
+    assert 'git fetch --no-tags origin "${{ github.ref_name }}"' in workflow
+    assert 'git checkout "$harness" --' in workflow
+    for overlaid in (
+        "tools/ci.py",
+        "tools/gpu_clock.py",
+        "slangpy/testing/benchmark",
+        "slangpy/testing/helpers.py",
+        "slangpy/testing/plugin.py",
+        "slangpy/testing/crashpad.py",
+        "slangpy/benchmarks",
+    ):
+        assert overlaid in workflow
     assert "python tools/ci.py benchmark-python" in workflow
     assert "BENCHVIEW_BENCHMARK_REF: ${{ inputs.target_sha }}" in workflow
     assert "BENCHVIEW_BENCHMARK_BRANCH: main" in workflow
@@ -478,7 +492,10 @@ def test_backfill_with_three_active_runs_dispatches_one_oldest_commit(
 
     assert result == 0
     assert len(github.dispatches) == 1
-    assert github.dispatches[0][3] == {"target_sha": backfill.SUPPORTED_FLOOR_SHA}
+    assert github.dispatches[0][3] == {
+        "target_sha": backfill.SUPPORTED_FLOOR_SHA,
+        "commit_date": "2025-09-02",
+    }
     reloaded = store.load()
     floor = reloaded.records[backfill.SUPPORTED_FLOOR_SHA]
     assert floor.status == "dispatched"
@@ -554,7 +571,78 @@ def test_backfill_restart_preserves_the_one_minute_dispatch_interval(tmp_path: P
         dry_run=False,
         output=lambda line: None,
     )
-    assert [dispatch[3] for dispatch in github.dispatches] == [{"target_sha": second.sha}]
+    assert [dispatch[3] for dispatch in github.dispatches] == [
+        {"target_sha": second.sha, "commit_date": second.committed_at.strftime("%Y-%m-%d")}
+    ]
+
+
+def failed_run(run_id: int, title: str, sha: str) -> actions.WorkflowRun:
+    """Create one completed run that did not succeed."""
+
+    return actions.WorkflowRun(
+        run_id=run_id,
+        title=title,
+        status="completed",
+        conclusion="failure",
+        html_url=f"https://github.test/runs/{run_id}",
+        head_sha=sha,
+        created_at=NOW + timedelta(seconds=run_id),
+        updated_at=NOW + timedelta(seconds=run_id),
+    )
+
+
+def test_queued_run_claims_its_record_instead_of_being_dispatched_again(
+    tmp_path: Path,
+) -> None:
+    """Stop the grace window from re-requesting a commit whose run is merely queued."""
+
+    store = make_store(tmp_path / "state.json")
+    state = store.load()
+    commit = floor_commit()
+    backfill.merge_discovered_commits(state, [commit])
+    record = state.records[commit.sha]
+    record.status = "dispatching"
+    record.dispatch_started_at = NOW
+    record.attempts = 1
+
+    queued = make_run(51, backfill.backfill_run_title(commit.sha), "queued", commit.sha)
+    assert backfill.reconcile_records(
+        state, [queued], NOW + timedelta(hours=3), backfill.DEFAULT_DISPATCH_GRACE
+    )
+    assert record.status == "dispatched"
+    assert record.run_id == 51
+    assert backfill.pending_records(state) == []
+
+
+def test_repeatedly_failing_commit_is_given_up_on_after_the_attempt_budget(
+    tmp_path: Path,
+) -> None:
+    """Bound retries so one unbuildable commit cannot occupy the scheduler forever."""
+
+    store = make_store(tmp_path / "state.json")
+    state = store.load()
+    commit = floor_commit()
+    backfill.merge_discovered_commits(state, [commit])
+    record = state.records[commit.sha]
+    title = backfill.backfill_run_title(commit.sha)
+
+    for attempt in range(1, backfill.MAX_DISPATCH_ATTEMPTS + 1):
+        record.status = "dispatched"
+        record.attempts = attempt
+        backfill.reconcile_records(
+            state,
+            [failed_run(60 + attempt, title, commit.sha)],
+            NOW + timedelta(minutes=attempt),
+            backfill.DEFAULT_DISPATCH_GRACE,
+        )
+        if attempt < backfill.MAX_DISPATCH_ATTEMPTS:
+            assert record.status == "pending"
+            assert backfill.incomplete_records(state) == [record]
+
+    assert record.status == "failed"
+    assert record.run_id == 60 + backfill.MAX_DISPATCH_ATTEMPTS
+    assert backfill.pending_records(state) == []
+    assert backfill.incomplete_records(state) == []
 
 
 def test_incompatible_state_is_rejected_without_modification(tmp_path: Path) -> None:
@@ -649,7 +737,9 @@ def test_scheduler_waits_for_an_uncertain_only_record_then_retries(tmp_path: Pat
 
     assert result == 0
     assert sleeps == [60]
-    assert [dispatch[3] for dispatch in github.dispatches] == [{"target_sha": commit.sha}]
+    assert [dispatch[3] for dispatch in github.dispatches] == [
+        {"target_sha": commit.sha, "commit_date": commit.committed_at.strftime("%Y-%m-%d")}
+    ]
     assert store.load().records[commit.sha].status == "dispatched"
 
 

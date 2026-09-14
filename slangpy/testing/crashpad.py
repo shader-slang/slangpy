@@ -35,6 +35,14 @@ RUST_MINIDUMP_ASSETS = {
 }
 
 
+def is_supported() -> bool:
+    # Historical backfill builds predate the native crashpad module, so the
+    # overlaid harness must tolerate its absence.
+    if not hasattr(spy, "crashpad"):
+        return False
+    return spy.crashpad.is_supported()
+
+
 def setup():
     # Remove database directory from previous runs.
     shutil.rmtree(CRASHPAD_DATABASE_DIR, ignore_errors=True)
