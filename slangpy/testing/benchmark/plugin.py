@@ -28,6 +28,12 @@ from typing import Any, TypedDict, Optional
 
 BENCHMARK_DIR = Path(".benchmarks")
 
+# The historical backfill runs today's benchmarks against year-old builds, so a
+# benchmark shader may call library APIs that did not exist yet. Without this,
+# one such benchmark fails the whole device and discards that commit's results.
+# Only the backfill workflow sets BACKFILL_TARGET_SHA; ordinary CI still fails.
+BACKFILL_TARGET_SHA = os.environ.get("BACKFILL_TARGET_SHA", "")
+
 
 class Context(TypedDict):
     timestamp: datetime
@@ -35,6 +41,7 @@ class Context(TypedDict):
     benchmark_observations: list[BenchViewObservation]
     compare_run_id: Optional[str]
     execution_id: str
+    incompatible_skips: int
 
 
 def get_context(config: pytest.Config) -> Context:
@@ -45,6 +52,7 @@ def get_context(config: pytest.Config) -> Context:
             "benchmark_observations": [],
             "compare_run_id": None,
             "execution_id": str(uuid4()),
+            "incompatible_skips": 0,
         }
         setattr(config, "_benchmark_context", context)
     return getattr(config, "_benchmark_context")
@@ -88,9 +96,41 @@ def pytest_sessionstart(session: pytest.Session):
     get_context(session.config)["timestamp"] = datetime.now()
 
 
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
+    """Report a benchmark that cannot compile against a backfill target as skipped."""
+
+    outcome = yield
+    if not BACKFILL_TARGET_SHA:
+        return
+    report = outcome.get_result()
+    if not report.failed or call.excinfo is None:
+        return
+    if type(call.excinfo.value).__name__ != "SlangCompileError":
+        return
+    report.outcome = "skipped"
+    report.longrepr = (
+        str(item.path),
+        None,
+        f"Benchmark shader does not compile against backfill target "
+        f"{BACKFILL_TARGET_SHA[:12]}; it postdates that build.",
+    )
+    get_context(item.config)["incompatible_skips"] += 1
+
+
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
     # Generate benchmark report
     context = get_context(session.config)
+
+    # Skipping the odd incompatible benchmark still yields a usable data point, but
+    # skipping every one of them does not: that is a silently empty result, so fail.
+    if context["incompatible_skips"] and not context["benchmark_observations"]:
+        print(
+            f"All {context['incompatible_skips']} benchmark(s) were skipped as "
+            f"incompatible with backfill target {BACKFILL_TARGET_SHA[:12]}; "
+            "no measurements were produced."
+        )
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
     report = generate_report(context["timestamp"], "", context["benchmark_reports"])
     apply_benchmark_source_override(report)
 
