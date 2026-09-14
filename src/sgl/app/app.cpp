@@ -5,6 +5,9 @@
 #include "sgl/device/command.h"
 #include "sgl/ui/ui.h"
 
+#include <chrono>
+#include <thread>
+
 namespace sgl {
 
 // -----------------------------------------------------------------------------
@@ -32,15 +35,21 @@ void App::run()
     };
 
     while (!m_terminate && !all_windows_should_close()) {
-        run_frame();
+        // When no window rendered this iteration (e.g. all minimized or unconfigured),
+        // the loop would otherwise busy-poll glfwPollEvents at 100% CPU; sleep briefly
+        // to throttle it while staying responsive to restore/input events.
+        if (!run_frame())
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
 
-void App::run_frame()
+bool App::run_frame()
 {
+    bool rendered = false;
     for (const auto& window : m_windows) {
-        window->_run_frame();
+        rendered |= window->_run_frame();
     }
+    return rendered;
 }
 
 void App::terminate()
@@ -136,15 +145,17 @@ void AppWindow::on_keyboard_event(const KeyboardEvent& event)
     }
 }
 
-void AppWindow::_run_frame()
+bool AppWindow::_run_frame()
 {
     m_window->process_events();
 
-    if (!m_surface->config())
-        return;
+    // Skip acquiring/presenting while minimized; events are still pumped above so the
+    // window stays responsive and rendering resumes cleanly once it is restored.
+    if (m_window->is_minimized() || !m_surface->config())
+        return false;
     ref<Texture> texture = m_surface->acquire_next_image();
     if (!texture)
-        return;
+        return false;
 
     m_ui_context->begin_frame(texture->width(), texture->height());
 
@@ -171,6 +182,7 @@ void AppWindow::_run_frame()
 
     texture.reset();
     m_surface->present();
+    return true;
 }
 
 bool AppWindow::_should_close()
