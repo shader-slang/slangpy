@@ -31,7 +31,12 @@ if sys.platform == "darwin":
     pytest.skip("PyTorch requires CUDA, not available on macOS", allow_module_level=True)
 
 import slangpy as spy
-from slangpy import diff_pair, Tensor
+
+try:
+    from slangpy import diff_pair, Tensor
+except ImportError:
+    # Backfill targets that predate diff_pair cannot run this benchmark.
+    pytest.skip("slangpy.diff_pair is not available in this build", allow_module_level=True)
 
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkSlangFunction

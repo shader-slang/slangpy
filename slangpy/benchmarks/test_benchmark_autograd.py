@@ -8,7 +8,15 @@ import numpy as np
 import slangpy as spy
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkPythonFunction
-from slangpy.core.native import NativeTorchTensorDiffPair
+
+try:
+    from slangpy.core.native import NativeTorchTensorDiffPair
+except ImportError:
+    # Backfill targets that predate the native torch bridge cannot run this benchmark.
+    pytest.skip(
+        "slangpy.core.native.NativeTorchTensorDiffPair is not available in this build",
+        allow_module_level=True,
+    )
 
 HAS_TORCH = False
 try:
