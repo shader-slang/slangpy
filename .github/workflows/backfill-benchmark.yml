@@ -40,6 +40,7 @@ jobs:
       CI_FLAGS: ${{ matrix.flags }}
       BACKFILL_TARGET_SHA: ${{ inputs.target_sha }}
       BACKFILL_FLOOR_SHA: f3ad0fd91d8cf4eeb2be3b505765b43482aa952a
+      BACKFILL_SKIP_BENCHMARKS: ${{ runner.temp }}/backfill-skip-benchmarks-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}.txt
       BENCHVIEW_API_URL: ${{ vars.BENCHVIEW_API_URL }}
       BENCHVIEW_API_KEY: ${{ secrets.BENCHVIEW_API_KEY }}
       BENCHVIEW_BENCHMARK_REF: ${{ inputs.target_sha }}
@@ -197,7 +198,14 @@ jobs:
       # definitions are held fixed.
       - name: Overlay current BenchView benchmark harness
         working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: git checkout "${{ env.BACKFILL_HARNESS_SHA }}" -- tools/ci.py tools/gpu_clock.py slangpy/testing/benchmark slangpy/testing/helpers.py slangpy/testing/plugin.py slangpy/testing/crashpad.py slangpy/benchmarks
+        run: git checkout "${{ env.BACKFILL_HARNESS_SHA }}" -- tools/ci.py tools/gpu_clock.py tools/backfill_benchmark_manifest.py slangpy/testing/benchmark slangpy/testing/helpers.py slangpy/testing/plugin.py slangpy/testing/crashpad.py slangpy/benchmarks
+
+      # The overlay brings back benchmarks that did not exist in the target. Running
+      # those measures nothing and fails in ways that look like regressions, so list
+      # them for the harness to skip.
+      - name: List benchmarks the target predates
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        run: python tools/backfill_benchmark_manifest.py --target-sha "${{ inputs.target_sha }}" --output "${{ env.BACKFILL_SKIP_BENCHMARKS }}"
 
       - name: Install slangpy-torch bridge when present
         working-directory: ${{ env.BACKFILL_CLONE_DIR }}

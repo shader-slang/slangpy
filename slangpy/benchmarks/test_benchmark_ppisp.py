@@ -11,7 +11,6 @@ torch.cuda.synchronize() to capture full GPU execution time.
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING
 
 import pytest
@@ -39,18 +38,6 @@ try:
 except ImportError:
     pass
 
-HAS_NATIVE_DIFF_PAIR = False
-try:
-    from slangpy.core.native import NativeTorchTensorDiffPair  # noqa: F401
-
-    HAS_NATIVE_DIFF_PAIR = True
-except ImportError:
-    # Backfill targets predate the native torch bridge. Outside the backfill a
-    # missing import is a real regression, so only soften it when BACKFILL_TARGET_SHA
-    # says we are deliberately running against an older build.
-    if not os.environ.get("BACKFILL_TARGET_SHA"):
-        raise
-
 # Benchmark parameters
 NUM_CAMERAS = 6
 NUM_FRAMES = 200
@@ -68,11 +55,6 @@ WARMUP_ITERATIONS = 10
 def _skip_if_no_torch() -> None:
     if not HAS_TORCH:
         pytest.skip("PyTorch is not installed")
-
-
-def _skip_if_no_torch_bridge() -> None:
-    if not HAS_NATIVE_DIFF_PAIR:
-        pytest.skip("slangpy.core.native.NativeTorchTensorDiffPair is not available in this build")
 
 
 def _skip_if_no_slangtorch() -> None:
@@ -526,12 +508,12 @@ def test_ppisp_backward_slangpy_manual_hook(
     the automatic autograd integration vs doing it manually.
     """
     _skip_if_no_torch()
-    _skip_if_no_torch_bridge()
     device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from typing import Any, Optional
     from slangpy.benchmarks.ppisp.ppisp_slangpy import _get_slang_module, _warmup
+    from slangpy.core.native import NativeTorchTensorDiffPair
 
     _warmup(torch_device, device)
     module = _get_slang_module(device)
@@ -828,11 +810,11 @@ def test_ppisp_gpu_backward_slangpy(
 ) -> None:
     """GPU-timed SlangPy PPISP backward pass (timestamp queries, no CPU overhead)."""
     _skip_if_no_torch()
-    _skip_if_no_torch_bridge()
     device = helpers.get_torch_device(device_type)
     torch_device = torch.device("cuda")
 
     from slangpy.benchmarks.ppisp.ppisp_slangpy import _get_slang_module, _warmup
+    from slangpy.core.native import NativeTorchTensorDiffPair
 
     _warmup(torch_device, device)
     module = _get_slang_module(device)

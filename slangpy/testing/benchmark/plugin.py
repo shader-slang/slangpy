@@ -34,11 +34,27 @@ BENCHMARK_DIR = Path(".benchmarks")
 # Only the backfill workflow sets BACKFILL_TARGET_SHA; ordinary CI still fails.
 BACKFILL_TARGET_SHA = os.environ.get("BACKFILL_TARGET_SHA", "")
 
-# Exceptions that mean "this benchmark needs a capability the target build lacks",
-# as opposed to a genuine regression. SlangCompileError covers shader syntax and
-# intrinsics; BoundVariableException covers marshalling rules that were later
-# relaxed (e.g. non-differentiable tensor element types).
-INCOMPATIBLE_TARGET_EXCEPTIONS = ("SlangCompileError", "BoundVariableException")
+# A benchmark module that exists in the target build can still contain newer tests
+# whose shaders the target's Slang cannot compile. Whole modules that postdate the
+# target are handled up front by the manifest below, not here.
+INCOMPATIBLE_TARGET_EXCEPTIONS = ("SlangCompileError",)
+
+
+def _benchmarks_postdating_target() -> frozenset[str]:
+    """Benchmark modules the backfill target predates, as repo-relative POSIX paths.
+
+    :return: Paths listed by tools/backfill_benchmark_manifest.py, empty when unset.
+    """
+
+    manifest = os.environ.get("BACKFILL_SKIP_BENCHMARKS", "")
+    if not manifest or not Path(manifest).is_file():
+        return frozenset()
+    return frozenset(
+        line.strip() for line in Path(manifest).read_text(encoding="utf-8").splitlines()
+    ) - {""}
+
+
+BENCHMARKS_POSTDATING_TARGET = _benchmarks_postdating_target()
 
 
 class Context(TypedDict):
@@ -100,6 +116,25 @@ def pytest_configure(config: pytest.Config):
 
 def pytest_sessionstart(session: pytest.Session):
     get_context(session.config)["timestamp"] = datetime.now()
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Skip benchmarks that did not exist in the backfill target."""
+
+    if not BENCHMARKS_POSTDATING_TARGET:
+        return
+    root = Path(str(config.rootpath))
+    for item in items:
+        try:
+            relative = Path(str(item.path)).relative_to(root).as_posix()
+        except ValueError:
+            continue
+        if relative in BENCHMARKS_POSTDATING_TARGET:
+            item.add_marker(
+                pytest.mark.skip(
+                    reason=f"{relative} postdates backfill target {BACKFILL_TARGET_SHA[:12]}"
+                )
+            )
 
 
 @pytest.hookimpl(hookwrapper=True)
