@@ -154,9 +154,10 @@ void AppWindow::_run_frame()
     // minimize/restore that emits no resize callback is still handled: suspend
     // (unconfigure) while minimized, resume when restored. is_minimized() is the
     // portable signal (some backends keep the framebuffer size non-zero while
-    // iconified); reconfigure_surface() then makes the precise decision. Steady
-    // state (visible + configured) touches neither branch and adds no per-frame
-    // windowing-system round-trip.
+    // iconified); reconfigure_surface() then makes the precise decision. A
+    // visible, configured window hits neither branch, so a steady-state frame
+    // adds no framebuffer query and no queue-idle wait (only the cheap
+    // is_minimized() check runs).
     if (m_window->is_minimized()) {
         if (m_surface->config())
             reconfigure_surface();
@@ -226,8 +227,9 @@ void AppWindow::reconfigure_surface()
     // Reconfigure against the current framebuffer size, so the resize callback
     // and the recovery path rebuild from one place. configure() runs on the
     // throwing SLANG_RHI_CALL path, so a device loss is surfaced here (if the RHI
-    // reports it) rather than being retried; this runs only on a resize or a
-    // failure, so steady-state frames add no queue-idle wait.
+    // reports it) rather than being retried. This runs only on a resize, a
+    // minimize/restore transition, or a recovery, so steady-state frames add no
+    // queue-idle wait.
     m_device->wait();
     uint2 size = m_window->query_framebuffer_size();
     if (!m_window->is_minimized() && size.x > 0 && size.y > 0) {
