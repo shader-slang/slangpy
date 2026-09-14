@@ -34,6 +34,12 @@ BENCHMARK_DIR = Path(".benchmarks")
 # Only the backfill workflow sets BACKFILL_TARGET_SHA; ordinary CI still fails.
 BACKFILL_TARGET_SHA = os.environ.get("BACKFILL_TARGET_SHA", "")
 
+# Exceptions that mean "this benchmark needs a capability the target build lacks",
+# as opposed to a genuine regression. SlangCompileError covers shader syntax and
+# intrinsics; BoundVariableException covers marshalling rules that were later
+# relaxed (e.g. non-differentiable tensor element types).
+INCOMPATIBLE_TARGET_EXCEPTIONS = ("SlangCompileError", "BoundVariableException")
+
 
 class Context(TypedDict):
     timestamp: datetime
@@ -98,7 +104,7 @@ def pytest_sessionstart(session: pytest.Session):
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
-    """Report a benchmark that cannot compile against a backfill target as skipped."""
+    """Report a benchmark that a backfill target cannot run as skipped."""
 
     outcome = yield
     if not BACKFILL_TARGET_SHA:
@@ -106,13 +112,14 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
     report = outcome.get_result()
     if not report.failed or call.excinfo is None:
         return
-    if type(call.excinfo.value).__name__ != "SlangCompileError":
+    exception_name = type(call.excinfo.value).__name__
+    if exception_name not in INCOMPATIBLE_TARGET_EXCEPTIONS:
         return
     report.outcome = "skipped"
     report.longrepr = (
         str(item.path),
         None,
-        f"Benchmark shader does not compile against backfill target "
+        f"Benchmark raised {exception_name} against backfill target "
         f"{BACKFILL_TARGET_SHA[:12]}; it postdates that build.",
     )
     get_context(item.config)["incompatible_skips"] += 1
