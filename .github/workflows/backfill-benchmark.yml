@@ -185,7 +185,7 @@ jobs:
       # measure historical performance, not to re-validate warning cleanliness.
       - name: Historical configure
         working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: python tools/ci.py configure --cmake-args=-DSGL_WARNINGS_AS_ERRORS=OFF
+        run: python tools/ci.py --cmake-args=-DSGL_WARNINGS_AS_ERRORS=OFF configure
 
       - name: Historical build
         working-directory: ${{ env.BACKFILL_CLONE_DIR }}

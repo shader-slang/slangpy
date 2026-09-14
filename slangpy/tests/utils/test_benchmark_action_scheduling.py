@@ -459,7 +459,9 @@ def test_backfill_workflow_guards_boundary_builds_before_overlay_and_cleans_safe
     )
     # Historical sources meet compilers that postdate them, so new warnings must
     # not fail the build.
-    assert "configure --cmake-args=-DSGL_WARNINGS_AS_ERRORS=OFF" in workflow
+    # --cmake-args belongs to the top-level parser, so it must precede the
+    # subcommand or ci.py rejects it.
+    assert "ci.py --cmake-args=-DSGL_WARNINGS_AS_ERRORS=OFF configure" in workflow
     for overlaid in (
         "tools/ci.py",
         "tools/gpu_clock.py",
