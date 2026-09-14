@@ -220,7 +220,10 @@ def get_device(
 
     if use_cache and cache_key in DEVICE_CACHE:
         device = DEVICE_CACHE[cache_key]
-        device.set_cuda_context_current()  # Ensure CUDA context is current for cached devices
+        # Ensure CUDA context is current for cached devices. Backfill targets before
+        # #774 have no such method; they simply never moved the context.
+        if hasattr(device, "set_cuda_context_current"):
+            device.set_cuda_context_current()
         return device
 
     device_kwargs: dict[str, Any] = {
