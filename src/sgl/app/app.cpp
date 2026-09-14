@@ -5,7 +5,16 @@
 #include "sgl/device/command.h"
 #include "sgl/ui/ui.h"
 
+#include "sgl/core/error.h"
+
 namespace sgl {
+
+namespace {
+    /// Upper bound on consecutive acquire/present failures at a stable surface size
+    /// before the swapchain-recovery loop gives up and surfaces the failure as
+    /// fatal. Sized generously so aggressive continuous resizing never trips it.
+    constexpr uint32_t kMaxSurfaceRecoveryFailures = 64;
+} // namespace
 
 // -----------------------------------------------------------------------------
 // App
@@ -140,11 +149,29 @@ void AppWindow::_run_frame()
 {
     m_window->process_events();
 
+    // If the surface is suspended (e.g. after a minimize) but the window now
+    // has a non-zero size, arm a reconfigure. The size is queried from the
+    // windowing system rather than the callback-updated cache, so a restore is
+    // detected even on a platform that doesn't re-fire the resize callback.
+    if (!m_surface->config()) {
+        uint2 size = m_window->query_size();
+        if (size.x > 0 && size.y > 0)
+            m_surface_dirty = true;
+    }
+
+    // A prior frame's acquire/present reported a recoverable invalidation:
+    // reconfigure against the current window size before rendering.
+    if (m_surface_dirty)
+        reconfigure_surface();
+
     if (!m_surface->config())
         return;
-    ref<Texture> texture = m_surface->acquire_next_image();
-    if (!texture)
+
+    ref<Texture> texture;
+    if (SLANG_FAILED(m_surface->try_acquire_next_image(texture))) {
+        mark_surface_failed();
         return;
+    }
 
     m_ui_context->begin_frame(texture->width(), texture->height());
 
@@ -170,7 +197,15 @@ void AppWindow::_run_frame()
     m_device->submit_command_buffer(command_encoder->finish());
 
     texture.reset();
-    m_surface->present();
+    // Some backends report a recoverable invalidation from present, others only
+    // from the next acquire - guard present too so either path is handled.
+    if (SLANG_FAILED(m_surface->try_present())) {
+        mark_surface_failed();
+        return;
+    }
+
+    // A fully successful frame clears the bounded-failure counter.
+    m_surface_recovery_failures = 0;
 }
 
 bool AppWindow::_should_close()
@@ -180,15 +215,44 @@ bool AppWindow::_should_close()
 
 void AppWindow::handle_resize(uint32_t width, uint32_t height)
 {
+    reconfigure_surface();
+    on_resize(width, height);
+}
+
+void AppWindow::reconfigure_surface()
+{
+    // Reconfigure against the window's current size, so this serves both the
+    // resize callback and the out-of-band recovery path from one place. The
+    // checked m_device->wait() below is what preserves device loss: it (and
+    // configure()/submit in the render path) stay on the throwing SLANG_RHI_CALL
+    // path, so a genuine device loss propagates here instead of being retried by
+    // the recovery loop. Runs only on a resize or an armed invalidation, so
+    // steady-state frames keep no queue-idle wait.
     m_device->wait();
-    if (width > 0 && height > 0) {
-        m_surface_config.width = width;
-        m_surface_config.height = height;
+    uint2 size = m_window->query_size();
+    if (size.x > 0 && size.y > 0) {
+        // A genuine size change is legitimate churn (the window is being
+        // resized), not a stuck surface, so let the bounded-failure counter
+        // reset - otherwise a sustained drag that keeps invalidating the
+        // swapchain could trip the fatal ceiling and crash the very resize we
+        // are trying to survive. Only a persistent failure at a *stable* size
+        // reaches the ceiling.
+        if (size.x != m_surface_config.width || size.y != m_surface_config.height)
+            m_surface_recovery_failures = 0;
+        m_surface_config.width = size.x;
+        m_surface_config.height = size.y;
         m_surface->configure(m_surface_config);
     } else {
         m_surface->unconfigure();
     }
-    on_resize(width, height);
+    m_surface_dirty = false;
+}
+
+void AppWindow::mark_surface_failed()
+{
+    m_surface_dirty = true;
+    if (++m_surface_recovery_failures > kMaxSurfaceRecoveryFailures)
+        SGL_THROW("Surface acquire/present kept failing after reconfiguration; treating as fatal.");
 }
 
 void AppWindow::handle_keyboard_event(const KeyboardEvent& event)

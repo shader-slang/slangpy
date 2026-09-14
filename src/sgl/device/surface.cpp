@@ -96,4 +96,32 @@ void Surface::present()
     SLANG_RHI_CALL(m_rhi_surface->present(), m_device);
 }
 
+rhi::Result Surface::try_acquire_next_image(ref<Texture>& out_texture)
+{
+    Slang::ComPtr<rhi::ITexture> texture;
+    rhi::Result result = m_rhi_surface->acquireNextImage(texture.writeRef());
+    if (SLANG_FAILED(result))
+        return result;
+    if (!texture)
+        return SLANG_FAIL;
+    rhi::TextureDesc texture_desc = texture->getDesc();
+    out_texture = m_device->create_texture_from_resource(
+        {
+            .type = TextureType::texture_2d,
+            .format = static_cast<Format>(texture_desc.format),
+            .width = narrow_cast<uint32_t>(texture_desc.size.width),
+            .height = narrow_cast<uint32_t>(texture_desc.size.height),
+            .mip_count = texture_desc.mipCount,
+            .usage = static_cast<TextureUsage>(texture_desc.usage),
+        },
+        texture
+    );
+    return SLANG_OK;
+}
+
+rhi::Result Surface::try_present()
+{
+    return m_rhi_surface->present();
+}
+
 } // namespace sgl

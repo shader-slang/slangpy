@@ -65,6 +65,16 @@ public:
     /// Present the previously acquire image.
     void present();
 
+    /// Non-throwing variant of acquire_next_image() for the render loop's
+    /// resize-recovery path: a recoverable swapchain invalidation must not
+    /// terminate the app, and SGL_THROW would additionally log-fatal and
+    /// debug-break. Returns the RHI result; sets \p out_texture on success.
+    rhi::Result try_acquire_next_image(ref<Texture>& out_texture);
+
+    /// Non-throwing variant of present() for the render loop's resize-recovery
+    /// path (see try_acquire_next_image). Returns the RHI result.
+    rhi::Result try_present();
+
 private:
     void get_images();
 

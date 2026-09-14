@@ -514,7 +514,16 @@ void Device::close()
 
     log_debug("Closing device {}", fmt::ptr(this));
 
-    wait();
+    // Best-effort drain before teardown. wait() now reports a lost device (so
+    // the render loop's recovery path can propagate it), but close() is called
+    // from App::~App(), a noexcept destructor - a lost device has nothing left
+    // to drain, so swallow the failure and complete teardown rather than let it
+    // escape and trigger std::terminate.
+    try {
+        wait();
+    } catch (const std::exception& e) {
+        log_warn("Device::close: wait failed while draining (device may be lost), continuing teardown: {}", e.what());
+    }
 
     // Flush cache writer to ensure all pending writes are completed.
     if (m_cache_writer)
@@ -1075,7 +1084,7 @@ void Device::wait_for_idle(CommandQueueType queue)
 {
     if (m_rhi_graphics_queue) {
         SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
-        m_rhi_graphics_queue->waitOnHost();
+        SLANG_RHI_CALL(m_rhi_graphics_queue->waitOnHost(), this);
     }
 }
 

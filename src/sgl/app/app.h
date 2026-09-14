@@ -99,12 +99,32 @@ private:
     void handle_gamepad_event(const GamepadEvent& event);
     void handle_drop_files(std::span<const char*> files);
 
+    /// Reconfigure the surface against the current window size (or suspend it
+    /// when the window has zero area). Shared by the resize callback and the
+    /// out-of-band recovery path so both rebuild from the same source of truth.
+    void reconfigure_surface();
+
+    /// Record a recoverable acquire/present failure: arm a reconfigure for the
+    /// next frame and advance the bounded-failure counter, surfacing a
+    /// persistent (non-recoverable) failure as fatal instead of looping.
+    void mark_surface_failed();
+
     App* m_app;
     Device* m_device;
     ref<Window> m_window;
     ref<Surface> m_surface;
     SurfaceConfig m_surface_config;
     ref<ui::Context> m_ui_context;
+
+    /// Set when acquire/present reports a recoverable swapchain invalidation
+    /// (e.g. a resize between event processing and presentation, with no
+    /// accompanying resize callback); the next frame reconfigures the surface
+    /// before rendering.
+    bool m_surface_dirty{false};
+    /// Consecutive acquire/present failures at a stable surface size. Bounds the
+    /// recovery loop so a persistent (non-recoverable) failure is surfaced
+    /// instead of being retried silently forever.
+    uint32_t m_surface_recovery_failures{0};
 };
 
 } // namespace sgl

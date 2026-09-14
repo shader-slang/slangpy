@@ -134,6 +134,12 @@ public:
     uint2 size() const { return uint2{m_width, m_height}; }
     void set_size(uint2 size);
 
+    /// Query the current window size directly from the windowing system, rather
+    /// than returning the value cached from the last resize callback. Use this
+    /// when a callback may not have fired yet (e.g. detecting restore from a
+    /// minimized state to recover a suspended surface).
+    uint2 query_size() const;
+
     /// Resize the window.
     /// \param width The new width of the window in pixels.
     /// \param height The new height of the window in pixels.

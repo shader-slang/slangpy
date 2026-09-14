@@ -453,6 +453,13 @@ int2 Window::position() const
     return int2{xpos, ypos};
 }
 
+uint2 Window::query_size() const
+{
+    int width = 0, height = 0;
+    glfwGetWindowSize(m_window, &width, &height);
+    return uint2{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+}
+
 void Window::set_position(int2 position)
 {
     glfwSetWindowPos(m_window, position.x, position.y);
