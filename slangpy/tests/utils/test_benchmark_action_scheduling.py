@@ -449,7 +449,12 @@ def test_backfill_workflow_guards_boundary_builds_before_overlay_and_cleans_safe
     assert workflow.index("Resolve benchmark harness commit") < workflow.index(
         "Synchronize historical submodules"
     )
-    assert workflow.index("Synchronize historical submodules") < workflow.index(
+    # setup.bat/setup.sh reset submodules, so the repin has to follow them and
+    # still precede configure, or the historical vcpkg comes back.
+    assert workflow.index("Historical setup") < workflow.index(
+        "Repin unbootstrappable vcpkg (Windows)"
+    )
+    assert workflow.index("Repin unbootstrappable vcpkg (Linux)") < workflow.index(
         "Historical configure"
     )
     for overlaid in (

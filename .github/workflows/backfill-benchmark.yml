@@ -118,50 +118,11 @@ jobs:
           echo "Benchmark harness commit: $harness"
           echo "BACKFILL_HARNESS_SHA=$harness" >> "$GITHUB_ENV"
 
-      # MSYS2 deletes superseded packages, so vcpkg revisions pinned before
-      # dba4ce18 can no longer bootstrap pkgconf and fail to configure on Windows.
-      # Only those targets are repinned; anything already on the harness revision
-      # is built exactly as it was committed.
-      - name: Synchronize historical submodules and LFS (Windows)
-        if: runner.os == 'Windows'
+      - name: Synchronize historical submodules and LFS
         working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        shell: pwsh
         run: |
           git submodule sync --recursive
-          if ($LASTEXITCODE -ne 0) { throw "Cannot synchronize historical submodules." }
           git submodule update --init --recursive
-          if ($LASTEXITCODE -ne 0) { throw "Cannot update historical submodules." }
-          $harnessVcpkg = (git rev-parse "$env:BACKFILL_HARNESS_SHA`:external/vcpkg").Trim()
-          $targetVcpkg = (git rev-parse "HEAD`:external/vcpkg").Trim()
-          if ($targetVcpkg -ne $harnessVcpkg) {
-            Write-Host "Replacing unbootstrappable vcpkg $targetVcpkg with $harnessVcpkg"
-            git -C external/vcpkg fetch --no-tags origin $harnessVcpkg
-            if ($LASTEXITCODE -ne 0) { git -C external/vcpkg fetch --no-tags origin }
-            git -C external/vcpkg checkout --detach $harnessVcpkg
-            if ($LASTEXITCODE -ne 0) { throw "Cannot use the harness vcpkg revision." }
-          } else {
-            Write-Host "Target already pins the harness vcpkg revision $targetVcpkg"
-          }
-          git lfs pull
-
-      - name: Synchronize historical submodules and LFS (Linux)
-        if: runner.os == 'Linux'
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git submodule sync --recursive
-          git submodule update --init --recursive
-          harness_vcpkg="$(git rev-parse "$BACKFILL_HARNESS_SHA:external/vcpkg")"
-          target_vcpkg="$(git rev-parse "HEAD:external/vcpkg")"
-          if [ "$target_vcpkg" != "$harness_vcpkg" ]; then
-            echo "Replacing unbootstrappable vcpkg $target_vcpkg with $harness_vcpkg"
-            git -C external/vcpkg fetch --no-tags origin "$harness_vcpkg" \
-              || git -C external/vcpkg fetch --no-tags origin
-            git -C external/vcpkg checkout --detach "$harness_vcpkg"
-          else
-            echo "Target already pins the harness vcpkg revision $target_vcpkg"
-          fi
           git lfs pull
 
       - name: Setup historical Python environment
@@ -179,6 +140,45 @@ jobs:
       - name: Historical setup
         working-directory: ${{ env.BACKFILL_CLONE_DIR }}
         run: python tools/ci.py setup
+
+      # MSYS2 deletes superseded packages, so vcpkg revisions pinned before dba4ce18
+      # request an msys2-runtime that no longer exists and cannot bootstrap pkgconf.
+      # Only those targets are repinned; anything already on the harness revision is
+      # built exactly as it was committed. This has to run after "Historical setup",
+      # because setup.bat/setup.sh reset every submodule to its recorded revision.
+      - name: Repin unbootstrappable vcpkg (Windows)
+        if: runner.os == 'Windows'
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        shell: pwsh
+        run: |
+          $harnessVcpkg = (git rev-parse "$env:BACKFILL_HARNESS_SHA`:external/vcpkg").Trim()
+          $targetVcpkg = (git rev-parse "HEAD`:external/vcpkg").Trim()
+          if ($targetVcpkg -ne $harnessVcpkg) {
+            Write-Host "Replacing unbootstrappable vcpkg $targetVcpkg with $harnessVcpkg"
+            git -C external/vcpkg fetch --no-tags origin $harnessVcpkg
+            if ($LASTEXITCODE -ne 0) { git -C external/vcpkg fetch --no-tags origin }
+            git -C external/vcpkg checkout --detach $harnessVcpkg
+            if ($LASTEXITCODE -ne 0) { throw "Cannot use the harness vcpkg revision." }
+          } else {
+            Write-Host "Target already pins the harness vcpkg revision $targetVcpkg"
+          }
+
+      - name: Repin unbootstrappable vcpkg (Linux)
+        if: runner.os == 'Linux'
+        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          harness_vcpkg="$(git rev-parse "$BACKFILL_HARNESS_SHA:external/vcpkg")"
+          target_vcpkg="$(git rev-parse "HEAD:external/vcpkg")"
+          if [ "$target_vcpkg" != "$harness_vcpkg" ]; then
+            echo "Replacing unbootstrappable vcpkg $target_vcpkg with $harness_vcpkg"
+            git -C external/vcpkg fetch --no-tags origin "$harness_vcpkg" \
+              || git -C external/vcpkg fetch --no-tags origin
+            git -C external/vcpkg checkout --detach "$harness_vcpkg"
+          else
+            echo "Target already pins the harness vcpkg revision $target_vcpkg"
+          fi
 
       - name: Historical configure
         working-directory: ${{ env.BACKFILL_CLONE_DIR }}
