@@ -437,7 +437,21 @@ def test_backfill_workflow_guards_boundary_builds_before_overlay_and_cleans_safe
     # that commit has been rewritten away while the run was queued.
     assert 'git cat-file -e "${{ github.sha }}^{commit}"' in workflow
     assert 'git fetch --no-tags origin "${{ github.ref_name }}"' in workflow
-    assert 'git checkout "$harness" --' in workflow
+    assert 'echo "BACKFILL_HARNESS_SHA=$harness" >> "$GITHUB_ENV"' in workflow
+    # The overlay runs under pwsh on Windows and bash on Linux, so it must use a
+    # workflow expression rather than a shell variable, and stay on one line.
+    assert 'git checkout "${{ env.BACKFILL_HARNESS_SHA }}" --' in workflow
+    # Superseded MSYS2 packages are deleted, so vcpkg revisions pinned by older
+    # commits can no longer bootstrap pkgconf. Only those targets are repinned.
+    assert 'target_vcpkg="$(git rev-parse "HEAD:external/vcpkg")"' in workflow
+    assert 'if [ "$target_vcpkg" != "$harness_vcpkg" ]; then' in workflow
+    assert "if ($targetVcpkg -ne $harnessVcpkg) {" in workflow
+    assert workflow.index("Resolve benchmark harness commit") < workflow.index(
+        "Synchronize historical submodules"
+    )
+    assert workflow.index("Synchronize historical submodules") < workflow.index(
+        "Historical configure"
+    )
     for overlaid in (
         "tools/ci.py",
         "tools/gpu_clock.py",
