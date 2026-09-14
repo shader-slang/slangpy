@@ -3859,7 +3859,9 @@ is reported as discarded only if it is eventually destroyed while still
 open (dropped without a successful retry); a retried finish() re-fires
 before-finish and can still reach submitted. Correlate via the event id,
 retire per-recording state on submitted-or-discarded, and treat
-before-finish idempotently.)doc";
+before-finish idempotently. Registering or unregistering a callback from
+within a callback is safe and affects only later notifications, not the
+one in progress.)doc";
 
 static const char *__doc_sgl_Device_register_command_recording_created_callback =
 R"doc(Register a callback to be called immediately after a command recording
@@ -3873,7 +3875,9 @@ create_command_encoder, so the callback must not throw. This also fires
 for encoders created internally by SGL helpers (uploads, texture loader,
 kernel/print/tensor dispatch), as they all route through
 create_command_encoder. Correlate with the submitted/discarded callbacks
-via the event id.)doc";
+via the event id. Registering or unregistering a callback from within a
+callback is safe and affects only later notifications, not the one in
+progress.)doc";
 
 static const char *__doc_sgl_Device_register_command_recording_discarded_callback =
 R"doc(Register a callback to be called when a command recording is discarded
