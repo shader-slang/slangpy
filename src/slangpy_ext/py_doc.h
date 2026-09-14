@@ -3736,6 +3736,10 @@ static const char *__doc_sgl_Device_m_capabilities = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_closed = R"doc()doc";
 
+static const char *__doc_sgl_Device_m_command_recording_before_finish_callbacks = R"doc()doc";
+
+static const char *__doc_sgl_Device_m_command_recording_created_callbacks = R"doc()doc";
+
 static const char *__doc_sgl_Device_m_command_recording_discarded_callbacks = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_command_recording_submitted_callbacks = R"doc()doc";
@@ -3789,6 +3793,10 @@ static const char *__doc_sgl_Device_m_supported_shader_model = R"doc()doc";
 static const char *__doc_sgl_Device_m_supports_cuda_interop = R"doc()doc";
 
 static const char *__doc_sgl_Device_native_handles = R"doc(Get the native device handles.)doc";
+
+static const char *__doc_sgl_Device_notify_command_recording_before_finish = R"doc()doc";
+
+static const char *__doc_sgl_Device_notify_command_recording_created = R"doc()doc";
 
 static const char *__doc_sgl_Device_notify_command_recording_discarded = R"doc()doc";
 
@@ -3845,8 +3853,13 @@ recordable: the callback may append commands to it (e.g. write_timestamp
 retain it beyond the callback, or submit it. It fires synchronously on
 the recording thread (Python callbacks acquire the GIL) and exceptions
 propagate out of CommandEncoder::finish(), so the callback must not
-throw. Correlate with the submitted/discarded callbacks via the event
-id.)doc";
+throw. Reaching before-finish does not guarantee submission: if finish()
+fails (or a before-finish callback throws) the encoder stays open, so it
+is reported as discarded only if it is eventually destroyed while still
+open (dropped without a successful retry); a retried finish() re-fires
+before-finish and can still reach submitted. Correlate via the event id,
+retire per-recording state on submitted-or-discarded, and treat
+before-finish idempotently.)doc";
 
 static const char *__doc_sgl_Device_register_command_recording_created_callback =
 R"doc(Register a callback to be called immediately after a command recording

@@ -338,5 +338,57 @@ def test_command_recording_before_finish_callback(device_type: DeviceType):
     device.unregister_command_recording_submitted_callback(submitted_callback_id)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_command_recording_before_finish_retry_after_throw(device_type: DeviceType):
+    # A before-finish callback that throws aborts finish() before the RHI finish, leaving the
+    # encoder open and finish() retryable.
+    device = helpers.get_device(device_type)
+
+    before_finish_ids: list[int] = []
+    submitted_ids: list[int] = []
+    discarded_ids: list[int] = []
+    already_threw = {"value": False}
+
+    def on_before_finish(event: object) -> None:
+        before_finish_ids.append(event.id)
+        if not already_threw["value"]:
+            already_threw["value"] = True
+            raise RuntimeError("simulated observer failure")
+
+    def on_submitted(event: object) -> None:
+        submitted_ids.append(event.id)
+
+    def on_discarded(event: object) -> None:
+        discarded_ids.append(event.id)
+
+    before_finish_callback_id = device.register_command_recording_before_finish_callback(
+        on_before_finish
+    )
+    submitted_callback_id = device.register_command_recording_submitted_callback(on_submitted)
+    discarded_callback_id = device.register_command_recording_discarded_callback(on_discarded)
+    try:
+        encoder = device.create_command_encoder()
+        recording_id = encoder.recording_id
+
+        with pytest.raises(Exception, match="simulated observer failure"):
+            encoder.finish()
+
+        command_buffer = encoder.finish()
+        device.submit_command_buffer(command_buffer)
+
+        assert before_finish_ids == [recording_id, recording_id]
+        assert submitted_ids == [recording_id]
+
+        # Destroy the encoder and buffer so an erroneous discard-on-destruction would be caught.
+        del encoder
+        del command_buffer
+        gc.collect()
+        assert discarded_ids == []
+    finally:
+        device.unregister_command_recording_before_finish_callback(before_finish_callback_id)
+        device.unregister_command_recording_submitted_callback(submitted_callback_id)
+        device.unregister_command_recording_discarded_callback(discarded_callback_id)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

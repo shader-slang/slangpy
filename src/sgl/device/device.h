@@ -908,8 +908,12 @@ public:
     /// commands to it (e.g. write_timestamp / push_debug_group). The callback must not call
     /// finish() on the encoder, retain it beyond the callback, or submit it. It fires
     /// synchronously on the recording thread (Python callbacks acquire the GIL) and exceptions
-    /// propagate out of CommandEncoder::finish(), so the callback must not throw. Correlate with
-    /// the submitted/discarded callbacks via the event id.
+    /// propagate out of CommandEncoder::finish(), so the callback must not throw. Reaching
+    /// before-finish does not guarantee submission: if finish() fails (or a before-finish callback
+    /// throws) the encoder stays open, so it is reported as discarded only if it is eventually
+    /// destroyed while still open (dropped without a successful retry); a retried finish() re-fires
+    /// before-finish and can still reach submitted. Correlate via the event id, retire per-recording
+    /// state on submitted-or-discarded, and treat before-finish idempotently.
     DeviceCallbackID register_command_recording_before_finish_callback(CommandRecordingBeforeFinishCallback callback);
     /// Unregister a command recording before-finish callback.
     void unregister_command_recording_before_finish_callback(DeviceCallbackID id);
