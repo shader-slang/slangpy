@@ -183,5 +183,160 @@ def test_reuse_finished_command_encoder(device_type: DeviceType):
         polynomial.append_to(command_encoder, a, b, _result=res)
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_command_recording_created_callback(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+
+    created_events: list[tuple[int, int]] = []
+    second_created_ids: list[int] = []
+    unregistered_created_ids: list[int] = []
+
+    def on_created(event: object) -> None:
+        assert event.device == device
+        assert event.encoder is not None
+        # The encoder must be open and recordable inside the callback (the load-bearing
+        # profiler use case): appending a balanced debug group must not raise.
+        event.encoder.push_debug_group("spy-created", float3(0, 0, 0))
+        event.encoder.pop_debug_group()
+        created_events.append((event.id, event.encoder.recording_id))
+        # Unregistering during notify must be safe (copy-on-write callback list).
+        device.unregister_command_recording_created_callback(created_callback_id)
+
+    def on_second_created(event: object) -> None:
+        assert event.device == device
+        second_created_ids.append(event.id)
+
+    def on_unregistered_created(event: object) -> None:
+        unregistered_created_ids.append(event.id)
+
+    created_callback_id = device.register_command_recording_created_callback(on_created)
+    second_created_callback_id = device.register_command_recording_created_callback(
+        on_second_created
+    )
+    unregistered_created_callback_id = device.register_command_recording_created_callback(
+        on_unregistered_created
+    )
+    assert isinstance(created_callback_id, int)
+    assert created_callback_id != unregistered_created_callback_id
+    device.unregister_command_recording_created_callback(unregistered_created_callback_id)
+
+    # created fires synchronously during create_command_encoder, carrying the live encoder + its id.
+    command_encoder = device.create_command_encoder()
+    assert created_events == [(command_encoder.recording_id, command_encoder.recording_id)]
+    assert second_created_ids == [command_encoder.recording_id]
+    assert unregistered_created_ids == []
+
+    # on_created unregistered itself during notify; a subsequent create must not re-invoke it.
+    second_encoder = device.create_command_encoder()
+    assert created_events == [(command_encoder.recording_id, command_encoder.recording_id)]
+    assert second_created_ids == [command_encoder.recording_id, second_encoder.recording_id]
+
+    device.unregister_command_recording_created_callback(second_created_callback_id)
+
+    del command_encoder
+    del second_encoder
+    gc.collect()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_command_recording_created_covers_helper_encoders(device_type: DeviceType):
+    # Encoders created internally by SGL (functional-API dispatch) route through
+    # Device::create_command_encoder, so the created hook must fire for them too.
+    m = load_test_module(device_type)
+    assert m is not None
+    polynomial = m.polynomial.as_func()
+
+    a = Tensor.empty(m.device, (10,), dtype=float3)
+    b = Tensor.empty(m.device, (10,), dtype=float3)
+    res = Tensor.empty(m.device, (10,), dtype=float3)
+
+    created_ids: list[int] = []
+
+    def on_created(event: object) -> None:
+        created_ids.append(event.id)
+
+    callback_id = m.device.register_command_recording_created_callback(on_created)
+    try:
+        polynomial(a, b, _result=res)
+    finally:
+        m.device.unregister_command_recording_created_callback(callback_id)
+
+    assert len(created_ids) >= 1
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_command_recording_before_finish_callback(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+
+    sequence: list[str] = []
+    before_finish_events: list[tuple[int, int]] = []
+    second_before_finish_ids: list[int] = []
+    unregistered_before_finish_ids: list[int] = []
+
+    def on_created(event: object) -> None:
+        sequence.append(f"created:{event.id}")
+
+    def on_before_finish(event: object) -> None:
+        assert event.device == device
+        assert event.encoder is not None
+        # Still open and recordable right before finish: appending must not raise.
+        event.encoder.push_debug_group("spy-before-finish", float3(0, 0, 0))
+        event.encoder.pop_debug_group()
+        before_finish_events.append((event.id, event.encoder.recording_id))
+        sequence.append(f"before_finish:{event.id}")
+        device.unregister_command_recording_before_finish_callback(before_finish_callback_id)
+
+    def on_second_before_finish(event: object) -> None:
+        second_before_finish_ids.append(event.id)
+
+    def on_unregistered_before_finish(event: object) -> None:
+        unregistered_before_finish_ids.append(event.id)
+
+    def on_submitted(event: object) -> None:
+        sequence.append(f"submitted:{event.id}")
+
+    created_callback_id = device.register_command_recording_created_callback(on_created)
+    before_finish_callback_id = device.register_command_recording_before_finish_callback(
+        on_before_finish
+    )
+    second_before_finish_callback_id = device.register_command_recording_before_finish_callback(
+        on_second_before_finish
+    )
+    unregistered_before_finish_callback_id = (
+        device.register_command_recording_before_finish_callback(on_unregistered_before_finish)
+    )
+    device.unregister_command_recording_before_finish_callback(
+        unregistered_before_finish_callback_id
+    )
+    submitted_callback_id = device.register_command_recording_submitted_callback(on_submitted)
+
+    # Discard path: encoder dropped without finish -> created fires, before_finish does NOT.
+    discarded_encoder = device.create_command_encoder()
+    discarded_id = discarded_encoder.recording_id
+    del discarded_encoder
+    gc.collect()
+    assert f"created:{discarded_id}" in sequence
+    assert before_finish_events == []
+
+    # Finish path: created -> before_finish -> submitted, ids all equal.
+    encoder = device.create_command_encoder()
+    recording_id = encoder.recording_id
+    command_buffer = encoder.finish()
+    device.submit_command_buffer(command_buffer)
+
+    assert before_finish_events == [(recording_id, recording_id)]
+    assert second_before_finish_ids == [recording_id]
+    assert unregistered_before_finish_ids == []
+    assert (
+        sequence.index(f"created:{recording_id}")
+        < sequence.index(f"before_finish:{recording_id}")
+        < sequence.index(f"submitted:{recording_id}")
+    )
+
+    device.unregister_command_recording_created_callback(created_callback_id)
+    device.unregister_command_recording_before_finish_callback(second_before_finish_callback_id)
+    device.unregister_command_recording_submitted_callback(submitted_callback_id)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

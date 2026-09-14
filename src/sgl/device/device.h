@@ -286,6 +286,24 @@ struct ShaderHotReloadEvent { };
 /// Callback type for hot reload hook.
 using ShaderHotReloadCallback = std::function<void(const ShaderHotReloadEvent&)>;
 
+/// Event data for command recording created callback.
+struct CommandRecordingCreatedEvent {
+    Device* device;
+    CommandRecordingID id{0};
+    CommandEncoder* encoder{nullptr};
+};
+/// Callback type for command recording created event.
+using CommandRecordingCreatedCallback = std::function<void(const CommandRecordingCreatedEvent&)>;
+
+/// Event data for command recording before-finish callback.
+struct CommandRecordingBeforeFinishEvent {
+    Device* device;
+    CommandRecordingID id{0};
+    CommandEncoder* encoder{nullptr};
+};
+/// Callback type for command recording before-finish event.
+using CommandRecordingBeforeFinishCallback = std::function<void(const CommandRecordingBeforeFinishEvent&)>;
+
 /// Event data for command recording submission callback.
 struct CommandRecordingSubmittedEvent {
     Device* device;
@@ -872,6 +890,30 @@ public:
     /// Unregister a hot reload hook.
     void unregister_shader_hot_reload_callback(DeviceCallbackID id);
 
+    /// Register a callback to be called immediately after a command recording is created.
+    /// The encoder passed to the callback is open and recordable: the callback may append
+    /// commands to it (e.g. write_timestamp / push_debug_group to bracket the recording for
+    /// profiling). The callback must not call finish() on the encoder, retain it beyond the
+    /// callback, or submit it. It fires synchronously on the recording thread (Python callbacks
+    /// acquire the GIL) and exceptions propagate out of create_command_encoder, so the callback
+    /// must not throw. This also fires for encoders created internally by SGL helpers (uploads,
+    /// texture loader, kernel/print/tensor dispatch), as they all route through
+    /// create_command_encoder. Correlate with the submitted/discarded callbacks via the event id.
+    DeviceCallbackID register_command_recording_created_callback(CommandRecordingCreatedCallback callback);
+    /// Unregister a command recording created callback.
+    void unregister_command_recording_created_callback(DeviceCallbackID id);
+
+    /// Register a callback to be called immediately before a command recording is finished.
+    /// The encoder passed to the callback is still open and recordable: the callback may append
+    /// commands to it (e.g. write_timestamp / push_debug_group). The callback must not call
+    /// finish() on the encoder, retain it beyond the callback, or submit it. It fires
+    /// synchronously on the recording thread (Python callbacks acquire the GIL) and exceptions
+    /// propagate out of CommandEncoder::finish(), so the callback must not throw. Correlate with
+    /// the submitted/discarded callbacks via the event id.
+    DeviceCallbackID register_command_recording_before_finish_callback(CommandRecordingBeforeFinishCallback callback);
+    /// Unregister a command recording before-finish callback.
+    void unregister_command_recording_before_finish_callback(DeviceCallbackID id);
+
     /// Register a callback to be called when a command recording is submitted.
     DeviceCallbackID register_command_recording_submitted_callback(CommandRecordingSubmittedCallback callback);
     /// Unregister a command recording submitted callback.
@@ -900,6 +942,8 @@ public:
 
     DeviceCallbackID _allocate_callback_id();
     CommandRecordingID _allocate_command_recording_id();
+    void _notify_command_recording_created(CommandRecordingID id, CommandEncoder* encoder);
+    void _notify_command_recording_before_finish(CommandRecordingID id, CommandEncoder* encoder);
     void _notify_command_recording_submitted(CommandRecordingID id, CommandBuffer* command_buffer, uint64_t submit_id);
     void _notify_command_recording_discarded(CommandRecordingID id);
 
@@ -937,6 +981,8 @@ private:
 
     CallbackList<DeviceCallbackID, DeviceCloseCallback> m_device_close_callbacks;
     CallbackList<DeviceCallbackID, ShaderHotReloadCallback> m_shader_hot_reload_callbacks;
+    CallbackList<DeviceCallbackID, CommandRecordingCreatedCallback> m_command_recording_created_callbacks;
+    CallbackList<DeviceCallbackID, CommandRecordingBeforeFinishCallback> m_command_recording_before_finish_callbacks;
     CallbackList<DeviceCallbackID, CommandRecordingSubmittedCallback> m_command_recording_submitted_callbacks;
     CallbackList<DeviceCallbackID, CommandRecordingDiscardedCallback> m_command_recording_discarded_callbacks;
 
