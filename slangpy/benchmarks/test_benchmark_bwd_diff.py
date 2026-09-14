@@ -35,7 +35,10 @@ import slangpy as spy
 try:
     from slangpy import diff_pair, Tensor
 except ImportError:
-    # Backfill targets that predate diff_pair cannot run this benchmark.
+    # Backfill targets predate diff_pair. Outside the backfill a missing import is a
+    # real regression, so only soften it when deliberately running an older build.
+    if not os.environ.get("BACKFILL_TARGET_SHA"):
+        raise
     pytest.skip("slangpy.diff_pair is not available in this build", allow_module_level=True)
 
 from slangpy.testing import helpers

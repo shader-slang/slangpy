@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import os
 from pathlib import Path
 from typing import Any, Optional
 import pytest
@@ -12,7 +13,11 @@ from slangpy.testing.benchmark import BenchmarkPythonFunction
 try:
     from slangpy.core.native import NativeTorchTensorDiffPair
 except ImportError:
-    # Backfill targets that predate the native torch bridge cannot run this benchmark.
+    # Backfill targets predate the native torch bridge. Outside the backfill a
+    # missing import is a real regression, so only soften it when BACKFILL_TARGET_SHA
+    # says we are deliberately running against an older build.
+    if not os.environ.get("BACKFILL_TARGET_SHA"):
+        raise
     pytest.skip(
         "slangpy.core.native.NativeTorchTensorDiffPair is not available in this build",
         allow_module_level=True,

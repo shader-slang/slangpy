@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import hashlib
+import os
 import sys
 from pathlib import Path
 from typing import Any, Optional, Sequence, Union, cast
@@ -84,9 +85,16 @@ DEVICE_CACHE: dict[
 USED_TORCH_DEVICES: bool = False
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
+# Only the backfill workflow sets this. Historical targets legitimately lack newer
+# device APIs, but anywhere else a missing one is a real regression, so the probes
+# below must not soften normal runs into silently skipping the call.
+BACKFILL_TARGET_SHA: str = os.environ.get("BACKFILL_TARGET_SHA", "")
+
 # Backfill targets that predate the debug options in the device constructor reject
 # enable_rhi_validation. nanobind exposes no inspectable signature, so read its doc.
-DEVICE_SUPPORTS_RHI_VALIDATION: bool = "enable_rhi_validation" in (Device.__init__.__doc__ or "")
+DEVICE_SUPPORTS_RHI_VALIDATION: bool = not BACKFILL_TARGET_SHA or "enable_rhi_validation" in (
+    Device.__init__.__doc__ or ""
+)
 
 # Always dump stuff when testing
 spy.set_dump_generated_shaders(True)
@@ -221,8 +229,9 @@ def get_device(
     if use_cache and cache_key in DEVICE_CACHE:
         device = DEVICE_CACHE[cache_key]
         # Ensure CUDA context is current for cached devices. Backfill targets before
-        # #774 have no such method; they simply never moved the context.
-        if hasattr(device, "set_cuda_context_current"):
+        # #774 have no such method; they simply never moved the context. Outside the
+        # backfill this must still raise, so a lost binding is not silently skipped.
+        if not BACKFILL_TARGET_SHA or hasattr(device, "set_cuda_context_current"):
             device.set_cuda_context_current()
         return device
 
