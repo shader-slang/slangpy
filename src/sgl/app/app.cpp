@@ -150,14 +150,21 @@ void AppWindow::_run_frame()
 {
     m_window->process_events();
 
-    // While suspended (e.g. minimized), stay suspended until the window is
-    // restored and has drawable area, then reconfigure. Queried live (not from
-    // the cached resize-callback value) so restore is detected even if no resize
-    // callback fires, and only while suspended so steady-state frames add no
+    // Reconcile the surface with the window's drawable state each frame, so a
+    // minimize/restore that emits no resize callback is still handled: suspend
+    // (unconfigure) while minimized, resume when restored. is_minimized() is the
+    // portable signal (some backends keep the framebuffer size non-zero while
+    // iconified); reconfigure_surface() then makes the precise decision. Steady
+    // state (visible + configured) touches neither branch and adds no per-frame
     // windowing-system round-trip.
+    if (m_window->is_minimized()) {
+        if (m_surface->config())
+            reconfigure_surface();
+        return;
+    }
     if (!m_surface->config()) {
         uint2 framebuffer_size = m_window->query_framebuffer_size();
-        if (!m_window->is_minimized() && framebuffer_size.x > 0 && framebuffer_size.y > 0)
+        if (framebuffer_size.x > 0 && framebuffer_size.y > 0)
             reconfigure_surface();
         if (!m_surface->config())
             return;
@@ -217,11 +224,10 @@ void AppWindow::handle_resize(uint32_t width, uint32_t height)
 void AppWindow::reconfigure_surface()
 {
     // Reconfigure against the current framebuffer size, so the resize callback
-    // and the recovery path rebuild from one place. Its checked m_device->wait()
-    // and configure() run on the throwing SLANG_RHI_CALL path, so a device loss
-    // is surfaced here (if the RHI reports it) rather than being retried; this
-    // runs only on a resize or a failure, so steady-state frames add no
-    // queue-idle wait.
+    // and the recovery path rebuild from one place. configure() runs on the
+    // throwing SLANG_RHI_CALL path, so a device loss is surfaced here (if the RHI
+    // reports it) rather than being retried; this runs only on a resize or a
+    // failure, so steady-state frames add no queue-idle wait.
     m_device->wait();
     uint2 size = m_window->query_framebuffer_size();
     if (!m_window->is_minimized() && size.x > 0 && size.y > 0) {
@@ -243,11 +249,10 @@ void AppWindow::reconfigure_surface()
 void AppWindow::recover_surface()
 {
     // The RHI returns an undifferentiated SLANG_FAIL, so we cannot classify the
-    // failure; reconfigure immediately as a probe. The checked wait()/configure()
-    // inside reconfigure_surface() surface a device loss synchronously if the RHI
-    // reports one (before the app can close and drop it), and the bounded counter
-    // is the fallback that fails loudly if recovery never succeeds at a stable
-    // size.
+    // failure; reconfigure immediately as a probe. configure() inside
+    // reconfigure_surface() runs on the throwing path, so a device loss is
+    // surfaced synchronously if the RHI reports one, and the bounded counter is
+    // the fallback that fails loudly if recovery never succeeds at a stable size.
     reconfigure_surface();
     if (++m_surface_recovery_failures > kMaxSurfaceRecoveryFailures)
         SGL_THROW("Surface acquire/present kept failing after reconfiguration; treating as fatal.");

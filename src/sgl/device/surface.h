@@ -66,9 +66,11 @@ public:
     void present();
 
     /// Acquire the next surface image, returning the RHI result instead of
-    /// throwing on an acquire failure so the caller can treat a recoverable
-    /// invalidation as recoverable. Sets \p out_texture on success. (Wrapping
-    /// the acquired texture may still throw, as acquire_next_image() does.)
+    /// throwing on an acquire failure, so the caller can attempt recovery rather
+    /// than terminating. The result is unclassified - a bare SLANG_FAIL does not
+    /// distinguish a recoverable invalidation from a fatal error. Sets
+    /// \p out_texture on success. (Wrapping the acquired texture may still throw,
+    /// as acquire_next_image() does.)
     rhi::Result try_acquire_next_image(ref<Texture>& out_texture);
 
     /// Present the previously acquired image, returning the RHI result instead

@@ -138,7 +138,9 @@ public:
     /// windowing system, rather than returning the value cached from the last
     /// resize callback. This is the correct size for the swapchain, and querying
     /// live lets a suspended surface detect restore even if no resize callback
-    /// fired. Reads zero when the window has no drawable area.
+    /// fired. It may still report a non-zero size while the window is minimized
+    /// on some backends, so use is_minimized() as the authoritative suspend
+    /// signal.
     uint2 query_framebuffer_size() const;
 
     /// True if the window is currently minimized (iconified). This is the
