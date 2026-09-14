@@ -457,6 +457,9 @@ def test_backfill_workflow_guards_boundary_builds_before_overlay_and_cleans_safe
     assert workflow.index("Repin unbootstrappable vcpkg (Linux)") < workflow.index(
         "Historical configure"
     )
+    # Historical sources meet compilers that postdate them, so new warnings must
+    # not fail the build.
+    assert "configure --cmake-args=-DSGL_WARNINGS_AS_ERRORS=OFF" in workflow
     for overlaid in (
         "tools/ci.py",
         "tools/gpu_clock.py",
