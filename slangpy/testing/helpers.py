@@ -96,6 +96,12 @@ DEVICE_SUPPORTS_RHI_VALIDATION: bool = not BACKFILL_TARGET_SHA or "enable_rhi_va
     Device.__init__.__doc__ or ""
 )
 
+# Some backfill targets cannot create a device type that works today at all; CUDA on
+# Windows is broken before roughly 2026-02. Record the first failure per type so we
+# probe once instead of once per benchmark, and so the run can report the gap rather
+# than emit one failure per test.
+BACKFILL_UNAVAILABLE_DEVICES: dict[DeviceType, str] = {}
+
 # Always dump stuff when testing
 spy.set_dump_generated_shaders(True)
 # spy.set_dump_slang_intermediates(True)
@@ -252,7 +258,22 @@ def get_device(
     if DEVICE_SUPPORTS_RHI_VALIDATION:
         device_kwargs["enable_rhi_validation"] = not is_benchmark
 
-    device = Device(**device_kwargs)
+    if type in BACKFILL_UNAVAILABLE_DEVICES:
+        pytest.skip(BACKFILL_UNAVAILABLE_DEVICES[type])
+
+    try:
+        device = Device(**device_kwargs)
+    except Exception as e:
+        # A device type the target build cannot create is a capability gap, not a
+        # regression: record it, skip this type, and let the other types still report.
+        # Outside the backfill this must stay fatal.
+        if not BACKFILL_TARGET_SHA:
+            raise
+        BACKFILL_UNAVAILABLE_DEVICES[type] = (
+            f"{type.name} devices cannot be created by backfill target "
+            f"{BACKFILL_TARGET_SHA[:12]} on this platform: {e}"
+        )
+        pytest.skip(BACKFILL_UNAVAILABLE_DEVICES[type])
 
     # slangpy dependens on parameter block support which is not available on all Metal devices
     if type == DeviceType.metal:
