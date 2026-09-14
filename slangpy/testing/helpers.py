@@ -84,6 +84,10 @@ DEVICE_CACHE: dict[
 USED_TORCH_DEVICES: bool = False
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
+# Backfill targets that predate the debug options in the device constructor reject
+# enable_rhi_validation. nanobind exposes no inspectable signature, so read its doc.
+DEVICE_SUPPORTS_RHI_VALIDATION: bool = "enable_rhi_validation" in (Device.__init__.__doc__ or "")
+
 # Always dump stuff when testing
 spy.set_dump_generated_shaders(True)
 # spy.set_dump_slang_intermediates(True)
@@ -219,21 +223,24 @@ def get_device(
         device.set_cuda_context_current()  # Ensure CUDA context is current for cached devices
         return device
 
-    device = Device(
-        type=type,
-        adapter_luid=selected_adaptor_luid,
-        enable_debug_layers=not is_benchmark,
-        enable_rhi_validation=not is_benchmark,
-        compiler_options=SlangCompilerOptions(
+    device_kwargs: dict[str, Any] = {
+        "type": type,
+        "adapter_luid": selected_adaptor_luid,
+        "enable_debug_layers": not is_benchmark,
+        "compiler_options": SlangCompilerOptions(
             {
                 "include_paths": include_paths,
                 "debug_info": SlangDebugInfoLevel.standard,
             }
         ),
-        enable_cuda_interop=cuda_interop,
-        existing_device_handles=existing_device_handles,
-        label=label,
-    )
+        "enable_cuda_interop": cuda_interop,
+        "existing_device_handles": existing_device_handles,
+        "label": label,
+    }
+    if DEVICE_SUPPORTS_RHI_VALIDATION:
+        device_kwargs["enable_rhi_validation"] = not is_benchmark
+
+    device = Device(**device_kwargs)
 
     # slangpy dependens on parameter block support which is not available on all Metal devices
     if type == DeviceType.metal:
