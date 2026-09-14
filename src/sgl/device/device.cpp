@@ -514,11 +514,10 @@ void Device::close()
 
     log_debug("Closing device {}", fmt::ptr(this));
 
-    // Best-effort drain before teardown. wait() now reports a lost device (so
-    // the render loop's recovery path can propagate it), but close() is called
-    // from App::~App(), a noexcept destructor - a lost device has nothing left
-    // to drain, so swallow the failure and complete teardown rather than let it
-    // escape and trigger std::terminate.
+    // Best-effort drain before teardown. wait() reports a lost device by
+    // throwing, but close() runs during destruction (App::~App is noexcept) and
+    // a lost device has nothing left to drain, so the failure is swallowed and
+    // teardown completes rather than escaping and triggering std::terminate.
     try {
         wait();
     } catch (const std::exception& e) {

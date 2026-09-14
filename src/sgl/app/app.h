@@ -99,15 +99,19 @@ private:
     void handle_gamepad_event(const GamepadEvent& event);
     void handle_drop_files(std::span<const char*> files);
 
-    /// Reconfigure the surface against the current window size (or suspend it
-    /// when the window has zero area). Shared by the resize callback and the
-    /// out-of-band recovery path so both rebuild from the same source of truth.
+    /// Reconfigure the surface against the current framebuffer size, or suspend
+    /// it when the window is minimized or has zero area. Shared by the resize
+    /// callback and the recovery path so both rebuild identically. Its checked
+    /// Device::wait()/configure() surface a device loss (if the RHI reports one)
+    /// rather than letting it be retried.
     void reconfigure_surface();
 
-    /// Record a recoverable acquire/present failure: arm a reconfigure for the
-    /// next frame and advance the bounded-failure counter, surfacing a
-    /// persistent (non-recoverable) failure as fatal instead of looping.
-    void mark_surface_failed();
+    /// Recover from a failed acquire/present by reconfiguring immediately. The
+    /// failure is unclassified (the RHI returns an opaque SLANG_FAIL), so this is
+    /// a best-effort probe: the checked reconfigure surfaces a device loss
+    /// synchronously if the RHI reports one (before the app can close), and a
+    /// bounded counter surfaces a persistent stable-size failure as fatal.
+    void recover_surface();
 
     App* m_app;
     Device* m_device;
@@ -116,11 +120,6 @@ private:
     SurfaceConfig m_surface_config;
     ref<ui::Context> m_ui_context;
 
-    /// Set when acquire/present reports a recoverable swapchain invalidation
-    /// (e.g. a resize between event processing and presentation, with no
-    /// accompanying resize callback); the next frame reconfigures the surface
-    /// before rendering.
-    bool m_surface_dirty{false};
     /// Consecutive acquire/present failures at a stable surface size. Bounds the
     /// recovery loop so a persistent (non-recoverable) failure is surfaced
     /// instead of being retried silently forever.

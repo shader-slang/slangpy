@@ -10,9 +10,10 @@
 namespace sgl {
 
 namespace {
-    /// Upper bound on consecutive acquire/present failures at a stable surface size
-    /// before the swapchain-recovery loop gives up and surfaces the failure as
-    /// fatal. Sized generously so aggressive continuous resizing never trips it.
+    /// Upper bound on consecutive acquire/present failures at a stable surface
+    /// size before the swapchain-recovery loop gives up and surfaces the failure
+    /// as fatal. Observed framebuffer-size changes reset the counter, so a resize
+    /// does not accumulate toward it; only a persistent stable-size failure does.
     constexpr uint32_t kMaxSurfaceRecoveryFailures = 64;
 } // namespace
 
@@ -149,27 +150,22 @@ void AppWindow::_run_frame()
 {
     m_window->process_events();
 
-    // If the surface is suspended (e.g. after a minimize) but the window now
-    // has a non-zero size, arm a reconfigure. The size is queried from the
-    // windowing system rather than the callback-updated cache, so a restore is
-    // detected even on a platform that doesn't re-fire the resize callback.
+    // While suspended (e.g. minimized), stay suspended until the window is
+    // restored and has drawable area, then reconfigure. Queried live (not from
+    // the cached resize-callback value) so restore is detected even if no resize
+    // callback fires, and only while suspended so steady-state frames add no
+    // windowing-system round-trip.
     if (!m_surface->config()) {
-        uint2 size = m_window->query_size();
-        if (size.x > 0 && size.y > 0)
-            m_surface_dirty = true;
+        uint2 framebuffer_size = m_window->query_framebuffer_size();
+        if (!m_window->is_minimized() && framebuffer_size.x > 0 && framebuffer_size.y > 0)
+            reconfigure_surface();
+        if (!m_surface->config())
+            return;
     }
-
-    // A prior frame's acquire/present reported a recoverable invalidation:
-    // reconfigure against the current window size before rendering.
-    if (m_surface_dirty)
-        reconfigure_surface();
-
-    if (!m_surface->config())
-        return;
 
     ref<Texture> texture;
     if (SLANG_FAILED(m_surface->try_acquire_next_image(texture))) {
-        mark_surface_failed();
+        recover_surface();
         return;
     }
 
@@ -200,11 +196,10 @@ void AppWindow::_run_frame()
     // Some backends report a recoverable invalidation from present, others only
     // from the next acquire - guard present too so either path is handled.
     if (SLANG_FAILED(m_surface->try_present())) {
-        mark_surface_failed();
+        recover_surface();
         return;
     }
 
-    // A fully successful frame clears the bounded-failure counter.
     m_surface_recovery_failures = 0;
 }
 
@@ -221,22 +216,20 @@ void AppWindow::handle_resize(uint32_t width, uint32_t height)
 
 void AppWindow::reconfigure_surface()
 {
-    // Reconfigure against the window's current size, so this serves both the
-    // resize callback and the out-of-band recovery path from one place. The
-    // checked m_device->wait() below is what preserves device loss: it (and
-    // configure()/submit in the render path) stay on the throwing SLANG_RHI_CALL
-    // path, so a genuine device loss propagates here instead of being retried by
-    // the recovery loop. Runs only on a resize or an armed invalidation, so
-    // steady-state frames keep no queue-idle wait.
+    // Reconfigure against the current framebuffer size, so the resize callback
+    // and the recovery path rebuild from one place. Its checked m_device->wait()
+    // and configure() run on the throwing SLANG_RHI_CALL path, so a device loss
+    // is surfaced here (if the RHI reports it) rather than being retried; this
+    // runs only on a resize or a failure, so steady-state frames add no
+    // queue-idle wait.
     m_device->wait();
-    uint2 size = m_window->query_size();
-    if (size.x > 0 && size.y > 0) {
-        // A genuine size change is legitimate churn (the window is being
-        // resized), not a stuck surface, so let the bounded-failure counter
-        // reset - otherwise a sustained drag that keeps invalidating the
-        // swapchain could trip the fatal ceiling and crash the very resize we
-        // are trying to survive. Only a persistent failure at a *stable* size
-        // reaches the ceiling.
+    uint2 size = m_window->query_framebuffer_size();
+    if (!m_window->is_minimized() && size.x > 0 && size.y > 0) {
+        // A genuine size change is legitimate churn (the window is resizing),
+        // not a stuck surface, so reset the bounded-failure counter; only a
+        // persistent failure at a stable size reaches the fatal ceiling. This
+        // keeps a sustained drag from tripping the ceiling and crashing the
+        // very resize we are recovering from.
         if (size.x != m_surface_config.width || size.y != m_surface_config.height)
             m_surface_recovery_failures = 0;
         m_surface_config.width = size.x;
@@ -245,12 +238,17 @@ void AppWindow::reconfigure_surface()
     } else {
         m_surface->unconfigure();
     }
-    m_surface_dirty = false;
 }
 
-void AppWindow::mark_surface_failed()
+void AppWindow::recover_surface()
 {
-    m_surface_dirty = true;
+    // The RHI returns an undifferentiated SLANG_FAIL, so we cannot classify the
+    // failure; reconfigure immediately as a probe. The checked wait()/configure()
+    // inside reconfigure_surface() surface a device loss synchronously if the RHI
+    // reports one (before the app can close and drop it), and the bounded counter
+    // is the fallback that fails loudly if recovery never succeeds at a stable
+    // size.
+    reconfigure_surface();
     if (++m_surface_recovery_failures > kMaxSurfaceRecoveryFailures)
         SGL_THROW("Surface acquire/present kept failing after reconfiguration; treating as fatal.");
 }

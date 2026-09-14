@@ -75,29 +75,19 @@ void Surface::unconfigure()
 
 ref<Texture> Surface::acquire_next_image()
 {
-    Slang::ComPtr<rhi::ITexture> texture;
-    SLANG_RHI_CALL(m_rhi_surface->acquireNextImage(texture.writeRef()), m_device);
-    rhi::TextureDesc texture_desc = texture->getDesc();
-    return m_device->create_texture_from_resource(
-        {
-            .type = TextureType::texture_2d,
-            .format = static_cast<Format>(texture_desc.format),
-            .width = narrow_cast<uint32_t>(texture_desc.size.width),
-            .height = narrow_cast<uint32_t>(texture_desc.size.height),
-            .mip_count = texture_desc.mipCount,
-            .usage = static_cast<TextureUsage>(texture_desc.usage),
-        },
-        texture
-    );
+    ref<Texture> texture;
+    SLANG_RHI_CALL(try_acquire_next_image(texture), m_device);
+    return texture;
 }
 
 void Surface::present()
 {
-    SLANG_RHI_CALL(m_rhi_surface->present(), m_device);
+    SLANG_RHI_CALL(try_present(), m_device);
 }
 
 rhi::Result Surface::try_acquire_next_image(ref<Texture>& out_texture)
 {
+    out_texture = {};
     Slang::ComPtr<rhi::ITexture> texture;
     rhi::Result result = m_rhi_surface->acquireNextImage(texture.writeRef());
     if (SLANG_FAILED(result))
