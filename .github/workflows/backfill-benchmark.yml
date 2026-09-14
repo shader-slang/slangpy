@@ -40,23 +40,27 @@ jobs:
       CI_FLAGS: ${{ matrix.flags }}
       BACKFILL_TARGET_SHA: ${{ inputs.target_sha }}
       BACKFILL_FLOOR_SHA: f3ad0fd91d8cf4eeb2be3b505765b43482aa952a
-      BACKFILL_SKIP_BENCHMARKS: ${{ runner.temp }}/backfill-skip-benchmarks-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}.txt
       BENCHVIEW_API_URL: ${{ vars.BENCHVIEW_API_URL }}
       BENCHVIEW_API_KEY: ${{ secrets.BENCHVIEW_API_KEY }}
       BENCHVIEW_BENCHMARK_REF: ${{ inputs.target_sha }}
       BENCHVIEW_BENCHMARK_BRANCH: main
 
     steps:
-      - name: Set clone directory (Windows)
+      # runner.temp is not available in the job-level env block, so these paths have
+      # to be published here rather than declared alongside the other variables.
+      - name: Set backfill paths (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           "BACKFILL_CLONE_DIR=${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "BACKFILL_SKIP_BENCHMARKS=${{ runner.temp }}/backfill-skip-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}.txt" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Set clone directory (Linux)
+      - name: Set backfill paths (Linux)
         if: runner.os == 'Linux'
         shell: bash
-        run: echo "BACKFILL_CLONE_DIR=${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}" >> "$GITHUB_ENV"
+        run: |
+          echo "BACKFILL_CLONE_DIR=${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}" >> "$GITHUB_ENV"
+          echo "BACKFILL_SKIP_BENCHMARKS=${{ runner.temp }}/backfill-skip-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}.txt" >> "$GITHUB_ENV"
 
       - name: Setup Python ${{ matrix.python }}
         uses: actions/setup-python@v6
