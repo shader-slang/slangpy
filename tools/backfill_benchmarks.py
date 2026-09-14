@@ -455,17 +455,17 @@ def active_backfill_count(
 def pending_records(state: BackfillState) -> list[BackfillRecord]:
     """Return pending commits in low-discrepancy (van der Corput) order.
 
-    This ordering provides good coverage of the entire commit range early on,
-    processing commits near the middle first, then quarters, then eighths, etc.
+    The order is fixed over every known commit rather than over the pending ones.
+    Van der Corput always starts at index 0, so ranking only the pending commits
+    would re-pick the oldest survivor after each dispatch and walk the history
+    chronologically, which defeats the point of sampling the range up front.
     """
-    pending = sorted(
-        (record for record in state.records.values() if record.status == "pending"),
+    ordered = sorted(
+        state.records.values(),
         key=lambda record: (record.committed_at, record.sha),
     )
-    if len(pending) > 1:
-        indices = van_der_corput_order(len(pending))
-        pending = [pending[i] for i in indices]
-    return pending
+    indices = van_der_corput_order(len(ordered))
+    return [ordered[i] for i in indices if ordered[i].status == "pending"]
 
 
 def incomplete_records(state: BackfillState) -> list[BackfillRecord]:

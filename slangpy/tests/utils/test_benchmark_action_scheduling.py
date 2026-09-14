@@ -638,6 +638,70 @@ def test_queued_run_claims_its_record_instead_of_being_dispatched_again(
     assert backfill.pending_records(state) == []
 
 
+def spread_commits(count: int) -> list[actions.Commit]:
+    """Create `count` commits one hour apart, oldest first."""
+
+    return [
+        actions.Commit(
+            sha=f"{index:040x}",
+            committed_at=backfill.SUPPORTED_FLOOR_TIME + timedelta(hours=index),
+            message=f"commit {index}",
+            html_url=f"https://github.test/commit/{index:040x}",
+        )
+        for index in range(count)
+    ]
+
+
+def test_dispatch_order_samples_the_whole_range_rather_than_walking_it(
+    tmp_path: Path,
+) -> None:
+    """Take commits spread across history, not the oldest survivor each time.
+
+    The order has to hold across successive dispatches: van der Corput starts at
+    index 0, so re-ranking only the pending commits would hand back the oldest one
+    every time and quietly degrade to a chronological walk.
+    """
+
+    store = make_store(tmp_path / "state.json")
+    state = store.load()
+    commits = spread_commits(16)
+    backfill.merge_discovered_commits(state, commits)
+    position = {commit.sha: index for index, commit in enumerate(commits)}
+
+    # Simulate the scheduler loop: take the head of the queue, mark it, repeat.
+    taken: list[int] = []
+    for _ in range(8):
+        record = backfill.pending_records(state)[0]
+        record.status = "dispatched"
+        taken.append(position[record.sha])
+
+    assert taken != sorted(taken), "dispatch order walked history chronologically"
+    assert taken == [0, 8, 4, 12, 2, 10, 6, 14]
+
+    # Half the commits sampled should leave no gap wider than a quarter of history.
+    covered = sorted(taken)
+    bounds = [-1] + covered + [len(commits)]
+    widest_gap = max(b - a - 1 for a, b in zip(bounds, bounds[1:]))
+    assert widest_gap <= len(commits) // 4
+
+
+def test_dispatch_order_ignores_commits_that_already_ran(tmp_path: Path) -> None:
+    """Keep the spread stable when earlier commits leave the pending pool."""
+
+    store = make_store(tmp_path / "state.json")
+    state = store.load()
+    commits = spread_commits(16)
+    backfill.merge_discovered_commits(state, commits)
+    position = {commit.sha: index for index, commit in enumerate(commits)}
+
+    # Whatever the first pass would have taken is now already done.
+    for record in backfill.pending_records(state)[:4]:
+        record.status = "dispatched"
+
+    remaining = [position[record.sha] for record in backfill.pending_records(state)]
+    assert remaining[:4] == [2, 10, 6, 14], "order shifted once commits were removed"
+
+
 def test_repeatedly_failing_commit_is_given_up_on_after_the_attempt_budget(
     tmp_path: Path,
 ) -> None:
