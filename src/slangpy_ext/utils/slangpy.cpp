@@ -584,7 +584,16 @@ nb::tuple NativeCallData::autograd_backward(
                 pair->grad = bridge.create_zeros_like_tensor(pair->primal);
                 input_grads.append(pair->grad);
             } else {
-                pair->grad = nb::none();
+                // An IDiffTensor input always binds as a DiffTensor in the backward pass, so it
+                // needs an output-gradient buffer regardless of whether this leaf wants a
+                // gradient: on CUDA the compiled kernel scatters into _grad_out through a raw
+                // device pointer, so an unbound buffer is a dangling pointer the atomic write
+                // faults on (CUDA_ERROR_ILLEGAL_ADDRESS, #1056); on other backends type
+                // resolution rejects a diff tensor with no associated output gradient outright
+                // (tensorcommon.py). Bind a throwaway zeroed buffer so both paths are satisfied;
+                // it is discarded - torch still sees no gradient for this leaf via the None
+                // appended below.
+                pair->grad = bridge.create_zeros_like_tensor(pair->primal);
                 input_grads.append(nb::none());
             }
         } else {
