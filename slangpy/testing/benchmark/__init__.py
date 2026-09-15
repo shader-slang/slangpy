@@ -13,10 +13,19 @@ from .fixtures import (
 )
 
 # Re-exported so other projects can submit to BenchView with the same payload shape.
+# A project supplies its own BenchViewProject; everything else is shared.
 from .benchview import (
+    build_benchview_observation,
+    build_benchview_submissions,
+    build_metric,
     submit_benchview_submissions,
     benchview_submission_url,
     BenchmarkSubmissionError,
+    BenchViewMetric,
+    BenchViewObservation,
+    BenchViewProject,
+    BenchViewSubmission,
+    BENCHVIEW_MAX_BODY_BYTES,
 )
 from .utils import (
     get_gpu_infos,
