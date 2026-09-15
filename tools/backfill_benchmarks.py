@@ -123,10 +123,18 @@ class SweepState:
         for sha, entry in commits.items():
             if not isinstance(entry, dict):
                 raise StateFileError(f"{path} has a malformed record for {sha}.")
-            if str(entry.get("status")) not in KNOWN_STATUSES:
+            status = str(entry.get("status"))
+            if status not in KNOWN_STATUSES:
                 raise StateFileError(
                     f"{path} records unknown status {entry.get('status')!r} for {sha}."
                 )
+            # An in-flight commit is the one state that must carry a usable run id.
+            # Without one nothing can ever resolve it: the poll skips it and the
+            # sweep waits on an in-flight count that never falls, so it would spin
+            # until killed. A 'dispatching' record legitimately has no id yet.
+            run_id = entry.get("run_id")
+            if status == IN_FLIGHT and (isinstance(run_id, bool) or not isinstance(run_id, int)):
+                raise StateFileError(f"{path} has an unusable run id for in-flight {sha}.")
         return cls(path, {str(k): dict(v) for k, v in commits.items()})
 
     def save(self) -> None:
