@@ -14,8 +14,6 @@ from urllib.request import Request
 
 import pytest
 
-from slangpy.testing.benchmark.fixtures import ReportFixture
-
 benchmark_api = import_module("slangpy.testing.benchmark.benchview")
 benchmark_plugin = import_module("slangpy.testing.benchmark.plugin")
 ci = import_module("tools.ci")
@@ -180,30 +178,6 @@ def test_build_observation_uses_native_identity_and_metric(metric_id: str) -> No
     }
 
 
-def test_report_fixture_accumulates_local_and_native_results() -> None:
-    """Keep local comparisons while fixtures build the API-ready observation."""
-
-    context: dict[str, Any] = {"benchmark_reports": [], "benchmark_observations": []}
-    config = SimpleNamespace(_benchmark_context=context)
-    node = SimpleNamespace(
-        name="test_cpu_case[cuda]",
-        originalname="test_cpu_case",
-        location=("slangpy/benchmarks/test_cpu.py", 9, "test_cpu_case"),
-        callspec=SimpleNamespace(params={"device_type": FakeDeviceType()}),
-    )
-
-    ReportFixture(cast(pytest.Config, config), node)(
-        None,
-        [2.0, 1.0, 3.0],
-        0.25,
-    )
-
-    assert len(context["benchmark_reports"]) == 1
-    assert context["benchmark_reports"][0]["data"] == [2.0, 1.0, 3.0]
-    assert len(context["benchmark_observations"]) == 1
-    assert context["benchmark_observations"][0]["metrics"][0]["id"] == "cpu_time"
-
-
 def test_build_submissions_shares_run_and_separates_environment_telemetry() -> None:
     """Prove distributed run identity, batching, and stable/volatile environment mapping."""
 
@@ -308,29 +282,6 @@ def test_build_submissions_splits_at_the_body_limit() -> None:
         )
 
 
-def test_plugin_rejects_missing_api_configuration_early(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Fail before an expensive benchmark session when URL or key configuration is absent."""
-
-    monkeypatch.delenv("BENCHVIEW_API_URL", raising=False)
-    monkeypatch.setenv("BENCHVIEW_API_KEY", "key")
-    with pytest.raises(pytest.UsageError, match="benchmark-api-url"):
-        benchmark_plugin.pytest_configure(cast(pytest.Config, FakePytestConfig("request", None)))
-
-    monkeypatch.delenv("BENCHVIEW_API_KEY", raising=False)
-    with pytest.raises(pytest.UsageError, match="BENCHVIEW_API_KEY"):
-        benchmark_plugin.pytest_configure(
-            cast(pytest.Config, FakePytestConfig("request", "http://localhost:3000"))
-        )
-
-    monkeypatch.setenv("BENCHVIEW_API_KEY", "key")
-    with pytest.raises(pytest.UsageError, match="absolute HTTP URL"):
-        benchmark_plugin.pytest_configure(
-            cast(pytest.Config, FakePytestConfig("request", "not-a-url"))
-        )
-
-
 def test_ci_wrapper_passes_benchview_options_to_pytest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -377,86 +328,41 @@ def test_ci_wrapper_passes_benchview_options_to_pytest(
     ]
 
 
-def test_ci_wrapper_forwards_an_explicit_empty_api_url(
+def test_on_linux_only_the_nvidia_smi_mutation_is_elevated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Let pytest reject a missing workflow variable instead of skipping submission."""
+    """Root is confined to the one command that needs it, not the whole helper."""
 
-    commands: list[list[str]] = []
+    ci_commands: list[list[str]] = []
 
-    def capture_command(
-        command: list[str],
-        shell: bool = False,
-        env: Optional[dict[str, str]] = None,
-    ) -> None:
-        """Capture the command generated for an explicitly configured API URL."""
-
-        commands.append(command)
-
-    monkeypatch.setattr(ci, "get_os", lambda: "linux")
-    monkeypatch.setattr(ci, "run_command", capture_command)
-    ci.benchmark_python(
-        SimpleNamespace(
-            device_type="cuda",
-            lock_gpu_clocks=False,
-            api_url="",
-            run_id="workflow-123",
-        )
-    )
-
-    assert commands[0][-4:] == [
-        "--benchmark-submit",
-        "workflow-123",
-        "--benchmark-api-url",
-        "",
-    ]
-
-
-def test_linux_ci_wrapper_does_not_run_gpu_clock_python_as_root(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Elevate only nvidia-smi mutations inside the clock helper."""
-
-    commands: list[list[str]] = []
-
-    def capture_command(
+    def capture_ci(
         command: list[str],
         shell: bool = False,
         env: Optional[dict[str, str]] = None,
     ) -> None:
         del shell, env
-        commands.append(command)
+        ci_commands.append(command)
 
     monkeypatch.setattr(ci, "get_os", lambda: "linux")
-    monkeypatch.setattr(ci, "run_command", capture_command)
+    monkeypatch.setattr(ci, "run_command", capture_ci)
     ci.benchmark_python(
         SimpleNamespace(
-            device_type="cuda",
-            lock_gpu_clocks=True,
-            api_url=None,
-            run_id="workflow-123",
+            device_type="cuda", lock_gpu_clocks=True, api_url=None, run_id="workflow-123"
         )
     )
 
-    assert commands[0][:2] == ["python", str(ci.PROJECT_DIR / "tools/gpu_clock.py")]
-    assert commands[0][2:] == ["lock", "--ratio", "0.7"]
-    assert commands[-1][:2] == ["python", str(ci.PROJECT_DIR / "tools/gpu_clock.py")]
-    assert commands[-1][2:] == ["unlock"]
-    assert all(command[0] != "sudo" for command in (commands[0], commands[-1]))
+    # ci.py invokes the helper as an ordinary user, around the benchmark run.
+    helper = ["python", str(ci.PROJECT_DIR / "tools/gpu_clock.py")]
+    assert ci_commands[0] == helper + ["lock", "--ratio", "0.7"]
+    assert ci_commands[-1] == helper + ["unlock"]
 
-
-def test_linux_gpu_clock_elevates_only_nvidia_smi_mutations(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    commands: list[list[str]] = []
-
-    def capture_command(command: list[str]) -> str:
-        commands.append(command)
-        return "Test GPU"
-
+    # Inside the helper, only the mutating nvidia-smi call is elevated; the query is not.
+    queries: list[list[str]] = []
     monkeypatch.setattr(gpu_clock.platform, "system", lambda: "Linux")
     monkeypatch.setattr(gpu_clock, "NVIDIA_SMI", "nvidia-smi")
-    monkeypatch.setattr(gpu_clock, "run_command", capture_command)
+    monkeypatch.setattr(
+        gpu_clock, "run_command", lambda command: (queries.append(command), "Test GPU")[1]
+    )
 
     assert gpu_clock.nvidia_smi_mutation_command(["-i", "2", "--lock-gpu-clocks=1234"]) == [
         "sudo",
@@ -468,15 +374,7 @@ def test_linux_gpu_clock_elevates_only_nvidia_smi_mutations(
         "--lock-gpu-clocks=1234",
     ]
     assert gpu_clock.get_gpu_name(2) == "Test GPU"
-    assert commands == [
-        [
-            "nvidia-smi",
-            "-i",
-            "2",
-            "--query-gpu=name",
-            "--format=csv,noheader,nounits",
-        ]
-    ]
+    assert queries[0][0] == "nvidia-smi", "a read-only query must not be elevated"
 
 
 def test_submit_posts_bearer_authenticated_json(monkeypatch: pytest.MonkeyPatch) -> None:

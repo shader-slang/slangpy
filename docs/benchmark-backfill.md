@@ -12,17 +12,19 @@ results under the historical commit's identity.
 The inclusive compatibility floor is
 `f3ad0fd91d8cf4eeb2be3b505765b43482aa952a` (2025-09-02, "System to allow tests to be
 isolated to specific platform"), the oldest commit whose build the current harness
-can drive. It is defined once, as `SUPPORTED_FLOOR_SHA` in `tools/backfill_batch.py`,
+can drive. It is defined once, as `SUPPORTED_FLOOR_SHA` in `tools/backfill_commit.py`,
 and commits below it are rejected before any setup or build work starts.
 
 ## How a run works
 
-`tools/backfill_batch.py` takes a rev list and benchmarks every commit on one runner.
-Most of a single-commit run's wall time is queue wait for a performance runner, so
-batching pays that admission once and amortises it across the whole batch.
+One workflow run benchmarks exactly one commit, so the unit of work, the unit of
+failure and the unit of retry are all the same thing. A runner that dies costs the one
+commit it was holding, and re-running that commit needs no reasoning about which of its
+neighbours had already been submitted.
 
-For each commit the driver resets and cleans the historical clone, checks the commit
-out, builds it untouched, and only then copies the current harness over the top:
+`tools/backfill_commit.py` is what the run executes. It resets and cleans the historical
+clone, checks the commit out, builds it untouched, and only then copies the current
+harness over the top:
 
 ```
 tools/ci.py  tools/gpu_clock.py  tools/backfill_benchmark_manifest.py
@@ -36,49 +38,57 @@ fixed, so the harness has to be identical everywhere. The consequence is that th
 harness constantly meets libraries that predate the APIs it uses; see
 [Era compatibility](#era-compatibility).
 
-Each commit is isolated. A failure is recorded against that commit and the loop
-continues, and outcomes are written to `$GITHUB_STEP_SUMMARY` as the loop proceeds, so
-a job that dies or times out mid-batch still reports what it submitted and names what
-it never reached.
+Results are submitted to BenchView per benchmark as they are produced, so a run that
+dies partway still leaves everything it had already measured.
 
 ## Running a sweep
 
-Preview the batches without dispatching anything:
+The history is hundreds of commits and there are only a couple of performance runners,
+so `tools/backfill_benchmarks.py` is a supervising process rather than a bulk submit: it
+keeps a bounded number of runs in flight, dispatching the next commit only as an earlier
+one finishes. It is expected to run for a long time and to be interrupted.
+
+Preview the commits without dispatching anything:
 
 ```
-python tools/dispatch_backfill_batches.py --dry-run
+python tools/backfill_benchmarks.py --state-file sweep.json --dry-run
 ```
 
-Dispatch the whole sweep. Every batch is submitted immediately; GitHub queues them and
-drains as runners free up, so there is no scheduler process to supervise and nothing
-to resume:
+Dispatch the sweep, and leave it running:
 
 ```
-python tools/dispatch_backfill_batches.py
+python tools/backfill_benchmarks.py --state-file sweep.json
 ```
 
+- `--state-file` is required. It records what each commit's run is doing and is
+  rewritten atomically after every transition, so interrupting the dispatcher with
+  Ctrl-C and starting it again on the same file resumes exactly where it left off.
+  Commits that already have an outcome are not repeated, and runs still in flight are
+  adopted rather than dispatched a second time. Without it a restart would benchmark
+  the whole history again.
 - `--branch` selects the history to benchmark and `--workflow-ref` selects the ref the
   workflow definition is read from. Keep these distinct: pointing `--branch` at a
   development branch benchmarks that branch's own commits and submits them to BenchView
   as if they were `main`.
-- `--batch-size` sets the commits per run.
-- `--exclude-file` takes commits to leave out, one per line, for skipping commits that
-  have already been benchmarked.
-
-Read each finished run's summary for its succeeded and failed commit lists, and
-re-dispatch any failures as a smaller rev list.
-
-### Choosing a batch size
-
-The default is sized so that a worst-case batch finishes well inside the workflow's
-timeout. Going larger buys little: the queue admission is already amortised to a small
-fraction of the per-commit cost, and with only a couple of Windows performance runners,
-fewer and larger batches divide the work less evenly between them.
+- `--max-in-flight` caps concurrent runs. The default is sized to the performance
+  runner pool; raising it past the number of runners only lengthens the GitHub queue.
+- `--retry-failed` re-dispatches commits previously recorded as failed. Failures are
+  otherwise terminal, so a resumed sweep does not retry them forever.
 
 Per-commit cost falls the further back the target is, because the manifest skips more
-benchmarks that did not exist yet, so a batch of recent commits costs more than a batch
-near the floor. Windows is the bottleneck throughout; batching removes the queue
-overhead, not the execution time.
+benchmarks that did not exist yet. Windows is the bottleneck throughout.
+
+### Recovering an interrupted dispatch
+
+A commit is marked `dispatching` *before* the API call that creates its run, and
+`in_flight` with the run id only after that call returns. Losing the dispatcher between
+those two points would otherwise strand a run nobody was tracking, and re-dispatching
+the commit would benchmark it twice.
+
+The workflow's `run-name` carries the commit, which makes a run self-identifying. On
+startup any commit left in `dispatching` is resolved by searching recent runs of the
+workflow for that commit: if one exists it is adopted, and if none does the commit is
+returned to the queue.
 
 ## Era compatibility
 

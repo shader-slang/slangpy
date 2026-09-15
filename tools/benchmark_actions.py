@@ -46,6 +46,22 @@ class DispatchResult:
     html_url: str
 
 
+@dataclass(frozen=True)
+class WorkflowRun:
+    """Describe one workflow run well enough to decide what became of it."""
+
+    run_id: int
+    display_title: str
+    status: str
+    conclusion: Optional[str]
+
+    @property
+    def finished(self) -> bool:
+        """Report whether GitHub considers this run to have reached an outcome."""
+
+        return self.status == "completed"
+
+
 def _default_command_runner(
     arguments: Sequence[str], input_text: Optional[str]
 ) -> subprocess.CompletedProcess[str]:
@@ -234,3 +250,59 @@ class GitHubCli:
             run_url=_required_string(response.get("run_url"), "run_url"),
             html_url=_required_string(response.get("html_url"), "html_url"),
         )
+
+    def _workflow_run(self, payload: Any, context: str) -> WorkflowRun:
+        """Build a :class:`WorkflowRun` from one run object in a GitHub response."""
+
+        if not isinstance(payload, dict):
+            raise GitHubCliError(f"GitHub workflow run {context} must be a JSON object.")
+        run_id = payload.get("id")
+        if not isinstance(run_id, int) or isinstance(run_id, bool):
+            raise GitHubCliError(f"GitHub workflow run {context} lacks an integer id.")
+        conclusion = payload.get("conclusion")
+        if conclusion is not None and not isinstance(conclusion, str):
+            raise GitHubCliError(f"GitHub workflow run {context} has a non-string conclusion.")
+        return WorkflowRun(
+            run_id=run_id,
+            display_title=_required_string(payload.get("display_title"), "display_title"),
+            status=_required_string(payload.get("status"), "status"),
+            conclusion=conclusion,
+        )
+
+    def get_run(self, repository: str, run_id: int) -> WorkflowRun:
+        """Read one workflow run, so a dispatch recorded earlier can be resolved."""
+
+        return self._workflow_run(
+            self._invoke(["--method", "GET", f"repos/{repository}/actions/runs/{run_id}"]),
+            str(run_id),
+        )
+
+    def list_workflow_runs(
+        self, repository: str, workflow: str, pages: int = 5
+    ) -> list[WorkflowRun]:
+        """List recent runs of one workflow, newest first.
+
+        Used to recover a dispatch whose run id was never recorded, which happens
+        if the dispatcher dies between the API call and its state write.
+        """
+
+        response = self._invoke(
+            [
+                "--method",
+                "GET",
+                "--paginate",
+                "--slurp",
+                f"repos/{repository}/actions/workflows/{workflow}/runs",
+                "-f",
+                "per_page=100",
+                "-F",
+                f"page={pages}",
+            ]
+        )
+        runs: list[WorkflowRun] = []
+        for page in _flatten_pages(response):
+            if not isinstance(page, dict):
+                raise GitHubCliError("GitHub workflow run page must be a JSON object.")
+            for index, item in enumerate(page.get("workflow_runs") or []):
+                runs.append(self._workflow_run(item, f"at index {index}"))
+        return runs

@@ -109,7 +109,7 @@ The ordinary `.github/workflows/ci-benchmark.yml` workflow is manual and is also
 
 The nightly `.github/workflows/schedule-benchmarks.yml` workflow runs once per day. It uses the authenticated GitHub API client supplied by `actions/github-script`, so it needs no checkout, Python environment, GitHub CLI, or extra secret. It examines one fixed 24-hour UTC interval and dispatches the ordinary workflow once for every `main` commit in that interval, oldest first, through the `revision` input. It deliberately does not inspect or suppress existing runs; manually triggering the scheduler repeats the complete 24-hour interval.
 
-Historical commits use the separate manual `.github/workflows/backfill-benchmark.yml` workflow, driven by `tools/dispatch_backfill_batches.py`. That dispatcher is an operator process rather than a GitHub-hosted workflow, so it uses the official GitHub CLI and never accepts a token argument. Verify its prerequisite before any preview or dispatch:
+Historical commits use the separate manual `.github/workflows/backfill-benchmark.yml` workflow, which benchmarks exactly one commit per run, driven by `tools/backfill_benchmarks.py`. That dispatcher is a long-running operator process rather than a GitHub-hosted workflow, so it uses the official GitHub CLI and never accepts a token argument. It requires a `--state-file`, which is what lets an interrupted sweep resume without re-benchmarking anything. Verify its prerequisite before any preview or dispatch:
 
 ```powershell
 gh --version

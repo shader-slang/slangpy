@@ -1,87 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Offline coverage for benchmarking a rev list inside a single backfill job."""
+"""Offline coverage for benchmarking one historical commit inside one backfill job."""
 
 import os
 from pathlib import Path
 import subprocess
-from typing import Any, Optional, Sequence
+from typing import Optional, Sequence
 
 import pytest
 
-from tools import backfill_batch as batch
-
-
-def test_a_rev_list_is_split_on_either_separator_and_deduplicated() -> None:
-    """The workflow input is free text, so both spellings have to work."""
-
-    assert batch.parse_rev_list(" aaa,\n bbb\t ccc ") == ["aaa", "bbb", "ccc"]
-    assert batch.parse_rev_list("aaa bbb aaa") == ["aaa", "bbb"]
-
-
-def test_a_failing_commit_does_not_abort_the_rest_of_the_batch(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    attempted: list[str] = []
-
-    def fake_benchmark(sha: str, **_: Any) -> None:
-        attempted.append(sha)
-        if sha == "bbb":
-            raise batch.CommitFailure("build", "exited with code 1")
-
-    monkeypatch.setattr(batch, "benchmark_commit", fake_benchmark)
-    monkeypatch.setattr(batch, "git_output", lambda *_: "vcpkgsha")
-
-    summary = tmp_path / "summary.md"
-    code = batch.run_batch(
-        ["aaa", "bbb", "ccc"],
-        workspace=tmp_path,
-        clone=tmp_path,
-        skip_manifest=tmp_path / "skip.txt",
-        run_id="1",
-        api_url="https://benchview.test",
-        summary_path=summary,
-    )
-
-    assert attempted == ["aaa", "bbb", "ccc"], "the batch stopped at the failing commit"
-    assert code == 0, "a single failure must not fail the whole job"
-    report = summary.read_text(encoding="utf-8")
-    assert "**2 succeeded, 1 failed, 0 not reached.**" in report
-    assert "Failed: `bbb`" in report
-
-
-def test_the_summary_is_rewritten_as_the_batch_proceeds(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """A job killed mid-batch must still say which commits it reached."""
-
-    summary = tmp_path / "summary.md"
-    seen: list[str] = []
-
-    def fake_benchmark(sha: str, **_: Any) -> None:
-        if sha == "ccc":
-            # Stand in for the job being killed: the summary written so far is all
-            # that survives, and it has to name the commits that never ran.
-            seen.append(summary.read_text(encoding="utf-8"))
-            raise KeyboardInterrupt
-
-    monkeypatch.setattr(batch, "benchmark_commit", fake_benchmark)
-    monkeypatch.setattr(batch, "git_output", lambda *_: "vcpkgsha")
-
-    with pytest.raises(KeyboardInterrupt):
-        batch.run_batch(
-            ["aaa", "bbb", "ccc", "ddd"],
-            workspace=tmp_path,
-            clone=tmp_path,
-            skip_manifest=tmp_path / "skip.txt",
-            run_id="1",
-            api_url="https://benchview.test",
-            summary_path=summary,
-        )
-
-    partial = seen[0]
-    assert "**2 succeeded, 0 failed, 2 not reached.**" in partial
-    assert "Not reached: `ccc ddd`" in partial
+from tools import backfill_commit as driver
 
 
 def record_commands(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[list[str]]:
@@ -101,15 +29,15 @@ def record_commands(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[lis
         issued.append(list(command))
         return True
 
-    monkeypatch.setattr(batch, "run", fake_run)
-    monkeypatch.setattr(batch, "git_output", lambda *_: "targetvcpkg")
-    monkeypatch.setattr(batch, "overlay_harness", lambda *_: issued.append(["<overlay>"]))
-    monkeypatch.setattr(batch, "attempt", fake_attempt)
+    monkeypatch.setattr(driver, "run", fake_run)
+    monkeypatch.setattr(driver, "git_output", lambda *_: "targetvcpkg")
+    monkeypatch.setattr(driver, "overlay_harness", lambda *_: issued.append(["<overlay>"]))
+    monkeypatch.setattr(driver, "attempt", fake_attempt)
     # This is about the order of the per-commit stages, not about vcpkg ancestry,
     # and there is no repository here to resolve revisions against.
-    monkeypatch.setattr(batch, "is_ancestor", lambda *_: True)
+    monkeypatch.setattr(driver, "is_ancestor", lambda *_: True)
 
-    batch.benchmark_commit(
+    driver.benchmark_commit(
         "abc",
         workspace=tmp_path,
         clone=tmp_path,
@@ -164,15 +92,15 @@ def test_the_torch_bridge_is_removed_even_when_the_benchmark_fails(
     ) -> None:
         issued.append(list(command))
         if stage == "benchmark":
-            raise batch.CommitFailure("benchmark", "exited with code 1")
+            raise driver.CommitFailure("benchmark", "exited with code 1")
 
-    monkeypatch.setattr(batch, "run", fake_run)
-    monkeypatch.setattr(batch, "git_output", lambda *_: "harnessvcpkg")
-    monkeypatch.setattr(batch, "overlay_harness", lambda *_: None)
-    monkeypatch.setattr(batch, "attempt", lambda command, cwd=None: issued.append(list(command)))
+    monkeypatch.setattr(driver, "run", fake_run)
+    monkeypatch.setattr(driver, "git_output", lambda *_: "harnessvcpkg")
+    monkeypatch.setattr(driver, "overlay_harness", lambda *_: None)
+    monkeypatch.setattr(driver, "attempt", lambda command, cwd=None: issued.append(list(command)))
 
-    with pytest.raises(batch.CommitFailure):
-        batch.benchmark_commit(
+    with pytest.raises(driver.CommitFailure):
+        driver.benchmark_commit(
             "abc",
             workspace=tmp_path,
             clone=tmp_path,
@@ -191,7 +119,7 @@ def test_the_overlay_replaces_the_harness_and_rejects_an_incomplete_one(tmp_path
     workspace = tmp_path / "workspace"
     clone = tmp_path / "clone"
     for root in (workspace, clone):
-        for relative in batch.OVERLAY_PATHS:
+        for relative in driver.OVERLAY_PATHS:
             path = root / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             if relative.endswith(".py"):
@@ -201,15 +129,15 @@ def test_the_overlay_replaces_the_harness_and_rejects_an_incomplete_one(tmp_path
                 (path / "test_kept.py").write_text(f"# {root.name}\n", encoding="utf-8")
     (clone / "slangpy/benchmarks/test_retired.py").write_text("# stale\n", encoding="utf-8")
 
-    batch.overlay_harness(workspace, clone)
+    driver.overlay_harness(workspace, clone)
 
     assert (clone / "tools/ci.py").read_text(encoding="utf-8") == "# workspace\n"
     assert not (clone / "slangpy/benchmarks/test_retired.py").exists()
 
     partial = tmp_path / "partial"
     (partial / "tools").mkdir(parents=True)
-    with pytest.raises(batch.CommitFailure):
-        batch.overlay_harness(partial, tmp_path / "other")
+    with pytest.raises(driver.CommitFailure):
+        driver.overlay_harness(partial, tmp_path / "other")
 
 
 def git(repo: Path, *arguments: str) -> str:
@@ -282,7 +210,7 @@ def test_only_a_vcpkg_pin_older_than_the_harness_is_moved(
 
     clone, older, newer = superproject_pinning(tmp_path, old_first=target_is_older)
 
-    batch.repin_vcpkg(clone, newer if target_is_older else older)
+    driver.repin_vcpkg(clone, newer if target_is_older else older)
 
     assert git(clone / "external" / "vcpkg", "rev-parse", "HEAD") == newer
 
@@ -305,8 +233,8 @@ def test_an_undecidable_vcpkg_comparison_is_reported_not_swallowed(tmp_path: Pat
     git(stranger, "commit", "-qm", "unrelated")
     unknown = git(stranger, "rev-parse", "HEAD")
 
-    with pytest.raises(batch.CommitFailure, match="could not decide"):
-        batch.repin_vcpkg(clone, unknown)
+    with pytest.raises(driver.CommitFailure, match="could not decide"):
+        driver.repin_vcpkg(clone, unknown)
 
     # The pin is untouched, and the caller hears about it rather than inferring it.
     assert git(clone / "external" / "vcpkg", "rev-parse", "HEAD") == older

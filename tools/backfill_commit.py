@@ -1,15 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Benchmark a list of historical commits inside a single CI job.
+"""Benchmark one historical commit inside one CI job.
 
-One workflow run per commit spends roughly 80% of its wall time waiting for a
-self-hosted runner, so this driver pays that admission once and then walks a
-whole rev list on the runner it was given.
-
-Each commit is isolated: a failure is recorded against that commit and the loop
-moves on. Results reach BenchView as the loop proceeds, so a job that is killed
-or times out keeps everything already submitted, and the commits it never
-reached are named in the summary.
+One commit per job makes the unit of work, the unit of failure and the unit of
+retry the same thing: a runner that dies costs only the commit it was holding,
+and retrying that commit cannot re-run one that already succeeded. The
+dispatcher in ``backfill_benchmarks.py`` is what keeps the resulting fleet of
+runs bounded and resumable.
 """
 
 from __future__ import annotations
@@ -48,31 +45,11 @@ OVERLAY_PATHS = (
 
 
 class CommitFailure(RuntimeError):
-    """A stage failed for one commit; the batch continues with the next."""
+    """A stage failed, so this commit produced no measurement."""
 
     def __init__(self, stage: str, detail: str) -> None:
         super().__init__(f"{stage}: {detail}")
         self.stage = stage
-
-
-@dataclass
-class CommitOutcome:
-    """The result recorded for one commit of the batch."""
-
-    sha: str
-    status: str
-    stage: Optional[str]
-    seconds: float
-
-
-def parse_rev_list(text: str) -> list[str]:
-    """Split a whitespace- or comma-separated rev list into commits.
-
-    :param text: Raw workflow input.
-    :return: Commits in the given order, duplicates removed.
-    """
-
-    return list(dict.fromkeys(text.replace(",", " ").split()))
 
 
 def run(
@@ -273,145 +250,63 @@ def benchmark_commit(
         attempt([python, "-m", "pip", "uninstall", "slangpy-torch", "-y"])
 
 
-def format_report(outcomes: Sequence[CommitOutcome], pending: Sequence[str]) -> str:
-    """Render the batch result as a Markdown table plus explicit commit lists."""
-
-    lines = ["| commit | result | stage | minutes |", "|---|---|---|---|"]
-    for outcome in outcomes:
-        lines.append(
-            f"| `{outcome.sha[:12]}` | {outcome.status} | {outcome.stage or ''} "
-            f"| {outcome.seconds / 60:.1f} |"
-        )
-    for sha in pending:
-        lines.append(f"| `{sha[:12]}` | not reached | | |")
-
-    succeeded = [o.sha for o in outcomes if o.status == "success"]
-    failed = [o.sha for o in outcomes if o.status == "failed"]
-    lines.append("")
-    lines.append(
-        f"**{len(succeeded)} succeeded, {len(failed)} failed, {len(pending)} not reached.**"
-    )
-    for label, shas in (("Succeeded", succeeded), ("Failed", failed), ("Not reached", pending)):
-        if shas:
-            lines.append("")
-            lines.append(f"{label}: `{' '.join(shas)}`")
-    return "\n".join(lines) + "\n"
-
-
-def run_batch(
-    shas: Sequence[str],
-    *,
-    workspace: Path,
-    clone: Path,
-    skip_manifest: Path,
-    run_id: str,
-    api_url: str,
-    summary_path: Optional[Path],
-) -> int:
-    """Benchmark every commit in the batch and report what happened.
-
-    :return: Process exit code; non-zero only if every commit failed.
-    """
-
-    harness_vcpkg = git_output(workspace, "rev-parse", "HEAD:external/vcpkg")
-    outcomes: list[CommitOutcome] = []
-
-    def publish(echo: bool) -> None:
-        report = format_report(outcomes, shas[len(outcomes) :])
-        if summary_path is not None:
-            summary_path.write_text(report, encoding="utf-8")
-        if echo:
-            print(report, flush=True)
-
-    for index, sha in enumerate(shas, start=1):
-        print(f"\n::group::[{index}/{len(shas)}] {sha}", flush=True)
-        started = time.monotonic()
-        try:
-            benchmark_commit(
-                sha,
-                workspace=workspace,
-                clone=clone,
-                harness_vcpkg=harness_vcpkg,
-                skip_manifest=skip_manifest,
-                run_id=run_id,
-                api_url=api_url,
-            )
-            outcome = CommitOutcome(sha, "success", None, time.monotonic() - started)
-        except CommitFailure as failure:
-            print(f"::error::{sha} failed at {failure.stage}: {failure}", flush=True)
-            outcome = CommitOutcome(sha, "failed", failure.stage, time.monotonic() - started)
-        print("::endgroup::", flush=True)
-        outcomes.append(outcome)
-        # The file is rewritten after every commit so a job that is killed still
-        # reports the work it managed to submit. Echoing the whole table that often
-        # would reprint every row once per commit, so that is left until the end.
-        publish(echo=False)
-
-    publish(echo=True)
-    return 1 if outcomes and all(o.status == "failed" for o in outcomes) else 0
-
-
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--target-shas",
-        help="Whitespace- or comma-separated commits. Defaults to $BACKFILL_TARGET_SHAS, which "
-        "is how CI passes the list: keeping it out of the command line means the same workflow "
-        "step works verbatim under both pwsh and bash.",
+        "--target-sha",
+        help="Commit to benchmark. Defaults to $BACKFILL_TARGET_SHA, which is how CI passes "
+        "it: keeping it out of the command line means the same workflow step works verbatim "
+        "under both pwsh and bash.",
     )
     parser.add_argument("--clone-dir", type=Path, required=True, help="Historical clone root.")
     parser.add_argument("--workspace", type=Path, default=Path("."), help="Harness checkout root.")
     parser.add_argument("--skip-manifest", type=Path, required=True, help="Skip-list scratch file.")
     parser.add_argument("--run-id", required=True, help="BenchView run identifier.")
     parser.add_argument("--api-url", required=True, help="BenchView API URL.")
-    parser.add_argument(
-        "--summary-file",
-        type=Path,
-        help="Markdown report destination. Defaults to $GITHUB_STEP_SUMMARY.",
-    )
     return parser
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = _parser().parse_args(argv)
-    shas = parse_rev_list(args.target_shas or os.environ.get("BACKFILL_TARGET_SHAS", ""))
-    if not shas:
-        print("No commits were requested.", file=sys.stderr)
+    sha = (args.target_sha or os.environ.get("BACKFILL_TARGET_SHA", "")).strip()
+    if not sha:
+        print("No commit was requested.", file=sys.stderr)
         return 1
-    summary_path = args.summary_file
-    if summary_path is None and os.environ.get("GITHUB_STEP_SUMMARY"):
-        summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
 
     clone = args.clone_dir.resolve()
     workspace = args.workspace.resolve()
 
-    # Reject the whole batch up front rather than discovering an unsupported
-    # commit part-way through a multi-hour run.
     try:
-        unsupported = [
-            sha for sha in shas if not is_ancestor(clone, SUPPORTED_FLOOR_SHA, sha, "floor")
-        ]
+        if not is_ancestor(clone, SUPPORTED_FLOOR_SHA, sha, "floor"):
+            print(
+                f"{sha[:12]} predates the supported floor {SUPPORTED_FLOOR_SHA[:12]}.",
+                file=sys.stderr,
+            )
+            return 1
     except CommitFailure as failure:
         print(failure, file=sys.stderr)
         return 1
-    if unsupported:
-        print(
-            f"{len(unsupported)} commit(s) predate the supported floor "
-            f"{SUPPORTED_FLOOR_SHA[:12]}: " + " ".join(sha[:12] for sha in unsupported),
-            file=sys.stderr,
+
+    started = time.monotonic()
+    try:
+        benchmark_commit(
+            sha,
+            workspace=workspace,
+            clone=clone,
+            harness_vcpkg=git_output(workspace, "rev-parse", "HEAD:external/vcpkg"),
+            skip_manifest=args.skip_manifest,
+            run_id=args.run_id,
+            api_url=args.api_url,
         )
+    except CommitFailure as failure:
+        # The dispatcher reads the run conclusion, not this text, but the commit is
+        # named here so the log says which one failed without opening the summary.
+        print(f"::error::{sha} failed at {failure.stage}: {failure}", flush=True)
+        print(f"{sha} failed after {(time.monotonic() - started) / 60:.1f} min", file=sys.stderr)
         return 1
 
-    print(f"Benchmarking {len(shas)} commit(s) in one job.")
-    return run_batch(
-        shas,
-        workspace=workspace,
-        clone=clone,
-        skip_manifest=args.skip_manifest,
-        run_id=args.run_id,
-        api_url=args.api_url,
-        summary_path=summary_path,
-    )
+    print(f"{sha} succeeded in {(time.monotonic() - started) / 60:.1f} min")
+    return 0
 
 
 if __name__ == "__main__":
