@@ -136,7 +136,7 @@ def test_historical_source_override_preserves_time_and_replaces_git_identity(
             "dirty": True,
         }
     }
-    target = "f3ad0fd91d8cf4eeb2be3b505765b43482aa952a"
+    target = "1234567890abcdef1234567890abcdef12345678"
     monkeypatch.setenv("BENCHVIEW_BENCHMARK_REF", target)
     monkeypatch.setenv("BENCHVIEW_BENCHMARK_BRANCH", "main")
 

@@ -24,8 +24,13 @@ from typing import Optional, Sequence
 # The oldest commit whose build the current benchmark harness can drive. Earlier
 # commits are not a supported backfill target and are rejected before any work
 # starts. The timestamp is only used to bound the commit query in the dispatcher.
-SUPPORTED_FLOOR_SHA = "f3ad0fd91d8cf4eeb2be3b505765b43482aa952a"
-SUPPORTED_FLOOR_TIME = datetime(2025, 9, 2, 14, 42, 35, tzinfo=timezone.utc)
+#
+# This is "Updated vcpkg to enable the new USD (#489)", the commit that moved
+# external/vcpkg to the revision every later commit still pins. The ten commits
+# below it pin a vcpkg old enough that MSYS2 has deleted the packages it asks
+# for, so they cannot bootstrap and cannot be built at all.
+SUPPORTED_FLOOR_SHA = "dba4ce185fc05836f0dab86ed8e41977c84673ac"
+SUPPORTED_FLOOR_TIME = datetime(2025, 9, 5, 10, 49, 2, tzinfo=timezone.utc)
 
 # The harness must be identical at every commit or the timings are not
 # comparable, so these paths are copied over the historical tree. slangpy/benchmarks
@@ -91,19 +96,6 @@ def is_ancestor(repo: Path, candidate: str, descendant: str, stage: str) -> bool
     )
 
 
-def git_output(repo: Path, *arguments: str) -> str:
-    """Return the stripped stdout of a git command that must succeed."""
-
-    completed = subprocess.run(
-        ["git", "-C", str(repo), *arguments],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=True,
-    )
-    return completed.stdout.strip()
-
-
 def reset_to_commit(clone: Path, sha: str) -> None:
     """Return the historical clone to a pristine checkout of one commit.
 
@@ -119,43 +111,6 @@ def reset_to_commit(clone: Path, sha: str) -> None:
     run(["git", "submodule", "sync", "--recursive"], clone, "submodules")
     run(["git", "submodule", "update", "--init", "--recursive", "--force"], clone, "submodules")
     run(["git", "lfs", "pull"], clone, "lfs")
-
-
-def repin_vcpkg(clone: Path, harness_vcpkg: str) -> None:
-    """Move a vcpkg pin older than the harness one forward to the harness one.
-
-    MSYS2 deletes superseded packages, so old vcpkg revisions request an
-    msys2-runtime that no longer exists, cannot bootstrap pkgconf, and so cannot
-    build at all. The harness revision is the newest one the backfill knows to work,
-    and any pin strictly older than it is at risk, so those are moved forward.
-
-    A pin that is *not* an ancestor of the harness one is left alone. It is either the
-    same revision or a newer one, and the dependency set is part of what the backfill
-    measures, so moving it would change the thing being timed.
-
-    This has to run after ``ci.py setup``, which resets every submodule to its
-    recorded revision.
-    """
-
-    target_vcpkg = git_output(clone, "rev-parse", "HEAD:external/vcpkg")
-    if target_vcpkg == harness_vcpkg:
-        print(f"Target already pins the harness vcpkg revision {target_vcpkg}")
-        return
-
-    vcpkg = clone / "external" / "vcpkg"
-    # Ancestry must be resolved inside the vcpkg repository against revisions it
-    # actually holds. The target's pin is present by construction because the
-    # submodule is checked out at it; the harness revision has to be fetched.
-    if not attempt(["git", "cat-file", "-e", f"{harness_vcpkg}^{{commit}}"], vcpkg):
-        if not attempt(["git", "fetch", "--no-tags", "origin", harness_vcpkg], vcpkg):
-            run(["git", "fetch", "--no-tags", "origin"], vcpkg, "vcpkg")
-
-    if not is_ancestor(vcpkg, target_vcpkg, harness_vcpkg, "vcpkg"):
-        print(f"Keeping the target vcpkg revision {target_vcpkg}, which is not older")
-        return
-
-    print(f"Replacing unbootstrappable vcpkg {target_vcpkg} with {harness_vcpkg}")
-    run(["git", "checkout", "--detach", harness_vcpkg], vcpkg, "vcpkg")
 
 
 def overlay_harness(workspace: Path, clone: Path) -> None:
@@ -183,7 +138,6 @@ def benchmark_commit(
     *,
     workspace: Path,
     clone: Path,
-    harness_vcpkg: str,
     skip_manifest: Path,
     run_id: str,
     api_url: str,
@@ -200,7 +154,6 @@ def benchmark_commit(
     run([python, "-m", "pip", "install", "-r", "requirements-dev.txt"], clone, "pip")
     run([python, "-m", "pip", "install", "-r", "samples/requirements.txt"], clone, "pip")
     run([python, "tools/ci.py", "setup"], clone, "setup")
-    repin_vcpkg(clone, harness_vcpkg)
     # Old sources are compiled by whatever toolchain the runner has now, which
     # emits warnings that did not exist when they were written. The point is to
     # measure historical performance, not to re-validate warning cleanliness.
@@ -292,7 +245,6 @@ def main(argv: Optional[list[str]] = None) -> int:
             sha,
             workspace=workspace,
             clone=clone,
-            harness_vcpkg=git_output(workspace, "rev-parse", "HEAD:external/vcpkg"),
             skip_manifest=args.skip_manifest,
             run_id=args.run_id,
             api_url=args.api_url,

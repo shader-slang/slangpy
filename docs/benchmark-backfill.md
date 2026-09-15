@@ -10,10 +10,16 @@ results under the historical commit's identity.
 ## Supported range
 
 The inclusive compatibility floor is
-`f3ad0fd91d8cf4eeb2be3b505765b43482aa952a` (2025-09-02, "System to allow tests to be
-isolated to specific platform"), the oldest commit whose build the current harness
-can drive. It is defined once, as `SUPPORTED_FLOOR_SHA` in `tools/backfill_commit.py`,
-and commits below it are rejected before any setup or build work starts.
+`dba4ce185fc05836f0dab86ed8e41977c84673ac` (2025-09-05, "Updated vcpkg to enable the
+new USD"), the oldest commit whose build the current harness can drive. It is defined
+once, as `SUPPORTED_FLOOR_SHA` in `tools/backfill_commit.py`, and commits below it are
+rejected before any setup or build work starts.
+
+The floor sits there because that commit moved `external/vcpkg` to the revision every
+later commit still pins. The ten commits below it pin a vcpkg old enough that MSYS2 has
+deleted the packages it asks for, so they cannot bootstrap pkgconf and cannot be built
+at all. Rather than rewrite their pin and measure a dependency set they never shipped
+with, they are simply out of range.
 
 ## How a run works
 
@@ -120,16 +126,6 @@ rather than losing its coverage to a skip.
   'nvrtc'`, failing every `DeviceType.cuda` benchmark in the module. Linux is
   unaffected. This is currently counted as a failure rather than a skip, because it is
   also exactly what a genuine regression would look like.
-
-### vcpkg pins
-
-MSYS2 deletes superseded packages, so old vcpkg revisions request an msys2-runtime that
-no longer exists, cannot bootstrap pkgconf, and cannot build at all. Any pin strictly
-older than the harness's own vcpkg revision is moved forward to it; a pin that is not
-older is left alone, because the dependency set is part of what the backfill measures.
-
-The repin has to run after `ci.py setup`, which resets every submodule to its recorded
-revision. Only Windows is affected; vcpkg uses msys2 only there.
 
 ## Reading the data
 
