@@ -26,10 +26,11 @@ from typing import Any, Callable, Optional, Sequence
 # commits are not a supported backfill target and are rejected before any work
 # starts. The timestamp is only used to bound the commit query in the dispatcher.
 #
-# It sits just past the last target needing an era-dependent accommodation, so
-# the harness carries none. Lowering it means reinstating them.
-SUPPORTED_FLOOR_SHA = "5c266df695fe69da052ef2495e55f9d571442e23"
-SUPPORTED_FLOOR_TIME = datetime(2026, 2, 16, 16, 4, 51, tzinfo=timezone.utc)
+# It is where the last API the harness needs, slangpy.diff_pair, first exists, so
+# the harness carries no era-dependent accommodation. Lowering it means reinstating
+# them.
+SUPPORTED_FLOOR_SHA = "034fd99ca4c340d96d88b2352a3f88c4939775b2"
+SUPPORTED_FLOOR_TIME = datetime(2026, 2, 17, 12, 6, 58, tzinfo=timezone.utc)
 
 # The harness must be identical at every commit or the timings are not
 # comparable, so these paths are copied over the historical tree. slangpy/benchmarks

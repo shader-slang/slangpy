@@ -10,13 +10,14 @@ results under the historical commit's identity.
 ## Supported range
 
 The inclusive compatibility floor is
-`5c266df695fe69da052ef2495e55f9d571442e23` (2026-02-16), the oldest commit whose build
+`034fd99ca4c340d96d88b2352a3f88c4939775b2` (2026-02-17), the oldest commit whose build
 the current harness can drive. It is defined once, as `SUPPORTED_FLOOR_SHA` in
 `tools/backfill_commit.py`, and commits below it are rejected before any setup or build
 work starts.
 
-It is set just past the last commit that needed an era-dependent accommodation, so the
-harness carries none at all: see [Era compatibility](#era-compatibility). Older commits
+It is where the last API the harness needs, `slangpy.diff_pair`, first exists, so the
+harness carries no era-dependent accommodation at all: see
+[Era compatibility](#era-compatibility). Older commits
 are reachable only by reinstating those, which is a deliberate trade rather than a
 configuration change.
 
@@ -121,9 +122,8 @@ dimensions is an open question.
 
 Because benchmarks are skipped where they did not exist, coverage is a widening cone
 rather than a flat panel: the number of benchmarks measured grows from the floor to
-head. At the floor `interop`, `tensor` and `argcounts` survive; `autograd` (2026-02-17),
-`ppisp` (2026-02-25) and `bwd_diff` (2026-04-02) all postdate it, so **only those three
-span the full range.**
+head. At the floor `interop`, `tensor` and `argcounts` survive; `autograd`, `ppisp` and
+`bwd_diff` all postdate it, so **only those three span the full range.**
 
 Per-benchmark trends are therefore valid, but aggregates across the whole benchmark set
 are not, because their composition changes with time. To see which benchmarks a given
