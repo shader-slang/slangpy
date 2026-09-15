@@ -2217,6 +2217,22 @@ static const char *__doc_sgl_CommandQueueType_graphics = R"doc()doc";
 
 static const char *__doc_sgl_CommandQueueType_info = R"doc()doc";
 
+static const char *__doc_sgl_CommandRecordingBeforeFinishEvent = R"doc(Event data for command recording before-finish callback.)doc";
+
+static const char *__doc_sgl_CommandRecordingBeforeFinishEvent_device = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingBeforeFinishEvent_encoder = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingBeforeFinishEvent_id = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingCreatedEvent = R"doc(Event data for command recording created callback.)doc";
+
+static const char *__doc_sgl_CommandRecordingCreatedEvent_device = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingCreatedEvent_encoder = R"doc()doc";
+
+static const char *__doc_sgl_CommandRecordingCreatedEvent_id = R"doc()doc";
+
 static const char *__doc_sgl_CommandRecordingDiscardedEvent = R"doc(Event data for command recording discarded callback.)doc";
 
 static const char *__doc_sgl_CommandRecordingDiscardedEvent_device = R"doc()doc";
@@ -3720,6 +3736,10 @@ static const char *__doc_sgl_Device_m_capabilities = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_closed = R"doc()doc";
 
+static const char *__doc_sgl_Device_m_command_recording_before_finish_callbacks = R"doc()doc";
+
+static const char *__doc_sgl_Device_m_command_recording_created_callbacks = R"doc()doc";
+
 static const char *__doc_sgl_Device_m_command_recording_discarded_callbacks = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_command_recording_submitted_callbacks = R"doc()doc";
@@ -3774,6 +3794,10 @@ static const char *__doc_sgl_Device_m_supports_cuda_interop = R"doc()doc";
 
 static const char *__doc_sgl_Device_native_handles = R"doc(Get the native device handles.)doc";
 
+static const char *__doc_sgl_Device_notify_command_recording_before_finish = R"doc()doc";
+
+static const char *__doc_sgl_Device_notify_command_recording_created = R"doc()doc";
+
 static const char *__doc_sgl_Device_notify_command_recording_discarded = R"doc()doc";
 
 static const char *__doc_sgl_Device_notify_command_recording_submitted = R"doc()doc";
@@ -3820,6 +3844,40 @@ Parameter ``mip``:
 
 Returns:
     Subresource data in host memory.)doc";
+
+static const char *__doc_sgl_Device_register_command_recording_before_finish_callback =
+R"doc(Register a callback to be called immediately before a command recording
+is finished. The encoder passed to the callback is still open and
+recordable: the callback may append commands to it (e.g. write_timestamp
+/ push_debug_group). The callback must not call finish() on the encoder,
+retain it beyond the callback, or submit it. It fires synchronously on
+the recording thread (Python callbacks acquire the GIL) and exceptions
+propagate out of CommandEncoder::finish(), so the callback must not
+throw. Reaching before-finish does not guarantee submission: if finish()
+fails (or a before-finish callback throws) the encoder stays open, so it
+is reported as discarded only if it is eventually destroyed while still
+open (dropped without a successful retry); a retried finish() re-fires
+before-finish and can still reach submitted. Correlate via the event id,
+retire per-recording state on submitted-or-discarded, and treat
+before-finish idempotently. Registering or unregistering a callback from
+within a callback is safe and affects only later notifications, not the
+one in progress.)doc";
+
+static const char *__doc_sgl_Device_register_command_recording_created_callback =
+R"doc(Register a callback to be called immediately after a command recording
+is created. The encoder passed to the callback is open and recordable:
+the callback may append commands to it (e.g. write_timestamp /
+push_debug_group to bracket the recording for profiling). The callback
+must not call finish() on the encoder, retain it beyond the callback, or
+submit it. It fires synchronously on the recording thread (Python
+callbacks acquire the GIL) and exceptions propagate out of
+create_command_encoder, so the callback must not throw. This also fires
+for encoders created internally by SGL helpers (uploads, texture loader,
+kernel/print/tensor dispatch), as they all route through
+create_command_encoder. Correlate with the submitted/discarded callbacks
+via the event id. Registering or unregistering a callback from within a
+callback is safe and affects only later notifications, not the one in
+progress.)doc";
 
 static const char *__doc_sgl_Device_register_command_recording_discarded_callback =
 R"doc(Register a callback to be called when a command recording is discarded
@@ -3965,6 +4023,10 @@ Parameter ``cuda_stream``:
 static const char *__doc_sgl_Device_to_string = R"doc()doc";
 
 static const char *__doc_sgl_Device_type = R"doc(Type of the graphics API used by this device.)doc";
+
+static const char *__doc_sgl_Device_unregister_command_recording_before_finish_callback = R"doc(Unregister a command recording before-finish callback.)doc";
+
+static const char *__doc_sgl_Device_unregister_command_recording_created_callback = R"doc(Unregister a command recording created callback.)doc";
 
 static const char *__doc_sgl_Device_unregister_command_recording_discarded_callback = R"doc(Unregister a command recording discarded callback.)doc";
 
