@@ -10507,11 +10507,11 @@ static const char *__doc_sgl_YAHandling =
 R"doc(Strategy for handling YA (greyscale + alpha) bitmaps during texture
 loading.)doc";
 
-static const char *__doc_sgl_YAHandling_expand_to_rgba = R"doc()doc";
+static const char *__doc_sgl_YAHandling_expand_to_rgba = R"doc(Replicate luminance into RGB and preserve alpha (the default).)doc";
 
 static const char *__doc_sgl_YAHandling_info = R"doc()doc";
 
-static const char *__doc_sgl_YAHandling_preserve_as_rg = R"doc()doc";
+static const char *__doc_sgl_YAHandling_preserve_as_rg = R"doc(Preserve luminance and alpha as red and green channels.)doc";
 
 static const char *__doc_sgl_YHandling = R"doc(Strategy for handling Y (greyscale) bitmaps during texture loading.)doc";
 

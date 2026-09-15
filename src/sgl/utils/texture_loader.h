@@ -14,24 +14,35 @@ namespace sgl {
 
 /// Strategy for handling Y (greyscale) bitmaps during texture loading.
 enum class YHandling {
-    /// Preserve luminance as a single red channel (the default).
-    preserve_as_r,
     /// Replicate luminance into RGB and set alpha to one.
     expand_to_rgba,
+    /// Preserve luminance as a single red channel (the default).
+    preserve_as_r,
 };
 
-SGL_ENUM_INFO(YHandling, {{YHandling::preserve_as_r, "preserve_as_r"}, {YHandling::expand_to_rgba, "expand_to_rgba"}});
+SGL_ENUM_INFO(
+    YHandling,
+    {
+        {YHandling::expand_to_rgba, "expand_to_rgba"},
+        {YHandling::preserve_as_r, "preserve_as_r"},
+    }
+);
 SGL_ENUM_REGISTER(YHandling);
 
 /// Strategy for handling YA (greyscale + alpha) bitmaps during texture loading.
 enum class YAHandling {
+    /// Replicate luminance into RGB and preserve alpha (the default).
     expand_to_rgba,
+    /// Preserve luminance and alpha as red and green channels.
     preserve_as_rg,
 };
 
 SGL_ENUM_INFO(
     YAHandling,
-    {{YAHandling::expand_to_rgba, "expand_to_rgba"}, {YAHandling::preserve_as_rg, "preserve_as_rg"}}
+    {
+        {YAHandling::expand_to_rgba, "expand_to_rgba"},
+        {YAHandling::preserve_as_rg, "preserve_as_rg"},
+    }
 );
 SGL_ENUM_REGISTER(YAHandling);
 
