@@ -121,10 +121,14 @@ def record_commands(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[lis
     def fake_run(command, cwd, stage, env=None):
         issued.append(list(command))
 
+    def fake_attempt(command, cwd=None):
+        issued.append(list(command))
+        return True
+
     monkeypatch.setattr(batch, "run", fake_run)
     monkeypatch.setattr(batch, "git_output", lambda *_: "targetvcpkg")
     monkeypatch.setattr(batch, "overlay_harness", lambda *_: issued.append(["<overlay>"]))
-    monkeypatch.setattr(batch, "attempt", lambda command, cwd=None: issued.append(list(command)))
+    monkeypatch.setattr(batch, "attempt", fake_attempt)
 
     batch.benchmark_commit(
         "abc",
@@ -206,6 +210,38 @@ def test_the_torch_bridge_is_removed_even_when_the_benchmark_fails(
     assert any("uninstall slangpy-torch" in " ".join(c) for c in issued)
 
 
+def repin_calls(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, is_ancestor: bool):
+    """Run repin_vcpkg with a stubbed git, returning the commands it issued."""
+
+    issued: list[list[str]] = []
+
+    def fake_attempt(command, cwd=None):
+        issued.append(list(command))
+        return is_ancestor if "merge-base" in command else True
+
+    monkeypatch.setattr(batch, "git_output", lambda *_: "targetvcpkg")
+    monkeypatch.setattr(batch, "attempt", fake_attempt)
+    monkeypatch.setattr(
+        batch, "run", lambda command, cwd, stage, env=None: issued.append(list(command))
+    )
+    batch.repin_vcpkg(tmp_path, "harnessvcpkg")
+    return issued
+
+
+def test_an_unbootstrappable_vcpkg_pin_is_replaced(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    issued = repin_calls(monkeypatch, tmp_path, is_ancestor=True)
+    assert any("checkout --detach harnessvcpkg" in " ".join(c) for c in issued)
+
+
+def test_a_merely_different_vcpkg_pin_is_left_alone(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """The dependency set is part of what is measured, so do not move it silently."""
+
+    issued = repin_calls(monkeypatch, tmp_path, is_ancestor=False)
+    assert not any("checkout" in " ".join(c) for c in issued)
+
+
 def test_the_overlay_replaces_stale_harness_directories(tmp_path: Path):
     """A benchmark deleted from the harness must not survive in the clone."""
 
@@ -233,6 +269,19 @@ def test_an_incomplete_harness_is_reported_rather_than_silently_skipped(tmp_path
     (workspace / "tools").mkdir(parents=True)
     with pytest.raises(batch.CommitFailure):
         batch.overlay_harness(workspace, tmp_path / "clone")
+
+
+def test_history_is_cut_at_the_compatibility_floor():
+    """Commits older than the floor cannot be built by the current harness."""
+
+    history = commits(5)
+    kept = dispatcher.supported_commits(history, history[2].sha)
+    assert [c.sha for c in kept] == [c.sha for c in history[2:]]
+
+
+def test_history_without_the_floor_is_rejected_rather_than_silently_truncated():
+    with pytest.raises(dispatcher.UnsupportedHistoryError, match="deadbeef"):
+        dispatcher.supported_commits(commits(3), "deadbeef")
 
 
 def test_batches_cover_the_history_contiguously_and_exactly_once():

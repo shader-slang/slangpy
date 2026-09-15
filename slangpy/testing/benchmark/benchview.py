@@ -11,7 +11,7 @@ from time import sleep
 from typing import Any, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 BENCHVIEW_MAX_BODY_BYTES = 8 * 1024 * 1024
 BENCHVIEW_DEFAULT_BATCH_SIZE = 100
@@ -375,6 +375,34 @@ def benchview_submission_url(api_base_url: str) -> str:
             "BenchView API base URL must not contain query or fragment text."
         )
     return api_base_url.rstrip("/") + "/api/v1/submissions"
+
+
+def _origin(url: str) -> tuple[str, str]:
+    """Return the scheme and authority that a credential may be sent to."""
+
+    parsed = urlsplit(url)
+    return (parsed.scheme, parsed.netloc)
+
+
+class _SameOriginRedirectHandler(HTTPRedirectHandler):
+    """Stop the write key from following a redirect off its own origin.
+
+    urllib copies request headers onto the redirected request, so a redirect would
+    otherwise hand the Bearer key to whatever host the response names. The hosted
+    deployment is plain HTTP on an internal host and that is not ours to change, so
+    the credential must at least never leave the origin it was issued for.
+    """
+
+    def redirect_request(self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> Optional[Request]:  # type: ignore[override]
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is not None and _origin(newurl) != _origin(req.full_url):
+            redirected.remove_header("Authorization")
+        return redirected
+
+
+# Submissions go through an opener that will not carry the write key across origins.
+# Bound to the stdlib's name so the call site reads the same and stays substitutable.
+urlopen = build_opener(_SameOriginRedirectHandler()).open
 
 
 def _safe_response_text(data: bytes, write_key: str) -> str:

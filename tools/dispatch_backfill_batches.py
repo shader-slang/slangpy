@@ -17,15 +17,39 @@ import sys
 from typing import Optional, Sequence
 
 try:
-    from tools import backfill_benchmarks
     from tools.benchmark_actions import Commit, GitHubCli, GitHubCliError
 except ModuleNotFoundError:
-    import backfill_benchmarks  # type: ignore[no-redef]
     from benchmark_actions import Commit, GitHubCli, GitHubCliError
 
 DEFAULT_REPOSITORY = "shader-slang/slangpy"
 DEFAULT_WORKFLOW = "backfill-benchmark.yml"
 DEFAULT_BATCH_SIZE = 30
+
+# The oldest commit whose build the current benchmark harness can drive. Earlier
+# commits are not a supported backfill target.
+SUPPORTED_FLOOR_SHA = "f3ad0fd91d8cf4eeb2be3b505765b43482aa952a"
+SUPPORTED_FLOOR_TIME = datetime(2025, 9, 2, 14, 42, 35, tzinfo=timezone.utc)
+
+
+class UnsupportedHistoryError(RuntimeError):
+    """The discovered history does not contain the configured compatibility floor."""
+
+
+def supported_commits(commits: Sequence[Commit], lower_bound: str) -> list[Commit]:
+    """Return commits from the inclusive boundary forward in chronological order.
+
+    :param commits: Commits discovered for the branch, in any order.
+    :param lower_bound: SHA of the inclusive compatibility floor.
+    :return: Commits at or after the floor, oldest first.
+    """
+
+    ordered = sorted(commits, key=lambda commit: (commit.committed_at, commit.sha))
+    for index, commit in enumerate(ordered):
+        if commit.sha == lower_bound:
+            return ordered[index:]
+    raise UnsupportedHistoryError(
+        f"Supported lower-bound commit {lower_bound} was not returned for the branch history."
+    )
 
 
 def batch_commits(commits: Sequence[Commit], size: int) -> list[list[Commit]]:
@@ -126,12 +150,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     commits = github.list_commits(
         args.repository,
         args.branch,
-        backfill_benchmarks.SUPPORTED_FLOOR_TIME,
+        SUPPORTED_FLOOR_TIME,
         datetime.now(timezone.utc),
     )
-    supported = backfill_benchmarks.supported_commits(
-        commits, backfill_benchmarks.SUPPORTED_FLOOR_SHA
-    )
+    supported = supported_commits(commits, SUPPORTED_FLOOR_SHA)
 
     excluded = read_exclusions(args.exclude_file)
     selected = [commit for commit in supported if commit.sha not in excluded]

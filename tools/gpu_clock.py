@@ -248,7 +248,10 @@ def main() -> None:
     if args.command == "list":
         list_gpu_clocks(args.device)
     elif args.command == "lock":
-        lock_gpu_clocks(args.device, args.ratio, args.conservative, args.dry_run)
+        # Reporting success after failing to lock would let ci.py benchmark on
+        # unpinned clocks and submit the unstable timings as if they were pinned.
+        if lock_gpu_clocks(args.device, args.ratio, args.conservative, args.dry_run) is None:
+            parser.error("Could not lock GPU clocks.")
     elif args.command == "unlock":
         unlock_gpu_clocks(args.device, args.dry_run)
 

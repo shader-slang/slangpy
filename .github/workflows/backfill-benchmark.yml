@@ -14,9 +14,11 @@ on:
         type: string
 
 permissions:
+  # This job builds and runs arbitrary historical revisions on a persistent
+  # self-hosted runner, so it is given nothing beyond reading the repository.
+  # It publishes no checks and requests no OIDC token; results go to BenchView
+  # over its own API key.
   contents: read
-  checks: write
-  id-token: write
 
 jobs:
   build:
@@ -50,7 +52,12 @@ jobs:
     steps:
       # The harness checkout supplies the driver, the files overlaid onto every
       # historical tree, and the vcpkg revision known to still bootstrap.
+      # persist-credentials is off because the historical code this job builds and
+      # runs would otherwise be able to read the job token out of .git/config. The
+      # clone below uses the public HTTPS URL and needs no credentials.
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       # runner.temp is not available in the job-level env block, so these paths have
       # to be published here rather than declared alongside the other variables.

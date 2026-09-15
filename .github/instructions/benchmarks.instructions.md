@@ -109,30 +109,30 @@ The ordinary `.github/workflows/ci-benchmark.yml` workflow is manual and is also
 
 The nightly `.github/workflows/schedule-benchmarks.yml` workflow runs once per day. It uses the authenticated GitHub API client supplied by `actions/github-script`, so it needs no checkout, Python environment, GitHub CLI, or extra secret. It examines one fixed 24-hour UTC interval and dispatches the ordinary workflow once for every `main` commit in that interval, oldest first, through the `revision` input. It deliberately does not inspect or suppress existing runs; manually triggering the scheduler repeats the complete 24-hour interval.
 
-The local historical backfill controller still uses the official GitHub CLI because it is a resumable operator process rather than a GitHub-hosted workflow. It never accepts a token argument. Verify its prerequisite before any preview or dispatch:
+The historical backfill dispatcher uses the official GitHub CLI because it is an operator process rather than a GitHub-hosted workflow. It never accepts a token argument. Verify its prerequisite before any preview or dispatch:
 
 ```powershell
 gh --version
 gh auth status
 ```
 
-Historical commits use the separate manual `.github/workflows/backfill-benchmark.yml` workflow. Its inclusive supported floor is `f3ad0fd91d8cf4eeb2be3b505765b43482aa952a` from 2 September 2025; older revisions are rejected before setup or build. Each matrix job uses ordinary Git commands to create and synchronize a unique normal recursive clone below the runner's temporary directory, builds the untouched historical checkout, and only then overlays the current `tools/ci.py`, `tools/gpu_clock.py`, and `slangpy/testing/benchmark/` reporting harness. Native PowerShell and Bash cleanup steps validate the resolved clone path before removing it. Submitted observations explicitly identify the historical SHA and branch `main`.
+Historical commits use the separate manual `.github/workflows/backfill-benchmark.yml` workflow. Its inclusive supported floor is `f3ad0fd91d8cf4eeb2be3b505765b43482aa952a` from 2 September 2025; older revisions are rejected before setup or build. A run takes a whole rev list rather than a single commit, because roughly 80% of a single-commit run's wall time is spent waiting for a performance runner. `tools/backfill_batch.py` clones once below the runner's temporary directory and then, for each commit, resets and cleans the tree, checks the commit out, builds it untouched, and only then copies the current harness over it. Each commit is isolated: a failure is recorded against that commit and the loop continues. Per-commit outcomes are written to the job summary as the loop proceeds, so a job that dies mid-batch still reports what it submitted and names what it never reached. Native PowerShell and Bash cleanup steps validate the resolved clone path before removing it. Submitted observations explicitly identify the historical SHA and branch `main`.
 
-Preview the supported inventory without creating state or dispatching:
-
-```powershell
-python tools/backfill_benchmarks.py --dry-run
-```
-
-After the boundary and later historical pilot workflows have passed, start or resume the bounded scheduler with:
+Preview the batches without dispatching anything:
 
 ```powershell
-python tools/backfill_benchmarks.py
+python tools/dispatch_backfill_batches.py --dry-run
 ```
 
-The scheduler stores only commit and workflow-run state in `.temp/benchmark-backfill-state.json`. It publishes `dispatching` state before each request, records GitHub's returned run ID afterward, dispatches at most one oldest commit per minute, and never permits more than four active backfill workflows. Ctrl+C exits with code 130 after the latest atomic state replacement; running the same command again reconciles deterministic `backfill-benchmark: <SHA>` titles and continues without duplicating accepted requests. `--once` performs at most one scheduling iteration for a controlled trial.
+Dispatch the whole sweep. Every batch is submitted immediately; GitHub queues them and drains as runners free up, so there is no scheduler process to supervise and nothing to resume:
 
-Never run two scheduler processes against the same state file. If the scheduler reports incompatible or corrupt state, leave it untouched, archive it manually, and rerun so deterministic GitHub titles can reconstruct already requested commits.
+```powershell
+python tools/dispatch_backfill_batches.py
+```
+
+`--branch` selects the history to benchmark and `--workflow-ref` selects the ref the workflow definition is read from. Keep these distinct: pointing `--branch` at a development branch benchmarks that branch's own commits and submits them to BenchView as if they were `main`. `--batch-size` defaults to 30 commits per run and `--exclude-file` takes a list of commits to leave out, one per line, for skipping commits that have already been benchmarked.
+
+Read each finished run's summary for its succeeded and failed commit lists, and re-dispatch any failures as a smaller rev list.
 
 ## Writing New Benchmarks
 

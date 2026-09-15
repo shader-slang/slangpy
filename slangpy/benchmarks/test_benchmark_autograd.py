@@ -10,18 +10,22 @@ import slangpy as spy
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkPythonFunction
 
-try:
-    from slangpy.core.native import NativeTorchTensorDiffPair
-except ImportError:
-    # Backfill targets predate the native torch bridge. Outside the backfill a
-    # missing import is a real regression, so only soften it when BACKFILL_TARGET_SHA
-    # says we are deliberately running against an older build.
+from slangpy.core import native as _native
+
+# A build that predates the native torch bridge simply lacks this symbol. Probing for
+# it rather than catching ImportError keeps a genuine failure to import
+# slangpy.core.native fatal, during a backfill as well as in ordinary CI.
+if not hasattr(_native, "NativeTorchTensorDiffPair"):
     if not os.environ.get("BACKFILL_TARGET_SHA"):
-        raise
+        raise ImportError(
+            "cannot import name 'NativeTorchTensorDiffPair' from 'slangpy.core.native'"
+        )
     pytest.skip(
         "slangpy.core.native.NativeTorchTensorDiffPair is not available in this build",
         allow_module_level=True,
     )
+
+NativeTorchTensorDiffPair = _native.NativeTorchTensorDiffPair
 
 HAS_TORCH = False
 try:

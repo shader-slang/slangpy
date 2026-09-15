@@ -15,7 +15,31 @@ permissions:
   id-token: write
 
 jobs:
+  # The benchmark job carries the BenchView write key and then builds and runs the
+  # revision's own code. workflow_dispatch already limits who can start it, but the
+  # revision input is free text, so confirm it is real main history before the key is
+  # anywhere near it.
+  validate-revision:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the revision to be an ancestor of main
+        if: inputs.revision != ''
+        env:
+          REVISION: ${{ inputs.revision }}
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor "$REVISION" origin/main; then
+            echo "::error::$REVISION is not contained in main; refusing to benchmark it." >&2
+            exit 1
+          fi
+          echo "$REVISION is main history."
+
   build:
+    needs: validate-revision
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false

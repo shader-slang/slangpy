@@ -120,13 +120,19 @@ def reset_to_commit(clone: Path, sha: str) -> None:
     run(["git", "lfs", "pull"], clone, "lfs")
 
 
+# The vcpkg revision that stopped requesting the deleted MSYS2 runtime. Pins that
+# predate it cannot bootstrap pkgconf and so cannot build at all.
+VCPKG_MSYS2_FIX = "dba4ce18"
+
+
 def repin_vcpkg(clone: Path, harness_vcpkg: str) -> None:
     """Replace a vcpkg revision that can no longer bootstrap with the harness one.
 
-    MSYS2 deletes superseded packages, so vcpkg revisions pinned before dba4ce18
-    request an msys2-runtime that no longer exists and cannot build pkgconf. Only
-    those targets are repinned; anything already on the harness revision is built
-    exactly as it was committed.
+    MSYS2 deletes superseded packages, so vcpkg revisions pinned before
+    :data:`VCPKG_MSYS2_FIX` request an msys2-runtime that no longer exists and cannot
+    build pkgconf. Only those targets are repinned. A pin that merely differs from the
+    harness is left alone: the dependency set is part of what the backfill measures, so
+    silently moving it would change the thing being timed.
 
     This has to run after ``ci.py setup``, which resets every submodule to its
     recorded revision.
@@ -136,8 +142,16 @@ def repin_vcpkg(clone: Path, harness_vcpkg: str) -> None:
     if target_vcpkg == harness_vcpkg:
         print(f"Target already pins the harness vcpkg revision {target_vcpkg}")
         return
-    print(f"Replacing unbootstrappable vcpkg {target_vcpkg} with {harness_vcpkg}")
+
     vcpkg = clone / "external" / "vcpkg"
+    if not attempt(["git", "merge-base", "--is-ancestor", target_vcpkg, VCPKG_MSYS2_FIX], vcpkg):
+        # Either the pin postdates the MSYS2 fix, or ancestry could not be decided.
+        # Both mean "not known to be broken", so build what the commit asked for and
+        # let a bootstrap failure be reported honestly against this commit.
+        print(f"Keeping the target vcpkg revision {target_vcpkg}")
+        return
+
+    print(f"Replacing unbootstrappable vcpkg {target_vcpkg} with {harness_vcpkg}")
     if not attempt(["git", "fetch", "--no-tags", "origin", harness_vcpkg], vcpkg):
         run(["git", "fetch", "--no-tags", "origin"], vcpkg, "vcpkg")
     run(["git", "checkout", "--detach", harness_vcpkg], vcpkg, "vcpkg")

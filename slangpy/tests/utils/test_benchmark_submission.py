@@ -735,3 +735,29 @@ def test_submit_redacts_key_from_http_failure(monkeypatch: pytest.MonkeyPatch) -
     assert key not in str(error.value)
     assert "<redacted>" in str(error.value)
     assert attempts == 1
+
+
+def test_the_write_key_does_not_follow_a_redirect_to_another_origin() -> None:
+    """urllib copies headers onto redirects, which would hand the key to any host."""
+
+    handler = benchmark_api._SameOriginRedirectHandler()
+    request = Request(
+        "http://benchview.test/benchview/api/v1/submissions",
+        data=b"{}",
+        method="POST",
+        headers={"Authorization": "Bearer secret", "Content-Type": "application/json"},
+    )
+
+    # urllib refuses 307 and 308 on a POST outright, so the reachable leak is a
+    # 301/302/303 that it rewrites into a GET while carrying the headers over.
+    elsewhere = handler.redirect_request(
+        request, BytesIO(b""), 302, "Found", Message(), "http://attacker.test/collect"
+    )
+    assert elsewhere is not None
+    assert "Authorization" not in elsewhere.headers
+
+    same = handler.redirect_request(
+        request, BytesIO(b""), 302, "Found", Message(), "http://benchview.test/moved"
+    )
+    assert same is not None
+    assert same.headers["Authorization"] == "Bearer secret"

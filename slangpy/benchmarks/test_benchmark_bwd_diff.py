@@ -32,14 +32,16 @@ if sys.platform == "darwin":
 
 import slangpy as spy
 
-try:
-    from slangpy import diff_pair, Tensor
-except ImportError:
-    # Backfill targets predate diff_pair. Outside the backfill a missing import is a
-    # real regression, so only soften it when deliberately running an older build.
+# A build that predates these APIs simply lacks the names. Probing for them rather
+# than catching ImportError keeps a genuine failure to import slangpy itself fatal,
+# during a backfill as well as in ordinary CI.
+_missing = [name for name in ("diff_pair", "Tensor") if not hasattr(spy, name)]
+if _missing:
     if not os.environ.get("BACKFILL_TARGET_SHA"):
-        raise
-    pytest.skip("slangpy.diff_pair is not available in this build", allow_module_level=True)
+        raise ImportError(f"cannot import name {_missing[0]!r} from 'slangpy'")
+    pytest.skip(f"slangpy.{_missing[0]} is not available in this build", allow_module_level=True)
+
+diff_pair, Tensor = spy.diff_pair, spy.Tensor
 
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkSlangFunction
