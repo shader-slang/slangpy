@@ -166,8 +166,7 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
     PixelFormat pixel_format = bitmap->pixel_format();
     bool convert_to_rgba = false;
     if (pixel_format == PixelFormat::y) {
-        if (options.load_as_rgb
-            || (options.load_as_srgb && component_type == ComponentType::uint8 && bitmap->srgb_gamma())) {
+        if (options.y_handling == YHandling::expand_to_rgba) {
             pixel_format = PixelFormat::rgba;
             convert_to_rgba = true;
         } else {

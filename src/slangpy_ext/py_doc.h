@@ -9502,12 +9502,17 @@ static const char *__doc_sgl_TextureLoader_Options_generate_mips = R"doc(Generat
 static const char *__doc_sgl_TextureLoader_Options_load_as_normalized = R"doc(Load 8/16-bit integer data as normalized resource format.)doc";
 
 static const char *__doc_sgl_TextureLoader_Options_load_as_srgb =
-R"doc(Use ``Format::rgba8_unorm_srgb`` for 8-bit color bitmaps with sRGB
-gamma. Luminance-only color bitmaps are expanded to RGBA.)doc";
+R"doc(Use ``Format::rgba8_unorm_srgb`` format if bitmap is 8-bit RGBA with
+sRGB gamma.)doc";
 
 static const char *__doc_sgl_TextureLoader_Options_usage =
 R"doc(Resource usage flags for the texture. Render-target or unordered-
 access usage will be added automatically if ``generate_mips`` is true.)doc";
+
+static const char *__doc_sgl_TextureLoader_Options_y_handling =
+R"doc(Strategy for handling Y (greyscale) bitmaps, independent of sRGB
+interpretation. Expansion preserves component type and gamma encoding;
+explicit R/RG bitmaps are unchanged.)doc";
 
 static const char *__doc_sgl_TextureLoader_Options_ya_handling = R"doc(Strategy for handling YA (greyscale + alpha) bitmaps.)doc";
 

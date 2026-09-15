@@ -13,11 +13,11 @@ using TextureLoaderOptions = TextureLoader::Options;
 SGL_DICT_TO_DESC_BEGIN(TextureLoaderOptions)
 SGL_DICT_TO_DESC_FIELD(load_as_normalized, bool)
 SGL_DICT_TO_DESC_FIELD(load_as_srgb, bool)
-SGL_DICT_TO_DESC_FIELD(load_as_rgb, bool)
 SGL_DICT_TO_DESC_FIELD(extend_alpha, bool)
 SGL_DICT_TO_DESC_FIELD(allocate_mips, bool)
 SGL_DICT_TO_DESC_FIELD(generate_mips, bool)
 SGL_DICT_TO_DESC_FIELD(usage, TextureUsage)
+SGL_DICT_TO_DESC_FIELD(y_handling, YHandling)
 SGL_DICT_TO_DESC_FIELD(ya_handling, YAHandling)
 SGL_DICT_TO_DESC_END()
 } // namespace sgl
@@ -25,6 +25,10 @@ SGL_DICT_TO_DESC_END()
 SGL_PY_EXPORT(utils_texture_loader)
 {
     using namespace sgl;
+
+    nb::enum_<YHandling>(m, "YHandling")
+        .value("preserve_as_r", YHandling::preserve_as_r)
+        .value("expand_to_rgba", YHandling::expand_to_rgba);
 
     nb::enum_<YAHandling>(m, "YAHandling")
         .value("expand_to_rgba", YAHandling::expand_to_rgba)
@@ -47,16 +51,11 @@ SGL_PY_EXPORT(utils_texture_loader)
             D(TextureLoader, Options, load_as_normalized)
         )
         .def_rw("load_as_srgb", &TextureLoader::Options::load_as_srgb, D(TextureLoader, Options, load_as_srgb))
-        .def_rw(
-            "load_as_rgb",
-            &TextureLoader::Options::load_as_rgb,
-            "Expand luminance-only bitmaps to RGBA without changing component type or gamma encoding. "
-            "Explicit R/RG bitmaps are unchanged."
-        )
         .def_rw("extend_alpha", &TextureLoader::Options::extend_alpha, D(TextureLoader, Options, extend_alpha))
         .def_rw("allocate_mips", &TextureLoader::Options::allocate_mips, D(TextureLoader, Options, allocate_mips))
         .def_rw("generate_mips", &TextureLoader::Options::generate_mips, D(TextureLoader, Options, generate_mips))
         .def_rw("usage", &TextureLoader::Options::usage)
+        .def_rw("y_handling", &TextureLoader::Options::y_handling, D(TextureLoader, Options, y_handling))
         .def_rw("ya_handling", &TextureLoader::Options::ya_handling);
 
     nb::implicitly_convertible<nb::dict, TextureLoader::Options>();

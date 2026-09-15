@@ -12,6 +12,15 @@
 
 namespace sgl {
 
+/// Strategy for handling Y (greyscale) bitmaps during texture loading.
+enum class YHandling {
+    preserve_as_r,
+    expand_to_rgba,
+};
+
+SGL_ENUM_INFO(YHandling, {{YHandling::preserve_as_r, "preserve_as_r"}, {YHandling::expand_to_rgba, "expand_to_rgba"}});
+SGL_ENUM_REGISTER(YHandling);
+
 /// Strategy for handling YA (greyscale + alpha) bitmaps during texture loading.
 enum class YAHandling {
     expand_to_rgba,
@@ -36,14 +45,13 @@ public:
     struct SGL_API Options {
         /// Load 8/16-bit integer data as normalized resource format.
         bool load_as_normalized{true};
-        /// Use \c Format::rgba8_unorm_srgb for 8-bit color bitmaps with sRGB gamma.
-        /// Luminance-only color bitmaps are expanded to RGBA.
+        /// Use \c Format::rgba8_unorm_srgb format if bitmap is 8-bit RGBA with sRGB gamma.
         bool load_as_srgb{true};
-        /// Expand luminance-only bitmaps to RGBA for consumers that require RGB channels.
-        /// Preserves the component type and gamma encoding; explicit R/RG bitmaps are unchanged.
-        bool load_as_rgb{false};
         /// Extend RGB to RGBA if the RGB texture format cannot support the requested usage.
         bool extend_alpha{true};
+        /// Strategy for handling Y (greyscale) bitmaps, independent of sRGB interpretation.
+        /// Expansion preserves component type and gamma encoding; explicit R/RG bitmaps are unchanged.
+        YHandling y_handling{YHandling::preserve_as_r};
         /// Strategy for handling YA (greyscale + alpha) bitmaps.
         YAHandling ya_handling{YAHandling::expand_to_rgba};
         /// Allocate mip levels for the texture.
