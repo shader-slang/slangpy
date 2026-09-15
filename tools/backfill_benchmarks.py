@@ -24,12 +24,14 @@ import os
 from pathlib import Path
 import sys
 import time
-from typing import Iterable, Optional, Sequence
+from typing import Callable, Iterable, Optional, Sequence
 
-try:
-    from tools.benchmark_actions import Commit, GitHubCli, GitHubCliError, WorkflowRun
-except ModuleNotFoundError:
-    from benchmark_actions import Commit, GitHubCli, GitHubCliError, WorkflowRun
+# Importable both as ``tools.backfill_benchmarks`` and as a directly executed
+# script, which only puts tools/ on the path.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools.backfill_commit import SUPPORTED_FLOOR_SHA, SUPPORTED_FLOOR_TIME
+from tools.benchmark_actions import Commit, GitHubCli, GitHubCliError, WorkflowRun
 
 DEFAULT_REPOSITORY = "shader-slang/slangpy"
 DEFAULT_WORKFLOW = "backfill-benchmark.yml"
@@ -41,10 +43,11 @@ DEFAULT_WORKFLOW = "backfill-benchmark.yml"
 DEFAULT_MAX_IN_FLIGHT = 2
 DEFAULT_POLL_SECONDS = 60
 
-# The oldest commit whose build the current benchmark harness can drive. Earlier
-# commits are not a supported backfill target.
-SUPPORTED_FLOOR_SHA = "f3ad0fd91d8cf4eeb2be3b505765b43482aa952a"
-SUPPORTED_FLOOR_TIME = datetime(2025, 9, 2, 14, 42, 35, tzinfo=timezone.utc)
+# Individual dispatches are retried, because rate limiting and transient API
+# failures are expected over a sweep this long. A run of failures this size is
+# not transient, and looping on it would hide the real problem behind progress
+# output. The state file makes stopping cheap.
+MAX_CONSECUTIVE_DISPATCH_FAILURES = 5
 
 STATE_VERSION = 1
 
@@ -278,13 +281,22 @@ def dispatch(
 
 
 def poll(state: SweepState, github: GitHubCli, repository: str) -> None:
-    """Move every finished run out of flight."""
+    """Move every finished run out of flight.
+
+    A run that cannot be asked about is left in flight and retried on the next
+    pass. A sweep runs for hours, so a transient API failure has to cost one poll
+    rather than the whole sweep.
+    """
 
     for sha in [s for s, e in state.commits.items() if str(e.get("status")) == IN_FLIGHT]:
         run_id = state.run_id(sha)
         if run_id is None:
             continue
-        outcome = conclude(github.get_run(repository, run_id))
+        try:
+            outcome = conclude(github.get_run(repository, run_id))
+        except GitHubCliError as error:
+            print(f"  could not read run {run_id} for {sha[:12]}: {error}", file=sys.stderr)
+            continue
         if outcome is not None:
             state.record(sha, outcome, run_id)
             print(f"  {sha[:12]} {outcome}")
@@ -300,11 +312,12 @@ def sweep(
     workflow_ref: str,
     max_in_flight: int,
     poll_seconds: float,
-    sleeper=time.sleep,
+    sleeper: Callable[[float], None] = time.sleep,
 ) -> int:
     """Dispatch every pending commit, never exceeding the in-flight cap."""
 
     remaining = [sha for sha in shas if state.status(sha) not in TERMINAL]
+    consecutive_failures = 0
     while remaining or state.counts()[IN_FLIGHT]:
         poll(state, github, repository)
         remaining = [sha for sha in remaining if state.status(sha) not in TERMINAL]
@@ -320,10 +333,19 @@ def sweep(
                 sha=sha,
             ):
                 remaining.pop(0)
+                consecutive_failures = 0
             else:
                 # A rejected dispatch is usually rate limiting or a transient API
                 # failure, so leave it at the head of the queue and wait rather
                 # than spinning through the rest of the sweep failing each one.
+                consecutive_failures += 1
+                if consecutive_failures >= MAX_CONSECUTIVE_DISPATCH_FAILURES:
+                    # Nothing is getting through, so this is a standing problem
+                    # such as an expired token. Stop rather than log forever.
+                    raise GitHubCliError(
+                        f"{consecutive_failures} dispatches failed in a row; "
+                        "check 'gh auth status' and re-run to resume."
+                    )
                 break
 
         if remaining or state.counts()[IN_FLIGHT]:
@@ -380,27 +402,33 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"Refusing to start: {error}", file=sys.stderr)
         return 1
 
-    github = GitHubCli()
-    # Query from just before the floor's own timestamp. GitHub documents `since` as
-    # "after the given time" while in practice returning commits at exactly that
-    # instant, and the floor commit sits exactly on it. The SHA below is what actually
-    # defines the boundary, so widening the query costs nothing.
-    commits = github.list_commits(
-        args.repository,
-        args.branch,
-        SUPPORTED_FLOOR_TIME - timedelta(seconds=1),
-        datetime.now(timezone.utc),
-    )
-    supported = supported_commits(commits, SUPPORTED_FLOOR_SHA)
+    try:
+        github = GitHubCli()
+        # Query from just before the floor's own timestamp. GitHub documents `since` as
+        # "after the given time" while in practice returning commits at exactly that
+        # instant, and the floor commit sits exactly on it. The SHA below is what actually
+        # defines the boundary, so widening the query costs nothing.
+        commits = github.list_commits(
+            args.repository,
+            args.branch,
+            SUPPORTED_FLOOR_TIME - timedelta(seconds=1),
+            datetime.now(timezone.utc),
+        )
+        supported = supported_commits(commits, SUPPORTED_FLOOR_SHA)
 
-    if args.retry_failed:
-        for sha, entry in list(state.commits.items()):
-            if str(entry.get("status")) == FAILED:
-                state.commits.pop(sha)
-        state.save()
+        if args.retry_failed:
+            for sha, entry in list(state.commits.items()):
+                if str(entry.get("status")) == FAILED:
+                    state.commits.pop(sha)
+            state.save()
 
-    print(f"Reconciling {args.state_file} against GitHub")
-    reconcile(state, github, args.repository, args.workflow)
+        # Reconciliation decides what was already dispatched, so it cannot be skipped
+        # when GitHub is unreachable: proceeding would dispatch those commits again.
+        print(f"Reconciling {args.state_file} against GitHub")
+        reconcile(state, github, args.repository, args.workflow)
+    except (GitHubCliError, UnsupportedHistoryError) as error:
+        print(f"Refusing to start: {error}", file=sys.stderr)
+        return 1
 
     pending = [c.sha for c in supported if state.status(c.sha) not in TERMINAL]
     tally = state.counts()
@@ -425,14 +453,15 @@ def main(argv: Optional[list[str]] = None) -> int:
             max_in_flight=args.max_in_flight,
             poll_seconds=args.poll_seconds,
         )
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, GitHubCliError) as error:
         tally = state.counts()
+        detail = "Interrupted." if isinstance(error, KeyboardInterrupt) else f"Stopped: {error}"
         print(
-            f"\nInterrupted. {tally[IN_FLIGHT]} run(s) left in flight and recorded in "
+            f"\n{detail} {tally[IN_FLIGHT]} run(s) left in flight and recorded in "
             f"{args.state_file}; re-run the same command to pick them up.",
             file=sys.stderr,
         )
-        return 130
+        return 130 if isinstance(error, KeyboardInterrupt) else 1
 
 
 if __name__ == "__main__":

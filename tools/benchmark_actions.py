@@ -10,6 +10,9 @@ import subprocess
 from typing import Any, Optional, Protocol, Sequence
 
 GITHUB_API_VERSION = "2026-03-10"
+# The maximum the GitHub REST API accepts, so a bounded scan reads as few pages
+# as possible.
+RUNS_PER_PAGE = 100
 
 
 class GitHubCliError(RuntimeError):
@@ -280,29 +283,45 @@ class GitHubCli:
     def list_workflow_runs(
         self, repository: str, workflow: str, pages: int = 5
     ) -> list[WorkflowRun]:
-        """List recent runs of one workflow, newest first.
+        """List the most recent runs of one workflow, newest first.
 
         Used to recover a dispatch whose run id was never recorded, which happens
-        if the dispatcher dies between the API call and its state write.
+        if the dispatcher dies between the API call and its state write. Only
+        recent history can contain such a run, so this is deliberately bounded to
+        ``pages`` rather than walking the workflow's entire run history.
+
+        Paged explicitly instead of with ``--paginate``: that flag follows Link
+        headers to the end of history from wherever it starts, so it can neither
+        be bounded nor combined with an explicit starting page.
+
+        :param repository: ``owner/name`` of the repository.
+        :param workflow: Workflow file name.
+        :param pages: Maximum number of 100-run pages to read.
+        :return: Runs, newest first.
         """
 
-        response = self._invoke(
-            [
-                "--method",
-                "GET",
-                "--paginate",
-                "--slurp",
-                f"repos/{repository}/actions/workflows/{workflow}/runs",
-                "-f",
-                "per_page=100",
-                "-F",
-                f"page={pages}",
-            ]
-        )
+        if pages < 1:
+            raise ValueError("Workflow run page count must be positive.")
         runs: list[WorkflowRun] = []
-        for page in _flatten_pages(response):
-            if not isinstance(page, dict):
-                raise GitHubCliError("GitHub workflow run page must be a JSON object.")
-            for index, item in enumerate(page.get("workflow_runs") or []):
-                runs.append(self._workflow_run(item, f"at index {index}"))
+        for page in range(1, pages + 1):
+            response = self._invoke(
+                [
+                    "--method",
+                    "GET",
+                    f"repos/{repository}/actions/workflows/{workflow}/runs",
+                    "-f",
+                    f"per_page={RUNS_PER_PAGE}",
+                    "-f",
+                    f"page={page}",
+                ]
+            )
+            if not isinstance(response, dict):
+                raise GitHubCliError("GitHub workflow-run page must be a JSON object.")
+            items = response.get("workflow_runs")
+            if not isinstance(items, list):
+                raise GitHubCliError("GitHub workflow-run page lacks the workflow_runs array.")
+            for item in items:
+                runs.append(self._workflow_run(item, f"at index {len(runs)}"))
+            if len(items) < RUNS_PER_PAGE:
+                break
         return runs

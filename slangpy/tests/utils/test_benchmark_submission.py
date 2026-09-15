@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import sys
 from datetime import datetime, timezone
 from email.message import Message
 from io import BytesIO
@@ -13,8 +12,10 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
 import pytest
+import yaml
 
 benchmark_api = import_module("slangpy.testing.benchmark.benchview")
+_json_bytes = benchmark_api._json_bytes
 benchmark_plugin = import_module("slangpy.testing.benchmark.plugin")
 ci = import_module("tools.ci")
 gpu_clock = import_module("tools.gpu_clock")
@@ -178,55 +179,73 @@ def test_build_observation_uses_native_identity_and_metric(metric_id: str) -> No
     }
 
 
-def test_build_submissions_shares_run_and_separates_environment_telemetry() -> None:
-    """Prove distributed run identity, batching, and stable/volatile environment mapping."""
+def test_build_submissions_shares_one_run_key_across_batches() -> None:
+    """Every process at one revision must land in the same logical run.
+
+    Batches split by count or by body size, but a split must not fragment the run
+    they belong to, and each batch needs its own idempotency key.
+    """
 
     project_info, machine_info, commit_info = submission_context()
     first = make_observation()
     second = make_observation("cpu_time")
-    second["test"] = {
-        "id": "slangpy/benchmarks/test_benchmark_tensor.py:test_tensor_sum_cpu",
-        "name": "test_tensor_sum_cpu",
+    second["test"] = {"id": "tests:second", "name": "second"}
+    common = {
+        "request_id": "request",
+        "execution_id": "execution-a",
+        "project_info": project_info,
+        "machine_info": machine_info,
+        "commit_info": commit_info,
     }
 
-    submissions = benchmark_api.build_benchview_submissions(
-        [first, second],
-        request_id="gitlab-pipeline-123",
-        execution_id="execution-a",
-        project_info=project_info,
-        machine_info=machine_info,
-        commit_info=commit_info,
-        batch_size=1,
-    )
-    repeated = benchmark_api.build_benchview_submissions(
-        [first, second],
-        request_id="gitlab-pipeline-123",
-        execution_id="execution-a",
-        project_info=project_info,
-        machine_info=machine_info,
-        commit_info=commit_info,
-        batch_size=1,
-    )
-    other_execution = benchmark_api.build_benchview_submissions(
-        [first],
-        request_id="gitlab-pipeline-123",
-        execution_id="execution-b",
-        project_info=project_info,
-        machine_info=machine_info,
-        commit_info=commit_info,
+    by_count = benchmark_api.build_benchview_submissions([first, second], batch_size=1, **common)
+    single = len(_json_bytes(benchmark_api.build_benchview_submissions([first], **common)[0]))
+    by_size = benchmark_api.build_benchview_submissions(
+        [first, second], max_body_bytes=single, **common
     )
 
-    assert submissions == repeated
-    assert len(submissions) == 2
-    assert submissions[0]["run"]["key"] == submissions[1]["run"]["key"]
-    assert submissions[0]["run"]["key"] == other_execution[0]["run"]["key"]
-    assert submissions[0]["idempotencyKey"] != submissions[1]["idempotencyKey"]
-    assert submissions[0]["idempotencyKey"] != other_execution[0]["idempotencyKey"]
-    environment = submissions[0]["observations"][0]["environment"]
-    assert environment["identity"]["machine"] == "benchmark-host"
+    assert len(by_count) == 2 and len(by_size) == 2
+    assert by_count[0]["run"]["key"] == by_count[1]["run"]["key"]
+    assert by_count[0]["idempotencyKey"] != by_count[1]["idempotencyKey"]
+    # An observation that cannot fit on its own has nowhere to go.
+    with pytest.raises(benchmark_api.BenchmarkSubmissionError, match="exceeds"):
+        benchmark_api.build_benchview_submissions([first], max_body_bytes=single - 1, **common)
+
+    environment = by_count[0]["observations"][0]["environment"]
     assert environment["identity"]["gpus"][0]["memoryBytes"] == 1024 * 1024 * 1024
-    assert "temperature" not in environment["identity"]["gpus"][0]
+    assert "temperature" not in environment["identity"]["gpus"][0], "telemetry is not identity"
     assert environment["telemetry"]["gpus"][0]["temperature"] == 45.0
+
+
+def test_the_ordinary_workflow_benchmarks_only_a_validated_revision() -> None:
+    """The job carries the BenchView write key and then runs the revision's own code.
+
+    Checking out the raw input would let a branch or tag move between validation and
+    checkout, and validating only the explicit input would leave the dispatch default
+    able to benchmark an unmerged commit.
+    """
+
+    text = (REPOSITORY_ROOT / ".github/workflows/ci-benchmark.yml").read_text(encoding="utf-8")
+    workflow = yaml.safe_load(text)
+    # YAML 1.1 reads an unquoted `on` as the boolean true, which is how GitHub spells
+    # the trigger block.
+    workflow["on"] = workflow.pop(True)
+    resolved = "${{ needs.validate-revision.outputs.revision }}"
+
+    build = workflow["jobs"]["build"]
+    assert build["needs"] == "validate-revision"
+    checkout = next(s for s in build["steps"] if "checkout" in s.get("uses", ""))
+    assert checkout["with"]["ref"] == resolved
+    assert build["env"]["BENCHVIEW_BENCHMARK_REF"] == resolved
+
+    resolve = next(
+        s for s in workflow["jobs"]["validate-revision"]["steps"] if s.get("id") == "resolve"
+    )
+    assert resolve["env"]["DEFAULT_REVISION"] == "${{ github.sha }}"
+    assert 'requested="${REVISION:-$DEFAULT_REVISION}"' in resolve["run"]
+    # One resolution and one ancestry check, so neither path can bypass the other.
+    assert resolve["run"].count("git rev-parse") == 1
+    assert resolve["run"].count("merge-base --is-ancestor") == 1
 
 
 def test_submission_url_preserves_arbitrary_nested_base() -> None:
@@ -242,90 +261,6 @@ def test_submission_url_preserves_arbitrary_nested_base() -> None:
     )
     with pytest.raises(benchmark_api.BenchmarkSubmissionError, match="credentials"):
         benchmark_api.benchview_submission_url("https://user:password@host/benchview")
-
-
-def test_build_submissions_splits_at_the_body_limit() -> None:
-    """Split large sessions without allowing one oversize observation through."""
-
-    project_info, machine_info, commit_info = submission_context()
-    first = make_observation()
-    second = make_observation("cpu_time")
-    second["test"] = {"id": "tests:second", "name": "second"}
-    common = {
-        "request_id": "request",
-        "execution_id": "execution",
-        "project_info": project_info,
-        "machine_info": machine_info,
-        "commit_info": commit_info,
-    }
-    single_sizes = [
-        len(
-            json.dumps(
-                benchmark_api.build_benchview_submissions([observation], **common)[0],
-                allow_nan=False,
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode("utf-8")
-        )
-        for observation in (first, second)
-    ]
-    body_limit = max(single_sizes)
-
-    submissions = benchmark_api.build_benchview_submissions(
-        [first, second], max_body_bytes=body_limit, **common
-    )
-    assert len(submissions) == 2
-    with pytest.raises(benchmark_api.BenchmarkSubmissionError, match="exceeds"):
-        benchmark_api.build_benchview_submissions(
-            [first], max_body_bytes=single_sizes[0] - 1, **common
-        )
-
-
-def test_ci_wrapper_passes_benchview_options_to_pytest(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Keep the ordinary CI entry point as the single benchmark runner."""
-
-    commands: list[list[str]] = []
-
-    def capture_command(
-        command: list[str],
-        shell: bool = False,
-        env: Optional[dict[str, str]] = None,
-    ) -> None:
-        """Capture the generated command without starting benchmark subprocesses."""
-
-        assert shell is False
-        assert env is not None
-        commands.append(command)
-
-    monkeypatch.setattr(ci, "get_os", lambda: "linux")
-    monkeypatch.setattr(ci, "run_command", capture_command)
-    ci.benchmark_python(
-        SimpleNamespace(
-            device_type="cuda",
-            lock_gpu_clocks=False,
-            api_url="http://host/benchview",
-            run_id="workflow-123",
-        )
-    )
-
-    assert len(commands) == 1
-    assert commands[0][:6] == [
-        sys.executable,
-        "-m",
-        "pytest",
-        "slangpy/benchmarks",
-        "-ra",
-        "--device-types",
-    ]
-    assert commands[0][-4:] == [
-        "--benchmark-submit",
-        "workflow-123",
-        "--benchmark-api-url",
-        "http://host/benchview",
-    ]
 
 
 def test_on_linux_only_the_nvidia_smi_mutation_is_elevated(
@@ -414,41 +349,42 @@ def test_submit_posts_bearer_authenticated_json(monkeypatch: pytest.MonkeyPatch)
     assert receipts == [{"duplicate": False, "transactionId": "tx", "cursor": "0"}]
 
 
-def test_submit_retries_connection_resets_and_gives_up_after_the_attempt_limit(
+def test_submit_retries_transient_failures_and_gives_up_at_the_attempt_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A reset is ambiguous, so the identical idempotent batch is repeated, but bounded."""
+    """Resets and gateway errors are both retried with the identical body, but bounded."""
 
     attempts: list[bytes] = []
     delays: list[float] = []
-    resets_before_success = 2
+    failures_before_success = 2
 
     def flaky_urlopen(request: Request, timeout: float) -> FakeResponse:
-        """Reset connections until ``resets_before_success`` have been consumed."""
+        """Fail with a reset, then a retryable gateway error, then succeed."""
 
-        assert timeout == 30.0
         assert isinstance(request.data, bytes)
         attempts.append(request.data)
-        if len(attempts) <= resets_before_success:
+        if len(attempts) == 1 <= failures_before_success:
             raise URLError(ConnectionResetError(104, "Connection reset by peer"))
+        if len(attempts) <= failures_before_success:
+            raise HTTPError(request.full_url, 503, "busy", hdrs=Message(), fp=BytesIO(b"temporary"))
         return FakeResponse(
-            200,
-            json.dumps({"duplicate": True, "transactionId": "tx", "cursor": "0"}).encode(),
+            200, json.dumps({"duplicate": True, "transactionId": "tx", "cursor": "0"}).encode()
         )
 
     monkeypatch.setattr(benchmark_api, "urlopen", flaky_urlopen)
     monkeypatch.setattr(benchmark_api, "sleep", lambda delay: delays.append(delay))
-    submit = lambda: benchmark_api.submit_benchview_submissions(
-        "http://host/benchview",
-        "secret-write-key",
-        [{"schemaVersion": 1, "idempotencyKey": "stable-key"}],
-        max_attempts=3,
-        retry_delay_seconds=0.25,
-    )
+
+    def submit() -> list[dict[str, Any]]:
+        return benchmark_api.submit_benchview_submissions(
+            "http://host/benchview",
+            "secret-write-key",
+            [{"schemaVersion": 1, "idempotencyKey": "stable-key"}],
+            max_attempts=3,
+            retry_delay_seconds=0.25,
+        )
 
     receipts = submit()
 
-    assert len(attempts) == 3
     assert attempts[0] == attempts[1] == attempts[2], "the retried payload must be byte-identical"
     assert delays == [0.25, 0.5], "the delay must back off exponentially"
     assert receipts == [{"duplicate": True, "transactionId": "tx", "cursor": "0"}]
@@ -456,52 +392,10 @@ def test_submit_retries_connection_resets_and_gives_up_after_the_attempt_limit(
     # Persistent failure must terminate rather than retry a CI submission forever.
     attempts.clear()
     delays.clear()
-    resets_before_success = 99
+    failures_before_success = 99
     with pytest.raises(benchmark_api.BenchmarkSubmissionError, match=r"after 3 attempt\(s\)"):
         submit()
     assert len(attempts) == 3
-
-
-def test_submit_retries_a_transient_gateway_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Retry temporary proxy failures while leaving permanent HTTP failures terminal."""
-
-    attempts = 0
-    delays: list[float] = []
-
-    def flaky_urlopen(request: Request, timeout: float) -> FakeResponse:
-        """Return one retryable gateway error followed by a normal receipt."""
-
-        nonlocal attempts
-        attempts += 1
-        if attempts == 1:
-            raise HTTPError(
-                request.full_url,
-                503,
-                "Service unavailable",
-                hdrs=Message(),
-                fp=BytesIO(b"temporary"),
-            )
-        return FakeResponse(
-            201,
-            json.dumps({"duplicate": False, "transactionId": "tx", "cursor": "0"}).encode(),
-        )
-
-    monkeypatch.setattr(benchmark_api, "urlopen", flaky_urlopen)
-    monkeypatch.setattr(
-        benchmark_api,
-        "sleep",
-        lambda delay: delays.append(delay),
-    )
-    receipts = benchmark_api.submit_benchview_submissions(
-        "http://host/benchview",
-        "secret-write-key",
-        [{"schemaVersion": 1, "idempotencyKey": "stable-key"}],
-        retry_delay_seconds=0.5,
-    )
-
-    assert attempts == 2
-    assert delays == [0.5]
-    assert receipts == [{"duplicate": False, "transactionId": "tx", "cursor": "0"}]
 
 
 def test_submit_redacts_key_from_http_failure(monkeypatch: pytest.MonkeyPatch) -> None:

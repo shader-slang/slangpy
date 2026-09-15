@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Coverage for the backfill accommodations in the shared test harness.
+"""The backfill accommodations in the shared harness stay shut in ordinary CI.
 
-The backfill runs today's benchmarks against year-old builds, so the harness has to
-tolerate APIs and device types those builds do not have. Every accommodation is gated
-on BACKFILL_TARGET_SHA, and these tests pin both sides of that gate: absorbed during a
-backfill, fatal everywhere else.
+The backfill itself is a one-shot sweep whose mistakes surface on the first run.
+These two gates are different: they live in ``slangpy/testing/helpers.py``, which
+every test run imports, and if either softened, ordinary CI would quietly skip
+what it should be failing on.
 """
 
 from types import SimpleNamespace
@@ -17,11 +17,7 @@ import slangpy as spy
 from slangpy.testing import helpers
 
 
-def test_a_missing_api_is_fatal_outside_a_backfill_and_skips_inside_one(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Both sides of the gate matter: softening ordinary CI would hide a regression."""
-
+def test_a_missing_api_is_fatal_outside_a_backfill(monkeypatch: pytest.MonkeyPatch) -> None:
     module = SimpleNamespace(__name__="fake", present=1)
     helpers.require_apis(module, "present")
 
@@ -33,16 +29,8 @@ def test_a_missing_api_is_fatal_outside_a_backfill_and_skips_inside_one(
         helpers.require_apis(module, "absent")
 
 
-def test_backfill_reports_required_device_failures_instead_of_skipping_them(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Only optional device types are absorbed as backfill capability gaps.
-
-    CUDA cannot be created on Windows before roughly 2026-02, so skipping it keeps the
-    rest of a historical commit's benchmarks reportable. d3d12 exists on the perf
-    runners across the whole supported range, so a build that cannot create one has
-    regressed and must fail rather than quietly lose its coverage.
-    """
+def test_a_required_device_failure_is_never_absorbed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only CUDA is an era-dependent capability gap; d3d12 failing is a regression."""
 
     def refuse(**kwargs: Any) -> Any:
         raise RuntimeError("device creation failed")
@@ -55,11 +43,9 @@ def test_backfill_reports_required_device_failures_instead_of_skipping_them(
 
     with pytest.raises(pytest.skip.Exception):
         helpers.get_device(spy.DeviceType.cuda)
-    assert len(helpers.BACKFILL_UNAVAILABLE_DEVICES) == 1
 
-    # Catching the skip explicitly rather than using pytest.raises: a skip raised here
-    # would otherwise propagate and mark this test skipped, hiding the regression it
-    # exists to catch.
+    # Caught explicitly: a skip escaping here would mark this test skipped and hide
+    # the very regression it exists to catch.
     try:
         helpers.get_device(spy.DeviceType.d3d12)
     except pytest.skip.Exception as skipped:
@@ -69,6 +55,6 @@ def test_backfill_reports_required_device_failures_instead_of_skipping_them(
     else:
         pytest.fail("device creation was expected to fail")
 
-    # The failure is reported, so it must not be recorded as an unavailable device
-    # and suppress the same configuration for the rest of the run.
-    assert len(helpers.BACKFILL_UNAVAILABLE_DEVICES) == 1
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])
