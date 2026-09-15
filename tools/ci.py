@@ -200,7 +200,8 @@ def benchmark_python(args: Any):
         # Run for all device types plus nodevice tests
         device_types = device_types + ["nodevice"]
 
-    failed_devices = []
+    api_url = args.api_url if args.api_url is not None else os.environ.get("BENCHVIEW_API_URL")
+    failed_devices: list[str] = []
     try:
         # Lock GPU clocks
         if args.lock_gpu_clocks:
@@ -212,9 +213,6 @@ def benchmark_python(args: Any):
             print(f"Running benchmarks for device type: {device_type}")
 
             cmd = pytest_command("slangpy/benchmarks", "-ra", "--device-types", device_type)
-            api_url = (
-                args.api_url if args.api_url is not None else os.environ.get("BENCHVIEW_API_URL")
-            )
             if api_url is not None:
                 cmd += ["--benchmark-submit", args.run_id]
                 cmd += ["--benchmark-api-url", api_url]
@@ -226,12 +224,11 @@ def benchmark_python(args: Any):
                 if args.device_type:  # If specific device requested, fail hard
                     raise
                 # Otherwise, track failure and continue with other devices
-                failed_devices.append((device_type, str(e)))
+                failed_devices.append(device_type)
 
         # Fail if any device types had errors
         if failed_devices:
-            summary = "; ".join(f"{dt}" for dt, _ in failed_devices)
-            raise RuntimeError(f"Benchmarks failed for device type(s): {summary}")
+            raise RuntimeError(f"Benchmarks failed for device type(s): {'; '.join(failed_devices)}")
     finally:
         # Unlock GPU clocks
         if args.lock_gpu_clocks:

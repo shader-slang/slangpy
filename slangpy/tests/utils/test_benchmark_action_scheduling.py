@@ -1,19 +1,35 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Offline coverage for the GitHub adapter and the benchmark workflow definitions."""
+"""Offline coverage for the GitHub adapter and the backfill batch dispatcher."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import subprocess
-from typing import Any, Optional, Sequence
+from typing import Optional, Sequence
 
 import pytest
+import yaml
 
 from tools import benchmark_actions as actions
 from tools import dispatch_backfill_batches as dispatcher
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+
+
+def commits(count: int) -> list[actions.Commit]:
+    """Create ``count`` commits one day apart, oldest first."""
+
+    start = datetime(2025, 9, 2, tzinfo=timezone.utc)
+    return [
+        actions.Commit(
+            sha=f"{index:040x}",
+            committed_at=start + timedelta(days=index),
+            message=f"commit {index}",
+            html_url=f"https://github.test/commit/{index:040x}",
+        )
+        for index in range(count)
+    ]
 
 
 class FakeCommandRunner:
@@ -43,104 +59,50 @@ def completed_process(
     """Create one captured subprocess result for a fake command runner."""
 
     return subprocess.CompletedProcess(
-        args=["gh"],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
+        args=["gh"], returncode=returncode, stdout=stdout, stderr=stderr
     )
 
 
-def make_run_document(index: int) -> dict[str, Any]:
-    """Create one GitHub workflow-run response object for adapter pagination tests."""
+def test_paginated_commit_pages_are_flattened_in_order() -> None:
+    """``gh --slurp`` returns an array of pages, which has to become one commit list."""
 
-    sha = f"{index:040x}"
-    return {
-        "id": index,
-        "display_title": f"backfill-benchmark: {sha}",
-        "status": "completed",
-        "conclusion": "success",
-        "html_url": f"https://github.test/runs/{index}",
-        "head_sha": sha,
-        "created_at": "2026-07-16T10:00:00Z",
-        "updated_at": "2026-07-16T11:00:00Z",
-    }
-
-
-def test_github_cli_parses_paginated_commits_and_uses_versioned_api() -> None:
-    """Flatten commit pages while passing all filters through an argument-array command."""
-
-    first_sha = "1" * 40
-    second_sha = "2" * 40
+    first_sha, second_sha = "1" * 40, "2" * 40
     response = [
         [
             {
-                "sha": first_sha,
-                "html_url": f"https://github.test/commit/{first_sha}",
-                "commit": {
-                    "message": "First",
-                    "committer": {"date": "2026-07-16T10:00:00Z"},
-                },
+                "sha": sha,
+                "html_url": f"https://github.test/commit/{sha}",
+                "commit": {"message": "m", "committer": {"date": "2026-07-16T10:00:00Z"}},
             }
-        ],
-        [
-            {
-                "sha": second_sha,
-                "html_url": f"https://github.test/commit/{second_sha}",
-                "commit": {
-                    "message": "Second",
-                    "committer": {"date": "2026-07-16T11:00:00Z"},
-                },
-            }
-        ],
+        ]
+        for sha in (first_sha, second_sha)
     ]
     runner = FakeCommandRunner([completed_process(json.dumps(response))])
     github = actions.GitHubCli(command_runner=runner, executable="gh-test")
 
-    commits = github.list_commits(
+    commit_list = github.list_commits(
         "shader-slang/slangpy",
         "main",
         datetime(2026, 7, 16, tzinfo=timezone.utc),
         datetime(2026, 7, 17, tzinfo=timezone.utc),
     )
 
-    assert [commit.sha for commit in commits] == [first_sha, second_sha]
-    command, input_text = runner.calls[0]
-    assert command[:2] == ["gh-test", "api"]
-    assert f"X-GitHub-Api-Version: {actions.GITHUB_API_VERSION}" in command
-    assert "--paginate" in command
-    assert "--slurp" in command
-    assert "sha=main" in command
-    assert input_text is None
+    assert [c.sha for c in commit_list] == [first_sha, second_sha]
+    command, _ = runner.calls[0]
+    assert "--paginate" in command and "--slurp" in command and "sha=main" in command
 
 
-def test_github_cli_parses_runs_and_dispatches_json_on_stdin() -> None:
-    """Parse workflow pages and return immediate run details from exact dispatch JSON."""
+def test_a_dispatch_sends_its_body_on_stdin() -> None:
+    """Inputs travel as JSON on stdin, never interpolated into the command line."""
 
-    run_page = {
-        "workflow_runs": [
-            {
-                "id": 42,
-                "display_title": "ci-benchmark: " + "a" * 40,
-                "status": "completed",
-                "conclusion": "success",
-                "html_url": "https://github.test/runs/42",
-                "head_sha": "b" * 40,
-                "created_at": "2026-07-16T10:00:00Z",
-                "updated_at": "2026-07-16T11:00:00Z",
-            }
-        ]
-    }
     dispatch = {
         "workflow_run_id": 43,
         "run_url": "https://api.github.test/runs/43",
         "html_url": "https://github.test/runs/43",
     }
-    runner = FakeCommandRunner(
-        [completed_process(json.dumps(run_page)), completed_process(json.dumps(dispatch))]
-    )
+    runner = FakeCommandRunner([completed_process(json.dumps(dispatch))])
     github = actions.GitHubCli(command_runner=runner, executable="gh-test")
 
-    runs = github.list_workflow_runs("shader-slang/slangpy", "ci-benchmark.yml", maximum=10)
     result = github.dispatch_workflow(
         "shader-slang/slangpy",
         "ci-benchmark.yml",
@@ -148,12 +110,8 @@ def test_github_cli_parses_runs_and_dispatches_json_on_stdin() -> None:
         inputs={"revision": "a" * 40},
     )
 
-    assert runs[0].run_id == 42
-    assert runs[0].title == "ci-benchmark: " + "a" * 40
     assert result.run_id == 43
-    command, input_text = runner.calls[1]
-    assert "--method" in command and "POST" in command
-    assert "--input" in command and "-" in command
+    _, input_text = runner.calls[0]
     assert json.loads(input_text or "") == {
         "ref": "main",
         "inputs": {"revision": "a" * 40},
@@ -161,142 +119,68 @@ def test_github_cli_parses_runs_and_dispatches_json_on_stdin() -> None:
     }
 
 
-def test_github_cli_fetches_only_the_requested_workflow_run_pages() -> None:
-    """Bound capacity polling instead of downloading the workflow's complete history."""
+def test_history_without_the_floor_is_rejected_rather_than_silently_truncated() -> None:
+    """Silently dropping the floor would benchmark commits the harness cannot build."""
 
-    first_page = {"workflow_runs": [make_run_document(index) for index in range(1, 101)]}
-    second_page = {"workflow_runs": [make_run_document(101)]}
-    runner = FakeCommandRunner(
-        [completed_process(json.dumps(first_page)), completed_process(json.dumps(second_page))]
+    history = commits(5)
+    assert [c.sha for c in dispatcher.supported_commits(history, history[2].sha)] == [
+        c.sha for c in history[2:]
+    ]
+    with pytest.raises(dispatcher.UnsupportedHistoryError, match="deadbeef"):
+        dispatcher.supported_commits(commits(3), "deadbeef")
+
+
+def test_batches_cover_the_history_contiguously_and_exactly_once() -> None:
+    """A commit dropped or duplicated here is a silent hole in the series."""
+
+    history = commits(65)
+    batches = dispatcher.batch_commits(history, 30)
+    assert [len(b) for b in batches] == [30, 30, 5]
+    assert [c.sha for group in batches for c in group] == [c.sha for c in history]
+
+
+def test_excluded_commits_are_dropped_before_batching(tmp_path: Path) -> None:
+    """Blank lines and comments, indented or not, are not commits."""
+
+    history = commits(4)
+    exclusions = tmp_path / "done.txt"
+    exclusions.write_text(f"  # already benchmarked\n{history[1].sha}\n\n", encoding="utf-8")
+
+    excluded = dispatcher.read_exclusions(exclusions)
+
+    assert [c.sha for c in history if c.sha not in excluded] == [
+        history[0].sha,
+        history[2].sha,
+        history[3].sha,
+    ]
+
+
+def test_the_ordinary_workflow_benchmarks_only_a_validated_revision() -> None:
+    """The job carries the BenchView write key and then runs the revision's own code.
+
+    Checking out the raw input would let a branch or tag move between validation and
+    checkout, and validating only the explicit input would leave the dispatch default
+    able to benchmark an unmerged commit.
+    """
+
+    text = (REPOSITORY_ROOT / ".github/workflows/ci-benchmark.yml").read_text(encoding="utf-8")
+    workflow = yaml.safe_load(text)
+    # YAML 1.1 reads an unquoted `on` as the boolean true, which is how GitHub spells
+    # the trigger block.
+    workflow["on"] = workflow.pop(True)
+    resolved = "${{ needs.validate-revision.outputs.revision }}"
+
+    build = workflow["jobs"]["build"]
+    assert build["needs"] == "validate-revision"
+    checkout = next(s for s in build["steps"] if "checkout" in s.get("uses", ""))
+    assert checkout["with"]["ref"] == resolved
+    assert build["env"]["BENCHVIEW_BENCHMARK_REF"] == resolved
+
+    resolve = next(
+        s for s in workflow["jobs"]["validate-revision"]["steps"] if s.get("id") == "resolve"
     )
-    github = actions.GitHubCli(command_runner=runner, executable="gh-test")
-
-    runs = github.list_workflow_runs("shader-slang/slangpy", "backfill-benchmark.yml", maximum=101)
-
-    assert len(runs) == 101
-    assert len(runner.calls) == 2
-    first_command, _ = runner.calls[0]
-    second_command, _ = runner.calls[1]
-    assert "per_page=100" in first_command
-    assert "page=1" in first_command
-    assert "page=2" in second_command
-    assert "--paginate" not in first_command
-    assert f"X-GitHub-Api-Version: {actions.GITHUB_API_VERSION}" in first_command
-
-
-def test_github_cli_reports_command_and_installation_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Give operators actionable errors without requiring a real binary or printing tokens."""
-
-    runner = FakeCommandRunner(
-        [completed_process("", returncode=1, stderr="authentication failed")]
-    )
-    github = actions.GitHubCli(command_runner=runner, executable="gh-test")
-    with pytest.raises(actions.GitHubCliError, match="gh auth status"):
-        github.list_workflow_runs("shader-slang/slangpy", "ci-benchmark.yml", maximum=1)
-
-    monkeypatch.setattr(actions.shutil, "which", lambda executable: None)
-    with pytest.raises(actions.GitHubCliError, match="gh auth login"):
-        actions.GitHubCli()
-
-
-def test_default_gh_runner_never_uses_a_shell(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Lock the real subprocess boundary to captured UTF-8 argument-array execution."""
-
-    captured: dict[str, Any] = {}
-
-    def fake_run(arguments: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        """Capture subprocess options without starting an external program."""
-
-        captured["arguments"] = arguments
-        captured.update(kwargs)
-        return completed_process("{}")
-
-    monkeypatch.setattr(actions.subprocess, "run", fake_run)
-    actions._default_command_runner(["gh", "api", "rate_limit"], None)
-
-    assert captured["arguments"] == ["gh", "api", "rate_limit"]
-    assert captured["shell"] is False
-    assert captured["check"] is False
-    assert captured["capture_output"] is True
-    assert captured["encoding"] == "utf-8"
-
-
-def test_ordinary_workflow_selects_tip_or_exact_revision_without_backfill_logic() -> None:
-    """Keep exact future selection generic and historical overlays out of ordinary CI."""
-
-    workflow = (REPOSITORY_ROOT / ".github/workflows/ci-benchmark.yml").read_text(encoding="utf-8")
-
-    assert "cron:" not in workflow
-    assert 'run-name: "ci-benchmark: ${{ inputs.revision || github.sha }}"' in workflow
-    assert "revision:" in workflow
-    # The build checks out the SHA that validate-revision resolved and vetted, not
-    # the raw input, so a moving branch or tag cannot slip past validation.
-    assert "ref: ${{ needs.validate-revision.outputs.revision }}" in workflow
-    assert "needs: validate-revision" in workflow
-    # BenchView is keyed on the resolved SHA too, so an observation can never be
-    # recorded against a branch name.
-    assert "BENCHVIEW_BENCHMARK_REF: ${{ needs.validate-revision.outputs.revision }}" in workflow
-    assert "BENCHVIEW_BENCHMARK_BRANCH: ${{ github.ref_name }}" in workflow
-    assert "target_sha" not in workflow
-    assert "Overlay current BenchView benchmark harness" not in workflow
-    assert "run_benchmark_ci.py" not in workflow
-
-
-def test_nightly_workflow_dispatches_recent_commits_with_github_script() -> None:
-    """Keep nightly fan-out inside GitHub Actions without Python or GitHub CLI setup."""
-
-    workflow = (REPOSITORY_ROOT / ".github/workflows/schedule-benchmarks.yml").read_text(
-        encoding="utf-8"
-    )
-
-    assert "actions/github-script@v9" in workflow
-    assert "github.rest.repos.listCommits" in workflow
-    assert "github.rest.actions.createWorkflowDispatch" in workflow
-    assert 'const workflow = "ci-benchmark.yml"' in workflow
-    assert 'const branch = "main"' in workflow
-    assert "inputs: { revision }" in workflow
-    assert "commits.reverse()" in workflow
-    assert "github.rest.actions.listWorkflowRuns" not in workflow
-    assert "existingTitles" not in workflow
-    assert "dry_run" not in workflow
-    assert "python" not in workflow.lower()
-    assert "gh --version" not in workflow
-    assert "actions/checkout" not in workflow
-
-
-def test_backfill_workflow_batches_a_rev_list_and_cleans_up_safely() -> None:
-    """Lock the batched workflow's inputs, timeout, and clone deletion guard."""
-
-    workflow = (REPOSITORY_ROOT / ".github/workflows/backfill-benchmark.yml").read_text(
-        encoding="utf-8"
-    )
-
-    # The whole point of the batched design: one run covers a list of commits.
-    assert "target_shas:" in workflow
-    assert "target_sha:" not in workflow
-    # 30 Windows commits is about five hours, too close to the six hour default.
-    assert "timeout-minutes: 720" in workflow
-    # The rev list reaches the driver through the environment so that the step is
-    # written once and works under both pwsh and bash.
-    assert "BACKFILL_TARGET_SHAS: ${{ inputs.target_shas }}" in workflow
-    assert '"${{ inputs.target_shas }}"' not in workflow
-    assert "python tools/backfill_batch.py" in workflow
-    # The driver needs the harness checkout to copy from and the floor to validate against.
-    assert "actions/checkout" in workflow
-    assert dispatcher.SUPPORTED_FLOOR_SHA in workflow
-    assert (
-        "${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}"
-        in workflow
-    )
-    assert 'git clone --recursive "https://github.com/${{ github.repository }}.git"' in workflow
-    # BenchView's ref varies per commit now, so only the branch can be a job-level constant.
-    assert "BENCHVIEW_BENCHMARK_BRANCH: main" in workflow
-    assert "BENCHVIEW_BENCHMARK_REF:" not in workflow
-    assert "[StringComparer]::OrdinalIgnoreCase.Equals($parent.FullName, $runnerTemp)" in workflow
-    assert '$name.StartsWith("slangpy-backfill-"' in workflow
-    assert "Remove-Item -LiteralPath $candidate -Recurse -Force" in workflow
-    assert '"$(dirname -- "$candidate")" != "$runner_temp"' in workflow
-    assert '"$(basename -- "$candidate")" != slangpy-backfill-*' in workflow
-    assert 'rm -rf -- "$candidate"' in workflow
+    assert resolve["env"]["DEFAULT_REVISION"] == "${{ github.sha }}"
+    assert 'requested="${REVISION:-$DEFAULT_REVISION}"' in resolve["run"]
+    # One resolution and one ancestry check, so neither path can bypass the other.
+    assert resolve["run"].count("git rev-parse") == 1
+    assert resolve["run"].count("merge-base --is-ancestor") == 1

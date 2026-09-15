@@ -44,6 +44,7 @@ def exists_in_commit(repo: Path, commit: str, path: str) -> bool:
             ["git", "-C", str(repo), "cat-file", "-e", f"{commit}:{path}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            check=False,
         ).returncode
         == 0
     )
@@ -65,7 +66,7 @@ def benchmarks_postdating(repo: Path, commit: str, benchmark_dir: str) -> list[s
     ]
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target-sha", required=True, help="Backfill target commit.")
     parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
@@ -84,7 +85,8 @@ def main() -> None:
             print(f"  {path}")
     else:
         print(f"All benchmark modules exist in {args.target_sha[:12]}.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

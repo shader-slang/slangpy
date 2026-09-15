@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 import shutil
@@ -23,6 +24,12 @@ import subprocess
 import sys
 import time
 from typing import Optional, Sequence
+
+# The oldest commit whose build the current benchmark harness can drive. Earlier
+# commits are not a supported backfill target and are rejected before any work
+# starts. The timestamp is only used to bound the commit query in the dispatcher.
+SUPPORTED_FLOOR_SHA = "f3ad0fd91d8cf4eeb2be3b505765b43482aa952a"
+SUPPORTED_FLOOR_TIME = datetime(2025, 9, 2, 14, 42, 35, tzinfo=timezone.utc)
 
 # The harness must be identical at every commit or the timings are not
 # comparable, so these paths are copied over the historical tree. slangpy/benchmarks
@@ -65,10 +72,7 @@ def parse_rev_list(text: str) -> list[str]:
     :return: Commits in the given order, duplicates removed.
     """
 
-    seen: dict[str, None] = {}
-    for token in text.replace(",", " ").split():
-        seen.setdefault(token, None)
-    return list(seen)
+    return list(dict.fromkeys(text.replace(",", " ").split()))
 
 
 def run(
@@ -90,13 +94,13 @@ def attempt(command: Sequence[str], cwd: Optional[Path] = None) -> bool:
     return completed.returncode == 0
 
 
-def is_ancestor(repo: Path, candidate: str, descendant: str) -> bool:
+def is_ancestor(repo: Path, candidate: str, descendant: str, stage: str) -> bool:
     """Answer whether ``candidate`` precedes ``descendant``.
 
     ``git merge-base --is-ancestor`` exits 1 for a negative answer and something else
     for a question it could not answer at all, such as a revision that does not
-    resolve. Collapsing those two into "no" is what let a bad revision silently
-    disable the vcpkg repin, so anything outside 0 and 1 is raised.
+    resolve. Only 0 and 1 are answers; anything else is raised as ``stage`` rather
+    than silently read as "no".
     """
 
     command = ["git", "merge-base", "--is-ancestor", candidate, descendant]
@@ -105,7 +109,7 @@ def is_ancestor(repo: Path, candidate: str, descendant: str) -> bool:
     if completed.returncode in (0, 1):
         return completed.returncode == 0
     raise CommitFailure(
-        "vcpkg",
+        stage,
         f"could not decide whether {candidate} precedes {descendant} "
         f"(git exited with code {completed.returncode})",
     )
@@ -153,12 +157,6 @@ def repin_vcpkg(clone: Path, harness_vcpkg: str) -> None:
     same revision or a newer one, and the dependency set is part of what the backfill
     measures, so moving it would change the thing being timed.
 
-    Ancestry is resolved against the harness revision itself rather than a hardcoded
-    boundary commit. An earlier version compared against a constant that held a
-    *slangpy* SHA rather than a vcpkg one; since that object does not exist in the
-    vcpkg repository the test could never succeed, every pin looked fine, and the ten
-    oldest commits in the range failed at configure instead of being repaired.
-
     This has to run after ``ci.py setup``, which resets every submodule to its
     recorded revision.
     """
@@ -169,17 +167,14 @@ def repin_vcpkg(clone: Path, harness_vcpkg: str) -> None:
         return
 
     vcpkg = clone / "external" / "vcpkg"
-    # The submodule is checked out at the target revision, so that one is present by
-    # construction, but the harness revision need not be and ancestry cannot be
-    # decided for an object the repository does not hold.
+    # Ancestry must be resolved inside the vcpkg repository against revisions it
+    # actually holds. The target's pin is present by construction because the
+    # submodule is checked out at it; the harness revision has to be fetched.
     if not attempt(["git", "cat-file", "-e", f"{harness_vcpkg}^{{commit}}"], vcpkg):
         if not attempt(["git", "fetch", "--no-tags", "origin", harness_vcpkg], vcpkg):
             run(["git", "fetch", "--no-tags", "origin"], vcpkg, "vcpkg")
 
-    # Should either revision still not resolve, is_ancestor raises rather than
-    # answering "no", so a fetch that did not produce what it promised is reported
-    # instead of quietly leaving the pin alone.
-    if not is_ancestor(vcpkg, target_vcpkg, harness_vcpkg):
+    if not is_ancestor(vcpkg, target_vcpkg, harness_vcpkg, "vcpkg"):
         print(f"Keeping the target vcpkg revision {target_vcpkg}, which is not older")
         return
 
@@ -366,7 +361,6 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--clone-dir", type=Path, required=True, help="Historical clone root.")
     parser.add_argument("--workspace", type=Path, default=Path("."), help="Harness checkout root.")
-    parser.add_argument("--floor-sha", required=True, help="Oldest supported commit.")
     parser.add_argument("--skip-manifest", type=Path, required=True, help="Skip-list scratch file.")
     parser.add_argument("--run-id", required=True, help="BenchView run identifier.")
     parser.add_argument("--api-url", required=True, help="BenchView API URL.")
@@ -393,19 +387,17 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Reject the whole batch up front rather than discovering an unsupported
     # commit part-way through a multi-hour run.
-    unsupported = [
-        sha
-        for sha in shas
-        if subprocess.run(
-            ["git", "-C", str(clone), "merge-base", "--is-ancestor", args.floor_sha, sha],
-            check=False,
-        ).returncode
-        != 0
-    ]
+    try:
+        unsupported = [
+            sha for sha in shas if not is_ancestor(clone, SUPPORTED_FLOOR_SHA, sha, "floor")
+        ]
+    except CommitFailure as failure:
+        print(failure, file=sys.stderr)
+        return 1
     if unsupported:
         print(
-            f"{len(unsupported)} commit(s) predate the supported floor {args.floor_sha[:12]}: "
-            + " ".join(sha[:12] for sha in unsupported),
+            f"{len(unsupported)} commit(s) predate the supported floor "
+            f"{SUPPORTED_FLOOR_SHA[:12]}: " + " ".join(sha[:12] for sha in unsupported),
             file=sys.stderr,
         )
         return 1

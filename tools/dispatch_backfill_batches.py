@@ -16,25 +16,20 @@ from pathlib import Path
 import sys
 from typing import Optional, Sequence
 
-try:
-    from tools.benchmark_actions import Commit, GitHubCli, GitHubCliError
-except ModuleNotFoundError:
-    from benchmark_actions import Commit, GitHubCli, GitHubCliError
+# Importable both as ``tools.dispatch_backfill_batches`` and as a directly executed
+# script, which only puts tools/ on the path.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools.backfill_batch import SUPPORTED_FLOOR_SHA, SUPPORTED_FLOOR_TIME
+from tools.benchmark_actions import Commit, GitHubCli, GitHubCliError
 
 DEFAULT_REPOSITORY = "shader-slang/slangpy"
 DEFAULT_WORKFLOW = "backfill-benchmark.yml"
-# Measured on run 34920515414 over 15 commits spread across the whole range:
-# Windows costs 5.4 min/commit on average and 8.4 at worst, so 45 commits is a
-# ~365 min worst case against the 720 min timeout, i.e. 2x headroom. Larger
-# batches buy almost nothing: the queue admission is already amortised to under
-# 1 min/commit here, and with only two Windows perf runners, fewer and larger
-# batches divide the fixed ~36 h of work less evenly.
+# Sized from measured Windows per-commit cost so that a worst-case batch leaves ample
+# headroom against the workflow timeout. Larger batches buy little: the queue admission
+# is already amortised away, and with only a couple of Windows performance runners,
+# fewer and larger batches divide the work less evenly between them.
 DEFAULT_BATCH_SIZE = 45
-
-# The oldest commit whose build the current benchmark harness can drive. Earlier
-# commits are not a supported backfill target.
-SUPPORTED_FLOOR_SHA = "f3ad0fd91d8cf4eeb2be3b505765b43482aa952a"
-SUPPORTED_FLOOR_TIME = datetime(2025, 9, 2, 14, 42, 35, tzinfo=timezone.utc)
 
 
 class UnsupportedHistoryError(RuntimeError):
@@ -61,10 +56,8 @@ def supported_commits(commits: Sequence[Commit], lower_bound: str) -> list[Commi
 def batch_commits(commits: Sequence[Commit], size: int) -> list[list[Commit]]:
     """Cut chronologically ordered commits into contiguous batches.
 
-    Contiguous rather than strided: a batched sweep is expected to run to
-    completion, so there is no need to sample the range evenly in case it is
-    stopped early. The cost is that a partially finished sweep covers a set of
-    chronological chunks instead of an even spread.
+    Batches are contiguous rather than strided, so a partially finished sweep
+    covers a set of chronological chunks rather than an even spread of the range.
 
     :param commits: Commits, oldest first.
     :param size: Commits per batch.
@@ -89,8 +82,8 @@ def read_exclusions(path: Optional[Path]) -> set[str]:
 
     if path is None:
         return set()
-    lines = path.read_text(encoding="utf-8").splitlines()
-    return {line.strip() for line in lines if line.strip() and not line.startswith("#")}
+    lines = (line.strip() for line in path.read_text(encoding="utf-8").splitlines())
+    return {line for line in lines if line and not line.startswith("#")}
 
 
 def dispatch_batches(
@@ -121,8 +114,8 @@ def dispatch_batches(
                 },
             )
         except GitHubCliError as error:
-            # One rejected batch says nothing about the others, and the commits it
-            # covers are named above, so keep going and report at the end.
+            # One rejected batch says nothing about the others, so keep going and
+            # report the total at the end.
             print(f"{label} was not dispatched: {error}", file=sys.stderr)
             failures += 1
             continue

@@ -122,14 +122,11 @@ def lock_gpu_clocks(
     """
     Lock GPU memory and graphics clocks to a specific ratio of maximum.
 
-    Args:
-        device_index: GPU device index (0, 1, etc.)
-        ratio: Target ratio of max clock speed (0.0 to 1.0)
-        conservative: If True, only select clocks at or below the ratio
-        dry_run: If True, print what would be done but don't execute
-
-    Returns:
-        Tuple of (locked_mem_clock, locked_gpu_clock) if successful, None on error.
+    :param device_index: GPU device index.
+    :param ratio: Target ratio of max clock speed, from 0.0 to 1.0.
+    :param conservative: Only select clocks at or below the target ratio.
+    :param dry_run: Print what would be done without executing it.
+    :return: The locked memory and graphics clocks, or None if none could be selected.
     """
     print(f"Selected GPU: {get_gpu_name(device_index)}")
     clocks = enumerate_gpu_clocks(device_index)
@@ -190,6 +187,9 @@ def lock_gpu_clocks(
 def unlock_gpu_clocks(device_index: int, dry_run: bool = False) -> None:
     """
     Unlock GPU memory and graphics clocks.
+
+    :param device_index: GPU device index.
+    :param dry_run: Print what would be done without executing it.
     """
     print(f"Selected GPU: {get_gpu_name(device_index)}")
 

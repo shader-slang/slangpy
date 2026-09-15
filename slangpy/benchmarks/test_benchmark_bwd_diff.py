@@ -16,8 +16,8 @@ Two scenarios:
 GPU time is measured via timestamp query pools (no CPU overhead).
 """
 
-import sys
 import os
+import sys
 from typing import Optional
 import pytest
 import numpy as np
@@ -31,20 +31,12 @@ if sys.platform == "darwin":
     pytest.skip("PyTorch requires CUDA, not available on macOS", allow_module_level=True)
 
 import slangpy as spy
-
-# A build that predates these APIs simply lacks the names. Probing for them rather
-# than catching ImportError keeps a genuine failure to import slangpy itself fatal,
-# during a backfill as well as in ordinary CI.
-_missing = [name for name in ("diff_pair", "Tensor") if not hasattr(spy, name)]
-if _missing:
-    if not os.environ.get("BACKFILL_TARGET_SHA"):
-        raise ImportError(f"cannot import name {_missing[0]!r} from 'slangpy'")
-    pytest.skip(f"slangpy.{_missing[0]} is not available in this build", allow_module_level=True)
-
-diff_pair, Tensor = spy.diff_pair, spy.Tensor
-
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkSlangFunction
+
+helpers.require_apis(spy, "diff_pair", "Tensor")
+
+diff_pair, Tensor = spy.diff_pair, spy.Tensor
 
 DEVICE_TYPES = [spy.DeviceType.cuda] if spy.DeviceType.cuda in helpers.DEFAULT_DEVICE_TYPES else []
 if not DEVICE_TYPES:

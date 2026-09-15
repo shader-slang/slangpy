@@ -38,20 +38,6 @@ class Commit:
 
 
 @dataclass(frozen=True)
-class WorkflowRun:
-    """Describe the GitHub fields needed for title reconciliation and capacity."""
-
-    run_id: int
-    title: str
-    status: str
-    conclusion: Optional[str]
-    html_url: str
-    head_sha: str
-    created_at: datetime
-    updated_at: datetime
-
-
-@dataclass(frozen=True)
 class DispatchResult:
     """Describe the workflow run returned directly by a successful dispatch."""
 
@@ -108,21 +94,16 @@ def _required_string(value: Any, field: str) -> str:
     return value
 
 
-def _flatten_pages(value: Any, collection_field: Optional[str]) -> list[Any]:
+def _flatten_pages(value: Any) -> list[Any]:
     """Flatten the page arrays emitted by ``gh api --paginate --slurp``."""
 
     if not isinstance(value, list):
         raise GitHubCliError("GitHub CLI pagination output must be a JSON array.")
     flattened: list[Any] = []
     for page in value:
-        collection = page
-        if collection_field is not None:
-            if not isinstance(page, dict):
-                raise GitHubCliError("GitHub workflow-run page must be a JSON object.")
-            collection = page.get(collection_field)
-        if not isinstance(collection, list):
+        if not isinstance(page, list):
             raise GitHubCliError("GitHub CLI page does not contain the expected JSON array.")
-        flattened.extend(collection)
+        flattened.extend(page)
     return flattened
 
 
@@ -196,7 +177,7 @@ class GitHubCli:
             ]
         )
         commits: list[Commit] = []
-        for index, item in enumerate(_flatten_pages(response, None)):
+        for index, item in enumerate(_flatten_pages(response)):
             if not isinstance(item, dict):
                 raise GitHubCliError(f"GitHub commit at index {index} must be a JSON object.")
             commit = item.get("commit")
@@ -214,60 +195,6 @@ class GitHubCli:
                 )
             )
         return commits
-
-    def list_workflow_runs(self, repository: str, workflow: str, maximum: int) -> list[WorkflowRun]:
-        """List up to ``maximum`` newest runs for one workflow definition."""
-
-        if maximum < 1:
-            raise ValueError("Workflow run maximum must be positive.")
-        per_page = min(maximum, 100)
-        runs: list[WorkflowRun] = []
-        page = 1
-        while len(runs) < maximum:
-            response = self._invoke(
-                [
-                    "--method",
-                    "GET",
-                    f"repos/{repository}/actions/workflows/{workflow}/runs",
-                    "-f",
-                    f"per_page={per_page}",
-                    "-f",
-                    f"page={page}",
-                ]
-            )
-            if not isinstance(response, dict):
-                raise GitHubCliError("GitHub workflow-run page must be a JSON object.")
-            items = response.get("workflow_runs")
-            if not isinstance(items, list):
-                raise GitHubCliError("GitHub workflow-run page lacks the workflow_runs JSON array.")
-            for item in items:
-                index = len(runs)
-                if not isinstance(item, dict):
-                    raise GitHubCliError(f"GitHub workflow run at index {index} must be an object.")
-                run_id = item.get("id")
-                conclusion = item.get("conclusion")
-                if not isinstance(run_id, int) or isinstance(run_id, bool):
-                    raise GitHubCliError("GitHub workflow run id must be an integer.")
-                if conclusion is not None and not isinstance(conclusion, str):
-                    raise GitHubCliError("GitHub workflow run conclusion must be a string or null.")
-                runs.append(
-                    WorkflowRun(
-                        run_id=run_id,
-                        title=_required_string(item.get("display_title"), "display_title"),
-                        status=_required_string(item.get("status"), "status"),
-                        conclusion=conclusion,
-                        html_url=_required_string(item.get("html_url"), "html_url"),
-                        head_sha=_required_string(item.get("head_sha"), "head_sha"),
-                        created_at=_parse_datetime(item.get("created_at"), "created_at"),
-                        updated_at=_parse_datetime(item.get("updated_at"), "updated_at"),
-                    )
-                )
-                if len(runs) == maximum:
-                    break
-            if len(items) < per_page or len(runs) == maximum:
-                break
-            page += 1
-        return runs
 
     def dispatch_workflow(
         self,

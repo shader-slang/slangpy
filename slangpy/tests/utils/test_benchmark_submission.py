@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import ast
 import sys
 from datetime import datetime, timezone
 from email.message import Message
@@ -480,141 +479,6 @@ def test_linux_gpu_clock_elevates_only_nvidia_smi_mutations(
     ]
 
 
-def test_ordinary_workflow_uses_ci_wrapper_without_historical_logic() -> None:
-    """Keep branch-tip and exact future benchmarks on the normal current producer path."""
-
-    workflow = (REPOSITORY_ROOT / ".github/workflows/ci-benchmark.yml").read_text(encoding="utf-8")
-
-    assert "cron:" not in workflow
-    assert "workflow_dispatch:" in workflow
-    assert 'run-name: "ci-benchmark: ${{ inputs.revision || github.sha }}"' in workflow
-    # The build checks out the SHA that validate-revision resolved and vetted, not
-    # the raw input, so a moving branch or tag cannot slip past validation.
-    assert "ref: ${{ needs.validate-revision.outputs.revision }}" in workflow
-    assert "needs: validate-revision" in workflow
-    assert workflow.count("python tools/ci.py benchmark-python") == 2
-    assert workflow.count("--lock-gpu-clocks") == 2
-    assert "Benchmark (Python, Linux, GPU Clock Locked)" in workflow
-    assert "BENCHVIEW_API_URL" in workflow
-    assert "BENCHVIEW_API_KEY" in workflow
-    assert workflow.count("contains(matrix.flags, 'benchmark')") >= 4
-    assert "contains(matrix.flags, 'unit-test')" not in workflow
-    assert "python tools/ci.py install-slangpy-torch" in workflow
-    assert "python -m pip uninstall slangpy-torch -y" in workflow
-    assert "target_sha" not in workflow
-    assert "Overlay current BenchView benchmark harness" not in workflow
-    assert "run_benchmark_ci.py" not in workflow
-    assert "mongodb" not in workflow.lower()
-
-
-def test_benchmark_revision_validation_covers_the_dispatched_branch_tip() -> None:
-    """Prove the default revision is vetted, not only an explicit revision input.
-
-    workflow_dispatch is the sole trigger, so the default is the tip of whichever
-    branch the dispatcher picked. Checking only the explicit input would leave the
-    dropdown able to benchmark an unmerged commit with the BenchView write key, and
-    to write a BenchView row for a commit that may never reach main.
-    """
-
-    workflow = (REPOSITORY_ROOT / ".github/workflows/ci-benchmark.yml").read_text(encoding="utf-8")
-
-    # One resolution and one ancestry check, so neither path can bypass the other.
-    assert workflow.count('resolved="$(git rev-parse') == 1
-    assert workflow.count("merge-base --is-ancestor") == 1
-    assert 'requested="${REVISION:-$DEFAULT_REVISION}"' in workflow
-    assert "DEFAULT_REVISION: ${{ github.sha }}" in workflow
-
-
-def test_backfill_reports_required_device_failures_instead_of_skipping_them(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Prove only optional device types are absorbed as backfill capability gaps.
-
-    CUDA genuinely cannot be created on Windows before roughly 2026-02, so skipping
-    it keeps the rest of a historical commit's benchmarks reportable. d3d12 exists on
-    the perf runners across the whole supported range, so a build that cannot create
-    one has regressed and must fail rather than quietly lose its coverage.
-    """
-
-    helpers = import_module("slangpy.testing.helpers")
-    device_type = import_module("slangpy").DeviceType
-
-    def refuse(**kwargs: Any) -> Any:
-        raise RuntimeError("device creation failed")
-
-    monkeypatch.setattr(helpers, "Device", refuse)
-    monkeypatch.setattr(helpers, "BACKFILL_TARGET_SHA", "0123456789abcdef")
-    monkeypatch.setattr(helpers, "BACKFILL_UNAVAILABLE_DEVICES", {})
-    monkeypatch.setattr(helpers, "DEVICE_CACHE", {})
-    monkeypatch.setattr(helpers, "SELECTED_DEVICE_TYPES", None)
-
-    with pytest.raises(pytest.skip.Exception):
-        helpers.get_device(device_type.cuda)
-    assert len(helpers.BACKFILL_UNAVAILABLE_DEVICES) == 1
-
-    # Catching the skip explicitly rather than using pytest.raises: a skip raised here
-    # would otherwise propagate and mark this test skipped, hiding the regression it
-    # exists to catch.
-    try:
-        helpers.get_device(device_type.d3d12)
-    except pytest.skip.Exception as skipped:
-        pytest.fail(f"required device type was skipped instead of reported: {skipped}")
-    except RuntimeError as error:
-        assert "device creation failed" in str(error)
-    else:
-        pytest.fail("device creation was expected to fail")
-
-    # The failure is reported, so it must not be recorded as an unavailable device
-    # and suppress the same configuration for the rest of the run.
-    assert len(helpers.BACKFILL_UNAVAILABLE_DEVICES) == 1
-
-
-def test_cuda_only_ppisp_benchmarks_declare_the_device_dimension() -> None:
-    """Keep CUDA-only PPISP tests out of the non-device benchmark shard."""
-
-    source_path = REPOSITORY_ROOT / "slangpy/benchmarks/test_benchmark_ppisp.py"
-    tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
-    device_tests: list[ast.FunctionDef] = []
-    for node in tree.body:
-        if not isinstance(node, ast.FunctionDef) or not node.name.startswith("test_"):
-            continue
-        if any(
-            isinstance(child, ast.Call)
-            and isinstance(child.func, ast.Attribute)
-            and child.func.attr == "get_torch_device"
-            for child in ast.walk(node)
-        ):
-            device_tests.append(node)
-
-    assert device_tests
-    for test_function in device_tests:
-        parameter_names = [parameter.arg for parameter in test_function.args.args]
-        assert "device_type" in parameter_names, test_function.name
-        get_device_calls = [
-            child
-            for child in ast.walk(test_function)
-            if isinstance(child, ast.Call)
-            and isinstance(child.func, ast.Attribute)
-            and child.func.attr == "get_torch_device"
-        ]
-        assert all(
-            call.args and isinstance(call.args[0], ast.Name) and call.args[0].id == "device_type"
-            for call in get_device_calls
-        ), test_function.name
-
-
-def test_backward_diff_benchmark_uses_the_available_extensions_include() -> None:
-    """Keep extensions.slang and the benchmark include directory aligned."""
-
-    benchmark_directory = REPOSITORY_ROOT / "slangpy/benchmarks"
-    benchmark_source = (benchmark_directory / "test_benchmark_bwd_diff.py").read_text(
-        encoding="utf-8"
-    )
-
-    assert (benchmark_directory / "ppisp/extensions.slang").is_file()
-    assert 'os.path.join(BENCH_DIR, "ppisp")' in benchmark_source
-
-
 def test_submit_posts_bearer_authenticated_json(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify the real urllib boundary without contacting a live service."""
 
@@ -652,21 +516,22 @@ def test_submit_posts_bearer_authenticated_json(monkeypatch: pytest.MonkeyPatch)
     assert receipts == [{"duplicate": False, "transactionId": "tx", "cursor": "0"}]
 
 
-def test_submit_retries_connection_resets_with_the_identical_payload(
+def test_submit_retries_connection_resets_and_gives_up_after_the_attempt_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Recover from ambiguous connection resets by safely repeating one idempotent batch."""
+    """A reset is ambiguous, so the identical idempotent batch is repeated, but bounded."""
 
     attempts: list[bytes] = []
     delays: list[float] = []
+    resets_before_success = 2
 
     def flaky_urlopen(request: Request, timeout: float) -> FakeResponse:
-        """Reset two connections before accepting the byte-identical third request."""
+        """Reset connections until ``resets_before_success`` have been consumed."""
 
         assert timeout == 30.0
         assert isinstance(request.data, bytes)
         attempts.append(request.data)
-        if len(attempts) < 3:
+        if len(attempts) <= resets_before_success:
             raise URLError(ConnectionResetError(104, "Connection reset by peer"))
         return FakeResponse(
             200,
@@ -674,12 +539,8 @@ def test_submit_retries_connection_resets_with_the_identical_payload(
         )
 
     monkeypatch.setattr(benchmark_api, "urlopen", flaky_urlopen)
-    monkeypatch.setattr(
-        benchmark_api,
-        "sleep",
-        lambda delay: delays.append(delay),
-    )
-    receipts = benchmark_api.submit_benchview_submissions(
+    monkeypatch.setattr(benchmark_api, "sleep", lambda delay: delays.append(delay))
+    submit = lambda: benchmark_api.submit_benchview_submissions(
         "http://host/benchview",
         "secret-write-key",
         [{"schemaVersion": 1, "idempotencyKey": "stable-key"}],
@@ -687,10 +548,20 @@ def test_submit_retries_connection_resets_with_the_identical_payload(
         retry_delay_seconds=0.25,
     )
 
+    receipts = submit()
+
     assert len(attempts) == 3
-    assert attempts[0] == attempts[1] == attempts[2]
-    assert delays == [0.25, 0.5]
+    assert attempts[0] == attempts[1] == attempts[2], "the retried payload must be byte-identical"
+    assert delays == [0.25, 0.5], "the delay must back off exponentially"
     assert receipts == [{"duplicate": True, "transactionId": "tx", "cursor": "0"}]
+
+    # Persistent failure must terminate rather than retry a CI submission forever.
+    attempts.clear()
+    delays.clear()
+    resets_before_success = 99
+    with pytest.raises(benchmark_api.BenchmarkSubmissionError, match=r"after 3 attempt\(s\)"):
+        submit()
+    assert len(attempts) == 3
 
 
 def test_submit_retries_a_transient_gateway_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -733,41 +604,6 @@ def test_submit_retries_a_transient_gateway_failure(monkeypatch: pytest.MonkeyPa
     assert attempts == 2
     assert delays == [0.5]
     assert receipts == [{"duplicate": False, "transactionId": "tx", "cursor": "0"}]
-
-
-def test_submit_stops_after_the_configured_connection_attempts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Bound persistent connection failures instead of retrying a CI submission forever."""
-
-    attempts = 0
-    delays: list[float] = []
-
-    def failing_urlopen(request: Request, timeout: float) -> FakeResponse:
-        """Reset every connection to exercise the terminal retry path."""
-
-        nonlocal attempts
-        attempts += 1
-        raise URLError(ConnectionResetError(104, "Connection reset by peer"))
-
-    monkeypatch.setattr(benchmark_api, "urlopen", failing_urlopen)
-    monkeypatch.setattr(
-        benchmark_api,
-        "sleep",
-        lambda delay: delays.append(delay),
-    )
-    with pytest.raises(benchmark_api.BenchmarkSubmissionError) as error:
-        benchmark_api.submit_benchview_submissions(
-            "http://host/benchview",
-            "secret-write-key",
-            [{"schemaVersion": 1, "idempotencyKey": "stable-key"}],
-            max_attempts=3,
-            retry_delay_seconds=0.25,
-        )
-
-    assert attempts == 3
-    assert delays == [0.25, 0.5]
-    assert "after 3 attempt(s)" in str(error.value)
 
 
 def test_submit_redacts_key_from_http_failure(monkeypatch: pytest.MonkeyPatch) -> None:

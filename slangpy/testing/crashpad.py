@@ -36,8 +36,8 @@ RUST_MINIDUMP_ASSETS = {
 
 
 def is_supported() -> bool:
-    # Historical backfill builds predate the native crashpad module, so the
-    # overlaid harness must tolerate its absence.
+    """Whether this build has crashpad, which backfill targets may predate."""
+
     if not hasattr(spy, "crashpad"):
         return False
     return spy.crashpad.is_supported()

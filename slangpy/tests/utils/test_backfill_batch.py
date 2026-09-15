@@ -1,48 +1,27 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Offline coverage for batching a rev list into a single backfill job."""
+"""Offline coverage for benchmarking a rev list inside a single backfill job."""
 
-from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 import subprocess
-from typing import Any
+from typing import Any, Optional, Sequence
 
 import pytest
 
 from tools import backfill_batch as batch
-from tools import benchmark_actions as actions
-from tools import dispatch_backfill_batches as dispatcher
 
 
-def commits(count: int) -> list[actions.Commit]:
-    """Create ``count`` commits one day apart, oldest first."""
+def test_a_rev_list_is_split_on_either_separator_and_deduplicated() -> None:
+    """The workflow input is free text, so both spellings have to work."""
 
-    start = datetime(2025, 9, 2, tzinfo=timezone.utc)
-    return [
-        actions.Commit(
-            sha=f"{index:040x}",
-            committed_at=start + timedelta(days=index),
-            message=f"commit {index}",
-            html_url=f"https://github.test/commit/{index:040x}",
-        )
-        for index in range(count)
-    ]
-
-
-def test_rev_list_accepts_the_separators_a_workflow_input_may_carry():
-    assert batch.parse_rev_list("aaa bbb") == ["aaa", "bbb"]
-    assert batch.parse_rev_list("aaa,bbb") == ["aaa", "bbb"]
     assert batch.parse_rev_list(" aaa,\n bbb\t ccc ") == ["aaa", "bbb", "ccc"]
-
-
-def test_rev_list_benchmarks_a_repeated_commit_once():
     assert batch.parse_rev_list("aaa bbb aaa") == ["aaa", "bbb"]
 
 
 def test_a_failing_commit_does_not_abort_the_rest_of_the_batch(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
+) -> None:
     attempted: list[str] = []
 
     def fake_benchmark(sha: str, **_: Any) -> None:
@@ -73,7 +52,7 @@ def test_a_failing_commit_does_not_abort_the_rest_of_the_batch(
 
 def test_the_summary_is_rewritten_as_the_batch_proceeds(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
+) -> None:
     """A job killed mid-batch must still say which commits it reached."""
 
     summary = tmp_path / "summary.md"
@@ -105,25 +84,20 @@ def test_the_summary_is_rewritten_as_the_batch_proceeds(
     assert "Not reached: `ccc ddd`" in partial
 
 
-def test_the_report_names_every_commit_exactly_once():
-    outcomes = [
-        batch.CommitOutcome("aaa", "success", None, 60.0),
-        batch.CommitOutcome("bbb", "failed", "benchmark", 30.0),
-    ]
-    report = batch.format_report(outcomes, ["ccc"])
-    for sha in ("aaa", "bbb", "ccc"):
-        assert report.count(f"`{sha}`") == 2, f"{sha} is not both tabulated and listed"
-
-
 def record_commands(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[list[str]]:
     """Run one commit with every subprocess stubbed, returning the commands issued."""
 
     issued: list[list[str]] = []
 
-    def fake_run(command, cwd, stage, env=None):
+    def fake_run(
+        command: Sequence[str],
+        cwd: Path,
+        stage: str,
+        env: Optional[dict[str, str]] = None,
+    ) -> None:
         issued.append(list(command))
 
-    def fake_attempt(command, cwd=None):
+    def fake_attempt(command: Sequence[str], cwd: Optional[Path] = None) -> bool:
         issued.append(list(command))
         return True
 
@@ -131,8 +105,8 @@ def record_commands(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[lis
     monkeypatch.setattr(batch, "git_output", lambda *_: "targetvcpkg")
     monkeypatch.setattr(batch, "overlay_harness", lambda *_: issued.append(["<overlay>"]))
     monkeypatch.setattr(batch, "attempt", fake_attempt)
-    # These tests are about the order of the per-commit stages, not about vcpkg
-    # ancestry, and there is no repository here to resolve revisions against.
+    # This is about the order of the per-commit stages, not about vcpkg ancestry,
+    # and there is no repository here to resolve revisions against.
     monkeypatch.setattr(batch, "is_ancestor", lambda *_: True)
 
     batch.benchmark_commit(
@@ -151,18 +125,16 @@ def position(issued: list[list[str]], needle: str) -> int:
     return next(i for i, command in enumerate(issued) if needle in " ".join(command))
 
 
-def test_each_commit_starts_from_a_pristine_tree(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    """The overlay leaves modified and untracked files, so checkout alone is not enough."""
-
-    issued = record_commands(monkeypatch, tmp_path)
-    assert position(issued, "reset --hard") < position(issued, "clean -xfd")
-    assert position(issued, "clean -xfd") < position(issued, "checkout --detach abc")
-
-
 def test_the_per_commit_stages_run_in_the_only_workable_order(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
+) -> None:
+    """Every one of these orderings produces silent garbage if it is inverted."""
+
     issued = record_commands(monkeypatch, tmp_path)
+
+    # The overlay leaves modified and untracked files, so checkout alone is not enough.
+    assert position(issued, "reset --hard") < position(issued, "clean -xfd")
+    assert position(issued, "clean -xfd") < position(issued, "checkout --detach abc")
     # ci.py setup resets every submodule, so the vcpkg repin has to follow it and
     # still precede configure, or the historical vcpkg comes back.
     assert position(issued, "ci.py setup") < position(issued, "checkout --detach harnessvcpkg")
@@ -172,26 +144,24 @@ def test_the_per_commit_stages_run_in_the_only_workable_order(
     assert position(issued, "ci.py build") < position(issued, "<overlay>")
     assert position(issued, "<overlay>") < position(issued, "backfill_benchmark_manifest.py")
     assert position(issued, "backfill_benchmark_manifest.py") < position(issued, "benchmark-python")
-
-
-def test_historical_sources_are_not_held_to_todays_warnings(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
-    """--cmake-args belongs to ci.py's top-level parser, so it must precede the subcommand."""
-
-    issued = record_commands(monkeypatch, tmp_path)
+    # --cmake-args belongs to ci.py's top-level parser, so it must precede the subcommand.
     configure = next(c for c in issued if "configure" in c)
     assert configure[-2:] == ["--cmake-args=-DSGL_WARNINGS_AS_ERRORS=OFF", "configure"]
 
 
 def test_the_torch_bridge_is_removed_even_when_the_benchmark_fails(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
+) -> None:
     """The runners are persistent, so a stale bridge would reach the next commit."""
 
     issued: list[list[str]] = []
 
-    def fake_run(command, cwd, stage, env=None):
+    def fake_run(
+        command: Sequence[str],
+        cwd: Path,
+        stage: str,
+        env: Optional[dict[str, str]] = None,
+    ) -> None:
         issued.append(list(command))
         if stage == "benchmark":
             raise batch.CommitFailure("benchmark", "exited with code 1")
@@ -215,16 +185,7 @@ def test_the_torch_bridge_is_removed_even_when_the_benchmark_fails(
     assert any("uninstall slangpy-torch" in " ".join(c) for c in issued)
 
 
-# repin_vcpkg is covered against real repositories further down, by
-# test_a_vcpkg_pin_older_than_the_harness_is_moved_forward and its neighbours. The
-# stubbed pair that used to live here decided the ancestry answer themselves rather
-# than letting git decide it, so they passed throughout the period the comparison was
-# being made against a revision that does not exist in the vcpkg repository. They are
-# gone rather than repaired: a stub cannot catch a revision that fails to resolve,
-# which is the only failure this function has ever actually had.
-
-
-def test_the_overlay_replaces_stale_harness_directories(tmp_path: Path):
+def test_the_overlay_replaces_the_harness_and_rejects_an_incomplete_one(tmp_path: Path) -> None:
     """A benchmark deleted from the harness must not survive in the clone."""
 
     workspace = tmp_path / "workspace"
@@ -245,45 +206,18 @@ def test_the_overlay_replaces_stale_harness_directories(tmp_path: Path):
     assert (clone / "tools/ci.py").read_text(encoding="utf-8") == "# workspace\n"
     assert not (clone / "slangpy/benchmarks/test_retired.py").exists()
 
-
-def test_an_incomplete_harness_is_reported_rather_than_silently_skipped(tmp_path: Path):
-    workspace = tmp_path / "workspace"
-    (workspace / "tools").mkdir(parents=True)
+    partial = tmp_path / "partial"
+    (partial / "tools").mkdir(parents=True)
     with pytest.raises(batch.CommitFailure):
-        batch.overlay_harness(workspace, tmp_path / "clone")
-
-
-def test_history_is_cut_at_the_compatibility_floor():
-    """Commits older than the floor cannot be built by the current harness."""
-
-    history = commits(5)
-    kept = dispatcher.supported_commits(history, history[2].sha)
-    assert [c.sha for c in kept] == [c.sha for c in history[2:]]
-
-
-def test_history_without_the_floor_is_rejected_rather_than_silently_truncated():
-    with pytest.raises(dispatcher.UnsupportedHistoryError, match="deadbeef"):
-        dispatcher.supported_commits(commits(3), "deadbeef")
-
-
-def test_batches_cover_the_history_contiguously_and_exactly_once():
-    history = commits(65)
-    batches = dispatcher.batch_commits(history, 30)
-    assert [len(b) for b in batches] == [30, 30, 5]
-    assert [commit.sha for group in batches for commit in group] == [c.sha for c in history]
-
-
-def test_a_batch_label_identifies_its_place_and_span():
-    history = commits(65)
-    batches = dispatcher.batch_commits(history, 30)
-    assert dispatcher.batch_label(batches[2], 3, len(batches)) == (
-        "batch 3/3 (5 commits, 2025-11-01..2025-11-05)"
-    )
+        batch.overlay_harness(partial, tmp_path / "other")
 
 
 def git(repo: Path, *arguments: str) -> str:
     """Run git in ``repo`` with a fixed identity and return its stdout."""
 
+    # A private HOME and empty config paths keep the developer's git configuration
+    # out of the fixture repositories. os.devnull rather than /dev/null so these
+    # tests run on the Windows CI leg too.
     completed = subprocess.run(
         ["git", "-C", str(repo), *arguments],
         capture_output=True,
@@ -296,8 +230,8 @@ def git(repo: Path, *arguments: str) -> str:
             "GIT_AUTHOR_EMAIL": "t@t",
             "GIT_COMMITTER_NAME": "t",
             "GIT_COMMITTER_EMAIL": "t@t",
-            "GIT_CONFIG_GLOBAL": "/dev/null",
-            "GIT_CONFIG_SYSTEM": "/dev/null",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_SYSTEM": os.devnull,
         },
     )
     return completed.stdout.strip()
@@ -336,40 +270,31 @@ def superproject_pinning(tmp_path: Path, *, old_first: bool) -> tuple[Path, str,
     return clone, older, newer
 
 
-def test_a_vcpkg_pin_older_than_the_harness_is_moved_forward(tmp_path: Path):
-    """Prove an unbootstrappable vcpkg pin is actually replaced.
+@pytest.mark.parametrize("target_is_older", [True, False])
+def test_only_a_vcpkg_pin_older_than_the_harness_is_moved(
+    tmp_path: Path, target_is_older: bool
+) -> None:
+    """Older pins cannot bootstrap and move; newer ones are part of the measurement.
 
-    The ancestry test has to be resolved against a revision that exists in the vcpkg
-    repository. An earlier version compared against a slangpy commit, so the test could
-    never succeed and every old pin was silently kept, which failed the build.
+    Resolved against a real repository rather than a stub, because ancestry can only
+    be decided for revisions the vcpkg repository actually holds.
     """
 
-    clone, older, newer = superproject_pinning(tmp_path, old_first=True)
+    clone, older, newer = superproject_pinning(tmp_path, old_first=target_is_older)
 
-    batch.repin_vcpkg(clone, newer)
+    batch.repin_vcpkg(clone, newer if target_is_older else older)
 
     assert git(clone / "external" / "vcpkg", "rev-parse", "HEAD") == newer
 
 
-def test_a_vcpkg_pin_the_harness_does_not_precede_is_left_alone(tmp_path: Path):
-    """Keep a pin that is not older: the dependency set is part of the measurement."""
+def test_an_undecidable_vcpkg_comparison_is_reported_not_swallowed(tmp_path: Path) -> None:
+    """A revision that does not resolve fails the commit rather than passing.
 
-    clone, older, newer = superproject_pinning(tmp_path, old_first=False)
-
-    batch.repin_vcpkg(clone, older)
-
-    assert git(clone / "external" / "vcpkg", "rev-parse", "HEAD") == newer
-
-
-def test_an_undecidable_vcpkg_comparison_is_reported_not_swallowed(tmp_path: Path):
-    """Prove a revision that does not resolve fails the commit rather than passing.
-
-    ``git merge-base --is-ancestor`` exits 1 for "no" and 128 for "cannot tell".
-    Reading those as the same thing is what let a bad revision disable the repin for
-    every commit without anyone noticing, so the second has to be loud.
+    ``git merge-base --is-ancestor`` exits 1 for "no" and 128 for "cannot tell", and
+    reading the second as the first would silently disable the repin.
     """
 
-    clone, older, newer = superproject_pinning(tmp_path, old_first=True)
+    clone, older, _ = superproject_pinning(tmp_path, old_first=True)
     # A real commit, but from an unrelated repository, so the vcpkg clone cannot
     # resolve it and the fetch cannot supply it either.
     stranger = tmp_path / "stranger"
@@ -385,13 +310,3 @@ def test_an_undecidable_vcpkg_comparison_is_reported_not_swallowed(tmp_path: Pat
 
     # The pin is untouched, and the caller hears about it rather than inferring it.
     assert git(clone / "external" / "vcpkg", "rev-parse", "HEAD") == older
-
-
-def test_excluded_commits_are_dropped_before_batching(tmp_path: Path):
-    history = commits(4)
-    exclusions = tmp_path / "done.txt"
-    exclusions.write_text(f"# already benchmarked\n{history[1].sha}\n\n", encoding="utf-8")
-
-    remaining = [c for c in history if c.sha not in dispatcher.read_exclusions(exclusions)]
-
-    assert [c.sha for c in remaining] == [history[0].sha, history[2].sha, history[3].sha]

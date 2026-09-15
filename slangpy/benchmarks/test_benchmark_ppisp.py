@@ -11,16 +11,11 @@ torch.cuda.synchronize() to capture full GPU execution time.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import pytest
 
 import slangpy as spy
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkPythonFunction, BenchmarkSlangFunction
-
-if TYPE_CHECKING:
-    import torch
 
 HAS_TORCH = False
 try:

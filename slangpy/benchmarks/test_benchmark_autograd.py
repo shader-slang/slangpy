@@ -1,31 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import os
 from pathlib import Path
 from typing import Any, Optional
 import pytest
 import numpy as np
 
 import slangpy as spy
+from slangpy.core import native
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkPythonFunction
 
-from slangpy.core import native as _native
+helpers.require_apis(native, "NativeTorchTensorDiffPair")
 
-# A build that predates the native torch bridge simply lacks this symbol. Probing for
-# it rather than catching ImportError keeps a genuine failure to import
-# slangpy.core.native fatal, during a backfill as well as in ordinary CI.
-if not hasattr(_native, "NativeTorchTensorDiffPair"):
-    if not os.environ.get("BACKFILL_TARGET_SHA"):
-        raise ImportError(
-            "cannot import name 'NativeTorchTensorDiffPair' from 'slangpy.core.native'"
-        )
-    pytest.skip(
-        "slangpy.core.native.NativeTorchTensorDiffPair is not available in this build",
-        allow_module_level=True,
-    )
-
-NativeTorchTensorDiffPair = _native.NativeTorchTensorDiffPair
+NativeTorchTensorDiffPair = native.NativeTorchTensorDiffPair
 
 HAS_TORCH = False
 try:

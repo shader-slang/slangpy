@@ -24,12 +24,12 @@ from .report import (
 )
 from .table import display
 
-from typing import Any, TypedDict, Optional
+from typing import Any, Generator, TypedDict, Optional
 
 BENCHMARK_DIR = Path(".benchmarks")
 
 # The historical backfill runs today's benchmarks against year-old builds, so a
-# benchmark shader may call library APIs that did not exist yet. Without this,
+# benchmark may call library APIs that did not exist yet. Without the hooks below,
 # one such benchmark fails the whole device and discards that commit's results.
 # Only the backfill workflow sets BACKFILL_TARGET_SHA; ordinary CI still fails.
 BACKFILL_TARGET_SHA = os.environ.get("BACKFILL_TARGET_SHA", "")
@@ -46,12 +46,11 @@ def _benchmarks_postdating_target() -> frozenset[str]:
     :return: Paths listed by tools/backfill_benchmark_manifest.py, empty when unset.
     """
 
-    manifest = os.environ.get("BACKFILL_SKIP_BENCHMARKS", "")
-    if not manifest or not Path(manifest).is_file():
+    manifest = Path(os.environ.get("BACKFILL_SKIP_BENCHMARKS", ""))
+    if not manifest.name or not manifest.is_file():
         return frozenset()
-    return frozenset(
-        line.strip() for line in Path(manifest).read_text(encoding="utf-8").splitlines()
-    ) - {""}
+    lines = manifest.read_text(encoding="utf-8").splitlines()
+    return frozenset(stripped for stripped in (line.strip() for line in lines) if stripped)
 
 
 BENCHMARKS_POSTDATING_TARGET = _benchmarks_postdating_target()
@@ -138,7 +137,9 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
+def pytest_runtest_makereport(
+    item: pytest.Item, call: pytest.CallInfo[None]
+) -> Generator[None, None, None]:
     """Report a benchmark that a backfill target cannot run as skipped."""
 
     outcome = yield
@@ -166,6 +167,8 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
 
     # A device type the target build cannot create leaves a real hole in the series,
     # so say so loudly. It is not a failure: the other device types still report.
+    # Imported here rather than at module scope because slangpy.testing.helpers
+    # configures the library on import, which a plugin must not do just by loading.
     from slangpy.testing.helpers import BACKFILL_UNAVAILABLE_DEVICES
 
     for reason in BACKFILL_UNAVAILABLE_DEVICES.values():

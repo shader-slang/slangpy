@@ -12,7 +12,7 @@ from .fixtures import (
     ReportFixture,
 )
 
-# Export benchview submission utilities for reuse by other projects (e.g., falcor2)
+# Re-exported so other projects can submit to BenchView with the same payload shape.
 from .benchview import (
     submit_benchview_submissions,
     benchview_submission_url,

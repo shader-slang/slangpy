@@ -7,6 +7,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 from time import sleep
 from typing import Any, Optional
 from urllib.error import HTTPError, URLError
@@ -21,6 +22,9 @@ BENCHVIEW_PROJECT_ID = "slangpy"
 BENCHVIEW_REPOSITORY = "https://github.com/shader-slang/slangpy"
 BENCHVIEW_SUITE_ID = "python"
 BENCHVIEW_RETRYABLE_HTTP_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
+# BenchView accepts test IDs matching ^[A-Za-z0-9][A-Za-z0-9._:/-]*$; everything else
+# is replaced. Pytest parametrization brackets are the usual offender.
+BENCHVIEW_TEST_ID_REJECTED = re.compile(r"[^A-Za-z0-9._:/-]")
 
 BenchViewObservation = dict[str, Any]
 BenchViewSubmission = dict[str, Any]
@@ -72,13 +76,10 @@ def _normalize_source_path(filename: str) -> str:
 
 
 def _sanitize_test_id(test_id: str) -> str:
-    """Sanitize test ID to match BenchView schema: ^[A-Za-z0-9][A-Za-z0-9._:/-]*$"""
-    import re
+    """Rewrite a pytest node ID into the character set BenchView accepts."""
 
-    # Replace brackets and other invalid chars with underscores
-    sanitized = re.sub(r"[^A-Za-z0-9._:/-]", "_", test_id)
-    # Ensure it starts with alphanumeric
-    if sanitized and not sanitized[0].isalnum():
+    sanitized = BENCHVIEW_TEST_ID_REJECTED.sub("_", test_id)
+    if not sanitized or not sanitized[0].isalnum():
         sanitized = "t" + sanitized
     return sanitized
 
@@ -335,23 +336,23 @@ def build_benchview_submissions(
             item["environment"] = environment
         prepared.append(item)
 
+    def fits(candidate: list[BenchViewObservation]) -> bool:
+        """Whether a candidate batch is within both the count and body-size limits."""
+
+        if len(candidate) > batch_size:
+            return False
+        return len(_json_bytes(_finalize_submission(base, candidate))) <= max_body_bytes
+
     submissions: list[BenchViewSubmission] = []
     batch: list[BenchViewObservation] = []
     for observation in prepared:
-        candidate = [*batch, observation]
-        candidate_submission = _finalize_submission(base, candidate)
-        if (
-            len(candidate) <= batch_size
-            and len(_json_bytes(candidate_submission)) <= max_body_bytes
-        ):
-            batch = candidate
+        if fits([*batch, observation]):
+            batch.append(observation)
             continue
-        if not batch:
+        if not batch or not fits([observation]):
             raise BenchmarkSubmissionError("One benchmark observation exceeds the API body limit.")
         submissions.append(_finalize_submission(base, batch))
         batch = [observation]
-        if len(_json_bytes(_finalize_submission(base, batch))) > max_body_bytes:
-            raise BenchmarkSubmissionError("One benchmark observation exceeds the API body limit.")
     if batch:
         submissions.append(_finalize_submission(base, batch))
     return submissions
