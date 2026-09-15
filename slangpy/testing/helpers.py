@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import hashlib
+import os
 import sys
 from pathlib import Path
 from typing import Any, Optional, Sequence, Union, cast
@@ -83,6 +84,12 @@ DEVICE_CACHE: dict[
 
 USED_TORCH_DEVICES: bool = False
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
+
+# Only the backfill workflow sets this. Every device and library API the harness
+# uses exists at the supported floor, so nothing here varies with the target; it
+# remains only so the benchmark plugin can name the target it is measuring.
+BACKFILL_TARGET_SHA: str = os.environ.get("BACKFILL_TARGET_SHA", "")
+
 
 # Always dump stuff when testing
 spy.set_dump_generated_shaders(True)
@@ -216,24 +223,27 @@ def get_device(
 
     if use_cache and cache_key in DEVICE_CACHE:
         device = DEVICE_CACHE[cache_key]
-        device.set_cuda_context_current()  # Ensure CUDA context is current for cached devices
+        # Ensure CUDA context is current for cached devices.
+        device.set_cuda_context_current()
         return device
 
-    device = Device(
-        type=type,
-        adapter_luid=selected_adaptor_luid,
-        enable_debug_layers=not is_benchmark,
-        enable_rhi_validation=not is_benchmark,
-        compiler_options=SlangCompilerOptions(
+    device_kwargs: dict[str, Any] = {
+        "type": type,
+        "adapter_luid": selected_adaptor_luid,
+        "enable_debug_layers": not is_benchmark,
+        "compiler_options": SlangCompilerOptions(
             {
                 "include_paths": include_paths,
                 "debug_info": SlangDebugInfoLevel.standard,
             }
         ),
-        enable_cuda_interop=cuda_interop,
-        existing_device_handles=existing_device_handles,
-        label=label,
-    )
+        "enable_cuda_interop": cuda_interop,
+        "existing_device_handles": existing_device_handles,
+        "label": label,
+        "enable_rhi_validation": not is_benchmark,
+    }
+
+    device = Device(**device_kwargs)
 
     # slangpy dependens on parameter block support which is not available on all Metal devices
     if type == DeviceType.metal:
