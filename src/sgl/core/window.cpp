@@ -453,6 +453,18 @@ int2 Window::position() const
     return int2{xpos, ypos};
 }
 
+uint2 Window::query_framebuffer_size() const
+{
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(m_window, &width, &height);
+    return uint2{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+}
+
+bool Window::is_minimized() const
+{
+    return glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) != 0;
+}
+
 void Window::set_position(int2 position)
 {
     glfwSetWindowPos(m_window, position.x, position.y);
