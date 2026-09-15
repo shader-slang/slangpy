@@ -120,19 +120,23 @@ def reset_to_commit(clone: Path, sha: str) -> None:
     run(["git", "lfs", "pull"], clone, "lfs")
 
 
-# The vcpkg revision that stopped requesting the deleted MSYS2 runtime. Pins that
-# predate it cannot bootstrap pkgconf and so cannot build at all.
-VCPKG_MSYS2_FIX = "dba4ce18"
-
-
 def repin_vcpkg(clone: Path, harness_vcpkg: str) -> None:
-    """Replace a vcpkg revision that can no longer bootstrap with the harness one.
+    """Move a vcpkg pin older than the harness one forward to the harness one.
 
-    MSYS2 deletes superseded packages, so vcpkg revisions pinned before
-    :data:`VCPKG_MSYS2_FIX` request an msys2-runtime that no longer exists and cannot
-    build pkgconf. Only those targets are repinned. A pin that merely differs from the
-    harness is left alone: the dependency set is part of what the backfill measures, so
-    silently moving it would change the thing being timed.
+    MSYS2 deletes superseded packages, so old vcpkg revisions request an
+    msys2-runtime that no longer exists, cannot bootstrap pkgconf, and so cannot
+    build at all. The harness revision is the newest one the backfill knows to work,
+    and any pin strictly older than it is at risk, so those are moved forward.
+
+    A pin that is *not* an ancestor of the harness one is left alone. It is either the
+    same revision or a newer one, and the dependency set is part of what the backfill
+    measures, so moving it would change the thing being timed.
+
+    Ancestry is resolved against the harness revision itself rather than a hardcoded
+    boundary commit. An earlier version compared against a constant that held a
+    *slangpy* SHA rather than a vcpkg one; since that object does not exist in the
+    vcpkg repository the test could never succeed, every pin looked fine, and the ten
+    oldest commits in the range failed at configure instead of being repaired.
 
     This has to run after ``ci.py setup``, which resets every submodule to its
     recorded revision.
@@ -144,16 +148,19 @@ def repin_vcpkg(clone: Path, harness_vcpkg: str) -> None:
         return
 
     vcpkg = clone / "external" / "vcpkg"
-    if not attempt(["git", "merge-base", "--is-ancestor", target_vcpkg, VCPKG_MSYS2_FIX], vcpkg):
-        # Either the pin postdates the MSYS2 fix, or ancestry could not be decided.
-        # Both mean "not known to be broken", so build what the commit asked for and
-        # let a bootstrap failure be reported honestly against this commit.
-        print(f"Keeping the target vcpkg revision {target_vcpkg}")
+    # The submodule clone is not guaranteed to carry the harness revision, and an
+    # ancestry test against a missing object fails the same way as a negative result.
+    if not attempt(["git", "cat-file", "-e", f"{harness_vcpkg}^{{commit}}"], vcpkg):
+        if not attempt(["git", "fetch", "--no-tags", "origin", harness_vcpkg], vcpkg):
+            run(["git", "fetch", "--no-tags", "origin"], vcpkg, "vcpkg")
+
+    # Both objects are present, so this now answers the ancestry question rather than
+    # reporting that it could not be asked.
+    if not attempt(["git", "merge-base", "--is-ancestor", target_vcpkg, harness_vcpkg], vcpkg):
+        print(f"Keeping the target vcpkg revision {target_vcpkg}, which is not older")
         return
 
     print(f"Replacing unbootstrappable vcpkg {target_vcpkg} with {harness_vcpkg}")
-    if not attempt(["git", "fetch", "--no-tags", "origin", harness_vcpkg], vcpkg):
-        run(["git", "fetch", "--no-tags", "origin"], vcpkg, "vcpkg")
     run(["git", "checkout", "--detach", harness_vcpkg], vcpkg, "vcpkg")
 
 
@@ -291,11 +298,12 @@ def run_batch(
     harness_vcpkg = git_output(workspace, "rev-parse", "HEAD:external/vcpkg")
     outcomes: list[CommitOutcome] = []
 
-    def publish() -> None:
+    def publish(echo: bool) -> None:
         report = format_report(outcomes, shas[len(outcomes) :])
         if summary_path is not None:
             summary_path.write_text(report, encoding="utf-8")
-        print(report, flush=True)
+        if echo:
+            print(report, flush=True)
 
     for index, sha in enumerate(shas, start=1):
         print(f"\n::group::[{index}/{len(shas)}] {sha}", flush=True)
@@ -316,10 +324,12 @@ def run_batch(
             outcome = CommitOutcome(sha, "failed", failure.stage, time.monotonic() - started)
         print("::endgroup::", flush=True)
         outcomes.append(outcome)
-        # Rewritten after every commit so a job that is killed still reports the
-        # work it managed to submit.
-        publish()
+        # The file is rewritten after every commit so a job that is killed still
+        # reports the work it managed to submit. Echoing the whole table that often
+        # would reprint every row once per commit, so that is left until the end.
+        publish(echo=False)
 
+    publish(echo=True)
     return 1 if outcomes and all(o.status == "failed" for o in outcomes) else 0
 
 

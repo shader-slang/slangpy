@@ -3,7 +3,9 @@
 """Offline coverage for batching a rev list into a single backfill job."""
 
 from datetime import datetime, timedelta, timezone
+import os
 from pathlib import Path
+import subprocess
 from typing import Any
 
 import pytest
@@ -297,6 +299,86 @@ def test_a_batch_label_identifies_its_place_and_span():
     assert dispatcher.batch_label(batches[2], 3, len(batches)) == (
         "batch 3/3 (5 commits, 2025-11-01..2025-11-05)"
     )
+
+
+def git(repo: Path, *arguments: str) -> str:
+    """Run git in ``repo`` with a fixed identity and return its stdout."""
+
+    completed = subprocess.run(
+        ["git", "-C", str(repo), *arguments],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={
+            "PATH": os.environ.get("PATH", ""),
+            "HOME": str(repo),
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@t",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null",
+        },
+    )
+    return completed.stdout.strip()
+
+
+def superproject_pinning(tmp_path: Path, *, old_first: bool) -> tuple[Path, str, str]:
+    """Build a real superproject whose ``external/vcpkg`` gitlink points at one commit.
+
+    Returns the superproject, the older vcpkg commit and the newer one. The submodule
+    working tree is checked out at whichever of the two the superproject pins, which is
+    the state ``ci.py setup`` leaves behind.
+    """
+
+    upstream = tmp_path / "vcpkg-origin"
+    upstream.mkdir()
+    git(upstream, "init", "-q", "-b", "main")
+    (upstream / "ports.txt").write_text("old\n", encoding="utf-8")
+    git(upstream, "add", "ports.txt")
+    git(upstream, "commit", "-qm", "old vcpkg")
+    older = git(upstream, "rev-parse", "HEAD")
+    (upstream / "ports.txt").write_text("new\n", encoding="utf-8")
+    git(upstream, "commit", "-qam", "new vcpkg")
+    newer = git(upstream, "rev-parse", "HEAD")
+
+    clone = tmp_path / "clone"
+    clone.mkdir()
+    git(clone, "init", "-q", "-b", "main")
+    pinned = older if old_first else newer
+    # A gitlink written directly, which is all repin_vcpkg reads, and far less
+    # machinery than a real `git submodule add`.
+    git(clone, "update-index", "--add", "--cacheinfo", f"160000,{pinned},external/vcpkg")
+    git(clone, "commit", "-qm", "pin vcpkg")
+
+    git(clone, "clone", "-q", str(upstream), str(clone / "external" / "vcpkg"))
+    git(clone / "external" / "vcpkg", "checkout", "-q", "--detach", pinned)
+    return clone, older, newer
+
+
+def test_a_vcpkg_pin_older_than_the_harness_is_moved_forward(tmp_path: Path):
+    """Prove an unbootstrappable vcpkg pin is actually replaced.
+
+    The ancestry test has to be resolved against a revision that exists in the vcpkg
+    repository. An earlier version compared against a slangpy commit, so the test could
+    never succeed and every old pin was silently kept, which failed the build.
+    """
+
+    clone, older, newer = superproject_pinning(tmp_path, old_first=True)
+
+    batch.repin_vcpkg(clone, newer)
+
+    assert git(clone / "external" / "vcpkg", "rev-parse", "HEAD") == newer
+
+
+def test_a_vcpkg_pin_the_harness_does_not_precede_is_left_alone(tmp_path: Path):
+    """Keep a pin that is not older: the dependency set is part of the measurement."""
+
+    clone, older, newer = superproject_pinning(tmp_path, old_first=False)
+
+    batch.repin_vcpkg(clone, older)
+
+    assert git(clone / "external" / "vcpkg", "rev-parse", "HEAD") == newer
 
 
 def test_excluded_commits_are_dropped_before_batching(tmp_path: Path):

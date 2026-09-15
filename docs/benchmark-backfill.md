@@ -54,7 +54,7 @@ Each was discovered on CI, one per cycle, and each is now handled:
 | `ImportError: crashpad` | overlay omitted `crashpad.py` | added to overlay; `is_supported()` probe |
 | `get_device called when no device types are selected` | overlay omitted `slangpy/benchmarks` | added to overlay |
 | `fatal: reference is not a tree` | `github.sha` resolved inside a fresh clone | resolve harness SHA with fetch + ref fallback |
-| vcpkg msys2 404 | deleted upstream package | repin vcpkg, **after** `ci.py setup` (setup resets submodules) |
+| vcpkg msys2 404 | deleted upstream package | repin vcpkg, **after** `ci.py setup` (setup resets submodules) — see below, the first version of this did not work |
 | new compiler warnings | `-Werror` on old code | `-DSGL_WARNINGS_AS_ERRORS=OFF` for historical builds |
 | `enable_rhi_validation` rejected | postdates target | probe `Device.__init__.__doc__` |
 | `set_cuda_context_current` missing | postdates target | `hasattr` guard |
@@ -124,6 +124,34 @@ of that commit are queued to confirm.
   two concepts into `--branch` and `--workflow-ref`.
 * **BenchView has not been wiped.** New rows are landing alongside pre-existing
   data.
+
+### The vcpkg repin never fired, found by the first batched sweep
+
+Batch 1 of the full sweep failed its first ten commits on Windows, each in about 16
+seconds, all with the msys2 404 the repin exists to prevent. The log gave the reason:
+
+```
+Keeping the target vcpkg revision ce613c41372b23b1f51333815feb3edd87ef8a8b
+```
+
+`repin_vcpkg` compared the target's vcpkg pin against a constant holding
+`dba4ce18` — a **slangpy** commit, *"Updated vcpkg to enable the new USD (#489)"* —
+while running `git merge-base --is-ancestor` inside `external/vcpkg`, where that
+object does not exist. Git failed, and the code read the failure as "not known to be
+broken", so no pin was ever repaired.
+
+Two things made a typo into a silent ten-commit outage. The constant mixed up two
+repositories' SHAs, and the surrounding comment deliberately folded "ancestry could
+not be decided" into "nothing to do". Ancestry can only be undecidable if the
+constant is wrong or the object was never fetched; both are harness bugs, so that
+case must never be quiet.
+
+The constant is gone. Ancestry is now resolved against the harness's own vcpkg
+revision, which is fetched first so the question can actually be answered. Exactly
+**10 of the 402 commits** pin anything other than the harness revision, all of them
+between 2025-09-02 and 2025-09-05 and all in batch 1, so the loss is bounded to those
+and the rest of the sweep is unaffected. Linux never saw it: msys2 is only used by
+vcpkg on Windows.
 
 ### Windows nvrtc gap, late 2025
 
