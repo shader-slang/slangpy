@@ -16,10 +16,11 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import time
-from typing import Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
 
 # The oldest commit whose build the current benchmark harness can drive. Earlier
 # commits are not a supported backfill target and are rejected before any work
@@ -94,6 +95,42 @@ def is_ancestor(repo: Path, candidate: str, descendant: str, stage: str) -> bool
         f"could not decide whether {candidate} precedes {descendant} "
         f"(git exited with code {completed.returncode})",
     )
+
+
+def _retry_writable(function: Callable[[str], Any], path: str, _excinfo: Any) -> None:
+    """Retry a removal that failed because Git marks its object files read-only."""
+
+    os.chmod(path, stat.S_IWRITE)
+    function(path)
+
+
+def remove_tree(path: Path) -> None:
+    """Delete a directory tree, including the read-only files Git leaves on Windows."""
+
+    if not path.exists():
+        return
+    print(f"Removing {path}", flush=True)
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_retry_writable)
+    else:
+        shutil.rmtree(path, onerror=_retry_writable)
+
+
+def prepare_clone(work_dir: Path, repository_url: str) -> Path:
+    """Create a pristine clone of the repository under ``work_dir``.
+
+    The clone path is derived here rather than supplied, so the directory removed
+    is always one this function chose. Any earlier clone is removed first: the
+    runners keep their working directories between jobs, so a cancelled or killed
+    run can leave one behind, and building on top of it would silently benchmark a
+    tree nobody chose.
+    """
+
+    clone = work_dir / "clone"
+    remove_tree(clone)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    run(["git", "clone", "--recursive", repository_url, str(clone)], work_dir, "clone")
+    return clone
 
 
 def reset_to_commit(clone: Path, sha: str) -> None:
@@ -210,9 +247,19 @@ def _parser() -> argparse.ArgumentParser:
         "it: keeping it out of the command line means the same workflow step works verbatim "
         "under both pwsh and bash.",
     )
-    parser.add_argument("--clone-dir", type=Path, required=True, help="Historical clone root.")
+    parser.add_argument(
+        "--work-dir",
+        type=Path,
+        required=True,
+        help="Scratch directory. The clone and the skip list are placed inside it, and "
+        "the clone is removed before and after the run.",
+    )
+    parser.add_argument(
+        "--repository-url",
+        default="https://github.com/shader-slang/slangpy.git",
+        help="Repository to clone the historical source from.",
+    )
     parser.add_argument("--workspace", type=Path, default=Path("."), help="Harness checkout root.")
-    parser.add_argument("--skip-manifest", type=Path, required=True, help="Skip-list scratch file.")
     parser.add_argument("--run-id", required=True, help="BenchView run identifier.")
     parser.add_argument("--api-url", required=True, help="BenchView API URL.")
     return parser
@@ -225,27 +272,28 @@ def main(argv: Optional[list[str]] = None) -> int:
         print("No commit was requested.", file=sys.stderr)
         return 1
 
-    clone = args.clone_dir.resolve()
+    work_dir = args.work_dir.resolve()
     workspace = args.workspace.resolve()
 
+    started = time.monotonic()
+    clone = None
     try:
+        clone = prepare_clone(work_dir, args.repository_url)
+        # Ancestry can only be resolved once the history is on disk, and the harness
+        # checkout is shallow, so the floor is checked after the clone rather than
+        # before it. The dispatcher already refuses to dispatch below the floor; this
+        # is the backstop for a hand-run job.
         if not is_ancestor(clone, SUPPORTED_FLOOR_SHA, sha, "floor"):
             print(
                 f"{sha[:12]} predates the supported floor {SUPPORTED_FLOOR_SHA[:12]}.",
                 file=sys.stderr,
             )
             return 1
-    except CommitFailure as failure:
-        print(failure, file=sys.stderr)
-        return 1
-
-    started = time.monotonic()
-    try:
         benchmark_commit(
             sha,
             workspace=workspace,
             clone=clone,
-            skip_manifest=args.skip_manifest,
+            skip_manifest=work_dir / "skip-benchmarks.txt",
             run_id=args.run_id,
             api_url=args.api_url,
         )
@@ -255,6 +303,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"::error::{sha} failed at {failure.stage}: {failure}", flush=True)
         print(f"{sha} failed after {(time.monotonic() - started) / 60:.1f} min", file=sys.stderr)
         return 1
+    finally:
+        # A build tree is tens of gigabytes and the runners are not guaranteed to be
+        # discarded, so it is removed whatever the outcome.
+        if clone is not None:
+            remove_tree(clone)
 
     print(f"{sha} succeeded in {(time.monotonic() - started) / 60:.1f} min")
     return 0

@@ -54,22 +54,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # runner.temp is not available in the job-level env block, so these paths have
-      # to be published here rather than declared alongside the other variables.
-      - name: Set backfill paths (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          "BACKFILL_CLONE_DIR=${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "BACKFILL_SKIP_BENCHMARKS=${{ runner.temp }}/backfill-skip-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}.txt" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
-      - name: Set backfill paths (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          echo "BACKFILL_CLONE_DIR=${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}" >> "$GITHUB_ENV"
-          echo "BACKFILL_SKIP_BENCHMARKS=${{ runner.temp }}/backfill-skip-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}.txt" >> "$GITHUB_ENV"
-
       - name: Setup Python ${{ matrix.python }}
         uses: actions/setup-python@v6
         with:
@@ -87,10 +71,13 @@ jobs:
           python -m pip install torch==2.8.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
           python -m pip install pytest-github-actions-annotate-failures
 
-      # A fresh clone per run, which is what one commit per job costs.
-      - name: Clone historical source
-        run: git clone --recursive "https://github.com/${{ github.repository }}.git" "${{ env.BACKFILL_CLONE_DIR }}"
-
+      # The driver owns the whole clone lifecycle: it removes any clone left behind
+      # by an earlier run, makes a fresh one, and removes it again whatever the
+      # outcome. Keeping that in Python rather than in two shells means it is written
+      # once for both runners, and the deletion target is one the script derived
+      # rather than one handed to it, so it needs no guards against deleting the
+      # wrong directory.
+      #
       # The sha is handed over in the environment rather than on the command line
       # so that this one step is written once for both pwsh and bash.
       - name: Benchmark historical commit
@@ -98,41 +85,7 @@ jobs:
           BACKFILL_TARGET_SHA: ${{ inputs.target_sha }}
         run: >
           python tools/backfill_commit.py
-          --clone-dir "${{ env.BACKFILL_CLONE_DIR }}"
-          --skip-manifest "${{ env.BACKFILL_SKIP_BENCHMARKS }}"
+          --work-dir "${{ runner.temp }}/slangpy-backfill"
+          --repository-url "https://github.com/${{ github.repository }}.git"
           --run-id "${{ github.run_id }}"
           --api-url "${{ env.BENCHVIEW_API_URL }}"
-
-      - name: Safely remove temporary clone (Windows)
-        if: always() && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $candidate = [IO.Path]::GetFullPath($env:BACKFILL_CLONE_DIR).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-          $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-          $parent = [IO.Directory]::GetParent($candidate)
-          $name = [IO.Path]::GetFileName($candidate)
-          if ($null -eq $parent -or -not [StringComparer]::OrdinalIgnoreCase.Equals($parent.FullName, $runnerTemp)) {
-            throw "Refusing to remove clone outside runner.temp: $candidate"
-          }
-          if (-not $name.StartsWith("slangpy-backfill-", [StringComparison]::Ordinal)) {
-            throw "Refusing to remove unexpected directory name: $name"
-          }
-          if (Test-Path -LiteralPath $candidate) {
-            Remove-Item -LiteralPath $candidate -Recurse -Force
-          }
-
-      - name: Safely remove temporary clone (Linux)
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: |
-          candidate="$(realpath -m -- "$BACKFILL_CLONE_DIR")"
-          runner_temp="$(realpath -m -- "$RUNNER_TEMP")"
-          if [[ "$(dirname -- "$candidate")" != "$runner_temp" ]]; then
-            echo "Refusing to remove clone outside runner.temp: $candidate" >&2
-            exit 1
-          fi
-          if [[ "$(basename -- "$candidate")" != slangpy-backfill-* ]]; then
-            echo "Refusing to remove unexpected directory name: $(basename -- "$candidate")" >&2
-            exit 1
-          fi
-          rm -rf -- "$candidate"
