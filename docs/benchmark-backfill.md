@@ -141,9 +141,15 @@ suggested, and it is not flaky: expect it across the surrounding window of commi
 
 Open question: this is a capability gap of the same kind as the missing CUDA
 device, so it arguably belongs in the skip-and-report path rather than being
-counted as a failure. Left as a failure for now, because unlike a device that
-cannot be created, a missing pass-through compiler is also what a genuine
-regression would look like.
+counted as a failure. Left as a failure for now, because it is also exactly what
+a genuine regression would look like.
+
+That ambiguity is not special to nvrtc. Nothing in a device-construction
+exception separates "this era cannot do CUDA" from "this commit broke CUDA"
+either, so the skip-and-report path is confined to device types that are
+genuinely optional — CUDA only. d3d12 and vulkan exist on the perf runners across
+the whole supported range, so a build that cannot create one is reported as a
+failure rather than losing its coverage to a skip.
 
 ## Why the current design is slow
 
@@ -172,7 +178,7 @@ not compute, it is paying a ~30 minute queue admission **402 times**.
 
 ## Batched runs
 
-Pay the queue cost once per 30 commits instead of once per commit.
+Pay the queue cost once per 45 commits instead of once per commit.
 
 ### Shape
 

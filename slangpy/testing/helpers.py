@@ -107,6 +107,16 @@ DEVICE_SUPPORTS_RHI_VALIDATION: bool = not BACKFILL_TARGET_SHA or "enable_rhi_va
 # coverage only shows up as a skip.
 BACKFILL_UNAVAILABLE_DEVICES: dict[Any, str] = {}
 
+# Only these device types may be treated as an era-dependent capability gap. CUDA is
+# the one observed: it cannot be created at all on Windows before roughly 2026-02.
+# d3d12 and vulkan work on the perf runners across the whole supported range, so
+# failing to create one is a result and must be reported as a failure even during a
+# backfill. Nothing in the exception distinguishes "unsupported" from "regressed" -
+# both arrive as the same error from the RHI layer - so the device type is the only
+# honest discriminator available, and it is deliberately kept as narrow as the
+# evidence.
+BACKFILL_OPTIONAL_DEVICE_TYPES: tuple[DeviceType, ...] = (DeviceType.cuda,)
+
 # Always dump stuff when testing
 spy.set_dump_generated_shaders(True)
 # spy.set_dump_slang_intermediates(True)
@@ -269,10 +279,11 @@ def get_device(
     try:
         device = Device(**device_kwargs)
     except Exception as e:
-        # A device configuration the target build cannot create is a capability gap,
-        # not a regression: record it, skip it, and let the other configurations still
-        # report. Outside the backfill this must stay fatal.
-        if not BACKFILL_TARGET_SHA:
+        # An optional device the target build cannot create is a capability gap, not a
+        # regression: record it, skip it, and let the other configurations still report.
+        # Outside the backfill, and for device types the runners are expected to provide
+        # throughout the supported range, this must stay fatal.
+        if not BACKFILL_TARGET_SHA or type not in BACKFILL_OPTIONAL_DEVICE_TYPES:
             raise
         described = f"{type.name}{' cuda-interop' if cuda_interop else ''} devices"
         BACKFILL_UNAVAILABLE_DEVICES[cache_key] = (

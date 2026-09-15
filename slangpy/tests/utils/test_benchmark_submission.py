@@ -507,6 +507,68 @@ def test_ordinary_workflow_uses_ci_wrapper_without_historical_logic() -> None:
     assert "mongodb" not in workflow.lower()
 
 
+def test_benchmark_revision_validation_covers_the_dispatched_branch_tip() -> None:
+    """Prove the default revision is vetted, not only an explicit revision input.
+
+    workflow_dispatch is the sole trigger, so the default is the tip of whichever
+    branch the dispatcher picked. Checking only the explicit input would leave the
+    dropdown able to benchmark an unmerged commit with the BenchView write key, and
+    to write a BenchView row for a commit that may never reach main.
+    """
+
+    workflow = (REPOSITORY_ROOT / ".github/workflows/ci-benchmark.yml").read_text(encoding="utf-8")
+
+    # One resolution and one ancestry check, so neither path can bypass the other.
+    assert workflow.count('resolved="$(git rev-parse') == 1
+    assert workflow.count("merge-base --is-ancestor") == 1
+    assert 'requested="${REVISION:-$DEFAULT_REVISION}"' in workflow
+    assert "DEFAULT_REVISION: ${{ github.sha }}" in workflow
+
+
+def test_backfill_reports_required_device_failures_instead_of_skipping_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove only optional device types are absorbed as backfill capability gaps.
+
+    CUDA genuinely cannot be created on Windows before roughly 2026-02, so skipping
+    it keeps the rest of a historical commit's benchmarks reportable. d3d12 exists on
+    the perf runners across the whole supported range, so a build that cannot create
+    one has regressed and must fail rather than quietly lose its coverage.
+    """
+
+    helpers = import_module("slangpy.testing.helpers")
+    device_type = import_module("slangpy").DeviceType
+
+    def refuse(**kwargs: Any) -> Any:
+        raise RuntimeError("device creation failed")
+
+    monkeypatch.setattr(helpers, "Device", refuse)
+    monkeypatch.setattr(helpers, "BACKFILL_TARGET_SHA", "0123456789abcdef")
+    monkeypatch.setattr(helpers, "BACKFILL_UNAVAILABLE_DEVICES", {})
+    monkeypatch.setattr(helpers, "DEVICE_CACHE", {})
+    monkeypatch.setattr(helpers, "SELECTED_DEVICE_TYPES", None)
+
+    with pytest.raises(pytest.skip.Exception):
+        helpers.get_device(device_type.cuda)
+    assert len(helpers.BACKFILL_UNAVAILABLE_DEVICES) == 1
+
+    # Catching the skip explicitly rather than using pytest.raises: a skip raised here
+    # would otherwise propagate and mark this test skipped, hiding the regression it
+    # exists to catch.
+    try:
+        helpers.get_device(device_type.d3d12)
+    except pytest.skip.Exception as skipped:
+        pytest.fail(f"required device type was skipped instead of reported: {skipped}")
+    except RuntimeError as error:
+        assert "device creation failed" in str(error)
+    else:
+        pytest.fail("device creation was expected to fail")
+
+    # The failure is reported, so it must not be recorded as an unavailable device
+    # and suppress the same configuration for the rest of the run.
+    assert len(helpers.BACKFILL_UNAVAILABLE_DEVICES) == 1
+
+
 def test_cuda_only_ppisp_benchmarks_declare_the_device_dimension() -> None:
     """Keep CUDA-only PPISP tests out of the non-device benchmark shard."""
 

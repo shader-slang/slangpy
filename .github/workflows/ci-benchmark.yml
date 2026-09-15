@@ -35,16 +35,19 @@ jobs:
         id: resolve
         env:
           REVISION: ${{ inputs.revision }}
+          # workflow_dispatch is the only trigger, so this is the tip of whichever
+          # branch the dispatcher selected and is not necessarily main.
+          DEFAULT_REVISION: ${{ github.sha }}
         run: |
           set -euo pipefail
-          if [ -z "$REVISION" ]; then
-            resolved="$(git rev-parse "${{ github.sha }}")"
-          else
-            resolved="$(git rev-parse --verify "${REVISION}^{commit}")"
-            if ! git merge-base --is-ancestor "$resolved" origin/main; then
-              echo "::error::$REVISION ($resolved) is not contained in main; refusing to benchmark it." >&2
-              exit 1
-            fi
+          # Both paths are checked. Defaulting to the selected branch tip would
+          # otherwise benchmark an unmerged commit with the write key, and write a
+          # BenchView row for a commit that may never reach main.
+          requested="${REVISION:-$DEFAULT_REVISION}"
+          resolved="$(git rev-parse --verify "${requested}^{commit}")"
+          if ! git merge-base --is-ancestor "$resolved" origin/main; then
+            echo "::error::$requested ($resolved) is not contained in main; refusing to benchmark it." >&2
+            exit 1
           fi
           echo "Benchmarking $resolved"
           echo "revision=$resolved" >> "$GITHUB_OUTPUT"
