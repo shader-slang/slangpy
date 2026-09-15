@@ -58,6 +58,7 @@ IN_FLIGHT = "in_flight"
 SUCCEEDED = "succeeded"
 FAILED = "failed"
 TERMINAL = (SUCCEEDED, FAILED)
+KNOWN_STATUSES = (DISPATCHING, IN_FLIGHT, SUCCEEDED, FAILED)
 
 
 class UnsupportedHistoryError(RuntimeError):
@@ -116,7 +117,17 @@ class SweepState:
         commits = payload.get("commits")
         if not isinstance(commits, dict):
             raise StateFileError(f"{path} lacks a commits object.")
-        return cls(path, {str(k): dict(v) for k, v in commits.items() if isinstance(v, dict)})
+        # A record that cannot be read is refused rather than dropped. Dropping it
+        # would make the commit look untouched, and it would be dispatched again
+        # even though its run may well exist.
+        for sha, entry in commits.items():
+            if not isinstance(entry, dict):
+                raise StateFileError(f"{path} has a malformed record for {sha}.")
+            if str(entry.get("status")) not in KNOWN_STATUSES:
+                raise StateFileError(
+                    f"{path} records unknown status {entry.get('status')!r} for {sha}."
+                )
+        return cls(path, {str(k): dict(v) for k, v in commits.items()})
 
     def save(self) -> None:
         """Write the state file atomically.
@@ -153,7 +164,11 @@ class SweepState:
         if entry is None:
             return None
         value = entry.get("run_id")
-        return value if isinstance(value, int) else None
+        # bool is an int subclass, and True would otherwise be formatted into a
+        # run endpoint as if it were an id.
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value
 
     def record(self, sha: str, status: str, run_id: Optional[int] = None) -> None:
         """Set one commit's status and persist immediately."""
@@ -314,13 +329,20 @@ def sweep(
     poll_seconds: float,
     sleeper: Callable[[float], None] = time.sleep,
 ) -> int:
-    """Dispatch every pending commit, never exceeding the in-flight cap."""
+    """Dispatch every pending commit, never exceeding the in-flight cap.
 
-    remaining = [sha for sha in shas if state.status(sha) not in TERMINAL]
+    Only a commit with no state entry is pending. Anything with an entry is
+    already accounted for, and an ``in_flight`` one in particular has a run of
+    its own that :func:`poll` is waiting on: dispatching it again would start a
+    second run for the same commit and leave the first orphaned, since the state
+    file keeps only the newer id. :func:`reconcile` is a precondition, and is
+    what guarantees every entry here is either terminal or genuinely running.
+    """
+
+    remaining = [sha for sha in shas if state.status(sha) is None]
     consecutive_failures = 0
     while remaining or state.counts()[IN_FLIGHT]:
         poll(state, github, repository)
-        remaining = [sha for sha in remaining if state.status(sha) not in TERMINAL]
 
         while remaining and state.counts()[IN_FLIGHT] < max_in_flight:
             sha = remaining[0]
