@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 from http.client import HTTPException
@@ -9,7 +10,7 @@ import os
 from pathlib import Path
 import re
 from time import sleep
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -28,10 +29,41 @@ BENCHVIEW_TEST_ID_REJECTED = re.compile(r"[^A-Za-z0-9._:/-]")
 
 BenchViewObservation = dict[str, Any]
 BenchViewSubmission = dict[str, Any]
+BenchViewMetric = dict[str, Any]
 
 
 class BenchmarkSubmissionError(RuntimeError):
     """Report a safe BenchView payload or HTTP submission failure."""
+
+
+@dataclass(frozen=True)
+class BenchViewProject:
+    """Identity BenchView files a submission under.
+
+    Every field is required, and submission takes one explicitly. BenchView keys
+    a project's history by these values, so a default would turn "forgot to say
+    which project" into "filed under whichever project happened to be the
+    default", which is silent and hard to notice after the fact.
+    """
+
+    id: str
+    name: str
+    suite_id: str
+    suite_name: str
+    repository: str
+    producer_name: str
+    producer_version: str
+
+
+SLANGPY_PROJECT = BenchViewProject(
+    id=BENCHVIEW_PROJECT_ID,
+    name="SlangPy",
+    suite_id=BENCHVIEW_SUITE_ID,
+    suite_name="Python benchmarks",
+    repository=BENCHVIEW_REPOSITORY,
+    producer_name="slangpy-benchmark-plugin",
+    producer_version="1.0.0",
+)
 
 
 def _rfc3339(value: datetime) -> str:
@@ -63,10 +95,30 @@ def _nonempty_string(value: Any) -> Optional[str]:
     return text if text else None
 
 
-def _normalize_source_path(filename: str) -> str:
-    """Prefer a repository-relative slash-separated source path for test identity."""
+def _normalize_source_path(filename: str, root: Optional[Union[str, Path]] = None) -> str:
+    """Prefer a repository-relative slash-separated source path for test identity.
+
+    With an explicit ``root`` a path outside it is an error rather than a silent
+    fallback. A test ID is the primary key for that test's whole history, so an
+    ID carrying a checkout path gives every machine its own disconnected graph.
+    Without a ``root`` the working directory is assumed, and an unrelated path is
+    passed through unchanged for compatibility.
+    """
 
     source = Path(filename)
+    if root is not None:
+        # A relative filename is relative to the root, not to whatever directory
+        # the process happens to be in, or an in-root path would be rejected
+        # purely because pytest was invoked from elsewhere.
+        resolved_root = Path(root).resolve()
+        absolute = source if source.is_absolute() else resolved_root / source
+        try:
+            return absolute.resolve().relative_to(resolved_root).as_posix()
+        except ValueError as exc:
+            raise BenchmarkSubmissionError(
+                f"Benchmark source path {filename!r} is outside {str(root)!r}, so it "
+                "cannot produce a stable BenchView test ID."
+            ) from exc
     if source.is_absolute():
         try:
             source = source.resolve().relative_to(Path.cwd().resolve())
@@ -97,23 +149,49 @@ def _normalize_dimension(name: str, value: Any) -> str:
     return normalized
 
 
+def build_metric(
+    metric_id: str,
+    metric_name: str,
+    samples: list[float],
+    unit: str = "ms",
+    direction: str = "lower",
+) -> BenchViewMetric:
+    """Build one metric from a list of samples."""
+
+    if not samples or any(not math.isfinite(sample) for sample in samples):
+        raise BenchmarkSubmissionError("Benchmark samples must be a non-empty finite list.")
+    return {
+        "id": metric_id,
+        "name": metric_name,
+        "unit": unit,
+        "direction": direction,
+        "distribution": {"samples": samples},
+    }
+
+
 def build_benchview_observation(
     filename: str,
     function_name: str,
     display_name: str,
     parameters: dict[str, Any],
-    samples: list[float],
+    *,
     observed_at: datetime,
-    metric_id: str,
-    metric_name: str,
+    metrics: list[BenchViewMetric],
     adapter_name: Optional[str] = None,
     source_line: Optional[int] = None,
+    metadata: Optional[dict[str, Any]] = None,
+    source_root: Optional[Union[str, Path]] = None,
 ) -> BenchViewObservation:
-    """Build one passed native BenchView observation from a measured pytest case."""
+    """Build one passed native BenchView observation from a measured pytest case.
 
-    if not samples or any(not math.isfinite(sample) for sample in samples):
-        raise BenchmarkSubmissionError("Benchmark samples must be a non-empty finite list.")
-    source_file = _normalize_source_path(filename)
+    ``metrics`` may hold several measurements, or one metric carrying a
+    breakdown. Build each with ``build_metric``.
+    """
+
+    if not metrics:
+        raise BenchmarkSubmissionError("An observation must carry at least one metric.")
+
+    source_file = _normalize_source_path(filename, source_root)
     dimensions = {name: _normalize_dimension(name, value) for name, value in parameters.items()}
     source: dict[str, Any] = {"file": source_file, "function": function_name}
     if source_line is not None and source_line >= 1:
@@ -126,25 +204,19 @@ def build_benchview_observation(
         },
         "observedAt": _rfc3339(observed_at),
         "status": "passed",
-        "metrics": [
-            {
-                "id": metric_id,
-                "name": metric_name,
-                "unit": "ms",
-                "direction": "lower",
-                "distribution": {"samples": samples},
-            }
-        ],
+        "metrics": metrics,
     }
     if dimensions:
         observation["case"] = {"dimensions": dimensions}
-    if display_name != function_name or adapter_name:
-        metadata: dict[str, Any] = {}
-        if display_name != function_name:
-            metadata["pytestName"] = display_name
-        if adapter_name:
-            metadata["adapterName"] = adapter_name
-        observation["metadata"] = metadata
+    extra: dict[str, Any] = {}
+    if display_name != function_name:
+        extra["pytestName"] = display_name
+    if adapter_name:
+        extra["adapterName"] = adapter_name
+    if metadata:
+        extra.update(metadata)
+    if extra:
+        observation["metadata"] = extra
     return observation
 
 
@@ -257,6 +329,7 @@ def _build_submission_base(
     execution_id: str,
     project_info: dict[str, Any],
     commit_info: dict[str, Any],
+    project: BenchViewProject,
 ) -> BenchViewSubmission:
     """Build fields shared by every batch from one pytest benchmark process."""
 
@@ -270,7 +343,7 @@ def _build_submission_base(
         dimensions["slangBuildTag"] = slang_build_tag
     config_digest = hashlib.sha256(_json_bytes(dimensions)).hexdigest()[:16]
 
-    vcs: dict[str, Any] = {"repository": BENCHVIEW_REPOSITORY, "revision": revision}
+    vcs: dict[str, Any] = {"repository": project.repository, "revision": revision}
     commit_time = commit_info.get("time") or commit_info.get("author_time")
     if isinstance(commit_time, datetime):
         vcs["commitTime"] = _rfc3339(commit_time)
@@ -283,16 +356,16 @@ def _build_submission_base(
         vcs["dirty"] = commit_info["dirty"]
 
     run: dict[str, Any] = {
-        "key": f"git:{revision}/suite:{BENCHVIEW_SUITE_ID}/config:{config_digest}",
-        "suite": {"id": BENCHVIEW_SUITE_ID, "name": "Python benchmarks"},
+        "key": f"git:{revision}/suite:{project.suite_id}/config:{config_digest}",
+        "suite": {"id": project.suite_id, "name": project.suite_name},
         "vcs": vcs,
     }
     if dimensions:
         run["dimensions"] = dimensions
     return {
         "schemaVersion": 1,
-        "project": {"id": BENCHVIEW_PROJECT_ID, "name": "SlangPy"},
-        "producer": {"name": "slangpy-benchmark-plugin", "version": "1.0.0"},
+        "project": {"id": project.id, "name": project.name},
+        "producer": {"name": project.producer_name, "version": project.producer_version},
         "run": run,
         "execution": {"id": execution_id, "requestId": request_id},
     }
@@ -305,7 +378,8 @@ def _finalize_submission(
 
     content = {**base, "observations": observations}
     digest = hashlib.sha256(_json_bytes(content)).hexdigest()
-    return {"schemaVersion": 1, "idempotencyKey": f"slangpy/{digest}", **content}
+    project_id = base["project"]["id"]
+    return {"schemaVersion": 1, "idempotencyKey": f"{project_id}/{digest}", **content}
 
 
 def build_benchview_submissions(
@@ -315,6 +389,7 @@ def build_benchview_submissions(
     project_info: dict[str, Any],
     machine_info: dict[str, Any],
     commit_info: dict[str, Any],
+    project: BenchViewProject,
     batch_size: int = BENCHVIEW_DEFAULT_BATCH_SIZE,
     max_body_bytes: int = BENCHVIEW_MAX_BODY_BYTES,
 ) -> list[BenchViewSubmission]:
@@ -327,7 +402,7 @@ def build_benchview_submissions(
     if max_body_bytes < 1:
         raise BenchmarkSubmissionError("BenchView body limit must be positive.")
 
-    base = _build_submission_base(request_id, execution_id, project_info, commit_info)
+    base = _build_submission_base(request_id, execution_id, project_info, commit_info, project)
     environment = _build_benchview_environment(machine_info)
     prepared: list[BenchViewObservation] = []
     for observation in observations:
