@@ -26,12 +26,10 @@ from typing import Any, Callable, Optional, Sequence
 # commits are not a supported backfill target and are rejected before any work
 # starts. The timestamp is only used to bound the commit query in the dispatcher.
 #
-# This is "Updated vcpkg to enable the new USD (#489)", the commit that moved
-# external/vcpkg to the revision every later commit still pins. The ten commits
-# below it pin a vcpkg old enough that MSYS2 has deleted the packages it asks
-# for, so they cannot bootstrap and cannot be built at all.
-SUPPORTED_FLOOR_SHA = "dba4ce185fc05836f0dab86ed8e41977c84673ac"
-SUPPORTED_FLOOR_TIME = datetime(2025, 9, 5, 10, 49, 2, tzinfo=timezone.utc)
+# It sits just past the last target needing an era-dependent accommodation, so
+# the harness carries none. Lowering it means reinstating them.
+SUPPORTED_FLOOR_SHA = "5c266df695fe69da052ef2495e55f9d571442e23"
+SUPPORTED_FLOOR_TIME = datetime(2026, 2, 16, 16, 4, 51, tzinfo=timezone.utc)
 
 # The harness must be identical at every commit or the timings are not
 # comparable, so these paths are copied over the historical tree. slangpy/benchmarks

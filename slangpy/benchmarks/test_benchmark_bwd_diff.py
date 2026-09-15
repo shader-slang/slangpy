@@ -34,8 +34,6 @@ import slangpy as spy
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkSlangFunction
 
-helpers.require_apis(spy, "diff_pair", "Tensor")
-
 diff_pair, Tensor = spy.diff_pair, spy.Tensor
 
 DEVICE_TYPES = [spy.DeviceType.cuda] if spy.DeviceType.cuda in helpers.DEFAULT_DEVICE_TYPES else []

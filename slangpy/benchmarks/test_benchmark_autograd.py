@@ -10,8 +10,6 @@ from slangpy.core import native
 from slangpy.testing import helpers
 from slangpy.testing.benchmark import BenchmarkPythonFunction
 
-helpers.require_apis(native, "NativeTorchTensorDiffPair")
-
 NativeTorchTensorDiffPair = native.NativeTorchTensorDiffPair
 
 HAS_TORCH = False

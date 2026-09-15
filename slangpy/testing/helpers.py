@@ -85,51 +85,10 @@ DEVICE_CACHE: dict[
 USED_TORCH_DEVICES: bool = False
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
-# Only the backfill workflow sets this. Historical targets legitimately lack newer
-# device APIs, but anywhere else a missing one is a real regression, so the probes
-# below must stay inert outside a backfill.
+# Only the backfill workflow sets this. Every device and library API the harness
+# uses exists at the supported floor, so nothing here varies with the target; it
+# remains only so the benchmark plugin can name the target it is measuring.
 BACKFILL_TARGET_SHA: str = os.environ.get("BACKFILL_TARGET_SHA", "")
-
-# Backfill targets that predate the debug options in the device constructor reject
-# enable_rhi_validation. nanobind exposes no inspectable signature, so read its doc.
-DEVICE_SUPPORTS_RHI_VALIDATION: bool = not BACKFILL_TARGET_SHA or "enable_rhi_validation" in (
-    Device.__init__.__doc__ or ""
-)
-
-# Device configurations a backfill target cannot create at all, recorded on first
-# failure so the probe happens once rather than once per benchmark. Keyed by the same
-# tuple as DEVICE_CACHE, which is the full set of inputs deciding whether construction
-# succeeds; anything coarser lets one configuration's failure suppress another that
-# would have worked.
-BACKFILL_UNAVAILABLE_DEVICES: dict[Any, str] = {}
-
-# Only these device types may be treated as an era-dependent capability gap. CUDA
-# cannot be created at all on Windows before roughly 2026-02. d3d12 and vulkan work on
-# the perf runners across the whole supported range, so failing to create one is a
-# result and must be reported as a failure even during a backfill. Nothing in the
-# exception distinguishes "unsupported" from "regressed", so the device type is the
-# only discriminator available and is kept as narrow as the evidence.
-BACKFILL_OPTIONAL_DEVICE_TYPES: tuple[DeviceType, ...] = (DeviceType.cuda,)
-
-
-def require_apis(module: Any, *names: str) -> None:
-    """Skip a benchmark module whose APIs a backfill target does not have yet.
-
-    Probing by name rather than catching ImportError keeps a genuine failure to
-    import the module itself fatal. Outside a backfill a missing name is a real
-    regression, so it is raised there.
-
-    :param module: Module the names are expected on.
-    :param names: Attribute names the importing module needs.
-    """
-
-    missing = [name for name in names if not hasattr(module, name)]
-    if not missing:
-        return
-    described = ", ".join(f"{module.__name__}.{name}" for name in missing)
-    if not BACKFILL_TARGET_SHA:
-        raise ImportError(f"{described} is missing from this build")
-    pytest.skip(f"{described} is not available in this build", allow_module_level=True)
 
 
 # Always dump stuff when testing
@@ -264,15 +223,9 @@ def get_device(
 
     if use_cache and cache_key in DEVICE_CACHE:
         device = DEVICE_CACHE[cache_key]
-        # Ensure CUDA context is current for cached devices. Backfill targets before
-        # #774 have no such method and never moved the context. Outside the backfill
-        # a missing binding must still raise rather than be silently skipped.
-        if not BACKFILL_TARGET_SHA or hasattr(device, "set_cuda_context_current"):
-            device.set_cuda_context_current()
+        # Ensure CUDA context is current for cached devices.
+        device.set_cuda_context_current()
         return device
-
-    if cache_key in BACKFILL_UNAVAILABLE_DEVICES:
-        pytest.skip(BACKFILL_UNAVAILABLE_DEVICES[cache_key])
 
     device_kwargs: dict[str, Any] = {
         "type": type,
@@ -287,25 +240,10 @@ def get_device(
         "enable_cuda_interop": cuda_interop,
         "existing_device_handles": existing_device_handles,
         "label": label,
+        "enable_rhi_validation": not is_benchmark,
     }
-    if DEVICE_SUPPORTS_RHI_VALIDATION:
-        device_kwargs["enable_rhi_validation"] = not is_benchmark
 
-    try:
-        device = Device(**device_kwargs)
-    except Exception as e:
-        # An optional device the target build cannot create is a capability gap, not a
-        # regression: record it, skip it, and let the other configurations still report.
-        # Outside the backfill, and for device types the runners are expected to provide
-        # throughout the supported range, this must stay fatal.
-        if not BACKFILL_TARGET_SHA or type not in BACKFILL_OPTIONAL_DEVICE_TYPES:
-            raise
-        described = f"{type.name}{' cuda-interop' if cuda_interop else ''} devices"
-        BACKFILL_UNAVAILABLE_DEVICES[cache_key] = (
-            f"{described} cannot be created by backfill target "
-            f"{BACKFILL_TARGET_SHA[:12]} on this platform: {e}"
-        )
-        pytest.skip(BACKFILL_UNAVAILABLE_DEVICES[cache_key])
+    device = Device(**device_kwargs)
 
     # slangpy dependens on parameter block support which is not available on all Metal devices
     if type == DeviceType.metal:

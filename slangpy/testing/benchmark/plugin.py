@@ -165,15 +165,6 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
     # Generate benchmark report
     context = get_context(session.config)
 
-    # A device type the target build cannot create leaves a real hole in the series,
-    # so say so loudly. It is not a failure: the other device types still report.
-    # Imported here rather than at module scope because slangpy.testing.helpers
-    # configures the library on import, which a plugin must not do just by loading.
-    from slangpy.testing.helpers import BACKFILL_UNAVAILABLE_DEVICES
-
-    for reason in BACKFILL_UNAVAILABLE_DEVICES.values():
-        print(f"Backfill device unavailable, benchmarks skipped: {reason}")
-
     # Skipping the odd incompatible benchmark still yields a usable data point, but
     # skipping every one of them does not: that is a silently empty result, so fail.
     if context["incompatible_skips"] and not context["benchmark_observations"]:

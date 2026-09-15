@@ -10,16 +10,15 @@ results under the historical commit's identity.
 ## Supported range
 
 The inclusive compatibility floor is
-`dba4ce185fc05836f0dab86ed8e41977c84673ac` (2025-09-05, "Updated vcpkg to enable the
-new USD"), the oldest commit whose build the current harness can drive. It is defined
-once, as `SUPPORTED_FLOOR_SHA` in `tools/backfill_commit.py`, and commits below it are
-rejected before any setup or build work starts.
+`5c266df695fe69da052ef2495e55f9d571442e23` (2026-02-16), the oldest commit whose build
+the current harness can drive. It is defined once, as `SUPPORTED_FLOOR_SHA` in
+`tools/backfill_commit.py`, and commits below it are rejected before any setup or build
+work starts.
 
-The floor sits there because that commit moved `external/vcpkg` to the revision every
-later commit still pins. The ten commits below it pin a vcpkg old enough that MSYS2 has
-deleted the packages it asks for, so they cannot bootstrap pkgconf and cannot be built
-at all. Rather than rewrite their pin and measure a dependency set they never shipped
-with, they are simply out of range.
+It is set just past the last commit that needed an era-dependent accommodation, so the
+harness carries none at all: see [Era compatibility](#era-compatibility). Older commits
+are reachable only by reinstating those, which is a deliberate trade rather than a
+configuration change.
 
 ## How a run works
 
@@ -98,34 +97,20 @@ returned to the queue.
 
 ## Era compatibility
 
-Every accommodation for old builds is gated on `BACKFILL_TARGET_SHA`, which only the
-backfill workflow sets. Outside a backfill all of these stay fatal, so an API that goes
-missing in ordinary CI is still reported as the regression it is.
+Every device and library API the harness uses exists throughout the supported range,
+so it carries no probes or capability guards: a missing API is a regression everywhere,
+including during a backfill. Only two things still vary with the target, and both are
+about which benchmarks exist rather than what the build can do:
 
 | Situation | Handling |
 |---|---|
 | Benchmark module postdates the target | `tools/backfill_benchmark_manifest.py` asks git which benchmark modules exist in the target's tree; the plugin skips the rest at collection |
 | Individual benchmark's shader does not compile | Reported as skipped, not failed; a run where *every* benchmark is skipped fails, since that is a silently empty result |
-| Library API postdates the target | `helpers.require_apis` skips the module |
-| `enable_rhi_validation` not accepted | Probed from `Device.__init__.__doc__`, since nanobind exposes no inspectable signature |
-| `set_cuda_context_current` missing | `hasattr` guard on the cached-device path |
-| Device type cannot be created at all | Recorded once and skipped, but only for `BACKFILL_OPTIONAL_DEVICE_TYPES` |
 
-Nothing in a device-construction exception separates "this era cannot do CUDA" from
-"this commit broke CUDA", so the skip-and-report path is confined to device types that
-are genuinely optional — CUDA only. d3d12 and vulkan exist on the perf runners across
-the whole supported range, so a build that cannot create one is reported as a failure
-rather than losing its coverage to a skip.
-
-### Known era-specific gaps
-
-- **CUDA on Windows before roughly 2026-02** cannot be created at all. Handled by the
-  optional-device-type skip above.
-- **nvrtc on Windows in late 2025** — Slang cannot locate nvrtc for that era's CUDA
-  targets and reports `error 52002: could not find a suitable pass-through compiler for
-  'nvrtc'`, failing every `DeviceType.cuda` benchmark in the module. Linux is
-  unaffected. This is currently counted as a failure rather than a skip, because it is
-  also exactly what a genuine regression would look like.
+This is what the floor buys. Below it the harness needed a vcpkg repin, a CUDA
+device the runners could not create, and probes for APIs that did not exist yet —
+each of which had to decide, with no evidence available, whether a failure was the
+era or a regression. Lowering the floor means writing those back.
 
 ## Reading the data
 
@@ -135,10 +120,10 @@ not to SlangPy alone. Recording the Slang and slang-rhi versions as BenchView
 dimensions is an open question.
 
 Because benchmarks are skipped where they did not exist, coverage is a widening cone
-rather than a flat panel: the number of benchmarks measured grows steadily from the
-floor to head. At the floor only `test_benchmark_interop.py` and
-`test_benchmark_tensor.py` survive; `argcounts`, `autograd`, `bwd_diff` and `ppisp` all
-postdate it, so **only `interop` and `tensor` span the full range.**
+rather than a flat panel: the number of benchmarks measured grows from the floor to
+head. At the floor `interop`, `tensor` and `argcounts` survive; `autograd` (2026-02-17),
+`ppisp` (2026-02-25) and `bwd_diff` (2026-04-02) all postdate it, so **only those three
+span the full range.**
 
 Per-benchmark trends are therefore valid, but aggregates across the whole benchmark set
 are not, because their composition changes with time. To see which benchmarks a given
