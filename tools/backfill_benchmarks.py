@@ -452,12 +452,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"Refusing to start: {error}", file=sys.stderr)
         return 1
 
-    pending = [c.sha for c in supported if state.status(c.sha) not in TERMINAL]
+    # Pending means the same thing here as it does in the sweep: no state entry at
+    # all. Counting the in-flight ones as pending would report, and under --dry-run
+    # promise, dispatches that will not happen because their runs already exist.
+    pending = [c.sha for c in supported if state.status(c.sha) is None]
     tally = state.counts()
     print(
         f"{len(supported)} supported commit(s): {tally[SUCCEEDED]} succeeded, "
-        f"{tally[FAILED]} failed, {len(pending)} to dispatch, "
-        f"at most {args.max_in_flight} in flight."
+        f"{tally[FAILED]} failed, {tally[IN_FLIGHT]} already in flight, "
+        f"{len(pending)} to dispatch, at most {args.max_in_flight} in flight."
     )
     if args.dry_run:
         for sha in pending:
