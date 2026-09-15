@@ -90,6 +90,27 @@ def attempt(command: Sequence[str], cwd: Optional[Path] = None) -> bool:
     return completed.returncode == 0
 
 
+def is_ancestor(repo: Path, candidate: str, descendant: str) -> bool:
+    """Answer whether ``candidate`` precedes ``descendant``.
+
+    ``git merge-base --is-ancestor`` exits 1 for a negative answer and something else
+    for a question it could not answer at all, such as a revision that does not
+    resolve. Collapsing those two into "no" is what let a bad revision silently
+    disable the vcpkg repin, so anything outside 0 and 1 is raised.
+    """
+
+    command = ["git", "merge-base", "--is-ancestor", candidate, descendant]
+    print(f"+ {' '.join(command)}", flush=True)
+    completed = subprocess.run(command, cwd=str(repo), check=False)
+    if completed.returncode in (0, 1):
+        return completed.returncode == 0
+    raise CommitFailure(
+        "vcpkg",
+        f"could not decide whether {candidate} precedes {descendant} "
+        f"(git exited with code {completed.returncode})",
+    )
+
+
 def git_output(repo: Path, *arguments: str) -> str:
     """Return the stripped stdout of a git command that must succeed."""
 
@@ -148,15 +169,17 @@ def repin_vcpkg(clone: Path, harness_vcpkg: str) -> None:
         return
 
     vcpkg = clone / "external" / "vcpkg"
-    # The submodule clone is not guaranteed to carry the harness revision, and an
-    # ancestry test against a missing object fails the same way as a negative result.
+    # The submodule is checked out at the target revision, so that one is present by
+    # construction, but the harness revision need not be and ancestry cannot be
+    # decided for an object the repository does not hold.
     if not attempt(["git", "cat-file", "-e", f"{harness_vcpkg}^{{commit}}"], vcpkg):
         if not attempt(["git", "fetch", "--no-tags", "origin", harness_vcpkg], vcpkg):
             run(["git", "fetch", "--no-tags", "origin"], vcpkg, "vcpkg")
 
-    # Both objects are present, so this now answers the ancestry question rather than
-    # reporting that it could not be asked.
-    if not attempt(["git", "merge-base", "--is-ancestor", target_vcpkg, harness_vcpkg], vcpkg):
+    # Should either revision still not resolve, is_ancestor raises rather than
+    # answering "no", so a fetch that did not produce what it promised is reported
+    # instead of quietly leaving the pin alone.
+    if not is_ancestor(vcpkg, target_vcpkg, harness_vcpkg):
         print(f"Keeping the target vcpkg revision {target_vcpkg}, which is not older")
         return
 

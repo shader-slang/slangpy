@@ -131,6 +131,9 @@ def record_commands(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[lis
     monkeypatch.setattr(batch, "git_output", lambda *_: "targetvcpkg")
     monkeypatch.setattr(batch, "overlay_harness", lambda *_: issued.append(["<overlay>"]))
     monkeypatch.setattr(batch, "attempt", fake_attempt)
+    # These tests are about the order of the per-commit stages, not about vcpkg
+    # ancestry, and there is no repository here to resolve revisions against.
+    monkeypatch.setattr(batch, "is_ancestor", lambda *_: True)
 
     batch.benchmark_commit(
         "abc",
@@ -212,36 +215,13 @@ def test_the_torch_bridge_is_removed_even_when_the_benchmark_fails(
     assert any("uninstall slangpy-torch" in " ".join(c) for c in issued)
 
 
-def repin_calls(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, is_ancestor: bool):
-    """Run repin_vcpkg with a stubbed git, returning the commands it issued."""
-
-    issued: list[list[str]] = []
-
-    def fake_attempt(command, cwd=None):
-        issued.append(list(command))
-        return is_ancestor if "merge-base" in command else True
-
-    monkeypatch.setattr(batch, "git_output", lambda *_: "targetvcpkg")
-    monkeypatch.setattr(batch, "attempt", fake_attempt)
-    monkeypatch.setattr(
-        batch, "run", lambda command, cwd, stage, env=None: issued.append(list(command))
-    )
-    batch.repin_vcpkg(tmp_path, "harnessvcpkg")
-    return issued
-
-
-def test_an_unbootstrappable_vcpkg_pin_is_replaced(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    issued = repin_calls(monkeypatch, tmp_path, is_ancestor=True)
-    assert any("checkout --detach harnessvcpkg" in " ".join(c) for c in issued)
-
-
-def test_a_merely_different_vcpkg_pin_is_left_alone(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
-    """The dependency set is part of what is measured, so do not move it silently."""
-
-    issued = repin_calls(monkeypatch, tmp_path, is_ancestor=False)
-    assert not any("checkout" in " ".join(c) for c in issued)
+# repin_vcpkg is covered against real repositories further down, by
+# test_a_vcpkg_pin_older_than_the_harness_is_moved_forward and its neighbours. The
+# stubbed pair that used to live here decided the ancestry answer themselves rather
+# than letting git decide it, so they passed throughout the period the comparison was
+# being made against a revision that does not exist in the vcpkg repository. They are
+# gone rather than repaired: a stub cannot catch a revision that fails to resolve,
+# which is the only failure this function has ever actually had.
 
 
 def test_the_overlay_replaces_stale_harness_directories(tmp_path: Path):
@@ -379,6 +359,32 @@ def test_a_vcpkg_pin_the_harness_does_not_precede_is_left_alone(tmp_path: Path):
     batch.repin_vcpkg(clone, older)
 
     assert git(clone / "external" / "vcpkg", "rev-parse", "HEAD") == newer
+
+
+def test_an_undecidable_vcpkg_comparison_is_reported_not_swallowed(tmp_path: Path):
+    """Prove a revision that does not resolve fails the commit rather than passing.
+
+    ``git merge-base --is-ancestor`` exits 1 for "no" and 128 for "cannot tell".
+    Reading those as the same thing is what let a bad revision disable the repin for
+    every commit without anyone noticing, so the second has to be loud.
+    """
+
+    clone, older, newer = superproject_pinning(tmp_path, old_first=True)
+    # A real commit, but from an unrelated repository, so the vcpkg clone cannot
+    # resolve it and the fetch cannot supply it either.
+    stranger = tmp_path / "stranger"
+    stranger.mkdir()
+    git(stranger, "init", "-q", "-b", "main")
+    (stranger / "unrelated.txt").write_text("x\n", encoding="utf-8")
+    git(stranger, "add", "unrelated.txt")
+    git(stranger, "commit", "-qm", "unrelated")
+    unknown = git(stranger, "rev-parse", "HEAD")
+
+    with pytest.raises(batch.CommitFailure, match="could not decide"):
+        batch.repin_vcpkg(clone, unknown)
+
+    # The pin is untouched, and the caller hears about it rather than inferring it.
+    assert git(clone / "external" / "vcpkg", "rev-parse", "HEAD") == older
 
 
 def test_excluded_commits_are_dropped_before_batching(tmp_path: Path):
