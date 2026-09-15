@@ -23,7 +23,13 @@ except ModuleNotFoundError:
 
 DEFAULT_REPOSITORY = "shader-slang/slangpy"
 DEFAULT_WORKFLOW = "backfill-benchmark.yml"
-DEFAULT_BATCH_SIZE = 30
+# Measured on run 34920515414 over 15 commits spread across the whole range:
+# Windows costs 5.4 min/commit on average and 8.4 at worst, so 45 commits is a
+# ~365 min worst case against the 720 min timeout, i.e. 2x headroom. Larger
+# batches buy almost nothing: the queue admission is already amortised to under
+# 1 min/commit here, and with only two Windows perf runners, fewer and larger
+# batches divide the fixed ~36 h of work less evenly.
+DEFAULT_BATCH_SIZE = 45
 
 # The oldest commit whose build the current benchmark harness can drive. Earlier
 # commits are not a supported backfill target.

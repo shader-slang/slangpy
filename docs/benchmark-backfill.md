@@ -125,11 +125,25 @@ of that commit are queued to confirm.
 * **BenchView has not been wiped.** New rows are landing alongside pre-existing
   data.
 
-### Known-unexplained
+### Windows nvrtc gap, late 2025
 
-* **Windows `error 52002: could not find a suitable pass`** at 2025-11-24 and
-  2025-12-05, Linux green on the same commits. Distinct from the CUDA device gap;
-  the device is created and Slang pass selection then fails. Not diagnosed.
+Reproduced at 2025-11-25 by the throughput probe, which gave the full message the
+earlier truncated logs had hidden:
+
+```
+slang: (0): error 52002: could not find a suitable pass-through compiler for 'nvrtc'
+```
+
+Slang cannot locate nvrtc on the Windows runners for that era's CUDA targets, so
+every `DeviceType.cuda` benchmark in the module fails. Linux is green on the same
+commits. This is **not** Slang pass selection, which is what the truncated symptom
+suggested, and it is not flaky: expect it across the surrounding window of commits.
+
+Open question: this is a capability gap of the same kind as the missing CUDA
+device, so it arguably belongs in the skip-and-report path rather than being
+counted as a failure. Left as a failure for now, because unlike a device that
+cannot be created, a missing pass-through compiler is also what a genuine
+regression would look like.
 
 ## Why the current design is slow
 
@@ -165,24 +179,43 @@ Pay the queue cost once per 30 commits instead of once per commit.
 * `backfill-benchmark.yml` takes a **rev list** (`target_shas`) instead of a
   single `target_sha`, and `tools/backfill_batch.py` loops over it on both
   platforms.
-* **30 commits per run**, giving 14 runs for the full 402.
-* **All 14 dispatched at once** by `tools/dispatch_backfill_batches.py`. No
+* **45 commits per run**, giving 9 runs for the full 402.
+* **All 9 dispatched at once** by `tools/dispatch_backfill_batches.py`. No
   scheduler process, no polling, no in-flight cap — GitHub queues them and
   drains as runners free up. This removes `tools/backfill_benchmarks.py` from
   the critical path entirely.
-* **Generous `timeout-minutes`.** Windows at ~10 min/commit is ~5 h for 30
-  commits, uncomfortably close to the 6 h default. Set 720.
+* **Generous `timeout-minutes`.** Set to 720. The worst 45-commit batch measures
+  ~365 min on Windows, so this leaves 2x headroom.
 
-Expected cost per commit, queue amortised over 30:
+### Measured, not estimated
 
-```
-(30 min queue + 30 x 7 min exec) / 30  ~=  8.5 min    (vs ~37 min today)
-```
+Run 34920515414 benchmarked 15 commits spread evenly across the whole range, on
+both platforms, behind a single 44 minute queue admission:
 
-Windows remains the bottleneck at ~10 min/commit; batching removes the queue
-overhead, not the execution time. With no additional machines available, total
-wall time is bounded by Windows execution: 402 x 10 min = ~67 h of Windows
-runner time, divided by however many perf-labelled Windows runners are online.
+| | linux | windows |
+|---|---|---|
+| mean per commit | 3.3 min | 5.4 min |
+| slowest commit | 5.4 min | 8.4 min |
+| total execution | 50 min | 81 min |
+| result | 15/15 | 14/15 |
+
+Per-commit cost rises with commit age, from about 2 min at the floor to about 8
+at head, because the manifest skips benchmarks that did not exist yet. That is
+why the probe sampled the range evenly: a contiguous block of old commits would
+have measured ~2 min/commit and badly understated the real cost.
+
+Batch size follows from the Windows numbers. Per-commit cost is
+`queue / n + 5.4`, so the 44 minute admission is already amortised to about
+1 min/commit at n=45; going further buys almost nothing. Against the 720 minute
+timeout the worst 45-commit batch is ~365 min, leaving 2x headroom, and with two
+Windows runners more and smaller batches divide the fixed ~36 h of work more
+evenly than fewer large ones. 45 is the chosen size; the timeout alone would
+permit about 85.
+
+Windows remains the bottleneck; batching removes the queue overhead, not the
+execution time. Total wall time is bounded by Windows execution: 402 x 5.4 min =
+~36 h of Windows runner time, divided by however many perf-labelled Windows
+runners are online.
 
 ### Robustness
 
@@ -216,7 +249,7 @@ has to report what happened:
 
   The consequence, recorded so it is not a surprise: while the sweep is partially
   complete, coverage is a set of chronological chunks rather than an even spread.
-  If that matters later, striding batch *k* to take every 14th commit rather than
+  If that matters later, striding batch *k* to take every 9th commit rather than
   a contiguous block restores even coverage at no cost.
 * **No dispatch pacing.** Submitting all batches immediately is simpler and the
   GitHub scheduler already queues correctly.
@@ -226,7 +259,7 @@ has to report what happened:
 1. Land the batched workflow, `tools/backfill_batch.py` and
    `tools/dispatch_backfill_batches.py`.
 2. Stop the running scheduler (`tools/backfill_benchmarks.py`).
-3. Dispatch all 14 batches:
+3. Dispatch all 9 batches:
 
    ```
    python tools/dispatch_backfill_batches.py --workflow-ref <branch>
