@@ -514,7 +514,11 @@ static const char *__doc_sgl_App_remove_window = R"doc()doc";
 
 static const char *__doc_sgl_App_run = R"doc()doc";
 
-static const char *__doc_sgl_App_run_frame = R"doc()doc";
+static const char *__doc_sgl_App_run_frame =
+R"doc(Render a single frame for all windows. Returns true if at least one
+window rendered, and false if all were skipped (e.g. minimized or
+unconfigured), which the run loop uses to throttle otherwise-idle
+iterations.)doc";
 
 static const char *__doc_sgl_App_terminate = R"doc()doc";
 
@@ -10379,11 +10383,15 @@ static const char *__doc_sgl_Window_handle_keyboard_event = R"doc()doc";
 
 static const char *__doc_sgl_Window_handle_mouse_event = R"doc()doc";
 
+static const char *__doc_sgl_Window_handle_window_iconify = R"doc()doc";
+
 static const char *__doc_sgl_Window_handle_window_refresh = R"doc()doc";
 
 static const char *__doc_sgl_Window_handle_window_size = R"doc()doc";
 
 static const char *__doc_sgl_Window_height = R"doc(The height of the window in pixels.)doc";
+
+static const char *__doc_sgl_Window_is_minimized = R"doc(True if the window is currently minimized (iconified).)doc";
 
 static const char *__doc_sgl_Window_m_cursor_cache = R"doc()doc";
 
@@ -10397,6 +10405,8 @@ static const char *__doc_sgl_Window_m_gamepad_prev_state = R"doc()doc";
 
 static const char *__doc_sgl_Window_m_height = R"doc()doc";
 
+static const char *__doc_sgl_Window_m_minimized = R"doc()doc";
+
 static const char *__doc_sgl_Window_m_mods = R"doc()doc";
 
 static const char *__doc_sgl_Window_m_mouse_pos = R"doc()doc";
@@ -10406,6 +10416,8 @@ static const char *__doc_sgl_Window_m_on_drop_files = R"doc()doc";
 static const char *__doc_sgl_Window_m_on_gamepad_event = R"doc()doc";
 
 static const char *__doc_sgl_Window_m_on_gamepad_state = R"doc()doc";
+
+static const char *__doc_sgl_Window_m_on_iconify = R"doc()doc";
 
 static const char *__doc_sgl_Window_m_on_keyboard_event = R"doc()doc";
 
@@ -10428,6 +10440,11 @@ static const char *__doc_sgl_Window_on_drop_files = R"doc(Event handler to be ca
 static const char *__doc_sgl_Window_on_gamepad_event = R"doc(Event handler to be called when a gamepad event occurs.)doc";
 
 static const char *__doc_sgl_Window_on_gamepad_state = R"doc(Event handler to be called when the gamepad state changes.)doc";
+
+static const char *__doc_sgl_Window_on_iconify =
+R"doc(Event handler to be called when the window is minimized or restored.
+The argument is true when the window is minimized and false when it is
+restored.)doc";
 
 static const char *__doc_sgl_Window_on_keyboard_event = R"doc(Event handler to be called when a keyboard event occurs.)doc";
 
@@ -10469,6 +10486,8 @@ static const char *__doc_sgl_Window_set_on_drop_files = R"doc()doc";
 static const char *__doc_sgl_Window_set_on_gamepad_event = R"doc()doc";
 
 static const char *__doc_sgl_Window_set_on_gamepad_state = R"doc()doc";
+
+static const char *__doc_sgl_Window_set_on_iconify = R"doc()doc";
 
 static const char *__doc_sgl_Window_set_on_keyboard_event = R"doc()doc";
 

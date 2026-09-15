@@ -238,6 +238,13 @@ struct EventHandlers {
         window->handle_window_refresh();
     }
 
+    static void handle_window_iconify(GLFWwindow* glfw_window, int iconified)
+    {
+        Window* window = static_cast<Window*>(glfwGetWindowUserPointer(glfw_window));
+
+        window->handle_window_iconify(iconified == GLFW_TRUE);
+    }
+
     static void handle_key(GLFWwindow* glfw_window, int key, int scancode, int action, int mods)
     {
         SGL_UNUSED(scancode);
@@ -391,12 +398,17 @@ Window::Window(WindowDesc desc)
     glfwSetErrorCallback(&EventHandlers::handle_error);
     glfwSetWindowSizeCallback(m_window, &EventHandlers::handle_window_size);
     glfwSetWindowRefreshCallback(m_window, &EventHandlers::handle_window_refresh);
+    glfwSetWindowIconifyCallback(m_window, &EventHandlers::handle_window_iconify);
     glfwSetKeyCallback(m_window, &EventHandlers::handle_key);
     glfwSetCharCallback(m_window, &EventHandlers::handle_char);
     glfwSetMouseButtonCallback(m_window, &EventHandlers::handle_mouse_button);
     glfwSetCursorPosCallback(m_window, &EventHandlers::handle_cursor_pos);
     glfwSetScrollCallback(m_window, &EventHandlers::handle_scroll);
     glfwSetDropCallback(m_window, &EventHandlers::handle_drop);
+
+    // Cache the iconified state so it can be read without a per-frame display-server
+    // query; the iconify callback keeps it up to date thereafter.
+    m_minimized = glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) == GLFW_TRUE;
 }
 
 Window::~Window()
@@ -667,6 +679,13 @@ void Window::handle_window_refresh()
 {
     if (m_on_refresh)
         m_on_refresh();
+}
+
+void Window::handle_window_iconify(bool minimized)
+{
+    m_minimized = minimized;
+    if (m_on_iconify)
+        m_on_iconify(minimized);
 }
 
 void Window::handle_keyboard_event(const KeyboardEvent& event)
