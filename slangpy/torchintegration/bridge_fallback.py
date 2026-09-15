@@ -76,11 +76,16 @@ def extract_tensor_info(tensor: torch.Tensor) -> Dict[str, Any]:
 
 def get_signature(tensor: torch.Tensor) -> str:
     """
-    Get tensor signature string with bounded shape compatibility.
+    Get tensor signature string with bounded shape compatibility and grad-ness.
 
-    The format is "[Dn,Sm,V...]", where each tensor dimension contributes its
-    exact extent when it is 1 through 4, or "x" for zero and extents greater
-    than four.
+    The format is "[Dn,Sm,Gk,V...]", where k is 1 when the tensor requires grad
+    and each tensor dimension contributes its exact extent when it is 1 through
+    4, or "x" for zero and extents greater than four. The variable-length V run
+    is last so every fixed-width field precedes it.
+
+    Must stay in lockstep with the native tensor_bridge_get_signature
+    (src/slangpy_torch/torch_bridge_impl.cpp) or the two bridge modes key the
+    cache differently.
 
     :param tensor: PyTorch tensor to get signature for.
     :return: Signature string.
@@ -90,7 +95,8 @@ def get_signature(tensor: torch.Tensor) -> str:
         return None
     scalar_type = _SCALAR_TYPE_MAP.get(tensor.dtype, -1)
     shape_compatibility = "".join(str(size) if 1 <= size <= 4 else "x" for size in tensor.shape)
-    return f"[D{tensor.ndim},S{scalar_type},V{shape_compatibility}]"
+    requires_grad = 1 if tensor.requires_grad else 0
+    return f"[D{tensor.ndim},S{scalar_type},G{requires_grad},V{shape_compatibility}]"
 
 
 def get_current_cuda_stream(device_index: int) -> int:

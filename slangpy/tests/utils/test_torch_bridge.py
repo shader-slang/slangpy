@@ -41,6 +41,16 @@ class TestTorchBridgeAvailability:
         assert isinstance(result, bool)
         assert result is True  # Should be True since torch is installed
 
+        # When the native module is installed it must also be the active path: a
+        # version-incompatible bridge falls back silently, so without this the
+        # suite would stay green with the native path dead.
+        try:
+            import slangpy_torch  # noqa: F401
+        except ImportError:
+            return
+        assert slangpy.get_torch_bridge_fallback_reason() != "incompatible"
+        assert slangpy.is_torch_bridge_using_fallback() is False
+
     def test_fallback_toggle(self):
         """Test that we can toggle between native and fallback modes."""
         original = slangpy.is_torch_bridge_using_fallback()
@@ -56,6 +66,72 @@ class TestTorchBridgeAvailability:
         finally:
             # Restore original state
             slangpy.set_torch_bridge_python_fallback(original)
+
+    def test_stale_bridge_version_is_rejected(self):
+        """Deterministically exercise the INCOMPATIBLE path: a native slangpy_torch
+        whose api_version does not match slangpy_ext's compiled TENSOR_BRIDGE_API_VERSION
+        must be rejected (fallback_reason == 'incompatible'), NOT silently used.
+
+        This is the guard for #1052's version-skew hole: the signature is an
+        output-string FORMAT of the bridge, not a struct field, so info_struct_size
+        can't detect a format change (TensorBridgeInfo layout is unchanged) - only
+        api_version can. If a future format change forgets to bump the version, a
+        stale bridge would pass the gate and silently emit the old format,
+        reintroducing the cache-poisoning bug. We shim a fake slangpy_torch with a
+        deliberately stale api_version (real - 1) but the CORRECT info_struct_size,
+        so ONLY the version differs, and assert the gate rejects it. Runs in a
+        subprocess because the native bridge latches its init once per process.
+        """
+        try:
+            import slangpy_torch  # noqa: F401
+        except ImportError:
+            pytest.skip("native slangpy_torch not installed; nothing to version-check")
+
+        import subprocess
+        import textwrap
+
+        script = textwrap.dedent(
+            """
+            import sys, ctypes, types
+            import torch  # noqa: F401  (libtorch must load before slangpy_torch)
+            import slangpy_torch as real
+            real_ver = real.API_VERSION
+            real_size = real.INFO_STRUCT_SIZE
+
+            class FakeAPI(ctypes.Structure):
+                _fields_ = [("api_version", ctypes.c_int),
+                            ("info_struct_size", ctypes.c_size_t)] + \\
+                           [("fn%d" % i, ctypes.c_void_p) for i in range(8)]
+
+            fake = FakeAPI()
+            fake.api_version = real_ver - 1     # stale vs slangpy_ext's compiled version
+            fake.info_struct_size = real_size   # correct size -> ONLY the version mismatches
+            addr = ctypes.addressof(fake)
+
+            mod = types.ModuleType("slangpy_torch")
+            mod.get_api_ptr = lambda: addr
+            mod.API_VERSION = fake.api_version
+            mod.INFO_STRUCT_SIZE = real_size
+            mod._keep = fake                    # keep the backing struct alive
+            sys.modules["slangpy_torch"] = mod  # shadow before slangpy's bridge inits
+
+            import slangpy
+            slangpy.is_torch_bridge_available()  # trigger lazy bridge init
+            reason = slangpy.get_torch_bridge_fallback_reason()
+            assert reason == "incompatible", "expected 'incompatible', got %r" % reason
+            assert slangpy.is_torch_bridge_using_fallback() is True
+            print("STALE_BRIDGE_REJECTED_OK")
+            """
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+        )
+        assert "STALE_BRIDGE_REJECTED_OK" in result.stdout, (
+            "stale-version bridge was NOT rejected by the compat gate.\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
 
     def test_is_torch_tensor_with_tensor(self, torch_bridge_mode: str):
         """Test is_torch_tensor correctly identifies PyTorch tensors."""
@@ -104,7 +180,7 @@ class TestTorchBridgeAvailability:
         buffer = ctypes.create_string_buffer(required_size)
         result = get_signature(ctypes.c_void_p(id(tensor)), buffer, len(buffer))
         assert result == 0
-        assert buffer.value == b"[D3,S6,V432]"
+        assert buffer.value == b"[D3,S6,G0,V432]"
 
 
 class TestTorchTensorExtraction:
@@ -266,11 +342,11 @@ class TestTorchTensorExtraction:
     @pytest.mark.parametrize(
         "shape,expected",
         [
-            ((), "[D0,S6,V]"),
-            ((1, 2, 3, 4), "[D4,S6,V1234]"),
-            ((0, 4), "[D2,S6,Vx4]"),
-            ((5, 1024, 3), "[D3,S6,Vxx3]"),
-            ((2,) * 16, "[D16,S6,V2222222222222222]"),
+            ((), "[D0,S6,G0,V]"),
+            ((1, 2, 3, 4), "[D4,S6,G0,V1234]"),
+            ((0, 4), "[D2,S6,G0,Vx4]"),
+            ((5, 1024, 3), "[D3,S6,G0,Vxx3]"),
+            ((2,) * 16, "[D16,S6,G0,V2222222222222222]"),
         ],
     )
     def test_extract_tensor_signature(
@@ -282,6 +358,32 @@ class TestTorchTensorExtraction:
         tensor = torch.empty(shape, dtype=torch.float32)
         signature = slangpy.extract_torch_tensor_signature(tensor)
         assert signature == expected
+
+    def test_signature_distinguishes_requires_grad(self) -> None:
+        """Grad-ness must be part of the signature so a no-grad and a grad call of
+        the same rank/dtype/shape resolve to distinct CallData (#1052)."""
+        no_grad = slangpy.extract_torch_tensor_signature(
+            torch.zeros(4, 4, dtype=torch.float32, requires_grad=False)
+        )
+        grad = slangpy.extract_torch_tensor_signature(
+            torch.zeros(4, 4, dtype=torch.float32, requires_grad=True)
+        )
+        assert no_grad == "[D2,S6,G0,V44]"
+        assert grad == "[D2,S6,G1,V44]"
+
+    def test_signature_keeps_shape_compatibility_alongside_grad(self) -> None:
+        """The grad bit must not displace the per-dimension shape classifiers
+        (#1082): tensors differing only in a bounded extent must still differ,
+        at both grad-ness values."""
+        for requires_grad, bit in ((False, "G0"), (True, "G1")):
+            rgb = slangpy.extract_torch_tensor_signature(
+                torch.zeros((8, 16, 3), dtype=torch.float32, requires_grad=requires_grad)
+            )
+            rgba = slangpy.extract_torch_tensor_signature(
+                torch.zeros((8, 16, 4), dtype=torch.float32, requires_grad=requires_grad)
+            )
+            assert rgb == f"[D3,S6,{bit},Vxx3]"
+            assert rgba == f"[D3,S6,{bit},Vxx4]"
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")

@@ -77,6 +77,37 @@ def test_basic_autograd(device_type: DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_autograd_after_no_grad_call(device_type: DeviceType, torch_bridge_mode: str):
+    # Regression for #1052. The autograd hook is gated on a flag frozen into the
+    # cached CallData when it is built, so a no-grad call and a grad call of the
+    # same rank/dtype/shape must not share a cache entry: the first no-grad call
+    # would otherwise cache a non-autograd dispatch that the grad call reuses,
+    # silently yielding grad_fn=None and a backward() that never reaches `a`.
+    device = helpers.get_torch_device(device_type)
+    module = helpers.create_module(device, TEST_CODE)
+
+    a_nograd = torch.randn(
+        (8, 5), dtype=torch.float32, device=torch.device("cuda"), requires_grad=False
+    )
+    b_nograd = module.square(a_nograd)
+    compare_tensors(b_nograd, a_nograd * a_nograd)
+    assert not b_nograd.requires_grad
+
+    # Identical rank/dtype/shape, so this call hits the entry cached above unless
+    # grad-ness is part of the key.
+    a = torch.randn((8, 5), dtype=torch.float32, device=torch.device("cuda"), requires_grad=True)
+    b = module.square(a)
+
+    assert b.requires_grad, "autograd hook was dropped: output has requires_grad=False"
+    assert b.grad_fn is not None, "autograd hook was dropped: output has no grad_fn"
+
+    b.sum().backward()
+    compare_tensors(b, a * a)
+    assert a.grad is not None
+    compare_tensors(a.grad, 2 * a)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_tensor_arguments(device_type: DeviceType):
     if device_type != DeviceType.cuda:
         pytest.skip("Test currently unreliable on GFX pipelines")
