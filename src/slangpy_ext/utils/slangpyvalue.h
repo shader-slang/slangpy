@@ -35,6 +35,12 @@ private:
         slang::TypeLayoutReflection* value_type_layout = nullptr; ///< Type layout for value field.
         std::function<void(ShaderCursor&, nb::object)> writer;    ///< Pre-resolved writer fn.
         bool direct_bind{false};                                  ///< direct_bind value used when populating cache.
+        /// True when the bound field is reference-typed (a ConstantBuffer/ParameterBlock
+        /// sub-object, e.g. Slang's CUDA by-reference ABI for descriptor-table-carrying
+        /// uniforms). value_offset is then relative to the sub-object, and writes must
+        /// target the sub-object's ShaderObject rather than the parent's.
+        bool field_is_reference{false};
+        int32_t field_index{-1}; ///< Cached field index for the per-dispatch dereference.
         bool is_valid = false;
     };
 
