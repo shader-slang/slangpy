@@ -101,12 +101,11 @@ DEVICE_SUPPORTS_RHI_VALIDATION: bool = not BACKFILL_TARGET_SHA or "enable_rhi_va
 # probe once instead of once per benchmark, and so the run can report the gap rather
 # than emit one failure per test.
 #
-# Keyed by the configuration, not just the device type: whether a device can be
-# created also depends on CUDA interoperability and on adopting existing handles.
-# Keying on the type alone would let one interop failure suppress every plain device
-# of that type for the rest of the process, silently dropping valid coverage.
-BackfillDeviceKey = tuple[DeviceType, bool, bool]
-BACKFILL_UNAVAILABLE_DEVICES: dict[BackfillDeviceKey, str] = {}
+# Keyed by the same tuple as DEVICE_CACHE, which is the full set of inputs that
+# decide whether construction succeeds. Keying on anything coarser lets a failure in
+# one configuration suppress a different one that would have worked, and the lost
+# coverage only shows up as a skip.
+BACKFILL_UNAVAILABLE_DEVICES: dict[Any, str] = {}
 
 # Always dump stuff when testing
 spy.set_dump_generated_shaders(True)
@@ -264,9 +263,8 @@ def get_device(
     if DEVICE_SUPPORTS_RHI_VALIDATION:
         device_kwargs["enable_rhi_validation"] = not is_benchmark
 
-    unavailable_key: BackfillDeviceKey = (type, cuda_interop, bool(existing_device_handles))
-    if unavailable_key in BACKFILL_UNAVAILABLE_DEVICES:
-        pytest.skip(BACKFILL_UNAVAILABLE_DEVICES[unavailable_key])
+    if cache_key in BACKFILL_UNAVAILABLE_DEVICES:
+        pytest.skip(BACKFILL_UNAVAILABLE_DEVICES[cache_key])
 
     try:
         device = Device(**device_kwargs)
@@ -277,11 +275,11 @@ def get_device(
         if not BACKFILL_TARGET_SHA:
             raise
         described = f"{type.name}{' cuda-interop' if cuda_interop else ''} devices"
-        BACKFILL_UNAVAILABLE_DEVICES[unavailable_key] = (
+        BACKFILL_UNAVAILABLE_DEVICES[cache_key] = (
             f"{described} cannot be created by backfill target "
             f"{BACKFILL_TARGET_SHA[:12]} on this platform: {e}"
         )
-        pytest.skip(BACKFILL_UNAVAILABLE_DEVICES[unavailable_key])
+        pytest.skip(BACKFILL_UNAVAILABLE_DEVICES[cache_key])
 
     # slangpy dependens on parameter block support which is not available on all Metal devices
     if type == DeviceType.metal:

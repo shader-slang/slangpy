@@ -11,7 +11,7 @@ free up, so every batch is submitted immediately and the queue does the rest.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
 from typing import Optional, Sequence
@@ -147,10 +147,15 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Optional[list[str]] = None) -> int:
     args = _parser().parse_args(argv)
     github = GitHubCli()
+    # Query from just before the floor's own timestamp. GitHub documents `since` as
+    # "after the given time" while in practice returning commits at exactly that
+    # instant, and the floor commit sits exactly on it. The SHA below is what actually
+    # defines the boundary, so widening the query costs nothing and removes any
+    # dependence on how that ambiguity is resolved.
     commits = github.list_commits(
         args.repository,
         args.branch,
-        SUPPORTED_FLOOR_TIME,
+        SUPPORTED_FLOOR_TIME - timedelta(seconds=1),
         datetime.now(timezone.utc),
     )
     supported = supported_commits(commits, SUPPORTED_FLOOR_SHA)

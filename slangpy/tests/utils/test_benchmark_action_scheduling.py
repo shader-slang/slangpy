@@ -231,8 +231,13 @@ def test_ordinary_workflow_selects_tip_or_exact_revision_without_backfill_logic(
     assert "cron:" not in workflow
     assert 'run-name: "ci-benchmark: ${{ inputs.revision || github.sha }}"' in workflow
     assert "revision:" in workflow
-    assert "ref: ${{ inputs.revision || github.sha }}" in workflow
-    assert "BENCHVIEW_BENCHMARK_REF: ${{ inputs.revision || github.sha }}" in workflow
+    # The build checks out the SHA that validate-revision resolved and vetted, not
+    # the raw input, so a moving branch or tag cannot slip past validation.
+    assert "ref: ${{ needs.validate-revision.outputs.revision }}" in workflow
+    assert "needs: validate-revision" in workflow
+    # BenchView is keyed on the resolved SHA too, so an observation can never be
+    # recorded against a branch name.
+    assert "BENCHVIEW_BENCHMARK_REF: ${{ needs.validate-revision.outputs.revision }}" in workflow
     assert "BENCHVIEW_BENCHMARK_BRANCH: ${{ github.ref_name }}" in workflow
     assert "target_sha" not in workflow
     assert "Overlay current BenchView benchmark harness" not in workflow

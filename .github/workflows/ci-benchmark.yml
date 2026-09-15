@@ -21,22 +21,33 @@ jobs:
   # anywhere near it.
   validate-revision:
     runs-on: ubuntu-latest
+    outputs:
+      # The build checks out this SHA rather than the raw input. If the input named
+      # a branch or tag, that ref could move between validation and checkout, and the
+      # build would then run an unvalidated commit with the write key.
+      revision: ${{ steps.resolve.outputs.revision }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Require the revision to be an ancestor of main
-        if: inputs.revision != ''
+      - name: Resolve and validate the revision
+        id: resolve
         env:
           REVISION: ${{ inputs.revision }}
         run: |
           set -euo pipefail
-          if ! git merge-base --is-ancestor "$REVISION" origin/main; then
-            echo "::error::$REVISION is not contained in main; refusing to benchmark it." >&2
-            exit 1
+          if [ -z "$REVISION" ]; then
+            resolved="$(git rev-parse "${{ github.sha }}")"
+          else
+            resolved="$(git rev-parse --verify "${REVISION}^{commit}")"
+            if ! git merge-base --is-ancestor "$resolved" origin/main; then
+              echo "::error::$REVISION ($resolved) is not contained in main; refusing to benchmark it." >&2
+              exit 1
+            fi
           fi
-          echo "$REVISION is main history."
+          echo "Benchmarking $resolved"
+          echo "revision=$resolved" >> "$GITHUB_OUTPUT"
 
   build:
     needs: validate-revision
@@ -62,13 +73,13 @@ jobs:
       CI_FLAGS: ${{ matrix.flags }}
       BENCHVIEW_API_URL: ${{ vars.BENCHVIEW_API_URL }}
       BENCHVIEW_API_KEY: ${{ secrets.BENCHVIEW_API_KEY }}
-      BENCHVIEW_BENCHMARK_REF: ${{ inputs.revision || github.sha }}
+      BENCHVIEW_BENCHMARK_REF: ${{ needs.validate-revision.outputs.revision }}
       BENCHVIEW_BENCHMARK_BRANCH: ${{ github.ref_name }}
 
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.revision || github.sha }}
+          ref: ${{ needs.validate-revision.outputs.revision }}
           submodules: recursive
           lfs: true
 

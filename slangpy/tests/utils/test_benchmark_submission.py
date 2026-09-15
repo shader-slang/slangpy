@@ -488,7 +488,10 @@ def test_ordinary_workflow_uses_ci_wrapper_without_historical_logic() -> None:
     assert "cron:" not in workflow
     assert "workflow_dispatch:" in workflow
     assert 'run-name: "ci-benchmark: ${{ inputs.revision || github.sha }}"' in workflow
-    assert "ref: ${{ inputs.revision || github.sha }}" in workflow
+    # The build checks out the SHA that validate-revision resolved and vetted, not
+    # the raw input, so a moving branch or tag cannot slip past validation.
+    assert "ref: ${{ needs.validate-revision.outputs.revision }}" in workflow
+    assert "needs: validate-revision" in workflow
     assert workflow.count("python tools/ci.py benchmark-python") == 2
     assert workflow.count("--lock-gpu-clocks") == 2
     assert "Benchmark (Python, Linux, GPU Clock Locked)" in workflow
