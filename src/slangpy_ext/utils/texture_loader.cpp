@@ -26,9 +26,9 @@ SGL_PY_EXPORT(utils_texture_loader)
 {
     using namespace sgl;
 
-    nb::enum_<YHandling>(m, "YHandling")
-        .value("preserve_as_r", YHandling::preserve_as_r)
-        .value("expand_to_rgba", YHandling::expand_to_rgba);
+    nb::enum_<YHandling>(m, "YHandling", D(YHandling))
+        .value("preserve_as_r", YHandling::preserve_as_r, D(YHandling, preserve_as_r))
+        .value("expand_to_rgba", YHandling::expand_to_rgba, D(YHandling, expand_to_rgba));
 
     nb::enum_<YAHandling>(m, "YAHandling")
         .value("expand_to_rgba", YAHandling::expand_to_rgba)

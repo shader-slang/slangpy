@@ -14,7 +14,9 @@ namespace sgl {
 
 /// Strategy for handling Y (greyscale) bitmaps during texture loading.
 enum class YHandling {
+    /// Preserve luminance as a single red channel (the default).
     preserve_as_r,
+    /// Replicate luminance into RGB and set alpha to one.
     expand_to_rgba,
 };
 
