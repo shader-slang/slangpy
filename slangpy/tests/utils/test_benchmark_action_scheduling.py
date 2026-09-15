@@ -401,81 +401,34 @@ def test_nightly_workflow_dispatches_recent_commits_with_github_script() -> None
     assert "actions/checkout" not in workflow
 
 
-def test_backfill_workflow_guards_boundary_builds_before_overlay_and_cleans_safely() -> None:
-    """Lock the historical workflow ordering, source override, and deletion guard."""
+def test_backfill_workflow_batches_a_rev_list_and_cleans_up_safely() -> None:
+    """Lock the batched workflow's inputs, timeout, and clone deletion guard."""
 
     workflow = (REPOSITORY_ROOT / ".github/workflows/backfill-benchmark.yml").read_text(
         encoding="utf-8"
     )
 
-    assert (
-        'run-name: "backfill-benchmark: ${{ inputs.target_sha }} (${{ inputs.commit_date }})"'
-        in workflow
-    )
-    assert "required: true" in workflow
+    # The whole point of the batched design: one run covers a list of commits.
+    assert "target_shas:" in workflow
+    assert "target_sha:" not in workflow
+    # 30 Windows commits is about five hours, too close to the six hour default.
+    assert "timeout-minutes: 720" in workflow
+    # The rev list reaches the driver through the environment so that the step is
+    # written once and works under both pwsh and bash.
+    assert "BACKFILL_TARGET_SHAS: ${{ inputs.target_shas }}" in workflow
+    assert '"${{ inputs.target_shas }}"' not in workflow
+    assert "python tools/backfill_batch.py" in workflow
+    # The driver needs the harness checkout to copy from and the floor to validate against.
+    assert "actions/checkout" in workflow
+    assert backfill.SUPPORTED_FLOOR_SHA in workflow
     assert (
         "${{ runner.temp }}/slangpy-backfill-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}"
         in workflow
     )
     assert 'git clone --recursive "https://github.com/${{ github.repository }}.git"' in workflow
-    assert 'checkout --detach "${{ inputs.target_sha }}"' in workflow
-    assert "git submodule sync --recursive" in workflow
-    assert "git submodule update --init --recursive" in workflow
-    assert "git lfs pull" in workflow
-    assert "merge-base --is-ancestor" in workflow
-    assert backfill.SUPPORTED_FLOOR_SHA in workflow
-    assert workflow.index("Validate supported history boundary") < workflow.index(
-        "Historical setup"
-    )
-    assert workflow.index("Historical build") < workflow.index(
-        "Overlay current BenchView benchmark harness"
-    )
-    assert workflow.index("Overlay current BenchView benchmark harness") < workflow.index(
-        "Benchmark historical source"
-    )
-    # The harness must be pinned to the dispatching commit, with a fallback for when
-    # that commit has been rewritten away while the run was queued.
-    assert 'git cat-file -e "${{ github.sha }}^{commit}"' in workflow
-    assert 'git fetch --no-tags origin "${{ github.ref_name }}"' in workflow
-    assert 'echo "BACKFILL_HARNESS_SHA=$harness" >> "$GITHUB_ENV"' in workflow
-    # The overlay runs under pwsh on Windows and bash on Linux, so it must use a
-    # workflow expression rather than a shell variable, and stay on one line.
-    assert 'git checkout "${{ env.BACKFILL_HARNESS_SHA }}" --' in workflow
-    # Superseded MSYS2 packages are deleted, so vcpkg revisions pinned by older
-    # commits can no longer bootstrap pkgconf. Only those targets are repinned.
-    assert 'target_vcpkg="$(git rev-parse "HEAD:external/vcpkg")"' in workflow
-    assert 'if [ "$target_vcpkg" != "$harness_vcpkg" ]; then' in workflow
-    assert "if ($targetVcpkg -ne $harnessVcpkg) {" in workflow
-    assert workflow.index("Resolve benchmark harness commit") < workflow.index(
-        "Synchronize historical submodules"
-    )
-    # setup.bat/setup.sh reset submodules, so the repin has to follow them and
-    # still precede configure, or the historical vcpkg comes back.
-    assert workflow.index("Historical setup") < workflow.index(
-        "Repin unbootstrappable vcpkg (Windows)"
-    )
-    assert workflow.index("Repin unbootstrappable vcpkg (Linux)") < workflow.index(
-        "Historical configure"
-    )
-    # Historical sources meet compilers that postdate them, so new warnings must
-    # not fail the build.
-    # --cmake-args belongs to the top-level parser, so it must precede the
-    # subcommand or ci.py rejects it.
-    assert "ci.py --cmake-args=-DSGL_WARNINGS_AS_ERRORS=OFF configure" in workflow
-    for overlaid in (
-        "tools/ci.py",
-        "tools/gpu_clock.py",
-        "slangpy/testing/benchmark",
-        "slangpy/testing/helpers.py",
-        "slangpy/testing/plugin.py",
-        "slangpy/testing/crashpad.py",
-        "slangpy/benchmarks",
-    ):
-        assert overlaid in workflow
-    assert "python tools/ci.py benchmark-python" in workflow
-    assert "BENCHVIEW_BENCHMARK_REF: ${{ inputs.target_sha }}" in workflow
+    # BenchView's ref varies per commit now, so only the branch can be a job-level constant.
     assert "BENCHVIEW_BENCHMARK_BRANCH: main" in workflow
-    assert "shell: python" not in workflow
+    assert "BENCHVIEW_BENCHMARK_REF:" not in workflow
     assert "[StringComparer]::OrdinalIgnoreCase.Equals($parent.FullName, $runnerTemp)" in workflow
     assert '$name.StartsWith("slangpy-backfill-"' in workflow
     assert "Remove-Item -LiteralPath $candidate -Recurse -Force" in workflow

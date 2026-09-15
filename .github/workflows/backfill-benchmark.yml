@@ -1,15 +1,15 @@
 name: backfill-benchmark
-run-name: "backfill-benchmark: ${{ inputs.target_sha }} (${{ inputs.commit_date }})"
+run-name: "backfill-benchmark: ${{ inputs.batch_label || 'rev list' }}"
 
 on:
   workflow_dispatch:
     inputs:
-      target_sha:
-        description: "Exact historical main commit to benchmark"
+      target_shas:
+        description: "Historical main commits to benchmark, whitespace or comma separated"
         required: true
         type: string
-      commit_date:
-        description: "Commit date for display (YYYY-MM-DD)"
+      batch_label:
+        description: "Short label for the run list (for display only)"
         required: false
         type: string
 
@@ -21,6 +21,10 @@ permissions:
 jobs:
   build:
     runs-on: ${{ matrix.runs-on }}
+    # A batch of 30 commits is about 5 hours on Windows, which is uncomfortably
+    # close to the 6 hour default. Whatever the job does not reach is reported
+    # rather than lost, but there is no reason to cut it short.
+    timeout-minutes: 720
     strategy:
       fail-fast: false
       matrix:
@@ -38,14 +42,16 @@ jobs:
       CI_CONFIG: ${{ matrix.config }}
       CI_PYTHON: ${{ matrix.python }}
       CI_FLAGS: ${{ matrix.flags }}
-      BACKFILL_TARGET_SHA: ${{ inputs.target_sha }}
       BACKFILL_FLOOR_SHA: f3ad0fd91d8cf4eeb2be3b505765b43482aa952a
       BENCHVIEW_API_URL: ${{ vars.BENCHVIEW_API_URL }}
       BENCHVIEW_API_KEY: ${{ secrets.BENCHVIEW_API_KEY }}
-      BENCHVIEW_BENCHMARK_REF: ${{ inputs.target_sha }}
       BENCHVIEW_BENCHMARK_BRANCH: main
 
     steps:
+      # The harness checkout supplies the driver, the files overlaid onto every
+      # historical tree, and the vcpkg revision known to still bootstrap.
+      - uses: actions/checkout@v6
+
       # runner.temp is not available in the job-level env block, so these paths have
       # to be published here rather than declared alongside the other variables.
       - name: Set backfill paths (Windows)
@@ -73,157 +79,32 @@ jobs:
       - name: Setup CMake/Ninja
         uses: lukka/get-cmake@latest
 
-      - name: Clone historical source
-        run: |
-          git clone --recursive "https://github.com/${{ github.repository }}.git" "${{ env.BACKFILL_CLONE_DIR }}"
-          git -C "${{ env.BACKFILL_CLONE_DIR }}" checkout --detach "${{ inputs.target_sha }}"
-
-      - name: Validate supported history boundary
-        run: |
-          echo "Validating target ${{ inputs.target_sha }} against earliest supported commit ${{ env.BACKFILL_FLOOR_SHA }}"
-          git -C "${{ env.BACKFILL_CLONE_DIR }}" merge-base --is-ancestor "${{ env.BACKFILL_FLOOR_SHA }}" "${{ inputs.target_sha }}"
-
-      # The dispatching branch can be rewritten while a run is queued, so the run's
-      # own commit is not guaranteed to be present in the fresh clone.
-      - name: Resolve benchmark harness commit (Windows)
-        if: runner.os == 'Windows'
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Continue"
-          $sha = "${{ github.sha }}"
-          git cat-file -e "$sha^{commit}" 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            git fetch --no-tags origin $sha 2>$null
-            if ($LASTEXITCODE -ne 0) {
-              Write-Host "Harness commit $sha is unavailable; using ${{ github.ref_name }}."
-              git fetch --no-tags origin "${{ github.ref_name }}"
-              if ($LASTEXITCODE -ne 0) { throw "Cannot resolve a benchmark harness commit." }
-            }
-            $sha = (git rev-parse FETCH_HEAD).Trim()
-          }
-          Write-Host "Benchmark harness commit: $sha"
-          "BACKFILL_HARNESS_SHA=$sha" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
-      - name: Resolve benchmark harness commit (Linux)
-        if: runner.os == 'Linux'
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git cat-file -e "${{ github.sha }}^{commit}" 2>/dev/null; then
-            harness="${{ github.sha }}"
-          elif git fetch --no-tags origin "${{ github.sha }}"; then
-            harness="$(git rev-parse FETCH_HEAD)"
-          else
-            echo "Harness commit ${{ github.sha }} is unavailable; using ${{ github.ref_name }}."
-            git fetch --no-tags origin "${{ github.ref_name }}"
-            harness="$(git rev-parse FETCH_HEAD)"
-          fi
-          echo "Benchmark harness commit: $harness"
-          echo "BACKFILL_HARNESS_SHA=$harness" >> "$GITHUB_ENV"
-
-      - name: Synchronize historical submodules and LFS
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive
-          git lfs pull
-
-      - name: Setup historical Python environment
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: |
-          python -m pip install -r requirements-dev.txt
-          python -m pip install -r samples/requirements.txt
-          python -m pip install pytest-github-actions-annotate-failures
-
+      # PyTorch is pinned, so it is installed once for the whole batch rather than
+      # per commit. Everything that varies with the target is installed in the loop.
       - name: Setup PyTorch environment
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
         run: |
           python -m pip install torch==2.8.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+          python -m pip install pytest-github-actions-annotate-failures
 
-      - name: Historical setup
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: python tools/ci.py setup
+      # Cloned once and then checked out per commit; the queue wait this run is
+      # amortising dwarfs the clone, but there is no reason to repeat it either.
+      - name: Clone historical source
+        run: git clone --recursive "https://github.com/${{ github.repository }}.git" "${{ env.BACKFILL_CLONE_DIR }}"
 
-      # MSYS2 deletes superseded packages, so vcpkg revisions pinned before dba4ce18
-      # request an msys2-runtime that no longer exists and cannot bootstrap pkgconf.
-      # Only those targets are repinned; anything already on the harness revision is
-      # built exactly as it was committed. This has to run after "Historical setup",
-      # because setup.bat/setup.sh reset every submodule to its recorded revision.
-      - name: Repin unbootstrappable vcpkg (Windows)
-        if: runner.os == 'Windows'
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        shell: pwsh
-        run: |
-          $harnessVcpkg = (git rev-parse "$env:BACKFILL_HARNESS_SHA`:external/vcpkg").Trim()
-          $targetVcpkg = (git rev-parse "HEAD`:external/vcpkg").Trim()
-          if ($targetVcpkg -ne $harnessVcpkg) {
-            Write-Host "Replacing unbootstrappable vcpkg $targetVcpkg with $harnessVcpkg"
-            git -C external/vcpkg fetch --no-tags origin $harnessVcpkg
-            if ($LASTEXITCODE -ne 0) { git -C external/vcpkg fetch --no-tags origin }
-            git -C external/vcpkg checkout --detach $harnessVcpkg
-            if ($LASTEXITCODE -ne 0) { throw "Cannot use the harness vcpkg revision." }
-          } else {
-            Write-Host "Target already pins the harness vcpkg revision $targetVcpkg"
-          }
-
-      - name: Repin unbootstrappable vcpkg (Linux)
-        if: runner.os == 'Linux'
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          harness_vcpkg="$(git rev-parse "$BACKFILL_HARNESS_SHA:external/vcpkg")"
-          target_vcpkg="$(git rev-parse "HEAD:external/vcpkg")"
-          if [ "$target_vcpkg" != "$harness_vcpkg" ]; then
-            echo "Replacing unbootstrappable vcpkg $target_vcpkg with $harness_vcpkg"
-            git -C external/vcpkg fetch --no-tags origin "$harness_vcpkg" \
-              || git -C external/vcpkg fetch --no-tags origin
-            git -C external/vcpkg checkout --detach "$harness_vcpkg"
-          else
-            echo "Target already pins the harness vcpkg revision $target_vcpkg"
-          fi
-
-      # Old sources are compiled by whatever toolchain the runner has now, which
-      # emits warnings that did not exist when they were written. The point is to
-      # measure historical performance, not to re-validate warning cleanliness.
-      - name: Historical configure
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: python tools/ci.py --cmake-args=-DSGL_WARNINGS_AS_ERRORS=OFF configure
-
-      - name: Historical build
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: python tools/ci.py build
-
-      # Kept on one line so it runs under both pwsh and bash. slangpy/benchmarks is
-      # overlaid as well, both because older benchmarks predate device isolation and
-      # because timings are only comparable across commits if the benchmark
-      # definitions are held fixed.
-      - name: Overlay current BenchView benchmark harness
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: git checkout "${{ env.BACKFILL_HARNESS_SHA }}" -- tools/ci.py tools/gpu_clock.py tools/backfill_benchmark_manifest.py slangpy/testing/benchmark slangpy/testing/helpers.py slangpy/testing/plugin.py slangpy/testing/crashpad.py slangpy/benchmarks
-
-      # The overlay brings back benchmarks that did not exist in the target. Running
-      # those measures nothing and fails in ways that look like regressions, so list
-      # them for the harness to skip.
-      - name: List benchmarks the target predates
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: python tools/backfill_benchmark_manifest.py --target-sha "${{ inputs.target_sha }}" --output "${{ env.BACKFILL_SKIP_BENCHMARKS }}"
-
-      - name: Install slangpy-torch bridge when present
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: python tools/ci.py install-slangpy-torch
-
-      - name: Benchmark historical source (Windows)
-        if: runner.os == 'Windows'
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --api-url "${{ env.BENCHVIEW_API_URL }}" --lock-gpu-clocks
-
-      - name: Benchmark historical source (Linux)
-        if: runner.os == 'Linux'
-        working-directory: ${{ env.BACKFILL_CLONE_DIR }}
-        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --api-url "${{ env.BENCHVIEW_API_URL }}" --lock-gpu-clocks
+      # The rev list is handed over in the environment rather than on the command
+      # line so that this one step is written once for both pwsh and bash. The
+      # driver writes its progress table to $GITHUB_STEP_SUMMARY after every
+      # commit, and also prints it, so the log records the outcome either way.
+      - name: Benchmark historical commits
+        env:
+          BACKFILL_TARGET_SHAS: ${{ inputs.target_shas }}
+        run: >
+          python tools/backfill_batch.py
+          --clone-dir "${{ env.BACKFILL_CLONE_DIR }}"
+          --floor-sha "${{ env.BACKFILL_FLOOR_SHA }}"
+          --skip-manifest "${{ env.BACKFILL_SKIP_BENCHMARKS }}"
+          --run-id "${{ github.run_id }}"
+          --api-url "${{ env.BENCHVIEW_API_URL }}"
 
       - name: Uninstall slangpy-torch
         if: always()
