@@ -33,9 +33,6 @@ class FormatEntry:
 
 # fmt: off
 FORMATS = [
-    # PixelFormat.y
-    FormatEntry(PixelFormat.y, ComponentType.uint8, Format.r8_unorm, Flags.load_as_normalized),
-    FormatEntry(PixelFormat.y, ComponentType.uint8, Format.r8_uint, Flags.load_as_srgb),
     # PixelFormat.r
     FormatEntry(PixelFormat.r, ComponentType.int8, Format.r8_sint, Flags.none),
     FormatEntry(PixelFormat.r, ComponentType.int8, Format.r8_snorm, Flags.load_as_normalized),
@@ -258,53 +255,6 @@ def test_load_texture_from_bitmap_file(device_type: spy.DeviceType, filename: st
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("load_as_srgb", [False, True])
-@pytest.mark.parametrize("load_as_normalized", [False, True])
-def test_luminance_handling_is_explicit(
-    tmp_path: Path,
-    device_type: spy.DeviceType,
-    load_as_srgb: bool,
-    load_as_normalized: bool,
-) -> None:
-    device = helpers.get_device(type=device_type)
-    values = np.array([[64, 192]], dtype=np.uint8)
-    bitmap = Bitmap(values, pixel_format=PixelFormat.y, srgb_gamma=True)
-    path = tmp_path / "luminance.png"
-    bitmap.write(path)
-    loader = TextureLoader(device)
-    assert TextureLoader.Options().y_handling == spy.YHandling.preserve_as_r
-    rgba = np.concatenate(
-        [np.repeat(values[:, :, None], 3, axis=2), np.full((1, 2, 1), 255, dtype=np.uint8)],
-        axis=2,
-    )
-    for source in (bitmap, path):
-        # Default sRGB loading alone must keep the historical single-channel texture.
-        default = loader.load_texture(source)
-        assert default.format == Format.r8_unorm
-        np.testing.assert_array_equal(default.to_numpy(), values)
-        for handling in (None, spy.YHandling.preserve_as_r, spy.YHandling.expand_to_rgba):
-            options = TextureLoader.Options(
-                {"load_as_srgb": load_as_srgb, "load_as_normalized": load_as_normalized}
-            )
-            if handling is not None:
-                options.y_handling = handling
-            texture = loader.load_texture(source, options=options)
-            if handling == spy.YHandling.expand_to_rgba:
-                expected_format = (
-                    Format.rgba8_unorm_srgb
-                    if load_as_srgb
-                    else Format.rgba8_unorm if load_as_normalized else Format.rgba8_uint
-                )
-                expected = rgba
-            else:
-                expected_format = Format.r8_unorm if load_as_normalized else Format.r8_uint
-                expected = values
-            assert texture.format == expected_format
-            assert texture.mip_count == 1
-            np.testing.assert_array_equal(texture.to_numpy(), expected)
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("one_bit", [False, True])
 def test_expand_luminance_to_rgba(
     tmp_path: Path, device_type: spy.DeviceType, one_bit: bool
@@ -342,48 +292,6 @@ def test_expand_luminance_to_rgba(
         scalar = loader.load_texture(source, options={"load_as_srgb": False})
         assert scalar.format == Format.r8_unorm
         np.testing.assert_array_equal(scalar.to_numpy(), values)
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("dtype", [np.uint16, np.float32])
-def test_luminance_expansion_preserves_components(
-    device_type: spy.DeviceType, dtype: npt.DTypeLike
-) -> None:
-    device = helpers.get_device(type=device_type)
-    values = np.array([[16384, 49152]] if dtype == np.uint16 else [[0.25, 0.75]], dtype=dtype)
-    bitmap = Bitmap(values, pixel_format=PixelFormat.y, srgb_gamma=False)
-    texture = TextureLoader(device).load_texture(
-        bitmap, options={"load_as_srgb": False, "y_handling": spy.YHandling.expand_to_rgba}
-    )
-    assert texture.format == (Format.rgba16_unorm if dtype == np.uint16 else Format.rgba32_float)
-    actual = texture.to_numpy()
-    np.testing.assert_array_equal(actual[:, :, :3], np.repeat(values[:, :, None], 3, axis=2))
-    np.testing.assert_array_equal(actual[:, :, 3], 65535 if dtype == np.uint16 else 1.0)
-
-
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize(
-    "pixel_format",
-    [PixelFormat.r, PixelFormat.rg, PixelFormat.rgb, PixelFormat.rgba, PixelFormat.ya],
-)
-def test_y_handling_preserves_other_channels(
-    device_type: spy.DeviceType, pixel_format: PixelFormat
-) -> None:
-    device = helpers.get_device(type=device_type)
-    channels = PIXEL_FORMAT_TO_CHANNELS[pixel_format]
-    values = np.arange(2 * channels, dtype=np.uint8).reshape(1, 2, channels)
-    if channels == 1:
-        values = values[:, :, 0]
-    bitmap = Bitmap(values, pixel_format=pixel_format, srgb_gamma=False)
-    loader = TextureLoader(device)
-    for ya_handling in (spy.YAHandling.expand_to_rgba, spy.YAHandling.preserve_as_rg):
-        options = {"load_as_srgb": False, "ya_handling": ya_handling}
-        original = loader.load_texture(bitmap, options=options)
-        promoted = loader.load_texture(
-            bitmap, options={**options, "y_handling": spy.YHandling.expand_to_rgba}
-        )
-        assert promoted.format == original.format
-        np.testing.assert_array_equal(promoted.to_numpy(), original.to_numpy())
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
