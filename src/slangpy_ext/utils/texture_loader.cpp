@@ -17,6 +17,7 @@ SGL_DICT_TO_DESC_FIELD(extend_alpha, bool)
 SGL_DICT_TO_DESC_FIELD(allocate_mips, bool)
 SGL_DICT_TO_DESC_FIELD(generate_mips, bool)
 SGL_DICT_TO_DESC_FIELD(usage, TextureUsage)
+SGL_DICT_TO_DESC_FIELD(y_handling, YHandling)
 SGL_DICT_TO_DESC_FIELD(ya_handling, YAHandling)
 SGL_DICT_TO_DESC_END()
 } // namespace sgl
@@ -25,9 +26,13 @@ SGL_PY_EXPORT(utils_texture_loader)
 {
     using namespace sgl;
 
-    nb::enum_<YAHandling>(m, "YAHandling")
-        .value("expand_to_rgba", YAHandling::expand_to_rgba)
-        .value("preserve_as_rg", YAHandling::preserve_as_rg);
+    nb::enum_<YHandling>(m, "YHandling", D(YHandling))
+        .value("expand_to_rgba", YHandling::expand_to_rgba, D(YHandling, expand_to_rgba))
+        .value("preserve_as_r", YHandling::preserve_as_r, D(YHandling, preserve_as_r));
+
+    nb::enum_<YAHandling>(m, "YAHandling", D(YAHandling))
+        .value("expand_to_rgba", YAHandling::expand_to_rgba, D(YAHandling, expand_to_rgba))
+        .value("preserve_as_rg", YAHandling::preserve_as_rg, D(YAHandling, preserve_as_rg));
 
     nb::class_<TextureLoader, Object> texture_loader(m, "TextureLoader", D(TextureLoader));
 
@@ -49,8 +54,9 @@ SGL_PY_EXPORT(utils_texture_loader)
         .def_rw("extend_alpha", &TextureLoader::Options::extend_alpha, D(TextureLoader, Options, extend_alpha))
         .def_rw("allocate_mips", &TextureLoader::Options::allocate_mips, D(TextureLoader, Options, allocate_mips))
         .def_rw("generate_mips", &TextureLoader::Options::generate_mips, D(TextureLoader, Options, generate_mips))
-        .def_rw("usage", &TextureLoader::Options::usage)
-        .def_rw("ya_handling", &TextureLoader::Options::ya_handling);
+        .def_rw("usage", &TextureLoader::Options::usage, D(TextureLoader, Options, usage))
+        .def_rw("y_handling", &TextureLoader::Options::y_handling, D(TextureLoader, Options, y_handling))
+        .def_rw("ya_handling", &TextureLoader::Options::ya_handling, D(TextureLoader, Options, ya_handling));
 
     nb::implicitly_convertible<nb::dict, TextureLoader::Options>();
 

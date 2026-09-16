@@ -5,6 +5,7 @@ import numpy as np
 import numpy.typing as npt
 import enum
 from dataclasses import dataclass
+from pathlib import Path
 
 import slangpy as spy
 from slangpy import TextureLoader, Bitmap, Format, DataStruct, FormatSupport
@@ -251,6 +252,46 @@ def test_load_texture_from_bitmap_file(device_type: spy.DeviceType, filename: st
     bitmap_ref = Bitmap(path).convert(pixel_format=Bitmap.PixelFormat.rgba)
 
     assert np.all(np.array(bitmap, copy=False) == np.array(bitmap_ref, copy=False))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("one_bit", [False, True])
+def test_expand_luminance_to_rgba(
+    tmp_path: Path, device_type: spy.DeviceType, one_bit: bool
+) -> None:
+    device = helpers.get_device(type=device_type)
+    path = tmp_path / "luminance.png"
+    if one_bit:
+        # A 2x1, one-bit grayscale PNG containing black and white pixels.
+        path.write_bytes(
+            bytes.fromhex(
+                "89504e470d0a1a0a0000000d4948445200000002000000010100000000dc594227"
+                "0000000a49444154789c63700000004200412937f4ef0000000049454e44ae426082"
+            )
+        )
+        values = np.array([[0, 255]], dtype=np.uint8)
+    else:
+        values = np.array([[64, 192]], dtype=np.uint8)
+        Bitmap(values, pixel_format=PixelFormat.y, srgb_gamma=True).write(path)
+
+    loader = TextureLoader(device)
+    options = TextureLoader.Options(
+        {"load_as_srgb": False, "y_handling": spy.YHandling.expand_to_rgba}
+    )
+    assert options.y_handling == spy.YHandling.expand_to_rgba
+    assert TextureLoader.Options().y_handling == spy.YHandling.preserve_as_r
+    expected = np.concatenate(
+        [np.repeat(values[:, :, None], 3, axis=2), np.full((1, 2, 1), 255, dtype=np.uint8)],
+        axis=2,
+    )
+    for source in (path, Bitmap(path)):
+        texture = loader.load_texture(source, options=options)
+        assert texture.format == Format.rgba8_unorm
+        assert texture.mip_count == 1
+        np.testing.assert_array_equal(texture.to_numpy(), expected)
+        scalar = loader.load_texture(source, options={"load_as_srgb": False})
+        assert scalar.format == Format.r8_unorm
+        np.testing.assert_array_equal(scalar.to_numpy(), values)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
