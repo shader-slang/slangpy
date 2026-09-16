@@ -12,15 +12,37 @@
 
 namespace sgl {
 
+/// Strategy for handling Y (greyscale) bitmaps during texture loading.
+enum class YHandling {
+    /// Replicate luminance into RGB and set alpha to one.
+    expand_to_rgba,
+    /// Preserve luminance as a single red channel (the default).
+    preserve_as_r,
+};
+
+SGL_ENUM_INFO(
+    YHandling,
+    {
+        {YHandling::expand_to_rgba, "expand_to_rgba"},
+        {YHandling::preserve_as_r, "preserve_as_r"},
+    }
+);
+SGL_ENUM_REGISTER(YHandling);
+
 /// Strategy for handling YA (greyscale + alpha) bitmaps during texture loading.
 enum class YAHandling {
+    /// Replicate luminance into RGB and preserve alpha (the default).
     expand_to_rgba,
+    /// Preserve luminance and alpha as red and green channels.
     preserve_as_rg,
 };
 
 SGL_ENUM_INFO(
     YAHandling,
-    {{YAHandling::expand_to_rgba, "expand_to_rgba"}, {YAHandling::preserve_as_rg, "preserve_as_rg"}}
+    {
+        {YAHandling::expand_to_rgba, "expand_to_rgba"},
+        {YAHandling::preserve_as_rg, "preserve_as_rg"},
+    }
 );
 SGL_ENUM_REGISTER(YAHandling);
 
@@ -40,6 +62,9 @@ public:
         bool load_as_srgb{true};
         /// Extend RGB to RGBA if the RGB texture format cannot support the requested usage.
         bool extend_alpha{true};
+        /// Strategy for handling Y (greyscale) bitmaps, independent of sRGB interpretation.
+        /// Expansion preserves component type and gamma encoding; explicit R/RG bitmaps are unchanged.
+        YHandling y_handling{YHandling::preserve_as_r};
         /// Strategy for handling YA (greyscale + alpha) bitmaps.
         YAHandling ya_handling{YAHandling::expand_to_rgba};
         /// Allocate mip levels for the texture.
