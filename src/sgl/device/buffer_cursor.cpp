@@ -186,9 +186,7 @@ template void CursorWriteWrappers<BufferElementCursor, size_t>::_set_vector(
     }
 
 GETSET_SCALAR(bool, bool_);
-// bool1 case specifically cannot be handled due to:
-// https://github.com/shader-slang/slang/issues/7441
-// GETSET_VECTOR(bool1, bool_);
+GETSET_VECTOR(bool1, bool_);
 GETSET_VECTOR(bool2, bool_);
 GETSET_VECTOR(bool3, bool_);
 GETSET_VECTOR(bool4, bool_);
@@ -250,23 +248,6 @@ GETSET_SCALAR(double, float64);
 #undef GETSET_SCALAR
 #undef GETSET_VECTOR
 #undef GETSET_MATRIX
-
-// Template specialization to allow setting booleans on a parameter block.
-// On the host side a bool is 1B and the device 4B. We cast bools to 32-bit integers here.
-// Note that this applies to our boolN vectors as well, which are currently 1B per element.
-
-template<>
-SGL_API void BufferElementCursor::set(const bool1& v) const
-{
-    SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
-    _set_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
-}
-template<>
-SGL_API void BufferElementCursor::get(bool1& v) const
-{
-    SGL_CHECK(_get_device_type() != DeviceType::cuda, "bool1 currently not supported due to CUDA backend issues.");
-    _get_vector(&v, sizeof(v), TypeReflection::ScalarType::bool_, 1);
-}
 
 template<>
 SGL_API void BufferElementCursor::get(DescriptorHandle& value) const

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import gc
 import pytest
 import sys
 import struct
@@ -63,6 +64,8 @@ TEST_VARS = {
     # bool
     "u_bool_false": Var(kind="scalar", type="bool", value=False),
     "u_bool_true": Var(kind="scalar", type="bool", value=True),
+    # bool1
+    "u_bool1": Var(kind="vector", type="bool", value=[True]),
     # bool2
     "u_bool2": Var(kind="vector", type="bool", value=[False, True]),
     # bool3
@@ -339,6 +342,21 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
     with command_encoder.begin_compute_pass() as pass_encoder:
         shader_object = pass_encoder.bind_pipeline(kernel.pipeline)
         cursor = spy.ShaderCursor(shader_object)
+
+        assert not cursor.find_element(0).is_valid()
+        assert not cursor.find_entry_point(1).is_valid()
+        assert not cursor.get_field_by_index(1_000_000).is_valid()
+        assert not cursor["u_int_array"].find_element(4).is_valid()
+        assert not cursor["u_int4"].find_element(4).is_valid()
+        assert not cursor["u_float2x2"].find_element(2).is_valid()
+        with pytest.raises(IndexError):
+            cursor["u_int_array"][4]
+
+        # ShaderCursor stores a native pointer to its ShaderObject. The Python binding
+        # must keep that owner alive even when its original Python variable is dropped.
+        del shader_object
+        gc.collect()
+
         cursor["results"] = result_buffer
         write_vars(device_type, cursor, TEST_VARS)
         pass_encoder.dispatch(thread_count=[1, 1, 1])
@@ -356,12 +374,6 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
     for named_typed_result, named_typed_reference in zip(
         named_typed_results, named_typed_references
     ):
-        # Vulkan/Metal/CUDA packing rule for certain matrix types are not the same as D3D12's
-        if (device_type in [spy.DeviceType.vulkan, spy.DeviceType.metal, spy.DeviceType.cuda]) and (
-            named_typed_result[0] == "u_float2x2" or named_typed_result[0] == "u_float3x3"
-        ):
-            continue
-
         assert named_typed_result == named_typed_reference
 
 
