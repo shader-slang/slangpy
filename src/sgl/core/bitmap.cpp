@@ -604,6 +604,11 @@ void Bitmap::static_init()
 
 void Bitmap::static_shutdown() { }
 
+bool Bitmap::supports_png_metadata()
+{
+    return SGL_HAS_LIBPNG;
+}
+
 void Bitmap::allocate_data(size_t size)
 {
     auto* data = static_cast<uint8_t*>(std::malloc(std::max<size_t>(size, 1)));
@@ -797,7 +802,7 @@ void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_
         SGL_THROW("Unsupported number of channels {}!", c);
     }
     m_component_type = is_hdr ? ComponentType::float32 : ComponentType::uint8;
-    m_srgb_gamma = is_srgb;
+    m_srgb_gamma = is_srgb && (c == 3 || c == 4);
 
     rebuild_pixel_struct();
 
@@ -965,8 +970,19 @@ void Bitmap::read_png(Stream* stream)
         SGL_THROW("Unsupported bit depth {}!", bit_depth);
     }
 
-    // TODO should we detect non-srgb pngs?
-    m_srgb_gamma = true;
+    // Metadata takes precedence over the 8-bit RGB/RGBA fallback for untagged PNGs.
+    // libpng also reports known sRGB ICC profiles through PNG_INFO_sRGB.
+    int srgb_intent = 0;
+    png_fixed_point gamma = 0;
+    if (png_get_sRGB(png_ptr, info_ptr, &srgb_intent))
+        m_srgb_gamma = true;
+    else if (png_get_valid(png_ptr, info_ptr, PNG_INFO_iCCP))
+        m_srgb_gamma = false; // No conversion for profiles libpng cannot identify as sRGB.
+    else if (png_get_gAMA_fixed(png_ptr, info_ptr, &gamma))
+        // PNG records gamma * 100000; allow rounding of the sRGB 1/2.2 approximation.
+        m_srgb_gamma = gamma >= 45454 && gamma <= 45455;
+    else
+        m_srgb_gamma = bit_depth == 8 && (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_RGB_ALPHA);
 
     rebuild_pixel_struct();
 
@@ -1091,6 +1107,8 @@ void Bitmap::write_png(Stream* stream, int compression) const
 
     if (m_srgb_gamma)
         png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, PNG_sRGB_INTENT_ABSOLUTE);
+    else
+        png_set_gAMA_fixed(png_ptr, info_ptr, PNG_FP_1);
 
     png_set_IHDR(
         png_ptr,
@@ -1290,7 +1308,7 @@ void Bitmap::read_jpg(Stream* stream)
     m_width = cinfo.output_width;
     m_height = cinfo.output_height;
     m_component_type = ComponentType::uint8;
-    m_srgb_gamma = true;
+    m_srgb_gamma = cinfo.output_components == 3;
 
     switch (cinfo.output_components) {
     case 1:

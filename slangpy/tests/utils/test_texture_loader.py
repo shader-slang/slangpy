@@ -440,5 +440,39 @@ def test_ya_handling_preserve_as_rg_float32(device_type: spy.DeviceType):
     assert np.allclose(data[:, :, 1], 0.8, atol=0.01)  # G = A
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
+@pytest.mark.parametrize("channels", [1, 3, 4])
+@pytest.mark.parametrize("source_srgb", [False, True])
+@pytest.mark.parametrize("mode", ["auto", "raw", "srgb"])
+def test_srgb_interpretation(
+    device_type: spy.DeviceType,
+    dtype: npt.DTypeLike,
+    channels: int,
+    source_srgb: bool,
+    mode: str,
+) -> None:
+    device = helpers.get_device(type=device_type)
+    scale = 257 if dtype == np.uint16 else 1
+    data = np.full((2, 2, channels), 128 * scale, dtype=dtype)
+    if channels == 4:
+        data[..., 3] = 64 * scale
+    bitmap = Bitmap(data.squeeze(-1) if channels == 1 else data, srgb_gamma=source_srgb)
+    if mode == "srgb":
+        bitmap.srgb_gamma = True
+    expected_srgb = source_srgb or mode == "srgb"
+    use_srgb_format = mode != "raw" and expected_srgb and dtype == np.uint8 and channels in (3, 4)
+    options = TextureLoader.Options({"load_as_srgb": mode != "raw", "generate_mips": True})
+    texture = TextureLoader(device).load_texture(bitmap, options)
+    assert bitmap.srgb_gamma is expected_srgb
+    np.testing.assert_array_equal(np.asarray(bitmap).reshape(data.shape), data)
+
+    actual = texture.to_numpy().reshape(4, -1)
+    # Selecting sRGB changes the GPU format, never the sample type or stored values.
+    assert actual.dtype == dtype
+    np.testing.assert_array_equal(actual[:, :channels], data.reshape(-1, channels))
+    assert (texture.format == Format.rgba8_unorm_srgb) == use_srgb_format
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

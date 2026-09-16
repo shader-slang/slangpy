@@ -975,6 +975,9 @@ Returns:
 
 static const char *__doc_sgl_Bitmap_srgb_gamma = R"doc(True if the bitmap is in sRGB gamma space.)doc";
 
+static const char *__doc_sgl_Bitmap_supports_png_metadata =
+R"doc(Whether this build can read PNG transfer metadata through libpng.)doc";
+
 static const char *__doc_sgl_Bitmap_static_init = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_static_shutdown = R"doc()doc";
