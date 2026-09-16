@@ -80,6 +80,7 @@ inline bool has_format_support(Device* device, Format format, FormatSupport requ
  *   (if a RGBA format exists).
  * - \c Options::load_as_srgb 8-bit RGBA bitmap with sRGB
  * gamma will be determined as \c Format::rgba8_unorm_srgb.
+ *
  * - \c Options::load_as_normalized
  *   8/16-bit integer bitmap will be determined as normalized resource format.
  *
@@ -161,16 +162,22 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
         {make_key(PixelFormat::rgba, ComponentType::float32), Format::rgba32_float},
     };
 
-    PixelFormat pixel_format = bitmap->pixel_format();
-    if (pixel_format == PixelFormat::y)
-        pixel_format = PixelFormat::r;
     ComponentType component_type = bitmap->component_type();
+    PixelFormat pixel_format = bitmap->pixel_format();
+    bool convert_to_rgba = false;
+    if (pixel_format == PixelFormat::y) {
+        if (options.y_handling == YHandling::expand_to_rgba) {
+            pixel_format = PixelFormat::rgba;
+            convert_to_rgba = true;
+        } else {
+            pixel_format = PixelFormat::r;
+        }
+    }
     FormatFlags format_flags = FormatFlags::none;
     if (options.load_as_normalized && DataStruct::is_integer(component_type))
         format_flags = FormatFlags::normalized;
 
     // Check if bitmap is RGB and we can convert to RGBA.
-    bool convert_to_rgba = false;
     if (options.extend_alpha && pixel_format == PixelFormat::rgb) {
         TextureUsage effective_usage = get_effective_texture_usage(device, options);
         FormatSupport required_support = get_required_format_support(effective_usage);
