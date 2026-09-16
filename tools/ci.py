@@ -200,12 +200,12 @@ def benchmark_python(args: Any):
         # Run for all device types plus nodevice tests
         device_types = device_types + ["nodevice"]
 
+    api_url = args.api_url if args.api_url is not None else os.environ.get("BENCHVIEW_API_URL")
+    failed_devices: list[str] = []
     try:
         # Lock GPU clocks
         if args.lock_gpu_clocks:
             cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "lock", "--ratio", "0.7"]
-            if os_name == "linux":
-                cmd = ["sudo"] + cmd
             run_command(cmd)
 
         # Run benchmarks for each device type
@@ -213,11 +213,9 @@ def benchmark_python(args: Any):
             print(f"Running benchmarks for device type: {device_type}")
 
             cmd = pytest_command("slangpy/benchmarks", "-ra", "--device-types", device_type)
-            if args.mongodb_connection_string:
-                cmd += ["--benchmark-upload", args.run_id]
-                cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
-                if args.mongodb_database_name:
-                    cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
+            if api_url is not None:
+                cmd += ["--benchmark-submit", args.run_id]
+                cmd += ["--benchmark-api-url", api_url]
 
             try:
                 run_command(cmd, shell=False, env=env)
@@ -225,13 +223,16 @@ def benchmark_python(args: Any):
                 print(f"Benchmarks failed for device type {device_type}: {e}")
                 if args.device_type:  # If specific device requested, fail hard
                     raise
-                # Otherwise, continue with other devices
+                # Otherwise, track failure and continue with other devices
+                failed_devices.append(device_type)
+
+        # Fail if any device types had errors
+        if failed_devices:
+            raise RuntimeError(f"Benchmarks failed for device type(s): {'; '.join(failed_devices)}")
     finally:
         # Unlock GPU clocks
         if args.lock_gpu_clocks:
             cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "unlock"]
-            if os_name == "linux":
-                cmd = ["sudo"] + cmd
             run_command(cmd)
 
 
@@ -322,12 +323,14 @@ def main():
     parser_benchmark_python = commands.add_parser(
         "benchmark-python", help="run benchmarks (python)"
     )
-    parser_benchmark_python.add_argument("-r", "--run-id", type=str, required=True, help="Run ID")
     parser_benchmark_python.add_argument(
-        "-c", "--mongodb-connection-string", type=str, help="MongoDB connection string"
+        "-r", "--run-id", type=str, required=True, help="Traceable BenchView request ID"
     )
     parser_benchmark_python.add_argument(
-        "-d", "--mongodb-database-name", type=str, help="MongoDB database name"
+        "-u",
+        "--api-url",
+        type=str,
+        help="BenchView base URL; defaults to BENCHVIEW_API_URL and uses BENCHVIEW_API_KEY",
     )
     parser_benchmark_python.add_argument(
         "--device-type",
