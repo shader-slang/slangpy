@@ -5,6 +5,7 @@ import numpy as np
 import numpy.typing as npt
 import enum
 from dataclasses import dataclass
+from pathlib import Path
 
 import slangpy as spy
 from slangpy import TextureLoader, Bitmap, Format, DataStruct, FormatSupport
@@ -254,6 +255,46 @@ def test_load_texture_from_bitmap_file(device_type: spy.DeviceType, filename: st
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("one_bit", [False, True])
+def test_expand_luminance_to_rgba(
+    tmp_path: Path, device_type: spy.DeviceType, one_bit: bool
+) -> None:
+    device = helpers.get_device(type=device_type)
+    path = tmp_path / "luminance.png"
+    if one_bit:
+        # A 2x1, one-bit grayscale PNG containing black and white pixels.
+        path.write_bytes(
+            bytes.fromhex(
+                "89504e470d0a1a0a0000000d4948445200000002000000010100000000dc594227"
+                "0000000a49444154789c63700000004200412937f4ef0000000049454e44ae426082"
+            )
+        )
+        values = np.array([[0, 255]], dtype=np.uint8)
+    else:
+        values = np.array([[64, 192]], dtype=np.uint8)
+        Bitmap(values, pixel_format=PixelFormat.y, srgb_gamma=True).write(path)
+
+    loader = TextureLoader(device)
+    options = TextureLoader.Options(
+        {"load_as_srgb": False, "y_handling": spy.YHandling.expand_to_rgba}
+    )
+    assert options.y_handling == spy.YHandling.expand_to_rgba
+    assert TextureLoader.Options().y_handling == spy.YHandling.preserve_as_r
+    expected = np.concatenate(
+        [np.repeat(values[:, :, None], 3, axis=2), np.full((1, 2, 1), 255, dtype=np.uint8)],
+        axis=2,
+    )
+    for source in (path, Bitmap(path)):
+        texture = loader.load_texture(source, options=options)
+        assert texture.format == Format.rgba8_unorm
+        assert texture.mip_count == 1
+        np.testing.assert_array_equal(texture.to_numpy(), expected)
+        scalar = loader.load_texture(source, options={"load_as_srgb": False})
+        assert scalar.format == Format.r8_unorm
+        np.testing.assert_array_equal(scalar.to_numpy(), values)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_load_rgb_float_texture_with_generated_mips_extends_to_rgba(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
@@ -438,6 +479,40 @@ def test_ya_handling_preserve_as_rg_float32(device_type: spy.DeviceType):
     assert data.shape == (32, 64, 2)
     assert np.allclose(data[:, :, 0], 0.5, atol=0.01)  # R = Y
     assert np.allclose(data[:, :, 1], 0.8, atol=0.01)  # G = A
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
+@pytest.mark.parametrize("channels", [1, 3, 4])
+@pytest.mark.parametrize("source_srgb", [False, True])
+@pytest.mark.parametrize("mode", ["auto", "raw", "srgb"])
+def test_srgb_interpretation(
+    device_type: spy.DeviceType,
+    dtype: npt.DTypeLike,
+    channels: int,
+    source_srgb: bool,
+    mode: str,
+) -> None:
+    device = helpers.get_device(type=device_type)
+    scale = 257 if dtype == np.uint16 else 1
+    data = np.full((2, 2, channels), 128 * scale, dtype=dtype)
+    if channels == 4:
+        data[..., 3] = 64 * scale
+    bitmap = Bitmap(data.squeeze(-1) if channels == 1 else data, srgb_gamma=source_srgb)
+    if mode == "srgb":
+        bitmap.srgb_gamma = True
+    expected_srgb = source_srgb or mode == "srgb"
+    use_srgb_format = mode != "raw" and expected_srgb and dtype == np.uint8 and channels in (3, 4)
+    options = TextureLoader.Options({"load_as_srgb": mode != "raw", "generate_mips": True})
+    texture = TextureLoader(device).load_texture(bitmap, options)
+    assert bitmap.srgb_gamma is expected_srgb
+    np.testing.assert_array_equal(np.asarray(bitmap).reshape(data.shape), data)
+
+    actual = texture.to_numpy().reshape(4, -1)
+    # Selecting sRGB changes the GPU format, never the sample type or stored values.
+    assert actual.dtype == dtype
+    np.testing.assert_array_equal(actual[:, :channels], data.reshape(-1, channels))
+    assert (texture.format == Format.rgba8_unorm_srgb) == use_srgb_format
 
 
 if __name__ == "__main__":

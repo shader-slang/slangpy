@@ -15,8 +15,9 @@ SlangPy has a custom benchmark framework built on pytest. Benchmarks live in `sl
 | `slangpy/benchmarks/` | Benchmark test files (`test_benchmark_*.py`) and Slang shader files |
 | `slangpy/benchmarks/conftest.py` | Auto-imports benchmark fixtures and registers plugins |
 | `slangpy/testing/benchmark/fixtures.py` | Pytest fixtures: `BenchmarkSlangFunction`, `BenchmarkPythonFunction`, `BenchmarkComputeKernel`, `ReportFixture` |
-| `slangpy/testing/benchmark/plugin.py` | Pytest plugin adding `--benchmark-save`, `--benchmark-compare`, `--benchmark-upload` CLI options |
-| `slangpy/testing/benchmark/report.py` | `BenchmarkReport` / `Report` TypedDicts, serialization, MongoDB upload |
+| `slangpy/testing/benchmark/plugin.py` | Pytest plugin adding local report and authenticated BenchView submission options |
+| `slangpy/testing/benchmark/benchview.py` | Native BenchView payload construction, batching, and authenticated HTTP submission |
+| `slangpy/testing/benchmark/report.py` | Legacy local report serialization and comparison data |
 | `slangpy/testing/benchmark/table.py` | Terminal table display with color-coded deltas |
 | `slangpy/testing/benchmark/utils.py` | Machine/GPU/commit info collection, JSON datetime helpers |
 
@@ -90,7 +91,32 @@ pytest slangpy/benchmarks -v --benchmark-compare my_run
 
 # List saved runs
 pytest slangpy/benchmarks --benchmark-list-runs
+
+# Submit to a local BenchView server (PowerShell)
+$env:BENCHVIEW_API_KEY = "<write key>"
+pytest slangpy/benchmarks -v --benchmark-submit <request-id> --benchmark-api-url http://localhost:3000
+
+# Run the CI wrapper against the nested hosted deployment
+$env:BENCHVIEW_API_KEY = "<write key>"
+python tools/ci.py benchmark-python --run-id <request-id> --api-url http://rtrci.nvidia.com/benchview
 ```
+
+`BENCHVIEW_API_URL` may supply the base URL when direct pytest commands omit `--benchmark-api-url` or the CI wrapper omits `--api-url`. The URL is the root or nested BenchView application base, not the full submission endpoint. The write key is accepted only through `BENCHVIEW_API_KEY`; it is never a command-line option or printed by the benchmark plugin. `--benchmark-upload` remains an alias for `--benchmark-submit` for existing direct pytest scripts, but it now uses only the HTTP API and never connects to MongoDB.
+
+The ordinary `.github/workflows/ci-benchmark.yml` workflow is manual and is also dispatched by the nightly scheduler. With no `revision` input it checks out and benchmarks the selected branch tip. With an exact 40-character `revision` it checks out that future-compatible commit while retaining the workflow branch name for BenchView. It always builds the selected source and invokes the same `tools/ci.py benchmark-python` command shown above on the Windows and Linux performance workers. Configure repository variable `BENCHVIEW_API_URL` with the root or nested BenchView base URL and repository secret `BENCHVIEW_API_KEY` with its write key before enabling the workflow.
+
+## Benchmark action scheduling
+
+The nightly `.github/workflows/schedule-benchmarks.yml` workflow runs once per day. It uses the authenticated GitHub API client supplied by `actions/github-script`, so it needs no checkout, Python environment, GitHub CLI, or extra secret. It examines one fixed 24-hour UTC interval and dispatches the ordinary workflow once for every `main` commit in that interval, oldest first, through the `revision` input. It deliberately does not inspect or suppress existing runs; manually triggering the scheduler repeats the complete 24-hour interval.
+
+Historical commits use the separate manual `.github/workflows/backfill-benchmark.yml` workflow, which benchmarks exactly one commit per run, driven by `tools/backfill_benchmarks.py`. That dispatcher is a long-running operator process rather than a GitHub-hosted workflow, so it uses the official GitHub CLI and never accepts a token argument. It requires a `--state-file`, which is what lets an interrupted sweep resume without re-benchmarking anything. Verify its prerequisite before any preview or dispatch:
+
+```powershell
+gh --version
+gh auth status
+```
+
+See [docs/benchmark-backfill.md](../../docs/benchmark-backfill.md) for the supported range, how a run is structured, and how to read backfilled data.
 
 ## Writing New Benchmarks
 
@@ -118,3 +144,7 @@ Reports are JSON files stored in `.benchmarks/`. Each benchmark entry includes:
 - `cpu_time` — total wall-clock time including warmup
 
 The terminal summary table shows color-coded deltas when comparing: green for >5% improvement, red for >5% regression.
+
+Local report files retain this legacy shape. In parallel, fixtures accumulate native BenchView observations. Tests whose original pytest function name contains `_cpu` submit `cpu_time`; every other benchmark submits `gpu_time`. Both use milliseconds. This matches the existing imported history, including Python wrappers that synchronize GPU work. The stable test ID is the normalized source file plus the original pytest function, while pytest parameters keep their legacy string values as case dimensions and `DeviceType.cuda` is shortened to `cuda`. Project, commit, machine, OS, CPU, and GPU information use BenchView's dedicated run and environment fields.
+
+One benchmark process submits observations in API-sized batches. Independent device or machine processes at the same Git revision and build configuration derive the same logical run key. A new benchmark execution uses fresh observation timestamps and execution identity, so it replaces matching test cases normally; retrying an unchanged request body is idempotent. Transient connection and gateway failures use five total attempts with exponential backoff while preserving the exact payload and idempotency key.

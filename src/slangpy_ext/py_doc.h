@@ -975,6 +975,9 @@ Returns:
 
 static const char *__doc_sgl_Bitmap_srgb_gamma = R"doc(True if the bitmap is in sRGB gamma space.)doc";
 
+static const char *__doc_sgl_Bitmap_supports_png_metadata =
+R"doc(Whether this build can read PNG transfer metadata through libpng.)doc";
+
 static const char *__doc_sgl_Bitmap_static_init = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_static_shutdown = R"doc()doc";
@@ -9509,6 +9512,11 @@ static const char *__doc_sgl_TextureLoader_Options_usage =
 R"doc(Resource usage flags for the texture. Render-target or unordered-
 access usage will be added automatically if ``generate_mips`` is true.)doc";
 
+static const char *__doc_sgl_TextureLoader_Options_y_handling =
+R"doc(Strategy for handling Y (greyscale) bitmaps, independent of sRGB
+interpretation. Expansion preserves component type and gamma encoding;
+explicit R/RG bitmaps are unchanged.)doc";
+
 static const char *__doc_sgl_TextureLoader_Options_ya_handling = R"doc(Strategy for handling YA (greyscale + alpha) bitmaps.)doc";
 
 static const char *__doc_sgl_TextureLoader_TextureLoader = R"doc()doc";
@@ -10502,11 +10510,19 @@ static const char *__doc_sgl_YAHandling =
 R"doc(Strategy for handling YA (greyscale + alpha) bitmaps during texture
 loading.)doc";
 
-static const char *__doc_sgl_YAHandling_expand_to_rgba = R"doc()doc";
+static const char *__doc_sgl_YAHandling_expand_to_rgba = R"doc(Replicate luminance into RGB and preserve alpha (the default).)doc";
 
 static const char *__doc_sgl_YAHandling_info = R"doc()doc";
 
-static const char *__doc_sgl_YAHandling_preserve_as_rg = R"doc()doc";
+static const char *__doc_sgl_YAHandling_preserve_as_rg = R"doc(Preserve luminance and alpha as red and green channels.)doc";
+
+static const char *__doc_sgl_YHandling = R"doc(Strategy for handling Y (greyscale) bitmaps during texture loading.)doc";
+
+static const char *__doc_sgl_YHandling_expand_to_rgba = R"doc(Replicate luminance into RGB and set alpha to one.)doc";
+
+static const char *__doc_sgl_YHandling_info = R"doc()doc";
+
+static const char *__doc_sgl_YHandling_preserve_as_r = R"doc(Preserve luminance as a single red channel (the default).)doc";
 
 static const char *__doc_sgl_align_to = R"doc(Align an integer value to the given alignment.)doc";
 

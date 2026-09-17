@@ -184,6 +184,9 @@ public:
     /// True if the bitmap is in sRGB gamma space.
     bool srgb_gamma() const { return m_srgb_gamma; }
 
+    /// Whether this build can read PNG transfer metadata through libpng.
+    static bool supports_png_metadata();
+
     /// Set the sRGB gamma flag.
     /// Note that this does not convert the pixel values, it only sets the flag and adjusts the pixel struct.
     void set_srgb_gamma(bool srgb_gamma);
