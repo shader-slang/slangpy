@@ -150,8 +150,9 @@ compiler.
 Building without GLFW
 ---------------------
 
-GLFW window support is enabled by default. To omit GLFW, configure with
-``-DSGL_ENABLE_GLFW=OFF``, for example::
+``SGL_ENABLE_GLFW`` defaults to ``AUTO``, enabling window support when its build
+dependencies are available. Set it to ``ON`` to require GLFW support or ``OFF``
+to omit it, for example::
 
     cmake --preset linux-gcc -DSGL_ENABLE_GLFW=OFF
     cmake --build --preset linux-gcc-debug

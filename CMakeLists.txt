@@ -59,9 +59,10 @@ option(SGL_GENERATE_SETPATH_SCRIPTS "Generate setpath scripts" ON)
 # This is useful when using sgl through cmake add_subdirectory.
 option(SGL_BUILD_STANDALONE "Build without external dependencies" ON)
 
-# Enable GLFW support which is used for creating windows and handling input events.
-option(SGL_ENABLE_GLFW "Enable GLFW window support" ON)
-set(SGL_HAS_GLFW ${SGL_ENABLE_GLFW})
+# GLFW window and input support: ON requires dependencies, OFF disables support,
+# and AUTO enables support when dependencies are available.
+set(SGL_ENABLE_GLFW "AUTO" CACHE STRING "Enable GLFW window support (ON, OFF, AUTO)")
+set_property(CACHE SGL_ENABLE_GLFW PROPERTY STRINGS ON OFF AUTO)
 
 # Enable linking CUDA driver API dynamically.
 # This allows to build CUDA support without having CUDA SDK installed.

@@ -704,7 +704,7 @@ namespace sgl {
 namespace {
     [[noreturn]] void window_support_disabled()
     {
-        SGL_THROW("sgl was built without GLFW window support (SGL_ENABLE_GLFW=OFF)");
+        SGL_THROW("sgl was built without GLFW window support");
     }
 } // namespace
 
