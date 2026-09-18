@@ -33,11 +33,39 @@ add_subdirectory(fmt)
 
 # glfw
 
-set(GLFW_BUILD_EXAMPLES OFF)
-set(GLFW_BUILD_TESTS OFF)
-set(GLFW_BUILD_DOCS OFF)
-set(GLFW_INSTALL OFF)
-add_subdirectory(glfw)
+if(NOT SGL_ENABLE_GLFW MATCHES "^(ON|OFF|AUTO)$")
+    message(FATAL_ERROR "SGL_ENABLE_GLFW must be ON, OFF, or AUTO (got '${SGL_ENABLE_GLFW}')")
+endif()
+
+set(SGL_HAS_GLFW OFF)
+if(SGL_ENABLE_GLFW STREQUAL "ON")
+    set(SGL_HAS_GLFW ON)
+elseif(SGL_ENABLE_GLFW STREQUAL "AUTO")
+    if(WIN32 OR APPLE)
+        set(SGL_HAS_GLFW ON)
+    elseif(UNIX)
+        # Match the X11 dependencies checked by the bundled GLFW. Extension
+        # libraries are loaded at runtime, so only their headers are required.
+        find_package(X11 QUIET)
+        if(X11_FOUND AND X11_Xrandr_INCLUDE_PATH AND X11_Xinerama_INCLUDE_PATH
+            AND X11_Xkb_INCLUDE_PATH AND X11_Xcursor_INCLUDE_PATH AND X11_Xi_INCLUDE_PATH)
+            set(SGL_HAS_GLFW ON)
+        else()
+            message(STATUS "GLFW disabled: X11 development dependencies are missing (SGL_ENABLE_GLFW=AUTO)")
+        endif()
+    else()
+        message(STATUS "GLFW disabled: unsupported platform (SGL_ENABLE_GLFW=AUTO)")
+    endif()
+endif()
+set(SGL_HAS_GLFW ${SGL_HAS_GLFW} PARENT_SCOPE)
+
+if(SGL_HAS_GLFW)
+    set(GLFW_BUILD_EXAMPLES OFF)
+    set(GLFW_BUILD_TESTS OFF)
+    set(GLFW_BUILD_DOCS OFF)
+    set(GLFW_INSTALL OFF)
+    add_subdirectory(glfw)
+endif()
 
 # tevclient
 

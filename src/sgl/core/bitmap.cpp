@@ -747,7 +747,11 @@ struct StreamReader {
     {
     }
 
-    void reset() { stream->seek(initial_pos); }
+    void reset()
+    {
+        stream->seek(initial_pos);
+        is_eof = false;
+    }
 
     static int read(void* user, char* data, int size)
     {
@@ -783,6 +787,9 @@ void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_
         SGL_THROW(fmt::format("Failed to read {} file!", format));
     reader.reset();
 
+    bool is_16_bit = !is_hdr && stbi_is_16_bit_from_callbacks(&reader.callbacks, &reader);
+    reader.reset();
+
     m_width = w;
     m_height = h;
     switch (c) {
@@ -801,7 +808,7 @@ void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_
     default:
         SGL_THROW("Unsupported number of channels {}!", c);
     }
-    m_component_type = is_hdr ? ComponentType::float32 : ComponentType::uint8;
+    m_component_type = is_hdr ? ComponentType::float32 : (is_16_bit ? ComponentType::uint16 : ComponentType::uint8);
     m_srgb_gamma = is_srgb && (c == 3 || c == 4);
 
     rebuild_pixel_struct();
@@ -821,6 +828,9 @@ void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_
     switch (m_component_type) {
     case ComponentType::uint8:
         data = reinterpret_cast<void*>(stbi_load_from_callbacks(&reader.callbacks, &reader, &w, &h, &c, c));
+        break;
+    case ComponentType::uint16:
+        data = reinterpret_cast<void*>(stbi_load_16_from_callbacks(&reader.callbacks, &reader, &w, &h, &c, c));
         break;
     case ComponentType::float32:
         data = reinterpret_cast<void*>(stbi_loadf_from_callbacks(&reader.callbacks, &reader, &w, &h, &c, c));
