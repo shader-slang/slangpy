@@ -2,6 +2,7 @@
 
 #include "testing.h"
 #include "sgl/core/lmdb_cache.h"
+#include "sgl/core/platform.h"
 #include "sgl/core/timer.h"
 
 #include <algorithm>
@@ -621,6 +622,73 @@ TEST_CASE("stress-multi-threaded")
         StressTest::RunStats run_stats = StressTest::RunStats::accumulate(thread_run_stats);
         run_stats.print();
     }
+}
+
+TEST_CASE("transaction_owned_readers")
+{
+    LMDBCache cache(testing::get_case_temp_directory() / "cache");
+    Blob key{1}, value{2, 3};
+    cache.set(key, value);
+    // Nested reads need independent slots. Repeat more than LMDB's 126 slots
+    // to also verify that completed transactions release them.
+    for (size_t i = 0; i < 140; ++i) {
+        CHECK(cache.get_readonly(
+            key.data(),
+            key.size(),
+            [](const void*, size_t, void* user_data)
+            {
+                auto& cache = *static_cast<LMDBCache*>(user_data);
+                Blob result;
+                CHECK(cache.get_readonly(Blob{1}, result));
+                CHECK(result == Blob{2, 3});
+            },
+            &cache
+        ));
+    }
+}
+
+TEST_CASE("path_alias_reuses_environment")
+{
+    auto root = testing::get_case_temp_directory();
+    auto path = root / "cache";
+    auto alias = root / "alias";
+    LMDBCache cache(path);
+    SUBCASE("junction")
+    {
+        REQUIRE(platform::create_junction(alias, path));
+    }
+#if SGL_WINDOWS
+    SUBCASE("case")
+    {
+        alias = root / "CACHE";
+    }
+#endif
+    Blob key{1}, value{2, 3};
+    cache.set(key, value);
+    const auto reserved_size = cache.usage().reserved_size;
+    // Closing an independently opened alias would clear this process's active
+    // reader slots. Keep reading through the original environment afterwards.
+    cache.for_each(
+        [&](std::span<const uint8_t>, std::span<const uint8_t> data)
+        {
+            {
+                LMDBCache::Options options;
+                options.max_size *= 2;
+                LMDBCache other(alias, options);
+                // An alias must reuse the original map, not open a second one.
+                CHECK(other.usage().reserved_size == reserved_size);
+                Blob result;
+                CHECK(other.get_readonly(key, result));
+                CHECK(result == value);
+            }
+            CHECK(Blob(data.begin(), data.end()) == value);
+        }
+    );
+    Blob result;
+    CHECK(cache.get_readonly(key, result));
+    CHECK(result == value);
+    if (alias == root / "alias")
+        REQUIRE(platform::delete_junction(alias));
 }
 
 TEST_SUITE_END();

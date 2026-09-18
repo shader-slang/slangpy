@@ -12,6 +12,13 @@
 
 #include <memory>
 
+#if SGL_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
+#endif
+
 // Brief overview on how the cache works:
 // - The cache is backed by an LMDB database stored on disk.
 // - There are two databases:
@@ -451,14 +458,26 @@ std::mutex s_db_cache_mutex;
 LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Options& options)
 {
     ProcessID pid = platform::current_process_id();
-    std::filesystem::path abs_path = std::filesystem::absolute(path);
+    std::filesystem::path abs_path = std::filesystem::canonical(path);
+#if SGL_WINDOWS
+    // LMDB requires coherent memory mappings on a local filesystem, even when
+    // all clients run on the same host. Resolve junctions before checking the volume.
+    std::vector<wchar_t> volume_path(32768);
+    if (!GetVolumePathNameW(abs_path.c_str(), volume_path.data(), static_cast<DWORD>(volume_path.size())))
+        SGL_THROW("Failed to determine cache volume for \"{}\" (Windows error {})", abs_path, GetLastError());
+    SGL_CHECK(
+        GetDriveTypeW(volume_path.data()) != DRIVE_REMOTE,
+        "LMDB cache requires a local filesystem; \"{}\" is on a remote volume",
+        abs_path
+    );
+#endif
     std::lock_guard lock(s_db_cache_mutex);
     auto it = std::find_if(
         s_db_cache.begin(),
         s_db_cache.end(),
         [pid, &abs_path](const DBCacheItem& e)
         {
-            return e.pid == pid && e.path == abs_path;
+            return e.pid == pid && std::filesystem::equivalent(e.path, abs_path);
         }
     );
     if (it != s_db_cache.end()) {
@@ -481,7 +500,9 @@ LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Option
     if (int result = mdb_env_set_mapsize(db.env, options.max_size); result != MDB_SUCCESS)
         LMDB_THROW("Failed to set map size", result);
 
-    int flags = options.nosync ? MDB_NOSYNC : 0;
+    // Every read is scoped to a transaction. Do not retain reader slots in TLS:
+    // in particular, Windows thread-exit callbacks can race environment teardown.
+    int flags = MDB_NOTLS | (options.nosync ? MDB_NOSYNC : 0);
     if (int result = mdb_env_open(db.env, abs_path.string().c_str(), flags, 0664); result != MDB_SUCCESS)
         LMDB_THROW("Failed to open environment", result);
 
