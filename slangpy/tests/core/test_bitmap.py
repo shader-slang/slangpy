@@ -288,6 +288,51 @@ def test_png_linear_roundtrip(tmp_path: Path) -> None:
     np.testing.assert_array_equal(np.asarray(reread), np.asarray(bitmap))
 
 
+@pytest.mark.parametrize("bit_depth", [8, 16])
+@pytest.mark.parametrize("channels", [1, 2, 3, 4])
+@pytest.mark.parametrize("from_memory", [False, True])
+def test_png_read_bit_depth(bit_depth: int, channels: int, from_memory: bool):
+    import slangpy.platform as platform
+
+    png_dir = platform.project_directory() / "data" / "test_images" / "png"
+    path = png_dir / f"uint{bit_depth}-{channels}ch.png"
+    dtype = np.uint16 if bit_depth == 16 else np.uint8
+    values = np.array(
+        (
+            [0, 1, 255, 256, 257, 32768, 65534, 65535]
+            if bit_depth == 16
+            else [0, 1, 2, 127, 128, 253, 254, 255]
+        ),
+        dtype=dtype,
+    )
+    expected = np.stack([np.roll(values, channel) for channel in range(channels)], axis=-1).reshape(
+        2, 4, channels
+    )
+    if from_memory:
+        bitmap = Bitmap.load_from_numpy(np.fromfile(path, dtype=np.uint8))
+    else:
+        bitmap = Bitmap(path)
+
+    assert bitmap.component_type == (
+        Bitmap.ComponentType.uint16 if bit_depth == 16 else Bitmap.ComponentType.uint8
+    )
+    assert (
+        bitmap.pixel_format
+        == [
+            Bitmap.PixelFormat.y,
+            Bitmap.PixelFormat.ya,
+            Bitmap.PixelFormat.rgb,
+            Bitmap.PixelFormat.rgba,
+        ][channels - 1]
+    )
+    assert bitmap.width == 4
+    assert bitmap.height == 2
+    assert bitmap.channel_count == channels
+    actual = np.array(bitmap, copy=False)
+    assert actual.dtype == dtype
+    np.testing.assert_array_equal(actual, expected[:, :, 0] if channels == 1 else expected)
+
+
 JPG_LAYOUTS = [
     (1, 2, Bitmap.PixelFormat.y, Bitmap.ComponentType.uint8, {"atol": 5}),
     (50, 100, Bitmap.PixelFormat.rgb, Bitmap.ComponentType.uint8, {"atol": 5}),
