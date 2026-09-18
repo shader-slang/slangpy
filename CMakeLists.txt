@@ -59,6 +59,10 @@ option(SGL_GENERATE_SETPATH_SCRIPTS "Generate setpath scripts" ON)
 # This is useful when using sgl through cmake add_subdirectory.
 option(SGL_BUILD_STANDALONE "Build without external dependencies" ON)
 
+# Enable GLFW support which is used for creating windows and handling input events.
+option(SGL_ENABLE_GLFW "Enable GLFW window support" ON)
+set(SGL_HAS_GLFW ${SGL_ENABLE_GLFW})
+
 # Enable linking CUDA driver API dynamically.
 # This allows to build CUDA support without having CUDA SDK installed.
 option(SGL_USE_DYNAMIC_CUDA "Load CUDA driver API dynamically" ON)
@@ -407,6 +411,7 @@ message(STATUS "SGL_HAS_D3D12: ${SGL_HAS_D3D12}")
 message(STATUS "SGL_HAS_VULKAN: ${SGL_HAS_VULKAN}")
 message(STATUS "SGL_HAS_NVAPI: ${SGL_HAS_NVAPI}")
 message(STATUS "SGL_HAS_AGILITY_SDK: ${SGL_HAS_AGILITY_SDK}")
+message(STATUS "SGL_HAS_GLFW: ${SGL_HAS_GLFW}")
 message(STATUS "SGL_HAS_LIBJPEG: ${SGL_HAS_LIBJPEG}")
 message(STATUS "SGL_HAS_LIBPNG: ${SGL_HAS_LIBPNG}")
 message(STATUS "SGL_HAS_OPENEXR: ${SGL_HAS_OPENEXR}")

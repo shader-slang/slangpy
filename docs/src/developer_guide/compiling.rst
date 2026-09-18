@@ -147,6 +147,19 @@ compiler.
 * Ninja 1.11.1
 
 
+Building without GLFW
+---------------------
+
+GLFW window support is enabled by default. To omit GLFW, configure with
+``-DSGL_ENABLE_GLFW=OFF``, for example::
+
+    cmake --preset linux-gcc -DSGL_ENABLE_GLFW=OFF
+    cmake --build --preset linux-gcc-debug
+
+Compute and offscreen rendering remain available, but creating a ``Window``
+raises an error. On Linux, this avoids the need for X11 development headers.
+
+
 macOS
 -----
 
