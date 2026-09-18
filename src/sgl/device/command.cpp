@@ -991,6 +991,7 @@ void CommandEncoder::execute_callback(ExecuteCallback callback)
 ref<CommandBuffer> CommandEncoder::finish()
 {
     SGL_CHECK(m_open, "Command encoder is finished");
+    m_device->_notify_command_recording_before_finish(m_recording_id, this);
     Slang::ComPtr<rhi::ICommandBuffer> rhi_command_buffer;
     SLANG_RHI_CALL(m_rhi_command_encoder->finish(rhi_command_buffer.writeRef()), m_device);
     ref<CommandBuffer> command_buffer = make_ref<CommandBuffer>(m_device, m_queue, m_recording_id, rhi_command_buffer);
