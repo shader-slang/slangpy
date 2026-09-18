@@ -78,6 +78,8 @@ public:
 
     /// Constructor.
     /// Open the cache at the specified path.
+    /// Instances sharing an open environment in this process must use matching max_size and nosync options.
+    /// Different options may be used after the last instance closes the environment.
     /// Throws on error.
     /// \param path Path to the cache directory.
     /// \param options Cache options.

@@ -449,6 +449,8 @@ struct DBCacheItem {
     uint64_t ref_count;
     ProcessID pid;
     std::filesystem::path path;
+    size_t max_size;
+    bool nosync;
     LMDBCache::DB db;
 };
 
@@ -481,6 +483,20 @@ LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Option
         }
     );
     if (it != s_db_cache.end()) {
+        SGL_CHECK(
+            options.max_size == it->max_size,
+            "LMDB cache \"{}\" is already open in this process with max_size={} (requested {})",
+            abs_path,
+            it->max_size,
+            options.max_size
+        );
+        SGL_CHECK(
+            options.nosync == it->nosync,
+            "LMDB cache \"{}\" is already open in this process with nosync={} (requested {})",
+            abs_path,
+            it->nosync,
+            options.nosync
+        );
         it->ref_count++;
         return it->db;
     }
@@ -520,6 +536,8 @@ LMDBCache::DB LMDBCache::open_db(const std::filesystem::path& path, const Option
             .ref_count = 1,
             .pid = pid,
             .path = abs_path,
+            .max_size = options.max_size,
+            .nosync = options.nosync,
             .db = db,
         }
     );

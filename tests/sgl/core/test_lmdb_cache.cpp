@@ -666,16 +666,19 @@ TEST_CASE("path_alias_reuses_environment")
     Blob key{1}, value{2, 3};
     cache.set(key, value);
     const auto reserved_size = cache.usage().reserved_size;
+    LMDBCache::Options incompatible_options;
+    incompatible_options.max_size *= 2;
+    CHECK_THROWS_WITH(LMDBCache(alias, incompatible_options), doctest::Contains("max_size"));
+    incompatible_options = {};
+    incompatible_options.nosync = false;
+    CHECK_THROWS_WITH(LMDBCache(alias, incompatible_options), doctest::Contains("nosync"));
     // Closing an independently opened alias would clear this process's active
     // reader slots. Keep reading through the original environment afterwards.
     cache.for_each(
         [&](std::span<const uint8_t>, std::span<const uint8_t> data)
         {
             {
-                LMDBCache::Options options;
-                options.max_size *= 2;
-                LMDBCache other(alias, options);
-                // An alias must reuse the original map, not open a second one.
+                LMDBCache other(alias);
                 CHECK(other.usage().reserved_size == reserved_size);
                 Blob result;
                 CHECK(other.get_readonly(key, result));
@@ -689,6 +692,39 @@ TEST_CASE("path_alias_reuses_environment")
     CHECK(result == value);
     if (alias == root / "alias")
         REQUIRE(platform::delete_junction(alias));
+}
+
+TEST_CASE("environment_options")
+{
+    auto path = testing::get_case_temp_directory() / "cache";
+    LMDBCache::Options options;
+    const char* option_name = nullptr;
+    SUBCASE("max_size")
+    {
+        options.max_size *= 2;
+        option_name = "max_size";
+    }
+    SUBCASE("nosync")
+    {
+        options.nosync = false;
+        option_name = "nosync";
+    }
+    Blob key{1}, value{2, 3}, result;
+    {
+        LMDBCache cache(path);
+        cache.set(key, value);
+        CHECK_THROWS_WITH(LMDBCache(path, options), doctest::Contains(option_name));
+        // Rejected opens must leave the live environment usable.
+        LMDBCache other(path);
+        CHECK(other.get_readonly(key, result));
+        CHECK(result == value);
+    }
+    // Reopening with different options is allowed once all previous instances close.
+    // This also detects leaked references from rejected opens.
+    LMDBCache reopened(path, options);
+    CHECK(reopened.usage().reserved_size == options.max_size);
+    CHECK(reopened.get_readonly(key, result));
+    CHECK(result == value);
 }
 
 TEST_SUITE_END();
