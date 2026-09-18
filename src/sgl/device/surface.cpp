@@ -75,10 +75,27 @@ void Surface::unconfigure()
 
 ref<Texture> Surface::acquire_next_image()
 {
+    ref<Texture> texture;
+    SLANG_RHI_CALL(try_acquire_next_image(texture), m_device);
+    return texture;
+}
+
+void Surface::present()
+{
+    SLANG_RHI_CALL(try_present(), m_device);
+}
+
+rhi::Result Surface::try_acquire_next_image(ref<Texture>& out_texture)
+{
+    out_texture = {};
     Slang::ComPtr<rhi::ITexture> texture;
-    SLANG_RHI_CALL(m_rhi_surface->acquireNextImage(texture.writeRef()), m_device);
+    rhi::Result result = m_rhi_surface->acquireNextImage(texture.writeRef());
+    if (SLANG_FAILED(result))
+        return result;
+    if (!texture)
+        return SLANG_FAIL;
     rhi::TextureDesc texture_desc = texture->getDesc();
-    return m_device->create_texture_from_resource(
+    out_texture = m_device->create_texture_from_resource(
         {
             .type = TextureType::texture_2d,
             .format = static_cast<Format>(texture_desc.format),
@@ -89,11 +106,12 @@ ref<Texture> Surface::acquire_next_image()
         },
         texture
     );
+    return SLANG_OK;
 }
 
-void Surface::present()
+rhi::Result Surface::try_present()
 {
-    SLANG_RHI_CALL(m_rhi_surface->present(), m_device);
+    return m_rhi_surface->present();
 }
 
 } // namespace sgl
