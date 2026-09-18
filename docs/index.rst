@@ -120,6 +120,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
     Ids <src/generators/generator_ids>
     Random Numbers <src/generators/generator_random>
     Grid <src/generators/generator_grid>
+    Call Group Shape <src/generators/generator_call_groups>
 
 .. toctree::
     :maxdepth: 1
