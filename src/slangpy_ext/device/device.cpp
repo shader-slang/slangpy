@@ -71,6 +71,7 @@ SGL_DICT_TO_DESC_FIELD(compiler_options, SlangCompilerOptions)
 SGL_DICT_TO_DESC_FIELD(module_cache_path, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(shader_cache_path, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(shader_cache_size, size_t)
+SGL_DICT_TO_DESC_FIELD_CUSTOM(existing_device_handles, (nb::cast<std::array<NativeHandle, 3>>(v)))
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_FIELD(bindless_options, BindlessDesc)
 SGL_DICT_TO_DESC_FIELD(additional_vulkan_instance_extensions, std::vector<std::string>)
@@ -323,6 +324,7 @@ SGL_PY_EXPORT(device_device)
 
     nb::class_<DeviceDesc>(m, "DeviceDesc", D(DeviceDesc))
         .def(nb::init<>())
+        .def(nb::init<const DeviceDesc&>(), "desc"_a)
         .def(
             "__init__",
             [](DeviceDesc* self, nb::dict dict)
