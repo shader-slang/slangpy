@@ -6,12 +6,17 @@ permissions:
   contents: read
 jobs:
   diagnose:
-    runs-on:
-      labels: [Linux, X64, nvrgfx-kernelvm-bridge]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: linux, compiler: gcc, labels: [Linux, X64, nvrgfx-kernelvm-bridge]}
+          - {os: windows, compiler: msvc, labels: [Windows, X64, nvrgfx-kernelvm-bridge]}
+    runs-on: ${{ matrix.labels }}
     env:
-      CI_OS: linux
+      CI_OS: ${{ matrix.os }}
       CI_PLATFORM: x86_64
-      CI_COMPILER: gcc
+      CI_COMPILER: ${{ matrix.compiler }}
       CI_CONFIG: Release
       CI_PYTHON: '3.10'
       CI_FLAGS: unit-test
@@ -24,6 +29,8 @@ jobs:
         with:
           python-version: '3.10'
       - run: python -m pip install -r requirements-dev.txt
+      - uses: step-security/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
       - uses: lukka/get-cmake@latest
       - run: python tools/ci.py setup
       - run: python tools/ci.py configure
@@ -32,6 +39,6 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: cuda-target-diagnostics
+          name: cuda-target-diagnostics-${{ matrix.os }}
           path: .tmp/cuda-diagnostics/
           include-hidden-files: true

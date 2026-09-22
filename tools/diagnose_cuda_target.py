@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 if len(sys.argv) == 1:
     subprocess.run(['nvidia-smi'], check=False)
-    for case in ('90_standard', '100_standard', '120_standard'):
+    for case in ('90_standard', 'auto_standard'):
         result = subprocess.run([sys.executable, __file__, case], check=False)
         print('DIAGNOSTIC RESULT', case, result.returncode, flush=True)
     raise SystemExit(0)
@@ -41,7 +41,15 @@ compiler = device.cuda_compiler_info
 print('CASE', case, 'NVRTC', compiler.path, compiler.version_major, compiler.version_minor,
       compiler.supported_architectures, 'OPTIX', device.info.optix_version, flush=True)
 device.close()
-result = pytest.main(['slangpy/tests/device/test_pipeline.py::test_raytrace_simple[ray-DeviceType.cuda]', '-q', '-s'])
+result = pytest.main([
+    'slangpy/tests/device/test_cluster_acceleration_structure.py::test_cluster_acceleration_structure_trace[DeviceType.cuda]',
+    'slangpy/tests/device/test_opacity_micromap.py::test_opacity_micromap_trace[DeviceType.cuda]',
+    'slangpy/tests/device/test_pipeline.py::test_raytrace_simple[ray-DeviceType.cuda]',
+    'slangpy/tests/device/test_pipeline.py::test_raytrace_two_instance[ray-DeviceType.cuda]',
+    'slangpy/tests/device/test_pipeline.py::test_raytrace_closest_instance[ray-DeviceType.cuda]',
+    'slangpy/tests/slangpy_tests/test_raytracing.py::test_raytracing[DeviceType.cuda]',
+    '-q', '-s',
+])
 for path in sorted(dump_dir.glob('*.ptx')):
     lines = path.read_text(errors='replace').splitlines()
     for index, line in enumerate(lines):
