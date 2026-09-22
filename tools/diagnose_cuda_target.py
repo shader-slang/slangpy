@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 if len(sys.argv) == 1:
     subprocess.run(['nvidia-smi'], check=False)
-    for case in ('auto_standard', '75_standard', 'auto_none', '75_none'):
+    for case in ('90_standard', '100_standard', '120_standard'):
         result = subprocess.run([sys.executable, __file__, case], check=False)
         print('DIAGNOSTIC RESULT', case, result.returncode, flush=True)
     raise SystemExit(0)
