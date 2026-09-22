@@ -5,11 +5,17 @@
 Build Release first. Run from the repository root with, for example:
 python -m tools.benchmark_cursors --device d3d12 --output build/cursors-before.json
 GPU submission and synchronization are outside the timed regions.
+Use --functional-only in fresh processes to assess cached calls independently.
+Compare multiple process pairs with matched PYTHONHASHSEED values; rounds within
+one process do not capture variation between processes.
 """
 
 import argparse
 import gc
 import json
+import os
+import platform
+import sys
 from pathlib import Path
 from statistics import median
 from time import perf_counter_ns
@@ -36,12 +42,7 @@ def measure(action: Callable[[], None], iterations: int, rounds: int) -> list[fl
     return samples[2:]
 
 
-def benchmark(device_type: spy.DeviceType, rounds: int) -> dict[str, list[float]]:
-    device = spy.Device(
-        type=device_type,
-        enable_debug_layers=False,
-        compiler_options={"include_paths": [spy.SHADER_PATH]},
-    )
+def benchmark_cursors(device: spy.Device, rounds: int) -> dict[str, list[float]]:
     module = device.load_module_from_source(
         "benchmark_cursors",
         """
@@ -81,7 +82,7 @@ void main() {}
         "dict_update": measure(lambda: cursor.write(fields), 10000, rounds),
     }
     layout = module.layout.get_type_layout(module.layout.find_type_by_name("Values"))
-    bulk = spy.BufferCursor(device_type, layout, 1024)
+    bulk = spy.BufferCursor(device.info.type, layout, 1024)
     data = {"vector": np.arange(4096, dtype=np.float32).reshape(1024, 4)}
     samples["bulk_checked_1024"] = measure(
         lambda: bulk.write_from_numpy(data, unchecked_copy=False), 100, rounds
@@ -106,7 +107,11 @@ void main() {}
         samples["nested_parameter_block"] = measure(
             lambda: root.outer.inner.value.write(1.0), 10000, rounds
         )
+    return samples
 
+
+def benchmark_functional(device: spy.Device, rounds: int) -> dict[str, list[float]]:
+    samples: dict[str, list[float]] = {}
     for count in (1, 6):
         params = ", ".join(f"float a{i}" for i in range(count))
         expression = " + ".join(f"a{i}" for i in range(count))
@@ -155,16 +160,42 @@ void main() {}
     return samples
 
 
+def benchmark(
+    device_type: spy.DeviceType, rounds: int, functional_only: bool = False
+) -> dict[str, list[float]]:
+    device = spy.Device(
+        type=device_type,
+        enable_debug_layers=False,
+        compiler_options={"include_paths": [spy.SHADER_PATH]},
+    )
+    samples = {} if functional_only else benchmark_cursors(device, rounds)
+    samples.update(benchmark_functional(device, rounds))
+    return samples
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", choices=("d3d12", "vulkan", "cuda", "metal"), default="d3d12")
     parser.add_argument("--rounds", type=int, default=9)
+    parser.add_argument(
+        "--functional-only",
+        action="store_true",
+        help="Measure cached calls without preceding cursor workloads",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    samples = benchmark(getattr(spy.DeviceType, args.device), args.rounds)
+    if args.rounds < 1:
+        parser.error("--rounds must be positive")
+    samples = benchmark(getattr(spy.DeviceType, args.device), args.rounds, args.functional_only)
     result = {
         "device": args.device,
         "package_path": spy.__file__,
+        "python_version": sys.version,
+        "python_compiler": platform.python_compiler(),
+        "platform": platform.platform(),
+        "python_hash_seed": os.environ.get("PYTHONHASHSEED", "random"),
+        "functional_only": args.functional_only,
+        "rounds": args.rounds,
         "unit": "nanoseconds per operation",
         "median": {name: median(values) for name, values in samples.items()},
         "samples": samples,
