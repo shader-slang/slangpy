@@ -288,17 +288,22 @@ static SlangResult link_with_options_workaround(
     return composed->linkWithOptions(linked, option_count, options, diagnostics);
 }
 
-static void add_cuda_target_workaround(CompilerOptionEntries& entries, uint32_t architecture)
+static bool
+add_cuda_target_workaround(CompilerOptionEntries& entries, uint32_t architecture, SlangCapabilityID capability)
 {
     // Slang cannot name every NVRTC target (including some below compute_90).
-    // Remove this fallback when Slang supports the selected CUDA capability:
+    // It also raises native targets below compute_75 to its default compute_75.
+    // Remove this fallback when Slang can represent every selected CUDA target:
     // https://github.com/shader-slang/slang/issues/13198.
     // Subsequent user arguments retain NVRTC's normal precedence.
+    if (capability != SLANG_CAPABILITY_UNKNOWN && architecture >= 75)
+        return false;
     entries.add(
         slang::CompilerOptionName::DownstreamArgs,
         "nvrtc",
         fmt::format("--gpu-architecture=compute_{}", architecture)
     );
+    return true;
 }
 
 static void add_nvrtc_options(Device* device, const SlangCompilerOptions& options, CompilerOptionEntries& entries)
@@ -306,10 +311,8 @@ static void add_nvrtc_options(Device* device, const SlangCompilerOptions& option
     if (auto selected = detail::resolve_cuda_architecture(device, options)) {
         auto name = fmt::format("cuda_sm_{}_{}", *selected / 10, *selected % 10);
         auto capability = device->global_session()->findCapability(name.c_str());
-        if (capability != SLANG_CAPABILITY_UNKNOWN)
+        if (!add_cuda_target_workaround(entries, *selected, capability))
             entries.add(slang::CompilerOptionName::Capability, int(capability));
-        else
-            add_cuda_target_workaround(entries, *selected);
     }
     for (const auto& argument : options.downstream_args)
         entries.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", argument);
