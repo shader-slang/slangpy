@@ -256,8 +256,6 @@ def test_compose_modules_link_program(test_id: str, device_type: spy.DeviceType)
 def test_create_slang_session_inherits_slangpy_include_path(
     test_id: str, device_type: spy.DeviceType
 ):
-    # #886: a session from create_slang_session should resolve `import slangpy;`
-    # without the caller re-specifying the packaged slangpy slang dir.
     device = helpers.get_device(type=device_type)
 
     # No compiler options, so the import can only resolve via inherited device paths.
@@ -274,7 +272,6 @@ def test_create_slang_session_inherits_slangpy_include_path(
 def test_create_slang_session_dedups_inherited_include_paths(
     test_id: str, device_type: spy.DeviceType, tmp_path: Path
 ):
-    # #886: inherited paths come first and are de-duplicated against caller paths.
     device = helpers.get_device(type=device_type)
     device_paths = list(device.slang_session.desc.compiler_options.include_paths)
     assert len(device_paths) > 0
