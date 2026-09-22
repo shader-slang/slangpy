@@ -251,5 +251,53 @@ def test_compose_modules_link_program(test_id: str, device_type: spy.DeviceType)
     assert len(program.layout.entry_points) == 2
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_create_slang_session_inherits_slangpy_include_path(
+    test_id: str, device_type: spy.DeviceType
+):
+    # Regression for #886: a session created via create_slang_session must be able
+    # to resolve `import slangpy;` out of the box, matching device.load_module /
+    # Module.load_from_file. It does so by inheriting the device's default-session
+    # include paths (which carry the packaged slangpy slang dir), so a caller that
+    # provides no include paths of its own no longer fails with
+    # "cannot open file 'slangpy.slang'".
+    device = helpers.get_device(type=device_type)
+
+    # Deliberately pass no compiler options, so `import slangpy;` can only resolve
+    # via the inherited device include paths.
+    session = device.create_slang_session()
+
+    module = session.load_module_from_source(
+        module_name=f"import_slangpy_{test_id}",
+        source="import slangpy;",
+    )
+    assert module is not None
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_create_slang_session_dedups_inherited_include_paths(
+    test_id: str, device_type: spy.DeviceType
+):
+    # #886: inherited device paths are kept first and in order, and a path the
+    # caller repeats from the device is not duplicated while a genuinely new
+    # caller path is retained.
+    device = helpers.get_device(type=device_type)
+    device_paths = [str(p) for p in device.slang_session.desc.compiler_options.include_paths]
+    assert len(device_paths) > 0
+
+    new_path = f"/tmp/spy886_{test_id}"
+    session = device.create_slang_session(
+        compiler_options={"include_paths": [device_paths[0], new_path]}
+    )
+    result = [str(p) for p in session.desc.compiler_options.include_paths]
+
+    # Inherited device paths come first, in their original order.
+    assert result[: len(device_paths)] == device_paths
+    # The device path the caller repeated is present exactly once.
+    assert result.count(device_paths[0]) == 1
+    # The genuinely new caller path is retained (appended after inherited paths).
+    assert new_path in result
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

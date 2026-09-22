@@ -1075,9 +1075,35 @@ SGL_PY_EXPORT(device_device)
            bool add_default_include_paths,
            std::optional<std::filesystem::path> cache_path)
         {
+            SlangCompilerOptions options = compiler_options.value_or(SlangCompilerOptions{});
+
+            // Inherit the device's default-session include paths so `import slangpy;`
+            // resolves in user-created sessions, matching device.load_module /
+            // Module.load_from_file (create_device seeds the packaged slangpy slang dir
+            // onto the device's default session). Inherited paths are kept first, in
+            // order, matching create_device; the caller's own paths are then appended,
+            // skipping any already inherited so the list has no duplicates.
+            // See shader-slang/slangpy#886.
+            const std::vector<std::filesystem::path>& device_include_paths
+                = self->slang_session()->desc().compiler_options.include_paths;
+            std::vector<std::filesystem::path> merged;
+            merged.reserve(device_include_paths.size() + options.include_paths.size());
+            merged.insert(merged.end(), device_include_paths.begin(), device_include_paths.end());
+            for (const std::filesystem::path& path : options.include_paths) {
+                bool already_present = false;
+                for (const std::filesystem::path& existing : merged)
+                    if (existing == path) {
+                        already_present = true;
+                        break;
+                    }
+                if (!already_present)
+                    merged.push_back(path);
+            }
+            options.include_paths = std::move(merged);
+
             return self->create_slang_session(
                 SlangSessionDesc{
-                    .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
+                    .compiler_options = std::move(options),
                     .add_default_include_paths = add_default_include_paths,
                     .cache_path = cache_path,
                 }
