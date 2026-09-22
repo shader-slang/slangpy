@@ -932,6 +932,8 @@ private:
     ref<CacheWriter> m_cache_writer;
     ref<PersistentCache> m_persistent_cache;
 
+    // The RHI retains this callback, including during cleanup after constructor failure.
+    std::unique_ptr<DebugLogger> m_debug_logger;
     Slang::ComPtr<rhi::IDevice> m_rhi_device;
     Slang::ComPtr<rhi::ICommandQueue> m_rhi_graphics_queue;
     Slang::ComPtr<slang::IGlobalSession> m_global_session;
@@ -945,7 +947,6 @@ private:
 
     ref<Fence> m_global_fence;
 
-    std::unique_ptr<DebugLogger> m_debug_logger;
     std::unique_ptr<DebugPrinter> m_debug_printer;
 
     std::atomic<DeviceCallbackID> m_next_callback_id{1};
