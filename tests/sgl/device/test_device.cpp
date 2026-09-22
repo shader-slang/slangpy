@@ -3,6 +3,7 @@
 #include "testing.h"
 #include "sgl/device/command.h"
 #include "sgl/device/device.h"
+#include "sgl/device/cuda_architecture.h"
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
 
@@ -12,6 +13,30 @@
 using namespace sgl;
 
 TEST_SUITE_BEGIN("device");
+
+TEST_CASE("cuda_architecture_selection")
+{
+    CUDACompilerInfo compiler;
+    const std::vector<std::string> gpu = {"_cuda_sm_7_5", "_cuda_sm_8_0", "_cuda_sm_9_0", "_cuda_sm_12_0"};
+    const std::vector<std::string> older_gpu = {"_cuda_sm_7_5", "_cuda_sm_8_0", "_cuda_sm_8_6"};
+    auto select = [&](std::span<const std::string> capabilities, std::optional<uint32_t> request = std::nullopt)
+    {
+        return detail::select_cuda_architecture(compiler, capabilities, request);
+    };
+    compiler.supported_architectures = {75, 90, 120};
+    CHECK(select(gpu) == 120);
+    CHECK(select(gpu, 90) == 90);
+    CHECK(select(older_gpu, 90) == 90);
+    CHECK_THROWS(select(gpu, 80));
+    CHECK_THROWS(select(gpu, 0));
+    compiler.supported_architectures = {75, 90};
+    CHECK(select(gpu) == 90);
+    compiler.supported_architectures = {75, 80, 89, 120};
+    CHECK(select(older_gpu) == 80);
+    CHECK_THROWS(select({}));
+    compiler.supported_architectures.clear();
+    CHECK_THROWS(select(gpu));
+}
 
 namespace {
 

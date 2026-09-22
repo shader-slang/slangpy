@@ -188,6 +188,14 @@ struct SlangCompilerOptions {
     /// and NVRTC (CUDA). Ignored for other backends.
     std::vector<std::string> downstream_args;
 
+    /// CUDA target encoded as major * 10 + minor (120 means compute_120).
+    /// Unset selects the highest target supported by both the GPU and Slang's NVRTC.
+    /// Positive requests are exact and must be supported by NVRTC; zero is an error.
+    /// Explicit targets may exceed this GPU's capabilities for compilation for another device.
+    /// Downstream arguments follow this target unchanged; NVRTC handles raw overrides and errors.
+    /// Each session uses its own options. Explicit CUDA requests require a CUDA device.
+    std::optional<uint32_t> cuda_architecture;
+
     /// When set will dump the intermediate source output.
     bool dump_intermediates{false};
 

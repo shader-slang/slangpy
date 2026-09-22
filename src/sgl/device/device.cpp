@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "device.h"
+#include "cuda_architecture.h"
 
 #include "sgl/device/surface.h"
 #include "sgl/device/resource.h"
@@ -60,6 +61,42 @@ inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
     return luid;
 }
 
+
+static CUDACompilerInfo query_cuda_compiler_info(slang::IGlobalSession* global_session)
+{
+    Slang::ComPtr<ISlangBlob> path;
+    SLANG_CALL(global_session->getDownstreamCompilerPath(SLANG_PASS_THROUGH_NVRTC, path.writeRef()));
+    SGL_CHECK(path && path->getBufferSize(), "Slang did not resolve an NVRTC library path.");
+    CUDACompilerInfo result;
+    result.path = static_cast<const char*>(path->getBufferPointer());
+    // Slang retains the compiler used for compilation; this temporary handle is only for queries.
+    std::unique_ptr<void, decltype(&platform::release_shared_library)> library(
+        platform::load_shared_library(result.path),
+        platform::release_shared_library
+    );
+    SGL_CHECK(library, "Failed to load Slang's NVRTC library '{}'.", result.path);
+    auto version = reinterpret_cast<int (*)(int*, int*)>(platform::get_proc_address(library.get(), "nvrtcVersion"));
+    auto count
+        = reinterpret_cast<int (*)(int*)>(platform::get_proc_address(library.get(), "nvrtcGetNumSupportedArchs"));
+    auto architectures
+        = reinterpret_cast<int (*)(int*)>(platform::get_proc_address(library.get(), "nvrtcGetSupportedArchs"));
+    int major = 0, minor = 0;
+    SGL_CHECK(version && version(&major, &minor) == 0 && major > 0 && minor >= 0, "Failed to query NVRTC version.");
+    result.version_major = uint32_t(major);
+    result.version_minor = uint32_t(minor);
+    SGL_CHECK(count && architectures, "The selected NVRTC does not support architecture queries.");
+    int size = 0;
+    SGL_CHECK(count(&size) == 0 && size >= 0, "Failed to query NVRTC architecture count.");
+    std::vector<int> values(size);
+    if (size) {
+        SGL_CHECK(architectures(values.data()) == 0, "Failed to query NVRTC architectures.");
+        for (int value : values) {
+            SGL_CHECK(value > 0, "NVRTC returned an invalid architecture: {}.", value);
+            result.supported_architectures.push_back(uint32_t(value));
+        }
+    }
+    return result;
+}
 
 Device::Device(const DeviceDesc& desc)
     : m_desc(desc)
@@ -396,6 +433,12 @@ Device::Device(const DeviceDesc& desc)
             m_capabilities.push_back(std::move(capability_name));
         }
     }
+
+    if (type() == DeviceType::cuda)
+        m_cuda_compiler_info = query_cuda_compiler_info(m_global_session);
+
+    // Validate before creating children that would retain a partially constructed device.
+    detail::resolve_cuda_architecture(this, m_desc.compiler_options);
 
     // Create graphics queue.
     SLANG_RHI_CALL(m_rhi_device->getQueue(rhi::QueueType::Graphics, m_rhi_graphics_queue.writeRef()), this);

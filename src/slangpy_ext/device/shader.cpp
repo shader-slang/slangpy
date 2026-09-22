@@ -25,6 +25,7 @@ SGL_DICT_TO_DESC_FIELD(floating_point_mode, SlangFloatingPointMode)
 SGL_DICT_TO_DESC_FIELD(debug_info, SlangDebugInfoLevel)
 SGL_DICT_TO_DESC_FIELD(optimization, SlangOptimizationLevel)
 SGL_DICT_TO_DESC_FIELD_LIST(downstream_args, std::string)
+SGL_DICT_TO_DESC_FIELD(cuda_architecture, std::optional<uint32_t>)
 SGL_DICT_TO_DESC_FIELD(dump_intermediates, bool)
 SGL_DICT_TO_DESC_FIELD(dump_intermediates_prefix, std::string)
 SGL_DICT_TO_DESC_FIELD(enable_experimental_features, bool)
@@ -137,6 +138,12 @@ SGL_PY_EXPORT(device_shader)
         .def_rw("debug_info", &SlangCompilerOptions::debug_info, D(SlangCompilerOptions, debug_info))
         .def_rw("optimization", &SlangCompilerOptions::optimization, D(SlangCompilerOptions, optimization))
         .def_rw("downstream_args", &SlangCompilerOptions::downstream_args, D(SlangCompilerOptions, downstream_args))
+        .def_rw(
+            "cuda_architecture",
+            &SlangCompilerOptions::cuda_architecture,
+            nb::for_setter("value"_a.none()),
+            D(SlangCompilerOptions, cuda_architecture)
+        )
         .def_rw(
             "dump_intermediates",
             &SlangCompilerOptions::dump_intermediates,

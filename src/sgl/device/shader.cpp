@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "shader.h"
+#include "cuda_architecture.h"
 
 #include "sgl/device/device.h"
 #include "sgl/device/helpers.h"
@@ -28,6 +29,19 @@
 #include <vector>
 
 namespace sgl {
+
+std::optional<uint32_t> detail::resolve_cuda_architecture(const Device* device, const SlangCompilerOptions& options)
+{
+    if (device->type() != DeviceType::cuda) {
+        SGL_CHECK(!options.cuda_architecture, "An explicit CUDA architecture requires a CUDA device.");
+        return std::nullopt;
+    }
+    return detail::select_cuda_architecture(
+        *device->cuda_compiler_info(),
+        device->capabilities(),
+        options.cuda_architecture
+    );
+}
 
 static bool write_module_bytes_to_cache(
     const std::string& module_name,
@@ -228,6 +242,76 @@ inline std::string append_diagnostics(std::string msg, ISlangBlob* diagnostics)
     return msg;
 }
 
+// TODO: Delete this helper and call component->linkWithOptions directly once our minimum Slang fixes
+// https://github.com/shader-slang/slang/issues/13197. An empty module makes the option digest part of
+// Slang's own hash, including specialization. Include empty options to bypass previously poisoned keys.
+static SlangResult link_with_options_workaround(
+    slang::IComponentType* component,
+    slang::IComponentType** linked,
+    uint32_t option_count,
+    const slang::CompilerOptionEntry* options,
+    ISlangBlob** diagnostics
+)
+{
+    SHA1 hash;
+    for (uint32_t i = 0; i < option_count; ++i) {
+        const auto& entry = options[i];
+        hash.update(entry.name);
+        hash.update(entry.value.kind);
+        switch (entry.value.kind) {
+        case slang::CompilerOptionValueKind::Int:
+            hash.update(entry.value.intValue0);
+            hash.update(entry.value.intValue1);
+            break;
+        case slang::CompilerOptionValueKind::String:
+            for (const char* value : {entry.value.stringValue0, entry.value.stringValue1}) {
+                std::string_view text = value ? value : "";
+                hash.update(uint64_t(text.size()));
+                hash.update(text);
+            }
+            break;
+        }
+    }
+    const auto name = "slangpy_link_options_13197_" + hash.hex_digest();
+    const auto source = "// " + name + "\n";
+    auto session = component->getSession();
+    auto marker
+        = session->loadModuleFromSourceString(name.c_str(), (name + ".slang").c_str(), source.c_str(), diagnostics);
+    if (!marker)
+        return SLANG_FAIL;
+    slang::IComponentType* components[] = {component, marker};
+    Slang::ComPtr<slang::IComponentType> composed;
+    auto result = session->createCompositeComponentType(components, 2, composed.writeRef(), diagnostics);
+    if (SLANG_FAILED(result))
+        return result;
+    return composed->linkWithOptions(linked, option_count, options, diagnostics);
+}
+
+static void add_cuda_target_workaround(CompilerOptionEntries& entries, uint32_t architecture)
+{
+    // Replace with Slang's native target option once our minimum Slang fixes
+    // https://github.com/shader-slang/slang/issues/13198. This overrides Slang's earlier
+    // default; subsequent user arguments retain NVRTC's normal precedence.
+    entries.add(
+        slang::CompilerOptionName::DownstreamArgs,
+        "nvrtc",
+        fmt::format("--gpu-architecture=compute_{}", architecture)
+    );
+}
+
+static void add_nvrtc_options(Device* device, const SlangCompilerOptions& options, CompilerOptionEntries& entries)
+{
+    if (auto selected = detail::resolve_cuda_architecture(device, options))
+        add_cuda_target_workaround(entries, *selected);
+    for (const auto& argument : options.downstream_args)
+        entries.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", argument);
+    if (uint32_t optix_version = device->info().optix_version) {
+        std::string version_tag = fmt::format("{}_{}", optix_version / 10000, (optix_version % 10000) / 100);
+        auto optix_path = platform::runtime_directory() / "optix" / version_tag;
+        entries.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", "-I" + optix_path.string());
+    }
+}
+
 /// Report slang diagnostics to log if not null.
 inline void report_diagnostics(ISlangBlob* diagnostics)
 {
@@ -240,6 +324,9 @@ SlangSession::SlangSession(ref<Device> device, SlangSessionDesc desc)
     , m_desc(std::move(desc))
 {
     ConstructorRefGuard ref_guard(this);
+
+    // Reject invalid requests before hot reload retains this session.
+    detail::resolve_cuda_architecture(m_device, m_desc.compiler_options);
 
     // Register with hot load reload system if enabled.
     if (m_device->_hot_reload())
@@ -382,18 +469,7 @@ void SlangSession::create_session(SlangSessionBuild& build)
         for (const auto& arg : options.downstream_args)
             session_options.add(slang::CompilerOptionName::DownstreamArgs, "dxc", arg);
     } else if (device_type == DeviceType::cuda) {
-        for (const auto& arg : options.downstream_args)
-            session_options.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", arg);
-    }
-
-    // Set downstream argument for optix include path.
-    if (device_type == DeviceType::cuda) {
-        uint32_t optix_version = m_device->info().optix_version;
-        if (optix_version > 0) {
-            std::string version_tag = fmt::format("{}_{}", optix_version / 10000, (optix_version % 10000) / 100);
-            auto optix_path = platform::runtime_directory() / "optix" / version_tag;
-            session_options.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", "-I" + optix_path.string());
-        }
+        add_nvrtc_options(m_device, options, session_options);
     }
 
     // Set intermediate dump options.
@@ -1634,8 +1710,11 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
                 for (const auto& arg : *link_options.downstream_args)
                     link_option_entries.add(slang::CompilerOptionName::DownstreamArgs, "dxc", arg);
             } else if (device->type() == DeviceType::cuda) {
-                for (const auto& arg : *link_options.downstream_args)
-                    link_option_entries.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", arg);
+                // Like DXC, an explicit downstream list replaces the session list.
+                // Preserve the session's high-level target and required OptiX include.
+                auto options = m_session->desc().compiler_options;
+                options.downstream_args = *link_options.downstream_args;
+                add_nvrtc_options(device, options, link_option_entries);
             }
         }
         if (link_options.dump_intermediates)
@@ -1652,7 +1731,8 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
     {
         Slang::ComPtr<ISlangBlob> diagnostics;
         auto slang_link_option_entries = link_option_entries.slang_entries();
-        SGL_CATCH_INTERNAL_SLANG_ERROR(composed_program->linkWithOptions(
+        SGL_CATCH_INTERNAL_SLANG_ERROR(link_with_options_workaround(
+            composed_program,
             linked_program.writeRef(),
             narrow_cast<uint32_t>(slang_link_option_entries.size()),
             slang_link_option_entries.data(),

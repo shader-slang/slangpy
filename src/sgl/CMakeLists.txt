@@ -86,6 +86,7 @@ target_sources(sgl PRIVATE
     device/callback_list.h
     device/command.cpp
     device/command.h
+    device/cuda_architecture.h
     device/cuda_interop.cpp
     device/cuda_interop.h
     device/cuda_utils.cpp

@@ -248,6 +248,16 @@ struct DeviceLimits {
     uint32_t max_entry_point_uniform_size;
 };
 
+/// Owned snapshot of the NVRTC selected by the device's Slang global session.
+struct CUDACompilerInfo {
+    /// Resolved library path, for diagnostics.
+    std::string path;
+    uint32_t version_major{0};
+    uint32_t version_minor{0};
+    /// Complete compiler target list, encoded as major * 10 + minor.
+    std::vector<uint32_t> supported_architectures;
+};
+
 struct DeviceInfo {
     /// The type of the device.
     DeviceType type;
@@ -330,6 +340,10 @@ public:
 
     /// The highest shader model supported by the device.
     ShaderModel supported_shader_model() const { return m_supported_shader_model; }
+
+    /// Returns an owned snapshot of Slang's NVRTC compiler, or no value on non-CUDA backends.
+    /// Queried during CUDA-device initialization. The stored information remains readable after close().
+    std::optional<CUDACompilerInfo> cuda_compiler_info() const { return m_cuda_compiler_info; }
 
     /// List of features supported by the device.
     const std::vector<Feature>& features() const { return m_features; }
@@ -909,6 +923,7 @@ private:
     DeviceDesc m_desc;
     DeviceInfo m_info;
     ShaderModel m_supported_shader_model{ShaderModel::unknown};
+    std::optional<CUDACompilerInfo> m_cuda_compiler_info;
 
     bool m_closed{false};
 

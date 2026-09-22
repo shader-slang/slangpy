@@ -975,12 +975,11 @@ Returns:
 
 static const char *__doc_sgl_Bitmap_srgb_gamma = R"doc(True if the bitmap is in sRGB gamma space.)doc";
 
-static const char *__doc_sgl_Bitmap_supports_png_metadata =
-R"doc(Whether this build can read PNG transfer metadata through libpng.)doc";
-
 static const char *__doc_sgl_Bitmap_static_init = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_static_shutdown = R"doc()doc";
+
+static const char *__doc_sgl_Bitmap_supports_png_metadata = R"doc(Whether this build can read PNG transfer metadata through libpng.)doc";
 
 static const char *__doc_sgl_Bitmap_to_string = R"doc()doc";
 
@@ -1631,6 +1630,18 @@ static const char *__doc_sgl_Buffer_unmap = R"doc(Unmap the buffer.)doc";
 static const char *__doc_sgl_Buffer_write_slangpy_signature = R"doc(Write the SlangPy cache signature used by functional dispatch.)doc";
 
 static const char *__doc_sgl_Buffer_write_to_cursor = R"doc(Bind a nullable buffer value to a shader cursor.)doc";
+
+static const char *__doc_sgl_CUDACompilerInfo =
+R"doc(Owned snapshot of the NVRTC selected by the device's Slang global
+session.)doc";
+
+static const char *__doc_sgl_CUDACompilerInfo_path = R"doc(Resolved library path, for diagnostics.)doc";
+
+static const char *__doc_sgl_CUDACompilerInfo_supported_architectures = R"doc(Complete compiler target list, encoded as major * 10 + minor.)doc";
+
+static const char *__doc_sgl_CUDACompilerInfo_version_major = R"doc()doc";
+
+static const char *__doc_sgl_CUDACompilerInfo_version_minor = R"doc()doc";
 
 static const char *__doc_sgl_CacheWriter = R"doc(Background worker for best-effort cache write jobs.)doc";
 
@@ -3615,6 +3626,11 @@ static const char *__doc_sgl_Device_create_texture_from_resource = R"doc(Create 
 
 static const char *__doc_sgl_Device_create_texture_view = R"doc(Create a new texture view.)doc";
 
+static const char *__doc_sgl_Device_cuda_compiler_info =
+R"doc(Returns an owned snapshot of Slang's NVRTC compiler, or no value on
+non-CUDA backends. Queried during CUDA-device initialization. The
+stored information remains readable after close().)doc";
+
 static const char *__doc_sgl_Device_cuda_device = R"doc()doc";
 
 static const char *__doc_sgl_Device_debug_logger = R"doc()doc";
@@ -3726,6 +3742,8 @@ static const char *__doc_sgl_Device_m_closed = R"doc()doc";
 static const char *__doc_sgl_Device_m_command_recording_discarded_callbacks = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_command_recording_submitted_callbacks = R"doc()doc";
+
+static const char *__doc_sgl_Device_m_cuda_compiler_info = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_cuda_device = R"doc()doc";
 
@@ -4145,6 +4163,16 @@ static const char *__doc_sgl_Feature_conservative_rasterization3 = R"doc()doc";
 static const char *__doc_sgl_Feature_cooperative_matrix = R"doc()doc";
 
 static const char *__doc_sgl_Feature_cooperative_matrix2 = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_block_loads = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_conversions = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_per_element_operations = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_reductions = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_tensor_addressing = R"doc()doc";
 
 static const char *__doc_sgl_Feature_cooperative_vector = R"doc()doc";
 
@@ -5438,7 +5466,10 @@ R"doc(LMDB-based persistent cache. This class provides a simple key-value
 cache that stores its data in an LMDB database on disk. It supports
 basic operations such as setting, getting, and deleting entries.
 Eviction uses an LRU policy and is triggered when the cache size
-exceeds the eviction threshold.)doc";
+exceeds the eviction threshold. Multiple processes may share a cache
+on a local filesystem. Remote filesystems are unsupported. Read
+transactions own their reader slots; no reader state is retained in
+thread-local storage.)doc";
 
 static const char *__doc_sgl_LMDBCache_DB = R"doc()doc";
 
@@ -5449,7 +5480,10 @@ static const char *__doc_sgl_LMDBCache_DB_dbi_meta = R"doc()doc";
 static const char *__doc_sgl_LMDBCache_DB_env = R"doc()doc";
 
 static const char *__doc_sgl_LMDBCache_LMDBCache =
-R"doc(Constructor. Open the cache at the specified path. Throws on error.
+R"doc(Constructor. Open the cache at the specified path. Instances sharing
+an open environment in this process must use matching max_size and
+nosync options. Different options may be used after the last instance
+closes the environment. Throws on error.
 
 Parameter ``path``:
     Path to the cache directory.
@@ -8753,6 +8787,15 @@ static const char *__doc_sgl_SlangCompileError_SlangCompileError = R"doc()doc";
 
 static const char *__doc_sgl_SlangCompilerOptions = R"doc(Slang compiler options. Can be set when creating a Slang session.)doc";
 
+static const char *__doc_sgl_SlangCompilerOptions_cuda_architecture =
+R"doc(CUDA target encoded as major * 10 + minor (120 means compute_120).
+Unset selects the highest target supported by both the GPU and Slang's
+NVRTC. Positive requests are exact and must be supported by NVRTC;
+zero is an error. Explicit targets may exceed this GPU's capabilities
+for compilation for another device. Downstream arguments follow this
+target unchanged; NVRTC handles raw overrides and errors. Each session
+uses its own options. Explicit CUDA requests require a CUDA device.)doc";
+
 static const char *__doc_sgl_SlangCompilerOptions_debug_info =
 R"doc(Specifies the level of debug information to include in the generated
 code.)doc";
@@ -10593,7 +10636,7 @@ static const char *__doc_sgl_breakable_ref_operator_bool = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_operator_mul = R"doc()doc";
 
-static const char *__doc_sgl_breakable_ref_operator_ref = R"doc()doc";
+static const char *__doc_sgl_breakable_ref_operator_sgl_ref = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_operator_sub = R"doc()doc";
 
@@ -11184,6 +11227,10 @@ static const char *__doc_sgl_detail_profiler_frame_name = R"doc()doc";
 
 static const char *__doc_sgl_detail_profiler_frame_name_2 = R"doc()doc";
 
+static const char *__doc_sgl_detail_resolve_cuda_architecture = R"doc()doc";
+
+static const char *__doc_sgl_detail_select_cuda_architecture = R"doc()doc";
+
 static const char *__doc_sgl_detail_strip_class_key = R"doc(Remove MSVC's "class " / "struct " prefix from a type name fragment.)doc";
 
 static const char *__doc_sgl_detail_throw_exception = R"doc()doc";
@@ -11403,6 +11450,8 @@ static const char *__doc_sgl_find_enum_info_adl_93 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_94 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_95 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_96 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
@@ -11918,8 +11967,15 @@ static const char *__doc_sgl_math_cross = R"doc(cross)doc";
 static const char *__doc_sgl_math_cross_2 = R"doc(cross)doc";
 
 static const char *__doc_sgl_math_decompose =
-R"doc(Decomposes a model matrix into translation, rotation and scale
-components.)doc";
+R"doc(Decomposes a homogeneous matrix into translation, rotation, scale,
+shear and perspective. The factors reconstruct model_matrix /
+model_matrix[3][3] as P * T * R * H * S, where H has unit diagonal and
+upper entries (H01, H02, H12) = (skew.z, skew.y, skew.x). P has an
+identity upper three rows and perspective as its last row. Reflections
+use three negative scales and a proper rotation, matching the existing
+convention. Returns false for nonfinite input, zero homogeneous
+weight, numerically dependent spatial columns, or factors outside the
+output type's range. Outputs are unchanged on failure.)doc";
 
 static const char *__doc_sgl_math_degrees = R"doc()doc";
 
@@ -14785,7 +14841,10 @@ static const char *__doc_sgl_thread_TaskGroup_operator_assign = R"doc()doc";
 
 static const char *__doc_sgl_thread_TaskGroup_operator_assign_2 = R"doc()doc";
 
-static const char *__doc_sgl_thread_TaskGroup_wait = R"doc(Wait for all tasks in this task group.)doc";
+static const char *__doc_sgl_thread_TaskGroup_wait =
+R"doc(Wait for all tasks in this task group. If tasks throw, wait for and
+release every task before rethrowing the first exception in insertion
+order.)doc";
 
 static const char *__doc_sgl_thread_blocked_range = R"doc()doc";
 

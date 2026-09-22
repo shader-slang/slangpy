@@ -464,6 +464,16 @@ SGL_PY_EXPORT(device_device)
             D(DeviceLimits, max_entry_point_uniform_size)
         );
 
+    nb::class_<CUDACompilerInfo>(m, "CUDACompilerInfo", D(CUDACompilerInfo))
+        .def_ro("path", &CUDACompilerInfo::path, D(CUDACompilerInfo, path))
+        .def_ro("version_major", &CUDACompilerInfo::version_major, D(CUDACompilerInfo, version_major))
+        .def_ro("version_minor", &CUDACompilerInfo::version_minor, D(CUDACompilerInfo, version_minor))
+        .def_ro(
+            "supported_architectures",
+            &CUDACompilerInfo::supported_architectures,
+            D(CUDACompilerInfo, supported_architectures)
+        );
+
     nb::class_<DeviceInfo>(m, "DeviceInfo", D(DeviceInfo))
         .def_ro("type", &DeviceInfo::type, D(DeviceInfo, type))
         .def_ro("api_name", &DeviceInfo::api_name, D(DeviceInfo, api_name))
@@ -602,6 +612,7 @@ SGL_PY_EXPORT(device_device)
     device.def_prop_ro("supported_shader_model", &Device::supported_shader_model, D(Device, supported_shader_model));
     device.def_prop_ro("features", &Device::features, D(Device, features));
     device.def_prop_ro("capabilities", &Device::capabilities, D(Device, capabilities));
+    device.def_prop_ro("cuda_compiler_info", &Device::cuda_compiler_info, D(Device, cuda_compiler_info));
     device.def_prop_ro("supports_cuda_interop", &Device::supports_cuda_interop, D(Device, supports_cuda_interop));
     device.def_prop_ro("native_handles", &Device::native_handles, D(Device, native_handles));
     device.def(
