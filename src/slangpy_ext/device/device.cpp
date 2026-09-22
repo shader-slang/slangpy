@@ -1078,27 +1078,28 @@ SGL_PY_EXPORT(device_device)
             SlangCompilerOptions options = compiler_options.value_or(SlangCompilerOptions{});
 
             // Inherit the device's default-session include paths so `import slangpy;`
-            // resolves in user-created sessions, matching device.load_module /
-            // Module.load_from_file (create_device seeds the packaged slangpy slang dir
-            // onto the device's default session). Inherited paths are kept first, in
-            // order, matching create_device; the caller's own paths are then appended,
-            // skipping any already inherited so the list has no duplicates.
-            // See shader-slang/slangpy#886.
+            // resolves in user-created sessions, the same way create_device /
+            // Module.load_from_file resolve it (that is where the packaged slangpy
+            // slang dir is otherwise added). Inherited paths keep precedence.
             const std::vector<std::filesystem::path>& device_include_paths
                 = self->slang_session()->desc().compiler_options.include_paths;
             std::vector<std::filesystem::path> merged;
             merged.reserve(device_include_paths.size() + options.include_paths.size());
-            merged.insert(merged.end(), device_include_paths.begin(), device_include_paths.end());
-            for (const std::filesystem::path& path : options.include_paths) {
-                bool already_present = false;
-                for (const std::filesystem::path& existing : merged)
-                    if (existing == path) {
-                        already_present = true;
-                        break;
-                    }
-                if (!already_present)
-                    merged.push_back(path);
-            }
+            auto add_unique = [&merged](const std::vector<std::filesystem::path>& paths)
+            {
+                for (const std::filesystem::path& path : paths) {
+                    bool present = false;
+                    for (const std::filesystem::path& existing : merged)
+                        if (existing == path) {
+                            present = true;
+                            break;
+                        }
+                    if (!present)
+                        merged.push_back(path);
+                }
+            };
+            add_unique(device_include_paths);
+            add_unique(options.include_paths);
             options.include_paths = std::move(merged);
 
             return self->create_slang_session(
