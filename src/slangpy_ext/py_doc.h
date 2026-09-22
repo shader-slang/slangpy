@@ -8790,11 +8790,13 @@ static const char *__doc_sgl_SlangCompilerOptions = R"doc(Slang compiler options
 static const char *__doc_sgl_SlangCompilerOptions_cuda_architecture =
 R"doc(CUDA target encoded as major * 10 + minor (120 means compute_120).
 Unset selects the highest target supported by both the GPU and Slang's
-NVRTC. Positive requests are exact and must be supported by NVRTC;
-zero is an error. Explicit targets may exceed this GPU's capabilities
-for compilation for another device. Downstream arguments follow this
-target unchanged; NVRTC handles raw overrides and errors. Each session
-uses its own options. Explicit CUDA requests require a CUDA device.)doc";
+NVRTC. Automatic OptiX targets may be lowered to work around driver
+compiler bugs. Positive requests are exact and must be supported by
+NVRTC; zero is an error. Explicit targets may exceed this GPU's
+capabilities for compilation for another device. Downstream arguments
+follow this target unchanged; NVRTC handles raw overrides and errors.
+Each session uses its own options. Explicit CUDA requests require a
+CUDA device.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_debug_info =
 R"doc(Specifies the level of debug information to include in the generated
@@ -11222,6 +11224,10 @@ R"doc(Invalidate reflection data. If device is set, only reflection data
 owned by that device is invalidated.)doc";
 
 static const char *__doc_sgl_detail_on_slang_wrapper_destroyed = R"doc()doc";
+
+static const char *__doc_sgl_detail_optix_driver_branch = R"doc()doc";
+
+static const char *__doc_sgl_detail_optix_ptx_target_workaround = R"doc()doc";
 
 static const char *__doc_sgl_detail_profiler_frame_name = R"doc()doc";
 

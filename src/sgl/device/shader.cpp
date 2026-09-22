@@ -2,6 +2,7 @@
 
 #include "shader.h"
 #include "cuda_architecture.h"
+#include "optix_ptx_workaround.h"
 
 #include "sgl/device/device.h"
 #include "sgl/device/helpers.h"
@@ -1709,12 +1710,6 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
             if (device->type() == DeviceType::d3d12) {
                 for (const auto& arg : *link_options.downstream_args)
                     link_option_entries.add(slang::CompilerOptionName::DownstreamArgs, "dxc", arg);
-            } else if (device->type() == DeviceType::cuda) {
-                // Like DXC, an explicit downstream list replaces the session list.
-                // Preserve the session's high-level target and required OptiX include.
-                auto options = m_session->desc().compiler_options;
-                options.downstream_args = *link_options.downstream_args;
-                add_nvrtc_options(device, options, link_option_entries);
             }
         }
         if (link_options.dump_intermediates)
@@ -1724,6 +1719,22 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
                 slang::CompilerOptionName::DumpIntermediatePrefix,
                 *link_options.dump_intermediates_prefix
             );
+    }
+
+    if (device->type() == DeviceType::cuda) {
+        auto options = m_session->desc().compiler_options;
+        bool override_options = false;
+        if (desc.link_options && desc.link_options->downstream_args) {
+            // Like DXC, an explicit downstream list replaces the session list.
+            options.downstream_args = *desc.link_options->downstream_args;
+            override_options = true;
+        }
+        if (auto target = detail::optix_ptx_target_workaround(device, options, composed_program)) {
+            options.cuda_architecture = *target;
+            override_options = true;
+        }
+        if (override_options)
+            add_nvrtc_options(device, options, link_option_entries);
     }
 
     // Link the composed program.

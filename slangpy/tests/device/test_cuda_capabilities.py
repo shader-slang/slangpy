@@ -235,7 +235,7 @@ def test_cuda_link_target_cache_identity(tmp_path: Path, device_type: spy.Device
 
 @pytest.mark.parametrize(
     "pipeline_type,target_mode",
-    [("compute", "lower"), ("optix", "automatic"), ("optix", "link_lower")],
+    [("compute", "lower"), ("optix", "exact"), ("optix", "link_lower")],
 )
 @pytest.mark.parametrize("device_type", CUDA_DEVICE_TYPES)
 def test_cuda_target_execution(
@@ -246,10 +246,10 @@ def test_cuda_target_execution(
     try:
         if pipeline_type == "optix" and not device.has_feature(spy.Feature.ray_tracing):
             pytest.skip("Ray tracing not supported")
-        target = max(targets) if target_mode == "automatic" else min(targets)
+        target = max(targets) if target_mode == "exact" else min(targets)
         session = device.create_slang_session(
             compiler_options={
-                "cuda_architecture": target if target_mode == "lower" else None,
+                "cuda_architecture": target if target_mode in ("lower", "exact") else None,
                 "dump_intermediates": True,
                 "dump_intermediates_prefix": str(tmp_path / "target-"),
             }

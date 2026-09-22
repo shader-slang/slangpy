@@ -87,6 +87,7 @@ target_sources(sgl PRIVATE
     device/command.cpp
     device/command.h
     device/cuda_architecture.h
+    device/optix_ptx_workaround.h
     device/cuda_interop.cpp
     device/cuda_interop.h
     device/cuda_utils.cpp

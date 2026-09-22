@@ -190,6 +190,7 @@ struct SlangCompilerOptions {
 
     /// CUDA target encoded as major * 10 + minor (120 means compute_120).
     /// Unset selects the highest target supported by both the GPU and Slang's NVRTC.
+    /// Automatic OptiX targets may be lowered to work around driver compiler bugs.
     /// Positive requests are exact and must be supported by NVRTC; zero is an error.
     /// Explicit targets may exceed this GPU's capabilities for compilation for another device.
     /// Downstream arguments follow this target unchanged; NVRTC handles raw overrides and errors.
