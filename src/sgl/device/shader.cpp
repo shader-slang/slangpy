@@ -290,9 +290,10 @@ static SlangResult link_with_options_workaround(
 
 static void add_cuda_target_workaround(CompilerOptionEntries& entries, uint32_t architecture)
 {
-    // Replace with Slang's native target option once our minimum Slang fixes
-    // https://github.com/shader-slang/slang/issues/13198. This overrides Slang's earlier
-    // default; subsequent user arguments retain NVRTC's normal precedence.
+    // Slang cannot name every NVRTC target (including some below compute_90).
+    // Remove this fallback when Slang supports the selected CUDA capability:
+    // https://github.com/shader-slang/slang/issues/13198.
+    // Subsequent user arguments retain NVRTC's normal precedence.
     entries.add(
         slang::CompilerOptionName::DownstreamArgs,
         "nvrtc",
@@ -302,8 +303,14 @@ static void add_cuda_target_workaround(CompilerOptionEntries& entries, uint32_t 
 
 static void add_nvrtc_options(Device* device, const SlangCompilerOptions& options, CompilerOptionEntries& entries)
 {
-    if (auto selected = detail::resolve_cuda_architecture(device, options))
-        add_cuda_target_workaround(entries, *selected);
+    if (auto selected = detail::resolve_cuda_architecture(device, options)) {
+        auto name = fmt::format("cuda_sm_{}_{}", *selected / 10, *selected % 10);
+        auto capability = device->global_session()->findCapability(name.c_str());
+        if (capability != SLANG_CAPABILITY_UNKNOWN)
+            entries.add(slang::CompilerOptionName::Capability, int(capability));
+        else
+            add_cuda_target_workaround(entries, *selected);
+    }
     for (const auto& argument : options.downstream_args)
         entries.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", argument);
     if (uint32_t optix_version = device->info().optix_version) {

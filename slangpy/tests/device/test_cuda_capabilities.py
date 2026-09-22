@@ -114,6 +114,20 @@ def test_cuda_default_and_independent_sessions(device_type: spy.DeviceType) -> N
 
 
 @pytest.mark.parametrize("device_type", CUDA_DEVICE_TYPES)
+def test_cuda_native_capability_target(
+    device_type: spy.DeviceType, capfd: pytest.CaptureFixture[str]
+) -> None:
+    device = helpers.get_device(device_type)
+    if 90 not in _targets(device):
+        pytest.skip("compute_90 is not supported by the device/compiler")
+    session = device.create_slang_session(compiler_options={"cuda_architecture": 90})
+    capfd.readouterr()
+    assert _read_architecture(device, session) == 900
+    output = capfd.readouterr()
+    assert "--gpu-architecture" not in output.out + output.err
+
+
+@pytest.mark.parametrize("device_type", CUDA_DEVICE_TYPES)
 def test_cuda_invalid_and_raw_requests(device_type: spy.DeviceType) -> None:
     device = helpers.get_device(device_type)
     target = min(_targets(device))
