@@ -71,6 +71,11 @@ public:
         bool allocate_mips{false};
         /// Generate mip levels for the texture.
         bool generate_mips{false};
+        /// Limit the full mip count implied by the texture dimensions; zero means unrestricted.
+        /// For power-of-two textures, 13 allows up to 4096. Non-power-of-two dimensions use floor(log2(size)) + 1.
+        /// DDS selects authored mips by their dimensions, or warns and uses the smallest mip if none fits.
+        /// Other images are reduced before upload using successive box-filtered halvings.
+        uint32_t max_mip_count{0};
         /// Resource usage flags for the texture.
         /// Render-target or unordered-access usage will be added automatically if \c generate_mips is true.
         TextureUsage usage{TextureUsage::shader_resource};
