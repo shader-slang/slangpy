@@ -1,6 +1,6 @@
 # Slang compiler workaround ledger
 
-Updated 2026-09-23 during step 1 of [the capability migration](compiler-capabilities.md).
+Updated 2026-09-23 during step 1 and the subsequent explicit-profile design revision of [the capability migration](compiler-capabilities.md).
 
 Record every compiler workaround introduced during this migration here, and refer to its ID from implementation comments. Each entry must distinguish production behavior from a probe, name the upstream fix, and state a removal test. Update the affected compiler versions and evidence whenever changing or removing it. Do not treat a passing expected-failure probe as a reason to preserve the compiler defect.
 
@@ -14,7 +14,7 @@ Step 1 added investigation tools, not production compilation changes. The existi
 
 **Problem:** `_sm_6_6` or `_sm_6_9` alone produces `lib_6_3` for whole-program DXIL. A capability-selected `WaveMatch` shader is compiled as `cs_6_0` and rejected by DXC. Setting the corresponding profile produces the requested shader model and compiles the operation.
 
-**Local adaptation:** Continue supplying the internal DX profile, deriving it from resolved capability inputs when the new API is implemented. Current production location: `src/sgl/device/shader.cpp`, `SlangSession::create_session`. Probe cases: `dxil_cap_*`, `dxil_profile_*`, `dxil_wave_match_*` in `tools/compiler_capability_probe/run.py`.
+**Local adaptation:** When the new API's `profile` is omitted, supply a DX profile derived from resolved capability inputs. A validated explicit profile takes precedence over this automatic adapter; reconcile inherited inputs and diagnose known explicit conflicts according to the pending interaction probes. Passing a user-requested Slang profile is ordinary API behavior, not itself a workaround. Current production location: `src/sgl/device/shader.cpp`, `SlangSession::create_session`. Probe cases: `dxil_cap_*`, `dxil_profile_*`, `dxil_wave_match_*` in `tools/compiler_capability_probe/run.py`.
 
 **Proper Slang implementation:** Derive the effective DXC shader-model profile from the selected capability set, including implied shader-model requirements. Define how explicit conflicting profiles are diagnosed.
 
@@ -28,7 +28,7 @@ Step 1 added investigation tools, not production compilation changes. The existi
 
 **Problem:** `_spirv_1_3` with no profile emits SPIR-V 1.5. The default profile also supplies feature assumptions: a shader annotated as requiring `SPV_EXT_physical_storage_buffer` passes strict checking even when only a raw version atom was supplied. Public higher SPIR-V profiles similarly bundle features beyond their version.
 
-**Local adaptation:** In the probes, supply `spirv_1_0` as a minimal compatibility profile and add the selected raw version/features. This emits the requested 1.3/1.6 versions. Strict checking then rejects the missing physical-storage-buffer requirement, as intended. Cases: `spirv_baseline_*`, `spirv_bundle_*`.
+**Local adaptation:** In the probes, supply `spirv_1_0` as a minimal compatibility profile and add the selected raw version/features. This emits the requested 1.3/1.6 versions. Strict checking then rejects the missing physical-storage-buffer requirement, as intended. Cases: `spirv_baseline_*`, `spirv_bundle_*`. In the planned API, use this adapter only when `profile` is omitted. Preserve an explicitly selected profile and its feature bundle; do not neutralize it or claim capability removal overrides subtract its requirements.
 
 **Proper Slang implementation:** Explicit version capability selection should override the implicit backend default. Provide a capability-only target configuration that does not add unrequested higher-profile feature bundles.
 
