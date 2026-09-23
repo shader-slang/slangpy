@@ -82,7 +82,7 @@ def test_load_module_from_source(test_id: str, device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_load_module_from_source_dedup(test_id: str, device_type: spy.DeviceType):
+def test_load_module_from_source_dedup(test_id: str, device_type: spy.DeviceType) -> None:
     device = helpers.get_device(type=device_type)
 
     source = """
@@ -99,7 +99,7 @@ def test_load_module_from_source_dedup(test_id: str, device_type: spy.DeviceType
     assert module_b is not None
 
     # Loading the same module name with different source must raise an exception.
-    with pytest.raises(SlangCompileError, match="already loaded with different source"):
+    with pytest.raises(SlangCompileError, match="38202"):
         device.load_module_from_source(
             module_name=name,
             source="""
@@ -114,6 +114,8 @@ def test_load_module_from_source_dedup(test_id: str, device_type: spy.DeviceType
     module_d = device.load_module_from_source(module_name=f"dedup_name_2_{test_id}", source=source)
     assert module_c is not None
     assert module_d is not None
+    assert module_c.name == f"dedup_name_1_{test_id}"
+    assert module_d.name == f"dedup_name_2_{test_id}"
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

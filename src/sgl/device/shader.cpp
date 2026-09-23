@@ -635,22 +635,6 @@ ref<SlangModule> SlangSession::load_module_from_source(
     std::optional<std::filesystem::path> path
 )
 {
-    // TODO: This is a workaround until we use a Slang release with this fix:
-    // https://github.com/shader-slang/slang/pull/10996
-    // Once this is fixed on the Slang side, we can remove the digest check and just rely on Slang's internal caching
-    // mechanism.
-    SHA1::Digest digest = SHA1(source).digest();
-    auto it = m_source_module_digests.find(module_name);
-    if (it != m_source_module_digests.end()) {
-        if (it->second != digest) {
-            throw SlangCompileError(
-                fmt::format("Module \"{}\" already loaded with different source in this session.", module_name)
-            );
-        }
-    } else {
-        m_source_module_digests.emplace(std::string{module_name}, digest);
-    }
-
     SlangModuleDesc desc;
     desc.module_name = module_name;
     desc.source = source;
@@ -1081,9 +1065,9 @@ void SlangModule::load(SlangSessionBuild& build_data) const
                 throw SlangCompileError(msg);
             }
         } else {
-            // TODO: This is a workaround until we use a Slang release with this fix:
-            // https://github.com/shader-slang/slang/pull/10996
-            // Once this is fixed on the Slang side, we can remove this.
+            // SLANG-W008: without a path, Slang keys source identity by its contents.
+            // Distinguish identical source loaded under different module names to avoid
+            // an internal dictionary collision. See the workaround ledger for the reproducer.
             std::string source_str = fmt::format("// {}\n{}", desc.module_name, desc.source.value());
 
             SGL_CATCH_INTERNAL_SLANG_ERROR(

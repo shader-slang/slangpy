@@ -9182,10 +9182,6 @@ load_module). Note: this is a vector, as order of creation matters.)doc";
 
 static const char *__doc_sgl_SlangSession_m_registered_programs = R"doc(All created sgl programs (via link_program))doc";
 
-static const char *__doc_sgl_SlangSession_m_source_module_digests =
-R"doc(Cache of module name -> source SHA1 digest to detect same-name-
-different-source misuse.)doc";
-
 static const char *__doc_sgl_SlangSession_recreate_session =
 R"doc(Fully recreates this session and any loaded modules or linked
 programs.)doc";

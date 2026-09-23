@@ -1,16 +1,37 @@
 # Slang compiler workaround ledger
 
-Updated 2026-09-23 through milestone 4 of [the capability migration](compiler-capabilities.md).
+Updated 2026-09-23 through milestone 4 of [the capability migration](compiler-capabilities.md) and the [Slang 2026.18.2 upgrade](slang-release-upgrade.md).
 
 Record every compiler workaround introduced during this migration here, and refer to its ID from implementation comments. Each entry must distinguish production behavior from a probe, name the upstream fix, and state a removal test. Update the affected compiler versions and evidence whenever changing or removing it. Do not treat a passing expected-failure probe as a reason to preserve the compiler defect.
 
-Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in resolver and its required adapters; milestone 3 adds exact CUDA output checks and backend artifact/runtime coverage. Milestone 4 applies the resolver to every session, removes legacy shader-model defaults, and replaces the historical payload profile downgrade with a narrower DXC compatibility option. Probe results are documented in [the initial probe report](compiler-capabilities-probe-results.md) and [the profile interaction report](compiler-profile-probe-results.md). Production regression coverage is in `slangpy/tests/device/test_compiler_capabilities.py` and `test_compiler_target_output.py` against pinned Slang 2026.17.1; master was probed through the standalone session API, not substituted into the production build.
+Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in resolver and its required adapters; milestone 3 adds exact CUDA output checks and backend artifact/runtime coverage. Milestone 4 applies the resolver to every session, removes legacy shader-model defaults, and replaces the historical payload profile downgrade with a narrower DXC compatibility option. Probe results are documented in [the initial probe report](compiler-capabilities-probe-results.md) and [the profile interaction report](compiler-profile-probe-results.md). Production regression coverage is in `slangpy/tests/device/test_compiler_capabilities.py` and `test_compiler_target_output.py`, originally against 2026.17.1 and now rerun on pinned Slang 2026.18.2; master was probed through the standalone session API, not substituted into the production build.
+
+## Slang 2026.18.2 reassessment
+
+The latest stable release was checked on 2026-09-23. All 164 direct session-API probes were rerun against the official Windows 2026.18.2 compiler DLL (SHA-256 `a0e010523ae49350f13f2b7300860c83073a92c7dedb59cc869d2c236450403d`), SlangPy's DXC 1.9, and NVRTC 12.2, using the same device inventory as the original comparison. All 150 recorded observation checks remain unchanged. Results and inputs are under `build/compiler-capability-probe/results/release-2026.18.2`; the verifier output is `build/slang-upgrade-probe-verification.log`. Separately, the production runtime DLL hash matches the probed DLL.
+
+| ID | Decision for 2026.18.2 | Current evidence |
+| --- | --- | --- |
+| W001 | Retain DX profile derivation | Capability-only 6.6/6.9 still emits `lib_6_3`; WaveMatch still needs the explicit profile. |
+| W002 | Retain minimal SPIR-V profile | Raw 1.3 alone still emits 1.5; the implicit profile still adds feature assumptions. |
+| W003 | Keep broad warning suppression removed; retain permissive defaults | Native-only and NVAPI-only SER still reject under strict checks by requiring the other implementation. |
+| W004 | Retain DXC payload-qualifier option | Explicitly enabling qualifiers on the existing separately compiled ray pipeline still fails for missing `[raypayload]` at SM 6.7 and 6.9. |
+| W005 | Retain bounded dependency metadata | Reconciliation probes are unchanged; the released public header adds a reflection accessor, not capability/profile implication queries. |
+| W006 | Retain explicit backend baseline | The empty restrictive selection still bypasses the inferred-requirement check; adding the baseline rejects it. |
+| W007 | Retain eager PTX and cache validation | Half code requested at 5.0 still emits `sm_60`; unsupported CUDA tiers remain unknown. The cache-key fix does not supply exact architecture validation. |
+| W008 | Remove duplicate source digest guard; retain name prefix | Slang emits E38202 for same-name/different-source loads. Removing the name prefix still triggers an internal dictionary collision for identical source under different names. |
+
+The [release's entry-point hash fix](https://github.com/shader-slang/slang/pull/13215) includes link-time downstream arguments in shader-cache keys. It does not hash downstream toolkit identity or validate generated architecture, so it does not replace W007's cache/output boundary checks. Slang's [module-name collision fix](https://github.com/shader-slang/slang/pull/10996), commit `364944938ad324b9231b6288402b4c089f03de06`, was already an ancestor of 2026.17.1; the upgrade audit identifies an obsolete local guard rather than attributing that fix to 2026.18.2.
+
+The per-entry-point ray-payload removal attempt is recorded in `build/slang-upgrade-ray-payload.log`. The source-prefix removal attempt is in `build/slang-upgrade-module-identity.log`. Earlier version-specific evidence below is historical; the reassessment above records the current supported default.
+
+**Upgrade validation:** Slang 2026.18.2 passes 237 focused Python cases (17 skips), nine CPU cases (17 skips), and 33 native device/cache/hot-reload cases (5,620 assertions). The full functional suite passes 2,664 cases with 238 skips and seven expected failures, matching the previous release. Build and pre-commit pass; logs are under `build/slang-upgrade-*.log`. Metal/WebGPU and additional CUDA toolkits/hardware remain outside this machine's runtime coverage.
 
 ## SLANG-W001: Derive a DXIL profile from selected shader-model capabilities
 
 **Status:** Implemented for opt-in capability sessions in milestone 2; applies to all sessions since milestone 4.
 
-**Affected versions:** Slang 2026.17.1 and local master `b4a57b15cc47d936403cc989a628bfd25d5af5d3`.
+**Affected versions:** Slang 2026.17.1, 2026.18.2, and local master `b4a57b15cc47d936403cc989a628bfd25d5af5d3`.
 
 **Problem:** `_sm_6_6` or `_sm_6_9` alone produces `lib_6_3` for whole-program DXIL. A capability-selected `WaveMatch` shader is compiled as `cs_6_0` and rejected by DXC. Setting the corresponding profile produces the requested shader model and compiles the operation.
 
@@ -24,7 +45,7 @@ Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in reso
 
 **Status:** Implemented for automatic Vulkan selection in milestone 2; applies to all sessions since milestone 4.
 
-**Affected versions:** Both investigated versions.
+**Affected versions:** Slang 2026.17.1, 2026.18.2, and the originally investigated local master.
 
 **Problem:** `_spirv_1_3` with no profile emits SPIR-V 1.5. The default profile also supplies feature assumptions: a shader annotated as requiring `SPV_EXT_physical_storage_buffer` passes strict checking even when only a raw version atom was supplied. Public higher SPIR-V profiles similarly bundle features beyond their version.
 
@@ -42,7 +63,7 @@ Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in reso
 
 **Status:** Broad suppression removed in milestone 4. Warning 41012 is visible by default; validation remains permissive. The SER inference defect below remains unresolved.
 
-**Affected versions:** Both investigated versions produce relevant diagnostics.
+**Affected versions:** Slang 2026.17.1, 2026.18.2, and the originally investigated local master produce relevant diagnostics.
 
 **Problem:** The current code comment attributes this to an unset CUDA profile, but CUDA profiles do not exist. More specifically, the HitObject probe infers both native and NVAPI SER requirements. A native-only selection warns that `hlsl_nvapi` is missing; an NVAPI-only selection warns that `ser_hlsl_native` is missing. Restrictive checking turns either into an error. With permissive checking, the respective native/NVAPI HLSL and DXIL compile correctly.
 
@@ -56,7 +77,7 @@ Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in reso
 
 **Status:** Replaced the legacy 6.7-to-6.6 default downgrade in milestone 4. Implemented in `SlangSession::create_session` in `src/sgl/device/shader.cpp`.
 
-**Affected versions:** Reproduced in the production build with pinned Slang 2026.17.1. This per-entry-point regression has not been rechecked against local master; the earlier whole-program probes passed on both versions and were insufficient to retire this workaround.
+**Affected versions:** Reproduced in production builds with Slang 2026.17.1 and 2026.18.2. This per-entry-point regression has not been rechecked against local master; the earlier whole-program probes passed on both versions and were insufficient to retire this workaround.
 
 **Problem and reproducer:** `slangpy/tests/device/test_pipeline_rt.slang` declares an unannotated `Payload` used by raygeneration, miss, and closesthit shaders. At SM 6.7+, DXC requires `[raypayload]` on the separately emitted miss shader's payload type, but Slang omits it. Creating the ray pipeline fails with "type used as payload requires that it is annotated with the [raypayload] attribute". The default on the available D3D device is now 6.9, so removing the downgrade exposed this existing defect.
 
@@ -72,7 +93,7 @@ Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in reso
 
 **Status:** Implemented as bounded validation in milestone 2, with explicit disclosure that unknown implications are not checked.
 
-**Affected versions:** Slang 2026.17.1 and local master `b4a57b15cc47d936403cc989a628bfd25d5af5d3`.
+**Affected versions:** Slang 2026.17.1, 2026.18.2, and local master `b4a57b15cc47d936403cc989a628bfd25d5af5d3`.
 
 **Problem:** Slang's session API does not consistently diagnose a profile that is lower than selected capabilities. DX strict checking can accept higher requirements while DXC still compiles for the lower model. SPIR-V version/feature inputs can raise the emitted version above the profile. Slang exposes neither a complete public implication query nor profile-family compatibility metadata. Removing detected raw version inputs is insufficient: the real Vulkan list still emits 1.6 under profile 1.3 because retained features imply it.
 
@@ -88,7 +109,7 @@ Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in reso
 
 **Status:** Implemented in milestone 2 in `resolve_compiler_target`; applies to all sessions since milestone 4.
 
-**Affected versions:** Empty-selection bypass observed in both probed compiler versions; production regression tests use 2026.17.1.
+**Affected versions:** Empty-selection bypass observed in both probed compiler versions; production regression tests pass on 2026.17.1 and 2026.18.2.
 
 **Problem:** The ordinary restrictive capability check can skip an empty profile/capability selection, even though the output target implies a language baseline. See `strict_empty_inferred` versus `strict_baseline_inferred` in the step-1 probes.
 
@@ -100,7 +121,7 @@ Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in reso
 
 ## SLANG-W007: Validate explicit CUDA targets using eagerly generated PTX
 
-**Status:** Implemented in milestone 3 in `validate_cuda_program` (`src/sgl/device/compiler_target.cpp`), called by `ShaderProgram::link` before creating the RHI program. Production tests use pinned Slang 2026.17.1 and NVRTC 12.2.
+**Status:** Implemented in milestone 3 in `validate_cuda_program` (`src/sgl/device/compiler_target.cpp`), called by `ShaderProgram::link` before creating the RHI program. Production tests pass on Slang 2026.17.1 and 2026.18.2 with NVRTC 12.2.
 
 **Problem:** Slang can emit a different architecture from an explicitly selected numeric CUDA capability. Half-using code with tier 5.0 emits `sm_60`; the toolkit minimum raises tier 1.0 to `sm_50` on NVRTC 12.2. Restrictive capability checking is not an exact architecture contract. Runtime specialization, deferred compilation, and persistent-cache reads occur inside RHI, which has no public generated-code validation hook.
 
@@ -115,6 +136,22 @@ Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in reso
 **Proper Slang implementation:** Expose an exact CUDA architecture option that validates both generated-code requirements and the selected downstream toolkit and emits one architecture flag. Include that contract in compiler/code-cache identity. RHI should apply any output validation hook after specialization and on both fresh code and cache hits, allowing lazy compilation without a wrapper-side eager pass.
 
 **Removal gate:** Tier 5.0 plus half code and tier 1.0 below the toolkit minimum fail with clear upstream errors; matching tiers compile; unsupported toolkit targets fail without substitution; runtime-specialized, deferred, cached, and hot-reloaded programs honor the same selection. Then remove eager generation/parsing and the runtime-specialization restriction from SlangPy.
+
+## SLANG-W008: Source-module identity prefix; duplicate digest guard retired
+
+**Status:** Existing source-prefix workaround retained and documented during the 2026.18.2 upgrade. Removed the obsolete `SlangSession::m_source_module_digests` map and duplicate SHA1 collision check from `SlangSession::load_module_from_source`.
+
+**Affected version:** Source-prefix removal reproduced an internal dictionary collision on official Slang 2026.18.2. The removed duplicate collision check is implemented upstream by #10996, already present in both 2026.17.1 and 2026.18.2.
+
+**Problem:** With no explicit path, Slang derives a source identity from the content digest. Loading identical source under different module names can collide internally (`slang-dictionary.h(325): The key already exists in Dictionary`). This is distinct from reusing one name for different source, which Slang now diagnoses itself as E38202. The upstream identity regression uses distinct explicit paths for its two-name case, which does not exercise SlangPy's pathless case.
+
+**Local adaptation:** Preserve the `// <module_name>` prefix in `SlangModule::load` so identical source under different names has distinct content identity. Use Slang's own E38202 diagnostic for same-name/different-source loads, without retaining a second digest cache. The diagnostic now includes the compiler's error text and code.
+
+**Regression coverage:** `test_load_module_from_source_dedup` checks identical reloads, compiler diagnostic E38202 for conflicting source, and distinct returned module names for identical source. The new name assertions strengthen the previous success-only checks. The full module/cache/hot-reload suites cover the surrounding lifecycle.
+
+**Proper Slang implementation:** Distinguish modules with different requested names even when pathless source strings have identical contents, while retaining the same-name content check. Do not fix this by silently aliasing the returned module name.
+
+**Removal gate:** Remove the injected prefix, then load identical pathless source under two names and verify distinct returned names, imports, and successful compilation with no assertion. Keep the already removed digest guard retired. Validate against the supported release before removing the prefix.
 
 ## Remaining upstream gaps
 
