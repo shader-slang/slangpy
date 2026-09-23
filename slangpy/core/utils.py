@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from os import PathLike, environ
-import pathlib
 from typing import TYPE_CHECKING, Any, Optional, Sequence, Union, overload
 
 from slangpy import (
@@ -122,9 +121,6 @@ def _create_device_from_desc(desc: "DeviceDescParam") -> Device:
         raise TypeError("desc must be a DeviceDesc or a dictionary")
     desc = DeviceDesc(desc)
     desc.type = _resolve_device_type(desc.type)
-    desc.compiler_options.include_paths = [
-        str(pathlib.Path(__file__).parent.parent.absolute() / "slang")
-    ] + list(desc.compiler_options.include_paths)
     device = Device(desc)
 
     if is_running_in_jupyter():
