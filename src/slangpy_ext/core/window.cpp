@@ -12,6 +12,7 @@ struct GcHelper<Window> {
     {
         visitor("on_resize");
         visitor("on_refresh");
+        visitor("on_iconify");
         visitor("on_keyboard_event");
         visitor("on_mouse_event");
         visitor("on_gamepad_event");
@@ -59,6 +60,7 @@ SGL_PY_EXPORT(core_window)
     window.def_prop_rw("title", &Window::title, &Window::set_title, D(Window, title));
     window.def("close", &Window::close, D(Window, close));
     window.def("should_close", &Window::should_close, D(Window, should_close));
+    window.def("is_minimized", &Window::is_minimized, D(Window, is_minimized));
     window.def("process_events", &Window::process_events, D(Window, process_events));
     window.def("set_clipboard", &Window::set_clipboard, "text"_a, D(Window, set_clipboard));
     window.def("get_clipboard", &Window::get_clipboard, D(Window, get_clipboard));
@@ -72,6 +74,13 @@ SGL_PY_EXPORT(core_window)
         &Window::set_on_refresh,
         nb::arg().none(),
         D(Window, on_refresh)
+    );
+    window.def_prop_rw(
+        "on_iconify",
+        &Window::on_iconify,
+        &Window::set_on_iconify,
+        nb::arg().none(),
+        D(Window, on_iconify)
     );
     window.def_prop_rw(
         "on_keyboard_event",
