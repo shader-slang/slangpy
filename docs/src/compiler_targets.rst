@@ -5,16 +5,16 @@ Compiler target selection
 ``capabilities`` list, and a ``capability_overrides`` dictionary. These settings
 control the Slang session used to compile shaders for a device.
 
-During the transition from ``shader_model``, the new policy is opt-in: set a
-profile, supply a capability list (including an empty one), or use a nonempty
-override dictionary. Leaving all three at their defaults retains the legacy
-policy. A non-default ``shader_model`` cannot be combined with the new options.
+Every session uses the device's detected compiler inputs by default. Set a
+profile, replace the input list, or override individual inputs when needed.
+Explicit sessions start from fresh compiler options; they do not inherit custom
+options from the device's default session.
 
 Selecting inputs
 ----------------
 
 An explicit list replaces the detected device inputs. With ``capabilities=None``,
-the new policy starts from the device inputs instead. For example, on a CUDA
+the compiler starts from the device inputs instead. For example, on a CUDA
 device supporting compute capability 7.0 or newer:
 
 .. code-block:: python
@@ -23,14 +23,13 @@ device supporting compute capability 7.0 or newer:
         "capabilities": ["cuda_sm_7_0"],
     })
 
-To use CUDA device inputs during the transition, a neutral override activates
-the new policy:
+To use device inputs, leave the compiler options unset:
 
 .. code-block:: python
 
-    session = device.create_slang_session({
-        "capability_overrides": {"cuda": True},
-    })
+    session = device.create_slang_session()
+    print(session.target_info.capabilities)
+    print(session.target_info.ignored_capabilities)
 
 The corresponding baseline names are ``hlsl`` for D3D12, ``spirv`` for Vulkan,
 ``metal`` for Metal, ``wgsl`` for WebGPU, and ``cpp`` for CPU.
@@ -81,15 +80,27 @@ list is empty. A removal override cannot subtract those profile requirements.
 For raw version/feature control, omit the profile and supply an authoritative
 list; automatic Vulkan selection uses a minimal compatibility profile.
 
-On the new path, the predefined ``__SHADER_TARGET_MAJOR`` and
-``__SHADER_TARGET_MINOR`` macros describe the resolved D3D profile. Both are zero
-on other backends. Their legacy values remain unchanged on the legacy path.
+For native D3D12 SER on a device with the required API support, remove NVAPI
+and select the native implementation:
+
+.. code-block:: python
+
+    session = d3d_device.create_slang_session({
+        "capability_overrides": {
+            "hlsl_nvapi": False,
+            "ser_hlsl_native": True,
+        },
+    })
+
+Selecting ``hlsl_nvapi`` instead requires an NVAPI-enabled device. Native SER is
+not implied merely by a shader-model profile. The compiler may warn about the
+other implementation due to a known SER requirement-inference issue.
 
 Observing the resolution
 ------------------------
 
 ``session.target_info`` returns a read-only snapshot containing the output target,
-legacy-policy indicator, requested and resolved profile, base inputs, forwarded
+requested and resolved profile, base inputs, forwarded
 inputs and their origins, removals, ignored detections, generated SlangPy
 downstream arguments, compatibility notes, and session digest. Collections are
 copies; modifying them does not change the session. ``session.desc`` also returns
@@ -126,8 +137,7 @@ device-derived inputs for such programs.
 
 An inherited highest CUDA version remains a compiler assumption. Adding a lower
 version does not turn it into an exact request or remove inherited higher
-versions. Device-derived and empty selections keep the existing deferred
-compilation behavior. The resolution report explains this distinction; it is a
+versions. Device-derived and empty selections allow deferred compilation. The resolution report explains this distinction; it is a
 session snapshot, so it does not contain per-program PTX results.
 
 Matching PTX architecture does not establish a semantic capability ceiling or
@@ -135,6 +145,46 @@ guarantee driver support for the PTX ISA version. The CUDA driver still validate
 the generated code when creating the pipeline. CUDA architecture suffixes and
 tiers absent from Slang remain unsupported explicit inputs.
 
-The existing warning policy remains in effect during this transition. Neither
-profiles, removal overrides, nor restrictive capability checks establish a
-universal hardware or compiler capability ceiling.
+Capability-upgrade warnings (41012) are visible by default. Compilation remains
+permissive: use ``warnings_as_errors=["41012"]`` to reject those upgrades where
+appropriate, or ``disable_warnings=["41012"]`` to suppress the warning for an
+affected workload. SER inference and incomplete device reporting can produce
+warnings for valid programs. Profiles, removal overrides, and restrictive
+capability checks do not establish a universal semantic capability ceiling.
+
+Migrating from shader models
+----------------------------
+
+This is a breaking API change. ``SlangCompilerOptions.shader_model``,
+``ShaderModel``, ``Device.supported_shader_model``, and the transitional
+``SlangTargetInfo.legacy`` field have been removed.
+
+* For ordinary compilation, omit target options to use the device's inputs.
+* Replace a D3D12 ``shader_model=ShaderModel.sm_6_6`` setting with
+  ``profile="sm_6_6"``. Profile reconciliation can reject a retained feature that
+  requires a higher model; remove that input explicitly or provide a capability list.
+* For Vulkan, prefer native SPIR-V capabilities or profiles. An old HLSL model
+  has no universal SPIR-V version equivalent. To request Slang's corresponding
+  cross-family profile mapping, use ``profile="sm_6_6", capabilities=[]``;
+  this requests its profile bundle and does not reproduce every legacy default.
+* For CUDA, use recognized ``cuda_sm_*`` capabilities. Do not pass an NVRTC
+  architecture flag alongside the compiler's generated flag.
+* Inspect ``Device.capabilities`` for reported inputs and
+  ``session.target_info`` for the selected profile and forwarded inputs.
+  Neither is a complete capability-implication query.
+
+The legacy ``__SHADER_TARGET_MAJOR`` and ``__SHADER_TARGET_MINOR`` shader macros
+are deprecated compatibility defines required by NVAPI headers. They describe
+the selected D3D12 profile and are zero on other backends. Prefer backend-specific
+capability requirements and the existing ``__TARGET_D3D12__``,
+``__TARGET_VULKAN__``, ``__TARGET_CUDA__``, etc. defines when backend-specific
+source is needed. The old SM 6.7-to-6.6 default cap
+is gone; D3D12 now derives its automatic profile from detected compiler inputs.
+
+For D3D12 profiles 6.7 and later, SlangPy currently adds DXC's
+``-disable-payload-qualifiers`` compatibility option because Slang can omit
+required ray-payload annotations for separately compiled miss/hit shaders. This
+preserves the selected profile; ``target_info.generated_downstream_args`` and
+``notes`` disclose the workaround. To use payload qualifiers, set
+``downstream_args=["-enable-payload-qualifiers"]`` on the session and supply the
+required annotations. A conflicting link-only enable option is rejected.

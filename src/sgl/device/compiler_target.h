@@ -7,9 +7,6 @@
 
 namespace sgl {
 
-/// Whether the caller selected the new capability-based policy during migration.
-bool uses_compiler_target_options(const SlangCompilerOptions& options);
-
 /// Resolve inputs without modifying the requested options or device reports.
 SlangTargetInfo resolve_compiler_target(
     DeviceType device_type,

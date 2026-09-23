@@ -142,12 +142,7 @@ struct SlangCompilerOptions {
     /// Specifies a list of preprocessor defines.
     std::map<std::string, std::string> defines;
 
-    /// Specifies the shader model to use.
-    /// Defaults to latest available on the device.
-    ShaderModel shader_model{ShaderModel::unknown};
-
     /// Optional Slang profile. None selects an automatic compatibility profile.
-    /// Cannot be combined with shader_model.
     std::optional<std::string> profile;
 
     /// Capability inputs replacing device defaults. None uses detected inputs; an empty list does not.
@@ -260,8 +255,6 @@ struct SlangSessionDesc {
 struct SlangTargetInfo {
     /// Output format selected by the device backend.
     std::string target;
-    /// Whether this session uses the transitional legacy shader-model policy.
-    bool legacy{true};
     /// Profile explicitly requested by the caller.
     std::optional<std::string> requested_profile;
     /// Whether the profile was selected automatically.
@@ -272,7 +265,7 @@ struct SlangTargetInfo {
     std::vector<std::string> input_capabilities;
     /// Canonical inputs actually forwarded to Slang.
     std::vector<std::string> capabilities;
-    /// Origin of each forwarded input: device, explicit, override, baseline, or legacy.
+    /// Origin of each forwarded input: device, explicit, override, or baseline.
     std::map<std::string, std::string> capability_origins;
     /// Inputs removed by overrides or profile reconciliation, with reasons.
     std::map<std::string, std::string> removed_capabilities;

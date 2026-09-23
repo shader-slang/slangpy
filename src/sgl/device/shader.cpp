@@ -31,6 +31,18 @@
 
 namespace sgl {
 
+static bool has_dxc_option(std::span<const std::string> args, std::string_view name)
+{
+    return std::ranges::any_of(
+        args,
+        [name](const std::string& arg)
+        {
+            return arg.size() > 1 && (arg.front() == '-' || arg.front() == '/')
+                && std::string_view(arg).substr(1) == name;
+        }
+    );
+}
+
 static bool write_module_bytes_to_cache(
     const std::string& module_name,
     const std::filesystem::path& cache_path,
@@ -248,9 +260,7 @@ SlangSession::SlangSession(ref<Device> device, SlangSessionDesc desc)
     // Load the NVAPI declarations only when selected. Slang emits NVAPI calls without
     // including these declarations itself, so the module is linked to programs below.
     if (SGL_HAS_NVAPI && m_device->type() == DeviceType::d3d12
-        && (m_data->target_info.legacy
-            || std::ranges::find(m_data->target_info.capabilities, "hlsl_nvapi")
-                != m_data->target_info.capabilities.end()
+        && (std::ranges::find(m_data->target_info.capabilities, "hlsl_nvapi") != m_data->target_info.capabilities.end()
             || std::ranges::find(m_data->target_info.capabilities, "ser_nvapi")
                 != m_data->target_info.capabilities.end())) {
         m_nvapi_module = create_module(
@@ -317,62 +327,32 @@ void SlangSession::create_session(SlangSessionBuild& build)
     CompilerOptionEntries target_options;
 
     const SlangCompilerOptions& options = m_desc.compiler_options;
-    const bool use_target_options = uses_compiler_target_options(options);
-    SlangTargetInfo target_info;
-    if (use_target_options)
-        target_info
-            = resolve_compiler_target(device_type, m_device->capabilities(), options, m_device->global_session());
-    else {
-        target_info.capabilities = {"hlsl_nvapi"};
-        target_info.capability_origins = {{"hlsl_nvapi", "legacy"}};
-        target_info.notes.push_back(
-            "Legacy shader_model policy; set profile, a capability list, or nonempty overrides to opt in."
-        );
-    }
+    SlangTargetInfo target_info
+        = resolve_compiler_target(device_type, m_device->capabilities(), options, m_device->global_session());
     const bool selected_nvapi
         = std::ranges::find(target_info.capabilities, "hlsl_nvapi") != target_info.capabilities.end()
         || std::ranges::find(target_info.capabilities, "ser_nvapi") != target_info.capabilities.end();
     const bool enable_nvapi = SGL_HAS_NVAPI && device_type == DeviceType::d3d12 && selected_nvapi;
-    if (use_target_options && selected_nvapi)
+    if (selected_nvapi)
         SGL_CHECK(
             enable_nvapi && m_device->has_capability("hlsl_nvapi"),
             "Selected NVAPI capability requires an NVAPI-enabled D3D12 device"
         );
-    if (use_target_options) {
-        for (const auto& capability : target_info.capabilities) {
-            if (capability == "ser_hlsl_native" || capability == "ser_dxr" || capability == "ser_dxr_raygen"
-                || capability == "ser_dxr_raygen_closesthit_miss")
-                SGL_CHECK(
-                    device_type == DeviceType::d3d12 && m_device->has_feature(Feature::ray_tracing)
-                        && m_device->has_feature(Feature::shader_execution_reordering),
-                    "Native SER capability '{}' requires a D3D12 device with ray tracing and SER support",
-                    capability
-                );
-            if (capability == "optix_coopvec")
-                SGL_CHECK(
-                    device_type == DeviceType::cuda && m_device->has_capability("optix_coopvec"),
-                    "optix_coopvec requires device and OptiX runtime support"
-                );
-        }
+    for (const auto& capability : target_info.capabilities) {
+        if (capability == "ser_hlsl_native" || capability == "ser_dxr" || capability == "ser_dxr_raygen"
+            || capability == "ser_dxr_raygen_closesthit_miss")
+            SGL_CHECK(
+                device_type == DeviceType::d3d12 && m_device->has_feature(Feature::ray_tracing)
+                    && m_device->has_feature(Feature::shader_execution_reordering),
+                "Native SER capability '{}' requires a D3D12 device with ray tracing and SER support",
+                capability
+            );
+        if (capability == "optix_coopvec")
+            SGL_CHECK(
+                device_type == DeviceType::cuda && m_device->has_capability("optix_coopvec"),
+                "optix_coopvec requires device and OptiX runtime support"
+            );
     }
-
-    // Use device's highest supported shader model if none is provided explicitly.
-    ShaderModel supported_shader_model = m_device->supported_shader_model();
-    ShaderModel default_shader_model = supported_shader_model;
-    // TODO: Slang generates invalid HLSL for SM 6.7 when using ray payloads.
-    if (default_shader_model == ShaderModel::sm_6_7)
-        default_shader_model = ShaderModel::sm_6_6;
-    ShaderModel shader_model = options.shader_model;
-    if (options.shader_model == ShaderModel::unknown)
-        shader_model = default_shader_model;
-
-    // Check that requested shader model is supported.
-    SGL_CHECK(
-        use_target_options || shader_model <= supported_shader_model,
-        "Shader model {} is not supported (max shader model is {})",
-        shader_model,
-        supported_shader_model
-    );
 
     // Set matrix layout.
     if (options.matrix_layout == SlangMatrixLayout::row_major)
@@ -385,10 +365,6 @@ void SlangSession::create_session(SlangSessionBuild& build)
     // not referenced by extension target type 'Y' This is a workaround for an issue in the Slang compiler:
     // https://github.com/shader-slang/slang/issues/8166
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30856"));
-    // TODO: Globally disable warning E41012.
-    // Example: entry point 'foo' uses additional capabilities that are not part of the specified profile 'unknown'.
-    // SLANG-W003: retained during migration; strict/default diagnostic policy is a separate milestone.
-    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("41012"));
     // TODO: Globally disable warning E31010.
     // warning[E31010]: Link-time constant sized arrays are a work in progress feature, some aspects of the reflection
     // API may not work This is a workaround for an issue in the Slang compiler:
@@ -451,8 +427,7 @@ void SlangSession::create_session(SlangSessionBuild& build)
         session_options.add(slang::CompilerOptionName::ExperimentalFeature, true);
 
     for (const auto& capability : target_info.capabilities) {
-        auto& entries = use_target_options ? target_options : session_options;
-        entries.add(
+        target_options.add(
             slang::CompilerOptionName::Capability,
             int(m_device->global_session()->findCapability(capability.c_str()))
         );
@@ -487,27 +462,36 @@ void SlangSession::create_session(SlangSessionBuild& build)
     // Select target profile.
     slang::TargetDesc target_desc;
     target_desc.format = SLANG_TARGET_UNKNOWN;
-    uint32_t shader_model_major = get_shader_model_major_version(shader_model);
-    uint32_t shader_model_minor = get_shader_model_minor_version(shader_model);
-    std::string profile_str = fmt::format("sm_{}_{}", shader_model_major, shader_model_minor);
+    if (target_info.profile)
+        target_desc.profile = m_device->global_session()->findProfile(target_info.profile->c_str());
 
-    if (use_target_options) {
-        if (target_info.profile)
-            target_desc.profile = m_device->global_session()->findProfile(target_info.profile->c_str());
-        // The legacy macros describe only a DX profile on the opt-in path.
-        shader_model_major = 0;
-        shader_model_minor = 0;
-        if (device_type == DeviceType::d3d12 && target_info.profile) {
-            std::smatch match;
-            if (std::regex_match(*target_info.profile, match, std::regex(R"(^[a-z]+_(\d+)_(\d+)$)"))) {
-                shader_model_major = uint32_t(std::stoul(match[1].str()));
-                shader_model_minor = uint32_t(std::stoul(match[2].str()));
-            }
+    // NVAPI headers consume these macros. Keep their deprecated compatibility meaning tied
+    // to the actual D3D profile; other backends have no HLSL shader model.
+    uint32_t shader_model_major = 0;
+    uint32_t shader_model_minor = 0;
+    if (device_type == DeviceType::d3d12 && target_info.profile) {
+        std::smatch match;
+        if (std::regex_match(*target_info.profile, match, std::regex(R"(^[a-z]+_(\d+)_(\d+)$)"))) {
+            shader_model_major = uint32_t(std::stoul(match[1].str()));
+            shader_model_minor = uint32_t(std::stoul(match[2].str()));
         }
-    } else if (device_type == DeviceType::d3d12 || device_type == DeviceType::vulkan) {
-        target_desc.profile = m_device->global_session()->findProfile(profile_str.c_str());
-        SGL_CHECK(target_desc.profile != SLANG_PROFILE_UNKNOWN, "Unsupported target profile: {}", profile_str);
-        target_info.profile = profile_str;
+    }
+    session_options.add_macro_define("__SHADER_TARGET_MAJOR", fmt::format("{}", shader_model_major));
+    session_options.add_macro_define("__SHADER_TARGET_MINOR", fmt::format("{}", shader_model_minor));
+
+    // SLANG-W004: separately compiled miss/hit shaders can lack [raypayload] annotations.
+    // Disable PAQ checks instead of lowering the selected shader model. Respect an explicit
+    // session-level choice; see the workaround ledger for evidence and the removal gate.
+    if (device_type == DeviceType::d3d12
+        && (shader_model_major > 6 || (shader_model_major == 6 && shader_model_minor >= 7))
+        && !has_dxc_option(options.downstream_args, "enable-payload-qualifiers")
+        && !has_dxc_option(options.downstream_args, "disable-payload-qualifiers")) {
+        session_options.add(slang::CompilerOptionName::DownstreamArgs, "dxc", "-disable-payload-qualifiers");
+        target_info.generated_downstream_args.push_back("-disable-payload-qualifiers");
+        target_info.notes.push_back(
+            "SLANG-W004: disabled DXC payload-qualifier checks for Slang's missing raypayload annotations; "
+            "the selected shader model is unchanged."
+        );
     }
 
     // Set floating point mode.
@@ -560,14 +544,10 @@ void SlangSession::create_session(SlangSessionBuild& build)
     // Add target define.
     session_options.add_macro_define(target_define, "1");
 
-    // Add shader model defines.
-    session_options.add_macro_define("__SHADER_TARGET_MAJOR", fmt::format("{}", shader_model_major));
-    session_options.add_macro_define("__SHADER_TARGET_MINOR", fmt::format("{}", shader_model_minor));
-
     // Add NVAPI defines.
     session_options.add_macro_define("SGL_ENABLE_NVAPI", enable_nvapi ? "1" : "0");
 #if SGL_HAS_NVAPI
-    if (!use_target_options || enable_nvapi) {
+    if (enable_nvapi) {
         session_options.add_macro_define("NV_SHADER_EXTN_SLOT", "u999");
         auto include_arg = fmt::format("-I{}", (platform::runtime_directory() / "shaders/nvapi").string());
         session_options.add(slang::CompilerOptionName::DownstreamArgs, "dxc", include_arg);
@@ -1633,8 +1613,16 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
     const ShaderProgramDesc& desc = m_desc;
     slang::ISession* session = build_data.session->slang_session;
 
-    if (!build_data.session->target_info.legacy && desc.link_options && desc.link_options->downstream_args)
+    if (desc.link_options && desc.link_options->downstream_args) {
         validate_compiler_target_args(device->type(), *desc.link_options->downstream_args);
+        const auto& generated_args = build_data.session->target_info.generated_downstream_args;
+        SGL_CHECK(
+            std::ranges::find(generated_args, "-disable-payload-qualifiers") == generated_args.end()
+                || !has_dxc_option(*desc.link_options->downstream_args, "enable-payload-qualifiers"),
+            "To enable DXC payload qualifiers, set -enable-payload-qualifiers in session downstream_args "
+            "so it replaces the SLANG-W004 compatibility option."
+        );
+    }
 
     Timer timer;
 

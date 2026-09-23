@@ -39,6 +39,11 @@ def run_shader(device: spy.Device, session: spy.SlangSession, source: str = SOUR
 
 def test_option_fields() -> None:
     options = spy.SlangCompilerOptions()
+    assert not hasattr(spy, "ShaderModel")
+    assert not hasattr(options, "shader_model")
+    assert not hasattr(spy.Device, "supported_shader_model")
+    with pytest.raises(RuntimeError, match="shader_model was removed; use profile or capabilities"):
+        spy.SlangCompilerOptions({"shader_model": "sm_6_0"})
     assert options.profile is None
     assert options.capabilities is None
     assert options.capability_overrides == {}
@@ -57,35 +62,92 @@ def test_defaults_and_empty(device_type: spy.DeviceType) -> None:
     device = helpers.get_device(device_type)
     before = list(device.capabilities)
     baseline = BASELINES[device_type]
-    assert device.slang_session.target_info.legacy
-    # A nonempty neutral override opts into device defaults during the transition.
+    assert device.slang_session.target_info.input_capabilities == before
+    # Explicit None and ordinary sessions both use detected device inputs.
     inherited = device.create_slang_session(
         {
             "capabilities": None,
-            "capability_overrides": {baseline: True},
         }
     )
-    assert not inherited.target_info.legacy
     assert inherited.target_info.input_capabilities == before
-    assert inherited.target_info.capability_origins[baseline] == "override"
+    assert inherited.target_info.capability_origins[baseline] == (
+        "device" if baseline in before else "baseline"
+    )
     assert set(inherited.target_info.ignored_capabilities) <= set(before)
-    assert run_shader(device, inherited) == 7
     empty = device.create_slang_session({"capabilities": []})
     assert empty.target_info.input_capabilities == []
     assert empty.target_info.capabilities == [baseline]
     assert empty.target_info.capability_origins == {baseline: "baseline"}
     assert run_shader(device, empty) == 7
     assert list(device.capabilities) == before
+    # Deprecated macros must follow the actual D3D profile for NVAPI headers, and be
+    # zero on other backends rather than inventing backend-independent shader models.
+    macros = SOURCE.replace("= 7", "= __SHADER_TARGET_MAJOR * 100 + __SHADER_TARGET_MINOR")
+    expected = 0
+    if device_type == spy.DeviceType.d3d12:
+        major, minor = inherited.target_info.profile.removeprefix("sm_").split("_")
+        expected = int(major) * 100 + int(minor)
+    assert run_shader(device, inherited, macros) == expected
+
+
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.d3d12]
+)
+@pytest.mark.parametrize("profile", ["sm_6_6", "sm_6_7", "sm_6_9"])
+def test_ray_payload_compatibility(device_type: spy.DeviceType, profile: str) -> None:
+    device = helpers.get_device(device_type)
+    if "_" + profile not in device.capabilities or not device.has_feature(spy.Feature.ray_tracing):
+        pytest.skip("Requires the selected shader model and ray tracing")
+    session = device.create_slang_session({"profile": profile, "capabilities": []})
+    assert session.target_info.profile == profile
+    assert ("-disable-payload-qualifiers" in session.target_info.generated_downstream_args) == (
+        profile != "sm_6_6"
+    )
+    # Compiling miss/hit entry points separately used to fail at SM 6.7+ because
+    # Slang omits raypayload annotations. Exercise actual DXC and RHI compilation.
+    module = session.load_module_from_source(
+        "ray_payload", Path(__file__).with_name("test_pipeline_rt.slang").read_text()
+    )
+    program = session.link_program(
+        [module],
+        [module.entry_point(name) for name in ("rt_ray_gen", "rt_miss", "rt_closest_hit")],
+    )
+    device.create_ray_tracing_pipeline(
+        program=program,
+        hit_groups=[{"hit_group_name": "hit", "closest_hit_entry_point": "rt_closest_hit"}],
+        max_recursion=1,
+        max_ray_payload_size=16,
+        compilation_policy=spy.PipelineCompilationPolicy.immediate,
+    )
+    for prefix in ("-", "/") if profile != "sm_6_6" else ():
+        with pytest.raises(RuntimeError, match="set -enable-payload-qualifiers in session"):
+            session.link_program(
+                [module],
+                [module.entry_point("rt_miss")],
+                {"downstream_args": [prefix + "enable-payload-qualifiers"]},
+            )
+    # Explicit session settings replace the adapter, so callers can opt into PAQ
+    # when their shaders provide the annotations needed by the current compiler.
+    for argument in (
+        "-enable-payload-qualifiers",
+        "-disable-payload-qualifiers",
+        "/enable-payload-qualifiers",
+        "/disable-payload-qualifiers",
+    ):
+        explicit = device.create_slang_session(
+            {"profile": profile, "capabilities": [], "downstream_args": [argument]}
+        )
+        assert "-disable-payload-qualifiers" not in explicit.target_info.generated_downstream_args
+        assert run_shader(device, explicit) == 7
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_device_options_and_fresh_session(device_type: spy.DeviceType) -> None:
     with spy.Device(type=device_type, compiler_options={"capabilities": []}) as device:
-        assert not device.slang_session.target_info.legacy
         assert device.slang_session.desc.compiler_options.capabilities == []
         assert run_shader(device, device.slang_session) == 7
         fresh = device.create_slang_session()
-        assert fresh.target_info.legacy
+        assert fresh.target_info.input_capabilities == list(device.capabilities)
         assert fresh.desc.compiler_options.capabilities is None
 
 
@@ -122,10 +184,6 @@ def test_reports_and_options_are_snapshots(device_type: spy.DeviceType) -> None:
             "Unknown capability override",
         ),
         ({"profile": "not_a_slang_profile"}, "Unknown Slang profile"),
-        (
-            {"shader_model": spy.ShaderModel.sm_6_0, "capabilities": []},
-            "shader_model cannot be combined",
-        ),
     ],
 )
 def test_invalid_options(
@@ -246,7 +304,7 @@ def test_spirv_profiles_and_bundles(device_type: spy.DeviceType) -> None:
     assert "_spirv_1_6" in raw.target_info.capabilities
     assert "spirv_1_6" in bundle.target_info.capabilities
     assert raw.target_info.session_digest != bundle.target_info.session_digest
-    # E41012 is suppressed by existing policy; explicitly promote it for this requirement test.
+    # Promote capability-upgrade warnings to errors for this requirement test.
     source = (
         "[require(SPV_EXT_physical_storage_buffer)] uint feature() { return 7; }\n"
         + SOURCE.replace("= 7", "= feature()")
@@ -285,6 +343,28 @@ def test_spirv_profiles_and_bundles(device_type: spy.DeviceType) -> None:
     cross = device.create_slang_session({"profile": "sm_6_6", "capabilities": []})
     assert cross.target_info.profile == "sm_6_6"
     assert run_shader(device, cross) == 7
+
+
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.vulkan]
+)
+def test_capability_upgrade_warnings_visible(
+    device_type: spy.DeviceType, capfd: pytest.CaptureFixture[str]
+) -> None:
+    device = helpers.get_device(device_type)
+    session = device.create_slang_session({"capabilities": ["_spirv_1_0"]})
+    source = (
+        "[require(SPV_EXT_physical_storage_buffer)] uint feature() { return 7; }\n"
+        + SOURCE.replace("= 7", "= feature()")
+    )
+    capfd.readouterr()
+    assert run_shader(device, session, source) == 7
+    assert "41012" in capfd.readouterr().out
+    strict = device.create_slang_session(
+        {"capabilities": ["_spirv_1_0"], "warnings_as_errors": ["41012"]}
+    )
+    with pytest.raises((RuntimeError, spy.SlangCompileError), match="41012"):
+        run_shader(device, strict, source)
 
 
 @pytest.mark.parametrize(

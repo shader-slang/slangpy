@@ -171,7 +171,6 @@
         "slangpy.ShaderCacheStats",
         "slangpy.ShaderCursor",
         "slangpy.ShaderHotReloadEvent",
-        "slangpy.ShaderModel",
         "slangpy.ShaderObject",
         "slangpy.ShaderOffset",
         "slangpy.ShaderProgram",

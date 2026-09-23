@@ -11,19 +11,25 @@ ELEMENT_COUNT = 1024
 
 @pytest.mark.parametrize("view", ["uav", "srv"])
 @pytest.mark.parametrize(
-    "shader_model",
+    "device_type, profile",
     [
-        spy.ShaderModel.sm_6_2,
-        spy.ShaderModel.sm_6_3,
-        spy.ShaderModel.sm_6_4,
-        spy.ShaderModel.sm_6_5,
-        spy.ShaderModel.sm_6_6,
-        spy.ShaderModel.sm_6_7,
+        (device_type, profile)
+        for device_type in helpers.DEFAULT_DEVICE_TYPES
+        for profile in (
+            [None] + [f"sm_6_{minor}" for minor in range(2, 10)]
+            if device_type == spy.DeviceType.d3d12
+            else (
+                [None, "spirv_1_3", "spirv_1_5", "spirv_1_6"]
+                if device_type == spy.DeviceType.vulkan
+                else [None]
+            )
+        )
     ],
 )
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_float16(device_type: spy.DeviceType, shader_model: spy.ShaderModel, view: str):
+def test_float16(device_type: spy.DeviceType, profile: str | None, view: str) -> None:
     device = helpers.get_device(device_type)
+    if profile is not None and "_" + profile not in device.capabilities:
+        pytest.skip(f"Device does not advertise {profile}")
 
     np.random.seed(123)
     data = np.random.rand(ELEMENT_COUNT).astype(np.float16)
@@ -32,7 +38,7 @@ def test_float16(device_type: spy.DeviceType, shader_model: spy.ShaderModel, vie
         device=device,
         path="test_float16.slang",
         entry_point=f"main_{view}",
-        shader_model=shader_model,
+        compiler_options={"profile": profile, "capabilities": []} if profile else {},
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
             "data": {"data": data},

@@ -14,7 +14,8 @@ using CapabilityOverrides = std::map<std::string, bool>;
 SGL_DICT_TO_DESC_BEGIN(SlangCompilerOptions)
 SGL_DICT_TO_DESC_FIELD_LIST(include_paths, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(defines, DefineList)
-SGL_DICT_TO_DESC_FIELD(shader_model, ShaderModel)
+case ::sgl::detail::const_hash("shader_model"):
+SGL_THROW("shader_model was removed; use profile or capabilities instead");
 SGL_DICT_TO_DESC_FIELD(profile, std::optional<std::string>)
 SGL_DICT_TO_DESC_FIELD(capabilities, std::optional<std::vector<std::string>>)
 SGL_DICT_TO_DESC_FIELD(capability_overrides, CapabilityOverrides)
@@ -109,7 +110,6 @@ SGL_PY_EXPORT(device_shader)
         )
         .def_rw("include_paths", &SlangCompilerOptions::include_paths, D(SlangCompilerOptions, include_paths))
         .def_rw("defines", &SlangCompilerOptions::defines, D(SlangCompilerOptions, defines))
-        .def_rw("shader_model", &SlangCompilerOptions::shader_model, D(SlangCompilerOptions, shader_model))
         .def_rw("profile", &SlangCompilerOptions::profile, nb::none(), D(SlangCompilerOptions, profile))
         .def_rw("capabilities", &SlangCompilerOptions::capabilities, nb::none(), D(SlangCompilerOptions, capabilities))
         .def_rw(
@@ -216,7 +216,6 @@ SGL_PY_EXPORT(device_shader)
 
     nb::class_<SlangTargetInfo>(m, "SlangTargetInfo", D(SlangTargetInfo))
         .def_ro("target", &SlangTargetInfo::target, D(SlangTargetInfo, target))
-        .def_ro("legacy", &SlangTargetInfo::legacy, D(SlangTargetInfo, legacy))
         .def_ro("requested_profile", &SlangTargetInfo::requested_profile, D(SlangTargetInfo, requested_profile))
         .def_ro("profile_automatic", &SlangTargetInfo::profile_automatic, D(SlangTargetInfo, profile_automatic))
         .def_ro("profile", &SlangTargetInfo::profile, D(SlangTargetInfo, profile))

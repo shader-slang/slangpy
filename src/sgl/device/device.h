@@ -328,9 +328,6 @@ public:
     /// Shader cache statistics.
     ShaderCacheStats shader_cache_stats() const;
 
-    /// The highest shader model supported by the device.
-    ShaderModel supported_shader_model() const { return m_supported_shader_model; }
-
     /// List of features supported by the device.
     const std::vector<Feature>& features() const { return m_features; }
 
@@ -910,7 +907,6 @@ private:
 
     DeviceDesc m_desc;
     DeviceInfo m_info;
-    ShaderModel m_supported_shader_model{ShaderModel::unknown};
 
     bool m_closed{false};
 

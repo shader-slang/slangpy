@@ -1,14 +1,14 @@
 # Slang compiler workaround ledger
 
-Updated 2026-09-23 through milestone 3 of [the capability migration](compiler-capabilities.md).
+Updated 2026-09-23 through milestone 4 of [the capability migration](compiler-capabilities.md).
 
 Record every compiler workaround introduced during this migration here, and refer to its ID from implementation comments. Each entry must distinguish production behavior from a probe, name the upstream fix, and state a removal test. Update the affected compiler versions and evidence whenever changing or removing it. Do not treat a passing expected-failure probe as a reason to preserve the compiler defect.
 
-Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in resolver and its required adapters; milestone 3 adds exact CUDA output checks and backend artifact/runtime coverage. Existing legacy defaults remain in place for callers who do not opt in. Probe results are documented in [the initial probe report](compiler-capabilities-probe-results.md) and [the profile interaction report](compiler-profile-probe-results.md). Production regression coverage is in `slangpy/tests/device/test_compiler_capabilities.py` and `test_compiler_target_output.py` against pinned Slang 2026.17.1; master was probed through the standalone session API, not substituted into the production build.
+Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in resolver and its required adapters; milestone 3 adds exact CUDA output checks and backend artifact/runtime coverage. Milestone 4 applies the resolver to every session, removes legacy shader-model defaults, and replaces the historical payload profile downgrade with a narrower DXC compatibility option. Probe results are documented in [the initial probe report](compiler-capabilities-probe-results.md) and [the profile interaction report](compiler-profile-probe-results.md). Production regression coverage is in `slangpy/tests/device/test_compiler_capabilities.py` and `test_compiler_target_output.py` against pinned Slang 2026.17.1; master was probed through the standalone session API, not substituted into the production build.
 
 ## SLANG-W001: Derive a DXIL profile from selected shader-model capabilities
 
-**Status:** Implemented for opt-in capability sessions in milestone 2. Legacy sessions continue setting profiles through `shader_model`.
+**Status:** Implemented for opt-in capability sessions in milestone 2; applies to all sessions since milestone 4.
 
 **Affected versions:** Slang 2026.17.1 and local master `b4a57b15cc47d936403cc989a628bfd25d5af5d3`.
 
@@ -22,13 +22,13 @@ Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in reso
 
 ## SLANG-W002: Neutralize the implicit SPIR-V 1.5 profile bundle
 
-**Status:** Implemented for automatic Vulkan selection on the opt-in path in milestone 2.
+**Status:** Implemented for automatic Vulkan selection in milestone 2; applies to all sessions since milestone 4.
 
 **Affected versions:** Both investigated versions.
 
 **Problem:** `_spirv_1_3` with no profile emits SPIR-V 1.5. The default profile also supplies feature assumptions: a shader annotated as requiring `SPV_EXT_physical_storage_buffer` passes strict checking even when only a raw version atom was supplied. Public higher SPIR-V profiles similarly bundle features beyond their version.
 
-**Local adaptation:** Supply `spirv_1_0` as a minimal compatibility profile and add the selected raw version/features. The probes emit the requested 1.3/1.6 versions. Strict checking then rejects the missing physical-storage-buffer requirement, as intended. Cases: `spirv_baseline_*`, `spirv_bundle_*`. The opt-in API uses this adapter only when `profile` is omitted. Preserve an explicitly selected profile and its feature bundle; do not neutralize it or claim capability removal overrides subtract its requirements. The production regression test promotes warning 41012 to an error to distinguish the raw selection from an explicit profile's retained feature bundle.
+**Local adaptation:** Supply `spirv_1_0` as a minimal compatibility profile and add the selected raw version/features. The probes emit the requested 1.3/1.6 versions. Strict checking then rejects the missing physical-storage-buffer requirement, as intended. Cases: `spirv_baseline_*`, `spirv_bundle_*`. The resolver uses this adapter only when `profile` is omitted. Preserve an explicitly selected profile and its feature bundle; do not neutralize it or claim capability removal overrides subtract its requirements. The production regression test promotes warning 41012 to an error to distinguish the raw selection from an explicit profile's retained feature bundle.
 
 **Proper Slang implementation:** Explicit version capability selection should override the implicit backend default. Provide a capability-only target configuration that does not add unrequested higher-profile feature bundles.
 
@@ -40,29 +40,33 @@ Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in reso
 
 ## SLANG-W003: Suppress implicit-upgrade warning 41012
 
-**Status:** Existing broad suppression in `SlangSession::create_session`; no new suppression added in step 1. Probe compilation deliberately exposes these diagnostics.
+**Status:** Broad suppression removed in milestone 4. Warning 41012 is visible by default; validation remains permissive. The SER inference defect below remains unresolved.
 
 **Affected versions:** Both investigated versions produce relevant diagnostics.
 
 **Problem:** The current code comment attributes this to an unset CUDA profile, but CUDA profiles do not exist. More specifically, the HitObject probe infers both native and NVAPI SER requirements. A native-only selection warns that `hlsl_nvapi` is missing; an NVAPI-only selection warns that `ser_hlsl_native` is missing. Restrictive checking turns either into an error. With permissive checking, the respective native/NVAPI HLSL and DXIL compile correctly.
 
-**Local adaptation under investigation:** Keep capability validation permissive for the affected SER operations until the incorrect requirements are fixed. No new production exception has been introduced. Do not add both markers merely to satisfy strict checking when native output is requested: the probe with both markers emits NVAPI's HitObject representation.
+**Local policy:** Keep capability validation permissive for the affected SER operations until the incorrect requirements are fixed. No diagnostic-specific exception is injected. Applications may use existing warning controls to suppress or promote 41012 per session. `test_capability_upgrade_warnings_visible` verifies default visibility and explicit error promotion. Do not add both markers merely to satisfy strict checking when native output is requested: the probe with both markers emits NVAPI's HitObject representation.
 
 **Proper Slang implementation:** Preserve alternative SER requirements correctly during inference/checking. A native path must not require NVAPI; an NVAPI path must not require the native marker. Warning text must accurately describe emitted requirements. CUDA should be configured using capabilities, independently of this fix.
 
-**Removal gate:** `ser_native` and `ser_nvapi` both pass strict checking independently and emit the intended implementations. Then remove/narrow the global 41012 suppression only after checking other workloads, including device-detection gaps. Some warnings are legitimate and should become visible.
+**Removal gate:** `ser_native` and `ser_nvapi` both pass strict checking independently and emit the intended implementations. This remains a prerequisite for universally restrictive defaults, together with fixes to device-detection gaps. The global warning suppression has already been removed; keeping it was not necessary for permissive compilation.
 
-## SLANG-W004: Downgrade the default shader model from 6.7 to 6.6
+## SLANG-W004: Disable DXC payload qualifiers without lowering the shader model
 
-**Status:** Existing production workaround in `src/sgl/device/shader.cpp`; unchanged.
+**Status:** Replaced the legacy 6.7-to-6.6 default downgrade in milestone 4. Implemented in `SlangSession::create_session` in `src/sgl/device/shader.cpp`.
 
-**Problem:** Its comment describes invalid generated HLSL for SM 6.7 ray payloads, but no original reproducer is recorded there.
+**Affected versions:** Reproduced in the production build with pinned Slang 2026.17.1. This per-entry-point regression has not been rechecked against local master; the earlier whole-program probes passed on both versions and were insufficient to retire this workaround.
 
-**New evidence:** Simple `TraceRay` shaders with a payload compile to `lib_6_6` and `lib_6_7` under both investigated compiler versions. The old failure was not reproduced by these cases. This does not establish correctness for every payload annotation or pipeline combination.
+**Problem and reproducer:** `slangpy/tests/device/test_pipeline_rt.slang` declares an unannotated `Payload` used by raygeneration, miss, and closesthit shaders. At SM 6.7+, DXC requires `[raypayload]` on the separately emitted miss shader's payload type, but Slang omits it. Creating the ray pipeline fails with "type used as payload requires that it is annotated with the [raypayload] attribute". The default on the available D3D device is now 6.9, so removing the downgrade exposed this existing defect.
 
-**Proper Slang implementation:** Correct HLSL generation for the specific original ray-payload case. The original bug/reproducer must be identified before attributing the current workaround to a still-active compiler defect.
+**Local adaptation:** For D3D profiles 6.7 and later, add `-disable-payload-qualifiers` to DXC session arguments. Preserve the selected profile and capabilities. Include the generated argument and a note in `SlangTargetInfo`, and include the option in the session digest. Explicit session `-enable-payload-qualifiers` or `-disable-payload-qualifiers` takes precedence. A link-only enable conflicting with the generated disable is rejected with instructions to set the session option. This disables payload-qualifier validation/optimization; it does not correct missing annotations.
 
-**Removal gate:** Reproduce or locate the original regression, verify it is fixed on the supported minimum compiler, and run affected ray-tracing tests. The new `ray_payload_*` probes are useful smoke coverage but insufficient alone to retire a historical workaround.
+**Regression coverage:** `test_ray_payload_compatibility` compiles actual RHI ray pipelines at 6.6/6.7/6.9, checks the unchanged profile, and verifies explicit overrides and conflicting link options. Existing `test_pipeline.py` exercises ray-tracing dispatch/readback under device defaults. Manual comparison passed both compute ray queries and ray pipelines at 6.6 and 6.9.
+
+**Proper Slang implementation:** Generate correct payload annotations/access qualifiers for separately emitted ray-tracing entry points, including payloads introduced through `TraceRay` and hit/miss parameters.
+
+**Removal gate:** With the compatibility argument disabled, compile and execute the existing pipeline shaders at all supported 6.7+ profiles using the minimum supported compiler. Verify emitted payload annotations for separate miss/hit outputs. Then remove the generated argument and conflict guard; retain default profile selection from device inputs.
 
 ## SLANG-W005: Validate known profile/capability conflicts using bounded dependency metadata
 
@@ -82,7 +86,7 @@ Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in reso
 
 ## SLANG-W006: Supply an explicit backend baseline for empty capability inputs
 
-**Status:** Implemented on the opt-in path in milestone 2, in `resolve_compiler_target`.
+**Status:** Implemented in milestone 2 in `resolve_compiler_target`; applies to all sessions since milestone 4.
 
 **Affected versions:** Empty-selection bypass observed in both probed compiler versions; production regression tests use 2026.17.1.
 

@@ -3856,11 +3856,6 @@ Device
     
         Shader cache statistics.
         
-    .. py:property:: supported_shader_model
-        :type: slangpy.ShaderModel
-    
-        The highest shader model supported by the device.
-        
     .. py:property:: features
         :type: list[slangpy.Feature]
     
@@ -7119,50 +7114,6 @@ Device
 
 ----
 
-.. py:class:: slangpy.ShaderModel
-
-    Base class: :py:class:`enum.IntEnum`
-    
-    .. py:attribute:: slangpy.ShaderModel.unknown
-        :type: ShaderModel
-        :value: ShaderModel.unknown
-    
-    .. py:attribute:: slangpy.ShaderModel.sm_6_0
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_0
-    
-    .. py:attribute:: slangpy.ShaderModel.sm_6_1
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_1
-    
-    .. py:attribute:: slangpy.ShaderModel.sm_6_2
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_2
-    
-    .. py:attribute:: slangpy.ShaderModel.sm_6_3
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_3
-    
-    .. py:attribute:: slangpy.ShaderModel.sm_6_4
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_4
-    
-    .. py:attribute:: slangpy.ShaderModel.sm_6_5
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_5
-    
-    .. py:attribute:: slangpy.ShaderModel.sm_6_6
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_6
-    
-    .. py:attribute:: slangpy.ShaderModel.sm_6_7
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_7
-    
-
-
-----
-
 .. py:class:: slangpy.ShaderObject
 
     Base class: :py:class:`slangpy.Object`
@@ -7352,17 +7303,11 @@ Device
     
         Specifies a list of preprocessor defines.
         
-    .. py:property:: shader_model
-        :type: slangpy.ShaderModel
-    
-        Specifies the shader model to use. Defaults to latest available on the
-        device.
-        
     .. py:property:: profile
         :type: str | None
 
         Optional Slang profile. None selects an automatic compatibility
-        profile. Cannot be combined with shader_model.
+        profile.
 
     .. py:property:: capabilities
         :type: list[str] | None
@@ -7732,11 +7677,6 @@ Device
 
         Output format selected by the device backend.
 
-    .. py:property:: legacy
-        :type: bool
-
-        Whether this session uses the transitional legacy shader-model policy.
-
     .. py:property:: requested_profile
         :type: str | None
 
@@ -7765,8 +7705,8 @@ Device
     .. py:property:: capability_origins
         :type: dict[str, str]
 
-        Origin of each forwarded input: device, explicit, override, baseline,
-        or legacy.
+        Origin of each forwarded input: device, explicit, override, or
+        baseline.
 
     .. py:property:: removed_capabilities
         :type: dict[str, str]

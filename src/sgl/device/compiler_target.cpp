@@ -134,11 +134,6 @@ namespace {
 
 } // namespace
 
-bool uses_compiler_target_options(const SlangCompilerOptions& options)
-{
-    return options.profile.has_value() || options.capabilities.has_value() || !options.capability_overrides.empty();
-}
-
 void validate_compiler_target_args(DeviceType type, std::span<const std::string> args)
 {
     for (const auto& arg : args) {
@@ -162,13 +157,8 @@ SlangTargetInfo resolve_compiler_target(
     slang::IGlobalSession* compiler
 )
 {
-    SGL_CHECK(
-        options.shader_model == ShaderModel::unknown,
-        "shader_model cannot be combined with profile, capabilities, or capability_overrides"
-    );
     validate_compiler_target_args(type, options.downstream_args);
     SlangTargetInfo result;
-    result.legacy = false;
     result.requested_profile = options.profile;
     result.profile_automatic = !options.profile.has_value();
     result.profile = options.profile;
@@ -328,7 +318,7 @@ SlangTargetInfo resolve_compiler_target(
 
 void validate_cuda_program(slang::IComponentType* program, const SlangTargetInfo& target_info, PersistentCache* cache)
 {
-    if (target_info.legacy || target_info.target != "ptx")
+    if (target_info.target != "ptx")
         return;
 
     Version selected;
