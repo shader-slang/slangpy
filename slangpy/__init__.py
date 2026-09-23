@@ -71,9 +71,10 @@ from .torchintegration import *
 # Get shader include path for slangpy
 SHADER_PATH = str(pathlib.Path(__file__).parent.absolute() / "slang")
 
-# Make SHADER_PATH a default include path for every device and session the bindings create,
-# so `import slangpy;` resolves without callers adding it. (`_set_default_slang_include_paths`
-# is bound onto this module by the native import above.)
+# Register SHADER_PATH as a default Slang include path so `import slangpy;` resolves without
+# callers adding it. The binding layer prepends it at the two `Device` constructors and
+# `Device.create_slang_session` (`prepend_default_slang_include_paths` in device.cpp).
+# (`_set_default_slang_include_paths` is bound onto this module by the native import above.)
 _set_default_slang_include_paths([SHADER_PATH])
 
 # Helper to create devices

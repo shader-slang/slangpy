@@ -281,7 +281,8 @@ std::vector<std::filesystem::path> g_default_slang_include_paths;
 
 /// Prepend the registered default slangpy include paths (deduped, defaults first) so that
 /// `import slangpy;` resolves without callers manually adding SHADER_PATH. Registered once from
-/// slangpy/__init__.py; applied to every device/session created through the Python bindings.
+/// slangpy/__init__.py and applied unconditionally (independent of add_default_include_paths) at
+/// the two `Device` constructors and `Device.create_slang_session`.
 void prepend_default_slang_include_paths(sgl::SlangCompilerOptions& options)
 {
     if (g_default_slang_include_paths.empty())
@@ -1133,7 +1134,11 @@ SGL_PY_EXPORT(device_device)
         {
             g_default_slang_include_paths = std::move(paths);
         },
-        "paths"_a
+        "paths"_a,
+        "Replace the default slangpy Slang include paths prepended by every Device constructor and "
+        "Device.create_slang_session. slangpy sets this once at import to [SHADER_PATH]. Advanced "
+        "escape hatch: call before creating any device or session to point `import slangpy;` at a "
+        "different location (e.g. a local slangpy checkout); pass [] to disable the default."
     );
     device.def("reload_all_programs", &Device::reload_all_programs, D(Device, reload_all_programs));
     device.def("load_module", &Device::load_module, "module_name"_a, D(Device, load_module));
