@@ -515,5 +515,45 @@ def test_srgb_interpretation(
     assert (texture.format == Format.rgba8_unorm_srgb) == use_srgb_format
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("srgb", [False, True])
+def test_max_mip_count_bitmap(device_type: spy.DeviceType, srgb: bool, tmp_path: Path) -> None:
+    loader = TextureLoader(helpers.get_device(type=device_type))
+    data = np.zeros((8, 20, 4), dtype=np.uint8)
+    data[1::2, :, :3] = 255
+    data[..., 3] = 64
+    bitmap = Bitmap(data, srgb_gamma=True)
+    path = tmp_path / "texture.png"
+    bitmap.write(path)
+    options = TextureLoader.Options(
+        {"max_mip_count": 3, "load_as_srgb": srgb, "generate_mips": True}
+    )
+    expected = np.full((2, 5, 4), 188 if srgb else 128, dtype=np.uint8)
+    expected[..., 3] = 64
+    for source in (path, bitmap):
+        texture = loader.load_texture(source, options)
+        # Select a fitting mip size; average colors in linear light and alpha linearly.
+        assert (texture.width, texture.height, texture.mip_count) == (5, 2, 3)
+        np.testing.assert_allclose(texture.to_numpy(), expected, atol=1, rtol=0)
+    np.testing.assert_array_equal(np.asarray(bitmap), data)
+    assert bitmap.srgb_gamma
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_max_mip_count_dds(device_type: spy.DeviceType) -> None:
+    loader = TextureLoader(helpers.get_device(type=device_type))
+    path = TEST_DDS_DIR / "bc1-unorm.dds"
+    original = loader.load_texture(path)
+    reduced = loader.load_texture(path, options={"max_mip_count": original.width.bit_length() - 1})
+    assert reduced.format == original.format
+    assert (reduced.width, reduced.height, reduced.mip_count) == (
+        original.width // 2,
+        original.height // 2,
+        original.mip_count - 1,
+    )
+    for mip in range(reduced.mip_count):
+        np.testing.assert_array_equal(reduced.to_numpy(0, mip), original.to_numpy(0, mip + 1))
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
