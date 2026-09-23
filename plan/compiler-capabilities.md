@@ -1,13 +1,13 @@
-# Make compiler target selection capability-based
+# Unify compiler version selection and simplify capability handling
 
-This ExecPlan follows `.agents/PLANS.md`. It was prepared on 2026-09-23. Both compiler-probe milestones, milestone 2's opt-in public API, and milestone 3's available-backend adapters and bounded CUDA validation are implemented. Additional platform/toolkit coverage, removal of documented upstream workarounds, and default-policy changes remain pending. Keep the Progress, Surprises and Discoveries, Decision Log, and Outcomes and Retrospective sections current as implementation proceeds.
+This ExecPlan follows `.agents/PLANS.md`. Milestones 1-4 and the Slang 2026.18.2 upgrade are complete. On 2026-09-24 the user agreed to simplify the contract before further implementation. The Public Contract, CUDA Compatibility Strategy, milestone 5, and Validation and Acceptance below describe the next implementation; earlier milestone descriptions and dated evidence record the previous implementation. The 2026-09-24 decisions supersede earlier requirements for exact CUDA output validation and general feature-dependency reconciliation. This revision changes planning documents only; milestone 5 has not been executed.
 
 ## Purpose / Big Picture
 
 
-Replace the backend-independent-looking `SlangCompilerOptions.shader_model` with compiler capability selection and an optional explicit Slang profile that describe the chosen backend. Users should be able to use device-derived defaults, supply an explicit capability list, adjust individual supplied capabilities, select CUDA compute capabilities, and choose between native D3D12 and NVAPI shader execution reordering (SER). Capabilities are the primary selection mechanism; `profile` exposes independently useful Slang behavior for advanced control. When omitted, compatibility adapters choose any necessary profile. If Slang eventually makes profiles redundant, the optional field can remain a compatibility shorthand.
+Make `SlangCompilerOptions.profile` the convenient primary selector for a backend's compilation version: `sm_6_6` for D3D12, `spirv_1_6` for Vulkan, and `cuda_sm_7_0` for CUDA. Define this as a SlangPy compilation selector, not necessarily a literal Slang profile identifier. Keep optional capability inputs and boolean overrides for advanced settings, especially native D3D12 versus NVAPI shader execution reordering (SER).
 
-The main conclusion is that this is feasible, but device discovery, compiler assumptions, and downstream code-generation settings must remain distinct. An authoritative input list cannot currently be advertised as an absolute prohibition on all other capabilities. Slang expands implications, adds backend defaults, and sometimes increases requirements from shader code.
+Compilation settings are requests and assumptions, not verified output ceilings. Preserve device defaults, useful profile behavior, and essential backend adapters while removing eager CUDA target verification and most local feature-dependency metadata. Slang and downstream compilers determine additional requirements and report compilation failures; the driver checks executable code. This approach is useful with today's compiler and does not depend on an eventual upstream merger of profiles and capabilities.
 
 ## Progress
 
@@ -22,13 +22,19 @@ The main conclusion is that this is feasible, but device discovery, compiler ass
 - [x] (2026-09-23) Complete 84 focused profile/capability interaction probes per compiler, verify matching observations, and settle reconciliation rules in `plan/compiler-profile-probe-results.md` and this plan.
 - [x] (2026-09-23) Implement opt-in capability resolution, Python bindings, immutable target reports, session/cache/hot-reload wiring, regression tests, and user/API documentation. Validate on D3D12, Vulkan, CUDA, and CPU with pinned Slang 2026.17.1.
 - [x] (2026-09-23) Complete milestone 3 on available backends: eager exact CUDA PTX validation for fully specialized programs, validated-cache read guards, emitted DXIL/SPIR-V/PTX checks, native/NVAPI SER execution, and regression coverage.
-- [ ] Validate Metal/WebGPU and additional CUDA toolkits/hardware in appropriate CI; remove SLANG-W007's eager compilation/runtime-specialization restrictions when upstream supports exact validation at the specialization/cache boundary. These are explicit follow-up gates, not claims of completed coverage.
+- [ ] Validate Metal/WebGPU and additional CUDA toolkits/hardware in appropriate CI. These remain coverage gates. The former requirement to wait for upstream exact validation before retiring W007 is superseded by milestone 5's explicit contract change.
 - [x] (2026-09-23) Complete milestone 4: migrate all sessions to device-derived defaults, remove the legacy shader-model API, migrate native-profile tests and documentation, expose upgrade warnings, and validate available backends. Replace the reproduced ray-payload downgrade with the documented SLANG-W004 DXC option; retain NVAPI compatibility macros.
+
+- [x] (2026-09-23) Upgrade to Slang 2026.18.2; repeat 164 probes and available-backend regressions, retire the redundant source-module digest guard, and document the retained source prefix as W008.
+- [x] (2026-09-24) Record the agreed primary-profile API, CUDA profile shorthand, weaker capability guarantees, and milestone 5 implementation/validation requirements. Planning only; runtime behavior remains unchanged.
+- [ ] Milestone 5a: add CUDA profile shorthand, direct version reconciliation, and accurate target reporting; reduce dependency validation while preserving essential SER behavior.
+- [ ] Milestone 5b: remove exact CUDA output enforcement, its eager compilation/specialization restrictions, and dedicated validated-cache guards; replace enforcement tests with input-selection and normal lifecycle tests.
+- [ ] Milestone 5c: update public/generated documentation and the workaround ledger, then build and validate the simplified contract across available backends.
 
 ## Evidence and Scope
 
 
-SlangPy was inspected at `a30a5626eaba8dab30979482f7c8a8fe217ad376`. Its slang-rhi submodule is `82c03494bed8e2d42d65555e33b30a18d3d8f071`, dated 2026-09-18. Local Slang master is `b4a57b15cc47d936403cc989a628bfd25d5af5d3`, dated 2026-09-23. Source defaults select Slang `2026.17.1` in `external/CMakeLists.txt:123`; the CUDA investigation also checked that release's capability-to-NVRTC mapping. Do not confuse this with the existing root `build/CMakeCache.txt`, which still records Slang `2026.5.2`. Runtime probes must record the loaded compiler version and library path.
+SlangPy was inspected at `a30a5626eaba8dab30979482f7c8a8fe217ad376`. Its slang-rhi submodule is `82c03494bed8e2d42d65555e33b30a18d3d8f071`, dated 2026-09-18. Local Slang master is `b4a57b15cc47d936403cc989a628bfd25d5af5d3`, dated 2026-09-23. The original source snapshot selected Slang `2026.17.1`; the current default is `2026.18.2` after the recorded upgrade in `plan/slang-release-upgrade.md`; the CUDA investigation also checked that release's capability-to-NVRTC mapping. Do not confuse this with the existing root `build/CMakeCache.txt`, which still records Slang `2026.5.2`. Runtime probes must record the loaded compiler version and library path.
 
 The original investigation below was source inspection. Step 1 subsequently added [measured results](compiler-capabilities-probe-results.md), followed by [explicit-profile interaction results](compiler-profile-probe-results.md) in milestone 1a. These take precedence over unverified hypotheses in the original research. The reason for SlangPy's commented-out device-capability forwarding remains unknown: the available-backend probes did not reproduce it. The comparison's hardware, toolkit, existing Slang submodule revisions, and unavailable runtime backends are explicitly recorded in the probe reports.
 
@@ -101,80 +107,86 @@ Session descriptors are hashed with `getSessionDescDigest()` at line 535. Resolv
 ## Proposed Public Contract
 
 
-Expose three options, using strings rather than fixed enums:
+This is the agreed 2026-09-24 target contract, pending milestone 5. Keep the existing three fields and C++ representations (`std::optional<std::string>`, `std::optional<std::vector<std::string>>`, and `std::map<std::string, bool>`):
 
     profile: str | None = None
     capabilities: list[str] | None = None
     capability_overrides: dict[str, bool] = {}
 
-In C++, represent these as `std::optional<std::string>`, `std::optional<std::vector<std::string>>`, and `std::map<std::string, bool>`, respectively. Python annotations above describe fields, not a proposed mutable-default Python function signature.
+These annotations describe option fields, not mutable-default function arguments. No replacement enum, additional validation-policy field, or architecture-specific option is planned.
 
-For `capabilities`, `None` means start from device-derived compiler capability inputs. An explicit list replaces those device-derived inputs. `[]` is distinct from `None`: it requests no optional device-derived inputs. The fixed backend target, mandatory backend baseline, any selected profile's requirements, and Slang's implication rules still exist. An authoritative list replaces device inputs; it does not erase requirements introduced by a separately selected profile. Document the baseline explicitly; an empty list does not mean a compiler with no capabilities or an invalid device.
+### Profile selection
 
-Apply overrides after choosing that base. `True` adds an input assumption; `False` removes an input assumption. Normalize only known genuinely equivalent spellings for the active backend, remove duplicates, and sort the resulting inputs deterministically. In particular, `_spirv_1_6` and `spirv_1_6` must not be collapsed: the latter adds features. Keep original inputs for diagnostics. Overrides do not mutate `Device.capabilities`, enable Vulkan device extensions, install NVAPI, or create absent hardware features.
 
-The recommended initial contract is input-set editing, not arbitrary semantic negation. Do not silently reinterpret `False` as recursively deleting every capability that implies the named capability. That can remove unrelated requested features and requires a compiler graph Slang does not expose. Provide specific diagnostics for known conflicts, and document that raising a lower version with `True` cannot lower an already selected higher version.
+`profile` is SlangPy's primary backend compilation-version selector. Support these ordinary selections:
 
-For example, on a device advertising several CUDA tiers, adding `cuda_sm_8_0` to the device defaults will not cap compilation to 8.0. An authoritative list is unambiguous:
+    device.create_slang_session({"profile": "sm_6_6"})       # D3D12
+    device.create_slang_session({"profile": "spirv_1_6"})    # Vulkan
+    device.create_slang_session({"profile": "cuda_sm_7_0"})  # CUDA
 
-    session = device.create_slang_session({
-        "capabilities": ["cuda_sm_9_0"],
-    })
+D3D12, SPIR-V, and Metal profile strings continue to use Slang profile lookup and preserve actual profile semantics, including SPIR-V feature bundles and shader-stage information. Recommend stage-neutral profiles for mixed-stage sessions. CUDA's `cuda_sm_<major>_<minor>` spelling is a SlangPy shorthand validated against the loaded compiler's CUDA capability registry and translated into a CUDA capability input; do not pass it to `findProfile()` or Slang's profile descriptor. Reject unrecognized tiers, malformed names, and unsupported backend families with actionable errors. Do not fabricate support for missing tiers or architecture suffixes.
 
-This assumes a compatible device and toolkit. It selects a recognized CUDA tier and must be verified against emitted PTX. It does not yet promise that an older tier forces Slang below a toolkit minimum.
+`profile=None` keeps automatic device-derived selection and necessary compatibility adapters. Explicit sessions still start from fresh option descriptors rather than inheriting customized default-session settings. CPU and WGSL continue requiring `profile=None` until a useful selector exists. Preserve the existing advanced Vulkan DX/GLSL profile pass-through with an explicit capability list; its mapping remains compiler-defined. Do not turn this simplification into unrelated removal of existing profile support.
 
-For device-default D3D12 settings, the proposed native SER selection is:
+An explicit profile requests a compilation version and any associated Slang profile requirements. It is not an exact emitted-version promise: code requirements, capability implications, and downstream tools may raise the output requirements or reject compilation. Do not silently substitute a different requested tier or append an NVRTC architecture flag to emulate missing support. Input validation is distinct from output validation.
 
-    session = device.create_slang_session({
+### Capability inputs and precedence
+
+
+`capabilities=None` starts from device-reported compiler inputs. An explicit list replaces those device-derived inputs; `[]` requests no optional device inputs. Mandatory backend baselines and separately selected profile requirements remain. Describe this as replacing device inputs, not as an authoritative description of every capability compilation can use.
+
+Apply `capability_overrides` to the chosen base: `True` adds an input and `False` removes an input. Neither operation changes the device, enables runtime extensions, forbids implied capabilities, or removes requirements supplied by a profile. Preserve deterministic ordering and only normalize genuinely equivalent native spellings. In particular, public SPIR-V profile-like capability bundles must not be collapsed into raw version atoms.
+
+For an explicit native-family profile, remove and report higher inherited numeric version inputs. This rule also applies to a CUDA profile so requesting 5.0 on a device advertising 7.0 does not forward the inherited higher numeric tiers. Retain lower numeric inputs. Reject a higher numeric version explicitly supplied in a list or by a `True` override instead of silently discarding it. A `True` override counts as explicit even if its input was already detected. An explicitly supplied lower tier is compatible and does not establish a maximum. Apply CUDA shorthand's required capability after this reconciliation, including when `capabilities=[]`.
+
+Removing the profile's own capability with `False` does not cancel the profile request; keep the profile-derived assumption and explain that in the report, consistent with D3D/SPIR-V profile requirements. Adding only a lower tier through capabilities/overrides without a profile does not remove higher inherited tiers. Callers wanting a convenient lower-version request should use `profile`.
+
+Unknown explicit additions fail early. A removal may name an existing detected input even if the compiler does not recognize it. Unknown detected names are filtered with disclosure, rather than represented as forwarded inputs. Retain the existing narrow numeric device-maximum check where the backend reports a comparable version; do not infer universal hardware support from capability-list membership. Preserve checks for actual runtime prerequisites such as configured NVAPI, D3D12 SER support, and OptiX support.
+
+### Essential backend behavior and limited validation
+
+
+Check recognized names, supported profile families, contradictory aliases/overrides, direct numeric version conflicts, and downstream target flags that would compete with Slang's own flags. Do not walk or maintain a general capability dependency graph. Remove broad feature-to-version rejection rules for Vulkan extensions and CUDA feature assumptions; let Slang and downstream tools diagnose their implications. Profiles can therefore coexist with a feature whose implied requirements raise emitted versions. Preserve compiler warnings, with existing warning controls for applications that choose stricter behavior.
+
+Retain narrowly scoped facts needed to make native SER work: the native SER markers require a suitable D3D profile (currently 6.9), and runtime support must be present. Automatic D3D selection must still choose that profile when native SER is selected without an explicit shader-model capability. Reject an explicitly lower D3D profile combined with native SER with a clear diagnostic. Keep this small backend adapter documented rather than generalizing it into a local capability graph.
+
+For native SER on a capable D3D12 device, disable NVAPI implementation inputs and enable the native marker. A robust example removes both supported NVAPI markers:
+
+    device.create_slang_session({
+        "profile": "sm_6_9",
         "capability_overrides": {
             "hlsl_nvapi": False,
+            "ser_nvapi": False,
             "ser_hlsl_native": True,
         },
     })
 
-This requires native SER support and an appropriate internal DX profile. SM 6.9 alone does not imply the separate `ser_hlsl_native` marker. Slang's HLSL emitter prefers NVAPI's HitObject representation when `hlsl_nvapi` is present (`C:/projects/slang/source/slang/slang-emit-hlsl.cpp:1977`), making removal meaningful. Conversely, `hlsl_nvapi=True` may force an assumption but cannot supply an absent runtime NVAPI configuration. Step 1 verified the distinct native/NVAPI HLSL and DXIL paths in permissive mode, but both compiler versions incorrectly require both markers under strict checking. Track this upstream blocker as SLANG-W003; do not enable strict SER by default based on the source-only analysis.
+NVAPI selection must still supply its declarations and runtime configuration. Keep permissive capability checking: the measured compiler incorrectly infers requirements from both SER implementations. Preserve real generated-code and execution coverage for native and NVAPI paths. Keep the DX profile derivation, minimal automatic SPIR-V profile, explicit baseline, payload-qualifier compatibility option, and source-identity prefix where their measured defects still require them.
 
-A version-ceiling convenience operation could be useful, but should be explicit and separate from general boolean semantics. It could remove all higher members of a known version family and reject known dependent capabilities such as `optix_coopvec`. Before adding another public field/helper, validate whether authoritative lists, explicit profiles where applicable, and version-filtering examples suffice. A profile is not a universal capability ceiling. If the product requirement is instead that every `False` means an absolute prohibition, obtain upstream implication/negative-capability support before claiming that API is implemented.
+### Reporting
 
-Unknown explicitly added user names should fail at session creation unless a documented compatibility adapter recognizes them. A removal may also name an existing detected input even if the loaded compiler does not recognize that input; reject misspelled names that are neither recognized nor present in the base. Automatically detected names unknown to the loaded compiler should be reported in session diagnostics, not silently presented as active. Never silently drop an explicitly requested exact CUDA version. Raw device-list membership must not be used as a universal support check: aliases, incomplete discovery, and implication make that invalid. Validate actual known runtime prerequisites separately, and leave additional explicit assumptions possible for incomplete detection.
 
-`profile=None` requests automatic profile selection, including compatibility adapters where needed; it does not promise that no profile is passed to Slang. An explicit string requests that actual Slang profile and takes precedence over automatic profile selection. Validate it using the loaded compiler's profile lookup and backend compatibility rules. Reject unknown or unsupported selections with an actionable error. Do not invent CUDA profiles: CUDA architecture selection remains capability-based.
+Keep `SlangSession.target_info` as a read-only snapshot of resolution inputs and decisions. Preserve the caller's string in `requested_profile`. Keep `profile` as the actual Slang profile passed through the target descriptor: it remains `None` for CUDA even when `requested_profile="cuda_sm_7_0"`. Report the forwarded CUDA capability and the shorthand translation in `notes`; use a `profile` origin for a capability synthesized by the shorthand, and retain existing origins for already supplied equivalent inputs. `profile_automatic` continues to indicate whether the user omitted the selector.
 
-Profiles remain independently useful in the measured compiler versions. DXIL capabilities alone leave DXC on a default model, while an explicit profile selects the intended model. SPIR-V profiles introduce feature bundles in addition to a version. Preserve those explicit profile semantics; the minimal SPIR-V compatibility profile is for automatic selection only. For example, `profile="spirv_1_6"` deliberately requests that profile's bundle, whereas automatically resolving raw `_spirv_1_6` should not silently add it.
-
-Reconcile native-family explicit profiles with capability inputs before creating the session, preserving whether each input came from device detection, an authoritative user list, or an override. A request for `profile="sm_6_6"` must not silently retain a device-derived `_sm_6_9` assumption. Remove higher inherited version inputs and report each adjustment. Reject known higher explicit version assumptions rather than silently rewriting them. A `True` override has explicit provenance even if that name was already detected. Lower version inputs remain compatible: they do not express a maximum.
-
-For retained features with known higher-version dependencies, reject the conflict regardless of whether the feature was inherited or explicit. Do not silently remove features to fit a profile. An error must identify the feature, its origin, the required version, the requested profile, and remedies: remove the conflicting inputs, supply an authoritative list, or choose a suitable profile. Include native SER markers/aliases requiring SM 6.9 and tested SPIR-V feature dependencies, such as physical storage buffers requiring 1.3 and cooperative matrices requiring 1.6. Keep bounded adapters with source references and regression evidence (SLANG-W005), not an independent copy of Slang's capability graph. Milestone 1a showed the actual Vulkan device list still emits 1.6 under a 1.3 profile after every raw version input is removed. Unknown implications remain compiler behavior; document the limit of local validation rather than promising a ceiling.
-
-The supported native profile families are DX for D3D12, SPIR-V for Vulkan, and Metal for Metal. Validate names using the loaded compiler and family compatibility using documented adapters. Preserve stage-specific profiles, with Slang reporting incompatibilities when entry points are compiled; recommend stage-neutral profiles for mixed-stage sessions. CUDA, CPU, and WGSL require `profile=None` in the initial contract because no corresponding profile family exists in the inspected compiler. Reject meaningless cross-family selections even when a simple shader happens to compile.
-
-Vulkan's DX and GLSL profiles are a supported advanced exception: require an explicit `capabilities` list (which can be empty), pass the profile through to Slang, and report that its mapping is compiler-defined. Do not automatically mix these profiles with detected capabilities or guess a universal cross-family version ceiling. Additional explicit capabilities retain Slang's additive semantics in this mode. The probe emitted SPIR-V 1.4 for `sm_6_6` and 1.3 for `glsl_460`; these are observations for the tested compiler, not hard-coded conversion rules. The legacy `shader_model` transition path remains separate and preserves its existing Vulkan behavior.
-
-Overrides continue to edit capability inputs only. Removing an input does not subtract requirements supplied by a profile and is not, by itself, a conflict. Report known profile-provided assumptions that remain after removal, and document remaining implication limits. Neither an explicit profile nor restrictive checking guarantees a universal upper bound on shader requirements or emitted versions.
-
-Retain `downstream_args` as an advanced escape hatch, but detect contradictory architecture settings in both session and link options. Define conflict behavior as an error instead of depending on downstream argument order.
-
-Expose a read-only resolution report on the session, with proposed name `target_info`. Include the selected output target, requested profile and whether selection was automatic, resolved profile, supplied capability inputs and their origins, inputs removed during profile reconciliation, compiler capability names actually forwarded, generated downstream arguments, ignored detected names, and compatibility notes. Do not call a list the complete effective capability closure unless Slang can actually provide that information. Keep device-reported capabilities and session-selected capabilities distinct.
+Keep requested options distinct from forwarded inputs, report removed higher inherited tiers and ignored detected names, and preserve deterministic session/cache identities. Do not report a complete implication closure, observed PTX target, or verified hardware/output ceiling. Reports must contain no claims of eager or exact CUDA validation after milestone 5b.
 
 ## CUDA Compatibility Strategy
 
 
-First implement the existing upstream path for recognized CUDA capabilities. This is substantially simpler than always manufacturing NVRTC flags and directly addresses CC 8.0/8.9/9.0 selection.
+Use the same upstream capability-to-NVRTC path for `profile="cuda_sm_7_0"` and an equivalent capability input. No separate NVRTC discovery, support table, toolkit loading, or generated architecture override is needed. Keep rejecting user-provided architecture flags at session and link scope because the measured NVRTC toolchain rejects duplicate flags even when their values match.
 
-For exact tiers RHI knows but Slang does not, extend Slang's capability registry and architecture mapping upstream. The proposed fallback using a known compiler tier plus an appended exact NVRTC architecture was rejected by step 1: NVRTC 12.2 rejects the duplicate architecture argument, including identical values. Do not implement that bridge. A different mechanism would need its own validation. Architecture-specific variants with suffixes such as `a` or `f` must not be guessed from numeric ordering.
+All CUDA selections become compiler input assumptions, whether inherited, supplied in a list, added by an override, or selected through `profile`. Remove the provenance-dependent exact-output contract implemented in milestone 3. Do not compile or parse PTX eagerly to verify the selected tier. Ordinary RHI compilation, specialization, deferred pipeline behavior, caching, and hot reload apply to explicit requests as well as defaults. The actual downstream compiler and driver retain responsibility for compilation/load failures, which SlangPy must propagate.
 
-Slang already emits an architecture argument and appends user downstream arguments afterward (`source/compiler-core/slang-nvrtc-compiler.cpp:1382`). Step 1 observed `--gpu-architecture (-arch) defined more than once` on both Slang versions with NVRTC 12.2. Furthermore, half-using code with selected tier 5.0 emitted `sm_60`, demonstrating that code generation can require a newer architecture. Prefer an upstream explicit architecture option or corrected version mapping, with validation against code requirements, over duplicate flags.
+For example, selecting 5.0 for half-using code can still produce `sm_60`, and NVRTC 12.2 can raise tier 1.0 to its minimum `sm_50`. Under the new contract these are documented compiler behaviors, not SlangPy validation failures. Keep those observations as probe/artifact evidence rather than tests requiring wrapper rejection. Do not claim all upgrades produce warning 41012; output can change without that diagnostic.
 
-Validate three separate facts: the running device supports executing the result; Slang recognizes the semantic features being used; and the actual NVRTC version accepts the requested architecture. A compiler-known maximum is not a toolkit-supported maximum. Inspect the emitted PTX `.target` and `.version`, and reject unsupported or contradictory requests. Automatic defaults may use a documented older compatible architecture when tooling lags hardware, but report that choice. Explicit exact requests must not silently downgrade.
+Retire `validate_cuda_program`, its invocation before RHI program creation, the fully-specialized-program requirement, and `PersistentCache::expect_entry` with its in-memory expected-output digests/read guards when no independent caller remains. Ordinary cache behavior and format remain intact. This explicitly relinquishes the additional toolkit-drift/output-identity check that W007 supplied; no replacement guarantee is implied. Retain ordinary cache separation for different resolved inputs and link options, and normal warm-cache/reload regressions.
 
-Milestone 3 implements exact numeric selection when the highest forwarded CUDA version originates from an explicit list or True override. `validate_cuda_program` requests each entry point's PTX from the actual linked component/toolchain before handing it to RHI. It rejects any target mismatch, upward or downward, and retains downstream compilation diagnostics. This is link-time validation, not a session-creation toolkit query. It also runs on hot reload and cannot be bypassed by an RHI cache hit. The driver remains responsible for PTX ISA support when loading the pipeline. Device-derived highest versions retain input-assumption semantics, including when a lower explicit version is added.
-
-Validation registers each successful output digest with the device's `PersistentCache`. Cache reads for those entry-point keys must match the validated bytes or return a miss; RHI then uses the already generated component output. This is necessary because the Slang entry-point key does not fully identify the downstream toolchain. Expectations live in memory for the cache/device lifetime, are synchronized for concurrent reads, and do not change the persistent format or unregistered-entry behavior. Test the read boundary directly with stale/matching/overwritten entries, in addition to end-to-end warm-cache dispatch.
-
-The current public RHI API does not expose compiled code after runtime specialization or cached-code retrieval. Exact requests therefore require fully specialized programs at link time; runtime specialization receives an actionable error. The eager check can add compilation work on persistent-cache hits and overrides deferred compilation for explicit requests. Track this bounded workaround as SLANG-W007. Remove these costs/restrictions when upstream can enforce exact architecture at its normal code-generation/cache boundary. Missing tiers still require upstream registry/mapping work; architecture suffixes are not approximated.
+Record W007 as retired because the API contract changed, not because Slang fixed exact targeting. Its measured upstream defects and any future exact-architecture API remain documented. Such an API would require a separate proposal; it must not reappear implicitly because an input happens to have explicit provenance.
 
 ## Plan of Work
 
+
+Milestones 1-4 below are historical implementation records. The next work is milestone 5; its revised contract supersedes earlier exact-output and general dependency-validation requirements. The user requested this plan revision before execution, so none of milestone 5 is implemented by this document update.
 
 ### Milestone 1: Establish compiler behavior with small probes
 
@@ -243,6 +255,30 @@ Migrate `slangpy/testing/helpers.py` and scalar-type tests in `slangpy/tests/dev
 
 Regenerate Python stubs, binding documentation, and API docs using the repository's build/documentation workflow. Generated `.pyi` files are ignored build outputs and should not be hand-edited as the implementation. Update examples to demonstrate backend-specific names, None versus empty, automatic versus explicit profiles, profile/capability reconciliation and errors, SER selection, unknown names, and the limitations of subtraction. Explain that `profile="sm_6_6"` provides direct D3D profile control, while CUDA uses capabilities and an explicit SPIR-V profile requests its associated feature bundle.
 
+### Milestone 5: Make profiles the primary version selector and simplify validation
+
+
+#### Milestone 5a: Resolve backend selectors and preserve essential SER behavior
+
+
+In `src/sgl/device/compiler_target.cpp`, recognize CUDA profile shorthand before ordinary Slang profile lookup. Reuse known numeric-family parsing/canonicalization and capability lookup; reconcile directly supplied versions with the selected profile, inject the CUDA requirement, and populate the report without a CUDA Slang profile ID. Keep direct numeric device checks and runtime prerequisites. Reduce `required_version`'s feature table to the small native-SER profile adapter; remove generalized Vulkan/CUDA feature-dependency validation. Keep deterministic normalization, mandatory baselines, downstream target-flag checks, and unknown-name reporting.
+
+Update option/report comments in `src/sgl/device/shader.h`, corresponding binding documentation in `src/slangpy_ext/device/shader.cpp`, and tests in `slangpy/tests/device/test_compiler_capabilities.py`. Add CUDA profile acceptance, None/empty semantics, higher inherited-tier removal, explicit numeric conflicts, unknown/wrong-backend names, profile-versus-removal precedence, report provenance, and an actual compute dispatch. Preserve native and NVAPI SER artifact/runtime tests in `test_compiler_target_output.py`; cover auto native-SER profile selection and an explicitly insufficient model. Keep the old exact enforcement isolated until 5b; 5a is an intermediate implementation checkpoint, not the final user contract.
+
+#### Milestone 5b: Retire exact CUDA enforcement and its cache machinery
+
+
+Remove `validate_cuda_program` and its declaration in `src/sgl/device/compiler_target.h`, invocation in `ShaderProgram::link` in `shader.cpp`, and exact-policy notes. Remove `PersistentCache::expect_entry`, its associated state, synchronization, and conditional cache-read validation from `src/sgl/device/persistent_cache.h/.cpp` after checking callers. Remove the dedicated `validated_shader_cache_entries` test in `tests/sgl/device/test_persistent_cache.cpp` with that obsolete API; preserve unrelated cache coverage and synchronization.
+
+Rewrite CUDA tests that currently expect target mismatch or runtime-specialization rejection. Demonstrate explicit-profile/list/override compilation under ordinary semantics, including observed code/toolkit uplift, deferred compilation where supported, runtime specialization, warm-cache reuse, and hot reload. Verify unsupported compiler names and actual downstream/driver failures still surface. Keep ordinary cache identity tests and emitted-output observations; do not weaken a failing correctness test by merely deleting its assertion. Replace stale-artifact enforcement tests with coverage relevant to the retained ordinary cache contract, without claiming protection from arbitrary toolkit changes or invalid cached bytes.
+
+#### Milestone 5c: Publish the narrower contract and verify it
+
+
+Rewrite `docs/src/compiler_targets.rst` around profile-first examples for D3D12/Vulkan/CUDA, advanced capability inputs, SER selection, and the distinction between requested inputs and emitted requirements. Explicitly document the change from exact CUDA requests to assumptions for all input origins. Regenerate binding docstrings, stubs, and affected API reference blocks through the existing build/documentation workflow; do not hand-edit generated stubs.
+
+Update `plan/slang-compiler-workarounds.md`: record the CUDA shorthand as a small compatibility translation (new W009 if implemented), narrow W005 to surviving normalization/direct checks and essential SER metadata, and mark W007 retired by policy change after its code is actually removed. Preserve historical evidence/removal gates for upstream exact targeting. Revalidate retained W001/W002/W004/W006/W008 adapters; W003 remains retired as a suppression, with its inference defect still documented. Record available-backend test results and cross-platform limits. This is complete when the planned public semantics, normal CUDA lifecycle, SER paths, cache behavior, and documentation agree.
+
 ## Concrete Steps
 
 
@@ -304,17 +340,29 @@ Binding docstrings and Python stubs were regenerated. Full API generation was pr
 ## Validation and Acceptance
 
 
-The API must accept device defaults, an authoritative list, overrides, and an optional explicit profile with the exact documented semantics. Explicit unknown names fail early; detected unknown names appear in the resolution report. Empty capability inputs retain documented mandatory baselines and any separately selected profile's requirements. Capability and profile lookup must use strings at the boundary and never persist compiler-specific numeric IDs.
+For milestone 5, demonstrate that `profile="sm_6_6"`, `profile="spirv_1_6"`, and `profile="cuda_sm_7_0"` request the corresponding backend inputs through the existing API. CUDA shorthand must be accepted without Slang profile lookup, preserve the requested string, report the actual null Slang profile plus forwarded capability, and execute on compatible hardware. Test `None`, empty lists, higher inherited numeric removal, direct explicit conflicts, and unsupported names/backend families. Preserve explicit SPIR-V bundle semantics and advanced Vulkan profile mapping.
 
-Profile tests must cover automatic selection, an explicit lower D3D profile on a device reporting higher model inputs, explicit contradictory user assumptions, and known features implying higher versions. Check emitted output and the explanation of inherited-input adjustments. SPIR-V tests must distinguish an explicit profile's feature bundle from automatic raw-version selection, including empty inputs and removal overrides. Validate bad names and backend compatibility. CUDA tests must establish that adding the profile field does not replace architecture capabilities or invent CUDA profiles. Do not assert universal ceilings unsupported by the compiler.
+Validate that capability removal edits inputs only. Feature implications outside the essential SER adapter must be left to Slang; do not expect local feature-graph errors or a universal emitted-version ceiling. Unknown device inputs remain disclosed; explicit unknown additions fail. Check that a profile's required input survives a removal override with an explanation, and that an added lower tier without a profile does not remove higher inherited inputs.
 
-CUDA tests must distinguish requested tier from observed PTX target, test lower-tier requests on newer hardware, exercise missing intermediate and newer tiers, reject toolkit-unsupported requests, and cover a shader that genuinely requires a higher tier. Session/link downstream argument conflicts must have deterministic errors.
+Both native and NVAPI SER must still compile to their selected representations and execute. Auto native SER must obtain a suitable DX profile, an explicitly insufficient DX profile must fail clearly, and runtime prerequisites must still be checked. Capability-upgrade warnings remain visible and optionally controllable, without claiming every emitted upgrade is diagnosed.
 
-D3D tests must demonstrate actual DXC profile selection and native/NVAPI HitObject code paths. Vulkan tests must check SPIR-V version and extension declarations, including a lower-version request and existing wave/int64 coverage. Metal tests must certify any removed version workaround on macOS. Tests for explicit `[require]` must prevent overstating restrictive validation as a complete capability ceiling.
+Explicit CUDA selections must regain ordinary runtime specialization, deferred compilation where supported, warm-cache reuse, and hot reload. There must be no wrapper-side eager PTX validation, output-digest registration, or provenance-triggered exact policy. Actual shader/toolkit errors remain errors. A half-code 5.0 request and a below-toolkit-minimum request may produce higher PTX targets: record this as evidence of the documented assumption contract. Do not assert driver acceptance on incompatible hardware.
 
-Cache tests must show that changed resolved profiles/architectures/options separate cache entries and that input-order changes alone do not. Hot reload must retain the selected policy. Legacy behavior must be exercised during the transition, including conflict errors and deprecation diagnostics.
+Run these commands from `C:/projects/slangpy` after implementation, building before tests:
+
+    cmake --build --preset windows-msvc-debug -j 8
+    pytest slangpy/tests/device/test_compiler_capabilities.py slangpy/tests/device/test_compiler_target_output.py slangpy/tests/device/test_shader.py slangpy/tests/device/test_shader_cache.py slangpy/tests/device/test_pipeline.py slangpy/tests/device/test_type_conformance.py slangpy/tests/device/slang -q
+    pytest slangpy/tests/device/test_compiler_capabilities.py --device-types cpu -q
+    ./build/windows-msvc/Debug/sgl_tests.exe --test-suite=device,hot_reload,persistent_cache
+    pytest slangpy/tests/slangpy_tests -q
+    pre-commit run --all-files
+
+Use the existing docstring/stub/API regeneration commands in Concrete Steps and rebuild after changing generated binding documentation. Preserve logs under `build/compiler-target-milestone5-*.log`. Available backends should pass; document genuine hardware/backend skips. Metal/WebGPU and other CUDA toolkits/hardware remain CI follow-up coverage. Planning-only edits require pre-commit and a diff check, not a build or runtime test run.
 
 ## Surprises and Discoveries
+
+The 2026.18.2 upgrade reproduced all 150 recorded observation checks across 164 probes; no capability/profile/CUDA adapter became obsolete. This motivated a narrower product contract rather than more wrapper enforcement. The distinction between a public SlangPy selector and an actual Slang profile permits CUDA shorthand without fabricating an upstream profile or an NVRTC architecture override.
+
 
 
 Milestone 4 reproduced the original ray-payload issue with `slangpy/tests/device/test_pipeline_rt.slang`: separately compiled miss shaders at SM 6.9 lack `[raypayload]`, and DXC rejects them. The standalone whole-program probes did not cover this boundary. DXC's `-disable-payload-qualifiers` fixes this case without lowering the profile. SLANG-W004 now applies that option for automatic/explicit D3D profiles 6.7 and above unless the session explicitly selects payload-qualifier behavior; a conflicting link-only enable is rejected with migration guidance. Regression coverage compiles real ray pipelines at 6.6/6.7/6.9, preserves the reported profile, and exercises caller overrides.
@@ -340,6 +388,11 @@ Step 1 confirmed an additional SER bug: each individually selected implementatio
 Milestone 1a showed that DX capability validation and DXC model selection can disagree even in strict mode: profile 6.0 plus capability 6.6 accepts an annotated helper but fails downstream for actual WaveMatch. Native SER implications similarly do not raise the DXC profile. For SPIR-V, both higher raw versions and feature dependencies can raise the emitted version above the profile; the real device list still emits 1.6 with a 1.3 profile after stripping raw versions. Explicit profile 1.6 continues to supply physical-storage-buffer assumptions after that input is removed. Several irrelevant profile families compile successfully, so lookup or simple compilation alone cannot establish useful backend compatibility.
 
 ## Decision Log
+
+2026-09-24, agreed plan revision (not executed): define `profile` as SlangPy's backend compilation selector, including CUDA capability shorthand. Rationale: a unified version-selection API is useful now, irrespective of whether Slang eventually aliases profiles and capabilities. Keep capabilities/overrides as advanced input editing and retain observable translation.
+
+2026-09-24, agreed plan revision (not executed): drop exact CUDA enforcement for every input origin, reduce generic dependency metadata, and preserve minimal SER/backend adapters. Rationale: Slang lacks a consistent output-ceiling contract; enforcing one locally adds eager compilation, cache overhead, and specialization restrictions beyond the intended API. W007 retirement will be a deliberate contract change, not an upstream fix. The specific direct-conflict, profile-precedence, report, and SER rules in this revision are the implementation choices for the next milestone.
+
 
 2026-09-23, milestone 4: retire the legacy API and opt-in switch in this breaking change. The user explicitly wanted `shader_model` to go away, and all available-backend validation milestones have passed. Default sessions now start from detected compiler inputs; fresh sessions still use fresh option descriptors. Retain deprecated shader-model macros: fetched NVAPI headers actively consume them. They describe the actual D3D profile and are zero on other backends. A sample notebook contains historical printed `supported_shader_model` output only; no sample source migration or submodule revision change is needed.
 
@@ -375,16 +428,19 @@ Milestone 1a showed that DX capability validation and DXC model selection can di
 ## Idempotence and Recovery
 
 
-Keep probes and new resolution code separate from the legacy path until validated. Use distinct build directories for compiler-version comparisons. No source or submodule changes are required merely to read this plan. Do not overwrite user compiler caches, commit submodule changes, or update external repositories as part of a speculative probe. If a backend fails, retain its documented compatibility adapter and a minimal reproduction rather than reverting the entire API design.
+The legacy shader-model path has been removed. Implement milestone 5 in reviewable stages on the existing resolver; retain historical probe outputs rather than rewriting observations to match a new policy. Use distinct build directories for compiler-version comparisons. No source or submodule changes are required merely to read this plan. Do not overwrite user compiler caches, commit submodule changes, or update external repositories as part of a speculative probe. If a backend fails, retain its documented compatibility adapter and a minimal reproduction rather than reverting the entire API design.
 
 ## Interfaces and Dependencies
 
 
-No new runtime package dependency is needed. Use the existing Slang API, slang-rhi device reports, standard C++ containers, and nanobind. The proposed resolver produces an immutable per-session target resolution. The public options are `profile`, `capabilities`, and `capability_overrides`. Automatic profile derivation, compiler version translation, generated downstream flags, and compatibility tables remain implementation details visible through diagnostics. Preserve requested profile and input origins separately from resolved compiler settings.
+No new runtime package dependency is needed. Use the existing Slang API, slang-rhi device reports, standard C++ containers, and nanobind. The proposed resolver produces an immutable per-session target resolution. The public options are `profile`, `capabilities`, and `capability_overrides`. Automatic profile derivation, CUDA profile-to-capability translation, and essential backend adapters remain implementation details visible through diagnostics. Avoid general dependency tables; retain only direct version handling and the necessary SER facts. Preserve requested profile and input origins separately from resolved compiler settings.
 
-Priority upstream work is broader CUDA tier coverage and exact architecture selection; public capability implication/introspection or disable support; precise device-to-compiler mappings in RHI, particularly Vulkan subgroup/atomic support and native SER; and an explicit capability-set replacement policy in RHI sessions if shared ownership is desired later.
+Priority upstream work is broader CUDA tier coverage and, independently of this API, any future exact architecture option; public capability implication/introspection or disable support; precise device-to-compiler mappings in RHI, particularly Vulkan subgroup/atomic support and native SER; and an explicit capability-set replacement policy in RHI sessions if shared ownership is desired later.
 
 ## Outcomes and Retrospective
+
+2026-09-24 planning outcome: the next milestone is specified but unimplemented. Public option types remain unchanged; the planned change makes profiles primary, adds CUDA shorthand, and intentionally relaxes previous exact-output guarantees. Current code, runtime documentation, and test behavior still implement the completed migration/upgrade. The following dated outcomes are historical and do not override milestone 5.
+
 
 
 Milestone 4 applies capability resolution to every session and removes `ShaderModel`, `shader_model`, `supported_shader_model`, and the transition-only `target_info.legacy` flag. The public `profile`, `capabilities`, and `capability_overrides` contract remains unchanged. Documentation now describes device defaults and migration; tests use native profiles instead of cross-backend model numbers. Warning 41012 is visible, with permissive defaults and existing per-session warning controls. NVAPI's shader-model macros remain deprecated compatibility defines. The actual payload regression surfaced only with separate ray entry-point compilation, so SLANG-W004 now disables DXC payload qualifiers instead of lowering profiles; the report and ledger disclose it, and session overrides remain available. Master has not been retested for this specific regression.
@@ -416,3 +472,5 @@ Revision note, 2026-09-23, milestone 3: added bounded exact CUDA output validati
 Revision note, 2026-09-23, milestone 4: migrated defaults and retired the legacy shader-model API, exposed upgrade warnings, retained NVAPI compatibility defines, and replaced the old profile downgrade with a documented payload-qualifier adapter. Updated migration/API documentation and backend-native scalar tests. Cross-platform/toolkit validation and upstream workaround removal gates remain follow-up work.
 
 Release follow-up, 2026-09-23: [the Slang 2026.18.2 upgrade](slang-release-upgrade.md) reruns the removal gates and records the new default compiler. All 150 observation checks across 164 probes remain unchanged; W001-W007 keep their migration status. The audit removes an older redundant source-module digest guard while retaining its source-prefix counterpart, now tracked as W008. See the separate plan and workaround ledger for upgrade validation results.
+
+Revision note, 2026-09-24: revised the active contract and added milestone 5 before execution, as requested. Supersedes literal-only profile semantics, provenance-dependent exact CUDA validation, and broad feature-dependency reconciliation; preserves input editing, essential SER behavior, useful profile bundles, reporting, and measured compiler evidence.
