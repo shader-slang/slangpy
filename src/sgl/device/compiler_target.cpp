@@ -2,6 +2,9 @@
 
 #include "compiler_target.h"
 #include "sgl/core/error.h"
+#include "sgl/core/logger.h"
+#include "sgl/device/slang_utils.h"
+#include "sgl/device/persistent_cache.h"
 
 #include <algorithm>
 #include <charconv>
@@ -177,8 +180,10 @@ SlangTargetInfo resolve_compiler_target(
     );
     if (type == DeviceType::cuda)
         result.notes.push_back(
-            "CUDA architecture also depends on Slang code requirements and the downstream toolkit; exact architecture "
-            "validation is not yet available."
+            "CUDA architecture also depends on shader code and the downstream toolkit. An explicitly selected highest "
+            "numeric CUDA tier is checked against entry-point PTX at link time and requires a fully specialized "
+            "program. "
+            "Device-derived tiers remain compiler assumptions, not exact architecture requests."
         );
 
     auto family = native_family(type);
@@ -319,6 +324,92 @@ SlangTargetInfo resolve_compiler_target(
     for (const auto& [name, origin] : inputs)
         result.capabilities.push_back(name);
     return result;
+}
+
+void validate_cuda_program(slang::IComponentType* program, const SlangTargetInfo& target_info, PersistentCache* cache)
+{
+    if (target_info.legacy || target_info.target != "ptx")
+        return;
+
+    Version selected;
+    bool explicit_version = false;
+    for (const auto& [name, origin] : target_info.capability_origins) {
+        auto version = version_name(name);
+        if (version.family == Family::cuda && version.version > selected) {
+            selected = version.version;
+            explicit_version = origin == "explicit" || origin == "override";
+        }
+    }
+    if (!explicit_version)
+        return;
+
+    // SLANG-W007: RHI owns deferred/specialized compilation and persistent cache reads. Its public
+    // API has no generated-code validation hook. Validate eagerly through the actual linked Slang
+    // component; RHI reuses its generated code, and this check cannot be bypassed by an RHI cache hit.
+    // Do not advertise exact validation for code that only becomes known at dispatch time.
+    SGL_CHECK(
+        program->getSpecializationParamCount() == 0,
+        "Exact CUDA target {}.{} requires a fully specialized program at link time; specialize the shader before "
+        "linking or use device-derived capabilities for runtime specialization",
+        selected.major,
+        selected.minor
+    );
+    slang::ProgramLayout* layout = nullptr;
+    SGL_CATCH_INTERNAL_SLANG_ERROR(layout = program->getLayout());
+    SGL_CHECK(layout, "Failed to get program layout for CUDA target validation");
+    for (SlangUInt index = 0; index < layout->getEntryPointCount(); ++index) {
+        Slang::ComPtr<ISlangBlob> code;
+        Slang::ComPtr<ISlangBlob> diagnostics;
+        SlangResult status = SLANG_FAIL;
+        SGL_CATCH_INTERNAL_SLANG_ERROR(
+            status = program->getEntryPointCode(index, 0, code.writeRef(), diagnostics.writeRef())
+        );
+        auto diagnostic_text = diagnostics
+            ? std::string(static_cast<const char*>(diagnostics->getBufferPointer()), diagnostics->getBufferSize())
+            : std::string();
+        SGL_CHECK(
+            SLANG_SUCCEEDED(status) && code,
+            "Failed to compile entry point '{}' for exact CUDA target {}.{}; the shader and loaded NVRTC toolkit "
+            "must support this architecture. {}",
+            layout->getEntryPointByIndex(index)->getName(),
+            selected.major,
+            selected.minor,
+            diagnostic_text
+        );
+        if (!diagnostic_text.empty())
+            log_warn("Slang compiler warnings:\n{}", diagnostic_text);
+        std::string ptx(static_cast<const char*>(code->getBufferPointer()), code->getBufferSize());
+        std::smatch target_match;
+        std::smatch version_match;
+        // Match directives at line starts, not occurrences in generated comments or identifiers.
+        const std::regex target_pattern(R"((?:^|\n)[ \t]*\.target[ \t]+(sm_[0-9]+[a-z]*)(?:[ \t,\r\n]|$))");
+        const std::regex version_pattern(R"((?:^|\n)[ \t]*\.version[ \t]+([0-9]+\.[0-9]+)(?:[ \t\r\n]|$))");
+        SGL_CHECK(
+            std::regex_search(ptx, target_match, target_pattern)
+                && std::regex_search(ptx, version_match, version_pattern),
+            "Cannot validate exact CUDA target {}.{}: generated code has no recognized PTX target/version header",
+            selected.major,
+            selected.minor
+        );
+        auto expected = fmt::format("sm_{}{}", selected.major, selected.minor);
+        SGL_CHECK(
+            target_match[1].str() == expected,
+            "Exact CUDA target {}.{} requested {}, but entry point '{}' emitted {} (PTX {}). Shader requirements "
+            "or the NVRTC toolkit changed the architecture; choose a matching supported capability or use "
+            "device-derived capabilities",
+            selected.major,
+            selected.minor,
+            expected,
+            layout->getEntryPointByIndex(index)->getName(),
+            target_match[1].str(),
+            version_match[1].str()
+        );
+        if (cache) {
+            Slang::ComPtr<ISlangBlob> key;
+            SGL_CATCH_INTERNAL_SLANG_ERROR(program->getEntryPointHash(index, 0, key.writeRef()));
+            cache->expect_entry(key, code);
+        }
+    }
 }
 
 } // namespace sgl

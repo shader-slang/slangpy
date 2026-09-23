@@ -1,10 +1,10 @@
 # Slang compiler workaround ledger
 
-Updated 2026-09-23 through milestone 2 of [the capability migration](compiler-capabilities.md).
+Updated 2026-09-23 through milestone 3 of [the capability migration](compiler-capabilities.md).
 
 Record every compiler workaround introduced during this migration here, and refer to its ID from implementation comments. Each entry must distinguish production behavior from a probe, name the upstream fix, and state a removal test. Update the affected compiler versions and evidence whenever changing or removing it. Do not treat a passing expected-failure probe as a reason to preserve the compiler defect.
 
-Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in resolver and its required adapters. Existing legacy defaults remain in place for callers who do not opt in. Probe results are documented in [the initial probe report](compiler-capabilities-probe-results.md) and [the profile interaction report](compiler-profile-probe-results.md). Production regression coverage is in `slangpy/tests/device/test_compiler_capabilities.py` against pinned Slang 2026.17.1; master was probed through the standalone session API, not substituted into the production build.
+Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in resolver and its required adapters; milestone 3 adds exact CUDA output checks and backend artifact/runtime coverage. Existing legacy defaults remain in place for callers who do not opt in. Probe results are documented in [the initial probe report](compiler-capabilities-probe-results.md) and [the profile interaction report](compiler-profile-probe-results.md). Production regression coverage is in `slangpy/tests/device/test_compiler_capabilities.py` and `test_compiler_target_output.py` against pinned Slang 2026.17.1; master was probed through the standalone session API, not substituted into the production build.
 
 ## SLANG-W001: Derive a DXIL profile from selected shader-model capabilities
 
@@ -94,11 +94,29 @@ Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in reso
 
 **Removal gate:** The standalone empty-selection restrictive probe rejects the missing inferred requirement on every supported compiler without adding a baseline input. SlangPy may continue to report the mandatory backend assumption as API documentation even when explicitly forwarding it is no longer necessary.
 
-## Open upstream gaps without an implemented workaround
+## SLANG-W007: Validate explicit CUDA targets using eagerly generated PTX
+
+**Status:** Implemented in milestone 3 in `validate_cuda_program` (`src/sgl/device/compiler_target.cpp`), called by `ShaderProgram::link` before creating the RHI program. Production tests use pinned Slang 2026.17.1 and NVRTC 12.2.
+
+**Problem:** Slang can emit a different architecture from an explicitly selected numeric CUDA capability. Half-using code with tier 5.0 emits `sm_60`; the toolkit minimum raises tier 1.0 to `sm_50` on NVRTC 12.2. Restrictive capability checking is not an exact architecture contract. Runtime specialization, deferred compilation, and persistent-cache reads occur inside RHI, which has no public generated-code validation hook.
+
+**Local adaptation:** If the highest forwarded numeric CUDA tier has explicit/override provenance, require a fully specialized linked component, compile every entry point with that component's actual options/toolchain, parse the PTX `.target` and `.version`, and reject target mismatches. Preserve downstream compiler diagnostics on failure. Execute this check on initial link and hot reload before RHI can use a persistent cache. Inherited highest versions and empty selections retain assumption semantics. No architecture flag is appended, no unrelated NVRTC library is loaded, and no toolkit support table is copied. The actual compile establishes toolkit acceptance; the CUDA driver still checks PTX ISA compatibility on pipeline creation.
+
+**Cost and limitation:** Exact requests compile eagerly even for deferred pipelines, and validation may perform compilation despite an existing RHI persistent cache. Runtime interface specialization is rejected for exact requests, rather than claiming to validate code that does not exist yet. Checking `.target` is not semantic capability subtraction; a requirement annotation alone can leave the PTX target unchanged.
+
+**Cache boundary:** `PersistentCache::expect_entry` registers a digest of validated PTX under the entry-point key. `queryCache` checks registered expectations on every read and returns a miss for different bytes, so RHI falls back to the already validated component. This handles old downstream-toolchain artifacts under the same Slang key, including subsequent stale writes; checking freshly compiled output alone would not validate the artifact RHI actually reads. Expectations are in-memory and scoped to the device/cache lifetime. The native `validated_shader_cache_entries` test covers stale, matching, and subsequently overwritten entries.
+
+**Regression evidence:** `test_cuda_exact_target` covers half-code and toolkit-minimum uplift, matching output, overrides, and semantic-annotation limits; `test_cuda_runtime_specialization` distinguishes exact from inherited policy; the two cache tests include an incompatible pre-existing artifact under the same resolved session digest; `test_cuda_exact_target_failed_reload` verifies failed validation preserves the previous working kernel and a subsequent valid reload succeeds. `test_emitted_version` checks PTX target/version alongside real execution.
+
+**Proper Slang implementation:** Expose an exact CUDA architecture option that validates both generated-code requirements and the selected downstream toolkit and emits one architecture flag. Include that contract in compiler/code-cache identity. RHI should apply any output validation hook after specialization and on both fresh code and cache hits, allowing lazy compilation without a wrapper-side eager pass.
+
+**Removal gate:** Tier 5.0 plus half code and tier 1.0 below the toolkit minimum fail with clear upstream errors; matching tiers compile; unsupported toolkit targets fail without substitution; runtime-specialized, deferred, cached, and hot-reloaded programs honor the same selection. Then remove eager generation/parsing and the runtime-specialization restriction from SlangPy.
+
+## Remaining upstream gaps
 
 **CUDA tiers:** RHI and NVRTC 12.2 support this machine's CC 7.5, but Slang does not recognize `cuda_sm_7_5` or `_cuda_sm_7_5`. The RHI-style recognized-name filter in the probe reduces its device list to CC 7.0, and generated PTX targets `sm_70`. Slang also lacks 8.6 and newer numeric tiers. Fix the capability definitions and downstream mapping upstream. Until then, disclose filtering; do not promise an exact unsupported tier.
 
-**CUDA exact ceilings:** With `cuda_sm_5_0`, half-using shader code emits `sm_60`. Strict checking is not a complete architecture ceiling. A complete upstream contract must validate selected architecture against code-generation requirements and toolkit support. Explicit entry-point requirements also bypass the normal restrictive comparison, and an empty selection can skip it entirely.
+**CUDA exact ceilings:** SLANG-W007 rejects mismatched emitted architectures for explicit numeric selections on fully specialized programs. A complete upstream contract is still needed for runtime specialization, lazy/cache-efficient compilation, and semantic capability constraints. Explicit entry-point requirements can bypass the normal restrictive comparison without changing the emitted target; matching PTX is not proof of a semantic ceiling.
 
 **RHI subgroup reporting:** The physical Vulkan device supports wave operations, but its reported compiler list lacks `spvGroupNonUniformArithmetic`; strict wave compilation fails. This belongs primarily in slang-rhi discovery, not in Slang's compiler implementation. Do not conceal it in a generic Slang workaround. The int64-atomic probe does pass strict checking despite the raw-list gap, so the two findings must not be conflated.
 

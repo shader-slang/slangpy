@@ -98,10 +98,42 @@ a copy. Reloading preserves the requested options and resolves them again.
 The report lists inputs actually passed to Slang, not the full set of implied
 capabilities or the final generated architecture. CUDA architecture can also
 depend on shader code and the installed toolkit. Missing exact CUDA tiers are
-rejected rather than approximated for explicit requests. Complete toolkit and
-emitted-architecture validation remains future work. Architecture/profile flags
-in downstream arguments conflict with the new policy and are rejected at both
-session creation and linking.
+rejected rather than approximated for explicit requests. Architecture/profile
+flags in downstream arguments conflict with the new policy and are rejected at
+both session creation and linking.
+
+Exact CUDA architecture requests
+--------------------------------
+
+When the highest selected numeric CUDA capability comes from an explicit list
+or a ``True`` override, linking compiles every entry point through the loaded
+Slang/NVRTC toolchain and checks its PTX ``.target``. For example,
+``capabilities=["cuda_sm_5_0"]`` fails when half-precision code emits ``sm_60``.
+An architecture changed by the toolkit minimum also fails. The error includes
+the requested architecture, actual target, and PTX version. Compilation failures
+retain the downstream diagnostics. Session creation alone does not certify that
+the toolkit accepts the target.
+
+This validation runs again on reload and before any RHI shader-cache lookup.
+Cached code for an exact request must match the validated output; a mismatch
+becomes a cache miss, so an older toolchain's artifact cannot bypass the check.
+It currently makes compilation eager at link time, including for deferred
+pipelines, and can add compilation work even when a persistent cache contains
+the shader. Exact requests require programs to be fully specialized when linked;
+runtime interface specialization is rejected because SlangPy cannot inspect its
+eventual output through the current RHI API. Specialize before linking or use
+device-derived inputs for such programs.
+
+An inherited highest CUDA version remains a compiler assumption. Adding a lower
+version does not turn it into an exact request or remove inherited higher
+versions. Device-derived and empty selections keep the existing deferred
+compilation behavior. The resolution report explains this distinction; it is a
+session snapshot, so it does not contain per-program PTX results.
+
+Matching PTX architecture does not establish a semantic capability ceiling or
+guarantee driver support for the PTX ISA version. The CUDA driver still validates
+the generated code when creating the pipeline. CUDA architecture suffixes and
+tiers absent from Slang remain unsupported explicit inputs.
 
 The existing warning policy remains in effect during this transition. Neither
 profiles, removal overrides, nor restrictive capability checks establish a

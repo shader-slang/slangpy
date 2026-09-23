@@ -3,6 +3,7 @@
 """Public target selection: real session inputs, diagnostics, caches, and execution."""
 
 from typing import Any
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -305,6 +306,141 @@ def test_cuda_selection(device_type: spy.DeviceType) -> None:
         assert unknown not in removed.target_info.ignored_capabilities
         with pytest.raises(RuntimeError, match="Unknown explicit capability"):
             device.create_slang_session({"capabilities": [unknown]})
+
+
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
+)
+def test_cuda_exact_target(device_type: spy.DeviceType) -> None:
+    device = helpers.get_device(device_type)
+    if "_cuda_sm_7_0" not in device.capabilities:
+        pytest.skip("Requires CUDA compute capability 7.0 or newer")
+    half_source = SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)")
+    exact = device.create_slang_session({"capabilities": ["cuda_sm_5_0"]})
+    module = exact.load_module_from_source("requires_half", half_source)
+    # Slang raises half-using code to at least sm_60, even with warning 41012 suppressed.
+    with pytest.raises(RuntimeError, match="Exact CUDA target 5.0.*emitted sm_"):
+        exact.link_program([module], [module.entry_point("capability_main")])
+    # This checks emitted architecture, not Slang's semantic requirement closure: an annotation
+    # alone need not change PTX, and the existing permissive capability policy remains in effect.
+    source = SOURCE.replace('[shader("compute")]', '[require(_cuda_sm_7_0)] [shader("compute")]')
+    assert run_shader(device, exact, source) == 7
+    # Selecting the actual required tier succeeds, including after session reconstruction.
+    matching = device.create_slang_session({"capabilities": ["cuda_sm_7_0"]})
+    assert run_shader(device, matching, source) == 7
+    device.reload_all_programs()
+    assert run_shader(device, matching, source) == 7
+    # NVRTC's minimum is separate from hardware support and Slang's capability registry.
+    ancient = device.create_slang_session({"capabilities": ["cuda_sm_1_0"]})
+    with pytest.raises(RuntimeError, match="Exact CUDA target 1.0.*emitted sm_"):
+        run_shader(device, ancient)
+    overridden = device.create_slang_session(
+        {"capabilities": [], "capability_overrides": {"cuda_sm_5_0": True}}
+    )
+    module = overridden.load_module_from_source("override_half", half_source)
+    with pytest.raises(RuntimeError, match="Exact CUDA target 5.0.*emitted sm_"):
+        overridden.link_program([module], [module.entry_point("capability_main")])
+
+
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
+)
+def test_cuda_runtime_specialization(device_type: spy.DeviceType) -> None:
+    device = helpers.get_device(device_type)
+    source = """
+interface IValue { uint get(); }
+struct Value : IValue { uint get() { return 7; } }
+ParameterBlock<IValue> value;
+RWStructuredBuffer<uint> output;
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void capability_main(uint3 tid : SV_DispatchThreadID) { output[tid.x] = value.get(); }
+"""
+    exact = device.create_slang_session({"capabilities": ["cuda_sm_5_0"]})
+    module = exact.load_module_from_source("runtime_specialization", source)
+    with pytest.raises(RuntimeError, match="requires a fully specialized program"):
+        exact.link_program([module], [module.entry_point("capability_main")])
+    inherited = device.create_slang_session({"capability_overrides": {"cuda": True}})
+    module = inherited.load_module_from_source("runtime_specialization", source)
+    assert inherited.link_program([module], [module.entry_point("capability_main")])
+
+
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
+)
+def test_cuda_exact_target_with_cache(device_type: spy.DeviceType, tmp_path: Path) -> None:
+    for iteration in range(2):
+        with spy.Device(type=device_type, shader_cache_path=tmp_path) as device:
+            if "_cuda_sm_7_0" not in device.capabilities:
+                pytest.skip("Requires CUDA compute capability 7.0 or newer")
+            session = device.create_slang_session({"capabilities": ["cuda_sm_7_0"]})
+            assert run_shader(device, session) == 7
+            if iteration:
+                assert device.shader_cache_stats.hit_count > 0
+            exact = device.create_slang_session({"capabilities": ["cuda_sm_5_0"]})
+            source = SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)")
+            module = exact.load_module_from_source("cache_mismatch", source)
+            with pytest.raises(RuntimeError, match="Exact CUDA target 5.0.*emitted sm_"):
+                exact.link_program([module], [module.entry_point("capability_main")])
+
+
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
+)
+def test_cuda_exact_target_rejects_preexisting_cache(
+    device_type: spy.DeviceType, tmp_path: Path
+) -> None:
+    source = SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)")
+    with spy.Device(type=device_type, shader_cache_path=tmp_path) as device:
+        # Keep 5.0 inherited so this remains an input assumption; it can generate sm_60.
+        automatic = device.create_slang_session(
+            {
+                "capability_overrides": {
+                    name: False
+                    for name in device.capabilities
+                    if name not in ("cuda", "_cuda_sm_5_0")
+                }
+            }
+        )
+        module = automatic.load_module_from_source("cached_half", source)
+        program = automatic.link_program([module], [module.entry_point("capability_main")])
+        kernel = device.create_compute_kernel(program)
+        buffer = device.create_buffer(size=4, usage=spy.BufferUsage.unordered_access)
+        kernel.dispatch(thread_count=[1, 1, 1], vars={"output": buffer})
+        assert buffer.to_numpy().view(np.float16)[0] == 1
+        assert device.shader_cache_stats.entry_count > 0
+        exact = device.create_slang_session({"capabilities": automatic.target_info.capabilities})
+        assert exact.target_info.session_digest == automatic.target_info.session_digest
+        module = exact.load_module_from_source("cached_half", source)
+        with pytest.raises(RuntimeError, match="Exact CUDA target 5.0.*emitted sm_"):
+            exact.link_program([module], [module.entry_point("capability_main")])
+
+
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
+)
+def test_cuda_exact_target_failed_reload(device_type: spy.DeviceType, tmp_path: Path) -> None:
+    path = tmp_path / "reload_target.slang"
+    path.write_text(SOURCE)
+    with spy.Device(type=device_type) as device:
+        session = device.create_slang_session({"capabilities": ["cuda_sm_5_0"]})
+        module = session.load_module(str(path))
+        program = session.link_program([module], [module.entry_point("capability_main")])
+        kernel = device.create_compute_kernel(program)
+        buffer = device.create_buffer(size=4, usage=spy.BufferUsage.unordered_access)
+
+        def dispatch() -> int:
+            kernel.dispatch(thread_count=[1, 1, 1], vars={"output": buffer})
+            return int(buffer.to_numpy().view(np.uint32)[0])
+
+        assert dispatch() == 7
+        path.write_text(SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)"))
+        device.reload_all_programs()
+        # A failed hot reload keeps the old program and pipeline alive.
+        assert dispatch() == 7
+        path.write_text(SOURCE.replace("= 7", "= 9"))
+        device.reload_all_programs()
+        assert dispatch() == 9
 
 
 @pytest.mark.parametrize(

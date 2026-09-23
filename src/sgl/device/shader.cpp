@@ -1729,6 +1729,10 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
         report_diagnostics(diagnostics);
     }
 
+    // Validate explicit CUDA architecture requests using the actual linked component and toolchain.
+    // This also runs during hot reload, before committing the rebuilt program.
+    validate_cuda_program(linked_program, build_data.session->target_info, device->_persistent_cache());
+
     // Create shader program.
     Slang::ComPtr<rhi::IShaderProgram> rhi_shader_program;
     {

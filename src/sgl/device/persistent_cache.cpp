@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -137,6 +138,15 @@ rhi::Result PersistentCache::writeCache(ISlangBlob* key, ISlangBlob* data)
     return SLANG_FAIL;
 }
 
+void PersistentCache::expect_entry(ISlangBlob* key, ISlangBlob* data)
+{
+    auto key_data = copy_blob(key);
+    SGL_CHECK(data, "Cannot validate a null cache blob.");
+    auto digest = SHA1(data->getBufferPointer(), data->getBufferSize()).digest();
+    std::lock_guard lock(m_expected_entries_mutex);
+    m_expected_entries[std::move(key_data)] = digest;
+}
+
 rhi::Result PersistentCache::queryCache(ISlangBlob* key, ISlangBlob** outData)
 {
     try {
@@ -160,6 +170,25 @@ rhi::Result PersistentCache::queryCache(ISlangBlob* key, ISlangBlob** outData)
             },
             &context
         );
+
+        // SLANG-W007: exact CUDA validation happens before RHI reads the cache. Slang's cache
+        // key does not fully identify the downstream toolchain, so validate cached bytes too.
+        // On a mismatch RHI uses the already generated/validated component code instead.
+        if (success && context.value) {
+            std::optional<SHA1::Digest> expected;
+            {
+                std::lock_guard lock(m_expected_entries_mutex);
+                auto it = m_expected_entries.find(key_data);
+                if (it != m_expected_entries.end())
+                    expected = it->second;
+            }
+            if (expected
+                && SHA1(context.value->getBufferPointer(), context.value->getBufferSize()).digest() != *expected) {
+                success = false;
+                context.result = SLANG_E_NOT_FOUND;
+                context.value.setNull();
+            }
+        }
 
         if (success) {
             m_hit_count.fetch_add(1);

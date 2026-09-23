@@ -1,6 +1,6 @@
 # Make compiler target selection capability-based
 
-This ExecPlan follows `.agents/PLANS.md`. It was prepared on 2026-09-23. Both compiler-probe milestones and milestone 2's opt-in public API have been completed on the available local backends. Comprehensive backend/toolkit validation and default-policy changes remain pending. Keep the Progress, Surprises and Discoveries, Decision Log, and Outcomes and Retrospective sections current as implementation proceeds.
+This ExecPlan follows `.agents/PLANS.md`. It was prepared on 2026-09-23. Both compiler-probe milestones, milestone 2's opt-in public API, and milestone 3's available-backend adapters and bounded CUDA validation are implemented. Additional platform/toolkit coverage, removal of documented upstream workarounds, and default-policy changes remain pending. Keep the Progress, Surprises and Discoveries, Decision Log, and Outcomes and Retrospective sections current as implementation proceeds.
 
 ## Purpose / Big Picture
 
@@ -21,7 +21,8 @@ The main conclusion is that this is feasible, but device discovery, compiler ass
 - [x] (2026-09-23) Revise the agreed API to include optional `profile`, based on measured DXIL profile selection and SPIR-V profile bundles; update resolver, migration, and validation requirements.
 - [x] (2026-09-23) Complete 84 focused profile/capability interaction probes per compiler, verify matching observations, and settle reconciliation rules in `plan/compiler-profile-probe-results.md` and this plan.
 - [x] (2026-09-23) Implement opt-in capability resolution, Python bindings, immutable target reports, session/cache/hot-reload wiring, regression tests, and user/API documentation. Validate on D3D12, Vulkan, CUDA, and CPU with pinned Slang 2026.17.1.
-- [ ] Complete backend adapters and CUDA exact-architecture validation (basic DX/SPIR-V adapters, selected NVAPI plumbing, runtime prerequisite checks, and downstream conflict checks completed with milestone 2; comprehensive emitted-version/toolkit checks and additional runtime coverage remain).
+- [x] (2026-09-23) Complete milestone 3 on available backends: eager exact CUDA PTX validation for fully specialized programs, validated-cache read guards, emitted DXIL/SPIR-V/PTX checks, native/NVAPI SER execution, and regression coverage.
+- [ ] Validate Metal/WebGPU and additional CUDA toolkits/hardware in appropriate CI; remove SLANG-W007's eager compilation/runtime-specialization restrictions when upstream supports exact validation at the specialization/cache boundary. These are explicit follow-up gates, not claims of completed coverage.
 - [ ] Migrate defaults, documentation, tests, and legacy shader-model APIs.
 
 ## Evidence and Scope
@@ -166,6 +167,12 @@ Slang already emits an architecture argument and appends user downstream argumen
 
 Validate three separate facts: the running device supports executing the result; Slang recognizes the semantic features being used; and the actual NVRTC version accepts the requested architecture. A compiler-known maximum is not a toolkit-supported maximum. Inspect the emitted PTX `.target` and `.version`, and reject unsupported or contradictory requests. Automatic defaults may use a documented older compatible architecture when tooling lags hardware, but report that choice. Explicit exact requests must not silently downgrade.
 
+Milestone 3 implements exact numeric selection when the highest forwarded CUDA version originates from an explicit list or True override. `validate_cuda_program` requests each entry point's PTX from the actual linked component/toolchain before handing it to RHI. It rejects any target mismatch, upward or downward, and retains downstream compilation diagnostics. This is link-time validation, not a session-creation toolkit query. It also runs on hot reload and cannot be bypassed by an RHI cache hit. The driver remains responsible for PTX ISA support when loading the pipeline. Device-derived highest versions retain input-assumption semantics, including when a lower explicit version is added.
+
+Validation registers each successful output digest with the device's `PersistentCache`. Cache reads for those entry-point keys must match the validated bytes or return a miss; RHI then uses the already generated component output. This is necessary because the Slang entry-point key does not fully identify the downstream toolchain. Expectations live in memory for the cache/device lifetime, are synchronized for concurrent reads, and do not change the persistent format or unregistered-entry behavior. Test the read boundary directly with stale/matching/overwritten entries, in addition to end-to-end warm-cache dispatch.
+
+The current public RHI API does not expose compiled code after runtime specialization or cached-code retrieval. Exact requests therefore require fully specialized programs at link time; runtime specialization receives an actionable error. The eager check can add compilation work on persistent-cache hits and overrides deferred compilation for explicit requests. Track this bounded workaround as SLANG-W007. Remove these costs/restrictions when upstream can enforce exact architecture at its normal code-generation/cache boundary. Missing tiers still require upstream registry/mapping work; architecture suffixes are not approximated.
+
 ## Plan of Work
 
 
@@ -211,7 +218,7 @@ Acceptance includes None/empty/explicit-list distinctions, automatic versus expl
 ### Milestone 3: Implement backend adapters
 
 
-Milestone 2 already connected the minimum adapters below on the opt-in path. The remaining work is comprehensive emitted-version and toolkit validation plus backend runtime coverage; ordinary defaults and the legacy path remain unchanged.
+Milestone 2 connected the minimum adapters below on the opt-in path. Milestone 3 adds `validate_cuda_program` to `src/sgl/device/compiler_target.cpp` and calls it from `ShaderProgram::link`, implements the bounded exact-request policy described in CUDA Compatibility Strategy, and adds production artifact/runtime tests in `slangpy/tests/device/test_compiler_target_output.py`. Expanded capability tests cover code-driven and toolkit-minimum target changes, overrides, runtime-specialization rejection, warm caches, pre-existing incompatible cache entries, and failed-reload recovery. Ordinary defaults and the legacy path remain unchanged.
 
 In `SlangSession::create_session`, honor a validated explicit profile after reconciling capability inputs. When `profile` is omitted, derive D3D profiles from resolved model assumptions and known SER dependencies. For automatic Vulkan selection, resolve SPIR-V versions independently of HLSL and use the minimal-profile strategy validated in milestone 1 to avoid hidden baseline escalation or unwanted feature bundles. Do not replace an explicit SPIR-V profile with that minimal profile. Feed recognized CUDA capabilities through Slang's existing NVRTC mapping; complete the exact-architecture work described above before advertising missing tiers. Respect Metal compatibility exclusions until validated on supported macOS/toolchain combinations. CPU/WGSL should use native target assumptions without fabricated shader models.
 
@@ -220,6 +227,8 @@ Remove unconditional NVAPI capability injection. Tie compile-time definitions/mo
 Compute the session digest only after all resolved options are installed. Ensure hot reload preserves selection and that functional-API kernels inherit the owning session's target settings. Add a functional API test exercising a real capability-sensitive function, not only low-level module loading.
 
 Acceptance requires emitted DXIL/SPIR-V/PTX evidence plus GPU execution on available compatible devices. D3D12 6.9+ SER, macOS Metal, and WebGPU need appropriate CI/hardware coverage; report unavailable coverage rather than treating skipped tests as proof.
+
+Available-machine evidence now includes DXIL shader-model metadata for compute 6.0/6.6, SPIR-V binary headers for 1.0/1.3/1.6, PTX `sm_70` with a version directive, and actual buffer-write/readback execution for each. Explicit Vulkan subgroup and int64-atomic inputs compile with warning 41012 promoted to an error, emit their instruction capabilities, and execute. Native SM 6.9 and NVAPI SM 6.6 HitObject `MakeNop`/`ReorderThread` shaders both create ray pipelines and execute to return 7; generated HLSL contains the selected implementation and excludes the other. This proves API behavior, not a hardware scheduling/reordering performance guarantee. Metal/WebGPU, additional CUDA toolkits, and modern architecture suffixes remain outside measured runtime coverage.
 
 ### Milestone 4: Migrate defaults and retire shader models
 
@@ -266,6 +275,17 @@ Results: 61 Python tests passed across D3D12/Vulkan/CUDA (40 new option/resoluti
 
 Regenerate binding docstrings with `$env:LIBCLANG_PATH='C:/Program Files/LLVM/bin/libclang.dll'` followed by `cmake --build build/windows-msvc --config Debug --target slangpy_pydoc`; the normal build generates Python stubs. Run `python docs/generate_api.py` for API reference text. Its current full output also changes unrelated stale sections, so this milestone retains only the generated `SlangCompilerOptions`, `SlangSession`, and new `SlangTargetInfo` blocks. The full generated output is preserved locally in `build/compiler-target-generated-api.rst`.
 
+Milestone 3 uses the same compiler/toolchain build, with these additional validation commands after building:
+
+    pytest slangpy/tests/device/test_compiler_capabilities.py slangpy/tests/device/test_compiler_target_output.py slangpy/tests/device/test_shader.py slangpy/tests/device/test_shader_cache.py slangpy/tests/device/test_type_conformance.py -q
+    pytest slangpy/tests/device/test_compiler_capabilities.py --device-types cpu -q
+    ./build/windows-msvc/Debug/sgl_tests.exe --test-suite=persistent_cache
+    ./build/windows-msvc/Debug/sgl_tests.exe --test-suite=hot_reload --test-case=check_run_and_verify,change_program_and_recreate,change_program_with_error_and_recreate,change_composed_module_source_and_recreate
+    pre-commit run --all-files
+    pre-commit run --files slangpy/tests/device/test_compiler_target_output.py
+
+Results: 85 Python cases pass across D3D12/Vulkan/CUDA, plus 10 CPU cases (13 skips for backend-specific groups and the previously documented CPU functional limitation). Ten native cache cases pass 163 assertions; four native hot-reload cases pass 32 assertions. Logs are under `build/compiler-target-milestone3-*.log`. Artifact tests use pytest temporary directories and inspect the compiled output before those directories are cleaned. Additional manual smoke artifacts are under `build/compiler-target-artifacts/`.
+
 ## Validation and Acceptance
 
 
@@ -282,6 +302,10 @@ Cache tests must show that changed resolved profiles/architectures/options separ
 ## Surprises and Discoveries
 
 
+Milestone 3 found that the public RHI program API exposes its linked component but no code-validation callback. Code generation can occur at immediate pipeline creation, deferred dispatch, or after runtime specialization, and shader-cache hits bypass Slang entirely. Consequently, a wrapper-side exact architecture contract needs either eager generation before RHI (implemented as SLANG-W007) or an upstream hook; validating only session inputs is insufficient. Tests confirm an inherited tier-5.0 program can populate a cache with `sm_60`, while the same resolved descriptor with explicit provenance is rejected before cache use.
+
+The TITAN RTX/driver combination advertises SM 6.9 and SER API support. Milestone 3 successfully executed both native and NVAPI HitObject/reordering smoke shaders. Native reordering may be a no-op; the test does not establish physical scheduling behavior. PTX output checks independently reproduce code-driven uplift (half data, 5.0 to 6.0) and toolkit baseline uplift (1.0 to 5.0, PTX 8.2).
+
 Slang already has a capability-to-NVRTC architecture path, but its known tiers lag slang-rhi. There are no CUDA profiles to fill in. Evidence: Slang profile definitions, CUDA capability definitions, and `slang-code-gen.cpp:609`.
 
 SlangPy collects the device list but explicitly declines to pass it to its own session. RHI's own default session does pass it. Evidence: SlangPy `shader.cpp:412` versus RHI `slang-context.h:53`.
@@ -297,6 +321,10 @@ Step 1 confirmed an additional SER bug: each individually selected implementatio
 Milestone 1a showed that DX capability validation and DXC model selection can disagree even in strict mode: profile 6.0 plus capability 6.6 accepts an annotated helper but fails downstream for actual WaveMatch. Native SER implications similarly do not raise the DXC profile. For SPIR-V, both higher raw versions and feature dependencies can raise the emitted version above the profile; the real device list still emits 1.6 with a 1.3 profile after stripping raw versions. Explicit profile 1.6 continues to supply physical-storage-buffer assumptions after that input is removed. Several irrelevant profile families compile successfully, so lookup or simple compilation alone cannot establish useful backend compatibility.
 
 ## Decision Log
+
+2026-09-23, milestone 3: use actual linked-component PTX for exact numeric CUDA validation instead of discovering/loading a separate NVRTC library or copying a version/support table. This tests the toolchain Slang actually uses. Exact validation is per-program, with downstream diagnostics retained; session reports continue to describe inputs only. Require fully specialized programs for explicit requests until an upstream post-specialization/cache validation hook exists. Document eager compilation and cache cost as SLANG-W007; retain deferred behavior for inherited/empty selections. Guard persistent-cache reads with the validated output digest, because eager compilation alone cannot rule out a different downstream-toolchain artifact under the same Slang key.
+
+2026-09-23, milestone 3: do not infer semantic limits from `.target`. A shader annotated with `[require(_cuda_sm_7_0)]` can emit `sm_50` under a tier-5.0 input. The architecture check correctly accepts matching output; warning/strict policy is still separate. Actual half code raises output to `sm_60` and is rejected. Toolkit minimum behavior is independently reproduced with tier 1.0 producing `sm_50` (PTX 8.2) on NVRTC 12.2.
 
 2026-09-23, milestone 2 implementation: activate the new path for a non-None profile, a non-None capability list (including empty), or nonempty overrides. A neutral backend override can opt into detected inputs. Keep ordinary defaults and warning 41012 policy unchanged. Bring basic backend adapters forward so the public options control actual compilation. Always supply the mandatory backend baseline, tracked as SLANG-W006, including for empty inputs.
 
@@ -344,7 +372,9 @@ Milestone 1a rebuilt SlangPy and the native probe, added 84 interaction cases pe
 
 Milestone 2 implemented `src/sgl/device/compiler_target.h/.cpp`, the three compiler-option fields and Python bindings, and read-only `SlangSession.target_info` snapshots. Resolution preserves input origins, normalizes native numeric aliases deterministically, validates names/profile families/known dependencies/runtime prerequisites, discloses unknown device inputs, and supplies backend baselines and minimal profile adapters. Resolved settings feed session digests, capability-selected NVAPI plumbing, and fresh reloads. Session/link downstream target flags are rejected when they conflict with this policy. The tests exercise actual compute execution, capability-sensitive DX compilation, SPIR-V profile bundles versus raw inputs, functional API calls and reloads, cache identity, invalid options, and immutable request/report views. Repository-wide pre-commit, explicit checks on new files, and `git diff --check` passed. See `docs/src/compiler_targets.rst` and the updated workaround ledger.
 
-During implementation, early resolver errors exposed a constructor hazard: hot reload could retain a pointer to a failed session. Registration now occurs after successful construction, with failure/reload regression coverage. CPU functional dispatch reports zero X groups on this machine under both old and new policies; that case is skipped with an explanation while low-level CPU dispatch passes. Metal, WebGPU, and native SER runtime remain unvalidated on the available hardware. Exact CUDA toolkit/emitted-architecture checks remain milestone 3 work.
+During milestone 2, early resolver errors exposed a constructor hazard: hot reload could retain a pointer to a failed session. Registration now occurs after successful construction, with failure/reload regression coverage. CPU functional dispatch reports zero X groups on this machine under both old and new policies; that case is skipped with an explanation while low-level CPU dispatch passes. At that milestone, Metal/WebGPU/native SER runtime and exact CUDA output checks remained unvalidated; milestone 3's results below supersede those native SER/CUDA gaps.
+
+Milestone 3 resolves the available-backend validation work left by milestone 2. Explicit highest numeric CUDA requests now compile and validate each entry point against its emitted PTX before RHI program creation, including on reload. Unsupported toolkit compilation retains NVRTC diagnostics, and successful compilation with a changed architecture is rejected with the requested/actual target and PTX version. Runtime-specialized exact requests are rejected with a remedy until upstream supplies an appropriate hook; inherited/empty inputs and legacy sessions keep their existing behavior. This is an output architecture check, not a semantic ceiling or a driver/PTX ISA compatibility promise. The new artifact tests confirm native DX/SPIR-V selection and execute both SER implementations; no Metal exclusions or strict/default warning policies were changed. The next implementation milestone is default migration and legacy API retirement; cross-platform/toolkit CI and the tracked upstream removal gates remain open.
 
 Revision note, 2026-09-23: initial research proposal; reconciled the NVAPI conflict hypothesis with Slang's actual incompatible-option filtering and separated current source defaults from the stale existing build cache.
 
@@ -355,3 +385,5 @@ Revision note, 2026-09-23, profile decision: replaced the internal-only profile 
 Revision note, 2026-09-23, milestone 1a: completed the 84-case interaction matrix on both compilers and replaced pending reconciliation questions with concrete bounded rules. Added the interaction report and SLANG-W005; documented why dependent features require conflict errors and why Vulkan cross-family profiles need an explicit capability list. No production resolver or default changes were made.
 
 Revision note, 2026-09-23, milestone 2: implemented and tested the opt-in API and resolution report, connected minimum backend adapters, regenerated affected documentation, and promoted implemented workarounds in the ledger. Ordinary defaults, legacy removal, and comprehensive CUDA/backend validation remain later milestones.
+
+Revision note, 2026-09-23, milestone 3: added bounded exact CUDA output validation, explicit runtime-specialization and cache-cost limitations, production backend artifact checks and native/NVAPI execution coverage. Added SLANG-W007 with upstream replacement/removal criteria. The public option fields and ordinary defaults remain unchanged.

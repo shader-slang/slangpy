@@ -52,6 +52,38 @@ TEST_CASE("cache_writer_flush")
     CHECK(value.load() == 42);
 }
 
+TEST_CASE("validated_shader_cache_entries")
+{
+    auto cache = make_ref<PersistentCache>(testing::get_case_temp_directory() / "validated");
+    auto key = make_blob({1, 2, 3});
+    auto stale = make_blob({4, 5, 6});
+    auto validated = make_blob({7, 8, 9});
+    CHECK(SLANG_SUCCEEDED(cache->writeCache(key, stale)));
+    cache->flush();
+    Slang::ComPtr<ISlangBlob> value;
+    CHECK(SLANG_SUCCEEDED(cache->queryCache(key, value.writeRef())));
+    CHECK(copy_blob(value) == copy_blob(stale));
+
+    // Same Slang key can refer to code from a different downstream toolchain.
+    cache->expect_entry(key, validated);
+    value.setNull();
+    CHECK(cache->queryCache(key, value.writeRef()) == SLANG_E_NOT_FOUND);
+    CHECK(!value);
+
+    // RHI recompiles from the validated component and replaces the stale artifact.
+    CHECK(SLANG_SUCCEEDED(cache->writeCache(key, validated)));
+    cache->flush();
+    CHECK(SLANG_SUCCEEDED(cache->queryCache(key, value.writeRef())));
+    CHECK(copy_blob(value) == copy_blob(validated));
+
+    // Future stale writes cannot turn this into a hit again.
+    CHECK(SLANG_SUCCEEDED(cache->writeCache(key, stale)));
+    cache->flush();
+    value.setNull();
+    CHECK(cache->queryCache(key, value.writeRef()) == SLANG_E_NOT_FOUND);
+    CHECK(!value);
+}
+
 TEST_CASE("cache_writer_prepare_failure_releases_reservation")
 {
     ref<CacheWriter> writer = make_ref<CacheWriter>(1);

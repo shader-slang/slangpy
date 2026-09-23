@@ -890,6 +890,8 @@ public:
 
     Blitter* _blitter();
     HotReload* _hot_reload() { return m_hot_reload; }
+
+    PersistentCache* _persistent_cache() const { return m_persistent_cache; }
     CacheWriter* _cache_writer() { return m_cache_writer.get(); }
 
     /// Called by hot reload system after reload occurs, to trigger the hooks.

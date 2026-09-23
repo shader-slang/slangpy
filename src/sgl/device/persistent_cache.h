@@ -3,11 +3,15 @@
 #pragma once
 
 #include "sgl/core/fwd.h"
+#include "sgl/core/crypto.h"
 #include "sgl/device/fwd.h"
 
 #include <slang-rhi.h>
 
 #include <atomic>
+#include <map>
+#include <mutex>
+#include <vector>
 
 namespace sgl {
 
@@ -32,6 +36,9 @@ public:
 
     void flush() const;
 
+    /// Require future cache reads for this key to match validated code; mismatches become misses.
+    void expect_entry(ISlangBlob* key, ISlangBlob* data);
+
     // ISlangUnknown interface
     virtual SLANG_NO_THROW SlangResult SLANG_MCALL queryInterface(const SlangUUID& uuid, void** outObject) override;
     // We don't want RHI to do reference counting on this object.
@@ -46,6 +53,9 @@ private:
     std::filesystem::path m_path;
     ref<LMDBCache> m_cache;
     ref<CacheWriter> m_cache_writer;
+
+    std::mutex m_expected_entries_mutex;
+    std::map<std::vector<uint8_t>, SHA1::Digest> m_expected_entries;
 
     std::atomic<uint64_t> m_hit_count{0};
     std::atomic<uint64_t> m_miss_count{0};
