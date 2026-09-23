@@ -22,6 +22,8 @@
 #include <regex>
 #include <iostream>
 #include <fstream>
+#include <iterator>
+#include <sstream>
 
 namespace sgl::platform {
 
