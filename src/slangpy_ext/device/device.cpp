@@ -498,6 +498,20 @@ SGL_PY_EXPORT(device_device)
 
     nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
 
+    nb::class_<CommandRecordingCreatedEvent>(m, "CommandRecordingCreatedEvent", D(CommandRecordingCreatedEvent))
+        .def_ro("device", &CommandRecordingCreatedEvent::device, D(CommandRecordingCreatedEvent, device))
+        .def_ro("id", &CommandRecordingCreatedEvent::id, D(CommandRecordingCreatedEvent, id))
+        .def_ro("encoder", &CommandRecordingCreatedEvent::encoder, D(CommandRecordingCreatedEvent, encoder));
+
+    nb::class_<CommandRecordingBeforeFinishEvent>(
+        m,
+        "CommandRecordingBeforeFinishEvent",
+        D(CommandRecordingBeforeFinishEvent)
+    )
+        .def_ro("device", &CommandRecordingBeforeFinishEvent::device, D(CommandRecordingBeforeFinishEvent, device))
+        .def_ro("id", &CommandRecordingBeforeFinishEvent::id, D(CommandRecordingBeforeFinishEvent, id))
+        .def_ro("encoder", &CommandRecordingBeforeFinishEvent::encoder, D(CommandRecordingBeforeFinishEvent, encoder));
+
     nb::class_<CommandRecordingSubmittedEvent>(m, "CommandRecordingSubmittedEvent", D(CommandRecordingSubmittedEvent))
         .def_ro("device", &CommandRecordingSubmittedEvent::device, D(CommandRecordingSubmittedEvent, device))
         .def_ro("id", &CommandRecordingSubmittedEvent::id, D(CommandRecordingSubmittedEvent, id))
@@ -1288,6 +1302,30 @@ SGL_PY_EXPORT(device_device)
         &Device::unregister_shader_hot_reload_callback,
         "id"_a,
         D_NA(Device, unregister_shader_hot_reload_callback)
+    );
+    device.def(
+        "register_command_recording_created_callback",
+        &Device::register_command_recording_created_callback,
+        "callback"_a,
+        D(Device, register_command_recording_created_callback)
+    );
+    device.def(
+        "unregister_command_recording_created_callback",
+        &Device::unregister_command_recording_created_callback,
+        "id"_a,
+        D(Device, unregister_command_recording_created_callback)
+    );
+    device.def(
+        "register_command_recording_before_finish_callback",
+        &Device::register_command_recording_before_finish_callback,
+        "callback"_a,
+        D(Device, register_command_recording_before_finish_callback)
+    );
+    device.def(
+        "unregister_command_recording_before_finish_callback",
+        &Device::unregister_command_recording_before_finish_callback,
+        "id"_a,
+        D(Device, unregister_command_recording_before_finish_callback)
     );
     device.def(
         "register_command_recording_submitted_callback",
