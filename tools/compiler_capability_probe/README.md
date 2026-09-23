@@ -2,7 +2,7 @@
 
 This standalone research tool calls the Slang session API directly. It does not modify SlangPy's production API or defaults. It exists to inspect capability/profile/downstream interactions before implementing the migration.
 
-See [measured results](../../plan/compiler-capabilities-probe-results.md), [implementation plan](../../plan/compiler-capabilities.md), and [workaround ledger](../../plan/slang-compiler-workarounds.md).
+See [initial measured results](../../plan/compiler-capabilities-probe-results.md), [profile interaction results](../../plan/compiler-profile-probe-results.md), [implementation plan](../../plan/compiler-capabilities.md), and [workaround ledger](../../plan/slang-compiler-workarounds.md).
 
 Build SlangPy before collecting device inventories or running its smoke shaders. Then configure/build this tool with the headers for the compiler API being investigated:
 
@@ -20,6 +20,8 @@ python tools/compiler_capability_probe/run.py --probe build/compiler-capability-
 
 This collects device capabilities and executes a buffer-write/readback smoke shader on available SlangPy backends. Compare another compiler with `--inventory <first-run>/device_inventory.json` to hold the input device list fixed. `--filter <substring>` selects cases for diagnosis; use a separate output directory for filtered runs because `results.json` describes only that invocation.
 
+`--suite baseline` selects the original step-1 cases; `--suite profiles` selects the explicit-profile interaction cases. The default `--suite all` runs both. With the recorded Windows inventory, these contain 80, 84, and 164 cases respectively. The interaction suite tests profile/version disagreements, implied feature versions, profile bundles, known and invalid profile names, backend families, stage mismatches, and the real device lists before/after raw-version removal. It passes raw inputs directly to Slang, without implementing SlangPy's planned reconciliation rules.
+
 The runner's exit status reports harness errors, not compiler rejection: many cases intentionally fail. Verify the recorded baseline separately:
 
 ```powershell
@@ -27,6 +29,8 @@ python tools/compiler_capability_probe/verify.py build/compiler-capability-probe
 ```
 
 The verifier describes the observed September 2026 Windows/NVRTC 12.2/CC 7.5 baseline. Some expectations are deliberately hardware/toolkit-specific. Future compiler fixes should change its results and trigger updates to the workaround ledger; this is not a generic cross-platform CI gate.
+
+The verifier recognizes either complete suite or both together: 66 baseline checks, 84 interaction checks, or 150 combined checks with this inventory. Arbitrary partial substring-filtered suites are intended for manual diagnosis. Keep corresponding result directories separate when comparing compiler versions.
 
 Each case directory retains `input.slang`, `command.json`, `stdout.txt`, `stderr.txt`, `result.json`, and successful generated output in `output.bin`. Despite its suffix, that output is readable text for HLSL, DXIL assembly, PTX, Metal, WGSL, and C++; SPIR-V is binary. `environment.json` records library hashes and supported NVRTC architectures.
 

@@ -2,6 +2,8 @@
 
 Date: 2026-09-23. This executes the first milestone of [the plan](compiler-capabilities.md). [The workaround ledger](slang-compiler-workarounds.md) separately tracks existing workarounds, tested candidate adapters, upstream gaps, and rejected approaches.
 
+This report retains the original 80-case baseline. [Milestone 1a](compiler-profile-probe-results.md) adds 84 explicit-profile interaction cases and settles the subsequent resolver policy. Use `--suite baseline` to reproduce only this report's cases; the current runner defaults to both suites.
+
 No production compiler behavior or public API was changed. The deliverable is a reproducible native session-API probe, a Python matrix runner, measured observations, and baseline verification.
 
 ## Environment and provenance
@@ -85,7 +87,7 @@ From `C:/projects/slangpy` in the configured MSVC developer environment:
     cmake --build --preset windows-msvc-debug
     cmake -S tools/compiler_capability_probe -B build/compiler-capability-probe -G Ninja -DSLANG_INCLUDE_DIR=C:/projects/slangpy/build/windows-msvc/_deps/slang-src/include
     cmake --build build/compiler-capability-probe
-    python tools/compiler_capability_probe/run.py --probe build/compiler-capability-probe/compiler_capability_probe.exe --library build/windows-msvc/Debug/slang-compiler.dll --output build/compiler-capability-probe/results/release --dxc build/windows-msvc/Debug/dxcompiler.dll --nvrtc "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/bin/nvrtc64_120_0.dll"
+    python tools/compiler_capability_probe/run.py --probe build/compiler-capability-probe/compiler_capability_probe.exe --library build/windows-msvc/Debug/slang-compiler.dll --output build/compiler-capability-probe/results/release --dxc build/windows-msvc/Debug/dxcompiler.dll --nvrtc "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/bin/nvrtc64_120_0.dll" --suite baseline
 
 The first run creates `device_inventory.json` and executes the production smoke shaders. Reuse that inventory when comparing compilers so device-list changes do not confound compiler differences. Source and library revisions are pinned in the provenance section above; changing compiler versions is an intentional experiment.
 
@@ -93,7 +95,7 @@ The independent master build used the existing local source and cached DXC packa
 
     cmake -S C:/projects/slang -B build/slang-capabilities-master -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLANG_ENABLE_TESTS=OFF -DSLANG_ENABLE_EXAMPLES=OFF -DSLANG_ENABLE_GFX=OFF -DSLANG_ENABLE_SLANG_RHI=OFF -DSLANG_ENABLE_SLANGD=OFF -DSLANG_ENABLE_SLANGI=OFF -DSLANG_ENABLE_REPLAYER=OFF -DSLANG_ENABLE_SLANGRT=OFF -DSLANG_ENABLE_CUDA=ON -DSLANG_ENABLE_OPTIX=OFF -DSLANG_SLANG_LLVM_FLAVOR=DISABLE -DSLANG_EXCLUDE_TINT=ON -DSLANG_EXCLUDE_DAWN=ON -DSLANG_ENABLE_RELEASE_LTO=OFF -DFETCHCONTENT_SOURCE_DIR_DXC=C:/projects/slangpy/build/windows-msvc/_deps/dxc-src
     cmake --build build/slang-capabilities-master --target slang slangc -j 12
-    python tools/compiler_capability_probe/run.py --probe build/compiler-capability-probe/compiler_capability_probe.exe --library build/slang-capabilities-master/Release/bin/slang-compiler.dll --output build/compiler-capability-probe/results/master --inventory build/compiler-capability-probe/results/release/device_inventory.json --dxc build/windows-msvc/Debug/dxcompiler.dll --nvrtc "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/bin/nvrtc64_120_0.dll"
+    python tools/compiler_capability_probe/run.py --probe build/compiler-capability-probe/compiler_capability_probe.exe --library build/slang-capabilities-master/Release/bin/slang-compiler.dll --output build/compiler-capability-probe/results/master --inventory build/compiler-capability-probe/results/release/device_inventory.json --dxc build/windows-msvc/Debug/dxcompiler.dll --nvrtc "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/bin/nvrtc64_120_0.dll" --suite baseline
     python tools/compiler_capability_probe/verify.py build/compiler-capability-probe/results/release build/compiler-capability-probe/results/master
 
 Expected verification: 66 observation checks and 80 probes per compiler; all statuses and inspected properties match. Full commands/inputs/outputs remain in the result directories. Those large generated artifacts are build outputs, not checked-in source.

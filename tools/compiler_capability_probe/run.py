@@ -49,6 +49,10 @@ SOURCES = {
     ),
     "spirv_bundle": "[require(SPV_EXT_physical_storage_buffer)] uint addressFeature() { return 7; }\n"
     + SIMPLE.replace("= 7", "= addressFeature()"),
+    "native_requirement": "[require(ser_hlsl_native)] uint needsNative() { return 7; }\n"
+    + SIMPLE.replace("= 7", "= needsNative()"),
+    "model_6_9_requirement": "[require(_sm_6_9)] uint needsNewModel() { return 7; }\n"
+    + SIMPLE.replace("= 7", "= needsNewModel()"),
     "ser": """
 struct Payload { uint value; };
 RaytracingAccelerationStructure scene;
@@ -108,6 +112,142 @@ def collect_devices(output_dir: Path) -> dict[str, Any]:
     inventory_path = output_dir / "device_inventory.json"
     inventory_path.write_text(json.dumps(inventory, indent=2), encoding="utf-8")
     return inventory
+
+
+def profile_cases(inventory: dict[str, Any]) -> list[dict[str, Any]]:
+    """Probe explicit profiles without applying the planned SlangPy reconciliation."""
+    result: list[dict[str, Any]] = []
+
+    def add(name: str, target: str, source: str = "simple", **options: Any) -> None:
+        result.append(
+            {"name": "interaction_" + name, "target": target, "source": source, **options}
+        )
+
+    for strict in (False, True):
+        mode = "strict" if strict else "permissive"
+        for label, profile, caps, source in (
+            ("dx_lower_raw", "sm_6_0", ["_sm_6_6"], "simple"),
+            ("dx_lower_wave", "sm_6_0", ["_sm_6_6"], "wave_match"),
+            ("dx_lower_inferred", "sm_6_0", ["_sm_6_6"], "inferred"),
+            ("dx_equal_wave", "sm_6_6", ["_sm_6_6"], "wave_match"),
+            ("dx_higher_wave", "sm_6_6", ["_sm_6_0"], "wave_match"),
+            ("dx_profile_only_wave", "sm_6_6", [], "wave_match"),
+            ("dx_6_6_with_6_9", "sm_6_6", ["_sm_6_9"], "model_6_9_requirement"),
+            ("dx_6_6_without_6_9", "sm_6_6", [], "model_6_9_requirement"),
+            ("dx_native_implied", "sm_6_6", ["ser_hlsl_native"], "native_requirement"),
+            ("dx_native_alias", "sm_6_6", ["ser_dxr"], "native_requirement"),
+            ("dx_native_removed", "sm_6_6", [], "native_requirement"),
+            ("dx_ser_lower", "sm_6_6", ["ser_hlsl_native"], "ser"),
+            ("dx_ser_equal", "sm_6_9", ["ser_hlsl_native"], "ser"),
+            ("dx_ser_both_6_6", "sm_6_6", ["ser_hlsl_native", "hlsl_nvapi"], "ser"),
+            # Supplying both markers isolates DXC's model validation from the SER inference bug.
+            ("dx_ser_both_lower", "sm_6_0", ["ser_hlsl_native", "hlsl_nvapi"], "ser"),
+        ):
+            options: dict[str, Any] = {}
+            if source == "ser":
+                options["whole_program"] = True
+                if "hlsl_nvapi" in caps:
+                    root = Path(__file__).resolve().parents[2]
+                    options["downstream_args"] = [
+                        "-I" + str(root / "build/windows-msvc/_deps/nvapi-src"),
+                        "-DNV_SHADER_EXTN_SLOT=u999",
+                    ]
+            add(
+                f"{label}_{mode}",
+                "dxil-asm",
+                source,
+                profile=profile,
+                capabilities=caps,
+                strict=strict,
+                **options,
+            )
+
+    for version in ("1_0", "1_3", "1_6"):
+        for label, caps in (
+            ("empty", []),
+            ("raw_lower", ["_spirv_1_0"]),
+            ("raw_equal", [f"_spirv_{version}"]),
+            ("raw_higher", ["_spirv_1_6"]),
+            ("alias_higher", ["spirv_1_6"]),
+        ):
+            for source in ("simple", "spirv_bundle"):
+                add(
+                    f"spv_{version}_{label}_{source}",
+                    "spirv",
+                    source,
+                    profile=f"spirv_{version}",
+                    capabilities=caps,
+                    strict=True,
+                )
+    for caps, label in ((["SPV_EXT_physical_storage_buffer"], "added"), ([], "removed")):
+        add(
+            f"spv_feature_{label}",
+            "spirv",
+            "spirv_bundle",
+            profile="spirv_1_6",
+            capabilities=caps,
+            strict=True,
+        )
+    # Extension implication can raise the binary version even without a raw version input.
+    add(
+        "spv_extension_implied_version",
+        "spirv",
+        "spirv_bundle",
+        profile="spirv_1_0",
+        capabilities=["SPV_EXT_physical_storage_buffer"],
+        strict=True,
+    )
+
+    for target, profile, caps in (
+        ("dxil-asm", "spirv_1_6", []),
+        ("dxil-asm", "glsl_460", []),
+        ("dxil-asm", "cs_6_6", []),
+        ("dxil-asm", "ps_6_6", []),
+        ("spirv", "sm_6_6", []),
+        ("spirv", "sm_6_6", ["_spirv_1_0"]),
+        ("spirv", "glsl_460", []),
+        ("spirv", "metallib_2_4", []),
+        ("ptx", "sm_6_6", ["cuda_sm_8_0"]),
+        ("ptx", "spirv_1_6", ["cuda_sm_8_0"]),
+        ("metal", "metallib_2_4", ["metal"]),
+        ("metal", "sm_6_6", ["metal"]),
+        ("wgsl", "sm_6_6", ["wgsl"]),
+        ("cpp", "sm_6_6", ["cpp"]),
+    ):
+        label = "_raw" if caps == ["_spirv_1_0"] else ""
+        add(
+            f"family_{target}_{profile}{label}",
+            target,
+            profile=profile,
+            capabilities=caps,
+            strict=True,
+        )
+    for target, profile in (
+        ("dxil-asm", "sm_6_typo"),
+        ("spirv", "spirv_9_9"),
+        ("ptx", "cuda_sm_8_0"),
+    ):
+        add(f"unknown_{profile}", target, profile=profile)
+    for backend, prefix, profile, target in (
+        ("d3d12", "_sm_", "sm_6_6", "dxil-asm"),
+        ("vulkan", "_spirv_", "spirv_1_3", "spirv"),
+    ):
+        caps = inventory.get("devices", {}).get(backend, {}).get("capabilities")
+        if caps is None:
+            continue
+        for label, selected in (
+            ("all", caps),
+            ("no_raw_versions", [cap for cap in caps if not cap.startswith(prefix)]),
+        ):
+            add(
+                f"device_{backend}_{label}",
+                target,
+                profile=profile,
+                capabilities=selected,
+                strict=True,
+                ignore_unknown=True,
+            )
+    return result
 
 
 def cases(inventory: dict[str, Any]) -> list[dict[str, Any]]:
@@ -282,6 +422,7 @@ def cases(inventory: dict[str, Any]) -> list[dict[str, Any]]:
         )
     for target in ("metal", "wgsl", "cpp"):
         add(f"source_{target}", target, capabilities=[target])
+    result.extend(profile_cases(inventory))
     return result
 
 
@@ -329,6 +470,7 @@ def main() -> None:
     parser.add_argument("--inventory", type=Path)
     parser.add_argument("--dxc", type=Path)
     parser.add_argument("--nvrtc", type=Path)
+    parser.add_argument("--suite", choices=("all", "baseline", "profiles"), default="all")
     parser.add_argument("--filter", default="")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -366,6 +508,11 @@ def main() -> None:
     results = []
     failures = 0
     for case in cases(inventory):
+        is_profile_case = case["name"].startswith("interaction_")
+        if args.suite == "baseline" and is_profile_case:
+            continue
+        if args.suite == "profiles" and not is_profile_case:
+            continue
         if args.filter and args.filter not in case["name"]:
             continue
         directory = args.output / case["name"]

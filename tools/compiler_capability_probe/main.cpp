@@ -160,6 +160,7 @@ int main(int argc, char** argv)
             target.flags |= SLANG_TARGET_FLAG_GENERATE_WHOLE_PROGRAM;
         if (!get("--profile").empty()) {
             target.profile = global->findProfile(get("--profile").c_str());
+            report["profile_lookup:" + get("--profile")] = std::to_string(int(target.profile));
             if (target.profile == SLANG_PROFILE_UNKNOWN)
                 throw std::runtime_error("Unknown profile: " + get("--profile"));
         }
