@@ -20,6 +20,8 @@
 
 #include "sgl/core/window.h"
 
+#include <algorithm>
+
 namespace sgl {
 
 /// Helper class for Python context manager support.
@@ -273,6 +275,31 @@ static ref<Texture> create_texture_from_kwargs(
 }
 
 } // namespace sgl
+
+namespace {
+std::vector<std::filesystem::path> g_default_slang_include_paths;
+
+/// Prepend the registered default slangpy include paths (deduped, defaults first) so that
+/// `import slangpy;` resolves without callers manually adding SHADER_PATH. Registered once from
+/// slangpy/__init__.py and applied unconditionally (independent of add_default_include_paths) at
+/// the two `Device` constructors and `Device.create_slang_session`.
+void prepend_default_slang_include_paths(sgl::SlangCompilerOptions& options)
+{
+    if (g_default_slang_include_paths.empty())
+        return;
+    std::vector<std::filesystem::path> merged;
+    merged.reserve(g_default_slang_include_paths.size() + options.include_paths.size());
+    auto add_unique = [&merged](const std::vector<std::filesystem::path>& paths)
+    {
+        for (const std::filesystem::path& path : paths)
+            if (std::find(merged.begin(), merged.end(), path) == merged.end())
+                merged.push_back(path);
+    };
+    add_unique(g_default_slang_include_paths);
+    add_unique(options.include_paths);
+    options.include_paths = std::move(merged);
+}
+} // namespace
 
 SGL_PY_EXPORT(device_device)
 {
@@ -540,6 +567,8 @@ SGL_PY_EXPORT(device_device)
            bool enable_ray_tracing,
            std::string label)
         {
+            SlangCompilerOptions _compiler_options = compiler_options.value_or(SlangCompilerOptions{});
+            prepend_default_slang_include_paths(_compiler_options);
             new (self) Device(
                 {.type = type,
                  .enable_debug_layers = enable_debug_layers,
@@ -556,7 +585,7 @@ SGL_PY_EXPORT(device_device)
                  .enable_compilation_reports = enable_compilation_reports,
                  .pipeline_compilation_mode = pipeline_compilation_mode,
                  .adapter_luid = adapter_luid,
-                 .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
+                 .compiler_options = std::move(_compiler_options),
                  .bindless_options = bindless_options.value_or(BindlessDesc{}),
                  .module_cache_path = module_cache_path,
                  .shader_cache_path = shader_cache_path,
@@ -595,7 +624,16 @@ SGL_PY_EXPORT(device_device)
         "label"_a = DeviceDesc().label,
         D(Device, Device)
     );
-    device.def(nb::init<DeviceDesc>(), "desc"_a, D(Device, Device));
+    device.def(
+        "__init__",
+        [](Device* self, DeviceDesc desc)
+        {
+            prepend_default_slang_include_paths(desc.compiler_options);
+            new (self) Device(std::move(desc));
+        },
+        "desc"_a,
+        D(Device, Device)
+    );
     device.def_prop_ro("desc", &Device::desc, D(Device, desc));
     device.def_prop_ro("info", &Device::info, D(Device, info));
     device.def_prop_ro("shader_cache_stats", &Device::shader_cache_stats, D(Device, shader_cache_stats));
@@ -1075,9 +1113,11 @@ SGL_PY_EXPORT(device_device)
            bool add_default_include_paths,
            std::optional<std::filesystem::path> cache_path)
         {
+            SlangCompilerOptions options = compiler_options.value_or(SlangCompilerOptions{});
+            prepend_default_slang_include_paths(options);
             return self->create_slang_session(
                 SlangSessionDesc{
-                    .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
+                    .compiler_options = std::move(options),
                     .add_default_include_paths = add_default_include_paths,
                     .cache_path = cache_path,
                 }
@@ -1087,6 +1127,18 @@ SGL_PY_EXPORT(device_device)
         "add_default_include_paths"_a = SlangSessionDesc().add_default_include_paths,
         "cache_path"_a.none() = nb::none(),
         D(Device, create_slang_session)
+    );
+    m.def(
+        "_set_default_slang_include_paths",
+        [](std::vector<std::filesystem::path> paths)
+        {
+            g_default_slang_include_paths = std::move(paths);
+        },
+        "paths"_a,
+        "Replace the default slangpy Slang include paths prepended by every Device constructor and "
+        "Device.create_slang_session. slangpy sets this once at import to [SHADER_PATH]. Advanced "
+        "escape hatch: call before creating any device or session to point `import slangpy;` at a "
+        "different location (e.g. a local slangpy checkout); pass [] to disable the default."
     );
     device.def("reload_all_programs", &Device::reload_all_programs, D(Device, reload_all_programs));
     device.def("load_module", &Device::load_module, "module_name"_a, D(Device, load_module));
