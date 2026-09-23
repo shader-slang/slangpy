@@ -33,11 +33,39 @@ add_subdirectory(fmt)
 
 # glfw
 
-set(GLFW_BUILD_EXAMPLES OFF)
-set(GLFW_BUILD_TESTS OFF)
-set(GLFW_BUILD_DOCS OFF)
-set(GLFW_INSTALL OFF)
-add_subdirectory(glfw)
+if(NOT SGL_ENABLE_GLFW MATCHES "^(ON|OFF|AUTO)$")
+    message(FATAL_ERROR "SGL_ENABLE_GLFW must be ON, OFF, or AUTO (got '${SGL_ENABLE_GLFW}')")
+endif()
+
+set(SGL_HAS_GLFW OFF)
+if(SGL_ENABLE_GLFW STREQUAL "ON")
+    set(SGL_HAS_GLFW ON)
+elseif(SGL_ENABLE_GLFW STREQUAL "AUTO")
+    if(WIN32 OR APPLE)
+        set(SGL_HAS_GLFW ON)
+    elseif(UNIX)
+        # Match the X11 dependencies checked by the bundled GLFW. Extension
+        # libraries are loaded at runtime, so only their headers are required.
+        find_package(X11 QUIET)
+        if(X11_FOUND AND X11_Xrandr_INCLUDE_PATH AND X11_Xinerama_INCLUDE_PATH
+            AND X11_Xkb_INCLUDE_PATH AND X11_Xcursor_INCLUDE_PATH AND X11_Xi_INCLUDE_PATH)
+            set(SGL_HAS_GLFW ON)
+        else()
+            message(STATUS "GLFW disabled: X11 development dependencies are missing (SGL_ENABLE_GLFW=AUTO)")
+        endif()
+    else()
+        message(STATUS "GLFW disabled: unsupported platform (SGL_ENABLE_GLFW=AUTO)")
+    endif()
+endif()
+set(SGL_HAS_GLFW ${SGL_HAS_GLFW} PARENT_SCOPE)
+
+if(SGL_HAS_GLFW)
+    set(GLFW_BUILD_EXAMPLES OFF)
+    set(GLFW_BUILD_TESTS OFF)
+    set(GLFW_BUILD_DOCS OFF)
+    set(GLFW_INSTALL OFF)
+    add_subdirectory(glfw)
+endif()
 
 # tevclient
 
@@ -61,6 +89,7 @@ if(SGL_LINUX AND SGL_ARCHITECTURE MATCHES "aarch64|arm64")
     set(NANOTHREAD_NATIVE_FLAGS "-march=armv8-a" CACHE STRING "" FORCE)
 endif()
 add_subdirectory(nanothread)
+sgl_enable_sanitizers(nanothread)
 # Disable LTO for nanothread as this causes problems when linking with sgl.
 set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
 target_compile_definitions(nanothread PRIVATE _CRT_SECURE_NO_WARNINGS)
@@ -91,7 +120,7 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SGL_SLANG_VERSION "2026.12" CACHE STRING "Slang version to download when not using a local build")
+set(SGL_SLANG_VERSION "2026.17.1" CACHE STRING "Slang version to download when not using a local build")
 
 set(SGL_SLANG_GLIBC_COMPAT OFF CACHE BOOL "Download glibc-2.28-compatible Slang binaries (for manylinux wheels)")
 

@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 cmake_policy(SET CMP0077 NEW)
+if(POLICY CMP0177)
+    cmake_policy(SET CMP0177 NEW)
+endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(utils)
@@ -56,6 +59,11 @@ option(SGL_GENERATE_SETPATH_SCRIPTS "Generate setpath scripts" ON)
 # This is useful when using sgl through cmake add_subdirectory.
 option(SGL_BUILD_STANDALONE "Build without external dependencies" ON)
 
+# GLFW window and input support: ON requires dependencies, OFF disables support,
+# and AUTO enables support when dependencies are available.
+set(SGL_ENABLE_GLFW "AUTO" CACHE STRING "Enable GLFW window support (ON, OFF, AUTO)")
+set_property(CACHE SGL_ENABLE_GLFW PROPERTY STRINGS ON OFF AUTO)
+
 # Enable linking CUDA driver API dynamically.
 # This allows to build CUDA support without having CUDA SDK installed.
 option(SGL_USE_DYNAMIC_CUDA "Load CUDA driver API dynamically" ON)
@@ -74,6 +82,7 @@ option(SGL_ENABLE_COVERAGE "Enable code coverage (gcov)" OFF)
 # Enable/disable sanitizers.
 option(SGL_ENABLE_ASAN "Enable AddressSanitizer (Clang only)" OFF)
 option(SGL_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (Clang only)" OFF)
+option(SGL_ENABLE_TSAN "Enable ThreadSanitizer (Linux/macOS Clang only)" OFF)
 
 include(sanitizers)
 
@@ -403,6 +412,7 @@ message(STATUS "SGL_HAS_D3D12: ${SGL_HAS_D3D12}")
 message(STATUS "SGL_HAS_VULKAN: ${SGL_HAS_VULKAN}")
 message(STATUS "SGL_HAS_NVAPI: ${SGL_HAS_NVAPI}")
 message(STATUS "SGL_HAS_AGILITY_SDK: ${SGL_HAS_AGILITY_SDK}")
+message(STATUS "SGL_HAS_GLFW: ${SGL_HAS_GLFW}")
 message(STATUS "SGL_HAS_LIBJPEG: ${SGL_HAS_LIBJPEG}")
 message(STATUS "SGL_HAS_LIBPNG: ${SGL_HAS_LIBPNG}")
 message(STATUS "SGL_HAS_OPENEXR: ${SGL_HAS_OPENEXR}")

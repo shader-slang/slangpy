@@ -16,9 +16,9 @@
 #endif
 
 /// Subpixel precision (number of subpixels per pixel).
-static constexpr int SUBPIXEL = 8;
+static const int SUBPIXEL = 8;
 /// Tile size.
-static constexpr uint TILE_SIZE = 16;
+static const uint TILE_SIZE = 16;
 /// Number of words (32 bits) in the tile bitmask. Each bit corresponds to a bucket of triangles.
 #define TILE_BITMASK_WORDS 4
 

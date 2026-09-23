@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from pathlib import Path
+import struct
 from typing import Any, Optional, Sequence
+import zlib
 import pytest
 from slangpy import Bitmap, DataStruct
 import numpy as np
@@ -80,6 +82,12 @@ def write_read_test(
     img = create_test_image(width, height, pixel_format, component_type)
 
     b1 = Bitmap(img)
+    if ext in ("jpg", "bmp", "tga"):
+        # These writers do not store transfer metadata; match the reader's fallback.
+        b1.srgb_gamma = component_type == Bitmap.ComponentType.uint8 and pixel_format in (
+            Bitmap.PixelFormat.rgb,
+            Bitmap.PixelFormat.rgba,
+        )
     b1.write(path, quality=quality if quality else -1)
 
     b2 = Bitmap(path)
@@ -216,6 +224,113 @@ PNG_LAYOUTS = [
 def test_png_io(tmp_path: Path, layout: Sequence[Any]):
     extra = layout[4] if len(layout) > 4 else {}
     write_read_test(tmp_path, "png", layout[0], layout[1], layout[2], layout[3], **extra)
+
+
+@pytest.mark.skipif(not Bitmap.supports_png_metadata(), reason="Requires the libpng decoder")
+@pytest.mark.parametrize("channels,color_type", [(1, 0), (2, 4), (3, 2), (4, 6)])
+@pytest.mark.parametrize("bit_depth", [8, 16])
+@pytest.mark.parametrize(
+    "metadata,expected",
+    [
+        ([], None),
+        ([(b"sRGB", b"\0")], True),
+        ([(b"gAMA", struct.pack(">I", 100000))], False),
+        ([(b"gAMA", struct.pack(">I", 45455))], True),
+        ([(b"gAMA", struct.pack(">I", 50000))], False),
+        ([(b"gAMA", struct.pack(">I", 45455)), (b"sRGB", b"\0")], True),
+    ],
+    ids=["untagged", "srgb", "linear", "gamma-2.2", "other-gamma", "srgb-and-gamma"],
+)
+def test_png_transfer_metadata(
+    tmp_path: Path,
+    channels: int,
+    color_type: int,
+    bit_depth: int,
+    metadata: list[tuple[bytes, bytes]],
+    expected: Optional[bool],
+) -> None:
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+        )
+
+    value = 128 if bit_depth == 8 else 0x80AB
+    row = value.to_bytes(bit_depth // 8, "big") * channels
+    path = tmp_path / "metadata.png"
+    path.write_bytes(
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, bit_depth, color_type, 0, 0, 0))
+        + b"".join(chunk(kind, data) for kind, data in metadata)
+        + chunk(b"IDAT", zlib.compress(b"\0" + row))
+        + chunk(b"IEND", b"")
+    )
+    bitmap = Bitmap(path)
+    assert bitmap.srgb_gamma is (
+        (bit_depth == 8 and channels in (3, 4)) if expected is None else expected
+    )
+    assert np.asarray(bitmap).dtype == (np.uint8 if bit_depth == 8 else np.uint16)
+    np.testing.assert_array_equal(np.asarray(bitmap).reshape(-1), [value] * channels)
+    # Transfer tags affect color fields, never the alpha channel or stored samples.
+    for field in bitmap.pixel_struct:
+        assert bool(field.flags & DataStruct.Flags.srgb_gamma) is (
+            bitmap.srgb_gamma and field.name != "A"
+        )
+
+
+@pytest.mark.skipif(not Bitmap.supports_png_metadata(), reason="Requires the libpng decoder")
+def test_png_linear_roundtrip(tmp_path: Path) -> None:
+    data = np.full((2, 2, 3), 0.5, dtype=np.float32)
+    bitmap = Bitmap(data).convert(component_type=Bitmap.ComponentType.uint16, srgb_gamma=False)
+    path = tmp_path / "linear.png"
+    bitmap.write(path)
+    reread = Bitmap(path)
+    assert reread.srgb_gamma is False
+    np.testing.assert_array_equal(np.asarray(reread), np.asarray(bitmap))
+
+
+@pytest.mark.parametrize("bit_depth", [8, 16])
+@pytest.mark.parametrize("channels", [1, 2, 3, 4])
+@pytest.mark.parametrize("from_memory", [False, True])
+def test_png_read_bit_depth(bit_depth: int, channels: int, from_memory: bool):
+    import slangpy.platform as platform
+
+    png_dir = platform.project_directory() / "data" / "test_images" / "png"
+    path = png_dir / f"uint{bit_depth}-{channels}ch.png"
+    dtype = np.uint16 if bit_depth == 16 else np.uint8
+    values = np.array(
+        (
+            [0, 1, 255, 256, 257, 32768, 65534, 65535]
+            if bit_depth == 16
+            else [0, 1, 2, 127, 128, 253, 254, 255]
+        ),
+        dtype=dtype,
+    )
+    expected = np.stack([np.roll(values, channel) for channel in range(channels)], axis=-1).reshape(
+        2, 4, channels
+    )
+    if from_memory:
+        bitmap = Bitmap.load_from_numpy(np.fromfile(path, dtype=np.uint8))
+    else:
+        bitmap = Bitmap(path)
+
+    assert bitmap.component_type == (
+        Bitmap.ComponentType.uint16 if bit_depth == 16 else Bitmap.ComponentType.uint8
+    )
+    assert (
+        bitmap.pixel_format
+        == [
+            Bitmap.PixelFormat.y,
+            Bitmap.PixelFormat.ya,
+            Bitmap.PixelFormat.rgb,
+            Bitmap.PixelFormat.rgba,
+        ][channels - 1]
+    )
+    assert bitmap.width == 4
+    assert bitmap.height == 2
+    assert bitmap.channel_count == channels
+    actual = np.array(bitmap, copy=False)
+    assert actual.dtype == dtype
+    np.testing.assert_array_equal(actual, expected[:, :, 0] if channels == 1 else expected)
 
 
 JPG_LAYOUTS = [

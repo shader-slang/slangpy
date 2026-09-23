@@ -11,7 +11,6 @@ on:
       - "**.md"
       - .github/workflows/wheels.yml
       - .github/workflows/ci-gcp.yml
-      - .github/workflows/ci-latest-slang.yml
   pull_request:
     branches: [main]
     paths-ignore:
@@ -20,7 +19,6 @@ on:
       - "**.md"
       - .github/workflows/wheels.yml
       - .github/workflows/ci-gcp.yml
-      - .github/workflows/ci-latest-slang.yml
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

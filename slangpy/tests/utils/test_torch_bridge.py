@@ -22,6 +22,7 @@ if sys.platform == "darwin":
 
 import slangpy
 from slangpy import DeviceType
+from slangpy.core.native import NativeCallDataCache, SignatureBuilder
 from slangpy.testing import helpers
 
 DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES.copy()
@@ -105,6 +106,79 @@ class TestTorchBridgeAvailability:
         result = get_signature(ctypes.c_void_p(id(tensor)), buffer, len(buffer))
         assert result == 0
         assert buffer.value == b"[D3,S6,V432]"
+
+    def test_native_rank_limit_contract(self):
+        # Drive the C ABI directly so a missing native extension cannot let the
+        # fallback mask whether the native path itself enforces the rank limit.
+        slangpy_torch = pytest.importorskip("slangpy_torch")
+
+        class TensorBridgeAPI(ctypes.Structure):
+            _fields_ = [
+                ("api_version", ctypes.c_int),
+                ("info_struct_size", ctypes.c_size_t),
+                ("extract", ctypes.c_void_p),
+                ("is_tensor", ctypes.c_void_p),
+                ("get_signature", ctypes.c_void_p),
+            ]
+
+        api = ctypes.cast(slangpy_torch.get_api_ptr(), ctypes.POINTER(TensorBridgeAPI)).contents
+        get_signature = ctypes.PYFUNCTYPE(
+            ctypes.c_int,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_char),
+            ctypes.c_size_t,
+        )(api.get_signature)
+        buffer = ctypes.create_string_buffer(128)
+
+        rank_64 = torch.empty((1,) * 64, dtype=torch.float32)
+        assert get_signature(ctypes.c_void_p(id(rank_64)), buffer, len(buffer)) == 0
+
+        rank_65 = torch.empty((1,) * 65, dtype=torch.float32)
+        assert get_signature(ctypes.c_void_p(id(rank_65)), buffer, len(buffer)) == -8
+
+
+class TestTorchSignatureRankLimit:
+
+    @pytest.fixture(autouse=True)
+    def setup_bridge_mode(self, torch_bridge_mode: str):
+        self.mode = torch_bridge_mode
+
+    def test_max_rank_is_accepted(self):
+        tensor = torch.empty((1,) * 64, dtype=torch.float32)
+        signature = slangpy.extract_torch_tensor_signature(tensor)
+        # Assert on the rank prefix only; the trailing shape characters are not
+        # what this boundary test is checking.
+        assert signature.startswith("[D64,")
+
+    @pytest.mark.parametrize("rank", [65, 100])
+    def test_rank_above_max_is_rejected(self, rank: int):
+        tensor = torch.empty((1,) * rank, dtype=torch.float32)
+        with pytest.raises(RuntimeError) as exc_info:
+            slangpy.extract_torch_tensor_signature(tensor)
+        assert (
+            str(exc_info.value)
+            == f"PyTorch tensor rank {rank} exceeds the maximum supported rank of 64"
+        )
+
+    def test_max_rank_accepted_in_cache_signature(self):
+        cache = NativeCallDataCache()
+        signature = SignatureBuilder()
+        cache.get_value_signature(signature, torch.empty((1,) * 64, dtype=torch.float32))
+        assert signature.str.startswith("torch\n[D64,")
+
+    @pytest.mark.parametrize("rank", [65, 100])
+    def test_rank_above_max_rejected_in_cache_signature(self, rank: int):
+        # Exercise the kernel-cache signature consumer, separate from the public
+        # extract_torch_tensor_signature helper covered above.
+        cache = NativeCallDataCache()
+        signature = SignatureBuilder()
+        tensor = torch.empty((1,) * rank, dtype=torch.float32)
+        with pytest.raises(RuntimeError) as exc_info:
+            cache.get_value_signature(signature, tensor)
+        assert (
+            str(exc_info.value)
+            == f"PyTorch tensor rank {rank} exceeds the maximum supported rank of 64"
+        )
 
 
 class TestTorchTensorExtraction:

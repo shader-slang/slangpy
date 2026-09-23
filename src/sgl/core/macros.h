@@ -106,7 +106,7 @@
 #if SGL_MSVC
 #define SGL_INLINE __forceinline
 #elif SGL_CLANG | SGL_GCC
-#define SGL_INLINE __attribute__((always_inline))
+#define SGL_INLINE inline __attribute__((always_inline))
 #endif
 
 #define SGL_NON_COPYABLE(cls)                                                                                          \

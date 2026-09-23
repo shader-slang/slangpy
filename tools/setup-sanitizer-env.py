@@ -101,6 +101,11 @@ def configure_linux_preload(sanitizers: set[str]) -> None:
         "libclang_rt.ubsan_standalone-x86_64.so",
         "libclang_rt.ubsan_standalone-aarch64.so",
     )
+    tsan_runtime_names = (
+        "libclang_rt.tsan.so",
+        "libclang_rt.tsan-x86_64.so",
+        "libclang_rt.tsan-aarch64.so",
+    )
 
     runtime_paths: list[str] = []
     if "address" in sanitizers:
@@ -114,6 +119,8 @@ def configure_linux_preload(sanitizers: set[str]) -> None:
             if runtime_path:
                 runtime_paths.append(str(runtime_path))
                 break
+    if "thread" in sanitizers:
+        runtime_paths.append(str(find_clang_runtime(tsan_runtime_names)))
     existing_preload = os.environ.get("LD_PRELOAD")
     if existing_preload:
         runtime_paths.append(existing_preload)
@@ -130,9 +137,13 @@ def main() -> int:
     args = parser.parse_args()
 
     sanitizers = set(args.sanitizers.split(","))
-    unsupported_sanitizers = sanitizers - {"address", "undefined"}
+    unsupported_sanitizers = sanitizers - {"address", "undefined", "thread"}
     if unsupported_sanitizers:
         parser.error("Unsupported sanitizers: " + ", ".join(sorted(unsupported_sanitizers)))
+    if "address" in sanitizers and "thread" in sanitizers:
+        parser.error("AddressSanitizer and ThreadSanitizer cannot be combined")
+    if "thread" in sanitizers and args.os == "windows":
+        parser.error("ThreadSanitizer is not supported on Windows")
 
     workspace = pathlib.Path(os.environ.get("GITHUB_WORKSPACE", os.getcwd())).resolve()
     binary_dir = args.binary_dir.resolve()
@@ -189,6 +200,13 @@ def main() -> int:
         append_github_env("ASAN_OPTIONS", ":".join(asan_options))
     if "undefined" in sanitizers:
         append_github_env("UBSAN_OPTIONS", "print_stacktrace=1:halt_on_error=1")
+    if "thread" in sanitizers:
+        tsan_options = ["halt_on_error=0", "exitcode=66", "second_deadlock_stack=1"]
+        if symbolizer:
+            tsan_options.append(
+                f"external_symbolizer_path={sanitizer_path(pathlib.Path(symbolizer))}"
+            )
+        append_github_env("TSAN_OPTIONS", ":".join(tsan_options))
     return 0
 
 

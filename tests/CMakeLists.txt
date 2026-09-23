@@ -52,6 +52,11 @@ if(SGL_BUILD_TESTS)
     target_include_directories(sgl_tests BEFORE PRIVATE sgl)
     target_link_libraries(sgl_tests PRIVATE sgl header_only)
     target_compile_definitions(sgl_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    if(SGL_ENABLE_TSAN AND SGL_LINUX)
+        # LLVM TSan can assert if doctest's signal handler runs while TSan is
+        # intercepting fork(). Let TSan handle fatal signals in this build.
+        target_compile_definitions(sgl_tests PRIVATE DOCTEST_CONFIG_NO_POSIX_SIGNALS)
+    endif()
 
     set_target_properties(sgl_tests PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY}

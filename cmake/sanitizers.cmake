@@ -1,13 +1,25 @@
 # Configure sanitizer instrumentation for SlangPy-owned native targets.
 
-if(NOT SGL_ENABLE_ASAN AND NOT SGL_ENABLE_UBSAN)
+if(NOT SGL_ENABLE_ASAN AND NOT SGL_ENABLE_UBSAN AND NOT SGL_ENABLE_TSAN)
     function(sgl_enable_sanitizers target)
     endfunction()
     return()
 endif()
 
+if(SGL_ENABLE_TSAN AND SGL_ENABLE_ASAN)
+    message(FATAL_ERROR "ThreadSanitizer cannot be combined with AddressSanitizer")
+endif()
+
+if(SGL_ENABLE_TSAN AND NOT CMAKE_SYSTEM_NAME MATCHES "^(Linux|Darwin)$")
+    message(FATAL_ERROR "SlangPy ThreadSanitizer is only supported on Linux and macOS")
+endif()
+
 if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message(FATAL_ERROR "SlangPy sanitizers are only supported with Clang")
+endif()
+
+if(SGL_ENABLE_TSAN AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 19)
+    message(FATAL_ERROR "SlangPy ThreadSanitizer on Linux requires Clang 19 or newer")
 endif()
 
 set(SGL_SANITIZERS)
@@ -16,6 +28,9 @@ if(SGL_ENABLE_ASAN)
 endif()
 if(SGL_ENABLE_UBSAN)
     list(APPEND SGL_SANITIZERS undefined)
+endif()
+if(SGL_ENABLE_TSAN)
+    list(APPEND SGL_SANITIZERS thread)
 endif()
 list(JOIN SGL_SANITIZERS "," SGL_SANITIZER_FLAGS)
 

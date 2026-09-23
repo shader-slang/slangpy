@@ -490,6 +490,14 @@ SGL_PY_EXPORT(device_command)
             D(CommandEncoder, build_acceleration_structure)
         )
         .def(
+            "build_micromap",
+            &CommandEncoder::build_micromap,
+            "desc"_a,
+            "dst"_a,
+            "scratch_buffer"_a,
+            D(CommandEncoder, build_micromap)
+        )
+        .def(
             "copy_acceleration_structure",
             &CommandEncoder::copy_acceleration_structure,
             "dst"_a,
@@ -503,6 +511,12 @@ SGL_PY_EXPORT(device_command)
             "acceleration_structures"_a,
             "queries"_a,
             D(CommandEncoder, query_acceleration_structure_properties)
+        )
+        .def(
+            "execute_cluster_operation",
+            &CommandEncoder::execute_cluster_operation,
+            "desc"_a,
+            D(CommandEncoder, execute_cluster_operation)
         )
         .def(
             "convert_coop_vec_matrices",

@@ -14,6 +14,8 @@
 #include "sgl/core/timer.h"
 #include "sgl/core/thread.h"
 
+#include "sgl/stl/bit.h"
+
 #include <map>
 
 namespace sgl {
@@ -80,6 +82,7 @@ inline bool has_format_support(Device* device, Format format, FormatSupport requ
  *   (if a RGBA format exists).
  * - \c Options::load_as_srgb 8-bit RGBA bitmap with sRGB
  * gamma will be determined as \c Format::rgba8_unorm_srgb.
+ *
  * - \c Options::load_as_normalized
  *   8/16-bit integer bitmap will be determined as normalized resource format.
  *
@@ -161,16 +164,22 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
         {make_key(PixelFormat::rgba, ComponentType::float32), Format::rgba32_float},
     };
 
-    PixelFormat pixel_format = bitmap->pixel_format();
-    if (pixel_format == PixelFormat::y)
-        pixel_format = PixelFormat::r;
     ComponentType component_type = bitmap->component_type();
+    PixelFormat pixel_format = bitmap->pixel_format();
+    bool convert_to_rgba = false;
+    if (pixel_format == PixelFormat::y) {
+        if (options.y_handling == YHandling::expand_to_rgba) {
+            pixel_format = PixelFormat::rgba;
+            convert_to_rgba = true;
+        } else {
+            pixel_format = PixelFormat::r;
+        }
+    }
     FormatFlags format_flags = FormatFlags::none;
     if (options.load_as_normalized && DataStruct::is_integer(component_type))
         format_flags = FormatFlags::normalized;
 
     // Check if bitmap is RGB and we can convert to RGBA.
-    bool convert_to_rgba = false;
     if (options.extend_alpha && pixel_format == PixelFormat::rgb) {
         TextureUsage effective_usage = get_effective_texture_usage(device, options);
         FormatSupport required_support = get_required_format_support(effective_usage);
@@ -240,6 +249,29 @@ inline std::pair<TextureType, uint32_t> get_texture_type_and_layer_count(DDSFile
     }
 }
 
+// Reduce in linear light, quantizing to the texture format after each halving.
+inline ref<Bitmap> reduce_bitmap(ref<Bitmap> bitmap, Format format, uint32_t max_mip_count)
+{
+    if (max_mip_count == 0 || uint32_t(stdx::bit_width(std::max(bitmap->width(), bitmap->height()))) <= max_mip_count)
+        return bitmap;
+
+    const bool srgb = get_format_info(format).is_srgb_format();
+    const auto pixel_format = bitmap->pixel_format();
+    const auto component_type = bitmap->component_type();
+    const bool source_gamma = bitmap->srgb_gamma();
+    while (uint32_t(stdx::bit_width(std::max(bitmap->width(), bitmap->height()))) > max_mip_count) {
+        // A borrowed view changes interpretation without mutating the caller's bitmap.
+        Bitmap source(pixel_format, component_type, bitmap->width(), bitmap->height(), 0, {}, bitmap->data(), srgb);
+        ref<Bitmap> linear = source.convert(pixel_format, Bitmap::ComponentType::float32, false);
+        const uint32_t width = std::max(1u, bitmap->width() / 2);
+        const uint32_t height = std::max(1u, bitmap->height() / 2);
+        ref<Bitmap> reduced = linear->resample(width, height);
+        bitmap = reduced->convert(pixel_format, component_type, srgb);
+    }
+    bitmap->set_srgb_gamma(source_gamma);
+    return bitmap;
+}
+
 inline SourceImage convert_bitmap(Device* device, ref<Bitmap> bitmap, const TextureLoader::Options& options)
 {
     using PixelFormat = Bitmap::PixelFormat;
@@ -247,15 +279,13 @@ inline SourceImage convert_bitmap(Device* device, ref<Bitmap> bitmap, const Text
     auto [format, convert_to_rgba] = determine_texture_format(device, bitmap, options);
 
     if (bitmap->pixel_format() == PixelFormat::ya && options.ya_handling == YAHandling::preserve_as_rg) {
-        return SourceImage{
-            .bitmap = convert_ya_to_rg(bitmap),
-            .format = format,
-        };
+        bitmap = convert_ya_to_rg(bitmap);
+    } else if (convert_to_rgba) {
+        bitmap = bitmap->convert(PixelFormat::rgba, bitmap->component_type(), bitmap->srgb_gamma());
     }
 
     return SourceImage{
-        .bitmap
-        = convert_to_rgba ? bitmap->convert(PixelFormat::rgba, bitmap->component_type(), bitmap->srgb_gamma()) : bitmap,
+        .bitmap = reduce_bitmap(std::move(bitmap), format, options.max_mip_count),
         .format = format,
     };
 }
@@ -335,9 +365,31 @@ inline ref<Texture> create_texture(
         const DDSFile* dds_file = source_image.dds_file;
         const auto& [texture_type, layer_count]
             = get_texture_type_and_layer_count(dds_file->type(), dds_file->array_size());
+        uint32_t first_mip = 0;
+        uint32_t width = dds_file->width();
+        uint32_t height = dds_file->height();
+        uint32_t depth = dds_file->depth();
+        while (options.max_mip_count != 0
+               && uint32_t(stdx::bit_width(std::max({width, height, depth}))) > options.max_mip_count
+               && first_mip + 1 < dds_file->mip_count()) {
+            ++first_mip;
+            width = std::max(1u, width / 2);
+            height = std::max(1u, height / 2);
+            depth = std::max(1u, depth / 2);
+        }
+        if (options.max_mip_count != 0
+            && uint32_t(stdx::bit_width(std::max({width, height, depth}))) > options.max_mip_count) {
+            log_warn(
+                "DDS has no mip fitting max_mip_count {}; using smallest available mip {}x{}x{}",
+                options.max_mip_count,
+                width,
+                height,
+                depth
+            );
+        }
         short_vector<SubresourceData, 16> subresource_data;
         for (uint32_t layer_index = 0; layer_index < layer_count; ++layer_index) {
-            for (uint32_t mip_index = 0; mip_index < dds_file->mip_count(); ++mip_index) {
+            for (uint32_t mip_index = first_mip; mip_index < dds_file->mip_count(); ++mip_index) {
                 uint32_t row_pitch;
                 uint32_t slice_pitch;
                 dds_file->get_subresource_pitch(mip_index, &row_pitch, &slice_pitch);
@@ -356,11 +408,11 @@ inline ref<Texture> create_texture(
         return device->create_texture({
             .type = texture_type,
             .format = source_image.format,
-            .width = dds_file->width(),
-            .height = dds_file->height(),
-            .depth = dds_file->depth(),
+            .width = width,
+            .height = height,
+            .depth = depth,
             .array_length = dds_file->array_size(),
-            .mip_count = dds_file->mip_count(),
+            .mip_count = dds_file->mip_count() - first_mip,
             .usage = options.usage,
             .data = subresource_data,
         });

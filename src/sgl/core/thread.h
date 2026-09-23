@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <type_traits>
 #include <mutex>
 #include <vector>
@@ -305,6 +306,7 @@ public:
     }
 
     /// Wait for all tasks in this task group.
+    /// If tasks throw, wait for and release every task before rethrowing the first exception in insertion order.
     void wait()
     {
         std::vector<TaskHandle> tasks;
@@ -312,9 +314,17 @@ public:
             std::lock_guard lock(m_mutex);
             std::swap(tasks, m_tasks);
         }
+        std::exception_ptr exception;
         for (TaskHandle task : tasks) {
-            task_wait_and_release(task);
+            try {
+                task_wait_and_release(task);
+            } catch (...) {
+                if (!exception)
+                    exception = std::current_exception();
+            }
         }
+        if (exception)
+            std::rethrow_exception(exception);
     }
 
     SGL_NON_COPYABLE_AND_MOVABLE(TaskGroup);
