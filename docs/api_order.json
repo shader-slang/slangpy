@@ -189,6 +189,7 @@
         "slangpy.SlangOptimizationLevel",
         "slangpy.SlangSession",
         "slangpy.SlangSessionDesc",
+        "slangpy.SlangTargetInfo",
         "slangpy.StencilOp",
         "slangpy.StoreOp",
         "slangpy.SubresourceLayout",

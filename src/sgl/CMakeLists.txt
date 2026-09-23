@@ -83,6 +83,8 @@ target_sources(sgl PRIVATE
     device/buffer_cursor.h
     device/cache_writer.cpp
     device/cache_writer.h
+    device/compiler_target.cpp
+    device/compiler_target.h
     device/callback_list.h
     device/command.cpp
     device/command.h

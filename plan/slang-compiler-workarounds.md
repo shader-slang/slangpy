@@ -1,20 +1,20 @@
 # Slang compiler workaround ledger
 
-Updated 2026-09-23 through milestone 1a of [the capability migration](compiler-capabilities.md).
+Updated 2026-09-23 through milestone 2 of [the capability migration](compiler-capabilities.md).
 
 Record every compiler workaround introduced during this migration here, and refer to its ID from implementation comments. Each entry must distinguish production behavior from a probe, name the upstream fix, and state a removal test. Update the affected compiler versions and evidence whenever changing or removing it. Do not treat a passing expected-failure probe as a reason to preserve the compiler defect.
 
-Steps 1 and 1a added investigation tools, not production compilation changes. The existing workarounds below predate this task. The proposed adapters are probe-only or planned, as marked. Results are documented in [the initial probe report](compiler-capabilities-probe-results.md) and [the profile interaction report](compiler-profile-probe-results.md).
+Steps 1 and 1a added investigation tools; milestone 2 implements the opt-in resolver and its required adapters. Existing legacy defaults remain in place for callers who do not opt in. Probe results are documented in [the initial probe report](compiler-capabilities-probe-results.md) and [the profile interaction report](compiler-profile-probe-results.md). Production regression coverage is in `slangpy/tests/device/test_compiler_capabilities.py` against pinned Slang 2026.17.1; master was probed through the standalone session API, not substituted into the production build.
 
 ## SLANG-W001: Derive a DXIL profile from selected shader-model capabilities
 
-**Status:** Existing SlangPy sessions set profiles through legacy `shader_model`; the replacement capability-to-profile adapter is probe-only.
+**Status:** Implemented for opt-in capability sessions in milestone 2. Legacy sessions continue setting profiles through `shader_model`.
 
 **Affected versions:** Slang 2026.17.1 and local master `b4a57b15cc47d936403cc989a628bfd25d5af5d3`.
 
 **Problem:** `_sm_6_6` or `_sm_6_9` alone produces `lib_6_3` for whole-program DXIL. A capability-selected `WaveMatch` shader is compiled as `cs_6_0` and rejected by DXC. Setting the corresponding profile produces the requested shader model and compiles the operation.
 
-**Local adaptation:** When the new API's `profile` is omitted, supply a DX profile derived from resolved capability inputs. A validated explicit profile takes precedence over this automatic adapter; reconcile inherited version inputs and diagnose known version/feature conflicts according to the completed milestone-1a rules. Passing a user-requested Slang profile is ordinary API behavior, not itself a workaround. Current production location: `src/sgl/device/shader.cpp`, `SlangSession::create_session`. Probe cases: `dxil_cap_*`, `dxil_profile_*`, `dxil_wave_match_*` in `tools/compiler_capability_probe/run.py`.
+**Local adaptation:** When the new API's `profile` is omitted, `resolve_compiler_target` in `src/sgl/device/compiler_target.cpp` derives a DX profile from known resolved model requirements, with a 6.0 baseline. `SlangSession::create_session` passes it to Slang before computing the descriptor digest. Explicit profiles take precedence after reconciliation. Passing a user-requested profile is ordinary API behavior, not itself a workaround. Probe cases: `dxil_cap_*`, `dxil_profile_*`, `dxil_wave_match_*`. Production tests `test_dx_profile_reconciliation` and `test_functional_api_uses_selected_session` compile and execute WaveMatch under capability-selected SM 6.6.
 
 **Proper Slang implementation:** Derive the effective DXC shader-model profile from the selected capability set, including implied shader-model requirements. Define how explicit conflicting profiles are diagnosed.
 
@@ -22,19 +22,21 @@ Steps 1 and 1a added investigation tools, not production compilation changes. Th
 
 ## SLANG-W002: Neutralize the implicit SPIR-V 1.5 profile bundle
 
-**Status:** Tested in probes only; not implemented in production SlangPy.
+**Status:** Implemented for automatic Vulkan selection on the opt-in path in milestone 2.
 
 **Affected versions:** Both investigated versions.
 
 **Problem:** `_spirv_1_3` with no profile emits SPIR-V 1.5. The default profile also supplies feature assumptions: a shader annotated as requiring `SPV_EXT_physical_storage_buffer` passes strict checking even when only a raw version atom was supplied. Public higher SPIR-V profiles similarly bundle features beyond their version.
 
-**Local adaptation:** In the probes, supply `spirv_1_0` as a minimal compatibility profile and add the selected raw version/features. This emits the requested 1.3/1.6 versions. Strict checking then rejects the missing physical-storage-buffer requirement, as intended. Cases: `spirv_baseline_*`, `spirv_bundle_*`. In the planned API, use this adapter only when `profile` is omitted. Preserve an explicitly selected profile and its feature bundle; do not neutralize it or claim capability removal overrides subtract its requirements.
+**Local adaptation:** Supply `spirv_1_0` as a minimal compatibility profile and add the selected raw version/features. The probes emit the requested 1.3/1.6 versions. Strict checking then rejects the missing physical-storage-buffer requirement, as intended. Cases: `spirv_baseline_*`, `spirv_bundle_*`. The opt-in API uses this adapter only when `profile` is omitted. Preserve an explicitly selected profile and its feature bundle; do not neutralize it or claim capability removal overrides subtract its requirements. The production regression test promotes warning 41012 to an error to distinguish the raw selection from an explicit profile's retained feature bundle.
 
 **Proper Slang implementation:** Explicit version capability selection should override the implicit backend default. Provide a capability-only target configuration that does not add unrequested higher-profile feature bundles.
 
 **Removal gate:** Without the baseline profile, `_spirv_1_3` emits 1.3, and strict `_spirv_1_6` rejects the missing physical-storage-buffer requirement. This adapter must be tested via `createSession()`; CLI profile-conflict validation is a separate behavior.
 
 **Milestone-1a evidence:** Explicit profile 1.6 supplies the physical-storage-buffer requirement even with an empty input list or after that input is removed. Profile 1.0 plus only the physical-storage-buffer feature emits 1.3. The minimal-profile adapter prevents implicit bundles; it does not prohibit a feature from implying a higher version.
+
+**Production location and coverage:** `resolve_compiler_target` in `src/sgl/device/compiler_target.cpp`, applied in `SlangSession::create_session`. `test_spirv_profiles_and_bundles` distinguishes raw versus bundled inputs, preserves explicit profile requirements after removal, and verifies a missing feature is diagnosed under the minimal automatic profile when its warning is promoted to an error.
 
 ## SLANG-W003: Suppress implicit-upgrade warning 41012
 
@@ -64,19 +66,33 @@ Steps 1 and 1a added investigation tools, not production compilation changes. Th
 
 ## SLANG-W005: Validate known profile/capability conflicts using bounded dependency metadata
 
-**Status:** Planned resolver adapter only. Milestone 1a established the need through direct compiler probes; no production validation or dependency table has been implemented.
+**Status:** Implemented as bounded validation in milestone 2, with explicit disclosure that unknown implications are not checked.
 
 **Affected versions:** Slang 2026.17.1 and local master `b4a57b15cc47d936403cc989a628bfd25d5af5d3`.
 
 **Problem:** Slang's session API does not consistently diagnose a profile that is lower than selected capabilities. DX strict checking can accept higher requirements while DXC still compiles for the lower model. SPIR-V version/feature inputs can raise the emitted version above the profile. Slang exposes neither a complete public implication query nor profile-family compatibility metadata. Removing detected raw version inputs is insufficient: the real Vulkan list still emits 1.6 under profile 1.3 because retained features imply it.
 
-**Planned local adaptation:** Track input provenance. For native-family explicit profiles, trim higher inherited version inputs, reject higher explicit version inputs, and reject retained features with known higher requirements from either origin. Diagnostics name the feature, source, required version, requested profile, and remedy. Start with bounded, documented family/dependency adapters backed by regression probes, including native SER and tested SPIR-V extensions; do not duplicate Slang's full capability graph or claim complete validation. Ordinary wrapper policy, such as choosing which profile families the public API supports, remains distinct from this missing upstream introspection.
+**Local adaptation:** `resolve_compiler_target` tracks input provenance. For native-family explicit profiles it trims higher inherited version inputs, rejects higher explicit versions, and rejects retained features with known higher requirements from either origin. `required_version` contains a bounded table for native SER, selected SPIR-V extensions, and OptiX cooperative vectors; `canonical_name` normalizes numeric DX/CUDA aliases only on their native backend. Diagnostics identify the input, origin, required version, profile, and remedy. The table is not Slang's full capability graph. Ordinary wrapper policy, such as choosing supported profile families, remains distinct from this missing upstream introspection. Python tests cover explicit versus inherited inputs, reassertion by overrides, alias conflicts/cache equivalence, SER requirements, and detected Vulkan dependent-feature conflicts when present.
 
 **Evidence:** `interaction_dx_lower_wave_*`, `interaction_dx_6_6_with_6_9_*`, `interaction_dx_native_implied_*`, `interaction_spv_extension_implied_version`, and `interaction_device_vulkan_no_raw_versions` in `tools/compiler_capability_probe/run.py`. Source definitions include `ser_hlsl_native`/`ser_dxr`, `SPV_EXT_physical_storage_buffer`, and `SPV_KHR_cooperative_matrix` in `slang-capabilities.capdef`.
 
 **Proper Slang implementation:** Expose versioned capability implication and profile-requirement queries, including applicable target alternatives and profile family/stage information. Provide an explicit validation policy for requested profile/version limits that agrees with downstream output. Preserve intentional additive use, such as the minimal SPIR-V profile plus higher version capabilities; do not fix this by unconditionally rejecting all profile/capability differences.
 
 **Removal gate:** Replace local dependency facts with supported upstream queries and validate the same inputs, origins, and actionable conflict outcomes. Demonstrate the WaveMatch mismatch, native SER dependency, physical-storage-buffer version implication, and real-device Vulkan case are diagnosable without a SlangPy capability graph. Recheck newly introduced capabilities on the supported minimum compiler. The public input-set contract and provenance handling can remain when the workaround metadata is removed.
+
+## SLANG-W006: Supply an explicit backend baseline for empty capability inputs
+
+**Status:** Implemented on the opt-in path in milestone 2, in `resolve_compiler_target`.
+
+**Affected versions:** Empty-selection bypass observed in both probed compiler versions; production regression tests use 2026.17.1.
+
+**Problem:** The ordinary restrictive capability check can skip an empty profile/capability selection, even though the output target implies a language baseline. See `strict_empty_inferred` versus `strict_baseline_inferred` in the step-1 probes.
+
+**Local adaptation:** Always forward the backend's explicit baseline input: `hlsl`, `spirv`, `cuda`, `metal`, `cpp`, or `wgsl`. Report its origin as `baseline` when synthesized. A removal override cannot remove the fixed backend; report that the baseline remains. `test_defaults_and_empty` and `test_mandatory_baseline_removal` exercise the public contract and real shader execution.
+
+**Proper Slang implementation:** Apply ordinary capability validation against the fixed target baseline even when no optional profile or capability input is supplied. This does not claim to solve entry-point requirement merging or arbitrary semantic subtraction.
+
+**Removal gate:** The standalone empty-selection restrictive probe rejects the missing inferred requirement on every supported compiler without adding a baseline input. SlangPy may continue to report the mandatory backend assumption as API documentation even when explicitly forwarding it is no longer necessary.
 
 ## Open upstream gaps without an implemented workaround
 

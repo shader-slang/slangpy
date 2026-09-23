@@ -137,6 +137,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
 
     src/developer_guide
     src/profiling
+    src/compiler_targets
 
 .. toctree::
     :maxdepth: 1

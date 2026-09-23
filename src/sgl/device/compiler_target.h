@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+#pragma once
+
+#include "sgl/device/shader.h"
+#include "sgl/device/device.h"
+
+namespace sgl {
+
+/// Whether the caller selected the new capability-based policy during migration.
+bool uses_compiler_target_options(const SlangCompilerOptions& options);
+
+/// Resolve inputs without modifying the requested options or device reports.
+SlangTargetInfo resolve_compiler_target(
+    DeviceType device_type,
+    std::span<const std::string> detected,
+    const SlangCompilerOptions& options,
+    slang::IGlobalSession* compiler
+);
+
+/// Reject downstream flags that would independently override the resolved target.
+void validate_compiler_target_args(DeviceType device_type, std::span<const std::string> args);
+
+} // namespace sgl

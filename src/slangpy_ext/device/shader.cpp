@@ -10,10 +10,14 @@
 
 namespace sgl {
 using DefineList = std::map<std::string, std::string>;
+using CapabilityOverrides = std::map<std::string, bool>;
 SGL_DICT_TO_DESC_BEGIN(SlangCompilerOptions)
 SGL_DICT_TO_DESC_FIELD_LIST(include_paths, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(defines, DefineList)
 SGL_DICT_TO_DESC_FIELD(shader_model, ShaderModel)
+SGL_DICT_TO_DESC_FIELD(profile, std::optional<std::string>)
+SGL_DICT_TO_DESC_FIELD(capabilities, std::optional<std::vector<std::string>>)
+SGL_DICT_TO_DESC_FIELD(capability_overrides, CapabilityOverrides)
 SGL_DICT_TO_DESC_FIELD(matrix_layout, SlangMatrixLayout)
 SGL_DICT_TO_DESC_FIELD_LIST(enable_warnings, std::string)
 SGL_DICT_TO_DESC_FIELD_LIST(disable_warnings, std::string)
@@ -106,6 +110,13 @@ SGL_PY_EXPORT(device_shader)
         .def_rw("include_paths", &SlangCompilerOptions::include_paths, D(SlangCompilerOptions, include_paths))
         .def_rw("defines", &SlangCompilerOptions::defines, D(SlangCompilerOptions, defines))
         .def_rw("shader_model", &SlangCompilerOptions::shader_model, D(SlangCompilerOptions, shader_model))
+        .def_rw("profile", &SlangCompilerOptions::profile, nb::none(), D(SlangCompilerOptions, profile))
+        .def_rw("capabilities", &SlangCompilerOptions::capabilities, nb::none(), D(SlangCompilerOptions, capabilities))
+        .def_rw(
+            "capability_overrides",
+            &SlangCompilerOptions::capability_overrides,
+            D(SlangCompilerOptions, capability_overrides)
+        )
         .def_rw("matrix_layout", &SlangCompilerOptions::matrix_layout, D(SlangCompilerOptions, matrix_layout))
         .def_rw("enable_warnings", &SlangCompilerOptions::enable_warnings, D(SlangCompilerOptions, enable_warnings))
         .def_rw("disable_warnings", &SlangCompilerOptions::disable_warnings, D(SlangCompilerOptions, disable_warnings))
@@ -203,9 +214,37 @@ SGL_PY_EXPORT(device_shader)
     using sgl::SlangSession;
     using sgl::SlangEntryPoint;
 
+    nb::class_<SlangTargetInfo>(m, "SlangTargetInfo", D(SlangTargetInfo))
+        .def_ro("target", &SlangTargetInfo::target, D(SlangTargetInfo, target))
+        .def_ro("legacy", &SlangTargetInfo::legacy, D(SlangTargetInfo, legacy))
+        .def_ro("requested_profile", &SlangTargetInfo::requested_profile, D(SlangTargetInfo, requested_profile))
+        .def_ro("profile_automatic", &SlangTargetInfo::profile_automatic, D(SlangTargetInfo, profile_automatic))
+        .def_ro("profile", &SlangTargetInfo::profile, D(SlangTargetInfo, profile))
+        .def_ro("input_capabilities", &SlangTargetInfo::input_capabilities, D(SlangTargetInfo, input_capabilities))
+        .def_ro("capabilities", &SlangTargetInfo::capabilities, D(SlangTargetInfo, capabilities))
+        .def_ro("capability_origins", &SlangTargetInfo::capability_origins, D(SlangTargetInfo, capability_origins))
+        .def_ro(
+            "removed_capabilities",
+            &SlangTargetInfo::removed_capabilities,
+            D(SlangTargetInfo, removed_capabilities)
+        )
+        .def_ro(
+            "ignored_capabilities",
+            &SlangTargetInfo::ignored_capabilities,
+            D(SlangTargetInfo, ignored_capabilities)
+        )
+        .def_ro(
+            "generated_downstream_args",
+            &SlangTargetInfo::generated_downstream_args,
+            D(SlangTargetInfo, generated_downstream_args)
+        )
+        .def_ro("notes", &SlangTargetInfo::notes, D(SlangTargetInfo, notes))
+        .def_ro("session_digest", &SlangTargetInfo::session_digest, D(SlangTargetInfo, session_digest));
+
     nb::class_<SlangSession, Object>(m, "SlangSession", D(SlangSession))
         .def_prop_ro("device", &SlangSession::device, D(SlangSession, device))
-        .def_prop_ro("desc", &SlangSession::desc, D(SlangSession, desc))
+        .def_prop_ro("desc", &SlangSession::desc, nb::rv_policy::copy, D(SlangSession, desc))
+        .def_prop_ro("target_info", &SlangSession::target_info, D(SlangSession, target_info))
         .def("load_module", &SlangSession::load_module, "module_name"_a, D(SlangSession, load_module))
         .def(
             "load_module_from_source",

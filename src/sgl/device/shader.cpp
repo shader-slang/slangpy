@@ -3,6 +3,7 @@
 #include "shader.h"
 
 #include "sgl/device/device.h"
+#include "sgl/device/compiler_target.h"
 #include "sgl/device/helpers.h"
 #include "sgl/device/reflection.h"
 #include "sgl/device/kernel.h"
@@ -22,6 +23,7 @@
 #include <slang.h>
 
 #include <memory>
+#include <algorithm>
 #include <random>
 #include <regex>
 #include <set>
@@ -241,15 +243,17 @@ SlangSession::SlangSession(ref<Device> device, SlangSessionDesc desc)
 {
     ConstructorRefGuard ref_guard(this);
 
-    // Register with hot load reload system if enabled.
-    if (m_device->_hot_reload())
-        m_device->_hot_reload()->_register_slang_session(this);
+    recreate_session();
 
-    // Create (but don't compile yet) the NVAPI module
-    // We link this to all programs because slang uses NVAPI features while not including NVAPI itself.
-    if (SGL_HAS_NVAPI && m_device->type() == DeviceType::d3d12) {
-        m_nvapi_module = make_ref<SlangModule>(
-            ref(this),
+    // Load the NVAPI declarations only when selected. Slang emits NVAPI calls without
+    // including these declarations itself, so the module is linked to programs below.
+    if (SGL_HAS_NVAPI && m_device->type() == DeviceType::d3d12
+        && (m_data->target_info.legacy
+            || std::ranges::find(m_data->target_info.capabilities, "hlsl_nvapi")
+                != m_data->target_info.capabilities.end()
+            || std::ranges::find(m_data->target_info.capabilities, "ser_nvapi")
+                != m_data->target_info.capabilities.end())) {
+        m_nvapi_module = create_module(
             SlangModuleDesc{
                 .module_name = "sgl/device/nvapi.slang",
             }
@@ -257,7 +261,10 @@ SlangSession::SlangSession(ref<Device> device, SlangSessionDesc desc)
         m_nvapi_module->break_strong_reference_to_session();
     }
 
-    recreate_session();
+    // Register only after successful construction; invalid compiler options must not leave
+    // a dangling session in the hot-reload registry.
+    if (m_device->_hot_reload())
+        m_device->_hot_reload()->_register_slang_session(this);
 }
 
 SlangSession::~SlangSession()
@@ -310,6 +317,44 @@ void SlangSession::create_session(SlangSessionBuild& build)
     CompilerOptionEntries target_options;
 
     const SlangCompilerOptions& options = m_desc.compiler_options;
+    const bool use_target_options = uses_compiler_target_options(options);
+    SlangTargetInfo target_info;
+    if (use_target_options)
+        target_info
+            = resolve_compiler_target(device_type, m_device->capabilities(), options, m_device->global_session());
+    else {
+        target_info.capabilities = {"hlsl_nvapi"};
+        target_info.capability_origins = {{"hlsl_nvapi", "legacy"}};
+        target_info.notes.push_back(
+            "Legacy shader_model policy; set profile, a capability list, or nonempty overrides to opt in."
+        );
+    }
+    const bool selected_nvapi
+        = std::ranges::find(target_info.capabilities, "hlsl_nvapi") != target_info.capabilities.end()
+        || std::ranges::find(target_info.capabilities, "ser_nvapi") != target_info.capabilities.end();
+    const bool enable_nvapi = SGL_HAS_NVAPI && device_type == DeviceType::d3d12 && selected_nvapi;
+    if (use_target_options && selected_nvapi)
+        SGL_CHECK(
+            enable_nvapi && m_device->has_capability("hlsl_nvapi"),
+            "Selected NVAPI capability requires an NVAPI-enabled D3D12 device"
+        );
+    if (use_target_options) {
+        for (const auto& capability : target_info.capabilities) {
+            if (capability == "ser_hlsl_native" || capability == "ser_dxr" || capability == "ser_dxr_raygen"
+                || capability == "ser_dxr_raygen_closesthit_miss")
+                SGL_CHECK(
+                    device_type == DeviceType::d3d12 && m_device->has_feature(Feature::ray_tracing)
+                        && m_device->has_feature(Feature::shader_execution_reordering),
+                    "Native SER capability '{}' requires a D3D12 device with ray tracing and SER support",
+                    capability
+                );
+            if (capability == "optix_coopvec")
+                SGL_CHECK(
+                    device_type == DeviceType::cuda && m_device->has_capability("optix_coopvec"),
+                    "optix_coopvec requires device and OptiX runtime support"
+                );
+        }
+    }
 
     // Use device's highest supported shader model if none is provided explicitly.
     ShaderModel supported_shader_model = m_device->supported_shader_model();
@@ -323,7 +368,7 @@ void SlangSession::create_session(SlangSessionBuild& build)
 
     // Check that requested shader model is supported.
     SGL_CHECK(
-        shader_model <= supported_shader_model,
+        use_target_options || shader_model <= supported_shader_model,
         "Shader model {} is not supported (max shader model is {})",
         shader_model,
         supported_shader_model
@@ -342,7 +387,7 @@ void SlangSession::create_session(SlangSessionBuild& build)
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30856"));
     // TODO: Globally disable warning E41012.
     // Example: entry point 'foo' uses additional capabilities that are not part of the specified profile 'unknown'.
-    // This warning happens on CUDA because we're not properly setting the target profile (i.e. "cuda_sm_x_x").
+    // SLANG-W003: retained during migration; strict/default diagnostic policy is a separate milestone.
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("41012"));
     // TODO: Globally disable warning E31010.
     // warning[E31010]: Link-time constant sized arrays are a work in progress feature, some aspects of the reflection
@@ -393,6 +438,7 @@ void SlangSession::create_session(SlangSessionBuild& build)
             std::string version_tag = fmt::format("{}_{}", optix_version / 10000, (optix_version % 10000) / 100);
             auto optix_path = platform::runtime_directory() / "optix" / version_tag;
             session_options.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", "-I" + optix_path.string());
+            target_info.generated_downstream_args.push_back("-I" + optix_path.string());
         }
     }
 
@@ -404,16 +450,13 @@ void SlangSession::create_session(SlangSessionBuild& build)
     if (options.enable_experimental_features)
         session_options.add(slang::CompilerOptionName::ExperimentalFeature, true);
 
-    // Add hlsl_nvapi capability.
-    session_options.add(
-        slang::CompilerOptionName::Capability,
-        int(m_device->global_session()->findCapability("hlsl_nvapi"))
-    );
-    // TODO: Pass all detected capabilities to the session.
-    // This currently leads to slang compilation errors and needs more investigation.
-    // for (SlangCapabilityID capability : m_device->_slang_capabilities()) {
-    //     session_options.add(slang::CompilerOptionName::Capability, int(capability));
-    // }
+    for (const auto& capability : target_info.capabilities) {
+        auto& entries = use_target_options ? target_options : session_options;
+        entries.add(
+            slang::CompilerOptionName::Capability,
+            int(m_device->global_session()->findCapability(capability.c_str()))
+        );
+    }
 
     // TODO: We enable loop inversion as it was the default in older versions of Slang,
     //       and leads to artifacts in one project using sgl.
@@ -448,10 +491,23 @@ void SlangSession::create_session(SlangSessionBuild& build)
     uint32_t shader_model_minor = get_shader_model_minor_version(shader_model);
     std::string profile_str = fmt::format("sm_{}_{}", shader_model_major, shader_model_minor);
 
-    // TODO: CUDA doesn't support shader model profiles like Vulkan or D3D12.
-    if (device_type == DeviceType::d3d12 || device_type == DeviceType::vulkan) {
+    if (use_target_options) {
+        if (target_info.profile)
+            target_desc.profile = m_device->global_session()->findProfile(target_info.profile->c_str());
+        // The legacy macros describe only a DX profile on the opt-in path.
+        shader_model_major = 0;
+        shader_model_minor = 0;
+        if (device_type == DeviceType::d3d12 && target_info.profile) {
+            std::smatch match;
+            if (std::regex_match(*target_info.profile, match, std::regex(R"(^[a-z]+_(\d+)_(\d+)$)"))) {
+                shader_model_major = uint32_t(std::stoul(match[1].str()));
+                shader_model_minor = uint32_t(std::stoul(match[2].str()));
+            }
+        }
+    } else if (device_type == DeviceType::d3d12 || device_type == DeviceType::vulkan) {
         target_desc.profile = m_device->global_session()->findProfile(profile_str.c_str());
         SGL_CHECK(target_desc.profile != SLANG_PROFILE_UNKNOWN, "Unsupported target profile: {}", profile_str);
+        target_info.profile = profile_str;
     }
 
     // Set floating point mode.
@@ -467,27 +523,33 @@ void SlangSession::create_session(SlangSessionBuild& build)
     switch (device_type) {
     case DeviceType::d3d12:
         target_desc.format = SLANG_DXIL;
+        target_info.target = "dxil";
         target_define = "__TARGET_D3D12__";
         break;
     case DeviceType::vulkan:
         target_desc.format = SLANG_SPIRV;
+        target_info.target = "spirv";
         target_desc.flags |= SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
         target_define = "__TARGET_VULKAN__";
         break;
     case DeviceType::metal:
         target_desc.format = SLANG_METAL_LIB;
+        target_info.target = "metallib";
         target_define = "__TARGET_METAL__";
         break;
     case DeviceType::wgpu:
         target_desc.format = SLANG_WGSL;
+        target_info.target = "wgsl";
         target_define = "__TARGET_WGPU__";
         break;
     case DeviceType::cpu:
         target_desc.format = SLANG_SHADER_HOST_CALLABLE;
+        target_info.target = "shader_host_callable";
         target_define = "__TARGET_CPU__";
         break;
     case DeviceType::cuda:
         target_desc.format = SLANG_PTX;
+        target_info.target = "ptx";
         target_define = "__TARGET_CUDA__";
         break;
     default:
@@ -503,17 +565,14 @@ void SlangSession::create_session(SlangSessionBuild& build)
     session_options.add_macro_define("__SHADER_TARGET_MINOR", fmt::format("{}", shader_model_minor));
 
     // Add NVAPI defines.
-    session_options.add_macro_define(
-        "SGL_ENABLE_NVAPI",
-        (SGL_HAS_NVAPI && m_device->type() == DeviceType::d3d12) ? "1" : "0"
-    );
+    session_options.add_macro_define("SGL_ENABLE_NVAPI", enable_nvapi ? "1" : "0");
 #if SGL_HAS_NVAPI
-    session_options.add_macro_define("NV_SHADER_EXTN_SLOT", "u999");
-    session_options.add(
-        slang::CompilerOptionName::DownstreamArgs,
-        "dxc",
-        fmt::format("-I{}", (platform::runtime_directory() / "shaders/nvapi").string())
-    );
+    if (!use_target_options || enable_nvapi) {
+        session_options.add_macro_define("NV_SHADER_EXTN_SLOT", "u999");
+        auto include_arg = fmt::format("-I{}", (platform::runtime_directory() / "shaders/nvapi").string());
+        session_options.add(slang::CompilerOptionName::DownstreamArgs, "dxc", include_arg);
+        target_info.generated_downstream_args.push_back(include_arg);
+    }
 #endif
 
     // Add device print enable flag.
@@ -534,6 +593,8 @@ void SlangSession::create_session(SlangSessionBuild& build)
     Slang::ComPtr<ISlangBlob> session_digest;
     SLANG_CALL(m_device->global_session()->getSessionDescDigest(&session_desc, session_digest.writeRef()));
     data->uid = string::hexlify(session_digest->getBufferPointer(), session_digest->getBufferSize());
+    target_info.session_digest = data->uid;
+    data->target_info = std::move(target_info);
 
     // Setup session cache.
     // The session cache relies on Slang's ability to serialize shader modules.
@@ -656,7 +717,7 @@ ref<ShaderProgram> SlangSession::link_program(
     }
 
     // Link NVAPI module if available.
-    if (SGL_HAS_NVAPI && m_device->type() == DeviceType::d3d12)
+    if (m_nvapi_module)
         modules.push_back(m_nvapi_module);
 
     // Generate label
@@ -1571,6 +1632,9 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
     Device* device = m_device;
     const ShaderProgramDesc& desc = m_desc;
     slang::ISession* session = build_data.session->slang_session;
+
+    if (!build_data.session->target_info.legacy && desc.link_options && desc.link_options->downstream_args)
+        validate_compiler_target_args(device->type(), *desc.link_options->downstream_args);
 
     Timer timer;
 
