@@ -18,7 +18,7 @@ benchmark_api = import_module("slangpy.testing.benchmark.benchview")
 _json_bytes = benchmark_api._json_bytes
 benchmark_plugin = import_module("slangpy.testing.benchmark.plugin")
 ci = import_module("tools.ci")
-gpu_clock = import_module("tools.gpu_clock")
+gpu_clock = import_module("slangpy.testing.benchmark.gpu_clock")
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
@@ -74,10 +74,14 @@ def make_observation(metric_id: str = "gpu_time") -> dict[str, Any]:
         function_name="test_tensor_sum",
         display_name="test_tensor_sum[cuda-1024]",
         parameters={"device_type": FakeDeviceType(), "element_count": 1024, "contiguous": True},
-        samples=[1.25, 1.5, 1.0],
         observed_at=datetime(2026, 7, 16, 12, 30, tzinfo=timezone.utc),
-        metric_id=metric_id,
-        metric_name="GPU time" if metric_id == "gpu_time" else "CPU time",
+        metrics=[
+            benchmark_api.build_metric(
+                metric_id,
+                "GPU time" if metric_id == "gpu_time" else "CPU time",
+                [1.25, 1.5, 1.0],
+            )
+        ],
         adapter_name="NVIDIA Test GPU",
         source_line=42,
     )
@@ -196,6 +200,7 @@ def test_build_submissions_shares_one_run_key_across_batches() -> None:
         "project_info": project_info,
         "machine_info": machine_info,
         "commit_info": commit_info,
+        "project": benchmark_api.SLANGPY_PROJECT,
     }
 
     by_count = benchmark_api.build_benchview_submissions([first, second], batch_size=1, **common)
@@ -323,6 +328,7 @@ def test_submit_posts_bearer_authenticated_json(monkeypatch: pytest.MonkeyPatch)
         project_info=project_info,
         machine_info=machine_info,
         commit_info=commit_info,
+        project=benchmark_api.SLANGPY_PROJECT,
     )
     captured: dict[str, Any] = {}
 
@@ -454,3 +460,105 @@ def test_the_write_key_does_not_follow_a_redirect_to_another_origin() -> None:
     )
     assert same is not None
     assert same.headers["Authorization"] == "Bearer secret"
+
+
+def test_custom_project_replaces_every_slangpy_identity() -> None:
+    """A reusing project must not leave SlangPy's identity anywhere in the payload.
+
+    BenchView keys history by these, so a single missed field files another
+    project's results under SlangPy. The idempotency prefix is the easiest to
+    overlook because it is not part of the visible run identity.
+    """
+
+    project_info, machine_info, commit_info = submission_context()
+    project = benchmark_api.BenchViewProject(
+        id="falcor2",
+        name="Falcor2",
+        suite_id="imagetests",
+        suite_name="Image Tests",
+        repository="https://example.test/falcor2",
+        producer_name="falcor2-pytest-benchmark",
+        producer_version="1.0.0",
+    )
+
+    submission = benchmark_api.build_benchview_submissions(
+        [make_observation()],
+        request_id="request",
+        execution_id="execution",
+        project_info=project_info,
+        machine_info=machine_info,
+        commit_info=commit_info,
+        project=project,
+    )[0]
+
+    assert submission["project"] == {"id": "falcor2", "name": "Falcor2"}
+    assert submission["run"]["suite"] == {"id": "imagetests", "name": "Image Tests"}
+    assert submission["run"]["vcs"]["repository"] == "https://example.test/falcor2"
+    assert submission["run"]["key"].startswith("git:" + "a" * 40 + "/suite:imagetests/")
+    assert submission["producer"]["name"] == "falcor2-pytest-benchmark"
+    assert submission["idempotencyKey"].startswith("falcor2/")
+    assert "slangpy" not in _json_bytes(submission).decode().replace(
+        "slangpy/benchmarks/test_benchmark_tensor.py", ""
+    )
+
+
+def test_observation_carries_several_metrics_and_extra_metadata() -> None:
+    """One case may report several measurements, including a metric with a breakdown."""
+
+    compile_time = benchmark_api.build_metric("compile_time", "Compile time", [30.0])
+    compile_time["breakdown"] = {
+        "mode": "complete",
+        "components": [{"id": "slang", "name": "Slang", "distribution": {"samples": [30.0]}}],
+    }
+
+    observation = benchmark_api.build_benchview_observation(
+        filename="slangpy/benchmarks/test_benchmark_tensor.py",
+        function_name="test_tensor_sum",
+        display_name="test_tensor_sum",
+        parameters={},
+        observed_at=datetime(2026, 7, 16, 12, 30, tzinfo=timezone.utc),
+        metrics=[
+            benchmark_api.build_metric("gpu_time", "GPU time", [1.0, 2.0]),
+            compile_time,
+        ],
+        metadata={"deviceType": "vulkan"},
+    )
+
+    assert [metric["id"] for metric in observation["metrics"]] == ["gpu_time", "compile_time"]
+    assert observation["metrics"][1]["breakdown"]["components"][0]["id"] == "slang"
+    assert observation["metadata"]["deviceType"] == "vulkan"
+
+
+def test_source_root_accepts_a_relative_filename_from_any_directory() -> None:
+    """A relative filename is relative to the root, not to the working directory.
+
+    Otherwise running pytest from somewhere other than the root would reject an
+    in-root path and fail the whole submission.
+    """
+
+    observation = benchmark_api.build_benchview_observation(
+        filename="slangpy/benchmarks/test_benchmark_tensor.py",
+        function_name="test_tensor_sum",
+        display_name="test_tensor_sum",
+        parameters={},
+        observed_at=datetime(2026, 7, 16, 12, 30, tzinfo=timezone.utc),
+        metrics=[benchmark_api.build_metric("gpu_time", "GPU time", [1.0])],
+        source_root=REPOSITORY_ROOT,
+    )
+
+    assert observation["test"]["source"]["file"] == "slangpy/benchmarks/test_benchmark_tensor.py"
+
+
+def test_source_root_rejects_a_path_outside_the_repository() -> None:
+    """An unrelated source path must fail rather than become a machine-specific test ID."""
+
+    with pytest.raises(benchmark_api.BenchmarkSubmissionError, match="outside"):
+        benchmark_api.build_benchview_observation(
+            filename=str(Path(Path(__file__).resolve().anchor) / "stray_benchmark.py"),
+            function_name="test_stray",
+            display_name="test_stray",
+            parameters={},
+            observed_at=datetime(2026, 7, 16, 12, 30, tzinfo=timezone.utc),
+            metrics=[benchmark_api.build_metric("gpu_time", "GPU time", [1.0])],
+            source_root=Path(__file__).parent,
+        )
