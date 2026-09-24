@@ -242,13 +242,8 @@ TESTS = [
 ]
 
 
-# Filter out all bool tests for CUDA/Metal backend, as it is not handled correct. See issue:
-# https://github.com/shader-slang/slangpy/issues/274
 def get_tests(device_type: spy.DeviceType):
-    if device_type not in [spy.DeviceType.cuda, spy.DeviceType.metal]:
-        return TESTS
-    tests = [x for x in TESTS if "bool1" not in x[0]]
-    return tests
+    return TESTS
 
 
 def variable_decls(tests: list[Any]):
@@ -375,6 +370,33 @@ struct TextureHandle {
 
 struct TestType {
     TextureHandle textures[2];
+};
+
+StructuredBuffer<TestType> buffer;
+""",
+    )
+    return module.layout.get_type_layout(
+        module.layout.find_type_by_name("StructuredBuffer<TestType>")
+    )
+
+
+def make_numpy_validation_layout(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source(
+        "test_buffer_cursor_numpy_validation",
+        """
+struct Child {
+    int first;
+    float second;
+};
+
+struct TestType {
+    float u_float;
+    int u_int;
+    float4 u_float4;
+    float2x2 u_float2x2;
+    float u_float_array[4];
+    Child child;
 };
 
 StructuredBuffer<TestType> buffer;
@@ -619,6 +641,184 @@ def test_marshaled_object_self_returning_get_this(device_type: spy.DeviceType):
 
     with pytest.raises(RuntimeError, match="Expected dict"):
         element["textures"] = [SelfReturningWrapper(), SelfReturningWrapper()]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("sequence_type", [list, tuple])
+@pytest.mark.parametrize("wrapper_depth", [1, 3])
+def test_buffer_cursor_vector_wrapped_elements(
+    device_type: spy.DeviceType, sequence_type: type, wrapper_depth: int
+):
+    class WrappedScalar:
+        def __init__(self, value: Any):
+            self.value = value
+
+        def get_this(self) -> Any:
+            return self.value
+
+    layout = make_numpy_validation_layout(device_type).element_type_layout
+    cursor = spy.BufferCursor(device_type, layout, 1)
+    vector = cursor[0]["u_float4"]
+    first: Any = 1.0
+    third: Any = 3.0
+    for _ in range(wrapper_depth):
+        first = WrappedScalar(first)
+        third = WrappedScalar(third)
+    vector.write(sequence_type([first, 2.0, third, 4.0]))
+    assert vector.read() == spy.float4(1, 2, 3, 4)
+
+    with pytest.raises(RuntimeError):
+        vector.write(sequence_type([5.0, 6.0, 7.0, SelfReturningWrapper()]))
+    # Conversion must finish before any components are written.
+    assert vector.read() == spy.float4(1, 2, 3, 4)
+
+    cycle = WrappedScalar(None)
+    cycle.value = WrappedScalar(cycle)
+    with pytest.raises(RuntimeError):
+        vector.write(sequence_type([5.0, 6.0, 7.0, cycle]))
+    assert vector.read() == spy.float4(1, 2, 3, 4)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("contents", [[], [5.0, 6.0, 7.0, None]])
+def test_buffer_cursor_vector_sequence_wrapper(device_type: spy.DeviceType, contents: list[Any]):
+    class WrappedVector(list):
+        def get_this(self) -> spy.float4:
+            return spy.float4(1, 2, 3, 4)
+
+    layout = make_numpy_validation_layout(device_type).element_type_layout
+    cursor = spy.BufferCursor(device_type, layout, 1)
+    vector = cursor[0]["u_float4"]
+    vector.write(WrappedVector(contents))
+    assert vector.read() == spy.float4(1, 2, 3, 4)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_buffer_cursor_numpy_bool_matrix_rejected(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source(
+        "test_cursor_bool_matrix",
+        "struct Data { bool2x2 matrix; }; StructuredBuffer<Data> buffer;",
+    )
+    layout = module.layout.get_type_layout(
+        module.layout.find_type_by_name("StructuredBuffer<Data>")
+    ).element_type_layout
+    cursor = spy.BufferCursor(device_type, layout, 2)
+    for index in range(2):
+        for row in range(2):
+            for col in range(2):
+                cursor[index]["matrix"][row][col] = False
+
+    with pytest.raises(TypeError, match="matrix.*boolean matrices are not supported"):
+        cursor.write_from_numpy(
+            {"matrix": np.ones((2, 2, 2), dtype=np.bool_)}, unchecked_copy=False
+        )
+    for index in range(2):
+        for row in range(2):
+            for col in range(2):
+                assert cursor[index]["matrix"][row][col].read() is False
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_buffer_cursor_numpy_validation(device_type: spy.DeviceType):
+    resource_type_layout = make_numpy_validation_layout(device_type)
+    cursor = spy.BufferCursor(device_type, resource_type_layout.element_type_layout, 2)
+    element = cursor[0]
+
+    element["u_float"] = np.array(1.25, dtype=np.float32)
+    element["u_int"] = np.array(np.uint32(0xFFFFFFFF), dtype=np.uint32)
+    element["u_float4"] = np.arange(4, dtype=np.float32)
+    element["u_float2x2"] = np.arange(4, dtype=np.float32).reshape(2, 2)
+    element["u_float_array"] = np.arange(4, dtype=np.float32)
+
+    assert element["u_float"].read() == pytest.approx(1.25)
+    assert element["u_int"].read() == -1
+    assert element["u_float4"].read() == spy.float4(0.0, 1.0, 2.0, 3.0)
+    assert element["u_float2x2"].read() == spy.float2x2([0.0, 1.0, 2.0, 3.0])
+    assert element["u_float_array"].read() == pytest.approx([0.0, 1.0, 2.0, 3.0])
+
+    with pytest.raises(TypeError, match="cannot be written"):
+        element["u_float"] = np.array(1, dtype=np.int32)
+    with pytest.raises(ValueError, match="vector must have shape"):
+        element["u_float4"] = np.zeros((2, 4), dtype=np.float32)
+    with pytest.raises(ValueError, match="matrix must have shape"):
+        element["u_float2x2"] = np.zeros(4, dtype=np.float32)
+
+    non_contiguous = np.arange(8, dtype=np.float32)[::2]
+    with pytest.raises(ValueError, match="must be contiguous"):
+        element["u_float4"] = non_contiguous
+
+    # Struct dictionaries remain partial updates, and extra keys remain ignored.
+    element["child"] = {"first": 1, "second": 2.5}
+    element["child"] = {"first": 7, "ignored": 123}
+    assert element["child"]["first"].read() == 7
+    assert element["child"]["second"].read() == 2.5
+
+    with pytest.raises(TypeError, match="u_float.*cannot be written"):
+        cursor.write_from_numpy({"u_float": np.array([1, 2], dtype=np.int32)}, unchecked_copy=False)
+    with pytest.raises(ValueError, match="u_float4.*must be contiguous"):
+        cursor.write_from_numpy({"u_float4": np.arange(16, dtype=np.float32).reshape(2, 8)[:, ::2]})
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("unchecked_copy", [False, True])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_buffer_cursor_numpy_row_strides(
+    device_type: spy.DeviceType, unchecked_copy: bool, reverse: bool
+):
+    layout = make_numpy_validation_layout(device_type).element_type_layout
+    cursor = spy.BufferCursor(device_type, layout, 2)
+    rows = np.arange(16, dtype=np.float32).reshape(4, 4)[::2]
+    scalars = np.arange(4, dtype=np.float32)[::2]
+    if reverse:
+        rows = rows[::-1]
+        scalars = scalars[::-1]
+    cursor.write_from_numpy({"u_float4": rows, "u_float": scalars}, unchecked_copy=unchecked_copy)
+    for i in range(2):
+        assert cursor[i]["u_float4"].read() == spy.float4(*rows[i])
+        assert cursor[i]["u_float"].read() == scalars[i]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_buffer_cursor_numpy_vector_shapes(device_type: spy.DeviceType):
+    layout = make_numpy_validation_layout(device_type).element_type_layout
+    cursor = spy.BufferCursor(device_type, layout, 2)
+    for shape in [(4,), (1, 4), (4, 1), (2, 2)]:
+        cursor[0]["u_float4"] = np.arange(4, dtype=np.float32).reshape(shape)
+        assert cursor[0]["u_float4"].read() == spy.float4(0, 1, 2, 3)
+
+    data = np.arange(8, dtype=np.float32)
+    for shape in [(2, 4), (2, 1, 4), (2, 4, 1)]:
+        cursor.write_from_numpy({"u_float4": data.reshape(shape)}, unchecked_copy=False)
+        assert cursor[1]["u_float4"].read() == spy.float4(4, 5, 6, 7)
+
+    matrices = np.arange(8, dtype=np.float32).reshape(2, 2, 2)
+    cursor.write_from_numpy({"u_float2x2": matrices}, unchecked_copy=False)
+    assert cursor[1]["u_float2x2"].read() == spy.float2x2([4, 5, 6, 7])
+    cursor.write_from_numpy({"u_float_array": data.reshape(2, 4)}, unchecked_copy=False)
+    assert cursor[1]["u_float_array"].read() == pytest.approx([4, 5, 6, 7])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_buffer_cursor_numpy_prepacked_storage(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source(
+        "test_cursor_prepacked",
+        "struct Data { bool flag; }; StructuredBuffer<Data> buffer;",
+    )
+    layout = module.layout.get_type_layout(
+        module.layout.find_type_by_name("StructuredBuffer<Data>")
+    ).element_type_layout
+    cursor = spy.BufferCursor(device_type, layout, 2)
+    dtype = np.uint8 if layout.size == 1 else np.uint32
+    packed = np.array([1, 0], dtype=dtype)
+    cursor.write_from_numpy({"flag": packed}, unchecked_copy=True)
+    assert cursor[0]["flag"].read() is True
+    assert cursor[1]["flag"].read() is False
+    with pytest.raises(TypeError, match="cannot be written"):
+        cursor.write_from_numpy({"flag": packed}, unchecked_copy=False)
+    with pytest.raises(RuntimeError, match="backing storage"):
+        cursor.write_from_numpy({"flag": np.zeros((2, 8), dtype=np.uint8)})
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

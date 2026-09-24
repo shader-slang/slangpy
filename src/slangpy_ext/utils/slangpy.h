@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include "nanobind.h"
+#include "device/shader_cursor.h"
 
 #include "sgl/core/macros.h"
 #include "sgl/core/fwd.h"

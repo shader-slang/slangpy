@@ -6,6 +6,7 @@
 #include "sgl/device/resource.h"
 #include "sgl/device/sampler.h"
 #include "sgl/device/shader_object.h"
+#include "sgl/device/types.h"
 #include "sgl/func/tensor.h"
 
 namespace sgl {
@@ -80,6 +81,7 @@ namespace cursor_utils {
         register_cursor_writer<Sampler>();
         register_cursor_writer<AccelerationStructure>();
         register_cursor_writer<ShaderObject>();
+        register_cursor_writer<DescriptorHandle>();
         register_cursor_writer<func::Tensor>();
     }
 

@@ -53,6 +53,14 @@ ShaderObject::~ShaderObject()
         m_shader_object->release();
 }
 
+void ShaderObject::retain_rhi_shader_object()
+{
+    if (!m_retain) {
+        m_shader_object->addRef();
+        m_retain = true;
+    }
+}
+
 void ShaderObject::write_to_cursor(const ShaderCursor& cursor, const ShaderObject* value)
 {
     cursor.set_object(ref<const ShaderObject>(value));
@@ -75,17 +83,24 @@ uint32_t ShaderObject::get_entry_point_count() const
 
 ref<ShaderObject> ShaderObject::get_entry_point(uint32_t index)
 {
-    ref<ShaderObject> shader_object = make_ref<ShaderObject>(m_device, m_shader_object->getEntryPoint(index));
-    // TODO(slang-rhi) this is required to keep shader object's alive (shader cursor uses weak references)
-    m_objects.push_back(shader_object);
-    return shader_object;
+    return get_or_create_child(m_shader_object->getEntryPoint(index));
 }
 
 ref<ShaderObject> ShaderObject::get_object(const ShaderOffset& offset)
 {
-    ref<ShaderObject> shader_object
-        = make_ref<ShaderObject>(m_device, m_shader_object->getObject(rhi_shader_offset(offset)));
-    // TODO(slang-rhi) this is required to keep shader object's alive (shader cursor uses weak references)
+    return get_or_create_child(m_shader_object->getObject(rhi_shader_offset(offset)));
+}
+
+ref<ShaderObject> ShaderObject::get_or_create_child(rhi::IShaderObject* object)
+{
+    // Look up the current RHI object on every traversal: an offset's binding can
+    // change. Retain old wrappers too, since previously returned native cursors
+    // are non-owning. Retention also prevents reuse of an old object's address.
+    for (const auto& child : m_objects) {
+        if (child->rhi_shader_object() == object)
+            return child;
+    }
+    ref<ShaderObject> shader_object = make_ref<ShaderObject>(m_device, object);
     m_objects.push_back(shader_object);
     return shader_object;
 }
@@ -108,6 +123,14 @@ void ShaderObject::set_buffer(const ShaderOffset& offset, const ref<const Buffer
 
 void ShaderObject::set_buffer_view(const ShaderOffset& offset, const ref<const BufferView>& buffer_view)
 {
+    if (!buffer_view) {
+        SLANG_RHI_CALL(
+            m_shader_object->setBinding(rhi_shader_offset(offset), rhi::Binding(static_cast<rhi::IBuffer*>(nullptr))),
+            m_device
+        );
+        return;
+    }
+
     SLANG_RHI_CALL(
         m_shader_object->setBinding(
             rhi_shader_offset(offset),

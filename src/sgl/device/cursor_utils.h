@@ -67,6 +67,9 @@ namespace cursor_utils {
 
     SGL_API slang::TypeLayoutReflection* unwrap_array(slang::TypeLayoutReflection* layout);
 
+    /// Return true if a typed cursor write may preserve the source bits in the destination scalar type.
+    SGL_API bool allow_scalar_conversion(TypeReflection::ScalarType from, TypeReflection::ScalarType to);
+
     SGL_API void check_array(
         slang::TypeLayoutReflection* type_layout,
         size_t size,

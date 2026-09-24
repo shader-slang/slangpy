@@ -78,7 +78,11 @@ def test_write(device_type: DeviceType):
     val_data = np.zeros(10, dtype=np.float32)  # np.random.rand(10).astype(np.float32)
     val.copy_from_numpy(val_data)
 
+    retained: list[ShaderCursor] = []
+
     def writer(cursor: ShaderCursor, *args: Any, **kwargs: Any):
+        assert isinstance(cursor, ShaderCursor)
+        retained.append(cursor["params"])
         cursor.write({"params": {"k": kwargs["myvalue"]}})
 
     add_k = add_k.write(writer, myvalue=10)
@@ -87,6 +91,9 @@ def test_write(device_type: DeviceType):
 
     res_data = res.to_numpy().view(dtype=np.float32)
     assert np.allclose(res_data, val_data + 10)
+    m.device.wait()
+    # A native callback's cursor must remain usable after command recording ends.
+    assert retained[0].find_field("k").is_valid()
 
 
 if __name__ == "__main__":
