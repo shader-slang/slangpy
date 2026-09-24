@@ -1,6 +1,6 @@
 # Unify compiler version selection and simplify capability handling
 
-This ExecPlan follows `.agents/PLANS.md`. Milestones 1-4 and the Slang 2026.18.2 upgrade are complete. On 2026-09-24 the user agreed to simplify the contract before further implementation. The Public Contract, CUDA Compatibility Strategy, milestone 5, and Validation and Acceptance below describe the next implementation; earlier milestone descriptions and dated evidence record the previous implementation. The 2026-09-24 decisions supersede earlier requirements for exact CUDA output validation and general feature-dependency reconciliation. This revision changes planning documents only; milestone 5 has not been executed.
+This ExecPlan follows `.agents/PLANS.md`. Milestones 1-4 and the Slang 2026.18.2 upgrade are complete. On 2026-09-24 the user agreed to simplify the contract before further implementation. The Public Contract, CUDA Compatibility Strategy, milestone 5, and Validation and Acceptance below describe the implemented contract; earlier milestone descriptions and dated evidence record the previous implementation. The 2026-09-24 decisions supersede earlier requirements for exact CUDA output validation and general feature-dependency reconciliation. Milestone 5 implementation and validation on available backends are complete. The earlier exact-CUDA contract is retired as specified below.
 
 ## Purpose / Big Picture
 
@@ -26,10 +26,10 @@ Compilation settings are requests and assumptions, not verified output ceilings.
 - [x] (2026-09-23) Complete milestone 4: migrate all sessions to device-derived defaults, remove the legacy shader-model API, migrate native-profile tests and documentation, expose upgrade warnings, and validate available backends. Replace the reproduced ray-payload downgrade with the documented SLANG-W004 DXC option; retain NVAPI compatibility macros.
 
 - [x] (2026-09-23) Upgrade to Slang 2026.18.2; repeat 164 probes and available-backend regressions, retire the redundant source-module digest guard, and document the retained source prefix as W008.
-- [x] (2026-09-24) Record the agreed primary-profile API, CUDA profile shorthand, weaker capability guarantees, and milestone 5 implementation/validation requirements. Planning only; runtime behavior remains unchanged.
-- [ ] Milestone 5a: add CUDA profile shorthand, direct version reconciliation, and accurate target reporting; reduce dependency validation while preserving essential SER behavior.
-- [ ] Milestone 5b: remove exact CUDA output enforcement, its eager compilation/specialization restrictions, and dedicated validated-cache guards; replace enforcement tests with input-selection and normal lifecycle tests.
-- [ ] Milestone 5c: update public/generated documentation and the workaround ledger, then build and validate the simplified contract across available backends.
+- [x] (2026-09-24) Record the agreed primary-profile API, CUDA profile shorthand, weaker capability guarantees, and milestone 5 implementation/validation requirements. Recorded before implementation.
+- [x] (2026-09-24) Milestone 5a: add CUDA profile shorthand, direct version reconciliation, and accurate target reporting; reduce dependency validation while preserving essential SER behavior.
+- [x] (2026-09-24) Milestone 5b: remove exact CUDA output enforcement, its eager compilation/specialization restrictions, and dedicated validated-cache guards; replace enforcement tests with input-selection and normal lifecycle tests.
+- [x] (2026-09-24) Milestone 5c: public/generated documentation and workaround ledger updated; build, GPU/CPU/native regressions, full functional suite, and final formatting/diff checks passed.
 
 ## Evidence and Scope
 
@@ -93,7 +93,7 @@ Metal emits `metal` and OS-derived cumulative `metallib_2_3` through `metallib_3
 
 CPU emits `cpp`. WebGPU emits `wgsl`; runtime half/subgroup features do not have equivalent detailed compiler-capability population. D3D11, although not a SlangPy device backend, illustrates the separation: it uses `sm_5_0` as a profile but reports `hlsl` and optional NVAPI without the corresponding shader-model capability. See `src/cpu/cpu-device.cpp:27`, `src/wgpu/wgpu-device.cpp:251`, and `src/d3d11/d3d11-device.cpp:413`.
 
-### What SlangPy currently does
+### SlangPy behavior observed before migration
 
 
 `src/sgl/device/device.cpp:353` searches legacy runtime Features only through SM 6.7 and invents SM 6.0 when none is found. It separately collects RHI capability names and recognized Slang IDs at line 385. `Device.capabilities` exposes the names; `has_capability` is exact membership.
@@ -104,10 +104,10 @@ SlangPy also creates/links an NVAPI module based on build/backend status, and em
 
 Session descriptors are hashed with `getSessionDescDigest()` at line 535. Resolved capabilities, internal profiles, and generated downstream options must be installed before computing that digest. Hot reload reconstructs sessions, so resolution must be deterministic and stored with the session. Link-time downstream arguments are a second path that can conflict with a session's architecture selection (`shader.cpp:1632`).
 
-## Proposed Public Contract
+## Public Contract
 
 
-This is the agreed 2026-09-24 target contract, pending milestone 5. Keep the existing three fields and C++ representations (`std::optional<std::string>`, `std::optional<std::vector<std::string>>`, and `std::map<std::string, bool>`):
+This is the agreed 2026-09-24 contract, implemented in milestone 5. Keep the existing three fields and C++ representations (`std::optional<std::string>`, `std::optional<std::vector<std::string>>`, and `std::map<std::string, bool>`):
 
     profile: str | None = None
     capabilities: list[str] | None = None
@@ -309,7 +309,7 @@ Milestone 2 validation used the configured Windows debug build and pinned Slang 
 
 Results: 61 Python tests passed across D3D12/Vulkan/CUDA (40 new option/resolution cases, 18 existing shader cases, three cache cases); CPU passed 10 cases with eight skips; six native cases passed 52 assertions. Build/test logs are local artifacts under `build/compiler-target-*.log`. These production API tests were not repeated against master; master coverage remains the separate native probe matrices.
 
-Regenerate binding docstrings with `$env:LIBCLANG_PATH='C:/Program Files/LLVM/bin/libclang.dll'` followed by `cmake --build build/windows-msvc --config Debug --target slangpy_pydoc`; the normal build generates Python stubs. Run `python docs/generate_api.py` for API reference text. Its current full output also changes unrelated stale sections, so this milestone retains only the generated `SlangCompilerOptions`, `SlangSession`, and new `SlangTargetInfo` blocks. The full generated output is preserved locally in `build/compiler-target-generated-api.rst`.
+Regenerate binding docstrings with `$env:LIBCLANG_PATH='C:/Program Files/LLVM/bin/libclang.dll'` followed by `cmake --build --preset windows-msvc-debug --target slangpy_pydoc`; the normal build generates Python stubs. Run `python docs/generate_api.py` for API reference text. Its current full output also changes unrelated stale sections, so this milestone retains only the generated `SlangCompilerOptions`, `SlangSession`, and new `SlangTargetInfo` blocks. The full generated output is preserved locally in `build/compiler-target-generated-api.rst`.
 
 Milestone 3 uses the same compiler/toolchain build, with these additional validation commands after building:
 
@@ -337,6 +337,10 @@ An early broad run reported a one-pixel D3D ray-query mismatch. Standalone compa
 
 Binding docstrings and Python stubs were regenerated. Full API generation was preserved in `build/compiler-target-milestone4-api.rst`; the checked-in reference retains the affected generated option/report blocks and removes the obsolete enum/device property, avoiding unrelated stale-generator changes. Repository-wide pre-commit and `git diff --check` pass. Metal/WebGPU, other CUDA toolkits/hardware, and upstream workaround removal remain explicit follow-up gates.
 
+Milestone 5 validation on Slang 2026.18.2 / NVRTC 12.2: the Debug build passed; the combined GPU command above passed 253 cases with 17 skips, CPU passed 10 cases with 16 skips, and native device/hot-reload/cache suites passed 32 cases with 5,602 assertions. The full functional API suite passed 2,664 cases with 238 skips and seven expected failures in 721 seconds. After strengthening existing tests, the runtime interface-specialization dispatch test and all three selected-session functional API cases passed their targeted reruns. Profiles, capability lists, and overrides all support deferred CUDA generation, code/toolkit uplift, ordinary warm-cache reuse, and hot reload. Both SER implementations passed execution/artifact checks through explicit lists and profile/override selection. No exact-output or toolkit-drift cache guarantee is retained.
+
+Logs are `build/compiler-target-milestone5-{build,focused,regression,cpu,native,functional,specialization-test,functional-profile,precommit}.log`. Binding docstrings/stubs were regenerated after option/report comment changes; the full API output is in `build/compiler-target-milestone5-api-full.rst`, with only affected option/report documentation retained in the checked-in reference. Metal/WebGPU and other CUDA toolkits/hardware remain CI coverage gates.
+
 ## Validation and Acceptance
 
 
@@ -360,6 +364,10 @@ Run these commands from `C:/projects/slangpy` after implementation, building bef
 Use the existing docstring/stub/API regeneration commands in Concrete Steps and rebuild after changing generated binding documentation. Preserve logs under `build/compiler-target-milestone5-*.log`. Available backends should pass; document genuine hardware/backend skips. Metal/WebGPU and other CUDA toolkits/hardware remain CI follow-up coverage. Planning-only edits require pre-commit and a diff check, not a build or runtime test run.
 
 ## Surprises and Discoveries
+
+2026-09-24 milestone 5: actual CUDA runtime interface dispatch succeeds for profile/list/override requests when its concrete shader object comes from the same reflected module as the linked program. An exploratory packed argument from the functional API's separately composed module produced an RHI type-conformance error; the regression now binds the original module's type and verifies output 7. Direct deferred-pipeline tests also confirm no PTX is generated at linking or pipeline creation, then dispatch succeeds with observed code/toolkit uplift.
+
+The Windows pydoc build must use `--preset windows-msvc-debug` to retain the vcpkg overlay environment; the bare build-directory command triggered a reconfigure with an invalid custom triplet. Preset regeneration/build recovered without source configuration changes. Existing object files required elevated filesystem access for rebuilding.
 
 The 2026.18.2 upgrade reproduced all 150 recorded observation checks across 164 probes; no capability/profile/CUDA adapter became obsolete. This motivated a narrower product contract rather than more wrapper enforcement. The distinction between a public SlangPy selector and an actual Slang profile permits CUDA shorthand without fabricating an upstream profile or an NVRTC architecture override.
 
@@ -389,9 +397,11 @@ Milestone 1a showed that DX capability validation and DXC model selection can di
 
 ## Decision Log
 
-2026-09-24, agreed plan revision (not executed): define `profile` as SlangPy's backend compilation selector, including CUDA capability shorthand. Rationale: a unified version-selection API is useful now, irrespective of whether Slang eventually aliases profiles and capabilities. Keep capabilities/overrides as advanced input editing and retain observable translation.
+2026-09-24, milestone 5 implementation: translate CUDA selectors through the capability registry and remove the eager PTX/cache enforcement path entirely. Retain input provenance and direct conflicts; general SPIR-V/OptiX dependencies now reach Slang. Replace enforcement tests with observed-output, deferred compilation, cache reuse, specialization, and reload tests. GPU/CPU/native and full functional validation passed.
 
-2026-09-24, agreed plan revision (not executed): drop exact CUDA enforcement for every input origin, reduce generic dependency metadata, and preserve minimal SER/backend adapters. Rationale: Slang lacks a consistent output-ceiling contract; enforcing one locally adds eager compilation, cache overhead, and specialization restrictions beyond the intended API. W007 retirement will be a deliberate contract change, not an upstream fix. The specific direct-conflict, profile-precedence, report, and SER rules in this revision are the implementation choices for the next milestone.
+2026-09-24, agreed plan revision (before implementation): define `profile` as SlangPy's backend compilation selector, including CUDA capability shorthand. Rationale: a unified version-selection API is useful now, irrespective of whether Slang eventually aliases profiles and capabilities. Keep capabilities/overrides as advanced input editing and retain observable translation.
+
+2026-09-24, agreed plan revision (before implementation): drop exact CUDA enforcement for every input origin, reduce generic dependency metadata, and preserve minimal SER/backend adapters. Rationale: Slang lacks a consistent output-ceiling contract; enforcing one locally adds eager compilation, cache overhead, and specialization restrictions beyond the intended API. W007 retirement will be a deliberate contract change, not an upstream fix. The specific direct-conflict, profile-precedence, report, and SER rules in this revision are the implementation choices for the next milestone.
 
 
 2026-09-23, milestone 4: retire the legacy API and opt-in switch in this breaking change. The user explicitly wanted `shader_model` to go away, and all available-backend validation milestones have passed. Default sessions now start from detected compiler inputs; fresh sessions still use fresh option descriptors. Retain deprecated shader-model macros: fetched NVAPI headers actively consume them. They describe the actual D3D profile and are zero on other backends. A sample notebook contains historical printed `supported_shader_model` output only; no sample source migration or submodule revision change is needed.
@@ -439,7 +449,7 @@ Priority upstream work is broader CUDA tier coverage and, independently of this 
 
 ## Outcomes and Retrospective
 
-2026-09-24 planning outcome: the next milestone is specified but unimplemented. Public option types remain unchanged; the planned change makes profiles primary, adds CUDA shorthand, and intentionally relaxes previous exact-output guarantees. Current code, runtime documentation, and test behavior still implement the completed migration/upgrade. The following dated outcomes are historical and do not override milestone 5.
+2026-09-24 milestone 5: CUDA `profile` shorthand is implemented with input reconciliation and accurate requested/native-profile reporting. General feature dependency tables are removed except native SER's DX profile requirement. W007's eager PTX generation, specialization restriction, and expected-cache-byte machinery are deleted; the cache format and ordinary RHI lifecycle remain unchanged. W009 documents the profile translation; public and generated references explicitly state the narrower assumption contract. All 72 focused profile/artifact tests and 253 combined GPU regressions passed (17 backend skips), alongside 10 CPU tests (16 skips) and 32 native cases / 5,602 assertions. The runtime-specialization test was subsequently strengthened from linking to actual interface-specialized dispatch for all three explicit input forms; its targeted rerun passed. The full functional suite passed 2,664 tests, with 238 skips and seven expected failures. Explicit D3D/CUDA profiles also passed functional calls/reload tests. Pre-commit and the diff check passed. The following dated outcomes describe earlier contracts and do not override milestone 5.
 
 
 
@@ -474,3 +484,5 @@ Revision note, 2026-09-23, milestone 4: migrated defaults and retired the legacy
 Release follow-up, 2026-09-23: [the Slang 2026.18.2 upgrade](slang-release-upgrade.md) reruns the removal gates and records the new default compiler. All 150 observation checks across 164 probes remain unchanged; W001-W007 keep their migration status. The audit removes an older redundant source-module digest guard while retaining its source-prefix counterpart, now tracked as W008. See the separate plan and workaround ledger for upgrade validation results.
 
 Revision note, 2026-09-24: revised the active contract and added milestone 5 before execution, as requested. Supersedes literal-only profile semantics, provenance-dependent exact CUDA validation, and broad feature-dependency reconciliation; preserves input editing, essential SER behavior, useful profile bundles, reporting, and measured compiler evidence.
+
+Revision note, 2026-09-24 implementation: milestone 5a/5b completed, runtime/user/generated documentation and workaround statuses updated, and focused GPU/CPU/native validation passed. Full functional checks and final formatting/diff checks passed.

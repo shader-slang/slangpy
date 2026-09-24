@@ -217,10 +217,14 @@ def test_functional_api_uses_selected_session(device_type: spy.DeviceType) -> No
     device = helpers.get_device(device_type)
     options: dict[str, Any]
     if device_type == spy.DeviceType.d3d12 and "_sm_6_6" in device.capabilities:
-        options = {"capabilities": ["sm_6_6"]}
+        options = {"profile": "sm_6_6", "capabilities": []}
         # Actual capability-sensitive operation; verifies generated functional kernels share the session.
         body = "return WaveMatch(x).x & 1;"
         expected = 1
+    elif device_type == spy.DeviceType.cuda:
+        options = {"profile": "cuda_sm_5_0", "capabilities": []}
+        body = "return x + 1;"
+        expected = 8
     else:
         # Exclude compiler-unknown detections by using the neutral override path instead.
         options = {"capability_overrides": {BASELINES[device_type]: True}}
@@ -331,13 +335,14 @@ def test_spirv_profiles_and_bundles(device_type: spy.DeviceType) -> None:
         (RuntimeError, spy.SlangCompileError), match="SPV_EXT_physical_storage_buffer"
     ):
         restricted.load_module_from_source("missing_profile_feature", source)
-    with pytest.raises(RuntimeError, match="SPV_EXT_physical_storage_buffer.*1.3"):
-        device.create_slang_session(
-            {"profile": "spirv_1_0", "capabilities": ["SPV_EXT_physical_storage_buffer"]}
-        )
-    if "SPV_KHR_cooperative_matrix" in device.capabilities:
-        with pytest.raises(RuntimeError, match="device.*exceeding profile"):
-            device.create_slang_session({"profile": "spirv_1_3"})
+    # General feature dependencies belong to Slang, not a local version table.
+    upgraded = device.create_slang_session(
+        {"profile": "spirv_1_0", "capabilities": ["SPV_EXT_physical_storage_buffer"]}
+    )
+    assert run_shader(device, upgraded, source) == 7
+    inherited = device.create_slang_session({"profile": "spirv_1_3"})
+    assert "_spirv_1_6" not in inherited.target_info.capabilities
+    assert run_shader(device, inherited) == 7
     with pytest.raises(RuntimeError, match="requires an explicit capabilities list"):
         device.create_slang_session({"profile": "sm_6_6"})
     cross = device.create_slang_session({"profile": "sm_6_6", "capabilities": []})
@@ -391,35 +396,63 @@ def test_cuda_selection(device_type: spy.DeviceType) -> None:
 @pytest.mark.parametrize(
     "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
 )
-def test_cuda_exact_target(device_type: spy.DeviceType) -> None:
+def test_cuda_profile_reconciliation(device_type: spy.DeviceType) -> None:
     device = helpers.get_device(device_type)
     if "_cuda_sm_7_0" not in device.capabilities:
         pytest.skip("Requires CUDA compute capability 7.0 or newer")
-    half_source = SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)")
-    exact = device.create_slang_session({"capabilities": ["cuda_sm_5_0"]})
-    module = exact.load_module_from_source("requires_half", half_source)
-    # Slang raises half-using code to at least sm_60, even with warning 41012 suppressed.
-    with pytest.raises(RuntimeError, match="Exact CUDA target 5.0.*emitted sm_"):
-        exact.link_program([module], [module.entry_point("capability_main")])
-    # This checks emitted architecture, not Slang's semantic requirement closure: an annotation
-    # alone need not change PTX, and the existing permissive capability policy remains in effect.
-    source = SOURCE.replace('[shader("compute")]', '[require(_cuda_sm_7_0)] [shader("compute")]')
-    assert run_shader(device, exact, source) == 7
-    # Selecting the actual required tier succeeds, including after session reconstruction.
-    matching = device.create_slang_session({"capabilities": ["cuda_sm_7_0"]})
-    assert run_shader(device, matching, source) == 7
-    device.reload_all_programs()
-    assert run_shader(device, matching, source) == 7
-    # NVRTC's minimum is separate from hardware support and Slang's capability registry.
-    ancient = device.create_slang_session({"capabilities": ["cuda_sm_1_0"]})
-    with pytest.raises(RuntimeError, match="Exact CUDA target 1.0.*emitted sm_"):
-        run_shader(device, ancient)
-    overridden = device.create_slang_session(
-        {"capabilities": [], "capability_overrides": {"cuda_sm_5_0": True}}
+    inherited = device.create_slang_session({"profile": "cuda_sm_5_0"})
+    info = inherited.target_info
+    assert info.requested_profile == "cuda_sm_5_0"
+    assert info.profile is None
+    assert not info.profile_automatic
+    assert info.capability_origins["_cuda_sm_5_0"] == "device"
+    assert "_cuda_sm_7_0" in info.removed_capabilities
+    assert "_cuda_sm_7_0" not in info.capabilities
+    assert run_shader(device, inherited) == 7
+    for origin in ("explicit", "override"):
+        options: dict[str, Any] = {"profile": "cuda_sm_5_0"}
+        if origin == "explicit":
+            options["capabilities"] = ["cuda_sm_7_0"]
+        else:
+            options["capability_overrides"] = {"cuda_sm_7_0": True}
+        with pytest.raises(RuntimeError, match=f"{origin}.*exceeding profile"):
+            device.create_slang_session(options)
+    # The profile supplies its own requirement even with empty inputs/removal overrides.
+    selected = device.create_slang_session(
+        {
+            "profile": "cuda_sm_7_0",
+            "capabilities": [],
+            "capability_overrides": {"cuda_sm_7_0": False},
+        }
     )
-    module = overridden.load_module_from_source("override_half", half_source)
-    with pytest.raises(RuntimeError, match="Exact CUDA target 5.0.*emitted sm_"):
-        overridden.link_program([module], [module.entry_point("capability_main")])
+    assert selected.target_info.capabilities == ["_cuda_sm_7_0", "cuda"]
+    assert selected.target_info.capability_origins["_cuda_sm_7_0"] == "profile"
+    assert any("still supplies" in note for note in selected.target_info.notes)
+    assert run_shader(device, selected) == 7
+    for origin in ("explicit", "override"):
+        options = {"profile": "cuda_sm_7_0", "capabilities": []}
+        if origin == "explicit":
+            options["capabilities"] = ["_cuda_sm_7_0"]
+        else:
+            options["capability_overrides"] = {"cuda_sm_7_0": True}
+        session = device.create_slang_session(options)
+        assert session.target_info.capability_origins["_cuda_sm_7_0"] == origin
+        assert session.target_info.session_digest == selected.target_info.session_digest
+    alias = device.create_slang_session({"profile": "_cuda_sm_7_0", "capabilities": []})
+    assert alias.target_info.requested_profile == "_cuda_sm_7_0"
+    assert alias.target_info.session_digest == selected.target_info.session_digest
+    for name in ("cuda_sm_7_5", "cuda_sm_9_0a", "cuda_sm_latest", "cuda_sm_999_0"):
+        with pytest.raises(RuntimeError, match="Unknown CUDA profile capability"):
+            device.create_slang_session({"profile": name})
+    hardware_tiers = [
+        tuple(int(part) for part in name.removeprefix("_cuda_sm_").split("_"))
+        for name in device.capabilities
+        if name.startswith("_cuda_sm_")
+        and all(part.isdigit() for part in name.removeprefix("_cuda_sm_").split("_"))
+    ]
+    if hardware_tiers and max(hardware_tiers) < (9, 0):
+        with pytest.raises(RuntimeError, match="exceeds detected"):
+            device.create_slang_session({"profile": "cuda_sm_9_0", "capabilities": []})
 
 
 @pytest.mark.parametrize(
@@ -436,74 +469,64 @@ RWStructuredBuffer<uint> output;
 [numthreads(1, 1, 1)]
 void capability_main(uint3 tid : SV_DispatchThreadID) { output[tid.x] = value.get(); }
 """
-    exact = device.create_slang_session({"capabilities": ["cuda_sm_5_0"]})
-    module = exact.load_module_from_source("runtime_specialization", source)
-    with pytest.raises(RuntimeError, match="requires a fully specialized program"):
-        exact.link_program([module], [module.entry_point("capability_main")])
-    inherited = device.create_slang_session({"capability_overrides": {"cuda": True}})
-    module = inherited.load_module_from_source("runtime_specialization", source)
-    assert inherited.link_program([module], [module.entry_point("capability_main")])
-
-
-@pytest.mark.parametrize(
-    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
-)
-def test_cuda_exact_target_with_cache(device_type: spy.DeviceType, tmp_path: Path) -> None:
-    for iteration in range(2):
-        with spy.Device(type=device_type, shader_cache_path=tmp_path) as device:
-            if "_cuda_sm_7_0" not in device.capabilities:
-                pytest.skip("Requires CUDA compute capability 7.0 or newer")
-            session = device.create_slang_session({"capabilities": ["cuda_sm_7_0"]})
-            assert run_shader(device, session) == 7
-            if iteration:
-                assert device.shader_cache_stats.hit_count > 0
-            exact = device.create_slang_session({"capabilities": ["cuda_sm_5_0"]})
-            source = SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)")
-            module = exact.load_module_from_source("cache_mismatch", source)
-            with pytest.raises(RuntimeError, match="Exact CUDA target 5.0.*emitted sm_"):
-                exact.link_program([module], [module.entry_point("capability_main")])
-
-
-@pytest.mark.parametrize(
-    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
-)
-def test_cuda_exact_target_rejects_preexisting_cache(
-    device_type: spy.DeviceType, tmp_path: Path
-) -> None:
-    source = SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)")
-    with spy.Device(type=device_type, shader_cache_path=tmp_path) as device:
-        # Keep 5.0 inherited so this remains an input assumption; it can generate sm_60.
-        automatic = device.create_slang_session(
-            {
-                "capability_overrides": {
-                    name: False
-                    for name in device.capabilities
-                    if name not in ("cuda", "_cuda_sm_5_0")
-                }
-            }
-        )
-        module = automatic.load_module_from_source("cached_half", source)
-        program = automatic.link_program([module], [module.entry_point("capability_main")])
+    for options in (
+        {"profile": "cuda_sm_5_0", "capabilities": []},
+        {"capabilities": ["cuda_sm_5_0"]},
+        {"capabilities": [], "capability_overrides": {"cuda_sm_5_0": True}},
+    ):
+        session = device.create_slang_session(dict(options, include_paths=[spy.SHADER_PATH]))
+        module = session.load_module_from_source("runtime_specialization", source)
+        # Interface specialization can remain unresolved until RHI dispatch.
+        program = session.link_program([module], [module.entry_point("capability_main")])
         kernel = device.create_compute_kernel(program)
+        packed = spy.pack(spy.Module(module), {"_type": "Value"})
+        # Bind the concrete type from the original module used by the linked program.
+        # The functional API's composed module has a different type identity.
+        layout = module.layout.get_type_layout(module.layout.find_type_by_name("Value"))
+        value = device.create_shader_object(layout)
+        argument = spy.slangpy.NativePackedArg(packed.python, value, {})
         buffer = device.create_buffer(size=4, usage=spy.BufferUsage.unordered_access)
-        kernel.dispatch(thread_count=[1, 1, 1], vars={"output": buffer})
-        assert buffer.to_numpy().view(np.float16)[0] == 1
-        assert device.shader_cache_stats.entry_count > 0
-        exact = device.create_slang_session({"capabilities": automatic.target_info.capabilities})
-        assert exact.target_info.session_digest == automatic.target_info.session_digest
-        module = exact.load_module_from_source("cached_half", source)
-        with pytest.raises(RuntimeError, match="Exact CUDA target 5.0.*emitted sm_"):
-            exact.link_program([module], [module.entry_point("capability_main")])
+        kernel.dispatch(thread_count=[1, 1, 1], vars={"output": buffer, "value": argument})
+        assert buffer.to_numpy().view(np.uint32)[0] == 7
 
 
 @pytest.mark.parametrize(
     "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
 )
-def test_cuda_exact_target_failed_reload(device_type: spy.DeviceType, tmp_path: Path) -> None:
+def test_cuda_profile_cache(device_type: spy.DeviceType, tmp_path: Path) -> None:
+    options_list: list[dict[str, Any]] = [
+        {"profile": "cuda_sm_5_0", "capabilities": []},
+        {"capabilities": ["cuda_sm_5_0"]},
+        {"capabilities": [], "capability_overrides": {"cuda_sm_5_0": True}},
+    ]
+    digest = None
+    source = SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)")
+    for options in options_list:
+        with spy.Device(type=device_type, shader_cache_path=tmp_path) as device:
+            session = device.create_slang_session(options)
+            if digest is not None:
+                assert session.target_info.session_digest == digest
+            module = session.load_module_from_source("cached_half", source)
+            program = session.link_program([module], [module.entry_point("capability_main")])
+            kernel = device.create_compute_kernel(program)
+            buffer = device.create_buffer(size=4, usage=spy.BufferUsage.unordered_access)
+            kernel.dispatch(thread_count=[1, 1, 1], vars={"output": buffer})
+            assert buffer.to_numpy().view(np.float16)[0] == 1
+            if digest is not None:
+                assert device.shader_cache_stats.hit_count > 0
+            digest = session.target_info.session_digest
+            other = device.create_slang_session({"profile": "cuda_sm_6_0", "capabilities": []})
+            assert other.target_info.session_digest != digest
+
+
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
+)
+def test_cuda_profile_reload(device_type: spy.DeviceType, tmp_path: Path) -> None:
     path = tmp_path / "reload_target.slang"
     path.write_text(SOURCE)
     with spy.Device(type=device_type) as device:
-        session = device.create_slang_session({"capabilities": ["cuda_sm_5_0"]})
+        session = device.create_slang_session({"profile": "cuda_sm_5_0", "capabilities": []})
         module = session.load_module(str(path))
         program = session.link_program([module], [module.entry_point("capability_main")])
         kernel = device.create_compute_kernel(program)
@@ -514,13 +537,19 @@ def test_cuda_exact_target_failed_reload(device_type: spy.DeviceType, tmp_path: 
             return int(buffer.to_numpy().view(np.uint32)[0])
 
         assert dispatch() == 7
-        path.write_text(SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)"))
+        path.write_text(SOURCE.replace("= 7", "= missing_identifier"))
         device.reload_all_programs()
         # A failed hot reload keeps the old program and pipeline alive.
         assert dispatch() == 7
         path.write_text(SOURCE.replace("= 7", "= 9"))
         device.reload_all_programs()
         assert dispatch() == 9
+        # A compiler-driven target uplift is a valid reload under the assumption contract.
+        path.write_text(SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)"))
+        device.reload_all_programs()
+        kernel.dispatch(thread_count=[1, 1, 1], vars={"output": buffer})
+        assert buffer.to_numpy().view(np.float16)[0] == 1
+        assert session.target_info.requested_profile == "cuda_sm_5_0"
 
 
 @pytest.mark.parametrize(
@@ -567,3 +596,12 @@ def test_backend_without_profiles(device_type: spy.DeviceType) -> None:
     device = helpers.get_device(device_type)
     with pytest.raises(RuntimeError, match="not supported"):
         device.create_slang_session({"profile": "sm_6_6"})
+
+
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t != spy.DeviceType.cuda]
+)
+def test_cuda_profile_wrong_backend(device_type: spy.DeviceType) -> None:
+    device = helpers.get_device(device_type)
+    with pytest.raises(RuntimeError, match="not supported"):
+        device.create_slang_session({"profile": "cuda_sm_7_0", "capabilities": []})

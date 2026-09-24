@@ -3,6 +3,7 @@
 """Check generated backend artifacts through production SlangPy sessions."""
 
 from pathlib import Path
+from typing import Any
 import re
 import struct
 
@@ -27,8 +28,9 @@ CASES = [
     "device_type, capability, version",
     [case for case in CASES if case[0] in helpers.DEFAULT_DEVICE_TYPES],
 )
+@pytest.mark.parametrize("selector", ["capabilities", "profile"])
 def test_emitted_version(
-    device_type: spy.DeviceType, capability: str, version: str, tmp_path: Path
+    device_type: spy.DeviceType, capability: str, version: str, tmp_path: Path, selector: str
 ) -> None:
     # Use a fresh device without a persistent cache so the dump belongs to this compilation.
     with spy.Device(type=device_type) as device:
@@ -37,7 +39,8 @@ def test_emitted_version(
             pytest.skip(f"Device does not advertise {raw}")
         session = device.create_slang_session(
             {
-                "capabilities": [capability],
+                "capabilities": [capability] if selector == "capabilities" else [],
+                "profile": capability.lstrip("_") if selector == "profile" else None,
                 "dump_intermediates": True,
                 "dump_intermediates_prefix": str(tmp_path / "target"),
             }
@@ -93,8 +96,9 @@ def test_spirv_subgroup_output(device_type: spy.DeviceType, tmp_path: Path) -> N
     "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.d3d12]
 )
 @pytest.mark.parametrize("implementation", ["native", "nvapi"])
+@pytest.mark.parametrize("selection", ["capabilities", "profile_overrides"])
 def test_ser_implementation(
-    device_type: spy.DeviceType, implementation: str, tmp_path: Path
+    device_type: spy.DeviceType, implementation: str, selection: str, tmp_path: Path
 ) -> None:
     with spy.Device(type=device_type) as device:
         if not device.has_feature(spy.Feature.ray_tracing) or not device.has_feature(
@@ -113,13 +117,23 @@ def test_ser_implementation(
             capabilities = ["sm_6_6", "hlsl_nvapi"]
             marker = "NvHitObject"
             other_marker = "dx::HitObject"
-        session = device.create_slang_session(
-            {
-                "capabilities": capabilities,
-                "dump_intermediates": True,
-                "dump_intermediates_prefix": str(tmp_path / "ser"),
+        options: dict[str, Any] = {
+            "dump_intermediates": True,
+            "dump_intermediates_prefix": str(tmp_path / "ser"),
+        }
+        if selection == "capabilities":
+            options["capabilities"] = capabilities
+        else:
+            options["profile"] = "sm_6_9" if implementation == "native" else "sm_6_6"
+            options["capability_overrides"] = {
+                "hlsl_nvapi": implementation == "nvapi",
+                "ser_hlsl_native": implementation == "native",
+                "ser_dxr": False,
+                "ser_dxr_raygen": False,
+                "ser_dxr_raygen_closesthit_miss": False,
             }
-        )
+        session = device.create_slang_session(options)
+        assert session.target_info.profile == ("sm_6_9" if implementation == "native" else "sm_6_6")
         source = """
 RWStructuredBuffer<uint> output;
 [shader("raygeneration")]
@@ -184,3 +198,79 @@ def test_spirv_int64_atomic_output(device_type: spy.DeviceType, tmp_path: Path) 
         artifacts = list(tmp_path.glob("*.spv-asm"))
         assert artifacts
         assert all("OpCapability Int64Atomics" in path.read_text() for path in artifacts)
+
+
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
+)
+@pytest.mark.parametrize("selector", ["profile", "capabilities", "override"])
+@pytest.mark.parametrize("half_code", [False, True])
+def test_cuda_architecture_is_assumption(
+    device_type: spy.DeviceType, selector: str, half_code: bool, tmp_path: Path
+) -> None:
+    # Observe Slang/NVRTC's code and toolkit upgrades without imposing an exact-output policy.
+    tier = "cuda_sm_5_0" if half_code else "cuda_sm_1_0"
+    options: dict[str, Any] = {
+        "capabilities": [],
+        "dump_intermediates": True,
+        "dump_intermediates_prefix": str(tmp_path / "assumption"),
+    }
+    if selector == "profile":
+        options["profile"] = tier
+    elif selector == "capabilities":
+        options["capabilities"] = [tier]
+    else:
+        options["capability_overrides"] = {tier: True}
+    with spy.Device(type=device_type) as device:
+        session = device.create_slang_session(options)
+        source = SOURCE
+        if half_code:
+            source = source.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)")
+        module = session.load_module_from_source("architecture_assumption", source)
+        program = session.link_program([module], [module.entry_point("capability_main")])
+        # Linking no longer forces code generation, regardless of input provenance.
+        assert not list(tmp_path.glob("*.ptx"))
+        pipeline = device.create_compute_pipeline(
+            program=program, compilation_policy=spy.PipelineCompilationPolicy.deferred
+        )
+        assert not list(tmp_path.glob("*.ptx"))
+        buffer = device.create_buffer(size=4, usage=spy.BufferUsage.unordered_access)
+        encoder = device.create_command_encoder()
+        with encoder.begin_compute_pass() as compute:
+            root = compute.bind_pipeline(pipeline)
+            spy.ShaderCursor(root).output = buffer
+            compute.dispatch([1, 1, 1])
+        device.submit_command_buffer(encoder.finish())
+        dtype = np.float16 if half_code else np.uint32
+        assert buffer.to_numpy().view(dtype)[0] == (1 if half_code else 7)
+        artifacts = list(tmp_path.glob("*.ptx"))
+        assert artifacts
+        for artifact in artifacts:
+            target = re.search(r"(?m)^\s*\.target\s+sm_(\d+)", artifact.read_text())
+            assert target
+            assert int(target[1]) >= (60 if half_code else 50)
+
+
+@pytest.mark.parametrize(
+    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
+)
+def test_cuda_downstream_diagnostics(
+    device_type: spy.DeviceType, capfd: pytest.CaptureFixture[str]
+) -> None:
+    device = helpers.get_device(device_type)
+    session = device.create_slang_session(
+        {
+            "profile": "cuda_sm_5_0",
+            "capabilities": [],
+            "downstream_args": ["--invalid-slangpy-test-option"],
+        }
+    )
+    module = session.load_module_from_source("downstream_failure", SOURCE)
+    program = session.link_program([module], [module.entry_point("capability_main")])
+    capfd.readouterr()
+    with pytest.raises(RuntimeError):
+        device.create_compute_pipeline(
+            program=program, compilation_policy=spy.PipelineCompilationPolicy.immediate
+        )
+    captured = capfd.readouterr()
+    assert "invalid-slangpy-test-option" in captured.out + captured.err

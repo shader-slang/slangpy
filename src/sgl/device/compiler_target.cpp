@@ -2,9 +2,6 @@
 
 #include "compiler_target.h"
 #include "sgl/core/error.h"
-#include "sgl/core/logger.h"
-#include "sgl/device/slang_utils.h"
-#include "sgl/device/persistent_cache.h"
 
 #include <algorithm>
 #include <charconv>
@@ -110,23 +107,14 @@ namespace {
         auto direct = version_name(name);
         if (direct.family != Family::unknown)
             return direct;
-        // SLANG-W005: bounded facts from slang-capabilities.capdef, not a capability graph.
+        // SLANG-W005: native SER needs SM 6.9 for DXC profile selection.
+        // Leave general feature dependencies to Slang and downstream compilers.
         // See plan/slang-compiler-workarounds.md for upstream queries and removal criteria.
         static const std::map<std::string, VersionName> requirements{
             {"ser_hlsl_native", {Family::dx, {6, 9}}},
             {"ser_dxr", {Family::dx, {6, 9}}},
             {"ser_dxr_raygen", {Family::dx, {6, 9}}},
             {"ser_dxr_raygen_closesthit_miss", {Family::dx, {6, 9}}},
-            {"SPV_EXT_physical_storage_buffer", {Family::spirv, {1, 3}}},
-            {"SPV_KHR_ray_tracing", {Family::spirv, {1, 4}}},
-            {"spvRayTracingKHR", {Family::spirv, {1, 4}}},
-            {"SPV_KHR_cooperative_matrix", {Family::spirv, {1, 6}}},
-            {"spvCooperativeMatrixKHR", {Family::spirv, {1, 6}}},
-            {"SPV_NV_cooperative_matrix2", {Family::spirv, {1, 6}}},
-            {"spvCooperativeMatrix2NV", {Family::spirv, {1, 6}}},
-            {"SPV_NV_cooperative_vector", {Family::spirv, {1, 6}}},
-            {"spvCooperativeVectorNV", {Family::spirv, {1, 6}}},
-            {"optix_coopvec", {Family::cuda, {9, 0}}},
         };
         auto it = requirements.find(name);
         return it != requirements.end() ? it->second : VersionName{};
@@ -165,27 +153,37 @@ SlangTargetInfo resolve_compiler_target(
     result.input_capabilities
         = options.capabilities.value_or(std::vector<std::string>(detected.begin(), detected.end()));
     result.notes.push_back(
-        "Capability inputs and known dependency checks are not a complete implication closure or emitted-version "
-        "ceiling."
+        "Profiles and capability inputs are compiler assumptions, not a complete implication closure or "
+        "emitted-version ceiling."
     );
     if (type == DeviceType::cuda)
         result.notes.push_back(
-            "CUDA architecture also depends on shader code and the downstream toolkit. An explicitly selected highest "
-            "numeric CUDA tier is checked against entry-point PTX at link time and requires a fully specialized "
-            "program. "
-            "Device-derived tiers remain compiler assumptions, not exact architecture requests."
+            "CUDA architecture also depends on shader code and the downstream toolkit. Selected tiers are compiler "
+            "assumptions; SlangPy does not validate the emitted PTX architecture."
         );
 
     auto family = native_family(type);
     VersionName profile;
     if (options.profile) {
-        SGL_CHECK(
-            compiler->findProfile(options.profile->c_str()) != SLANG_PROFILE_UNKNOWN,
-            "Unknown Slang profile '{}'",
-            *options.profile
-        );
         profile = version_name(*options.profile);
-        bool native = family != Family::unknown && family != Family::cuda && profile.family == family;
+        bool cuda_selector = options.profile->starts_with("cuda_sm_") || options.profile->starts_with("_cuda_sm_");
+        if (cuda_selector) {
+            // SLANG-W009: CUDA tiers are capabilities, not native Slang profile IDs.
+            SGL_CHECK(
+                profile.family == Family::cuda
+                    && compiler->findCapability(options.profile->c_str()) != SLANG_CAPABILITY_UNKNOWN,
+                "Unknown CUDA profile capability '{}'",
+                *options.profile
+            );
+            result.profile.reset();
+        } else {
+            SGL_CHECK(
+                compiler->findProfile(options.profile->c_str()) != SLANG_PROFILE_UNKNOWN,
+                "Unknown Slang profile '{}'",
+                *options.profile
+            );
+        }
+        bool native = family != Family::unknown && profile.family == family;
         bool cross = type == DeviceType::vulkan && (profile.family == Family::dx || profile.family == Family::glsl);
         SGL_CHECK(native || cross, "Profile '{}' is not supported for the {} backend", *options.profile, type);
         if (cross) {
@@ -299,6 +297,20 @@ SlangTargetInfo resolve_compiler_target(
             *result.profile
         );
 
+    if (options.profile && family == Family::cuda) {
+        auto name = canonical_name(type, *options.profile);
+        inputs.try_emplace(name, "profile");
+        result.notes.push_back(
+            fmt::format(
+                "SLANG-W009: CUDA profile '{}' supplies capability '{}'; no native Slang profile is passed.",
+                *options.profile,
+                name
+            )
+        );
+        if (overrides.contains(name) && !overrides.at(name))
+            result.notes.push_back(fmt::format("Selected profile still supplies '{}' after input removal.", name));
+    }
+
     // SLANG-W006: a fixed target baseline prevents empty inputs bypassing ordinary capability checking.
     auto base = baseline(type);
     inputs.try_emplace(base, "baseline");
@@ -314,92 +326,6 @@ SlangTargetInfo resolve_compiler_target(
     for (const auto& [name, origin] : inputs)
         result.capabilities.push_back(name);
     return result;
-}
-
-void validate_cuda_program(slang::IComponentType* program, const SlangTargetInfo& target_info, PersistentCache* cache)
-{
-    if (target_info.target != "ptx")
-        return;
-
-    Version selected;
-    bool explicit_version = false;
-    for (const auto& [name, origin] : target_info.capability_origins) {
-        auto version = version_name(name);
-        if (version.family == Family::cuda && version.version > selected) {
-            selected = version.version;
-            explicit_version = origin == "explicit" || origin == "override";
-        }
-    }
-    if (!explicit_version)
-        return;
-
-    // SLANG-W007: RHI owns deferred/specialized compilation and persistent cache reads. Its public
-    // API has no generated-code validation hook. Validate eagerly through the actual linked Slang
-    // component; RHI reuses its generated code, and this check cannot be bypassed by an RHI cache hit.
-    // Do not advertise exact validation for code that only becomes known at dispatch time.
-    SGL_CHECK(
-        program->getSpecializationParamCount() == 0,
-        "Exact CUDA target {}.{} requires a fully specialized program at link time; specialize the shader before "
-        "linking or use device-derived capabilities for runtime specialization",
-        selected.major,
-        selected.minor
-    );
-    slang::ProgramLayout* layout = nullptr;
-    SGL_CATCH_INTERNAL_SLANG_ERROR(layout = program->getLayout());
-    SGL_CHECK(layout, "Failed to get program layout for CUDA target validation");
-    for (SlangUInt index = 0; index < layout->getEntryPointCount(); ++index) {
-        Slang::ComPtr<ISlangBlob> code;
-        Slang::ComPtr<ISlangBlob> diagnostics;
-        SlangResult status = SLANG_FAIL;
-        SGL_CATCH_INTERNAL_SLANG_ERROR(
-            status = program->getEntryPointCode(index, 0, code.writeRef(), diagnostics.writeRef())
-        );
-        auto diagnostic_text = diagnostics
-            ? std::string(static_cast<const char*>(diagnostics->getBufferPointer()), diagnostics->getBufferSize())
-            : std::string();
-        SGL_CHECK(
-            SLANG_SUCCEEDED(status) && code,
-            "Failed to compile entry point '{}' for exact CUDA target {}.{}; the shader and loaded NVRTC toolkit "
-            "must support this architecture. {}",
-            layout->getEntryPointByIndex(index)->getName(),
-            selected.major,
-            selected.minor,
-            diagnostic_text
-        );
-        if (!diagnostic_text.empty())
-            log_warn("Slang compiler warnings:\n{}", diagnostic_text);
-        std::string ptx(static_cast<const char*>(code->getBufferPointer()), code->getBufferSize());
-        std::smatch target_match;
-        std::smatch version_match;
-        // Match directives at line starts, not occurrences in generated comments or identifiers.
-        const std::regex target_pattern(R"((?:^|\n)[ \t]*\.target[ \t]+(sm_[0-9]+[a-z]*)(?:[ \t,\r\n]|$))");
-        const std::regex version_pattern(R"((?:^|\n)[ \t]*\.version[ \t]+([0-9]+\.[0-9]+)(?:[ \t\r\n]|$))");
-        SGL_CHECK(
-            std::regex_search(ptx, target_match, target_pattern)
-                && std::regex_search(ptx, version_match, version_pattern),
-            "Cannot validate exact CUDA target {}.{}: generated code has no recognized PTX target/version header",
-            selected.major,
-            selected.minor
-        );
-        auto expected = fmt::format("sm_{}{}", selected.major, selected.minor);
-        SGL_CHECK(
-            target_match[1].str() == expected,
-            "Exact CUDA target {}.{} requested {}, but entry point '{}' emitted {} (PTX {}). Shader requirements "
-            "or the NVRTC toolkit changed the architecture; choose a matching supported capability or use "
-            "device-derived capabilities",
-            selected.major,
-            selected.minor,
-            expected,
-            layout->getEntryPointByIndex(index)->getName(),
-            target_match[1].str(),
-            version_match[1].str()
-        );
-        if (cache) {
-            Slang::ComPtr<ISlangBlob> key;
-            SGL_CATCH_INTERNAL_SLANG_ERROR(program->getEntryPointHash(index, 0, key.writeRef()));
-            cache->expect_entry(key, code);
-        }
-    }
 }
 
 } // namespace sgl

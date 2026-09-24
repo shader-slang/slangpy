@@ -7306,8 +7306,10 @@ Device
     .. py:property:: profile
         :type: str | None
 
-        Optional Slang profile. None selects an automatic compatibility
-        profile.
+        Optional backend compilation selector, e.g. sm_6_6, spirv_1_6, or
+        cuda_sm_7_0. None uses device defaults. CUDA selectors supply a
+        capability instead of a Slang profile. Profiles and capabilities are
+        compiler assumptions, not verified output version ceilings.
 
     .. py:property:: capabilities
         :type: list[str] | None
@@ -7680,7 +7682,8 @@ Device
     .. py:property:: requested_profile
         :type: str | None
 
-        Profile explicitly requested by the caller.
+        Compilation selector explicitly requested by the caller, including
+        CUDA shorthand.
 
     .. py:property:: profile_automatic
         :type: bool
@@ -7690,7 +7693,8 @@ Device
     .. py:property:: profile
         :type: str | None
 
-        Profile passed to Slang, if any.
+        Native profile passed to Slang, if any. None for CUDA, including
+        explicit CUDA selectors.
 
     .. py:property:: input_capabilities
         :type: list[str]
@@ -7705,8 +7709,8 @@ Device
     .. py:property:: capability_origins
         :type: dict[str, str]
 
-        Origin of each forwarded input: device, explicit, override, or
-        baseline.
+        Origin of each forwarded input: device, explicit, override, profile,
+        or baseline.
 
     .. py:property:: removed_capabilities
         :type: dict[str, str]

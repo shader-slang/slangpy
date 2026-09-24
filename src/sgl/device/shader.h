@@ -141,7 +141,9 @@ struct SlangCompilerOptions {
     /// Specifies a list of preprocessor defines.
     std::map<std::string, std::string> defines;
 
-    /// Optional Slang profile. None selects an automatic compatibility profile.
+    /// Optional backend compilation selector, e.g. sm_6_6, spirv_1_6, or cuda_sm_7_0.
+    /// None uses device defaults. CUDA selectors supply a capability instead of a Slang profile.
+    /// Profiles and capabilities are compiler assumptions, not verified output version ceilings.
     std::optional<std::string> profile;
 
     /// Capability inputs replacing device defaults. None uses detected inputs; an empty list does not.
@@ -254,17 +256,17 @@ struct SlangSessionDesc {
 struct SlangTargetInfo {
     /// Output format selected by the device backend.
     std::string target;
-    /// Profile explicitly requested by the caller.
+    /// Compilation selector explicitly requested by the caller, including CUDA shorthand.
     std::optional<std::string> requested_profile;
     /// Whether the profile was selected automatically.
     bool profile_automatic{true};
-    /// Profile passed to Slang, if any.
+    /// Native profile passed to Slang, if any. None for CUDA, including explicit CUDA selectors.
     std::optional<std::string> profile;
     /// Unmodified base inputs, before overrides and reconciliation.
     std::vector<std::string> input_capabilities;
     /// Canonical inputs actually forwarded to Slang.
     std::vector<std::string> capabilities;
-    /// Origin of each forwarded input: device, explicit, override, or baseline.
+    /// Origin of each forwarded input: device, explicit, override, profile, or baseline.
     std::map<std::string, std::string> capability_origins;
     /// Inputs removed by overrides or profile reconciliation, with reasons.
     std::map<std::string, std::string> removed_capabilities;

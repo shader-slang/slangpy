@@ -1,27 +1,34 @@
 Compiler target selection
 =========================
 
-``SlangCompilerOptions`` supports an optional ``profile``, an optional
-``capabilities`` list, and a ``capability_overrides`` dictionary. These settings
-control the Slang session used to compile shaders for a device.
+Use ``SlangCompilerOptions.profile`` to select a backend compilation version:
+``sm_6_6`` for D3D12, ``spirv_1_6`` for Vulkan, or ``cuda_sm_7_0`` for CUDA.
+An optional ``capabilities`` list and ``capability_overrides`` dictionary provide
+advanced control over the inputs passed to Slang. These settings are compiler
+requests and assumptions, not verified limits on the generated code.
 
 Every session uses the device's detected compiler inputs by default. Set a
 profile, replace the input list, or override individual inputs when needed.
 Explicit sessions start from fresh compiler options; they do not inherit custom
 options from the device's default session.
 
-Selecting inputs
-----------------
+Selecting a profile
+-------------------
 
-An explicit list replaces the detected device inputs. With ``capabilities=None``,
-the compiler starts from the device inputs instead. For example, on a CUDA
-device supporting compute capability 7.0 or newer:
+For example, on a CUDA device supporting compute capability 7.0 or newer:
 
 .. code-block:: python
 
     session = device.create_slang_session({
-        "capabilities": ["cuda_sm_7_0"],
+        "profile": "cuda_sm_7_0",
     })
+
+A CUDA profile is SlangPy shorthand for a recognized numeric CUDA capability.
+SlangPy forwards that capability to Slang, which selects the NVRTC architecture;
+it does not pass a native Slang profile or append an NVRTC architecture flag.
+Tiers absent from the loaded Slang registry and architecture suffixes are rejected
+rather than approximated. For example, Slang 2026.18.2 does not recognize
+``cuda_sm_7_5`` even on a device reporting compute capability 7.5.
 
 To use device inputs, leave the compiler options unset:
 
@@ -31,8 +38,15 @@ To use device inputs, leave the compiler options unset:
     print(session.target_info.capabilities)
     print(session.target_info.ignored_capabilities)
 
+Advanced capability inputs
+--------------------------
+
+An explicit list replaces the detected device inputs. With ``capabilities=None``,
+the compiler starts from the device inputs instead. For example,
+``capabilities=["cuda_sm_7_0"]`` forwards only that optional input.
+
 The corresponding baseline names are ``hlsl`` for D3D12, ``spirv`` for Vulkan,
-``metal`` for Metal, ``wgsl`` for WebGPU, and ``cpp`` for CPU.
+``cuda`` for CUDA, ``metal`` for Metal, ``wgsl`` for WebGPU, and ``cpp`` for CPU.
 
 ``capabilities=[]`` supplies no optional device inputs. The mandatory backend
 baseline and any profile requirements remain. Overrides apply after selecting
@@ -55,29 +69,33 @@ Profiles and conflicts
 ----------------------
 
 An omitted profile is selected automatically when the backend needs one. An
-explicit profile preserves Slang's profile semantics. For example:
+explicit native profile preserves Slang's profile semantics; CUDA shorthand
+supplies the corresponding capability. For example:
 
 .. code-block:: python
 
     session = d3d_device.create_slang_session({"profile": "sm_6_6"})
 
-Higher inherited shader-model inputs are removed and reported. A higher explicit
-version or a known feature requiring a higher model raises an error instead.
-The same rule applies to native SPIR-V and Metal profiles. Known conflicting
-features are reported even when inherited; SlangPy does not silently delete
-those features. Checks cover documented version families and selected feature
-dependencies, not Slang's entire capability graph.
+Higher inherited numeric version inputs are removed and reported. A higher
+explicit numeric version, including a ``True`` override of a detected version,
+raises an error instead. The same rule applies to native SPIR-V, Metal, and CUDA
+selectors. Direct version requests above the detected device version also fail.
+General feature dependencies are left to Slang and downstream compilers; retained
+features may raise output requirements above the selected profile. SlangPy keeps
+one narrow feature adapter: native D3D12 SER requires shader model 6.9, so its
+markers raise the automatic D3D profile and conflict with a lower explicit profile.
 
 Native D3D profiles, SPIR-V profiles on Vulkan, and Metal profiles are supported.
 Stage-specific D3D profiles retain their stage restriction; prefer ``sm_*`` for
 sessions containing multiple shader stages. Vulkan also accepts Slang's DX/GLSL
 profile mappings when an explicit capability list is supplied. In that advanced
 mode, Slang defines the additive mapping; SlangPy does not infer a native version
-ceiling. CUDA, CPU, and WebGPU require ``profile=None``.
+ceiling. CPU and WebGPU require ``profile=None``.
 
 An explicit SPIR-V profile includes its feature bundle even when the capability
 list is empty. A removal override cannot subtract those profile requirements.
-For raw version/feature control, omit the profile and supply an authoritative
+For CUDA, the selected profile similarly supplies its capability even after a
+removal override. For raw version/feature control, omit the profile and supply an authoritative
 list; automatic Vulkan selection uses a minimal compatibility profile.
 
 For native D3D12 SER on a device with the required API support, remove NVAPI
@@ -92,7 +110,10 @@ and select the native implementation:
         },
     })
 
-Selecting ``hlsl_nvapi`` instead requires an NVAPI-enabled device. Native SER is
+To select NVAPI SER on an NVAPI-enabled device, use for example
+``profile="sm_6_6", capabilities=["hlsl_nvapi"]``. With device inputs instead,
+remove any retained native SER markers explicitly when selecting a lower profile.
+Selecting ``hlsl_nvapi`` requires an NVAPI-enabled device. Native SER is
 not implied merely by a shader-model profile. The compiler may warn about the
 other implementation due to a known SER requirement-inference issue.
 
@@ -106,6 +127,12 @@ downstream arguments, compatibility notes, and session digest. Collections are
 copies; modifying them does not change the session. ``session.desc`` also returns
 a copy. Reloading preserves the requested options and resolves them again.
 
+``requested_profile`` preserves the caller's selector. ``profile`` is the actual
+native profile passed to Slang and remains ``None`` for CUDA, including an explicit
+CUDA selector. ``profile_automatic`` indicates that the caller omitted the option.
+A capability synthesized for a CUDA profile has origin ``"profile"``; an existing
+equivalent input retains its ``"device"``, ``"explicit"``, or ``"override"`` origin.
+
 The report lists inputs actually passed to Slang, not the full set of implied
 capabilities or the final generated architecture. CUDA architecture can also
 depend on shader code and the installed toolkit. Missing exact CUDA tiers are
@@ -113,37 +140,25 @@ rejected rather than approximated for explicit requests. Architecture/profile
 flags in downstream arguments conflict with the new policy and are rejected at
 both session creation and linking.
 
-Exact CUDA architecture requests
---------------------------------
+CUDA compilation behavior
+-------------------------
 
-When the highest selected numeric CUDA capability comes from an explicit list
-or a ``True`` override, linking compiles every entry point through the loaded
-Slang/NVRTC toolchain and checks its PTX ``.target``. For example,
-``capabilities=["cuda_sm_5_0"]`` fails when half-precision code emits ``sm_60``.
-An architecture changed by the toolkit minimum also fails. The error includes
-the requested architecture, actual target, and PTX version. Compilation failures
-retain the downstream diagnostics. Session creation alone does not certify that
-the toolkit accepts the target.
+All CUDA selections are compiler assumptions, regardless of whether they came
+from a profile, explicit list, override, or device detection. Shader requirements
+and the downstream toolkit can raise the emitted architecture. For example,
+Slang 2026.18.2 with NVRTC 12.2 can emit ``sm_60`` for half-precision code requested
+at ``cuda_sm_5_0``, or ``sm_50`` for a request below the toolkit minimum.
 
-This validation runs again on reload and before any RHI shader-cache lookup.
-Cached code for an exact request must match the validated output; a mismatch
-becomes a cache miss, so an older toolchain's artifact cannot bypass the check.
-It currently makes compilation eager at link time, including for deferred
-pipelines, and can add compilation work even when a persistent cache contains
-the shader. Exact requests require programs to be fully specialized when linked;
-runtime interface specialization is rejected because SlangPy cannot inspect its
-eventual output through the current RHI API. Specialize before linking or use
-device-derived inputs for such programs.
+Explicit selections use ordinary RHI compilation, runtime specialization, deferred
+pipelines, persistent caches, and hot reload. Shader, downstream compiler, and
+driver failures still surface through the normal paths. Session creation does not
+certify toolkit support or driver acceptance of the generated PTX ISA version.
 
-An inherited highest CUDA version remains a compiler assumption. Adding a lower
-version does not turn it into an exact request or remove inherited higher
-versions. Device-derived and empty selections allow deferred compilation. The resolution report explains this distinction; it is a
-session snapshot, so it does not contain per-program PTX results.
-
-Matching PTX architecture does not establish a semantic capability ceiling or
-guarantee driver support for the PTX ISA version. The CUDA driver still validates
-the generated code when creating the pipeline. CUDA architecture suffixes and
-tiers absent from Slang remain unsupported explicit inputs.
+This intentionally replaces the earlier exact-CUDA contract: SlangPy no longer
+compiles eagerly at link time to inspect PTX, requires full specialization at
+link time, or compares cached code with freshly generated output. There is no
+additional guarantee against downstream toolkit changes or stale cached artifacts.
+The target report describes session inputs, not per-program output.
 
 Capability-upgrade warnings (41012) are visible by default. Compilation remains
 permissive: use ``warnings_as_errors=["41012"]`` to reject those upgrades where
@@ -161,13 +176,13 @@ This is a breaking API change. ``SlangCompilerOptions.shader_model``,
 
 * For ordinary compilation, omit target options to use the device's inputs.
 * Replace a D3D12 ``shader_model=ShaderModel.sm_6_6`` setting with
-  ``profile="sm_6_6"``. Profile reconciliation can reject a retained feature that
-  requires a higher model; remove that input explicitly or provide a capability list.
+  ``profile="sm_6_6"``. Profile reconciliation rejects higher explicit numeric models and retained
+  native SER markers requiring SM 6.9; remove those inputs or select a suitable profile.
 * For Vulkan, prefer native SPIR-V capabilities or profiles. An old HLSL model
   has no universal SPIR-V version equivalent. To request Slang's corresponding
   cross-family profile mapping, use ``profile="sm_6_6", capabilities=[]``;
   this requests its profile bundle and does not reproduce every legacy default.
-* For CUDA, use recognized ``cuda_sm_*`` capabilities. Do not pass an NVRTC
+* For CUDA, use ``profile="cuda_sm_7_0"`` or other recognized numeric CUDA tiers. Do not pass an NVRTC
   architecture flag alongside the compiler's generated flag.
 * Inspect ``Device.capabilities`` for reported inputs and
   ``session.target_info`` for the selected profile and forwarded inputs.
