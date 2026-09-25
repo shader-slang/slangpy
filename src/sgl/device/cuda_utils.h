@@ -86,8 +86,8 @@ public:
     void* mapped_data() const;
 
 private:
-    /// Non-owning pointer to the resource.
-    const Resource* m_resource;
+    /// Imported memory can outlive sgl::Device::close(), which releases its context owner.
+    ref<Device> m_device;
     CUexternalMemory m_external_memory;
     size_t m_size;
     mutable void* m_mapped_data{nullptr};
