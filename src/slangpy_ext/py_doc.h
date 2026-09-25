@@ -975,12 +975,11 @@ Returns:
 
 static const char *__doc_sgl_Bitmap_srgb_gamma = R"doc(True if the bitmap is in sRGB gamma space.)doc";
 
-static const char *__doc_sgl_Bitmap_supports_png_metadata =
-R"doc(Whether this build can read PNG transfer metadata through libpng.)doc";
-
 static const char *__doc_sgl_Bitmap_static_init = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_static_shutdown = R"doc()doc";
+
+static const char *__doc_sgl_Bitmap_supports_png_metadata = R"doc(Whether this build can read PNG transfer metadata through libpng.)doc";
 
 static const char *__doc_sgl_Bitmap_to_string = R"doc()doc";
 
@@ -4146,6 +4145,16 @@ static const char *__doc_sgl_Feature_cooperative_matrix = R"doc()doc";
 
 static const char *__doc_sgl_Feature_cooperative_matrix2 = R"doc()doc";
 
+static const char *__doc_sgl_Feature_cooperative_matrix_block_loads = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_conversions = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_per_element_operations = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_reductions = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_tensor_addressing = R"doc()doc";
+
 static const char *__doc_sgl_Feature_cooperative_vector = R"doc()doc";
 
 static const char *__doc_sgl_Feature_count = R"doc()doc";
@@ -5438,7 +5447,10 @@ R"doc(LMDB-based persistent cache. This class provides a simple key-value
 cache that stores its data in an LMDB database on disk. It supports
 basic operations such as setting, getting, and deleting entries.
 Eviction uses an LRU policy and is triggered when the cache size
-exceeds the eviction threshold.)doc";
+exceeds the eviction threshold. Multiple processes may share a cache
+on a local filesystem. Remote filesystems are unsupported. Read
+transactions own their reader slots; no reader state is retained in
+thread-local storage.)doc";
 
 static const char *__doc_sgl_LMDBCache_DB = R"doc()doc";
 
@@ -5449,7 +5461,10 @@ static const char *__doc_sgl_LMDBCache_DB_dbi_meta = R"doc()doc";
 static const char *__doc_sgl_LMDBCache_DB_env = R"doc()doc";
 
 static const char *__doc_sgl_LMDBCache_LMDBCache =
-R"doc(Constructor. Open the cache at the specified path. Throws on error.
+R"doc(Constructor. Open the cache at the specified path. Instances sharing
+an open environment in this process must use matching max_size and
+nosync options. Different options may be used after the last instance
+closes the environment. Throws on error.
 
 Parameter ``path``:
     Path to the cache directory.
@@ -9524,6 +9539,18 @@ static const char *__doc_sgl_TextureLoader_Options_generate_mips = R"doc(Generat
 
 static const char *__doc_sgl_TextureLoader_Options_load_as_normalized = R"doc(Load 8/16-bit integer data as normalized resource format.)doc";
 
+static const char *__doc_sgl_TextureLoader_Options_load_as_srgb =
+R"doc(Use ``Format::rgba8_unorm_srgb`` format if bitmap is 8-bit RGBA with
+sRGB gamma.)doc";
+
+static const char *__doc_sgl_TextureLoader_Options_max_mip_count =
+R"doc(Limit the full mip count implied by the texture dimensions; zero means
+unrestricted. For power-of-two textures, 13 allows up to 4096. Non-
+power-of-two dimensions use floor(log2(size)) + 1. DDS selects
+authored mips by their dimensions, or warns and uses the smallest mip
+if none fits. Other images are reduced before upload using successive
+box-filtered halvings.)doc";
+
 static const char *__doc_sgl_TextureLoader_Options_usage =
 R"doc(Resource usage flags for the texture. Render-target or unordered-
 access usage will be added automatically if ``generate_mips`` is true.)doc";
@@ -10609,7 +10636,7 @@ static const char *__doc_sgl_breakable_ref_operator_bool = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_operator_mul = R"doc()doc";
 
-static const char *__doc_sgl_breakable_ref_operator_ref = R"doc()doc";
+static const char *__doc_sgl_breakable_ref_operator_sgl_ref = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_operator_sub = R"doc()doc";
 
@@ -11420,6 +11447,8 @@ static const char *__doc_sgl_find_enum_info_adl_94 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_95 = R"doc()doc";
 
+static const char *__doc_sgl_find_enum_info_adl_96 = R"doc()doc";
+
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
 static const char *__doc_sgl_flip_bit = R"doc()doc";
@@ -11934,8 +11963,15 @@ static const char *__doc_sgl_math_cross = R"doc(cross)doc";
 static const char *__doc_sgl_math_cross_2 = R"doc(cross)doc";
 
 static const char *__doc_sgl_math_decompose =
-R"doc(Decomposes a model matrix into translation, rotation and scale
-components.)doc";
+R"doc(Decomposes a homogeneous matrix into translation, rotation, scale,
+shear and perspective. The factors reconstruct model_matrix /
+model_matrix[3][3] as P * T * R * H * S, where H has unit diagonal and
+upper entries (H01, H02, H12) = (skew.z, skew.y, skew.x). P has an
+identity upper three rows and perspective as its last row. Reflections
+use three negative scales and a proper rotation, matching the existing
+convention. Returns false for nonfinite input, zero homogeneous
+weight, numerically dependent spatial columns, or factors outside the
+output type's range. Outputs are unchanged on failure.)doc";
 
 static const char *__doc_sgl_math_degrees = R"doc()doc";
 
@@ -14801,7 +14837,10 @@ static const char *__doc_sgl_thread_TaskGroup_operator_assign = R"doc()doc";
 
 static const char *__doc_sgl_thread_TaskGroup_operator_assign_2 = R"doc()doc";
 
-static const char *__doc_sgl_thread_TaskGroup_wait = R"doc(Wait for all tasks in this task group.)doc";
+static const char *__doc_sgl_thread_TaskGroup_wait =
+R"doc(Wait for all tasks in this task group. If tasks throw, wait for and
+release every task before rethrowing the first exception in insertion
+order.)doc";
 
 static const char *__doc_sgl_thread_blocked_range = R"doc()doc";
 
