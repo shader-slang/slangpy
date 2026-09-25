@@ -12,6 +12,26 @@
 
 namespace sgl {
 
+/// Interpretation of stored bitmap color values; does not re-encode texels or modify bitmap metadata.
+enum class TextureEncoding {
+    /// Select sRGB sampling when supported and indicated by bitmap metadata.
+    automatic,
+    /// Sample without sRGB decoding, regardless of bitmap metadata.
+    linear,
+    /// Select sRGB sampling when supported, regardless of bitmap metadata. Alpha remains linear.
+    srgb,
+};
+
+SGL_ENUM_INFO(
+    TextureEncoding,
+    {
+        {TextureEncoding::automatic, "automatic"},
+        {TextureEncoding::linear, "linear"},
+        {TextureEncoding::srgb, "srgb"},
+    }
+);
+SGL_ENUM_REGISTER(TextureEncoding);
+
 /// Strategy for handling Y (greyscale) bitmaps during texture loading.
 enum class YHandling {
     /// Replicate luminance into RGB and set alpha to one.
@@ -58,8 +78,10 @@ public:
     struct SGL_API Options {
         /// Load 8/16-bit integer data as normalized resource format.
         bool load_as_normalized{true};
-        /// Use \c Format::rgba8_unorm_srgb format if bitmap is 8-bit RGBA with sRGB gamma.
-        bool load_as_srgb{true};
+        /// Color interpretation after channel expansion. sRGB sampling is supported for 8-bit RGBA;
+        /// other component types and preserved R/RG layouts retain their usual formats.
+        /// Stored texels and alpha are unchanged. DDS files retain their authored format.
+        TextureEncoding encoding{TextureEncoding::automatic};
         /// Extend RGB to RGBA if the RGB texture format cannot support the requested usage.
         bool extend_alpha{true};
         /// Strategy for handling Y (greyscale) bitmaps, independent of sRGB interpretation.

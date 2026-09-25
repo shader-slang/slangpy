@@ -9503,6 +9503,26 @@ static const char *__doc_sgl_TextureFilteringMode_linear = R"doc()doc";
 
 static const char *__doc_sgl_TextureFilteringMode_point = R"doc()doc";
 
+static const char *__doc_sgl_TextureEncoding =
+R"doc(Interpretation of stored bitmap color values; does not re-encode
+texels or modify bitmap metadata.)doc";
+
+static const char *__doc_sgl_TextureEncoding_automatic = R"doc(Select sRGB sampling when supported and indicated by bitmap metadata.)doc";
+
+static const char *__doc_sgl_TextureEncoding_info = R"doc()doc";
+
+static const char *__doc_sgl_TextureEncoding_linear = R"doc(Sample without sRGB decoding, regardless of bitmap metadata.)doc";
+
+static const char *__doc_sgl_TextureEncoding_srgb =
+R"doc(Select sRGB sampling when supported, regardless of bitmap metadata.
+Alpha remains linear.)doc";
+
+static const char *__doc_sgl_TextureLoader_Options_encoding =
+R"doc(Color interpretation after channel expansion. sRGB sampling is
+supported for 8-bit RGBA; other component types and preserved R/RG
+layouts retain their usual formats. Stored texels and alpha are
+unchanged. DDS files retain their authored format.)doc";
+
 static const char *__doc_sgl_TextureLoader = R"doc()doc";
 
 static const char *__doc_sgl_TextureLoader_2 = R"doc(Utility class for loading textures from bitmaps and image files.)doc";

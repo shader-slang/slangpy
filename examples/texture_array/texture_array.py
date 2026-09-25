@@ -30,7 +30,7 @@ class DemoWindow(spy.AppWindow):
         files = sorted(files)
         timer = spy.Timer()
         self.texture = loader.load_texture_array(
-            paths=files, options={"generate_mips": True, "load_as_srgb": True}
+            paths=files, options={"generate_mips": True, "encoding": spy.TextureEncoding.automatic}
         )
         print(f"elapsed={timer.elapsed_ms()} ms")
         print(self.texture)
