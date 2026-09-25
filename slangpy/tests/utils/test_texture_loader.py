@@ -19,7 +19,7 @@ ComponentType = DataStruct.Type
 class Flags(enum.Flag):
     none = 0
     load_as_normalized = 1
-    load_as_srgb = 2
+    srgb = 2
     extend_alpha = 4
 
 
@@ -78,11 +78,11 @@ FORMATS = [
     FormatEntry(PixelFormat.rgba, ComponentType.float16, Format.rgba16_float, Flags.none),
     FormatEntry(PixelFormat.rgba, ComponentType.float32, Format.rgba32_float, Flags.none),
     # sRGB handling
-    FormatEntry(PixelFormat.rgba, ComponentType.uint8, Format.rgba8_unorm_srgb, Flags.load_as_srgb),
+    FormatEntry(PixelFormat.rgba, ComponentType.uint8, Format.rgba8_unorm_srgb, Flags.srgb),
     # alpha extension
     FormatEntry(PixelFormat.rgb, ComponentType.uint8, Format.rgba8_uint, Flags.extend_alpha),
     FormatEntry(PixelFormat.rgb, ComponentType.uint8, Format.rgba8_unorm, Flags.load_as_normalized | Flags.extend_alpha),
-    FormatEntry(PixelFormat.rgb, ComponentType.uint8, Format.rgba8_unorm_srgb, Flags.load_as_srgb | Flags.extend_alpha),
+    FormatEntry(PixelFormat.rgb, ComponentType.uint8, Format.rgba8_unorm_srgb, Flags.srgb | Flags.extend_alpha),
     # ya handling
     FormatEntry(PixelFormat.ya, ComponentType.int8, Format.rgba8_sint, Flags.none),
 ]
@@ -224,7 +224,11 @@ def test_load_texture_from_bitmap(device_type: spy.DeviceType, format: FormatEnt
         bitmap=bitmap,
         options={
             "load_as_normalized": bool(format.flags & Flags.load_as_normalized),
-            "load_as_srgb": bool(format.flags & Flags.load_as_srgb),
+            "encoding": (
+                spy.TextureEncoding.srgb
+                if format.flags & Flags.srgb
+                else spy.TextureEncoding.linear
+            ),
         },
     )
 
@@ -276,7 +280,7 @@ def test_expand_luminance_to_rgba(
 
     loader = TextureLoader(device)
     options = TextureLoader.Options(
-        {"load_as_srgb": False, "y_handling": spy.YHandling.expand_to_rgba}
+        {"encoding": spy.TextureEncoding.linear, "y_handling": spy.YHandling.expand_to_rgba}
     )
     assert options.y_handling == spy.YHandling.expand_to_rgba
     assert TextureLoader.Options().y_handling == spy.YHandling.preserve_as_r
@@ -289,7 +293,7 @@ def test_expand_luminance_to_rgba(
         assert texture.format == Format.rgba8_unorm
         assert texture.mip_count == 1
         np.testing.assert_array_equal(texture.to_numpy(), expected)
-        scalar = loader.load_texture(source, options={"load_as_srgb": False})
+        scalar = loader.load_texture(source, options={"encoding": spy.TextureEncoding.linear})
         assert scalar.format == Format.r8_unorm
         np.testing.assert_array_equal(scalar.to_numpy(), values)
 
@@ -402,7 +406,7 @@ def test_ya_handling_default_expands_to_rgba(device_type: spy.DeviceType):
     loader = TextureLoader(device)
     options = TextureLoader.Options()
     options.load_as_normalized = True
-    options.load_as_srgb = False
+    options.encoding = spy.TextureEncoding.linear
     texture = loader.load_texture(bitmap=bitmap, options=options)
 
     assert texture.format == Format.rgba8_unorm
@@ -437,7 +441,7 @@ def test_ya_handling_preserve_as_rg(device_type: spy.DeviceType):
     loader = TextureLoader(device)
     options = TextureLoader.Options()
     options.load_as_normalized = True
-    options.load_as_srgb = False
+    options.encoding = spy.TextureEncoding.linear
     options.ya_handling = spy.YAHandling.preserve_as_rg
     texture = loader.load_texture(bitmap=bitmap, options=options)
 
@@ -482,37 +486,104 @@ def test_ya_handling_preserve_as_rg_float32(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
-@pytest.mark.parametrize("channels", [1, 3, 4])
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint16, np.float32])
+@pytest.mark.parametrize(
+    "pixel_format", [PixelFormat.y, PixelFormat.ya, PixelFormat.rgb, PixelFormat.rgba]
+)
 @pytest.mark.parametrize("source_srgb", [False, True])
-@pytest.mark.parametrize("mode", ["auto", "raw", "srgb"])
-def test_srgb_interpretation(
+@pytest.mark.parametrize("encoding", list(spy.TextureEncoding))
+def test_texture_encoding(
     device_type: spy.DeviceType,
     dtype: npt.DTypeLike,
-    channels: int,
+    pixel_format: PixelFormat,
     source_srgb: bool,
-    mode: str,
+    encoding: spy.TextureEncoding,
 ) -> None:
     device = helpers.get_device(type=device_type)
-    scale = 257 if dtype == np.uint16 else 1
+    channels = {PixelFormat.y: 1, PixelFormat.ya: 2, PixelFormat.rgb: 3, PixelFormat.rgba: 4}[
+        pixel_format
+    ]
+    scale = 257 if dtype == np.uint16 else 1 / 255 if dtype == np.float32 else 1
     data = np.full((2, 2, channels), 128 * scale, dtype=dtype)
-    if channels == 4:
-        data[..., 3] = 64 * scale
-    bitmap = Bitmap(data.squeeze(-1) if channels == 1 else data, srgb_gamma=source_srgb)
-    if mode == "srgb":
-        bitmap.srgb_gamma = True
-    expected_srgb = source_srgb or mode == "srgb"
-    use_srgb_format = mode != "raw" and expected_srgb and dtype == np.uint8 and channels in (3, 4)
-    options = TextureLoader.Options({"load_as_srgb": mode != "raw", "generate_mips": True})
+    if channels in (2, 4):
+        data[..., -1] = 64 * scale
+    bitmap = Bitmap(
+        data.squeeze(-1) if channels == 1 else data,
+        pixel_format=pixel_format,
+        srgb_gamma=source_srgb,
+    )
+    options = TextureLoader.Options(
+        {
+            "encoding": encoding,
+            "y_handling": spy.YHandling.expand_to_rgba,
+            "generate_mips": True,
+        }
+    )
+    assert options.encoding == encoding
     texture = TextureLoader(device).load_texture(bitmap, options)
-    assert bitmap.srgb_gamma is expected_srgb
+    assert bitmap.srgb_gamma is source_srgb
     np.testing.assert_array_equal(np.asarray(bitmap).reshape(data.shape), data)
+    expected = np.empty((2, 2, 4), dtype=dtype)
+    expected[..., :3] = data[..., :1] if channels <= 2 else data[..., :3]
+    expected[..., 3] = data[..., -1] if channels in (2, 4) else 255 * scale
+    np.testing.assert_array_equal(texture.to_numpy(), expected)
+    srgb = encoding == spy.TextureEncoding.srgb or (
+        encoding == spy.TextureEncoding.automatic and source_srgb
+    )
+    assert texture.format == (
+        Format.rgba32_float
+        if dtype == np.float32
+        else (
+            Format.rgba16_unorm
+            if dtype == np.uint16
+            else Format.rgba8_unorm_srgb if srgb else Format.rgba8_unorm
+        )
+    )
 
-    actual = texture.to_numpy().reshape(4, -1)
-    # Selecting sRGB changes the GPU format, never the sample type or stored values.
-    assert actual.dtype == dtype
-    np.testing.assert_array_equal(actual[:, :channels], data.reshape(-1, channels))
-    assert (texture.format == Format.rgba8_unorm_srgb) == use_srgb_format
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "pixel_format", [PixelFormat.y, PixelFormat.ya, PixelFormat.r, PixelFormat.rg]
+)
+@pytest.mark.parametrize("encoding", list(spy.TextureEncoding))
+def test_texture_encoding_preserves_compact_layout(
+    device_type: spy.DeviceType,
+    pixel_format: PixelFormat,
+    encoding: spy.TextureEncoding,
+) -> None:
+    channels = 1 if pixel_format in (PixelFormat.y, PixelFormat.r) else 2
+    data = np.full((2, 2, channels), 128, dtype=np.uint8)
+    if channels == 2:
+        data[..., 1] = 64
+    bitmap = Bitmap(
+        data.squeeze(-1) if channels == 1 else data,
+        pixel_format=pixel_format,
+        srgb_gamma=True,
+    )
+    texture = TextureLoader(helpers.get_device(type=device_type)).load_texture(
+        bitmap,
+        options={
+            "encoding": encoding,
+            "y_handling": spy.YHandling.preserve_as_r,
+            "ya_handling": spy.YAHandling.preserve_as_rg,
+        },
+    )
+    assert texture.format == (Format.r8_unorm if channels == 1 else Format.rg8_unorm)
+    np.testing.assert_array_equal(texture.to_numpy().reshape(data.shape), data)
+    assert bitmap.srgb_gamma is True
+
+
+def test_texture_encoding_options() -> None:
+    options = TextureLoader.Options()
+    assert options.encoding == spy.TextureEncoding.automatic
+    options.encoding = spy.TextureEncoding.srgb
+    assert options.encoding == spy.TextureEncoding.srgb
+    assert (
+        TextureLoader.Options({"encoding": spy.TextureEncoding.linear}).encoding
+        == spy.TextureEncoding.linear
+    )
+    with pytest.raises((TypeError, ValueError, RuntimeError)):
+        TextureLoader.Options({"load_as_srgb": True})
 
 
 if __name__ == "__main__":

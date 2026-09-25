@@ -110,7 +110,7 @@ TEST_CASE_GPU("texture_loader_batched_uploads")
     std::vector<const Bitmap*> bitmaps(TEXTURE_COUNT, bitmap.get());
     TextureLoader loader{ref<Device>(ctx.device)};
     TextureLoader::Options options{
-        .load_as_srgb = false,
+        .encoding = TextureEncoding::linear,
         .generate_mips = true,
     };
 

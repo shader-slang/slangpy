@@ -9488,6 +9488,26 @@ static const char *__doc_sgl_TextureFilteringMode_linear = R"doc()doc";
 
 static const char *__doc_sgl_TextureFilteringMode_point = R"doc()doc";
 
+static const char *__doc_sgl_TextureEncoding =
+R"doc(Interpretation of stored bitmap color values; does not re-encode
+texels or modify bitmap metadata.)doc";
+
+static const char *__doc_sgl_TextureEncoding_automatic = R"doc(Select sRGB sampling when supported and indicated by bitmap metadata.)doc";
+
+static const char *__doc_sgl_TextureEncoding_info = R"doc()doc";
+
+static const char *__doc_sgl_TextureEncoding_linear = R"doc(Sample without sRGB decoding, regardless of bitmap metadata.)doc";
+
+static const char *__doc_sgl_TextureEncoding_srgb =
+R"doc(Select sRGB sampling when supported, regardless of bitmap metadata.
+Alpha remains linear.)doc";
+
+static const char *__doc_sgl_TextureLoader_Options_encoding =
+R"doc(Color interpretation after channel expansion. sRGB sampling is
+supported for 8-bit RGBA; other component types and preserved R/RG
+layouts retain their usual formats. Stored texels and alpha are
+unchanged. DDS files retain their authored format.)doc";
+
 static const char *__doc_sgl_TextureLoader = R"doc()doc";
 
 static const char *__doc_sgl_TextureLoader_2 = R"doc(Utility class for loading textures from bitmaps and image files.)doc";
@@ -9503,10 +9523,6 @@ requested usage.)doc";
 static const char *__doc_sgl_TextureLoader_Options_generate_mips = R"doc(Generate mip levels for the texture.)doc";
 
 static const char *__doc_sgl_TextureLoader_Options_load_as_normalized = R"doc(Load 8/16-bit integer data as normalized resource format.)doc";
-
-static const char *__doc_sgl_TextureLoader_Options_load_as_srgb =
-R"doc(Use ``Format::rgba8_unorm_srgb`` format if bitmap is 8-bit RGBA with
-sRGB gamma.)doc";
 
 static const char *__doc_sgl_TextureLoader_Options_usage =
 R"doc(Resource usage flags for the texture. Render-target or unordered-

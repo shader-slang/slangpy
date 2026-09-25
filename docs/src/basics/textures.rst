@@ -78,3 +78,33 @@ The same `brighten` function could also be used in many other ways, such as:
 - Adding a texture to a buffer.
 
 SlangPy's flexibility allows seamless integration between these types, making it easy to extend this example for more advanced scenarios.
+
+Texture loading and color interpretation
+----------------------------------------
+
+``TextureLoader.Options.encoding`` selects ``TextureEncoding.automatic`` (the
+default), ``linear``, or ``srgb``. Automatic follows bitmap gamma metadata.
+Explicit linear or sRGB interpretation overrides that metadata without changing
+the bitmap or re-encoding its pixels. Alpha remains linear.
+
+.. code-block:: python
+
+    loader = spy.TextureLoader(device)
+    texture = loader.load_texture(
+        "base_color.png",
+        options={
+            "encoding": spy.TextureEncoding.srgb,
+            "y_handling": spy.YHandling.expand_to_rgba,
+        },
+    )
+
+Channel expansion is independent of encoding. Y can be replicated into RGB with
+alpha one; YA can be expanded while preserving alpha. sRGB sampling applies to
+8-bit RGBA after expansion. Other component types, preserved R/RG layouts and
+floating-point HDR inputs keep their existing formats. DDS textures retain their
+authored formats.
+
+This replaces ``load_as_srgb``: migrate ``True`` to ``TextureEncoding.automatic``
+to preserve its metadata-dependent behavior, and ``False`` to
+``TextureEncoding.linear``. Use ``TextureEncoding.srgb`` when the caller knows
+that the stored color values are sRGB regardless of image metadata.

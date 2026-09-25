@@ -12,7 +12,7 @@ namespace sgl {
 using TextureLoaderOptions = TextureLoader::Options;
 SGL_DICT_TO_DESC_BEGIN(TextureLoaderOptions)
 SGL_DICT_TO_DESC_FIELD(load_as_normalized, bool)
-SGL_DICT_TO_DESC_FIELD(load_as_srgb, bool)
+SGL_DICT_TO_DESC_FIELD(encoding, TextureEncoding)
 SGL_DICT_TO_DESC_FIELD(extend_alpha, bool)
 SGL_DICT_TO_DESC_FIELD(allocate_mips, bool)
 SGL_DICT_TO_DESC_FIELD(generate_mips, bool)
@@ -25,6 +25,11 @@ SGL_DICT_TO_DESC_END()
 SGL_PY_EXPORT(utils_texture_loader)
 {
     using namespace sgl;
+
+    nb::enum_<TextureEncoding>(m, "TextureEncoding", D(TextureEncoding))
+        .value("automatic", TextureEncoding::automatic, D(TextureEncoding, automatic))
+        .value("linear", TextureEncoding::linear, D(TextureEncoding, linear))
+        .value("srgb", TextureEncoding::srgb, D(TextureEncoding, srgb));
 
     nb::enum_<YHandling>(m, "YHandling", D(YHandling))
         .value("expand_to_rgba", YHandling::expand_to_rgba, D(YHandling, expand_to_rgba))
@@ -50,7 +55,7 @@ SGL_PY_EXPORT(utils_texture_loader)
             &TextureLoader::Options::load_as_normalized,
             D(TextureLoader, Options, load_as_normalized)
         )
-        .def_rw("load_as_srgb", &TextureLoader::Options::load_as_srgb, D(TextureLoader, Options, load_as_srgb))
+        .def_rw("encoding", &TextureLoader::Options::encoding, D(TextureLoader, Options, encoding))
         .def_rw("extend_alpha", &TextureLoader::Options::extend_alpha, D(TextureLoader, Options, extend_alpha))
         .def_rw("allocate_mips", &TextureLoader::Options::allocate_mips, D(TextureLoader, Options, allocate_mips))
         .def_rw("generate_mips", &TextureLoader::Options::generate_mips, D(TextureLoader, Options, generate_mips))
