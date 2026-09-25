@@ -5,6 +5,8 @@
 #include "sgl/device/device.h"
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
+#include "sgl/device/shader_cursor.h"
+#include "sgl/device/pipeline.h"
 
 #include <array>
 #include <fstream>
@@ -175,6 +177,46 @@ TEST_CASE_GPU("execute_callback_lambda_native_handle")
 
     CHECK(state.called);
     check_execute_callback_native_handle(ctx.device, state.callback_handle);
+}
+
+TEST_CASE_GPU("shutdown_releases_encoder_cached_entry_point")
+{
+    auto desc = ctx.device->desc();
+    // Shader objects retain the backend device, not the separate RHI validation wrapper.
+    desc.enable_rhi_validation = false;
+    auto device = Device::create(desc);
+    Slang::ComPtr<rhi::IDevice> backend(device->rhi_device());
+    auto encoder = device->create_command_encoder();
+    {
+        auto module = device->load_module_from_source("encoder_retained_entry", R"(
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void compute_main(RWStructuredBuffer<uint> output) { output[0] = 42; }
+)");
+        auto program = device->link_program({module}, {module->entry_point("compute_main")});
+        auto pipeline = device->create_compute_pipeline({.program = program});
+        auto buffer = device->create_buffer({.size = sizeof(uint32_t), .usage = BufferUsage::unordered_access});
+        auto pass = encoder->begin_compute_pass();
+        auto root = pass->bind_pipeline(pipeline);
+        ShaderCursor(root).find_entry_point(0)["output"].set_buffer(buffer);
+        pass->dispatch({1, 1, 1});
+        pass->end();
+        device->submit_command_buffer(encoder->finish());
+        device->wait();
+        CHECK(buffer->get_elements<uint32_t>().at(0) == 42);
+    }
+    device->close();
+    device->_release_rhi_resources();
+
+    const auto retained_count = backend->addRef();
+    backend->release();
+    encoder.reset();
+    const auto released_count = backend->addRef();
+    backend->release();
+    CAPTURE(retained_count);
+    CAPTURE(released_count);
+    CHECK(retained_count == released_count);
+    CHECK(released_count == 2);
 }
 
 TEST_SUITE_END();
