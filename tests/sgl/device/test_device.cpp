@@ -5,9 +5,12 @@
 #include "sgl/device/device.h"
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
+#include "sgl/device/cuda_utils.h"
 
 #include <array>
 #include <fstream>
+#include <memory>
+#include <type_traits>
 
 using namespace sgl;
 
@@ -19,6 +22,26 @@ struct ExecuteCallbackTestState {
     bool called{false};
     NativeHandle callback_handle;
 };
+
+struct CudaDriverApiScope {
+    bool loaded{rhiCudaDriverApiInit()};
+    ~CudaDriverApiScope()
+    {
+        if (loaded)
+            rhiCudaDriverApiShutdown();
+    }
+};
+
+bool is_nvidia_graphics_device(Device* device)
+{
+    if (device->type() != DeviceType::d3d12 && device->type() != DeviceType::vulkan)
+        return false;
+    for (const auto& adapter : Device::enumerate_adapters(device->type())) {
+        if (adapter.luid == device->info().adapter_luid)
+            return adapter.vendor_id == 0x10de;
+    }
+    return false;
+}
 
 void SLANG_MCALL execute_callback_test(
     const ExecuteCallbackContext* context,
@@ -175,6 +198,73 @@ TEST_CASE_GPU("execute_callback_lambda_native_handle")
 
     CHECK(state.called);
     check_execute_callback_native_handle(ctx.device, state.callback_handle);
+}
+
+TEST_CASE_GPU("cuda_mapped_buffer_outlives_device_close")
+{
+    if (!is_nvidia_graphics_device(ctx.device))
+        SKIP("CUDA interop requires an NVIDIA D3D12 or Vulkan adapter");
+    CudaDriverApiScope api;
+    if (!api.loaded)
+        SKIP("CUDA driver API is unavailable");
+
+    for (bool close_first : {false, true}) {
+        CAPTURE(close_first);
+        auto desc = ctx.device->desc();
+        desc.adapter_luid = ctx.device->info().adapter_luid;
+        desc.enable_cuda_interop = true;
+        auto device = Device::create(desc);
+        auto buffer = device->create_buffer({.size = 16, .usage = BufferUsage::unordered_access | BufferUsage::shared});
+        {
+            SGL_CU_SCOPE(device.get());
+            REQUIRE(buffer->cuda_memory() != nullptr);
+        }
+        if (close_first)
+            device->close();
+        buffer.reset();
+        device->close();
+    }
+}
+
+TEST_CASE_GPU("cuda_external_memory_releases_in_its_own_context")
+{
+    if (!is_nvidia_graphics_device(ctx.device))
+        SKIP("CUDA interop requires an NVIDIA D3D12 or Vulkan adapter");
+    CudaDriverApiScope api;
+    if (!api.loaded)
+        SKIP("CUDA driver API is unavailable");
+
+    for (bool mapped : {false, true}) {
+        for (bool release_rhi : {false, true}) {
+            CAPTURE(mapped);
+            CAPTURE(release_rhi);
+            auto desc = ctx.device->desc();
+            desc.adapter_luid = ctx.device->info().adapter_luid;
+            desc.enable_cuda_interop = true;
+            auto device = Device::create(desc);
+            auto buffer
+                = device->create_buffer({.size = 16, .usage = BufferUsage::unordered_access | BufferUsage::shared});
+            auto memory = make_ref<cuda::ExternalMemory>(buffer.get());
+            if (mapped) {
+                SGL_CU_SCOPE(device.get());
+                REQUIRE(memory->mapped_data() != nullptr);
+            }
+            CUcontext other_context;
+            SGL_CU_CHECK(cuCtxCreate(&other_context, 0, device->cuda_device()->device()));
+            // Destroying the import must scope its original context and restore this unrelated one.
+            std::unique_ptr<std::remove_pointer_t<CUcontext>, decltype(cuCtxDestroy)> context_owner(
+                other_context,
+                cuCtxDestroy
+            );
+            device->close();
+            if (release_rhi)
+                device->_release_rhi_resources();
+            memory.reset();
+            CUcontext current_context;
+            SGL_CU_CHECK(cuCtxGetCurrent(&current_context));
+            CHECK(current_context == other_context);
+        }
+    }
 }
 
 TEST_SUITE_END();
