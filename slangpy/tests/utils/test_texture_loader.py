@@ -597,7 +597,11 @@ def test_max_mip_count_bitmap(device_type: spy.DeviceType, srgb: bool, tmp_path:
     path = tmp_path / "texture.png"
     bitmap.write(path)
     options = TextureLoader.Options(
-        {"max_mip_count": 3, "load_as_srgb": srgb, "generate_mips": True}
+        {
+            "max_mip_count": 3,
+            "encoding": spy.TextureEncoding.automatic if srgb else spy.TextureEncoding.linear,
+            "generate_mips": True,
+        }
     )
     expected = np.full((2, 5, 4), 188 if srgb else 128, dtype=np.uint8)
     expected[..., 3] = 64
