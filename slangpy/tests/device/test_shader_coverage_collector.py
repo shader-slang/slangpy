@@ -144,9 +144,9 @@ def test_explicit_compute_and_second_session(
     )
     source = session.load_module_from_source(
         "coverage_explicit",
-        '[shader("compute")][numthreads(1,1,1)] void main(uint3 tid : SV_DispatchThreadID) {}',
+        '[shader("compute")][numthreads(1,1,1)] void computeMain(uint3 tid : SV_DispatchThreadID) {}',
     )
-    program = session.link_program([source], [source.entry_point("main")])
+    program = session.link_program([source], [source.entry_point("computeMain")])
     kernel = device.create_compute_kernel(program)
     assert len(device.shader_coverage.snapshot().programs) == 1
     kernel.dispatch(thread_count=[7, 1, 1])
@@ -179,10 +179,10 @@ def test_disabled_and_invalid_modes(device_type: spy.DeviceType) -> None:
         },
     ) as device:
         module = device.load_module_from_source(
-            "no_modes", '[shader("compute")][numthreads(1,1,1)] void main() {}'
+            "no_modes", '[shader("compute")][numthreads(1,1,1)] void computeMain() {}'
         )
         with pytest.raises(RuntimeError, match="At least one coverage mode"):
-            device.slang_session.link_program([module], [module.entry_point("main")])
+            device.slang_session.link_program([module], [module.entry_point("computeMain")])
 
 
 def test_device_registry_does_not_keep_closed_device_alive(device_type: spy.DeviceType) -> None:
@@ -274,11 +274,11 @@ def test_instrumentation_modes(
     )
     source = session.load_module_from_source(
         "coverage_modes",
-        'RWStructuredBuffer<int> output; [shader("compute")][numthreads(1,1,1)] void main(uint3 tid : SV_DispatchThreadID) { if (tid.x < 2) output[tid.x] = 10; else output[tid.x] = 20; }',
+        'RWStructuredBuffer<int> output; [shader("compute")][numthreads(1,1,1)] void computeMain(uint3 tid : SV_DispatchThreadID) { if (tid.x < 2) output[tid.x] = 10; else output[tid.x] = 20; }',
     )
-    program = session.link_program([source], [source.entry_point("main")])
+    program = session.link_program([source], [source.entry_point("computeMain")])
     output = device.create_buffer(size=16, usage=spy.BufferUsage.unordered_access)
-    device.create_compute_kernel(program).dispatch(thread_count=[4, 1, 1], output=output)
+    device.create_compute_kernel(program).dispatch(thread_count=[4, 1, 1], vars={"output": output})
     snapshot = device.shader_coverage.snapshot()
     assert len(snapshot.programs) == 1
     record = snapshot.programs[0]
@@ -312,9 +312,9 @@ def test_no_matching_instrumentation_sites(device_type: spy.DeviceType, device: 
         compiler_options={"coverage": {"counter_width": 32, "lines": False, "functions": False}}
     )
     module = session.load_module_from_source(
-        "coverage_empty", '[shader("compute")][numthreads(1,1,1)] void main() {}'
+        "coverage_empty", '[shader("compute")][numthreads(1,1,1)] void computeMain() {}'
     )
-    program = session.link_program([module], [module.entry_point("main")])
+    program = session.link_program([module], [module.entry_point("computeMain")])
     device.create_compute_kernel(program).dispatch(thread_count=[1, 1, 1])
     snapshot = device.shader_coverage.snapshot(reset=True)
     assert len(snapshot.programs) == 1
@@ -326,8 +326,8 @@ def test_failed_reload_keeps_previous_counts(
     device_type: spy.DeviceType, device: spy.Device, tmp_path: Path
 ) -> None:
     source = tmp_path / "coverage_failed_reload.slang"
-    source.write_text('[shader("compute")][numthreads(1,1,1)] void main() {}')
-    program = device.load_program(str(source), ["main"])
+    source.write_text('[shader("compute")][numthreads(1,1,1)] void computeMain() {}')
+    program = device.load_program(str(source), ["computeMain"])
     kernel = device.create_compute_kernel(program)
     kernel.dispatch(thread_count=[3, 1, 1])
     before = device.shader_coverage.snapshot()
