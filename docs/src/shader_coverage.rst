@@ -94,6 +94,27 @@ text or provide packaged HTML, LCOV, JSON persistence, or offline merging.
 Source revision tracking and those reporting APIs are follow-up work. Coverage
 describes instrumented sites in compiled programs, not uncompiled project code.
 
+Image-processing example
+------------------------
+
+``examples/shader_coverage`` demonstrates normal SlangPy functional calls, cumulative
+captures, and a final capture with reset. It generates a noisy image, runs an
+edge-preserving denoiser and tone mapper, then adds HDR, transparency, black pixels,
+and a denoising bypass to exercise missed branches. Each output is checked against
+NumPy and GPU execution with instrumentation disabled.
+
+From the repository root after building:
+
+.. code-block:: console
+
+    python -m examples.shader_coverage.main --device vulkan --output-dir shader-coverage-report
+
+Use ``--counter-width 32`` on MoltenVK, or ``--device cuda`` to test CUDA. Open
+``shader-coverage-report/index.html`` for image pairs and before/after source
+coverage. It needs no extra packages, image downloads, or Slang source checkout.
+The example includes a small HTML writer and JSON dumps for its single program;
+these are separate from the planned reusable report and serialization APIs.
+
 Testing on Windows and Linux
 ----------------------------
 
