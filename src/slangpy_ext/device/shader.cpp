@@ -152,10 +152,16 @@ SGL_PY_EXPORT(device_shader)
             &ShaderCoverageCollector::snapshot,
             nb::kw_only(),
             "reset"_a = false,
+            nb::call_guard<nb::gil_scoped_release>(),
             "Copy all registered program counters at one queue boundary and wait for readback. "
             "With reset=True, clear the counters in the same submission. Branch IDs are program-local."
         )
-        .def("reset", &ShaderCoverageCollector::reset, "Clear all registered counters in queue order and wait.");
+        .def(
+            "reset",
+            &ShaderCoverageCollector::reset,
+            nb::call_guard<nb::gil_scoped_release>(),
+            "Clear all registered counters in queue order and wait."
+        );
 
     nb::class_<SlangCompilerOptions>(m, "SlangCompilerOptions", D(SlangCompilerOptions))
         .def(nb::init<>())

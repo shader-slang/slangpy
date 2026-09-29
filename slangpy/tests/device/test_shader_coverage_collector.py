@@ -5,6 +5,9 @@
 import gc
 import json
 from pathlib import Path
+import subprocess
+import sys
+import textwrap
 import weakref
 from typing import Iterator
 
@@ -334,3 +337,52 @@ def test_failed_reload_keeps_previous_counts(
     after = device.shader_coverage.snapshot()
     assert [p.generation_id for p in after.programs] == [p.generation_id for p in before.programs]
     assert [p.counters for p in after.programs] == [p.counters for p in before.programs]
+
+
+def test_collection_releases_gil(device_type: spy.DeviceType) -> None:
+    """A Python thread can unblock the GPU while snapshot or reset waits for it."""
+    if device_type != spy.DeviceType.vulkan:
+        pytest.skip("This test uses Vulkan's asynchronous queue wait on a host-signaled fence")
+    # Isolate a potential GIL deadlock so a regression fails instead of hanging pytest.
+    script = textwrap.dedent(
+        """
+        import threading
+        import slangpy as spy
+
+        with spy.Device(
+            type=spy.DeviceType.vulkan,
+            compiler_options={"coverage": {"counter_width": 32}},
+        ) as device:
+            module = device.load_module_from_source(
+                "coverage_gil",
+                '[shader("compute")][numthreads(1,1,1)] void compute_main() {}',
+            )
+            program = device.slang_session.link_program(
+                [module], [module.entry_point("compute_main")]
+            )
+            kernel = device.create_compute_kernel(program)
+            kernel.dispatch(thread_count=[1, 1, 1])
+            collector = device.shader_coverage
+            assert any(collector.snapshot().programs[0].counters)
+
+            for operation in (collector.snapshot, lambda: collector.snapshot(reset=True), collector.reset):
+                gate = device.create_fence()
+                commands = device.create_command_encoder().finish()
+                device.submit_command_buffers(
+                    [commands], wait_fences=[gate], wait_fence_values=[1]
+                )
+                # The queue cannot complete collection until this Python timer runs.
+                signal = threading.Timer(0.2, gate.signal, args=(1,))
+                signal.start()
+                try:
+                    operation()
+                finally:
+                    signal.join()
+                assert gate.current_value == 1
+            assert not any(collector.snapshot().programs[0].counters)
+        """
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, timeout=90
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
