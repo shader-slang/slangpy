@@ -11,6 +11,9 @@
 #include "sgl/core/error.h"
 #include "sgl/core/format.h"
 
+#include <cmath>
+#include <limits>
+
 namespace sgl::math {
 
 // ----------------------------------------------------------------------------
@@ -331,7 +334,13 @@ void extract_euler_angle_xyz(const matrix<T, 4, 4>& m, float& angle_x, float& an
     angle_z = -t3;
 }
 
-/// Decomposes a model matrix into translation, rotation and scale components.
+/// Decomposes a homogeneous matrix into translation, rotation, scale, shear and perspective.
+/// The factors reconstruct model_matrix / model_matrix[3][3] as P * T * R * H * S,
+/// where H has unit diagonal and upper entries (H01, H02, H12) = (skew.z, skew.y, skew.x).
+/// P has an identity upper three rows and perspective as its last row. Reflections
+/// use three negative scales and a proper rotation, matching the existing convention.
+/// Returns false for nonfinite input, zero homogeneous weight, numerically dependent
+/// spatial columns, or factors outside the output type's range. Outputs are unchanged on failure.
 template<typename T>
 inline bool decompose(
     const matrix<T, 4, 4>& model_matrix,
@@ -342,125 +351,154 @@ inline bool decompose(
     vector<T, 4>& perspective
 )
 {
-    // See https://caff.de/posts/4X4-matrix-decomposition/decomposition.pdf
-
-    const T eps = std::numeric_limits<T>::epsilon();
-
-    matrix<T, 4, 4> local_matrix(model_matrix);
-
-    // Abort if zero matrix.
-    if (abs(local_matrix[3][3]) < eps)
+    // Double intermediates preserve float input across its exponent range. Equilibrating
+    // each spatial column also makes the rank test independent of axis scale and units.
+    double local_matrix[4][4];
+    const double homogeneous = double(model_matrix[3][3]);
+    if (homogeneous == 0.0 || !std::isfinite(homogeneous))
         return false;
+    for (int row = 0; row < 4; ++row) {
+        for (int col = 0; col < 4; ++col) {
+            const double value = double(model_matrix[row][col]) / homogeneous;
+            if (!std::isfinite(value))
+                return false;
+            local_matrix[row][col] = value;
+        }
+    }
 
-    // Normalize the matrix.
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
-            local_matrix[i][j] /= local_matrix[3][3];
+    double upper[3][3];
+    vector<double, 3> column_sizes;
+    for (int col = 0; col < 3; ++col) {
+        const double size = std::hypot(local_matrix[0][col], local_matrix[1][col], local_matrix[2][col]);
+        if (size == 0.0 || !std::isfinite(size))
+            return false;
+        column_sizes[col] = size;
+        for (int row = 0; row < 3; ++row)
+            upper[row][col] = local_matrix[row][col] / size;
+    }
 
-    // perspective_matrix is used to solve for perspective, but it also provides
-    // an easy way to test for singularity of the upper 3x3 component.
-    matrix<T, 4, 4> perspective_matrix(local_matrix);
-    perspective_matrix[3] = vector<T, 4>(0, 0, 0, 1);
-    // Determinant contains scale in each axis. Comparing with eps like GLM would reject scale
-    // less than 0.0049 (which is convert from cm to m, and then scale down 2x)
-    if (abs(determinant(perspective_matrix)) < eps * eps * eps)
-        return false;
+    // QR factorization with Givens rotations: normalized spatial columns = rotation * upper.
+    // Norms never square unscaled input, and no determinant or general matrix inverse is needed.
+    double rotation[3][3] = {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}};
+    for (int col = 0; col < 2; ++col) {
+        for (int row = 2; row > col; --row) {
+            const double a = upper[row - 1][col];
+            const double b = upper[row][col];
+            if (b == 0.0)
+                continue;
+            const double size = std::hypot(a, b);
+            const double c = a / size;
+            const double s = b / size;
+            for (int k = col; k < 3; ++k) {
+                const double x = upper[row - 1][k];
+                const double y = upper[row][k];
+                upper[row - 1][k] = c * x + s * y;
+                upper[row][k] = -s * x + c * y;
+            }
+            upper[row][col] = 0.0;
+            for (int k = 0; k < 3; ++k) {
+                const double x = rotation[k][row - 1];
+                const double y = rotation[k][row];
+                rotation[k][row - 1] = c * x + s * y;
+                rotation[k][row] = -s * x + c * y;
+            }
+        }
+    }
 
-    // First, isolate perspective. This is the messiest.
-    if (abs(local_matrix[3][0]) >= eps || abs(local_matrix[3][1]) >= eps || abs(local_matrix[3][2]) >= eps) {
-        // right_hand_side is the right hand side of the equation.
-        vector<T, 4> right_hand_side = local_matrix[3];
+    // Test angular independence after column equilibration, not the product of axis scales.
+    constexpr double RANK_TOLERANCE = 16.0 * std::numeric_limits<double>::epsilon();
+    for (int axis = 0; axis < 3; ++axis) {
+        if (std::abs(upper[axis][axis]) <= RANK_TOLERANCE)
+            return false;
+        if (upper[axis][axis] < 0.0) {
+            for (int k = 0; k < 3; ++k) {
+                upper[axis][k] = -upper[axis][k];
+                rotation[k][axis] = -rotation[k][axis];
+            }
+        }
+    }
 
-        // Solve the equation by inverting perspective_matrix and multiplying
-        // right_hand_side by the inverse.
-        // (This is the easiest way, not necessarily the best.)
-        matrix<T, 4, 4> inverse_perspective_matrix = inverse(perspective_matrix);
-        matrix<T, 4, 4> transposed_inverse_perspective_matrix = transpose(inverse_perspective_matrix);
+    vector<double, 3> result_scale;
+    for (int axis = 0; axis < 3; ++axis)
+        result_scale[axis] = upper[axis][axis] * column_sizes[axis];
+    const vector<double, 3> result_skew(
+        upper[1][2] / upper[2][2],
+        upper[0][2] / upper[2][2],
+        upper[0][1] / upper[1][1]
+    );
+    const vector<double, 3> result_translation
+        = vector<double, 3>(local_matrix[0][3], local_matrix[1][3], local_matrix[2][3]);
 
-        perspective = mul(transposed_inverse_perspective_matrix, right_hand_side);
+    // Solve A^T * p.xyz = last_row.xyz using the scaled QR factors. Unlike forming
+    // inverse(A), this does not overflow on tiny axes whose perspective is still finite.
+    vector<double, 3> rhs;
+    for (int axis = 0; axis < 3; ++axis) {
+        double value = local_matrix[3][axis] / column_sizes[axis];
+        for (int k = 0; k < axis; ++k)
+            value -= upper[k][axis] * rhs[k];
+        rhs[axis] = value / upper[axis][axis];
+    }
+    vector<double, 3> p;
+    for (int row = 0; row < 3; ++row)
+        p[row] = rotation[row][0] * rhs.x + rotation[row][1] * rhs.y + rotation[row][2] * rhs.z;
+    const vector<double, 4> result_perspective(p, 1.0 - dot(result_translation, p));
 
-        // Clear the perspective partition.
-        local_matrix[3] = vector<T, 4>(0, 0, 0, 1);
+    vector<double, 3> columns[3];
+    for (int col = 0; col < 3; ++col)
+        columns[col] = vector<double, 3>(rotation[0][col], rotation[1][col], rotation[2][col]);
+    if (dot(columns[0], cross(columns[1], columns[2])) < 0.0) {
+        result_scale *= -1.0;
+        for (auto& column : columns)
+            column *= -1.0;
+    }
+
+    // Extract the quaternion from the proper orthogonal factor, retaining the usual sign convention.
+    quat<double> result_orientation;
+    const double trace = columns[0].x + columns[1].y + columns[2].z;
+    if (trace > 0.0) {
+        double root = std::sqrt(trace + 1.0);
+        result_orientation.w = 0.5 * root;
+        root = 0.5 / root;
+        result_orientation.x = root * (columns[1].z - columns[2].y);
+        result_orientation.y = root * (columns[2].x - columns[0].z);
+        result_orientation.z = root * (columns[0].y - columns[1].x);
     } else {
-        // No perspective.
-        perspective = vector<T, 4>(0, 0, 0, 1);
-    }
-
-    // Next take care of translation (easy).
-    translation = local_matrix.get_col(3).xyz();
-    local_matrix.set_row(3, vector<T, 4>(0, 0, 0, 1));
-
-    vector<T, 3> row[3];
-
-    // Now get scale and shear.
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j)
-            row[i][j] = local_matrix[j][i];
-
-    // Compute X scale factor and normalize first row.
-    scale.x = length(row[0]);
-    row[0] = normalize(row[0]);
-
-    // Compute XY shear factor and make 2nd row orthogonal to 1st.
-    skew.z = dot(row[0], row[1]);
-    row[1] = row[1] - skew.z * row[0];
-
-    // Now, compute Y scale and normalize 2nd row.
-    scale.y = length(row[1]);
-    row[1] = normalize(row[1]);
-    skew.z /= scale.y;
-
-    // Compute XZ and YZ shears, orthogonalize 3rd row.
-    skew.y = dot(row[0], row[2]);
-    row[2] = row[2] - skew.y * row[0];
-    skew.x = dot(row[1], row[2]);
-    row[2] = row[2] - skew.x * row[1];
-
-    // Next, get Z scale and normalize 3rd row.
-    scale.z = length(row[2]);
-    row[2] = normalize(row[2]);
-    skew.y /= scale.z;
-    skew.x /= scale.z;
-
-    // At this point, the matrix (in rows[]) is orthonormal.
-    // Check for a coordinate system flip. If the determinant
-    // is -1, then negate the matrix and the scaling factors.
-    if (dot(row[0], cross(row[1], row[2])) < T(0)) {
-        scale *= T(-1);
-        for (int i = 0; i < 3; i++)
-            row[i] *= T(-1);
-    }
-
-    // Now, get the rotations out, as described in the gem.
-    int i, j, k = 0;
-    T root, trace = row[0].x + row[1].y + row[2].z;
-    if (trace > T(0)) {
-        root = sqrt(trace + T(1));
-        orientation.w = T(0.5) * root;
-        root = T(0.5) / root;
-        orientation.x = root * (row[1].z - row[2].y);
-        orientation.y = root * (row[2].x - row[0].z);
-        orientation.z = root * (row[0].y - row[1].x);
-    } // end if > 0
-    else {
-        static int next[3] = {1, 2, 0};
-        i = 0;
-        if (row[1].y > row[0].x)
+        int i = 0;
+        if (columns[1].y > columns[0].x)
             i = 1;
-        if (row[2].z > row[i][i])
+        if (columns[2].z > columns[i][i])
             i = 2;
-        j = next[i];
-        k = next[j];
+        const int j = (i + 1) % 3;
+        const int k = (j + 1) % 3;
+        double root = std::sqrt(columns[i][i] - columns[j][j] - columns[k][k] + 1.0);
+        result_orientation[i] = 0.5 * root;
+        root = 0.5 / root;
+        result_orientation[j] = root * (columns[i][j] + columns[j][i]);
+        result_orientation[k] = root * (columns[i][k] + columns[k][i]);
+        result_orientation.w = root * (columns[j][k] - columns[k][j]);
+    }
+    result_orientation = normalize(result_orientation);
 
-        root = sqrt(row[i][i] - row[j][j] - row[k][k] + T(1));
-
-        orientation[i] = T(0.5) * root;
-        root = T(0.5) / root;
-        orientation[j] = root * (row[i][j] + row[j][i]);
-        orientation[k] = root * (row[i][k] + row[k][i]);
-        orientation.w = root * (row[j][k] - row[k][j]);
-    } // end if <= 0
-
+    const auto representable = [](double value)
+    {
+        return std::isfinite(value) && std::abs(value) <= double(std::numeric_limits<T>::max())
+            && (value == 0.0 || T(value) != T(0));
+    };
+    for (int axis = 0; axis < 3; ++axis) {
+        if (!representable(result_scale[axis]) || T(result_scale[axis]) == T(0)
+            || !representable(result_translation[axis]) || !representable(result_skew[axis]))
+            return false;
+    }
+    for (int axis = 0; axis < 4; ++axis) {
+        if (!representable(result_orientation[axis]) || !representable(result_perspective[axis]))
+            return false;
+    }
+    scale = vector<T, 3>(result_scale);
+    orientation
+        = quat<T>(T(result_orientation.x), T(result_orientation.y), T(result_orientation.z), T(result_orientation.w));
+    translation = vector<T, 3>(result_translation);
+    skew = vector<T, 3>(result_skew);
+    perspective = vector<T, 4>(result_perspective);
     return true;
 }
 

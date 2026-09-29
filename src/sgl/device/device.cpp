@@ -116,8 +116,16 @@ Device::Device(const DeviceDesc& desc)
 
     // Setup shader cache.
     if (!m_shader_cache_path.empty()) {
-        m_persistent_cache
-            = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size, m_cache_writer);
+        try {
+            m_persistent_cache
+                = make_ref<PersistentCache>(m_shader_cache_path / "rhi", m_desc.shader_cache_size, m_cache_writer);
+        } catch (const std::exception& e) {
+            log_warn(
+                "Failed to initialize persistent shader cache in \"{}\": {}. Continuing without it.",
+                m_shader_cache_path,
+                e.what()
+            );
+        }
     }
 
     // Invalidate CUDA interop if using CUDA
@@ -271,6 +279,7 @@ Device::Device(const DeviceDesc& desc)
         .enableAftermath = m_desc.enable_aftermath,
         .debugCallback = m_debug_logger.get(),
         .enableCompilationReports = m_desc.enable_compilation_reports,
+        .pipelineCompilationMode = static_cast<rhi::PipelineCompilationMode>(m_desc.pipeline_compilation_mode),
         .enableCUDALaunchFromGfx = m_desc.enable_cuda_launch_from_gfx,
         .enableRayTracing = m_desc.enable_ray_tracing,
         .bindless = bindless_desc,
@@ -570,6 +579,11 @@ ref<Buffer> Device::create_buffer(BufferDesc desc)
     return make_ref<Buffer>(ref<Device>(this), std::move(desc));
 }
 
+ref<Buffer> Device::create_buffer_from_native_handle(BufferDesc desc, NativeHandle handle)
+{
+    return make_ref<Buffer>(ref<Device>(this), std::move(desc), handle);
+}
+
 ref<BufferView> Device::create_buffer_view(Buffer* buffer, BufferViewDesc desc)
 {
     return make_ref<BufferView>(ref<Device>(this), ref<Buffer>(buffer), std::move(desc));
@@ -630,6 +644,32 @@ ref<AccelerationStructure> Device::create_acceleration_structure(AccelerationStr
 ref<AccelerationStructureInstanceList> Device::create_acceleration_structure_instance_list(size_t size)
 {
     return make_ref<AccelerationStructureInstanceList>(ref<Device>(this), size);
+}
+
+MicromapSizes Device::get_micromap_sizes(const MicromapBuildDesc& desc)
+{
+    MicromapBuildDescConverter converter(desc);
+    rhi::MicromapSizes rhi_sizes;
+    SLANG_RHI_CALL(m_rhi_device->getMicromapSizes(converter.rhi_desc, &rhi_sizes), this);
+    return {
+        .micromap_size = rhi_sizes.micromapSize,
+        .scratch_size = rhi_sizes.scratchSize,
+    };
+}
+
+ref<Micromap> Device::create_micromap(MicromapDesc desc)
+{
+    return make_ref<Micromap>(ref<Device>(this), std::move(desc));
+}
+
+ClusterOperationSizes Device::get_cluster_operation_sizes(const ClusterOperationParams& params)
+{
+    rhi::ClusterOperationSizes rhi_sizes;
+    SLANG_RHI_CALL(m_rhi_device->getClusterOperationSizes(detail::to_rhi(params), &rhi_sizes), this);
+    return {
+        .result_size = rhi_sizes.resultSize,
+        .scratch_size = rhi_sizes.scratchSize,
+    };
 }
 
 ref<ShaderTable> Device::create_shader_table(ShaderTableDesc desc)
@@ -1356,6 +1396,7 @@ std::string Device::to_string() const
         "  enable_print = {},\n"
         "  enable_hot_reload = {},\n"
         "  enable_compilation_reports = {},\n"
+        "  pipeline_compilation_mode = {},\n"
         "  supported_shader_model = {},\n"
         "  module_cache_path = \"{}\",\n"
         "  shader_cache_path = \"{}\"\n"
@@ -1371,6 +1412,7 @@ std::string Device::to_string() const
         m_desc.enable_print,
         m_desc.enable_hot_reload,
         m_desc.enable_compilation_reports,
+        m_desc.pipeline_compilation_mode,
         m_supported_shader_model,
         m_module_cache_path,
         m_shader_cache_path
@@ -1640,6 +1682,21 @@ ref<AccelerationStructure> create_acceleration_structure(AccelerationStructureDe
 ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size)
 {
     return current_device()->create_acceleration_structure_instance_list(size);
+}
+
+MicromapSizes get_micromap_sizes(const MicromapBuildDesc& desc)
+{
+    return current_device()->get_micromap_sizes(desc);
+}
+
+ref<Micromap> create_micromap(MicromapDesc desc)
+{
+    return current_device()->create_micromap(std::move(desc));
+}
+
+ClusterOperationSizes get_cluster_operation_sizes(const ClusterOperationParams& params)
+{
+    return current_device()->get_cluster_operation_sizes(params);
 }
 
 ref<ShaderTable> create_shader_table(ShaderTableDesc desc)

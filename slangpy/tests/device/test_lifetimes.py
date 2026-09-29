@@ -86,6 +86,32 @@ def test_module_layout_does_not_keep_closed_device_alive(device_type: spy.Device
     assert len(spy.Device.get_created_devices()) == created_device_count
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES[:1])
+def test_function_call_does_not_keep_closed_device_alive(device_type: spy.DeviceType):
+    created_device_count = len(spy.Device.get_created_devices())
+    device = helpers.get_device(device_type, use_cache=False)
+    module = spy.Module.load_from_source(
+        device,
+        "module_with_reflection_caches",
+        """
+        struct Pair {
+            float left;
+            float right;
+        };
+        float add_pair(Pair value) { return value.left + value.right; }
+        """,
+    )
+
+    assert float(module.add_pair({"left": 1.0, "right": 2.0})) == pytest.approx(3.0)
+
+    device.close()
+    module = None
+    device = None
+    gc.collect()
+
+    assert len(spy.Device.get_created_devices()) == created_device_count
+
+
 def asserting_creation(device_type: spy.DeviceType):
     device = helpers.get_device(device_type, use_cache=False)
     assert device is not None

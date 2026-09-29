@@ -2,6 +2,7 @@
 
 #include "testing.h"
 #include "sgl/core/lmdb_cache.h"
+#include "sgl/core/platform.h"
 #include "sgl/core/timer.h"
 
 #include <algorithm>
@@ -34,44 +35,54 @@ struct CacheEntry {
     uint64_t last_access{0};
 };
 
-static uint32_t rng()
-{
-    static constexpr uint32_t A = 1664525u;
-    static constexpr uint32_t C = 1013904223u;
-    static uint32_t state = 0xdeadbeef;
-    state = (A * state + C);
-    return state;
-}
+struct RNG {
+    explicit RNG(uint32_t seed = 0xdeadbeef)
+        : state(seed)
+    {
+    }
 
-static double rng_uniform()
-{
-    return static_cast<double>(rng()) / static_cast<double>(0xFFFFFFFFu);
-}
+    uint32_t next()
+    {
+        static constexpr uint32_t A = 1664525u;
+        static constexpr uint32_t C = 1013904223u;
+        state = A * state + C;
+        return state;
+    }
 
-template<typename T>
-static T rng_range(T range)
-{
-    return std::min(static_cast<T>(rng_uniform() * range), range - 1);
-}
+    double uniform() { return static_cast<double>(next()) / static_cast<double>(0xFFFFFFFFu); }
 
-Blob random_data(size_t size)
+    template<typename T>
+    T range(T size)
+    {
+        return std::min(static_cast<T>(uniform() * size), size - 1);
+    }
+
+    uint32_t state;
+};
+
+Blob random_data(RNG& rng, size_t size)
 {
     Blob data(size);
     uint8_t* ptr = data.data();
     for (size_t i = 0; i < size; ++i)
-        ptr[i] = static_cast<uint8_t>((rng() >> 24) & 0xff);
+        ptr[i] = static_cast<uint8_t>((rng.next() >> 24) & 0xff);
     return data;
 }
 
-std::vector<CacheEntry>
-generate_random_entries(size_t count, size_t key_size = 32, size_t min_value_size = 64, size_t max_value_size = 1024)
+std::vector<CacheEntry> generate_random_entries(
+    RNG& rng,
+    size_t count,
+    size_t key_size = 32,
+    size_t min_value_size = 64,
+    size_t max_value_size = 1024
+)
 {
     std::vector<CacheEntry> entries;
     entries.reserve(count);
     for (size_t i = 0; i < count; ++i) {
-        Blob key = random_data(key_size);
-        size_t value_size = min_value_size + rng_range(max_value_size - min_value_size);
-        Blob value = random_data(value_size);
+        Blob key = random_data(rng, key_size);
+        size_t value_size = min_value_size + rng.range(max_value_size - min_value_size);
+        Blob value = random_data(rng, value_size);
         entries.push_back({key, value});
     }
     return entries;
@@ -107,11 +118,12 @@ TEST_CASE("simple")
 {
     auto cache_dir = testing::get_case_temp_directory() / "cache";
     LMDBCache cache(cache_dir);
+    RNG rng;
 
-    Blob key1 = random_data(32);
-    Blob value1 = random_data(128);
-    Blob key2 = random_data(32);
-    Blob value2 = random_data(256);
+    Blob key1 = random_data(rng, 32);
+    Blob value1 = random_data(rng, 128);
+    Blob key2 = random_data(rng, 32);
+    Blob value2 = random_data(rng, 256);
 
     std::vector<uint8_t> temp_value;
 
@@ -149,7 +161,7 @@ TEST_CASE("simple")
     CHECK(temp_value == value2);
 
     // Overwrite key1 with a new value
-    Blob new_value1 = random_data(512);
+    Blob new_value1 = random_data(rng, 512);
     cache.set(key1, new_value1);
 
     // Check cache stats after overwriting key1
@@ -185,13 +197,14 @@ TEST_CASE("readonly_get_and_touch")
     auto cache_dir = testing::get_case_temp_directory() / "cache";
     LMDBCache::Options options{.max_size = 8ull * 1024 * 1024};
     LMDBCache cache(cache_dir, options);
+    RNG rng;
 
     Blob readonly_key{1};
     Blob touched_key{2};
     Blob trigger_key{255};
     Blob value(128 * 1024, 42);
     Blob trigger_value(128 * 1024, 43);
-    Blob missing_key = random_data(32);
+    Blob missing_key = random_data(rng, 32);
     std::vector<uint8_t> temp_value;
 
     cache.set(readonly_key, value);
@@ -217,8 +230,9 @@ TEST_CASE("readonly_get_and_touch")
 TEST_CASE("persistence")
 {
     auto cache_dir = testing::get_case_temp_directory() / "cache";
+    RNG rng;
 
-    std::vector<CacheEntry> entries = generate_random_entries(1000);
+    std::vector<CacheEntry> entries = generate_random_entries(rng, 1000);
 
     {
         LMDBCache cache(cache_dir);
@@ -368,7 +382,9 @@ struct StressTest {
         : options(options_)
         , cache(options.path, LMDBCache::Options{.max_size = options.cache_size})
     {
+        RNG rng;
         entries = generate_random_entries(
+            rng,
             options.candidate_count,
             options.key_size,
             options.min_value_size,
@@ -376,7 +392,7 @@ struct StressTest {
         );
     }
 
-    RunStats run(size_t iterations)
+    RunStats run(RNG& rng, size_t iterations)
     {
         RunStats stats = {};
         std::vector<uint8_t> temp_value;
@@ -387,9 +403,9 @@ struct StressTest {
                     print_usage(cache.usage());
                 }
             }
-            if (rng_uniform() < options.delete_ratio) {
+            if (rng.uniform() < options.delete_ratio) {
                 // delete entry
-                size_t entry_index = rng_range(entries.size());
+                size_t entry_index = rng.range(entries.size());
                 auto& entry = entries[entry_index];
                 Timer timer;
                 bool success = cache.del(entry.key);
@@ -401,9 +417,9 @@ struct StressTest {
                 }
             } else {
                 // access entry, write if not present
-                size_t entry_index = rng_uniform() < options.hot_ratio
-                    ? rng_range(options.hot_candidates)
-                    : (options.hot_candidates + rng_range(entries.size() - options.hot_candidates));
+                size_t entry_index = rng.uniform() < options.hot_ratio
+                    ? rng.range(options.hot_candidates)
+                    : (options.hot_candidates + rng.range(entries.size() - options.hot_candidates));
                 auto& entry = entries[entry_index];
                 // try to get the entry
                 Timer timer;
@@ -562,9 +578,10 @@ TEST_CASE("stress-single-threaded")
     StressTest::Options options;
     options.path = testing::get_case_temp_directory() / "cache";
     StressTest test(options);
+    RNG rng;
 
     size_t iterations = 100000;
-    StressTest::RunStats run_stats = test.run(iterations);
+    StressTest::RunStats run_stats = test.run(rng, iterations);
 
     test.verify(false);
 
@@ -590,7 +607,8 @@ TEST_CASE("stress-multi-threaded")
         threads.emplace_back(
             [&, i]()
             {
-                thread_run_stats[i] = test.run(iterations_per_thread);
+                RNG rng(0xdeadbeef + static_cast<uint32_t>(i) * 0x9e3779b9u);
+                thread_run_stats[i] = test.run(rng, iterations_per_thread);
             }
         );
     for (auto& thread : threads)
@@ -604,6 +622,109 @@ TEST_CASE("stress-multi-threaded")
         StressTest::RunStats run_stats = StressTest::RunStats::accumulate(thread_run_stats);
         run_stats.print();
     }
+}
+
+TEST_CASE("transaction_owned_readers")
+{
+    LMDBCache cache(testing::get_case_temp_directory() / "cache");
+    Blob key{1}, value{2, 3};
+    cache.set(key, value);
+    // Nested reads need independent slots. Repeat more than LMDB's 126 slots
+    // to also verify that completed transactions release them.
+    for (size_t i = 0; i < 140; ++i) {
+        CHECK(cache.get_readonly(
+            key.data(),
+            key.size(),
+            [](const void*, size_t, void* user_data)
+            {
+                auto& cache = *static_cast<LMDBCache*>(user_data);
+                Blob result;
+                CHECK(cache.get_readonly(Blob{1}, result));
+                CHECK(result == Blob{2, 3});
+            },
+            &cache
+        ));
+    }
+}
+
+TEST_CASE("path_alias_reuses_environment")
+{
+    auto root = testing::get_case_temp_directory();
+    auto path = root / "cache";
+    auto alias = root / "alias";
+    LMDBCache cache(path);
+    SUBCASE("junction")
+    {
+        REQUIRE(platform::create_junction(alias, path));
+    }
+#if SGL_WINDOWS
+    SUBCASE("case")
+    {
+        alias = root / "CACHE";
+    }
+#endif
+    Blob key{1}, value{2, 3};
+    cache.set(key, value);
+    const auto reserved_size = cache.usage().reserved_size;
+    LMDBCache::Options incompatible_options;
+    incompatible_options.max_size *= 2;
+    CHECK_THROWS_WITH(LMDBCache(alias, incompatible_options), doctest::Contains("max_size"));
+    incompatible_options = {};
+    incompatible_options.nosync = false;
+    CHECK_THROWS_WITH(LMDBCache(alias, incompatible_options), doctest::Contains("nosync"));
+    // Closing an independently opened alias would clear this process's active
+    // reader slots. Keep reading through the original environment afterwards.
+    cache.for_each(
+        [&](std::span<const uint8_t>, std::span<const uint8_t> data)
+        {
+            {
+                LMDBCache other(alias);
+                CHECK(other.usage().reserved_size == reserved_size);
+                Blob result;
+                CHECK(other.get_readonly(key, result));
+                CHECK(result == value);
+            }
+            CHECK(Blob(data.begin(), data.end()) == value);
+        }
+    );
+    Blob result;
+    CHECK(cache.get_readonly(key, result));
+    CHECK(result == value);
+    if (alias == root / "alias")
+        REQUIRE(platform::delete_junction(alias));
+}
+
+TEST_CASE("environment_options")
+{
+    auto path = testing::get_case_temp_directory() / "cache";
+    LMDBCache::Options options;
+    const char* option_name = nullptr;
+    SUBCASE("max_size")
+    {
+        options.max_size *= 2;
+        option_name = "max_size";
+    }
+    SUBCASE("nosync")
+    {
+        options.nosync = false;
+        option_name = "nosync";
+    }
+    Blob key{1}, value{2, 3}, result;
+    {
+        LMDBCache cache(path);
+        cache.set(key, value);
+        CHECK_THROWS_WITH(LMDBCache(path, options), doctest::Contains(option_name));
+        // Rejected opens must leave the live environment usable.
+        LMDBCache other(path);
+        CHECK(other.get_readonly(key, result));
+        CHECK(result == value);
+    }
+    // Reopening with different options is allowed once all previous instances close.
+    // This also detects leaked references from rejected opens.
+    LMDBCache reopened(path, options);
+    CHECK(reopened.usage().reserved_size == options.max_size);
+    CHECK(reopened.get_readonly(key, result));
+    CHECK(result == value);
 }
 
 TEST_SUITE_END();

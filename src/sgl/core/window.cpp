@@ -4,6 +4,8 @@
 #include "sgl/core/config.h"
 #include "sgl/core/error.h"
 
+#if SGL_HAS_GLFW
+
 #if SGL_HAS_VULKAN
 #define GLFW_INCLUDE_VULKAN
 #endif
@@ -231,6 +233,13 @@ struct EventHandlers {
         window->handle_window_size(width, height);
     }
 
+    static void handle_window_refresh(GLFWwindow* glfw_window)
+    {
+        Window* window = static_cast<Window*>(glfwGetWindowUserPointer(glfw_window));
+
+        window->handle_window_refresh();
+    }
+
     static void handle_key(GLFWwindow* glfw_window, int key, int scancode, int action, int mods)
     {
         SGL_UNUSED(scancode);
@@ -383,6 +392,7 @@ Window::Window(WindowDesc desc)
     glfwSetWindowUserPointer(m_window, this);
     glfwSetErrorCallback(&EventHandlers::handle_error);
     glfwSetWindowSizeCallback(m_window, &EventHandlers::handle_window_size);
+    glfwSetWindowRefreshCallback(m_window, &EventHandlers::handle_window_refresh);
     glfwSetKeyCallback(m_window, &EventHandlers::handle_key);
     glfwSetCharCallback(m_window, &EventHandlers::handle_char);
     glfwSetMouseButtonCallback(m_window, &EventHandlers::handle_mouse_button);
@@ -655,6 +665,12 @@ void Window::handle_window_size(uint32_t width, uint32_t height)
         m_on_resize(m_width, m_height);
 }
 
+void Window::handle_window_refresh()
+{
+    if (m_on_refresh)
+        m_on_refresh();
+}
+
 void Window::handle_keyboard_event(const KeyboardEvent& event)
 {
     if (m_on_keyboard_event)
@@ -680,3 +696,115 @@ void Window::handle_drop_files(std::span<const char*> files)
 }
 
 } // namespace sgl
+
+#else // SGL_HAS_GLFW
+
+namespace sgl {
+
+namespace {
+    [[noreturn]] void window_support_disabled()
+    {
+        SGL_THROW("sgl was built without GLFW window support");
+    }
+} // namespace
+
+// Keep Window and its bindings available in builds without GLFW. No Window can
+// be constructed, but the other entry points must still exist for linking.
+Window::Window(WindowDesc)
+    : m_width(0)
+    , m_height(0)
+    , m_window(nullptr)
+{
+    window_support_disabled();
+}
+
+Window::~Window() = default;
+
+WindowHandle Window::window_handle() const
+{
+    window_support_disabled();
+}
+
+void Window::set_width(uint32_t)
+{
+    window_support_disabled();
+}
+
+void Window::set_height(uint32_t)
+{
+    window_support_disabled();
+}
+
+void Window::set_size(uint2)
+{
+    window_support_disabled();
+}
+
+void Window::resize(uint32_t, uint32_t)
+{
+    window_support_disabled();
+}
+
+int2 Window::position() const
+{
+    window_support_disabled();
+}
+
+void Window::set_position(int2)
+{
+    window_support_disabled();
+}
+
+void Window::set_title(std::string)
+{
+    window_support_disabled();
+}
+
+void Window::set_icon(const std::filesystem::path&)
+{
+    window_support_disabled();
+}
+
+void Window::close()
+{
+    window_support_disabled();
+}
+
+bool Window::should_close() const
+{
+    window_support_disabled();
+}
+
+void Window::process_events()
+{
+    window_support_disabled();
+}
+
+void Window::set_clipboard(const std::string&)
+{
+    window_support_disabled();
+}
+
+std::optional<std::string> Window::get_clipboard() const
+{
+    window_support_disabled();
+}
+
+void Window::set_cursor_mode(CursorMode)
+{
+    window_support_disabled();
+}
+
+void Window::set_cursor_shape(CursorShape)
+{
+    window_support_disabled();
+}
+
+std::string Window::to_string() const
+{
+    window_support_disabled();
+}
+
+} // namespace sgl
+
+#endif // SGL_HAS_GLFW

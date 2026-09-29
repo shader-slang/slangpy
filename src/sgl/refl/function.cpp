@@ -258,6 +258,11 @@ void Function::on_hot_reload(ref<const FunctionReflection> reflection)
 {
     SGL_CHECK(reflection, "Function hot reload requires a function reflection");
     m_reflection = std::move(reflection);
+    clear_caches();
+}
+
+void Function::clear_caches()
+{
     m_cached_return_type.reset();
     m_cached_parameters.reset();
     m_cached_overloads.reset();

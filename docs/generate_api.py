@@ -4,13 +4,12 @@ from __future__ import annotations
 import re
 import importlib
 import json
+from collections.abc import Callable, Mapping, Sequence
 from inspect import isbuiltin, isclass, ismodule
 from pathlib import Path
 
 DIR = Path(__file__).parent
 INDENT = "    "
-
-API_ORDER = json.load(open(DIR / "api_order.json"))
 
 
 def parse_signature(signature: str):
@@ -101,8 +100,18 @@ def split_signature_doc(doc: str | None):
 
 
 class Context:
-    def __init__(self):
+    def __init__(
+        self,
+        module_name: str = "slangpy",
+        include_module: Callable[[str], bool] | None = None,
+        include_member: Callable[[str, object], bool] | None = None,
+        format_docstring: Callable[[str], str] | None = None,
+    ):
         super().__init__()
+        self.module_name = module_name
+        self.include_module = include_module
+        self.include_member = include_member
+        self.format_docstring = format_docstring
         self.level = 0
         self.prefix = ""
         self.stack = []
@@ -117,6 +126,11 @@ class Context:
         for line in lines:
             self.output += f"{INDENT * self.level}{line}\n"
             self.entries[self.current_entry] += f"{INDENT * self.level}{line}\n"
+
+    def write_docstring(self, text: str) -> None:
+        if self.format_docstring is not None:
+            text = self.format_docstring(text)
+        self.write(text + "\n")
 
     def push(self, name: str, indent: bool = True):
         self.stack.append((self.level, self.prefix))
@@ -143,7 +157,7 @@ def process_method(obj: object, name: str, ctx: Context):
         ctx.write("")
         ctx.push(name)
         if doc:
-            ctx.write(doc + "\n")
+            ctx.write_docstring(doc)
         ctx.pop()
         first = False
 
@@ -157,7 +171,7 @@ def process_static_method(obj: object, name: str, ctx: Context):
         ctx.write("")
         ctx.push(name)
         if doc:
-            ctx.write(doc + "\n")
+            ctx.write_docstring(doc)
         ctx.pop()
         first = False
 
@@ -176,7 +190,7 @@ def process_property(obj: object, name: str, ctx: Context):
     ctx.write(f"{INDENT}:type: {type}\n")
     ctx.push(name)
     if doc != "":
-        ctx.write(doc + "\n")
+        ctx.write_docstring(doc)
     ctx.pop()
 
 
@@ -211,7 +225,7 @@ def process_class(obj: object, name: str, ctx: Context):
         ctx.write(f"Base class: :py:class:`{base.__module__}.{base.__name__}`\n")
 
     if isinstance(obj.__doc__, str):
-        ctx.write(obj.__doc__ + "\n")
+        ctx.write_docstring(obj.__doc__)
 
     for cn in obj.__dict__:
         # Skip properties
@@ -247,7 +261,7 @@ def process_class(obj: object, name: str, ctx: Context):
             ctx.write(f"{INDENT}:value: {value}")
             ctx.write("")
             if info[1]:
-                ctx.write(info[1] + "\n")
+                ctx.write_docstring(info[1])
 
     ctx.pop()
 
@@ -261,7 +275,7 @@ def process_function(obj: object, name: str, ctx: Context):
         ctx.write("")
         ctx.push(name)
         if doc:
-            ctx.write(doc + "\n")
+            ctx.write_docstring(doc)
         ctx.pop()
         first = False
 
@@ -296,11 +310,20 @@ def process_module(obj: object, name: str, ctx: Context):
         co = getattr(obj, cn)
 
         if ismodule(co):
-            if not co.__name__.startswith("slangpy"):
+            if not (
+                co.__name__ == ctx.module_name or co.__name__.startswith(ctx.module_name + ".")
+            ):
+                continue
+            if ctx.include_module is not None and not ctx.include_module(co.__name__):
                 continue
 
             process_module(co, cn, ctx)
-        elif isclass(co):
+            continue
+
+        if ctx.include_member is not None and not ctx.include_member(f"{ctx.prefix}.{cn}", co):
+            continue
+
+        if isclass(co):
             # TODO(docs) skip classes not defined in nanobind
             if not is_extension(co):
                 print(f"Skipping class {cn} ({type(co)})")
@@ -325,17 +348,44 @@ def process_module(obj: object, name: str, ctx: Context):
     ctx.pop()
 
 
-def generate_api():
-    ctx = Context()
-    module = importlib.import_module("slangpy")
-    process_module(module, "slangpy", ctx)
+def generate_api(
+    module_name: str = "slangpy",
+    *,
+    api_order: Mapping[str, Sequence[str]] | None = None,
+    output_path: Path | None = None,
+    include_module: Callable[[str], bool] | None = None,
+    include_member: Callable[[str, object], bool] | None = None,
+    format_docstring: Callable[[str], str] | None = None,
+    skip_empty_sections: bool = False,
+) -> None:
+    """Generate native Python API reference text, defaulting to SlangPy's documentation.
+
+    Module filters receive real module names; member filters receive exposed qualified
+    names and module-level objects. Class members retain the existing native renderer.
+    Supplying ordering and output paths makes the generator usable by other projects.
+    Optional docstring formatting and empty-section removal leave legacy output unchanged
+    unless explicitly enabled by the caller.
+    """
+    if api_order is None:
+        api_order = json.loads((DIR / "api_order.json").read_text(encoding="utf-8"))
+    ctx = Context(module_name, include_module, include_member, format_docstring)
+    module = importlib.import_module(module_name)
+    process_module(module, module_name, ctx)
     # print(ctx.output)
 
     out = ""
     entries = ctx.entries
+    if skip_empty_sections:
+        entries = {name: value for name, value in entries.items() if value.strip()}
     added_entries = set()
     visited_api_order = set()
-    for section_name, patterns in API_ORDER.items():
+    for section_name, patterns in api_order.items():
+        if skip_empty_sections and not any(
+            entry not in added_entries and re.fullmatch(pattern, entry)
+            for pattern in patterns
+            for entry in entries
+        ):
+            continue
         out += f"{section_name}\n"
         out += "-" * len(section_name) + "\n\n"
 
@@ -349,8 +399,9 @@ def generate_api():
                     added_entries.add(entry)
                     visited_api_order.add((section_name, pattern))
 
-    out += "Miscellaneous\n"
-    out += "-------------\n\n"
+    if not skip_empty_sections or any(entry not in added_entries for entry in entries):
+        out += "Miscellaneous\n"
+        out += "-------------\n\n"
     for entry in entries:
         if entry in added_entries:
             continue
@@ -359,16 +410,18 @@ def generate_api():
         print(f"Unassigned entry {entry} with content:")
         print(entries[entry])
 
-    for section_name, patterns in API_ORDER.items():
+    for section_name, patterns in api_order.items():
         for pattern in patterns:
             if (section_name, pattern) not in visited_api_order:
                 print(f"Unvisited api order pattern {section_name} / {pattern}")
 
     # Write file if it changed.
-    api_path = Path(__file__).parent / "generated" / "api.rst"
-    api_path.parent.mkdir(exist_ok=True)
-    if not api_path.exists() or api_path.read_text() != out:
-        api_path.write_text(out)
+    if skip_empty_sections:
+        out = out.removesuffix("\n----\n\n")
+    api_path = output_path if output_path is not None else DIR / "generated" / "api.rst"
+    api_path.parent.mkdir(parents=True, exist_ok=True)
+    if not api_path.exists() or api_path.read_text(encoding="utf-8") != out:
+        api_path.write_text(out, encoding="utf-8")
 
 
 if __name__ == "__main__":

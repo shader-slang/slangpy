@@ -1,11 +1,21 @@
 cmake_minimum_required(VERSION 3.20)
 cmake_policy(SET CMP0077 NEW)
+if(POLICY CMP0177)
+    cmake_policy(SET CMP0177 NEW)
+endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(utils)
 include(mt-retry)
 
 set(VCPKG_INSTALL_OPTIONS "--no-print-usage" "--allow-unsupported" "--x-buildtrees-root=${CMAKE_CURRENT_SOURCE_DIR}/build/buildtrees")
+
+# This option must be declared before project() so the vcpkg toolchain can use
+# it to select the matching manifest feature during dependency installation.
+option(SGL_ENABLE_CRASHPAD "Enable Crashpad integration" OFF)
+if(SGL_ENABLE_CRASHPAD)
+    list(APPEND VCPKG_MANIFEST_FEATURES crashpad)
+endif()
 
 project(sgl)
 
@@ -49,6 +59,11 @@ option(SGL_GENERATE_SETPATH_SCRIPTS "Generate setpath scripts" ON)
 # This is useful when using sgl through cmake add_subdirectory.
 option(SGL_BUILD_STANDALONE "Build without external dependencies" ON)
 
+# GLFW window and input support: ON requires dependencies, OFF disables support,
+# and AUTO enables support when dependencies are available.
+set(SGL_ENABLE_GLFW "AUTO" CACHE STRING "Enable GLFW window support (ON, OFF, AUTO)")
+set_property(CACHE SGL_ENABLE_GLFW PROPERTY STRINGS ON OFF AUTO)
+
 # Enable linking CUDA driver API dynamically.
 # This allows to build CUDA support without having CUDA SDK installed.
 option(SGL_USE_DYNAMIC_CUDA "Load CUDA driver API dynamically" ON)
@@ -64,8 +79,12 @@ option(SGL_ENABLE_PCH "Enable precompiled headers" OFF)
 # Enable/disable code coverage.
 option(SGL_ENABLE_COVERAGE "Enable code coverage (gcov)" OFF)
 
-# Enable/disable address sanitizer.
-option(SGL_ENABLE_ASAN "Enable address sanitizer" OFF)
+# Enable/disable sanitizers.
+option(SGL_ENABLE_ASAN "Enable AddressSanitizer (Clang only)" OFF)
+option(SGL_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (Clang only)" OFF)
+option(SGL_ENABLE_TSAN "Enable ThreadSanitizer (Linux/macOS Clang only)" OFF)
+
+include(sanitizers)
 
 # Enable/disable header validation.
 # If enabled, additional targets are generated to validate that headers are self sufficient.
@@ -74,9 +93,6 @@ option(SGL_ENABLE_HEADER_VALIDATION "Enable header validation" OFF)
 # Enable/disable build metrics.
 # When enabled, adds compiler timing flags (/Bt+ for MSVC, -ftime-trace for Clang, -ftime-report for GCC).
 option(SGL_ENABLE_BUILD_METRICS "Enable build metrics (compiler timing flags)" OFF)
-
-# Enable/disable Crashpad integration.
-option(SGL_ENABLE_CRASHPAD "Enable Crashpad integration" OFF)
 
 set(SGL_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Project directory (defaults to CMAKE_CURRENT_SOURCE_DIR)")
 
@@ -116,7 +132,11 @@ message(STATUS "Architecture: ${SGL_ARCHITECTURE}")
 # -----------------------------------------------------------------------------
 
 if(SGL_BUILD_PYTHON)
-    find_package(Python 3.9 COMPONENTS Interpreter Development.Module REQUIRED)
+    if((SGL_WINDOWS OR SGL_MACOS) AND SGL_ENABLE_ASAN)
+        find_package(Python 3.9 COMPONENTS Interpreter Development.Module Development.Embed REQUIRED)
+    else()
+        find_package(Python 3.9 COMPONENTS Interpreter Development.Module REQUIRED)
+    endif()
 endif()
 
 # -----------------------------------------------------------------------------
@@ -184,6 +204,7 @@ git_version_setup()
 
 macro(sgl_add_example target)
     add_executable(${target})
+    sgl_enable_sanitizers(${target})
     target_link_libraries(${target} PRIVATE sgl)
     target_compile_definitions(${target} PRIVATE SGL_EXAMPLE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY})
@@ -342,6 +363,7 @@ if(SGL_BUILD_STANDALONE)
     set(SGL_HAS_LIBPNG OFF)
     set(SGL_HAS_OPENEXR OFF)
     set(SGL_HAS_ASMJIT OFF)
+    set(SGL_HAS_NVTT OFF)
 else()
     find_package(JPEG)
     ternary(SGL_HAS_LIBJPEG ${JPEG_FOUND} ON OFF)
@@ -351,12 +373,23 @@ else()
     ternary(SGL_HAS_OPENEXR ${OpenEXR_FOUND} ON OFF)
     find_package(asmjit)
     ternary(SGL_HAS_ASMJIT ${asmjit_FOUND} ON OFF)
-    if(SGL_ENABLE_CRASHPAD)
-        find_package(crashpad)
-        ternary(SGL_HAS_CRASHPAD ${crashpad_FOUND} ON OFF)
-    else()
-        set(SGL_HAS_CRASHPAD OFF)
+    find_package(NVTT)
+    ternary(SGL_HAS_NVTT ${NVTT_FOUND} ON OFF)
+endif()
+
+if(SGL_ENABLE_CRASHPAD)
+    find_package(crashpad)
+    ternary(SGL_HAS_CRASHPAD ${crashpad_FOUND} ON OFF)
+else()
+    set(SGL_HAS_CRASHPAD OFF)
+endif()
+
+if(SGL_HAS_NVTT)
+    get_target_property(NVTT_RUNTIME NVTT::NVTT IMPORTED_LOCATION)
+    if(NOT NVTT_RUNTIME)
+        message(FATAL_ERROR "NVTT was found but its runtime library was not resolved")
     endif()
+    sgl_copy_binary("${NVTT_RUNTIME}" .)
 endif()
 
 # -----------------------------------------------------------------------------
@@ -379,10 +412,12 @@ message(STATUS "SGL_HAS_D3D12: ${SGL_HAS_D3D12}")
 message(STATUS "SGL_HAS_VULKAN: ${SGL_HAS_VULKAN}")
 message(STATUS "SGL_HAS_NVAPI: ${SGL_HAS_NVAPI}")
 message(STATUS "SGL_HAS_AGILITY_SDK: ${SGL_HAS_AGILITY_SDK}")
+message(STATUS "SGL_HAS_GLFW: ${SGL_HAS_GLFW}")
 message(STATUS "SGL_HAS_LIBJPEG: ${SGL_HAS_LIBJPEG}")
 message(STATUS "SGL_HAS_LIBPNG: ${SGL_HAS_LIBPNG}")
 message(STATUS "SGL_HAS_OPENEXR: ${SGL_HAS_OPENEXR}")
 message(STATUS "SGL_HAS_ASMJIT: ${SGL_HAS_ASMJIT}")
+message(STATUS "SGL_HAS_NVTT: ${SGL_HAS_NVTT}")
 message(STATUS "SGL_HAS_CRASHPAD: ${SGL_HAS_CRASHPAD}")
 
 add_subdirectory(src)
@@ -397,6 +432,18 @@ endif()
 
 if(SGL_BUILD_TESTS)
     add_subdirectory(tests)
+endif()
+
+# Windows and macOS cannot reliably load ASan into an existing Python process.
+# This small host links the sanitizer runtime before initializing stock CPython,
+# so the Python interpreter itself does not need to be rebuilt with ASan.
+if((SGL_WINDOWS OR SGL_MACOS) AND SGL_ENABLE_ASAN AND SGL_BUILD_PYTHON)
+    add_executable(slangpy_sanitizer_python tools/sanitizer_python.cpp)
+    sgl_enable_sanitizers(slangpy_sanitizer_python)
+    target_link_libraries(slangpy_sanitizer_python PRIVATE Python::Python)
+    set_target_properties(slangpy_sanitizer_python PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY}
+    )
 endif()
 
 # -----------------------------------------------------------------------------

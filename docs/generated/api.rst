@@ -3560,6 +3560,9 @@ Device
     
     .. py:property:: program
         :type: slangpy.ShaderProgram
+
+    .. py:property:: compilation_policy
+        :type: slangpy.PipelineCompilationPolicy
     
     .. py:property:: label
         :type: str
@@ -4301,17 +4304,17 @@ Device
     .. py:method:: create_shader_object(self, cursor: slangpy.ReflectionCursor) -> slangpy.ShaderObject
         :no-index:
     
-    .. py:method:: create_compute_pipeline(self, program: slangpy.ShaderProgram, defer_target_compilation: bool = False, label: str | None = None) -> slangpy.ComputePipeline
+    .. py:method:: create_compute_pipeline(self, program: slangpy.ShaderProgram, compilation_policy: slangpy.PipelineCompilationPolicy = PipelineCompilationPolicy.default, label: str | None = None) -> slangpy.ComputePipeline
     
     .. py:method:: create_compute_pipeline(self, desc: slangpy.ComputePipelineDesc) -> slangpy.ComputePipeline
         :no-index:
     
-    .. py:method:: create_render_pipeline(self, program: slangpy.ShaderProgram, input_layout: slangpy.InputLayout | None, primitive_topology: slangpy.PrimitiveTopology = PrimitiveTopology.triangle_list, targets: collections.abc.Sequence[slangpy.ColorTargetDesc] = [], depth_stencil: slangpy.DepthStencilDesc | None = None, rasterizer: slangpy.RasterizerDesc | None = None, multisample: slangpy.MultisampleDesc | None = None, defer_target_compilation: bool = False, label: str | None = None) -> slangpy.RenderPipeline
+    .. py:method:: create_render_pipeline(self, program: slangpy.ShaderProgram, input_layout: slangpy.InputLayout | None, primitive_topology: slangpy.PrimitiveTopology = PrimitiveTopology.triangle_list, targets: collections.abc.Sequence[slangpy.ColorTargetDesc] = [], depth_stencil: slangpy.DepthStencilDesc | None = None, rasterizer: slangpy.RasterizerDesc | None = None, multisample: slangpy.MultisampleDesc | None = None, compilation_policy: slangpy.PipelineCompilationPolicy = PipelineCompilationPolicy.default, label: str | None = None) -> slangpy.RenderPipeline
     
     .. py:method:: create_render_pipeline(self, desc: slangpy.RenderPipelineDesc) -> slangpy.RenderPipeline
         :no-index:
     
-    .. py:method:: create_ray_tracing_pipeline(self, program: slangpy.ShaderProgram, hit_groups: collections.abc.Sequence[slangpy.HitGroupDesc], max_recursion: int = 0, max_ray_payload_size: int = 0, max_attribute_size: int = 8, flags: slangpy.RayTracingPipelineFlags = 0, defer_target_compilation: bool = False, label: str | None = None) -> slangpy.RayTracingPipeline
+    .. py:method:: create_ray_tracing_pipeline(self, program: slangpy.ShaderProgram, hit_groups: collections.abc.Sequence[slangpy.HitGroupDesc], max_recursion: int = 0, max_ray_payload_size: int = 0, max_attribute_size: int = 8, flags: slangpy.RayTracingPipelineFlags = 0, compilation_policy: slangpy.PipelineCompilationPolicy = PipelineCompilationPolicy.default, label: str | None = None) -> slangpy.RayTracingPipeline
     
     .. py:method:: create_ray_tracing_pipeline(self, desc: slangpy.RayTracingPipelineDesc) -> slangpy.RayTracingPipeline
         :no-index:
@@ -6232,6 +6235,26 @@ Device
 
 ----
 
+.. py:class:: slangpy.PipelineCompilationPolicy
+
+    Base class: :py:class:`enum.Enum`
+
+    .. py:attribute:: slangpy.PipelineCompilationPolicy.default
+        :type: PipelineCompilationPolicy
+        :value: PipelineCompilationPolicy.default
+
+    .. py:attribute:: slangpy.PipelineCompilationPolicy.immediate
+        :type: PipelineCompilationPolicy
+        :value: PipelineCompilationPolicy.immediate
+
+    .. py:attribute:: slangpy.PipelineCompilationPolicy.deferred
+        :type: PipelineCompilationPolicy
+        :value: PipelineCompilationPolicy.deferred
+
+
+
+----
+
 .. py:class:: slangpy.Pipeline
 
     Base class: :py:class:`slangpy.DeviceChild`
@@ -6526,6 +6549,9 @@ Device
     
     .. py:property:: flags
         :type: slangpy.RayTracingPipelineFlags
+
+    .. py:property:: compilation_policy
+        :type: slangpy.PipelineCompilationPolicy
     
     .. py:property:: label
         :type: str
@@ -6746,6 +6772,9 @@ Device
     
     .. py:property:: multisample
         :type: slangpy.MultisampleDesc
+
+    .. py:property:: compilation_policy
+        :type: slangpy.PipelineCompilationPolicy
     
     .. py:property:: label
         :type: str

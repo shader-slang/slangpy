@@ -20,7 +20,7 @@ PYTEST_BASE_TEMP_DIR = PROJECT_DIR / ".temp" / "pytest"
 def pytest_command(test_path: str, *args: str) -> list[str]:
     # Pytest clears --basetemp on startup, so keep it in a dedicated repo-local directory.
     PYTEST_BASE_TEMP_DIR.parent.mkdir(exist_ok=True)
-    return ["pytest", test_path, *args, f"--basetemp={PYTEST_BASE_TEMP_DIR}"]
+    return [sys.executable, "-m", "pytest", test_path, *args, f"--basetemp={PYTEST_BASE_TEMP_DIR}"]
 
 
 def get_os():
@@ -109,9 +109,12 @@ def run_command(
     return out
 
 
-def get_python_env():
+def get_python_env(preset: Optional[str] = None) -> dict[str, str]:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(PROJECT_DIR)
+    if preset:
+        slang_bin_dir = PROJECT_DIR / "build" / preset / "_deps" / "slang-src" / "bin"
+        env["PATH"] = os.pathsep.join((str(slang_bin_dir), env.get("PATH", "")))
     return env
 
 
@@ -140,7 +143,10 @@ def build(args: Any):
 
 
 def unit_test_cpp(args: Any):
-    run_command([f"{args.bin_dir}/sgl_tests"])
+    cmd = [f"{args.bin_dir}/sgl_tests"]
+    if args.skip_device_tests:
+        cmd.append("-skip-device-tests")
+    run_command(cmd)
 
 
 def typing_check_python(args: Any):
@@ -149,20 +155,22 @@ def typing_check_python(args: Any):
 
 
 def unit_test_python(args: Any):
-    env = get_python_env()
+    env = get_python_env(args.preset)
+    if args.disable_torch:
+        env["SLANGPY_TEST_DISABLE_TORCH"] = "1"
     os.makedirs("reports", exist_ok=True)
     cmd = pytest_command("slangpy/tests", "-vra")
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
-    run_command(cmd, env=env)
+    run_command(cmd, shell=False, env=env)
 
 
 def test_examples(args: Any):
-    env = get_python_env()
+    env = get_python_env(args.preset)
     cmd = pytest_command("samples/tests", "-vra")
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
-    run_command(cmd, env=env)
+    run_command(cmd, shell=False, env=env)
 
 
 def benchmark_python(args: Any):
@@ -192,12 +200,12 @@ def benchmark_python(args: Any):
         # Run for all device types plus nodevice tests
         device_types = device_types + ["nodevice"]
 
+    api_url = args.api_url if args.api_url is not None else os.environ.get("BENCHVIEW_API_URL")
+    failed_devices: list[str] = []
     try:
         # Lock GPU clocks
         if args.lock_gpu_clocks:
             cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "lock", "--ratio", "0.7"]
-            if os_name == "linux":
-                cmd = ["sudo"] + cmd
             run_command(cmd)
 
         # Run benchmarks for each device type
@@ -205,25 +213,26 @@ def benchmark_python(args: Any):
             print(f"Running benchmarks for device type: {device_type}")
 
             cmd = pytest_command("slangpy/benchmarks", "-ra", "--device-types", device_type)
-            if args.mongodb_connection_string:
-                cmd += ["--benchmark-upload", args.run_id]
-                cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
-                if args.mongodb_database_name:
-                    cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
+            if api_url is not None:
+                cmd += ["--benchmark-submit", args.run_id]
+                cmd += ["--benchmark-api-url", api_url]
 
             try:
-                run_command(cmd, env=env)
+                run_command(cmd, shell=False, env=env)
             except Exception as e:
                 print(f"Benchmarks failed for device type {device_type}: {e}")
                 if args.device_type:  # If specific device requested, fail hard
                     raise
-                # Otherwise, continue with other devices
+                # Otherwise, track failure and continue with other devices
+                failed_devices.append(device_type)
+
+        # Fail if any device types had errors
+        if failed_devices:
+            raise RuntimeError(f"Benchmarks failed for device type(s): {'; '.join(failed_devices)}")
     finally:
         # Unlock GPU clocks
         if args.lock_gpu_clocks:
             cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "unlock"]
-            if os_name == "linux":
-                cmd = ["sudo"] + cmd
             run_command(cmd)
 
 
@@ -288,6 +297,9 @@ def main():
     parser_build = commands.add_parser("build", help="run cmake build")
 
     parser_test_cpp = commands.add_parser("unit-test-cpp", help="run unit tests (c++)")
+    parser_test_cpp.add_argument(
+        "--skip-device-tests", action="store_true", help="skip tests that require a device"
+    )
 
     parser_typing_check_python = commands.add_parser(
         "typing-check-python", help="run pyright typing checks (python)"
@@ -296,6 +308,11 @@ def main():
     parser_test_python = commands.add_parser("unit-test-python", help="run unit tests (python)")
     parser_test_python.add_argument(
         "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
+    parser_test_python.add_argument(
+        "--disable-torch",
+        action="store_true",
+        help="make torch and slangpy_torch unavailable to the test process",
     )
 
     parser_test_examples = commands.add_parser("test-examples", help="run examples tests")
@@ -306,12 +323,14 @@ def main():
     parser_benchmark_python = commands.add_parser(
         "benchmark-python", help="run benchmarks (python)"
     )
-    parser_benchmark_python.add_argument("-r", "--run-id", type=str, required=True, help="Run ID")
     parser_benchmark_python.add_argument(
-        "-c", "--mongodb-connection-string", type=str, help="MongoDB connection string"
+        "-r", "--run-id", type=str, required=True, help="Traceable BenchView request ID"
     )
     parser_benchmark_python.add_argument(
-        "-d", "--mongodb-database-name", type=str, help="MongoDB database name"
+        "-u",
+        "--api-url",
+        type=str,
+        help="BenchView base URL; defaults to BENCHVIEW_API_URL and uses BENCHVIEW_API_KEY",
     )
     parser_benchmark_python.add_argument(
         "--device-type",

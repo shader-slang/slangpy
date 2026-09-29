@@ -1,6 +1,7 @@
 build/
 external/vcpkg
 external/slang/
+external/nvtt/
 tools/download
 tools/host
 docs/_build/

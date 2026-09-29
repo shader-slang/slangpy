@@ -153,6 +153,9 @@ public:
     /// Refresh low-level reflection after hot reload and clear derived caches.
     void on_hot_reload(ref<const FunctionReflection> reflection);
 
+    /// Clear lazily derived reflection objects.
+    void clear_caches();
+
     /// Return a debug string for this function.
     std::string to_string() const override;
 

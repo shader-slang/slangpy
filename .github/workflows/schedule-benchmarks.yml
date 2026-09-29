@@ -1,0 +1,68 @@
+name: schedule-benchmarks
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: schedule-benchmarks
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  schedule:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch recent main commits
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const workflow = "ci-benchmark.yml";
+            const branch = "main";
+            // Anchor on UTC midnight rather than "24 hours before this run started".
+            // A run that starts late would otherwise leave the commits in the delay
+            // gap outside both its own interval and the next one, and they would
+            // never be benchmarked.
+            const now = new Date();
+            const until = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+            const since = new Date(until.getTime() - 24 * 60 * 60 * 1000);
+            const common = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            };
+            const commits = await github.paginate(github.rest.repos.listCommits, {
+              ...common,
+              sha: branch,
+              since: since.toISOString(),
+              until: until.toISOString(),
+              per_page: 100,
+            });
+            core.info(
+              `Nightly interval ${since.toISOString()} through ${until.toISOString()}: ` +
+                `${commits.length} commit(s) to dispatch.`,
+            );
+            // One transient dispatch failure must not strand every later commit
+            // outside the next interval, so record it and carry on.
+            const failed = [];
+            for (const commit of commits.reverse()) {
+              const revision = commit.sha;
+              try {
+                await github.rest.actions.createWorkflowDispatch({
+                  ...common,
+                  workflow_id: workflow,
+                  ref: branch,
+                  inputs: { revision },
+                });
+                core.info(`Dispatched ${workflow} for ${revision} from ${branch}.`);
+              } catch (error) {
+                failed.push(revision);
+                core.error(`Could not dispatch ${workflow} for ${revision}: ${error.message}`);
+              }
+            }
+            if (failed.length > 0) {
+              core.setFailed(`${failed.length} commit(s) were not dispatched: ${failed.join(" ")}`);
+            }

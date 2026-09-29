@@ -123,8 +123,21 @@ extern "C" int tensor_bridge_get_signature(void* py_obj, char* buffer, size_t bu
 
     int ndim = static_cast<int>(tensor.dim());
     int scalar_type = static_cast<int>(tensor.scalar_type());
+
+    // Reject unsupported rank explicitly, before the buffer-size check, so a
+    // high-rank tensor fails with a clear rank error rather than an opaque
+    // "buffer too small" that a fixed-size caller cannot act on.
+    if (ndim > TENSOR_BRIDGE_MAX_TENSOR_RANK)
+        return TENSOR_BRIDGE_ERROR_RANK_TOO_HIGH;
+
     // The fixed allowance comfortably covers punctuation, the null terminator,
     // and decimal rank/dtype values. Each dimension then adds one classifier.
+    // Once the rank check above passes, the size check below cannot reject a
+    // supported tensor, provided the buffer is large enough for the max rank:
+    static_assert(
+        TENSOR_BRIDGE_SIGNATURE_BUFFER_SIZE >= TENSOR_BRIDGE_SIGNATURE_BASE_SIZE + TENSOR_BRIDGE_MAX_TENSOR_RANK,
+        "signature buffer must hold the largest supported rank"
+    );
     const size_t required_size = TENSOR_BRIDGE_SIGNATURE_BASE_SIZE + static_cast<size_t>(ndim);
     if (buffer_size < required_size)
         return TENSOR_BRIDGE_ERROR_BUFFER_TOO_SMALL;

@@ -33,11 +33,39 @@ add_subdirectory(fmt)
 
 # glfw
 
-set(GLFW_BUILD_EXAMPLES OFF)
-set(GLFW_BUILD_TESTS OFF)
-set(GLFW_BUILD_DOCS OFF)
-set(GLFW_INSTALL OFF)
-add_subdirectory(glfw)
+if(NOT SGL_ENABLE_GLFW MATCHES "^(ON|OFF|AUTO)$")
+    message(FATAL_ERROR "SGL_ENABLE_GLFW must be ON, OFF, or AUTO (got '${SGL_ENABLE_GLFW}')")
+endif()
+
+set(SGL_HAS_GLFW OFF)
+if(SGL_ENABLE_GLFW STREQUAL "ON")
+    set(SGL_HAS_GLFW ON)
+elseif(SGL_ENABLE_GLFW STREQUAL "AUTO")
+    if(WIN32 OR APPLE)
+        set(SGL_HAS_GLFW ON)
+    elseif(UNIX)
+        # Match the X11 dependencies checked by the bundled GLFW. Extension
+        # libraries are loaded at runtime, so only their headers are required.
+        find_package(X11 QUIET)
+        if(X11_FOUND AND X11_Xrandr_INCLUDE_PATH AND X11_Xinerama_INCLUDE_PATH
+            AND X11_Xkb_INCLUDE_PATH AND X11_Xcursor_INCLUDE_PATH AND X11_Xi_INCLUDE_PATH)
+            set(SGL_HAS_GLFW ON)
+        else()
+            message(STATUS "GLFW disabled: X11 development dependencies are missing (SGL_ENABLE_GLFW=AUTO)")
+        endif()
+    else()
+        message(STATUS "GLFW disabled: unsupported platform (SGL_ENABLE_GLFW=AUTO)")
+    endif()
+endif()
+set(SGL_HAS_GLFW ${SGL_HAS_GLFW} PARENT_SCOPE)
+
+if(SGL_HAS_GLFW)
+    set(GLFW_BUILD_EXAMPLES OFF)
+    set(GLFW_BUILD_TESTS OFF)
+    set(GLFW_BUILD_DOCS OFF)
+    set(GLFW_INSTALL OFF)
+    add_subdirectory(glfw)
+endif()
 
 # tevclient
 
@@ -61,6 +89,7 @@ if(SGL_LINUX AND SGL_ARCHITECTURE MATCHES "aarch64|arm64")
     set(NANOTHREAD_NATIVE_FLAGS "-march=armv8-a" CACHE STRING "" FORCE)
 endif()
 add_subdirectory(nanothread)
+sgl_enable_sanitizers(nanothread)
 # Disable LTO for nanothread as this causes problems when linking with sgl.
 set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
 target_compile_definitions(nanothread PRIVATE _CRT_SECURE_NO_WARNINGS)
@@ -74,6 +103,15 @@ target_compile_definitions(lmdb PRIVATE _CRT_SECURE_NO_WARNINGS)
 target_compile_options(lmdb PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/wd4333 /wd4172>)
 target_compile_options(lmdb PRIVATE $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wno-deprecated-declarations>)
 
+# bc7enc (BC1-5 via rgbcx, BC7 via bc7enc)
+
+add_library(bc7enc STATIC)
+target_include_directories(bc7enc INTERFACE bc7enc)
+target_sources(bc7enc PRIVATE bc7enc/rgbcx.cpp bc7enc/bc7enc.cpp)
+target_compile_definitions(bc7enc PRIVATE _CRT_SECURE_NO_WARNINGS)
+target_compile_options(bc7enc PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/wd4244 /wd4018 /wd4456 /wd4457 /wd4100>)
+target_compile_options(bc7enc PRIVATE $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wno-sign-compare -Wno-unused-parameter -Wno-shadow>)
+
 # slang
 
 set(SGL_SLANG_DEBUG_INFO ON CACHE BOOL "Download debug info for slang")
@@ -82,7 +120,9 @@ set(SGL_LOCAL_SLANG OFF CACHE BOOL "Use a local build of slang instead of downlo
 set(SGL_LOCAL_SLANG_DIR "${CMAKE_SOURCE_DIR}/../slang" CACHE PATH "Path to a local slang build")
 set(SGL_LOCAL_SLANG_BUILD_DIR "build/Debug" CACHE STRING "Build directory of the local slang build")
 
-set(SGL_SLANG_VERSION "2026.12" CACHE STRING "Slang version to download when not using a local build")
+set(SGL_SLANG_VERSION "2026.18.3" CACHE STRING "Slang version to download when not using a local build")
+
+set(SGL_SLANG_GLIBC_COMPAT OFF CACHE BOOL "Download glibc-2.28-compatible Slang binaries (for manylinux wheels)")
 
 set(SLANG_URL_BASE "https://github.com/shader-slang/slang/releases/download/v${SGL_SLANG_VERSION}/slang-${SGL_SLANG_VERSION}")
 
@@ -95,11 +135,16 @@ if(SGL_WINDOWS)
         set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-windows-aarch64-debug-info.zip")
     endif()
 elseif(SGL_LINUX)
+    if(SGL_SLANG_GLIBC_COMPAT)
+        set(SLANG_LINUX_SUFFIX "-glibc-2.28")
+    else()
+        set(SLANG_LINUX_SUFFIX "")
+    endif()
     if(SGL_ARCHITECTURE MATCHES "x86_64")
-        set(SLANG_URL "${SLANG_URL_BASE}-linux-x86_64.tar.gz")
+        set(SLANG_URL "${SLANG_URL_BASE}-linux-x86_64${SLANG_LINUX_SUFFIX}.tar.gz")
         set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-linux-x86_64-debug-info.tar.gz")
     elseif(SGL_ARCHITECTURE MATCHES "aarch64|arm64")
-        set(SLANG_URL "${SLANG_URL_BASE}-linux-aarch64.tar.gz")
+        set(SLANG_URL "${SLANG_URL_BASE}-linux-aarch64${SLANG_LINUX_SUFFIX}.tar.gz")
         set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-linux-aarch64-debug-info.tar.gz")
     endif()
 elseif(SGL_MACOS)
@@ -231,6 +276,24 @@ set(SLANG_RHI_BUILD_EXAMPLES OFF)
 set(SLANG_RHI_FETCH_SLANG OFF)
 set(SLANG_RHI_ENABLE_D3D11 OFF)
 set(SLANG_RHI_ENABLE_WGPU OFF)
+# A sanitizer-enabled SlangPy build instruments all project-owned native code,
+# including the statically linked slang-rhi implementation.
+set(SLANG_RHI_ENABLE_ASAN ${SGL_ENABLE_ASAN} CACHE BOOL "Enable AddressSanitizer in slang-rhi" FORCE)
+set(SLANG_RHI_ENABLE_UBSAN ${SGL_ENABLE_UBSAN} CACHE BOOL "Enable UndefinedBehaviorSanitizer in slang-rhi" FORCE)
+# ThreadSanitizer support is available in slang-rhi, but SlangPy does not yet
+# expose or test a compatible top-level configuration.
+set(SLANG_RHI_ENABLE_TSAN OFF CACHE BOOL "Enable ThreadSanitizer in slang-rhi" FORCE)
+if(SGL_ENABLE_UBSAN AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # Match the Windows UBSan scope used by SlangPy-owned targets. The vptr
+    # support library has a static-CRT ABI incompatible with our dependencies;
+    # the final owned target explicitly links only the core UBSan runtime.
+    add_compile_options(-fno-sanitize=vptr)
+endif()
+if(SGL_ENABLE_ASAN AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # Keep MSVC STL annotation settings consistent with uninstrumented vcpkg
+    # libraries linked into sgl. slang-rhi remains otherwise ASan-instrumented.
+    add_compile_definitions(_DISABLE_STRING_ANNOTATION _DISABLE_VECTOR_ANNOTATION)
+endif()
 # TODO: We should rename SLANG_RHI_BUILD_FROM_SLANG_REPO to something more generic.
 # We want slang-rhi to support using a `slang` target that is provided from the outside.
 set(SLANG_RHI_BUILD_FROM_SLANG_REPO ON)
@@ -243,6 +306,17 @@ if(SGL_LOCAL_RHI)
 else()
     add_subdirectory(slang-rhi)
     set(SGL_RHI_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/slang-rhi)
+endif()
+
+if(SGL_ENABLE_ASAN AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # Standalone slang-rhi uses the static release CRT for ASan. SlangPy's
+    # x64-windows-static-md-fix vcpkg triplet instead links static libraries
+    # built with the dynamic release CRT, so embedded RHI targets must match it.
+    foreach(target slang-rhi slang-rhi-d3d12ma slang-rhi-vma slang-rhi-resources)
+        if(TARGET ${target})
+            set_property(TARGET ${target} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+        endif()
+    endforeach()
 endif()
 
 # Copy shared slang-rhi-device.h header to shaders directory (wrapped in sgl/device/rhi.slang)

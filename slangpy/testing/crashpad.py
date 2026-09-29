@@ -35,6 +35,14 @@ RUST_MINIDUMP_ASSETS = {
 }
 
 
+def is_supported() -> bool:
+    """Whether this build has crashpad, which backfill targets may predate."""
+
+    if not hasattr(spy, "crashpad"):
+        return False
+    return spy.crashpad.is_supported()
+
+
 def setup():
     # Remove database directory from previous runs.
     shutil.rmtree(CRASHPAD_DATABASE_DIR, ignore_errors=True)

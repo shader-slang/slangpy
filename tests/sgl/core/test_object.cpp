@@ -3,6 +3,9 @@
 #include "testing.h"
 #include "sgl/core/object.h"
 
+#include <atomic>
+#include <thread>
+
 using namespace sgl;
 
 TEST_SUITE_BEGIN("object");
@@ -61,6 +64,43 @@ TEST_CASE("ref")
 
     r1 = nullptr;
     CHECK_EQ(DummyObject::get_count(), 0);
+}
+
+class OrderedDestructionObject : public Object {
+    SGL_OBJECT(OrderedDestructionObject)
+public:
+    explicit OrderedDestructionObject(std::atomic<uint32_t>* destroyed_value)
+        : destroyed_value(destroyed_value)
+    {
+    }
+
+    ~OrderedDestructionObject() { destroyed_value->store(value, std::memory_order_relaxed); }
+
+    uint32_t value{0};
+    std::atomic<uint32_t>* destroyed_value;
+};
+
+TEST_CASE("cross-thread final release observes prior object access")
+{
+    std::atomic<uint32_t> destroyed_value{0};
+    std::atomic<bool> release_worker{false};
+    ref<OrderedDestructionObject> object = make_ref<OrderedDestructionObject>(&destroyed_value);
+
+    std::thread worker(
+        [held_object = ref<OrderedDestructionObject>(object), &release_worker]() mutable
+        {
+            while (!release_worker.load(std::memory_order_relaxed))
+                std::this_thread::yield();
+            held_object = nullptr;
+        }
+    );
+
+    object->value = 42;
+    object = nullptr;
+    release_worker.store(true, std::memory_order_relaxed);
+    worker.join();
+
+    CHECK(destroyed_value.load(std::memory_order_relaxed) == 42);
 }
 
 class DummyBuffer;

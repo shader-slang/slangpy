@@ -39,9 +39,22 @@ inline const char* tensor_bridge_result_to_string(int result)
         return "C++ exception occurred";
     case TENSOR_BRIDGE_ERROR_UNKNOWN:
         return "unknown error";
+    case TENSOR_BRIDGE_ERROR_RANK_TOO_HIGH:
+        return "tensor rank exceeds supported maximum";
     default:
         return "unrecognized error code";
     }
+}
+
+/// Build the diagnostic for a tensor whose rank exceeds the supported maximum.
+/// Both consumers of a get_signature result build the message through this
+/// helper, so the diagnostic is identical whichever bridge produced the code -
+/// a rank-specific message rather than the opaque buffer-size error.
+/// @param rank The offending tensor rank.
+inline std::string torch_tensor_rank_error_message(int64_t rank)
+{
+    return "PyTorch tensor rank " + std::to_string(rank) + " exceeds the maximum supported rank of "
+        + std::to_string(TENSOR_BRIDGE_MAX_TENSOR_RANK);
 }
 
 /// Singleton providing fast access to PyTorch tensor metadata.
@@ -568,6 +581,14 @@ private:
     int python_get_signature(PyObject* obj, char* buffer, size_t buffer_size) const
     {
         init_python_fallback();
+
+        // Reject unsupported rank with the same code the native bridge returns,
+        // so the result consumer raises one identical diagnostic regardless of
+        // which bridge produced it. The dispatcher has already confirmed obj is a
+        // tensor, so reading ndim here is safe.
+        if (nb::cast<int64_t>(nb::handle(obj).attr("ndim")) > TENSOR_BRIDGE_MAX_TENSOR_RANK)
+            return TENSOR_BRIDGE_ERROR_RANK_TOO_HIGH;
+
         auto res = m_py_get_signature(nb::handle(obj));
         if (res.is_none()) {
             return TENSOR_BRIDGE_ERROR_NOT_TENSOR;

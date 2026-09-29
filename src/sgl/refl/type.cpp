@@ -380,6 +380,11 @@ void Type::on_hot_reload(ref<const TypeReflection> reflection)
 {
     SGL_CHECK(reflection, "Type hot reload requires a reflection object");
     m_reflection = std::move(reflection);
+    clear_caches();
+}
+
+void Type::clear_caches()
+{
     m_uniform_layout = nullptr;
     m_buffer_layout = nullptr;
     m_derivative = nullptr;

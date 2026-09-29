@@ -1,9 +1,13 @@
 name: ci-benchmark
+run-name: "ci-benchmark: ${{ inputs.revision || github.sha }}"
 
 on:
-  schedule:
-    - cron: '0 */4 * * *' # run every 4 hours
   workflow_dispatch:
+    inputs:
+      revision:
+        description: "Optional exact revision to benchmark; defaults to the selected branch tip"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -11,7 +15,45 @@ permissions:
   id-token: write
 
 jobs:
+  # The benchmark job carries the BenchView write key and then builds and runs the
+  # revision's own code. workflow_dispatch already limits who can start it, but the
+  # revision input is free text, so confirm it is real main history before the key is
+  # anywhere near it.
+  validate-revision:
+    runs-on: ubuntu-latest
+    outputs:
+      # The build checks out this SHA rather than the raw input. If the input named
+      # a branch or tag, that ref could move between validation and checkout, and the
+      # build would then run an unvalidated commit with the write key.
+      revision: ${{ steps.resolve.outputs.revision }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve and validate the revision
+        id: resolve
+        env:
+          REVISION: ${{ inputs.revision }}
+          # workflow_dispatch is the only trigger, so this is the tip of whichever
+          # branch the dispatcher selected and is not necessarily main.
+          DEFAULT_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # Both paths are checked. Defaulting to the selected branch tip would
+          # otherwise benchmark an unmerged commit with the write key, and write a
+          # BenchView row for a commit that may never reach main.
+          requested="${REVISION:-$DEFAULT_REVISION}"
+          resolved="$(git rev-parse --verify "${requested}^{commit}")"
+          if ! git merge-base --is-ancestor "$resolved" origin/main; then
+            echo "::error::$requested ($resolved) is not contained in main; refusing to benchmark it." >&2
+            exit 1
+          fi
+          echo "Benchmarking $resolved"
+          echo "revision=$resolved" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: validate-revision
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
@@ -32,10 +74,15 @@ jobs:
       CI_CONFIG: ${{ matrix.config }}
       CI_PYTHON: ${{ matrix.python }}
       CI_FLAGS: ${{ matrix.flags }}
+      BENCHVIEW_API_URL: ${{ vars.BENCHVIEW_API_URL }}
+      BENCHVIEW_API_KEY: ${{ secrets.BENCHVIEW_API_KEY }}
+      BENCHVIEW_BENCHMARK_REF: ${{ needs.validate-revision.outputs.revision }}
+      BENCHVIEW_BENCHMARK_BRANCH: ${{ github.ref_name }}
 
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ needs.validate-revision.outputs.revision }}
           submodules: recursive
           lfs: true
 
@@ -59,7 +106,7 @@ jobs:
 
       # Setup PyTorch environment
       - name: Setup PyTorch environment
-        if: runner.os != 'macos' && contains(matrix.flags, 'unit-test')
+        if: runner.os != 'macos' && contains(matrix.flags, 'benchmark')
         run: |
           python -m pip install torch==2.8.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 
@@ -108,11 +155,18 @@ jobs:
       - name: Build
         run: python tools/ci.py build
 
-      # Benchmark (Python)
-      - name: Benchmark (Python, Windows, GPU Clock Locked)
-        if: contains(matrix.flags, 'benchmark') && runner.os == 'Windows'
-        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --mongodb-connection-string "${{ secrets.BENCHMARK_MONGODB_CONNECTION_STRING }}" --mongodb-database-name "nvr-ci" --lock-gpu-clocks
+      # Install slangpy-torch extension (requires the completed SlangPy build and PyTorch).
+      - name: Install slangpy-torch
+        if: runner.os != 'macos' && contains(matrix.flags, 'benchmark')
+        run: python tools/ci.py install-slangpy-torch
 
-      - name: Benchmark (Python, Linux, GPU Clock Unlocked)
-        if: contains(matrix.flags, 'benchmark') && runner.os == 'Linux'
-        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --mongodb-connection-string "${{ secrets.BENCHMARK_MONGODB_CONNECTION_STRING }}" --mongodb-database-name "nvr-ci"
+      # Benchmark (Python)
+      - name: Benchmark (Python, GPU Clock Locked)
+        if: contains(matrix.flags, 'benchmark')
+        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --api-url "${{ env.BENCHVIEW_API_URL }}" --lock-gpu-clocks
+
+      # Cleanup slangpy-torch from persistent self-hosted runners.
+      - name: Uninstall slangpy-torch
+        if: always()
+        run: python -m pip uninstall slangpy-torch -y
+        continue-on-error: true

@@ -39,6 +39,7 @@ enum class NativeHandleType {
     VkSampler = static_cast<uint32_t>(rhi::NativeHandleType::VkSampler),
     VkPipeline = static_cast<uint32_t>(rhi::NativeHandleType::VkPipeline),
     VkSemaphore = static_cast<uint32_t>(rhi::NativeHandleType::VkSemaphore),
+    VkMicromapEXT = static_cast<uint32_t>(rhi::NativeHandleType::VkMicromapEXT),
 
     MTLDevice = static_cast<uint32_t>(rhi::NativeHandleType::MTLDevice),
     MTLCommandQueue = static_cast<uint32_t>(rhi::NativeHandleType::MTLCommandQueue),
@@ -102,6 +103,7 @@ SGL_ENUM_INFO(
         {NativeHandleType::VkSampler, "VkSampler"},
         {NativeHandleType::VkPipeline, "VkPipeline"},
         {NativeHandleType::VkSemaphore, "VkSemaphore"},
+        {NativeHandleType::VkMicromapEXT, "VkMicromapEXT"},
 
         {NativeHandleType::MTLDevice, "MTLDevice"},
         {NativeHandleType::MTLCommandQueue, "MTLCommandQueue"},

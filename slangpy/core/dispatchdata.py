@@ -15,6 +15,7 @@ from slangpy import (
     SlangLinkOptions,
     uint3,
     DeviceType,
+    PipelineCompilationPolicy,
 )
 from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.bindings.marshall import BindContext
@@ -199,12 +200,12 @@ void {reflection.name}_entrypoint({params}) {{
                     [ep],
                     opts,
                 )
-                defer_target_compilation = bool(
-                    build_info.options.get("defer_target_compilation", True)
+                compilation_policy = build_info.options.get(
+                    "pipeline_compilation_policy", PipelineCompilationPolicy.deferred
                 )
                 self.compute_pipeline = device.create_compute_pipeline(
                     program,
-                    defer_target_compilation=defer_target_compilation,
+                    compilation_policy=compilation_policy,
                     label=f"{build_info.module.name}_{build_info.name}_dispatch",
                 )
                 self.device = device

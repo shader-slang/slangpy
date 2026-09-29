@@ -1083,6 +1083,9 @@ static bool try_append_torch_tensor_signature(SignatureBuffer& builder, nb::hand
         builder << prefix << buffer;
         return true;
     }
+    if (result == TENSOR_BRIDGE_ERROR_RANK_TOO_HIGH) {
+        throw std::runtime_error(torch_tensor_rank_error_message(nb::cast<int64_t>(tensor.attr("ndim"))));
+    }
     if (result == TENSOR_BRIDGE_ERROR_BUFFER_TOO_SMALL) {
         throw std::runtime_error("Torch tensor signature exceeds the supported buffer size");
     }

@@ -752,6 +752,17 @@ void CommandEncoder::build_acceleration_structure(
         narrow_cast<uint32_t>(rhi_queries.size()),
         rhi_queries.data()
     );
+
+    dst->set_micromap_dependencies(desc);
+}
+
+void CommandEncoder::build_micromap(const MicromapBuildDesc& desc, Micromap* dst, BufferOffsetPair scratch_buffer)
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+    SGL_CHECK_NOT_NULL(dst);
+
+    MicromapBuildDescConverter converter(desc);
+    m_rhi_command_encoder->buildMicromap(converter.rhi_desc, dst->rhi_micromap(), detail::to_rhi(scratch_buffer));
 }
 
 void CommandEncoder::copy_acceleration_structure(
@@ -768,6 +779,8 @@ void CommandEncoder::copy_acceleration_structure(
         src->rhi_acceleration_structure(),
         static_cast<rhi::AccelerationStructureCopyMode>(mode)
     );
+
+    dst->copy_micromap_dependencies(*src);
 }
 
 void CommandEncoder::query_acceleration_structure_properties(
@@ -796,6 +809,25 @@ void CommandEncoder::query_acceleration_structure_properties(
         narrow_cast<uint32_t>(rhi_queries.size()),
         rhi_queries.data()
     );
+}
+
+void CommandEncoder::execute_cluster_operation(const ClusterOperationDesc& desc)
+{
+    SGL_CHECK(m_open, "Command encoder is finished");
+
+    rhi::ClusterOperationDesc rhi_desc{
+        .params = detail::to_rhi(desc.params),
+        .argCountBuffer = detail::to_rhi(desc.arg_count_buffer),
+        .argsBuffer = detail::to_rhi(desc.args_buffer),
+        .argsBufferStride = desc.args_buffer_stride,
+        .scratchBuffer = detail::to_rhi(desc.scratch_buffer),
+        .addressesBuffer = detail::to_rhi(desc.addresses_buffer),
+        .addressesBufferStride = desc.addresses_buffer_stride,
+        .resultBuffer = detail::to_rhi(desc.result_buffer),
+        .sizesBuffer = detail::to_rhi(desc.sizes_buffer),
+        .sizesBufferStride = desc.sizes_buffer_stride,
+    };
+    m_rhi_command_encoder->executeClusterOperation(rhi_desc);
 }
 
 void CommandEncoder::convert_coop_vec_matrices(

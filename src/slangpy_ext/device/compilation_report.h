@@ -4,6 +4,7 @@
 
 #include "nanobind.h"
 
+#include "sgl/core/string.h"
 #include "sgl/device/device.h"
 #include "sgl/device/helpers.h"
 #include "sgl/device/shader.h"
@@ -37,6 +38,17 @@ inline const char* compilation_pipeline_type_to_string(rhi::CompilationReport::P
     }
 }
 
+inline nb::object cache_key_to_py(const rhi::CompilationReport::CacheKeyDigest& cache_key)
+{
+    if (cache_key.type == rhi::CompilationReport::CacheKeyDigest::Type::None)
+        return nb::none();
+
+    SGL_ASSERT(cache_key.type == rhi::CompilationReport::CacheKeyDigest::Type::SHA1);
+    std::string result = "sha1:";
+    result += string::hexlify(cache_key.bytes, sizeof(cache_key.bytes));
+    return nb::str(result.c_str(), result.size());
+}
+
 inline nb::dict
 compilation_entry_point_report_to_dict(const rhi::CompilationReport::EntryPointReport& entry_point_report)
 {
@@ -50,6 +62,7 @@ compilation_entry_point_report_to_dict(const rhi::CompilationReport::EntryPointR
     result["compile_downstream_time"] = entry_point_report.compileDownstreamTime;
     result["is_cached"] = entry_point_report.isCached;
     result["cache_size"] = entry_point_report.cacheSize;
+    result["cache_key"] = cache_key_to_py(entry_point_report.cacheKey);
     return result;
 }
 
@@ -62,6 +75,7 @@ inline nb::dict compilation_pipeline_report_to_dict(const rhi::CompilationReport
     result["create_time"] = pipeline_report.createTime;
     result["is_cached"] = pipeline_report.isCached;
     result["cache_size"] = pipeline_report.cacheSize;
+    result["cache_key"] = cache_key_to_py(pipeline_report.cacheKey);
     return result;
 }
 
