@@ -140,9 +140,21 @@ def summarize(program: spy.ShaderCoverageProgramSnapshot) -> dict[str, Any]:
     }
 
 
-def write_report(directory: Path, summary: dict[str, Any], source: str) -> None:
+def write_report(
+    directory: Path, summary: dict[str, Any], source: str, *, lcov_reports: bool = False
+) -> None:
     sections = []
     for name, stats in summary["coverage"].items():
+        if lcov_reports:
+            sections.append(
+                f'<section><h2>{html.escape(name.replace("_", " ").title())}</h2>'
+                f'<p>Lines: {stats["line"]["hit"]}/{stats["line"]["total"]}. '
+                f'Branch arms: {stats["branch"]["hit"]}/{stats["branch"]["total"]}.</p>'
+                f'<p><a href="coverage/{name}/html/index.html">Open coverage report</a> '
+                f'&middot; <a href="coverage/{name}/coverage.info">Download LCOV</a> '
+                f'&middot; <a href="{name}.json">Raw capture</a></p></section>'
+            )
+            continue
         rows = []
         for line, text in enumerate(source.splitlines(), 1):
             hit = stats["lines"].get(line)
@@ -181,7 +193,8 @@ def write_report(directory: Path, summary: dict[str, Any], source: str) -> None:
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         "<title>SlangPy shader coverage</title><style>"
         "body{font:16px system-ui;max-width:1100px;margin:40px auto;padding:0 20px;"
-        "background:#101820;color:#e6eef5}p{line-height:1.6}.pair{display:flex;gap:20px}"
+        "background:#101820;color:#e6eef5}a{color:#8dccff}p{line-height:1.6}"
+        ".pair{display:flex;gap:20px}"
         "figure{margin:0;flex:1;min-width:0}img{width:100%}figcaption{padding:8px 0}"
         "section{margin:32px 0}details{overflow:auto}summary{cursor:pointer}"
         "table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:4px 8px;text-align:left}"
@@ -191,7 +204,7 @@ def write_report(directory: Path, summary: dict[str, Any], source: str) -> None:
         "The first capture uses only the ordinary image; the second accumulates all three inputs. "
         "Each image is 320 x 240 pixels. HDR previews are clipped; transparency uses a checkerboard.</p>"
         f'<p>Backend: {html.escape(summary["backend"])}. Counters: {summary["counter_width"]} bits. '
-        "Source rows are green when hit and red when missed. Branch counts belong to one compiled program.</p>"
+        "Branch counts belong to one compiled program.</p>"
         + "".join(sections)
         + figures
         + "<h2>Numerical validation</h2><pre>"
