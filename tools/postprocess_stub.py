@@ -58,6 +58,7 @@ DESCRIPTOR_CONVERT_TYPES = {
     "SamplerDesc": True,
     "ScissorRect": True,
     "ShaderTableDesc": True,
+    "ShaderCoverageOptions": True,
     "SlangCompilerOptions": True,
     "SlangLinkOptions": True,
     "SlangSessionDesc": True,

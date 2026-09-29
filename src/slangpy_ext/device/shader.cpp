@@ -7,10 +7,19 @@
 #include "sgl/device/shader.h"
 #include "sgl/device/reflection.h"
 #include "sgl/device/kernel.h"
+#include "sgl/device/resource.h"
 
 namespace sgl {
 using DefineList = std::map<std::string, std::string>;
+SGL_DICT_TO_DESC_BEGIN(ShaderCoverageOptions)
+SGL_DICT_TO_DESC_FIELD(lines, bool)
+SGL_DICT_TO_DESC_FIELD(functions, bool)
+SGL_DICT_TO_DESC_FIELD(branches, bool)
+SGL_DICT_TO_DESC_FIELD(counter_width, uint32_t)
+SGL_DICT_TO_DESC_END()
+
 SGL_DICT_TO_DESC_BEGIN(SlangCompilerOptions)
+SGL_DICT_TO_DESC_FIELD(coverage, std::optional<ShaderCoverageOptions>)
 SGL_DICT_TO_DESC_FIELD_LIST(include_paths, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(defines, DefineList)
 SGL_DICT_TO_DESC_FIELD(shader_model, ShaderModel)
@@ -94,6 +103,60 @@ SGL_PY_EXPORT(device_shader)
     nb::sgl_enum<sgl::SlangDebugInfoLevel>(m, "SlangDebugInfoLevel");
     nb::sgl_enum<sgl::SlangOptimizationLevel>(m, "SlangOptimizationLevel");
 
+    nb::class_<ShaderCoverageOptions>(m, "ShaderCoverageOptions")
+        .def(nb::init<>())
+        .def(
+            "__init__",
+            [](ShaderCoverageOptions* self, bool lines, bool functions, bool branches, uint32_t counter_width)
+            {
+                new (self) ShaderCoverageOptions{lines, functions, branches, counter_width};
+            },
+            "lines"_a = true,
+            "functions"_a = true,
+            "branches"_a = true,
+            "counter_width"_a = 64
+        )
+        .def(
+            "__init__",
+            [](ShaderCoverageOptions* self, nb::dict dict)
+            {
+                new (self) ShaderCoverageOptions(dict_to_ShaderCoverageOptions(dict));
+            }
+        )
+        .def_rw("lines", &ShaderCoverageOptions::lines)
+        .def_rw("functions", &ShaderCoverageOptions::functions)
+        .def_rw("branches", &ShaderCoverageOptions::branches)
+        .def_rw("counter_width", &ShaderCoverageOptions::counter_width);
+    nb::implicitly_convertible<nb::dict, ShaderCoverageOptions>();
+
+    nb::class_<ShaderCoverageProgramSnapshot>(m, "ShaderCoverageProgramSnapshot")
+        .def_ro("generation_id", &ShaderCoverageProgramSnapshot::generation_id)
+        .def_ro("label", &ShaderCoverageProgramSnapshot::label)
+        .def_ro("manifest", &ShaderCoverageProgramSnapshot::manifest)
+        .def_ro("counter_width", &ShaderCoverageProgramSnapshot::counter_width)
+        .def_ro("counters", &ShaderCoverageProgramSnapshot::counters);
+    nb::class_<ShaderCoverageSnapshot>(m, "ShaderCoverageSnapshot")
+        .def_ro("collection_id", &ShaderCoverageSnapshot::collection_id)
+        .def_ro("capture_id", &ShaderCoverageSnapshot::capture_id)
+        .def_ro("interval_id", &ShaderCoverageSnapshot::interval_id)
+        .def_ro("reset_after", &ShaderCoverageSnapshot::reset_after)
+        .def_ro("programs", &ShaderCoverageSnapshot::programs);
+    nb::class_<ShaderCoverageCapabilities>(m, "ShaderCoverageCapabilities")
+        .def_ro("supported", &ShaderCoverageCapabilities::supported)
+        .def_ro("counter_widths", &ShaderCoverageCapabilities::counter_widths)
+        .def_ro("reason", &ShaderCoverageCapabilities::reason);
+    nb::class_<ShaderCoverageCollector, DeviceChild>(m, "ShaderCoverageCollector")
+        .def_prop_ro("capabilities", &ShaderCoverageCollector::capabilities)
+        .def(
+            "snapshot",
+            &ShaderCoverageCollector::snapshot,
+            nb::kw_only(),
+            "reset"_a = false,
+            "Copy all registered program counters at one queue boundary and wait for readback. "
+            "With reset=True, clear the counters in the same submission. Branch IDs are program-local."
+        )
+        .def("reset", &ShaderCoverageCollector::reset, "Clear all registered counters in queue order and wait.");
+
     nb::class_<SlangCompilerOptions>(m, "SlangCompilerOptions", D(SlangCompilerOptions))
         .def(nb::init<>())
         .def(
@@ -104,6 +167,7 @@ SGL_PY_EXPORT(device_shader)
             }
         )
         .def_rw("include_paths", &SlangCompilerOptions::include_paths, D(SlangCompilerOptions, include_paths))
+        .def_rw("coverage", &SlangCompilerOptions::coverage, nb::for_setter(nb::arg("value").none()))
         .def_rw("defines", &SlangCompilerOptions::defines, D(SlangCompilerOptions, defines))
         .def_rw("shader_model", &SlangCompilerOptions::shader_model, D(SlangCompilerOptions, shader_model))
         .def_rw("matrix_layout", &SlangCompilerOptions::matrix_layout, D(SlangCompilerOptions, matrix_layout))
@@ -268,6 +332,8 @@ SGL_PY_EXPORT(device_shader)
         .def("specialize", &SlangEntryPoint::specialize, "specialization_args"_a);
 
     nb::class_<ShaderProgram, DeviceChild>(m, "ShaderProgram", D(ShaderProgram))
+        .def_prop_ro("coverage_buffer", &ShaderProgram::coverage_buffer)
+        .def_prop_ro("coverage_manifest", &ShaderProgram::coverage_manifest)
         .def_prop_ro("layout", &ShaderProgram::layout, D(ShaderProgram, layout))
         .def_prop_ro("reflection", &ShaderProgram::reflection, D(ShaderProgram, reflection))
         .def(

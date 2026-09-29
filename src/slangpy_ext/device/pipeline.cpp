@@ -67,6 +67,13 @@ SGL_PY_EXPORT(device_pipeline)
     nb::implicitly_convertible<nb::dict, ComputePipelineDesc>();
 
     nb::class_<ComputePipeline, Pipeline>(m, "ComputePipeline", D(ComputePipeline))
+        .def_prop_ro(
+            "program",
+            [](const ComputePipeline* self)
+            {
+                return self->desc().program;
+            }
+        )
         .def_prop_ro("thread_group_size", &ComputePipeline::thread_group_size, D(ComputePipeline, thread_group_size))
         .def_prop_ro("native_handle", &ComputePipeline::native_handle, D(ComputePipeline, native_handle));
 

@@ -8,6 +8,7 @@
 #include "sgl/device/callback_list.h"
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
+#include "sgl/device/shader_coverage.h"
 #include "sgl/device/raytracing.h"
 #include "sgl/device/debug_logger.h"
 
@@ -348,6 +349,9 @@ public:
 
     /// Returns the supported resource states for a given format.
     FormatSupport get_format_support(Format format) const;
+
+    /// Device-wide coverage collection facade. Its snapshots own host data.
+    ref<ShaderCoverageCollector> shader_coverage();
 
     /// Default slang session.
     SlangSession* slang_session() const { return m_slang_session; }
@@ -904,6 +908,17 @@ public:
     void _notify_command_recording_discarded(CommandRecordingID id);
 
 private:
+    friend class ShaderCoverageCollector;
+    friend class ShaderProgram;
+    friend class SlangSession;
+    ShaderCoverageState& _shader_coverage_state();
+    void _register_shader_coverage(SlangSessionBuild& build);
+    ShaderCoverageSnapshot _capture_shader_coverage(bool read, bool reset);
+    // Recursive for existing submission callbacks/hot reload that can register programs.
+    std::recursive_mutex m_coverage_mutex;
+    std::recursive_mutex m_coverage_capture_mutex;
+    std::unique_ptr<ShaderCoverageState> m_coverage_state;
+
     ref<refl::Layout> reload_builtin_layout();
 
     DeviceDesc m_desc;
