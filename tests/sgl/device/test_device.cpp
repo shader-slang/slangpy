@@ -5,9 +5,15 @@
 #include "sgl/device/device.h"
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
+#include "sgl/device/cuda_utils.h"
+#include "sgl/device/cuda_interop.h"
+#include "sgl/device/shader_cursor.h"
+#include "sgl/device/shader_object.h"
 
 #include <array>
 #include <fstream>
+#include <memory>
+#include <type_traits>
 
 using namespace sgl;
 
@@ -19,6 +25,26 @@ struct ExecuteCallbackTestState {
     bool called{false};
     NativeHandle callback_handle;
 };
+
+struct CUDADriverAPIScope {
+    bool loaded{rhiCudaDriverApiInit()};
+    ~CUDADriverAPIScope()
+    {
+        if (loaded)
+            rhiCudaDriverApiShutdown();
+    }
+};
+
+bool is_nvidia_graphics_device(Device* device)
+{
+    if (device->type() != DeviceType::d3d12 && device->type() != DeviceType::vulkan)
+        return false;
+    for (const auto& adapter : Device::enumerate_adapters(device->type())) {
+        if (adapter.luid == device->info().adapter_luid)
+            return adapter.vendor_id == 0x10de;
+    }
+    return false;
+}
 
 void SLANG_MCALL execute_callback_test(
     const ExecuteCallbackContext* context,
@@ -175,6 +201,97 @@ TEST_CASE_GPU("execute_callback_lambda_native_handle")
 
     CHECK(state.called);
     check_execute_callback_native_handle(ctx.device, state.callback_handle);
+}
+
+TEST_CASE_GPU("cuda_close_mapped_buffer_outlives_device")
+{
+    if (!is_nvidia_graphics_device(ctx.device))
+        SKIP("CUDA interop requires an NVIDIA D3D12 or Vulkan adapter");
+    CUDADriverAPIScope api;
+    if (!api.loaded)
+        SKIP("CUDA driver API is unavailable");
+
+    for (bool release_rhi : {false, true}) {
+        CAPTURE(release_rhi);
+        auto desc = ctx.device->desc();
+        desc.adapter_luid = ctx.device->info().adapter_luid;
+        desc.enable_cuda_interop = true;
+        const size_t device_count = Device::get_created_devices().size();
+        auto device = Device::create(desc);
+        auto buffer = device->create_buffer({.size = 16, .usage = BufferUsage::unordered_access | BufferUsage::shared});
+        {
+            SGL_CU_SCOPE(device.get());
+            REQUIRE(buffer->cuda_memory() != nullptr);
+        }
+        CUcontext other_context;
+        SGL_CU_CHECK(cuCtxCreate(&other_context, 0, device->cuda_device()->device()));
+        std::unique_ptr<std::remove_pointer_t<CUcontext>, decltype(cuCtxDestroy)> context_owner(
+            other_context,
+            cuCtxDestroy
+        );
+        device->close();
+        CHECK_THROWS_WITH(buffer->cuda_memory(), doctest::Contains("Cannot access CUDA memory on a closed device."));
+        if (release_rhi) {
+            device->_release_rhi_resources();
+            CHECK(buffer->rhi_buffer() == nullptr);
+        }
+        device.reset();
+        CHECK(Device::get_created_devices().size() == device_count + 1);
+        CHECK(buffer->device()->cuda_device() != nullptr);
+        buffer.reset();
+        CHECK(Device::get_created_devices().size() == device_count);
+        CUcontext current_context;
+        SGL_CU_CHECK(cuCtxGetCurrent(&current_context));
+        CHECK(current_context == other_context);
+    }
+}
+
+TEST_CASE_GPU("cuda_close_interop_buffer_outlives_device")
+{
+    if (!is_nvidia_graphics_device(ctx.device))
+        SKIP("CUDA interop requires an NVIDIA D3D12 or Vulkan adapter");
+    CUDADriverAPIScope api;
+    if (!api.loaded)
+        SKIP("CUDA driver API is unavailable");
+
+    auto desc = ctx.device->desc();
+    desc.adapter_luid = ctx.device->info().adapter_luid;
+    desc.enable_cuda_interop = true;
+    const size_t device_count = Device::get_created_devices().size();
+    auto device = Device::create(desc);
+    auto module = device->load_module_from_source(
+        "cuda_close_interop_owner",
+        R"(
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void main(RWStructuredBuffer<uint> buffer) { buffer[0] = 1; }
+)"
+    );
+    auto program = device->link_program({module}, {module->entry_point("main")});
+    auto root = device->create_root_shader_object(program);
+    auto entry_point = root->get_entry_point(0);
+    // Construct the internal owner through its binding path; no CUDA copy is submitted.
+    ShaderCursor(entry_point)["buffer"].set_cuda_tensor_view(
+        {.device_id = device->cuda_device()->device(), .data = nullptr, .size = 16, .stride = 4}
+    );
+    std::vector<ref<cuda::InteropBuffer>> interop;
+    entry_point->get_cuda_interop_buffers(interop);
+    REQUIRE(interop.size() == 1);
+    {
+        SGL_CU_SCOPE(device.get());
+        REQUIRE(interop.front()->buffer()->cuda_memory() != nullptr);
+    }
+    entry_point.reset();
+    root.reset();
+    program.reset();
+    module.reset();
+    device->close();
+    device->_release_rhi_resources();
+    CHECK(interop.front()->buffer()->rhi_buffer() == nullptr);
+    device.reset();
+    CHECK(Device::get_created_devices().size() == device_count + 1);
+    interop.clear();
+    CHECK(Device::get_created_devices().size() == device_count);
 }
 
 TEST_SUITE_END();

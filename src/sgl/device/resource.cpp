@@ -200,6 +200,12 @@ Buffer::~Buffer()
     m_cuda_memory.reset();
 }
 
+void Buffer::_release_rhi_resources()
+{
+    m_cuda_memory.reset();
+    m_rhi_buffer.setNull();
+}
+
 void* Buffer::map() const
 {
     SGL_ASSERT(m_desc.memory_type != MemoryType::device_local);
@@ -220,6 +226,7 @@ void Buffer::unmap() const
 
 void* Buffer::cuda_memory() const
 {
+    SGL_CHECK(!m_device->is_closed(), "Cannot access CUDA memory on a closed device.");
     if (m_device->type() == DeviceType::cuda) {
         return reinterpret_cast<void*>(device_address());
     } else {

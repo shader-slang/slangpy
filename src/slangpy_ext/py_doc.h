@@ -10971,8 +10971,6 @@ static const char *__doc_sgl_cuda_InteropBuffer_m_buffer = R"doc()doc";
 
 static const char *__doc_sgl_cuda_InteropBuffer_m_device = R"doc()doc";
 
-static const char *__doc_sgl_cuda_InteropBuffer_m_external_memory = R"doc()doc";
-
 static const char *__doc_sgl_cuda_InteropBuffer_m_is_uav = R"doc()doc";
 
 static const char *__doc_sgl_cuda_InteropBuffer_m_tensor_view = R"doc()doc";
