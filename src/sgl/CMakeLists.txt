@@ -138,6 +138,8 @@ target_sources(sgl PRIVATE
     device/shader_offset.h
     device/shader.cpp
     device/shader.h
+    device/shader_coverage.cpp
+    device/shader_coverage.h
     device/slang_utils.h
     device/surface.cpp
     device/surface.h

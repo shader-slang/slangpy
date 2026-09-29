@@ -690,6 +690,7 @@ SGL_PY_EXPORT(device_device)
     device.def("has_capability", &Device::has_capability, "capability"_a, D(Device, has_capability));
     device.def("get_format_support", &Device::get_format_support, "format"_a, D(Device, get_format_support));
 
+    device.def_prop_ro("shader_coverage", &Device::shader_coverage);
     device.def_prop_ro("slang_session", &Device::slang_session, D(Device, slang_session));
     device.def("close", &Device::close, D(Device, close));
     device.def(

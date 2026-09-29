@@ -461,6 +461,7 @@ Device::~Device()
 
 void Device::_release_rhi_resources()
 {
+    m_coverage_state.reset();
     for (DeviceChild* resource : m_device_children)
         resource->_release_rhi_resources();
     m_device_children.clear();
@@ -501,12 +502,12 @@ FormatSupport Device::get_format_support(Format format) const
 
 void Device::close()
 {
+    // Outlive the lock guards: callbacks may release the last external owner.
+    ref<Device> keep_alive(this);
+    std::lock_guard capture_lock(m_coverage_capture_mutex);
+    std::lock_guard coverage_lock(m_coverage_mutex);
     if (m_closed)
         return;
-
-    // Keep the device alive while callbacks and resource teardown may release
-    // the last external owner.
-    ref<Device> keep_alive(this);
 
     // Pop device from thread-local current device stack if it's the current device.
     if (!s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
@@ -532,6 +533,7 @@ void Device::close()
     m_command_recording_submitted_callbacks.clear();
     m_command_recording_discarded_callbacks.clear();
 
+    m_coverage_state.reset();
     m_blitter.reset();
     m_debug_printer.reset();
 
@@ -947,6 +949,13 @@ uint64_t Device::submit_command_buffers(
     if (m_hot_reload)
         m_hot_reload->update();
 
+    std::unique_lock coverage_lock(m_coverage_mutex);
+    SGL_CHECK(!m_closed, "Device is closed");
+    SGL_CHECK(
+        !cuda_stream.is_valid() || !m_coverage_state || m_coverage_state->programs.empty(),
+        "Shader coverage does not support submissions on custom CUDA streams"
+    );
+
     // Pointer to CUDA stream
     void* cuda_stream_ptr;
     if (m_desc.type == DeviceType::cuda) {
@@ -1037,9 +1046,6 @@ uint64_t Device::submit_command_buffers(
 
     const uint64_t submit_id = m_global_fence->signaled_value();
 
-    for (CommandBuffer* command_buffer : command_buffers)
-        command_buffer->_notify_submitted(submit_id);
-
     // Handle CUDA interop.
     if (m_supports_cuda_interop && needs_cuda_sync) {
         sync_to_device(cuda_stream_ptr);
@@ -1051,6 +1057,10 @@ uint64_t Device::submit_command_buffers(
             }
         }
     }
+
+    coverage_lock.unlock();
+    for (CommandBuffer* command_buffer : command_buffers)
+        command_buffer->_notify_submitted(submit_id);
 
     return submit_id;
 }

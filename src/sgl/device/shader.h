@@ -133,9 +133,21 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(SlangOptimizationLevel);
 
+/// Opt-in compute coverage. Unsupported counter widths never fall back silently.
+struct ShaderCoverageOptions {
+    bool lines{true};
+    bool functions{true};
+    bool branches{true};
+    uint32_t counter_width{64};
+};
+
 /// Slang compiler options.
 /// Can be set when creating a Slang session.
 struct SlangCompilerOptions {
+    /// Disabled by default; options enable shader coverage for this session.
+    std::optional<ShaderCoverageOptions> coverage;
+    void validate_coverage(Device* device) const;
+
     /// Specifies a list of include paths to be used when resolving module/include paths.
     std::vector<std::filesystem::path> include_paths;
 
@@ -599,6 +611,11 @@ struct ShaderProgramData : Object {
     SGL_OBJECT(ShaderProgramData)
     Slang::ComPtr<slang::IComponentType> linked_program;
     Slang::ComPtr<rhi::IShaderProgram> rhi_shader_program;
+    ref<Buffer> coverage_buffer;
+    std::string coverage_manifest;
+    uint32_t coverage_resource_id{0};
+    uint32_t coverage_counter_width{0};
+    uint64_t coverage_generation_id{0};
 };
 class SGL_API ShaderProgram : public DeviceChild {
     SGL_OBJECT(ShaderProgram)
@@ -631,6 +648,11 @@ public:
     ReflectionCursor reflection() const { return ReflectionCursor(this); }
 
     rhi::IShaderProgram* rhi_shader_program() const { return m_data->rhi_shader_program; }
+
+    /// Experimental coverage state for this compiled program; null/empty when disabled.
+    ref<Buffer> coverage_buffer() const;
+    const std::string& coverage_manifest() const { return m_data->coverage_manifest; }
+    void bind_coverage(rhi::IShaderObject* root_object) const;
 
     virtual std::string to_string() const override;
 
