@@ -73,6 +73,7 @@ def summarize(capture: dict[str, Any], source: Path) -> dict[str, Any]:
             "hit": sum(int(arm["hits"]) > 0 for arm in branches.values()),
             "total": len(branches),
         },
+        "function": {"hit": sum(hits > 0 for hits in functions.values()), "total": len(functions)},
         "lines": lines,
         "arms": list(branches.values()),
         "function_calls": {name: str(hits) for name, hits in functions.items()},
@@ -88,10 +89,17 @@ def write_report(directory: Path, summary: dict[str, Any], *, lcov_reports: bool
                 f' &middot; <a href="coverage/{name}/html/index.html">Open coverage report</a>'
                 f' &middot; <a href="coverage/{name}/coverage.info">Download LCOV</a>'
             )
+        totals = " ".join(
+            (
+                f'{kind.title()}: {stats[kind]["hit"]}/{stats[kind]["total"]}.'
+                if kind in summary["coverage_kinds"]
+                else f"{kind.title()}: disabled."
+            )
+            for kind in ("line", "branch", "function")
+        )
         sections.append(
             f'<section><h2>{html.escape(name.replace("_", " ").title())}</h2>'
-            f'<p>Lines: {stats["line"]["hit"]}/{stats["line"]["total"]}. '
-            f'Branch arms: {stats["branch"]["hit"]}/{stats["branch"]["total"]}.</p>'
+            f"<p>{totals}</p>"
             f"<p>{links}</p></section>"
         )
     figures = "".join(
@@ -105,6 +113,15 @@ def write_report(directory: Path, summary: dict[str, Any], *, lcov_reports: bool
             ("filter_off", "Denoising disabled"),
         )
     )
+    if summary["coverage_kinds"]:
+        configuration = (
+            f'Counters: {summary["counter_width"]} bits. '
+            f'Recording: {"boolean (hit/miss)" if summary["boolean"] else "execution counts"}. '
+            f'Coverage: {html.escape(", ".join(summary["coverage_kinds"]))}. '
+            "Branch records belong to one compiled program."
+        )
+    else:
+        configuration = "Coverage disabled. No instrumentation or coverage captures."
     (directory / "index.html").write_text(
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -116,10 +133,10 @@ def write_report(directory: Path, summary: dict[str, Any], *, lcov_reports: bool
         "section{margin:32px 0}"
         "</style></head><body><h1>SlangPy shader coverage</h1>"
         "<p>A 3x3 edge-preserving denoiser, HDR normalization, and display gamma. "
-        "The first capture uses only the ordinary image; the second accumulates all three inputs. "
+        "The workload processes an ordinary image, HDR/transparency, and a denoising bypass. "
+        "When enabled, coverage compares the first input with all three accumulated inputs. "
         "Each image is 320 x 240 pixels. HDR previews are clipped; transparency uses a checkerboard.</p>"
-        f'<p>Backend: {html.escape(summary["backend"])}. Counters: {summary["counter_width"]} bits. '
-        "Branch counts belong to one compiled program.</p>"
+        f'<p>Backend: {html.escape(summary["backend"])}. {configuration}</p>'
         + "".join(sections)
         + figures
         + "<h2>Numerical validation</h2><pre>"

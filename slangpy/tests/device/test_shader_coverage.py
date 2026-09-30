@@ -153,3 +153,42 @@ def test_64_bit_counters_cross_uint32_boundary(device_type: spy.DeviceType) -> N
     snapshot = device.shader_coverage.snapshot()
     assert snapshot.programs[0].counter_width == 64
     assert snapshot.programs[0].counters == [int(value) for value in actual]
+
+
+@pytest.mark.parametrize("width", [32, 64])
+@pytest.mark.parametrize("as_dict", [False, True])
+def test_boolean_coverage(device_type: spy.DeviceType, width: int, as_dict: bool) -> None:
+    options = spy.ShaderCoverageOptions(counter_width=width, boolean=True)
+    assert options.boolean
+    assert not spy.ShaderCoverageOptions().boolean
+    device = spy.Device(
+        type=device_type,
+        compiler_options={
+            "coverage": {"counter_width": width, "boolean": True} if as_dict else options
+        },
+    )
+    capabilities = device.shader_coverage.capabilities
+    assert (64 in capabilities.boolean_counter_widths) == device.has_feature(spy.Feature.int64)
+    module = spy.Module.load_from_file(device, str(SOURCE))
+    inputs = spy.Tensor.from_numpy(device, np.array([-3, -1, 0, 2], dtype=np.int32))
+    output = spy.Tensor.from_numpy(device, np.zeros(4, dtype=np.int32))
+    if width not in capabilities.boolean_counter_widths:
+        with pytest.raises(Exception, match="64-bit boolean shader coverage requires int64"):
+            module.classify(inputs, _result=output)
+        return
+    module.classify(inputs, _result=output)
+    np.testing.assert_array_equal(output.to_numpy(), [3, 1, 0, 4])
+    first = device.shader_coverage.snapshot().programs[0]
+    manifest = json.loads(first.manifest)
+    assert manifest["buffer"]["element_stride"] == width // 8
+    assert {entry["mode"] for entry in manifest["entries"]} == {"boolean"}
+    assert set(first.counters) <= {0, 1}
+    assert any(first.counters)
+    module.classify(inputs, _result=output)
+    repeated = device.shader_coverage.snapshot(reset=True).programs[0]
+    assert repeated.counters == first.counters
+    assert not any(device.shader_coverage.snapshot().programs[0].counters)
+    module.classify(inputs, _result=output)
+    assert device.shader_coverage.snapshot().programs[0].counters == first.counters
+    device.shader_coverage.reset()
+    assert not any(device.shader_coverage.snapshot().programs[0].counters)

@@ -30,21 +30,37 @@ Configuration
 
 ``SlangCompilerOptions.coverage`` defaults to ``None`` (disabled). Set it to
 ``ShaderCoverageOptions`` or a dictionary with ``lines``, ``functions``,
-``branches``, and ``counter_width`` fields. The three instrumentation modes
-default to enabled; at least one must be enabled. Options are copied into the
+``branches``, ``counter_width``, and ``boolean`` fields. The three instrumentation
+kinds default to enabled; at least one must be enabled. Options are copied into the
 Slang session, so changing the original Python options object does not change
 an existing session.
 
-Counters default to 64 bits. The compiler uses 64-bit buffer atomics, and an
+Set ``boolean=True`` to record hit/miss instead of execution counts:
+
+.. code-block:: python
+
+    options = spy.ShaderCoverageOptions(boolean=True, counter_width=32)
+    device = spy.Device(type=spy.DeviceType.vulkan, compiler_options={"coverage": options})
+
+Boolean instrumentation stores ``1`` without atomic increments, avoiding atomic
+contention at the cost of execution frequencies. Slots remain 32 or 64 bits;
+this is not a packed bitset. Repeated execution leaves a hit at ``1`` until reset.
+Snapshots keep integer counters and manifests identify entries with
+``mode: "boolean"``. Counting remains the default. Actual performance depends
+on the shader and device.
+
+Counters default to 64 bits. Counting uses 64-bit buffer atomics, and an
 unsupported device raises an error when linking the program. For MoltenVK or
 another device without those atomics, explicitly choose
 ``ShaderCoverageOptions(counter_width=32)``. There is no automatic fallback.
-32-bit GPU counters can wrap; widening them during readback cannot recover lost
-counts. Host snapshot integers preserve the full GPU counter width.
+64-bit boolean slots require ``int64`` support but do not require 64-bit atomics.
+32-bit GPU execution counters can wrap; widening them during readback cannot
+recover lost counts. Host snapshot integers preserve the full GPU counter width.
 
 ``device.shader_coverage.capabilities`` reports ``supported``,
-``counter_widths``, and an explanatory ``reason`` when unavailable. Linking
-additionally checks compiler metadata and the supported program layout.
+``counter_widths`` for counting, ``boolean_counter_widths`` for hit/miss, and an
+explanatory ``reason`` when unavailable. Linking additionally checks compiler
+metadata and the supported program layout.
 The initial implementation targets Vulkan and CUDA, with one compute entry
 point per linked program. Windows users should select Vulkan or CUDA explicitly;
 D3D12 coverage is not implemented. CUDA and Vulkan execution, including 64-bit counters, have been validated on a

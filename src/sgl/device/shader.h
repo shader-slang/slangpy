@@ -139,6 +139,8 @@ struct ShaderCoverageOptions {
     bool functions{true};
     bool branches{true};
     uint32_t counter_width{64};
+    /// Record hit/miss with non-atomic stores instead of counting executions.
+    bool boolean{false};
 };
 
 /// Slang compiler options.

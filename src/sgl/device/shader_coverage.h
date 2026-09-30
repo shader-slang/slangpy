@@ -30,7 +30,10 @@ struct ShaderCoverageSnapshot {
 
 struct ShaderCoverageCapabilities {
     bool supported{false};
+    /// Widths supported for exact execution counts.
     std::vector<uint32_t> counter_widths;
+    /// Widths supported for boolean hit/miss recording.
+    std::vector<uint32_t> boolean_counter_widths;
     std::string reason;
 };
 

@@ -11,8 +11,31 @@ From the SlangPy repository root, after building the PR:
 python -m examples.shader_coverage.shader_coverage --slang-source /path/to/slang --device vulkan --output-dir shader-coverage-report --open
 ```
 
+Add `--no-coverage` to disable instrumentation and collection while running the
+same image-processing workload. The report then contains images and numerical
+validation only, marks coverage as disabled, and has no coverage-report links.
+This overrides `--coverage` and `--boolean`; `--slang-source` is unused in this mode.
+In Python, the switch is simply `compiler_options={"coverage": None}` versus
+`compiler_options={"coverage": spy.ShaderCoverageOptions(...)}`, set before shaders
+are loaded. Snapshot calls run only when coverage is enabled.
+
+All three coverage kinds are enabled by default. Select one or more with
+`--coverage line`, `--coverage branch function`, or `--coverage line branch function`.
+The landing page marks omitted kinds as disabled. For example:
+
+```sh
+python -m examples.shader_coverage.shader_coverage --coverage branch --boolean --counter-width 32 --slang-source /path/to/slang
+```
+
+Add `--boolean` to measure hit/miss using non-atomic stores instead of counting
+executions. This avoids atomic contention; it does not preserve execution
+frequencies. The landing page labels the recording mode. Repeated executions
+leave each hit at 1 until reset. Use `--boolean --counter-width 32` for 32-bit
+slots; boolean mode does not pack counters into bits.
+
 Counters default to **64 bits**. On MoltenVK or another device without 64-bit
-buffer atomics, explicitly add `--counter-width 32`. Use `--device cuda` for
+buffer atomics, explicitly add `--counter-width 32` for count mode. Boolean mode
+requires integer support for its slot width, not atomic support. Use `--device cuda` for
 the CUDA backend on Windows/Linux. Vulkan and CUDA have been validated on a
 Windows RTX 4090, including 64-bit counters. D3D12 coverage is not implemented.
 

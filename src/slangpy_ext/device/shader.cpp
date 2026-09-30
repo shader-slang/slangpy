@@ -16,6 +16,7 @@ SGL_DICT_TO_DESC_FIELD(lines, bool)
 SGL_DICT_TO_DESC_FIELD(functions, bool)
 SGL_DICT_TO_DESC_FIELD(branches, bool)
 SGL_DICT_TO_DESC_FIELD(counter_width, uint32_t)
+SGL_DICT_TO_DESC_FIELD(boolean, bool)
 SGL_DICT_TO_DESC_END()
 
 SGL_DICT_TO_DESC_BEGIN(SlangCompilerOptions)
@@ -107,14 +108,20 @@ SGL_PY_EXPORT(device_shader)
         .def(nb::init<>())
         .def(
             "__init__",
-            [](ShaderCoverageOptions* self, bool lines, bool functions, bool branches, uint32_t counter_width)
+            [](ShaderCoverageOptions* self,
+               bool lines,
+               bool functions,
+               bool branches,
+               uint32_t counter_width,
+               bool boolean)
             {
-                new (self) ShaderCoverageOptions{lines, functions, branches, counter_width};
+                new (self) ShaderCoverageOptions{lines, functions, branches, counter_width, boolean};
             },
             "lines"_a = true,
             "functions"_a = true,
             "branches"_a = true,
-            "counter_width"_a = 64
+            "counter_width"_a = 64,
+            "boolean"_a = false
         )
         .def(
             "__init__",
@@ -126,7 +133,8 @@ SGL_PY_EXPORT(device_shader)
         .def_rw("lines", &ShaderCoverageOptions::lines)
         .def_rw("functions", &ShaderCoverageOptions::functions)
         .def_rw("branches", &ShaderCoverageOptions::branches)
-        .def_rw("counter_width", &ShaderCoverageOptions::counter_width);
+        .def_rw("counter_width", &ShaderCoverageOptions::counter_width)
+        .def_rw("boolean", &ShaderCoverageOptions::boolean);
     nb::implicitly_convertible<nb::dict, ShaderCoverageOptions>();
 
     nb::class_<ShaderCoverageProgramSnapshot>(m, "ShaderCoverageProgramSnapshot")
@@ -144,6 +152,7 @@ SGL_PY_EXPORT(device_shader)
     nb::class_<ShaderCoverageCapabilities>(m, "ShaderCoverageCapabilities")
         .def_ro("supported", &ShaderCoverageCapabilities::supported)
         .def_ro("counter_widths", &ShaderCoverageCapabilities::counter_widths)
+        .def_ro("boolean_counter_widths", &ShaderCoverageCapabilities::boolean_counter_widths)
         .def_ro("reason", &ShaderCoverageCapabilities::reason);
     nb::class_<ShaderCoverageCollector, DeviceChild>(m, "ShaderCoverageCollector")
         .def_prop_ro("capabilities", &ShaderCoverageCollector::capabilities)

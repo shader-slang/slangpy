@@ -26,13 +26,28 @@ else:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", choices=("vulkan", "cuda"), default="vulkan")
+    parser.add_argument(
+        "--boolean", action="store_true", help="Record hits instead of execution counts"
+    )
+    parser.add_argument(
+        "--coverage",
+        nargs="+",
+        choices=("line", "branch", "function"),
+        default=["line", "branch", "function"],
+        help="Coverage kinds to instrument (default: all three)",
+    )
+    parser.add_argument(
+        "--no-coverage",
+        action="store_true",
+        help="Disable instrumentation and collection; produce images and validation only",
+    )
     parser.add_argument("--counter-width", type=int, choices=(32, 64), default=64)
     parser.add_argument("--output-dir", type=Path, default=Path("shader-coverage-report"))
     parser.add_argument("--slang-source", type=Path, help="Slang checkout for LCOV/HTML rendering")
     parser.add_argument("--open", action="store_true", help="Open the image/report landing page")
     args = parser.parse_args()
     slang_source = args.slang_source.resolve() if args.slang_source else None
-    if slang_source:
+    if slang_source and not args.no_coverage:
         for tool in (
             "tools/shader-coverage/slang-coverage-to-lcov.py",
             "tools/coverage-html/slang-coverage-html.py",
@@ -46,28 +61,45 @@ def main() -> None:
     outputs = {}
     device_type = spy.DeviceType[args.device]
 
-    # Enable instrumentation before loading any shaders. The workload itself is unchanged.
+    # None disables instrumentation. The same workload runs in either case.
+    coverage = None
+    if not args.no_coverage:
+        coverage = spy.ShaderCoverageOptions(
+            lines="line" in args.coverage,
+            branches="branch" in args.coverage,
+            functions="function" in args.coverage,
+            counter_width=args.counter_width,
+            boolean=args.boolean,
+        )
     with spy.Device(
         type=device_type,
         enable_hot_reload=False,
-        compiler_options={"coverage": spy.ShaderCoverageOptions(counter_width=args.counter_width)},
+        compiler_options={"coverage": coverage},
     ) as device:
         processor = ImageProcessor(device)
         name, image, denoise = scenarios[0]
         outputs[name] = processor.process(image, denoise)
-        before = device.shader_coverage.snapshot()
+        before = device.shader_coverage.snapshot() if coverage is not None else None
 
         # Exercise the paths missed by the ordinary image, using the same compiled program.
         for name, image, denoise in scenarios[1:]:
             outputs[name] = processor.process(image, denoise)
-        after = device.shader_coverage.snapshot(reset=True)
+        after = device.shader_coverage.snapshot(reset=True) if coverage is not None else None
 
     # Snapshots own host data, so export works after the device is closed. The second
     # capture includes the first: compare these cumulative snapshots, never add them.
     if SOURCE.read_text(encoding="utf-8") != source_text:
         raise RuntimeError("Shader source changed while the example was running")
-    summary = {"backend": args.device, "counter_width": args.counter_width, "coverage": {}}
+    summary = {
+        "backend": args.device,
+        "counter_width": args.counter_width,
+        "boolean": args.boolean,
+        "coverage_kinds": args.coverage if coverage is not None else [],
+        "coverage": {},
+    }
     for label, snapshot in (("ordinary_only", before), ("expanded_inputs", after)):
+        if snapshot is None:
+            continue
         capture = save_capture(directory, label, snapshot, source_text)
         summary["coverage"][label] = summarize(capture, SOURCE)
         if slang_source:
@@ -81,7 +113,7 @@ def main() -> None:
     (directory / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     write_report(directory, summary, lcov_reports=slang_source is not None)
     for label, stats in summary["coverage"].items():
-        print(f'{label}: lines {stats["line"]}, branch arms {stats["branch"]}')
+        print(f"{label}: " + ", ".join(f"{kind} {stats[kind]}" for kind in args.coverage))
     report = directory / "index.html"
     print(report.as_uri())
     if args.open:

@@ -23,6 +23,9 @@ ShaderCoverageCapabilities ShaderCoverageCollector::capabilities() const
     } else {
         result.supported = true;
         result.counter_widths.push_back(32);
+        result.boolean_counter_widths.push_back(32);
+        if (m_device->has_feature(Feature::int64))
+            result.boolean_counter_widths.push_back(64);
         if (m_device->has_feature(Feature::atomic_int64))
             result.counter_widths.push_back(64);
     }

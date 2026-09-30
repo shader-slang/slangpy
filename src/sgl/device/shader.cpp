@@ -319,8 +319,12 @@ void SlangCompilerOptions::validate_coverage(Device* device) const
             "Experimental shader coverage supports Vulkan and CUDA only"
         );
         SGL_CHECK(
-            options.counter_width != 64 || device->has_feature(Feature::atomic_int64),
+            options.counter_width != 64 || options.boolean || device->has_feature(Feature::atomic_int64),
             "64-bit shader coverage requires atomic_int64; explicitly select coverage.counter_width=32 on this device"
+        );
+        SGL_CHECK(
+            options.counter_width != 64 || !options.boolean || device->has_feature(Feature::int64),
+            "64-bit boolean shader coverage requires int64; explicitly select coverage.counter_width=32 on this device"
         );
     }
 }
@@ -336,6 +340,7 @@ void SlangSession::create_session(SlangSessionBuild& build)
 
     const SlangCompilerOptions& options = m_desc.compiler_options;
     if (options.coverage) {
+        session_options.add(slang::CompilerOptionName::TraceCoverageBoolean, options.coverage->boolean);
         session_options.add(slang::CompilerOptionName::TraceCoverage, options.coverage->lines);
         session_options.add(slang::CompilerOptionName::TraceFunctionCoverage, options.coverage->functions);
         session_options.add(slang::CompilerOptionName::TraceBranchCoverage, options.coverage->branches);
