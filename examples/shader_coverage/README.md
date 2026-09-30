@@ -2,13 +2,13 @@
 
 This example uses the experimental coverage API to run an edge-preserving 3x3
 denoiser, HDR normalization, and display gamma. It generates its own noisy image
-with NumPy and writes PNG previews using SlangPy, so no extra packages, image
+with NumPy and writes PNG previews using SlangPy, so no extra packages or image
 downloads are needed.
 
 From the SlangPy repository root, after building the PR:
 
 ```sh
-python -m examples.shader_coverage.run --slang-source /path/to/slang --device vulkan --output-dir shader-coverage-report --open
+python -m examples.shader_coverage.shader_coverage --slang-source /path/to/slang --device vulkan --output-dir shader-coverage-report --open
 ```
 
 Counters default to **64 bits**. On MoltenVK or another device without 64-bit
@@ -16,7 +16,7 @@ buffer atomics, explicitly add `--counter-width 32`. Use `--device cuda` for
 the CUDA backend on Windows/Linux. Vulkan and CUDA have been validated on a
 Windows RTX 4090, including 64-bit counters. D3D12 coverage is not implemented.
 
-The runner uses Python on Windows, Linux, and macOS. `--slang-source` must point
+The runner uses Python on Windows, Linux, and macOS. The optional `--slang-source` points
 to a Slang checkout containing `tools/shader-coverage/slang-coverage-to-lcov.py`
 and `tools/coverage-html/slang-coverage-html.py`; no Slang compiler build is
 required for these tools. The installed SlangPy still supplies the compiler used
@@ -46,11 +46,12 @@ API. Conversion and coverage rendering use Slang's existing tools; the landing
 page with images is local to this example. A reusable SlangPy reporting API and
 offline merging remain follow-up work.
 
-To run without a Slang source checkout, the original command still creates
-images, raw captures, and a basic HTML page with expandable source listings:
+Without `--slang-source`, the same entry point creates images, raw captures,
+and a landing page with coverage totals. Annotated coverage reports and LCOV
+exports require the Slang tools:
 
 ```sh
-python -m examples.shader_coverage.main --device vulkan --output-dir shader-coverage-report
+python -m examples.shader_coverage.shader_coverage --device vulkan --output-dir shader-coverage-report
 ```
 
 The three scenarios reuse one compiled program:
@@ -60,18 +61,45 @@ The three scenarios reuse one compiled program:
 3. The HDR image with denoising disabled.
 
 The ordinary image misses the zero-light guard, HDR normalization, transparent
-early return, and denoising bypass. The targeted inputs cover those paths. The
-script checks that coverage improves and every instrumented line and branch arm
-in `postprocess.slang` is hit. It also compares every result against NumPy and
-uninstrumented GPU execution, checks pixel invocation counts, and verifies that
-the final capture resets the counters.
+early return, and denoising bypass. The targeted inputs cover those paths.
+Numerical validation compares each result against NumPy and ordinary GPU
+execution. `test_shader_coverage_example.py` checks coverage progression, pixel
+invocation counts, and reset behavior.
 
-The API calls to look for in `main.py` are:
+The code is separated by responsibility:
+
+- `shader_coverage.py` is the runnable example. Read it to see device configuration,
+  ordinary workload calls, and the two capture boundaries.
+- `image_processing.py` generates inputs, loads and runs the shader, saves image
+  previews, and validates numerical results. It has no coverage logic.
+- `report.py` exports snapshots and builds the image landing page and optional
+  LCOV reports. It can be imported without loading SlangPy or a GPU runtime.
+
+The essential pattern in `shader_coverage.py` is:
 
 ```python
-compiler_options={"coverage": spy.ShaderCoverageOptions(counter_width=args.counter_width)}
-snapshot = device.shader_coverage.snapshot()             # cumulative
-snapshot = device.shader_coverage.snapshot(reset=True)   # capture and clear
+with spy.Device(
+    type=spy.DeviceType.vulkan,
+    compiler_options={"coverage": spy.ShaderCoverageOptions()},
+) as device:
+    processor = ImageProcessor(device)
+    processor.process(ordinary_image)
+    before = device.shader_coverage.snapshot()
+    processor.process(hdr_image)
+    processor.process(hdr_image, denoise=False)
+    after = device.shader_coverage.snapshot(reset=True)
+# Both snapshots remain usable after device close.
+```
+
+Instrumentation must be enabled before loading shaders. `ImageProcessor` accepts
+an ordinary device too: its shader and dispatch code do not change. The example
+uses explicit snapshot calls so the measurement boundaries remain visible;
+a reusable coverage wrapper is left for a follow-up PR.
+
+Direct execution also follows the other examples' naming convention:
+
+```sh
+python examples/shader_coverage/shader_coverage.py --device vulkan
 ```
 
 The report compares cumulative snapshots instead of adding them together.

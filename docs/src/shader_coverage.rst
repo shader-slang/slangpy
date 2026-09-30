@@ -47,8 +47,8 @@ counts. Host snapshot integers preserve the full GPU counter width.
 additionally checks compiler metadata and the supported program layout.
 The initial implementation targets Vulkan and CUDA, with one compute entry
 point per linked program. Windows users should select Vulkan or CUDA explicitly;
-D3D12 coverage is not implemented. Real CUDA and 64-bit GPU execution are pending
-validation for this experimental API.
+D3D12 coverage is not implemented. CUDA and Vulkan execution, including 64-bit counters, have been validated on a
+Windows RTX 4090.
 
 Collection and lifetime
 -----------------------
@@ -107,13 +107,22 @@ From the repository root after building:
 
 .. code-block:: console
 
-    python -m examples.shader_coverage.main --device vulkan --output-dir shader-coverage-report
+    python -m examples.shader_coverage.shader_coverage --device vulkan --output-dir shader-coverage-report
 
 Use ``--counter-width 32`` on MoltenVK, or ``--device cuda`` to test CUDA. Open
 ``shader-coverage-report/index.html`` for image pairs and before/after source
 coverage. It needs no extra packages, image downloads, or Slang source checkout.
-The example includes a small HTML writer and JSON dumps for its single program;
-these are separate from the planned reusable report and serialization APIs.
+Add ``--slang-source /path/to/slang`` to generate LCOV files and annotated
+coverage pages with Slang's existing converter and HTML renderer. The landing
+page links to the ordinary-input and expanded-input reports alongside the
+input/output images. Add ``--open`` to open it in a browser. Without the Slang
+checkout, the page shows images, totals, and raw-capture links.
+
+The entry point ``shader_coverage.py`` demonstrates instrumentation configuration
+and explicit snapshot/reset boundaries. ``image_processing.py`` implements the
+same workload for ordinary and instrumented devices. ``report.py`` handles
+example-specific exports and rendering after device close, independently of the
+GPU workload. These helpers do not define a reusable reporting or wrapper API.
 
 Testing on Windows and Linux
 ----------------------------
