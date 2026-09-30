@@ -72,7 +72,12 @@ SGL_ENUM_REGISTER(YAHandling);
 class SGL_API TextureLoader : public sgl::Object {
     SGL_OBJECT(TextureLoader)
 public:
-    TextureLoader(ref<Device> device);
+    /// Create a texture loader.
+    /// @param device Device receiving the textures.
+    /// @param memory_budget Positive, best-effort temporary CPU memory budget in bytes per bulk call.
+    /// Defaults to 8 GiB. Estimates include decoding, conversion and upload storage. A single image
+    /// exceeding the budget is loaded alone. Caller-owned bitmaps and final GPU textures are excluded.
+    TextureLoader(ref<Device> device, uint64_t memory_budget = 8ull * 1024 * 1024 * 1024);
     ~TextureLoader();
 
     struct SGL_API Options {
@@ -191,6 +196,7 @@ public:
     ref<Texture> load_texture_array(std::span<const std::filesystem::path> paths, std::optional<Options> options = {});
 
 private:
+    uint64_t m_memory_budget;
     ref<Device> m_device;
     ref<Blitter> m_blitter;
 };
