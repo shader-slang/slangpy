@@ -162,3 +162,44 @@ def test_report_detects_changed_imported_source(tmp_path: Path) -> None:
         RuntimeError, match="Shader source changed since capture.*coverage_exposure"
     ):
         render_capture(tmp_path, "capture", tmp_path / "unused-tools", entry)
+
+
+def test_report_tools_use_utf8(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Report tools must preserve Unicode paths even with legacy Python defaults."""
+    monkeypatch.setenv("PYTHONUTF8", "0")
+    source = tmp_path / "\u7528\u6237.slang"
+    source.write_text("// source", encoding="utf-8")
+    capture = {
+        "sources": {str(source): "// source"},
+        "manifest": {"source": str(source)},
+        "counters": ["1"],
+    }
+    (tmp_path / "capture.json").write_text(json.dumps(capture), encoding="utf-8")
+    # Stand-ins use the same locale-dependent I/O as older Slang reporting tools.
+    tools = tmp_path / "tools"
+    converter = tools / "shader-coverage/slang-coverage-to-lcov.py"
+    renderer = tools / "coverage-html/slang-coverage-html.py"
+    converter.parent.mkdir(parents=True)
+    renderer.parent.mkdir(parents=True)
+    converter.write_text(
+        "import json, sys\n"
+        "from pathlib import Path\n"
+        "assert sys.flags.utf8_mode, 'report tool must enable UTF-8 mode'\n"
+        "args = sys.argv\n"
+        "source = json.loads(Path(args[args.index('--manifest') + 1]).read_text())['source']\n"
+        "Path(args[args.index('--output') + 1]).write_text('SF:' + source + '\\n')\n",
+        encoding="utf-8",
+    )
+    renderer.write_text(
+        "import sys\n"
+        "from pathlib import Path\n"
+        "assert sys.flags.utf8_mode, 'report tool must enable UTF-8 mode'\n"
+        "output = Path(sys.argv[sys.argv.index('--output-dir') + 1])\n"
+        "output.mkdir()\n"
+        "(output / 'index.html').write_text(Path(sys.argv[1]).read_text())\n",
+        encoding="utf-8",
+    )
+    render_capture(tmp_path, "capture", tmp_path, source)
+    output = tmp_path / "coverage/capture"
+    assert str(source) in (output / "coverage.info").read_text(encoding="utf-8")
+    assert str(source) in (output / "html/index.html").read_text(encoding="utf-8")

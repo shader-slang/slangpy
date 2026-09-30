@@ -218,9 +218,12 @@ def render_capture(directory: Path, name: str, slang_source: Path, source: Path)
     counters.write_text(
         "\n".join(str(int(value)) for value in capture["counters"]) + "\n", encoding="utf-8"
     )
+    # Reporting tools may use locale-dependent text I/O; captures and sources are UTF-8.
     subprocess.run(
         [
             sys.executable,
+            "-X",
+            "utf8",
             str(slang_source / "tools/shader-coverage/slang-coverage-to-lcov.py"),
             "--manifest",
             str(manifest),
@@ -236,6 +239,8 @@ def render_capture(directory: Path, name: str, slang_source: Path, source: Path)
     subprocess.run(
         [
             sys.executable,
+            "-X",
+            "utf8",
             str(slang_source / "tools/coverage-html/slang-coverage-html.py"),
             str(lcov),
             "--output-dir",
