@@ -124,38 +124,53 @@ namespace sgl {
 
 namespace {
 
+    enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
+
+    // Classification scheme for color channels.
+    uint8_t channel_class(std::string name)
+    {
+        auto it = name.rfind(".");
+        if (it != std::string::npos)
+            name = name.substr(it + 1);
+        name = string::to_lower(name);
+        if (name == "r")
+            return R;
+        if (name == "g")
+            return G;
+        if (name == "b")
+            return B;
+        if (name == "x")
+            return X;
+        if (name == "y")
+            return Y;
+        if (name == "z")
+            return Z;
+        if (name == "ry")
+            return RY;
+        if (name == "by")
+            return BY;
+        if (name == "a")
+            return A;
+        return unknown;
+    }
+
+    // Assign a sorting key to color channels.
+    std::string channel_key(std::string name)
+    {
+        uint8_t class_ = channel_class(name);
+        if (class_ == unknown)
+            return name;
+        auto it = name.rfind(".");
+        char suffix('0' + class_);
+        if (it != std::string::npos)
+            name = name.substr(0, it) + "." + suffix;
+        else
+            name = suffix;
+        return name;
+    }
+
     std::pair<Bitmap::PixelFormat, bool> exr_pixel_format(std::span<const std::string> channels_sorted)
     {
-        enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
-
-        // Classification scheme for color channels.
-        auto channel_class = [](std::string name) -> uint8_t
-        {
-            auto it = name.rfind(".");
-            if (it != std::string::npos)
-                name = name.substr(it + 1);
-            name = string::to_lower(name);
-            if (name == "r")
-                return R;
-            if (name == "g")
-                return G;
-            if (name == "b")
-                return B;
-            if (name == "x")
-                return X;
-            if (name == "y")
-                return Y;
-            if (name == "z")
-                return Z;
-            if (name == "ry")
-                return RY;
-            if (name == "by")
-                return BY;
-            if (name == "a")
-                return A;
-            return unknown;
-        };
-
         bool found[CLASS_COUNT] = {false};
         for (const auto& name : channels_sorted)
             found[channel_class(name)] = true;
@@ -1745,51 +1760,6 @@ void Bitmap::read_exr(Stream* stream)
 
     m_component_type = exr_component_type(pixel_type);
 
-    enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
-
-    // Classification scheme for color channels.
-    auto channel_class = [](std::string name) -> uint8_t
-    {
-        auto it = name.rfind(".");
-        if (it != std::string::npos)
-            name = name.substr(it + 1);
-        name = string::to_lower(name);
-        if (name == "r")
-            return R;
-        if (name == "g")
-            return G;
-        if (name == "b")
-            return B;
-        if (name == "x")
-            return X;
-        if (name == "y")
-            return Y;
-        if (name == "z")
-            return Z;
-        if (name == "ry")
-            return RY;
-        if (name == "by")
-            return BY;
-        if (name == "a")
-            return A;
-        return unknown;
-    };
-
-    // Assign a sorting key to color channels.
-    auto channel_key = [&](std::string name) -> std::string
-    {
-        uint8_t class_ = channel_class(name);
-        if (class_ == unknown)
-            return name;
-        auto it = name.rfind(".");
-        char suffix('0' + class_);
-        if (it != std::string::npos)
-            name = name.substr(0, it) + "." + suffix;
-        else
-            name = suffix;
-        return name;
-    };
-
     // Order channels based on their name and suffix.
     std::vector<std::string> channels_sorted;
     for (auto it = channels.begin(); it != channels.end(); ++it) {
@@ -2257,51 +2227,6 @@ void Bitmap::read_exr(Stream* stream)
 
     m_component_type = exr_component_type(header.pixel_types[0]);
 
-    enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
-
-    // Classification scheme for color channels.
-    auto channel_class = [](std::string name) -> uint8_t
-    {
-        auto it = name.rfind(".");
-        if (it != std::string::npos)
-            name = name.substr(it + 1);
-        name = string::to_lower(name);
-        if (name == "r")
-            return R;
-        if (name == "g")
-            return G;
-        if (name == "b")
-            return B;
-        if (name == "x")
-            return X;
-        if (name == "y")
-            return Y;
-        if (name == "z")
-            return Z;
-        if (name == "ry")
-            return RY;
-        if (name == "by")
-            return BY;
-        if (name == "a")
-            return A;
-        return unknown;
-    };
-
-    // Assign a sorting key to color channels.
-    auto channel_key = [&](std::string name) -> std::string
-    {
-        uint8_t class_ = channel_class(name);
-        if (class_ == unknown)
-            return name;
-        auto it = name.rfind(".");
-        char suffix('0' + class_);
-        if (it != std::string::npos)
-            name = name.substr(0, it) + "." + suffix;
-        else
-            name = suffix;
-        return name;
-    };
-
     // Order channels based on their name and suffix.
     std::vector<std::string> channels_sorted;
     for (int i = 0; i < header.num_channels; ++i) {
@@ -2353,15 +2278,6 @@ void Bitmap::read_exr(Stream* stream)
             if (header.channels[i].name == name)
                 return i;
         SGL_THROW(fmt::format("EXR image does not contain channel \"{}\"", name));
-    };
-
-    auto set_suffix = [](std::string& name, const std::string& suffix)
-    {
-        auto it = name.rfind(".");
-        if (it != std::string::npos)
-            name = name.substr(0, it) + "." + suffix;
-        else
-            name = suffix;
     };
 
     m_width = header.data_window.max_x - header.data_window.min_x + 1;
