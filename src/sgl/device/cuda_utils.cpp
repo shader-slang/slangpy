@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "cuda_utils.h"
+#include "cuda_cleanup.h"
 
 #include "sgl/core/error.h"
 
@@ -288,10 +289,10 @@ Device::Device(CUdevice device)
     log_debug("Created CUDA context on device \"{}\" (architecture {}.{}).", name, major, minor);
 }
 
-Device::~Device()
+Device::~Device() noexcept
 {
     if (m_owns_context) {
-        SGL_CU_CHECK(cuDevicePrimaryCtxRelease(m_device));
+        detail::check_cleanup(cuDevicePrimaryCtxRelease(m_device), "cuDevicePrimaryCtxRelease");
     }
 }
 
@@ -333,17 +334,13 @@ ExternalMemory::ExternalMemory(const Buffer* buffer)
 {
 }
 
-ExternalMemory::~ExternalMemory()
+ExternalMemory::~ExternalMemory() noexcept
 {
     // The mapped device pointer returned by cuExternalMemoryGetMappedBuffer must be
     // freed with cuMemFree before destroying the external memory, otherwise the CUDA
     // driver keeps the underlying allocation alive and we leak ~64KB+ per buffer.
-    if (m_mapped_data) {
-        SGL_CU_SCOPE(m_resource->device());
-        SGL_CU_CHECK(cuMemFree(reinterpret_cast<CUdeviceptr>(m_mapped_data)));
-        m_mapped_data = nullptr;
-    }
-    destroy_external_memory(m_external_memory);
+    auto device = m_resource->device()->cuda_device();
+    detail::destroy_external_memory(device ? device->context() : nullptr, m_mapped_data, m_external_memory);
 }
 
 void* ExternalMemory::mapped_data() const
@@ -359,9 +356,9 @@ ExternalSemaphore::ExternalSemaphore(Fence* fence)
 {
 }
 
-ExternalSemaphore::~ExternalSemaphore()
+ExternalSemaphore::~ExternalSemaphore() noexcept
 {
-    destroy_external_semaphore(m_external_semaphore);
+    detail::check_cleanup(cuDestroyExternalSemaphore(m_external_semaphore), "cuDestroyExternalSemaphore");
 }
 
 void ExternalSemaphore::signal(uint64_t value, CUstream stream)
@@ -395,10 +392,9 @@ ContextScope::ContextScope(const sgl::Device* device)
     }
 }
 
-ContextScope::~ContextScope()
+ContextScope::~ContextScope() noexcept
 {
-    CUcontext p;
-    SGL_CU_CHECK(cuCtxPopCurrent(&p));
+    detail::pop_context();
 }
 
 } // namespace sgl::cuda

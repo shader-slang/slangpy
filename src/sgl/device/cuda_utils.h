@@ -60,7 +60,8 @@ public:
     explicit Device(const sgl::Device* device);
     explicit Device(CUcontext context);
     explicit Device(CUdevice device);
-    ~Device();
+    /// Release an owned context, logging CUDA cleanup failures.
+    ~Device() noexcept;
 
     CUdevice device() const { return m_device; }
     CUcontext context() const { return m_context; }
@@ -79,7 +80,8 @@ class SGL_API ExternalMemory : public Object {
     SGL_OBJECT(cuda::ExternalMemory)
 public:
     explicit ExternalMemory(const Buffer* buffer);
-    ~ExternalMemory();
+    /// Release the mapping and import. Log cleanup failures without throwing.
+    ~ExternalMemory() noexcept;
 
     size_t size() const { return m_size; }
 
@@ -98,7 +100,8 @@ class SGL_API ExternalSemaphore : public Object {
     SGL_OBJECT(cuda::ExternalSemaphore)
 public:
     explicit ExternalSemaphore(Fence* fence);
-    ~ExternalSemaphore();
+    /// Destroy the import, logging CUDA cleanup failures.
+    ~ExternalSemaphore() noexcept;
 
     void signal(uint64_t value, CUstream stream = 0);
     void wait(uint64_t value, CUstream stream = 0);
@@ -113,7 +116,8 @@ class SGL_API ContextScope {
 public:
     explicit ContextScope(const Device* device);
     explicit ContextScope(const sgl::Device* device);
-    ~ContextScope();
+    /// Restore the previous context, logging CUDA cleanup failures.
+    ~ContextScope() noexcept;
 };
 
 } // namespace sgl::cuda

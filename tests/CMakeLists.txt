@@ -29,6 +29,7 @@ if(SGL_BUILD_TESTS)
         sgl/core/test_string.cpp
         sgl/core/test_thread.cpp
         sgl/device/test_cursors.cpp
+        sgl/device/test_cuda_cleanup.cpp
         sgl/device/test_device.cpp
         sgl/device/test_hot_reload.cpp
         sgl/device/test_formats.cpp

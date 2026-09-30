@@ -10993,6 +10993,12 @@ static const char *__doc_sgl_cuda_destroy_external_memory = R"doc()doc";
 
 static const char *__doc_sgl_cuda_destroy_external_semaphore = R"doc()doc";
 
+static const char *__doc_sgl_cuda_detail_check_cleanup = R"doc()doc";
+
+static const char *__doc_sgl_cuda_detail_destroy_external_memory = R"doc()doc";
+
+static const char *__doc_sgl_cuda_detail_pop_context = R"doc()doc";
+
 static const char *__doc_sgl_cuda_external_memory_get_mapped_buffer = R"doc()doc";
 
 static const char *__doc_sgl_cuda_free_device = R"doc()doc";
