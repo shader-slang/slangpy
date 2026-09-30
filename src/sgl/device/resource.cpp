@@ -226,13 +226,14 @@ void Buffer::unmap() const
 
 void* Buffer::cuda_memory() const
 {
-    SGL_CHECK(!m_device->is_closed(), "Cannot access CUDA memory on a closed device.");
     if (m_device->type() == DeviceType::cuda) {
         return reinterpret_cast<void*>(device_address());
     } else {
         SGL_CHECK(m_device->supports_cuda_interop(), "Device does not support CUDA interop");
-        if (!m_cuda_memory)
+        if (!m_cuda_memory) {
+            SGL_CHECK(!m_device->is_closed(), "Cannot import CUDA memory on a closed device.");
             m_cuda_memory = make_ref<cuda::ExternalMemory>(this);
+        }
         return m_cuda_memory->mapped_data();
     }
 }

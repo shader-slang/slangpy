@@ -219,9 +219,11 @@ TEST_CASE_GPU("cuda_close_mapped_buffer_outlives_device")
         const size_t device_count = Device::get_created_devices().size();
         auto device = Device::create(desc);
         auto buffer = device->create_buffer({.size = 16, .usage = BufferUsage::unordered_access | BufferUsage::shared});
+        void* cuda_memory;
         {
             SGL_CU_SCOPE(device.get());
-            REQUIRE(buffer->cuda_memory() != nullptr);
+            cuda_memory = buffer->cuda_memory();
+            REQUIRE(cuda_memory != nullptr);
         }
         CUcontext other_context;
         SGL_CU_CHECK(cuCtxCreate(&other_context, 0, device->cuda_device()->device()));
@@ -230,10 +232,14 @@ TEST_CASE_GPU("cuda_close_mapped_buffer_outlives_device")
             cuCtxDestroy
         );
         device->close();
-        CHECK_THROWS_WITH(buffer->cuda_memory(), doctest::Contains("Cannot access CUDA memory on a closed device."));
+        CHECK(buffer->cuda_memory() == cuda_memory);
         if (release_rhi) {
             device->_release_rhi_resources();
             CHECK(buffer->rhi_buffer() == nullptr);
+            CHECK_THROWS_WITH(
+                buffer->cuda_memory(),
+                doctest::Contains("Cannot import CUDA memory on a closed device.")
+            );
         }
         device.reset();
         CHECK(Device::get_created_devices().size() == device_count + 1);
