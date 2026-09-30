@@ -127,6 +127,33 @@ public:
 
     using ComponentType = DataStruct::Type;
 
+    /// Decoded image layout, obtained without loading pixels.
+    struct Info {
+        /// Width in pixels.
+        uint32_t width;
+        /// Height in pixels.
+        uint32_t height;
+        /// Decoded pixel format.
+        PixelFormat pixel_format;
+        /// Decoded component type.
+        ComponentType component_type;
+        /// Number of channels per pixel.
+        uint32_t channel_count;
+    };
+
+    /// Read image layout without decoding pixels. Supports all bitmap formats except DDS.
+    /// @param path Image file path.
+    /// @param format File format, or auto_ to detect it.
+    /// @return Decoded image layout.
+    static Info read_info(const std::filesystem::path& path, FileFormat format = FileFormat::auto_);
+
+    /// Read image layout without decoding pixels. Supports all bitmap formats except DDS.
+    /// Preserves the readable, seekable stream's position on success and failure.
+    /// @param stream Image stream, positioned at the image start.
+    /// @param format File format, or auto_ to detect it.
+    /// @return Decoded image layout.
+    static Info read_info(Stream* stream, FileFormat format = FileFormat::auto_);
+
     Bitmap(
         PixelFormat pixel_format,
         ComponentType component_type,
