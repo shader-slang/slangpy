@@ -9601,7 +9601,18 @@ explicit R/RG bitmaps are unchanged.)doc";
 
 static const char *__doc_sgl_TextureLoader_Options_ya_handling = R"doc(Strategy for handling YA (greyscale + alpha) bitmaps.)doc";
 
-static const char *__doc_sgl_TextureLoader_TextureLoader = R"doc()doc";
+static const char *__doc_sgl_TextureLoader_TextureLoader =
+R"doc(Create a texture loader.
+
+Parameter ``device``:
+    Device receiving the textures.
+
+Parameter ``memory_budget``:
+    Positive, best-effort temporary CPU memory budget in bytes per
+    bulk call. Defaults to 8 GiB. Estimates include decoding,
+    conversion and upload storage. A single image exceeding the budget
+    is loaded alone. Caller-owned bitmaps and final GPU textures are
+    excluded.)doc";
 
 static const char *__doc_sgl_TextureLoader_class_name = R"doc()doc";
 
@@ -9723,6 +9734,8 @@ Returns:
 static const char *__doc_sgl_TextureLoader_m_blitter = R"doc()doc";
 
 static const char *__doc_sgl_TextureLoader_m_device = R"doc()doc";
+
+static const char *__doc_sgl_TextureLoader_m_memory_budget = R"doc()doc";
 
 static const char *__doc_sgl_TextureReductionOp = R"doc()doc";
 
