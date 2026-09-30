@@ -2,7 +2,7 @@
 
 This example measures a multi-file GPU pipeline: an edge-preserving 3x3 denoiser,
 automatic-differentiation-based exposure adjustment, and runtime interface
-dispatch between two tone mappers. It generates its own noisy image
+dispatch between three tone mappers. It generates its own noisy image
 with NumPy and writes PNG previews using SlangPy, so no extra packages or image
 downloads are needed.
 
@@ -70,7 +70,7 @@ The LCOV files live under `coverage/ordinary_only/` and
 `coverage/expanded_inputs/`, with rendered pages under each `html/` directory.
 HTML includes all five example shader modules; the LCOV files retain all source
 entries
-from the captured program. The two JSON
+from the captured program. The cumulative JSON
 captures preserve the source text of every workload module, raw metadata and
 counters, with counter values encoded as
 decimal strings. `summary.json` contains coverage and numerical validation.
@@ -87,17 +87,35 @@ exports require the Slang tools:
 python -m examples.shader_coverage.shader_coverage --device vulkan --output-dir shader-coverage-report
 ```
 
-The three scenarios reuse one compiled program:
+The six scenarios reuse one compiled program. The report shows cumulative
+coverage after each input and how many new branch arms it adds:
 
-1. An ordinary opaque image with denoising enabled.
-2. An HDR image with black and transparent regions.
-3. The HDR image with denoising disabled and the Reinhard tone mapper selected.
+| Input | Paths it is intended to exercise |
+| --- | --- |
+| Ordinary noisy image | Normal edge filtering and the normalization tone mapper; exposure updates reach the iteration limit. |
+| HDR and transparency | Wider HDR filter threshold, transparent-neighbor rejection, black-pixel and alpha early returns, exposure floor, and HDR normalization. |
+| Filter off | Denoising bypass and runtime dispatch to Reinhard, including highlight desaturation. |
+| Shadows | Stricter dark-region filtering and the normalization mapper's shadow lift. |
+| Flat midgray | Exposure convergence stops the loop early; filmic dispatch takes the midtone response. |
+| Isolated highlights | The filter preserves a bright pixel when no neighbors pass; filmic toe and shoulder handle dark and overbright channels. |
 
-The ordinary image misses the zero-light guard, HDR normalization, transparent
-early return, denoising bypass, and the Reinhard implementation. The targeted inputs cover those paths.
-Numerical validation compares each result against NumPy and ordinary GPU
-execution. `test_shader_coverage_example.py` checks coverage progression, per-file coverage, runtime dispatch to both implementations, numerical results,
-and reset behavior.
+The filter also distinguishes strong and marginal neighbor matches. The
+exposure loss has quadratic, negative-linear, and positive-linear regions;
+Slang differentiates this control flow and the resulting gradient drives up to
+four exposure updates. Those updates can stop at convergence or the lower
+exposure bound. These paths affect the output pixels and are checked against an
+independent NumPy implementation.
+
+On the validated Vulkan/CUDA runs, the ordinary image reaches **34/52 branch
+arms**. Successive scenarios increase this to **44, 47, 48, 50, and 52**. Line
+coverage grows from **56/78** to **78/78**, and functions from **7/10** to
+**10/10**. These are compiled-source coverage totals, not proof that every
+possible path combination has been tested. The report links each checkpoint to
+its raw capture, with full LCOV/source reports for the first and final captures.
+
+Numerical validation compares every scenario against NumPy and ordinary GPU
+execution. `test_shader_coverage_example.py` checks source coverage progression,
+runtime dispatch to all implementations, numerical results, and reset behavior.
 
 The shader is split into five files:
 
@@ -105,24 +123,25 @@ The shader is split into five files:
 - `coverage_color.slang` supplies shared luminance calculation.
 - `coverage_denoise.slang` implements the edge-preserving neighborhood filter.
 - `coverage_exposure.slang` marks `exposureLoss` as differentiable, calls
-  `fwd_diff` to obtain its exposure derivative, and uses that derivative in a
-  bounded gradient step toward middle gray. NumPy independently computes the
+  `fwd_diff` to obtain its exposure derivative, and uses that derivative in
+  bounded gradient steps toward middle gray. NumPy independently computes the
   analytic derivative for validation.
-- `coverage_tonemap.slang` defines `IToneMapper`, `NormalizeToneMapper`, and
-  `ReinhardToneMapper`. `createDynamicObject` selects the implementation using a
-  runtime ID. Python registers both `TypeConformance` entries once, so changing
-  the ID does not create a separate program or coverage generation. Both methods
+- `coverage_tonemap.slang` defines `IToneMapper`, `NormalizeToneMapper`,
+  `ReinhardToneMapper`, and `FilmicToneMapper`. `createDynamicObject` selects an
+  implementation using a
+  runtime ID. Python registers all three `TypeConformance` entries once, so changing
+  the ID does not create a separate program or coverage generation. All three methods
   are named `map`; the per-file report retains their distinct source locations.
 
-The first capture misses the Reinhard implementation; the expanded capture
-executes both. The generated derivative executes source-mapped probes belonging
+The first capture misses the Reinhard and filmic implementations; the expanded
+capture executes all three. The generated derivative executes source-mapped probes belonging
 to `exposureLoss`; this reports source coverage, not separate derivative-IR sites.
 The image workload is unchanged whether instrumentation is on or off.
 
 The Python code is separated by responsibility:
 
 - `shader_coverage.py` is the runnable example. Read it to see device configuration,
-  ordinary workload calls, and the two capture boundaries.
+  ordinary workload calls, and cumulative capture boundaries after each input.
 - `image_processing.py` generates inputs, loads and runs the shader, saves image
   previews, and validates numerical results. It has no coverage logic.
 - `report.py` exports snapshots and builds the image landing page and optional

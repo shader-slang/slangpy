@@ -98,14 +98,20 @@ def main() -> None:
         name, image, denoise, mapper_id = scenarios[0]
         outputs[name] = processor.process(image, denoise, mapper_id)
         before = device.shader_coverage.snapshot() if coverage is not None else None
+        checkpoints = [(name, before)]
 
         # Exercise the paths missed by the ordinary image, using the same compiled program.
-        for name, image, denoise, mapper_id in scenarios[1:]:
+        for index, (name, image, denoise, mapper_id) in enumerate(scenarios[1:], start=1):
             outputs[name] = processor.process(image, denoise, mapper_id)
-        after = device.shader_coverage.snapshot(reset=True) if coverage is not None else None
+            snapshot = (
+                device.shader_coverage.snapshot(reset=index == len(scenarios) - 1)
+                if coverage is not None
+                else None
+            )
+            checkpoints.append((name, snapshot))
 
-    # Snapshots own host data, so export works after the device is closed. The second
-    # capture includes the first: compare these cumulative snapshots, never add them.
+    # Snapshots own host data, so export works after the device is closed.
+    # Captures are cumulative: compare their totals, never add the snapshots.
     for path, text in sources.items():
         if Path(path).read_text(encoding="utf-8") != text:
             raise RuntimeError(f"Shader source changed while the example was running: {path}")
@@ -115,14 +121,30 @@ def main() -> None:
         "boolean": args.boolean,
         "coverage_kinds": args.coverage if coverage is not None else [],
         "coverage": {},
+        "progress": [],
+        "scenarios": [name for name, _, _, _ in scenarios],
     }
-    for label, snapshot in (("ordinary_only", before), ("expanded_inputs", after)):
+    for index, (name, snapshot) in enumerate(checkpoints):
         if snapshot is None:
             continue
+        label = (
+            "ordinary_only"
+            if index == 0
+            else "expanded_inputs" if index == len(checkpoints) - 1 else f"after_{name}"
+        )
         capture = save_capture(directory, label, snapshot, sources)
-        summary["coverage"][label] = summarize(capture)
-        if slang_source:
-            render_capture(directory, label, slang_source, SOURCE)
+        stats = summarize(capture)
+        summary["progress"].append(
+            {
+                "name": name,
+                "capture": label,
+                **{kind: stats[kind] for kind in ("line", "branch", "function")},
+            }
+        )
+        if index in (0, len(checkpoints) - 1):
+            summary["coverage"][label] = stats
+            if slang_source:
+                render_capture(directory, label, slang_source, SOURCE)
 
     # Numerical checks and image/report formatting are separate from coverage collection.
     summary["validation"] = validate_outputs(device_type, scenarios, outputs)

@@ -23,13 +23,23 @@ def make_inputs() -> list[tuple[str, np.ndarray, bool, int]]:
     rgba = np.ones((240, 320, 4), dtype=np.float32)
     rgba[..., :3] = np.clip(rgb + noise, 0.02, 0.95)
     stress = rgba.copy()
-    stress[..., :3] *= 12.0
+    stress[..., :3] *= 24.0
     stress[30:100, 20:100, :3] = 0
     stress[140:220, 220:300, 3] = 0
+    shadows = rgba.copy()
+    shadows[..., :3] *= 0.03
+    flat = np.ones_like(rgba)
+    flat[..., :3] = 0.45
+    isolated = np.ones_like(rgba)
+    isolated[..., :3] = 0.02
+    isolated[::16, ::16, :3] = 24.0
     return [
         ("ordinary", rgba, True, 0),
         ("hdr_alpha", stress, True, 0),
         ("filter_off", stress, False, 1),
+        ("shadows", shadows, True, 0),
+        ("flat_midgray", flat, True, 2),
+        ("isolated_highlights", isolated, True, 2),
     ]
 
 
@@ -39,32 +49,66 @@ def reference(image: np.ndarray, denoise: bool, mapper_id: int = 0) -> np.ndarra
     height, width = color.shape[:2]
     if denoise:
         light = color @ LUMA
+        threshold = np.where(light < 0.08, 0.06, np.where(light > 2.0, 0.24, 0.12)).astype(
+            np.float32
+        )
         total = np.zeros_like(color)
         weights = np.zeros((height, width), dtype=np.float32)
         for dy in range(-1, 2):
             for dx in range(-1, 2):
+                if dx == 0 and dy == 0:
+                    continue
                 y = slice(max(0, -dy), min(height, height - dy))
                 x = slice(max(0, -dx), min(width, width - dx))
                 neighbor = color[
                     max(0, dy) : min(height, height + dy), max(0, dx) : min(width, width + dx)
                 ]
-                accepted = np.abs(neighbor @ LUMA - light[y, x]) <= 0.12
-                weight = np.float32(1.0 / (1 + dx * dx + dy * dy))
+                neighbor_alpha = image[
+                    max(0, dy) : min(height, height + dy), max(0, dx) : min(width, width + dx), 3
+                ]
+                difference = np.abs(neighbor @ LUMA - light[y, x])
+                accepted = (difference <= threshold[y, x]) & (neighbor_alpha != 0)
+                weight = np.float32(1.0 / (1 + dx * dx + dy * dy)) * np.where(
+                    difference > threshold[y, x] * 0.25, np.float32(0.5), np.float32(1.0)
+                )
                 total[y, x] += neighbor * (accepted * weight)[..., None]
                 weights[y, x] += accepted * weight
-        color = total / weights[..., None]
+        average = np.divide(
+            total, weights[..., None], out=color.copy(), where=weights[..., None] != 0
+        )
+        color = 0.5 * (color + average)
     light = color @ LUMA
-    # Analytic derivative of 0.5 * (exposure * light - 0.45)**2 at exposure=1.
-    gradient = (light - np.float32(0.45)) * light
-    fitted_exposure = np.clip(1.0 - np.float32(0.25) * gradient, 0.25, 4.0)
-    color *= fitted_exposure[..., None]
+    # The Huber derivative is the residual clipped to [-0.25, 0.25], times light.
+    exposure = np.ones_like(light)
+    active = light > 1e-6
+    for _ in range(4):
+        residual = exposure * light - np.float32(0.45)
+        gradient = np.clip(residual, -0.25, 0.25) * light
+        active &= np.abs(gradient) >= 0.001
+        candidate = exposure - np.float32(0.25) * gradient
+        exposure = np.where(active, np.maximum(candidate, 0.25), exposure)
+        active &= candidate >= 0.25
+    color *= exposure[..., None]
     if mapper_id == 0:
         light = color @ LUMA
         color = color / np.maximum(light, 1.0)[..., None]
+        color[light < 0.08] *= 1.5
         color = np.sqrt(np.clip(color, 0, 1))
         color[light <= 1e-6] = 0
-    else:
+    elif mapper_id == 1:
+        bright = color.max(axis=-1) > 4.0
+        color[bright] = color[bright] * 0.75 + (color[bright] @ LUMA)[:, None] * 0.25
         color = np.sqrt(np.clip(color / (1.0 + color), 0, 1))
+    else:
+        color = np.where(
+            color < 0.05,
+            color * 2.0,
+            np.where(
+                color < 1.0,
+                0.1 + np.float32(0.7 / 0.95) * (color - 0.05),
+                0.8 + 0.2 * (1.0 - np.exp(-(color - 1.0))),
+            ),
+        )
     output = image.copy()
     output[..., :3] = color
     output[image[..., 3] == 0] = image[image[..., 3] == 0]
@@ -81,12 +125,13 @@ class ImageProcessor:
             [
                 spy.TypeConformance("IToneMapper", "NormalizeToneMapper", 0),
                 spy.TypeConformance("IToneMapper", "ReinhardToneMapper", 1),
+                spy.TypeConformance("IToneMapper", "FilmicToneMapper", 2),
             ]
         )
 
     def process(self, image: np.ndarray, denoise: bool = True, mapper_id: int = 0) -> np.ndarray:
-        if mapper_id not in (0, 1):
-            raise ValueError("mapper_id must be 0 (normalize) or 1 (Reinhard)")
+        if mapper_id not in (0, 1, 2):
+            raise ValueError("mapper_id must be 0 (normalize), 1 (Reinhard), or 2 (filmic)")
         height, width = image.shape[:2]
         texture = self.device.create_texture(
             width=width,

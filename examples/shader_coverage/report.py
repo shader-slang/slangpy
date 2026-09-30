@@ -137,12 +137,37 @@ def write_report(directory: Path, summary: dict[str, Any], *, lcov_reports: bool
         f'<img src="{name}-input.png" alt="{title}: input"><figcaption>Input</figcaption></figure>'
         f'<figure><img src="{name}-output.png" alt="{title}: GPU output">'
         "<figcaption>GPU output</figcaption></figure></div></section>"
-        for name, title in (
-            ("ordinary", "Noisy image"),
-            ("hdr_alpha", "HDR and transparency"),
-            ("filter_off", "Denoising disabled, Reinhard tone mapper"),
-        )
+        for name in summary["scenarios"]
+        for title in [html.escape(name.replace("_", " ").title())]
     )
+    progress = ""
+    if summary["progress"]:
+        rows = []
+        previous = 0
+        for step in summary["progress"]:
+            gained = step["branch"]["hit"] - previous
+            previous = step["branch"]["hit"]
+            cells = "".join(
+                (
+                    f'<td>{step[kind]["hit"]}/{step[kind]["total"]}</td>'
+                    if kind in summary["coverage_kinds"]
+                    else "<td>disabled</td>"
+                )
+                for kind in ("line", "branch", "function")
+            )
+            delta = str(gained) if "branch" in summary["coverage_kinds"] else "disabled"
+            rows.append(
+                f'<tr><td><a href="{step["capture"]}.json">'
+                f'{html.escape(step["name"].replace("_", " ").title())}</a></td>{cells}<td>{delta}</td></tr>'
+            )
+        progress = (
+            "<h2>Coverage gained by each input</h2><p>Totals accumulate in one linked program. "
+            "New branch arms are the increase since the preceding input.</p>"
+            "<table><thead><tr><th>Input</th><th>Lines</th><th>Branch arms</th>"
+            "<th>Functions</th><th>New branch arms</th></tr></thead><tbody>"
+            + "".join(rows)
+            + "</tbody></table>"
+        )
     if summary["coverage_kinds"]:
         configuration = (
             f'Counters: {summary["counter_width"]} bits. '
@@ -163,11 +188,12 @@ def write_report(directory: Path, summary: dict[str, Any], *, lcov_reports: bool
         "section{margin:32px 0}table{border-collapse:collapse}td,th{padding:8px 16px;text-align:left;border-bottom:1px solid #405060}"
         "</style></head><body><h1>SlangPy shader coverage</h1>"
         "<p>A multi-file pipeline: edge-preserving denoising, autodiff exposure adjustment, "
-        "and runtime interface dispatch between normalization and Reinhard tone mapping. "
-        "The workload processes an ordinary image, HDR/transparency, and a denoising bypass. "
-        "When enabled, coverage compares the first input with all three accumulated inputs. "
+        "and runtime interface dispatch between normalization, Reinhard, and filmic tone mapping. "
+        "The inputs exercise HDR/transparency, filter bypass, shadows, convergence, and isolated highlights. "
+        "When enabled, coverage compares the first input with all six accumulated inputs. "
         "Each image is 320 x 240 pixels. HDR previews are clipped; transparency uses a checkerboard.</p>"
         f'<p>Backend: {html.escape(summary["backend"])}. {configuration}</p>'
+        + progress
         + "".join(sections)
         + figures
         + "<h2>Numerical validation</h2><pre>"

@@ -31,6 +31,7 @@ def test_image_example_coverage(
         pytest.skip("Shader coverage supports Vulkan and CUDA")
     scenarios = make_inputs()
     outputs = {}
+    checkpoints = []
     with spy.Device(
         type=device_type,
         enable_hot_reload=False,
@@ -48,8 +49,10 @@ def test_image_example_coverage(
         name, image, denoise, mapper_id = scenarios[0]
         outputs[name] = processor.process(image, denoise, mapper_id)
         before = device.shader_coverage.snapshot()
+        checkpoints.append(before)
         for name, image, denoise, mapper_id in scenarios[1:]:
             outputs[name] = processor.process(image, denoise, mapper_id)
+            checkpoints.append(device.shader_coverage.snapshot())
         after = device.shader_coverage.snapshot(reset=True)
         cleared = device.shader_coverage.snapshot()
         assert all(not any(program.counters) for program in cleared.programs)
@@ -78,12 +81,36 @@ def test_image_example_coverage(
         else:
             assert last[kind]["hit"] == last[kind]["total"] > 0
             assert first[kind]["hit"] < first[kind]["total"]
+    if "branch" in kinds:
+        assert last["branch"]["total"] >= 50
+        assert first["branch"]["hit"] / first["branch"]["total"] < 0.75
+        branch_counts = []
+        for checkpoint in checkpoints:
+            program = checkpoint.programs[0]
+            manifest = json.loads(program.manifest)
+            branch_counts.append(
+                sum(
+                    program.counters[e["counter"]] > 0
+                    for e in manifest["entries"]
+                    if e["kind"] == "branch"
+                )
+            )
+        assert branch_counts == sorted(branch_counts)
+        assert sum(b > a for a, b in zip(branch_counts, branch_counts[1:])) >= 4
 
     if "function" in kinds:
         first_maps = first["files"]["coverage_tonemap.slang"]["functions"]
         last_maps = last["files"]["coverage_tonemap.slang"]["functions"]
-        assert sorted(int(f["hits"]) > 0 for f in first_maps if f["name"] == "map") == [False, True]
-        assert sorted(int(f["hits"]) > 0 for f in last_maps if f["name"] == "map") == [True, True]
+        assert sorted(int(f["hits"]) > 0 for f in first_maps if f["name"] == "map") == [
+            False,
+            False,
+            True,
+        ]
+        assert sorted(int(f["hits"]) > 0 for f in last_maps if f["name"] == "map") == [
+            True,
+            True,
+            True,
+        ]
         assert any(
             f["name"] == "exposureLoss" and int(f["hits"]) > 0
             for f in last["files"]["coverage_exposure.slang"]["functions"]
@@ -119,7 +146,7 @@ def test_example_without_coverage(
     page = (tmp_path / "index.html").read_text()
     assert "Coverage disabled" in page
     assert "Open coverage report" not in page
-    for name in ("ordinary", "hdr_alpha", "filter_off"):
+    for name, _, _, _ in make_inputs():
         assert (tmp_path / f"{name}-output.png").is_file()
 
 
