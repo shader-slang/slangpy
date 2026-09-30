@@ -12,6 +12,7 @@ import slangpy as spy
 if __package__:
     from .image_processing import (
         SOURCE,
+        SOURCES,
         ImageProcessor,
         make_inputs,
         save_preview,
@@ -19,15 +20,32 @@ if __package__:
     )
     from .report import render_capture, save_capture, summarize, write_report
 else:
-    from image_processing import SOURCE, ImageProcessor, make_inputs, save_preview, validate_outputs
+    from image_processing import (
+        SOURCE,
+        SOURCES,
+        ImageProcessor,
+        make_inputs,
+        save_preview,
+        validate_outputs,
+    )
     from report import render_capture, save_capture, summarize, write_report
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", choices=("vulkan", "cuda"), default="vulkan")
-    parser.add_argument(
-        "--boolean", action="store_true", help="Record hits instead of execution counts"
+    recording = parser.add_mutually_exclusive_group()
+    recording.add_argument(
+        "--boolean",
+        dest="boolean",
+        action="store_true",
+        help="Record hits instead of execution counts",
+    )
+    recording.add_argument(
+        "--count",
+        dest="boolean",
+        action="store_false",
+        help="Count executions (default)",
     )
     parser.add_argument(
         "--coverage",
@@ -56,7 +74,7 @@ def main() -> None:
                 parser.error(f"Missing {slang_source / tool}")
     directory = args.output_dir.resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    source_text = SOURCE.read_text(encoding="utf-8")
+    sources = {str(path): path.read_text(encoding="utf-8") for path in SOURCES}
     scenarios = make_inputs()
     outputs = {}
     device_type = spy.DeviceType[args.device]
@@ -77,19 +95,20 @@ def main() -> None:
         compiler_options={"coverage": coverage},
     ) as device:
         processor = ImageProcessor(device)
-        name, image, denoise = scenarios[0]
-        outputs[name] = processor.process(image, denoise)
+        name, image, denoise, mapper_id = scenarios[0]
+        outputs[name] = processor.process(image, denoise, mapper_id)
         before = device.shader_coverage.snapshot() if coverage is not None else None
 
         # Exercise the paths missed by the ordinary image, using the same compiled program.
-        for name, image, denoise in scenarios[1:]:
-            outputs[name] = processor.process(image, denoise)
+        for name, image, denoise, mapper_id in scenarios[1:]:
+            outputs[name] = processor.process(image, denoise, mapper_id)
         after = device.shader_coverage.snapshot(reset=True) if coverage is not None else None
 
     # Snapshots own host data, so export works after the device is closed. The second
     # capture includes the first: compare these cumulative snapshots, never add them.
-    if SOURCE.read_text(encoding="utf-8") != source_text:
-        raise RuntimeError("Shader source changed while the example was running")
+    for path, text in sources.items():
+        if Path(path).read_text(encoding="utf-8") != text:
+            raise RuntimeError(f"Shader source changed while the example was running: {path}")
     summary = {
         "backend": args.device,
         "counter_width": args.counter_width,
@@ -100,14 +119,14 @@ def main() -> None:
     for label, snapshot in (("ordinary_only", before), ("expanded_inputs", after)):
         if snapshot is None:
             continue
-        capture = save_capture(directory, label, snapshot, source_text)
-        summary["coverage"][label] = summarize(capture, SOURCE)
+        capture = save_capture(directory, label, snapshot, sources)
+        summary["coverage"][label] = summarize(capture)
         if slang_source:
             render_capture(directory, label, slang_source, SOURCE)
 
     # Numerical checks and image/report formatting are separate from coverage collection.
     summary["validation"] = validate_outputs(device_type, scenarios, outputs)
-    for name, image, _ in scenarios:
+    for name, image, _, _ in scenarios:
         save_preview(directory / f"{name}-input.png", image, linear=True)
         save_preview(directory / f"{name}-output.png", outputs[name])
     (directory / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

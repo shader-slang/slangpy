@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 def save_capture(
-    directory: Path, name: str, snapshot: spy.ShaderCoverageSnapshot, source_text: str
+    directory: Path, name: str, snapshot: spy.ShaderCoverageSnapshot, sources: dict[str, str]
 ) -> dict[str, Any]:
     """Save the example's single program without losing 64-bit counter precision."""
     if len(snapshot.programs) != 1:
@@ -31,13 +31,13 @@ def save_capture(
         "counter_width": program.counter_width,
         "manifest": json.loads(program.manifest),
         "counters": [str(value) for value in program.counters],
-        "source": source_text,
+        "sources": sources,
     }
     (directory / f"{name}.json").write_text(json.dumps(capture, indent=2) + "\n", encoding="utf-8")
     return capture
 
 
-def summarize(capture: dict[str, Any], source: Path) -> dict[str, Any]:
+def summarize_source(capture: dict[str, Any], source: Path) -> dict[str, Any]:
     """Report just this example's source within one compiled program generation."""
     entries = [
         entry
@@ -46,7 +46,7 @@ def summarize(capture: dict[str, Any], source: Path) -> dict[str, Any]:
     ]
     lines: dict[int, bool] = {}
     branches: dict[tuple[int, int], dict[str, Any]] = {}
-    functions: dict[str, int] = {}
+    functions: list[dict[str, Any]] = []
     for entry in entries:
         hits = int(capture["counters"][entry["counter"]])
         if entry["kind"] == "line":
@@ -65,7 +65,7 @@ def summarize(capture: dict[str, Any], source: Path) -> dict[str, Any]:
                 "hits": str(hits),
             }
         elif entry["kind"] == "function":
-            functions[entry["function"]] = hits
+            functions.append({"name": entry["function"], "line": entry["line"], "hits": str(hits)})
     return {
         "generation_id": capture["generation_id"],
         "line": {"hit": sum(lines.values()), "total": len(lines)},
@@ -73,10 +73,25 @@ def summarize(capture: dict[str, Any], source: Path) -> dict[str, Any]:
             "hit": sum(int(arm["hits"]) > 0 for arm in branches.values()),
             "total": len(branches),
         },
-        "function": {"hit": sum(hits > 0 for hits in functions.values()), "total": len(functions)},
+        "function": {"hit": sum(int(f["hits"]) > 0 for f in functions), "total": len(functions)},
         "lines": lines,
         "arms": list(branches.values()),
-        "function_calls": {name: str(hits) for name, hits in functions.items()},
+        "functions": functions,
+    }
+
+
+def summarize(capture: dict[str, Any]) -> dict[str, Any]:
+    """Keep per-file sites separate while totaling the captured workload sources."""
+    files = {Path(path).name: summarize_source(capture, Path(path)) for path in capture["sources"]}
+    return {
+        "generation_id": capture["generation_id"],
+        "files": files,
+        **{
+            kind: {
+                key: sum(stats[kind][key] for stats in files.values()) for key in ("hit", "total")
+            }
+            for kind in ("line", "branch", "function")
+        },
     }
 
 
@@ -97,9 +112,24 @@ def write_report(directory: Path, summary: dict[str, Any], *, lcov_reports: bool
             )
             for kind in ("line", "branch", "function")
         )
+        rows = "".join(
+            f"<tr><td>{html.escape(filename)}</td>"
+            + "".join(
+                (
+                    f'<td>{file_stats[kind]["hit"]}/{file_stats[kind]["total"]}</td>'
+                    if kind in summary["coverage_kinds"]
+                    else "<td>disabled</td>"
+                )
+                for kind in ("line", "branch", "function")
+            )
+            + "</tr>"
+            for filename, file_stats in stats["files"].items()
+        )
         sections.append(
             f'<section><h2>{html.escape(name.replace("_", " ").title())}</h2>'
             f"<p>{totals}</p>"
+            "<table><thead><tr><th>Shader source</th><th>Lines</th><th>Branch arms</th>"
+            f"<th>Functions</th></tr></thead><tbody>{rows}</tbody></table>"
             f"<p>{links}</p></section>"
         )
     figures = "".join(
@@ -110,7 +140,7 @@ def write_report(directory: Path, summary: dict[str, Any], *, lcov_reports: bool
         for name, title in (
             ("ordinary", "Noisy image"),
             ("hdr_alpha", "HDR and transparency"),
-            ("filter_off", "Denoising disabled"),
+            ("filter_off", "Denoising disabled, Reinhard tone mapper"),
         )
     )
     if summary["coverage_kinds"]:
@@ -130,9 +160,10 @@ def write_report(directory: Path, summary: dict[str, Any], *, lcov_reports: bool
         "background:#101820;color:#e6eef5}a{color:#8dccff}p{line-height:1.6}"
         ".pair{display:flex;gap:20px}"
         "figure{margin:0;flex:1;min-width:0}img{width:100%}figcaption{padding:8px 0}"
-        "section{margin:32px 0}"
+        "section{margin:32px 0}table{border-collapse:collapse}td,th{padding:8px 16px;text-align:left;border-bottom:1px solid #405060}"
         "</style></head><body><h1>SlangPy shader coverage</h1>"
-        "<p>A 3x3 edge-preserving denoiser, HDR normalization, and display gamma. "
+        "<p>A multi-file pipeline: edge-preserving denoising, autodiff exposure adjustment, "
+        "and runtime interface dispatch between normalization and Reinhard tone mapping. "
         "The workload processes an ordinary image, HDR/transparency, and a denoising bypass. "
         "When enabled, coverage compares the first input with all three accumulated inputs. "
         "Each image is 320 x 240 pixels. HDR previews are clipped; transparency uses a checkerboard.</p>"
@@ -149,8 +180,9 @@ def write_report(directory: Path, summary: dict[str, Any], *, lcov_reports: bool
 def render_capture(directory: Path, name: str, slang_source: Path, source: Path) -> None:
     """Convert one cumulative capture without combining overlapping snapshots."""
     capture = json.loads((directory / f"{name}.json").read_text(encoding="utf-8"))
-    if capture["source"] != source.read_text(encoding="utf-8"):
-        raise RuntimeError("Shader source changed since capture; rerun the example")
+    for path, text in capture["sources"].items():
+        if Path(path).read_text(encoding="utf-8") != text:
+            raise RuntimeError(f"Shader source changed since capture: {path}; rerun the example")
     output = directory / "coverage" / name
     output.mkdir(parents=True, exist_ok=True)
     manifest = output / "coverage-manifest.json"
@@ -184,8 +216,11 @@ def render_capture(directory: Path, name: str, slang_source: Path, source: Path)
             str(output / "html"),
             "--source-root",
             str(source.parent),
-            "--filter-include",
-            "*postprocess.slang",
+            *[
+                arg
+                for path in capture["sources"]
+                for arg in ("--filter-include", "*" + Path(path).name)
+            ],
             "--title",
             f"SlangPy shader coverage: {name.replace('_', ' ')}",
         ],
