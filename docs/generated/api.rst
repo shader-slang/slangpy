@@ -4000,11 +4000,6 @@ Device
 
         Shader cache statistics.
 
-    .. py:property:: supported_shader_model
-        :type: slangpy.ShaderModel
-
-        The highest shader model supported by the device.
-
     .. py:property:: features
         :type: list[slangpy.Feature]
 
@@ -7514,50 +7509,6 @@ Device
 
 ----
 
-.. py:class:: slangpy.ShaderModel
-
-    Base class: :py:class:`enum.IntEnum`
-
-    .. py:attribute:: slangpy.ShaderModel.unknown
-        :type: ShaderModel
-        :value: ShaderModel.unknown
-
-    .. py:attribute:: slangpy.ShaderModel.sm_6_0
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_0
-
-    .. py:attribute:: slangpy.ShaderModel.sm_6_1
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_1
-
-    .. py:attribute:: slangpy.ShaderModel.sm_6_2
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_2
-
-    .. py:attribute:: slangpy.ShaderModel.sm_6_3
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_3
-
-    .. py:attribute:: slangpy.ShaderModel.sm_6_4
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_4
-
-    .. py:attribute:: slangpy.ShaderModel.sm_6_5
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_5
-
-    .. py:attribute:: slangpy.ShaderModel.sm_6_6
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_6
-
-    .. py:attribute:: slangpy.ShaderModel.sm_6_7
-        :type: ShaderModel
-        :value: ShaderModel.sm_6_7
-
-
-
-----
-
 .. py:class:: slangpy.ShaderObject
 
     Base class: :py:class:`slangpy.Object`
@@ -7751,11 +7702,13 @@ Device
 
         Specifies a list of preprocessor defines.
 
-    .. py:property:: shader_model
-        :type: slangpy.ShaderModel
+    .. py:property:: profile
+        :type: str | None
 
-        Specifies the shader model to use. Defaults to latest available on the
-        device.
+        Backend compilation profile, e.g. sm_6_6, spirv_1_6, or compute_75.
+        None selects device defaults. Explicit profiles do not inherit
+        optional device capabilities. Native Slang profiles can permit higher
+        shader requirements. CUDA profiles select an exact NVRTC architecture.
 
     .. py:property:: matrix_layout
         :type: slangpy.SlangMatrixLayout
@@ -7817,7 +7770,8 @@ Device
         Specifies a list of additional arguments to be passed to the
         downstream compiler. Only forwarded to downstream compilers that
         accept pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored
-        for other backends.
+        for other backends. Arguments must be compatible with the selected
+        profile; use profile for target selection.
 
     .. py:property:: dump_intermediates
         :type: bool
@@ -7936,7 +7890,8 @@ Device
         Specifies a list of additional arguments to be passed to the
         downstream compiler. Only forwarded to downstream compilers that
         accept pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored
-        for other backends.
+        for other backends. Arguments must be compatible with the session's
+        selected profile; use profile for target selection.
 
     .. py:property:: dump_intermediates
         :type: bool | None
