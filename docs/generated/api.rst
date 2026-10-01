@@ -13098,6 +13098,29 @@ UI
 Utilities
 ---------
 
+.. py:class:: slangpy.SRGBMode
+
+    Base class: :py:class:`enum.Enum`
+
+    Interpretation of stored bitmap color values; does not re-encode
+    texels or modify bitmap metadata.
+
+    .. py:attribute:: slangpy.SRGBMode.automatic
+        :type: SRGBMode
+
+        Select sRGB sampling when supported and indicated by bitmap metadata.
+
+    .. py:attribute:: slangpy.SRGBMode.linear
+        :type: SRGBMode
+
+        Sample without sRGB decoding, regardless of bitmap metadata.
+
+    .. py:attribute:: slangpy.SRGBMode.srgb
+        :type: SRGBMode
+
+        Select sRGB sampling when supported, regardless of bitmap metadata.
+        Alpha remains linear.
+
 .. py:class:: slangpy.TextureLoader
 
     Base class: :py:class:`slangpy.Object`
@@ -13120,12 +13143,14 @@ Utilities
         
             Load 8/16-bit integer data as normalized resource format.
             
-        .. py:property:: load_as_srgb
-            :type: bool
-        
-            Use ``Format::rgba8_unorm_srgb`` format if bitmap is 8-bit RGBA with
-            sRGB gamma.
-            
+        .. py:property:: srgb_mode
+            :type: slangpy.SRGBMode
+
+            Color interpretation after channel expansion. sRGB sampling is
+            supported for 8-bit RGBA; other component types and preserved R/RG
+            layouts retain their usual formats. Stored texels and alpha are
+            unchanged. DDS files retain their authored format.
+
         .. py:property:: extend_alpha
             :type: bool
         
