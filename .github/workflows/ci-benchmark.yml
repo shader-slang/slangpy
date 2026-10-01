@@ -1,5 +1,5 @@
 name: ci-benchmark
-run-name: "ci-benchmark: ${{ inputs.revision || github.sha }}"
+run-name: "DNI ci-benchmark slang#12080 master vs A vs C"
 
 on:
   workflow_dispatch:
@@ -15,45 +15,7 @@ permissions:
   id-token: write
 
 jobs:
-  # The benchmark job carries the BenchView write key and then builds and runs the
-  # revision's own code. workflow_dispatch already limits who can start it, but the
-  # revision input is free text, so confirm it is real main history before the key is
-  # anywhere near it.
-  validate-revision:
-    runs-on: ubuntu-latest
-    outputs:
-      # The build checks out this SHA rather than the raw input. If the input named
-      # a branch or tag, that ref could move between validation and checkout, and the
-      # build would then run an unvalidated commit with the write key.
-      revision: ${{ steps.resolve.outputs.revision }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Resolve and validate the revision
-        id: resolve
-        env:
-          REVISION: ${{ inputs.revision }}
-          # workflow_dispatch is the only trigger, so this is the tip of whichever
-          # branch the dispatcher selected and is not necessarily main.
-          DEFAULT_REVISION: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          # Both paths are checked. Defaulting to the selected branch tip would
-          # otherwise benchmark an unmerged commit with the write key, and write a
-          # BenchView row for a commit that may never reach main.
-          requested="${REVISION:-$DEFAULT_REVISION}"
-          resolved="$(git rev-parse --verify "${requested}^{commit}")"
-          if ! git merge-base --is-ancestor "$resolved" origin/main; then
-            echo "::error::$requested ($resolved) is not contained in main; refusing to benchmark it." >&2
-            exit 1
-          fi
-          echo "Benchmarking $resolved"
-          echo "revision=$resolved" >> "$GITHUB_OUTPUT"
-
   build:
-    needs: validate-revision
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
@@ -61,6 +23,8 @@ jobs:
         os: [windows, linux]
         config: [Release]
         python: ["3.10"]
+        # DNI (do-not-integrate): the same benchmarks against three Slang builds, for shader-slang/slang#12080.
+        slang: [master, haaggarwal/cuda-grid-constant-fix-rebased-a, haaggarwal/cuda-grid-constant-fix-option-c]
         include:
           # Builds running on self-hosted runners
           - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "benchmark", runs-on: { labels: [Windows, X64, nvrgfx-perf-kernelvm-bridge] } }
@@ -74,15 +38,10 @@ jobs:
       CI_CONFIG: ${{ matrix.config }}
       CI_PYTHON: ${{ matrix.python }}
       CI_FLAGS: ${{ matrix.flags }}
-      BENCHVIEW_API_URL: ${{ vars.BENCHVIEW_API_URL }}
-      BENCHVIEW_API_KEY: ${{ secrets.BENCHVIEW_API_KEY }}
-      BENCHVIEW_BENCHMARK_REF: ${{ needs.validate-revision.outputs.revision }}
-      BENCHVIEW_BENCHMARK_BRANCH: ${{ github.ref_name }}
 
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ needs.validate-revision.outputs.revision }}
           submodules: recursive
           lfs: true
 
@@ -118,14 +77,15 @@ jobs:
       - name: Setup CMake/Ninja
         uses: lukka/get-cmake@latest
 
-      # Build latest Slang.
-      # - name: Build latest Slang
-      #   run: |
-      #     git clone --recursive https://github.com/shader-slang/slang.git
-      #     cd slang
-      #     mkdir build
-      #     cmake -B build --preset default
-      #     cmake --build build --config ${{ matrix.config }} --parallel
+      # DNI: build the Slang under test from source; SGL_LOCAL_SLANG below swaps only the compiler.
+      - name: Build Slang (${{ matrix.slang }})
+        run: |
+          git clone --recursive -b ${{ matrix.slang }} https://github.com/shader-slang/slang.git
+          cd slang
+          git log -1 --format="slang under test: %H %s"
+          mkdir build
+          cmake -B build --preset default
+          cmake --build build --config ${{ matrix.config }} --parallel
 
       # Setup.
       - name: Setup
@@ -148,8 +108,7 @@ jobs:
 
       # Configure.
       - name: Configure
-        # run: python tools/ci.py --cmake-args="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/${{ matrix.config }}" configure
-        run: python tools/ci.py configure
+        run: python tools/ci.py --cmake-args="-DSGL_LOCAL_SLANG=ON -DSGL_LOCAL_SLANG_DIR=slang -DSGL_LOCAL_SLANG_BUILD_DIR=build/${{ matrix.config }}" configure
 
       # Build.
       - name: Build
@@ -163,7 +122,8 @@ jobs:
       # Benchmark (Python)
       - name: Benchmark (Python, GPU Clock Locked)
         if: contains(matrix.flags, 'benchmark')
-        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --api-url "${{ env.BENCHVIEW_API_URL }}" --lock-gpu-clocks
+        # DNI: no --api-url and no BENCHVIEW_API_URL, so nothing is submitted to BenchView; medians are read from the log.
+        run: python tools/ci.py benchmark-python --run-id "${{ github.run_id }}" --lock-gpu-clocks
 
       # Cleanup slangpy-torch from persistent self-hosted runners.
       - name: Uninstall slangpy-torch
