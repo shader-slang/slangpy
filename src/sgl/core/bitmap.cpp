@@ -1604,8 +1604,10 @@ void Bitmap::write_hdr(Stream* stream) const
 // ----------------------------------------------------------------------------
 
 namespace {
-    enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
-}
+    namespace exr_channels {
+        enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
+    }
+} // namespace
 
 // Classification scheme for color channels.
 static uint8_t exr_channel_class(std::string name)
@@ -1615,31 +1617,31 @@ static uint8_t exr_channel_class(std::string name)
         name = name.substr(it + 1);
     name = string::to_lower(name);
     if (name == "r")
-        return R;
+        return exr_channels::R;
     if (name == "g")
-        return G;
+        return exr_channels::G;
     if (name == "b")
-        return B;
+        return exr_channels::B;
     if (name == "x")
-        return X;
+        return exr_channels::X;
     if (name == "y")
-        return Y;
+        return exr_channels::Y;
     if (name == "z")
-        return Z;
+        return exr_channels::Z;
     if (name == "ry")
-        return RY;
+        return exr_channels::RY;
     if (name == "by")
-        return BY;
+        return exr_channels::BY;
     if (name == "a")
-        return A;
-    return unknown;
+        return exr_channels::A;
+    return exr_channels::unknown;
 }
 
 // Assign a sorting key to color channels.
 static std::string exr_channel_key(std::string name)
 {
     uint8_t class_ = exr_channel_class(name);
-    if (class_ == unknown)
+    if (class_ == exr_channels::unknown)
         return name;
     auto it = name.rfind(".");
     char suffix('0' + class_);
@@ -1652,25 +1654,28 @@ static std::string exr_channel_key(std::string name)
 
 static std::pair<Bitmap::PixelFormat, bool> exr_pixel_format(std::span<const std::string> channels_sorted)
 {
-    bool found[CLASS_COUNT] = {false};
+    bool found[exr_channels::CLASS_COUNT] = {false};
     for (const auto& name : channels_sorted)
         found[exr_channel_class(name)] = true;
 
     Bitmap::PixelFormat pixel_format = Bitmap::PixelFormat::multi_channel;
     bool luminance_chroma_format = false;
-    if (channels_sorted.size() == 3 && found[R] && found[G] && found[B]) {
+    if (channels_sorted.size() == 3 && found[exr_channels::R] && found[exr_channels::G] && found[exr_channels::B]) {
         pixel_format = Bitmap::PixelFormat::rgb;
-    } else if (channels_sorted.size() == 4 && found[R] && found[G] && found[B] && found[A]) {
+    } else if (channels_sorted.size() == 4 && found[exr_channels::R] && found[exr_channels::G] && found[exr_channels::B]
+               && found[exr_channels::A]) {
         pixel_format = Bitmap::PixelFormat::rgba;
-    } else if (channels_sorted.size() == 3 && found[Y] && found[RY] && found[BY]) {
+    } else if (channels_sorted.size() == 3 && found[exr_channels::Y] && found[exr_channels::RY]
+               && found[exr_channels::BY]) {
         pixel_format = Bitmap::PixelFormat::rgb;
         luminance_chroma_format = true;
-    } else if (channels_sorted.size() == 4 && found[Y] && found[RY] && found[BY] && found[A]) {
+    } else if (channels_sorted.size() == 4 && found[exr_channels::Y] && found[exr_channels::RY]
+               && found[exr_channels::BY] && found[exr_channels::A]) {
         pixel_format = Bitmap::PixelFormat::rgba;
         luminance_chroma_format = true;
-    } else if (channels_sorted.size() == 1 && found[Y]) {
+    } else if (channels_sorted.size() == 1 && found[exr_channels::Y]) {
         pixel_format = Bitmap::PixelFormat::y;
-    } else if (channels_sorted.size() == 2 && found[Y] && found[A]) {
+    } else if (channels_sorted.size() == 2 && found[exr_channels::Y] && found[exr_channels::A]) {
         pixel_format = Bitmap::PixelFormat::ya;
     }
 
@@ -1988,9 +1993,9 @@ void Bitmap::read_exr(Stream* stream)
                     b = b * scale + .5f;
                 }
 
-                data[0] = T(R);
-                data[1] = T(G);
-                data[2] = T(B);
+                data[0] = T(exr_channels::R);
+                data[1] = T(exr_channels::G);
+                data[2] = T(exr_channels::B);
                 data += channel_count();
             }
         };
