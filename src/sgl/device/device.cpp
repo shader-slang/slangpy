@@ -456,7 +456,6 @@ Device::~Device()
     }
 
     SGL_CHECK(m_closed, "Device is not close. Call close() before destroying the device.");
-    delete m_coverage_state.load(std::memory_order_relaxed);
 
     m_rhi_graphics_queue.setNull();
     m_rhi_device.setNull();
@@ -464,7 +463,7 @@ Device::~Device()
 
 void Device::_release_rhi_resources()
 {
-    auto* coverage = m_coverage_state.load(std::memory_order_acquire);
+    auto* coverage = m_coverage_state.get();
     std::unique_lock<std::recursive_mutex> capture_lock;
     std::unique_lock<std::recursive_mutex> coverage_lock;
     if (coverage) {
@@ -515,7 +514,7 @@ void Device::close()
 {
     // Outlive the lock guards: callbacks may release the last external owner.
     ref<Device> keep_alive(this);
-    auto* coverage = m_coverage_state.load(std::memory_order_acquire);
+    auto* coverage = m_coverage_state.get();
     std::unique_lock<std::recursive_mutex> capture_lock;
     std::unique_lock<std::recursive_mutex> coverage_lock;
     if (coverage) {
@@ -968,7 +967,7 @@ uint64_t Device::submit_command_buffers(
     if (m_hot_reload)
         m_hot_reload->update();
 
-    auto* coverage = m_coverage_state.load(std::memory_order_acquire);
+    auto* coverage = m_coverage_state.get();
     std::unique_lock<std::recursive_mutex> coverage_lock;
     if (coverage)
         coverage_lock = std::unique_lock(coverage->mutex);

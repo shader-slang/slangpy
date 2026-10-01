@@ -9,6 +9,7 @@
 #include "sgl/device/resource.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/shader_coverage.h"
+#include "sgl/device/shader_coverage_state.h"
 #include "sgl/device/raytracing.h"
 #include "sgl/device/debug_logger.h"
 
@@ -36,7 +37,6 @@
 namespace sgl {
 
 class DebugPrinter;
-struct ShaderCoverageState;
 
 
 struct AdapterInfo {
@@ -913,12 +913,11 @@ private:
     friend class ShaderCoverageCollector;
     friend class ShaderProgram;
     friend class SlangSession;
-    ShaderCoverageState& _shader_coverage_state();
     void _register_shader_coverage(SlangSessionBuild& build);
     ShaderCoverageSnapshot _capture_shader_coverage(bool read, bool reset);
     // Published on first use and retained until destruction, including its locks.
     // Ordinary devices never allocate coverage state or construct its mutexes.
-    std::atomic<ShaderCoverageState*> m_coverage_state{nullptr};
+    ShaderCoverageStateOwner m_coverage_state;
 
     ref<refl::Layout> reload_builtin_layout();
 

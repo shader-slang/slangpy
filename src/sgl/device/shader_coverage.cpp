@@ -177,9 +177,14 @@ ref<ShaderCoverageCollector> Device::shader_coverage()
     return make_ref<ShaderCoverageCollector>(ref<Device>(this));
 }
 
-ShaderCoverageState& Device::_shader_coverage_state()
+ShaderCoverageStateOwner::~ShaderCoverageStateOwner()
 {
-    auto* state = m_coverage_state.load(std::memory_order_acquire);
+    delete m_state.load(std::memory_order_relaxed);
+}
+
+ShaderCoverageState& ShaderCoverageStateOwner::get_or_create()
+{
+    auto* state = get();
     if (!state) {
         auto candidate = std::make_unique<ShaderCoverageState>();
         std::random_device random;
@@ -188,7 +193,7 @@ ShaderCoverageState& Device::_shader_coverage_state()
             hash.update(random());
         candidate->collection_id = hash.hex_digest();
         // Publish fully constructed locks. A concurrent first user keeps the winner.
-        if (m_coverage_state.compare_exchange_strong(state, candidate.get(), std::memory_order_acq_rel))
+        if (m_state.compare_exchange_strong(state, candidate.get(), std::memory_order_acq_rel))
             state = candidate.release();
     }
     return *state;
@@ -196,7 +201,7 @@ ShaderCoverageState& Device::_shader_coverage_state()
 
 void Device::_register_shader_coverage(SlangSessionBuild& build)
 {
-    auto& state = _shader_coverage_state();
+    auto& state = m_coverage_state.get_or_create();
     std::lock_guard lock(state.mutex);
     SGL_CHECK(!m_closed, "Device is closed");
     bool has_new_programs = false;
@@ -242,7 +247,7 @@ void Device::_register_shader_coverage(SlangSessionBuild& build)
 ShaderCoverageSnapshot Device::_capture_shader_coverage(bool read, bool reset)
 {
     // Serialize collectors and close, but release the registry/submission lock before waiting on the GPU.
-    auto& state = _shader_coverage_state();
+    auto& state = m_coverage_state.get_or_create();
     std::lock_guard capture_lock(state.capture_mutex);
     std::unique_lock lock(state.mutex);
     SGL_CHECK(!m_closed, "Device is closed");
