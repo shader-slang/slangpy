@@ -1082,8 +1082,6 @@ void Bitmap::read_png(Stream* stream)
     m_height = info.height;
     m_pixel_format = info.pixel_format;
     m_component_type = info.component_type;
-    int bit_depth = png_get_bit_depth(png_ptr, info_ptr);
-    int color_type = png_get_color_type(png_ptr, info_ptr);
 
     // Metadata takes precedence over the 8-bit RGB/RGBA fallback for untagged PNGs.
     // libpng also reports known sRGB ICC profiles through PNG_INFO_sRGB.
@@ -1097,7 +1095,8 @@ void Bitmap::read_png(Stream* stream)
         // PNG records gamma * 100000; allow rounding of the sRGB 1/2.2 approximation.
         m_srgb_gamma = gamma >= 45454 && gamma <= 45455;
     else
-        m_srgb_gamma = bit_depth == 8 && (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_RGB_ALPHA);
+        m_srgb_gamma = info.component_type == ComponentType::uint8
+            && (info.pixel_format == PixelFormat::rgb || info.pixel_format == PixelFormat::rgba);
 
     rebuild_pixel_struct();
 
