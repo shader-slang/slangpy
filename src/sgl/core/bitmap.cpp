@@ -813,6 +813,12 @@ static Bitmap::Info read_stb_header(StreamReader& reader, const char* format, bo
     return info;
 }
 
+static Bitmap::Info read_stb_info(Stream* stream, Bitmap::FileFormat format)
+{
+    StreamReader reader(stream);
+    return read_stb_header(reader, enum_to_string(format).c_str(), format == Bitmap::FileFormat::hdr);
+}
+
 void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_hdr)
 {
     StreamReader reader(stream);
@@ -977,6 +983,23 @@ static Bitmap::Info read_png_header(png_structp png_ptr, png_infop info_ptr)
 
     info.channel_count = png_get_channels(png_ptr, info_ptr);
     return info;
+}
+
+static Bitmap::Info read_png_info(Stream* stream)
+{
+    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, png_error_func, png_warn_func);
+    SGL_CHECK(png_ptr, "Failed to create PNG reader");
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    try {
+        SGL_CHECK(info_ptr, "Failed to create PNG information");
+        png_set_read_fn(png_ptr, stream, png_read_data);
+        const Bitmap::Info result = read_png_header(png_ptr, info_ptr);
+        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+        return result;
+    } catch (...) {
+        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+        throw;
+    }
 }
 
 void Bitmap::read_png(Stream* stream)
@@ -1184,6 +1207,11 @@ void Bitmap::write_png(Stream* stream, int compression) const
 
 #else // SGL_HAS_LIBPNG
 
+static Bitmap::Info read_png_info(Stream* stream)
+{
+    return read_stb_info(stream, Bitmap::FileFormat::png);
+}
+
 void Bitmap::read_png(Stream* stream)
 {
     read_stb(stream, "PNG", true, false);
@@ -1362,6 +1390,24 @@ static Bitmap::Info read_jpeg_header(jpeg_decompress_struct& cinfo)
     return info;
 }
 
+static Bitmap::Info read_jpg_info(Stream* stream)
+{
+    struct jpeg_decompress_struct cinfo;
+    struct jpeg_error_mgr jerr;
+    jbuf_in_t jbuf;
+    initialize_jpeg_reader(cinfo, jerr, jbuf, stream);
+    try {
+        const Bitmap::Info result = read_jpeg_header(cinfo);
+        jpeg_destroy_decompress(&cinfo);
+        delete[] jbuf.buffer;
+        return result;
+    } catch (...) {
+        jpeg_destroy_decompress(&cinfo);
+        delete[] jbuf.buffer;
+        throw;
+    }
+}
+
 void Bitmap::read_jpg(Stream* stream)
 {
     struct jpeg_decompress_struct cinfo;
@@ -1474,6 +1520,11 @@ void Bitmap::write_jpg(Stream* stream, int quality) const
 }
 
 #else // SGL_HAS_LIBJPEG
+
+static Bitmap::Info read_jpg_info(Stream* stream)
+{
+    return read_stb_info(stream, Bitmap::FileFormat::jpg);
+}
 
 void Bitmap::read_jpg(Stream* stream)
 {
@@ -2427,6 +2478,80 @@ void Bitmap::write_exr(Stream* stream, int quality) const
 
 #endif // SGL_HAS_OPENEXR
 
+static Bitmap::Info read_exr_info(Stream* stream)
+{
+    std::vector<std::string> channels;
+    Bitmap::Info result{};
+#if SGL_HAS_OPENEXR
+    EXRIStream input(stream);
+    Imf::InputFile file(input);
+    const auto& header = file.header();
+    const auto& exr_channels = header.channels();
+    SGL_CHECK(exr_channels.begin() != exr_channels.end(), "EXR image has no channels");
+    for (auto it = exr_channels.begin(); it != exr_channels.end(); ++it)
+        channels.emplace_back(it.name());
+    const auto type = exr_channels.begin().channel().type;
+    result.component_type = exr_component_type(type);
+    result.width = header.dataWindow().max.x - header.dataWindow().min.x + 1;
+    result.height = header.dataWindow().max.y - header.dataWindow().min.y + 1;
+#else
+    // TinyEXR accepts a header prefix; do not copy the encoded pixel payload.
+    std::vector<uint8_t> prefix(8);
+    stream->read(prefix.data(), prefix.size());
+    EXRVersion version{};
+    SGL_CHECK(
+        ParseEXRVersionFromMemory(&version, prefix.data(), prefix.size()) == TINYEXR_SUCCESS,
+        "Invalid EXR version"
+    );
+    SGL_CHECK(!version.multipart, "EXR multipart files are not supported yet!");
+    auto read_string = [&]()
+    {
+        const size_t start = prefix.size();
+        uint8_t byte;
+        do {
+            stream->read(&byte, 1);
+            prefix.push_back(byte);
+        } while (byte);
+        return prefix.size() - start - 1;
+    };
+    while (read_string()) {
+        read_string();
+        uint8_t bytes[4];
+        stream->read(bytes, sizeof(bytes));
+        prefix.insert(prefix.end(), bytes, bytes + 4);
+        const uint32_t size
+            = uint32_t(bytes[0]) | uint32_t(bytes[1]) << 8 | uint32_t(bytes[2]) << 16 | uint32_t(bytes[3]) << 24;
+        SGL_CHECK(size <= stream->size() - stream->tell(), "Truncated EXR header");
+        const size_t offset = prefix.size();
+        prefix.resize(offset + size);
+        stream->read(prefix.data() + offset, size);
+    }
+    EXRHeader header;
+    InitEXRHeader(&header);
+    const char* error = nullptr;
+    const int status = ParseEXRHeaderFromMemory(&header, &version, prefix.data(), prefix.size(), &error);
+    const std::string message = error ? error : "Invalid EXR header";
+    FreeEXRErrorMessage(error);
+    try {
+        SGL_CHECK(status == TINYEXR_SUCCESS, "{}", message);
+        SGL_CHECK(header.num_channels > 0, "EXR image has no channels");
+        for (int i = 0; i < header.num_channels; ++i)
+            channels.emplace_back(header.channels[i].name);
+        const int type = header.pixel_types[0];
+        result.component_type = exr_component_type(type);
+        result.width = header.data_window.max_x - header.data_window.min_x + 1;
+        result.height = header.data_window.max_y - header.data_window.min_y + 1;
+    } catch (...) {
+        FreeEXRHeader(&header);
+        throw;
+    }
+    FreeEXRHeader(&header);
+#endif
+    result.channel_count = narrow_cast<uint32_t>(channels.size());
+    result.pixel_format = exr_pixel_format(channels).first;
+    return result;
+}
+
 // ---------------------------------------------------------------------------
 // Resample / mipmap generation
 // ---------------------------------------------------------------------------
@@ -2588,121 +2713,20 @@ namespace {
 
     Bitmap::Info read_bitmap_info(Stream* stream, Bitmap::FileFormat format)
     {
-#if SGL_HAS_LIBPNG
-        if (format == Bitmap::FileFormat::png) {
-            png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, png_error_func, png_warn_func);
-            SGL_CHECK(png_ptr, "Failed to create PNG reader");
-            png_infop info_ptr = png_create_info_struct(png_ptr);
-            try {
-                SGL_CHECK(info_ptr, "Failed to create PNG information");
-                png_set_read_fn(png_ptr, stream, png_read_data);
-                const Bitmap::Info result = read_png_header(png_ptr, info_ptr);
-                png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-                return result;
-            } catch (...) {
-                png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-                throw;
-            }
+        switch (format) {
+        case Bitmap::FileFormat::png:
+            return read_png_info(stream);
+        case Bitmap::FileFormat::jpg:
+            return read_jpg_info(stream);
+        case Bitmap::FileFormat::exr:
+            return read_exr_info(stream);
+        case Bitmap::FileFormat::bmp:
+        case Bitmap::FileFormat::tga:
+        case Bitmap::FileFormat::hdr:
+            return read_stb_info(stream, format);
+        default:
+            SGL_THROW("Unsupported bitmap metadata format {}", format);
         }
-#endif
-#if SGL_HAS_LIBJPEG
-        if (format == Bitmap::FileFormat::jpg) {
-            struct jpeg_decompress_struct cinfo;
-            struct jpeg_error_mgr jerr;
-            jbuf_in_t jbuf;
-            initialize_jpeg_reader(cinfo, jerr, jbuf, stream);
-            try {
-                const Bitmap::Info result = read_jpeg_header(cinfo);
-                jpeg_destroy_decompress(&cinfo);
-                delete[] jbuf.buffer;
-                return result;
-            } catch (...) {
-                jpeg_destroy_decompress(&cinfo);
-                delete[] jbuf.buffer;
-                throw;
-            }
-        }
-#endif
-        if (format == Bitmap::FileFormat::exr) {
-            std::vector<std::string> channels;
-            Bitmap::Info result{};
-#if SGL_HAS_OPENEXR
-            EXRIStream input(stream);
-            Imf::InputFile file(input);
-            const auto& header = file.header();
-            const auto& exr_channels = header.channels();
-            SGL_CHECK(exr_channels.begin() != exr_channels.end(), "EXR image has no channels");
-            for (auto it = exr_channels.begin(); it != exr_channels.end(); ++it)
-                channels.emplace_back(it.name());
-            const auto type = exr_channels.begin().channel().type;
-            result.component_type = exr_component_type(type);
-            result.width = header.dataWindow().max.x - header.dataWindow().min.x + 1;
-            result.height = header.dataWindow().max.y - header.dataWindow().min.y + 1;
-#else
-            // TinyEXR accepts a header prefix; do not copy the encoded pixel payload.
-            std::vector<uint8_t> prefix(8);
-            stream->read(prefix.data(), prefix.size());
-            EXRVersion version{};
-            SGL_CHECK(
-                ParseEXRVersionFromMemory(&version, prefix.data(), prefix.size()) == TINYEXR_SUCCESS,
-                "Invalid EXR version"
-            );
-            SGL_CHECK(!version.multipart, "EXR multipart files are not supported yet!");
-            auto read_string = [&]()
-            {
-                const size_t start = prefix.size();
-                uint8_t byte;
-                do {
-                    stream->read(&byte, 1);
-                    prefix.push_back(byte);
-                } while (byte);
-                return prefix.size() - start - 1;
-            };
-            while (read_string()) {
-                read_string();
-                uint8_t bytes[4];
-                stream->read(bytes, sizeof(bytes));
-                prefix.insert(prefix.end(), bytes, bytes + 4);
-                const uint32_t size = uint32_t(bytes[0]) | uint32_t(bytes[1]) << 8 | uint32_t(bytes[2]) << 16
-                    | uint32_t(bytes[3]) << 24;
-                SGL_CHECK(size <= stream->size() - stream->tell(), "Truncated EXR header");
-                const size_t offset = prefix.size();
-                prefix.resize(offset + size);
-                stream->read(prefix.data() + offset, size);
-            }
-            EXRHeader header;
-            InitEXRHeader(&header);
-            const char* error = nullptr;
-            const int status = ParseEXRHeaderFromMemory(&header, &version, prefix.data(), prefix.size(), &error);
-            const std::string message = error ? error : "Invalid EXR header";
-            FreeEXRErrorMessage(error);
-            try {
-                SGL_CHECK(status == TINYEXR_SUCCESS, "{}", message);
-                SGL_CHECK(header.num_channels > 0, "EXR image has no channels");
-                for (int i = 0; i < header.num_channels; ++i)
-                    channels.emplace_back(header.channels[i].name);
-                const int type = header.pixel_types[0];
-                result.component_type = exr_component_type(type);
-                result.width = header.data_window.max_x - header.data_window.min_x + 1;
-                result.height = header.data_window.max_y - header.data_window.min_y + 1;
-            } catch (...) {
-                FreeEXRHeader(&header);
-                throw;
-            }
-            FreeEXRHeader(&header);
-#endif
-            result.channel_count = narrow_cast<uint32_t>(channels.size());
-            result.pixel_format = exr_pixel_format(channels).first;
-            return result;
-        }
-        SGL_CHECK(
-            format == Bitmap::FileFormat::png || format == Bitmap::FileFormat::jpg || format == Bitmap::FileFormat::bmp
-                || format == Bitmap::FileFormat::tga || format == Bitmap::FileFormat::hdr,
-            "Unsupported bitmap metadata format {}",
-            format
-        );
-        StreamReader reader(stream);
-        return read_stb_header(reader, enum_to_string(format).c_str(), format == Bitmap::FileFormat::hdr);
     }
 
 } // namespace
