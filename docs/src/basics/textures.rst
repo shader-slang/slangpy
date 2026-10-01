@@ -82,7 +82,7 @@ SlangPy's flexibility allows seamless integration between these types, making it
 Texture loading and color interpretation
 ----------------------------------------
 
-``TextureLoader.Options.encoding`` selects ``TextureEncoding.automatic`` (the
+``TextureLoader.Options.srgb_mode`` selects ``SRGBMode.automatic`` (the
 default), ``linear``, or ``srgb``. Automatic follows bitmap gamma metadata.
 Explicit linear or sRGB interpretation overrides that metadata without changing
 the bitmap or re-encoding its pixels. Alpha remains linear.
@@ -93,7 +93,7 @@ the bitmap or re-encoding its pixels. Alpha remains linear.
     texture = loader.load_texture(
         "base_color.png",
         options={
-            "encoding": spy.TextureEncoding.srgb,
+            "srgb_mode": spy.SRGBMode.srgb,
             "y_handling": spy.YHandling.expand_to_rgba,
         },
     )
@@ -104,7 +104,7 @@ alpha one; YA can be expanded while preserving alpha. sRGB sampling applies to
 floating-point HDR inputs keep their existing formats. DDS textures retain their
 authored formats.
 
-This replaces ``load_as_srgb``: migrate ``True`` to ``TextureEncoding.automatic``
+This replaces ``load_as_srgb``: migrate ``True`` to ``SRGBMode.automatic``
 to preserve its metadata-dependent behavior, and ``False`` to
-``TextureEncoding.linear``. Use ``TextureEncoding.srgb`` when the caller knows
+``SRGBMode.linear``. Use ``SRGBMode.srgb`` when the caller knows
 that the stored color values are sRGB regardless of image metadata.

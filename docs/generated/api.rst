@@ -13098,25 +13098,25 @@ UI
 Utilities
 ---------
 
-.. py:class:: slangpy.TextureEncoding
+.. py:class:: slangpy.SRGBMode
 
     Base class: :py:class:`enum.Enum`
 
     Interpretation of stored bitmap color values; does not re-encode
     texels or modify bitmap metadata.
 
-    .. py:attribute:: slangpy.TextureEncoding.automatic
-        :type: TextureEncoding
+    .. py:attribute:: slangpy.SRGBMode.automatic
+        :type: SRGBMode
 
         Select sRGB sampling when supported and indicated by bitmap metadata.
 
-    .. py:attribute:: slangpy.TextureEncoding.linear
-        :type: TextureEncoding
+    .. py:attribute:: slangpy.SRGBMode.linear
+        :type: SRGBMode
 
         Sample without sRGB decoding, regardless of bitmap metadata.
 
-    .. py:attribute:: slangpy.TextureEncoding.srgb
-        :type: TextureEncoding
+    .. py:attribute:: slangpy.SRGBMode.srgb
+        :type: SRGBMode
 
         Select sRGB sampling when supported, regardless of bitmap metadata.
         Alpha remains linear.
@@ -13143,8 +13143,8 @@ Utilities
         
             Load 8/16-bit integer data as normalized resource format.
             
-        .. py:property:: encoding
-            :type: slangpy.TextureEncoding
+        .. py:property:: srgb_mode
+            :type: slangpy.SRGBMode
 
             Color interpretation after channel expansion. sRGB sampling is
             supported for 8-bit RGBA; other component types and preserved R/RG

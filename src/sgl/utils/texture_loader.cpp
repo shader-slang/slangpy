@@ -80,7 +80,7 @@ inline bool has_format_support(Device* device, Format format, FormatSupport requ
  *   RGB bitmap that has no supported format, or needs renderable usage,
  * will be determined as RGBA
  *   (if a RGBA format exists).
- * - \c Options::encoding selects whether 8-bit RGBA uses \c Format::rgba8_unorm_srgb.
+ * - \c Options::srgb_mode selects whether 8-bit RGBA uses \c Format::rgba8_unorm_srgb.
  * Automatic interpretation follows bitmap metadata; explicit linear/sRGB overrides it.
  *
  * - \c Options::load_as_normalized
@@ -215,8 +215,8 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
     }
 
     // Use sRGB format if requested and supported.
-    const bool srgb = options.encoding == TextureEncoding::srgb
-        || (options.encoding == TextureEncoding::automatic && bitmap->srgb_gamma());
+    const bool srgb
+        = options.srgb_mode == SRGBMode::srgb || (options.srgb_mode == SRGBMode::automatic && bitmap->srgb_gamma());
     if (srgb && pixel_format == PixelFormat::rgba && component_type == ComponentType::uint8)
         format_flags = FormatFlags::srgb;
 
