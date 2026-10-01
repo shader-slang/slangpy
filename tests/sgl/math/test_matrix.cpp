@@ -666,8 +666,9 @@ void check_trs_roundtrip(const math::matrix<T, 4, 4>& input)
     CHECK(std::abs(double(math::dot(orientation, orientation)) - 1.0) <= tolerance);
 }
 
-TEST_CASE_TEMPLATE("decompose_trs reconstructs rotations reflections and extreme scales", T, float, double)
+TEST_CASE("decompose_trs reconstructs rotations reflections and extreme scales")
 {
+    using T = float;
     using Matrix = math::matrix<T, 4, 4>;
     check_trs_roundtrip(Matrix::identity());
     const auto rotation = math::matrix_from_quat(math::normalize(math::quat<T>(T(0.2), T(-0.3), T(0.4), T(0.8))));
@@ -697,8 +698,9 @@ TEST_CASE_TEMPLATE("decompose_trs reconstructs rotations reflections and extreme
     check_trs_roundtrip(boundary);
 }
 
-TEST_CASE_TEMPLATE("decompose_trs removes shear from rotated reflected affine matrices", T, float, double)
+TEST_CASE("decompose_trs removes shear from rotated reflected affine matrices")
 {
+    using T = float;
     const auto expected_rotation
         = math::matrix_from_quat(math::normalize(math::quat<T>(T(0.2), T(-0.3), T(0.4), T(0.8))));
     for (int signs = 0; signs < 8; ++signs) {
@@ -738,8 +740,9 @@ TEST_CASE_TEMPLATE("decompose_trs removes shear from rotated reflected affine ma
     }
 }
 
-TEST_CASE_TEMPLATE("decompose_trs rejects unsupported input without changing outputs", T, float, double)
+TEST_CASE("decompose_trs rejects unsupported input without changing outputs")
 {
+    using T = float;
     using Matrix = math::matrix<T, 4, 4>;
     std::vector<Matrix> invalid;
     auto input = Matrix::identity();

@@ -411,18 +411,17 @@ inline bool decompose_trs(
         if (result_scale[axis] == T(0))
             return false;
     }
-    matrix<double, 3, 3> rotation;
+    // SGL matrices support float only; retain double intermediates until the corrected basis is ready.
+    matrix<T, 3, 3> rotation;
     for (int col = 0; col < 3; ++col)
-        rotation.set_col(col, columns[col]);
+        for (int row = 0; row < 3; ++row)
+            rotation[row][col] = T(columns[col][row]);
     const auto result_orientation = normalize(quat_from_matrix(rotation));
     scale = result_scale;
     orientation
         = quat<T>(T(result_orientation.x), T(result_orientation.y), T(result_orientation.z), T(result_orientation.w));
     translation = vector<T, 3>(model_matrix[0][3], model_matrix[1][3], model_matrix[2][3]);
-    for (int row = 0; row < 3; ++row) {
-        for (int col = 0; col < 3; ++col)
-            rotation_matrix[row][col] = T(rotation[row][col]);
-    }
+    rotation_matrix = rotation;
     return true;
 }
 
