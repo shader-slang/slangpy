@@ -313,10 +313,10 @@ void SlangSession::create_session(SlangSessionBuild& build)
 
     const SlangCompilerOptions& options = m_desc.compiler_options;
     const auto target = resolve_compiler_target(*m_device, options);
-    // Supply NVAPI declarations and DXC headers for supported D3D12 devices.
+    // Supply NVAPI declarations and DXC headers when enabled in the resolved D3D12 target.
     // Slang uses these for NVAPI SER and atomic operations across shader-model profiles.
-    const bool enable_nvapi
-        = SGL_HAS_NVAPI && device_type == DeviceType::d3d12 && m_device->has_capability("hlsl_nvapi");
+    const bool enable_nvapi = SGL_HAS_NVAPI && device_type == DeviceType::d3d12
+        && std::ranges::find(target.capabilities, "hlsl_nvapi") != target.capabilities.end();
 
     // Set matrix layout.
     if (options.matrix_layout == SlangMatrixLayout::row_major)
