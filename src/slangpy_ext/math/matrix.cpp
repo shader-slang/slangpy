@@ -507,6 +507,22 @@ inline void bind_matrix(nb::module_& m)
         "translation"_a
     );
     m.def(
+        "decompose_trs",
+        [](const float4x4& model_matrix,
+           float3& scale,
+           quatf& orientation,
+           float3& translation,
+           float3x3& rotation_matrix)
+        {
+            return decompose_trs(model_matrix, scale, orientation, translation, rotation_matrix);
+        },
+        "model_matrix"_a,
+        "scale"_a,
+        "orientation"_a,
+        "translation"_a,
+        "rotation_matrix"_a
+    );
+    m.def(
         "decompose",
         [](const float4x4& model_matrix,
            float3& scale,

@@ -315,5 +315,30 @@ def test_decompose_trs_failure_preserves_outputs(entry: tuple[int, int], value: 
     assert orientation == spy.quatf(1, 2, 3, 4)
 
 
+def test_decompose_trs_matrix_output_preserves_axis_rotation() -> None:
+    values = np.array([[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]], dtype=np.float32)
+    scale, translation = spy.float3(), spy.float3()
+    orientation = spy.quatf(0, 0, 0, 1)
+    rotation = spy.float3x3()
+    assert spy.math.decompose_trs(spy.float4x4(values), scale, orientation, translation, rotation)
+    assert rotation == spy.float3x3(values[:3, :3].copy())
+
+
+def test_decompose_trs_matrix_output_corrects_axes_and_preserves_failed_outputs() -> None:
+    values = np.eye(4, dtype=np.float32)
+    values[0, 1] = 4 * np.finfo(np.float32).eps
+    scale, translation = spy.float3(), spy.float3()
+    orientation = spy.quatf(0, 0, 0, 1)
+    rotation = spy.float3x3()
+    assert spy.math.decompose_trs(spy.float4x4(values), scale, orientation, translation, rotation)
+    assert rotation == spy.float3x3.identity()
+    values[0, 1] = 0.1
+    rotation = spy.float3x3.identity() * 9.0
+    assert not spy.math.decompose_trs(
+        spy.float4x4(values), scale, orientation, translation, rotation
+    )
+    assert rotation == spy.float3x3.identity() * 9.0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

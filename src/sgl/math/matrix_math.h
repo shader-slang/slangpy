@@ -341,9 +341,18 @@ void extract_euler_angle_xyz(const matrix<T, 4, 4>& m, float& angle_x, float& an
 /// Reflections use three negative scales and a proper rotation, as in decompose().
 /// Returns false for invalid input or unrepresentable scales. Outputs are unchanged
 /// on failure. Double intermediates avoid squaring unscaled input in the norm.
+/// rotation_matrix receives the corrected rotation without a quaternion round trip.
+/// The correction preserves the first axis, orthogonalizes the second against it,
+/// and derives the third by their cross product. Both rotation outputs describe this
+/// same basis, but reconstructing from the rounded quaternion can lose precision.
 template<typename T>
-inline bool
-decompose_trs(const matrix<T, 4, 4>& model_matrix, vector<T, 3>& scale, quat<T>& orientation, vector<T, 3>& translation)
+inline bool decompose_trs(
+    const matrix<T, 4, 4>& model_matrix,
+    vector<T, 3>& scale,
+    quat<T>& orientation,
+    vector<T, 3>& translation,
+    matrix<T, 3, 3>& rotation_matrix
+)
 {
     if (model_matrix[3][0] != T(0) || model_matrix[3][1] != T(0) || model_matrix[3][2] != T(0)
         || model_matrix[3][3] != T(1))
@@ -380,6 +389,10 @@ decompose_trs(const matrix<T, 4, 4>& model_matrix, vector<T, 3>& scale, quat<T>&
         for (auto& column : columns)
             column *= -1.0;
     }
+    // Inputs passed the near-orthogonality check, so this projection cannot collapse.
+    columns[0] = normalize(columns[0]);
+    columns[1] = normalize(columns[1] - dot(columns[0], columns[1]) * columns[0]);
+    columns[2] = normalize(cross(columns[0], columns[1]));
     matrix<double, 3, 3> rotation;
     for (int col = 0; col < 3; ++col)
         rotation.set_col(col, columns[col]);
@@ -388,7 +401,21 @@ decompose_trs(const matrix<T, 4, 4>& model_matrix, vector<T, 3>& scale, quat<T>&
     orientation
         = quat<T>(T(result_orientation.x), T(result_orientation.y), T(result_orientation.z), T(result_orientation.w));
     translation = vector<T, 3>(model_matrix[0][3], model_matrix[1][3], model_matrix[2][3]);
+    for (int row = 0; row < 3; ++row) {
+        for (int col = 0; col < 3; ++col)
+            rotation_matrix[row][col] = T(rotation[row][col]);
+    }
     return true;
+}
+
+/// Decomposes a TRS matrix when only the quaternion rotation is needed.
+/// Uses the same validation and orthogonality correction as the matrix-output overload.
+template<typename T>
+inline bool
+decompose_trs(const matrix<T, 4, 4>& model_matrix, vector<T, 3>& scale, quat<T>& orientation, vector<T, 3>& translation)
+{
+    matrix<T, 3, 3> rotation_matrix;
+    return decompose_trs(model_matrix, scale, orientation, translation, rotation_matrix);
 }
 
 /// Decomposes a homogeneous matrix into translation, rotation, scale, shear and perspective.

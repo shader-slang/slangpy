@@ -640,15 +640,28 @@ void check_trs_roundtrip(const math::matrix<T, 4, 4>& input)
 {
     math::vector<T, 3> scale{}, translation{};
     math::quat<T> orientation;
-    REQUIRE(math::decompose_trs(input, scale, orientation, translation));
+    math::matrix<T, 3, 3> corrected;
+    REQUIRE(math::decompose_trs(input, scale, orientation, translation, corrected));
+    math::vector<T, 3> other_scale{}, other_translation{};
+    math::quat<T> other_orientation;
+    REQUIRE(math::decompose_trs(input, other_scale, other_orientation, other_translation));
+    CHECK(other_scale == scale);
+    CHECK(other_orientation == orientation);
+    CHECK(other_translation == translation);
     const auto rotation = math::matrix_from_quat(orientation);
     const double tolerance = 64.0 * std::numeric_limits<T>::epsilon();
     for (int col = 0; col < 3; ++col) {
         for (int row = 0; row < 3; ++row) {
             CHECK(std::abs(double(rotation[row][col]) - double(input[row][col]) / scale[col]) <= tolerance);
+            CHECK(std::abs(double(corrected[row][col]) - double(input[row][col]) / scale[col]) <= tolerance);
         }
         CHECK(translation[col] == input[col][3]);
     }
+    for (int col = 0; col < 3; ++col) {
+        CHECK(std::abs(double(math::dot(corrected.get_col(col), corrected.get_col(col))) - 1.0) <= tolerance);
+        CHECK(std::abs(double(math::dot(corrected.get_col(col), corrected.get_col((col + 1) % 3)))) <= tolerance);
+    }
+    CHECK(math::determinant(corrected) == doctest::Approx(1.0).epsilon(tolerance));
     CHECK(math::determinant(rotation) == doctest::Approx(1.0).epsilon(tolerance));
     CHECK(std::abs(double(math::dot(orientation, orientation)) - 1.0) <= tolerance);
 }
@@ -711,6 +724,9 @@ TEST_CASE_TEMPLATE("decompose_trs rejects unsupported input without changing out
     for (const auto& matrix : invalid) {
         math::vector<T, 3> scale(T(7)), translation(T(8));
         math::quat<T> orientation(T(1), T(2), T(3), T(4));
+        auto corrected = math::matrix<T, 3, 3>::identity() * T(9);
+        CHECK_FALSE(math::decompose_trs(matrix, scale, orientation, translation, corrected));
+        CHECK(corrected == math::matrix<T, 3, 3>::identity() * T(9));
         CHECK_FALSE(math::decompose_trs(matrix, scale, orientation, translation));
         CHECK(scale == math::vector<T, 3>(T(7)));
         CHECK(translation == math::vector<T, 3>(T(8)));
