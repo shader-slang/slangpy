@@ -333,11 +333,11 @@ def test_decompose_trs_matrix_output_corrects_axes_and_preserves_failed_outputs(
     assert spy.math.decompose_trs(spy.float4x4(values), scale, orientation, translation, rotation)
     assert rotation == spy.float3x3.identity()
     values[:, 1] = values[:, 0]
-    rotation = spy.float3x3.identity() * 9.0
+    rotation = spy.float3x3(np.eye(3, dtype=np.float32) * 9.0)
     assert not spy.math.decompose_trs(
         spy.float4x4(values), scale, orientation, translation, rotation
     )
-    assert rotation == spy.float3x3.identity() * 9.0
+    assert rotation == spy.float3x3(np.eye(3, dtype=np.float32) * 9.0)
 
 
 @pytest.mark.parametrize("matrix_output", [False, True])

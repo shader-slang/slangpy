@@ -334,19 +334,9 @@ void extract_euler_angle_xyz(const matrix<T, 4, 4>& m, float& angle_x, float& an
     angle_z = -t3;
 }
 
-/// Extracts translation, rotation, and scale from an affine matrix, discarding shear.
-/// Requires bottom row (0,0,0,1) and numerically independent spatial columns.
-/// Orthogonalizes columns in order: preserve the first direction, remove its projection
-/// from the second, and derive the third by their cross product. Scales are the signed
-/// projections onto these corrected axes, so T * R * S is the input with shear removed.
-/// This is an ordered orthogonalization, not a closest-rotation fit.
-/// Reflections use three negative scales and a proper rotation, as in decompose().
-/// Returns false for nonfinite input, perspective, numerically dependent axes, or
-/// unrepresentable nonzero scales. All outputs are unchanged on failure.
-/// Double intermediates and column equilibration avoid squaring unscaled input.
-/// rotation_matrix receives the corrected rotation without a quaternion round trip.
-/// Both rotation outputs describe the same basis, but reconstructing from the rounded
-/// quaternion can lose precision.
+/// Decomposes an affine matrix into translation, rotation, and scale, orthogonalizing it if needed.
+/// Also returns the rotation matrix directly to avoid precision loss from a quaternion round trip.
+/// Returns false for invalid or degenerate input, leaving the outputs unchanged.
 template<typename T>
 inline bool decompose_trs(
     const matrix<T, 4, 4>& model_matrix,
@@ -425,8 +415,9 @@ inline bool decompose_trs(
     return true;
 }
 
-/// Extracts TRS components, discarding shear, when only the quaternion rotation is needed.
-/// Uses the same validation and orthogonality correction as the matrix-output overload.
+/// Decomposes an affine matrix into translation, rotation, and scale, orthogonalizing it if needed.
+/// Use the matrix-output overload to also receive the precise rotation matrix.
+/// Returns false for invalid or degenerate input, leaving the outputs unchanged.
 template<typename T>
 inline bool
 decompose_trs(const matrix<T, 4, 4>& model_matrix, vector<T, 3>& scale, quat<T>& orientation, vector<T, 3>& translation)
