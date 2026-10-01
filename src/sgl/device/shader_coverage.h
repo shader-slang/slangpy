@@ -8,6 +8,8 @@
 
 namespace sgl {
 
+struct ShaderCoverageCapture;
+
 /// Host-owned data for one compiled program generation. Branch IDs are local to this record.
 struct ShaderCoverageProgramSnapshot {
     uint64_t generation_id{0};
@@ -36,6 +38,8 @@ struct ShaderCoverageCapabilities {
 };
 
 /// Device-wide collection. Reset affects all registered programs, irrespective of report filters.
+/// Native callers must serialize capture submission with other device mutation, including close.
+/// Python bindings serialize submission with the GIL and release it for completion.
 class SGL_API ShaderCoverageCollector : public DeviceChild {
     SGL_OBJECT(ShaderCoverageCollector)
 public:
@@ -44,6 +48,9 @@ public:
     ShaderCoverageCapabilities capabilities() const;
     ShaderCoverageSnapshot snapshot(bool reset = false);
     void reset();
+
+    /// Internal split used by bindings to release the GIL only after submission.
+    ShaderCoverageCapture _begin_capture(bool read, bool reset);
 };
 
 } // namespace sgl

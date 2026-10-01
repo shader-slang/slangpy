@@ -5,6 +5,7 @@
 
 #include "sgl/device/device.h"
 #include "sgl/device/helpers.h"
+#include "sgl/device/cuda_utils.h"
 #include "sgl/core/crypto.h"
 #include <random>
 #include <slang-rhi/synthetic-bindings.h>
@@ -163,12 +164,17 @@ ShaderCoverageCapabilities ShaderCoverageCollector::capabilities() const
 
 ShaderCoverageSnapshot ShaderCoverageCollector::snapshot(bool reset)
 {
-    return m_device->_capture_shader_coverage(true, reset);
+    return _begin_capture(true, reset).finish();
 }
 
 void ShaderCoverageCollector::reset()
 {
-    m_device->_capture_shader_coverage(false, true);
+    _begin_capture(false, true).finish();
+}
+
+ShaderCoverageCapture ShaderCoverageCollector::_begin_capture(bool read, bool reset)
+{
+    return m_device->_begin_shader_coverage_capture(read, reset);
 }
 
 ref<ShaderCoverageCollector> Device::shader_coverage()
@@ -177,33 +183,27 @@ ref<ShaderCoverageCollector> Device::shader_coverage()
     return make_ref<ShaderCoverageCollector>(ref<Device>(this));
 }
 
-ShaderCoverageStateOwner::~ShaderCoverageStateOwner()
-{
-    delete m_state.load(std::memory_order_relaxed);
-}
+ShaderCoverageStateOwner::ShaderCoverageStateOwner() = default;
+ShaderCoverageStateOwner::~ShaderCoverageStateOwner() = default;
 
 ShaderCoverageState& ShaderCoverageStateOwner::get_or_create()
 {
-    auto* state = get();
-    if (!state) {
+    if (!m_state) {
         auto candidate = std::make_unique<ShaderCoverageState>();
         std::random_device random;
         SHA1 hash;
         for (int i = 0; i < 8; ++i)
             hash.update(random());
         candidate->collection_id = hash.hex_digest();
-        // Publish fully constructed locks. A concurrent first user keeps the winner.
-        if (m_state.compare_exchange_strong(state, candidate.get(), std::memory_order_acq_rel))
-            state = candidate.release();
+        m_state = std::move(candidate);
     }
-    return *state;
+    return *m_state;
 }
 
 void Device::_register_shader_coverage(SlangSessionBuild& build)
 {
-    auto& state = m_coverage_state.get_or_create();
-    std::lock_guard lock(state.mutex);
     SGL_CHECK(!m_closed, "Device is closed");
+    auto& state = m_coverage_state.get_or_create();
     bool has_new_programs = false;
     for (const auto& [program, data] : build.programs)
         has_new_programs |= data->coverage && !data->coverage->generation_id;
@@ -244,23 +244,28 @@ void Device::_register_shader_coverage(SlangSessionBuild& build)
     state.retained_bytes += pending_bytes;
 }
 
-ShaderCoverageSnapshot Device::_capture_shader_coverage(bool read, bool reset)
+ShaderCoverageCapture Device::_begin_shader_coverage_capture(bool read, bool reset)
 {
-    // Serialize collectors and close, but release the registry/submission lock before waiting on the GPU.
-    auto& state = m_coverage_state.get_or_create();
-    std::lock_guard capture_lock(state.capture_mutex);
-    std::unique_lock lock(state.mutex);
     SGL_CHECK(!m_closed, "Device is closed");
-    ShaderCoverageSnapshot result;
+    // Collection may be invoked from a different Python thread than device creation.
+    // CUDA queue allocation and submission require its context on the calling thread.
+    std::optional<cuda::ContextScope> cuda_scope;
+    if (type() == DeviceType::cuda)
+        cuda_scope.emplace(this);
+    auto& state = m_coverage_state.get_or_create();
+    ShaderCoverageCapture capture;
+    capture.owner = ref<Device>(this);
+    capture.device = m_rhi_device;
+    auto& result = capture.result;
     result.collection_id = state.collection_id;
-    result.capture_id = state.next_capture_id++;
+    result.capture_id = state.next_capture_id;
     result.interval_id = state.interval_id;
     result.reset_after = reset;
 
     Slang::ComPtr<rhi::ICommandEncoder> encoder;
-    Slang::ComPtr<rhi::ICommandBuffer> command_buffer;
-    Slang::ComPtr<rhi::IFence> fence;
-    std::vector<Slang::ComPtr<rhi::IBuffer>> staging;
+    auto& command_buffer = capture.command_buffer;
+    auto& fence = capture.fence;
+    auto& staging = capture.staging;
     staging.reserve(state.programs.size());
     result.programs.reserve(state.programs.size());
     if (!state.programs.empty()) {
@@ -307,17 +312,24 @@ ShaderCoverageSnapshot Device::_capture_shader_coverage(bool read, bool reset)
     }
     if (reset)
         ++state.interval_id;
-    lock.unlock();
+    ++state.next_capture_id;
+    return capture;
+}
+
+ShaderCoverageSnapshot ShaderCoverageCapture::finish()
+{
+    // Only the lifetime-stable diagnostic logger is accessed through owner.
+    // Another capture, submission, or close can proceed while these owned buffers are read.
     if (fence) {
         rhi::IFence* fences[] = {fence};
         const uint64_t value = 1;
-        SLANG_RHI_CALL(m_rhi_device->waitForFences(1, fences, &value, true, rhi::kTimeoutInfinite), this);
+        SLANG_RHI_CALL(device->waitForFences(1, fences, &value, true, rhi::kTimeoutInfinite), owner.get());
     }
     for (size_t i = 0; i < staging.size(); ++i) {
         if (!staging[i])
             continue;
         void* mapped = nullptr;
-        SLANG_RHI_CALL(m_rhi_device->mapBuffer(staging[i], rhi::CpuAccessMode::Read, &mapped), this);
+        SLANG_RHI_CALL(device->mapBuffer(staging[i], rhi::CpuAccessMode::Read, &mapped), owner.get());
         auto& program = result.programs[i];
         const size_t stride = program.counter_width / 8;
         // Decode without narrowing 64-bit counts or relying on mapped pointer alignment.
@@ -328,9 +340,9 @@ ShaderCoverageSnapshot Device::_capture_shader_coverage(bool read, bool reset)
                 value |= uint64_t(bytes[k]) << (8 * k);
             program.counters[j] = value;
         }
-        SLANG_RHI_CALL(m_rhi_device->unmapBuffer(staging[i]), this);
+        SLANG_RHI_CALL(device->unmapBuffer(staging[i]), owner.get());
     }
-    return result;
+    return std::move(result);
 }
 
 } // namespace sgl

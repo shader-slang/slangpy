@@ -433,3 +433,140 @@ def test_collection_releases_gil(device_type: spy.DeviceType) -> None:
         [sys.executable, "-c", script], capture_output=True, text=True, timeout=90
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_competing_capture_resets(device_type: spy.DeviceType) -> None:
+    """Each submitted reset starts one interval, even when captures finish concurrently."""
+    script = textwrap.dedent(
+        """
+        from concurrent.futures import ThreadPoolExecutor
+        import threading
+        import slangpy as spy
+
+        device = spy.Device(
+            type=DEVICE_TYPE,
+            enable_debug_layers=True,
+            compiler_options={"coverage": {"counter_width": 32}},
+        )
+        module = device.load_module_from_source(
+            "coverage_competing",
+            '[shader("compute")][numthreads(1,1,1)] void compute_main() {}',
+        )
+        program = device.slang_session.link_program(
+            [module], [module.entry_point("compute_main")]
+        )
+        device.create_compute_kernel(program).dispatch(thread_count=[3, 1, 1])
+        collector = device.shader_coverage
+        baseline = collector.snapshot()
+        assert any(baseline.programs[0].counters)
+        start = threading.Barrier(4)
+
+        def capture() -> spy.ShaderCoverageSnapshot:
+            start.wait(timeout=10)
+            return collector.snapshot(reset=True)
+
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            futures = [workers.submit(capture) for _ in range(4)]
+            snapshots = sorted((f.result(timeout=10) for f in futures), key=lambda s: s.capture_id)
+
+        assert [s.capture_id for s in snapshots] == list(
+            range(baseline.capture_id + 1, baseline.capture_id + 5)
+        )
+        assert [s.interval_id for s in snapshots] == list(
+            range(baseline.interval_id, baseline.interval_id + 4)
+        )
+        assert [p.counters for p in snapshots[0].programs] == [p.counters for p in baseline.programs]
+        assert all(not any(p.counters) for s in snapshots[1:] for p in s.programs)
+        assert collector.snapshot().interval_id == baseline.interval_id + 4
+        device.close()
+        """
+    ).replace("DEVICE_TYPE", f"spy.DeviceType.{device_type.name}")
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, timeout=45
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("first_capture", [False, True])
+def test_capture_and_close_release_gil(device_type: spy.DeviceType, first_capture: bool) -> None:
+    """Close rejects new captures before waiting, and Python can still unblock the queue."""
+    if device_type != spy.DeviceType.vulkan:
+        pytest.skip("Requires an asynchronous queue wait on a host-signaled fence")
+    # Run outside pytest: a GIL/queue deadlock must fail with a timeout, not hang the suite.
+    script = textwrap.dedent(
+        """
+        from concurrent.futures import ThreadPoolExecutor
+        import threading
+        import slangpy as spy
+
+        device = spy.Device(
+            type=spy.DeviceType.vulkan,
+            enable_debug_layers=True,
+            compiler_options={"coverage": {"counter_width": 32}},
+        )
+        collector = device.shader_coverage
+        first_capture = FIRST_CAPTURE
+        if not first_capture:
+            module = device.load_module_from_source(
+                "coverage_close",
+                '[shader("compute")][numthreads(1,1,1)] void compute_main() {}',
+            )
+            program = device.slang_session.link_program(
+                [module], [module.entry_point("compute_main")]
+            )
+            device.create_compute_kernel(program).dispatch(thread_count=[3, 1, 1])
+            baseline = collector.snapshot()
+            assert any(baseline.programs[0].counters)
+
+        gate = device.create_fence()
+        commands = device.create_command_encoder().finish()
+        device.submit_command_buffers([commands], wait_fences=[gate], wait_fence_values=[1])
+        errors = []
+
+        def signal_after_close_starts() -> None:
+            try:
+                for operation in (
+                    collector.snapshot,
+                    collector.reset,
+                    lambda: device.submit_command_buffers([commands]),
+                ):
+                    try:
+                        operation()
+                    except RuntimeError as error:
+                        assert "Device is closed" in str(error), str(error)
+                    else:
+                        raise AssertionError("Collection was accepted after close began")
+                # A repeated close must not wait for the first close to finish.
+                device.close()
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                gate.signal(1)
+
+        # The timer runs while close waits. In the first-capture case, no coverage
+        # state has ever been allocated, exercising the lazy-initialization boundary.
+        signal = threading.Timer(0.2, signal_after_close_starts)
+        with ThreadPoolExecutor(max_workers=1) as workers:
+            pending = None
+            if not first_capture:
+                pending = workers.submit(collector.snapshot)
+            signal.start()
+            device.close()
+            signal.join()
+            assert not errors, errors
+            if pending is not None:
+                try:
+                    snapshot = pending.result(timeout=10)
+                except RuntimeError as error:
+                    # Close is allowed to win the race to submit this capture.
+                    assert "Device is closed" in str(error), str(error)
+                else:
+                    assert [p.counters for p in snapshot.programs] == [
+                        p.counters for p in baseline.programs
+                    ]
+        """
+    ).replace("FIRST_CAPTURE", repr(first_capture))
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, timeout=45
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

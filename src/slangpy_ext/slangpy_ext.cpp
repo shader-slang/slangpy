@@ -193,12 +193,18 @@ NB_MODULE(slangpy_ext, m_)
                 // counted objects.
                 nb::gil_scoped_release guard;
                 sgl::thread::wait_for_tasks();
-
-                // Close all devices before shutting down.
-                // This is mostly convenience for the user, as the devices will
-                // be closed automatically when the program exits.
-                sgl::Device::close_all_devices();
             }
+
+            // Close all devices automatically before shutdown for user convenience.
+            // Keep close preparation under the GIL, releasing it only for each wait
+            // so another Python thread can signal a fence needed by the GPU.
+            sgl::Device::_close_all_devices(
+                [](sgl::Device* device)
+                {
+                    nb::gil_scoped_release release;
+                    device->wait();
+                }
+            );
         }
     ));
 

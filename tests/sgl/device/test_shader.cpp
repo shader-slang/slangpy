@@ -3,6 +3,9 @@
 #include "testing.h"
 #include "sgl/device/device.h"
 #include "sgl/device/shader.h"
+#include "sgl/device/kernel.h"
+#include "sgl/device/shader_coverage_internal.h"
+#include <algorithm>
 #include <fstream>
 #include <filesystem>
 
@@ -107,6 +110,60 @@ TEST_CASE_GPU("shader")
         CHECK_EQ(paths[1].filename(), "_testshader_struct.slang");
         CHECK_EQ(paths[2].filename(), "print.slang");
     }
+}
+
+TEST_CASE_GPU("coverage_capture_finishes_after_close")
+{
+    if (ctx.device->type() != DeviceType::vulkan && ctx.device->type() != DeviceType::cuda)
+        return;
+
+    DeviceDesc desc{.type = ctx.device->type(), .enable_debug_layers = true};
+    desc.compiler_options.coverage = ShaderCoverageOptions{.counter_width = 32};
+    auto device = Device::create(desc);
+    auto module = device->load_module_from_source(
+        "coverage_lifetime",
+        "[shader(\"compute\")][numthreads(1,1,1)] void compute_main() {}"
+    );
+    auto program = device->link_program({module}, {module->entry_point("compute_main")});
+    device->create_compute_kernel({.program = program})->dispatch({3, 1, 1}, {});
+    auto collector = device->shader_coverage();
+    auto baseline = collector->snapshot();
+
+    // Submit both captures before completing either. Close clears the registry
+    // before finish() accesses readback, so only the capture's owned resources remain.
+    auto first = collector->_begin_capture(true, true);
+    auto second = collector->_begin_capture(true, false);
+    device->close();
+    CHECK_THROWS_WITH(collector->snapshot(), doctest::Contains("Device is closed"));
+    auto after_reset = second.finish();
+    auto before_reset = first.finish();
+
+    REQUIRE_EQ(baseline.programs.size(), 1);
+    REQUIRE_EQ(before_reset.programs.size(), 1);
+    REQUIRE_EQ(after_reset.programs.size(), 1);
+    CHECK(
+        std::any_of(
+            baseline.programs[0].counters.begin(),
+            baseline.programs[0].counters.end(),
+            [](uint64_t count)
+            {
+                return count != 0;
+            }
+        )
+    );
+    CHECK(before_reset.programs[0].counters == baseline.programs[0].counters);
+    CHECK(
+        std::all_of(
+            after_reset.programs[0].counters.begin(),
+            after_reset.programs[0].counters.end(),
+            [](uint64_t count)
+            {
+                return count == 0;
+            }
+        )
+    );
+    CHECK_EQ(before_reset.capture_id + 1, after_reset.capture_id);
+    CHECK_EQ(before_reset.interval_id + 1, after_reset.interval_id);
 }
 
 TEST_SUITE_END();

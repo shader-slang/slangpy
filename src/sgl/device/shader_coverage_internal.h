@@ -5,7 +5,6 @@
 #include "sgl/device/shader_coverage.h"
 #include "sgl/device/resource.h"
 #include <slang-rhi.h>
-#include <mutex>
 
 namespace sgl {
 
@@ -33,9 +32,6 @@ struct ShaderCoverageProgramData {
 
 /// Internal registry: retain RHI buffers, never SGL DeviceChild objects that retain the Device.
 struct ShaderCoverageState {
-    // Recursive for submission callbacks and hot reload that can register programs.
-    std::recursive_mutex mutex;
-    std::recursive_mutex capture_mutex;
     struct Program {
         uint64_t generation_id;
         Slang::ComPtr<rhi::IBuffer> buffer;
@@ -49,6 +45,28 @@ struct ShaderCoverageState {
     uint64_t interval_id{0};
     size_t retained_bytes{0};
     std::vector<Program> programs;
+};
+
+/// Owns one submitted capture independently of the device's mutable resource handles and registry.
+/// Submission is serialized with device mutation; completion only accesses these resources.
+struct SGL_API ShaderCoverageCapture {
+    ShaderCoverageCapture() = default;
+    ShaderCoverageCapture(const ShaderCoverageCapture&) = delete;
+    ShaderCoverageCapture& operator=(const ShaderCoverageCapture&) = delete;
+    ShaderCoverageCapture(ShaderCoverageCapture&&) = default;
+    ShaderCoverageCapture& operator=(ShaderCoverageCapture&&) = delete;
+
+    /// Waits for this capture and returns its host data. Call once per capture.
+    ShaderCoverageSnapshot finish();
+
+    // The RHI device borrows its diagnostic callback from the SGL device. Keep
+    // that owner alive too, and destroy the RHI references before releasing it.
+    ref<Device> owner;
+    Slang::ComPtr<rhi::IDevice> device;
+    Slang::ComPtr<rhi::ICommandBuffer> command_buffer;
+    Slang::ComPtr<rhi::IFence> fence;
+    std::vector<Slang::ComPtr<rhi::IBuffer>> staging;
+    ShaderCoverageSnapshot result;
 };
 
 } // namespace sgl

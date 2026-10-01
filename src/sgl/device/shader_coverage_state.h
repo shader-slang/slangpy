@@ -2,18 +2,16 @@
 
 #pragma once
 
-#include <atomic>
+#include <memory>
 
 namespace sgl {
 
 struct ShaderCoverageState;
 
-/// Owns lazily published coverage state until device destruction.
-/// Closing the device releases retained resources, but keeps the state and its
-/// mutexes alive. Destruction requires that no operation still uses the owner.
+/// Owns optional coverage state. Access follows the device's host-side serialization contract.
 class ShaderCoverageStateOwner {
 public:
-    ShaderCoverageStateOwner() = default;
+    ShaderCoverageStateOwner();
     ~ShaderCoverageStateOwner();
 
     ShaderCoverageStateOwner(const ShaderCoverageStateOwner&) = delete;
@@ -21,14 +19,14 @@ public:
     ShaderCoverageStateOwner(ShaderCoverageStateOwner&&) = delete;
     ShaderCoverageStateOwner& operator=(ShaderCoverageStateOwner&&) = delete;
 
-    /// Returns the published state without allocating or locking.
-    ShaderCoverageState* get() const { return m_state.load(std::memory_order_acquire); }
+    /// Returns the state without allocating.
+    ShaderCoverageState* get() const { return m_state.get(); }
 
-    /// Creates state on first use; concurrent callers share the published winner.
+    /// Creates state on first use. The caller serializes device mutation.
     ShaderCoverageState& get_or_create();
 
 private:
-    std::atomic<ShaderCoverageState*> m_state{nullptr};
+    std::unique_ptr<ShaderCoverageState> m_state;
 };
 
 } // namespace sgl

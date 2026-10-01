@@ -373,11 +373,18 @@ public:
      */
     void close();
 
+    /// Internal close implementation. The callback calls wait(), optionally releasing
+    /// the GIL around it. The rest of close runs with the caller's GIL state unchanged.
+    void _close(const std::function<void()>& wait_callback);
+
     /// Check if the device is closed.
     bool is_closed() const { return m_closed; }
 
     /// Close all open devices.
     static void close_all_devices();
+
+    /// Internal close-all implementation, allowing bindings to wrap each device's wait().
+    static void _close_all_devices(const std::function<void(Device*)>& wait_callback);
 
     /// Release all slang-rhi resources from all devices.
     /// This is used as a workaround during shutdown, to ensure all resources are released
@@ -914,9 +921,9 @@ private:
     friend class ShaderProgram;
     friend class SlangSession;
     void _register_shader_coverage(SlangSessionBuild& build);
-    ShaderCoverageSnapshot _capture_shader_coverage(bool read, bool reset);
-    // Published on first use and retained until destruction, including its locks.
-    // Ordinary devices never allocate coverage state or construct its mutexes.
+    ShaderCoverageCapture _begin_shader_coverage_capture(bool read, bool reset);
+    // Created on first use. Native callers serialize device mutation; Python holds
+    // the GIL through capture submission. Completion owns independent RHI resources.
     ShaderCoverageStateOwner m_coverage_state;
 
     ref<refl::Layout> reload_builtin_layout();

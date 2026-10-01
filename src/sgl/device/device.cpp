@@ -463,12 +463,9 @@ Device::~Device()
 
 void Device::_release_rhi_resources()
 {
+    m_closed = true;
     auto* coverage = m_coverage_state.get();
-    std::unique_lock<std::recursive_mutex> capture_lock;
-    std::unique_lock<std::recursive_mutex> coverage_lock;
     if (coverage) {
-        capture_lock = std::unique_lock(coverage->capture_mutex);
-        coverage_lock = std::unique_lock(coverage->mutex);
         coverage->programs.clear();
         coverage->retained_bytes = 0;
     }
@@ -512,17 +509,24 @@ FormatSupport Device::get_format_support(Format format) const
 
 void Device::close()
 {
-    // Outlive the lock guards: callbacks may release the last external owner.
+    _close(
+        [this]()
+        {
+            wait();
+        }
+    );
+}
+
+void Device::_close(const std::function<void()>& wait_callback)
+{
+    // Callbacks may release the last external owner.
     ref<Device> keep_alive(this);
-    auto* coverage = m_coverage_state.get();
-    std::unique_lock<std::recursive_mutex> capture_lock;
-    std::unique_lock<std::recursive_mutex> coverage_lock;
-    if (coverage) {
-        capture_lock = std::unique_lock(coverage->capture_mutex);
-        coverage_lock = std::unique_lock(coverage->mutex);
-    }
     if (m_closed)
         return;
+
+    // Reject new submissions and captures before the binding releases the GIL
+    // for the GPU wait. Reentrant close calls are no-ops, including from callbacks.
+    m_closed = true;
 
     // Pop device from thread-local current device stack if it's the current device.
     if (!s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
@@ -530,15 +534,12 @@ void Device::close()
 
     log_debug("Closing device {}", fmt::ptr(this));
 
-    wait();
+    // Calls the usual wait(); Python bindings release the GIL for that call only.
+    wait_callback();
 
     // Flush cache writer to ensure all pending writes are completed.
     if (m_cache_writer)
         m_cache_writer->flush();
-
-    // Mark the device closed before notifying callbacks so reentrant close()
-    // calls from callbacks are no-ops.
-    m_closed = true;
 
     // Handle device close callbacks.
     m_device_close_callbacks.notify(this);
@@ -548,7 +549,7 @@ void Device::close()
     m_command_recording_submitted_callbacks.clear();
     m_command_recording_discarded_callbacks.clear();
 
-    if (coverage) {
+    if (auto* coverage = m_coverage_state.get()) {
         coverage->programs.clear();
         coverage->retained_bytes = 0;
     }
@@ -573,9 +574,26 @@ void Device::close()
 
 void Device::close_all_devices()
 {
+    _close_all_devices(
+        [](Device* device)
+        {
+            device->wait();
+        }
+    );
+}
+
+void Device::_close_all_devices(const std::function<void(Device*)>& wait_callback)
+{
     std::vector<ref<Device>> devices = get_created_devices();
-    for (auto it = devices.rbegin(); it != devices.rend(); ++it)
-        (*it)->close();
+    for (auto it = devices.rbegin(); it != devices.rend(); ++it) {
+        auto* device = it->get();
+        device->_close(
+            [&wait_callback, device]()
+            {
+                wait_callback(device);
+            }
+        );
+    }
 }
 
 void Device::_release_all_rhi_resources()
@@ -962,15 +980,14 @@ uint64_t Device::submit_command_buffers(
         "Native handle supplied for CUDA stream is not of type CUstream."
     );
 
+    SGL_CHECK(!m_closed, "Device is closed");
+
     // Update hot reload system if created.
     // TODO(slang-rhi) need to make sure this is not too expensive.
     if (m_hot_reload)
         m_hot_reload->update();
 
     auto* coverage = m_coverage_state.get();
-    std::unique_lock<std::recursive_mutex> coverage_lock;
-    if (coverage)
-        coverage_lock = std::unique_lock(coverage->mutex);
     SGL_CHECK(!m_closed, "Device is closed");
     SGL_CHECK(
         !cuda_stream.is_valid() || !coverage || coverage->programs.empty(),
@@ -1079,8 +1096,6 @@ uint64_t Device::submit_command_buffers(
         }
     }
 
-    if (coverage_lock.owns_lock())
-        coverage_lock.unlock();
     for (CommandBuffer* command_buffer : command_buffers)
         command_buffer->_notify_submitted(submit_id);
 

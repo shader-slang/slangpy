@@ -8,6 +8,7 @@
 #include "sgl/device/reflection.h"
 #include "sgl/device/kernel.h"
 #include "sgl/device/resource.h"
+#include "sgl/device/shader_coverage_internal.h"
 
 namespace sgl {
 using DefineList = std::map<std::string, std::string>;
@@ -158,17 +159,25 @@ SGL_PY_EXPORT(device_shader)
         .def_prop_ro("capabilities", &ShaderCoverageCollector::capabilities)
         .def(
             "snapshot",
-            &ShaderCoverageCollector::snapshot,
+            [](ShaderCoverageCollector* self, bool reset)
+            {
+                auto capture = self->_begin_capture(true, reset);
+                nb::gil_scoped_release release;
+                return capture.finish();
+            },
             nb::kw_only(),
             "reset"_a = false,
-            nb::call_guard<nb::gil_scoped_release>(),
             "Copy all registered program counters at one queue boundary and wait for readback. "
             "With reset=True, clear the counters in the same submission. Branch IDs are program-local."
         )
         .def(
             "reset",
-            &ShaderCoverageCollector::reset,
-            nb::call_guard<nb::gil_scoped_release>(),
+            [](ShaderCoverageCollector* self)
+            {
+                auto capture = self->_begin_capture(false, true);
+                nb::gil_scoped_release release;
+                capture.finish();
+            },
             "Clear all registered counters in queue order and wait."
         );
 

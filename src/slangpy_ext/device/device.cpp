@@ -692,7 +692,20 @@ SGL_PY_EXPORT(device_device)
 
     device.def_prop_ro("shader_coverage", &Device::shader_coverage);
     device.def_prop_ro("slang_session", &Device::slang_session, D(Device, slang_session));
-    device.def("close", &Device::close, D(Device, close));
+    device.def(
+        "close",
+        [](Device* self)
+        {
+            self->_close(
+                [self]()
+                {
+                    nb::gil_scoped_release release;
+                    self->wait();
+                }
+            );
+        },
+        D(Device, close)
+    );
     device.def(
         "create_surface",
         [](Device* self, ref<Window> window)

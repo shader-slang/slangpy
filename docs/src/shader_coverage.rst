@@ -93,6 +93,28 @@ a reset or hot reload. RHI command buffers are single-use; record fresh commands
 for repeated work. Internal coverage submissions do not invoke user submission
 callbacks or trigger hot reload.
 
+Python collection keeps the GIL through preparation and queue submission, then
+releases it while waiting for readback. Applications can use the synchronous
+``snapshot()`` and ``reset()`` calls directly; no additional locks, worker threads,
+or program registration are needed. Captures from multiple Python threads are
+ordered by submission, even if they finish in a different order. CUDA submission
+can itself block while copying counters; collection does not promise asynchronous
+submission on every backend.
+
+Once ``device.close()`` starts, new captures and submissions fail with
+``Device is closed``. Already submitted captures own the resources needed to
+finish, including if close completes before their readback is decoded. Explicit
+Python close releases the GIL during its GPU wait, allowing another Python thread
+to signal a fence. A repeated close is a no-op, including while the first close
+is waiting.
+
+Native C++ callers must serialize capture submission with other operations that
+mutate the same device, including program registration, queue submission and
+close. The internal completion phase may run concurrently. Coverage does not
+make the device generally thread-safe. The Python guarantee relies on the GIL;
+it does not extend to free-threaded Python or concurrent native calls. Stop
+threads that use the device before interpreter shutdown.
+
 The collector retains generations after program destruction and hot reload,
 including generations that have not executed yet. A reset clears counts but does
 not remove generations. Retention is bounded at 4096 generations or 256 MiB of
