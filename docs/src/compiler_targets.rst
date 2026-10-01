@@ -28,7 +28,7 @@ unset (``None``) to select automatically from the device and compiler support.
     session = device.create_slang_session({"profile": "spirv_1_3"})
 
 Choosing a profile
------------------
+------------------
 
 Automatic selection uses device capabilities recognized by Slang. An explicit
 profile uses its own requirements, plus backend and runtime integrations; optional
@@ -91,7 +91,7 @@ compatible with the profile: overriding the downstream target does not update
 Slang's compiler assumptions.
 
 Migrating from shader models
----------------------------
+----------------------------
 
 ``SlangCompilerOptions.shader_model``, ``ShaderModel``, and
 ``Device.supported_shader_model`` have been removed. Replace
