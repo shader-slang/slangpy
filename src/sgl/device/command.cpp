@@ -2,6 +2,8 @@
 
 #include "command.h"
 
+#include "sgl/device/shader_coverage_internal.h"
+
 #include "sgl/device/helpers.h"
 #include "sgl/device/device.h"
 #include "sgl/device/fence.h"
@@ -210,7 +212,8 @@ ShaderObject* ComputePassEncoder::bind_pipeline(ComputePipeline* pipeline)
 
     m_thread_group_size = pipeline->thread_group_size();
     rhi::IShaderObject* rhi_root_object = m_rhi_compute_pass_encoder->bindPipeline(pipeline->rhi_pipeline());
-    pipeline->desc().program->bind_coverage(rhi_root_object);
+    if (auto* coverage = pipeline->desc().program->_coverage_data())
+        coverage->bind(pipeline->desc().program->rhi_shader_program(), rhi_root_object);
     ShaderObject* root_object = m_command_encoder->_get_root_object(rhi_root_object);
     if (m_command_encoder->device()->debug_printer())
         m_command_encoder->device()->debug_printer()->bind(ShaderCursor(root_object));
@@ -223,7 +226,8 @@ void ComputePassEncoder::bind_pipeline(ComputePipeline* pipeline, ShaderObject* 
     SGL_CHECK_NOT_NULL(root_object);
 
     m_thread_group_size = pipeline->thread_group_size();
-    pipeline->desc().program->bind_coverage(root_object->rhi_shader_object());
+    if (auto* coverage = pipeline->desc().program->_coverage_data())
+        coverage->bind(pipeline->desc().program->rhi_shader_program(), root_object->rhi_shader_object());
     m_rhi_compute_pass_encoder->bindPipeline(pipeline->rhi_pipeline(), root_object->rhi_shader_object());
 }
 

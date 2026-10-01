@@ -13,6 +13,7 @@
 
 #include <exception>
 #include <map>
+#include <memory>
 #include <set>
 #include <span>
 #include <string>
@@ -609,15 +610,14 @@ struct ShaderProgramDesc {
     std::optional<SlangLinkOptions> link_options;
     std::string label;
 };
+struct ShaderCoverageProgramData;
 struct ShaderProgramData : Object {
     SGL_OBJECT(ShaderProgramData)
+    ShaderProgramData();
+    ~ShaderProgramData();
     Slang::ComPtr<slang::IComponentType> linked_program;
     Slang::ComPtr<rhi::IShaderProgram> rhi_shader_program;
-    ref<Buffer> coverage_buffer;
-    std::string coverage_manifest;
-    uint32_t coverage_resource_id{0};
-    uint32_t coverage_counter_width{0};
-    uint64_t coverage_generation_id{0};
+    std::unique_ptr<ShaderCoverageProgramData> coverage;
 };
 class SGL_API ShaderProgram : public DeviceChild {
     SGL_OBJECT(ShaderProgram)
@@ -653,8 +653,8 @@ public:
 
     /// Experimental coverage state for this compiled program; null/empty when disabled.
     ref<Buffer> coverage_buffer() const;
-    const std::string& coverage_manifest() const { return m_data->coverage_manifest; }
-    void bind_coverage(rhi::IShaderObject* root_object) const;
+    const std::string& coverage_manifest() const;
+    ShaderCoverageProgramData* _coverage_data() const { return m_data->coverage.get(); }
 
     virtual std::string to_string() const override;
 

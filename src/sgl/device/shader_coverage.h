@@ -3,8 +3,6 @@
 #pragma once
 
 #include "sgl/device/device_child.h"
-#include <slang-rhi.h>
-#include <mutex>
 #include <string>
 #include <vector>
 
@@ -35,23 +33,6 @@ struct ShaderCoverageCapabilities {
     /// Widths supported for boolean hit/miss recording.
     std::vector<uint32_t> boolean_counter_widths;
     std::string reason;
-};
-
-/// Internal registry: retain RHI buffers, never SGL DeviceChild objects that retain the Device.
-struct ShaderCoverageState {
-    struct Program {
-        uint64_t generation_id;
-        Slang::ComPtr<rhi::IBuffer> buffer;
-        std::string label;
-        std::string manifest;
-        uint32_t counter_width;
-    };
-    std::string collection_id;
-    uint64_t next_generation_id{1};
-    uint64_t next_capture_id{1};
-    uint64_t interval_id{0};
-    size_t retained_bytes{0};
-    std::vector<Program> programs;
 };
 
 /// Device-wide collection. Reset affects all registered programs, irrespective of report filters.

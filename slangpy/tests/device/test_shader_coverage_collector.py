@@ -185,6 +185,53 @@ def test_disabled_and_invalid_modes(device_type: spy.DeviceType) -> None:
             device.slang_session.link_program([module], [module.entry_point("computeMain")])
 
 
+@pytest.mark.parametrize("collect_empty_first", [False, True])
+def test_enable_coverage_after_ordinary_dispatch(
+    device_type: spy.DeviceType, collect_empty_first: bool
+) -> None:
+    """A later instrumented session must not alter existing ordinary programs."""
+    source = """
+RWStructuredBuffer<uint> output;
+[shader("compute")][numthreads(1, 1, 1)]
+void compute_main() { output[0] = 42; }
+"""
+    with spy.Device(type=device_type) as device:
+        ordinary_module = device.load_module_from_source("ordinary_then_covered", source)
+        ordinary = device.slang_session.link_program(
+            [ordinary_module], [ordinary_module.entry_point("compute_main")]
+        )
+        output = device.create_buffer(
+            element_count=1,
+            struct_size=4,
+            usage=spy.BufferUsage.unordered_access,
+        )
+        ordinary_kernel = device.create_compute_kernel(ordinary)
+        ordinary_kernel.dispatch(thread_count=[1, 1, 1], vars={"output": output})
+        assert ordinary.coverage_buffer is None
+        assert ordinary.coverage_manifest == ""
+        if collect_empty_first:
+            assert device.shader_coverage.snapshot(reset=True).programs == []
+
+        session = device.create_slang_session(compiler_options={"coverage": {"counter_width": 32}})
+        covered_module = session.load_module_from_source("covered_later", source)
+        covered = session.link_program(
+            [covered_module], [covered_module.entry_point("compute_main")]
+        )
+        device.create_compute_kernel(covered).dispatch(
+            thread_count=[1, 1, 1], vars={"output": output}
+        )
+        first = device.shader_coverage.snapshot()
+        assert len(first.programs) == 1
+        assert any(first.programs[0].counters)
+
+        ordinary_kernel.dispatch(thread_count=[1, 1, 1], vars={"output": output})
+        second = device.shader_coverage.snapshot()
+        assert second.programs[0].counters == first.programs[0].counters
+        assert ordinary.coverage_buffer is None
+        assert ordinary.coverage_manifest == ""
+        np.testing.assert_array_equal(output.to_numpy().view(np.uint32), [42])
+
+
 def test_device_registry_does_not_keep_closed_device_alive(device_type: spy.DeviceType) -> None:
     device = spy.Device(type=device_type, compiler_options={"coverage": {"counter_width": 32}})
     module = spy.Module.load_from_file(device, str(SOURCE))

@@ -2,6 +2,8 @@
 
 #include "device.h"
 
+#include "sgl/device/shader_coverage_internal.h"
+
 #include "sgl/device/surface.h"
 #include "sgl/device/resource.h"
 #include "sgl/device/sampler.h"
@@ -454,6 +456,7 @@ Device::~Device()
     }
 
     SGL_CHECK(m_closed, "Device is not close. Call close() before destroying the device.");
+    delete m_coverage_state.load(std::memory_order_relaxed);
 
     m_rhi_graphics_queue.setNull();
     m_rhi_device.setNull();
@@ -461,7 +464,15 @@ Device::~Device()
 
 void Device::_release_rhi_resources()
 {
-    m_coverage_state.reset();
+    auto* coverage = m_coverage_state.load(std::memory_order_acquire);
+    std::unique_lock<std::recursive_mutex> capture_lock;
+    std::unique_lock<std::recursive_mutex> coverage_lock;
+    if (coverage) {
+        capture_lock = std::unique_lock(coverage->capture_mutex);
+        coverage_lock = std::unique_lock(coverage->mutex);
+        coverage->programs.clear();
+        coverage->retained_bytes = 0;
+    }
     for (DeviceChild* resource : m_device_children)
         resource->_release_rhi_resources();
     m_device_children.clear();
@@ -504,8 +515,13 @@ void Device::close()
 {
     // Outlive the lock guards: callbacks may release the last external owner.
     ref<Device> keep_alive(this);
-    std::lock_guard capture_lock(m_coverage_capture_mutex);
-    std::lock_guard coverage_lock(m_coverage_mutex);
+    auto* coverage = m_coverage_state.load(std::memory_order_acquire);
+    std::unique_lock<std::recursive_mutex> capture_lock;
+    std::unique_lock<std::recursive_mutex> coverage_lock;
+    if (coverage) {
+        capture_lock = std::unique_lock(coverage->capture_mutex);
+        coverage_lock = std::unique_lock(coverage->mutex);
+    }
     if (m_closed)
         return;
 
@@ -533,7 +549,10 @@ void Device::close()
     m_command_recording_submitted_callbacks.clear();
     m_command_recording_discarded_callbacks.clear();
 
-    m_coverage_state.reset();
+    if (coverage) {
+        coverage->programs.clear();
+        coverage->retained_bytes = 0;
+    }
     m_blitter.reset();
     m_debug_printer.reset();
 
@@ -949,10 +968,13 @@ uint64_t Device::submit_command_buffers(
     if (m_hot_reload)
         m_hot_reload->update();
 
-    std::unique_lock coverage_lock(m_coverage_mutex);
+    auto* coverage = m_coverage_state.load(std::memory_order_acquire);
+    std::unique_lock<std::recursive_mutex> coverage_lock;
+    if (coverage)
+        coverage_lock = std::unique_lock(coverage->mutex);
     SGL_CHECK(!m_closed, "Device is closed");
     SGL_CHECK(
-        !cuda_stream.is_valid() || !m_coverage_state || m_coverage_state->programs.empty(),
+        !cuda_stream.is_valid() || !coverage || coverage->programs.empty(),
         "Shader coverage does not support submissions on custom CUDA streams"
     );
 
@@ -1058,7 +1080,8 @@ uint64_t Device::submit_command_buffers(
         }
     }
 
-    coverage_lock.unlock();
+    if (coverage_lock.owns_lock())
+        coverage_lock.unlock();
     for (CommandBuffer* command_buffer : command_buffers)
         command_buffer->_notify_submitted(submit_id);
 

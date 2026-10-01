@@ -1,12 +1,141 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "shader_coverage.h"
+#include "sgl/device/shader_coverage_internal.h"
+
 #include "sgl/device/device.h"
 #include "sgl/device/helpers.h"
 #include "sgl/core/crypto.h"
 #include <random>
+#include <slang-rhi/synthetic-bindings.h>
 
 namespace sgl {
+
+void SlangCompilerOptions::validate_coverage(Device* device) const
+{
+    if (coverage) {
+        const auto& options = *coverage;
+        SGL_CHECK(options.lines || options.functions || options.branches, "At least one coverage mode must be enabled");
+        SGL_CHECK(
+            options.counter_width == 32 || options.counter_width == 64,
+            "Coverage counter width must be 32 or 64 bits"
+        );
+        SGL_CHECK(
+            device->type() == DeviceType::vulkan || device->type() == DeviceType::cuda,
+            "Experimental shader coverage supports Vulkan and CUDA only"
+        );
+        SGL_CHECK(
+            options.counter_width != 64 || options.boolean || device->has_feature(Feature::atomic_int64),
+            "64-bit shader coverage requires atomic_int64; explicitly select coverage.counter_width=32 on this device"
+        );
+        SGL_CHECK(
+            options.counter_width != 64 || !options.boolean || device->has_feature(Feature::int64),
+            "64-bit boolean shader coverage requires int64; explicitly select coverage.counter_width=32 on this device"
+        );
+    }
+}
+
+SlangResult ShaderCoverageProgramData::create_program(
+    Device* device,
+    const ShaderCoverageOptions& options,
+    const rhi::ShaderProgramDesc& desc,
+    ShaderProgramData& data,
+    ISlangBlob** out_diagnostics
+)
+{
+    auto* linked_program = desc.slangGlobalScope;
+    data.coverage = std::make_unique<ShaderCoverageProgramData>();
+    Slang::ComPtr<slang::IMetadata> coverage_owner;
+    std::vector<rhi::SyntheticResourceBindingDesc> synthetic_resources;
+    rhi::ShaderProgramSyntheticResourcesDesc synthetic_desc;
+    SGL_CHECK(
+        linked_program->getLayout()->getEntryPointCount() == 1
+            && linked_program->getLayout()->getEntryPointByIndex(0)->getStage() == SLANG_STAGE_COMPUTE,
+        "Experimental shader coverage requires a single compute entry point"
+    );
+    Slang::ComPtr<ISlangBlob> diagnostics;
+    SLANG_CALL(linked_program->getEntryPointMetadata(0, 0, coverage_owner.writeRef(), diagnostics.writeRef()));
+    if (diagnostics)
+        log_warn("Slang compiler warnings:\n{}", static_cast<const char*>(diagnostics->getBufferPointer()));
+    auto coverage = static_cast<slang::ICoverageTracingMetadata*>(
+        coverage_owner->castAs(slang::ICoverageTracingMetadata::getTypeGuid())
+    );
+    auto synthetic = static_cast<slang::ISyntheticResourceMetadata*>(
+        coverage_owner->castAs(slang::ISyntheticResourceMetadata::getTypeGuid())
+    );
+    SGL_CHECK(coverage, "Compiler did not provide shader coverage metadata");
+    data.coverage->counter_width = options.counter_width;
+    Slang::ComPtr<ISlangBlob> manifest;
+    SLANG_CALL(slang_writeCoverageManifestJson(coverage, manifest.writeRef()));
+    data.coverage->manifest.assign(static_cast<const char*>(manifest->getBufferPointer()), manifest->getBufferSize());
+    if (coverage->getCounterCount()) {
+        SGL_CHECK(synthetic && synthetic->getResourceCount() == 1, "Expected one coverage resource");
+        slang::SyntheticResourceInfo info;
+        SLANG_CALL(synthetic->getResourceInfo(0, &info));
+        SGL_CHECK(
+            info.scope == slang::SyntheticResourceScope::Global && info.arraySize == 1
+                && info.access == slang::SyntheticResourceAccess::ReadWrite
+                && info.bindingType == slang::BindingType::MutableRawBuffer,
+            "Unsupported coverage resource layout"
+        );
+        rhi::SyntheticResourceBindingDesc binding;
+        binding.id = info.id;
+        binding.bindingType = info.bindingType;
+        binding.scope = rhi::SyntheticResourceScope::Global;
+        binding.access = rhi::SyntheticResourceAccess::ReadWrite;
+        binding.space = info.space;
+        binding.binding = info.binding;
+        binding.uniformOffset = info.uniformOffset;
+        binding.uniformStride = info.uniformStride;
+        binding.debugName = info.debugName;
+        synthetic_resources.push_back(binding);
+        synthetic_desc.resources = synthetic_resources.data();
+        synthetic_desc.resourceCount = uint32_t(synthetic_resources.size());
+
+        slang::CoverageBufferInfo buffer_info;
+        SLANG_CALL(coverage->getBufferInfo(&buffer_info));
+        SGL_CHECK(
+            buffer_info.elementByteWidth * 8 == options.counter_width,
+            "Compiler changed the requested coverage counter width"
+        );
+        std::vector<uint8_t> zeroes(size_t(coverage->getCounterCount()) * buffer_info.elementByteWidth, 0);
+        data.coverage->buffer = device->create_buffer(
+            BufferDesc{
+                .size = zeroes.size(),
+                .struct_size = buffer_info.elementByteWidth,
+                .usage = BufferUsage::unordered_access | BufferUsage::shader_resource | BufferUsage::copy_source
+                    | BufferUsage::copy_destination,
+                .label = "shader-coverage",
+                .data = zeroes.data(),
+                .data_size = zeroes.size(),
+            }
+        );
+        data.coverage->resource_id = info.id;
+    }
+    auto rhi_desc = desc;
+    synthetic_desc.next = desc.next;
+    if (!synthetic_resources.empty())
+        rhi_desc.next = &synthetic_desc;
+    return device->rhi_device()->createShaderProgram(rhi_desc, data.rhi_shader_program.writeRef(), out_diagnostics);
+}
+
+ref<Buffer> ShaderProgram::coverage_buffer() const
+{
+    return m_data->coverage ? m_data->coverage->buffer : nullptr;
+}
+
+const std::string& ShaderProgram::coverage_manifest() const
+{
+    static const std::string empty;
+    return m_data->coverage ? m_data->coverage->manifest : empty;
+}
+
+void ShaderCoverageProgramData::bind(rhi::IShaderProgram* program, rhi::IShaderObject* root_object) const
+{
+    if (buffer)
+        SLANG_CALL(rhi::bindSyntheticResource(program, root_object, resource_id, rhi::Binding(buffer->rhi_buffer())));
+}
+
 
 ShaderCoverageCollector::ShaderCoverageCollector(ref<Device> device)
     : DeviceChild(std::move(device))
@@ -50,40 +179,42 @@ ref<ShaderCoverageCollector> Device::shader_coverage()
 
 ShaderCoverageState& Device::_shader_coverage_state()
 {
-    // Caller holds m_coverage_mutex. State is allocated only on explicit use or registration.
-    if (!m_coverage_state) {
-        auto state = std::make_unique<ShaderCoverageState>();
+    auto* state = m_coverage_state.load(std::memory_order_acquire);
+    if (!state) {
+        auto candidate = std::make_unique<ShaderCoverageState>();
         std::random_device random;
         SHA1 hash;
         for (int i = 0; i < 8; ++i)
             hash.update(random());
-        state->collection_id = hash.hex_digest();
-        m_coverage_state = std::move(state);
+        candidate->collection_id = hash.hex_digest();
+        // Publish fully constructed locks. A concurrent first user keeps the winner.
+        if (m_coverage_state.compare_exchange_strong(state, candidate.get(), std::memory_order_acq_rel))
+            state = candidate.release();
     }
-    return *m_coverage_state;
+    return *state;
 }
 
 void Device::_register_shader_coverage(SlangSessionBuild& build)
 {
-    std::lock_guard lock(m_coverage_mutex);
+    auto& state = _shader_coverage_state();
+    std::lock_guard lock(state.mutex);
     SGL_CHECK(!m_closed, "Device is closed");
     bool has_new_programs = false;
     for (const auto& [program, data] : build.programs)
-        has_new_programs |= data->coverage_counter_width && !data->coverage_generation_id;
+        has_new_programs |= data->coverage && !data->coverage->generation_id;
     if (!has_new_programs)
         return;
-    auto& state = _shader_coverage_state();
     // Keep old generations for pending commands. Never silently evict counts.
     // Stage all records before committing so a failed reload cannot partly register its programs.
     constexpr size_t max_bytes = 256 * 1024 * 1024;
     size_t pending_bytes = 0;
     std::vector<ShaderCoverageState::Program> pending;
-    std::vector<ShaderProgramData*> generations;
+    std::vector<ShaderCoverageProgramData*> generations;
     for (const auto& [program, data] : build.programs) {
-        if (!data->coverage_counter_width || data->coverage_generation_id)
+        if (!data->coverage || data->coverage->generation_id)
             continue;
-        auto buffer = data->coverage_buffer ? data->coverage_buffer->rhi_buffer() : nullptr;
-        const size_t bytes = (buffer ? buffer->getDesc().size : 0) + data->coverage_manifest.size();
+        auto buffer = data->coverage->buffer ? data->coverage->buffer->rhi_buffer() : nullptr;
+        const size_t bytes = (buffer ? buffer->getDesc().size : 0) + data->coverage->manifest.size();
         SGL_CHECK(
             state.programs.size() + pending.size() < 4096 && bytes <= max_bytes
                 && state.retained_bytes + pending_bytes <= max_bytes - bytes,
@@ -93,17 +224,17 @@ void Device::_register_shader_coverage(SlangSessionBuild& build)
             {state.next_generation_id + pending.size(),
              Slang::ComPtr<rhi::IBuffer>(buffer),
              program->desc().label,
-             data->coverage_manifest,
-             data->coverage_counter_width}
+             data->coverage->manifest,
+             data->coverage->counter_width}
         );
-        generations.push_back(data.get());
+        generations.push_back(data->coverage.get());
         pending_bytes += bytes;
     }
     state.programs.reserve(state.programs.size() + pending.size());
     for (auto& program : pending)
         state.programs.push_back(std::move(program));
     for (size_t i = 0; i < generations.size(); ++i)
-        generations[i]->coverage_generation_id = state.next_generation_id + i;
+        generations[i]->generation_id = state.next_generation_id + i;
     state.next_generation_id += generations.size();
     state.retained_bytes += pending_bytes;
 }
@@ -111,10 +242,10 @@ void Device::_register_shader_coverage(SlangSessionBuild& build)
 ShaderCoverageSnapshot Device::_capture_shader_coverage(bool read, bool reset)
 {
     // Serialize collectors and close, but release the registry/submission lock before waiting on the GPU.
-    std::lock_guard capture_lock(m_coverage_capture_mutex);
-    std::unique_lock lock(m_coverage_mutex);
-    SGL_CHECK(!m_closed, "Device is closed");
     auto& state = _shader_coverage_state();
+    std::lock_guard capture_lock(state.capture_mutex);
+    std::unique_lock lock(state.mutex);
+    SGL_CHECK(!m_closed, "Device is closed");
     ShaderCoverageSnapshot result;
     result.collection_id = state.collection_id;
     result.capture_id = state.next_capture_id++;

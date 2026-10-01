@@ -28,6 +28,18 @@ session, then collect all compiled program generations through the device:
 Configuration
 -------------
 
+Coverage is runtime opt-in. Devices that never compile an instrumented program
+or explicitly collect coverage do not allocate a coverage registry, construct
+coverage mutexes, or take coverage locks during submission. Ordinary programs
+do not allocate coverage buffers or manifests. The runtime-capable build still
+stores a nullable pointer per device and program and checks it at integration
+points; this is not a claim of literally zero CPU or object-size overhead.
+
+Explicit collection initializes the device's coverage state even when no
+instrumented programs exist. That state remains until device destruction so
+concurrent operations cannot outlive its synchronization objects; closing the
+device releases its retained coverage buffers.
+
 ``SlangCompilerOptions.coverage`` defaults to ``None`` (disabled). Set it to
 ``ShaderCoverageOptions`` or a dictionary with ``lines``, ``functions``,
 ``branches``, ``counter_width``, and ``boolean`` fields. The three instrumentation

@@ -2,6 +2,8 @@
 
 #include "shader.h"
 
+#include "sgl/device/shader_coverage_internal.h"
+
 #include "sgl/device/device.h"
 #include "sgl/device/helpers.h"
 #include "sgl/device/reflection.h"
@@ -12,7 +14,6 @@
 #include "sgl/device/hot_reload.h"
 #include "sgl/device/cache_writer.h"
 #include "sgl/device/resource.h"
-#include <slang-rhi/synthetic-bindings.h>
 
 #include "sgl/core/type_utils.h"
 #include "sgl/core/platform.h"
@@ -30,6 +31,9 @@
 #include <vector>
 
 namespace sgl {
+
+ShaderProgramData::ShaderProgramData() = default;
+ShaderProgramData::~ShaderProgramData() = default;
 
 static bool write_module_bytes_to_cache(
     const std::string& module_name,
@@ -290,7 +294,8 @@ void SlangSession::recreate_session()
     }
 
     // Allocate and validate the entire coverage registration before committing a reload.
-    m_device->_register_shader_coverage(build);
+    if (m_desc.compiler_options.coverage)
+        m_device->_register_shader_coverage(build);
 
     // On success, store it all.
     m_data = build.session;
@@ -303,30 +308,6 @@ void SlangSession::recreate_session()
 
     // Update cache of loaded modules.
     update_module_cache_and_dependencies();
-}
-
-void SlangCompilerOptions::validate_coverage(Device* device) const
-{
-    if (coverage) {
-        const auto& options = *coverage;
-        SGL_CHECK(options.lines || options.functions || options.branches, "At least one coverage mode must be enabled");
-        SGL_CHECK(
-            options.counter_width == 32 || options.counter_width == 64,
-            "Coverage counter width must be 32 or 64 bits"
-        );
-        SGL_CHECK(
-            device->type() == DeviceType::vulkan || device->type() == DeviceType::cuda,
-            "Experimental shader coverage supports Vulkan and CUDA only"
-        );
-        SGL_CHECK(
-            options.counter_width != 64 || options.boolean || device->has_feature(Feature::atomic_int64),
-            "64-bit shader coverage requires atomic_int64; explicitly select coverage.counter_width=32 on this device"
-        );
-        SGL_CHECK(
-            options.counter_width != 64 || !options.boolean || device->has_feature(Feature::int64),
-            "64-bit boolean shader coverage requires int64; explicitly select coverage.counter_width=32 on this device"
-        );
-    }
 }
 
 void SlangSession::create_session(SlangSessionBuild& build)
@@ -1609,7 +1590,8 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
 {
     Device* device = m_device;
     // Validate at program creation, when the device is fully constructed.
-    m_session->desc().compiler_options.validate_coverage(device);
+    if (m_session->desc().compiler_options.coverage)
+        m_session->desc().compiler_options.validate_coverage(device);
     const ShaderProgramDesc& desc = m_desc;
     slang::ISession* session = build_data.session->slang_session;
 
@@ -1707,91 +1689,27 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
     }
 
     auto data = make_ref<ShaderProgramData>();
-    Slang::ComPtr<slang::IMetadata> coverage_owner;
-    std::vector<rhi::SyntheticResourceBindingDesc> synthetic_resources;
-    rhi::ShaderProgramSyntheticResourcesDesc synthetic_desc;
-    const auto& coverage_options = m_session->desc().compiler_options.coverage;
-    if (coverage_options) {
-        SGL_CHECK(
-            desc.entry_points.size() == 1
-                && linked_program->getLayout()->getEntryPointByIndex(0)->getStage() == SLANG_STAGE_COMPUTE,
-            "Experimental shader coverage requires a single compute entry point"
-        );
-        Slang::ComPtr<ISlangBlob> diagnostics;
-        SLANG_CALL(linked_program->getEntryPointMetadata(0, 0, coverage_owner.writeRef(), diagnostics.writeRef()));
-        report_diagnostics(diagnostics);
-        auto coverage = static_cast<slang::ICoverageTracingMetadata*>(
-            coverage_owner->castAs(slang::ICoverageTracingMetadata::getTypeGuid())
-        );
-        auto synthetic = static_cast<slang::ISyntheticResourceMetadata*>(
-            coverage_owner->castAs(slang::ISyntheticResourceMetadata::getTypeGuid())
-        );
-        SGL_CHECK(coverage, "Compiler did not provide shader coverage metadata");
-        data->coverage_counter_width = coverage_options->counter_width;
-        Slang::ComPtr<ISlangBlob> manifest;
-        SLANG_CALL(slang_writeCoverageManifestJson(coverage, manifest.writeRef()));
-        data->coverage_manifest.assign(
-            static_cast<const char*>(manifest->getBufferPointer()),
-            manifest->getBufferSize()
-        );
-        if (coverage->getCounterCount()) {
-            SGL_CHECK(synthetic && synthetic->getResourceCount() == 1, "Expected one coverage resource");
-            slang::SyntheticResourceInfo info;
-            SLANG_CALL(synthetic->getResourceInfo(0, &info));
-            SGL_CHECK(
-                info.scope == slang::SyntheticResourceScope::Global && info.arraySize == 1
-                    && info.access == slang::SyntheticResourceAccess::ReadWrite
-                    && info.bindingType == slang::BindingType::MutableRawBuffer,
-                "Unsupported coverage resource layout"
-            );
-            rhi::SyntheticResourceBindingDesc binding;
-            binding.id = info.id;
-            binding.bindingType = info.bindingType;
-            binding.scope = rhi::SyntheticResourceScope::Global;
-            binding.access = rhi::SyntheticResourceAccess::ReadWrite;
-            binding.space = info.space;
-            binding.binding = info.binding;
-            binding.uniformOffset = info.uniformOffset;
-            binding.uniformStride = info.uniformStride;
-            binding.debugName = info.debugName;
-            synthetic_resources.push_back(binding);
-            synthetic_desc.resources = synthetic_resources.data();
-            synthetic_desc.resourceCount = uint32_t(synthetic_resources.size());
-
-            slang::CoverageBufferInfo buffer_info;
-            SLANG_CALL(coverage->getBufferInfo(&buffer_info));
-            SGL_CHECK(
-                buffer_info.elementByteWidth * 8 == coverage_options->counter_width,
-                "Compiler changed the requested coverage counter width"
-            );
-            std::vector<uint8_t> zeroes(size_t(coverage->getCounterCount()) * buffer_info.elementByteWidth, 0);
-            data->coverage_buffer = device->create_buffer(
-                BufferDesc{
-                    .size = zeroes.size(),
-                    .struct_size = buffer_info.elementByteWidth,
-                    .usage = BufferUsage::unordered_access | BufferUsage::shader_resource | BufferUsage::copy_source
-                        | BufferUsage::copy_destination,
-                    .label = "shader-coverage",
-                    .data = zeroes.data(),
-                    .data_size = zeroes.size(),
-                }
-            );
-            data->coverage_resource_id = info.id;
-        }
-    }
 
     // Create shader program.
-    Slang::ComPtr<rhi::IShaderProgram> rhi_shader_program;
     {
         rhi::ShaderProgramDesc rhi_desc{
-            .next = synthetic_resources.empty() ? nullptr : &synthetic_desc,
             .slangGlobalScope = linked_program,
             .label = desc.label.empty() ? nullptr : desc.label.c_str(),
         };
 
         Slang::ComPtr<ISlangBlob> diagnostics;
-        if (device->rhi_device()->createShaderProgram(rhi_desc, rhi_shader_program.writeRef(), diagnostics.writeRef())
-            != SLANG_OK) {
+        const auto& coverage_options = m_session->desc().compiler_options.coverage;
+        SlangResult result = coverage_options
+            ? ShaderCoverageProgramData::create_program(
+                  device,
+                  *coverage_options,
+                  rhi_desc,
+                  *data,
+                  diagnostics.writeRef()
+              )
+            : device->rhi_device()
+                  ->createShaderProgram(rhi_desc, data->rhi_shader_program.writeRef(), diagnostics.writeRef());
+        if (result != SLANG_OK) {
             std::string msg = append_diagnostics("Failed to create shader program", diagnostics);
             SGL_THROW(msg);
         }
@@ -1803,36 +1721,16 @@ void ShaderProgram::link(SlangSessionBuild& build_data) const
 
     // Store program info.
     data->linked_program = linked_program;
-    data->rhi_shader_program = rhi_shader_program;
 
     // Store resulting program.
     build_data.programs[this] = std::move(data);
-}
-
-ref<Buffer> ShaderProgram::coverage_buffer() const
-{
-    return m_data->coverage_buffer;
-}
-
-void ShaderProgram::bind_coverage(rhi::IShaderObject* root_object) const
-{
-    if (m_data->coverage_buffer) {
-        SLANG_CALL(
-            rhi::bindSyntheticResource(
-                m_data->rhi_shader_program,
-                root_object,
-                m_data->coverage_resource_id,
-                rhi::Binding(m_data->coverage_buffer->rhi_buffer())
-            )
-        );
-    }
 }
 
 void ShaderProgram::store_built_data(SlangSessionBuild& build_data)
 {
     // Store built program data
     auto data = build_data.programs[this];
-    if (data->coverage_counter_width && !data->coverage_generation_id)
+    if (data->coverage && !data->coverage->generation_id)
         m_device->_register_shader_coverage(build_data);
     m_data = std::move(data);
 

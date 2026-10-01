@@ -139,6 +139,7 @@ target_sources(sgl PRIVATE
     device/shader.cpp
     device/shader.h
     device/shader_coverage.cpp
+    device/shader_coverage_internal.h
     device/shader_coverage.h
     device/slang_utils.h
     device/surface.cpp

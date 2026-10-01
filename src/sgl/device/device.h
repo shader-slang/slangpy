@@ -26,6 +26,7 @@
 #include <atomic>
 #include <filesystem>
 #include <functional>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <utility>
@@ -35,6 +36,7 @@
 namespace sgl {
 
 class DebugPrinter;
+struct ShaderCoverageState;
 
 
 struct AdapterInfo {
@@ -914,10 +916,9 @@ private:
     ShaderCoverageState& _shader_coverage_state();
     void _register_shader_coverage(SlangSessionBuild& build);
     ShaderCoverageSnapshot _capture_shader_coverage(bool read, bool reset);
-    // Recursive for existing submission callbacks/hot reload that can register programs.
-    std::recursive_mutex m_coverage_mutex;
-    std::recursive_mutex m_coverage_capture_mutex;
-    std::unique_ptr<ShaderCoverageState> m_coverage_state;
+    // Published on first use and retained until destruction, including its locks.
+    // Ordinary devices never allocate coverage state or construct its mutexes.
+    std::atomic<ShaderCoverageState*> m_coverage_state{nullptr};
 
     ref<refl::Layout> reload_builtin_layout();
 
