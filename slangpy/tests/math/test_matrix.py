@@ -277,5 +277,43 @@ class TestMatrixMulValues:
         assert result.shape == (2, 2)
 
 
+@pytest.mark.parametrize("scales", [[1, 1, 1], [-2, 3, 4], [1e-30, 1, 1e30]])
+def test_decompose_trs(scales: list[float]) -> None:
+    # Imported rotation with tiny residuals that can underflow a general skew output.
+    values = np.array(
+        [
+            [2.220446049250313e-16, 1, 2.465190328815662e-32, 2],
+            [-5.053215392444312e-16, 7.395570986446986e-32, 1, -3],
+            [1, -2.220446049250313e-16, 5.053215392444312e-16, 4],
+            [0, 0, 0, 1],
+        ],
+        dtype=np.float32,
+    )
+    values[:3, :3] *= np.asarray(scales, dtype=np.float32)
+    scale, translation = spy.float3(), spy.float3()
+    orientation = spy.quatf(0, 0, 0, 1)
+    assert spy.math.decompose_trs(spy.float4x4(values), scale, orientation, translation)
+    rotation = spy.math.matrix_from_quat(orientation)
+    actual = np.array([[rotation[i, j] * scale[j] for j in range(3)] for i in range(3)])
+    np.testing.assert_allclose(
+        actual / np.abs(scales), values[:3, :3] / np.abs(scales), atol=1e-6, rtol=1e-6
+    )
+    np.testing.assert_array_equal([translation.x, translation.y, translation.z], values[:3, 3])
+
+
+@pytest.mark.parametrize(
+    "entry,value", [((0, 0), 0.0), ((0, 1), 0.1), ((3, 0), 0.1), ((3, 3), 2.0), ((1, 3), np.nan)]
+)
+def test_decompose_trs_failure_preserves_outputs(entry: tuple[int, int], value: float) -> None:
+    matrix = spy.float4x4.identity()
+    matrix[entry] = value
+    scale, translation = spy.float3(7), spy.float3(8)
+    orientation = spy.quatf(1, 2, 3, 4)
+    assert not spy.math.decompose_trs(matrix, scale, orientation, translation)
+    assert scale == spy.float3(7)
+    assert translation == spy.float3(8)
+    assert orientation == spy.quatf(1, 2, 3, 4)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
