@@ -124,82 +124,6 @@ namespace sgl {
 
 namespace {
 
-    namespace exr_utils {
-
-        enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
-
-        // Classification scheme for color channels.
-        uint8_t channel_class(std::string name)
-        {
-            auto it = name.rfind(".");
-            if (it != std::string::npos)
-                name = name.substr(it + 1);
-            name = string::to_lower(name);
-            if (name == "r")
-                return R;
-            if (name == "g")
-                return G;
-            if (name == "b")
-                return B;
-            if (name == "x")
-                return X;
-            if (name == "y")
-                return Y;
-            if (name == "z")
-                return Z;
-            if (name == "ry")
-                return RY;
-            if (name == "by")
-                return BY;
-            if (name == "a")
-                return A;
-            return unknown;
-        }
-
-        // Assign a sorting key to color channels.
-        std::string channel_key(std::string name)
-        {
-            uint8_t class_ = channel_class(name);
-            if (class_ == unknown)
-                return name;
-            auto it = name.rfind(".");
-            char suffix('0' + class_);
-            if (it != std::string::npos)
-                name = name.substr(0, it) + "." + suffix;
-            else
-                name = suffix;
-            return name;
-        }
-
-        std::pair<Bitmap::PixelFormat, bool> pixel_format(std::span<const std::string> channels_sorted)
-        {
-            bool found[CLASS_COUNT] = {false};
-            for (const auto& name : channels_sorted)
-                found[channel_class(name)] = true;
-
-            Bitmap::PixelFormat pixel_format = Bitmap::PixelFormat::multi_channel;
-            bool luminance_chroma_format = false;
-            if (channels_sorted.size() == 3 && found[R] && found[G] && found[B]) {
-                pixel_format = Bitmap::PixelFormat::rgb;
-            } else if (channels_sorted.size() == 4 && found[R] && found[G] && found[B] && found[A]) {
-                pixel_format = Bitmap::PixelFormat::rgba;
-            } else if (channels_sorted.size() == 3 && found[Y] && found[RY] && found[BY]) {
-                pixel_format = Bitmap::PixelFormat::rgb;
-                luminance_chroma_format = true;
-            } else if (channels_sorted.size() == 4 && found[Y] && found[RY] && found[BY] && found[A]) {
-                pixel_format = Bitmap::PixelFormat::rgba;
-                luminance_chroma_format = true;
-            } else if (channels_sorted.size() == 1 && found[Y]) {
-                pixel_format = Bitmap::PixelFormat::y;
-            } else if (channels_sorted.size() == 2 && found[Y] && found[A]) {
-                pixel_format = Bitmap::PixelFormat::ya;
-            }
-
-            return {pixel_format, luminance_chroma_format};
-        }
-
-    } // namespace exr_utils
-
     void check_path_write_format(const std::filesystem::path& path, Bitmap::FileFormat format)
     {
         bool is_dds = format == Bitmap::FileFormat::dds;
@@ -1628,6 +1552,80 @@ void Bitmap::write_hdr(Stream* stream) const
 // OpenEXR I/O
 // ----------------------------------------------------------------------------
 
+namespace {
+    enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
+}
+
+// Classification scheme for color channels.
+static uint8_t exr_channel_class(std::string name)
+{
+    auto it = name.rfind(".");
+    if (it != std::string::npos)
+        name = name.substr(it + 1);
+    name = string::to_lower(name);
+    if (name == "r")
+        return R;
+    if (name == "g")
+        return G;
+    if (name == "b")
+        return B;
+    if (name == "x")
+        return X;
+    if (name == "y")
+        return Y;
+    if (name == "z")
+        return Z;
+    if (name == "ry")
+        return RY;
+    if (name == "by")
+        return BY;
+    if (name == "a")
+        return A;
+    return unknown;
+}
+
+// Assign a sorting key to color channels.
+static std::string exr_channel_key(std::string name)
+{
+    uint8_t class_ = exr_channel_class(name);
+    if (class_ == unknown)
+        return name;
+    auto it = name.rfind(".");
+    char suffix('0' + class_);
+    if (it != std::string::npos)
+        name = name.substr(0, it) + "." + suffix;
+    else
+        name = suffix;
+    return name;
+}
+
+static std::pair<Bitmap::PixelFormat, bool> exr_pixel_format(std::span<const std::string> channels_sorted)
+{
+    bool found[CLASS_COUNT] = {false};
+    for (const auto& name : channels_sorted)
+        found[exr_channel_class(name)] = true;
+
+    Bitmap::PixelFormat pixel_format = Bitmap::PixelFormat::multi_channel;
+    bool luminance_chroma_format = false;
+    if (channels_sorted.size() == 3 && found[R] && found[G] && found[B]) {
+        pixel_format = Bitmap::PixelFormat::rgb;
+    } else if (channels_sorted.size() == 4 && found[R] && found[G] && found[B] && found[A]) {
+        pixel_format = Bitmap::PixelFormat::rgba;
+    } else if (channels_sorted.size() == 3 && found[Y] && found[RY] && found[BY]) {
+        pixel_format = Bitmap::PixelFormat::rgb;
+        luminance_chroma_format = true;
+    } else if (channels_sorted.size() == 4 && found[Y] && found[RY] && found[BY] && found[A]) {
+        pixel_format = Bitmap::PixelFormat::rgba;
+        luminance_chroma_format = true;
+    } else if (channels_sorted.size() == 1 && found[Y]) {
+        pixel_format = Bitmap::PixelFormat::y;
+    } else if (channels_sorted.size() == 2 && found[Y] && found[A]) {
+        pixel_format = Bitmap::PixelFormat::ya;
+    }
+
+    return {pixel_format, luminance_chroma_format};
+}
+
 #if SGL_HAS_OPENEXR
 
 class EXRIStream : public Imf::IStream {
@@ -1774,7 +1772,7 @@ void Bitmap::read_exr(Stream* stream)
         channels_sorted.end(),
         [&](const auto& v0, const auto& v1)
         {
-            return exr_utils::channel_key(v0) < exr_utils::channel_key(v1);
+            return exr_channel_key(v0) < exr_channel_key(v1);
         }
     );
 
@@ -1785,7 +1783,7 @@ void Bitmap::read_exr(Stream* stream)
     }
 
     // Try to detect common pixel formats.
-    const auto [pixel_format, luminance_chroma_format] = exr_utils::pixel_format(channels_sorted);
+    const auto [pixel_format, luminance_chroma_format] = exr_pixel_format(channels_sorted);
     m_pixel_format = pixel_format;
 
     m_srgb_gamma = false;
@@ -1939,9 +1937,9 @@ void Bitmap::read_exr(Stream* stream)
                     b = b * scale + .5f;
                 }
 
-                data[0] = T(exr_utils::R);
-                data[1] = T(exr_utils::G);
-                data[2] = T(exr_utils::B);
+                data[0] = T(R);
+                data[1] = T(G);
+                data[2] = T(B);
                 data += channel_count();
             }
         };
@@ -2241,7 +2239,7 @@ void Bitmap::read_exr(Stream* stream)
         channels_sorted.end(),
         [&](const auto& v0, const auto& v1)
         {
-            return exr_utils::channel_key(v0) < exr_utils::channel_key(v1);
+            return exr_channel_key(v0) < exr_channel_key(v1);
         }
     );
 
@@ -2252,7 +2250,7 @@ void Bitmap::read_exr(Stream* stream)
     }
 
     // Try to detect common pixel formats.
-    m_pixel_format = exr_utils::pixel_format(channels_sorted).first;
+    m_pixel_format = exr_pixel_format(channels_sorted).first;
 
     m_srgb_gamma = false;
 
@@ -2694,7 +2692,7 @@ namespace {
             FreeEXRHeader(&header);
 #endif
             result.channel_count = narrow_cast<uint32_t>(channels.size());
-            result.pixel_format = exr_utils::pixel_format(channels).first;
+            result.pixel_format = exr_pixel_format(channels).first;
             return result;
         }
         SGL_CHECK(
