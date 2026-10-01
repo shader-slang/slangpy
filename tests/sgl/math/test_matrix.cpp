@@ -697,6 +697,47 @@ TEST_CASE_TEMPLATE("decompose_trs reconstructs rotations reflections and extreme
     check_trs_roundtrip(boundary);
 }
 
+TEST_CASE_TEMPLATE("decompose_trs removes shear from rotated reflected affine matrices", T, float, double)
+{
+    const auto expected_rotation
+        = math::matrix_from_quat(math::normalize(math::quat<T>(T(0.2), T(-0.3), T(0.4), T(0.8))));
+    for (int signs = 0; signs < 8; ++signs) {
+        const math::vector<T, 3> expected_scale(
+            signs & 1 ? T(-2) : T(2),
+            signs & 2 ? T(-3) : T(3),
+            signs & 4 ? T(-4) : T(4)
+        );
+        auto input = math::matrix<T, 4, 4>::identity();
+        for (int row = 0; row < 3; ++row) {
+            input[row][0] = expected_rotation[row][0] * expected_scale.x;
+            input[row][1] = (expected_rotation[row][0] * T(0.5) + expected_rotation[row][1]) * expected_scale.y;
+            input[row][2] = (expected_rotation[row][0] * T(-0.5) + expected_rotation[row][1] * T(0.25)
+                             + expected_rotation[row][2])
+                * expected_scale.z;
+            input[row][3] = T(row + 2);
+        }
+        math::vector<T, 3> scale{}, translation{};
+        math::quat<T> orientation;
+        math::matrix<T, 3, 3> rotation;
+        REQUIRE(math::decompose_trs(input, scale, orientation, translation, rotation));
+        const double tolerance = 64.0 * std::numeric_limits<T>::epsilon();
+        for (int col = 0; col < 3; ++col) {
+            CHECK(translation[col] == input[col][3]);
+            for (int row = 0; row < 3; ++row) {
+                CHECK(
+                    std::abs(
+                        double(rotation[row][col]) * scale[col] / expected_scale[col]
+                        - double(expected_rotation[row][col])
+                    )
+                    <= tolerance
+                );
+            }
+            CHECK(std::abs(double(math::dot(rotation.get_col(col), rotation.get_col((col + 1) % 3)))) <= tolerance);
+        }
+        CHECK(math::determinant(rotation) == doctest::Approx(1.0).epsilon(tolerance));
+    }
+}
+
 TEST_CASE_TEMPLATE("decompose_trs rejects unsupported input without changing outputs", T, float, double)
 {
     using Matrix = math::matrix<T, 4, 4>;
@@ -705,7 +746,7 @@ TEST_CASE_TEMPLATE("decompose_trs rejects unsupported input without changing out
     input[0][0] = T(0);
     invalid.push_back(input);
     input = Matrix::identity();
-    input[0][1] = T(32) * std::numeric_limits<T>::epsilon();
+    input.set_col(1, input.get_col(0));
     invalid.push_back(input);
     input = Matrix::identity();
     input[3][0] = std::numeric_limits<T>::epsilon();

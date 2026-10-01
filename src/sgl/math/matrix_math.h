@@ -334,17 +334,19 @@ void extract_euler_angle_xyz(const matrix<T, 4, 4>& m, float& angle_x, float& an
     angle_z = -t3;
 }
 
-/// Decomposes an affine matrix into translation, rotation, and scale: M = T * R * S.
-/// Requires bottom row (0,0,0,1) and nonzero spatial columns whose normalized pairwise
-/// dot products are at most 8 * epsilon(T) in magnitude. Small orthogonality errors
-/// are rounded to a rotation; significant shear and all perspective are rejected.
+/// Extracts translation, rotation, and scale from an affine matrix, discarding shear.
+/// Requires bottom row (0,0,0,1) and numerically independent spatial columns.
+/// Orthogonalizes columns in order: preserve the first direction, remove its projection
+/// from the second, and derive the third by their cross product. Scales are the signed
+/// projections onto these corrected axes, so T * R * S is the input with shear removed.
+/// This is an ordered orthogonalization, not a closest-rotation fit.
 /// Reflections use three negative scales and a proper rotation, as in decompose().
-/// Returns false for invalid input or unrepresentable scales. Outputs are unchanged
-/// on failure. Double intermediates avoid squaring unscaled input in the norm.
+/// Returns false for nonfinite input, perspective, numerically dependent axes, or
+/// unrepresentable nonzero scales. All outputs are unchanged on failure.
+/// Double intermediates and column equilibration avoid squaring unscaled input.
 /// rotation_matrix receives the corrected rotation without a quaternion round trip.
-/// The correction preserves the first axis, orthogonalizes the second against it,
-/// and derives the third by their cross product. Both rotation outputs describe this
-/// same basis, but reconstructing from the rounded quaternion can lose precision.
+/// Both rotation outputs describe the same basis, but reconstructing from the rounded
+/// quaternion can lose precision.
 template<typename T>
 inline bool decompose_trs(
     const matrix<T, 4, 4>& model_matrix,
@@ -358,7 +360,7 @@ inline bool decompose_trs(
         || model_matrix[3][3] != T(1))
         return false;
     vector<double, 3> columns[3];
-    vector<T, 3> result_scale;
+    vector<double, 3> column_sizes;
     for (int col = 0; col < 3; ++col) {
         for (int row = 0; row < 3; ++row) {
             if (!std::isfinite(model_matrix[row][col]))
@@ -368,31 +370,47 @@ inline bool decompose_trs(
             return false;
         const double size
             = std::hypot(double(model_matrix[0][col]), double(model_matrix[1][col]), double(model_matrix[2][col]));
-        if (!std::isfinite(size) || size == 0.0 || size > double(std::numeric_limits<T>::max()))
+        if (!std::isfinite(size) || size == 0.0)
             return false;
-        result_scale[col] = T(size);
-        if (result_scale[col] == T(0))
-            return false;
+        column_sizes[col] = size;
         columns[col] = vector<double, 3>(
             double(model_matrix[0][col]) / size,
             double(model_matrix[1][col]) / size,
             double(model_matrix[2][col]) / size
         );
     }
-    constexpr double ORTHOGONALITY_TOLERANCE = 8.0 * std::numeric_limits<T>::epsilon();
-    if (std::abs(dot(columns[0], columns[1])) > ORTHOGONALITY_TOLERANCE
-        || std::abs(dot(columns[0], columns[2])) > ORTHOGONALITY_TOLERANCE
-        || std::abs(dot(columns[1], columns[2])) > ORTHOGONALITY_TOLERANCE)
+    constexpr double RANK_TOLERANCE = 16.0 * std::numeric_limits<double>::epsilon();
+    const auto first = normalize(columns[0]);
+    auto second = columns[1] - dot(first, columns[1]) * first;
+    // Reproject once to limit cancellation error when the first two axes nearly align.
+    second -= dot(first, second) * first;
+    const double second_size = std::hypot(second.x, second.y, second.z);
+    if (second_size <= RANK_TOLERANCE)
         return false;
-    if (dot(columns[0], cross(columns[1], columns[2])) < 0.0) {
-        result_scale *= T(-1);
-        for (auto& column : columns)
-            column *= -1.0;
+    second /= second_size;
+    const auto third = normalize(cross(first, second));
+    second = normalize(cross(third, first));
+    const double third_size = dot(third, columns[2]);
+    if (std::abs(third_size) <= RANK_TOLERANCE)
+        return false;
+    vector<double, 3> sizes(column_sizes.x, column_sizes.y * second_size, column_sizes.z * std::abs(third_size));
+    columns[0] = first;
+    columns[1] = second;
+    columns[2] = third;
+    if (third_size < 0.0) {
+        // Flip two rotation axes to retain a proper rotation and make all scales negative.
+        columns[0] *= -1.0;
+        columns[1] *= -1.0;
+        sizes *= -1.0;
     }
-    // Inputs passed the near-orthogonality check, so this projection cannot collapse.
-    columns[0] = normalize(columns[0]);
-    columns[1] = normalize(columns[1] - dot(columns[0], columns[1]) * columns[0]);
-    columns[2] = normalize(cross(columns[0], columns[1]));
+    vector<T, 3> result_scale;
+    for (int axis = 0; axis < 3; ++axis) {
+        if (!std::isfinite(sizes[axis]) || std::abs(sizes[axis]) > double(std::numeric_limits<T>::max()))
+            return false;
+        result_scale[axis] = T(sizes[axis]);
+        if (result_scale[axis] == T(0))
+            return false;
+    }
     matrix<double, 3, 3> rotation;
     for (int col = 0; col < 3; ++col)
         rotation.set_col(col, columns[col]);
@@ -408,7 +426,7 @@ inline bool decompose_trs(
     return true;
 }
 
-/// Decomposes a TRS matrix when only the quaternion rotation is needed.
+/// Extracts TRS components, discarding shear, when only the quaternion rotation is needed.
 /// Uses the same validation and orthogonality correction as the matrix-output overload.
 template<typename T>
 inline bool

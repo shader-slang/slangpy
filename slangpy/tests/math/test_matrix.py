@@ -302,7 +302,7 @@ def test_decompose_trs(scales: list[float]) -> None:
 
 
 @pytest.mark.parametrize(
-    "entry,value", [((0, 0), 0.0), ((0, 1), 0.1), ((3, 0), 0.1), ((3, 3), 2.0), ((1, 3), np.nan)]
+    "entry,value", [((0, 0), 0.0), ((3, 0), 0.1), ((3, 3), 2.0), ((1, 3), np.nan)]
 )
 def test_decompose_trs_failure_preserves_outputs(entry: tuple[int, int], value: float) -> None:
     matrix = spy.float4x4.identity()
@@ -332,12 +332,29 @@ def test_decompose_trs_matrix_output_corrects_axes_and_preserves_failed_outputs(
     rotation = spy.float3x3()
     assert spy.math.decompose_trs(spy.float4x4(values), scale, orientation, translation, rotation)
     assert rotation == spy.float3x3.identity()
-    values[0, 1] = 0.1
+    values[:, 1] = values[:, 0]
     rotation = spy.float3x3.identity() * 9.0
     assert not spy.math.decompose_trs(
         spy.float4x4(values), scale, orientation, translation, rotation
     )
     assert rotation == spy.float3x3.identity() * 9.0
+
+
+@pytest.mark.parametrize("matrix_output", [False, True])
+def test_decompose_trs_removes_shear(matrix_output: bool) -> None:
+    values = np.array([[2, 1.5, -2, 5], [0, 3, 1, 6], [0, 0, 4, 7], [0, 0, 0, 1]], dtype=np.float32)
+    scale, translation = spy.float3(), spy.float3()
+    orientation = spy.quatf(0, 0, 0, 1)
+    rotation = spy.float3x3()
+    args = [spy.float4x4(values), scale, orientation, translation]
+    if matrix_output:
+        args.append(rotation)
+    assert spy.math.decompose_trs(*args)
+    np.testing.assert_allclose([scale.x, scale.y, scale.z], [2, 3, 4], atol=1e-6)
+    assert translation == spy.float3(5, 6, 7)
+    assert orientation == spy.quatf(0, 0, 0, 1)
+    if matrix_output:
+        assert rotation == spy.float3x3.identity()
 
 
 if __name__ == "__main__":
