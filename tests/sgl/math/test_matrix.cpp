@@ -635,6 +635,149 @@ TEST_CASE("decompose rejects invalid inputs without modifying outputs")
     }
 }
 
+template<typename T>
+void check_trs_roundtrip(const math::matrix<T, 4, 4>& input)
+{
+    math::vector<T, 3> scale{}, translation{};
+    math::quat<T> orientation;
+    math::matrix<T, 3, 3> corrected;
+    REQUIRE(math::decompose_trs(input, scale, orientation, translation, corrected));
+    math::vector<T, 3> other_scale{}, other_translation{};
+    math::quat<T> other_orientation;
+    REQUIRE(math::decompose_trs(input, other_scale, other_orientation, other_translation));
+    CHECK(other_scale == scale);
+    CHECK(other_orientation == orientation);
+    CHECK(other_translation == translation);
+    const auto rotation = math::matrix_from_quat(orientation);
+    const double tolerance = 64.0 * std::numeric_limits<T>::epsilon();
+    for (int col = 0; col < 3; ++col) {
+        for (int row = 0; row < 3; ++row) {
+            CHECK(std::abs(double(rotation[row][col]) - double(input[row][col]) / scale[col]) <= tolerance);
+            CHECK(std::abs(double(corrected[row][col]) - double(input[row][col]) / scale[col]) <= tolerance);
+        }
+        CHECK(translation[col] == input[col][3]);
+    }
+    for (int col = 0; col < 3; ++col) {
+        CHECK(std::abs(double(math::dot(corrected.get_col(col), corrected.get_col(col))) - 1.0) <= tolerance);
+        CHECK(std::abs(double(math::dot(corrected.get_col(col), corrected.get_col((col + 1) % 3)))) <= tolerance);
+    }
+    CHECK(math::determinant(corrected) == doctest::Approx(1.0).epsilon(tolerance));
+    CHECK(math::determinant(rotation) == doctest::Approx(1.0).epsilon(tolerance));
+    CHECK(std::abs(double(math::dot(orientation, orientation)) - 1.0) <= tolerance);
+}
+
+TEST_CASE("decompose_trs reconstructs rotations reflections and extreme scales")
+{
+    using T = float;
+    using Matrix = math::matrix<T, 4, 4>;
+    check_trs_roundtrip(Matrix::identity());
+    const auto rotation = math::matrix_from_quat(math::normalize(math::quat<T>(T(0.2), T(-0.3), T(0.4), T(0.8))));
+    const int exponent = std::numeric_limits<T>::max_exponent - 4;
+    for (int signs = 0; signs < 8; ++signs) {
+        for (int e : {-exponent, 0, exponent}) {
+            Matrix input = Matrix::identity();
+            const math::vector<T, 3> sizes(std::ldexp(T(1), e), T(3), std::ldexp(T(1), -e));
+            for (int col = 0; col < 3; ++col) {
+                for (int row = 0; row < 3; ++row)
+                    input[row][col] = rotation[row][col] * sizes[col] * (signs & (1 << col) ? T(-1) : T(1));
+                input[col][3] = T(col + 2);
+            }
+            check_trs_roundtrip(input);
+        }
+    }
+    auto tiny = Matrix::identity();
+    tiny[0][0] = std::numeric_limits<T>::denorm_min();
+    check_trs_roundtrip(tiny);
+    // A tiny residual must not require representable shear outputs.
+    auto residual = Matrix::identity();
+    residual[0][1] = T(1e-30);
+    residual[1][2] = T(1e-30);
+    check_trs_roundtrip(residual);
+    auto boundary = Matrix::identity();
+    boundary[0][1] = T(4) * std::numeric_limits<T>::epsilon();
+    check_trs_roundtrip(boundary);
+}
+
+TEST_CASE("decompose_trs removes shear from rotated reflected affine matrices")
+{
+    using T = float;
+    const auto expected_rotation
+        = math::matrix_from_quat(math::normalize(math::quat<T>(T(0.2), T(-0.3), T(0.4), T(0.8))));
+    for (int signs = 0; signs < 8; ++signs) {
+        const math::vector<T, 3> expected_scale(
+            signs & 1 ? T(-2) : T(2),
+            signs & 2 ? T(-3) : T(3),
+            signs & 4 ? T(-4) : T(4)
+        );
+        auto input = math::matrix<T, 4, 4>::identity();
+        for (int row = 0; row < 3; ++row) {
+            input[row][0] = expected_rotation[row][0] * expected_scale.x;
+            input[row][1] = (expected_rotation[row][0] * T(0.5) + expected_rotation[row][1]) * expected_scale.y;
+            input[row][2] = (expected_rotation[row][0] * T(-0.5) + expected_rotation[row][1] * T(0.25)
+                             + expected_rotation[row][2])
+                * expected_scale.z;
+            input[row][3] = T(row + 2);
+        }
+        math::vector<T, 3> scale{}, translation{};
+        math::quat<T> orientation;
+        math::matrix<T, 3, 3> rotation;
+        REQUIRE(math::decompose_trs(input, scale, orientation, translation, rotation));
+        const double tolerance = 64.0 * std::numeric_limits<T>::epsilon();
+        for (int col = 0; col < 3; ++col) {
+            CHECK(translation[col] == input[col][3]);
+            for (int row = 0; row < 3; ++row) {
+                CHECK(
+                    std::abs(
+                        double(rotation[row][col]) * scale[col] / expected_scale[col]
+                        - double(expected_rotation[row][col])
+                    )
+                    <= tolerance
+                );
+            }
+            CHECK(std::abs(double(math::dot(rotation.get_col(col), rotation.get_col((col + 1) % 3)))) <= tolerance);
+        }
+        CHECK(math::determinant(rotation) == doctest::Approx(1.0).epsilon(tolerance));
+    }
+}
+
+TEST_CASE("decompose_trs rejects unsupported input without changing outputs")
+{
+    using T = float;
+    using Matrix = math::matrix<T, 4, 4>;
+    std::vector<Matrix> invalid;
+    auto input = Matrix::identity();
+    input[0][0] = T(0);
+    invalid.push_back(input);
+    input = Matrix::identity();
+    input.set_col(1, input.get_col(0));
+    invalid.push_back(input);
+    input = Matrix::identity();
+    input[3][0] = std::numeric_limits<T>::epsilon();
+    invalid.push_back(input);
+    invalid.push_back(Matrix::identity() * T(2));
+    input = Matrix::identity();
+    input[0][0] = input[1][0] = std::numeric_limits<T>::max();
+    invalid.push_back(input);
+    for (const T value : {std::numeric_limits<T>::infinity(), std::numeric_limits<T>::quiet_NaN()}) {
+        for (int element = 0; element < 16; ++element) {
+            input = Matrix::identity();
+            input[element / 4][element % 4] = value;
+            invalid.push_back(input);
+        }
+    }
+    for (const auto& matrix : invalid) {
+        math::vector<T, 3> scale(T(7)), translation(T(8));
+        math::quat<T> orientation(T(1), T(2), T(3), T(4));
+        auto corrected = math::matrix<T, 3, 3>::identity() * T(9);
+        CHECK_FALSE(math::decompose_trs(matrix, scale, orientation, translation, corrected));
+        CHECK(corrected == math::matrix<T, 3, 3>::identity() * T(9));
+        CHECK_FALSE(math::decompose_trs(matrix, scale, orientation, translation));
+        CHECK(scale == math::vector<T, 3>(T(7)));
+        CHECK(translation == math::vector<T, 3>(T(8)));
+        CHECK(orientation == math::quat<T>(T(1), T(2), T(3), T(4)));
+    }
+}
+
 TEST_CASE("matrix_from_coefficients")
 {
     // 3x3

@@ -334,6 +334,98 @@ void extract_euler_angle_xyz(const matrix<T, 4, 4>& m, float& angle_x, float& an
     angle_z = -t3;
 }
 
+/// Decomposes an affine matrix into translation, rotation, and scale, orthogonalizing it if needed.
+/// Also returns the rotation matrix directly to avoid precision loss from a quaternion round trip.
+/// Returns false for invalid or degenerate input, leaving the outputs unchanged.
+template<typename T>
+inline bool decompose_trs(
+    const matrix<T, 4, 4>& model_matrix,
+    vector<T, 3>& scale,
+    quat<T>& orientation,
+    vector<T, 3>& translation,
+    matrix<T, 3, 3>& rotation_matrix
+)
+{
+    if (model_matrix[3][0] != T(0) || model_matrix[3][1] != T(0) || model_matrix[3][2] != T(0)
+        || model_matrix[3][3] != T(1))
+        return false;
+    vector<double, 3> columns[3];
+    vector<double, 3> column_sizes;
+    for (int col = 0; col < 3; ++col) {
+        for (int row = 0; row < 3; ++row) {
+            if (!std::isfinite(model_matrix[row][col]))
+                return false;
+        }
+        if (!std::isfinite(model_matrix[col][3]))
+            return false;
+        const double size
+            = std::hypot(double(model_matrix[0][col]), double(model_matrix[1][col]), double(model_matrix[2][col]));
+        if (!std::isfinite(size) || size == 0.0)
+            return false;
+        column_sizes[col] = size;
+        columns[col] = vector<double, 3>(
+            double(model_matrix[0][col]) / size,
+            double(model_matrix[1][col]) / size,
+            double(model_matrix[2][col]) / size
+        );
+    }
+    constexpr double RANK_TOLERANCE = 16.0 * std::numeric_limits<double>::epsilon();
+    const auto first = normalize(columns[0]);
+    auto second = columns[1] - dot(first, columns[1]) * first;
+    // Reproject once to limit cancellation error when the first two axes nearly align.
+    second -= dot(first, second) * first;
+    const double second_size = std::hypot(second.x, second.y, second.z);
+    if (second_size <= RANK_TOLERANCE)
+        return false;
+    second /= second_size;
+    const auto third = normalize(cross(first, second));
+    second = normalize(cross(third, first));
+    const double third_size = dot(third, columns[2]);
+    if (std::abs(third_size) <= RANK_TOLERANCE)
+        return false;
+    vector<double, 3> sizes(column_sizes.x, column_sizes.y * second_size, column_sizes.z * std::abs(third_size));
+    columns[0] = first;
+    columns[1] = second;
+    columns[2] = third;
+    if (third_size < 0.0) {
+        // Flip two rotation axes to retain a proper rotation and make all scales negative.
+        columns[0] *= -1.0;
+        columns[1] *= -1.0;
+        sizes *= -1.0;
+    }
+    vector<T, 3> result_scale;
+    for (int axis = 0; axis < 3; ++axis) {
+        if (!std::isfinite(sizes[axis]) || std::abs(sizes[axis]) > double(std::numeric_limits<T>::max()))
+            return false;
+        result_scale[axis] = T(sizes[axis]);
+        if (result_scale[axis] == T(0))
+            return false;
+    }
+    // SGL matrices support float only; retain double intermediates until the corrected basis is ready.
+    matrix<T, 3, 3> rotation;
+    for (int col = 0; col < 3; ++col)
+        for (int row = 0; row < 3; ++row)
+            rotation[row][col] = T(columns[col][row]);
+    const auto result_orientation = normalize(quat_from_matrix(rotation));
+    scale = result_scale;
+    orientation
+        = quat<T>(T(result_orientation.x), T(result_orientation.y), T(result_orientation.z), T(result_orientation.w));
+    translation = vector<T, 3>(model_matrix[0][3], model_matrix[1][3], model_matrix[2][3]);
+    rotation_matrix = rotation;
+    return true;
+}
+
+/// Decomposes an affine matrix into translation, rotation, and scale, orthogonalizing it if needed.
+/// Use the matrix-output overload to also receive the precise rotation matrix.
+/// Returns false for invalid or degenerate input, leaving the outputs unchanged.
+template<typename T>
+inline bool
+decompose_trs(const matrix<T, 4, 4>& model_matrix, vector<T, 3>& scale, quat<T>& orientation, vector<T, 3>& translation)
+{
+    matrix<T, 3, 3> rotation_matrix;
+    return decompose_trs(model_matrix, scale, orientation, translation, rotation_matrix);
+}
+
 /// Decomposes a homogeneous matrix into translation, rotation, scale, shear and perspective.
 /// The factors reconstruct model_matrix / model_matrix[3][3] as P * T * R * H * S,
 /// where H has unit diagonal and upper entries (H01, H02, H12) = (skew.z, skew.y, skew.x).
