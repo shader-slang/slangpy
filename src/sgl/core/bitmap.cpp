@@ -2590,9 +2590,6 @@ namespace {
 
     Bitmap::Info read_bitmap_info(Stream* stream, Bitmap::FileFormat format)
     {
-        if (format == Bitmap::FileFormat::auto_)
-            format = Bitmap::detect_file_format(stream);
-
 #if SGL_HAS_LIBPNG
         if (format == Bitmap::FileFormat::png) {
             png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, png_error_func, png_warn_func);
@@ -2723,6 +2720,8 @@ Bitmap::Info Bitmap::read_info(Stream* stream, FileFormat format)
     SGL_CHECK_NOT_NULL(stream);
     const size_t position = stream->tell();
     try {
+        if (format == FileFormat::auto_)
+            format = detect_file_format(stream);
         const Info result = read_bitmap_info(stream, format);
         stream->seek(position);
         return result;
