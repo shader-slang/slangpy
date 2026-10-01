@@ -141,19 +141,6 @@ public:
         uint32_t channel_count;
     };
 
-    /// Read image layout without decoding pixels. Supports all bitmap formats except DDS.
-    /// @param path Image file path.
-    /// @param format File format, or auto_ to detect it.
-    /// @return Decoded image layout.
-    static Info read_info(const std::filesystem::path& path, FileFormat format = FileFormat::auto_);
-
-    /// Read image layout without decoding pixels. Supports all bitmap formats except DDS.
-    /// Preserves the readable, seekable stream's position on success and failure.
-    /// @param stream Image stream, positioned at the image start.
-    /// @param format File format, or auto_ to detect it.
-    /// @return Decoded image layout.
-    static Info read_info(Stream* stream, FileFormat format = FileFormat::auto_);
-
     Bitmap(
         PixelFormat pixel_format,
         ComponentType component_type,
@@ -321,6 +308,19 @@ public:
     std::string to_string() const override;
 
     static FileFormat detect_file_format(Stream* stream);
+
+    /// Read image layout without decoding pixels. Supports all bitmap formats except DDS.
+    /// @param path Image file path.
+    /// @param format File format, or auto_ to detect it.
+    /// @return Decoded image layout.
+    static Info read_info(const std::filesystem::path& path, FileFormat format = FileFormat::auto_);
+
+    /// Read image layout without decoding pixels. Supports all bitmap formats except DDS.
+    /// Preserves the readable, seekable stream's position on success and failure.
+    /// @param stream Image stream, positioned at the image start.
+    /// @param format File format, or auto_ to detect it.
+    /// @return Decoded image layout.
+    static Info read_info(Stream* stream, FileFormat format = FileFormat::auto_);
 
     static void static_init();
     static void static_shutdown();
