@@ -988,6 +988,7 @@ uint64_t Device::submit_command_buffers(
         m_hot_reload->update();
 
     auto* coverage = m_coverage_state.get();
+    // Hot-reload callbacks may have closed the device.
     SGL_CHECK(!m_closed, "Device is closed");
     SGL_CHECK(
         !cuda_stream.is_valid() || !coverage || coverage->programs.empty(),

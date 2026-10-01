@@ -94,18 +94,19 @@ def main() -> None:
         enable_hot_reload=False,
         compiler_options={"coverage": coverage},
     ) as device:
+        collector = device.shader_coverage if coverage is not None else None
         processor = ImageProcessor(device)
         name, image, denoise, mapper_id = scenarios[0]
         outputs[name] = processor.process(image, denoise, mapper_id)
-        before = device.shader_coverage.snapshot() if coverage is not None else None
+        before = collector.snapshot() if collector is not None else None
         checkpoints = [(name, before)]
 
         # Exercise the paths missed by the ordinary image, using the same compiled program.
         for index, (name, image, denoise, mapper_id) in enumerate(scenarios[1:], start=1):
             outputs[name] = processor.process(image, denoise, mapper_id)
             snapshot = (
-                device.shader_coverage.snapshot(reset=index == len(scenarios) - 1)
-                if coverage is not None
+                collector.snapshot(reset=index == len(scenarios) - 1)
+                if collector is not None
                 else None
             )
             checkpoints.append((name, snapshot))
