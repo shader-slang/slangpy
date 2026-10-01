@@ -9,6 +9,7 @@
 #include "sgl/device/query.h"
 #include "sgl/device/input_layout.h"
 #include "sgl/device/shader.h"
+#include "sgl/device/compiler_target.h"
 #include "sgl/device/shader_object.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/kernel.h"
@@ -349,29 +350,6 @@ Device::Device(const DeviceDesc& desc)
         break;
     }
 
-    // Get supported shader model.
-    const std::vector<std::pair<ShaderModel, const char*>> available_shader_models = {
-        {ShaderModel::sm_6_7, "sm_6_7"},
-        {ShaderModel::sm_6_6, "sm_6_6"},
-        {ShaderModel::sm_6_5, "sm_6_5"},
-        {ShaderModel::sm_6_4, "sm_6_4"},
-        {ShaderModel::sm_6_3, "sm_6_3"},
-        {ShaderModel::sm_6_2, "sm_6_2"},
-        {ShaderModel::sm_6_1, "sm_6_1"},
-        {ShaderModel::sm_6_0, "sm_6_0"},
-    };
-    for (const auto& [sm, sm_str] : available_shader_models) {
-        if (m_rhi_device->hasFeature(sm_str)) {
-            m_supported_shader_model = sm;
-            break;
-        }
-    }
-    if (m_supported_shader_model == ShaderModel::unknown) {
-        m_supported_shader_model = ShaderModel::sm_6_0;
-        log_warn("No supported shader model found, pretending to support {}.", m_supported_shader_model);
-    }
-    log_debug("Supported shader model: {}", m_supported_shader_model);
-
     // Query features.
     std::vector<std::string> feature_names;
     for (uint32_t i = 0; i < uint32_t(rhi::Feature::_Count); ++i) {
@@ -396,6 +374,10 @@ Device::Device(const DeviceDesc& desc)
             m_capabilities.push_back(std::move(capability_name));
         }
     }
+
+    // Cache support from the NVRTC library selected by this device's Slang global session.
+    if (m_desc.type == DeviceType::cuda)
+        m_nvrtc_supported_architectures = query_nvrtc_architectures(*this);
 
     // Create graphics queue.
     SLANG_RHI_CALL(m_rhi_device->getQueue(rhi::QueueType::Graphics, m_rhi_graphics_queue.writeRef()), this);
@@ -1399,7 +1381,6 @@ std::string Device::to_string() const
         "  enable_hot_reload = {},\n"
         "  enable_compilation_reports = {},\n"
         "  pipeline_compilation_mode = {},\n"
-        "  supported_shader_model = {},\n"
         "  module_cache_path = \"{}\",\n"
         "  shader_cache_path = \"{}\"\n"
         ")",
@@ -1415,7 +1396,6 @@ std::string Device::to_string() const
         m_desc.enable_hot_reload,
         m_desc.enable_compilation_reports,
         m_desc.pipeline_compilation_mode,
-        m_supported_shader_model,
         m_module_cache_path,
         m_shader_cache_path
     );

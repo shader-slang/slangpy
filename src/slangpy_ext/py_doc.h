@@ -3756,6 +3756,8 @@ static const char *__doc_sgl_Device_m_module_cache_path = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_next_callback_id = R"doc()doc";
 
+static const char *__doc_sgl_Device_m_nvrtc_supported_architectures = R"doc()doc";
+
 static const char *__doc_sgl_Device_m_persistent_cache = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_rhi_device = R"doc()doc";
@@ -3770,8 +3772,6 @@ static const char *__doc_sgl_Device_m_slang_capabilities = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_slang_session = R"doc()doc";
 
-static const char *__doc_sgl_Device_m_supported_shader_model = R"doc()doc";
-
 static const char *__doc_sgl_Device_m_supports_cuda_interop = R"doc()doc";
 
 static const char *__doc_sgl_Device_native_handles = R"doc(Get the native device handles.)doc";
@@ -3779,6 +3779,8 @@ static const char *__doc_sgl_Device_native_handles = R"doc(Get the native device
 static const char *__doc_sgl_Device_notify_command_recording_discarded = R"doc()doc";
 
 static const char *__doc_sgl_Device_notify_command_recording_submitted = R"doc()doc";
+
+static const char *__doc_sgl_Device_nvrtc_supported_architectures = R"doc()doc";
 
 static const char *__doc_sgl_Device_on_hot_reload = R"doc(Called by hot reload system after reload occurs, to trigger the hooks.)doc";
 
@@ -3941,8 +3943,6 @@ Parameter ``cuda_stream``:
 
 Returns:
     Submission ID.)doc";
-
-static const char *__doc_sgl_Device_supported_shader_model = R"doc(The highest shader model supported by the device.)doc";
 
 static const char *__doc_sgl_Device_supports_cuda_interop = R"doc(True if the device supports CUDA interoperability.)doc";
 
@@ -8128,6 +8128,14 @@ static const char *__doc_sgl_Resampler_target_resolution = R"doc(Return the reco
 
 static const char *__doc_sgl_Resampler_to_string = R"doc()doc";
 
+static const char *__doc_sgl_ResolvedCompilerTarget = R"doc()doc";
+
+static const char *__doc_sgl_ResolvedCompilerTarget_capabilities = R"doc()doc";
+
+static const char *__doc_sgl_ResolvedCompilerTarget_downstream_args = R"doc()doc";
+
+static const char *__doc_sgl_ResolvedCompilerTarget_profile = R"doc()doc";
+
 static const char *__doc_sgl_Resolver = R"doc()doc";
 
 static const char *__doc_sgl_Resolver_resolve = R"doc()doc";
@@ -8256,6 +8264,20 @@ R"doc(Update hash by adding the given basic value.
 
 Parameter ``value``:
     to hash.)doc";
+
+static const char *__doc_sgl_SRGBMode =
+R"doc(Interpretation of stored bitmap color values; does not re-encode
+texels or modify bitmap metadata.)doc";
+
+static const char *__doc_sgl_SRGBMode_automatic = R"doc(Select sRGB sampling when supported and indicated by bitmap metadata.)doc";
+
+static const char *__doc_sgl_SRGBMode_info = R"doc()doc";
+
+static const char *__doc_sgl_SRGBMode_linear = R"doc(Sample without sRGB decoding, regardless of bitmap metadata.)doc";
+
+static const char *__doc_sgl_SRGBMode_srgb =
+R"doc(Select sRGB sampling when supported, regardless of bitmap metadata.
+Alpha remains linear.)doc";
 
 static const char *__doc_sgl_Sampler = R"doc()doc";
 
@@ -8457,28 +8479,6 @@ static const char *__doc_sgl_ShaderCursor_slang_type_layout = R"doc()doc";
 static const char *__doc_sgl_ShaderCursor_to_string = R"doc()doc";
 
 static const char *__doc_sgl_ShaderHotReloadEvent = R"doc(Event data for hot reload hook.)doc";
-
-static const char *__doc_sgl_ShaderModel = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_info = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_0 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_1 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_2 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_3 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_4 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_5 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_6 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_sm_6_7 = R"doc()doc";
-
-static const char *__doc_sgl_ShaderModel_unknown = R"doc()doc";
 
 static const char *__doc_sgl_ShaderObject = R"doc()doc";
 
@@ -8766,7 +8766,9 @@ static const char *__doc_sgl_SlangCompileError = R"doc(Exception thrown on compi
 
 static const char *__doc_sgl_SlangCompileError_SlangCompileError = R"doc()doc";
 
-static const char *__doc_sgl_SlangCompilerOptions = R"doc(Slang compiler options. Can be set when creating a Slang session.)doc";
+static const char *__doc_sgl_SlangCompilerOptions = R"doc()doc";
+
+static const char *__doc_sgl_SlangCompilerOptions_2 = R"doc(Slang compiler options. Can be set when creating a Slang session.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_debug_info =
 R"doc(Specifies the level of debug information to include in the generated
@@ -8780,7 +8782,8 @@ static const char *__doc_sgl_SlangCompilerOptions_downstream_args =
 R"doc(Specifies a list of additional arguments to be passed to the
 downstream compiler. Only forwarded to downstream compilers that
 accept pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored
-for other backends.)doc";
+for other backends. Arguments must be compatible with the selected
+profile; use profile for target selection.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_dump_intermediates = R"doc(When set will dump the intermediate source output.)doc";
 
@@ -8800,15 +8803,17 @@ static const char *__doc_sgl_SlangCompilerOptions_matrix_layout = R"doc(Specifie
 
 static const char *__doc_sgl_SlangCompilerOptions_optimization = R"doc(Specifies the optimization level.)doc";
 
+static const char *__doc_sgl_SlangCompilerOptions_profile =
+R"doc(Backend compilation profile, e.g. sm_6_6, spirv_1_6, or compute_75.
+None selects device defaults. Explicit profiles do not inherit
+optional device capabilities. Native Slang profiles can permit higher
+shader requirements. CUDA profiles select an exact NVRTC architecture.)doc";
+
 static const char *__doc_sgl_SlangCompilerOptions_report_downstream_time = R"doc(Turn on/off downstream compilation time report.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_report_perf_benchmark =
 R"doc(Turn on/off reporting of time spend in different parts of the
 compiler.)doc";
-
-static const char *__doc_sgl_SlangCompilerOptions_shader_model =
-R"doc(Specifies the shader model to use. Defaults to latest available on the
-device.)doc";
 
 static const char *__doc_sgl_SlangCompilerOptions_skip_spirv_validation =
 R"doc(Specifies whether or not to skip the validation step after emitting
@@ -8935,7 +8940,8 @@ static const char *__doc_sgl_SlangLinkOptions_downstream_args =
 R"doc(Specifies a list of additional arguments to be passed to the
 downstream compiler. Only forwarded to downstream compilers that
 accept pass-through arguments: DXC (D3D12) and NVRTC (CUDA). Ignored
-for other backends.)doc";
+for other backends. Arguments must be compatible with the session's
+selected profile; use profile for target selection.)doc";
 
 static const char *__doc_sgl_SlangLinkOptions_dump_intermediates = R"doc(When set will dump the intermediate source output.)doc";
 
@@ -9117,6 +9123,8 @@ static const char *__doc_sgl_SlangSessionData_cache_path = R"doc(Cache root path
 
 static const char *__doc_sgl_SlangSessionData_class_name = R"doc()doc";
 
+static const char *__doc_sgl_SlangSessionData_enable_nvapi = R"doc(Whether this session requires the NVAPI declarations.)doc";
+
 static const char *__doc_sgl_SlangSessionData_include_paths = R"doc(List of include paths used for resolving module/include paths.)doc";
 
 static const char *__doc_sgl_SlangSessionData_loaded_modules = R"doc(Set of all currently loaded slang modules.)doc";
@@ -9186,10 +9194,6 @@ R"doc(All loaded sgl modules (wrappers around IModule returned from
 load_module). Note: this is a vector, as order of creation matters.)doc";
 
 static const char *__doc_sgl_SlangSession_m_registered_programs = R"doc(All created sgl programs (via link_program))doc";
-
-static const char *__doc_sgl_SlangSession_m_source_module_digests =
-R"doc(Cache of module name -> source SHA1 digest to detect same-name-
-different-source misuse.)doc";
 
 static const char *__doc_sgl_SlangSession_recreate_session =
 R"doc(Fully recreates this session and any loaded modules or linked
@@ -9503,26 +9507,6 @@ static const char *__doc_sgl_TextureFilteringMode_linear = R"doc()doc";
 
 static const char *__doc_sgl_TextureFilteringMode_point = R"doc()doc";
 
-static const char *__doc_sgl_SRGBMode =
-R"doc(Interpretation of stored bitmap color values; does not re-encode
-texels or modify bitmap metadata.)doc";
-
-static const char *__doc_sgl_SRGBMode_automatic = R"doc(Select sRGB sampling when supported and indicated by bitmap metadata.)doc";
-
-static const char *__doc_sgl_SRGBMode_info = R"doc()doc";
-
-static const char *__doc_sgl_SRGBMode_linear = R"doc(Sample without sRGB decoding, regardless of bitmap metadata.)doc";
-
-static const char *__doc_sgl_SRGBMode_srgb =
-R"doc(Select sRGB sampling when supported, regardless of bitmap metadata.
-Alpha remains linear.)doc";
-
-static const char *__doc_sgl_TextureLoader_Options_srgb_mode =
-R"doc(Color interpretation after channel expansion. sRGB sampling is
-supported for 8-bit RGBA; other component types and preserved R/RG
-layouts retain their usual formats. Stored texels and alpha are
-unchanged. DDS files retain their authored format.)doc";
-
 static const char *__doc_sgl_TextureLoader = R"doc()doc";
 
 static const char *__doc_sgl_TextureLoader_2 = R"doc(Utility class for loading textures from bitmaps and image files.)doc";
@@ -9539,10 +9523,6 @@ static const char *__doc_sgl_TextureLoader_Options_generate_mips = R"doc(Generat
 
 static const char *__doc_sgl_TextureLoader_Options_load_as_normalized = R"doc(Load 8/16-bit integer data as normalized resource format.)doc";
 
-static const char *__doc_sgl_TextureLoader_Options_load_as_srgb =
-R"doc(Use ``Format::rgba8_unorm_srgb`` format if bitmap is 8-bit RGBA with
-sRGB gamma.)doc";
-
 static const char *__doc_sgl_TextureLoader_Options_max_mip_count =
 R"doc(Limit the full mip count implied by the texture dimensions; zero means
 unrestricted. For power-of-two textures, 13 allows up to 4096. Non-
@@ -9550,6 +9530,12 @@ power-of-two dimensions use floor(log2(size)) + 1. DDS selects
 authored mips by their dimensions, or warns and uses the smallest mip
 if none fits. Other images are reduced before upload using successive
 box-filtered halvings.)doc";
+
+static const char *__doc_sgl_TextureLoader_Options_srgb_mode =
+R"doc(Color interpretation after channel expansion. sRGB sampling is
+supported for 8-bit RGBA; other component types and preserved R/RG
+layouts retain their usual formats. Stored texels and alpha are
+unchanged. DDS files retain their authored format.)doc";
 
 static const char *__doc_sgl_TextureLoader_Options_usage =
 R"doc(Resource usage flags for the texture. Render-target or unordered-
@@ -10636,7 +10622,7 @@ static const char *__doc_sgl_breakable_ref_operator_bool = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_operator_mul = R"doc()doc";
 
-static const char *__doc_sgl_breakable_ref_operator_sgl_ref = R"doc()doc";
+static const char *__doc_sgl_breakable_ref_operator_ref = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_operator_sub = R"doc()doc";
 
@@ -11706,10 +11692,6 @@ static const char *__doc_sgl_get_format_info = R"doc()doc";
 static const char *__doc_sgl_get_micromap_sizes =
 R"doc(Query the current device for buffer sizes required for a micromap
 build.)doc";
-
-static const char *__doc_sgl_get_shader_model_major_version = R"doc()doc";
-
-static const char *__doc_sgl_get_shader_model_minor_version = R"doc()doc";
 
 static const char *__doc_sgl_get_vulkan_format = R"doc(Convert from sgl to Vulkan format.)doc";
 
@@ -13190,6 +13172,8 @@ Parameter ``device``:
 
 static const char *__doc_sgl_push_current_profiler = R"doc()doc";
 
+static const char *__doc_sgl_query_nvrtc_architectures = R"doc()doc";
+
 static const char *__doc_sgl_ref = R"doc()doc";
 
 static const char *__doc_sgl_ref_2 =
@@ -14012,6 +13996,10 @@ Returns:
     True if the frame capture was started successfully.)doc";
 
 static const char *__doc_sgl_report_assertion = R"doc(Report a failed assertion.)doc";
+
+static const char *__doc_sgl_resolve_compiler_target =
+R"doc(Resolve inputs without modifying the requested options or device
+reports.)doc";
 
 static const char *__doc_sgl_set_exception_diagnostics = R"doc(Set exception diagnostic options.)doc";
 
