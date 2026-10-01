@@ -25,14 +25,6 @@ SGL_PY_EXPORT(core_bitmap)
         .def_ro("component_type", &Bitmap::Info::component_type, D(Bitmap, Info, component_type))
         .def_ro("channel_count", &Bitmap::Info::channel_count, D(Bitmap, Info, channel_count));
 
-    bitmap.def_static(
-        "read_info",
-        nb::overload_cast<const std::filesystem::path&, Bitmap::FileFormat>(&Bitmap::read_info),
-        "path"_a,
-        "format"_a = Bitmap::FileFormat::auto_,
-        D(Bitmap, read_info)
-    );
-
     bitmap //
         .def(
             "__init__",
@@ -352,4 +344,12 @@ SGL_PY_EXPORT(core_bitmap)
                 return nb::str(html.c_str());
             }
         );
+
+    bitmap.def_static(
+        "read_info",
+        nb::overload_cast<const std::filesystem::path&, Bitmap::FileFormat>(&Bitmap::read_info),
+        "path"_a,
+        "format"_a = Bitmap::FileFormat::auto_,
+        D(Bitmap, read_info)
+    );
 }
