@@ -71,7 +71,7 @@ SGL_PY_EXPORT(utils_texture_loader)
         .def(
             nb::init<ref<Device>, uint64_t>(),
             "device"_a,
-            "memory_budget"_a = 8ull * 1024 * 1024 * 1024,
+            "memory_budget"_a = TextureLoader::DEFAULT_MEMORY_BUDGET,
             D(TextureLoader, TextureLoader)
         )
         .def(
