@@ -108,8 +108,7 @@ TEST_CASE_GPU("texture_loader_batched_uploads")
         bitmap->uint8_data()[i] = static_cast<uint8_t>((i * 17 + 43) % 256);
 
     std::vector<const Bitmap*> bitmaps(TEXTURE_COUNT, bitmap.get());
-    // Force multiple memory batches for these small bitmaps; debug logs show each batch's range.
-    TextureLoader loader{ref<Device>(ctx.device), 100000};
+    TextureLoader loader{ref<Device>(ctx.device)};
     TextureLoader::Options options{
         .srgb_mode = SRGBMode::linear,
         .generate_mips = true,
