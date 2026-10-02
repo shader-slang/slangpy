@@ -530,13 +530,6 @@ void load_batches(
             remaining -= std::min(estimate, remaining); // An oversized image is admitted alone.
             ++end;
         }
-        log_debug(
-            "TextureLoader: loading images [{}..{}) of {} (memory budget: {} bytes)",
-            begin,
-            end,
-            sources.size(),
-            memory_budget
-        );
         std::vector<SourceImage> images(end - begin);
         std::vector<thread::TaskHandle> handles(images.size());
         try {
