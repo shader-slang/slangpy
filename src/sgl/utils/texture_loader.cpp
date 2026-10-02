@@ -426,9 +426,17 @@ inline ref<Texture> create_texture(
     }
 }
 
-// Keep the estimate conservative without duplicating backend format selection.
-inline size_t
-estimate_bitmap_memory(const Bitmap::Info& info, const TextureLoader::Options& options, size_t decode_bytes, bool owned)
+// Estimate temporary CPU memory per texture to choose a batch size, not to predict exact process peak memory.
+// Take the largest decode/conversion working set, then conservatively add output and upload staging storage.
+// File inputs include decoding and their source bitmap; caller-owned bitmap storage and final GPU textures are
+// excluded. Format expansion, codec scratch and upload overhead are estimates rather than backend-specific allocation
+// accounting.
+inline size_t estimate_texture_load_memory(
+    const Bitmap::Info& info,
+    const TextureLoader::Options& options,
+    size_t decode_peak_bytes,
+    bool owns_bitmap
+)
 {
     uint32_t channels = info.channel_count;
     if (info.pixel_format == Bitmap::PixelFormat::rgb
@@ -438,8 +446,9 @@ estimate_bitmap_memory(const Bitmap::Info& info, const TextureLoader::Options& o
     const size_t component_bytes = DataStruct::type_size(info.component_type);
     const size_t pixel_bytes = channels * component_bytes;
     uint32_t width = info.width, height = info.height;
-    size_t current_bytes = owned ? size_t(width) * height * info.channel_count * component_bytes : 0;
-    size_t peak = std::max(decode_bytes, current_bytes);
+    // Decoding finishes before conversion; each conversion temporarily retains its input and output.
+    size_t current_bytes = owns_bitmap ? size_t(width) * height * info.channel_count * component_bytes : 0;
+    size_t peak = std::max(decode_peak_bytes, current_bytes);
     if (channels != info.channel_count || info.pixel_format == Bitmap::PixelFormat::ya) {
         const size_t converted_bytes = size_t(width) * height * pixel_bytes;
         peak = std::max(peak, current_bytes + converted_bytes);
@@ -447,7 +456,7 @@ estimate_bitmap_memory(const Bitmap::Info& info, const TextureLoader::Options& o
     }
     const uint32_t mip_count = uint32_t(stdx::bit_width(std::max(width, height)));
     if (options.max_mip_count && mip_count > options.max_mip_count) {
-        // The first halving bounds all later conversion and resampling peaks.
+        // Downsampling uses float images plus horizontal-pass scratch. The first halving bounds later peaks.
         const uint32_t next_width = std::max(1u, width / 2), next_height = std::max(1u, height / 2);
         const size_t float_pixel_bytes = size_t(channels) * sizeof(float);
         const size_t linear = size_t(width) * height * float_pixel_bytes;
@@ -461,13 +470,14 @@ estimate_bitmap_memory(const Bitmap::Info& info, const TextureLoader::Options& o
     const size_t output = size_t(width) * height * pixel_bytes;
     // Allow a retained result and a staging copy, including conservative row alignment.
     const size_t staging = align_to(size_t(256), size_t(width) * pixel_bytes) * height;
+    // Fixed overhead and 12.5% padding are heuristic allowances for uncounted allocations.
     const size_t estimate = peak + output + staging + 32768;
     return estimate + div_round_up(estimate, size_t(8));
 }
 
 inline size_t estimate_source_memory(const Bitmap* bitmap, const TextureLoader::Options& options)
 {
-    return estimate_bitmap_memory(
+    return estimate_texture_load_memory(
         {bitmap->width(), bitmap->height(), bitmap->pixel_format(), bitmap->component_type(), bitmap->channel_count()},
         options,
         0,
@@ -480,6 +490,7 @@ inline size_t estimate_source_memory(const std::filesystem::path& path, const Te
     FileStream stream(path, FileStream::Mode::read);
     const size_t encoded = stream.size();
     if (DDSFile::detect_dds_file(&stream)) {
+        // Allow file storage and an upload copy, with heuristic fixed overhead and 12.5% padding.
         const size_t estimate = 2 * encoded + 65536;
         return estimate + div_round_up(estimate, size_t(8));
     }
@@ -488,13 +499,13 @@ inline size_t estimate_source_memory(const std::filesystem::path& path, const Te
     const size_t pixels = size_t(info.width) * info.height * info.channel_count;
     const size_t decoded = pixels * DataStruct::type_size(info.component_type);
     // Cover the result plus image-sized codec scratch (including encoded input).
-    size_t decode_bytes = encoded + 2 * decoded;
+    size_t decode_peak_bytes = encoded + 2 * decoded;
 #if !SGL_HAS_OPENEXR
     if (format == Bitmap::FileFormat::exr)
         // TinyEXR retains encoded input, channel planes and the interleaved result.
-        decode_bytes = encoded + pixels * sizeof(float) + decoded;
+        decode_peak_bytes = encoded + pixels * sizeof(float) + decoded;
 #endif
-    return estimate_bitmap_memory(info, options, decode_bytes, true);
+    return estimate_texture_load_memory(info, options, decode_peak_bytes, true);
 }
 
 inline SourceImage
