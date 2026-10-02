@@ -23,6 +23,22 @@ SGL_DICT_TO_DESC_FIELD(ya_handling, YAHandling)
 SGL_DICT_TO_DESC_END()
 } // namespace sgl
 
+namespace {
+
+// Bitmap overloads retain inputs through ref<> argument conversion before releasing the GIL.
+// Workers need that lock for Python reference counting while the calling thread waits.
+std::vector<const sgl::Bitmap*> bitmap_pointers(std::span<const sgl::ref<sgl::Bitmap>> bitmaps)
+{
+    std::vector<const sgl::Bitmap*> pointers;
+    pointers.reserve(bitmaps.size());
+    for (const auto& bitmap : bitmaps)
+        pointers.push_back(bitmap.get());
+
+    return pointers;
+}
+
+} // namespace
+
 SGL_PY_EXPORT(utils_texture_loader)
 {
     using namespace sgl;
@@ -87,18 +103,26 @@ SGL_PY_EXPORT(utils_texture_loader)
         )
         .def(
             "load_textures",
-            nb::overload_cast<std::span<const Bitmap*>, std::optional<TextureLoader::Options>>(
-                &TextureLoader::load_textures
-            ),
+            [](TextureLoader* self, std::span<const ref<Bitmap>> bitmaps, std::optional<TextureLoader::Options> options)
+            {
+                auto pointers = bitmap_pointers(bitmaps);
+                nb::gil_scoped_release release;
+                return self->load_textures(pointers, options);
+            },
             "bitmaps"_a,
             "options"_a.none() = nb::none(),
             D(TextureLoader, load_textures)
         )
         .def(
             "load_textures",
-            nb::overload_cast<std::span<const Bitmap*>, std::span<const TextureLoader::Options>>(
-                &TextureLoader::load_textures
-            ),
+            [](TextureLoader* self,
+               std::span<const ref<Bitmap>> bitmaps,
+               std::span<const TextureLoader::Options> options)
+            {
+                auto pointers = bitmap_pointers(bitmaps);
+                nb::gil_scoped_release release;
+                return self->load_textures(pointers, options);
+            },
             "bitmaps"_a,
             "options"_a,
             D(TextureLoader, load_textures, 2)
@@ -123,9 +147,12 @@ SGL_PY_EXPORT(utils_texture_loader)
         )
         .def(
             "load_texture_array",
-            nb::overload_cast<std::span<const Bitmap*>, std::optional<TextureLoader::Options>>(
-                &TextureLoader::load_texture_array
-            ),
+            [](TextureLoader* self, std::span<const ref<Bitmap>> bitmaps, std::optional<TextureLoader::Options> options)
+            {
+                auto pointers = bitmap_pointers(bitmaps);
+                nb::gil_scoped_release release;
+                return self->load_texture_array(pointers, options);
+            },
             "bitmaps"_a,
             "options"_a.none() = nb::none(),
             D(TextureLoader, load_texture_array)
