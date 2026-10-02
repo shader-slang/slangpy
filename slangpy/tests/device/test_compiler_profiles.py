@@ -32,8 +32,13 @@ def require_cuda_profile(device: spy.Device, profile: str) -> None:
     try:
         device.create_slang_session({"profile": profile})
     except RuntimeError as error:
-        if "not supported by Slang's NVRTC" in str(error) or "exceeds detected device" in str(
-            error
+        if any(
+            message in str(error)
+            for message in (
+                "not supported by Slang's NVRTC",
+                "exceeds detected device",
+                "exceeds SGL_MAX_CUDA_COMPUTE_CAPABILITY",
+            )
         ):
             pytest.skip(str(error))
         raise

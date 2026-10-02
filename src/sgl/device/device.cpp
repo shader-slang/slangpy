@@ -65,7 +65,9 @@ inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
 Device::Device(const DeviceDesc& desc)
     : m_desc(desc)
 {
-    ConstructorRefGuard ref_guard(this);
+    // Keep children from deleting this device, including during member unwinding if construction fails.
+    // Release this reference only on success; a failed new expression frees the device regardless of its refcount.
+    inc_ref();
 
     if (desc.enable_debug_layers)
         rhi::getRHI()->enableDebugLayers();
@@ -403,8 +405,11 @@ Device::Device(const DeviceDesc& desc)
         m_supports_cuda_interop = true;
     }
 
-    if (m_desc.enable_print)
+    if (m_desc.enable_print) {
         m_debug_printer = std::make_unique<DebugPrinter>(this);
+        // Retire initialization commands so they cannot keep RHI resources alive if construction later fails.
+        wait();
+    }
 
     // Create default slang session.
     m_slang_session = create_slang_session({
@@ -417,14 +422,16 @@ Device::Device(const DeviceDesc& desc)
     // Redundant but harmless when using PyTorch interop.
     set_cuda_context_current();
 
+    // Auto-push device onto thread-local current device stack.
+    push_current_device(this);
+
     // Add device to global device list.
     {
         std::lock_guard lock(s_devices_mutex);
         s_devices.push_back(this);
     }
 
-    // Auto-push device onto thread-local current device stack.
-    push_current_device(this);
+    dec_ref(false);
 }
 
 Device::~Device()

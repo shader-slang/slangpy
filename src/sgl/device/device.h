@@ -905,49 +905,56 @@ public:
 private:
     ref<refl::Layout> reload_builtin_layout();
 
+    // Members are destroyed in reverse declaration order. Constructor failure skips close() and ~Device(),
+    // so dependencies must precede the members that use them during teardown.
+
     DeviceDesc m_desc;
     DeviceInfo m_info;
-
+    std::vector<Feature> m_features;
+    std::vector<std::string> m_capabilities;
+    std::vector<SlangCapabilityID> m_slang_capabilities;
+    std::vector<int> m_nvrtc_supported_architectures;
     bool m_closed{false};
 
+    // Child destructors unregister themselves, so the registry and mutex must outlive all owned children.
+    std::mutex m_device_children_mutex;
+    std::unordered_set<DeviceChild*> m_device_children;
+
+    // Shader caches. The persistent cache flushes the writer during teardown.
     std::filesystem::path m_module_cache_path;
     std::filesystem::path m_shader_cache_path;
     ref<CacheWriter> m_cache_writer;
     ref<PersistentCache> m_persistent_cache;
 
+    // RHI resources. RHI stores a raw debug callback pointer, so the logger must outlive its teardown.
+    std::unique_ptr<DebugLogger> m_debug_logger;
     Slang::ComPtr<rhi::IDevice> m_rhi_device;
     Slang::ComPtr<rhi::ICommandQueue> m_rhi_graphics_queue;
-    Slang::ComPtr<slang::IGlobalSession> m_global_session;
-
-    ref<SlangSession> m_slang_session;
-    ref<refl::Layout> m_builtin_layout;
-
-    std::vector<Feature> m_features;
-    std::vector<std::string> m_capabilities;
-    std::vector<SlangCapabilityID> m_slang_capabilities;
-    std::vector<int> m_nvrtc_supported_architectures;
-
     ref<Fence> m_global_fence;
 
-    std::unique_ptr<DebugLogger> m_debug_logger;
-    std::unique_ptr<DebugPrinter> m_debug_printer;
-
-    std::atomic<DeviceCallbackID> m_next_callback_id{1};
-
-    CallbackList<DeviceCallbackID, DeviceCloseCallback> m_device_close_callbacks;
-    CallbackList<DeviceCallbackID, ShaderHotReloadCallback> m_shader_hot_reload_callbacks;
-    CallbackList<DeviceCallbackID, CommandRecordingSubmittedCallback> m_command_recording_submitted_callbacks;
-    CallbackList<DeviceCallbackID, CommandRecordingDiscardedCallback> m_command_recording_discarded_callbacks;
-
-    ref<Blitter> m_blitter;
-    ref<HotReload> m_hot_reload;
-
+    // CUDA interop must outlive imported buffers in later members. The semaphore must be released before
+    // its context and the global fence above.
     bool m_supports_cuda_interop{false};
     ref<cuda::Device> m_cuda_device;
     ref<cuda::ExternalSemaphore> m_cuda_semaphore;
 
-    std::mutex m_device_children_mutex;
-    std::unordered_set<DeviceChild*> m_device_children;
+    // Compiler state. Sessions unregister from hot reload; layouts can retain session objects.
+    // RHI retains its own reference to the global session, so it can outlive this group.
+    Slang::ComPtr<slang::IGlobalSession> m_global_session;
+    ref<HotReload> m_hot_reload;
+    ref<SlangSession> m_slang_session;
+    ref<refl::Layout> m_builtin_layout;
+
+    // Helpers own resources and must be destroyed before compiler, CUDA, and RHI state.
+    ref<Blitter> m_blitter;
+    std::unique_ptr<DebugPrinter> m_debug_printer;
+
+    // Release resources captured by callbacks before the state above.
+    std::atomic<DeviceCallbackID> m_next_callback_id{1};
+    CallbackList<DeviceCallbackID, DeviceCloseCallback> m_device_close_callbacks;
+    CallbackList<DeviceCallbackID, ShaderHotReloadCallback> m_shader_hot_reload_callbacks;
+    CallbackList<DeviceCallbackID, CommandRecordingSubmittedCallback> m_command_recording_submitted_callbacks;
+    CallbackList<DeviceCallbackID, CommandRecordingDiscardedCallback> m_command_recording_discarded_callbacks;
 };
 
 /// Gets the device and context handles for the current CUDA context. Use

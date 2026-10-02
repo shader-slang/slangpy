@@ -2,6 +2,7 @@
 
 #include "compiler_target.h"
 #include "sgl/core/error.h"
+#include "sgl/core/logger.h"
 #include "sgl/core/platform.h"
 #include "sgl/device/device.h"
 #include "sgl/device/shader.h"
@@ -109,20 +110,41 @@ namespace {
 
     // Architectures use NVRTC's major * 10 + minor encoding (e.g. 120 for compute capability 12.0).
     // Automatic selection takes the highest entry in NVRTC's supported list that does not exceed
-    // the device's compute capability. Search the actual list: toolkit support can have gaps or
-    // drop older architectures, so clamping to the toolkit's maximum is insufficient. The list
+    // the device's compute capability or the environment ceiling. Search the actual list: toolkit
+    // support can have gaps or drop older architectures, so clamping to its maximum is insufficient. The list
     // need not be sorted. Explicit requests must be supported by both NVRTC and the device;
     // never round or clamp them. Fail if the device reports no capability or no target is usable.
     int select_cuda_architecture(int device_arch, std::span<const int> supported, std::optional<int> requested)
     {
         SGL_CHECK(device_arch > 0, "CUDA device did not report a compute capability");
+        constexpr const char* variable = "SGL_MAX_CUDA_COMPUTE_CAPABILITY";
+        std::optional<int> ceiling;
+        if (auto value = platform::get_environment_variable(variable); value && !value->empty()) {
+            int arch = 0;
+            const auto parsed = std::from_chars(value->data(), value->data() + value->size(), arch);
+            SGL_CHECK(
+                parsed.ec == std::errc{} && parsed.ptr == value->data() + value->size() && arch >= 10
+                    && value->front() != '0',
+                "Invalid {}='{}' (expected major * 10 + minor, e.g. 90)",
+                variable,
+                *value
+            );
+            ceiling = arch;
+        }
         if (requested) {
+            if (ceiling)
+                SGL_CHECK(
+                    *requested <= *ceiling,
+                    "CUDA profile compute_{} exceeds {}={}",
+                    *requested,
+                    variable,
+                    *ceiling
+                );
             SGL_CHECK(
                 *requested <= device_arch,
-                "CUDA profile compute_{} exceeds detected device compute capability {}.{}",
+                "CUDA profile compute_{} exceeds detected device target compute_{}",
                 *requested,
-                device_arch / 10,
-                device_arch % 10
+                device_arch
             );
             SGL_CHECK(
                 std::ranges::find(supported, *requested) != supported.end(),
@@ -137,10 +159,31 @@ namespace {
                 selected = std::max(selected, arch);
         SGL_CHECK(
             selected > 0,
-            "NVRTC supports no CUDA architecture compatible with device compute capability {}.{}",
-            device_arch / 10,
-            device_arch % 10
+            "NVRTC supports no CUDA architecture compatible with device target compute_{}",
+            device_arch
         );
+        if (ceiling) {
+            int capped = 0;
+            for (int arch : supported)
+                if (arch <= device_arch && arch <= *ceiling)
+                    capped = std::max(capped, arch);
+            SGL_CHECK(
+                capped > 0,
+                "NVRTC supports no CUDA architecture compatible with device target compute_{} and {}={}",
+                device_arch,
+                variable,
+                *ceiling
+            );
+            if (capped < selected)
+                log_info(
+                    "{}={} lowers automatic CUDA target from compute_{} to compute_{}",
+                    variable,
+                    *ceiling,
+                    selected,
+                    capped
+                );
+            selected = capped;
+        }
         return selected;
     }
 

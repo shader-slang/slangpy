@@ -8,6 +8,7 @@ from slangpy.testing import helpers
 from slangpy.testing.helpers import test_id  # type: ignore (pytest fixture)
 
 from typing import Optional
+from pathlib import Path
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -33,6 +34,55 @@ def test_create_device(device_type: spy.DeviceType):
         spy.DeviceType.cuda: "CUDA",
     }
     assert device.info.api_name == API_NAMES[device_type]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("enable_print", [False, True])
+@pytest.mark.parametrize("enable_hot_reload", [False, True])
+def test_device_constructor_invalid_profile(
+    device_type: spy.DeviceType, enable_print: bool, enable_hot_reload: bool
+) -> None:
+    device = spy.Device(type=device_type)
+    try:
+        devices = spy.Device.get_created_devices()
+        for _ in range(2):
+            with pytest.raises(RuntimeError, match="Unknown Slang profile"):
+                spy.Device(
+                    type=device_type,
+                    enable_print=enable_print,
+                    enable_hot_reload=enable_hot_reload,
+                    enable_rhi_validation=True,
+                    compiler_options={"profile": "not_a_slang_profile"},
+                )
+            assert spy.Device.get_created_devices() == devices
+            assert spy.current_device() is device
+
+        # Failure must not prevent subsequent device creation or resource use.
+        next_device = spy.Device(type=device_type)
+        try:
+            data = np.array([7], dtype=np.uint32)
+            buffer = next_device.create_buffer(data=data, usage=spy.BufferUsage.shader_resource)
+            assert np.array_equal(buffer.to_numpy().view(np.uint32), data)
+        finally:
+            next_device.close()
+        assert spy.current_device() is device
+    finally:
+        device.close()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_device_constructor_invalid_cache_path(device_type: spy.DeviceType, tmp_path: Path) -> None:
+    cache_path = tmp_path / "not_a_directory"
+    cache_path.write_text("file")
+    device = spy.Device(type=device_type)
+    try:
+        devices = spy.Device.get_created_devices()
+        with pytest.raises(RuntimeError):
+            spy.Device(type=device_type, enable_hot_reload=True, module_cache_path=cache_path)
+        assert spy.Device.get_created_devices() == devices
+        assert spy.current_device() is device
+    finally:
+        device.close()
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
