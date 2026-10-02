@@ -803,6 +803,18 @@ static const char *__doc_sgl_Bitmap_FileFormat_tga = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_FileFormat_unknown = R"doc()doc";
 
+static const char *__doc_sgl_Bitmap_Info = R"doc(Decoded image layout, obtained without loading pixels.)doc";
+
+static const char *__doc_sgl_Bitmap_Info_channel_count = R"doc(Number of channels per pixel.)doc";
+
+static const char *__doc_sgl_Bitmap_Info_component_type = R"doc(Decoded component type.)doc";
+
+static const char *__doc_sgl_Bitmap_Info_height = R"doc(Height in pixels.)doc";
+
+static const char *__doc_sgl_Bitmap_Info_pixel_format = R"doc(Decoded pixel format.)doc";
+
+static const char *__doc_sgl_Bitmap_Info_width = R"doc(Width in pixels.)doc";
+
 static const char *__doc_sgl_Bitmap_PixelFormat = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_PixelFormat_info = R"doc()doc";
@@ -894,6 +906,33 @@ static const char *__doc_sgl_Bitmap_read_dds = R"doc()doc";
 static const char *__doc_sgl_Bitmap_read_exr = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_read_hdr = R"doc()doc";
+
+static const char *__doc_sgl_Bitmap_read_info =
+R"doc(Read image layout without decoding pixels. Supports all bitmap formats
+except DDS.
+
+Parameter ``path``:
+    Image file path.
+
+Parameter ``format``:
+    File format, or auto_ to detect it.
+
+Returns:
+    Decoded image layout.)doc";
+
+static const char *__doc_sgl_Bitmap_read_info_2 =
+R"doc(Read image layout without decoding pixels. Supports all bitmap formats
+except DDS. Preserves the readable, seekable stream's position on
+success and failure.
+
+Parameter ``stream``:
+    Image stream, positioned at the image start.
+
+Parameter ``format``:
+    File format, or auto_ to detect it.
+
+Returns:
+    Decoded image layout.)doc";
 
 static const char *__doc_sgl_Bitmap_read_jpg = R"doc()doc";
 
