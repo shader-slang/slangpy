@@ -99,7 +99,15 @@ uint3 dispatch_thread_count_from_total_threads(const Device* device, uint3 threa
     );
 
     const auto& limits = device->info().limits.max_compute_dispatch_thread_groups;
-    const uint64_t dispatch_groups_x = std::min(limits.x, kSlangPyMaxDispatchThreadGroupsX);
+
+    // A zero limit means the backend did not specify a bound (the CPU backend
+    // leaves DeviceLimits zero-initialized). Zero is not a real limit -- a
+    // compute-capable device can launch at least one group -- so treat it as
+    // unbounded and clamp X only against the representable-stride ceiling.
+    const uint32_t limit_x = limits.x != 0 ? limits.x : kSlangPyMaxDispatchThreadGroupsX;
+    const uint32_t limit_y = limits.y != 0 ? limits.y : std::numeric_limits<uint32_t>::max();
+
+    const uint64_t dispatch_groups_x = std::min(limit_x, kSlangPyMaxDispatchThreadGroupsX);
     SGL_CHECK(dispatch_groups_x > 0, "Device reports zero compute dispatch groups in X");
 
     const uint64_t threads_per_row = dispatch_groups_x * uint64_t(thread_group_size.x);
@@ -108,11 +116,11 @@ uint3 dispatch_thread_count_from_total_threads(const Device* device, uint3 threa
     const uint64_t dispatch_y = (thread_count + threads_per_row - 1) / threads_per_row;
 
     SGL_CHECK(
-        dispatch_y <= limits.y,
+        dispatch_y <= limit_y,
         "SlangPy dispatch of {} logical threads requires {} Y dispatch groups, exceeding device limit {}",
         total_threads,
         dispatch_y,
-        limits.y
+        limit_y
     );
 
     return uint3(uint32_t(dispatch_x), uint32_t(dispatch_y), 1);
