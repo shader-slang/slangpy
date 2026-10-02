@@ -288,9 +288,9 @@ ResolvedCompilerTarget resolve_compiler_target(const Device& device, const Slang
             // Avoid the implicit SPIR-V 1.5 feature bundle; device inputs supply the
             // available version and extensions for automatic sessions.
             result.profile = "spirv_1_0";
-        } else if (type == DeviceType::metal && selected.version != Version{}) {
-            result.profile = fmt::format("metallib_{}_{}", selected.version.major, selected.version.minor);
         }
+        // Metal versions are supplied by the capabilities above. Do not synthesize a
+        // profile: Slang recognizes capabilities such as metallib_3_2 without a matching profile.
     }
 
     // Slang can omit [raypayload] annotations on separately compiled miss/hit shaders.
