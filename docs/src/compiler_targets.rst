@@ -65,6 +65,10 @@ capabilities Slang recognizes up to that target. A shader requiring a higher
 architecture fails compilation. OptiX cooperative-vector support is included only
 for targets 9.0 or later when the device supports the integration.
 
+The ``SGL_MAX_CUDA_COMPUTE_CAPABILITY`` environment variable limits the maximum
+CUDA compute capability (e.g. ``90`` for 9.0). Automatic selection respects this
+limit; explicit profiles above it fail. Unset or empty values disable the limit.
+
 D3D12 integration
 -----------------
 
