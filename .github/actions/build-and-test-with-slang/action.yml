@@ -187,12 +187,18 @@ runs:
       run: python tools/ci.py test-examples -p
 
     # Upload Crashpad Reports
+    # Upload the whole database rather than just reports/: Windows writes minidumps directly to
+    # reports/, but POSIX Crashpad leaves them in pending/ until the Python harness copies them
+    # over, which never happens when the C++ sgl_tests step itself crashes (#1062).
     - name: Upload Crashpad Reports
       if: always() && contains(inputs.flags, 'crashpad')
       uses: actions/upload-artifact@v7
       with:
         name: crash-reports-${{ inputs.os }}-${{ inputs.platform }}-${{ inputs.compiler }}-${{ inputs.config }}
-        path: .crashpad/reports/
+        path: .crashpad/
+        # .crashpad is a dot-directory; upload-artifact treats its contents as hidden and skips
+        # them by default, which if-no-files-found:ignore would silently mask.
+        include-hidden-files: true
         if-no-files-found: ignore
 
     # Generate Coverage Report
