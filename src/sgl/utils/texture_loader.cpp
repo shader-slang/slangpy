@@ -531,11 +531,22 @@ void load_batches(
     Consume&& consume
 )
 {
+    // Inspect all sources in parallel before choosing batches; pixel loading still reopens each file.
+    std::vector<size_t> estimates(sources.size());
+    thread::parallel_for(
+        thread::blocked_range<size_t>(0, sources.size()),
+        [&](const thread::blocked_range<size_t>& range)
+        {
+            for (size_t i : range)
+                estimates[i] = estimate_source_memory(sources[i], options[i]);
+        }
+    );
+
     for (size_t begin = 0; begin < sources.size();) {
         size_t end = begin;
         uint64_t remaining = memory_budget;
         while (end < sources.size() && remaining) {
-            const uint64_t estimate = estimate_source_memory(sources[end], options[end]);
+            const uint64_t estimate = estimates[end];
             if (end > begin && estimate > remaining)
                 break;
             remaining -= std::min(estimate, remaining); // An oversized image is admitted alone.
