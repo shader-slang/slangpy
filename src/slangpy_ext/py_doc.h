@@ -8296,6 +8296,20 @@ R"doc(Update hash by adding the given basic value.
 Parameter ``value``:
     to hash.)doc";
 
+static const char *__doc_sgl_SRGBMode =
+R"doc(Interpretation of stored bitmap color values; does not re-encode
+texels or modify bitmap metadata.)doc";
+
+static const char *__doc_sgl_SRGBMode_automatic = R"doc(Select sRGB sampling when supported and indicated by bitmap metadata.)doc";
+
+static const char *__doc_sgl_SRGBMode_info = R"doc()doc";
+
+static const char *__doc_sgl_SRGBMode_linear = R"doc(Sample without sRGB decoding, regardless of bitmap metadata.)doc";
+
+static const char *__doc_sgl_SRGBMode_srgb =
+R"doc(Select sRGB sampling when supported, regardless of bitmap metadata.
+Alpha remains linear.)doc";
+
 static const char *__doc_sgl_Sampler = R"doc()doc";
 
 static const char *__doc_sgl_Sampler_2 = R"doc()doc";
@@ -9542,26 +9556,6 @@ static const char *__doc_sgl_TextureFilteringMode_linear = R"doc()doc";
 
 static const char *__doc_sgl_TextureFilteringMode_point = R"doc()doc";
 
-static const char *__doc_sgl_SRGBMode =
-R"doc(Interpretation of stored bitmap color values; does not re-encode
-texels or modify bitmap metadata.)doc";
-
-static const char *__doc_sgl_SRGBMode_automatic = R"doc(Select sRGB sampling when supported and indicated by bitmap metadata.)doc";
-
-static const char *__doc_sgl_SRGBMode_info = R"doc()doc";
-
-static const char *__doc_sgl_SRGBMode_linear = R"doc(Sample without sRGB decoding, regardless of bitmap metadata.)doc";
-
-static const char *__doc_sgl_SRGBMode_srgb =
-R"doc(Select sRGB sampling when supported, regardless of bitmap metadata.
-Alpha remains linear.)doc";
-
-static const char *__doc_sgl_TextureLoader_Options_srgb_mode =
-R"doc(Color interpretation after channel expansion. sRGB sampling is
-supported for 8-bit RGBA; other component types and preserved R/RG
-layouts retain their usual formats. Stored texels and alpha are
-unchanged. DDS files retain their authored format.)doc";
-
 static const char *__doc_sgl_TextureLoader = R"doc()doc";
 
 static const char *__doc_sgl_TextureLoader_2 = R"doc(Utility class for loading textures from bitmaps and image files.)doc";
@@ -9578,10 +9572,6 @@ static const char *__doc_sgl_TextureLoader_Options_generate_mips = R"doc(Generat
 
 static const char *__doc_sgl_TextureLoader_Options_load_as_normalized = R"doc(Load 8/16-bit integer data as normalized resource format.)doc";
 
-static const char *__doc_sgl_TextureLoader_Options_load_as_srgb =
-R"doc(Use ``Format::rgba8_unorm_srgb`` format if bitmap is 8-bit RGBA with
-sRGB gamma.)doc";
-
 static const char *__doc_sgl_TextureLoader_Options_max_mip_count =
 R"doc(Limit the full mip count implied by the texture dimensions; zero means
 unrestricted. For power-of-two textures, 13 allows up to 4096. Non-
@@ -9589,6 +9579,12 @@ power-of-two dimensions use floor(log2(size)) + 1. DDS selects
 authored mips by their dimensions, or warns and uses the smallest mip
 if none fits. Other images are reduced before upload using successive
 box-filtered halvings.)doc";
+
+static const char *__doc_sgl_TextureLoader_Options_srgb_mode =
+R"doc(Color interpretation after channel expansion. sRGB sampling is
+supported for 8-bit RGBA; other component types and preserved R/RG
+layouts retain their usual formats. Stored texels and alpha are
+unchanged. DDS files retain their authored format.)doc";
 
 static const char *__doc_sgl_TextureLoader_Options_usage =
 R"doc(Resource usage flags for the texture. Render-target or unordered-
@@ -9609,7 +9605,7 @@ Parameter ``device``:
 
 Parameter ``memory_budget``:
     Positive, best-effort temporary CPU memory budget in bytes per
-    bulk call. Defaults to 8 GiB. Estimates include decoding,
+    bulk call. Defaults to 32 GiB. Estimates include decoding,
     conversion and upload storage. A single image exceeding the budget
     is loaded alone. Caller-owned bitmaps and final GPU textures are
     excluded.)doc";
@@ -11499,6 +11495,8 @@ static const char *__doc_sgl_find_enum_info_adl_95 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_96 = R"doc()doc";
 
+static const char *__doc_sgl_find_enum_info_adl_97 = R"doc()doc";
+
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
 static const char *__doc_sgl_flip_bit = R"doc()doc";
@@ -12022,6 +12020,18 @@ use three negative scales and a proper rotation, matching the existing
 convention. Returns false for nonfinite input, zero homogeneous
 weight, numerically dependent spatial columns, or factors outside the
 output type's range. Outputs are unchanged on failure.)doc";
+
+static const char *__doc_sgl_math_decompose_trs =
+R"doc(Decomposes an affine matrix into translation, rotation, and scale,
+orthogonalizing it if needed. Also returns the rotation matrix
+directly to avoid precision loss from a quaternion round trip. Returns
+false for invalid or degenerate input, leaving the outputs unchanged.)doc";
+
+static const char *__doc_sgl_math_decompose_trs_2 =
+R"doc(Decomposes an affine matrix into translation, rotation, and scale,
+orthogonalizing it if needed. Use the matrix-output overload to also
+receive the precise rotation matrix. Returns false for invalid or
+degenerate input, leaving the outputs unchanged.)doc";
 
 static const char *__doc_sgl_math_degrees = R"doc()doc";
 
