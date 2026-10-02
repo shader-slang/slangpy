@@ -113,7 +113,6 @@ SGL_PY_EXPORT(device_types)
         .def("__bool__", &DescriptorHandle::is_valid)
         .def("__repr__", &DescriptorHandle::to_string);
 
-    nb::sgl_enum<ShaderModel>(m, "ShaderModel", nb::is_arithmetic());
     nb::sgl_enum<ShaderStage>(m, "ShaderStage");
 
     nb::sgl_enum<ComparisonFunc>(m, "ComparisonFunc");

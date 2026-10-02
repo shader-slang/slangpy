@@ -3,6 +3,7 @@
 #include "shader.h"
 
 #include "sgl/device/device.h"
+#include "sgl/device/compiler_target.h"
 #include "sgl/device/helpers.h"
 #include "sgl/device/reflection.h"
 #include "sgl/device/kernel.h"
@@ -22,6 +23,7 @@
 #include <slang.h>
 
 #include <memory>
+#include <algorithm>
 #include <random>
 #include <regex>
 #include <set>
@@ -241,15 +243,12 @@ SlangSession::SlangSession(ref<Device> device, SlangSessionDesc desc)
 {
     ConstructorRefGuard ref_guard(this);
 
-    // Register with hot load reload system if enabled.
-    if (m_device->_hot_reload())
-        m_device->_hot_reload()->_register_slang_session(this);
+    recreate_session();
 
-    // Create (but don't compile yet) the NVAPI module
-    // We link this to all programs because slang uses NVAPI features while not including NVAPI itself.
-    if (SGL_HAS_NVAPI && m_device->type() == DeviceType::d3d12) {
-        m_nvapi_module = make_ref<SlangModule>(
-            ref(this),
+    // Load the NVAPI declarations when available. Slang emits NVAPI calls without
+    // including these declarations itself, so the module is linked to programs below.
+    if (m_data->enable_nvapi) {
+        m_nvapi_module = create_module(
             SlangModuleDesc{
                 .module_name = "sgl/device/nvapi.slang",
             }
@@ -257,7 +256,10 @@ SlangSession::SlangSession(ref<Device> device, SlangSessionDesc desc)
         m_nvapi_module->break_strong_reference_to_session();
     }
 
-    recreate_session();
+    // Register only after successful construction; invalid compiler options must not leave
+    // a dangling session in the hot-reload registry.
+    if (m_device->_hot_reload())
+        m_device->_hot_reload()->_register_slang_session(this);
 }
 
 SlangSession::~SlangSession()
@@ -310,24 +312,11 @@ void SlangSession::create_session(SlangSessionBuild& build)
     CompilerOptionEntries target_options;
 
     const SlangCompilerOptions& options = m_desc.compiler_options;
-
-    // Use device's highest supported shader model if none is provided explicitly.
-    ShaderModel supported_shader_model = m_device->supported_shader_model();
-    ShaderModel default_shader_model = supported_shader_model;
-    // TODO: Slang generates invalid HLSL for SM 6.7 when using ray payloads.
-    if (default_shader_model == ShaderModel::sm_6_7)
-        default_shader_model = ShaderModel::sm_6_6;
-    ShaderModel shader_model = options.shader_model;
-    if (options.shader_model == ShaderModel::unknown)
-        shader_model = default_shader_model;
-
-    // Check that requested shader model is supported.
-    SGL_CHECK(
-        shader_model <= supported_shader_model,
-        "Shader model {} is not supported (max shader model is {})",
-        shader_model,
-        supported_shader_model
-    );
+    const auto target = resolve_compiler_target(*m_device, options);
+    // Supply NVAPI declarations and DXC headers when enabled in the resolved D3D12 target.
+    // Slang uses these for NVAPI SER and atomic operations across shader-model profiles.
+    const bool enable_nvapi = SGL_HAS_NVAPI && device_type == DeviceType::d3d12
+        && std::ranges::find(target.capabilities, "hlsl_nvapi") != target.capabilities.end();
 
     // Set matrix layout.
     if (options.matrix_layout == SlangMatrixLayout::row_major)
@@ -340,10 +329,6 @@ void SlangSession::create_session(SlangSessionBuild& build)
     // not referenced by extension target type 'Y' This is a workaround for an issue in the Slang compiler:
     // https://github.com/shader-slang/slang/issues/8166
     session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("30856"));
-    // TODO: Globally disable warning E41012.
-    // Example: entry point 'foo' uses additional capabilities that are not part of the specified profile 'unknown'.
-    // This warning happens on CUDA because we're not properly setting the target profile (i.e. "cuda_sm_x_x").
-    session_options.add(slang::CompilerOptionName::DisableWarning, std::string_view("41012"));
     // TODO: Globally disable warning E31010.
     // warning[E31010]: Link-time constant sized arrays are a work in progress feature, some aspects of the reflection
     // API may not work This is a workaround for an issue in the Slang compiler:
@@ -378,12 +363,12 @@ void SlangSession::create_session(SlangSessionBuild& build)
     session_options.add(slang::CompilerOptionName::Optimization, int(options.optimization));
 
     // Set downstream arguments. Only DXC (D3D12) and NVRTC (CUDA) consume pass-through arguments.
-    if (device_type == DeviceType::d3d12) {
+    if (device_type == DeviceType::d3d12 || device_type == DeviceType::cuda) {
+        const char* downstream_compiler = device_type == DeviceType::d3d12 ? "dxc" : "nvrtc";
+        for (const auto& arg : target.downstream_args)
+            session_options.add(slang::CompilerOptionName::DownstreamArgs, downstream_compiler, arg);
         for (const auto& arg : options.downstream_args)
-            session_options.add(slang::CompilerOptionName::DownstreamArgs, "dxc", arg);
-    } else if (device_type == DeviceType::cuda) {
-        for (const auto& arg : options.downstream_args)
-            session_options.add(slang::CompilerOptionName::DownstreamArgs, "nvrtc", arg);
+            session_options.add(slang::CompilerOptionName::DownstreamArgs, downstream_compiler, arg);
     }
 
     // Set downstream argument for optix include path.
@@ -404,16 +389,12 @@ void SlangSession::create_session(SlangSessionBuild& build)
     if (options.enable_experimental_features)
         session_options.add(slang::CompilerOptionName::ExperimentalFeature, true);
 
-    // Add hlsl_nvapi capability.
-    session_options.add(
-        slang::CompilerOptionName::Capability,
-        int(m_device->global_session()->findCapability("hlsl_nvapi"))
-    );
-    // TODO: Pass all detected capabilities to the session.
-    // This currently leads to slang compilation errors and needs more investigation.
-    // for (SlangCapabilityID capability : m_device->_slang_capabilities()) {
-    //     session_options.add(slang::CompilerOptionName::Capability, int(capability));
-    // }
+    for (const auto& capability : target.capabilities) {
+        target_options.add(
+            slang::CompilerOptionName::Capability,
+            int(m_device->global_session()->findCapability(capability.c_str()))
+        );
+    }
 
     // TODO: We enable loop inversion as it was the default in older versions of Slang,
     //       and leads to artifacts in one project using sgl.
@@ -444,15 +425,23 @@ void SlangSession::create_session(SlangSessionBuild& build)
     // Select target profile.
     slang::TargetDesc target_desc;
     target_desc.format = SLANG_TARGET_UNKNOWN;
-    uint32_t shader_model_major = get_shader_model_major_version(shader_model);
-    uint32_t shader_model_minor = get_shader_model_minor_version(shader_model);
-    std::string profile_str = fmt::format("sm_{}_{}", shader_model_major, shader_model_minor);
+    if (target.profile)
+        target_desc.profile = m_device->global_session()->findProfile(target.profile->c_str());
 
-    // TODO: CUDA doesn't support shader model profiles like Vulkan or D3D12.
-    if (device_type == DeviceType::d3d12 || device_type == DeviceType::vulkan) {
-        target_desc.profile = m_device->global_session()->findProfile(profile_str.c_str());
-        SGL_CHECK(target_desc.profile != SLANG_PROFILE_UNKNOWN, "Unsupported target profile: {}", profile_str);
+    // NVAPI headers consume these macros. Keep their deprecated compatibility meaning tied
+    // to the actual D3D profile; other backends have no HLSL shader model.
+    uint32_t shader_model_major = 0;
+    uint32_t shader_model_minor = 0;
+    if (device_type == DeviceType::d3d12 && target.profile) {
+        static const std::regex pattern(R"(^[a-z]+_(\d+)_(\d+)$)");
+        std::smatch match;
+        if (std::regex_match(*target.profile, match, pattern)) {
+            shader_model_major = uint32_t(std::stoul(match[1].str()));
+            shader_model_minor = uint32_t(std::stoul(match[2].str()));
+        }
     }
+    session_options.add_macro_define("__SHADER_TARGET_MAJOR", fmt::format("{}", shader_model_major));
+    session_options.add_macro_define("__SHADER_TARGET_MINOR", fmt::format("{}", shader_model_minor));
 
     // Set floating point mode.
     target_desc.floatingPointMode = static_cast<::SlangFloatingPointMode>(options.floating_point_mode);
@@ -498,22 +487,14 @@ void SlangSession::create_session(SlangSessionBuild& build)
     // Add target define.
     session_options.add_macro_define(target_define, "1");
 
-    // Add shader model defines.
-    session_options.add_macro_define("__SHADER_TARGET_MAJOR", fmt::format("{}", shader_model_major));
-    session_options.add_macro_define("__SHADER_TARGET_MINOR", fmt::format("{}", shader_model_minor));
-
     // Add NVAPI defines.
-    session_options.add_macro_define(
-        "SGL_ENABLE_NVAPI",
-        (SGL_HAS_NVAPI && m_device->type() == DeviceType::d3d12) ? "1" : "0"
-    );
+    session_options.add_macro_define("SGL_ENABLE_NVAPI", enable_nvapi ? "1" : "0");
 #if SGL_HAS_NVAPI
-    session_options.add_macro_define("NV_SHADER_EXTN_SLOT", "u999");
-    session_options.add(
-        slang::CompilerOptionName::DownstreamArgs,
-        "dxc",
-        fmt::format("-I{}", (platform::runtime_directory() / "shaders/nvapi").string())
-    );
+    if (enable_nvapi) {
+        session_options.add_macro_define("NV_SHADER_EXTN_SLOT", "u999");
+        auto include_arg = fmt::format("-I{}", (platform::runtime_directory() / "shaders/nvapi").string());
+        session_options.add(slang::CompilerOptionName::DownstreamArgs, "dxc", include_arg);
+    }
 #endif
 
     // Add device print enable flag.
@@ -534,6 +515,7 @@ void SlangSession::create_session(SlangSessionBuild& build)
     Slang::ComPtr<ISlangBlob> session_digest;
     SLANG_CALL(m_device->global_session()->getSessionDescDigest(&session_desc, session_digest.writeRef()));
     data->uid = string::hexlify(session_digest->getBufferPointer(), session_digest->getBufferSize());
+    data->enable_nvapi = enable_nvapi;
 
     // Setup session cache.
     // The session cache relies on Slang's ability to serialize shader modules.
@@ -594,22 +576,6 @@ ref<SlangModule> SlangSession::load_module_from_source(
     std::optional<std::filesystem::path> path
 )
 {
-    // TODO: This is a workaround until we use a Slang release with this fix:
-    // https://github.com/shader-slang/slang/pull/10996
-    // Once this is fixed on the Slang side, we can remove the digest check and just rely on Slang's internal caching
-    // mechanism.
-    SHA1::Digest digest = SHA1(source).digest();
-    auto it = m_source_module_digests.find(module_name);
-    if (it != m_source_module_digests.end()) {
-        if (it->second != digest) {
-            throw SlangCompileError(
-                fmt::format("Module \"{}\" already loaded with different source in this session.", module_name)
-            );
-        }
-    } else {
-        m_source_module_digests.emplace(std::string{module_name}, digest);
-    }
-
     SlangModuleDesc desc;
     desc.module_name = module_name;
     desc.source = source;
@@ -656,7 +622,7 @@ ref<ShaderProgram> SlangSession::link_program(
     }
 
     // Link NVAPI module if available.
-    if (SGL_HAS_NVAPI && m_device->type() == DeviceType::d3d12)
+    if (m_nvapi_module)
         modules.push_back(m_nvapi_module);
 
     // Generate label
@@ -1040,9 +1006,9 @@ void SlangModule::load(SlangSessionBuild& build_data) const
                 throw SlangCompileError(msg);
             }
         } else {
-            // TODO: This is a workaround until we use a Slang release with this fix:
-            // https://github.com/shader-slang/slang/pull/10996
-            // Once this is fixed on the Slang side, we can remove this.
+            // Without a path, Slang keys source identity by its contents.
+            // Distinguish identical source loaded under different module names to avoid
+            // an internal dictionary collision (covered by test_load_module_from_source_dedup).
             std::string source_str = fmt::format("// {}\n{}", desc.module_name, desc.source.value());
 
             SGL_CATCH_INTERNAL_SLANG_ERROR(
