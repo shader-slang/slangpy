@@ -902,6 +902,9 @@ public:
     const std::vector<SlangCapabilityID>& _slang_capabilities() const { return m_slang_capabilities; }
 
     Blitter* _blitter();
+    /// Returns the session for library-owned shaders, with application coverage disabled.
+    /// Reuses the default session when coverage is already disabled.
+    SlangSession* _internal_slang_session();
     HotReload* _hot_reload() { return m_hot_reload; }
     CacheWriter* _cache_writer() { return m_cache_writer.get(); }
 
@@ -944,6 +947,7 @@ private:
     Slang::ComPtr<slang::IGlobalSession> m_global_session;
 
     ref<SlangSession> m_slang_session;
+    ref<SlangSession> m_internal_slang_session;
     ref<refl::Layout> m_builtin_layout;
 
     std::vector<Feature> m_features;

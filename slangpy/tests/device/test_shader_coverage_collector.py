@@ -56,6 +56,85 @@ def branch_counts(program: spy.ShaderCoverageProgramSnapshot) -> list[int]:
     ]
 
 
+@pytest.mark.parametrize("compute", [False, True])
+@pytest.mark.parametrize("covered", [False, True])
+def test_internal_blit_excludes_coverage(
+    device_type: spy.DeviceType, compute: bool, covered: bool
+) -> None:
+    if not compute and device_type == spy.DeviceType.cuda:
+        pytest.skip("CUDA has no rasterization support")
+    device = spy.Device(
+        type=device_type,
+        enable_debug_layers=True,
+        compiler_options={"coverage": {"counter_width": 32} if covered else None},
+    )
+    try:
+        values = np.arange(64, dtype=np.float32).reshape(4, 4, 4) / 64
+        source = device.create_texture(
+            format=spy.Format.rgba32_float,
+            width=4,
+            height=4,
+            usage=spy.TextureUsage.shader_resource,
+            data=values,
+        )
+        target = device.create_texture(
+            format=spy.Format.rgba32_float,
+            width=4,
+            height=4,
+            usage=spy.TextureUsage.shader_resource
+            | (spy.TextureUsage.unordered_access if compute else spy.TextureUsage.render_target),
+        )
+        for reload in (False, True):
+            if reload:
+                device.reload_all_programs()
+            encoder = device.create_command_encoder()
+            encoder.blit(target, source)
+            device.submit_command_buffer(encoder.finish())
+            np.testing.assert_array_equal(target.to_numpy(), values)
+            assert device.shader_coverage.snapshot().programs == []
+
+        # Internal compilation must not change the application's compiler options.
+        module = spy.Module.load_from_file(device, str(SOURCE))
+        inputs, output = arrays(device)
+        module.wrapperA(inputs, _result=output)
+        programs = device.shader_coverage.snapshot().programs
+        if covered:
+            assert len(programs) == 1
+            assert sorted(branch_counts(programs[0])) == [2, 3]
+        else:
+            assert programs == []
+    finally:
+        device.close()
+
+
+def test_internal_ui_excludes_coverage(device_type: spy.DeviceType, device: spy.Device) -> None:
+    context = spy.ui.Context(device)
+    window = spy.ui.Window(
+        context.screen, "Coverage test", position=spy.float2(0, 0), size=spy.float2(96, 64)
+    )
+    spy.ui.Text(window, "Internal UI")
+    target = device.create_texture(
+        format=spy.Format.rgba8_unorm,
+        width=96,
+        height=64,
+        usage=spy.TextureUsage.shader_resource
+        | (
+            spy.TextureUsage.render_target
+            if device.has_feature(spy.Feature.rasterization)
+            else spy.TextureUsage.unordered_access
+        ),
+    )
+    for _ in range(2):
+        encoder = device.create_command_encoder()
+        encoder.clear_texture_float(target, clear_value=spy.float4(0))
+        context.begin_frame(96, 64)
+        context.end_frame(target, encoder)
+        device.submit_command_buffer(encoder.finish())
+    assert np.any(target.to_numpy()[..., :3])
+    assert device.shader_coverage.snapshot().programs == []
+    del context
+
+
 def test_collects_multiple_programs_and_keeps_macro_arms(
     device_type: spy.DeviceType, device: spy.Device
 ) -> None:

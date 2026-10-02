@@ -166,4 +166,28 @@ TEST_CASE_GPU("coverage_capture_finishes_after_close")
     CHECK_EQ(before_reset.interval_id + 1, after_reset.interval_id);
 }
 
+TEST_CASE_GPU("internal_shader_session")
+{
+    CHECK_EQ(ctx.device->_internal_slang_session(), ctx.device->slang_session());
+    if (ctx.device->type() != DeviceType::vulkan && ctx.device->type() != DeviceType::cuda)
+        return;
+
+    DeviceDesc desc{.type = ctx.device->type()};
+    desc.compiler_options.coverage = ShaderCoverageOptions{.counter_width = 32};
+    desc.compiler_options.defines["INTERNAL_SESSION_TEST"] = "1";
+    auto device = Device::create(desc);
+    auto* application = device->slang_session();
+    auto* internal = device->_internal_slang_session();
+    CHECK_NE(internal, application);
+    CHECK_EQ(internal, device->_internal_slang_session());
+    CHECK(application->desc().compiler_options.coverage.has_value());
+    CHECK_FALSE(internal->desc().compiler_options.coverage.has_value());
+    CHECK(internal->desc().compiler_options.defines == application->desc().compiler_options.defines);
+    CHECK(internal->desc().compiler_options.include_paths == application->desc().compiler_options.include_paths);
+    CHECK(internal->desc().cache_path == application->desc().cache_path);
+    CHECK_EQ(internal->desc().add_default_include_paths, application->desc().add_default_include_paths);
+    device->close();
+    CHECK_THROWS_WITH(device->_internal_slang_session(), doctest::Contains("Device is closed"));
+}
+
 TEST_SUITE_END();

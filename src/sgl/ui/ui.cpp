@@ -650,13 +650,14 @@ void Context::init_rasterizer()
     });
 
     // Setup program.
-    m_render_program = m_device->load_program("sgl/ui/imgui.slang", {"vs_main", "fs_main"});
+    m_render_program = m_device->_internal_slang_session()->load_program("sgl/ui/imgui.slang", {"vs_main", "fs_main"});
 }
 
 void Context::init_sw_rasterizer()
 {
     // Create setup triangle pipeline.
-    ref<ShaderProgram> program = m_device->load_program("sgl/ui/imguisw.slang", {"setup_triangles"});
+    ref<ShaderProgram> program
+        = m_device->_internal_slang_session()->load_program("sgl/ui/imguisw.slang", {"setup_triangles"});
     m_setup_triangles_pipeline = m_device->create_compute_pipeline({
         .program = program,
     });
@@ -706,16 +707,16 @@ ComputePipeline* Context::get_draw_triangles_pipeline(Format format)
         slang_format = "rgba8";
     SGL_CHECK(slang_format != nullptr, "Unsupported format for software rasterizer: {}", format);
 
+    auto* session = m_device->_internal_slang_session();
     std::string name = fmt::format("sgl-ui-imguisw-{}", format);
     std::string source = fmt::format(
         "#define FORMAT_ATTR [format(\"{}\")]\n{}",
         slang_format,
-        m_device->slang_session()->load_source("sgl/ui/imguisw.slang")
+        session->load_source("sgl/ui/imguisw.slang")
     );
 
-    ref<SlangModule> module = m_device->slang_session()->load_module_from_source(name, source);
-    ref<ShaderProgram> program
-        = m_device->slang_session()->link_program({module}, {module->entry_point("draw_triangles")});
+    ref<SlangModule> module = session->load_module_from_source(name, source);
+    ref<ShaderProgram> program = session->link_program({module}, {module->entry_point("draw_triangles")});
 
     // Create pipeline.
     ref<ComputePipeline> pipeline = m_device->create_compute_pipeline({

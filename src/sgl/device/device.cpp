@@ -562,6 +562,7 @@ void Device::_close(const std::function<void()>& wait_callback)
     detail::invalidate_reflection_data(this);
 
     m_builtin_layout.reset();
+    m_internal_slang_session.reset();
     m_slang_session.reset();
     m_hot_reload.reset();
 
@@ -817,6 +818,23 @@ void Device::convert_coop_vec_matrix(
         src_size,
         std::span<const CoopVecMatrixDesc>(&src_desc, 1)
     );
+}
+
+SlangSession* Device::_internal_slang_session()
+{
+    SGL_CHECK(!m_closed, "Device is closed");
+    if (!m_slang_session->desc().compiler_options.coverage)
+        return m_slang_session;
+
+    if (!m_internal_slang_session) {
+        // Internal blit and UI programs must not inherit application instrumentation.
+        // Copy the full descriptor to preserve include paths, cache settings and
+        // other compiler options, then disable coverage before compiling any modules.
+        auto desc = m_slang_session->desc();
+        desc.compiler_options.coverage.reset();
+        m_internal_slang_session = create_slang_session(std::move(desc));
+    }
+    return m_internal_slang_session;
 }
 
 ref<SlangSession> Device::create_slang_session(SlangSessionDesc desc)

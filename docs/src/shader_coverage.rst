@@ -77,6 +77,11 @@ point per linked program. Windows users should select Vulkan or CUDA explicitly;
 D3D12 coverage is not implemented. CUDA and Vulkan execution, including 64-bit counters, have been validated on a
 Windows RTX 4090.
 
+Library-owned blit and UI shaders do not inherit application coverage settings
+and do not appear in snapshots. They share a lazily created internal session
+that preserves the other compiler settings. When coverage is disabled, internal
+shaders reuse the default session without creating an additional session.
+
 Collection and lifetime
 -----------------------
 
