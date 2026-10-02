@@ -31,7 +31,10 @@ public:
     Device* device() const { return m_device; }
 
     void run();
-    void run_frame();
+    /// Render a single frame for all windows. Returns true if at least one window
+    /// rendered, and false if all were skipped (e.g. minimized or unconfigured), which
+    /// the run loop uses to throttle otherwise-idle iterations.
+    bool run_frame();
 
     void terminate();
 
@@ -89,7 +92,9 @@ public:
     virtual void on_gamepad_event(const GamepadEvent& event) { SGL_UNUSED(event); }
     virtual void on_drop_files(std::span<const char*> files) { SGL_UNUSED(files); }
 
-    void _run_frame();
+    /// Render a single frame. Returns true if the frame was presented, false if it was
+    /// skipped (minimized, no surface configuration, or no acquirable image).
+    bool _run_frame();
     bool _should_close();
 
 private:
