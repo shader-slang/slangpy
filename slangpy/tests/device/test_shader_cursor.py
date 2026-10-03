@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import weakref
 import pytest
 import sys
 import struct
@@ -63,6 +64,8 @@ TEST_VARS = {
     # bool
     "u_bool_false": Var(kind="scalar", type="bool", value=False),
     "u_bool_true": Var(kind="scalar", type="bool", value=True),
+    # bool1
+    "u_bool1": Var(kind="vector", type="bool", value=[True]),
     # bool2
     "u_bool2": Var(kind="vector", type="bool", value=[False, True]),
     # bool3
@@ -339,6 +342,16 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
     with command_encoder.begin_compute_pass() as pass_encoder:
         shader_object = pass_encoder.bind_pipeline(kernel.pipeline)
         cursor = spy.ShaderCursor(shader_object)
+
+        assert not cursor.find_element(0).is_valid()
+        assert not cursor.find_entry_point(1).is_valid()
+        assert not cursor.get_field_by_index(1_000_000).is_valid()
+        assert not cursor["u_int_array"].find_element(4).is_valid()
+        assert not cursor["u_int4"].find_element(4).is_valid()
+        assert not cursor["u_float2x2"].find_element(2).is_valid()
+        with pytest.raises(IndexError):
+            cursor["u_int_array"][4]
+
         cursor["results"] = result_buffer
         write_vars(device_type, cursor, TEST_VARS)
         pass_encoder.dispatch(thread_count=[1, 1, 1])
@@ -356,12 +369,6 @@ def test_shader_cursor(device_type: spy.DeviceType, use_numpy: bool):
     for named_typed_result, named_typed_reference in zip(
         named_typed_results, named_typed_references
     ):
-        # Vulkan/Metal/CUDA packing rule for certain matrix types are not the same as D3D12's
-        if (device_type in [spy.DeviceType.vulkan, spy.DeviceType.metal, spy.DeviceType.cuda]) and (
-            named_typed_result[0] == "u_float2x2" or named_typed_result[0] == "u_float3x3"
-        ):
-            continue
-
         assert named_typed_result == named_typed_reference
 
 
@@ -430,6 +437,202 @@ def test_shader_cursor_field_by_index(device_type: spy.DeviceType):
             struct_field_by_index._offset.uniform_offset
             == struct_field_by_name._offset.uniform_offset
         ), "Struct field cursors should have matching uniform_offset"
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_shader_cursor_numpy_validation(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    program = device.load_program("test_shader_cursor.slang", ["compute_main"])
+    kernel = device.create_compute_kernel(program)
+
+    command_encoder = device.create_command_encoder()
+    with command_encoder.begin_compute_pass() as pass_encoder:
+        cursor = spy.ShaderCursor(pass_encoder.bind_pipeline(kernel.pipeline))
+
+        # Exact dtypes and same-width signedness changes preserve their source bits.
+        cursor["u_float"] = np.array(1.25, dtype=np.float32)
+        cursor["u_int"] = np.array(42, dtype=np.uint32)
+        cursor["u_float4"] = np.arange(4, dtype=np.float32)
+        cursor["u_float2x2"] = np.arange(4, dtype=np.float32).reshape(2, 2)
+        cursor["u_float_array"] = np.arange(4, dtype=np.float32)
+        for shape in [(1, 4), (4, 1), (2, 2)]:
+            cursor["u_float4"] = np.arange(4, dtype=np.float32).reshape(shape)
+
+        with pytest.raises(TypeError, match="cannot be written"):
+            cursor["u_float"] = np.array(1, dtype=np.int32)
+        with pytest.raises(TypeError, match="cannot be written"):
+            cursor["u_int"] = np.array(1.0, dtype=np.float32)
+        with pytest.raises(TypeError, match="cannot be written"):
+            cursor["u_float"] = np.array(1.0, dtype=np.float64)
+
+        with pytest.raises(ValueError, match="scalar must have shape"):
+            cursor["u_float"] = np.array([], dtype=np.float32)
+        with pytest.raises(ValueError, match="vector must have shape"):
+            cursor["u_float4"] = np.zeros((2, 4), dtype=np.float32)
+        with pytest.raises(ValueError, match="matrix must have shape"):
+            cursor["u_float2x2"] = np.zeros(4, dtype=np.float32)
+        with pytest.raises(ValueError, match="array must have shape"):
+            cursor["u_float_array"] = np.zeros(3, dtype=np.float32)
+
+        non_contiguous = np.arange(8, dtype=np.float32)[::2]
+        with pytest.raises(ValueError, match="must be contiguous"):
+            cursor["u_float4"] = non_contiguous
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "representation", ["elements", "nested_elements", "short_sequence", "bad_element"]
+)
+def test_shader_cursor_vector_wrapped_elements(device_type: spy.DeviceType, representation: str):
+    class WrappedScalar:
+        def __init__(self, value: Any):
+            self.value = value
+
+        def get_this(self) -> Any:
+            return self.value
+
+    class WrappedVector(list):
+        def get_this(self) -> spy.float4:
+            return spy.float4(1, 2, 3, 4)
+
+    values: Any = [WrappedScalar(1.0), 2.0, WrappedScalar(3.0), 4.0]
+    if representation == "nested_elements":
+        values[0] = WrappedScalar(values[0])
+    elif representation == "short_sequence":
+        values = WrappedVector()
+    elif representation == "bad_element":
+        values = WrappedVector([5.0, 6.0, 7.0, None])
+
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source(
+        "test_shader_cursor_vector_wrappers",
+        """
+uniform float4 value;
+RWStructuredBuffer<float4> result;
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void compute_main() { result[0] = value; }
+""",
+    )
+    program = device.link_program([module], [module.entry_point("compute_main")])
+    kernel = device.create_compute_kernel(program)
+    result = device.create_buffer(size=16, usage=spy.BufferUsage.unordered_access)
+    encoder = device.create_command_encoder()
+    with encoder.begin_compute_pass() as compute_pass:
+        cursor = spy.ShaderCursor(compute_pass.bind_pipeline(kernel.pipeline))
+        cursor["value"] = values
+        cursor["result"] = result
+        compute_pass.dispatch(thread_count=[1, 1, 1])
+    device.submit_command_buffer(encoder.finish())
+    np.testing.assert_array_equal(result.to_numpy().view(np.float32), [1, 2, 3, 4])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_shader_cursor_reflected_values_skip_wrapper_fallback(device_type: spy.DeviceType):
+    class ScalarWithFailingWrapperFallback(int):
+        @property
+        def get_this(self):
+            raise AssertionError("ordinary scalar write consulted get_this")
+
+    class VectorWithFailingWrapperFallback(list):
+        @property
+        def get_this(self):
+            raise AssertionError("ordinary vector write consulted get_this")
+
+    device = helpers.get_device(type=device_type)
+    program = device.load_program("test_shader_cursor.slang", ["compute_main"])
+    kernel = device.create_compute_kernel(program)
+
+    command_encoder = device.create_command_encoder()
+    with command_encoder.begin_compute_pass() as pass_encoder:
+        cursor = spy.ShaderCursor(pass_encoder.bind_pipeline(kernel.pipeline))
+        cursor["u_int"] = ScalarWithFailingWrapperFallback(42)
+        cursor["u_float4"] = VectorWithFailingWrapperFallback([0.0, 1.0, 2.0, 3.0])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "field",
+        "attribute",
+        "find_field",
+        "index",
+        "find_element",
+        "field_index",
+        "entry_point",
+        "dereference",
+        "reinterpret",
+    ],
+)
+def test_shader_cursor_derived_owner(device_type: spy.DeviceType, operation: str):
+    device = helpers.get_device(type=device_type)
+    if not device.has_feature(spy.Feature.parameter_block):
+        pytest.skip("Parameter blocks are not supported")
+    module = device.load_module_from_source(
+        "test_cursor_derived_owner",
+        """
+struct Values { float value; float2 vector; };
+uniform Values values;
+ParameterBlock<Values> block;
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void main(uniform float entry_value) {}
+""",
+    )
+    program = device.link_program([module], [module.entry_point("main")])
+    owner = device.create_root_shader_object(program)
+    root = spy.ShaderCursor(owner)
+    value = 3.0
+    if operation == "field":
+        child = root["values"]["value"]
+    elif operation == "attribute":
+        child = root.values.value
+    elif operation == "find_field":
+        child = root.find_field("values").find_field("value")
+    elif operation == "index":
+        child = root["values"]["vector"][0]
+    elif operation == "find_element":
+        child = root["values"]["vector"].find_element(0)
+    elif operation == "field_index":
+        child = root["values"].get_field_by_index(0)
+    elif operation == "entry_point":
+        child = root.find_entry_point(0)["entry_value"]
+    elif operation == "dereference":
+        child = root["block"].dereference()["value"]
+    else:
+        layout = module.layout.get_type_layout(module.layout.find_type_by_name("Values"))
+        child = root["values"].reinterpret(layout).reinterpret(layout)["value"]
+        del layout
+    # A pass encoder does not own this root object. Retention must come from the
+    # descendant after all temporary cursors in its traversal chain are gone.
+    del root, owner, program, module
+    child.write(value)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_shader_cursor_child_releases_owner(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type, use_cache=False)
+    device_lifetime = weakref.ref(device)
+    program = device.load_program("test_shader_cursor.slang", ["compute_main"])
+    owner = device.create_root_shader_object(program)
+    root = spy.ShaderCursor(owner)
+    child = root["u_float"]
+    del root, owner, program
+    child.write(1.0)
+    # Close the device to release its own caches, then observe the remaining
+    # cursor ownership without prescribing how the cursor retains its owner.
+    device.close()
+    del device
+    assert device_lifetime() is not None
+    del child
+    assert device_lifetime() is None
+
+
+@pytest.mark.parametrize("owner", [None, 1, object()])
+def test_shader_cursor_requires_shader_object(owner: Any):
+    with pytest.raises(TypeError):
+        spy.ShaderCursor(owner)
 
 
 if __name__ == "__main__":

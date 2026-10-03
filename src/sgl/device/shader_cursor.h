@@ -27,7 +27,6 @@ public:
     ShaderCursor() = default;
 
     explicit ShaderCursor(ShaderObject* shader_object);
-    ShaderCursor(ShaderObject* shader_object, bool need_dereference, slang::TypeLayoutReflection* parent_type_layout);
     ShaderCursor(ShaderObject* shader_object, slang::TypeLayoutReflection* type_layout, ShaderOffset offset);
 
     /// Reinterpret the current cursor using a different type layout.
@@ -36,7 +35,7 @@ public:
     ShaderOffset offset() const { return m_offset; }
     ShaderObject* shader_object() const { return m_shader_object; }
 
-    bool is_valid() const { return m_offset.is_valid(); }
+    bool is_valid() const { return m_shader_object && m_type_layout && m_offset.is_valid(); }
 
     std::string to_string() const;
 
@@ -118,13 +117,6 @@ public:
         requires(!is_ref_v<std::remove_cvref_t<T>> && !HasWriteToCursor<T, ShaderCursor>)
     void set(const T& value) const;
 
-    void _set_array_unsafe(
-        const void* data,
-        size_t size,
-        size_t element_count,
-        TypeReflection::ScalarType cpu_scalar_type
-    ) const;
-
     /// CursorWriteWrappers, CursorReadWrappers
     void _set_data(ShaderOffset offset, const void* data, size_t size) const;
     ShaderOffset _get_offset() const { return m_offset; }
@@ -136,7 +128,7 @@ public:
     DeviceType _get_device_type() const;
 
 private:
-    slang::TypeLayoutReflection* m_type_layout;
+    slang::TypeLayoutReflection* m_type_layout{nullptr};
     ShaderObject* m_shader_object{nullptr};
     ShaderOffset m_offset;
 };

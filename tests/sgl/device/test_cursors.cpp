@@ -295,6 +295,21 @@ static_assert(cursor_utils::CanRegisterCursorWriter<Texture>);
 
 TEST_SUITE_BEGIN("cursors");
 
+TEST_CASE("invalid_shader_cursor_fails_safely")
+{
+    ShaderCursor cursor;
+
+    CHECK_FALSE(cursor.is_valid());
+    CHECK_FALSE(cursor.find_field("field").is_valid());
+    CHECK_FALSE(cursor.get_field_by_index(0).is_valid());
+    CHECK_FALSE(cursor.find_element(0).is_valid());
+    CHECK_FALSE(cursor.find_entry_point(0).is_valid());
+    CHECK_THROWS(cursor.is_reference());
+    CHECK_THROWS(cursor.dereference());
+    CHECK_THROWS(cursor.set(1));
+    CHECK_THROWS(cursor.set_data(nullptr, 0));
+}
+
 TEST_CASE("shader_cursor_set_uses_shader_cursor_contract")
 {
     ShaderCursorOnlyStruct::wrote = false;
@@ -313,6 +328,15 @@ TEST_CASE("buffer_element_cursor_set_uses_buffer_cursor_contract")
     cursor.set(BufferCursorOnlyStruct{});
 
     CHECK(BufferCursorOnlyStruct::wrote);
+}
+
+TEST_CASE("descriptor_handle_cursor_writer_is_registered")
+{
+    const cursor_utils::CursorWriterTypeInfo* info
+        = cursor_utils::find_cursor_writer_type_info(typeid(DescriptorHandle));
+    REQUIRE(info);
+    CHECK(info->write_shader_cursor);
+    CHECK(info->write_buffer_cursor);
 }
 
 TEST_CASE("register_cursor_writer_default_signature_writes_both_cursors")
@@ -670,7 +694,13 @@ TEST_CASE_GPU("shader_cursor_set_allows_null_resource_refs")
         R"(
 [shader("compute")]
 [numthreads(1, 1, 1)]
-void compute_main(StructuredBuffer<uint> buffer)
+void compute_main(
+    StructuredBuffer<uint> buffer,
+    StructuredBuffer<uint> buffer_view,
+    Texture2D<float4> texture,
+    Texture2D<float4> texture_view,
+    SamplerState sampler,
+    RaytracingAccelerationStructure acceleration_structure)
 {
 }
 )"
@@ -680,7 +710,96 @@ void compute_main(StructuredBuffer<uint> buffer)
     ShaderCursor entry_point = ShaderCursor(root_object.get()).find_entry_point(0);
 
     ref<Buffer> buffer;
+    ref<BufferView> buffer_view;
+    ref<Texture> texture;
+    ref<TextureView> texture_view;
+    ref<Sampler> sampler;
+    ref<AccelerationStructure> acceleration_structure;
     CHECK_NOTHROW(entry_point["buffer"].set(buffer));
+    CHECK_NOTHROW(entry_point["buffer_view"].set(buffer_view));
+    CHECK_NOTHROW(entry_point["texture"].set(texture));
+    CHECK_NOTHROW(entry_point["texture_view"].set(texture_view));
+    CHECK_NOTHROW(entry_point["sampler"].set(sampler));
+    CHECK_NOTHROW(entry_point["acceleration_structure"].set(acceleration_structure));
+}
+
+TEST_CASE_GPU("shader_cursor_navigation_rejects_out_of_range_indices")
+{
+    ref<SlangModule> module = ctx.device->load_module_from_source(
+        "shader_cursor_bounds",
+        R"(
+struct Data
+{
+    int value;
+};
+
+uniform int values[2];
+uniform int3 vector_value;
+uniform float2x2 matrix_value;
+uniform Data data;
+
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void compute_main(int entry_value)
+{
+}
+)"
+    );
+    ref<ShaderProgram> program = ctx.device->link_program({module}, {module->entry_point("compute_main")});
+    ref<ShaderObject> root_object = ctx.device->create_root_shader_object(program);
+    ShaderCursor root(root_object.get());
+
+    CHECK_FALSE(root.find_element(0).is_valid());
+    CHECK_FALSE(root.get_field_by_index(1'000'000).is_valid());
+    CHECK_FALSE(root["values"].find_element(2).is_valid());
+    CHECK_FALSE(root["vector_value"].find_element(3).is_valid());
+    CHECK_FALSE(root["matrix_value"].find_element(2).is_valid());
+    CHECK_FALSE(root["data"].get_field_by_index(1).is_valid());
+
+    CHECK(root.find_entry_point(0).is_valid());
+    CHECK_FALSE(root.find_entry_point(1).is_valid());
+}
+
+TEST_CASE_GPU("shader_cursor_reuses_wrappers_across_traversal_and_rebinding")
+{
+    if (!ctx.device->has_feature(Feature::parameter_block))
+        return;
+    ref<SlangModule> module = ctx.device->load_module_from_source(
+        "cursor_wrapper_reuse",
+        R"(
+struct Data { float value; };
+ParameterBlock<Data> block;
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void main(uniform float entry_value) {}
+)"
+    );
+    auto program = ctx.device->link_program({module}, {module->entry_point("main")});
+    auto owner = ctx.device->create_root_shader_object(program);
+    ShaderCursor root(owner.get());
+    ShaderCursor old_block = root["block"].dereference();
+    ShaderCursor entry = root.find_entry_point(0);
+    for (int i = 0; i < 100; ++i) {
+        CHECK(root["block"].dereference().shader_object() == old_block.shader_object());
+        CHECK(root.find_entry_point(0).shader_object() == entry.shader_object());
+    }
+
+    auto layout = module->layout()->get_type_layout(module->layout()->find_type_by_name("Data"));
+    auto replacement = ctx.device->create_shader_object(layout);
+    root["block"].set_object(replacement);
+    ShaderCursor new_block = root["block"].dereference();
+    CHECK(new_block.shader_object() != old_block.shader_object());
+    CHECK(new_block.shader_object()->rhi_shader_object() == replacement->rhi_shader_object());
+    CHECK(root["block"].dereference().shader_object() == new_block.shader_object());
+
+    // A saved cursor still refers to the old object, not the replacement at its
+    // former offset. The parent must keep both wrappers alive.
+    old_block["value"] = 1.0f;
+    new_block["value"] = 2.0f;
+    CHECK(*static_cast<const float*>(old_block.shader_object()->rhi_shader_object()->getRawData()) == 1.0f);
+    CHECK(*static_cast<const float*>(replacement->rhi_shader_object()->getRawData()) == 2.0f);
+    root["block"].set_object(ref<ShaderObject>(old_block.shader_object()));
+    CHECK(root["block"].dereference().shader_object() == old_block.shader_object());
 }
 
 TEST_SUITE_END();

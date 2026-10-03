@@ -38,6 +38,7 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     device/resource.cpp
     device/sampler.cpp
     device/shader_cursor.cpp
+    device/shader_cursor.h
     device/shader_object.cpp
     device/shader.cpp
     device/surface.cpp

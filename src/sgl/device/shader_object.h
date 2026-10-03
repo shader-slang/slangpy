@@ -70,12 +70,18 @@ public:
 
     rhi::IShaderObject* rhi_shader_object() const { return m_shader_object; }
 
+    /// Retain a borrowed RHI object when its wrapper escapes command recording.
+    void retain_rhi_shader_object();
+
 protected:
     ref<Device> m_device;
     rhi::IShaderObject* m_shader_object;
     bool m_retain;
     short_vector<ref<cuda::InteropBuffer>, 8> m_cuda_interop_buffers;
     short_vector<ref<ShaderObject>, 8> m_objects;
+
+private:
+    ref<ShaderObject> get_or_create_child(rhi::IShaderObject* object);
 };
 
 } // namespace sgl
