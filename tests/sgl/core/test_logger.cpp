@@ -8,13 +8,16 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using namespace sgl;
 
 struct FormatProbe {
     bool* formatted;
+    bool fail{false};
 };
 
 template<>
@@ -23,11 +26,37 @@ struct fmt::formatter<FormatProbe> : fmt::formatter<std::string_view> {
     auto format(const FormatProbe& value, FormatContext& ctx) const
     {
         *value.formatted = true;
+        if (value.fail)
+            throw std::runtime_error("formatter failed");
         return fmt::formatter<std::string_view>::format("probe", ctx);
     }
 };
 
 TEST_SUITE_BEGIN("logger");
+
+static_assert(noexcept(Logger::get()));
+static_assert(noexcept(sgl::log(LogLevel::info, std::string_view{})));
+static_assert(noexcept(std::declval<Logger&>().log(LogLevel::info, std::string_view{})));
+static_assert(noexcept(SGL_PRINT(std::declval<int>())));
+
+// Check the public exception specification as well as the runtime behavior below.
+#define CHECK_LOG_NOEXCEPT(name)                                                                                       \
+    static_assert(noexcept(std::declval<Logger&>().name(std::string_view{})));                                         \
+    static_assert(noexcept(std::declval<Logger&>().name(std::declval<fmt::format_string<int>>(), 1)));                 \
+    static_assert(noexcept(std::declval<Logger&>().name##_once(std::string_view{})));                                  \
+    static_assert(noexcept(std::declval<Logger&>().name##_once(std::declval<fmt::format_string<int>>(), 1)));          \
+    static_assert(noexcept(log_##name(std::string_view{})));                                                           \
+    static_assert(noexcept(log_##name(std::declval<fmt::format_string<int>>(), 1)));                                   \
+    static_assert(noexcept(log_##name##_once(std::string_view{})));                                                    \
+    static_assert(noexcept(log_##name##_once(std::declval<fmt::format_string<int>>(), 1)));
+
+CHECK_LOG_NOEXCEPT(debug)
+CHECK_LOG_NOEXCEPT(info)
+CHECK_LOG_NOEXCEPT(warn)
+CHECK_LOG_NOEXCEPT(error)
+CHECK_LOG_NOEXCEPT(fatal)
+
+#undef CHECK_LOG_NOEXCEPT
 
 class ReentrantLoggerOutput : public LoggerOutput {
     SGL_OBJECT(ReentrantLoggerOutput)
@@ -60,6 +89,48 @@ public:
     void write(LogLevel, const std::string_view, const std::string_view) override { m_write_count++; }
 
     std::atomic<size_t> m_write_count{0};
+};
+
+class ThrowingLoggerOutput : public LoggerOutput {
+    SGL_OBJECT(ThrowingLoggerOutput)
+public:
+    explicit ThrowingLoggerOutput(bool nonstandard_exception = false)
+        : m_nonstandard_exception(nonstandard_exception)
+    {
+    }
+
+    void write(LogLevel, const std::string_view, const std::string_view) override
+    {
+        m_write_count++;
+        if (m_nonstandard_exception)
+            throw 42;
+        throw std::runtime_error("output failed");
+    }
+
+    std::atomic<size_t> m_write_count{0};
+
+private:
+    bool m_nonstandard_exception;
+};
+
+class ScopedGlobalLoggerOutputs {
+public:
+    ScopedGlobalLoggerOutputs()
+        : m_saved(Logger::create(Logger::get().level(), "", false))
+    {
+        m_saved->use_same_outputs(Logger::get());
+        Logger::get().remove_all_outputs();
+        Logger::get().set_level(LogLevel::debug);
+    }
+
+    ~ScopedGlobalLoggerOutputs()
+    {
+        Logger::get().use_same_outputs(*m_saved);
+        Logger::get().set_level(m_saved->level());
+    }
+
+private:
+    ref<Logger> m_saved;
 };
 
 class RefCountLoggerOutput : public LoggerOutput {
@@ -251,7 +322,7 @@ TEST_CASE("filtered formatted messages avoid formatting")
     logger->add_output(output);
     bool formatted = false;
 
-    logger->debug("{}", FormatProbe{&formatted});
+    logger->debug("{}", FormatProbe{&formatted, true});
     CHECK_FALSE(formatted);
     CHECK_EQ(output->m_write_count, 0);
 
@@ -269,7 +340,7 @@ TEST_CASE("filtered formatted once messages avoid formatting")
     logger->add_output(output);
     bool formatted = false;
 
-    logger->debug_once("{}", FormatProbe{&formatted});
+    logger->debug_once("{}", FormatProbe{&formatted, true});
     CHECK_FALSE(formatted);
     CHECK_EQ(output->m_write_count, 0);
 
@@ -277,6 +348,83 @@ TEST_CASE("filtered formatted once messages avoid formatting")
     logger->debug_once("{}", FormatProbe{&formatted});
     CHECK(formatted);
     CHECK_EQ(output->m_write_count, 1);
+}
+
+TEST_CASE("output failures are isolated and once messages are not retried")
+{
+    auto logger = Logger::create(LogLevel::debug, "test", false);
+    auto first = make_ref<ThrowingLoggerOutput>();
+    auto second = make_ref<ThrowingLoggerOutput>(true);
+    auto healthy = make_ref<CountingLoggerOutput>();
+    logger->add_output(first);
+    logger->add_output(second);
+    logger->add_output(healthy);
+
+    // Both throwing outputs must be called, regardless of pointer ordering in the output set.
+    CHECK_NOTHROW(logger->log(LogLevel::info, "plain"));
+    CHECK_NOTHROW(logger->warn("formatted {}", 42));
+    CHECK_NOTHROW(logger->warn_once("once {}", 42));
+    CHECK_NOTHROW(logger->warn_once("once {}", 42));
+    CHECK_EQ(first->m_write_count, 3);
+    CHECK_EQ(second->m_write_count, 3);
+    CHECK_EQ(healthy->m_write_count, 3);
+
+    logger->remove_output(first);
+    logger->remove_output(second);
+    logger->warn("still usable");
+    CHECK_EQ(healthy->m_write_count, 4);
+}
+
+TEST_CASE("global logging and SGL_PRINT suppress output failures")
+{
+    ScopedGlobalLoggerOutputs restore_outputs;
+    auto& logger = Logger::get();
+    auto first = make_ref<ThrowingLoggerOutput>();
+    auto second = make_ref<ThrowingLoggerOutput>(true);
+    auto healthy = make_ref<CountingLoggerOutput>();
+    logger.add_output(first);
+    logger.add_output(second);
+    logger.add_output(healthy);
+
+    CHECK_NOTHROW(sgl::log(LogLevel::none, "plain"));
+    CHECK_NOTHROW(log_warn("message"));
+    CHECK_NOTHROW(log_warn("formatted {}", 42));
+    CHECK_NOTHROW(log_warn_once("global once"));
+    CHECK_NOTHROW(log_warn_once("global once"));
+    CHECK_NOTHROW(log_warn_once("global once {}", 42));
+    CHECK_NOTHROW(log_warn_once("global once {}", 42));
+    int value = 42;
+    CHECK_NOTHROW(SGL_PRINT(value));
+    CHECK_EQ(first->m_write_count, 6);
+    CHECK_EQ(second->m_write_count, 6);
+    CHECK_EQ(healthy->m_write_count, 6);
+}
+
+TEST_CASE("output failures during unwinding preserve the original exception")
+{
+    auto logger = Logger::create(LogLevel::warn, "test", false);
+    logger->add_output(make_ref<ThrowingLoggerOutput>());
+    auto healthy = make_ref<CountingLoggerOutput>();
+    logger->add_output(healthy);
+    bool formatted = false;
+    struct LogOnDestruction {
+        Logger* logger;
+        bool* formatted;
+        ~LogOnDestruction()
+        {
+            logger->warn("cleanup diagnostic");
+            logger->warn("{}", FormatProbe{formatted});
+        }
+    };
+
+    auto fail = [&]
+    {
+        LogOnDestruction guard{logger.get(), &formatted};
+        throw std::runtime_error("original failure");
+    };
+    CHECK_THROWS_WITH_AS(fail(), "original failure", std::runtime_error);
+    CHECK(formatted);
+    CHECK_EQ(healthy->m_write_count, 2);
 }
 
 TEST_SUITE_END();

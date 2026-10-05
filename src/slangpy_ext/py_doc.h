@@ -5787,7 +5787,12 @@ static const char *__doc_sgl_LogLevel_warn = R"doc()doc";
 
 static const char *__doc_sgl_Logger = R"doc()doc";
 
-static const char *__doc_sgl_Logger_2 = R"doc()doc";
+static const char *__doc_sgl_Logger_2 =
+R"doc(Diagnostic logger. Emission is noexcept: output exceptions are
+suppressed, while formatting and other internal exceptions invoke
+std::terminate with the active exception available to a handler.
+Configuration operations may throw. Exceptions while evaluating
+arguments before a logging call are the caller's responsibility.)doc";
 
 static const char *__doc_sgl_LoggerOutput = R"doc()doc";
 
@@ -5796,7 +5801,9 @@ R"doc(Abstract base class for logger outputs.
 
 Implementations must be thread-safe. A LoggerOutput can be shared by
 multiple loggers, and write() may be called concurrently from multiple
-threads.)doc";
+threads. Outputs may throw; Logger suppresses each output's exception
+and continues with the remaining outputs. Direct calls to write() are
+not covered by Logger's nonthrowing guarantee.)doc";
 
 static const char *__doc_sgl_LoggerOutput_class_name = R"doc()doc";
 
@@ -5883,7 +5890,12 @@ static const char *__doc_sgl_Logger_fatal_once = R"doc()doc";
 
 static const char *__doc_sgl_Logger_fatal_once_2 = R"doc()doc";
 
-static const char *__doc_sgl_Logger_get = R"doc(Returns the global logger instance.)doc";
+static const char *__doc_sgl_Logger_get =
+R"doc(Returns the lazily initialized global logger instance. Initialization
+failure or a call after static_shutdown() begins invokes
+std::terminate. The active exception can be inspected by an
+application-installed termination handler. Concurrent first use is
+supported; shutdown must be synchronized with all logger users.)doc";
 
 static const char *__doc_sgl_Logger_info = R"doc()doc";
 
@@ -5898,7 +5910,11 @@ static const char *__doc_sgl_Logger_is_duplicate = R"doc(Checks if the given mes
 static const char *__doc_sgl_Logger_level = R"doc(The log level.)doc";
 
 static const char *__doc_sgl_Logger_log =
-R"doc(Log a message.
+R"doc(Log a message without propagating exceptions. Output exceptions are
+suppressed so the remaining outputs are still attempted. Other
+internal exceptions invoke std::terminate. Output failures are not
+logged recursively. Once messages are recorded before delivery and are
+not retried if an output fails.
 
 Parameter ``level``:
     The log level.
@@ -10684,7 +10700,7 @@ static const char *__doc_sgl_breakable_ref_operator_bool = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_operator_mul = R"doc()doc";
 
-static const char *__doc_sgl_breakable_ref_operator_sgl_ref = R"doc()doc";
+static const char *__doc_sgl_breakable_ref_operator_ref = R"doc()doc";
 
 static const char *__doc_sgl_breakable_ref_operator_sub = R"doc()doc";
 
@@ -11267,6 +11283,8 @@ static const char *__doc_sgl_detail_invalidate_reflection_data =
 R"doc(Invalidate reflection data. If device is set, only reflection data
 owned by that device is invalidated.)doc";
 
+static const char *__doc_sgl_detail_log_print = R"doc()doc";
+
 static const char *__doc_sgl_detail_on_slang_wrapper_destroyed = R"doc()doc";
 
 static const char *__doc_sgl_detail_profiler_frame_name = R"doc()doc";
@@ -11839,6 +11857,20 @@ static const char *__doc_sgl_load_module = R"doc(Load a slang module by name.)do
 static const char *__doc_sgl_load_module_from_source = R"doc(Load a slang module from source code.)doc";
 
 static const char *__doc_sgl_load_program = R"doc(Load a module and link a shader program in one step.)doc";
+
+static const char *__doc_sgl_log =
+R"doc(Log a message through the global logger. See Logger::log() for
+emission behavior and Logger::get() for initialization and shutdown
+requirements.
+
+Parameter ``level``:
+    The log level.
+
+Parameter ``msg``:
+    The message.
+
+Parameter ``frequency``:
+    The log frequency.)doc";
 
 static const char *__doc_sgl_log_debug = R"doc()doc";
 
