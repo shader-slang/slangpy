@@ -2,9 +2,6 @@
 
 import slangpy;
 
-// Each function computes output[idx] = input[idx] * 3, calling the array/vector
-// load/store interface requirements through an interface-typed parameter.
-
 [Differentiable]
 void iface_load_array(IDiffTensor<float, 1> input, WDiffTensor<float, 1> output, int idx)
 {

@@ -111,15 +111,27 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWDiffTensor<T,
     public property shape : uint[D] { get { return _primal.shape; } }
 
 #define _SLANGPY_DIFFTENSOR_LOAD                                                                                       \
+    /* Custom derivatives are on _load_impl rather than the load requirement witnesses: slang#13301 drops */           \
+    /* a [BackwardDerivative] on a witness when it is called through the interface or a generic.         */            \
+    [ForceInline] [Differentiable]                                                                                     \
+    public T load<I : __BuiltinIntegerType>(I idx[D])                                                                  \
+    {                                                                                                                  \
+        return _load_impl(idx);                                                                                        \
+    }                                                                                                                  \
+    [ForceInline] [Differentiable]                                                                                     \
+    public T load<I : __BuiltinIntegerType>(vector<I, D> idx)                                                          \
+    {                                                                                                                  \
+        return _load_impl(idx);                                                                                        \
+    }                                                                                                                  \
     [ForceInline] [Differentiable]                                                                                     \
     [BackwardDerivative(_load_bwd_array)]                                                                              \
-    public T load<I : __BuiltinIntegerType>(I idx[D])                                                                  \
+    T _load_impl<I : __BuiltinIntegerType>(I idx[D])                                                                   \
     {                                                                                                                  \
         return _primal.load(idx);                                                                                      \
     }                                                                                                                  \
     [ForceInline] [Differentiable]                                                                                     \
     [BackwardDerivative(_load_bwd_vector)]                                                                             \
-    public T load<I : __BuiltinIntegerType>(vector<I, D> idx)                                                          \
+    T _load_impl<I : __BuiltinIntegerType>(vector<I, D> idx)                                                           \
     {                                                                                                                  \
         return _primal.load(idx);                                                                                      \
     }                                                                                                                  \
@@ -181,15 +193,27 @@ public extension<T : IDifferentiable, let D : int, TensorType : IRWDiffTensor<T,
     }
 
 #define _SLANGPY_DIFFTENSOR_STORE                                                                                      \
+    /* Custom derivatives are on _store_impl rather than the store requirement witnesses: slang#13301 drops */         \
+    /* a [BackwardDerivative] on a witness when it is called through the interface or a generic.           */          \
+    [ForceInline] [Differentiable]                                                                                     \
+    public void store<I : __BuiltinIntegerType>(I idx[D], T value)                                                     \
+    {                                                                                                                  \
+        _store_impl(idx, value);                                                                                       \
+    }                                                                                                                  \
+    [ForceInline] [Differentiable]                                                                                     \
+    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)                                             \
+    {                                                                                                                  \
+        _store_impl(idx, value);                                                                                       \
+    }                                                                                                                  \
     [ForceInline] [Differentiable]                                                                                     \
     [BackwardDerivative(_store_bwd_array)]                                                                             \
-    public void store<I : __BuiltinIntegerType>(I idx[D], T value)                                                     \
+    void _store_impl<I : __BuiltinIntegerType>(I idx[D], T value)                                                      \
     {                                                                                                                  \
         _primal.store(idx, value);                                                                                     \
     }                                                                                                                  \
     [ForceInline] [Differentiable]                                                                                     \
     [BackwardDerivative(_store_bwd_vector)]                                                                            \
-    public void store<I : __BuiltinIntegerType>(vector<I, D> idx, T value)                                             \
+    void _store_impl<I : __BuiltinIntegerType>(vector<I, D> idx, T value)                                              \
     {                                                                                                                  \
         _primal.store(idx, value);                                                                                     \
     }                                                                                                                  \
