@@ -285,9 +285,10 @@ SGL_GLOBAL_LOG_FUNC_FAMILY(fatal)
 #undef SGL_LOG_FUNC_FAMILY
 
 namespace detail {
+    // Accept the stringified name directly to avoid a potentially throwing string_view conversion at the call site.
     // Keep formatting inside the noexcept boundary, just like the level-specific helpers.
     template<typename T>
-    void log_print(std::string_view name, T&& value) noexcept
+    void log_print(const char* name, T&& value) noexcept
     {
         Logger::get().log(LogLevel::none, fmt::format("{} = {}", name, std::forward<T>(value)));
     }
