@@ -90,6 +90,8 @@ SGL_PY_EXPORT(utils_texture_loader)
             nb::overload_cast<std::span<const Bitmap*>, std::optional<TextureLoader::Options>>(
                 &TextureLoader::load_textures
             ),
+            nb::call_guard<nb::gil_scoped_release>(),
+            nb::keep_alive_sequence<1>(),
             "bitmaps"_a,
             "options"_a.none() = nb::none(),
             D(TextureLoader, load_textures)
@@ -99,6 +101,8 @@ SGL_PY_EXPORT(utils_texture_loader)
             nb::overload_cast<std::span<const Bitmap*>, std::span<const TextureLoader::Options>>(
                 &TextureLoader::load_textures
             ),
+            nb::call_guard<nb::gil_scoped_release>(),
+            nb::keep_alive_sequence<1>(),
             "bitmaps"_a,
             "options"_a,
             D(TextureLoader, load_textures, 2)
@@ -126,6 +130,8 @@ SGL_PY_EXPORT(utils_texture_loader)
             nb::overload_cast<std::span<const Bitmap*>, std::optional<TextureLoader::Options>>(
                 &TextureLoader::load_texture_array
             ),
+            nb::call_guard<nb::gil_scoped_release>(),
+            nb::keep_alive_sequence<1>(),
             "bitmaps"_a,
             "options"_a.none() = nb::none(),
             D(TextureLoader, load_texture_array)
