@@ -367,10 +367,6 @@ def test_load_texture_from_dds_file(device_type: spy.DeviceType, filename: str):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("from_bitmap", [False, True])
 def test_load_textures(device_type: spy.DeviceType, from_bitmap: bool):
-    if from_bitmap:
-        pytest.skip(
-            "Python-owned bitmap GIL deadlock: https://github.com/shader-slang/slangpy/pull/1203"
-        )
     device = helpers.get_device(type=device_type)
 
     loader = TextureLoader(device)
@@ -385,10 +381,6 @@ def test_load_textures(device_type: spy.DeviceType, from_bitmap: bool):
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("from_bitmap", [False, True])
 def test_load_texture_array(device_type: spy.DeviceType, from_bitmap: bool):
-    if from_bitmap:
-        pytest.skip(
-            "Python-owned bitmap GIL deadlock: https://github.com/shader-slang/slangpy/pull/1203"
-        )
     device = helpers.get_device(type=device_type)
 
     loader = TextureLoader(device)
