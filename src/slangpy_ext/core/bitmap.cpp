@@ -18,6 +18,13 @@ SGL_PY_EXPORT(core_bitmap)
     bitmap.attr("ComponentType") = m.attr("DataStruct").attr("Type");
     nb::sgl_enum<Bitmap::FileFormat>(bitmap, "FileFormat", D(Bitmap, FileFormat));
 
+    nb::class_<Bitmap::Info>(bitmap, "Info", D(Bitmap, Info))
+        .def_ro("width", &Bitmap::Info::width, D(Bitmap, Info, width))
+        .def_ro("height", &Bitmap::Info::height, D(Bitmap, Info, height))
+        .def_ro("pixel_format", &Bitmap::Info::pixel_format, D(Bitmap, Info, pixel_format))
+        .def_ro("component_type", &Bitmap::Info::component_type, D(Bitmap, Info, component_type))
+        .def_ro("channel_count", &Bitmap::Info::channel_count, D(Bitmap, Info, channel_count));
+
     bitmap //
         .def(
             "__init__",
@@ -337,4 +344,12 @@ SGL_PY_EXPORT(core_bitmap)
                 return nb::str(html.c_str());
             }
         );
+
+    bitmap.def_static(
+        "read_info",
+        nb::overload_cast<const std::filesystem::path&, Bitmap::FileFormat>(&Bitmap::read_info),
+        "path"_a,
+        "format"_a = Bitmap::FileFormat::auto_,
+        D(Bitmap, read_info)
+    );
 }

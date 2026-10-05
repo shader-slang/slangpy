@@ -91,6 +91,12 @@ def write_read_test(
     b1.write(path, quality=quality if quality else -1)
 
     b2 = Bitmap(path)
+    info = Bitmap.read_info(path)
+    assert info.width == b2.width
+    assert info.height == b2.height
+    assert info.pixel_format == b2.pixel_format
+    assert info.component_type == b2.component_type
+    assert info.channel_count == b2.channel_count
 
     assert b1.pixel_format == b2.pixel_format
     assert b1.component_type == b2.component_type
