@@ -365,22 +365,28 @@ def test_load_texture_from_dds_file(device_type: spy.DeviceType, filename: str):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_load_textures(device_type: spy.DeviceType):
+@pytest.mark.parametrize("from_bitmap", [False, True])
+def test_load_textures(device_type: spy.DeviceType, from_bitmap: bool):
     device = helpers.get_device(type=device_type)
 
     loader = TextureLoader(device)
     paths = [TEST_IMAGE_DIR / f for f in TEST_BITMAP_FILES]
-    textures = loader.load_textures(paths)
+    sources = [Bitmap(path) for path in paths] if from_bitmap else paths
+    textures = loader.load_textures(sources)
+    assert len(textures) == 2
+    textures = loader.load_textures(sources, [TextureLoader.Options()] * len(sources))
     assert len(textures) == 2
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_load_texture_array(device_type: spy.DeviceType):
+@pytest.mark.parametrize("from_bitmap", [False, True])
+def test_load_texture_array(device_type: spy.DeviceType, from_bitmap: bool):
     device = helpers.get_device(type=device_type)
 
     loader = TextureLoader(device)
     paths = [TEST_IMAGE_DIR / f for f in TEST_BITMAP_FILES]
-    texture = loader.load_texture_array(paths)
+    sources = [Bitmap(path) for path in paths] if from_bitmap else paths
+    texture = loader.load_texture_array(sources)
     assert texture.array_length == 2
 
 

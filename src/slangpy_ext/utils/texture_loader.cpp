@@ -68,7 +68,12 @@ SGL_PY_EXPORT(utils_texture_loader)
     nb::implicitly_convertible<nb::dict, TextureLoader::Options>();
 
     texture_loader //
-        .def(nb::init<ref<Device>>(), "device"_a, D(TextureLoader, TextureLoader))
+        .def(
+            nb::init<ref<Device>, uint64_t>(),
+            "device"_a,
+            "memory_budget"_a = TextureLoader::DEFAULT_MEMORY_BUDGET,
+            D(TextureLoader, TextureLoader)
+        )
         .def(
             "load_texture",
             nb::overload_cast<const Bitmap*, std::optional<TextureLoader::Options>>(&TextureLoader::load_texture),
