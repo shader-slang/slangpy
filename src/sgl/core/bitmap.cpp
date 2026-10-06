@@ -747,7 +747,11 @@ struct StreamReader {
     {
     }
 
-    void reset() { stream->seek(initial_pos); }
+    void reset()
+    {
+        stream->seek(initial_pos);
+        is_eof = false;
+    }
 
     static int read(void* user, char* data, int size)
     {
@@ -774,34 +778,57 @@ struct StreamReader {
     }
 };
 
-void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_hdr)
+static Bitmap::Info read_stb_header(StreamReader& reader, const char* format, bool is_hdr)
 {
-    StreamReader reader(stream);
-
+    Bitmap::Info info;
     int w, h, c;
     if (!stbi_info_from_callbacks(&reader.callbacks, &reader, &w, &h, &c))
         SGL_THROW(fmt::format("Failed to read {} file!", format));
     reader.reset();
 
-    m_width = w;
-    m_height = h;
+    bool is_16_bit = !is_hdr && stbi_is_16_bit_from_callbacks(&reader.callbacks, &reader);
+    reader.reset();
+
+    info.width = w;
+    info.height = h;
     switch (c) {
     case 1:
-        m_pixel_format = PixelFormat::y;
+        info.pixel_format = Bitmap::PixelFormat::y;
         break;
     case 2:
-        m_pixel_format = PixelFormat::ya;
+        info.pixel_format = Bitmap::PixelFormat::ya;
         break;
     case 3:
-        m_pixel_format = PixelFormat::rgb;
+        info.pixel_format = Bitmap::PixelFormat::rgb;
         break;
     case 4:
-        m_pixel_format = PixelFormat::rgba;
+        info.pixel_format = Bitmap::PixelFormat::rgba;
         break;
     default:
         SGL_THROW("Unsupported number of channels {}!", c);
     }
-    m_component_type = is_hdr ? ComponentType::float32 : ComponentType::uint8;
+    info.component_type = is_hdr ? Bitmap::ComponentType::float32
+                                 : (is_16_bit ? Bitmap::ComponentType::uint16 : Bitmap::ComponentType::uint8);
+    info.channel_count = c;
+    return info;
+}
+
+static Bitmap::Info read_stb_info(Stream* stream, Bitmap::FileFormat format)
+{
+    StreamReader reader(stream);
+    return read_stb_header(reader, enum_to_string(format).c_str(), format == Bitmap::FileFormat::hdr);
+}
+
+void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_hdr)
+{
+    StreamReader reader(stream);
+
+    const Info info = read_stb_header(reader, format, is_hdr);
+    m_width = info.width;
+    m_height = info.height;
+    m_pixel_format = info.pixel_format;
+    m_component_type = info.component_type;
+    int w, h, c = int(info.channel_count);
     m_srgb_gamma = is_srgb && (c == 3 || c == 4);
 
     rebuild_pixel_struct();
@@ -821,6 +848,9 @@ void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_
     switch (m_component_type) {
     case ComponentType::uint8:
         data = reinterpret_cast<void*>(stbi_load_from_callbacks(&reader.callbacks, &reader, &w, &h, &c, c));
+        break;
+    case ComponentType::uint16:
+        data = reinterpret_cast<void*>(stbi_load_16_from_callbacks(&reader.callbacks, &reader, &w, &h, &c, c));
         break;
     case ComponentType::float32:
         data = reinterpret_cast<void*>(stbi_loadf_from_callbacks(&reader.callbacks, &reader, &w, &h, &c, c));
@@ -871,28 +901,9 @@ static void png_warn_func(png_structp, png_const_charp msg)
     log_warn("libpng warning: {}\n", msg);
 }
 
-void Bitmap::read_png(Stream* stream)
+static Bitmap::Info read_png_header(png_structp png_ptr, png_infop info_ptr)
 {
-    // Create buffers.
-    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, &png_error_func, &png_warn_func);
-    if (png_ptr == nullptr)
-        SGL_THROW("Failed to create PNG data structure!");
-
-    png_infop info_ptr = png_create_info_struct(png_ptr);
-    if (info_ptr == nullptr) {
-        png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-        SGL_THROW("Failed to create PNG information structure!");
-    }
-
-    // Setup error handling.
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-        SGL_THROW("Error reading the PNG file!");
-    }
-
-    // Setup read callback.
-    png_set_read_fn(png_ptr, stream, (png_rw_ptr)png_read_data);
-
+    Bitmap::Info info;
     int bit_depth, color_type, interlace_type, compression_type, filter_type;
     png_read_info(png_ptr, info_ptr);
     png_uint_32 width = 0, height = 0;
@@ -939,21 +950,21 @@ void Bitmap::read_png(Stream* stream)
         &compression_type,
         &filter_type
     );
-    m_width = width;
-    m_height = height;
+    info.width = width;
+    info.height = height;
 
     switch (color_type) {
     case PNG_COLOR_TYPE_GRAY:
-        m_pixel_format = PixelFormat::y;
+        info.pixel_format = Bitmap::PixelFormat::y;
         break;
     case PNG_COLOR_TYPE_GRAY_ALPHA:
-        m_pixel_format = PixelFormat::ya;
+        info.pixel_format = Bitmap::PixelFormat::ya;
         break;
     case PNG_COLOR_TYPE_RGB:
-        m_pixel_format = PixelFormat::rgb;
+        info.pixel_format = Bitmap::PixelFormat::rgb;
         break;
     case PNG_COLOR_TYPE_RGB_ALPHA:
-        m_pixel_format = PixelFormat::rgba;
+        info.pixel_format = Bitmap::PixelFormat::rgba;
         break;
     default:
         SGL_THROW("Unknown color type {}!", color_type);
@@ -961,14 +972,63 @@ void Bitmap::read_png(Stream* stream)
 
     switch (bit_depth) {
     case 8:
-        m_component_type = ComponentType::uint8;
+        info.component_type = Bitmap::ComponentType::uint8;
         break;
     case 16:
-        m_component_type = ComponentType::uint16;
+        info.component_type = Bitmap::ComponentType::uint16;
         break;
     default:
         SGL_THROW("Unsupported bit depth {}!", bit_depth);
     }
+
+    info.channel_count = png_get_channels(png_ptr, info_ptr);
+    return info;
+}
+
+static Bitmap::Info read_png_info(Stream* stream)
+{
+    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, png_error_func, png_warn_func);
+    SGL_CHECK(png_ptr, "Failed to create PNG reader");
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    try {
+        SGL_CHECK(info_ptr, "Failed to create PNG information");
+        png_set_read_fn(png_ptr, stream, png_read_data);
+        const Bitmap::Info result = read_png_header(png_ptr, info_ptr);
+        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+        return result;
+    } catch (...) {
+        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+        throw;
+    }
+}
+
+void Bitmap::read_png(Stream* stream)
+{
+    // Create buffers.
+    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, &png_error_func, &png_warn_func);
+    if (png_ptr == nullptr)
+        SGL_THROW("Failed to create PNG data structure!");
+
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (info_ptr == nullptr) {
+        png_destroy_read_struct(&png_ptr, nullptr, nullptr);
+        SGL_THROW("Failed to create PNG information structure!");
+    }
+
+    // Setup error handling.
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+        SGL_THROW("Error reading the PNG file!");
+    }
+
+    // Setup read callback.
+    png_set_read_fn(png_ptr, stream, (png_rw_ptr)png_read_data);
+
+    const Info info = read_png_header(png_ptr, info_ptr);
+    m_width = info.width;
+    m_height = info.height;
+    m_pixel_format = info.pixel_format;
+    m_component_type = info.component_type;
 
     // Metadata takes precedence over the 8-bit RGB/RGBA fallback for untagged PNGs.
     // libpng also reports known sRGB ICC profiles through PNG_INFO_sRGB.
@@ -982,7 +1042,8 @@ void Bitmap::read_png(Stream* stream)
         // PNG records gamma * 100000; allow rounding of the sRGB 1/2.2 approximation.
         m_srgb_gamma = gamma >= 45454 && gamma <= 45455;
     else
-        m_srgb_gamma = bit_depth == 8 && (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_RGB_ALPHA);
+        m_srgb_gamma = info.component_type == ComponentType::uint8
+            && (info.pixel_format == PixelFormat::rgb || info.pixel_format == PixelFormat::rgba);
 
     rebuild_pixel_struct();
 
@@ -1146,6 +1207,11 @@ void Bitmap::write_png(Stream* stream, int compression) const
 
 #else // SGL_HAS_LIBPNG
 
+static Bitmap::Info read_png_info(Stream* stream)
+{
+    return read_stb_info(stream, Bitmap::FileFormat::png);
+}
+
 void Bitmap::read_png(Stream* stream)
 {
     read_stb(stream, "PNG", true, false);
@@ -1283,12 +1349,8 @@ static void jpeg_error_exit(j_common_ptr cinfo)
 
 }; // extern "C"
 
-void Bitmap::read_jpg(Stream* stream)
+static void initialize_jpeg_reader(jpeg_decompress_struct& cinfo, jpeg_error_mgr& jerr, jbuf_in_t& jbuf, Stream* stream)
 {
-    struct jpeg_decompress_struct cinfo;
-    struct jpeg_error_mgr jerr;
-    jbuf_in_t jbuf;
-
     std::memset(&jbuf, 0, sizeof(jbuf_in_t));
 
     cinfo.err = jpeg_std_error(&jerr);
@@ -1301,25 +1363,66 @@ void Bitmap::read_jpg(Stream* stream)
     jbuf.mgr.term_source = jpeg_term_source;
     jbuf.mgr.resync_to_restart = jpeg_resync_to_restart;
     jbuf.stream = stream;
+}
 
+static Bitmap::Info read_jpeg_header(jpeg_decompress_struct& cinfo)
+{
     jpeg_read_header(&cinfo, TRUE);
+    jpeg_calc_output_dimensions(&cinfo);
+
+    Bitmap::Info info;
+    info.width = cinfo.output_width;
+    info.height = cinfo.output_height;
+    info.component_type = Bitmap::ComponentType::uint8;
+    info.channel_count = cinfo.out_color_components;
+
+    switch (cinfo.out_color_components) {
+    case 1:
+        info.pixel_format = Bitmap::PixelFormat::y;
+        break;
+    case 3:
+        info.pixel_format = Bitmap::PixelFormat::rgb;
+        break;
+    default:
+        SGL_THROW("Unsupported number of components!");
+    }
+
+    return info;
+}
+
+static Bitmap::Info read_jpg_info(Stream* stream)
+{
+    struct jpeg_decompress_struct cinfo;
+    struct jpeg_error_mgr jerr;
+    jbuf_in_t jbuf;
+    initialize_jpeg_reader(cinfo, jerr, jbuf, stream);
+    try {
+        const Bitmap::Info result = read_jpeg_header(cinfo);
+        jpeg_destroy_decompress(&cinfo);
+        delete[] jbuf.buffer;
+        return result;
+    } catch (...) {
+        jpeg_destroy_decompress(&cinfo);
+        delete[] jbuf.buffer;
+        throw;
+    }
+}
+
+void Bitmap::read_jpg(Stream* stream)
+{
+    struct jpeg_decompress_struct cinfo;
+    struct jpeg_error_mgr jerr;
+    jbuf_in_t jbuf;
+
+    initialize_jpeg_reader(cinfo, jerr, jbuf, stream);
+    const Info info = read_jpeg_header(cinfo);
     jpeg_start_decompress(&cinfo);
 
     m_width = cinfo.output_width;
     m_height = cinfo.output_height;
     m_component_type = ComponentType::uint8;
     m_srgb_gamma = cinfo.output_components == 3;
-
-    switch (cinfo.output_components) {
-    case 1:
-        m_pixel_format = PixelFormat::y;
-        break;
-    case 3:
-        m_pixel_format = PixelFormat::rgb;
-        break;
-    default:
-        SGL_THROW("Unsupported number of components!");
-    }
+    m_pixel_format = info.pixel_format;
 
     rebuild_pixel_struct();
 
@@ -1418,6 +1521,11 @@ void Bitmap::write_jpg(Stream* stream, int quality) const
 
 #else // SGL_HAS_LIBJPEG
 
+static Bitmap::Info read_jpg_info(Stream* stream)
+{
+    return read_stb_info(stream, Bitmap::FileFormat::jpg);
+}
+
 void Bitmap::read_jpg(Stream* stream)
 {
     read_stb(stream, "JPEG", true, false);
@@ -1495,6 +1603,85 @@ void Bitmap::write_hdr(Stream* stream) const
 // OpenEXR I/O
 // ----------------------------------------------------------------------------
 
+namespace {
+    namespace exr_channels {
+        enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
+    }
+} // namespace
+
+// Classification scheme for color channels.
+static uint8_t exr_channel_class(std::string name)
+{
+    auto it = name.rfind(".");
+    if (it != std::string::npos)
+        name = name.substr(it + 1);
+    name = string::to_lower(name);
+    if (name == "r")
+        return exr_channels::R;
+    if (name == "g")
+        return exr_channels::G;
+    if (name == "b")
+        return exr_channels::B;
+    if (name == "x")
+        return exr_channels::X;
+    if (name == "y")
+        return exr_channels::Y;
+    if (name == "z")
+        return exr_channels::Z;
+    if (name == "ry")
+        return exr_channels::RY;
+    if (name == "by")
+        return exr_channels::BY;
+    if (name == "a")
+        return exr_channels::A;
+    return exr_channels::unknown;
+}
+
+// Assign a sorting key to color channels.
+static std::string exr_channel_key(std::string name)
+{
+    uint8_t class_ = exr_channel_class(name);
+    if (class_ == exr_channels::unknown)
+        return name;
+    auto it = name.rfind(".");
+    char suffix('0' + class_);
+    if (it != std::string::npos)
+        name = name.substr(0, it) + "." + suffix;
+    else
+        name = suffix;
+    return name;
+}
+
+static std::pair<Bitmap::PixelFormat, bool> exr_pixel_format(std::span<const std::string> channels_sorted)
+{
+    bool found[exr_channels::CLASS_COUNT] = {false};
+    for (const auto& name : channels_sorted)
+        found[exr_channel_class(name)] = true;
+
+    Bitmap::PixelFormat pixel_format = Bitmap::PixelFormat::multi_channel;
+    bool luminance_chroma_format = false;
+    if (channels_sorted.size() == 3 && found[exr_channels::R] && found[exr_channels::G] && found[exr_channels::B]) {
+        pixel_format = Bitmap::PixelFormat::rgb;
+    } else if (channels_sorted.size() == 4 && found[exr_channels::R] && found[exr_channels::G] && found[exr_channels::B]
+               && found[exr_channels::A]) {
+        pixel_format = Bitmap::PixelFormat::rgba;
+    } else if (channels_sorted.size() == 3 && found[exr_channels::Y] && found[exr_channels::RY]
+               && found[exr_channels::BY]) {
+        pixel_format = Bitmap::PixelFormat::rgb;
+        luminance_chroma_format = true;
+    } else if (channels_sorted.size() == 4 && found[exr_channels::Y] && found[exr_channels::RY]
+               && found[exr_channels::BY] && found[exr_channels::A]) {
+        pixel_format = Bitmap::PixelFormat::rgba;
+        luminance_chroma_format = true;
+    } else if (channels_sorted.size() == 1 && found[exr_channels::Y]) {
+        pixel_format = Bitmap::PixelFormat::y;
+    } else if (channels_sorted.size() == 2 && found[exr_channels::Y] && found[exr_channels::A]) {
+        pixel_format = Bitmap::PixelFormat::ya;
+    }
+
+    return {pixel_format, luminance_chroma_format};
+}
+
 #if SGL_HAS_OPENEXR
 
 class EXRIStream : public Imf::IStream {
@@ -1555,6 +1742,20 @@ private:
     Stream* m_stream;
 };
 
+static Bitmap::ComponentType exr_component_type(Imf::PixelType pixel_type)
+{
+    switch (pixel_type) {
+    case Imf::HALF:
+        return Bitmap::ComponentType::float16;
+    case Imf::FLOAT:
+        return Bitmap::ComponentType::float32;
+    case Imf::UINT:
+        return Bitmap::ComponentType::uint32;
+    default:
+        SGL_THROW("EXR image contains invalid component type (must be float16, float32 or uint32)");
+    }
+}
+
 void Bitmap::read_exr(Stream* stream)
 {
     EXRIStream is(stream);
@@ -1614,71 +1815,12 @@ void Bitmap::read_exr(Stream* stream)
     // m_struct = new DataStruct();
     Imf::PixelType pixel_type = channels.begin().channel().type;
 
-    switch (pixel_type) {
-    case Imf::HALF:
-        m_component_type = ComponentType::float16;
-        break;
-    case Imf::FLOAT:
-        m_component_type = ComponentType::float32;
-        break;
-    case Imf::UINT:
-        m_component_type = ComponentType::uint32;
-        break;
-    default:
-        SGL_THROW("EXR image contains invalid component type (must be float16, float32 or uint32)");
-    }
-
-    enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
-
-    // Classification scheme for color channels.
-    auto channel_class = [](std::string name) -> uint8_t
-    {
-        auto it = name.rfind(".");
-        if (it != std::string::npos)
-            name = name.substr(it + 1);
-        name = string::to_lower(name);
-        if (name == "r")
-            return R;
-        if (name == "g")
-            return G;
-        if (name == "b")
-            return B;
-        if (name == "x")
-            return X;
-        if (name == "y")
-            return Y;
-        if (name == "z")
-            return Z;
-        if (name == "ry")
-            return RY;
-        if (name == "by")
-            return BY;
-        if (name == "a")
-            return A;
-        return unknown;
-    };
-
-    // Assign a sorting key to color channels.
-    auto channel_key = [&](std::string name) -> std::string
-    {
-        uint8_t class_ = channel_class(name);
-        if (class_ == unknown)
-            return name;
-        auto it = name.rfind(".");
-        char suffix('0' + class_);
-        if (it != std::string::npos)
-            name = name.substr(0, it) + "." + suffix;
-        else
-            name = suffix;
-        return name;
-    };
+    m_component_type = exr_component_type(pixel_type);
 
     // Order channels based on their name and suffix.
-    bool found[CLASS_COUNT] = {false};
     std::vector<std::string> channels_sorted;
     for (auto it = channels.begin(); it != channels.end(); ++it) {
         std::string name(it.name());
-        found[channel_class(name)] = true;
         channels_sorted.push_back(name);
     }
     std::sort(
@@ -1686,7 +1828,7 @@ void Bitmap::read_exr(Stream* stream)
         channels_sorted.end(),
         [&](const auto& v0, const auto& v1)
         {
-            return channel_key(v0) < channel_key(v1);
+            return exr_channel_key(v0) < exr_channel_key(v1);
         }
     );
 
@@ -1697,23 +1839,8 @@ void Bitmap::read_exr(Stream* stream)
     }
 
     // Try to detect common pixel formats.
-    m_pixel_format = PixelFormat::multi_channel;
-    bool luminance_chroma_format = false;
-    if (m_pixel_struct->field_count() == 3 && found[R] && found[G] && found[B]) {
-        m_pixel_format = PixelFormat::rgb;
-    } else if (m_pixel_struct->field_count() == 4 && found[R] && found[G] && found[B] && found[A]) {
-        m_pixel_format = PixelFormat::rgba;
-    } else if (m_pixel_struct->field_count() == 3 && found[Y] && found[RY] && found[BY]) {
-        m_pixel_format = PixelFormat::rgb;
-        luminance_chroma_format = true;
-    } else if (m_pixel_struct->field_count() == 4 && found[Y] && found[RY] && found[BY] && found[A]) {
-        m_pixel_format = PixelFormat::rgba;
-        luminance_chroma_format = true;
-    } else if (m_pixel_struct->field_count() == 1 && found[Y]) {
-        m_pixel_format = PixelFormat::y;
-    } else if (m_pixel_struct->field_count() == 2 && found[Y] && found[A]) {
-        m_pixel_format = PixelFormat::ya;
-    }
+    const auto [pixel_format, luminance_chroma_format] = exr_pixel_format(channels_sorted);
+    m_pixel_format = pixel_format;
 
     m_srgb_gamma = false;
 
@@ -1866,9 +1993,9 @@ void Bitmap::read_exr(Stream* stream)
                     b = b * scale + .5f;
                 }
 
-                data[0] = T(R);
-                data[1] = T(G);
-                data[2] = T(B);
+                data[0] = T(exr_channels::R);
+                data[1] = T(exr_channels::G);
+                data[2] = T(exr_channels::B);
                 data += channel_count();
             }
         };
@@ -2121,6 +2248,20 @@ void Bitmap::write_exr(Stream* stream, int quality) const
 
 #else // SGL_HAS_OPENEXR
 
+static Bitmap::ComponentType exr_component_type(int pixel_type)
+{
+    switch (pixel_type) {
+    case TINYEXR_PIXELTYPE_UINT:
+        return Bitmap::ComponentType::uint32;
+    case TINYEXR_PIXELTYPE_HALF:
+        return Bitmap::ComponentType::float16;
+    case TINYEXR_PIXELTYPE_FLOAT:
+        return Bitmap::ComponentType::float32;
+    default:
+        SGL_THROW("EXR image contains invalid component type (must be float16, float32 or uint32)");
+    }
+}
+
 void Bitmap::read_exr(Stream* stream)
 {
     size_t size = stream->size();
@@ -2141,71 +2282,12 @@ void Bitmap::read_exr(Stream* stream)
         // FreeEXRErrorMessage(err);
     }
 
-    switch (header.pixel_types[0]) {
-    case TINYEXR_PIXELTYPE_UINT:
-        m_component_type = ComponentType::uint32;
-        break;
-    case TINYEXR_PIXELTYPE_HALF:
-        m_component_type = ComponentType::float16;
-        break;
-    case TINYEXR_PIXELTYPE_FLOAT:
-        m_component_type = ComponentType::float32;
-        break;
-    default:
-        SGL_THROW("EXR image contains invalid component type (must be float16, float32 or uint32)");
-    }
-
-    enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
-
-    // Classification scheme for color channels.
-    auto channel_class = [](std::string name) -> uint8_t
-    {
-        auto it = name.rfind(".");
-        if (it != std::string::npos)
-            name = name.substr(it + 1);
-        name = string::to_lower(name);
-        if (name == "r")
-            return R;
-        if (name == "g")
-            return G;
-        if (name == "b")
-            return B;
-        if (name == "x")
-            return X;
-        if (name == "y")
-            return Y;
-        if (name == "z")
-            return Z;
-        if (name == "ry")
-            return RY;
-        if (name == "by")
-            return BY;
-        if (name == "a")
-            return A;
-        return unknown;
-    };
-
-    // Assign a sorting key to color channels.
-    auto channel_key = [&](std::string name) -> std::string
-    {
-        uint8_t class_ = channel_class(name);
-        if (class_ == unknown)
-            return name;
-        auto it = name.rfind(".");
-        char suffix('0' + class_);
-        if (it != std::string::npos)
-            name = name.substr(0, it) + "." + suffix;
-        else
-            name = suffix;
-        return name;
-    };
+    m_component_type = exr_component_type(header.pixel_types[0]);
 
     // Order channels based on their name and suffix.
-    bool found[CLASS_COUNT] = {false};
     std::vector<std::string> channels_sorted;
     for (int i = 0; i < header.num_channels; ++i) {
         std::string name(header.channels[i].name);
-        found[channel_class(name)] = true;
         channels_sorted.push_back(name);
     }
     std::sort(
@@ -2213,7 +2295,7 @@ void Bitmap::read_exr(Stream* stream)
         channels_sorted.end(),
         [&](const auto& v0, const auto& v1)
         {
-            return channel_key(v0) < channel_key(v1);
+            return exr_channel_key(v0) < exr_channel_key(v1);
         }
     );
 
@@ -2224,23 +2306,7 @@ void Bitmap::read_exr(Stream* stream)
     }
 
     // Try to detect common pixel formats.
-    m_pixel_format = PixelFormat::multi_channel;
-    bool luminance_chroma_format = false;
-    if (m_pixel_struct->field_count() == 3 && found[R] && found[G] && found[B]) {
-        m_pixel_format = PixelFormat::rgb;
-    } else if (m_pixel_struct->field_count() == 4 && found[R] && found[G] && found[B] && found[A]) {
-        m_pixel_format = PixelFormat::rgba;
-    } else if (m_pixel_struct->field_count() == 3 && found[Y] && found[RY] && found[BY]) {
-        m_pixel_format = PixelFormat::rgb;
-        luminance_chroma_format = true;
-    } else if (m_pixel_struct->field_count() == 4 && found[Y] && found[RY] && found[BY] && found[A]) {
-        m_pixel_format = PixelFormat::rgba;
-        luminance_chroma_format = true;
-    } else if (m_pixel_struct->field_count() == 1 && found[Y]) {
-        m_pixel_format = PixelFormat::y;
-    } else if (m_pixel_struct->field_count() == 2 && found[Y] && found[A]) {
-        m_pixel_format = PixelFormat::ya;
-    }
+    m_pixel_format = exr_pixel_format(channels_sorted).first;
 
     m_srgb_gamma = false;
 
@@ -2269,15 +2335,6 @@ void Bitmap::read_exr(Stream* stream)
             if (header.channels[i].name == name)
                 return i;
         SGL_THROW(fmt::format("EXR image does not contain channel \"{}\"", name));
-    };
-
-    auto set_suffix = [](std::string& name, const std::string& suffix)
-    {
-        auto it = name.rfind(".");
-        if (it != std::string::npos)
-            name = name.substr(0, it) + "." + suffix;
-        else
-            name = suffix;
     };
 
     m_width = header.data_window.max_x - header.data_window.min_x + 1;
@@ -2425,6 +2482,80 @@ void Bitmap::write_exr(Stream* stream, int quality) const
 }
 
 #endif // SGL_HAS_OPENEXR
+
+static Bitmap::Info read_exr_info(Stream* stream)
+{
+    std::vector<std::string> channels;
+    Bitmap::Info result{};
+#if SGL_HAS_OPENEXR
+    EXRIStream input(stream);
+    Imf::InputFile file(input);
+    const auto& header = file.header();
+    const auto& exr_channels = header.channels();
+    SGL_CHECK(exr_channels.begin() != exr_channels.end(), "EXR image has no channels");
+    for (auto it = exr_channels.begin(); it != exr_channels.end(); ++it)
+        channels.emplace_back(it.name());
+    const auto type = exr_channels.begin().channel().type;
+    result.component_type = exr_component_type(type);
+    result.width = header.dataWindow().max.x - header.dataWindow().min.x + 1;
+    result.height = header.dataWindow().max.y - header.dataWindow().min.y + 1;
+#else
+    // TinyEXR accepts a header prefix; do not copy the encoded pixel payload.
+    std::vector<uint8_t> prefix(8);
+    stream->read(prefix.data(), prefix.size());
+    EXRVersion version{};
+    SGL_CHECK(
+        ParseEXRVersionFromMemory(&version, prefix.data(), prefix.size()) == TINYEXR_SUCCESS,
+        "Invalid EXR version"
+    );
+    SGL_CHECK(!version.multipart, "EXR multipart files are not supported yet!");
+    auto read_string = [&]()
+    {
+        const size_t start = prefix.size();
+        uint8_t byte;
+        do {
+            stream->read(&byte, 1);
+            prefix.push_back(byte);
+        } while (byte);
+        return prefix.size() - start - 1;
+    };
+    while (read_string()) {
+        read_string();
+        uint8_t bytes[4];
+        stream->read(bytes, sizeof(bytes));
+        prefix.insert(prefix.end(), bytes, bytes + 4);
+        const uint32_t size
+            = uint32_t(bytes[0]) | uint32_t(bytes[1]) << 8 | uint32_t(bytes[2]) << 16 | uint32_t(bytes[3]) << 24;
+        SGL_CHECK(size <= stream->size() - stream->tell(), "Truncated EXR header");
+        const size_t offset = prefix.size();
+        prefix.resize(offset + size);
+        stream->read(prefix.data() + offset, size);
+    }
+    EXRHeader header;
+    InitEXRHeader(&header);
+    const char* error = nullptr;
+    const int status = ParseEXRHeaderFromMemory(&header, &version, prefix.data(), prefix.size(), &error);
+    const std::string message = error ? error : "Invalid EXR header";
+    FreeEXRErrorMessage(error);
+    try {
+        SGL_CHECK(status == TINYEXR_SUCCESS, "{}", message);
+        SGL_CHECK(header.num_channels > 0, "EXR image has no channels");
+        for (int i = 0; i < header.num_channels; ++i)
+            channels.emplace_back(header.channels[i].name);
+        const int type = header.pixel_types[0];
+        result.component_type = exr_component_type(type);
+        result.width = header.data_window.max_x - header.data_window.min_x + 1;
+        result.height = header.data_window.max_y - header.data_window.min_y + 1;
+    } catch (...) {
+        FreeEXRHeader(&header);
+        throw;
+    }
+    FreeEXRHeader(&header);
+#endif
+    result.channel_count = narrow_cast<uint32_t>(channels.size());
+    result.pixel_format = exr_pixel_format(channels).first;
+    return result;
+}
 
 // ---------------------------------------------------------------------------
 // Resample / mipmap generation
@@ -2577,6 +2708,54 @@ ref<Bitmap> Bitmap::resample(
     resample(result.get(), filter, bc, clamp);
 
     return result;
+}
+
+// ----------------------------------------------------------------------------
+// Metadata inspection
+// ----------------------------------------------------------------------------
+
+namespace {
+
+    Bitmap::Info read_bitmap_info(Stream* stream, Bitmap::FileFormat format)
+    {
+        switch (format) {
+        case Bitmap::FileFormat::png:
+            return read_png_info(stream);
+        case Bitmap::FileFormat::jpg:
+            return read_jpg_info(stream);
+        case Bitmap::FileFormat::exr:
+            return read_exr_info(stream);
+        case Bitmap::FileFormat::bmp:
+        case Bitmap::FileFormat::tga:
+        case Bitmap::FileFormat::hdr:
+            return read_stb_info(stream, format);
+        default:
+            SGL_THROW("Unsupported bitmap metadata format {}", format);
+        }
+    }
+
+} // namespace
+
+Bitmap::Info Bitmap::read_info(const std::filesystem::path& path, FileFormat format)
+{
+    FileStream stream(path, FileStream::Mode::read);
+    return read_info(&stream, format);
+}
+
+Bitmap::Info Bitmap::read_info(Stream* stream, FileFormat format)
+{
+    SGL_CHECK_NOT_NULL(stream);
+    const size_t position = stream->tell();
+    try {
+        if (format == FileFormat::auto_)
+            format = detect_file_format(stream);
+        const Info result = read_bitmap_info(stream, format);
+        stream->seek(position);
+        return result;
+    } catch (...) {
+        stream->seek(position);
+        throw;
+    }
 }
 
 // ----------------------------------------------------------------------------

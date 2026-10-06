@@ -9,12 +9,18 @@
 
 #include "sgl/core/error.h"
 #include "sgl/core/bitmap.h"
+#include "sgl/core/config.h"
 #include "sgl/core/dds_file.h"
 #include "sgl/core/file_stream.h"
+#include "sgl/core/logger.h"
+#include "sgl/core/maths.h"
 #include "sgl/core/timer.h"
 #include "sgl/core/thread.h"
 
+#include "sgl/stl/bit.h"
+
 #include <map>
+#include <utility>
 
 namespace sgl {
 
@@ -78,8 +84,8 @@ inline bool has_format_support(Device* device, Format format, FormatSupport requ
  *   RGB bitmap that has no supported format, or needs renderable usage,
  * will be determined as RGBA
  *   (if a RGBA format exists).
- * - \c Options::load_as_srgb 8-bit RGBA bitmap with sRGB
- * gamma will be determined as \c Format::rgba8_unorm_srgb.
+ * - \c Options::srgb_mode selects whether 8-bit RGBA uses \c Format::rgba8_unorm_srgb.
+ * Automatic interpretation follows bitmap metadata; explicit linear/sRGB overrides it.
  *
  * - \c Options::load_as_normalized
  *   8/16-bit integer bitmap will be determined as normalized resource format.
@@ -213,8 +219,9 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
     }
 
     // Use sRGB format if requested and supported.
-    if (options.load_as_srgb && pixel_format == PixelFormat::rgba && component_type == ComponentType::uint8
-        && bitmap->srgb_gamma())
+    const bool srgb
+        = options.srgb_mode == SRGBMode::srgb || (options.srgb_mode == SRGBMode::automatic && bitmap->srgb_gamma());
+    if (srgb && pixel_format == PixelFormat::rgba && component_type == ComponentType::uint8)
         format_flags = FormatFlags::srgb;
 
     // Find texture format.
@@ -247,6 +254,29 @@ inline std::pair<TextureType, uint32_t> get_texture_type_and_layer_count(DDSFile
     }
 }
 
+// Reduce in linear light, quantizing to the texture format after each halving.
+inline ref<Bitmap> reduce_bitmap(ref<Bitmap> bitmap, Format format, uint32_t max_mip_count)
+{
+    if (max_mip_count == 0 || uint32_t(stdx::bit_width(std::max(bitmap->width(), bitmap->height()))) <= max_mip_count)
+        return bitmap;
+
+    const bool srgb = get_format_info(format).is_srgb_format();
+    const auto pixel_format = bitmap->pixel_format();
+    const auto component_type = bitmap->component_type();
+    const bool source_gamma = bitmap->srgb_gamma();
+    while (uint32_t(stdx::bit_width(std::max(bitmap->width(), bitmap->height()))) > max_mip_count) {
+        // A borrowed view changes interpretation without mutating the caller's bitmap.
+        Bitmap source(pixel_format, component_type, bitmap->width(), bitmap->height(), 0, {}, bitmap->data(), srgb);
+        bitmap = source.convert(pixel_format, Bitmap::ComponentType::float32, false);
+        const uint32_t width = std::max(1u, bitmap->width() / 2);
+        const uint32_t height = std::max(1u, bitmap->height() / 2);
+        bitmap = bitmap->resample(width, height);
+        bitmap = bitmap->convert(pixel_format, component_type, srgb);
+    }
+    bitmap->set_srgb_gamma(source_gamma);
+    return bitmap;
+}
+
 inline SourceImage convert_bitmap(Device* device, ref<Bitmap> bitmap, const TextureLoader::Options& options)
 {
     using PixelFormat = Bitmap::PixelFormat;
@@ -254,15 +284,13 @@ inline SourceImage convert_bitmap(Device* device, ref<Bitmap> bitmap, const Text
     auto [format, convert_to_rgba] = determine_texture_format(device, bitmap, options);
 
     if (bitmap->pixel_format() == PixelFormat::ya && options.ya_handling == YAHandling::preserve_as_rg) {
-        return SourceImage{
-            .bitmap = convert_ya_to_rg(bitmap),
-            .format = format,
-        };
+        bitmap = convert_ya_to_rg(bitmap);
+    } else if (convert_to_rgba) {
+        bitmap = bitmap->convert(PixelFormat::rgba, bitmap->component_type(), bitmap->srgb_gamma());
     }
 
     return SourceImage{
-        .bitmap
-        = convert_to_rgba ? bitmap->convert(PixelFormat::rgba, bitmap->component_type(), bitmap->srgb_gamma()) : bitmap,
+        .bitmap = reduce_bitmap(std::move(bitmap), format, options.max_mip_count),
         .format = format,
     };
 }
@@ -289,7 +317,7 @@ inline SourceImage load_and_convert_source_image(Device* device, Stream* stream,
 {
     SourceImage source_image = load_source_image(stream);
     if (source_image.bitmap) {
-        source_image = convert_bitmap(device, source_image.bitmap, options);
+        source_image = convert_bitmap(device, std::move(source_image.bitmap), options);
     }
     return source_image;
 }
@@ -299,7 +327,7 @@ load_and_convert_source_image(Device* device, const std::filesystem::path& path,
 {
     SourceImage source_image = load_source_image(path);
     if (source_image.bitmap) {
-        source_image = convert_bitmap(device, source_image.bitmap, options);
+        source_image = convert_bitmap(device, std::move(source_image.bitmap), options);
     }
     return source_image;
 }
@@ -342,9 +370,31 @@ inline ref<Texture> create_texture(
         const DDSFile* dds_file = source_image.dds_file;
         const auto& [texture_type, layer_count]
             = get_texture_type_and_layer_count(dds_file->type(), dds_file->array_size());
+        uint32_t first_mip = 0;
+        uint32_t width = dds_file->width();
+        uint32_t height = dds_file->height();
+        uint32_t depth = dds_file->depth();
+        while (options.max_mip_count != 0
+               && uint32_t(stdx::bit_width(std::max({width, height, depth}))) > options.max_mip_count
+               && first_mip + 1 < dds_file->mip_count()) {
+            ++first_mip;
+            width = std::max(1u, width / 2);
+            height = std::max(1u, height / 2);
+            depth = std::max(1u, depth / 2);
+        }
+        if (options.max_mip_count != 0
+            && uint32_t(stdx::bit_width(std::max({width, height, depth}))) > options.max_mip_count) {
+            log_warn(
+                "DDS has no mip fitting max_mip_count {}; using smallest available mip {}x{}x{}",
+                options.max_mip_count,
+                width,
+                height,
+                depth
+            );
+        }
         short_vector<SubresourceData, 16> subresource_data;
         for (uint32_t layer_index = 0; layer_index < layer_count; ++layer_index) {
-            for (uint32_t mip_index = 0; mip_index < dds_file->mip_count(); ++mip_index) {
+            for (uint32_t mip_index = first_mip; mip_index < dds_file->mip_count(); ++mip_index) {
                 uint32_t row_pitch;
                 uint32_t slice_pitch;
                 dds_file->get_subresource_pitch(mip_index, &row_pitch, &slice_pitch);
@@ -363,16 +413,169 @@ inline ref<Texture> create_texture(
         return device->create_texture({
             .type = texture_type,
             .format = source_image.format,
-            .width = dds_file->width(),
-            .height = dds_file->height(),
-            .depth = dds_file->depth(),
+            .width = width,
+            .height = height,
+            .depth = depth,
             .array_length = dds_file->array_size(),
-            .mip_count = dds_file->mip_count(),
+            .mip_count = dds_file->mip_count() - first_mip,
             .usage = options.usage,
             .data = subresource_data,
         });
     } else {
         SGL_THROW("Unsupported source image type");
+    }
+}
+
+// Estimate temporary CPU memory per texture to choose a batch size, not to predict exact process peak memory.
+// Take the largest decode/conversion working set, then conservatively add output and upload staging storage.
+// File inputs include decoding and their source bitmap; caller-owned bitmap storage and final GPU textures are
+// excluded. Format expansion, codec scratch and upload overhead are estimates rather than backend-specific allocation
+// accounting.
+inline size_t estimate_texture_load_memory(
+    const Bitmap::Info& info,
+    const TextureLoader::Options& options,
+    size_t decode_peak_bytes,
+    bool owns_bitmap
+)
+{
+    uint32_t channels = info.channel_count;
+    if (info.pixel_format == Bitmap::PixelFormat::rgb
+        || (info.pixel_format == Bitmap::PixelFormat::y && options.y_handling == YHandling::expand_to_rgba)
+        || (info.pixel_format == Bitmap::PixelFormat::ya && options.ya_handling == YAHandling::expand_to_rgba))
+        channels = 4;
+    const size_t component_bytes = DataStruct::type_size(info.component_type);
+    const size_t pixel_bytes = channels * component_bytes;
+    uint32_t width = info.width, height = info.height;
+    // Decoding finishes before conversion; each conversion temporarily retains its input and output.
+    size_t current_bytes = owns_bitmap ? size_t(width) * height * info.channel_count * component_bytes : 0;
+    size_t peak = std::max(decode_peak_bytes, current_bytes);
+    if (channels != info.channel_count || info.pixel_format == Bitmap::PixelFormat::ya) {
+        const size_t converted_bytes = size_t(width) * height * pixel_bytes;
+        peak = std::max(peak, current_bytes + converted_bytes);
+        current_bytes = converted_bytes;
+    }
+    const uint32_t mip_count = uint32_t(stdx::bit_width(std::max(width, height)));
+    if (options.max_mip_count && mip_count > options.max_mip_count) {
+        // Downsampling uses float images plus horizontal-pass scratch. The first halving bounds later peaks.
+        const uint32_t next_width = std::max(1u, width / 2), next_height = std::max(1u, height / 2);
+        const size_t float_pixel_bytes = size_t(channels) * sizeof(float);
+        const size_t linear = size_t(width) * height * float_pixel_bytes;
+        const size_t horizontal = size_t(next_width) * height * float_pixel_bytes;
+        const size_t reduced = size_t(next_width) * next_height * float_pixel_bytes;
+        peak = std::max({peak, current_bytes + linear, linear + horizontal + 2 * reduced});
+        const uint32_t reductions = mip_count - options.max_mip_count;
+        width = std::max(1u, width >> reductions);
+        height = std::max(1u, height >> reductions);
+    }
+    const size_t output = size_t(width) * height * pixel_bytes;
+    // Allow a retained result and a staging copy, including conservative row alignment.
+    const size_t staging = align_to(size_t(256), size_t(width) * pixel_bytes) * height;
+    // Fixed overhead and 12.5% padding are heuristic allowances for uncounted allocations.
+    const size_t estimate = peak + output + staging + 32768;
+    return estimate + div_round_up(estimate, size_t(8));
+}
+
+inline size_t estimate_source_memory(const Bitmap* bitmap, const TextureLoader::Options& options)
+{
+    return estimate_texture_load_memory(
+        {bitmap->width(), bitmap->height(), bitmap->pixel_format(), bitmap->component_type(), bitmap->channel_count()},
+        options,
+        0,
+        false
+    );
+}
+
+inline size_t estimate_source_memory(const std::filesystem::path& path, const TextureLoader::Options& options)
+{
+    FileStream stream(path, FileStream::Mode::read);
+    const size_t encoded = stream.size();
+    if (DDSFile::detect_dds_file(&stream)) {
+        // Allow file storage and an upload copy, with heuristic fixed overhead and 12.5% padding.
+        const size_t estimate = 2 * encoded + 65536;
+        return estimate + div_round_up(estimate, size_t(8));
+    }
+    const auto format = Bitmap::detect_file_format(&stream);
+    const auto info = Bitmap::read_info(&stream, format);
+    const size_t pixels = size_t(info.width) * info.height * info.channel_count;
+    const size_t decoded = pixels * DataStruct::type_size(info.component_type);
+    // Cover the result plus image-sized codec scratch (including encoded input).
+    size_t decode_peak_bytes = encoded + 2 * decoded;
+#if !SGL_HAS_OPENEXR
+    if (format == Bitmap::FileFormat::exr)
+        // TinyEXR retains encoded input, channel planes and the interleaved result.
+        decode_peak_bytes = encoded + pixels * sizeof(float) + decoded;
+#endif
+    return estimate_texture_load_memory(info, options, decode_peak_bytes, true);
+}
+
+inline SourceImage
+load_and_convert_source_image(Device* device, const Bitmap* bitmap, const TextureLoader::Options& options)
+{
+    return convert_bitmap(device, ref(const_cast<Bitmap*>(bitmap)), options);
+}
+
+/// Load ordered batches within an estimated memory budget.
+/// Source is std::filesystem::path or const Bitmap*; options has one entry per source.
+/// Caller-owned bitmaps must remain alive until this function returns.
+/// consume(begin, images, handles) runs on the calling thread after launching each batch's tasks.
+/// begin is the batch's offset in sources; images and handles use batch-local indices.
+/// The callback clears each handle slot before waiting and releasing that task, then accesses its image.
+/// It consumes/releases the images and finishes their GPU uploads before returning normally.
+/// Both spans are borrowed for the callback only; this helper drains remaining handles on failure.
+template<typename Source, typename Consume>
+void load_batches(
+    Device* device,
+    std::span<const Source> sources,
+    std::span<const TextureLoader::Options> options,
+    uint64_t memory_budget,
+    Consume&& consume
+)
+{
+    // Inspect all sources in parallel before choosing batches; pixel loading still reopens each file.
+    std::vector<size_t> estimates(sources.size());
+    thread::parallel_for(
+        thread::blocked_range<size_t>(0, sources.size()),
+        [&](const thread::blocked_range<size_t>& range)
+        {
+            for (size_t i : range)
+                estimates[i] = estimate_source_memory(sources[i], options[i]);
+        }
+    );
+
+    for (size_t begin = 0; begin < sources.size();) {
+        size_t end = begin;
+        uint64_t remaining = memory_budget;
+        while (end < sources.size() && remaining) {
+            const uint64_t estimate = estimates[end];
+            if (end > begin && estimate > remaining)
+                break;
+            remaining -= std::min(estimate, remaining); // An oversized image is admitted alone.
+            ++end;
+        }
+        std::vector<SourceImage> images(end - begin);
+        std::vector<thread::TaskHandle> handles(images.size());
+        try {
+            for (size_t i = 0; i < images.size(); ++i)
+                handles[i] = thread::do_async(
+                    [&, i]
+                    {
+                        images[i] = load_and_convert_source_image(device, sources[begin + i], options[begin + i]);
+                    }
+                );
+            consume(begin, std::span(images), std::span(handles));
+        } catch (...) {
+            // Workers borrow batch storage; drain them before propagating the original failure.
+            for (thread::TaskHandle handle : handles) {
+                if (handle) {
+                    try {
+                        thread::task_wait_and_release(handle);
+                    } catch (...) {
+                    }
+                }
+            }
+            throw;
+        }
+        begin = end;
     }
 }
 
@@ -389,8 +592,8 @@ inline std::vector<ref<Texture>> create_textures(
     std::vector<ref<Texture>> textures(source_images.size());
     ref<CommandEncoder> command_encoder = device->create_command_encoder();
     for (size_t i = 0; i < source_images.size(); ++i) {
-        thread::task_wait_and_release(source_image_tasks[i]);
-        textures[i] = create_texture(device, blitter, command_encoder, source_images[i], options[i]);
+        thread::task_wait_and_release(std::exchange(source_image_tasks[i], nullptr));
+        textures[i] = create_texture(device, blitter, command_encoder, std::move(source_images[i]), options[i]);
         if ((i + 1) % BATCH_SIZE == 0 && (i + 1) < source_images.size()) {
             device->submit_command_buffer(command_encoder->finish());
             device->wait();
@@ -408,7 +611,10 @@ inline ref<Texture> create_texture_array(
     Blitter* blitter,
     std::span<SourceImage> source_images,
     std::span<thread::TaskHandle> source_image_tasks,
-    const TextureLoader::Options& options
+    const TextureLoader::Options& options,
+    ref<Texture> texture,
+    uint32_t first_layer,
+    uint32_t layer_count
 )
 {
     SGL_ASSERT(source_images.size() == source_image_tasks.size());
@@ -418,36 +624,28 @@ inline ref<Texture> create_texture_array(
 
     TextureUsage usage = get_effective_texture_usage(device, options);
 
-    ref<Texture> texture;
-    uint32_t first_width = 0;
-    uint32_t first_height = 0;
-    Format first_format = Format::undefined;
-
     ref<CommandEncoder> command_encoder = device->create_command_encoder();
 
     for (size_t i = 0; i < source_images.size(); ++i) {
-        thread::task_wait_and_release(source_image_tasks[i]);
-        SourceImage source_image = source_images[i];
+        thread::task_wait_and_release(std::exchange(source_image_tasks[i], nullptr));
+        SourceImage source_image = std::move(source_images[i]);
         const Bitmap* bitmap = source_image.bitmap;
         if (!bitmap)
             SGL_THROW("Texture array requires all source images to be bitmaps");
 
-        if (i == 0) {
+        if (!texture) {
             texture = device->create_texture({
                 .type = TextureType::texture_2d_array,
                 .format = source_image.format,
                 .width = bitmap->width(),
                 .height = bitmap->height(),
-                .array_length = narrow_cast<uint32_t>(source_images.size()),
+                .array_length = layer_count,
                 .mip_count = allocate_mips ? ALL_MIPS : 1u,
                 .usage = usage,
             });
-            first_width = bitmap->width();
-            first_height = bitmap->height();
-            first_format = source_image.format;
         } else {
-            if (bitmap->width() != first_width || bitmap->height() != first_height
-                || source_image.format != first_format)
+            if (bitmap->width() != texture->width() || bitmap->height() != texture->height()
+                || source_image.format != texture->format())
                 SGL_THROW("Texture array requires all bitmaps to have the same dimensions and format");
         }
 
@@ -462,10 +660,12 @@ inline ref<Texture> create_texture_array(
             .size = bitmap->buffer_size(),
             .row_pitch = bitmap->width() * bitmap->bytes_per_pixel(),
         };
-        command_encoder->upload_texture_data(texture, narrow_cast<uint32_t>(i), 0, subresource_data);
+        command_encoder->upload_texture_data(texture, first_layer + narrow_cast<uint32_t>(i), 0, subresource_data);
+        /// Release bitmap to free CPU memory
+        source_image.bitmap = nullptr;
 
         if (options.generate_mips)
-            blitter->generate_mips(command_encoder, texture, narrow_cast<uint32_t>(i));
+            blitter->generate_mips(command_encoder, texture, first_layer + narrow_cast<uint32_t>(i));
     }
     device->submit_command_buffer(command_encoder->finish());
     device->wait();
@@ -473,9 +673,11 @@ inline ref<Texture> create_texture_array(
     return texture;
 }
 
-TextureLoader::TextureLoader(ref<Device> device)
+TextureLoader::TextureLoader(ref<Device> device, uint64_t memory_budget)
     : m_device(std::move(device))
+    , m_memory_budget(memory_budget)
 {
+    SGL_CHECK(memory_budget > 0, "memory_budget must be positive");
     m_blitter = ref(new Blitter(m_device));
 }
 
@@ -486,7 +688,7 @@ ref<Texture> TextureLoader::load_texture(const Bitmap* bitmap, std::optional<Opt
     Options options = options_.value_or(Options{});
     SourceImage source_image = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmap)), options);
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
-    ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, source_image, options);
+    ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, std::move(source_image), options);
     m_device->submit_command_buffer(command_encoder->finish());
     return texture;
 }
@@ -496,7 +698,7 @@ ref<Texture> TextureLoader::load_texture(Stream* stream, std::optional<Options> 
     Options options = options_.value_or(Options{});
     SourceImage source_image = load_and_convert_source_image(m_device.get(), stream, options);
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
-    ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, source_image, options);
+    ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, std::move(source_image), options);
     m_device->submit_command_buffer(command_encoder->finish());
     return texture;
 }
@@ -506,7 +708,7 @@ ref<Texture> TextureLoader::load_texture(const std::filesystem::path& path, std:
     Options options = options_.value_or(Options{});
     SourceImage source_image = load_and_convert_source_image(m_device.get(), path, options);
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
-    ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, source_image, options);
+    ref<Texture> texture = create_texture(m_device, m_blitter, command_encoder, std::move(source_image), options);
     m_device->submit_command_buffer(command_encoder->finish());
     return texture;
 }
@@ -523,19 +725,19 @@ TextureLoader::load_textures(std::span<const Bitmap*> bitmaps, std::span<const O
 {
     SGL_CHECK(bitmaps.size() == options.size(), "Number of options must be equal to the number of bitmaps");
 
-    // Convert bitmaps in parallel.
-    std::vector<SourceImage> source_images(bitmaps.size());
-    std::vector<thread::TaskHandle> source_image_tasks(bitmaps.size());
-    for (size_t i = 0; i < bitmaps.size(); ++i) {
-        source_image_tasks[i] = thread::do_async(
-            [&, i]()
-            {
-                source_images[i] = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmaps[i])), options[i]);
-            }
-        );
-    }
-    // Wait for conversions and create textures.
-    return create_textures(m_device, m_blitter, source_images, source_image_tasks, options);
+    std::vector<ref<Texture>> textures(bitmaps.size());
+    load_batches<const Bitmap*>(
+        m_device,
+        bitmaps,
+        options,
+        m_memory_budget,
+        [&](size_t begin, auto images, auto tasks)
+        {
+            auto batch = create_textures(m_device, m_blitter, images, tasks, options.subspan(begin, images.size()));
+            std::move(batch.begin(), batch.end(), textures.begin() + begin);
+        }
+    );
+    return textures;
 }
 
 std::vector<ref<Texture>>
@@ -550,19 +752,19 @@ TextureLoader::load_textures(std::span<const std::filesystem::path> paths, std::
 {
     SGL_CHECK(paths.size() == options.size(), "Number of options must be equal to the number of paths");
 
-    // Load & convert source images in parallel.
-    std::vector<SourceImage> source_images(paths.size());
-    std::vector<thread::TaskHandle> source_image_tasks(paths.size());
-    for (size_t i = 0; i < paths.size(); ++i) {
-        source_image_tasks[i] = thread::do_async(
-            [&, i]()
-            {
-                source_images[i] = load_and_convert_source_image(m_device, paths[i], options[i]);
-            }
-        );
-    }
-    // Wait for conversions and create textures.
-    return create_textures(m_device, m_blitter, source_images, source_image_tasks, options);
+    std::vector<ref<Texture>> textures(paths.size());
+    load_batches<std::filesystem::path>(
+        m_device,
+        paths,
+        options,
+        m_memory_budget,
+        [&](size_t begin, auto images, auto tasks)
+        {
+            auto batch = create_textures(m_device, m_blitter, images, tasks, options.subspan(begin, images.size()));
+            std::move(batch.begin(), batch.end(), textures.begin() + begin);
+        }
+    );
+    return textures;
 }
 
 ref<Texture> TextureLoader::load_texture_array(std::span<const Bitmap*> bitmaps, std::optional<Options> options_)
@@ -572,19 +774,28 @@ ref<Texture> TextureLoader::load_texture_array(std::span<const Bitmap*> bitmaps,
 
     Options options = options_.value_or(Options{});
 
-    // Convert bitmaps in parallel.
-    std::vector<SourceImage> source_images(bitmaps.size());
-    std::vector<thread::TaskHandle> source_image_tasks(bitmaps.size());
-    for (size_t i = 0; i < bitmaps.size(); ++i) {
-        source_image_tasks[i] = thread::do_async(
-            [&, i]()
-            {
-                source_images[i] = convert_bitmap(m_device, ref(const_cast<Bitmap*>(bitmaps[i])), options);
-            }
-        );
-    }
-    // Wait for conversions and create texture array.
-    return create_texture_array(m_device, m_blitter, source_images, source_image_tasks, options);
+    ref<Texture> texture;
+    const std::vector<Options> per_image_options(bitmaps.size(), options);
+    load_batches<const Bitmap*>(
+        m_device,
+        bitmaps,
+        per_image_options,
+        m_memory_budget,
+        [&](size_t begin, auto images, auto tasks)
+        {
+            texture = create_texture_array(
+                m_device,
+                m_blitter,
+                images,
+                tasks,
+                options,
+                texture,
+                narrow_cast<uint32_t>(begin),
+                narrow_cast<uint32_t>(bitmaps.size())
+            );
+        }
+    );
+    return texture;
 }
 
 ref<Texture>
@@ -595,19 +806,28 @@ TextureLoader::load_texture_array(std::span<const std::filesystem::path> paths, 
 
     Options options = options_.value_or(Options{});
 
-    // Load & convert source images in parallel.
-    std::vector<SourceImage> source_images(paths.size());
-    std::vector<thread::TaskHandle> source_image_tasks(paths.size());
-    for (size_t i = 0; i < paths.size(); ++i) {
-        source_image_tasks[i] = thread::do_async(
-            [&, i]()
-            {
-                source_images[i] = load_and_convert_source_image(m_device, paths[i], options);
-            }
-        );
-    }
-    // Wait for conversions and create texture array.
-    return create_texture_array(m_device, m_blitter, source_images, source_image_tasks, options);
+    ref<Texture> texture;
+    const std::vector<Options> per_image_options(paths.size(), options);
+    load_batches<std::filesystem::path>(
+        m_device,
+        paths,
+        per_image_options,
+        m_memory_budget,
+        [&](size_t begin, auto images, auto tasks)
+        {
+            texture = create_texture_array(
+                m_device,
+                m_blitter,
+                images,
+                tasks,
+                options,
+                texture,
+                narrow_cast<uint32_t>(begin),
+                narrow_cast<uint32_t>(paths.size())
+            );
+        }
+    );
+    return texture;
 }
 
 } // namespace sgl

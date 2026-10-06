@@ -36,6 +36,8 @@ private:
 /// This class provides a simple key-value cache that stores its data in an LMDB database on disk.
 /// It supports basic operations such as setting, getting, and deleting entries.
 /// Eviction uses an LRU policy and is triggered when the cache size exceeds the eviction threshold.
+/// Multiple processes may share a cache on a local filesystem. Remote filesystems are unsupported.
+/// Read transactions own their reader slots; no reader state is retained in thread-local storage.
 class SGL_API LMDBCache : public Object {
     SGL_OBJECT(LMDBCache)
 public:
@@ -76,6 +78,8 @@ public:
 
     /// Constructor.
     /// Open the cache at the specified path.
+    /// Instances sharing an open environment in this process must use matching max_size and nosync options.
+    /// Different options may be used after the last instance closes the environment.
     /// Throws on error.
     /// \param path Path to the cache directory.
     /// \param options Cache options.

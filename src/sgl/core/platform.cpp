@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "platform.h"
+#include "sgl/core/config.h"
 #include "sgl/core/error.h"
 #include "sgl/core/format.h"
 
+#if SGL_HAS_GLFW
 #include <GLFW/glfw3.h>
+#endif
 
 #include <algorithm>
 #include <cstdio>
@@ -25,12 +28,16 @@ void set_python_active(bool active)
 
 float display_scale_factor()
 {
+#if SGL_HAS_GLFW
     float xscale = 1.f;
     float yscale = 1.f;
     GLFWmonitor* monitor = glfwGetPrimaryMonitor();
     if (monitor)
         glfwGetMonitorContentScale(monitor, &xscale, &yscale);
     return 0.5f * (xscale + yscale);
+#else
+    return 1.f;
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------

@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from os import PathLike, environ
-import pathlib
-from typing import Any, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Union, overload
 
 from slangpy import (
     DeclReflection,
@@ -11,6 +10,7 @@ from slangpy import (
     DeviceType,
     PipelineCompilationMode,
     Device,
+    DeviceDesc,
     NativeHandle,
     get_cuda_current_context_native_handles,
     BindlessDesc,
@@ -18,7 +18,11 @@ from slangpy import (
 from slangpy.reflection import SlangType, SlangProgramLayout
 import builtins
 
+if TYPE_CHECKING:
+    from slangpy import DeviceDescParam
 
+
+@overload
 def create_device(
     type: DeviceType = DeviceType.automatic,
     enable_debug_layers: bool = False,
@@ -31,45 +35,96 @@ def create_device(
     pipeline_compilation_mode: PipelineCompilationMode = PipelineCompilationMode.serial,
     existing_device_handles: Optional[Sequence[NativeHandle]] = None,
     bindless_options: Optional[BindlessDesc] = None,
-):
+) -> Device: ...
+
+
+# Keep the descriptor overload last: Pyright uses it to suggest dictionary keys
+# while the first positional argument is still being edited.
+@overload
+def create_device(desc: "DeviceDescParam") -> Device: ...
+
+
+def create_device(*args: Any, **kwargs: Any) -> Device:
     """
-    Create a device with basic settings for SlangPy. For full control over device init,
-    use sgl.create_device directly, being sure to add slangpy.SHADER_PATH
-    to the list of include paths for the compiler.
+    Create a device configured for SlangPy.
+
+    Pass a :class:`DeviceDesc` or a descriptor dictionary, positionally or as
+    ``desc``, for access to all device settings. Specify include paths through
+    ``compiler_options.include_paths``. The descriptor is copied, and SlangPy's
+    shader path is prepended without modifying caller-provided options.
+
+    The original positional and keyword arguments remain supported. Descriptor
+    calls cannot be combined with these legacy arguments.
+
+    Both forms respect ``SLANGPY_DEVICE_TYPE_OVERRIDE`` and automatically set up
+    Jupyter integration when applicable.
+
+    Example::
+
+        device = create_device({
+            "type": DeviceType.vulkan,
+            "compiler_options": {"include_paths": ["shaders"]},
+            "enable_ray_tracing": False,
+        })
     """
+    if "desc" in kwargs or (args and isinstance(args[0], (DeviceDesc, dict))):
+        return _create_device_from_desc(*args, **kwargs)
+    return _create_device_legacy(*args, **kwargs)
 
-    shaderpath = str(pathlib.Path(__file__).parent.parent.absolute() / "slang")
 
-    # Allow overriding the device type via environment variable (for automatic testing).
-    if "SLANGPY_DEVICE_TYPE_OVERRIDE" in environ:
-        type = {
-            "d3d12": DeviceType.d3d12,
-            "vulkan": DeviceType.vulkan,
-            "cuda": DeviceType.cuda,
-            "metal": DeviceType.metal,
-        }.get(environ["SLANGPY_DEVICE_TYPE_OVERRIDE"].lower(), type)
+def _resolve_device_type(type: DeviceType) -> DeviceType:
+    # Allow overriding the device type for automatic testing.
+    return {
+        "d3d12": DeviceType.d3d12,
+        "vulkan": DeviceType.vulkan,
+        "cuda": DeviceType.cuda,
+        "metal": DeviceType.metal,
+    }.get(environ.get("SLANGPY_DEVICE_TYPE_OVERRIDE", "").lower(), type)
 
-    device = Device(
-        type=type,
-        compiler_options={
-            "include_paths": [
-                shaderpath,
-            ]
-            + list(include_paths),
-        },
-        enable_debug_layers=enable_debug_layers,
-        adapter_luid=adapter_luid,
-        enable_cuda_interop=enable_cuda_interop,
-        enable_print=enable_print,
-        enable_hot_reload=enable_hot_reload,
-        enable_compilation_reports=enable_compilation_reports,
-        pipeline_compilation_mode=pipeline_compilation_mode,
-        existing_device_handles=existing_device_handles,
-        bindless_options=bindless_options,
+
+def _create_device_legacy(
+    type: DeviceType = DeviceType.automatic,
+    enable_debug_layers: bool = False,
+    adapter_luid: Optional[Sequence[int]] = None,
+    include_paths: Sequence[Union[str, PathLike[str]]] = [],
+    enable_cuda_interop: bool = False,
+    enable_print: bool = False,
+    enable_hot_reload: bool = True,
+    enable_compilation_reports: bool = False,
+    pipeline_compilation_mode: PipelineCompilationMode = PipelineCompilationMode.serial,
+    existing_device_handles: Optional[Sequence[NativeHandle]] = None,
+    bindless_options: Optional[BindlessDesc] = None,
+) -> Device:
+    desc = DeviceDesc(
+        {
+            "type": type,
+            "enable_debug_layers": enable_debug_layers,
+            "compiler_options": {"include_paths": list(include_paths)},
+            "enable_cuda_interop": enable_cuda_interop,
+            "enable_print": enable_print,
+            "enable_hot_reload": enable_hot_reload,
+            "enable_compilation_reports": enable_compilation_reports,
+            "pipeline_compilation_mode": pipeline_compilation_mode,
+        }
     )
+    if adapter_luid is not None:
+        desc.adapter_luid = adapter_luid
+    if existing_device_handles is not None:
+        desc.existing_device_handles = existing_device_handles
+    if bindless_options is not None:
+        desc.bindless_options = bindless_options
+    return _create_device_from_desc(desc)
+
+
+def _create_device_from_desc(desc: "DeviceDescParam") -> Device:
+    if not isinstance(desc, (DeviceDesc, dict)):
+        raise TypeError("desc must be a DeviceDesc or a dictionary")
+    desc = DeviceDesc(desc)
+    desc.type = _resolve_device_type(desc.type)
+    device = Device(desc)
 
     if is_running_in_jupyter():
-        # Don't import until we know we're running in jupyter and we are certain the IPython module is available
+        # Import only when IPython is available and running in Jupyter.
         from slangpy.core.jupyter import setup_in_jupyter
 
         setup_in_jupyter(device)
@@ -77,6 +132,7 @@ def create_device(
     return device
 
 
+@overload
 def create_torch_device(
     type: DeviceType = DeviceType.automatic,
     torch_device: Any = None,
@@ -86,7 +142,15 @@ def create_torch_device(
     enable_hot_reload: bool = True,
     enable_compilation_reports: bool = False,
     pipeline_compilation_mode: PipelineCompilationMode = PipelineCompilationMode.serial,
-):
+) -> Device: ...
+
+
+# As with create_device, keep the descriptor overload last for dictionary completion.
+@overload
+def create_torch_device(desc: "DeviceDescParam", torch_device: Any = None) -> Device: ...
+
+
+def create_torch_device(*args: Any, **kwargs: Any) -> Device:
     """
     Helper to create a device configured properly for PyTorch integration. If device type is CUDA,
     slangpy will attempt to directly share the CUDA context with PyTorch. This is the recommended
@@ -96,7 +160,57 @@ def create_torch_device(
     and rely on shared memory + semaphores to syncronize between SlangPy and PyTorch. This approach
     works, and is valuable if access to graphics features (such as a rasterizer) is critical, but hardware
     context switching and memcpys are expensive, resulting in substantially worse performance.
+
+    Pass a :class:`DeviceDesc` or dictionary, positionally or as ``desc``, to access
+    all device settings. Include paths belong in ``compiler_options.include_paths``.
+    The optional ``torch_device`` selects the PyTorch device in either call form.
+    Other legacy arguments cannot be combined with a descriptor.
+
+    The descriptor is copied. ``existing_device_handles`` is replaced with the
+    selected PyTorch context's handles, and ``enable_cuda_interop`` is set according
+    to the device type after applying ``SLANGPY_DEVICE_TYPE_OVERRIDE``.
+
+    Example::
+
+        device = create_torch_device({
+            "type": DeviceType.cuda,
+            "compiler_options": {"include_paths": ["shaders"]},
+        }, torch_device="cuda:0")
     """
+    if "desc" in kwargs or (args and isinstance(args[0], (DeviceDesc, dict))):
+        return _create_torch_device_from_desc(*args, **kwargs)
+    return _create_torch_device_legacy(*args, **kwargs)
+
+
+def _create_torch_device_legacy(
+    type: DeviceType = DeviceType.automatic,
+    torch_device: Any = None,
+    enable_debug_layers: bool = False,
+    include_paths: Sequence[Union[str, PathLike[str]]] = [],
+    enable_print: bool = False,
+    enable_hot_reload: bool = True,
+    enable_compilation_reports: bool = False,
+    pipeline_compilation_mode: PipelineCompilationMode = PipelineCompilationMode.serial,
+) -> Device:
+    return _create_torch_device_from_desc(
+        {
+            "type": type,
+            "enable_debug_layers": enable_debug_layers,
+            "compiler_options": {"include_paths": list(include_paths)},
+            "enable_print": enable_print,
+            "enable_hot_reload": enable_hot_reload,
+            "enable_compilation_reports": enable_compilation_reports,
+            "pipeline_compilation_mode": pipeline_compilation_mode,
+        },
+        torch_device,
+    )
+
+
+def _create_torch_device_from_desc(desc: "DeviceDescParam", torch_device: Any = None) -> Device:
+    if not isinstance(desc, (DeviceDesc, dict)):
+        raise TypeError("desc must be a DeviceDesc or a dictionary")
+    desc = DeviceDesc(desc)
+    desc.type = _resolve_device_type(desc.type)
 
     # Import and init torch
     import torch
@@ -116,17 +230,9 @@ def create_torch_device(
     with torch.device(torch_device):
         handles = get_cuda_current_context_native_handles()
 
-    return create_device(
-        type=type,
-        enable_debug_layers=enable_debug_layers,
-        include_paths=include_paths,
-        enable_cuda_interop=type != DeviceType.cuda,
-        enable_print=enable_print,
-        enable_hot_reload=enable_hot_reload,
-        enable_compilation_reports=enable_compilation_reports,
-        pipeline_compilation_mode=pipeline_compilation_mode,
-        existing_device_handles=handles,
-    )
+    desc.existing_device_handles = handles
+    desc.enable_cuda_interop = desc.type != DeviceType.cuda
+    return create_device(desc)
 
 
 def find_type_layout_for_buffer(

@@ -200,6 +200,12 @@ Buffer::~Buffer()
     m_cuda_memory.reset();
 }
 
+void Buffer::_release_rhi_resources()
+{
+    m_cuda_memory.reset();
+    m_rhi_buffer.setNull();
+}
+
 void* Buffer::map() const
 {
     SGL_ASSERT(m_desc.memory_type != MemoryType::device_local);
@@ -224,8 +230,10 @@ void* Buffer::cuda_memory() const
         return reinterpret_cast<void*>(device_address());
     } else {
         SGL_CHECK(m_device->supports_cuda_interop(), "Device does not support CUDA interop");
-        if (!m_cuda_memory)
+        if (!m_cuda_memory) {
+            SGL_CHECK(!m_device->is_closed(), "Cannot import CUDA memory on a closed device.");
             m_cuda_memory = make_ref<cuda::ExternalMemory>(this);
+        }
         return m_cuda_memory->mapped_data();
     }
 }

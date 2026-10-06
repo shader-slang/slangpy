@@ -455,6 +455,9 @@ Device::~Device()
 
     SGL_CHECK(m_closed, "Device is not close. Call close() before destroying the device.");
 
+    // Surviving buffers need the CUDA context to destroy their imports after close().
+    m_cuda_device.reset();
+
     m_rhi_graphics_queue.setNull();
     m_rhi_device.setNull();
 }
@@ -548,7 +551,6 @@ void Device::close()
         SGL_CU_SCOPE(this);
         m_cuda_semaphore.reset();
     }
-    m_cuda_device.reset();
 }
 
 void Device::close_all_devices()

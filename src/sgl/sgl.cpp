@@ -61,8 +61,9 @@ void static_shutdown()
 
     Bitmap::static_shutdown();
     platform::static_shutdown();
-    Logger::static_shutdown();
     thread::static_shutdown();
+    // Keep logging available until all subsystems have shut down.
+    Logger::static_shutdown();
 
 #if SGL_ENABLE_OBJECT_TRACKING
     Object::report_live_objects();

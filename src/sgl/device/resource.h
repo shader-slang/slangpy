@@ -309,7 +309,7 @@ public:
 
     ~Buffer();
 
-    virtual void _release_rhi_resources() override { m_rhi_buffer.setNull(); }
+    virtual void _release_rhi_resources() override;
 
     const BufferDesc& desc() const { return m_desc; }
 

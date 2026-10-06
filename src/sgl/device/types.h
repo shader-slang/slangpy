@@ -113,6 +113,13 @@ enum class Feature : uint32_t {
     // Vulkan specific features
     shader_resource_min_lod = static_cast<uint32_t>(rhi::Feature::ShaderResourceMinLod),
     shader_abort = static_cast<uint32_t>(rhi::Feature::ShaderAbort),
+    // VK_NV_cooperative_matrix2 subfeatures (reported independently)
+    cooperative_matrix_reductions = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixReductions),
+    cooperative_matrix_conversions = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixConversions),
+    cooperative_matrix_per_element_operations
+    = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixPerElementOperations),
+    cooperative_matrix_tensor_addressing = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixTensorAddressing),
+    cooperative_matrix_block_loads = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixBlockLoads),
     // Metal specific features
     argument_buffer_tier2 = static_cast<uint32_t>(rhi::Feature::ArgumentBufferTier2),
     residency_set = static_cast<uint32_t>(rhi::Feature::ResidencySet),
@@ -192,6 +199,11 @@ SGL_ENUM_INFO(
         {Feature::programmable_sample_positions2, "programmable_sample_positions2"},
         {Feature::shader_resource_min_lod, "shader_resource_min_lod"},
         {Feature::shader_abort, "shader_abort"},
+        {Feature::cooperative_matrix_reductions, "cooperative_matrix_reductions"},
+        {Feature::cooperative_matrix_conversions, "cooperative_matrix_conversions"},
+        {Feature::cooperative_matrix_per_element_operations, "cooperative_matrix_per_element_operations"},
+        {Feature::cooperative_matrix_tensor_addressing, "cooperative_matrix_tensor_addressing"},
+        {Feature::cooperative_matrix_block_loads, "cooperative_matrix_block_loads"},
         {Feature::argument_buffer_tier2, "argument_buffer_tier2"},
         {Feature::residency_set, "residency_set"},
         {Feature::atomic_bfloat16, "atomic_bfloat16"},

@@ -12,10 +12,11 @@ namespace sgl {
 using TextureLoaderOptions = TextureLoader::Options;
 SGL_DICT_TO_DESC_BEGIN(TextureLoaderOptions)
 SGL_DICT_TO_DESC_FIELD(load_as_normalized, bool)
-SGL_DICT_TO_DESC_FIELD(load_as_srgb, bool)
+SGL_DICT_TO_DESC_FIELD(srgb_mode, SRGBMode)
 SGL_DICT_TO_DESC_FIELD(extend_alpha, bool)
 SGL_DICT_TO_DESC_FIELD(allocate_mips, bool)
 SGL_DICT_TO_DESC_FIELD(generate_mips, bool)
+SGL_DICT_TO_DESC_FIELD(max_mip_count, uint32_t)
 SGL_DICT_TO_DESC_FIELD(usage, TextureUsage)
 SGL_DICT_TO_DESC_FIELD(y_handling, YHandling)
 SGL_DICT_TO_DESC_FIELD(ya_handling, YAHandling)
@@ -25,6 +26,11 @@ SGL_DICT_TO_DESC_END()
 SGL_PY_EXPORT(utils_texture_loader)
 {
     using namespace sgl;
+
+    nb::enum_<SRGBMode>(m, "SRGBMode", D(SRGBMode))
+        .value("automatic", SRGBMode::automatic, D(SRGBMode, automatic))
+        .value("linear", SRGBMode::linear, D(SRGBMode, linear))
+        .value("srgb", SRGBMode::srgb, D(SRGBMode, srgb));
 
     nb::enum_<YHandling>(m, "YHandling", D(YHandling))
         .value("expand_to_rgba", YHandling::expand_to_rgba, D(YHandling, expand_to_rgba))
@@ -50,10 +56,11 @@ SGL_PY_EXPORT(utils_texture_loader)
             &TextureLoader::Options::load_as_normalized,
             D(TextureLoader, Options, load_as_normalized)
         )
-        .def_rw("load_as_srgb", &TextureLoader::Options::load_as_srgb, D(TextureLoader, Options, load_as_srgb))
+        .def_rw("srgb_mode", &TextureLoader::Options::srgb_mode, D(TextureLoader, Options, srgb_mode))
         .def_rw("extend_alpha", &TextureLoader::Options::extend_alpha, D(TextureLoader, Options, extend_alpha))
         .def_rw("allocate_mips", &TextureLoader::Options::allocate_mips, D(TextureLoader, Options, allocate_mips))
         .def_rw("generate_mips", &TextureLoader::Options::generate_mips, D(TextureLoader, Options, generate_mips))
+        .def_rw("max_mip_count", &TextureLoader::Options::max_mip_count, D(TextureLoader, Options, max_mip_count))
         .def_rw("usage", &TextureLoader::Options::usage, D(TextureLoader, Options, usage))
         .def_rw("y_handling", &TextureLoader::Options::y_handling, D(TextureLoader, Options, y_handling))
         .def_rw("ya_handling", &TextureLoader::Options::ya_handling, D(TextureLoader, Options, ya_handling));
@@ -61,7 +68,12 @@ SGL_PY_EXPORT(utils_texture_loader)
     nb::implicitly_convertible<nb::dict, TextureLoader::Options>();
 
     texture_loader //
-        .def(nb::init<ref<Device>>(), "device"_a, D(TextureLoader, TextureLoader))
+        .def(
+            nb::init<ref<Device>, uint64_t>(),
+            "device"_a,
+            "memory_budget"_a = TextureLoader::DEFAULT_MEMORY_BUDGET,
+            D(TextureLoader, TextureLoader)
+        )
         .def(
             "load_texture",
             nb::overload_cast<const Bitmap*, std::optional<TextureLoader::Options>>(&TextureLoader::load_texture),
@@ -83,6 +95,8 @@ SGL_PY_EXPORT(utils_texture_loader)
             nb::overload_cast<std::span<const Bitmap*>, std::optional<TextureLoader::Options>>(
                 &TextureLoader::load_textures
             ),
+            nb::call_guard<nb::gil_scoped_release>(),
+            nb::keep_alive_sequence<1>(),
             "bitmaps"_a,
             "options"_a.none() = nb::none(),
             D(TextureLoader, load_textures)
@@ -92,6 +106,8 @@ SGL_PY_EXPORT(utils_texture_loader)
             nb::overload_cast<std::span<const Bitmap*>, std::span<const TextureLoader::Options>>(
                 &TextureLoader::load_textures
             ),
+            nb::call_guard<nb::gil_scoped_release>(),
+            nb::keep_alive_sequence<1>(),
             "bitmaps"_a,
             "options"_a,
             D(TextureLoader, load_textures, 2)
@@ -119,6 +135,8 @@ SGL_PY_EXPORT(utils_texture_loader)
             nb::overload_cast<std::span<const Bitmap*>, std::optional<TextureLoader::Options>>(
                 &TextureLoader::load_texture_array
             ),
+            nb::call_guard<nb::gil_scoped_release>(),
+            nb::keep_alive_sequence<1>(),
             "bitmaps"_a,
             "options"_a.none() = nb::none(),
             D(TextureLoader, load_texture_array)

@@ -803,6 +803,18 @@ static const char *__doc_sgl_Bitmap_FileFormat_tga = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_FileFormat_unknown = R"doc()doc";
 
+static const char *__doc_sgl_Bitmap_Info = R"doc(Decoded image layout, obtained without loading pixels.)doc";
+
+static const char *__doc_sgl_Bitmap_Info_channel_count = R"doc(Number of channels per pixel.)doc";
+
+static const char *__doc_sgl_Bitmap_Info_component_type = R"doc(Decoded component type.)doc";
+
+static const char *__doc_sgl_Bitmap_Info_height = R"doc(Height in pixels.)doc";
+
+static const char *__doc_sgl_Bitmap_Info_pixel_format = R"doc(Decoded pixel format.)doc";
+
+static const char *__doc_sgl_Bitmap_Info_width = R"doc(Width in pixels.)doc";
+
 static const char *__doc_sgl_Bitmap_PixelFormat = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_PixelFormat_info = R"doc()doc";
@@ -895,6 +907,33 @@ static const char *__doc_sgl_Bitmap_read_exr = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_read_hdr = R"doc()doc";
 
+static const char *__doc_sgl_Bitmap_read_info =
+R"doc(Read image layout without decoding pixels. Supports all bitmap formats
+except DDS.
+
+Parameter ``path``:
+    Image file path.
+
+Parameter ``format``:
+    File format, or auto_ to detect it.
+
+Returns:
+    Decoded image layout.)doc";
+
+static const char *__doc_sgl_Bitmap_read_info_2 =
+R"doc(Read image layout without decoding pixels. Supports all bitmap formats
+except DDS. Preserves the readable, seekable stream's position on
+success and failure.
+
+Parameter ``stream``:
+    Image stream, positioned at the image start.
+
+Parameter ``format``:
+    File format, or auto_ to detect it.
+
+Returns:
+    Decoded image layout.)doc";
+
 static const char *__doc_sgl_Bitmap_read_jpg = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_read_multiple =
@@ -975,12 +1014,11 @@ Returns:
 
 static const char *__doc_sgl_Bitmap_srgb_gamma = R"doc(True if the bitmap is in sRGB gamma space.)doc";
 
-static const char *__doc_sgl_Bitmap_supports_png_metadata =
-R"doc(Whether this build can read PNG transfer metadata through libpng.)doc";
-
 static const char *__doc_sgl_Bitmap_static_init = R"doc()doc";
 
 static const char *__doc_sgl_Bitmap_static_shutdown = R"doc()doc";
+
+static const char *__doc_sgl_Bitmap_supports_png_metadata = R"doc(Whether this build can read PNG transfer metadata through libpng.)doc";
 
 static const char *__doc_sgl_Bitmap_to_string = R"doc()doc";
 
@@ -4146,6 +4184,16 @@ static const char *__doc_sgl_Feature_cooperative_matrix = R"doc()doc";
 
 static const char *__doc_sgl_Feature_cooperative_matrix2 = R"doc()doc";
 
+static const char *__doc_sgl_Feature_cooperative_matrix_block_loads = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_conversions = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_per_element_operations = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_reductions = R"doc()doc";
+
+static const char *__doc_sgl_Feature_cooperative_matrix_tensor_addressing = R"doc()doc";
+
 static const char *__doc_sgl_Feature_cooperative_vector = R"doc()doc";
 
 static const char *__doc_sgl_Feature_count = R"doc()doc";
@@ -5438,7 +5486,10 @@ R"doc(LMDB-based persistent cache. This class provides a simple key-value
 cache that stores its data in an LMDB database on disk. It supports
 basic operations such as setting, getting, and deleting entries.
 Eviction uses an LRU policy and is triggered when the cache size
-exceeds the eviction threshold.)doc";
+exceeds the eviction threshold. Multiple processes may share a cache
+on a local filesystem. Remote filesystems are unsupported. Read
+transactions own their reader slots; no reader state is retained in
+thread-local storage.)doc";
 
 static const char *__doc_sgl_LMDBCache_DB = R"doc()doc";
 
@@ -5449,7 +5500,10 @@ static const char *__doc_sgl_LMDBCache_DB_dbi_meta = R"doc()doc";
 static const char *__doc_sgl_LMDBCache_DB_env = R"doc()doc";
 
 static const char *__doc_sgl_LMDBCache_LMDBCache =
-R"doc(Constructor. Open the cache at the specified path. Throws on error.
+R"doc(Constructor. Open the cache at the specified path. Instances sharing
+an open environment in this process must use matching max_size and
+nosync options. Different options may be used after the last instance
+closes the environment. Throws on error.
 
 Parameter ``path``:
     Path to the cache directory.
@@ -5733,7 +5787,12 @@ static const char *__doc_sgl_LogLevel_warn = R"doc()doc";
 
 static const char *__doc_sgl_Logger = R"doc()doc";
 
-static const char *__doc_sgl_Logger_2 = R"doc()doc";
+static const char *__doc_sgl_Logger_2 =
+R"doc(Diagnostic logger. Emission is noexcept: output exceptions are
+suppressed, while formatting and other internal exceptions invoke
+std::terminate with the active exception available to a handler.
+Configuration operations may throw. Exceptions while evaluating
+arguments before a logging call are the caller's responsibility.)doc";
 
 static const char *__doc_sgl_LoggerOutput = R"doc()doc";
 
@@ -5742,7 +5801,9 @@ R"doc(Abstract base class for logger outputs.
 
 Implementations must be thread-safe. A LoggerOutput can be shared by
 multiple loggers, and write() may be called concurrently from multiple
-threads.)doc";
+threads. Outputs may throw; Logger suppresses each output's exception
+and continues with the remaining outputs. Direct calls to write() are
+not covered by Logger's nonthrowing guarantee.)doc";
 
 static const char *__doc_sgl_LoggerOutput_class_name = R"doc()doc";
 
@@ -5829,7 +5890,12 @@ static const char *__doc_sgl_Logger_fatal_once = R"doc()doc";
 
 static const char *__doc_sgl_Logger_fatal_once_2 = R"doc()doc";
 
-static const char *__doc_sgl_Logger_get = R"doc(Returns the global logger instance.)doc";
+static const char *__doc_sgl_Logger_get =
+R"doc(Returns the lazily initialized global logger instance. Initialization
+failure or a call after static_shutdown() begins invokes
+std::terminate. The active exception can be inspected by an
+application-installed termination handler. Concurrent first use is
+supported; shutdown must be synchronized with all logger users.)doc";
 
 static const char *__doc_sgl_Logger_info = R"doc()doc";
 
@@ -5844,7 +5910,11 @@ static const char *__doc_sgl_Logger_is_duplicate = R"doc(Checks if the given mes
 static const char *__doc_sgl_Logger_level = R"doc(The log level.)doc";
 
 static const char *__doc_sgl_Logger_log =
-R"doc(Log a message.
+R"doc(Log a message without propagating exceptions. Output exceptions are
+suppressed so the remaining outputs are still attempted. Other
+internal exceptions invoke std::terminate. Output failures are not
+logged recursively. Once messages are recorded before delivery and are
+not retried if an output fails.
 
 Parameter ``level``:
     The log level.
@@ -8242,6 +8312,20 @@ R"doc(Update hash by adding the given basic value.
 Parameter ``value``:
     to hash.)doc";
 
+static const char *__doc_sgl_SRGBMode =
+R"doc(Interpretation of stored bitmap color values; does not re-encode
+texels or modify bitmap metadata.)doc";
+
+static const char *__doc_sgl_SRGBMode_automatic = R"doc(Select sRGB sampling when supported and indicated by bitmap metadata.)doc";
+
+static const char *__doc_sgl_SRGBMode_info = R"doc()doc";
+
+static const char *__doc_sgl_SRGBMode_linear = R"doc(Sample without sRGB decoding, regardless of bitmap metadata.)doc";
+
+static const char *__doc_sgl_SRGBMode_srgb =
+R"doc(Select sRGB sampling when supported, regardless of bitmap metadata.
+Alpha remains linear.)doc";
+
 static const char *__doc_sgl_Sampler = R"doc()doc";
 
 static const char *__doc_sgl_Sampler_2 = R"doc()doc";
@@ -9504,9 +9588,19 @@ static const char *__doc_sgl_TextureLoader_Options_generate_mips = R"doc(Generat
 
 static const char *__doc_sgl_TextureLoader_Options_load_as_normalized = R"doc(Load 8/16-bit integer data as normalized resource format.)doc";
 
-static const char *__doc_sgl_TextureLoader_Options_load_as_srgb =
-R"doc(Use ``Format::rgba8_unorm_srgb`` format if bitmap is 8-bit RGBA with
-sRGB gamma.)doc";
+static const char *__doc_sgl_TextureLoader_Options_max_mip_count =
+R"doc(Limit the full mip count implied by the texture dimensions; zero means
+unrestricted. For power-of-two textures, 13 allows up to 4096. Non-
+power-of-two dimensions use floor(log2(size)) + 1. DDS selects
+authored mips by their dimensions, or warns and uses the smallest mip
+if none fits. Other images are reduced before upload using successive
+box-filtered halvings.)doc";
+
+static const char *__doc_sgl_TextureLoader_Options_srgb_mode =
+R"doc(Color interpretation after channel expansion. sRGB sampling is
+supported for 8-bit RGBA; other component types and preserved R/RG
+layouts retain their usual formats. Stored texels and alpha are
+unchanged. DDS files retain their authored format.)doc";
 
 static const char *__doc_sgl_TextureLoader_Options_usage =
 R"doc(Resource usage flags for the texture. Render-target or unordered-
@@ -9519,7 +9613,18 @@ explicit R/RG bitmaps are unchanged.)doc";
 
 static const char *__doc_sgl_TextureLoader_Options_ya_handling = R"doc(Strategy for handling YA (greyscale + alpha) bitmaps.)doc";
 
-static const char *__doc_sgl_TextureLoader_TextureLoader = R"doc()doc";
+static const char *__doc_sgl_TextureLoader_TextureLoader =
+R"doc(Create a texture loader.
+
+Parameter ``device``:
+    Device receiving the textures.
+
+Parameter ``memory_budget``:
+    Positive, best-effort temporary CPU memory budget in bytes per
+    bulk call. Defaults to 32 GiB. Estimates include decoding,
+    conversion and upload storage. A single image exceeding the budget
+    is loaded alone. Caller-owned bitmaps and final GPU textures are
+    excluded.)doc";
 
 static const char *__doc_sgl_TextureLoader_class_name = R"doc()doc";
 
@@ -9641,6 +9746,8 @@ Returns:
 static const char *__doc_sgl_TextureLoader_m_blitter = R"doc()doc";
 
 static const char *__doc_sgl_TextureLoader_m_device = R"doc()doc";
+
+static const char *__doc_sgl_TextureLoader_m_memory_budget = R"doc()doc";
 
 static const char *__doc_sgl_TextureReductionOp = R"doc()doc";
 
@@ -10948,8 +11055,6 @@ static const char *__doc_sgl_cuda_InteropBuffer_m_buffer = R"doc()doc";
 
 static const char *__doc_sgl_cuda_InteropBuffer_m_device = R"doc()doc";
 
-static const char *__doc_sgl_cuda_InteropBuffer_m_external_memory = R"doc()doc";
-
 static const char *__doc_sgl_cuda_InteropBuffer_m_is_uav = R"doc()doc";
 
 static const char *__doc_sgl_cuda_InteropBuffer_m_tensor_view = R"doc()doc";
@@ -11178,6 +11283,8 @@ static const char *__doc_sgl_detail_invalidate_reflection_data =
 R"doc(Invalidate reflection data. If device is set, only reflection data
 owned by that device is invalidated.)doc";
 
+static const char *__doc_sgl_detail_log_print = R"doc()doc";
+
 static const char *__doc_sgl_detail_on_slang_wrapper_destroyed = R"doc()doc";
 
 static const char *__doc_sgl_detail_profiler_frame_name = R"doc()doc";
@@ -11403,6 +11510,10 @@ static const char *__doc_sgl_find_enum_info_adl_93 = R"doc()doc";
 static const char *__doc_sgl_find_enum_info_adl_94 = R"doc()doc";
 
 static const char *__doc_sgl_find_enum_info_adl_95 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_96 = R"doc()doc";
+
+static const char *__doc_sgl_find_enum_info_adl_97 = R"doc()doc";
 
 static const char *__doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
@@ -11747,6 +11858,20 @@ static const char *__doc_sgl_load_module_from_source = R"doc(Load a slang module
 
 static const char *__doc_sgl_load_program = R"doc(Load a module and link a shader program in one step.)doc";
 
+static const char *__doc_sgl_log =
+R"doc(Log a message through the global logger. See Logger::log() for
+emission behavior and Logger::get() for initialization and shutdown
+requirements.
+
+Parameter ``level``:
+    The log level.
+
+Parameter ``msg``:
+    The message.
+
+Parameter ``frequency``:
+    The log frequency.)doc";
+
 static const char *__doc_sgl_log_debug = R"doc()doc";
 
 static const char *__doc_sgl_log_debug_2 = R"doc()doc";
@@ -11918,8 +12043,27 @@ static const char *__doc_sgl_math_cross = R"doc(cross)doc";
 static const char *__doc_sgl_math_cross_2 = R"doc(cross)doc";
 
 static const char *__doc_sgl_math_decompose =
-R"doc(Decomposes a model matrix into translation, rotation and scale
-components.)doc";
+R"doc(Decomposes a homogeneous matrix into translation, rotation, scale,
+shear and perspective. The factors reconstruct model_matrix /
+model_matrix[3][3] as P * T * R * H * S, where H has unit diagonal and
+upper entries (H01, H02, H12) = (skew.z, skew.y, skew.x). P has an
+identity upper three rows and perspective as its last row. Reflections
+use three negative scales and a proper rotation, matching the existing
+convention. Returns false for nonfinite input, zero homogeneous
+weight, numerically dependent spatial columns, or factors outside the
+output type's range. Outputs are unchanged on failure.)doc";
+
+static const char *__doc_sgl_math_decompose_trs =
+R"doc(Decomposes an affine matrix into translation, rotation, and scale,
+orthogonalizing it if needed. Also returns the rotation matrix
+directly to avoid precision loss from a quaternion round trip. Returns
+false for invalid or degenerate input, leaving the outputs unchanged.)doc";
+
+static const char *__doc_sgl_math_decompose_trs_2 =
+R"doc(Decomposes an affine matrix into translation, rotation, and scale,
+orthogonalizing it if needed. Use the matrix-output overload to also
+receive the precise rotation matrix. Returns false for invalid or
+degenerate input, leaving the outputs unchanged.)doc";
 
 static const char *__doc_sgl_math_degrees = R"doc()doc";
 
@@ -14785,7 +14929,10 @@ static const char *__doc_sgl_thread_TaskGroup_operator_assign = R"doc()doc";
 
 static const char *__doc_sgl_thread_TaskGroup_operator_assign_2 = R"doc()doc";
 
-static const char *__doc_sgl_thread_TaskGroup_wait = R"doc(Wait for all tasks in this task group.)doc";
+static const char *__doc_sgl_thread_TaskGroup_wait =
+R"doc(Wait for all tasks in this task group. If tasks throw, wait for and
+release every task before rethrowing the first exception in insertion
+order.)doc";
 
 static const char *__doc_sgl_thread_blocked_range = R"doc()doc";
 
