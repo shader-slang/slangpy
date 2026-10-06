@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from importlib import import_module
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from pathlib import Path
 import subprocess
 import sys
@@ -8,6 +10,60 @@ import sys
 import pytest
 
 gpu_clock = import_module("slangpy.testing.benchmark.gpu_clock_control")
+
+
+@pytest.mark.parametrize("first_operation", ["lock", "unlock", "rollback"])
+def test_concurrent_mutations_do_not_interleave(
+    monkeypatch: pytest.MonkeyPatch, clock_commands: list[list[str]], first_operation: str
+) -> None:
+    first_paused = Event()
+    release_first = Event()
+    second_started = Event()
+    second_mutated = Event()
+
+    def run(command: list[str]) -> str:
+        clock_commands.append(command)
+        if command[-2] == "1":
+            second_mutated.set()
+        else:
+            if first_operation == "rollback" and command[-1].startswith("--lock-gpu"):
+                raise subprocess.CalledProcessError(1, command)
+            pause_at = (
+                "--lock-memory-clocks=1000"
+                if first_operation == "lock"
+                else "--reset-memory-clocks"
+            )
+            if command[-1] == pause_at:
+                first_paused.set()
+                assert release_first.wait(5), "Timed out waiting to release first operation"
+        return ""
+
+    def first() -> None:
+        if first_operation == "unlock":
+            gpu_clock.unlock_gpu_clocks(0)
+        elif first_operation == "rollback":
+            with pytest.raises(subprocess.CalledProcessError):
+                gpu_clock.lock_gpu_clocks(0, 1.0, conservative=True)
+        else:
+            gpu_clock.lock_gpu_clocks(0, 1.0, conservative=True)
+
+    def second() -> None:
+        second_started.set()
+        gpu_clock.unlock_gpu_clocks(1)
+
+    monkeypatch.setattr(gpu_clock, "run_command", run)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first_result = executor.submit(first)
+        try:
+            assert first_paused.wait(5)
+            second_result = executor.submit(second)
+            assert second_started.wait(5)
+            assert not second_mutated.wait(0.1), "Clock mutation sequences interleaved"
+        finally:
+            release_first.set()
+        first_result.result(timeout=5)
+        second_result.result(timeout=5)
+    assert second_mutated.is_set(), "Mutex was not released after the first operation"
 
 
 @pytest.fixture

@@ -5,8 +5,9 @@
 """Control GPU clocks for a benchmark run.
 
 The caller must own the GPU exclusively from lock through measurement to unlock,
-including across processes. Serializing individual clock commands would not stop
-another benchmark from resetting clocks during a measurement.
+including across processes. A process-local mutex keeps each clock mutation
+sequence and its cleanup together as a safeguard against concurrent calls. It
+does not reserve the GPU during measurement or coordinate separate processes.
 """
 
 import os
@@ -14,6 +15,7 @@ import platform
 import shutil
 import subprocess
 import argparse
+from threading import Lock
 from typing import Optional
 
 
@@ -34,6 +36,9 @@ def find_nvidia_smi() -> str:
 
 
 NVIDIA_SMI = find_nvidia_smi()
+
+# Clock changes are infrequent; one mutex covers both operations and rollback.
+_clock_mutation_lock = Lock()
 
 
 def run_command(cmd: list[str]) -> str:
@@ -182,31 +187,34 @@ def lock_gpu_clocks(
         print("(dry run - not executing)")
         return (locked_mem_clock, locked_gpu_clock)
 
-    print("Locking mem clock:")
-    cmd = nvidia_smi_mutation_command(
-        ["-i", str(device_index), f"--lock-memory-clocks={locked_mem_clock}"]
-    )
-    print(run_command(cmd))
-
-    print("Locking gpu clock:")
-    cmd = nvidia_smi_mutation_command(
-        ["-i", str(device_index), f"--lock-gpu-clocks={locked_gpu_clock}"]
-    )
-    try:
+    with _clock_mutation_lock:
+        print("Locking mem clock:")
+        cmd = nvidia_smi_mutation_command(
+            ["-i", str(device_index), f"--lock-memory-clocks={locked_mem_clock}"]
+        )
         print(run_command(cmd))
-    except Exception:
-        # Attempt to release the memory lock if graphics locking fails. Cleanup
-        # can also fail, so report that failure without hiding the original one.
-        print("Locking gpu clock failed, releasing the memory clock:")
+
+        print("Locking gpu clock:")
+        cmd = nvidia_smi_mutation_command(
+            ["-i", str(device_index), f"--lock-gpu-clocks={locked_gpu_clock}"]
+        )
         try:
-            print(
-                run_command(
-                    nvidia_smi_mutation_command(["-i", str(device_index), "--reset-memory-clocks"])
+            print(run_command(cmd))
+        except Exception:
+            # Attempt to release the memory lock if graphics locking fails. Cleanup
+            # can also fail, so report that failure without hiding the original one.
+            print("Locking gpu clock failed, releasing the memory clock:")
+            try:
+                print(
+                    run_command(
+                        nvidia_smi_mutation_command(
+                            ["-i", str(device_index), "--reset-memory-clocks"]
+                        )
+                    )
                 )
-            )
-        except Exception as cleanup_error:
-            print(f"WARNING: could not release the memory clock: {cleanup_error}")
-        raise
+            except Exception as cleanup_error:
+                print(f"WARNING: could not release the memory clock: {cleanup_error}")
+            raise
 
     return (locked_mem_clock, locked_gpu_clock)
 
@@ -225,21 +233,22 @@ def unlock_gpu_clocks(device_index: int, dry_run: bool = False) -> None:
         print("(dry run - not executing)")
         return
 
-    print("Unlocking mem clock:")
-    try:
-        print(
-            run_command(
-                nvidia_smi_mutation_command(["-i", str(device_index), "--reset-memory-clocks"])
+    with _clock_mutation_lock:
+        print("Unlocking mem clock:")
+        try:
+            print(
+                run_command(
+                    nvidia_smi_mutation_command(["-i", str(device_index), "--reset-memory-clocks"])
+                )
             )
-        )
-    finally:
-        # Each reset can fail independently; always attempt to release both.
-        print("Unlocking gpu clock:")
-        print(
-            run_command(
-                nvidia_smi_mutation_command(["-i", str(device_index), "--reset-gpu-clocks"])
+        finally:
+            # Each reset can fail independently; always attempt to release both.
+            print("Unlocking gpu clock:")
+            print(
+                run_command(
+                    nvidia_smi_mutation_command(["-i", str(device_index), "--reset-gpu-clocks"])
+                )
             )
-        )
 
 
 def main() -> None:
