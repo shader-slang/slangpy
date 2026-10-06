@@ -213,7 +213,13 @@ private:
 
     slang::TypeLayoutReflection* _get_slang_type_layout() const
     {
-        return static_cast<const BaseCursor*>(this)->slang_type_layout();
+        slang::TypeLayoutReflection* type_layout = static_cast<const BaseCursor*>(this)->slang_type_layout();
+        SGL_CHECK(
+            type_layout != nullptr,
+            "Cursor has no resolved type layout; cannot write typed data. This usually means the parameter's "
+            "layout could not be reflected on the current backend."
+        );
+        return type_layout;
     }
 
     DeviceType _get_device_type_internal() const { return static_cast<const BaseCursor*>(this)->_get_device_type(); }
