@@ -36,7 +36,7 @@ from .utils import (
 
 # Clock control lives in the package, not in tools/, so a benchmark harness in
 # another repository can import it rather than extend sys.path to reach it.
-from .gpu_clock import (
+from .gpu_clock_control import (
     lock_gpu_clocks,
     unlock_gpu_clocks,
 )

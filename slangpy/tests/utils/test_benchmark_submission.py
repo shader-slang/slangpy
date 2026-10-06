@@ -19,7 +19,7 @@ benchmark_api = import_module("slangpy.testing.benchmark.benchview")
 _json_bytes = benchmark_api._json_bytes
 benchmark_plugin = import_module("slangpy.testing.benchmark.plugin")
 ci = import_module("tools.ci")
-gpu_clock = import_module("slangpy.testing.benchmark.gpu_clock")
+gpu_clock = import_module("slangpy.testing.benchmark.gpu_clock_control")
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 

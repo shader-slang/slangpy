@@ -4,7 +4,7 @@
 
 """Command line entry point for GPU clock control.
 
-The implementation lives in ``slangpy.testing.benchmark.gpu_clock`` so that
+The implementation lives in ``slangpy.testing.benchmark.gpu_clock_control`` so that
 benchmark harnesses, including ones in other repositories, can import it instead
 of reaching into this directory through ``sys.path``.
 """
@@ -16,6 +16,6 @@ if __name__ == "__main__":
     # Cleanup must work even when the native extension or pytest cannot import.
     # Execute the shared stdlib-only module without importing slangpy.__init__.
     runpy.run_path(
-        str(Path(__file__).resolve().parents[1] / "slangpy/testing/benchmark/gpu_clock.py"),
+        str(Path(__file__).resolve().parents[1] / "slangpy/testing/benchmark/gpu_clock_control.py"),
         run_name="__main__",
     )

@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-gpu_clock = import_module("slangpy.testing.benchmark.gpu_clock")
+gpu_clock = import_module("slangpy.testing.benchmark.gpu_clock_control")
 
 
 @pytest.fixture
