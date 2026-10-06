@@ -2,6 +2,13 @@
 
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+"""Control GPU clocks for a benchmark run.
+
+The caller must own the GPU exclusively from lock through measurement to unlock,
+including across processes. Serializing individual clock commands would not stop
+another benchmark from resetting clocks during a measurement.
+"""
+
 import os
 import platform
 import shutil
@@ -47,7 +54,7 @@ def nvidia_smi_mutation_command(arguments: list[str]) -> list[str]:
     return command
 
 
-def get_gpu_name(device_index: int):
+def get_gpu_name(device_index: int) -> str:
     """
     Return the name of the GPU.
     """
@@ -188,16 +195,13 @@ def lock_gpu_clocks(
     try:
         print(run_command(cmd))
     except Exception:
-        # Keep the pair all-or-nothing. Otherwise a failure here leaves the
-        # memory clock locked, and a caller that saw the exception has no reason
-        # to think it needs to unlock anything.
+        # Attempt to release the memory lock if graphics locking fails. Cleanup
+        # can also fail, so report that failure without hiding the original one.
         print("Locking gpu clock failed, releasing the memory clock:")
         try:
             print(
                 run_command(
-                    nvidia_smi_mutation_command(
-                        ["-i", str(device_index), "--reset-memory-clocks"]
-                    )
+                    nvidia_smi_mutation_command(["-i", str(device_index), "--reset-memory-clocks"])
                 )
             )
         except Exception as cleanup_error:
@@ -214,18 +218,28 @@ def unlock_gpu_clocks(device_index: int, dry_run: bool = False) -> None:
     :param device_index: GPU device index.
     :param dry_run: Print what would be done without executing it.
     """
-    print(f"Selected GPU: {get_gpu_name(device_index)}")
+    # Cleanup must still run if a diagnostic GPU-name query would fail.
+    print(f"Unlocking GPU device {device_index}")
 
     if dry_run:
         print("(dry run - not executing)")
         return
 
     print("Unlocking mem clock:")
-    print(
-        run_command(nvidia_smi_mutation_command(["-i", str(device_index), "--reset-memory-clocks"]))
-    )
-    print("Unlocking gpu clock:")
-    print(run_command(nvidia_smi_mutation_command(["-i", str(device_index), "--reset-gpu-clocks"])))
+    try:
+        print(
+            run_command(
+                nvidia_smi_mutation_command(["-i", str(device_index), "--reset-memory-clocks"])
+            )
+        )
+    finally:
+        # Each reset can fail independently; always attempt to release both.
+        print("Unlocking gpu clock:")
+        print(
+            run_command(
+                nvidia_smi_mutation_command(["-i", str(device_index), "--reset-gpu-clocks"])
+            )
+        )
 
 
 def main() -> None:

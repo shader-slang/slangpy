@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from datetime import datetime, timezone
+from dataclasses import asdict
 from email.message import Message
 from io import BytesIO
 from importlib import import_module
@@ -502,6 +503,33 @@ def test_custom_project_replaces_every_slangpy_identity() -> None:
     )
 
 
+@pytest.mark.parametrize("field", list(asdict(benchmark_api.SLANGPY_PROJECT)))
+def test_project_identity_has_no_implicit_defaults(field: str) -> None:
+    identity = asdict(benchmark_api.SLANGPY_PROJECT)
+    del identity[field]
+    with pytest.raises(TypeError, match=field):
+        benchmark_api.BenchViewProject(**identity)
+
+
+def test_submission_requires_an_explicit_project() -> None:
+    project_info, machine_info, commit_info = submission_context()
+    with pytest.raises(TypeError, match="project"):
+        benchmark_api.build_benchview_submissions(
+            [make_observation()],
+            request_id="request",
+            execution_id="execution",
+            project_info=project_info,
+            machine_info=machine_info,
+            commit_info=commit_info,
+        )
+
+
+@pytest.mark.parametrize("samples", [[], [float("nan")], [float("inf")], [-float("inf")]])
+def test_metric_rejects_empty_or_nonfinite_samples(samples: list[float]) -> None:
+    with pytest.raises(benchmark_api.BenchmarkSubmissionError, match="non-empty finite"):
+        benchmark_api.build_metric("gpu_time", "GPU time", samples)
+
+
 def test_observation_carries_several_metrics_and_extra_metadata() -> None:
     """One case may report several measurements, including a metric with a breakdown."""
 
@@ -529,13 +557,16 @@ def test_observation_carries_several_metrics_and_extra_metadata() -> None:
     assert observation["metadata"]["deviceType"] == "vulkan"
 
 
-def test_source_root_accepts_a_relative_filename_from_any_directory() -> None:
+def test_source_root_accepts_a_relative_filename_from_any_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """A relative filename is relative to the root, not to the working directory.
 
     Otherwise running pytest from somewhere other than the root would reject an
     in-root path and fail the whole submission.
     """
 
+    monkeypatch.chdir(tmp_path)
     observation = benchmark_api.build_benchview_observation(
         filename="slangpy/benchmarks/test_benchmark_tensor.py",
         function_name="test_tensor_sum",
