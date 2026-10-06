@@ -11291,6 +11291,8 @@ static const char *__doc_sgl_detail_profiler_frame_name = R"doc()doc";
 
 static const char *__doc_sgl_detail_profiler_frame_name_2 = R"doc()doc";
 
+static const char *__doc_sgl_detail_report_assertion = R"doc()doc";
+
 static const char *__doc_sgl_detail_strip_class_key = R"doc(Remove MSVC's "class " / "struct " prefix from a type name fragment.)doc";
 
 static const char *__doc_sgl_detail_throw_exception = R"doc()doc";
@@ -12674,7 +12676,7 @@ to [0, 1].)doc";
 
 static const char *__doc_sgl_math_perspective =
 R"doc(Creates a right-handed perspective projection matrix. Depth is mapped
-to [0, 1].)doc";
+to [0, 1]. The aspect ratio must be finite and positive.)doc";
 
 static const char *__doc_sgl_math_pitch = R"doc(Returns pitch value of euler angles expressed in radians.)doc";
 
@@ -14105,7 +14107,10 @@ Parameter ``window``:
 Returns:
     True if the frame capture was started successfully.)doc";
 
-static const char *__doc_sgl_report_assertion = R"doc(Report a failed assertion.)doc";
+static const char *__doc_sgl_report_assertion =
+R"doc(Report a failed assertion to stderr and abort, including when Python is
+active. Diagnostic failures fall back to a minimal message before
+aborting.)doc";
 
 static const char *__doc_sgl_set_exception_diagnostics = R"doc(Set exception diagnostic options.)doc";
 
@@ -15781,4 +15786,3 @@ static const char *__doc_std_swap = R"doc()doc";
 #if defined(__GNUG__)
 #pragma GCC diagnostic pop
 #endif
-

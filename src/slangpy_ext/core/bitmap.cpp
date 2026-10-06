@@ -103,7 +103,7 @@ SGL_PY_EXPORT(core_bitmap)
                 uint32_t height = narrow_cast<uint32_t>(data.shape(0));
                 std::vector channel_names = channel_names_.value_or(std::vector<std::string>{});
 
-                new (self) Bitmap(
+                Bitmap value(
                     pixel_format,
                     component_type,
                     width,
@@ -114,7 +114,11 @@ SGL_PY_EXPORT(core_bitmap)
                     srgb_gamma
                 );
 
-                SGL_ASSERT(self->buffer_size() == data.nbytes());
+                SGL_CHECK(
+                    value.buffer_size() == data.nbytes(),
+                    "Pixel format does not match the array's channel count."
+                );
+                new (self) Bitmap(std::move(value));
 
                 if (is_ndarray_contiguous(data)) {
                     std::memcpy(self->data(), data.data(), self->buffer_size());

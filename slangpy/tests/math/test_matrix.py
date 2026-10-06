@@ -10,6 +10,41 @@ import pytest
 import slangpy as spy
 
 
+@pytest.mark.parametrize("aspect", [0.0, -0.0, -1.0, float("nan"), float("inf"), -float("inf")])
+def test_perspective_invalid_aspect(aspect: float) -> None:
+    with pytest.raises(RuntimeError, match="aspect ratio must be finite and positive"):
+        spy.math.perspective(1.0, aspect, 0.1, 100.0)
+
+
+@pytest.mark.parametrize("aspect", [float(np.finfo(np.float32).eps), 1.0, 16.0 / 9.0])
+def test_perspective_valid_aspect(aspect: float) -> None:
+    matrix = spy.math.perspective(1.0, aspect, 0.1, 100.0)
+    assert matrix[0, 0] == pytest.approx(1.0 / (aspect * np.tan(0.5)))
+
+
+def test_index_validation() -> None:
+    matrix = spy.float2x3()
+    for index in [-3, 2, 3]:
+        with pytest.raises(IndexError):
+            matrix[index] = spy.float3(1, 2, 3)
+    for index in [(-3, 0), (2, 0), (0, -4), (0, 3)]:
+        with pytest.raises(IndexError):
+            matrix[index] = 1
+    for index in [-1, 2, 3]:
+        with pytest.raises(IndexError):
+            matrix.get_row(index)
+        with pytest.raises(IndexError):
+            matrix.set_row(index, spy.float3(1, 2, 3))
+    for index in [-1, 3, 4]:
+        with pytest.raises(IndexError):
+            matrix.get_col(index)
+        with pytest.raises(IndexError):
+            matrix.set_col(index, spy.float2(1, 2))
+    matrix[-1] = spy.float3(1, 2, 3)
+    matrix[-1, -1] = 9
+    assert matrix[1, 2] == 9
+
+
 def test_shape_and_element_types():
     for rows in range(2, 5):
         for cols in range(2, 5):

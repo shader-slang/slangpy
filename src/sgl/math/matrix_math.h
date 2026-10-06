@@ -666,10 +666,11 @@ template<typename T, int N>
 }
 
 /// Creates a right-handed perspective projection matrix. Depth is mapped to [0, 1].
+/// The aspect ratio must be finite and positive.
 template<floating_point T>
 [[nodiscard]] inline matrix<T, 4, 4> perspective(T fovy, T aspect, T z_near, T z_far)
 {
-    SGL_ASSERT(abs(aspect - std::numeric_limits<T>::epsilon()) > T(0));
+    SGL_CHECK(std::isfinite(aspect) && aspect > T(0), "Perspective aspect ratio must be finite and positive.");
 
     T tan_half_fovy = tan(fovy / T(2));
 

@@ -97,8 +97,7 @@ inline void process_buffer_desc(BufferDesc& desc)
         desc.element_count = 0;
     }
 
-    // TODO check init_data size
-    SGL_ASSERT(desc.size > 0);
+    SGL_CHECK(desc.size > 0, "Buffer size must be greater than zero.");
 
     SGL_CHECK(
         (desc.data == nullptr && desc.data_size == 0) || desc.data_size == desc.size,
@@ -208,8 +207,8 @@ void Buffer::_release_rhi_resources()
 
 void* Buffer::map() const
 {
-    SGL_ASSERT(m_desc.memory_type != MemoryType::device_local);
-    SGL_ASSERT(m_mapped_ptr == nullptr);
+    SGL_CHECK(m_desc.memory_type != MemoryType::device_local, "Device-local buffers cannot be mapped.");
+    SGL_CHECK(m_mapped_ptr == nullptr, "Buffer is already mapped.");
     rhi::CpuAccessMode mode
         = m_desc.memory_type == MemoryType::upload ? rhi::CpuAccessMode::Write : rhi::CpuAccessMode::Read;
     SLANG_RHI_CALL(m_device->rhi_device()->mapBuffer(m_rhi_buffer, mode, &m_mapped_ptr), m_device);
@@ -218,8 +217,8 @@ void* Buffer::map() const
 
 void Buffer::unmap() const
 {
-    SGL_ASSERT(m_desc.memory_type != MemoryType::device_local);
-    SGL_ASSERT(m_mapped_ptr != nullptr);
+    SGL_CHECK(m_desc.memory_type != MemoryType::device_local, "Device-local buffers cannot be unmapped.");
+    SGL_CHECK(m_mapped_ptr != nullptr, "Buffer is not mapped.");
     SLANG_RHI_CALL(m_device->rhi_device()->unmapBuffer(m_rhi_buffer), m_device);
     m_mapped_ptr = nullptr;
 }

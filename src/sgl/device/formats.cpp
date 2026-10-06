@@ -152,7 +152,7 @@ std::string FormatInfo::to_string() const
 
 const FormatInfo& get_format_info(Format format)
 {
-    SGL_ASSERT(uint32_t(format) < uint32_t(Format::count));
+    SGL_CHECK(uint32_t(format) < uint32_t(Format::count), "Invalid format: {}.", uint32_t(format));
     return s_format_infos[uint32_t(format)];
 }
 

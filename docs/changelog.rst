@@ -9,6 +9,18 @@ SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
 Unreleased
 ----------
+- Make failed assertions print to ``stderr`` and call ``abort()``, including when
+  Python is active. Fall back to a minimal diagnostic if formatting or stack trace
+  collection fails. Assertion reporting remains ``noexcept``.
+  Comparison assertions evaluate each operand once without copying it. Conditions
+  and comparisons may still throw; ``SGL_CHECK`` and ``SGL_THROW`` remain recoverable exceptions.
+  Add input checks for buffer creation/mapping, bitmap array formats, and Python
+  vector/matrix indexing so invalid inputs do not trigger fatal assertions.
+- Make ``SGL_UNREACHABLE`` report and abort in every build, including when
+  assertions are disabled. Invalid file/cursor modes, cursor shapes, and unsupported
+  shader target device types remain recoverable errors. ``SGL_UNIMPLEMENTED``
+  continues to throw.
+- Require perspective projection aspect ratios to be finite and positive.
 - Make diagnostic logging ``noexcept``. Exceptions from an output are suppressed
   so delivery to other outputs continues. Formatting and internal failures, global
   logger initialization failure, and access through ``Logger::get()`` after

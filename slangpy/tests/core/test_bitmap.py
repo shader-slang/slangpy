@@ -131,6 +131,13 @@ def test_bitmap_empty():
     assert b.empty()
 
 
+def test_numpy_pixel_format_mismatch() -> None:
+    data = np.zeros((2, 2, 3), dtype=np.uint8)
+    with pytest.raises(RuntimeError, match="Pixel format does not match"):
+        Bitmap(data, pixel_format=Bitmap.PixelFormat.rgba)
+    assert Bitmap(data, pixel_format=Bitmap.PixelFormat.rgb).channel_count == 3
+
+
 def test_bitmap_clear():
     img = create_test_image(100, 100, Bitmap.PixelFormat.rgb, Bitmap.ComponentType.float32)
     b = Bitmap(img)
