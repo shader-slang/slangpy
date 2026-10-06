@@ -7,6 +7,15 @@ Changelog
 
 SlangPy uses a `semantic versioning <http://semver.org>`__ policy for its API.
 
+Unreleased
+----------
+- Make diagnostic logging ``noexcept``. Exceptions from an output are suppressed
+  so delivery to other outputs continues. Formatting and internal failures, global
+  logger initialization failure, and access through ``Logger::get()`` after
+  shutdown invoke ``std::terminate`` with an active exception available to the
+  application's termination handler. Logger configuration and direct output calls
+  may still throw.
+
 Version 0.43.0 (July 13, 2026)
 -------
 - Native reflection, binding, and tensor overhaul: moved reflection type

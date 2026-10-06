@@ -34,7 +34,7 @@ SGL_PY_EXPORT(core_logger)
         .value("always", LogFrequency::always, D(LogFrequency, always))
         .value("once", LogFrequency::once, D(LogFrequency, once));
 
-    nb::class_<LoggerOutput, Object, PyLoggerOutput>(m, "LoggerOutput", D(LoggerOutput))
+    nb::class_<LoggerOutput, Object, PyLoggerOutput>(m, "LoggerOutput", D(LoggerOutput, 2))
         .def(nb::init<>())
         .def("write", &LoggerOutput::write, "level"_a, "name"_a, "msg"_a, D(LoggerOutput, write));
 
@@ -52,7 +52,7 @@ SGL_PY_EXPORT(core_logger)
 #define DEF_LOG_METHOD(name) def(#name, [](Logger& self, const std::string_view msg) { self.name(msg); }, "msg"_a)
     // clang-format on
 
-    nb::class_<Logger, Object>(m, "Logger", D(Logger))
+    nb::class_<Logger, Object>(m, "Logger", D(Logger, 2))
         .def(
             nb::init<LogLevel, std::string_view, bool>(),
             "level"_a = LogLevel::info,
@@ -88,17 +88,7 @@ SGL_PY_EXPORT(core_logger)
 #define DEF_LOG_FUNC(name) def(#name, [](const std::string_view msg) { name(msg); }, "msg"_a)
     // clang-format on
 
-    m.def(
-         "log",
-         [](const LogLevel level, const std::string_view msg, const LogFrequency frequency)
-         {
-             Logger::get().log(level, msg, frequency);
-         },
-         "level"_a,
-         "msg"_a,
-         "frequency"_a = LogFrequency::always,
-         D(Logger, log)
-    )
+    m.def("log", &sgl::log, "level"_a, "msg"_a, "frequency"_a = LogFrequency::always, D(log))
         .DEF_LOG_FUNC(log_debug)
         .DEF_LOG_FUNC(log_debug_once)
         .DEF_LOG_FUNC(log_info)
