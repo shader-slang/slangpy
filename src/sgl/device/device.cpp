@@ -532,6 +532,8 @@ void Device::close()
 
     m_device_close_callbacks.clear();
     m_shader_hot_reload_callbacks.clear();
+    m_command_recording_created_callbacks.clear();
+    m_command_recording_before_finish_callbacks.clear();
     m_command_recording_submitted_callbacks.clear();
     m_command_recording_discarded_callbacks.clear();
 
@@ -916,7 +918,10 @@ ref<CommandEncoder> Device::create_command_encoder(CommandQueueType queue)
 
     Slang::ComPtr<rhi::ICommandEncoder> rhi_command_encoder;
     SLANG_RHI_CALL(m_rhi_graphics_queue->createCommandEncoder(rhi_command_encoder.writeRef()), this);
-    return make_ref<CommandEncoder>(ref(this), queue, _allocate_command_recording_id(), rhi_command_encoder);
+    CommandRecordingID recording_id = _allocate_command_recording_id();
+    ref<CommandEncoder> encoder = make_ref<CommandEncoder>(ref(this), queue, recording_id, rhi_command_encoder);
+    _notify_command_recording_created(recording_id, encoder.get());
+    return encoder;
 }
 
 uint64_t Device::submit_command_buffers(
@@ -1460,6 +1465,27 @@ void Device::unregister_shader_hot_reload_callback(DeviceCallbackID id)
     m_shader_hot_reload_callbacks.unregister_callback(id);
 }
 
+DeviceCallbackID Device::register_command_recording_created_callback(CommandRecordingCreatedCallback callback)
+{
+    return m_command_recording_created_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
+}
+
+void Device::unregister_command_recording_created_callback(DeviceCallbackID id)
+{
+    m_command_recording_created_callbacks.unregister_callback(id);
+}
+
+DeviceCallbackID
+Device::register_command_recording_before_finish_callback(CommandRecordingBeforeFinishCallback callback)
+{
+    return m_command_recording_before_finish_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
+}
+
+void Device::unregister_command_recording_before_finish_callback(DeviceCallbackID id)
+{
+    m_command_recording_before_finish_callbacks.unregister_callback(id);
+}
+
 DeviceCallbackID Device::register_command_recording_submitted_callback(CommandRecordingSubmittedCallback callback)
 {
     return m_command_recording_submitted_callbacks.register_callback(_allocate_callback_id(), std::move(callback));
@@ -1497,6 +1523,26 @@ DeviceCallbackID Device::_allocate_callback_id()
 CommandRecordingID Device::_allocate_command_recording_id()
 {
     return s_next_command_recording_id.fetch_add(1, std::memory_order_relaxed);
+}
+
+void Device::_notify_command_recording_created(CommandRecordingID id, CommandEncoder* encoder)
+{
+    CommandRecordingCreatedEvent event{
+        .device = this,
+        .id = id,
+        .encoder = encoder,
+    };
+    m_command_recording_created_callbacks.notify(event);
+}
+
+void Device::_notify_command_recording_before_finish(CommandRecordingID id, CommandEncoder* encoder)
+{
+    CommandRecordingBeforeFinishEvent event{
+        .device = this,
+        .id = id,
+        .encoder = encoder,
+    };
+    m_command_recording_before_finish_callbacks.notify(event);
 }
 
 void Device::_notify_command_recording_submitted(
