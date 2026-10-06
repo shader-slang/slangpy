@@ -12,6 +12,7 @@ from .benchview import (
     benchview_submission_url,
     build_benchview_submissions,
     submit_benchview_submissions,
+    SLANGPY_PROJECT,
 )
 from .report import (
     BenchmarkReport,
@@ -199,6 +200,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
             project_info=report["project_info"],
             machine_info=report["machine_info"],
             commit_info=report["commit_info"],
+            project=SLANGPY_PROJECT,
         )
         print(f"Submitting {len(submissions)} benchmark batch(es) to BenchView at {api_url}")
         receipts = submit_benchview_submissions(api_url, write_key, submissions)
