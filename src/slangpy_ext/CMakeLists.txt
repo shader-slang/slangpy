@@ -180,6 +180,9 @@ if(NOT SGL_ENABLE_ASAN AND NOT SGL_ENABLE_UBSAN)
 endif()
 
 set(MKDOC_ARGS "")
+if(NOT WIN32)
+    list(APPEND MKDOC_ARGS -stdlib=libc++)
+endif()
 
 # Add system include directories.
 foreach(value ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
@@ -237,22 +240,14 @@ foreach(sgl_dir IN ITEMS ${SGL_HEADER_DIRS})
     list(APPEND SGL_HEADER_FILES ${FOUND_HEADERS})
 endforeach()
 
-# Note: Older versions of python packages pybind11_mkdoc and clang
-# may not support C++20. If you see the following error:
-#   ValueError: Unknown template argument kind 604
-# Upgrade to:
-#   pybind_mkdoc >= 2.6.2
-#   clang >= 20.1.5
-# Or manually change the cindex.py file in your
-# clang python package to add the following lines:
-# > # A concept declaration
-# > CursorKind.CONCEPT_DECL = CursorKind(604)
-add_custom_target(slangpy_pydoc USES_TERMINAL COMMAND
-    COMMAND ${Python_EXECUTABLE} -m pybind11_mkdoc -std=c++20 -stdlib=libc++
+# Use the vendored generator; only the Clang Python bindings and libclang are external.
+add_custom_target(slangpy_pydoc USES_TERMINAL
+    COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_pydoc.py -std=c++20
     ${MKDOC_ARGS}
     -I${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
     ${SGL_HEADER_FILES}
     -o ${CMAKE_CURRENT_SOURCE_DIR}/py_doc.h
+    VERBATIM
 )
 
 # Install binaries.
