@@ -20,10 +20,11 @@
 #include <mach/mach.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <sys/types.h>
+#include <sys/sysctl.h>
 
 #include <regex>
 #include <iostream>
-#include <fstream>
 
 #import <AppKit/AppKit.h>
 #import <Foundation/Foundation.h>
@@ -400,20 +401,13 @@ void* get_proc_address(SharedLibraryHandle library, const char* proc_name)
 
 bool is_debugger_present() noexcept
 {
-    try {
-        std::ifstream status_file("/proc/self/status");
-        std::string s;
-        while (status_file >> s) {
-            if (s == "TracerPid:") {
-                int pid = 0;
-                return (status_file >> pid) && pid != 0;
-            }
-            std::getline(status_file, s);
-        }
-    } catch (...) {
-        // Debugger detection is best effort, including during assertion reporting.
-    }
-    return false;
+    int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
+    struct kinfo_proc info = {};
+    size_t size = sizeof(info);
+    // Debugger detection is best effort, including during assertion reporting.
+    if (sysctl(mib, sizeof(mib) / sizeof(mib[0]), &info, &size, nullptr, 0) != 0 || size != sizeof(info))
+        return false;
+    return (info.kp_proc.p_flag & P_TRACED) != 0;
 }
 
 void debug_break()
