@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <fstream>
 #include <thread>
 
@@ -35,6 +36,29 @@ void record_native_function_site()
 bool supports_gpu_timestamps(Device* device)
 {
     return device->has_feature(Feature::timestamp_query) && device->has_feature(Feature::timestamp_calibration);
+}
+
+/// Poll the profiler until every GPU zone submitted so far has been resolved and delivered to the collector.
+///
+/// Profiler::tick() only collects the query results that are available at the time of the call; it never waits for
+/// them. A single tick after Device::wait() is therefore not guaranteed to deliver the GPU zones of the work that was
+/// just submitted. On a busy machine the results can arrive a moment later, and asserting on the trace right after
+/// one tick intermittently sees zero GPU zones. The profiler reports the number of zones still waiting for results in
+/// its diagnostics, which flush() republishes, so we tick and flush until that count drops to zero. Returns false if
+/// the results are still missing after a timeout that only exists to bound a hang, so that a result which never
+/// arrives is reported as such instead of as a confusing mismatch in the zone counts.
+bool tick_until_gpu_zones_resolved(Profiler* profiler)
+{
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    for (;;) {
+        profiler->tick();
+        profiler->flush();
+        if (profiler->live_snapshot()->diagnostics().pending_gpu_zone_count == 0)
+            return true;
+        if (std::chrono::steady_clock::now() >= deadline)
+            return false;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 }
 
 } // namespace
@@ -476,14 +500,14 @@ TEST_CASE_GPU("GPU timestamps follow command recording submission")
     profiler->tick();
     ctx.device->submit_command_buffer(encoder->finish());
     ctx.device->wait();
-    profiler->tick();
+    CHECK(tick_until_gpu_zones_resolved(profiler.get()));
 
     encoder = ctx.device->create_command_encoder();
     token = profiler->begin_zone(site, encoder);
     profiler->end_zone(token);
     ctx.device->submit_command_buffer(encoder->finish());
     ctx.device->wait();
-    profiler->tick();
+    CHECK(tick_until_gpu_zones_resolved(profiler.get()));
 
     std::thread later_cpu_thread(
         [&]
@@ -538,7 +562,7 @@ TEST_CASE_GPU("GPU hierarchy is scoped to a command recording")
     ctx.device->submit_command_buffer(encoder_b->finish());
 
     ctx.device->wait();
-    profiler->tick();
+    CHECK(tick_until_gpu_zones_resolved(profiler.get()));
     ref<ProfilerTrace> trace = profiler->stop_capture();
     ref<ProfilerZoneSelection> gpu_zones = trace->query_zones({}, ProfilerTimelineType::gpu);
     REQUIRE(gpu_zones->count() == 4);
@@ -577,7 +601,7 @@ TEST_CASE_GPU("GPU query exhaustion preserves CPU zones")
     profiler->end_frame(frame);
     ctx.device->submit_command_buffer(encoder->finish());
     ctx.device->wait();
-    profiler->tick();
+    CHECK(tick_until_gpu_zones_resolved(profiler.get()));
     ref<ProfilerTrace> trace = profiler->stop_capture();
     CHECK(trace->query_zones("exhausted gpu", ProfilerTimelineType::cpu)->count() == 2);
     CHECK(trace->query_zones("exhausted gpu", ProfilerTimelineType::gpu)->count() == 1);
