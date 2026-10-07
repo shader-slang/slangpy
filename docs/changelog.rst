@@ -27,6 +27,10 @@ Unreleased
   shutdown invoke ``std::terminate`` with an active exception available to the
   application's termination handler. Logger configuration and direct output calls
   may still throw.
+- Make device and compiler-session initialization exception safe. C++ callers must
+  use ``Device::create(desc)`` and ``device->create_slang_session(desc)`` instead of
+  constructing ``Device`` or ``SlangSession`` directly. Python constructor arguments are unchanged,
+  but ``Device`` can no longer be subclassed in Python.
 
 Version 0.43.0 (July 13, 2026)
 -------

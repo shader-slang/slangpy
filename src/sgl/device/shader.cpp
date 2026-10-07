@@ -239,12 +239,10 @@ SlangSession::SlangSession(ref<Device> device, SlangSessionDesc desc)
     : m_device(std::move(device))
     , m_desc(std::move(desc))
 {
-    ConstructorRefGuard ref_guard(this);
+}
 
-    // Register with hot load reload system if enabled.
-    if (m_device->_hot_reload())
-        m_device->_hot_reload()->_register_slang_session(this);
-
+void SlangSession::init()
+{
     // Create (but don't compile yet) the NVAPI module
     // We link this to all programs because slang uses NVAPI features while not including NVAPI itself.
     if (SGL_HAS_NVAPI && m_device->type() == DeviceType::d3d12) {
@@ -258,6 +256,10 @@ SlangSession::SlangSession(ref<Device> device, SlangSessionDesc desc)
     }
 
     recreate_session();
+
+    // Do not publish a session until all initialization has succeeded.
+    if (m_device->_hot_reload())
+        m_device->_hot_reload()->_register_slang_session(this);
 }
 
 SlangSession::~SlangSession()

@@ -83,24 +83,26 @@ namespace detail {
 
     void invalidate_reflection_data(Device* device)
     {
-        // Collect refs to keep objects alive during invalidation.
-        std::vector<ref<const BaseReflectionObject>> objects;
-
         for (auto it = g_slang_reflection_to_sgl_reflection.begin();
              it != g_slang_reflection_to_sgl_reflection.end();) {
             const BaseReflectionObject* reflection = it->second;
             Device* owning_device = get_device_from_owner(reflection->owner());
             bool invalidate = (device == nullptr) || (owning_device != nullptr && owning_device == device);
             if (invalidate) {
-                objects.push_back(ref(reflection));
-                it = g_slang_reflection_to_sgl_reflection.erase(it);
+                // Invalidation is also used during shutdown: do not allocate a list
+                // of owners that could fail to break cycles under memory pressure.
+                ref<const BaseReflectionObject> keep_alive(reflection);
+                void* key = it->first;
+                g_slang_reflection_to_sgl_reflection.erase(it);
+                const_cast<BaseReflectionObject*>(reflection)->_hot_reload_invalidate();
+                // Releasing an owner may also erase other reflection objects. Do not
+                // retain an iterator across invalidation or keep_alive destruction.
+                keep_alive.reset();
+                it = g_slang_reflection_to_sgl_reflection.upper_bound(key);
             } else {
                 ++it;
             }
         }
-
-        for (auto& reflection : objects)
-            const_cast<BaseReflectionObject*>(reflection.get())->_hot_reload_invalidate();
     }
 } // namespace detail
 

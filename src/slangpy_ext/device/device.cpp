@@ -521,7 +521,7 @@ SGL_PY_EXPORT(device_device)
         .def("__enter__", &CudaContextScope::enter, nb::rv_policy::reference)
         .def("__exit__", &CudaContextScope::exit, "exc_type"_a.none(), "exc_val"_a.none(), "exc_tb"_a.none());
 
-    nb::class_<Device, Object> device(m, "Device", nb::is_weak_referenceable(), D(Device));
+    nb::class_<Device, Object> device(m, "Device", nb::is_final(), nb::is_weak_referenceable(), D(Device));
 
     nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
 
@@ -540,64 +540,64 @@ SGL_PY_EXPORT(device_device)
         .def_ro("id", &CommandRecordingDiscardedEvent::id, D(CommandRecordingDiscardedEvent, id));
 
     device.def(
-        "__init__",
-        [](Device* self,
-           DeviceType type,
-           bool enable_debug_layers,
-           LogLevel debug_layers_log_level,
-           bool enable_rhi_validation,
-           LogLevel rhi_validation_log_level,
-           bool enable_ray_tracing_validation,
-           bool enable_aftermath,
-           bool enable_cuda_interop,
-           bool enable_print,
-           bool enable_hot_reload,
-           bool enable_compilation_reports,
-           PipelineCompilationMode pipeline_compilation_mode,
-           std::optional<AdapterLUID> adapter_luid,
-           std::optional<SlangCompilerOptions> compiler_options,
-           std::optional<std::filesystem::path> module_cache_path,
-           std::optional<std::filesystem::path> shader_cache_path,
-           size_t shader_cache_size,
-           std::optional<std::array<NativeHandle, 3>> existing_device_handles,
-           std::optional<BindlessDesc> bindless_options,
-           std::optional<std::vector<std::string>> additional_vulkan_instance_extensions,
-           std::optional<std::vector<std::string>> additional_vulkan_device_extensions,
-           bool enable_cuda_launch_from_gfx,
-           bool enable_ray_tracing,
-           std::string label)
-        {
-            SlangCompilerOptions _compiler_options = compiler_options.value_or(SlangCompilerOptions{});
-            prepend_default_slang_include_paths(_compiler_options);
-            new (self) Device(
-                {.type = type,
-                 .enable_debug_layers = enable_debug_layers,
-                 .debug_layers_log_level = debug_layers_log_level,
-                 .enable_rhi_validation = enable_rhi_validation,
-                 .rhi_validation_log_level = rhi_validation_log_level,
-                 .enable_ray_tracing_validation = enable_ray_tracing_validation,
-                 .enable_aftermath = enable_aftermath,
-                 .enable_cuda_interop = enable_cuda_interop,
-                 .enable_cuda_launch_from_gfx = enable_cuda_launch_from_gfx,
-                 .enable_ray_tracing = enable_ray_tracing,
-                 .enable_print = enable_print,
-                 .enable_hot_reload = enable_hot_reload,
-                 .enable_compilation_reports = enable_compilation_reports,
-                 .pipeline_compilation_mode = pipeline_compilation_mode,
-                 .adapter_luid = adapter_luid,
-                 .compiler_options = std::move(_compiler_options),
-                 .bindless_options = bindless_options.value_or(BindlessDesc{}),
-                 .module_cache_path = module_cache_path,
-                 .shader_cache_path = shader_cache_path,
-                 .shader_cache_size = shader_cache_size,
-                 .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
-                 .additional_vulkan_instance_extensions
-                 = additional_vulkan_instance_extensions.value_or(std::vector<std::string>{}),
-                 .additional_vulkan_device_extensions
-                 = additional_vulkan_device_extensions.value_or(std::vector<std::string>{}),
-                 .label = label}
-            );
-        },
+        nb::new_(
+            [](DeviceType type,
+               bool enable_debug_layers,
+               LogLevel debug_layers_log_level,
+               bool enable_rhi_validation,
+               LogLevel rhi_validation_log_level,
+               bool enable_ray_tracing_validation,
+               bool enable_aftermath,
+               bool enable_cuda_interop,
+               bool enable_print,
+               bool enable_hot_reload,
+               bool enable_compilation_reports,
+               PipelineCompilationMode pipeline_compilation_mode,
+               std::optional<AdapterLUID> adapter_luid,
+               std::optional<SlangCompilerOptions> compiler_options,
+               std::optional<std::filesystem::path> module_cache_path,
+               std::optional<std::filesystem::path> shader_cache_path,
+               size_t shader_cache_size,
+               std::optional<std::array<NativeHandle, 3>> existing_device_handles,
+               std::optional<BindlessDesc> bindless_options,
+               std::optional<std::vector<std::string>> additional_vulkan_instance_extensions,
+               std::optional<std::vector<std::string>> additional_vulkan_device_extensions,
+               bool enable_cuda_launch_from_gfx,
+               bool enable_ray_tracing,
+               std::string label)
+            {
+                SlangCompilerOptions _compiler_options = compiler_options.value_or(SlangCompilerOptions{});
+                prepend_default_slang_include_paths(_compiler_options);
+                return Device::create({
+                    .type = type,
+                    .enable_debug_layers = enable_debug_layers,
+                    .debug_layers_log_level = debug_layers_log_level,
+                    .enable_rhi_validation = enable_rhi_validation,
+                    .rhi_validation_log_level = rhi_validation_log_level,
+                    .enable_ray_tracing_validation = enable_ray_tracing_validation,
+                    .enable_aftermath = enable_aftermath,
+                    .enable_cuda_interop = enable_cuda_interop,
+                    .enable_cuda_launch_from_gfx = enable_cuda_launch_from_gfx,
+                    .enable_ray_tracing = enable_ray_tracing,
+                    .enable_print = enable_print,
+                    .enable_hot_reload = enable_hot_reload,
+                    .enable_compilation_reports = enable_compilation_reports,
+                    .pipeline_compilation_mode = pipeline_compilation_mode,
+                    .adapter_luid = adapter_luid,
+                    .compiler_options = std::move(_compiler_options),
+                    .bindless_options = bindless_options.value_or(BindlessDesc{}),
+                    .module_cache_path = module_cache_path,
+                    .shader_cache_path = shader_cache_path,
+                    .shader_cache_size = shader_cache_size,
+                    .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
+                    .additional_vulkan_instance_extensions
+                    = additional_vulkan_instance_extensions.value_or(std::vector<std::string>{}),
+                    .additional_vulkan_device_extensions
+                    = additional_vulkan_device_extensions.value_or(std::vector<std::string>{}),
+                    .label = label,
+                });
+            }
+        ),
         "type"_a = DeviceDesc().type,
         "enable_debug_layers"_a = DeviceDesc().enable_debug_layers,
         "debug_layers_log_level"_a = DeviceDesc().debug_layers_log_level,
@@ -625,12 +625,13 @@ SGL_PY_EXPORT(device_device)
         D(Device, Device)
     );
     device.def(
-        "__init__",
-        [](Device* self, DeviceDesc desc)
-        {
-            prepend_default_slang_include_paths(desc.compiler_options);
-            new (self) Device(std::move(desc));
-        },
+        nb::new_(
+            [](DeviceDesc desc)
+            {
+                prepend_default_slang_include_paths(desc.compiler_options);
+                return Device::create(desc);
+            }
+        ),
         "desc"_a,
         D(Device, Device)
     );
