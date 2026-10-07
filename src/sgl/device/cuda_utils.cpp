@@ -14,6 +14,44 @@
 
 namespace sgl::cuda {
 
+namespace {
+    class NoThrowContextScope {
+    public:
+        explicit NoThrowContextScope(CUcontext context) noexcept
+        {
+            CUresult result;
+            SGL_CU_WARN(result = cuCtxPushCurrent(context));
+            m_active = result == CUDA_SUCCESS;
+        }
+
+        ~NoThrowContextScope()
+        {
+            if (m_active) {
+                CUcontext context;
+                SGL_CU_WARN(cuCtxPopCurrent(&context));
+            }
+        }
+
+        bool active() const { return m_active; }
+
+    private:
+        bool m_active{false};
+    };
+
+} // namespace
+
+ErrorInfo get_cuda_error_info(CUresult result) noexcept
+{
+    ErrorInfo info{};
+    cuGetErrorName(result, &info.name);
+    if (!info.name)
+        info.name = "UNKNOWN";
+    cuGetErrorString(result, &info.description);
+    if (!info.description)
+        info.description = "No error description available";
+    return info;
+}
+
 int get_current_device_index()
 {
     CUcontext cu_context = nullptr;
@@ -250,8 +288,8 @@ Device::Device(const sgl::Device* device)
         SGL_THROW("No compatible CUDA device found.");
 
     SGL_CU_CHECK(cuDeviceGet(&m_device, selected_device));
-    SGL_CU_CHECK(cuDevicePrimaryCtxRetain(&m_context, m_device));
-    m_owns_context = true;
+    m_primary_context.emplace(m_device);
+    m_context = m_primary_context->context();
 
     char name[256];
     SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), m_device));
@@ -265,7 +303,6 @@ Device::Device(CUcontext context)
     m_context = context;
     SGL_CU_SCOPE(this);
     SGL_CU_CHECK(cuCtxGetDevice(&m_device));
-    m_owns_context = false;
 
     char name[256];
     SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), m_device));
@@ -278,8 +315,8 @@ Device::Device(CUdevice device)
 {
     m_device = device;
 
-    SGL_CU_CHECK(cuDevicePrimaryCtxRetain(&m_context, m_device));
-    m_owns_context = true;
+    m_primary_context.emplace(m_device);
+    m_context = m_primary_context->context();
     char name[256];
 
     SGL_CU_CHECK(cuDeviceGetName(name, sizeof(name), m_device));
@@ -288,11 +325,17 @@ Device::Device(CUdevice device)
     log_debug("Created CUDA context on device \"{}\" (architecture {}.{}).", name, major, minor);
 }
 
-Device::~Device()
+Device::~Device() = default;
+
+Device::RetainedPrimaryContext::RetainedPrimaryContext(CUdevice device)
+    : m_device(device)
 {
-    if (m_owns_context) {
-        SGL_CU_CHECK(cuDevicePrimaryCtxRelease(m_device));
-    }
+    SGL_CU_CHECK(cuDevicePrimaryCtxRetain(&m_context, m_device));
+}
+
+Device::RetainedPrimaryContext::~RetainedPrimaryContext() noexcept
+{
+    SGL_CU_WARN(cuDevicePrimaryCtxRelease(m_device));
 }
 
 AdapterLUID Device::adapter_luid() const
@@ -327,23 +370,26 @@ std::string Device::adapter_name() const
 }
 
 ExternalMemory::ExternalMemory(const Buffer* buffer)
-    : m_resource(buffer)
-    , m_external_memory(import_external_memory(buffer))
-    , m_size(buffer->size())
+    : m_size(buffer->size())
 {
+    SGL_ASSERT(buffer->device()->cuda_device());
+    m_context = buffer->device()->cuda_device()->context();
+    m_external_memory = import_external_memory(buffer);
 }
 
 ExternalMemory::~ExternalMemory()
 {
+    NoThrowContextScope scope(m_context);
+    if (!scope.active())
+        return;
     // The mapped device pointer returned by cuExternalMemoryGetMappedBuffer must be
     // freed with cuMemFree before destroying the external memory, otherwise the CUDA
     // driver keeps the underlying allocation alive and we leak ~64KB+ per buffer.
     if (m_mapped_data) {
-        SGL_CU_SCOPE(m_resource->device());
-        SGL_CU_CHECK(cuMemFree(reinterpret_cast<CUdeviceptr>(m_mapped_data)));
+        SGL_CU_WARN(cuMemFree(reinterpret_cast<CUdeviceptr>(m_mapped_data)));
         m_mapped_data = nullptr;
     }
-    destroy_external_memory(m_external_memory);
+    SGL_CU_WARN(cuDestroyExternalMemory(m_external_memory));
 }
 
 void* ExternalMemory::mapped_data() const
@@ -354,14 +400,17 @@ void* ExternalMemory::mapped_data() const
 }
 
 ExternalSemaphore::ExternalSemaphore(Fence* fence)
-    : m_fence(fence)
-    , m_external_semaphore(import_external_semaphore(fence))
 {
+    SGL_ASSERT(fence->device()->cuda_device());
+    m_context = fence->device()->cuda_device()->context();
+    m_external_semaphore = import_external_semaphore(fence);
 }
 
 ExternalSemaphore::~ExternalSemaphore()
 {
-    destroy_external_semaphore(m_external_semaphore);
+    NoThrowContextScope scope(m_context);
+    if (scope.active())
+        SGL_CU_WARN(cuDestroyExternalSemaphore(m_external_semaphore));
 }
 
 void ExternalSemaphore::signal(uint64_t value, CUstream stream)
@@ -382,14 +431,13 @@ ContextScope::ContextScope(const Device* device)
 ContextScope::ContextScope(const sgl::Device* device)
 {
     if (device->type() == DeviceType::cuda) {
-        // If this is a CUDA device, set it's context.
-        // TODO: We could cache the CUcontext instead of fetching it each time!
+        // Native CUDA devices own their context through the RHI device.
         rhi::DeviceNativeHandles handles;
         SLANG_RHI_CALL(device->rhi_device()->getNativeDeviceHandles(&handles), device);
         SGL_ASSERT(handles.handles[2].type == rhi::NativeHandleType::CUcontext);
         SGL_CU_CHECK(cuCtxPushCurrent(reinterpret_cast<CUcontext>(handles.handles[2].value)));
     } else {
-        // If this is a non-CUDA device, set the context of the interop CUDA device.
+        // Graphics devices use the context of their CUDA interop device.
         SGL_ASSERT(device->cuda_device());
         SGL_CU_CHECK(cuCtxPushCurrent(device->cuda_device()->context()));
     }
@@ -398,7 +446,7 @@ ContextScope::ContextScope(const sgl::Device* device)
 ContextScope::~ContextScope()
 {
     CUcontext p;
-    SGL_CU_CHECK(cuCtxPopCurrent(&p));
+    SGL_CU_WARN(cuCtxPopCurrent(&p));
 }
 
 } // namespace sgl::cuda

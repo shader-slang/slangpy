@@ -278,7 +278,6 @@ struct SlangSessionData : Object {
 class SGL_API SlangSession : public Object {
     SGL_OBJECT(SlangSession)
 public:
-    SlangSession(ref<Device> device, SlangSessionDesc desc);
     ~SlangSession();
 
     /// Fully recreates this session and any loaded modules or linked programs.
@@ -339,6 +338,9 @@ public:
     ref<SlangSessionData> _data() { return m_data; }
 
 private:
+    SlangSession(ref<Device> device, SlangSessionDesc desc);
+    void init();
+
     ref<Device> m_device;
 
     /// Descriptor containing all info required to build the session.
@@ -366,6 +368,8 @@ private:
 
     /// Cache of module name -> source SHA1 digest to detect same-name-different-source misuse.
     std::map<std::string, SHA1::Digest, std::less<>> m_source_module_digests;
+
+    friend class Device;
 };
 
 struct SlangModuleDesc {

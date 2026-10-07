@@ -1726,13 +1726,19 @@ static const char *__doc_sgl_CallbackList_Entry_callback = R"doc()doc";
 
 static const char *__doc_sgl_CallbackList_Entry_id = R"doc()doc";
 
-static const char *__doc_sgl_CallbackList_clear = R"doc()doc";
+static const char *__doc_sgl_CallbackList_clear =
+R"doc(Release callbacks without allocating or destroying their captures
+under the mutex.)doc";
 
 static const char *__doc_sgl_CallbackList_m_callbacks = R"doc()doc";
 
 static const char *__doc_sgl_CallbackList_m_mutex = R"doc()doc";
 
-static const char *__doc_sgl_CallbackList_notify = R"doc()doc";
+static const char *__doc_sgl_CallbackList_notify = R"doc(Notify callbacks, stopping and propagating the first exception.)doc";
+
+static const char *__doc_sgl_CallbackList_notify_no_throw =
+R"doc(Continue after callback exceptions and return the first exception, or
+nullptr on success.)doc";
 
 static const char *__doc_sgl_CallbackList_operator_assign = R"doc()doc";
 
@@ -2394,34 +2400,6 @@ static const char *__doc_sgl_ConsoleLoggerOutput_m_colored = R"doc()doc";
 static const char *__doc_sgl_ConsoleLoggerOutput_to_string = R"doc()doc";
 
 static const char *__doc_sgl_ConsoleLoggerOutput_write = R"doc()doc";
-
-static const char *__doc_sgl_ConstructorRefGuard =
-R"doc(Helper class to protect objects from being deleted before the
-constructor has finished.
-
-When objects are constructed, they have a reference count of zero. If
-during the constructor, a reference to the object is taken and later
-released, the object will be deleted before the constructor has
-finished.
-
-This helper class will take the initial reference to the object during
-construction, and avoid any other references to the object from
-deallocating it before the constructor has finished.
-
-Template parameter ``T``:
-    Object type.)doc";
-
-static const char *__doc_sgl_ConstructorRefGuard_ConstructorRefGuard = R"doc()doc";
-
-static const char *__doc_sgl_ConstructorRefGuard_ConstructorRefGuard_2 = R"doc()doc";
-
-static const char *__doc_sgl_ConstructorRefGuard_ConstructorRefGuard_3 = R"doc()doc";
-
-static const char *__doc_sgl_ConstructorRefGuard_m_obj = R"doc()doc";
-
-static const char *__doc_sgl_ConstructorRefGuard_operator_assign = R"doc()doc";
-
-static const char *__doc_sgl_ConstructorRefGuard_operator_assign_2 = R"doc()doc";
 
 static const char *__doc_sgl_CoopVecMatrixDesc = R"doc()doc";
 
@@ -3368,6 +3346,14 @@ static const char *__doc_sgl_DeviceType_wgpu = R"doc()doc";
 
 static const char *__doc_sgl_Device_Device = R"doc()doc";
 
+static const char *__doc_sgl_Device_State = R"doc()doc";
+
+static const char *__doc_sgl_Device_State_closed = R"doc()doc";
+
+static const char *__doc_sgl_Device_State_initializing = R"doc()doc";
+
+static const char *__doc_sgl_Device_State_ready = R"doc()doc";
+
 static const char *__doc_sgl_Device_allocate_callback_id = R"doc()doc";
 
 static const char *__doc_sgl_Device_allocate_command_recording_id = R"doc()doc";
@@ -3389,7 +3375,9 @@ This function should be called before the device is released. It waits
 for all pending work to be completed and releases internal resources,
 removing all cyclic references that might prevent the device from
 being destroyed. After closing the device, no new resources must be
-created and no new work must be submitted.
+created and no new work must be submitted. All close callbacks and
+cleanup run even if a callback throws. The first error is rethrown
+after cleanup. Reentrant and repeated close calls are no-ops.
 
 \note The Python extension will automatically close all open devices
 when the interpreter is terminated through an `atexit` handler. If a
@@ -3403,7 +3391,9 @@ static const char *__doc_sgl_Device_convert_coop_vec_matrices = R"doc(Convert mu
 
 static const char *__doc_sgl_Device_convert_coop_vec_matrix = R"doc(Convert a single cooperative vector matrix between formats.)doc";
 
-static const char *__doc_sgl_Device_create = R"doc()doc";
+static const char *__doc_sgl_Device_create =
+R"doc(Create and initialize a device. Failed initialization releases all
+acquired resources.)doc";
 
 static const char *__doc_sgl_Device_create_acceleration_structure = R"doc(Create a new acceleration structure.)doc";
 
@@ -3732,6 +3722,8 @@ static const char *__doc_sgl_Device_hot_reload = R"doc()doc";
 
 static const char *__doc_sgl_Device_info = R"doc(Device information.)doc";
 
+static const char *__doc_sgl_Device_init = R"doc()doc";
+
 static const char *__doc_sgl_Device_is_closed = R"doc(Check if the device is closed.)doc";
 
 static const char *__doc_sgl_Device_is_submit_finished =
@@ -3758,8 +3750,6 @@ static const char *__doc_sgl_Device_m_builtin_layout = R"doc()doc";
 static const char *__doc_sgl_Device_m_cache_writer = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_capabilities = R"doc()doc";
-
-static const char *__doc_sgl_Device_m_closed = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_command_recording_discarded_callbacks = R"doc()doc";
 
@@ -3809,6 +3799,8 @@ static const char *__doc_sgl_Device_m_slang_capabilities = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_slang_session = R"doc()doc";
 
+static const char *__doc_sgl_Device_m_state = R"doc()doc";
+
 static const char *__doc_sgl_Device_m_supported_shader_model = R"doc()doc";
 
 static const char *__doc_sgl_Device_m_supports_cuda_interop = R"doc()doc";
@@ -3824,6 +3816,8 @@ static const char *__doc_sgl_Device_on_hot_reload = R"doc(Called by hot reload s
 static const char *__doc_sgl_Device_pop_cuda_context =
 R"doc(Pop the CUDA context from the current thread's context stack. For non-
 CUDA devices, this is a no-op.)doc";
+
+static const char *__doc_sgl_Device_publish = R"doc()doc";
 
 static const char *__doc_sgl_Device_push_cuda_context =
 R"doc(Push the device's CUDA context onto the current thread's context
@@ -3864,7 +3858,9 @@ Returns:
 
 static const char *__doc_sgl_Device_register_command_recording_discarded_callback =
 R"doc(Register a callback to be called when a command recording is discarded
-(not submitted).)doc";
+(not submitted). Called from command encoder/buffer destructors.
+Callbacks must not throw: an escaping exception invokes
+std::terminate, including for Python callbacks.)doc";
 
 static const char *__doc_sgl_Device_register_command_recording_submitted_callback =
 R"doc(Register a callback to be called when a command recording is
@@ -3914,6 +3910,8 @@ R"doc(Set the device's CUDA context as current on this thread. For non-CUDA
 devices, this is a no-op.)doc";
 
 static const char *__doc_sgl_Device_shader_cache_stats = R"doc(Shader cache statistics.)doc";
+
+static const char *__doc_sgl_Device_shutdown = R"doc()doc";
 
 static const char *__doc_sgl_Device_slang_capabilities = R"doc()doc";
 
@@ -9229,6 +9227,8 @@ static const char *__doc_sgl_SlangSession_device = R"doc()doc";
 
 static const char *__doc_sgl_SlangSession_get_slang_session = R"doc()doc";
 
+static const char *__doc_sgl_SlangSession_init = R"doc()doc";
+
 static const char *__doc_sgl_SlangSession_link_program = R"doc(Link a program with a set of modules and entry points.)doc";
 
 static const char *__doc_sgl_SlangSession_load_module = R"doc(Load a module by name.)doc";
@@ -10983,6 +10983,24 @@ static const char *__doc_sgl_cuda_Device_Device_2 = R"doc()doc";
 
 static const char *__doc_sgl_cuda_Device_Device_3 = R"doc()doc";
 
+static const char *__doc_sgl_cuda_Device_RetainedPrimaryContext = R"doc()doc";
+
+static const char *__doc_sgl_cuda_Device_RetainedPrimaryContext_RetainedPrimaryContext = R"doc()doc";
+
+static const char *__doc_sgl_cuda_Device_RetainedPrimaryContext_RetainedPrimaryContext_2 = R"doc()doc";
+
+static const char *__doc_sgl_cuda_Device_RetainedPrimaryContext_RetainedPrimaryContext_3 = R"doc()doc";
+
+static const char *__doc_sgl_cuda_Device_RetainedPrimaryContext_context = R"doc()doc";
+
+static const char *__doc_sgl_cuda_Device_RetainedPrimaryContext_m_context = R"doc()doc";
+
+static const char *__doc_sgl_cuda_Device_RetainedPrimaryContext_m_device = R"doc()doc";
+
+static const char *__doc_sgl_cuda_Device_RetainedPrimaryContext_operator_assign = R"doc()doc";
+
+static const char *__doc_sgl_cuda_Device_RetainedPrimaryContext_operator_assign_2 = R"doc()doc";
+
 static const char *__doc_sgl_cuda_Device_adapter_luid = R"doc()doc";
 
 static const char *__doc_sgl_cuda_Device_adapter_name = R"doc()doc";
@@ -10997,7 +11015,13 @@ static const char *__doc_sgl_cuda_Device_m_context = R"doc()doc";
 
 static const char *__doc_sgl_cuda_Device_m_device = R"doc()doc";
 
-static const char *__doc_sgl_cuda_Device_m_owns_context = R"doc()doc";
+static const char *__doc_sgl_cuda_Device_m_primary_context = R"doc()doc";
+
+static const char *__doc_sgl_cuda_ErrorInfo = R"doc()doc";
+
+static const char *__doc_sgl_cuda_ErrorInfo_description = R"doc()doc";
+
+static const char *__doc_sgl_cuda_ErrorInfo_name = R"doc()doc";
 
 static const char *__doc_sgl_cuda_ExternalMemory = R"doc(Wraps an external memory resource.)doc";
 
@@ -11007,11 +11031,11 @@ static const char *__doc_sgl_cuda_ExternalMemory_ExternalMemory = R"doc()doc";
 
 static const char *__doc_sgl_cuda_ExternalMemory_class_name = R"doc()doc";
 
+static const char *__doc_sgl_cuda_ExternalMemory_m_context = R"doc(Borrowed context, kept alive by the owning resource's device.)doc";
+
 static const char *__doc_sgl_cuda_ExternalMemory_m_external_memory = R"doc()doc";
 
 static const char *__doc_sgl_cuda_ExternalMemory_m_mapped_data = R"doc()doc";
-
-static const char *__doc_sgl_cuda_ExternalMemory_m_resource = R"doc(Non-owning pointer to the resource.)doc";
 
 static const char *__doc_sgl_cuda_ExternalMemory_m_size = R"doc()doc";
 
@@ -11027,9 +11051,9 @@ static const char *__doc_sgl_cuda_ExternalSemaphore_ExternalSemaphore = R"doc()d
 
 static const char *__doc_sgl_cuda_ExternalSemaphore_class_name = R"doc()doc";
 
-static const char *__doc_sgl_cuda_ExternalSemaphore_m_external_semaphore = R"doc()doc";
+static const char *__doc_sgl_cuda_ExternalSemaphore_m_context = R"doc(Borrowed context, kept alive by the owning device.)doc";
 
-static const char *__doc_sgl_cuda_ExternalSemaphore_m_fence = R"doc(Non-owning pointer to the fence.)doc";
+static const char *__doc_sgl_cuda_ExternalSemaphore_m_external_semaphore = R"doc()doc";
 
 static const char *__doc_sgl_cuda_ExternalSemaphore_signal = R"doc()doc";
 
@@ -11078,6 +11102,10 @@ static const char *__doc_sgl_cuda_destroy_external_semaphore = R"doc()doc";
 static const char *__doc_sgl_cuda_external_memory_get_mapped_buffer = R"doc()doc";
 
 static const char *__doc_sgl_cuda_free_device = R"doc()doc";
+
+static const char *__doc_sgl_cuda_get_cuda_error_info =
+R"doc(Get the CUDA error name and description, using fallback strings for
+unknown errors.)doc";
 
 static const char *__doc_sgl_cuda_get_current_device_index =
 R"doc(Get the CUDA device index from the current CUDA context. Returns 0 if

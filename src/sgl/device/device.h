@@ -23,6 +23,7 @@
 
 #include <array>
 #include <atomic>
+#include <exception>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -307,7 +308,6 @@ using CommandRecordingDiscardedCallback = std::function<void(const CommandRecord
 class SGL_API Device : public Object {
     SGL_OBJECT(Device)
 public:
-    Device(const DeviceDesc& desc = DeviceDesc{});
     ~Device();
 
     /// Release all underlying slang-rhi resources.
@@ -315,7 +315,8 @@ public:
     /// when slangpy fails to clean up properly due to reference cycles introduced in Python.
     void _release_rhi_resources();
 
-    static ref<Device> create(const DeviceDesc& desc = DeviceDesc{}) { return make_ref<Device>(desc); }
+    /// Create and initialize a device. Failed initialization releases all acquired resources.
+    static ref<Device> create(const DeviceDesc& desc = DeviceDesc{});
 
     const DeviceDesc& desc() const { return m_desc; }
 
@@ -360,6 +361,8 @@ public:
      * resources, removing all cyclic references that might prevent the device
      * from being destroyed. After closing the device, no new resources must be
      * created and no new work must be submitted.
+     * All close callbacks and cleanup run even if a callback throws. The first
+     * error is rethrown after cleanup. Reentrant and repeated close calls are no-ops.
      *
      * \note The Python extension will automatically close all open devices
      * when the interpreter is terminated through an `atexit` handler. If a
@@ -368,7 +371,7 @@ public:
     void close();
 
     /// Check if the device is closed.
-    bool is_closed() const { return m_closed; }
+    bool is_closed() const { return m_state == State::closed; }
 
     /// Close all open devices.
     static void close_all_devices();
@@ -878,6 +881,8 @@ public:
     void unregister_command_recording_submitted_callback(DeviceCallbackID id);
 
     /// Register a callback to be called when a command recording is discarded (not submitted).
+    /// Called from command encoder/buffer destructors. Callbacks must not throw:
+    /// an escaping exception invokes std::terminate, including for Python callbacks.
     DeviceCallbackID register_command_recording_discarded_callback(CommandRecordingDiscardedCallback callback);
     /// Unregister a command recording discarded callback.
     void unregister_command_recording_discarded_callback(DeviceCallbackID id);
@@ -901,25 +906,47 @@ public:
     DeviceCallbackID _allocate_callback_id();
     CommandRecordingID _allocate_command_recording_id();
     void _notify_command_recording_submitted(CommandRecordingID id, CommandBuffer* command_buffer, uint64_t submit_id);
-    void _notify_command_recording_discarded(CommandRecordingID id);
+    void _notify_command_recording_discarded(CommandRecordingID id) noexcept;
 
 private:
+    explicit Device(const DeviceDesc& desc);
+    void init();
+    void publish();
+    std::exception_ptr shutdown(bool notify_callbacks) noexcept;
+
     ref<refl::Layout> reload_builtin_layout();
+
+    enum class State { initializing, ready, closed };
 
     DeviceDesc m_desc;
     DeviceInfo m_info;
     ShaderModel m_supported_shader_model{ShaderModel::unknown};
 
-    bool m_closed{false};
+    State m_state{State::initializing};
+
+    // Child destructors unregister themselves, so these must outlive owned children.
+    std::mutex m_device_children_mutex;
+    std::unordered_set<DeviceChild*> m_device_children;
 
     std::filesystem::path m_module_cache_path;
     std::filesystem::path m_shader_cache_path;
     ref<CacheWriter> m_cache_writer;
     ref<PersistentCache> m_persistent_cache;
 
+    // RHI retains a raw pointer to its debug callback.
+    std::unique_ptr<DebugLogger> m_debug_logger;
     Slang::ComPtr<rhi::IDevice> m_rhi_device;
     Slang::ComPtr<rhi::ICommandQueue> m_rhi_graphics_queue;
+
+    ref<Fence> m_global_fence;
+
+    // Imported buffers and the semaphore must be released before the CUDA context.
+    bool m_supports_cuda_interop{false};
+    ref<cuda::Device> m_cuda_device;
+    ref<cuda::ExternalSemaphore> m_cuda_semaphore;
+
     Slang::ComPtr<slang::IGlobalSession> m_global_session;
+    ref<HotReload> m_hot_reload;
 
     ref<SlangSession> m_slang_session;
     ref<refl::Layout> m_builtin_layout;
@@ -928,9 +955,7 @@ private:
     std::vector<std::string> m_capabilities;
     std::vector<SlangCapabilityID> m_slang_capabilities;
 
-    ref<Fence> m_global_fence;
-
-    std::unique_ptr<DebugLogger> m_debug_logger;
+    ref<Blitter> m_blitter;
     std::unique_ptr<DebugPrinter> m_debug_printer;
 
     std::atomic<DeviceCallbackID> m_next_callback_id{1};
@@ -939,16 +964,6 @@ private:
     CallbackList<DeviceCallbackID, ShaderHotReloadCallback> m_shader_hot_reload_callbacks;
     CallbackList<DeviceCallbackID, CommandRecordingSubmittedCallback> m_command_recording_submitted_callbacks;
     CallbackList<DeviceCallbackID, CommandRecordingDiscardedCallback> m_command_recording_discarded_callbacks;
-
-    ref<Blitter> m_blitter;
-    ref<HotReload> m_hot_reload;
-
-    bool m_supports_cuda_interop{false};
-    ref<cuda::Device> m_cuda_device;
-    ref<cuda::ExternalSemaphore> m_cuda_semaphore;
-
-    std::mutex m_device_children_mutex;
-    std::unordered_set<DeviceChild*> m_device_children;
 };
 
 /// Gets the device and context handles for the current CUDA context. Use

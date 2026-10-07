@@ -64,9 +64,27 @@ inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
 Device::Device(const DeviceDesc& desc)
     : m_desc(desc)
 {
-    ConstructorRefGuard ref_guard(this);
+}
 
-    if (desc.enable_debug_layers)
+ref<Device> Device::create(const DeviceDesc& desc)
+{
+    // Establish ownership before initialization creates children that retain the device.
+    ref<Device> device(new Device(desc));
+    try {
+        device->init();
+        device->publish();
+    } catch (...) {
+        // Releasing just the factory reference would leave device/child ownership cycles.
+        // Preserve the initialization error even if draining pending work fails.
+        device->shutdown(false);
+        throw;
+    }
+    return device;
+}
+
+void Device::init()
+{
+    if (m_desc.enable_debug_layers)
         rhi::getRHI()->enableDebugLayers();
 
     // Create hot reload system before creating any sessions.
@@ -152,7 +170,6 @@ Device::Device(const DeviceDesc& desc)
     // is provided. If so, we will attempt to identify the same device for use with SlangPy.
     if (m_desc.enable_cuda_interop) {
         if (!rhiCudaDriverApiInit()) {
-            close();
             SGL_THROW("Failed to initialize CUDA driver API.");
         }
 
@@ -215,7 +232,6 @@ Device::Device(const DeviceDesc& desc)
         }
 
         if (!found) {
-            close();
             SGL_THROW("Unable to find matching adapter LUID or name for the provided CUDA device.");
         }
     }
@@ -430,19 +446,19 @@ Device::Device(const DeviceDesc& desc)
         .add_default_include_paths = true,
         .cache_path = !m_module_cache_path.empty() ? std::optional(m_module_cache_path) : std::nullopt,
     });
+}
 
-    // Set CUDA context current for standalone SlangPy (no-op for non-CUDA devices).
-    // Redundant but harmless when using PyTorch interop.
-    set_cuda_context_current();
-
-    // Add device to global device list.
-    {
-        std::lock_guard lock(s_devices_mutex);
-        s_devices.push_back(this);
-    }
-
-    // Auto-push device onto thread-local current device stack.
-    push_current_device(this);
+void Device::publish()
+{
+    // Prepare all allocations before changing current-device state. Enumeration is
+    // blocked until both registries contain the fully initialized device.
+    std::lock_guard lock(s_devices_mutex);
+    s_devices.reserve(s_devices.size() + 1);
+    s_tls_current_device_stack.reserve(s_tls_current_device_stack.size() + 1);
+    SLANG_RHI_CALL(m_rhi_device->setCudaContextCurrent(), this);
+    s_tls_current_device_stack.push_back(this);
+    s_devices.push_back(this);
+    m_state = State::ready;
 }
 
 Device::~Device()
@@ -453,7 +469,9 @@ Device::~Device()
         s_devices.erase(std::remove(s_devices.begin(), s_devices.end(), this), s_devices.end());
     }
 
-    SGL_CHECK(m_closed, "Device is not close. Call close() before destroying the device.");
+    // Also tolerate destruction of a minimally constructed device. This path never
+    // takes a new reference to an object whose reference count has reached zero.
+    shutdown(false);
 
     // Surviving buffers need the CUDA context to destroy their imports after close().
     m_cuda_device.reset();
@@ -504,31 +522,59 @@ FormatSupport Device::get_format_support(Format format) const
 
 void Device::close()
 {
-    if (m_closed)
+    if (is_closed())
         return;
 
     // Keep the device alive while callbacks and resource teardown may release
     // the last external owner.
     ref<Device> keep_alive(this);
 
-    // Pop device from thread-local current device stack if it's the current device.
-    if (!s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
-        pop_current_device();
+    if (auto error = shutdown(true))
+        std::rethrow_exception(error);
+}
 
-    log_debug("Closing device {}", fmt::ptr(this));
+std::exception_ptr Device::shutdown(bool notify_callbacks) noexcept
+{
+    if (is_closed())
+        return {};
+    const bool was_ready = m_state == State::ready;
+    // Mark closed before cleanup so reentrant close() calls are no-ops.
+    m_state = State::closed;
 
-    wait();
+    if (was_ready && !s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
+        s_tls_current_device_stack.pop_back();
 
-    // Flush cache writer to ensure all pending writes are completed.
-    if (m_cache_writer)
-        m_cache_writer->flush();
+    std::exception_ptr error;
+    auto attempt = [&](auto&& operation) noexcept
+    {
+        try {
+            operation();
+        } catch (...) {
+            if (!error)
+                error = std::current_exception();
+        }
+    };
 
-    // Mark the device closed before notifying callbacks so reentrant close()
-    // calls from callbacks are no-ops.
-    m_closed = true;
+    // Initialization may have submitted debug-printer commands before failing.
+    attempt(
+        [&]
+        {
+            wait();
+        }
+    );
+    attempt(
+        [&]
+        {
+            if (m_cache_writer)
+                m_cache_writer->flush();
+        }
+    );
 
-    // Handle device close callbacks.
-    m_device_close_callbacks.notify(this);
+    if (notify_callbacks && was_ready) {
+        auto callback_error = m_device_close_callbacks.notify_no_throw(this);
+        if (!error)
+            error = callback_error;
+    }
 
     m_device_close_callbacks.clear();
     m_shader_hot_reload_callbacks.clear();
@@ -538,26 +584,39 @@ void Device::close()
     m_blitter.reset();
     m_debug_printer.reset();
 
+    // The semaphore refers to the fence, and its destructor manages its CUDA context.
+    m_cuda_semaphore.reset();
     m_global_fence.reset();
 
     // Cached reflection layouts can own shader objects strongly; break those cycles before releasing Slang state.
-    detail::invalidate_reflection_data(this);
+    attempt(
+        [&]
+        {
+            detail::invalidate_reflection_data(this);
+        }
+    );
 
     m_builtin_layout.reset();
     m_slang_session.reset();
     m_hot_reload.reset();
 
-    if (m_cuda_device) {
-        SGL_CU_SCOPE(this);
-        m_cuda_semaphore.reset();
-    }
+    return error;
 }
 
 void Device::close_all_devices()
 {
     std::vector<ref<Device>> devices = get_created_devices();
-    for (auto it = devices.rbegin(); it != devices.rend(); ++it)
-        (*it)->close();
+    std::exception_ptr error;
+    for (auto it = devices.rbegin(); it != devices.rend(); ++it) {
+        try {
+            (*it)->close();
+        } catch (...) {
+            if (!error)
+                error = std::current_exception();
+        }
+    }
+    if (error)
+        std::rethrow_exception(error);
 }
 
 void Device::_release_all_rhi_resources()
@@ -785,7 +844,9 @@ void Device::convert_coop_vec_matrix(
 
 ref<SlangSession> Device::create_slang_session(SlangSessionDesc desc)
 {
-    return make_ref<SlangSession>(ref<Device>(this), std::move(desc));
+    ref<SlangSession> session(new SlangSession(ref<Device>(this), std::move(desc)));
+    session->init();
+    return session;
 }
 
 void Device::reload_all_programs()
@@ -1077,7 +1138,7 @@ void Device::wait_for_idle(CommandQueueType queue)
 {
     if (m_rhi_graphics_queue) {
         SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
-        m_rhi_graphics_queue->waitOnHost();
+        SLANG_RHI_CALL(m_rhi_graphics_queue->waitOnHost(), this);
     }
 }
 
@@ -1514,12 +1575,13 @@ void Device::_notify_command_recording_submitted(
     m_command_recording_submitted_callbacks.notify(event);
 }
 
-void Device::_notify_command_recording_discarded(CommandRecordingID id)
+void Device::_notify_command_recording_discarded(CommandRecordingID id) noexcept
 {
     CommandRecordingDiscardedEvent event{
         .device = this,
         .id = id,
     };
+    // Destructor callbacks must not throw. Escaping exceptions terminate at this noexcept boundary.
     m_command_recording_discarded_callbacks.notify(event);
 }
 
