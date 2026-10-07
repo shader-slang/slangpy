@@ -180,7 +180,7 @@ if(NOT SGL_ENABLE_ASAN AND NOT SGL_ENABLE_UBSAN)
 endif()
 
 set(MKDOC_ARGS "")
-if(NOT WIN32)
+if(APPLE)
     list(APPEND MKDOC_ARGS -stdlib=libc++)
 endif()
 
