@@ -253,7 +253,7 @@ void Buffer::set_data(const void* data, size_t size, DeviceOffset offset)
         break;
     case MemoryType::upload: {
         bool was_mapped = is_mapped();
-        uint8_t* dst = map<uint8_t>() + offset;
+        uint8_t* dst = (was_mapped ? static_cast<uint8_t*>(m_mapped_ptr) : map<uint8_t>()) + offset;
         std::memcpy(dst, data, size);
         if (!was_mapped)
             unmap();
@@ -283,7 +283,7 @@ void Buffer::get_data(void* data, size_t size, DeviceOffset offset)
         SGL_THROW("Cannot read data from buffer with memory type 'upload'.");
     case MemoryType::read_back: {
         bool was_mapped = is_mapped();
-        const uint8_t* src = map<uint8_t>() + offset;
+        const uint8_t* src = (was_mapped ? static_cast<const uint8_t*>(m_mapped_ptr) : map<uint8_t>()) + offset;
         std::memcpy(data, src, size);
         if (!was_mapped)
             unmap();
