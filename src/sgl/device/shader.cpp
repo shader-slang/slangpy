@@ -491,7 +491,7 @@ void SlangSession::create_session(SlangSessionBuild& build)
         target_define = "__TARGET_CUDA__";
         break;
     default:
-        SGL_UNREACHABLE();
+        SGL_THROW("Unsupported device type for shader compilation: {}.", static_cast<uint32_t>(device_type));
     }
     SGL_ASSERT(target_define);
 
