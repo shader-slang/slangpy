@@ -375,6 +375,7 @@ public:
 
     /// Internal close implementation. The callback calls wait(), optionally releasing
     /// the GIL around it. The rest of close runs with the caller's GIL state unchanged.
+    /// If waiting or flushing the cache fails, teardown has not started and close can be retried.
     void _close(const std::function<void()>& wait_callback);
 
     /// Check if the device is closed.

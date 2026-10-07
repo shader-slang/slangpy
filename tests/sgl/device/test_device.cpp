@@ -8,6 +8,7 @@
 
 #include <array>
 #include <fstream>
+#include <stdexcept>
 
 using namespace sgl;
 
@@ -132,6 +133,52 @@ TEST_CASE_GPU("close_all_devices_keeps_snapshot_alive")
     CHECK(close_count_a == 1);
     CHECK(close_count_b == 1);
     CHECK_THROWS(current_device());
+}
+
+TEST_CASE_GPU("close_can_retry_after_wait_failure")
+{
+    auto device = Device::create(ctx.device->desc());
+    push_current_device(device);
+    auto* session = device->slang_session();
+    int close_count = 0;
+    device->register_device_close_callback(
+        [&](Device*)
+        {
+            ++close_count;
+        }
+    );
+
+    // Model a failed GPU wait without relying on a device loss or driver error.
+    CHECK_THROWS_WITH(
+        device->_close(
+            [&]()
+            {
+                CHECK(device->is_closed());
+                device->close(); // Reentrant close must remain a no-op during the wait.
+                throw std::runtime_error("injected wait failure");
+            }
+        ),
+        "injected wait failure"
+    );
+    CHECK_FALSE(device->is_closed());
+    CHECK_EQ(current_device(), device.get());
+    CHECK_EQ(device->slang_session(), session);
+    CHECK_EQ(close_count, 0);
+
+    bool waited = false;
+    device->_close(
+        [&]()
+        {
+            waited = true;
+            device->wait();
+        }
+    );
+    CHECK(waited);
+    CHECK(device->is_closed());
+    CHECK_EQ(device->slang_session(), nullptr);
+    CHECK_EQ(close_count, 1);
+    device->close();
+    CHECK_EQ(close_count, 1);
 }
 
 TEST_CASE_GPU("execute_callback_desc_native_handle")

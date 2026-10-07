@@ -528,18 +528,26 @@ void Device::_close(const std::function<void()>& wait_callback)
     // for the GPU wait. Reentrant close calls are no-ops, including from callbacks.
     m_closed = true;
 
-    // Pop device from thread-local current device stack if it's the current device.
-    if (!s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
-        pop_current_device();
-
     log_debug("Closing device {}", fmt::ptr(this));
 
-    // Calls the usual wait(); Python bindings release the GIL for that call only.
-    wait_callback();
+    try {
+        // Calls the usual wait(); Python bindings release the GIL for that call only.
+        wait_callback();
 
-    // Flush cache writer to ensure all pending writes are completed.
-    if (m_cache_writer)
-        m_cache_writer->flush();
+        // Flush cache writer to ensure all pending writes are completed.
+        if (m_cache_writer)
+            m_cache_writer->flush();
+    } catch (...) {
+        // Teardown has not started. Preserve the resources and allow close() to
+        // retry instead of leaving a partially closed device after a failed wait.
+        m_closed = false;
+        throw;
+    }
+
+    // Only remove the current device once waiting succeeds, so a failed close
+    // preserves the caller's current-device stack as well as the owned resources.
+    if (!s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
+        pop_current_device();
 
     // Handle device close callbacks.
     m_device_close_callbacks.notify(this);

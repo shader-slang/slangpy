@@ -175,6 +175,11 @@ TEST_CASE_GPU("internal_shader_session")
     DeviceDesc desc{.type = ctx.device->type()};
     desc.compiler_options.coverage = ShaderCoverageOptions{.counter_width = 32};
     desc.compiler_options.defines["INTERNAL_SESSION_TEST"] = "1";
+    const auto directory = testing::get_case_temp_directory();
+    const auto include_path = directory / "custom-includes";
+    std::filesystem::create_directories(include_path);
+    desc.compiler_options.include_paths.push_back(include_path);
+    desc.module_cache_path = directory / "custom-module-cache";
     auto device = Device::create(desc);
     auto* application = device->slang_session();
     auto* internal = device->_internal_slang_session();

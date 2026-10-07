@@ -110,7 +110,9 @@ Once ``device.close()`` starts, new captures and submissions fail with
 finish, including if close completes before their readback is decoded. Explicit
 Python close releases the GIL during its GPU wait, allowing another Python thread
 to signal a fence. A repeated close is a no-op, including while the first close
-is waiting.
+is waiting. If waiting or cache flushing raises an exception before teardown,
+the device returns to the open state so close can be retried; its resources and
+current-device stack entry are preserved.
 
 Native C++ callers must serialize capture submission with other operations that
 mutate the same device, including program registration, queue submission and
@@ -181,9 +183,9 @@ GPU workload. These helpers do not define a reusable reporting or wrapper API.
 Testing on Windows and Linux
 ----------------------------
 
-Build SlangPy normally after updating submodules. This draft pins RHI to the
-head of `slang-rhi PR #739 <https://github.com/shader-slang/slang-rhi/pull/739>`_
-and uses the repository's released Slang dependency; local source overrides are
+Build SlangPy normally after updating submodules. This branch pins RHI to the
+upstream merge commit of `slang-rhi PR #739 <https://github.com/shader-slang/slang-rhi/pull/739>`_
+and uses released Slang 2026.19; local source overrides are
 not required. Run the same test files for either backend:
 
 .. code-block:: console
