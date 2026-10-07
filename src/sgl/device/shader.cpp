@@ -490,13 +490,11 @@ void SlangSession::create_session(SlangSessionBuild& build)
 
     // Add NVAPI defines.
     session_options.add_macro_define("SGL_ENABLE_NVAPI", enable_nvapi ? "1" : "0");
-#if SGL_HAS_NVAPI
     if (enable_nvapi) {
         session_options.add_macro_define("NV_SHADER_EXTN_SLOT", "u999");
         auto include_arg = fmt::format("-I{}", (platform::runtime_directory() / "shaders/nvapi").string());
         session_options.add(slang::CompilerOptionName::DownstreamArgs, "dxc", include_arg);
     }
-#endif
 
     // Add device print enable flag.
     session_options.add_macro_define("SGL_ENABLE_PRINT", m_device->desc().enable_print ? "1" : "0");
