@@ -39,28 +39,30 @@ void throw_exception(const SourceLocation& loc, std::string_view msg)
 
 void report_assertion(const SourceLocation& loc, std::string_view cond) noexcept
 {
-    bool debugger_present = false;
-    try {
-        debugger_present = platform::is_debugger_present();
-        std::string error_msg = fmt::format("Assertion failed: {}\n", cond);
-        error_msg += fmt::format("{}:{} in function {}\n", loc.file_name, loc.line, loc.function_name);
-        if (!debugger_present)
-            error_msg += "Stack trace:\n" + platform::format_stacktrace(platform::backtrace(), 10) + "\n";
+    // Deliver the basic diagnostic before stack tracing, which may fail without throwing.
+    // Do not depend on logger initialization, outputs, or Python exception translation.
+    std::fputs("Assertion failed: ", stderr);
+    if (!cond.empty())
+        std::fwrite(cond.data(), 1, cond.size(), stderr);
+    std::fprintf(
+        stderr,
+        "\n%s:%u in function %s\n",
+        loc.file_name ? loc.file_name : "<unknown>",
+        static_cast<unsigned int>(loc.line),
+        loc.function_name ? loc.function_name : "<unknown>"
+    );
+    std::fflush(stderr);
 
-        // Do not depend on logger initialization, outputs, or Python exception translation.
-        std::fwrite(error_msg.data(), 1, error_msg.size(), stderr);
-    } catch (...) {
-        // Best effort, without C++ allocation or formatting, even if diagnostics failed.
-        std::fputs("Assertion failed: ", stderr);
-        if (!cond.empty())
-            std::fwrite(cond.data(), 1, cond.size(), stderr);
-        std::fprintf(
-            stderr,
-            "\n%s:%u in function %s\n",
-            loc.file_name ? loc.file_name : "<unknown>",
-            static_cast<unsigned int>(loc.line),
-            loc.function_name ? loc.function_name : "<unknown>"
-        );
+    bool debugger_present = platform::is_debugger_present();
+    if (!debugger_present) {
+        std::fputs("Stack trace:\n", stderr);
+        try {
+            std::string stack_trace = platform::format_stacktrace(platform::backtrace(), 10);
+            std::fwrite(stack_trace.data(), 1, stack_trace.size(), stderr);
+            std::fputc('\n', stderr);
+        } catch (...) {
+            std::fputs("Not available.\n", stderr);
+        }
     }
     std::fflush(stderr);
 
