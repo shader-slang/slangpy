@@ -13193,7 +13193,9 @@ insensitive comparison.)doc";
 
 static const char *__doc_sgl_platform_home_directory = R"doc(The home directory.)doc";
 
-static const char *__doc_sgl_platform_is_debugger_present = R"doc(Check if a debugger session is attached.)doc";
+static const char *__doc_sgl_platform_is_debugger_present =
+R"doc(Check if a debugger session is attached. Returns false if debugger
+detection fails.)doc";
 
 static const char *__doc_sgl_platform_is_python_active = R"doc(Check if the library is loaded from python.)doc";
 
@@ -14108,8 +14110,8 @@ Returns:
     True if the frame capture was started successfully.)doc";
 
 static const char *__doc_sgl_report_assertion =
-R"doc(Report a failed assertion to stderr and abort, including when Python is
-active. Diagnostic failures fall back to a minimal message before
+R"doc(Report a failed assertion to stderr and abort, including when Python
+is active. Diagnostic failures fall back to a minimal message before
 aborting.)doc";
 
 static const char *__doc_sgl_set_exception_diagnostics = R"doc(Set exception diagnostic options.)doc";
@@ -15786,3 +15788,4 @@ static const char *__doc_std_swap = R"doc()doc";
 #if defined(__GNUG__)
 #pragma GCC diagnostic pop
 #endif
+
