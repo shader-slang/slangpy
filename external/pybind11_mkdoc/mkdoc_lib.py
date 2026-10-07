@@ -573,6 +573,15 @@ def extract(
 ) -> None:
     if not _is_cursor_from_file(node, filename, file_cache):
         return
+    # Forward declarations must not consume a docstring name or overload suffix.
+    # Keep function declarations: their definitions are usually outside the headers.
+    if node.kind in {
+        CursorKind.CLASS_DECL,
+        CursorKind.STRUCT_DECL,
+        CursorKind.CLASS_TEMPLATE,
+        CursorKind.ENUM_DECL,
+    } and not node.is_definition():
+        return
     if node.kind in RECURSE_LIST:
         sub_prefix = prefix
         if node.kind not in PREFIX_BLACKLIST:
