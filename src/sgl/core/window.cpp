@@ -502,7 +502,6 @@ std::optional<std::string> Window::get_clipboard() const
 void Window::set_cursor_mode(CursorMode mode)
 {
     if (mode != m_cursor_mode) {
-        m_cursor_mode = mode;
         switch (mode) {
         case CursorMode::normal:
             glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
@@ -514,17 +513,17 @@ void Window::set_cursor_mode(CursorMode mode)
             glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             break;
         default:
-            SGL_UNREACHABLE();
+            SGL_THROW("Invalid cursor mode: {}.", static_cast<uint32_t>(mode));
         }
+        m_cursor_mode = mode;
     }
 }
 
 void Window::set_cursor_shape(CursorShape shape)
 {
     if (shape != m_cursor_shape) {
-        m_cursor_shape = shape;
         uint32_t index = static_cast<uint32_t>(shape);
-        SGL_ASSERT(index < m_cursor_cache.size());
+        SGL_CHECK(index < m_cursor_cache.size(), "Invalid cursor shape: {}.", index);
         if (!m_cursor_cache[index]) {
             int glfw_shape = 0;
             switch (shape) {
@@ -547,11 +546,12 @@ void Window::set_cursor_shape(CursorShape shape)
                 glfw_shape = GLFW_VRESIZE_CURSOR;
                 break;
             default:
-                SGL_UNREACHABLE();
+                SGL_THROW("Invalid cursor shape: {}.", index);
             }
             m_cursor_cache[index] = glfwCreateStandardCursor(glfw_shape);
         }
         glfwSetCursor(m_window, m_cursor_cache[index]);
+        m_cursor_shape = shape;
     }
 }
 

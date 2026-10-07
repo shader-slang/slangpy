@@ -398,17 +398,20 @@ void* get_proc_address(SharedLibraryHandle library, const char* proc_name)
 // Debugger
 // -------------------------------------------------------------------------------------------------
 
-bool is_debugger_present()
+bool is_debugger_present() noexcept
 {
-    std::ifstream status_file("/proc/self/status");
-    std::string s;
-    while (status_file >> s) {
-        if (s == "TracerPid:") {
-            int pid;
-            status_file >> pid;
-            return pid != 0;
+    try {
+        std::ifstream status_file("/proc/self/status");
+        std::string s;
+        while (status_file >> s) {
+            if (s == "TracerPid:") {
+                int pid = 0;
+                return (status_file >> pid) && pid != 0;
+            }
+            std::getline(status_file, s);
         }
-        std::getline(status_file, s);
+    } catch (...) {
+        // Debugger detection is best effort, including during assertion reporting.
     }
     return false;
 }

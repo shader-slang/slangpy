@@ -100,10 +100,9 @@ void bind_matrix_type(nb::module_& m, const char* name)
     );
     mat.def(
         "__setitem__",
-        [](T& self, int i, const row_type& v)
+        [](T& self, Py_ssize_t i, const row_type& v)
         {
-            if (i > rows)
-                throw nb::index_error();
+            i = detail::sanitize_getitem_index(i, rows);
             self[int(i)] = v;
         }
     );
@@ -119,18 +118,56 @@ void bind_matrix_type(nb::module_& m, const char* name)
     );
     mat.def(
         "__setitem__",
-        [](T& self, std::array<int, 2> ij, const value_type& v)
+        [](T& self, std::array<Py_ssize_t, 2> ij, const value_type& v)
         {
-            if (ij[0] > rows || ij[1] > cols)
-                throw nb::index_error();
-            self[ij[0]][ij[1]] = v;
+            ij[0] = detail::sanitize_getitem_index(ij[0], rows);
+            ij[1] = detail::sanitize_getitem_index(ij[1], cols);
+            self[int(ij[0])][int(ij[1])] = v;
         }
     );
 
-    mat.def("get_row", nb::overload_cast<int>(&T::get_row, nb::const_), "row"_a);
-    mat.def("set_row", &T::set_row, "row"_a, "value"_a);
-    mat.def("get_col", &T::get_col, "col"_a);
-    mat.def("set_col", &T::set_col, "col"_a, "value"_a);
+    mat.def(
+        "get_row",
+        [](const T& self, int row) -> const row_type&
+        {
+            if (row < 0 || row >= rows)
+                throw nb::index_error();
+            return self.get_row(row);
+        },
+        "row"_a
+    );
+    mat.def(
+        "set_row",
+        [](T& self, int row, const row_type& value)
+        {
+            if (row < 0 || row >= rows)
+                throw nb::index_error();
+            self.set_row(row, value);
+        },
+        "row"_a,
+        "value"_a
+    );
+    mat.def(
+        "get_col",
+        [](const T& self, int col)
+        {
+            if (col < 0 || col >= cols)
+                throw nb::index_error();
+            return self.get_col(col);
+        },
+        "col"_a
+    );
+    mat.def(
+        "set_col",
+        [](T& self, int col, const col_type& value)
+        {
+            if (col < 0 || col >= cols)
+                throw nb::index_error();
+            self.set_col(col, value);
+        },
+        "col"_a,
+        "value"_a
+    );
 
     mat.def_prop_ro(
         "shape",

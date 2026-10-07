@@ -97,8 +97,7 @@ inline void process_buffer_desc(BufferDesc& desc)
         desc.element_count = 0;
     }
 
-    // TODO check init_data size
-    SGL_ASSERT(desc.size > 0);
+    SGL_CHECK(desc.size > 0, "Buffer size must be greater than zero.");
 
     SGL_CHECK(
         (desc.data == nullptr && desc.data_size == 0) || desc.data_size == desc.size,
@@ -208,8 +207,8 @@ void Buffer::_release_rhi_resources()
 
 void* Buffer::map() const
 {
-    SGL_ASSERT(m_desc.memory_type != MemoryType::device_local);
-    SGL_ASSERT(m_mapped_ptr == nullptr);
+    SGL_CHECK(m_desc.memory_type != MemoryType::device_local, "Device-local buffers cannot be mapped.");
+    SGL_CHECK(m_mapped_ptr == nullptr, "Buffer is already mapped.");
     rhi::CpuAccessMode mode
         = m_desc.memory_type == MemoryType::upload ? rhi::CpuAccessMode::Write : rhi::CpuAccessMode::Read;
     SLANG_RHI_CALL(m_device->rhi_device()->mapBuffer(m_rhi_buffer, mode, &m_mapped_ptr), m_device);
@@ -218,8 +217,8 @@ void* Buffer::map() const
 
 void Buffer::unmap() const
 {
-    SGL_ASSERT(m_desc.memory_type != MemoryType::device_local);
-    SGL_ASSERT(m_mapped_ptr != nullptr);
+    SGL_CHECK(m_desc.memory_type != MemoryType::device_local, "Device-local buffers cannot be unmapped.");
+    SGL_CHECK(m_mapped_ptr != nullptr, "Buffer is not mapped.");
     SLANG_RHI_CALL(m_device->rhi_device()->unmapBuffer(m_rhi_buffer), m_device);
     m_mapped_ptr = nullptr;
 }
@@ -254,7 +253,7 @@ void Buffer::set_data(const void* data, size_t size, DeviceOffset offset)
         break;
     case MemoryType::upload: {
         bool was_mapped = is_mapped();
-        uint8_t* dst = map<uint8_t>() + offset;
+        uint8_t* dst = (was_mapped ? static_cast<uint8_t*>(m_mapped_ptr) : map<uint8_t>()) + offset;
         std::memcpy(dst, data, size);
         if (!was_mapped)
             unmap();
@@ -284,7 +283,7 @@ void Buffer::get_data(void* data, size_t size, DeviceOffset offset)
         SGL_THROW("Cannot read data from buffer with memory type 'upload'.");
     case MemoryType::read_back: {
         bool was_mapped = is_mapped();
-        const uint8_t* src = map<uint8_t>() + offset;
+        const uint8_t* src = (was_mapped ? static_cast<const uint8_t*>(m_mapped_ptr) : map<uint8_t>()) + offset;
         std::memcpy(data, src, size);
         if (!was_mapped)
             unmap();
