@@ -10,11 +10,19 @@ import platform
 import argparse
 import subprocess
 import json
+import time
 from pathlib import Path
 from typing import Any, Optional, Union
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 PYTEST_BASE_TEMP_DIR = PROJECT_DIR / ".temp" / "pytest"
+SLANG_DIR = PROJECT_DIR / "slang"
+
+# Network operations against github.com fail transiently (TLS resets, HTTP 403/5xx), and a failure
+# while fetching Slang otherwise discards a CI job that has already spent minutes on setup.
+# We retry with exponential backoff: 10s, 30s, 90s between the four attempts.
+NETWORK_RETRY_ATTEMPTS = 4
+NETWORK_RETRY_INITIAL_DELAY_SECONDS = 10
 
 
 def pytest_command(test_path: str, *args: str) -> list[str]:
@@ -66,7 +74,10 @@ def get_default_compiler():
 
 
 def run_command(
-    command: Union[str, list[str]], shell: bool = True, env: Optional[dict[str, str]] = None
+    command: Union[str, list[str]],
+    shell: bool = True,
+    env: Optional[dict[str, str]] = None,
+    cwd: Optional[Path] = None,
 ):
     if isinstance(command, str):
         command = [command]
@@ -90,6 +101,7 @@ def run_command(
         universal_newlines=True,
         shell=shell,
         env=env,
+        cwd=cwd,
     )
     assert process.stdout is not None
 
@@ -109,6 +121,30 @@ def run_command(
     return out
 
 
+def run_command_with_retry(
+    command: Union[str, list[str]],
+    attempts: int = NETWORK_RETRY_ATTEMPTS,
+    initial_delay_seconds: float = NETWORK_RETRY_INITIAL_DELAY_SECONDS,
+    **kwargs: Any,
+):
+    """
+    Run a command like run_command, but retry with exponential backoff if it fails.
+
+    This is meant for commands whose failures are usually transient network errors, such as
+    cloning or fetching from github.com. The last failure is raised once all attempts are used.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            return run_command(command, **kwargs)
+        except RuntimeError:
+            if attempt == attempts:
+                raise
+            delay = initial_delay_seconds * 3 ** (attempt - 1)
+            print(f"Attempt {attempt}/{attempts} failed, retrying in {delay:g}s ...")
+            sys.stdout.flush()
+            time.sleep(delay)
+
+
 def get_python_env(preset: Optional[str] = None) -> dict[str, str]:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(PROJECT_DIR)
@@ -123,6 +159,52 @@ def setup(args: Any):
         run_command("./setup.bat")
     else:
         run_command("./setup.sh")
+
+
+def checkout_slang(args: Any):
+    """
+    Clone Slang into ./slang and check out the revision that SlangPy is built and tested against.
+
+    The revision comes from the slang_checkout_mode argument: "branch" checks out slang_branch,
+    "pr" checks out the head of the pull request slang_pr_number, and "ref" checks out slang_ref
+    from the repository slang_repo. Every step that talks to the network is retried, because a
+    transient github.com failure here would otherwise fail the whole job. Git runs without a shell
+    so that revision names coming from workflow inputs are never interpreted by one.
+    """
+    mode = args.slang_checkout_mode
+    revisions = {
+        "branch": args.slang_branch,
+        "pr": args.slang_pr_number,
+        "ref": args.slang_ref,
+    }
+    if mode not in revisions:
+        raise ValueError(f'Unknown Slang checkout mode "{mode}" (expected branch, pr or ref)')
+    if revisions[mode] == "":
+        raise ValueError(
+            f'Slang checkout mode "{mode}" needs a branch, PR number or ref to check out'
+        )
+
+    if mode == "branch":
+        repo, fetch_ref, target = "shader-slang/slang", None, args.slang_branch
+    elif mode == "pr":
+        repo, fetch_ref, target = (
+            "shader-slang/slang",
+            f"pull/{args.slang_pr_number}/head",
+            "FETCH_HEAD",
+        )
+    else:
+        repo, fetch_ref, target = args.slang_repo, args.slang_ref, "FETCH_HEAD"
+
+    # A failed clone removes the directory it created, so each retry starts from scratch.
+    run_command_with_retry(
+        ["git", "clone", f"https://github.com/{repo}.git", str(SLANG_DIR)], shell=False
+    )
+    if fetch_ref is not None:
+        run_command_with_retry(["git", "fetch", "origin", fetch_ref], shell=False, cwd=SLANG_DIR)
+    run_command(["git", "checkout", target], shell=False, cwd=SLANG_DIR)
+    run_command_with_retry(
+        ["git", "submodule", "update", "--init", "--recursive"], shell=False, cwd=SLANG_DIR
+    )
 
 
 def configure(args: Any):
@@ -292,6 +374,12 @@ def main():
 
     parser_setup = commands.add_parser("setup", help="run setup.bat or setup.sh")
 
+    parser_checkout_slang = commands.add_parser(
+        "checkout-slang",
+        help="clone and check out Slang into ./slang, retrying transient network failures "
+        "(selected with the CI_SLANG_* environment variables)",
+    )
+
     parser_configure = commands.add_parser("configure", help="run cmake configure")
 
     parser_build = commands.add_parser("build", help="run cmake build")
@@ -360,6 +448,11 @@ def main():
         ("python", "CI_PYTHON", "3.9"),
         ("flags", "CI_FLAGS", ""),
         ("cmake_args", "CI_CMAKE_ARGS", ""),
+        ("slang_checkout_mode", "CI_SLANG_CHECKOUT_MODE", ""),
+        ("slang_branch", "CI_SLANG_BRANCH", "master"),
+        ("slang_pr_number", "CI_SLANG_PR_NUMBER", ""),
+        ("slang_ref", "CI_SLANG_REF", ""),
+        ("slang_repo", "CI_SLANG_REPO", "shader-slang/slang"),
     ]
 
     for var, env_var, default_value in VARS:
@@ -398,6 +491,7 @@ def main():
 
     {
         "setup": setup,
+        "checkout-slang": checkout_slang,
         "configure": configure,
         "build": build,
         "unit-test-cpp": unit_test_cpp,
