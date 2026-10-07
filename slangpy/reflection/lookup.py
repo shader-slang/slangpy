@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import os
 from typing import Any, Optional
 
 import numpy as np
@@ -31,8 +32,58 @@ _numpy_to_sgl = {
 _sgl_to_numpy = {y: x for x, y in _numpy_to_sgl.items()}
 
 
+def _same_path(a: str, b: str) -> bool:
+    """True if `a` and `b` name the same location, using inode identity so that
+    symlinks and case-insensitive filesystems compare equal, with a lexical
+    fallback when either path does not exist on disk."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
+
+
+def _slang_session_has_include_path(device: Device, path: str) -> Optional[bool]:
+    """Return whether `path` is present in the device's default Slang session's
+    configured include paths, or None if they cannot be read. (This inspects the
+    explicit compiler_options.include_paths, not Slang's implicit default search
+    paths -- correct here because SHADER_PATH is never a Slang system default.)
+    The builtin 'slangpy' module is resolved from this session, so a missing
+    SlangPy shader path here is what turns a Tensor.from_numpy call into
+    "cannot open file 'slangpy.slang'". None means "unknown" and callers must
+    not treat it as absent."""
+    try:
+        include_paths = device.slang_session.desc.compiler_options.include_paths
+    except Exception:
+        return None
+    return any(_same_path(str(p), path) for p in include_paths)
+
+
 def _get_lookup_module(device: Device) -> SlangProgramLayout:
-    return get_builtin_layout(device)
+    try:
+        return get_builtin_layout(device)
+    except Exception as e:
+        # Rewrite the error into an actionable hint only when 'slangpy.slang'
+        # itself could not be opened and the shader path is confirmed absent;
+        # any other failure (present/unknown path, unrelated error, or a compile
+        # error in a resolvable module) is re-raised unchanged. Broad except also
+        # covers macOS, where the diagnostic arrives as RuntimeError; SHADER_PATH
+        # is imported lazily because it is defined late in slangpy/__init__.py.
+        from slangpy import SHADER_PATH, SlangCompileError
+
+        text = str(e)
+        slangpy_file_unresolved = "cannot open file 'slangpy.slang'" in text
+        if not (
+            slangpy_file_unresolved
+            and _slang_session_has_include_path(device, SHADER_PATH) is False
+        ):
+            raise
+        raise SlangCompileError(
+            "Could not load SlangPy's builtin 'slangpy' shader module: the device "
+            "was created without SlangPy's shader include path, so 'slangpy.slang' "
+            "cannot be resolved. Create the device with spy.create_device() "
+            "(recommended), or add spy.SHADER_PATH to compiler_options['include_paths'] "
+            f"when constructing spy.Device().\n\nOriginal error: {e}"
+        ) from e
 
 
 def innermost_type(slang_type: SlangType) -> SlangType:
