@@ -71,36 +71,17 @@ runs:
     - name: Setup CMake/Ninja
       uses: lukka/get-cmake@latest
 
-    # Checkout Slang (branch mode).
+    # Checkout Slang. The mode selects a branch ('branch'), a PR head ('pr') or a ref ('ref'). The
+    # clone, fetch and submodule steps are retried because github.com fails transiently.
     - name: Checkout Slang
-      if: inputs.slang-checkout-mode == 'branch'
       shell: ${{ inputs.shell }}
-      run: |
-        git clone --recursive https://github.com/shader-slang/slang.git
-        cd slang
-        git checkout ${{ inputs.slang-branch }}
-        git submodule update --init --recursive
-
-    # Checkout Slang (PR mode).
-    - name: Checkout Slang (PR)
-      if: inputs.slang-checkout-mode == 'pr'
-      shell: ${{ inputs.shell }}
-      run: |
-        git clone https://github.com/shader-slang/slang.git
-        cd slang
-        git fetch origin pull/${{ inputs.slang-pr-number }}/head
-        git checkout FETCH_HEAD
-        git submodule update --init --recursive
-
-    - name: Checkout Slang (ref)
-      if: inputs.slang-checkout-mode == 'ref'
-      shell: ${{ inputs.shell }}
-      run: |
-        git clone https://github.com/${{ inputs.slang-repo }}.git slang
-        cd slang
-        git fetch origin ${{ inputs.slang-ref }}
-        git checkout FETCH_HEAD
-        git submodule update --init --recursive
+      env:
+        CI_SLANG_CHECKOUT_MODE: ${{ inputs.slang-checkout-mode }}
+        CI_SLANG_BRANCH: ${{ inputs.slang-branch }}
+        CI_SLANG_PR_NUMBER: ${{ inputs.slang-pr-number }}
+        CI_SLANG_REF: ${{ inputs.slang-ref }}
+        CI_SLANG_REPO: ${{ inputs.slang-repo }}
+      run: python tools/ci.py checkout-slang
 
     # Build Slang.
     - name: Build Slang
