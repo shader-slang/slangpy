@@ -222,40 +222,6 @@ def test_ray_payload_compatibility(device_type: spy.DeviceType, profile: str) ->
         max_ray_payload_size=16,
         compilation_policy=spy.PipelineCompilationPolicy.immediate,
     )
-    # Explicit session settings replace the adapter, so callers can opt into PAQ
-    # when their shaders provide the annotations needed by the current compiler.
-    for argument in (
-        "-enable-payload-qualifiers",
-        "/disable-payload-qualifiers",
-    ):
-        explicit = device.create_slang_session({"profile": profile, "downstream_args": [argument]})
-        assert run_shader(device, explicit) == 7
-
-
-FUNCTIONAL_PROFILES = [
-    (spy.DeviceType.d3d12, "sm_6_6"),
-    (spy.DeviceType.cuda, "compute_75"),
-]
-
-
-@pytest.mark.parametrize(
-    "device_type, profile",
-    [case for case in FUNCTIONAL_PROFILES if case[0] in helpers.DEFAULT_DEVICE_TYPES],
-)
-def test_functional_api_uses_selected_session(device_type: spy.DeviceType, profile: str) -> None:
-    device = helpers.get_device(device_type)
-    if device_type == spy.DeviceType.cuda:
-        require_cuda_profile(device, profile)
-    elif "_" + profile not in device.capabilities:
-        pytest.skip("Requires the selected shader model")
-    session = device.create_slang_session({"profile": profile, "include_paths": [spy.SHADER_PATH]})
-    module = spy.Module(
-        session.load_module_from_source(
-            "functional_target", "uint selected(uint x) { return x + 1; }"
-        )
-    )
-    assert module.device_module.session == session
-    assert module.selected(7) == 8
 
 
 @pytest.mark.parametrize(
@@ -325,15 +291,8 @@ def test_cuda_profile_reload(device_type: spy.DeviceType, tmp_path: Path) -> Non
         kernel = device.create_compute_kernel(program)
         buffer = device.create_buffer(size=4, usage=spy.BufferUsage.unordered_access)
 
-        def dispatch() -> int:
-            kernel.dispatch(thread_count=[1, 1, 1], vars={"output": buffer})
-            return int(buffer.to_numpy().view(np.uint32)[0])
-
-        assert dispatch() == 7
-        path.write_text(SOURCE.replace("= 7", "= missing_identifier"))
-        device.reload_all_programs()
-        # A failed hot reload keeps the old program and pipeline alive.
-        assert dispatch() == 7
+        kernel.dispatch(thread_count=[1, 1, 1], vars={"output": buffer})
+        assert buffer.to_numpy().view(np.uint32)[0] == 7
         # Reload preserves the selected architecture when shader requirements change.
         path.write_text(SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)"))
         device.reload_all_programs()

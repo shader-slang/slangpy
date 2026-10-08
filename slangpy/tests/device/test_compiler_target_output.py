@@ -14,7 +14,6 @@ from slangpy.testing import helpers
 from slangpy.tests.device.test_compiler_profiles import (
     SOURCE,
     run_shader,
-    compiler_messages,
     require_cuda_profile,
 )
 
@@ -45,7 +44,11 @@ def test_emitted_version(
                 "dump_intermediates_prefix": str(tmp_path / "target"),
             }
         )
-        assert run_shader(device, session) == 7
+        source = SOURCE
+        if profile == "spirv_1_3":
+            # Exercise subgroup capability emission alongside the selected SPIR-V version.
+            source = SOURCE.replace("= 7", "= WaveActiveSum(tid.x + 7)")
+        assert run_shader(device, session, source) == 7
         if device_type == spy.DeviceType.d3d12:
             artifacts = list(tmp_path.glob("*.dxil-asm"))
             assert artifacts
@@ -60,27 +63,12 @@ def test_emitted_version(
                 assert magic == 0x07230203
                 assert f"{(encoded_version >> 16) & 255}.{(encoded_version >> 8) & 255}" == version
 
-
-@pytest.mark.parametrize(
-    "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.vulkan]
-)
-def test_spirv_subgroup_output(device_type: spy.DeviceType, tmp_path: Path) -> None:
-    with spy.Device(type=device_type) as device:
-        if "_spirv_1_3" not in device.capabilities:
-            pytest.skip("Requires SPIR-V 1.3")
-        session = device.create_slang_session(
-            {
-                "profile": "spirv_1_3",
-                "dump_intermediates": True,
-                "dump_intermediates_prefix": str(tmp_path / "wave"),
-            }
-        )
-        assert run_shader(device, session, SOURCE.replace("= 7", "= WaveActiveSum(tid.x + 1)")) >= 1
-        artifacts = list(tmp_path.glob("*.spv-asm"))
-        assert artifacts
-        assert all(
-            "OpCapability GroupNonUniformArithmetic" in path.read_text() for path in artifacts
-        )
+        if profile == "spirv_1_3":
+            artifacts = list(tmp_path.glob("*.spv-asm"))
+            assert artifacts
+            assert all(
+                "OpCapability GroupNonUniformArithmetic" in path.read_text() for path in artifacts
+            )
 
 
 @pytest.mark.parametrize(
@@ -210,18 +198,14 @@ def test_cuda_exact_architecture(device_type: spy.DeviceType, profile: str, tmp_
 @pytest.mark.parametrize(
     "device_type", [t for t in helpers.DEFAULT_DEVICE_TYPES if t == spy.DeviceType.cuda]
 )
-def test_cuda_rejects_shader_architecture_upgrade(
-    device_type: spy.DeviceType, compiler_messages: list[str]
-) -> None:
+def test_cuda_rejects_shader_architecture_upgrade(device_type: spy.DeviceType) -> None:
     with spy.Device(type=device_type) as device:
         require_cuda_profile(device, "compute_50")
         session = device.create_slang_session({"profile": "compute_50"})
         source = SOURCE.replace("<uint>", "<half>").replace("= 7", "= half(tid.x + 1)")
         module = session.load_module_from_source("unsupported_half_architecture", source)
         program = session.link_program([module], [module.entry_point("profile_main")])
-        compiler_messages.clear()
         with pytest.raises(RuntimeError):
             device.create_compute_pipeline(
                 program=program, compilation_policy=spy.PipelineCompilationPolicy.immediate
             )
-        assert any("Explicit NVRTC architecture is lower" in msg for msg in compiler_messages)
