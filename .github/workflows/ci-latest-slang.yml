@@ -23,6 +23,10 @@ concurrency:
   group: ${{ github.event_name == 'repository_dispatch' && format('slang-{0}', github.event.client_payload.slang_pr_number || github.event.client_payload.slang_commit_sha) || github.run_id }}
   cancel-in-progress: true
 
+env:
+  # Match ci.yml: newer CUDA targets are incompatible with the current runner drivers.
+  SGL_MAX_CUDA_COMPUTE_CAPABILITY: 90
+
 jobs:
   # Full matrix for nightly and manual runs.
   build:
