@@ -135,8 +135,9 @@ If you use SlangPy in a research project leading to a publication, please cite t
     :caption: Guides
     :hidden:
 
-    src/developer_guide
+    src/compiler_targets
     src/profiling
+    src/developer_guide
 
 .. toctree::
     :maxdepth: 1

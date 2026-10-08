@@ -13,7 +13,7 @@ using DefineList = std::map<std::string, std::string>;
 SGL_DICT_TO_DESC_BEGIN(SlangCompilerOptions)
 SGL_DICT_TO_DESC_FIELD_LIST(include_paths, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(defines, DefineList)
-SGL_DICT_TO_DESC_FIELD(shader_model, ShaderModel)
+SGL_DICT_TO_DESC_FIELD(profile, std::optional<std::string>)
 SGL_DICT_TO_DESC_FIELD(matrix_layout, SlangMatrixLayout)
 SGL_DICT_TO_DESC_FIELD_LIST(enable_warnings, std::string)
 SGL_DICT_TO_DESC_FIELD_LIST(disable_warnings, std::string)
@@ -105,7 +105,12 @@ SGL_PY_EXPORT(device_shader)
         )
         .def_rw("include_paths", &SlangCompilerOptions::include_paths, D(SlangCompilerOptions, include_paths))
         .def_rw("defines", &SlangCompilerOptions::defines, D(SlangCompilerOptions, defines))
-        .def_rw("shader_model", &SlangCompilerOptions::shader_model, D(SlangCompilerOptions, shader_model))
+        .def_rw(
+            "profile",
+            &SlangCompilerOptions::profile,
+            nb::for_setter(nb::arg().none()),
+            D(SlangCompilerOptions, profile)
+        )
         .def_rw("matrix_layout", &SlangCompilerOptions::matrix_layout, D(SlangCompilerOptions, matrix_layout))
         .def_rw("enable_warnings", &SlangCompilerOptions::enable_warnings, D(SlangCompilerOptions, enable_warnings))
         .def_rw("disable_warnings", &SlangCompilerOptions::disable_warnings, D(SlangCompilerOptions, disable_warnings))
@@ -205,7 +210,7 @@ SGL_PY_EXPORT(device_shader)
 
     nb::class_<SlangSession, Object>(m, "SlangSession", D(SlangSession))
         .def_prop_ro("device", &SlangSession::device, D(SlangSession, device))
-        .def_prop_ro("desc", &SlangSession::desc, D(SlangSession, desc))
+        .def_prop_ro("desc", &SlangSession::desc, nb::rv_policy::copy, D(SlangSession, desc))
         .def("load_module", &SlangSession::load_module, "module_name"_a, D(SlangSession, load_module))
         .def(
             "load_module_from_source",

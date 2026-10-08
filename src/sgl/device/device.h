@@ -329,9 +329,6 @@ public:
     /// Shader cache statistics.
     ShaderCacheStats shader_cache_stats() const;
 
-    /// The highest shader model supported by the device.
-    ShaderModel supported_shader_model() const { return m_supported_shader_model; }
-
     /// List of features supported by the device.
     const std::vector<Feature>& features() const { return m_features; }
 
@@ -893,6 +890,8 @@ public:
 
     const std::vector<SlangCapabilityID>& _slang_capabilities() const { return m_slang_capabilities; }
 
+    const std::vector<int>& _nvrtc_supported_architectures() const { return m_nvrtc_supported_architectures; }
+
     Blitter* _blitter();
     HotReload* _hot_reload() { return m_hot_reload; }
     CacheWriter* _cache_writer() { return m_cache_writer.get(); }
@@ -920,7 +919,6 @@ private:
 
     DeviceDesc m_desc;
     DeviceInfo m_info;
-    ShaderModel m_supported_shader_model{ShaderModel::unknown};
 
     State m_state{State::initializing};
 
@@ -954,6 +952,7 @@ private:
     std::vector<Feature> m_features;
     std::vector<std::string> m_capabilities;
     std::vector<SlangCapabilityID> m_slang_capabilities;
+    std::vector<int> m_nvrtc_supported_architectures;
 
     ref<Blitter> m_blitter;
     std::unique_ptr<DebugPrinter> m_debug_printer;

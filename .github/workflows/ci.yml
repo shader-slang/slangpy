@@ -72,6 +72,8 @@ jobs:
       CI_CONFIG: ${{ matrix.config }}
       CI_PYTHON: ${{ matrix.python }}
       CI_FLAGS: ${{ matrix.flags }}
+      # Limit CUDA compute capability to 90 because later versions do not work on our current driver
+      SGL_MAX_CUDA_COMPUTE_CAPABILITY: 90
 
     steps:
       # Kill processes that may hold locks on build artifacts (Windows self-hosted runners).
