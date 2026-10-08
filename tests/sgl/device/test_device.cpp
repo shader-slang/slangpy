@@ -70,11 +70,11 @@ TEST_CASE_GPU("failed_device_initialization_is_not_published")
     DeviceDesc desc = ctx.device->desc();
     desc.enable_print = true;
     desc.enable_hot_reload = true;
-    // Fail default-session initialization after the fence, NVAPI module,
-    // and debug-printer upload have been created.
-    desc.compiler_options.shader_model = static_cast<ShaderModel>(999);
+    // Fail default-session initialization after the fence and debug-printer
+    // upload have been created.
+    desc.compiler_options.profile = "not_a_slang_profile";
     for (int i = 0; i < 2; ++i) {
-        CHECK_THROWS_WITH_AS(Device::create(desc), doctest::Contains("is not supported"), std::runtime_error);
+        CHECK_THROWS_WITH_AS(Device::create(desc), doctest::Contains("Unknown Slang profile"), std::runtime_error);
         CHECK(Device::get_created_devices() == devices);
         CHECK(current_device() == previous);
     }
