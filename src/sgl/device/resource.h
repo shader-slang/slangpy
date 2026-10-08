@@ -655,7 +655,7 @@ public:
     static void write_slangpy_signature(SignatureBuffer& signature, const Texture* value);
 
     /// Get the shared resource handle.
-    /// @note Texture must be created with the \c TextureUsage::shared usage flag.
+    /// \note Texture must be created with the \c TextureUsage::shared usage flag.
     NativeHandle shared_handle() const;
 
     virtual rhi::IResource* rhi_resource() const override { return m_rhi_texture; }
