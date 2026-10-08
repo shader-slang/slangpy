@@ -17,6 +17,7 @@ extensions = [
     "sphinx.ext.doctest",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",
     "sphinx_copybutton",
     "nbsphinx",
 ]
@@ -27,15 +28,12 @@ intersphinx_mapping = {
 }
 intersphinx_disabled_domains = ["std"]
 
-templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-
 source_suffix = ".rst"
 master_doc = "index"
 language = "en"
 
 templates_path = ["_templates"]
-exclude_patterns = ["CMakeLists.txt", "generated/*"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "CMakeLists.txt", "generated/*"]
 
 # html configuration
 html_theme = "furo"
@@ -69,12 +67,12 @@ def initialize(app: Sphinx):
     try:
         print("Generating API documentation...")
         sys.path.append(str(Path(__file__).parent))
-        from generate_api import generate_api
+        from generate_api import format_docstring_for_sphinx, generate_api
 
         sys.path.append(str(Path(__file__).parent.parent))
         import slangpy  # type: ignore
 
-        generate_api()
+        generate_api(format_docstring=format_docstring_for_sphinx, skip_empty_sections=True)
     except ImportError:
         print("slangpy module not available, skipping API documentation generation.")
 

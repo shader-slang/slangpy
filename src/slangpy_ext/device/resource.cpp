@@ -91,7 +91,7 @@ inline std::optional<nb::dlpack::dtype> resource_format_to_dtype(Format format)
     }
 }
 
-static const char* __doc_sgl_buffer_to_numpy = R"doc()doc";
+static const char* mkd_doc_sgl_buffer_to_numpy = R"doc()doc";
 
 nb::ndarray<nb::numpy> buffer_to_numpy(Buffer* self)
 {
@@ -125,7 +125,7 @@ nb::ndarray<nb::numpy> buffer_to_numpy(Buffer* self)
     }
 }
 
-static const char* __doc_sgl_buffer_from_numpy = R"doc()doc";
+static const char* mkd_doc_sgl_buffer_from_numpy = R"doc()doc";
 
 void buffer_copy_from_numpy(Buffer* self, nb::ndarray<nb::numpy> data)
 {
@@ -138,7 +138,7 @@ void buffer_copy_from_numpy(Buffer* self, nb::ndarray<nb::numpy> data)
     self->set_data(data.data(), data_size);
 }
 
-static const char* __doc_sgl_buffer_to_torch = R"doc()doc";
+static const char* mkd_doc_sgl_buffer_to_torch = R"doc()doc";
 
 nb::ndarray<nb::pytorch, nb::device::cuda>
 buffer_to_torch(Buffer* self, DataType type, std::vector<size_t> shape, std::vector<int64_t> strides, size_t offset)
@@ -173,7 +173,7 @@ buffer_to_torch(Buffer* self, DataType type, std::vector<size_t> shape, std::vec
     );
 }
 
-static const char* __doc_sgl_texture_to_numpy = R"doc()doc";
+static const char* mkd_doc_sgl_texture_to_numpy = R"doc()doc";
 
 /**
  * Python binding wrapper for returning the content of a texture as a numpy array.
@@ -280,7 +280,7 @@ nb::ndarray<nb::numpy> texture_to_numpy(Texture* self, uint32_t layer, uint32_t 
     }
 }
 
-static const char* __doc_sgl_texture_from_numpy = R"doc()doc";
+static const char* mkd_doc_sgl_texture_from_numpy = R"doc()doc";
 
 SubresourceData
 texture_build_subresource_data_for_upload(Texture* self, nb::ndarray<nb::numpy> data, uint32_t layer, uint32_t mip)
