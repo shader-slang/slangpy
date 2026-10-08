@@ -155,6 +155,9 @@ public:
     /// True if the window should be closed.
     bool should_close() const;
 
+    /// True if the window is currently minimized (iconified).
+    bool is_minimized() const { return m_minimized; }
+
     /// Process any pending events.
     void process_events();
 
@@ -176,6 +179,7 @@ public:
 
     using ResizeCallback = std::function<void(uint32_t /* width */, uint32_t /* height */)>;
     using RefreshCallback = std::function<void()>;
+    using IconifyCallback = std::function<void(bool /* minimized */)>;
     using KeyboardEventCallback = std::function<void(const KeyboardEvent& /* event */)>;
     using MouseEventCallback = std::function<void(const MouseEvent& /* event */)>;
     using GamepadEventCallback = std::function<void(const GamepadEvent& /* event */)>;
@@ -189,6 +193,11 @@ public:
     /// Event handler to be called when the window contents need to be refreshed.
     const RefreshCallback& on_refresh() const { return m_on_refresh; }
     void set_on_refresh(RefreshCallback on_refresh) { m_on_refresh = std::move(on_refresh); }
+
+    /// Event handler to be called when the window is minimized or restored.
+    /// The argument is true when the window is minimized and false when it is restored.
+    const IconifyCallback& on_iconify() const { return m_on_iconify; }
+    void set_on_iconify(IconifyCallback on_iconify) { m_on_iconify = std::move(on_iconify); }
 
     /// Event handler to be called when a keyboard event occurs.
     const KeyboardEventCallback& on_keyboard_event() const { return m_on_keyboard_event; }
@@ -226,6 +235,7 @@ private:
 
     void handle_window_size(uint32_t width, uint32_t height);
     void handle_window_refresh();
+    void handle_window_iconify(bool minimized);
     void handle_keyboard_event(const KeyboardEvent& event);
     void handle_mouse_event(const MouseEvent& event);
     void handle_gamepad_event(const GamepadEvent& event);
@@ -237,6 +247,7 @@ private:
     GLFWwindow* m_window;
 
     bool m_should_close{false};
+    bool m_minimized{false};
 
     CursorMode m_cursor_mode{CursorMode::normal};
     CursorShape m_cursor_shape{CursorShape::arrow};
@@ -250,6 +261,7 @@ private:
 
     ResizeCallback m_on_resize;
     RefreshCallback m_on_refresh;
+    IconifyCallback m_on_iconify;
     KeyboardEventCallback m_on_keyboard_event;
     MouseEventCallback m_on_mouse_event;
     GamepadEventCallback m_on_gamepad_event;
