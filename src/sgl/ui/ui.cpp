@@ -815,7 +815,7 @@ void Context::draw(
     shader_cursor["sampler"] = m_sampler;
     shader_cursor["scale"] = 2.f / float2(io.DisplaySize.x, -io.DisplaySize.y);
     shader_cursor["offset"] = float2(-1.f, 1.f);
-    shader_cursor["is_srgb_format"] = is_srgb_format;
+    shader_cursor["is_srgb_format"] = uint32_t(is_srgb_format);
     ShaderOffset shader_offset_texture = shader_cursor["texture"].offset();
 
     RenderState render_state = {
