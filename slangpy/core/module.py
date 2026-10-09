@@ -25,12 +25,20 @@ def _check_for_hot_reload(event_info: Any = None):
             module.on_hot_reload()
 
 
+def _release_module_caches(event_info: Any = None):
+    global LOADED_MODULES
+    for module in LOADED_MODULES.values():
+        if module is not None:
+            module._release_native_caches()
+
+
 def _register_hot_reload_hook(device: Device):
     for x in LOADED_MODULES.values():
         if isinstance(x, Module):
             if x.device == device:
                 return
     device.register_shader_hot_reload_callback(_check_for_hot_reload)
+    device.register_device_close_callback(_release_module_caches)
 
 
 class CallDataCache(NativeCallDataCache):
@@ -186,7 +194,21 @@ class Module(BaseModule):
         Called by device when the module is hot reloaded.
         """
         BaseModule.on_hot_reload(self, self.device_module, self.device_module.layout)
+        self._release_native_caches()
 
+    def _release_native_caches(self):
+        """
+        Drop this module's caches, releasing any NativeCallData/NativeBoundCallRuntime
+        trees they retain.
+
+        sgl::Object (the base of NativeCallDataCache and the native types it caches) uses
+        plain Py_INCREF/Py_DECREF once owned by Python, with no tp_traverse/tp_clear. A
+        Module that stays alive for the process lifetime (e.g. because pytest retains it
+        via LOADED_MODULES/a traceback) therefore keeps its whole call_data_cache tree
+        reachable until process exit, which LeakSanitizer reports as a leak even though
+        it is just an unreleased cache. Replacing the caches here - called on device close
+        as well as hot reload - drops those references deterministically.
+        """
         # Create new cache and update all tracked Function objects
         self.call_data_cache = CallDataCache()
         for func in self._all_functions:
