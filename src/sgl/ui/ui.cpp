@@ -759,6 +759,11 @@ void Context::update_mouse_cursor(sgl::Window* window)
     ImGuiIO& io = ImGui::GetIO();
     ImGuiMouseCursor imgui_cursor = ImGui::GetMouseCursor();
 
+    // Skip the sync when the app owns the cursor, matching imgui_impl_glfw: otherwise a
+    // captured (disabled) cursor would be released to a non-captured mode every frame.
+    if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) || window->cursor_mode() == CursorMode::disabled)
+        return;
+
     if (imgui_cursor == ImGuiMouseCursor_None) {
         window->set_cursor_mode(CursorMode::hidden);
     } else {
