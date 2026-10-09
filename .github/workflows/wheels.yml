@@ -28,7 +28,8 @@ env:
   P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
   KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
   CIBW_REPAIR_WHEEL_COMMAND_MACOS: "bash .github/scripts/sign_macos_bins.sh {wheel} {dest_dir}"
-  # cibuildwheel 4 defaults to delvewheel on Windows; the wheel already ships its own DLLs.
+  # cibuildwheel 4 defaults to delvewheel on Windows; the wheel already bundles sgl, Slang and
+  # D3D12 Agility SDK DLLs.
   CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
 
 jobs:
