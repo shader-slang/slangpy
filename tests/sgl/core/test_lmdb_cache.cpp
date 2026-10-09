@@ -25,7 +25,8 @@
 
 using namespace sgl;
 
-TEST_SUITE_BEGIN("lmdb_cache");
+// LMDB needs shared memory maps, which Emscripten file systems do not support.
+TEST_SUITE_BEGIN("lmdb_cache" * doctest::skip(SGL_EMSCRIPTEN));
 
 using Blob = std::vector<uint8_t>;
 

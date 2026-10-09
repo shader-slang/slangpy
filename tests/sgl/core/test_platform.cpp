@@ -80,13 +80,14 @@ TEST_CASE("environment")
     MESSAGE("PATH:", path.value());
 }
 
-TEST_CASE("set_current_thread_name")
+// Emscripten builds have no threads.
+TEST_CASE("set_current_thread_name" * doctest::skip(SGL_EMSCRIPTEN))
 {
     CHECK(set_current_thread_name("sgl-test"));
     CHECK(set_current_thread_name("sgl-test-thread-name"));
 }
 
-TEST_CASE("current_thread_id")
+TEST_CASE("current_thread_id" * doctest::skip(SGL_EMSCRIPTEN))
 {
     const sgl::ThreadID main_thread_id = current_thread_id();
     sgl::ThreadID worker_thread_id{0};
@@ -102,7 +103,8 @@ TEST_CASE("current_thread_id")
     CHECK(worker_thread_id != main_thread_id);
 }
 
-TEST_CASE("backtrace")
+// Emscripten does not provide stack frame addresses.
+TEST_CASE("backtrace" * doctest::skip(SGL_EMSCRIPTEN))
 {
     StackTrace trace = backtrace();
     CHECK_GT(trace.size(), 0);

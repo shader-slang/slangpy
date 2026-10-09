@@ -50,6 +50,8 @@ struct WindowDesc {
     WindowMode mode{WindowMode::normal};
     /// Whether the window is resizable.
     bool resizable{true};
+    /// CSS selector of the HTML canvas the window uses (Emscripten only).
+    std::string canvas_selector{"#canvas"};
 };
 
 /// Mouse cursor modes.
@@ -156,6 +158,7 @@ public:
     bool should_close() const;
 
     /// Process any pending events.
+    /// On Emscripten, this first yields to the browser until its next animation frame.
     void process_events();
 
     /// Set the clipboard content.
@@ -234,6 +237,7 @@ private:
     uint32_t m_width;
     uint32_t m_height;
     std::string m_title;
+    std::string m_canvas_selector;
     GLFWwindow* m_window;
 
     bool m_should_close{false};

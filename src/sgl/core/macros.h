@@ -36,6 +36,7 @@
 
 #define SGL_ARCH_X86_64 1
 #define SGL_ARCH_ARM64 2
+#define SGL_ARCH_WASM32 3
 
 /**
  * Determine the target architecture in use.
@@ -46,6 +47,8 @@
 #define SGL_ARCH SGL_ARCH_X86_64
 #elif defined(_M_ARM64) || defined(__aarch64__)
 #define SGL_ARCH SGL_ARCH_ARM64
+#elif defined(__wasm32__)
+#define SGL_ARCH SGL_ARCH_WASM32
 #else
 #error "Unsupported target architecture"
 #endif
@@ -53,6 +56,7 @@
 
 #define SGL_X86_64 (SGL_ARCH == SGL_ARCH_X86_64)
 #define SGL_ARM64 (SGL_ARCH == SGL_ARCH_ARM64)
+#define SGL_WASM32 (SGL_ARCH == SGL_ARCH_WASM32)
 
 // -------------------------------------------------------------------------------------------------
 // Platform macros
@@ -61,6 +65,7 @@
 #define SGL_PLATFORM_WINDOWS 1
 #define SGL_PLATFORM_LINUX 2
 #define SGL_PLATFORM_MACOS 3
+#define SGL_PLATFORM_EMSCRIPTEN 4
 
 /**
  * Determine the target platform in use.
@@ -73,6 +78,8 @@
 #define SGL_PLATFORM SGL_PLATFORM_LINUX
 #elif defined(__APPLE__) && defined(__MACH__)
 #define SGL_PLATFORM SGL_PLATFORM_MACOS
+#elif defined(__EMSCRIPTEN__)
+#define SGL_PLATFORM SGL_PLATFORM_EMSCRIPTEN
 #else
 #error "Unsupported target platform"
 #endif
@@ -81,6 +88,7 @@
 #define SGL_WINDOWS (SGL_PLATFORM == SGL_PLATFORM_WINDOWS)
 #define SGL_LINUX (SGL_PLATFORM == SGL_PLATFORM_LINUX)
 #define SGL_MACOS (SGL_PLATFORM == SGL_PLATFORM_MACOS)
+#define SGL_EMSCRIPTEN (SGL_PLATFORM == SGL_PLATFORM_EMSCRIPTEN)
 
 /**
  * Shared library (DLL) export and import.

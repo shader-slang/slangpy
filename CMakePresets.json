@@ -197,6 +197,17 @@
                 "VCPKG_TARGET_TRIPLET": "arm64-osx",
                 "CMAKE_APPLE_SILICON_PROCESSOR": "arm64"
             }
+        },
+        {
+            "name": "emscripten",
+            "description": "WebAssembly configuration using the Emscripten SDK (EMSDK).",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "SGL_BUILD_PYTHON": "OFF"
+            }
         }
     ],
     "buildPresets": [
@@ -324,6 +335,18 @@
             "name": "macos-arm64-clang-debug",
             "displayName": "Debug",
             "configurePreset": "macos-arm64-clang",
+            "configuration": "Debug"
+        },
+        {
+            "name": "emscripten-release",
+            "displayName": "Release",
+            "configurePreset": "emscripten",
+            "configuration": "Release"
+        },
+        {
+            "name": "emscripten-debug",
+            "displayName": "Debug",
+            "configurePreset": "emscripten",
             "configuration": "Debug"
         }
     ],

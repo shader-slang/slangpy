@@ -15,7 +15,8 @@
 
 using namespace sgl;
 
-TEST_SUITE_BEGIN("persistent_cache");
+// The persistent cache uses a writer thread and LMDB, neither of which Emscripten builds support.
+TEST_SUITE_BEGIN("persistent_cache" * doctest::skip(SGL_EMSCRIPTEN));
 
 using ByteBlob = std::vector<uint8_t>;
 

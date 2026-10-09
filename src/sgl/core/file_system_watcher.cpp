@@ -25,7 +25,7 @@ struct FileSystemWatchState {
     FileSystemWatchDesc desc;
 };
 
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
 static std::map<std::filesystem::path, std::filesystem::file_time_type>
 get_directory_files(const std::filesystem::path& directory)
 {
@@ -74,7 +74,8 @@ FileSystemWatcher::FileSystemWatcher()
     }
 #endif
 
-#if !SGL_LINUX
+    // Emscripten builds have no threads to poll for changes, so directories are not watched.
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
     m_thread = std::thread(
         [this]()
         {
@@ -94,7 +95,7 @@ FileSystemWatcher::~FileSystemWatcher()
     close(m_inotify_file_descriptor);
 #endif
 
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
     m_stop_thread = true;
     if (m_thread.joinable())
         m_thread.join();
@@ -144,7 +145,7 @@ uint32_t FileSystemWatcher::add_watch(const FileSystemWatchDesc& desc)
     }
 #endif
 
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
     state->files = get_directory_files(state->desc.directory);
 #endif
 
@@ -275,7 +276,7 @@ void FileSystemWatcher::update()
     }
 }
 
-#if !SGL_LINUX
+#if !SGL_LINUX && !SGL_EMSCRIPTEN
 void FileSystemWatcher::thread_func()
 {
     uint32_t counter = 0;
