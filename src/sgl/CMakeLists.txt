@@ -1,5 +1,10 @@
 
-add_library(sgl SHARED)
+if(SGL_EMSCRIPTEN)
+    # Emscripten links all code into a single WebAssembly module.
+    add_library(sgl STATIC)
+else()
+    add_library(sgl SHARED)
+endif()
 sgl_enable_sanitizers(sgl)
 
 option(SGL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
@@ -53,6 +58,7 @@ target_sources(sgl PRIVATE
     core/object.h
     core/lmdb_cache.cpp
     core/lmdb_cache.h
+    core/platform_emscripten.cpp
     core/platform_linux.cpp
     core/platform_windows.cpp
     core/platform.cpp
@@ -391,12 +397,12 @@ target_link_libraries(sgl
         fmt::fmt
         slang
         slang-rhi
-        slang-rhi-vulkan-headers
+        $<$<BOOL:${SGL_HAS_VULKAN}>:slang-rhi-vulkan-headers>
         header_only
         $<$<NOT:$<BOOL:${SGL_USE_DYNAMIC_CUDA}>>:CUDA::cuda_driver>
         sgl_data
     PRIVATE
-        nanothread
+        $<$<NOT:$<BOOL:${SGL_EMSCRIPTEN}>>:nanothread>
         bc7enc
         git_version
         tevclient
@@ -420,6 +426,18 @@ target_link_libraries(sgl
         # macOS system libraries.
         $<$<PLATFORM_ID:Darwin>:sgl_macos_deps>
 )
+
+if(SGL_EMSCRIPTEN)
+    # Applications linking sgl need the same exception model, the WebGPU implementation used by
+    # slang-rhi, stack switching for blocking GPU waits and a growable heap for the Slang compiler.
+    target_compile_options(sgl INTERFACE -fwasm-exceptions)
+    target_link_options(sgl INTERFACE
+        -fwasm-exceptions
+        --use-port=emdawnwebgpu
+        $<IF:$<STREQUAL:${SGL_EMSCRIPTEN_STACK_SWITCHING},JSPI>,-sJSPI,-sASYNCIFY>
+        -sALLOW_MEMORY_GROWTH
+    )
+endif()
 
 set_target_properties(sgl PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY}

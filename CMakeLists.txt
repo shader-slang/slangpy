@@ -117,6 +117,11 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(SGL_MACOS TRUE)
     set(SGL_HAS_D3D12 OFF)
     set(SGL_HAS_VULKAN ON)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set(SGL_PLATFORM "Emscripten")
+    set(SGL_EMSCRIPTEN TRUE)
+    set(SGL_HAS_D3D12 OFF)
+    set(SGL_HAS_VULKAN OFF)
 else()
     message(FATAL_ERROR "Unsupported platform!")
 endif()
@@ -137,6 +142,30 @@ if(SGL_BUILD_PYTHON)
     else()
         find_package(Python 3.9 COMPONENTS Interpreter Development.Module REQUIRED)
     endif()
+endif()
+
+# -----------------------------------------------------------------------------
+# Emscripten
+# -----------------------------------------------------------------------------
+
+if(SGL_EMSCRIPTEN)
+    if(SGL_BUILD_PYTHON)
+        message(FATAL_ERROR "The Python extension cannot be built with Emscripten. Set SGL_BUILD_PYTHON=OFF.")
+    endif()
+
+    # Waiting for the GPU suspends the WebAssembly call stack. ASYNCIFY works in every
+    # browser with WebGPU support. JSPI avoids the code size and run time cost of
+    # ASYNCIFY, but requires a browser with JavaScript Promise Integration.
+    set(SGL_EMSCRIPTEN_STACK_SWITCHING "ASYNCIFY" CACHE STRING "Emscripten stack switching (ASYNCIFY, JSPI)")
+    set_property(CACHE SGL_EMSCRIPTEN_STACK_SWITCHING PROPERTY STRINGS ASYNCIFY JSPI)
+    if(NOT SGL_EMSCRIPTEN_STACK_SWITCHING MATCHES "^(ASYNCIFY|JSPI)$")
+        message(FATAL_ERROR "SGL_EMSCRIPTEN_STACK_SWITCHING must be ASYNCIFY or JSPI (got '${SGL_EMSCRIPTEN_STACK_SWITCHING}')")
+    endif()
+
+    # The prebuilt Slang WebAssembly libraries use native WebAssembly exceptions.
+    # Every object linked into the same module must use the same exception model.
+    add_compile_options(-fwasm-exceptions)
+    add_link_options(-fwasm-exceptions)
 endif()
 
 # -----------------------------------------------------------------------------
@@ -206,7 +235,18 @@ macro(sgl_add_example target)
     add_executable(${target})
     sgl_enable_sanitizers(${target})
     target_link_libraries(${target} PRIVATE sgl)
-    target_compile_definitions(${target} PRIVATE SGL_EXAMPLE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    if(SGL_EMSCRIPTEN)
+        # Package the example and the sgl shaders into the virtual file system and generate
+        # an HTML page that runs the example.
+        target_compile_definitions(${target} PRIVATE SGL_EXAMPLE_DIR="/example")
+        target_link_options(${target} PRIVATE
+            "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}@/example"
+            "SHELL:--preload-file ${SGL_SHADER_OUTPUT_DIRECTORY}@/shaders"
+        )
+        set_target_properties(${target} PROPERTIES SUFFIX ".html")
+    else()
+        target_compile_definitions(${target} PRIVATE SGL_EXAMPLE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
     set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY})
     set_target_properties(${target} PROPERTIES FOLDER "examples")
 endmacro()

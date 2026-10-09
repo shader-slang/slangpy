@@ -216,6 +216,65 @@ To build for the x64 architecture, use the ``macos-x64-clang`` preset.
 * pkg-config 2.5.1
 
 
+WebAssembly (Emscripten)
+------------------------
+
+The C++ library can be compiled to WebAssembly with
+`Emscripten <https://emscripten.org>`_ to run in browsers with WebGPU support.
+WebGPU is the only device type, and the Python extension is not available.
+
+Install the `Emscripten SDK <https://emscripten.org/docs/getting_started/downloads.html>`_.
+Use the Emscripten version that built the WebAssembly libraries of the Slang
+release in use (``SGL_SLANG_VERSION``), currently 6.0.0. Native WebAssembly
+exceptions are not ABI compatible across Emscripten versions:
+
+.. code-block:: bash
+
+    ./emsdk install 6.0.0
+    ./emsdk activate 6.0.0
+    source ./emsdk_env.sh
+
+Then use the following commands to build the project:
+
+.. code-block:: bash
+
+    # Configure
+    cmake --preset emscripten
+
+    # Build "Release" configuration
+    cmake --build --preset emscripten-release
+
+    # Run the C++ unit tests in Node.js (device tests are skipped)
+    ctest --test-dir build/emscripten -C Release
+
+The examples are built as HTML pages in ``build/emscripten/Release`` and must be
+served over HTTP, for example with ``python -m http.server``. Their files are
+packaged into the virtual file system at ``/example``, and the sgl shaders at
+``/shaders``. Applications that use the sgl shaders (for example for blitting
+or the UI) must provide them at ``/shaders`` as well.
+
+Emscripten builds have the following limitations:
+
+* There are no worker threads. Tasks run synchronously on the calling thread,
+  and the file system watcher, the profiler and the shader caches are not
+  available.
+* Waiting for the GPU suspends the WebAssembly call stack, using ``ASYNCIFY``
+  by default. Set ``SGL_EMSCRIPTEN_STACK_SWITCHING=JSPI`` for smaller and faster
+  code in browsers that support JavaScript Promise Integration.
+* ``Window::process_events()`` yields to the browser once per frame. The image
+  returned by ``Surface::acquire_next_image()`` is only valid until the
+  application yields again, and the WebGPU backend currently waits for the GPU
+  when it uploads uniform data or buffer contents. Upload data before acquiring
+  the image, and do not use uniforms in passes that render to it (see the
+  ``render_window`` example).
+
+**Tested on:**
+
+* Emscripten 6.0.0
+* Chrome 155
+* Node.js 26.10
+
+
 Configuration options
 ---------------------
 
@@ -267,6 +326,9 @@ The following table lists the available configuration options:
     * - ``SGL_ENABLE_HEADER_VALIDATION``
       - ``OFF``
       - Enable header validation
+    * - ``SGL_EMSCRIPTEN_STACK_SWITCHING``
+      - ``ASYNCIFY``
+      - Emscripten stack switching for GPU waits (``ASYNCIFY`` or ``JSPI``)
 
 
 Sanitizer builds
