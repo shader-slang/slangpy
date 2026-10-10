@@ -88,6 +88,11 @@ void Device::init()
     if (m_desc.enable_debug_layers)
         rhi::getRHI()->enableDebugLayers();
 
+#if SGL_EMSCRIPTEN
+    // Hot reload watches shader directories for changes, which is not supported on Emscripten.
+    m_desc.enable_hot_reload = false;
+#endif
+
     // Create hot reload system before creating any sessions.
     if (m_desc.enable_hot_reload)
         m_hot_reload = make_ref<HotReload>(ref<Device>(this));

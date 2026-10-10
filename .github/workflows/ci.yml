@@ -280,6 +280,7 @@ jobs:
         with:
           submodules: recursive
           lfs: true
+          persist-credentials: false
 
       - name: Setup CMake/Ninja
         uses: lukka/get-cmake@latest
