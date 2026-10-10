@@ -9,7 +9,8 @@
 
 using namespace sgl;
 
-TEST_SUITE_BEGIN("file_system_watcher");
+// Emscripten builds do not watch the file system.
+TEST_SUITE_BEGIN("file_system_watcher" * doctest::skip(SGL_EMSCRIPTEN));
 
 TEST_CASE("FileSystemWatcher")
 {

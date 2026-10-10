@@ -26,8 +26,13 @@
 using CGDirectDisplayID = void*;
 using id = void*;
 #endif
+
+#if SGL_EMSCRIPTEN
+#include <emscripten/emscripten.h>
+#else
 #define GLFW_NATIVE_INCLUDE_NONE
 #include <GLFW/glfw3native.h>
+#endif
 
 #include <atomic>
 
@@ -42,6 +47,7 @@ namespace {
             if (glfwInit() != GLFW_TRUE)
                 SGL_THROW("Failed to initialize GLFW");
 
+#if !SGL_EMSCRIPTEN
             // Register mappings for NV controllers.
             // clang-format off
             static char nvPadMapping[] =
@@ -50,6 +56,7 @@ namespace {
                 "030000005509000000b4000000000000,NVIDIA Virtual Gamepad,a:b0,b:b1,back:b6,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,leftshoulder:b4,leftstick:b8,lefttrigger:+a2,leftx:a0,lefty:a1,rightshoulder:b5,rightstick:b9,righttrigger:-a2,rightx:a3,righty:a4,start:b7,x:b2,y:b3,platform:Windows,";
             // clang-format on
             glfwUpdateGamepadMappings(nvPadMapping);
+#endif
         }
     }
 
@@ -363,6 +370,7 @@ Window::Window(WindowDesc desc)
     : m_width(desc.width)
     , m_height(desc.height)
     , m_title(desc.title)
+    , m_canvas_selector(desc.canvas_selector)
 {
     init_glfw();
 
@@ -384,6 +392,22 @@ Window::Window(WindowDesc desc)
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
+#if SGL_EMSCRIPTEN
+    // Emscripten's GLFW implementation takes input and size from Module.canvas. Point it at the
+    // selected canvas, so that input and the WebGPU surface (see window_handle()) use one element.
+    // clang-format off
+    bool canvas_found = EM_ASM_INT({
+        var canvas = document.querySelector(UTF8ToString($0));
+        if (!canvas)
+            return 0;
+        Module['canvas'] = canvas;
+        return 1;
+    }, m_canvas_selector.c_str());
+    // clang-format on
+    if (!canvas_found)
+        SGL_THROW("Canvas \"{}\" not found in the document.", m_canvas_selector);
+#endif
 
     m_window = glfwCreateWindow(m_width, m_height, m_title.c_str(), NULL, NULL);
     if (!m_window)
@@ -422,6 +446,8 @@ WindowHandle Window::window_handle() const
     handle.xwindow = glfwGetX11Window(m_window);
 #elif SGL_MACOS
     handle.nswindow = glfwGetCocoaWindow(m_window);
+#elif SGL_EMSCRIPTEN
+    handle.canvas_selector = m_canvas_selector.c_str();
 #endif
     return handle;
 }
@@ -482,8 +508,22 @@ bool Window::should_close() const
     return m_should_close || glfwWindowShouldClose(m_window);
 }
 
+#if SGL_EMSCRIPTEN
+// Suspends the WebAssembly call stack until the browser's next animation frame callback.
+// clang-format off
+EM_ASYNC_JS(void, sgl_wait_for_animation_frame, (), {
+    await new Promise(resolve => requestAnimationFrame(resolve));
+});
+// clang-format on
+#endif
+
 void Window::process_events()
 {
+#if SGL_EMSCRIPTEN
+    // The browser only delivers input events while its event loop runs. Yielding until the next
+    // animation frame also paces the render loop to the display.
+    sgl_wait_for_animation_frame();
+#endif
     glfwPollEvents();
     poll_gamepad_input();
 }
@@ -571,6 +611,7 @@ std::string Window::to_string() const
 
 void Window::poll_gamepad_input()
 {
+#if !SGL_EMSCRIPTEN
     // Check if a gamepad is connected.
     if (m_gamepad_id == INVALID_GAMEPAD_ID) {
         for (int id = GLFW_JOYSTICK_1; id <= GLFW_JOYSTICK_LAST; ++id) {
@@ -655,6 +696,7 @@ void Window::poll_gamepad_input()
 
     if (m_on_gamepad_state)
         m_on_gamepad_state(state);
+#endif
 }
 
 void Window::handle_window_size(uint32_t width, uint32_t height)

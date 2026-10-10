@@ -105,6 +105,8 @@ SGL_DIAGNOSTIC_POP
 #else
 SGL_DIAGNOSTIC_PUSH
 SGL_DISABLE_MSVC_WARNING(4245 4706 4702)
+// tinyexr compares size_t against a 64-bit limit, which is always false on wasm32.
+SGL_DISABLE_CLANG_WARNING("-Wtautological-constant-out-of-range-compare")
 #define TINYEXR_IMPLEMENTATION
 #define TINYEXR_USE_MINIZ 0
 #define TINYEXR_USE_STB_ZLIB 1

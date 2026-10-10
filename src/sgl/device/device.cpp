@@ -88,6 +88,11 @@ void Device::init()
     if (m_desc.enable_debug_layers)
         rhi::getRHI()->enableDebugLayers();
 
+#if SGL_EMSCRIPTEN
+    // Hot reload watches shader directories for changes, which is not supported on Emscripten.
+    m_desc.enable_hot_reload = false;
+#endif
+
     // Create hot reload system before creating any sessions.
     if (m_desc.enable_hot_reload)
         m_hot_reload = make_ref<HotReload>(ref<Device>(this));
@@ -110,8 +115,18 @@ void Device::init()
         m_desc.type = DeviceType::vulkan;
 #elif SGL_MACOS
         m_desc.type = DeviceType::metal;
+#elif SGL_EMSCRIPTEN
+        m_desc.type = DeviceType::wgpu;
 #endif
     }
+
+#if SGL_EMSCRIPTEN
+    // The caches are written by a background thread to memory-mapped LMDB databases.
+    SGL_CHECK(
+        !m_desc.module_cache_path && !m_desc.shader_cache_path,
+        "Module and shader caches are not supported on Emscripten."
+    );
+#endif
 
     // Setup module cache path.
     if (m_desc.module_cache_path) {
@@ -1292,6 +1307,8 @@ std::vector<AdapterInfo> Device::enumerate_adapters(DeviceType type)
         type = DeviceType::vulkan;
 #elif SGL_MACOS
         type = DeviceType::metal;
+#elif SGL_EMSCRIPTEN
+        type = DeviceType::wgpu;
 #endif
     }
 

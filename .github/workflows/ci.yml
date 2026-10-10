@@ -265,3 +265,38 @@ jobs:
           }
         shell: pwsh
         continue-on-error: true
+
+  # WebAssembly build (Emscripten). Builds the library, tests and examples, and runs the
+  # C++ unit tests in Node.js. Device tests are skipped, as Node.js has no WebGPU.
+  build-emscripten:
+    runs-on: ubuntu-latest
+    env:
+      # Must match the Emscripten version used to build the Slang WebAssembly libraries
+      # (see SGL_SLANG_VERSION), as the native WebAssembly exception ABI is not stable.
+      EMSDK_VERSION: 6.0.0
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          lfs: true
+          persist-credentials: false
+
+      - name: Setup CMake/Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Setup Emscripten
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$EMSDK_VERSION"
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$EMSDK_VERSION"
+          echo "EMSDK_ENV=$RUNNER_TEMP/emsdk/emsdk_env.sh" >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: source "$EMSDK_ENV" && cmake --preset emscripten
+
+      - name: Build
+        run: source "$EMSDK_ENV" && cmake --build --preset emscripten-release
+
+      - name: Unit Tests (C++)
+        run: source "$EMSDK_ENV" && ctest --test-dir build/emscripten -C Release --output-on-failure

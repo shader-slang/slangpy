@@ -2,6 +2,40 @@
 
 #include "renderdoc.h"
 
+#if SGL_EMSCRIPTEN
+
+// RenderDoc does not support WebAssembly (and its API header rejects the platform).
+
+#include "sgl/core/window.h"
+#include "sgl/device/device.h"
+
+namespace sgl::renderdoc {
+
+bool is_available()
+{
+    return false;
+}
+
+bool start_frame_capture(ref<Device> device, ref<Window> window)
+{
+    SGL_UNUSED(device, window);
+    return false;
+}
+
+bool end_frame_capture()
+{
+    return false;
+}
+
+bool is_frame_capturing()
+{
+    return false;
+}
+
+} // namespace sgl::renderdoc
+
+#else // SGL_EMSCRIPTEN
+
 #include "sgl/core/error.h"
 #include "sgl/core/platform.h"
 #include "sgl/core/window.h"
@@ -168,3 +202,5 @@ bool is_frame_capturing()
 }
 
 } // namespace sgl::renderdoc
+
+#endif // SGL_EMSCRIPTEN

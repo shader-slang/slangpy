@@ -64,6 +64,13 @@ if(SGL_BUILD_TESTS)
         LIBRARY_OUTPUT_DIRECTORY ${SGL_LIBRARY_OUTPUT_DIRECTORY}
     )
 
-    add_test(NAME sgl_tests COMMAND $<TARGET_FILE:sgl_tests>)
+    if(SGL_EMSCRIPTEN)
+        # Run in Node.js with access to the host file system (for test data). Node.js has no WebGPU.
+        target_link_options(sgl_tests PRIVATE -sENVIRONMENT=node -sNODERAWFS -sEXIT_RUNTIME)
+        # Name the target so that CTest runs it with CMAKE_CROSSCOMPILING_EMULATOR (node).
+        add_test(NAME sgl_tests COMMAND sgl_tests -skip-device-tests)
+    else()
+        add_test(NAME sgl_tests COMMAND $<TARGET_FILE:sgl_tests>)
+    endif()
 
 endif(SGL_BUILD_TESTS)

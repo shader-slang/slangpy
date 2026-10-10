@@ -80,7 +80,8 @@ public:
     std::atomic<uint32_t>* destroyed_value;
 };
 
-TEST_CASE("cross-thread final release observes prior object access")
+// Emscripten builds have no threads.
+TEST_CASE("cross-thread final release observes prior object access" * doctest::skip(SGL_EMSCRIPTEN))
 {
     std::atomic<uint32_t> destroyed_value{0};
     std::atomic<bool> release_worker{false};

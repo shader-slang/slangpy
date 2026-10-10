@@ -30,6 +30,11 @@ target_link_libraries(d3d12 INTERFACE dxgi.lib d3d12.lib dxguid.lib)
 
 set(FMT_INSTALL OFF)
 add_subdirectory(fmt)
+if(SGL_EMSCRIPTEN)
+    # fmt 11.2 calls malloc/free without including <cstdlib>, which fails with the libc++ 21
+    # shipped by Emscripten (fixed in fmt 12.0, fmtlib/fmt#4477). Remove when updating fmt.
+    target_compile_options(fmt PUBLIC "SHELL:$<$<COMPILE_LANGUAGE:CXX>:-include cstdlib>")
+endif()
 
 # glfw
 
@@ -41,7 +46,7 @@ set(SGL_HAS_GLFW OFF)
 if(SGL_ENABLE_GLFW STREQUAL "ON")
     set(SGL_HAS_GLFW ON)
 elseif(SGL_ENABLE_GLFW STREQUAL "AUTO")
-    if(WIN32 OR APPLE)
+    if(WIN32 OR APPLE OR SGL_EMSCRIPTEN)
         set(SGL_HAS_GLFW ON)
     elseif(UNIX)
         # Match the X11 dependencies checked by the bundled GLFW. Extension
@@ -59,7 +64,11 @@ elseif(SGL_ENABLE_GLFW STREQUAL "AUTO")
 endif()
 set(SGL_HAS_GLFW ${SGL_HAS_GLFW} PARENT_SCOPE)
 
-if(SGL_HAS_GLFW)
+if(SGL_HAS_GLFW AND SGL_EMSCRIPTEN)
+    # Emscripten implements the GLFW API on top of an HTML canvas.
+    add_library(glfw INTERFACE)
+    target_link_options(glfw INTERFACE -sUSE_GLFW=3)
+elseif(SGL_HAS_GLFW)
     set(GLFW_BUILD_EXAMPLES OFF)
     set(GLFW_BUILD_TESTS OFF)
     set(GLFW_BUILD_DOCS OFF)
@@ -81,18 +90,21 @@ endif()
 
 # nanothread
 
-set(NANOTHREAD_STATIC ON)
-# Override nanothread's default -march=native on Linux aarch64 to avoid assembler
-# errors when building under QEMU emulation (the host CPU may report extensions
-# that the container's toolchain doesn't support).
-if(SGL_LINUX AND SGL_ARCHITECTURE MATCHES "aarch64|arm64")
-    set(NANOTHREAD_NATIVE_FLAGS "-march=armv8-a" CACHE STRING "" FORCE)
+# Emscripten builds are single threaded and run tasks synchronously (see thread.cpp).
+if(NOT SGL_EMSCRIPTEN)
+    set(NANOTHREAD_STATIC ON)
+    # Override nanothread's default -march=native on Linux aarch64 to avoid assembler
+    # errors when building under QEMU emulation (the host CPU may report extensions
+    # that the container's toolchain doesn't support).
+    if(SGL_LINUX AND SGL_ARCHITECTURE MATCHES "aarch64|arm64")
+        set(NANOTHREAD_NATIVE_FLAGS "-march=armv8-a" CACHE STRING "" FORCE)
+    endif()
+    add_subdirectory(nanothread)
+    sgl_enable_sanitizers(nanothread)
+    # Disable LTO for nanothread as this causes problems when linking with sgl.
+    set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
+    target_compile_definitions(nanothread PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
-add_subdirectory(nanothread)
-sgl_enable_sanitizers(nanothread)
-# Disable LTO for nanothread as this causes problems when linking with sgl.
-set_target_properties(nanothread PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE)
-target_compile_definitions(nanothread PRIVATE _CRT_SECURE_NO_WARNINGS)
 
 # lmdb
 
@@ -155,6 +167,9 @@ elseif(SGL_MACOS)
         set(SLANG_URL "${SLANG_URL_BASE}-macos-aarch64.zip")
         set(SLANG_DEBUG_INFO_URL "${SLANG_URL_BASE}-macos-aarch64-debug-info.zip")
     endif()
+elseif(SGL_EMSCRIPTEN)
+    # Static libraries; there is no separate debug info package.
+    set(SLANG_URL "${SLANG_URL_BASE}-wasm-libs.zip")
 endif()
 
 if(NOT SGL_LOCAL_SLANG)
@@ -171,6 +186,24 @@ endif()
 
 # Slang library adding logic to find the exact filenames to use and copy
 function(sgl_add_library_slang)
+    if(SGL_EMSCRIPTEN)
+        # The WebAssembly package provides static libraries that are linked into the module.
+        set(slang_lib_dir "${SLANG_DIR}/lib")
+        add_library(slang STATIC IMPORTED GLOBAL)
+        set_target_properties(slang PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES ${SLANG_INCLUDE_DIR}
+            IMPORTED_LOCATION ${slang_lib_dir}/libslang-compiler.a
+        )
+        target_link_libraries(slang INTERFACE
+            ${slang_lib_dir}/libcompiler-core.a
+            ${slang_lib_dir}/libcore.a
+            ${slang_lib_dir}/liblz4.a
+            ${slang_lib_dir}/libminiz.a
+            ${slang_lib_dir}/libcmark-gfm.a
+        )
+        return()
+    endif()
+
     if(SGL_WINDOWS)
         set(slang_lib_dir "${SLANG_DIR}/bin")
         set(slang_lib_prefix "")
@@ -275,7 +308,12 @@ set(SLANG_RHI_BUILD_TESTS OFF)
 set(SLANG_RHI_BUILD_EXAMPLES OFF)
 set(SLANG_RHI_FETCH_SLANG OFF)
 set(SLANG_RHI_ENABLE_D3D11 OFF)
-set(SLANG_RHI_ENABLE_WGPU OFF)
+# WebGPU is the only slang-rhi backend available on Emscripten.
+if(SGL_EMSCRIPTEN)
+    set(SLANG_RHI_ENABLE_WGPU ON)
+else()
+    set(SLANG_RHI_ENABLE_WGPU OFF)
+endif()
 # A sanitizer-enabled SlangPy build instruments all project-owned native code,
 # including the statically linked slang-rhi implementation.
 set(SLANG_RHI_ENABLE_ASAN ${SGL_ENABLE_ASAN} CACHE BOOL "Enable AddressSanitizer in slang-rhi" FORCE)
