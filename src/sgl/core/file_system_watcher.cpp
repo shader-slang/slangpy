@@ -119,6 +119,12 @@ uint32_t FileSystemWatcher::add_watch(const FileSystemWatchDesc& desc)
     if (!std::filesystem::exists(desc.directory))
         SGL_THROW("Directory {} does not exist", desc.directory);
 
+#if SGL_EMSCRIPTEN
+    // Emscripten has no file change notifications and no thread to poll for changes.
+    log_warn("Watching directory {} is not supported on Emscripten.", desc.directory);
+    return 0;
+#endif
+
     // Init a new watcher state object
     uint32_t id = m_next_id++;
     auto state = std::make_unique<FileSystemWatchState>();
