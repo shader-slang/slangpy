@@ -976,13 +976,14 @@ SGL_API std::array<NativeHandle, 3> get_cuda_current_context_native_handles();
 
 /// Push a device onto the thread-local current device stack.
 ///
-/// Stores a raw pointer in the thread-local stack. The caller must ensure
-/// that the device (and any devices below it on the stack) outlive their
-/// corresponding pop_current_device() calls. Device::close() only auto-pops if the
-/// device is on top of the stack; a closed device lower in the stack remains
-/// as a stale pointer - calling current_device() or pop_current_device() on that
-/// entry is undefined behavior unless the device is kept alive (refcount > 0)
-/// until popped.
+/// Stores a raw pointer in the thread-local stack. Device::close() only auto-pops
+/// if the device is on top of the stack; a closed device lower in the stack stays
+/// on the stack (it is still a valid object, as long as it is alive). The Device
+/// destructor removes any remaining entries for that device from the stack of the
+/// thread it is destroyed on, so a destroyed device is never returned by
+/// current_device() or pop_current_device(). A device destroyed on a different
+/// thread than the one that pushed it is not removed from the pushing thread's
+/// stack; callers must pop it there before releasing the last reference.
 ///
 /// \param device Device to push (must not be null).
 SGL_API void push_current_device(Device* device);

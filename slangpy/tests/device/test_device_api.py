@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import gc
+
 import pytest
 
 import slangpy as spy
@@ -33,6 +35,22 @@ def test_push_pop_current_device(device_type: spy.DeviceType, empty_device_stack
     spy.push_current_device(device)
     assert spy.current_device() is device
     spy.pop_current_device()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_destroyed_device_removed_from_stack(device_type: spy.DeviceType, empty_device_stack: None):
+    # Creating a device pushes it onto the stack. Closing a device only pops it if it is on
+    # top, so a device closed and destroyed below a newer one must not be left dangling.
+    older = helpers.get_device(device_type, use_cache=False, label="older-" + device_type.name)
+    newer = helpers.get_device(device_type, use_cache=False, label="newer-" + device_type.name)
+    older.close()
+    del older
+    gc.collect()
+
+    assert spy.pop_current_device() is newer
+    with pytest.raises(Exception, match="No device to pop"):
+        spy.pop_current_device()
+    newer.close()
 
 
 def test_current_device_throws_when_empty(empty_device_stack: None):

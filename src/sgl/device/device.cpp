@@ -455,6 +455,12 @@ Device::~Device()
     // takes a new reference to an object whose reference count has reached zero.
     shutdown(false);
 
+    // The current-device stack holds raw pointers, and publish() pushes every device onto it.
+    // close() only pops a device that is on top, so a device that was closed while buried
+    // below newer ones is still on the stack here. Erasing every remaining entry ensures
+    // that no later current_device()/pop_current_device() call can return a dangling pointer.
+    std::erase(s_tls_current_device_stack, this);
+
     // Surviving buffers need the CUDA context to destroy their imports after close().
     m_cuda_device.reset();
 
