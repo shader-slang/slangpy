@@ -835,12 +835,13 @@ void Context::draw(
         for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
             const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
             SGL_ASSERT(pcmd->UserCallback == nullptr);
-            // Project scissor/clipping rectangles into framebuffer space.
+            // Project scissor/clipping rectangles into framebuffer space. Clamp to the
+            // target: ImGui clip rects can exceed it, which WebGPU rejects.
             ScissorRect clip_rect{
-                .min_x = uint32_t((pcmd->ClipRect.x - clip_off.x) * inv_scale.x),
-                .min_y = uint32_t((pcmd->ClipRect.y - clip_off.y) * inv_scale.y),
-                .max_x = uint32_t((pcmd->ClipRect.z - clip_off.x) * inv_scale.x),
-                .max_y = uint32_t((pcmd->ClipRect.w - clip_off.y) * inv_scale.y),
+                .min_x = uint32_t(std::clamp((pcmd->ClipRect.x - clip_off.x) * inv_scale.x, 0.f, io.DisplaySize.x)),
+                .min_y = uint32_t(std::clamp((pcmd->ClipRect.y - clip_off.y) * inv_scale.y, 0.f, io.DisplaySize.y)),
+                .max_x = uint32_t(std::clamp((pcmd->ClipRect.z - clip_off.x) * inv_scale.x, 0.f, io.DisplaySize.x)),
+                .max_y = uint32_t(std::clamp((pcmd->ClipRect.w - clip_off.y) * inv_scale.y, 0.f, io.DisplaySize.y)),
             };
             if (clip_rect.max_x <= clip_rect.min_x || clip_rect.max_y <= clip_rect.min_y)
                 continue;
