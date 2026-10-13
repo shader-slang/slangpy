@@ -206,7 +206,8 @@
             "cacheVariables": {
                 "CMAKE_TOOLCHAIN_FILE": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "SGL_BUILD_PYTHON": "OFF"
+                "SGL_BUILD_PYTHON": "OFF",
+                "SGL_BUILD_SHARED": "OFF"
             }
         }
     ],

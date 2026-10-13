@@ -1,9 +1,8 @@
 
-if(SGL_EMSCRIPTEN)
-    # Emscripten links all code into a single WebAssembly module.
-    add_library(sgl STATIC)
-else()
+if(SGL_BUILD_SHARED)
     add_library(sgl SHARED)
+else()
+    add_library(sgl STATIC)
 endif()
 sgl_enable_sanitizers(sgl)
 
@@ -343,6 +342,7 @@ target_link_options(sgl
 
 target_compile_definitions(sgl
     PUBLIC
+        $<$<NOT:$<BOOL:${SGL_BUILD_SHARED}>>:SGL_STATIC>
         SGL_DEBUG=$<BOOL:$<CONFIG:Debug>>
         # Always enable asserts unless SGL_DISABLE_ASSERTS is set.
         SGL_ENABLE_ASSERTS=$<NOT:$<BOOL:${SGL_DISABLE_ASSERTS}>>

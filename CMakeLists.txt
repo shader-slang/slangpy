@@ -50,6 +50,9 @@ endif()
 # -----------------------------------------------------------------------------
 
 option(SGL_BUILD_PYTHON "Build Python extension" ON)
+# Build sgl as a shared library. Emscripten needs a static library, as it links all
+# code into a single WebAssembly module (the emscripten preset sets this OFF).
+option(SGL_BUILD_SHARED "Build sgl as a shared library" ON)
 option(SGL_BUILD_EXAMPLES "Build example applications" ON)
 option(SGL_BUILD_TESTS "Build tests" ON)
 option(SGL_BUILD_DOC "Build documentation" OFF)
@@ -137,6 +140,9 @@ message(STATUS "Architecture: ${SGL_ARCHITECTURE}")
 # -----------------------------------------------------------------------------
 
 if(SGL_BUILD_PYTHON)
+    if(NOT SGL_BUILD_SHARED)
+        message(FATAL_ERROR "The Python extension requires the shared sgl library. Set SGL_BUILD_SHARED=ON.")
+    endif()
     if((SGL_WINDOWS OR SGL_MACOS) AND SGL_ENABLE_ASAN)
         find_package(Python 3.9 COMPONENTS Interpreter Development.Module Development.Embed REQUIRED)
     else()
@@ -151,6 +157,9 @@ endif()
 if(SGL_EMSCRIPTEN)
     if(SGL_BUILD_PYTHON)
         message(FATAL_ERROR "The Python extension cannot be built with Emscripten. Set SGL_BUILD_PYTHON=OFF.")
+    endif()
+    if(SGL_BUILD_SHARED)
+        message(FATAL_ERROR "Emscripten links all code into a single WebAssembly module. Set SGL_BUILD_SHARED=OFF.")
     endif()
 
     # Waiting for the GPU suspends the WebAssembly call stack. ASYNCIFY works in every

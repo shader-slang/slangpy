@@ -299,6 +299,9 @@ The following table lists the available configuration options:
     * - ``SGL_BUILD_PYTHON``
       - ``ON``
       - Build sgl Python extension
+    * - ``SGL_BUILD_SHARED``
+      - ``ON``
+      - Build sgl as a shared library (``OFF`` builds a static library, required for Emscripten)
     * - ``SGL_BUILD_EXAMPLES``
       - ``ON``
       - Build sgl examples

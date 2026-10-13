@@ -101,11 +101,13 @@
 #define SGL_API_IMPORT
 #endif
 
-#ifdef SGL_DLL
+#if defined(SGL_STATIC)
+#define SGL_API
+#elif defined(SGL_DLL)
 #define SGL_API SGL_API_EXPORT
-#else // SGL_DLL
+#else
 #define SGL_API SGL_API_IMPORT
-#endif // SGL_DLL
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Convenience macros
