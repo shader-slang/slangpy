@@ -192,10 +192,22 @@ jobs:
     needs: build-pr
     if: always() && github.event_name == 'repository_dispatch'
     steps:
+      # Generate the token after the builds finish so its one-hour lifetime covers
+      # reporting. The App key stays in this separate job, which executes no PR code.
+      - name: Create Slang status token
+        id: status-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        with:
+          client-id: ${{ secrets.SLANG_CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.SLANG_CI_APP_PRIVATE_KEY }}
+          owner: shader-slang
+          repositories: slang
+          permission-statuses: write
+
       - name: Post status to Slang PR
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.SLANG_STATUS_TOKEN }}
+          github-token: ${{ steps.status-token.outputs.token }}
           script: |
             const result = '${{ needs.build-pr.result }}';
             const state = result === 'success' ? 'success' : 'failure';
