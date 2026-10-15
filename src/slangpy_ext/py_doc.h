@@ -516,47 +516,116 @@ static const char *mkd_doc_sgl_Attribute_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_Attribute_to_string = R"doc()doc";
 
-static const char *mkd_doc_sgl_BCCompressedImage = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage =
+R"doc(An owning BC-compressed 2D image, with one or more consecutive mip
+levels.)doc";
 
-static const char *mkd_doc_sgl_BCCompressedImage_format = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_BCCompressedImage =
+R"doc(Validate and take ownership of compressed mip levels, starting at
+level zero. Python mip inputs are copied. All levels must use the
+supplied format.
 
-static const char *mkd_doc_sgl_BCCompressedImage_mip_levels = R"doc()doc";
+)doc";
 
-static const char *mkd_doc_sgl_BCCompressedMip = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_BCCompressedImage_2 =
+R"doc(Load all mip levels from a BC-compressed 2D DDS file. Array, cube, and
+volume textures are not supported.
 
-static const char *mkd_doc_sgl_BCCompressedMip_data = R"doc()doc";
+)doc";
 
-static const char *mkd_doc_sgl_BCCompressedMip_height = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_BCCompressedImage_3 =
+R"doc(Read all mip levels from a BC-compressed 2D DDS stream. Array, cube,
+and volume textures are not supported. The stream is not retained.
 
-static const char *mkd_doc_sgl_BCCompressedMip_width = R"doc()doc";
+)doc";
 
-static const char *mkd_doc_sgl_BCEncodeOptions = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_decode =
+R"doc(Decode a mip level to an independent Bitmap without changing its
+transfer function. BC1/2/3/7 produce RGBA uint8; BC4/5 produce R/RG
+uint8 or int8 for SNORM; BC6H produces RGB float16. The sRGB flag is
+preserved. Throws for an invalid mip index.
 
-static const char *mkd_doc_sgl_BCEncodeOptions_channel_weights = R"doc()doc";
+)doc";
 
-static const char *mkd_doc_sgl_BCEncodeOptions_generate_mipmaps = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_format = R"doc(BC format shared by all mip levels.)doc";
 
-static const char *mkd_doc_sgl_BCEncodeOptions_has_alpha = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_height = R"doc(Height of the largest mip level in pixels.)doc";
 
-static const char *mkd_doc_sgl_BCEncodeOptions_mip_filter = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_m_format = R"doc()doc";
 
-static const char *mkd_doc_sgl_BCEncodeOptions_quality = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_m_mip_levels = R"doc()doc";
 
-static const char *mkd_doc_sgl_BCEncodeQuality = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_mip_count = R"doc(Number of mip levels.)doc";
 
-static const char *mkd_doc_sgl_BCEncodeQuality_fastest = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_mip_levels =
+R"doc(Mip levels from largest to smallest. In Python, each mip keeps its
+image alive.
 
-static const char *mkd_doc_sgl_BCEncodeQuality_highest = R"doc()doc";
+)doc";
 
-static const char *mkd_doc_sgl_BCEncodeQuality_normal = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_width = R"doc(Width of the largest mip level in pixels.)doc";
 
-static const char *mkd_doc_sgl_BCEncodeQuality_production = R"doc()doc";
+static const char *mkd_doc_sgl_BCCompressedImage_write_dds = R"doc(Write all mip levels to a DDS file.)doc";
 
-static const char *mkd_doc_sgl_BCEncoder = R"doc(BC1-7 block compression encoder.)doc";
+static const char *mkd_doc_sgl_BCCompressedImage_write_dds_2 = R"doc(Write all mip levels to a DDS stream.)doc";
+
+static const char *mkd_doc_sgl_BCCompressedMip =
+R"doc(An owning compressed mip level with read-only pixel dimensions and
+block data.)doc";
+
+static const char *mkd_doc_sgl_BCCompressedMip_BCCompressedMip = R"doc()doc";
+
+static const char *mkd_doc_sgl_BCCompressedMip_data =
+R"doc(Read-only compressed block data. In Python, returns a uint8 NumPy view
+that keeps the mip alive; bytes(data) makes a copy.
+
+)doc";
+
+static const char *mkd_doc_sgl_BCCompressedMip_height = R"doc(Height of this mip level in pixels.)doc";
+
+static const char *mkd_doc_sgl_BCCompressedMip_m_data = R"doc()doc";
+
+static const char *mkd_doc_sgl_BCCompressedMip_m_height = R"doc()doc";
+
+static const char *mkd_doc_sgl_BCCompressedMip_m_width = R"doc()doc";
+
+static const char *mkd_doc_sgl_BCCompressedMip_width = R"doc(Width of this mip level in pixels.)doc";
+
+static const char *mkd_doc_sgl_BCEncodeOptions = R"doc(Options shared by the software and NVTT encoders.)doc";
+
+static const char *mkd_doc_sgl_BCEncodeOptions_channel_weights = R"doc(Positive RGBA channel weights. Defaults to equal weights.)doc";
+
+static const char *mkd_doc_sgl_BCEncodeOptions_generate_mipmaps = R"doc(Generate the full mip chain from the source image. Defaults to false.)doc";
+
+static const char *mkd_doc_sgl_BCEncodeOptions_has_alpha =
+R"doc(Hint that the image has alpha. Defaults to true; handling depends on
+the format and backend.)doc";
+
+static const char *mkd_doc_sgl_BCEncodeOptions_mip_filter =
+R"doc(Mipmap reconstruction filter: BoxFilter, TentFilter, or
+MitchellFilter. Defaults to BoxFilter.)doc";
+
+static const char *mkd_doc_sgl_BCEncodeOptions_quality = R"doc(Encoding quality and effort. Defaults to normal.)doc";
+
+static const char *mkd_doc_sgl_BCEncodeQuality = R"doc(BC compression quality and encoding effort.)doc";
+
+static const char *mkd_doc_sgl_BCEncodeQuality_fastest = R"doc(Favor encoding speed over quality.)doc";
+
+static const char *mkd_doc_sgl_BCEncodeQuality_highest = R"doc(Use the highest available encoding effort.)doc";
+
+static const char *mkd_doc_sgl_BCEncodeQuality_info = R"doc()doc";
+
+static const char *mkd_doc_sgl_BCEncodeQuality_normal = R"doc(Balance encoding speed and quality.)doc";
+
+static const char *mkd_doc_sgl_BCEncodeQuality_production = R"doc(Spend more encoding effort for production-quality output.)doc";
+
+static const char *mkd_doc_sgl_BCEncoder = R"doc(Reusable BC1-7 block compression encoder. Does not require a Device.)doc";
 
 static const char *mkd_doc_sgl_BCEncoderBackend = R"doc(Encoding backend used by BCEncoder.)doc";
 
 static const char *mkd_doc_sgl_BCEncoderBackend_automatic = R"doc(Prefer the NVTT GPU encoder, then NVTT CPU, then the software encoder.)doc";
+
+static const char *mkd_doc_sgl_BCEncoderBackend_info = R"doc()doc";
 
 static const char *mkd_doc_sgl_BCEncoderBackend_nvtt_cpu = R"doc(Require the optional NVTT encoder and run it on the CPU.)doc";
 
@@ -564,7 +633,11 @@ static const char *mkd_doc_sgl_BCEncoderBackend_nvtt_gpu = R"doc(Require the opt
 
 static const char *mkd_doc_sgl_BCEncoderBackend_software = R"doc(Use the built-in rgbcx/bc7enc software encoder.)doc";
 
-static const char *mkd_doc_sgl_BCEncoder_BCEncoder = R"doc()doc";
+static const char *mkd_doc_sgl_BCEncoder_BCEncoder =
+R"doc(Create an encoder using the requested backend. Throws if the requested
+backend is unavailable.
+
+)doc";
 
 static const char *mkd_doc_sgl_BCEncoder_BCEncoder_2 = R"doc()doc";
 
@@ -578,45 +651,35 @@ the full mip chain is generated from the source image.
 
 )doc";
 
+static const char *mkd_doc_sgl_BCEncoder_encode_2 =
+R"doc(Encode a bitmap, converting its color transfer function to match
+format. Integer components of all widths are normalized; floating-
+point values are used directly. Luminance is expanded to RGB and
+luminance/alpha to RGBA. R/RG and multi-channel bitmaps retain channel
+order. Multi-channel bitmaps are raw data and must already use the
+destination transfer function. The bitmap must be non-null and is
+borrowed only for the duration of the call. Calls on a single encoder
+are serialized. Do not modify inputs during encoding. Python calls
+release the GIL during encoding.
+
+)doc";
+
 static const char *mkd_doc_sgl_BCEncoder_is_backend_available = R"doc(True if the given backend is available in this build.)doc";
 
 static const char *mkd_doc_sgl_BCEncoder_m_backend = R"doc()doc";
 
 static const char *mkd_doc_sgl_BCEncoder_m_impl = R"doc()doc";
 
+static const char *mkd_doc_sgl_BCEncoder_m_mutex = R"doc()doc";
+
 static const char *mkd_doc_sgl_BCEncoder_operator_assign = R"doc()doc";
 
-static const char *mkd_doc_sgl_BCFormat = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc1_unorm = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc1_unorm_srgb = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc2_unorm = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc2_unorm_srgb = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc3_unorm = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc3_unorm_srgb = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc4_snorm = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc4_unorm = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc5_snorm = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc5_unorm = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc6h_sfloat = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc6h_ufloat = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc7_unorm = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCFormat_bc7_unorm_srgb = R"doc()doc";
-
-static const char *mkd_doc_sgl_BCImage = R"doc(Non-owning immutable view into CPU pixel data.)doc";
+static const char *mkd_doc_sgl_BCImage =
+R"doc(Non-owning immutable view into CPU pixel data in R, RG, RGB, or RGBA
+order. Missing color channels are zero and missing alpha is one.
+Components are normalized integers or floating-point values. Color
+values must already use the transfer function of the destination
+format (sRGB for *_srgb, linear otherwise).)doc";
 
 static const char *mkd_doc_sgl_BCImage_channel_count = R"doc(1-4.)doc";
 
@@ -10508,9 +10571,12 @@ non-multiple-of-4).
 
 static const char *mkd_doc_sgl_bc_format_bytes_per_block = R"doc(Bytes per 4x4 compressed block.)doc";
 
-static const char *mkd_doc_sgl_bc_format_to_format = R"doc(Convert BCFormat to RHI Format.)doc";
+static const char *mkd_doc_sgl_bc_image_from_bitmap =
+R"doc(Create a raw BCImage view from a Bitmap, without interpreting pixel
+format or gamma. Use BCEncoder::encode(const Bitmap*, ...) to honor
+bitmap metadata.
 
-static const char *mkd_doc_sgl_bc_image_from_bitmap = R"doc(Create a BCImage from a Bitmap.)doc";
+)doc";
 
 static const char *mkd_doc_sgl_bc_mip_count = R"doc(Full mip chain level count: floor(log2(max(w,h))) + 1.)doc";
 
@@ -11356,6 +11422,10 @@ static const char *mkd_doc_sgl_find_enum_info_adl_95 = R"doc()doc";
 
 static const char *mkd_doc_sgl_find_enum_info_adl_96 = R"doc()doc";
 
+static const char *mkd_doc_sgl_find_enum_info_adl_97 = R"doc()doc";
+
+static const char *mkd_doc_sgl_find_enum_info_adl_98 = R"doc()doc";
+
 static const char *mkd_doc_sgl_flags_to_string_list = R"doc(Convert an flags enum value to a list of strings.)doc";
 
 static const char *mkd_doc_sgl_flip_bit = R"doc()doc";
@@ -11387,8 +11457,6 @@ static const char *mkd_doc_sgl_flip_bit_13 = R"doc()doc";
 static const char *mkd_doc_sgl_flip_bit_14 = R"doc()doc";
 
 static const char *mkd_doc_sgl_flip_bit_15 = R"doc()doc";
-
-static const char *mkd_doc_sgl_format_to_bc_format = R"doc(Convert RHI Format to BCFormat (returns nullopt if not a BC format).)doc";
 
 static const char *mkd_doc_sgl_func_BaseModule = R"doc(Base class for functional slangpy module.)doc";
 

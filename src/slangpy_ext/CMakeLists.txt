@@ -6,6 +6,7 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     slangpy_ext.cpp
     app/app.cpp
     core/bitmap.cpp
+    core/bc_codec.cpp
     core/crypto.cpp
     core/data_struct.cpp
     core/data_type.cpp

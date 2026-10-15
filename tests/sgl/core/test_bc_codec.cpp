@@ -58,39 +58,39 @@ static void run_bc_encoder_test(BCEncoderBackend backend, BCEncoderTestFunc func
 
 TEST_CASE("bc_format_bytes_per_block")
 {
-    CHECK(bc_format_bytes_per_block(BCFormat::bc1_unorm) == 8);
-    CHECK(bc_format_bytes_per_block(BCFormat::bc1_unorm_srgb) == 8);
-    CHECK(bc_format_bytes_per_block(BCFormat::bc4_unorm) == 8);
-    CHECK(bc_format_bytes_per_block(BCFormat::bc4_snorm) == 8);
+    CHECK(bc_format_bytes_per_block(Format::bc1_unorm) == 8);
+    CHECK(bc_format_bytes_per_block(Format::bc1_unorm_srgb) == 8);
+    CHECK(bc_format_bytes_per_block(Format::bc4_unorm) == 8);
+    CHECK(bc_format_bytes_per_block(Format::bc4_snorm) == 8);
 
-    CHECK(bc_format_bytes_per_block(BCFormat::bc2_unorm) == 16);
-    CHECK(bc_format_bytes_per_block(BCFormat::bc3_unorm) == 16);
-    CHECK(bc_format_bytes_per_block(BCFormat::bc5_unorm) == 16);
-    CHECK(bc_format_bytes_per_block(BCFormat::bc6h_ufloat) == 16);
-    CHECK(bc_format_bytes_per_block(BCFormat::bc7_unorm) == 16);
-    CHECK(bc_format_bytes_per_block(static_cast<BCFormat>(0xffffffffu)) == 0);
+    CHECK(bc_format_bytes_per_block(Format::bc2_unorm) == 16);
+    CHECK(bc_format_bytes_per_block(Format::bc3_unorm) == 16);
+    CHECK(bc_format_bytes_per_block(Format::bc5_unorm) == 16);
+    CHECK(bc_format_bytes_per_block(Format::bc6h_ufloat) == 16);
+    CHECK(bc_format_bytes_per_block(Format::bc7_unorm) == 16);
+    CHECK(bc_format_bytes_per_block(static_cast<Format>(0xffffffffu)) == 0);
 }
 
 TEST_CASE("bc_compressed_size")
 {
     // 4x4 -> 1 block
-    CHECK(bc_compressed_size(4, 4, BCFormat::bc1_unorm) == 8);
-    CHECK(bc_compressed_size(4, 4, BCFormat::bc7_unorm) == 16);
+    CHECK(bc_compressed_size(4, 4, Format::bc1_unorm) == 8);
+    CHECK(bc_compressed_size(4, 4, Format::bc7_unorm) == 16);
 
     // 8x8 -> 4 blocks
-    CHECK(bc_compressed_size(8, 8, BCFormat::bc1_unorm) == 4 * 8);
+    CHECK(bc_compressed_size(8, 8, Format::bc1_unorm) == 4 * 8);
 
     // Non-multiple-of-4: 5x5 -> ceil(5/4)^2 = 2*2 = 4 blocks
-    CHECK(bc_compressed_size(5, 5, BCFormat::bc1_unorm) == 4 * 8);
+    CHECK(bc_compressed_size(5, 5, Format::bc1_unorm) == 4 * 8);
 
     // 13x7 -> ceil(13/4)*ceil(7/4) = 4*2 = 8 blocks
-    CHECK(bc_compressed_size(13, 7, BCFormat::bc3_unorm) == 8 * 16);
+    CHECK(bc_compressed_size(13, 7, Format::bc3_unorm) == 8 * 16);
 
     // 1x1 -> 1 block
-    CHECK(bc_compressed_size(1, 1, BCFormat::bc7_unorm) == 16);
+    CHECK(bc_compressed_size(1, 1, Format::bc7_unorm) == 16);
 
     // 256x256 -> 64*64 = 4096 blocks
-    CHECK(bc_compressed_size(256, 256, BCFormat::bc1_unorm) == 4096 * 8);
+    CHECK(bc_compressed_size(256, 256, Format::bc1_unorm) == 4096 * 8);
 }
 
 TEST_CASE("bc_mip_count")
@@ -102,41 +102,6 @@ TEST_CASE("bc_mip_count")
     CHECK(bc_mip_count(256, 128) == 9);
     CHECK(bc_mip_count(1, 64) == 7);
     CHECK(bc_mip_count(0, 0) == 0);
-}
-
-//
-// 2. BCFormat  Format conversion
-//
-
-TEST_CASE("BCFormat_Format_conversion")
-{
-    BCFormat all_bc[] = {
-        BCFormat::bc1_unorm,
-        BCFormat::bc1_unorm_srgb,
-        BCFormat::bc2_unorm,
-        BCFormat::bc2_unorm_srgb,
-        BCFormat::bc3_unorm,
-        BCFormat::bc3_unorm_srgb,
-        BCFormat::bc4_unorm,
-        BCFormat::bc4_snorm,
-        BCFormat::bc5_unorm,
-        BCFormat::bc5_snorm,
-        BCFormat::bc6h_ufloat,
-        BCFormat::bc6h_sfloat,
-        BCFormat::bc7_unorm,
-        BCFormat::bc7_unorm_srgb,
-    };
-
-    for (BCFormat bcf : all_bc) {
-        Format f = bc_format_to_format(bcf);
-        CHECK(f != Format::undefined);
-        auto rt = format_to_bc_format(f);
-        REQUIRE(rt.has_value());
-        CHECK(rt.value() == bcf);
-    }
-
-    // Non-BC format -> nullopt
-    CHECK(!format_to_bc_format(Format::rgba8_unorm).has_value());
 }
 
 //
@@ -206,18 +171,18 @@ static double compute_interleaved_psnr(
     return compute_psnr(reference_subset.data(), decoded, w, h, decoded_channels);
 }
 
-static std::vector<uint8_t> decode_unorm(const BCCompressedMip& mip, BCFormat format, uint32_t channels)
+static std::vector<uint8_t> decode_unorm(const BCCompressedMip& mip, Format format, uint32_t channels)
 {
-    std::vector<uint8_t> decoded(static_cast<size_t>(mip.width) * mip.height * channels);
+    std::vector<uint8_t> decoded(static_cast<size_t>(mip.width()) * mip.height() * channels);
     BCMutableImage dst{
         decoded.data(),
-        mip.width,
-        mip.height,
-        mip.width * channels,
+        mip.width(),
+        mip.height(),
+        mip.width() * channels,
         channels,
         BCComponentType::uint8,
     };
-    decode_bc(mip.data.data(), mip.data.size(), format, mip.width, mip.height, dst);
+    decode_bc(mip.data().data(), mip.data().size(), format, mip.width(), mip.height(), dst);
     return decoded;
 }
 
@@ -243,28 +208,28 @@ BC_ENCODER_TEST_CASE("roundtrip_4x4")
     BCImage src = make_rgba_image(pixels, 4, 4);
 
     struct FormatInfo {
-        BCFormat format;
+        Format format;
         uint32_t decoded_channels;
         size_t compressed_size;
         double min_psnr;
     };
     const FormatInfo formats[] = {
-        {BCFormat::bc1_unorm, 4, 8, 13.0},
-        {BCFormat::bc2_unorm, 4, 16, 13.0},
-        {BCFormat::bc3_unorm, 4, 16, 13.0},
-        {BCFormat::bc4_unorm, 1, 8, 20.0},
-        {BCFormat::bc5_unorm, 2, 16, 20.0},
-        {BCFormat::bc7_unorm, 4, 16, 20.0},
+        {Format::bc1_unorm, 4, 8, 13.0},
+        {Format::bc2_unorm, 4, 16, 13.0},
+        {Format::bc3_unorm, 4, 16, 13.0},
+        {Format::bc4_unorm, 1, 8, 20.0},
+        {Format::bc5_unorm, 2, 16, 20.0},
+        {Format::bc7_unorm, 4, 16, 20.0},
     };
 
     for (const FormatInfo& info : formats) {
         CAPTURE(static_cast<int>(info.format));
         BCCompressedImage compressed = encoder.encode(src, info.format);
-        REQUIRE_EQ(compressed.mip_levels.size(), 1);
-        const BCCompressedMip& mip = compressed.mip_levels[0];
-        CHECK_EQ(mip.width, 4);
-        CHECK_EQ(mip.height, 4);
-        CHECK_EQ(mip.data.size(), info.compressed_size);
+        REQUIRE_EQ(compressed.mip_levels().size(), 1);
+        const BCCompressedMip& mip = compressed.mip_levels()[0];
+        CHECK_EQ(mip.width(), 4);
+        CHECK_EQ(mip.height(), 4);
+        CHECK_EQ(mip.data().size(), info.compressed_size);
 
         std::vector<uint8_t> decoded = decode_unorm(mip, info.format, info.decoded_channels);
         CHECK(compute_interleaved_psnr(pixels.data(), 4, decoded.data(), info.decoded_channels, 4, 4) >= info.min_psnr);
@@ -285,32 +250,39 @@ BC_ENCODER_TEST_CASE("roundtrip_64x64")
     BCImage src = make_rgba_image(pixels, W, H);
 
     struct FormatInfo {
-        BCFormat format;
+        Format format;
         uint32_t decoded_channels;
         double min_psnr;
     };
 
     FormatInfo formats[] = {
-        {BCFormat::bc1_unorm, 4, 20.0},
-        {BCFormat::bc2_unorm, 4, 20.0},
-        {BCFormat::bc3_unorm, 4, 20.0},
-        {BCFormat::bc4_unorm, 1, 20.0},
-        {BCFormat::bc5_unorm, 2, 20.0},
-        {BCFormat::bc7_unorm, 4, 25.0},
+        {Format::bc1_unorm, 4, 20.0},
+        {Format::bc2_unorm, 4, 20.0},
+        {Format::bc3_unorm, 4, 20.0},
+        {Format::bc4_unorm, 1, 20.0},
+        {Format::bc5_unorm, 2, 20.0},
+        {Format::bc7_unorm, 4, 25.0},
     };
 
     for (auto& fi : formats) {
         CAPTURE(static_cast<int>(fi.format));
 
         auto compressed = encoder.encode(src, fi.format);
-        REQUIRE(compressed.mip_levels.size() == 1);
-        CHECK(compressed.mip_levels[0].width == W);
-        CHECK(compressed.mip_levels[0].height == H);
+        REQUIRE(compressed.mip_levels().size() == 1);
+        CHECK(compressed.mip_levels()[0].width() == W);
+        CHECK(compressed.mip_levels()[0].height() == H);
 
         uint32_t ch = fi.decoded_channels;
         std::vector<uint8_t> decoded(W * H * ch, 0);
         BCMutableImage dst{decoded.data(), W, H, W * ch, ch, BCComponentType::uint8};
-        decode_bc(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(), fi.format, W, H, dst);
+        decode_bc(
+            compressed.mip_levels()[0].data().data(),
+            compressed.mip_levels()[0].data().size(),
+            fi.format,
+            W,
+            H,
+            dst
+        );
 
         // Build per-channel reference from the source for PSNR.
         std::vector<uint8_t> ref_data(W * H * ch);
@@ -333,19 +305,19 @@ BC_ENCODER_TEST_CASE("non_multiple_of_4")
     auto pixels = make_gradient_rgba(13, 7);
     BCImage src = make_rgba_image(pixels, 13, 7);
 
-    auto compressed = encoder.encode(src, BCFormat::bc1_unorm);
-    REQUIRE(compressed.mip_levels.size() == 1);
-    CHECK(compressed.mip_levels[0].width == 13);
-    CHECK(compressed.mip_levels[0].height == 7);
+    auto compressed = encoder.encode(src, Format::bc1_unorm);
+    REQUIRE(compressed.mip_levels().size() == 1);
+    CHECK(compressed.mip_levels()[0].width() == 13);
+    CHECK(compressed.mip_levels()[0].height() == 7);
     // 4*2 = 8 blocks * 8 bytes = 64 bytes
-    CHECK(compressed.mip_levels[0].data.size() == 64);
+    CHECK(compressed.mip_levels()[0].data().size() == 64);
 
     std::vector<uint8_t> decoded(13 * 7 * 4, 0);
     BCMutableImage dst{decoded.data(), 13, 7, 13 * 4, 4, BCComponentType::uint8};
     decode_bc(
-        compressed.mip_levels[0].data.data(),
-        compressed.mip_levels[0].data.size(),
-        BCFormat::bc1_unorm,
+        compressed.mip_levels()[0].data().data(),
+        compressed.mip_levels()[0].data().size(),
+        Format::bc1_unorm,
         13,
         7,
         dst
@@ -369,16 +341,16 @@ BC_ENCODER_TEST_CASE("small_images")
         auto pixels = make_gradient_rgba(s, s);
         BCImage src = make_rgba_image(pixels, s, s);
 
-        auto compressed = encoder.encode(src, BCFormat::bc7_unorm);
-        REQUIRE(compressed.mip_levels.size() == 1);
-        CHECK(compressed.mip_levels[0].data.size() == 16); // one block
+        auto compressed = encoder.encode(src, Format::bc7_unorm);
+        REQUIRE(compressed.mip_levels().size() == 1);
+        CHECK(compressed.mip_levels()[0].data().size() == 16); // one block
 
         std::vector<uint8_t> decoded(s * s * 4, 0);
         BCMutableImage dst{decoded.data(), s, s, s * 4, 4, BCComponentType::uint8};
         decode_bc(
-            compressed.mip_levels[0].data.data(),
-            compressed.mip_levels[0].data.size(),
-            BCFormat::bc7_unorm,
+            compressed.mip_levels()[0].data().data(),
+            compressed.mip_levels()[0].data().size(),
+            Format::bc7_unorm,
             s,
             s,
             dst
@@ -403,17 +375,19 @@ BC_ENCODER_TEST_CASE("encode_with_mipmaps")
     BCEncodeOptions opts;
     opts.generate_mipmaps = true;
 
-    auto compressed = encoder.encode(src, BCFormat::bc1_unorm, opts);
+    auto compressed = encoder.encode(src, Format::bc1_unorm, opts);
 
     // bc_mip_count(64,64) = 7 levels (64, 32, 16, 8, 4, 2, 1)
-    REQUIRE(compressed.mip_levels.size() == 7);
+    REQUIRE(compressed.mip_levels().size() == 7);
 
     // Verify per-level dimensions.
     uint32_t expected_w = W, expected_h = H;
-    for (size_t i = 0; i < compressed.mip_levels.size(); ++i) {
-        CHECK(compressed.mip_levels[i].width == expected_w);
-        CHECK(compressed.mip_levels[i].height == expected_h);
-        CHECK(compressed.mip_levels[i].data.size() == bc_compressed_size(expected_w, expected_h, BCFormat::bc1_unorm));
+    for (size_t i = 0; i < compressed.mip_levels().size(); ++i) {
+        CHECK(compressed.mip_levels()[i].width() == expected_w);
+        CHECK(compressed.mip_levels()[i].height() == expected_h);
+        CHECK(
+            compressed.mip_levels()[i].data().size() == bc_compressed_size(expected_w, expected_h, Format::bc1_unorm)
+        );
         expected_w = std::max(1u, expected_w / 2);
         expected_h = std::max(1u, expected_h / 2);
     }
@@ -437,16 +411,16 @@ TEST_CASE("quality_levels")
     BCEncodeOptions opts_high;
     opts_high.quality = BCEncodeQuality::highest;
 
-    auto fast = encoder.encode(src, BCFormat::bc1_unorm, opts_fast);
-    auto high = encoder.encode(src, BCFormat::bc1_unorm, opts_high);
+    auto fast = encoder.encode(src, Format::bc1_unorm, opts_fast);
+    auto high = encoder.encode(src, Format::bc1_unorm, opts_high);
 
-    REQUIRE(fast.mip_levels.size() == 1);
-    REQUIRE(high.mip_levels.size() == 1);
-    CHECK(fast.mip_levels[0].data.size() == high.mip_levels[0].data.size());
-    CHECK(fast.mip_levels[0].data != high.mip_levels[0].data);
+    REQUIRE(fast.mip_levels().size() == 1);
+    REQUIRE(high.mip_levels().size() == 1);
+    CHECK(fast.mip_levels()[0].data().size() == high.mip_levels()[0].data().size());
+    CHECK(fast.mip_levels()[0].data() != high.mip_levels()[0].data());
 
-    std::vector<uint8_t> fast_decoded = decode_unorm(fast.mip_levels[0], BCFormat::bc1_unorm, 4);
-    std::vector<uint8_t> high_decoded = decode_unorm(high.mip_levels[0], BCFormat::bc1_unorm, 4);
+    std::vector<uint8_t> fast_decoded = decode_unorm(fast.mip_levels()[0], Format::bc1_unorm, 4);
+    std::vector<uint8_t> high_decoded = decode_unorm(high.mip_levels()[0], Format::bc1_unorm, 4);
     double fast_psnr = compute_interleaved_psnr(pixels.data(), 4, fast_decoded.data(), 4, W, H);
     double high_psnr = compute_interleaved_psnr(pixels.data(), 4, high_decoded.data(), 4, W, H);
     CHECK(high_psnr >= fast_psnr);
@@ -477,11 +451,11 @@ TEST_CASE("channel_weights_bc7")
     BCEncodeOptions red_options;
     red_options.channel_weights[0] = 64;
 
-    BCCompressedImage uniform = encoder.encode(src, BCFormat::bc7_unorm, uniform_options);
-    BCCompressedImage red_weighted = encoder.encode(src, BCFormat::bc7_unorm, red_options);
-    REQUIRE_EQ(uniform.mip_levels.size(), 1);
-    REQUIRE_EQ(red_weighted.mip_levels.size(), 1);
-    CHECK(uniform.mip_levels[0].data != red_weighted.mip_levels[0].data);
+    BCCompressedImage uniform = encoder.encode(src, Format::bc7_unorm, uniform_options);
+    BCCompressedImage red_weighted = encoder.encode(src, Format::bc7_unorm, red_options);
+    REQUIRE_EQ(uniform.mip_levels().size(), 1);
+    REQUIRE_EQ(red_weighted.mip_levels().size(), 1);
+    CHECK(uniform.mip_levels()[0].data() != red_weighted.mip_levels()[0].data());
 }
 
 //
@@ -503,14 +477,14 @@ TEST_CASE("has_alpha_hint_bc7")
     BCEncodeOptions opaque_options;
     opaque_options.has_alpha = false;
 
-    BCCompressedImage alpha = encoder.encode(src, BCFormat::bc7_unorm, alpha_options);
-    BCCompressedImage opaque = encoder.encode(src, BCFormat::bc7_unorm, opaque_options);
-    REQUIRE_EQ(alpha.mip_levels.size(), 1);
-    REQUIRE_EQ(opaque.mip_levels.size(), 1);
-    CHECK(alpha.mip_levels[0].data != opaque.mip_levels[0].data);
+    BCCompressedImage alpha = encoder.encode(src, Format::bc7_unorm, alpha_options);
+    BCCompressedImage opaque = encoder.encode(src, Format::bc7_unorm, opaque_options);
+    REQUIRE_EQ(alpha.mip_levels().size(), 1);
+    REQUIRE_EQ(opaque.mip_levels().size(), 1);
+    CHECK(alpha.mip_levels()[0].data() != opaque.mip_levels()[0].data());
 
-    std::vector<uint8_t> alpha_decoded = decode_unorm(alpha.mip_levels[0], BCFormat::bc7_unorm, 4);
-    std::vector<uint8_t> opaque_decoded = decode_unorm(opaque.mip_levels[0], BCFormat::bc7_unorm, 4);
+    std::vector<uint8_t> alpha_decoded = decode_unorm(alpha.mip_levels()[0], Format::bc7_unorm, 4);
+    std::vector<uint8_t> opaque_decoded = decode_unorm(opaque.mip_levels()[0], Format::bc7_unorm, 4);
     CHECK(compute_interleaved_psnr(pixels.data(), 4, alpha_decoded.data(), 4, W, H) >= 20.0);
     CHECK(has_near_opaque_alpha(opaque_decoded, 4));
 }
@@ -555,26 +529,26 @@ TEST_CASE("backend_selection")
 TEST_CASE("can_encode")
 {
     BCEncoder software_encoder(BCEncoderBackend::software);
-    const BCFormat invalid_format = static_cast<BCFormat>(0xffffffffu);
+    const Format invalid_format = static_cast<Format>(0xffffffffu);
 
     // SW-encodable formats.
-    CHECK(software_encoder.can_encode(BCFormat::bc1_unorm));
-    CHECK(software_encoder.can_encode(BCFormat::bc3_unorm));
-    CHECK(software_encoder.can_encode(BCFormat::bc4_unorm));
-    CHECK(software_encoder.can_encode(BCFormat::bc5_unorm));
-    CHECK(software_encoder.can_encode(BCFormat::bc7_unorm));
-    CHECK_FALSE(software_encoder.can_encode(BCFormat::bc4_snorm));
-    CHECK_FALSE(software_encoder.can_encode(BCFormat::bc5_snorm));
-    CHECK_FALSE(software_encoder.can_encode(BCFormat::bc6h_ufloat));
-    CHECK_FALSE(software_encoder.can_encode(BCFormat::bc6h_sfloat));
+    CHECK(software_encoder.can_encode(Format::bc1_unorm));
+    CHECK(software_encoder.can_encode(Format::bc3_unorm));
+    CHECK(software_encoder.can_encode(Format::bc4_unorm));
+    CHECK(software_encoder.can_encode(Format::bc5_unorm));
+    CHECK(software_encoder.can_encode(Format::bc7_unorm));
+    CHECK_FALSE(software_encoder.can_encode(Format::bc4_snorm));
+    CHECK_FALSE(software_encoder.can_encode(Format::bc5_snorm));
+    CHECK_FALSE(software_encoder.can_encode(Format::bc6h_ufloat));
+    CHECK_FALSE(software_encoder.can_encode(Format::bc6h_sfloat));
     CHECK_FALSE(software_encoder.can_encode(invalid_format));
 
     if (BCEncoder::is_backend_available(BCEncoderBackend::nvtt_cpu)) {
         BCEncoder nvtt_encoder(BCEncoderBackend::nvtt_cpu);
-        CHECK_FALSE(nvtt_encoder.can_encode(BCFormat::bc4_snorm));
-        CHECK_FALSE(nvtt_encoder.can_encode(BCFormat::bc5_snorm));
-        CHECK(nvtt_encoder.can_encode(BCFormat::bc6h_ufloat));
-        CHECK(nvtt_encoder.can_encode(BCFormat::bc6h_sfloat));
+        CHECK_FALSE(nvtt_encoder.can_encode(Format::bc4_snorm));
+        CHECK_FALSE(nvtt_encoder.can_encode(Format::bc5_snorm));
+        CHECK(nvtt_encoder.can_encode(Format::bc6h_ufloat));
+        CHECK(nvtt_encoder.can_encode(Format::bc6h_sfloat));
         CHECK_FALSE(nvtt_encoder.can_encode(invalid_format));
 
         auto pixels = make_gradient_rgba(4, 4);
@@ -606,7 +580,7 @@ TEST_CASE("decode_snorm")
 
     std::vector<int8_t> decoded_int(4 * 4);
     BCMutableImage int_dst{decoded_int.data(), 4, 4, 4, 1, BCComponentType::int8};
-    decode_bc(block, sizeof(block), BCFormat::bc4_snorm, 4, 4, int_dst);
+    decode_bc(block, sizeof(block), Format::bc4_snorm, 4, 4, int_dst);
     for (int8_t value : decoded_int)
         CHECK_EQ(value, -127);
 
@@ -619,7 +593,7 @@ TEST_CASE("decode_snorm")
         1,
         BCComponentType::float32,
     };
-    decode_bc(block, sizeof(block), BCFormat::bc4_snorm, 4, 4, float_dst);
+    decode_bc(block, sizeof(block), Format::bc4_snorm, 4, 4, float_dst);
     for (float value : decoded_float)
         CHECK(value == doctest::Approx(-1.0f));
 }
@@ -630,10 +604,10 @@ TEST_CASE("decode_validates_destination_layout")
     std::vector<uint8_t> decoded(4 * 4 * 4);
 
     BCMutableImage bad_channels{decoded.data(), 4, 4, 16, 0, BCComponentType::uint8};
-    CHECK_THROWS(decode_bc(block, sizeof(block), BCFormat::bc1_unorm, 4, 4, bad_channels));
+    CHECK_THROWS(decode_bc(block, sizeof(block), Format::bc1_unorm, 4, 4, bad_channels));
 
     BCMutableImage bad_pitch{decoded.data(), 4, 4, 15, 4, BCComponentType::uint8};
-    CHECK_THROWS(decode_bc(block, sizeof(block), BCFormat::bc1_unorm, 4, 4, bad_pitch));
+    CHECK_THROWS(decode_bc(block, sizeof(block), Format::bc1_unorm, 4, 4, bad_pitch));
 
     BCMutableImage bad_component_type{
         decoded.data(),
@@ -643,10 +617,10 @@ TEST_CASE("decode_validates_destination_layout")
         4,
         static_cast<BCComponentType>(0xffffffffu),
     };
-    CHECK_THROWS(decode_bc(block, sizeof(block), BCFormat::bc1_unorm, 4, 4, bad_component_type));
+    CHECK_THROWS(decode_bc(block, sizeof(block), Format::bc1_unorm, 4, 4, bad_component_type));
 
     BCMutableImage valid_dst{decoded.data(), 4, 4, 16, 4, BCComponentType::uint8};
-    CHECK_THROWS(decode_bc(block, sizeof(block), static_cast<BCFormat>(0xffffffffu), 4, 4, valid_dst));
+    CHECK_THROWS(decode_bc(block, sizeof(block), static_cast<Format>(0xffffffffu), 4, 4, valid_dst));
 }
 
 TEST_CASE("unaligned_component_access")
@@ -688,11 +662,11 @@ TEST_CASE("unaligned_component_access")
         .component_type = BCComponentType::float32,
     };
 
-    BCCompressedImage tight_encoded = encoder.encode(tight_src, BCFormat::bc4_unorm);
-    BCCompressedImage unaligned_encoded = encoder.encode(unaligned_src, BCFormat::bc4_unorm);
-    REQUIRE_EQ(tight_encoded.mip_levels.size(), 1);
-    REQUIRE_EQ(unaligned_encoded.mip_levels.size(), 1);
-    CHECK(tight_encoded.mip_levels[0].data == unaligned_encoded.mip_levels[0].data);
+    BCCompressedImage tight_encoded = encoder.encode(tight_src, Format::bc4_unorm);
+    BCCompressedImage unaligned_encoded = encoder.encode(unaligned_src, Format::bc4_unorm);
+    REQUIRE_EQ(tight_encoded.mip_levels().size(), 1);
+    REQUIRE_EQ(unaligned_encoded.mip_levels().size(), 1);
+    CHECK(tight_encoded.mip_levels()[0].data() == unaligned_encoded.mip_levels()[0].data());
 
     constexpr uint32_t TIGHT_DST_ROW_PITCH = W * sizeof(float);
     constexpr uint32_t UNALIGNED_DST_ROW_PITCH = TIGHT_DST_ROW_PITCH + 1;
@@ -715,9 +689,9 @@ TEST_CASE("unaligned_component_access")
         .component_type = BCComponentType::float32,
     };
 
-    const BCCompressedMip& mip = tight_encoded.mip_levels[0];
-    decode_bc(mip.data.data(), mip.data.size(), BCFormat::bc4_unorm, W, H, tight_dst);
-    decode_bc(mip.data.data(), mip.data.size(), BCFormat::bc4_unorm, W, H, unaligned_dst);
+    const BCCompressedMip& mip = tight_encoded.mip_levels()[0];
+    decode_bc(mip.data().data(), mip.data().size(), Format::bc4_unorm, W, H, tight_dst);
+    decode_bc(mip.data().data(), mip.data().size(), Format::bc4_unorm, W, H, unaligned_dst);
     for (uint32_t y = 0; y < H; ++y) {
         for (uint32_t x = 0; x < W; ++x) {
             float value;
@@ -756,11 +730,11 @@ TEST_CASE("software_mipmaps_honor_row_pitch")
     BCEncodeOptions options;
     options.generate_mipmaps = true;
 
-    BCCompressedImage tight_result = encoder.encode(tight, BCFormat::bc7_unorm, options);
-    BCCompressedImage padded_result = encoder.encode(padded, BCFormat::bc7_unorm, options);
-    REQUIRE_EQ(tight_result.mip_levels.size(), padded_result.mip_levels.size());
-    for (size_t i = 0; i < tight_result.mip_levels.size(); ++i)
-        CHECK(tight_result.mip_levels[i].data == padded_result.mip_levels[i].data);
+    BCCompressedImage tight_result = encoder.encode(tight, Format::bc7_unorm, options);
+    BCCompressedImage padded_result = encoder.encode(padded, Format::bc7_unorm, options);
+    REQUIRE_EQ(tight_result.mip_levels().size(), padded_result.mip_levels().size());
+    for (size_t i = 0; i < tight_result.mip_levels().size(); ++i)
+        CHECK(tight_result.mip_levels()[i].data() == padded_result.mip_levels()[i].data());
 }
 
 TEST_CASE("software_mipmaps_preserve_constant_color")
@@ -775,12 +749,12 @@ TEST_CASE("software_mipmaps_preserve_constant_color")
 
     BCEncodeOptions options;
     options.generate_mipmaps = true;
-    for (BCFormat format : {BCFormat::bc7_unorm, BCFormat::bc7_unorm_srgb}) {
+    for (Format format : {Format::bc7_unorm, Format::bc7_unorm_srgb}) {
         BCCompressedImage compressed = encoder.encode(src, format, options);
-        for (const BCCompressedMip& mip : compressed.mip_levels) {
-            std::vector<uint8_t> decoded(mip.width * mip.height * 4);
-            BCMutableImage dst{decoded.data(), mip.width, mip.height, mip.width * 4, 4, BCComponentType::uint8};
-            decode_bc(mip.data.data(), mip.data.size(), format, mip.width, mip.height, dst);
+        for (const BCCompressedMip& mip : compressed.mip_levels()) {
+            std::vector<uint8_t> decoded(mip.width() * mip.height() * 4);
+            BCMutableImage dst{decoded.data(), mip.width(), mip.height(), mip.width() * 4, 4, BCComponentType::uint8};
+            decode_bc(mip.data().data(), mip.data().size(), format, mip.width(), mip.height(), dst);
             for (size_t i = 0; i < decoded.size(); i += 4) {
                 CHECK(decoded[i] >= 120);
                 CHECK(decoded[i] <= 136);
@@ -799,8 +773,8 @@ TEST_CASE("bc6h_encode_error")
     auto pixels = make_gradient_rgba(4, 4);
     BCImage src = make_rgba_image(pixels, 4, 4);
 
-    CHECK_THROWS(encoder.encode(src, BCFormat::bc6h_ufloat));
-    CHECK_THROWS(encoder.encode(src, BCFormat::bc6h_sfloat));
+    CHECK_THROWS(encoder.encode(src, Format::bc6h_ufloat));
+    CHECK_THROWS(encoder.encode(src, Format::bc6h_sfloat));
 }
 
 //
@@ -815,14 +789,14 @@ BC_ENCODER_TEST_CASE("decode_output_format")
     {
         auto pixels = make_gradient_rgba(4, 4);
         BCImage src = make_rgba_image(pixels, 4, 4);
-        auto compressed = encoder.encode(src, BCFormat::bc4_unorm);
+        auto compressed = encoder.encode(src, Format::bc4_unorm);
 
         std::vector<uint8_t> decoded(4 * 4, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4, 1, BCComponentType::uint8};
         decode_bc(
-            compressed.mip_levels[0].data.data(),
-            compressed.mip_levels[0].data.size(),
-            BCFormat::bc4_unorm,
+            compressed.mip_levels()[0].data().data(),
+            compressed.mip_levels()[0].data().size(),
+            Format::bc4_unorm,
             4,
             4,
             dst
@@ -835,14 +809,14 @@ BC_ENCODER_TEST_CASE("decode_output_format")
     {
         auto pixels = make_gradient_rgba(4, 4);
         BCImage src = make_rgba_image(pixels, 4, 4);
-        auto compressed = encoder.encode(src, BCFormat::bc5_unorm);
+        auto compressed = encoder.encode(src, Format::bc5_unorm);
 
         std::vector<uint8_t> decoded(4 * 4 * 2, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4 * 2, 2, BCComponentType::uint8};
         decode_bc(
-            compressed.mip_levels[0].data.data(),
-            compressed.mip_levels[0].data.size(),
-            BCFormat::bc5_unorm,
+            compressed.mip_levels()[0].data().data(),
+            compressed.mip_levels()[0].data().size(),
+            Format::bc5_unorm,
             4,
             4,
             dst
@@ -855,14 +829,14 @@ BC_ENCODER_TEST_CASE("decode_output_format")
     {
         auto pixels = make_gradient_rgba(4, 4);
         BCImage src = make_rgba_image(pixels, 4, 4);
-        auto compressed = encoder.encode(src, BCFormat::bc7_unorm);
+        auto compressed = encoder.encode(src, Format::bc7_unorm);
 
         std::vector<uint8_t> decoded(4 * 4 * 4, 0);
         BCMutableImage dst{decoded.data(), 4, 4, 4 * 4, 4, BCComponentType::uint8};
         decode_bc(
-            compressed.mip_levels[0].data.data(),
-            compressed.mip_levels[0].data.size(),
-            BCFormat::bc7_unorm,
+            compressed.mip_levels()[0].data().data(),
+            compressed.mip_levels()[0].data().size(),
+            Format::bc7_unorm,
             4,
             4,
             dst
@@ -887,32 +861,39 @@ TEST_CASE("bc_codec_nvtt3_encode" * doctest::skip(!BCEncoder::is_backend_availab
     BCEncodeOptions opts;
 
     struct FormatInfo {
-        BCFormat format;
+        Format format;
         uint32_t decoded_channels;
         double min_psnr;
     };
 
     FormatInfo formats[] = {
-        {BCFormat::bc1_unorm, 4, 20.0},
-        {BCFormat::bc2_unorm, 4, 20.0},
-        {BCFormat::bc3_unorm, 4, 20.0},
-        {BCFormat::bc4_unorm, 1, 20.0},
-        {BCFormat::bc5_unorm, 2, 20.0},
-        {BCFormat::bc7_unorm, 4, 25.0},
+        {Format::bc1_unorm, 4, 20.0},
+        {Format::bc2_unorm, 4, 20.0},
+        {Format::bc3_unorm, 4, 20.0},
+        {Format::bc4_unorm, 1, 20.0},
+        {Format::bc5_unorm, 2, 20.0},
+        {Format::bc7_unorm, 4, 25.0},
     };
 
     for (auto& fi : formats) {
         CAPTURE(static_cast<int>(fi.format));
 
         auto compressed = encoder.encode(src, fi.format, opts);
-        REQUIRE(compressed.mip_levels.size() == 1);
-        CHECK(compressed.mip_levels[0].width == W);
-        CHECK(compressed.mip_levels[0].height == H);
+        REQUIRE(compressed.mip_levels().size() == 1);
+        CHECK(compressed.mip_levels()[0].width() == W);
+        CHECK(compressed.mip_levels()[0].height() == H);
 
         uint32_t ch = fi.decoded_channels;
         std::vector<uint8_t> decoded(W * H * ch, 0);
         BCMutableImage dst{decoded.data(), W, H, W * ch, ch, BCComponentType::uint8};
-        decode_bc(compressed.mip_levels[0].data.data(), compressed.mip_levels[0].data.size(), fi.format, W, H, dst);
+        decode_bc(
+            compressed.mip_levels()[0].data().data(),
+            compressed.mip_levels()[0].data().size(),
+            fi.format,
+            W,
+            H,
+            dst
+        );
 
         std::vector<uint8_t> ref_data(W * H * ch);
         for (uint32_t i = 0; i < W * H; ++i)
@@ -957,18 +938,18 @@ static std::vector<float> make_signed_hdr_float32_rgb(uint32_t w, uint32_t h)
     return pixels;
 }
 
-static std::vector<float> decode_bc6h(const BCCompressedMip& mip, BCFormat format)
+static std::vector<float> decode_bc6h(const BCCompressedMip& mip, Format format)
 {
-    std::vector<uint16_t> half_data(static_cast<size_t>(mip.width) * mip.height * 3);
+    std::vector<uint16_t> half_data(static_cast<size_t>(mip.width()) * mip.height() * 3);
     BCMutableImage dst{
         .data = half_data.data(),
-        .width = mip.width,
-        .height = mip.height,
-        .row_pitch = static_cast<uint32_t>(mip.width * 3 * sizeof(uint16_t)),
+        .width = mip.width(),
+        .height = mip.height(),
+        .row_pitch = static_cast<uint32_t>(mip.width() * 3 * sizeof(uint16_t)),
         .channel_count = 3,
         .component_type = BCComponentType::float16,
     };
-    decode_bc(mip.data.data(), mip.data.size(), format, mip.width, mip.height, dst);
+    decode_bc(mip.data().data(), mip.data().size(), format, mip.width(), mip.height(), dst);
 
     std::vector<float> result(half_data.size());
     std::transform(
@@ -1054,12 +1035,12 @@ TEST_CASE("bc_codec_nvtt3_bc6h" * doctest::skip(!BCEncoder::is_backend_available
 
     SUBCASE("bc6h_ufloat")
     {
-        auto compressed = encoder.encode(src, BCFormat::bc6h_ufloat, opts);
-        REQUIRE(compressed.mip_levels.size() == 1);
-        CHECK(compressed.mip_levels[0].width == W);
-        CHECK(compressed.mip_levels[0].height == H);
+        auto compressed = encoder.encode(src, Format::bc6h_ufloat, opts);
+        REQUIRE(compressed.mip_levels().size() == 1);
+        CHECK(compressed.mip_levels()[0].width() == W);
+        CHECK(compressed.mip_levels()[0].height() == H);
 
-        std::vector<float> decoded = decode_bc6h(compressed.mip_levels[0], BCFormat::bc6h_ufloat);
+        std::vector<float> decoded = decode_bc6h(compressed.mip_levels()[0], Format::bc6h_ufloat);
         check_hdr_decode_matches(decoded, pixels);
     }
 
@@ -1074,12 +1055,12 @@ TEST_CASE("bc_codec_nvtt3_bc6h" * doctest::skip(!BCEncoder::is_backend_available
             .channel_count = 3,
             .component_type = BCComponentType::float32,
         };
-        auto compressed = encoder.encode(signed_src, BCFormat::bc6h_sfloat, opts);
-        REQUIRE(compressed.mip_levels.size() == 1);
-        CHECK(compressed.mip_levels[0].width == W);
-        CHECK(compressed.mip_levels[0].height == H);
+        auto compressed = encoder.encode(signed_src, Format::bc6h_sfloat, opts);
+        REQUIRE(compressed.mip_levels().size() == 1);
+        CHECK(compressed.mip_levels()[0].width() == W);
+        CHECK(compressed.mip_levels()[0].height() == H);
 
-        std::vector<float> decoded = decode_bc6h(compressed.mip_levels[0], BCFormat::bc6h_sfloat);
+        std::vector<float> decoded = decode_bc6h(compressed.mip_levels()[0], Format::bc6h_sfloat);
         check_hdr_decode_matches(decoded, signed_pixels);
     }
 }
@@ -1097,23 +1078,23 @@ TEST_CASE("bc_codec_nvtt3_vs_sw" * doctest::skip(!BCEncoder::is_backend_availabl
     BCEncoder software_encoder(BCEncoderBackend::software);
     BCEncoder nvtt_encoder(BCEncoderBackend::nvtt_cpu);
 
-    BCFormat formats[] = {
-        BCFormat::bc1_unorm,
-        BCFormat::bc3_unorm,
-        BCFormat::bc7_unorm,
+    Format formats[] = {
+        Format::bc1_unorm,
+        Format::bc3_unorm,
+        Format::bc7_unorm,
     };
 
-    for (BCFormat fmt : formats) {
+    for (Format fmt : formats) {
         CAPTURE(static_cast<int>(fmt));
 
         auto sw_compressed = software_encoder.encode(src, fmt);
         auto nvtt_compressed = nvtt_encoder.encode(src, fmt);
 
-        REQUIRE(sw_compressed.mip_levels.size() == 1);
-        REQUIRE(nvtt_compressed.mip_levels.size() == 1);
+        REQUIRE(sw_compressed.mip_levels().size() == 1);
+        REQUIRE(nvtt_compressed.mip_levels().size() == 1);
 
         // Both should produce same-sized output.
-        CHECK(sw_compressed.mip_levels[0].data.size() == nvtt_compressed.mip_levels[0].data.size());
+        CHECK(sw_compressed.mip_levels()[0].data().size() == nvtt_compressed.mip_levels()[0].data().size());
 
         // Decode both and verify similar quality.
         std::vector<uint8_t> sw_decoded(W * H * 4, 0);
@@ -1121,10 +1102,17 @@ TEST_CASE("bc_codec_nvtt3_vs_sw" * doctest::skip(!BCEncoder::is_backend_availabl
         BCMutableImage sw_dst{sw_decoded.data(), W, H, W * 4, 4, BCComponentType::uint8};
         BCMutableImage nvtt_dst{nvtt_decoded.data(), W, H, W * 4, 4, BCComponentType::uint8};
 
-        decode_bc(sw_compressed.mip_levels[0].data.data(), sw_compressed.mip_levels[0].data.size(), fmt, W, H, sw_dst);
         decode_bc(
-            nvtt_compressed.mip_levels[0].data.data(),
-            nvtt_compressed.mip_levels[0].data.size(),
+            sw_compressed.mip_levels()[0].data().data(),
+            sw_compressed.mip_levels()[0].data().size(),
+            fmt,
+            W,
+            H,
+            sw_dst
+        );
+        decode_bc(
+            nvtt_compressed.mip_levels()[0].data().data(),
+            nvtt_compressed.mip_levels()[0].data().size(),
             fmt,
             W,
             H,
@@ -1165,21 +1153,21 @@ TEST_CASE("bc_codec_nvtt3_mipmaps" * doctest::skip(!BCEncoder::is_backend_availa
     BCEncodeOptions opts;
     opts.generate_mipmaps = true;
 
-    auto compressed = encoder.encode(src, BCFormat::bc6h_ufloat, opts);
+    auto compressed = encoder.encode(src, Format::bc6h_ufloat, opts);
 
     // bc_mip_count(64,64) = 7 levels (64, 32, 16, 8, 4, 2, 1)
-    REQUIRE(compressed.mip_levels.size() == 7);
+    REQUIRE(compressed.mip_levels().size() == 7);
 
     uint32_t expected_w = W, expected_h = H;
     std::vector<float> expected_pixels = pixels;
-    for (size_t i = 0; i < compressed.mip_levels.size(); ++i) {
-        CHECK(compressed.mip_levels[i].width == expected_w);
-        CHECK(compressed.mip_levels[i].height == expected_h);
+    for (size_t i = 0; i < compressed.mip_levels().size(); ++i) {
+        CHECK(compressed.mip_levels()[i].width() == expected_w);
+        CHECK(compressed.mip_levels()[i].height() == expected_h);
         CHECK(
-            compressed.mip_levels[i].data.size() == bc_compressed_size(expected_w, expected_h, BCFormat::bc6h_ufloat)
+            compressed.mip_levels()[i].data().size() == bc_compressed_size(expected_w, expected_h, Format::bc6h_ufloat)
         );
 
-        std::vector<float> decoded = decode_bc6h(compressed.mip_levels[i], BCFormat::bc6h_ufloat);
+        std::vector<float> decoded = decode_bc6h(compressed.mip_levels()[i], Format::bc6h_ufloat);
         check_hdr_decode_matches(decoded, expected_pixels);
 
         expected_pixels = downsample_box_rgb(expected_pixels, expected_w, expected_h);
@@ -1209,18 +1197,18 @@ TEST_CASE("bc_codec_nvtt3_gpu_mipmaps")
 
     BCEncodeOptions options;
     options.generate_mipmaps = true;
-    BCCompressedImage compressed = encoder.encode(src, BCFormat::bc6h_ufloat, options);
-    REQUIRE_EQ(compressed.mip_levels.size(), bc_mip_count(W, H));
+    BCCompressedImage compressed = encoder.encode(src, Format::bc6h_ufloat, options);
+    REQUIRE_EQ(compressed.mip_levels().size(), bc_mip_count(W, H));
 
     uint32_t expected_w = W;
     uint32_t expected_h = H;
     std::vector<float> expected_pixels = pixels;
-    for (const BCCompressedMip& mip : compressed.mip_levels) {
-        CHECK_EQ(mip.width, expected_w);
-        CHECK_EQ(mip.height, expected_h);
-        CHECK_EQ(mip.data.size(), bc_compressed_size(expected_w, expected_h, BCFormat::bc6h_ufloat));
+    for (const BCCompressedMip& mip : compressed.mip_levels()) {
+        CHECK_EQ(mip.width(), expected_w);
+        CHECK_EQ(mip.height(), expected_h);
+        CHECK_EQ(mip.data().size(), bc_compressed_size(expected_w, expected_h, Format::bc6h_ufloat));
 
-        std::vector<float> decoded = decode_bc6h(mip, BCFormat::bc6h_ufloat);
+        std::vector<float> decoded = decode_bc6h(mip, Format::bc6h_ufloat);
         check_hdr_decode_matches(decoded, expected_pixels);
 
         expected_pixels = downsample_box_rgb(expected_pixels, expected_w, expected_h);
@@ -1250,16 +1238,59 @@ BC_ENCODER_TEST_CASE("bc_codec_mipmap_filters")
         options.generate_mipmaps = true;
         options.mip_filter = filter;
 
-        BCCompressedImage compressed = encoder.encode(src, BCFormat::bc7_unorm_srgb, options);
-        REQUIRE_EQ(compressed.mip_levels.size(), bc_mip_count(W, H));
-        CHECK_EQ(compressed.mip_levels.back().width, 1);
-        CHECK_EQ(compressed.mip_levels.back().height, 1);
-        filtered_mips.push_back(compressed.mip_levels[1].data);
+        BCCompressedImage compressed = encoder.encode(src, Format::bc7_unorm_srgb, options);
+        REQUIRE_EQ(compressed.mip_levels().size(), bc_mip_count(W, H));
+        CHECK_EQ(compressed.mip_levels().back().width(), 1);
+        CHECK_EQ(compressed.mip_levels().back().height(), 1);
+        filtered_mips.push_back(compressed.mip_levels()[1].data());
     }
     REQUIRE_EQ(filtered_mips.size(), 3);
     CHECK(filtered_mips[0] != filtered_mips[1]);
     CHECK(filtered_mips[0] != filtered_mips[2]);
     CHECK(filtered_mips[1] != filtered_mips[2]);
+}
+
+BC_ENCODER_TEST_CASE("bitmap_encoding")
+{
+    BCEncoder encoder(backend);
+    CHECK_FALSE(encoder.can_encode(Format::rgba8_unorm));
+    ref<Bitmap> bitmap = make_ref<Bitmap>(Bitmap::PixelFormat::ya, Bitmap::ComponentType::float32, 5, 7);
+    auto* pixels = static_cast<float*>(bitmap->data());
+    for (size_t i = 0; i < bitmap->pixel_count(); ++i) {
+        pixels[i * 2] = 0.25f;
+        pixels[i * 2 + 1] = 0.75f;
+    }
+    BCEncodeOptions options;
+    options.generate_mipmaps = true;
+    auto image = encoder.encode(bitmap, Format::bc3_unorm, options);
+    CHECK_EQ(image.format(), Format::bc3_unorm);
+    CHECK_EQ(image.width(), 5);
+    CHECK_EQ(image.height(), 7);
+    CHECK_EQ(image.mip_count(), 3);
+    for (const auto& mip : image.mip_levels()) {
+        auto pixels_out = decode_unorm(mip, image.format(), 4);
+        for (size_t i = 0; i < pixels_out.size(); i += 4) {
+            CHECK(std::abs(int(pixels_out[i]) - 64) <= 8);
+            CHECK(std::abs(int(pixels_out[i + 1]) - 64) <= 8);
+            CHECK(std::abs(int(pixels_out[i + 2]) - 64) <= 8);
+            CHECK(std::abs(int(pixels_out[i + 3]) - 191) <= 8);
+        }
+    }
+    CHECK_THROWS(encoder.encode(bitmap, Format::rgba8_unorm));
+    CHECK_THROWS_WITH(
+        encoder.encode(nullptr, Format::bc7_unorm),
+        doctest::Contains("BCEncoder::encode: bitmap is null")
+    );
+
+    Bitmap color(Bitmap::PixelFormat::rgb, Bitmap::ComponentType::float32, 4, 4);
+    std::fill_n(static_cast<float*>(color.data()), 4 * 4 * 3, 0.5f);
+    color.set_srgb_gamma(true);
+    auto linear = encoder.encode(&color, Format::bc7_unorm);
+    auto decoded = decode_unorm(linear.mip_levels()[0], linear.format(), 4);
+    CHECK(std::abs(int(decoded[0]) - 55) <= 8);
+    auto reference = color.convert(Bitmap::PixelFormat::rgb, Bitmap::ComponentType::float32, false);
+    auto raw = encoder.encode(bc_image_from_bitmap(*reference), Format::bc7_unorm);
+    CHECK(linear.mip_levels()[0].data() == raw.mip_levels()[0].data());
 }
 
 TEST_SUITE_END();

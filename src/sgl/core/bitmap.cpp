@@ -2780,36 +2780,39 @@ void Bitmap::read_dds(Stream* stream)
 
     if (info.is_compressed) {
         // BC compressed format - decode mip level 0.
-        auto bc_format = format_to_bc_format(format);
-        SGL_CHECK(bc_format.has_value(), "Bitmap::read_dds: unsupported compressed format {}.", format);
+        SGL_CHECK(
+            bc_format_bytes_per_block(format) != 0,
+            "Bitmap::read_dds: unsupported compressed format {}.",
+            format
+        );
 
         // Determine output pixel format and component type from BC format.
         PixelFormat pixel_format;
         ComponentType component_type;
         uint32_t channel_count;
-        switch (*bc_format) {
-        case BCFormat::bc4_unorm:
+        switch (format) {
+        case Format::bc4_unorm:
             pixel_format = PixelFormat::r;
             component_type = ComponentType::uint8;
             channel_count = 1;
             break;
-        case BCFormat::bc4_snorm:
+        case Format::bc4_snorm:
             pixel_format = PixelFormat::r;
             component_type = ComponentType::int8;
             channel_count = 1;
             break;
-        case BCFormat::bc5_unorm:
+        case Format::bc5_unorm:
             pixel_format = PixelFormat::rg;
             component_type = ComponentType::uint8;
             channel_count = 2;
             break;
-        case BCFormat::bc5_snorm:
+        case Format::bc5_snorm:
             pixel_format = PixelFormat::rg;
             component_type = ComponentType::int8;
             channel_count = 2;
             break;
-        case BCFormat::bc6h_ufloat:
-        case BCFormat::bc6h_sfloat:
+        case Format::bc6h_ufloat:
+        case Format::bc6h_sfloat:
             pixel_format = PixelFormat::rgb;
             component_type = ComponentType::float16;
             channel_count = 3;
@@ -2846,7 +2849,7 @@ void Bitmap::read_dds(Stream* stream)
         uint32_t row_pitch, slice_pitch;
         dds.get_subresource_pitch(0, &row_pitch, &slice_pitch);
 
-        decode_bc(dds.get_subresource_data(0, 0), slice_pitch, *bc_format, m_width, m_height, dst);
+        decode_bc(dds.get_subresource_data(0, 0), slice_pitch, format, m_width, m_height, dst);
     } else {
         // Only formats with a homogeneous, tightly packed R/RG/RGB/RGBA layout can be represented directly.
         SGL_CHECK(

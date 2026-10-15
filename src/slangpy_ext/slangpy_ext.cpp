@@ -15,6 +15,7 @@
 SGL_PY_DECLARE(app_app);
 
 SGL_PY_DECLARE(core_bitmap);
+SGL_PY_DECLARE(core_bc_codec);
 SGL_PY_DECLARE(core_crypto);
 SGL_PY_DECLARE(core_data_struct);
 SGL_PY_DECLARE(core_data_type);
@@ -133,6 +134,7 @@ NB_MODULE(slangpy_ext, m_)
 
     SGL_PY_IMPORT(device_native_handle);
     SGL_PY_IMPORT(device_formats);
+    SGL_PY_IMPORT(core_bc_codec);
     SGL_PY_IMPORT(device_types);
     SGL_PY_IMPORT(device_device_child);
     SGL_PY_IMPORT(device_resource);
