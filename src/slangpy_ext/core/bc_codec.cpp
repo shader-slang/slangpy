@@ -57,6 +57,18 @@ SGL_PY_EXPORT(core_bc_codec)
         );
 
     nb::class_<BCCompressedImage>(m, "BCCompressedImage", D(BCCompressedImage))
+        .def(
+            nb::init<Format, std::vector<BCCompressedMip>>(),
+            "format"_a,
+            "mip_levels"_a,
+            D(BCCompressedImage, BCCompressedImage)
+        )
+        .def(
+            nb::init<const std::filesystem::path&>(),
+            "path"_a,
+            nb::call_guard<nb::gil_scoped_release>(),
+            D(BCCompressedImage, BCCompressedImage, 2)
+        )
         .def_prop_ro("format", &BCCompressedImage::format, D(BCCompressedImage, format))
         .def_prop_ro("width", &BCCompressedImage::width, D(BCCompressedImage, width))
         .def_prop_ro("height", &BCCompressedImage::height, D(BCCompressedImage, height))
@@ -80,6 +92,13 @@ SGL_PY_EXPORT(core_bc_codec)
             "path"_a,
             nb::call_guard<nb::gil_scoped_release>(),
             D(BCCompressedImage, write_dds)
+        )
+        .def(
+            "decode",
+            &BCCompressedImage::decode,
+            "mip_level"_a = 0,
+            nb::call_guard<nb::gil_scoped_release>(),
+            D(BCCompressedImage, decode)
         );
 
     nb::class_<BCEncoder>(m, "BCEncoder", D(BCEncoder))

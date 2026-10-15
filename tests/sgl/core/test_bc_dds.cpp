@@ -12,6 +12,29 @@ using namespace sgl;
 
 TEST_SUITE_BEGIN("bc_dds");
 
+TEST_CASE("bc_compressed_image_constructors")
+{
+    const auto path = platform::project_directory() / "data" / "test_images" / "dds" / "bc7-unorm.dds";
+    BCCompressedImage original(path);
+    BCCompressedImage reloaded = [&]()
+    {
+        MemoryStream stream;
+        original.write_dds(&stream);
+        stream.seek(0);
+        return BCCompressedImage(&stream);
+    }();
+
+    CHECK_EQ(reloaded.format(), original.format());
+    REQUIRE_EQ(reloaded.mip_count(), original.mip_count());
+    for (size_t i = 0; i < original.mip_count(); ++i) {
+        const auto& expected = original.mip_levels()[i];
+        const auto& actual = reloaded.mip_levels()[i];
+        CHECK_EQ(actual.width(), expected.width());
+        CHECK_EQ(actual.height(), expected.height());
+        CHECK(actual.data() == expected.data());
+    }
+}
+
 TEST_CASE("bc_compressed_image_from_dds")
 {
     std::filesystem::path images_dir = platform::project_directory() / "data" / "test_images" / "dds";

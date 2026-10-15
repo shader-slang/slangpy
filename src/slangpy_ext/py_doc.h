@@ -522,7 +522,28 @@ levels.)doc";
 
 static const char *mkd_doc_sgl_BCCompressedImage_BCCompressedImage =
 R"doc(Validate and take ownership of compressed mip levels, starting at
-level zero.
+level zero. Python mip inputs are copied. All levels must use the
+supplied format.
+
+)doc";
+
+static const char *mkd_doc_sgl_BCCompressedImage_BCCompressedImage_2 =
+R"doc(Load all mip levels from a BC-compressed 2D DDS file. Array, cube, and
+volume textures are not supported.
+
+)doc";
+
+static const char *mkd_doc_sgl_BCCompressedImage_BCCompressedImage_3 =
+R"doc(Read all mip levels from a BC-compressed 2D DDS stream. Array, cube,
+and volume textures are not supported. The stream is not retained.
+
+)doc";
+
+static const char *mkd_doc_sgl_BCCompressedImage_decode =
+R"doc(Decode a mip level to an independent Bitmap without changing its
+transfer function. BC1/2/3/7 produce RGBA uint8; BC4/5 produce R/RG
+uint8 or int8 for SNORM; BC6H produces RGB float16. The sRGB flag is
+preserved. Throws for an invalid mip index.
 
 )doc";
 

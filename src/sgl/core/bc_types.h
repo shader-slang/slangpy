@@ -186,7 +186,15 @@ private:
 class SGL_API BCCompressedImage {
 public:
     /// Validate and take ownership of compressed mip levels, starting at level zero.
+    /// Python mip inputs are copied. All levels must use the supplied format.
     BCCompressedImage(Format format, std::vector<BCCompressedMip> mip_levels);
+
+    /// Load all mip levels from a BC-compressed 2D DDS file.
+    /// Array, cube, and volume textures are not supported.
+    explicit BCCompressedImage(const std::filesystem::path& path);
+    /// Read all mip levels from a BC-compressed 2D DDS stream.
+    /// Array, cube, and volume textures are not supported. The stream is not retained.
+    explicit BCCompressedImage(Stream* stream);
 
     /// BC format shared by all mip levels.
     Format format() const { return m_format; }
@@ -204,6 +212,11 @@ public:
     void write_dds(const std::filesystem::path& path) const;
     /// Write all mip levels to a DDS stream.
     void write_dds(Stream* stream) const;
+
+    /// Decode a mip level to an independent Bitmap without changing its transfer function.
+    /// BC1/2/3/7 produce RGBA uint8; BC4/5 produce R/RG uint8 or int8 for SNORM;
+    /// BC6H produces RGB float16. The sRGB flag is preserved. Throws for an invalid mip index.
+    ref<Bitmap> decode(uint32_t mip_level = 0) const;
 
 private:
     Format m_format;

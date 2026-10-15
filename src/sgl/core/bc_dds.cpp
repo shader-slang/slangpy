@@ -84,6 +84,16 @@ void bc_compressed_image_to_dds(const BCCompressedImage& image, const std::files
     bc_compressed_image_to_dds(image, &stream);
 }
 
+BCCompressedImage::BCCompressedImage(const std::filesystem::path& path)
+    : BCCompressedImage(bc_compressed_image_from_dds(DDSFile(path)))
+{
+}
+
+BCCompressedImage::BCCompressedImage(Stream* stream)
+    : BCCompressedImage(bc_compressed_image_from_dds(DDSFile(stream)))
+{
+}
+
 void BCCompressedImage::write_dds(const std::filesystem::path& path) const
 {
     bc_compressed_image_to_dds(*this, path);

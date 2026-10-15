@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import gc
 from pathlib import Path
+import struct
 
 import numpy as np
 import pytest
@@ -239,3 +240,198 @@ def test_shared_encoder_threads() -> None:
     with ThreadPoolExecutor(max_workers=4) as pool:
         results = list(pool.map(encode, range(8)))
     assert all(data == results[0] for data in results)
+
+
+@pytest.mark.parametrize(
+    "filename,format,pixel_format,component_type",
+    [
+        (
+            "bc1-unorm.dds",
+            spy.Format.bc1_unorm,
+            spy.Bitmap.PixelFormat.rgba,
+            spy.DataStruct.Type.uint8,
+        ),
+        (
+            "bc2-unorm.dds",
+            spy.Format.bc2_unorm,
+            spy.Bitmap.PixelFormat.rgba,
+            spy.DataStruct.Type.uint8,
+        ),
+        (
+            "bc3-unorm.dds",
+            spy.Format.bc3_unorm,
+            spy.Bitmap.PixelFormat.rgba,
+            spy.DataStruct.Type.uint8,
+        ),
+        (
+            "bc4-unorm.dds",
+            spy.Format.bc4_unorm,
+            spy.Bitmap.PixelFormat.r,
+            spy.DataStruct.Type.uint8,
+        ),
+        (
+            "bc5-unorm.dds",
+            spy.Format.bc5_unorm,
+            spy.Bitmap.PixelFormat.rg,
+            spy.DataStruct.Type.uint8,
+        ),
+        (
+            "bc6h-uf16.dds",
+            spy.Format.bc6h_ufloat,
+            spy.Bitmap.PixelFormat.rgb,
+            spy.DataStruct.Type.float16,
+        ),
+        (
+            "bc7-unorm-odd.dds",
+            spy.Format.bc7_unorm,
+            spy.Bitmap.PixelFormat.rgba,
+            spy.DataStruct.Type.uint8,
+        ),
+        (
+            "bc7-unorm-srgb.dds",
+            spy.Format.bc7_unorm_srgb,
+            spy.Bitmap.PixelFormat.rgba,
+            spy.DataStruct.Type.uint8,
+        ),
+    ],
+)
+def test_load_and_decode_dds(
+    tmp_path: Path,
+    filename: str,
+    format: spy.Format,
+    pixel_format: spy.Bitmap.PixelFormat,
+    component_type: spy.DataStruct.Type,
+) -> None:
+    path = spy.platform.project_directory() / "data" / "test_images" / "dds" / filename
+    image = spy.BCCompressedImage(path)
+    assert image.format == format
+    base = image.decode()
+    np.testing.assert_array_equal(np.array(base), np.array(spy.Bitmap(path)))
+    assert (image.width, image.height) == (base.width, base.height)
+    for level, mip in enumerate(image.mip_levels):
+        bitmap = image.decode(level)
+        assert (bitmap.width, bitmap.height) == (mip.width, mip.height)
+        assert bitmap.pixel_format == pixel_format
+        assert bitmap.component_type == component_type
+        assert bitmap.srgb_gamma == (format == spy.Format.bc7_unorm_srgb)
+    output = tmp_path / "copy.dds"
+    image.write_dds(output)
+    reloaded = spy.BCCompressedImage(path=str(output))
+    assert reloaded.format == image.format
+    assert reloaded.mip_count == image.mip_count
+    for original, copied in zip(image.mip_levels, reloaded.mip_levels):
+        np.testing.assert_array_equal(original.data, copied.data)
+
+
+@pytest.mark.parametrize(
+    "format,channels,dxgi_format",
+    [(spy.Format.bc4_snorm, 1, 81), (spy.Format.bc5_snorm, 2, 84)],
+)
+def test_decode_signed_dds(
+    tmp_path: Path, format: spy.Format, channels: int, dxgi_format: int
+) -> None:
+    # Use a valid single-block DX10 DDS header, then supply signed BC4/5 blocks.
+    encoder = spy.BCEncoder(spy.BCEncoderBackend.software)
+    unorm_format = spy.Format.bc4_unorm if channels == 1 else spy.Format.bc5_unorm
+    path = tmp_path / "signed.dds"
+    encoder.encode(spy.Bitmap(np.zeros((4, 4, 4), dtype=np.float32)), unorm_format).write_dds(path)
+    data = bytearray(path.read_bytes())
+    struct.pack_into("<I", data, 128, dxgi_format)
+    # Endpoint -127, all indices select the first endpoint.
+    data[148:] = bytes([129, 0, 0, 0, 0, 0, 0, 0]) * channels
+    path.write_bytes(data)
+    image = spy.BCCompressedImage(path)
+    assert image.format == format
+    bitmap = image.decode()
+    assert bitmap.component_type == spy.DataStruct.Type.int8
+    assert bitmap.channel_count == channels
+    assert not bitmap.srgb_gamma
+    np.testing.assert_array_equal(np.array(bitmap), -127)
+
+
+@pytest.mark.parametrize(
+    "format",
+    [
+        spy.Format.bc1_unorm,
+        spy.Format.bc2_unorm,
+        spy.Format.bc3_unorm,
+        spy.Format.bc5_unorm,
+        spy.Format.bc7_unorm,
+    ],
+)
+def test_convert_authored_normal_mips(tmp_path: Path, format: spy.Format) -> None:
+    encoder = spy.BCEncoder(spy.BCEncoderBackend.software)
+    # A partial, odd-sized chain with independently authored colors, not a downsampled base.
+    dimensions = [(13, 7), (6, 3), (3, 1)]
+    mips = []
+    for level, (width, height) in enumerate(dimensions):
+        pixels = np.full((height, width, 4), [64, 48 + 64 * level, 192, 255], dtype=np.uint8)
+        mips.append(encoder.encode(spy.Bitmap(pixels, srgb_gamma=False), format).mip_levels[0])
+    source_path = tmp_path / "source.dds"
+    spy.BCCompressedImage(format, mips).write_dds(source_path)
+    source = spy.BCCompressedImage(source_path)
+    assert source.format == format
+    assert source.mip_count == len(dimensions)
+    expected = []
+    encoded_mips = []
+    for level in range(source.mip_count):
+        bitmap = source.decode(level)
+        pixels = np.asarray(bitmap)
+        pixels[:, :, 1] = 255 - pixels[:, :, 1]
+        expected.append(pixels.copy())
+        encoded_mips.append(encoder.encode(bitmap, source.format).mip_levels[0])
+    output_path = tmp_path / "converted.dds"
+    spy.BCCompressedImage(source.format, encoded_mips).write_dds(output_path)
+    result = spy.BCCompressedImage(output_path)
+    assert result.format == format
+    assert result.mip_count == len(dimensions)
+    for level, ((width, height), pixels) in enumerate(zip(dimensions, expected)):
+        decoded = result.decode(level)
+        assert (decoded.width, decoded.height) == (width, height)
+        assert not decoded.srgb_gamma
+        np.testing.assert_allclose(np.array(decoded), pixels, atol=8)
+        # Editing the decoded bitmap must not change the compressed source.
+        np.testing.assert_allclose(np.array(source.decode(level))[:, :, 1], 48 + 64 * level, atol=8)
+
+
+def test_constructed_image_and_decoded_bitmap_lifetime() -> None:
+    encoder = spy.BCEncoder(spy.BCEncoderBackend.software)
+    source = encoder.encode(
+        spy.Bitmap(np.full((4, 4, 4), 0.5, dtype=np.float32)), spy.Format.bc7_unorm
+    )
+    mips = source.mip_levels
+    image = spy.BCCompressedImage(format=source.format, mip_levels=mips)
+    expected = bytes(mips[0].data)
+    mips.clear()
+    del source, encoder
+    gc.collect()
+    assert bytes(image.mip_levels[0].data) == expected
+    bitmap = image.decode()
+    del image
+    gc.collect()
+    np.testing.assert_allclose(np.array(bitmap), 128, atol=2)
+
+
+def test_dds_editing_invalid_inputs(tmp_path: Path) -> None:
+    encoder = spy.BCEncoder(spy.BCEncoderBackend.software)
+    image = encoder.encode(spy.Bitmap(np.ones((8, 8, 4), dtype=np.float32)), spy.Format.bc7_unorm)
+    with pytest.raises(RuntimeError, match="out of range"):
+        image.decode(image.mip_count)
+    with pytest.raises(TypeError):
+        image.decode(-1)
+    with pytest.raises(RuntimeError, match="no mip levels"):
+        spy.BCCompressedImage(image.format, [])
+    with pytest.raises(RuntimeError, match="expected a BC format"):
+        spy.BCCompressedImage(spy.Format.rgba8_unorm, image.mip_levels)
+    with pytest.raises(RuntimeError, match="invalid data size"):
+        spy.BCCompressedImage(spy.Format.bc1_unorm, image.mip_levels)
+    with pytest.raises(RuntimeError, match="invalid dimensions"):
+        spy.BCCompressedImage(image.format, image.mip_levels * 2)
+    with pytest.raises(TypeError):
+        spy.BCCompressedImage(image.format, [None])
+    with pytest.raises(RuntimeError):
+        spy.BCCompressedImage(tmp_path / "missing.dds")
+    dds_dir = spy.platform.project_directory() / "data" / "test_images" / "dds"
+    for filename in ["bc7-unorm-broken.dds", "bc7-unorm-3d.dds"]:
+        with pytest.raises(RuntimeError):
+            spy.BCCompressedImage(dds_dir / filename)
