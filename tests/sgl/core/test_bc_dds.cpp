@@ -21,12 +21,12 @@ TEST_CASE("bc_compressed_image_from_dds")
         DDSFile dds(images_dir / "bc7-unorm-tiny.dds");
         BCCompressedImage image = bc_compressed_image_from_dds(dds);
 
-        CHECK_EQ(image.format, BCFormat::bc7_unorm);
-        CHECK_EQ(image.mip_levels.size(), 1);
-        CHECK_EQ(image.mip_levels[0].width, 1);
-        CHECK_EQ(image.mip_levels[0].height, 1);
+        CHECK_EQ(image.format(), Format::bc7_unorm);
+        CHECK_EQ(image.mip_levels().size(), 1);
+        CHECK_EQ(image.mip_levels()[0].width(), 1);
+        CHECK_EQ(image.mip_levels()[0].height(), 1);
         // 1x1 -> 1 block of 16 bytes for BC7
-        CHECK_EQ(image.mip_levels[0].data.size(), 16);
+        CHECK_EQ(image.mip_levels()[0].data().size(), 16);
     }
 
     SUBCASE("bc7_unorm_with_mipmaps")
@@ -34,14 +34,14 @@ TEST_CASE("bc_compressed_image_from_dds")
         DDSFile dds(images_dir / "bc7-unorm.dds");
         BCCompressedImage image = bc_compressed_image_from_dds(dds);
 
-        CHECK_EQ(image.format, BCFormat::bc7_unorm);
-        CHECK_EQ(image.mip_levels.size(), 9);
-        CHECK_EQ(image.mip_levels[0].width, 256);
-        CHECK_EQ(image.mip_levels[0].height, 256);
-        CHECK_EQ(image.mip_levels[1].width, 128);
-        CHECK_EQ(image.mip_levels[1].height, 128);
-        CHECK_EQ(image.mip_levels[8].width, 1);
-        CHECK_EQ(image.mip_levels[8].height, 1);
+        CHECK_EQ(image.format(), Format::bc7_unorm);
+        CHECK_EQ(image.mip_levels().size(), 9);
+        CHECK_EQ(image.mip_levels()[0].width(), 256);
+        CHECK_EQ(image.mip_levels()[0].height(), 256);
+        CHECK_EQ(image.mip_levels()[1].width(), 128);
+        CHECK_EQ(image.mip_levels()[1].height(), 128);
+        CHECK_EQ(image.mip_levels()[8].width(), 1);
+        CHECK_EQ(image.mip_levels()[8].height(), 1);
     }
 
     SUBCASE("bc1_unorm")
@@ -49,12 +49,12 @@ TEST_CASE("bc_compressed_image_from_dds")
         DDSFile dds(images_dir / "bc1-unorm.dds");
         BCCompressedImage image = bc_compressed_image_from_dds(dds);
 
-        CHECK_EQ(image.format, BCFormat::bc1_unorm);
-        CHECK_EQ(image.mip_levels.size(), 9);
-        CHECK_EQ(image.mip_levels[0].width, 256);
-        CHECK_EQ(image.mip_levels[0].height, 256);
+        CHECK_EQ(image.format(), Format::bc1_unorm);
+        CHECK_EQ(image.mip_levels().size(), 9);
+        CHECK_EQ(image.mip_levels()[0].width(), 256);
+        CHECK_EQ(image.mip_levels()[0].height(), 256);
         // BC1: 8 bytes per block, 64*64 = 4096 blocks for 256x256
-        CHECK_EQ(image.mip_levels[0].data.size(), 4096 * 8);
+        CHECK_EQ(image.mip_levels()[0].data().size(), 4096 * 8);
     }
 
     SUBCASE("bc6h_uf16")
@@ -62,10 +62,10 @@ TEST_CASE("bc_compressed_image_from_dds")
         DDSFile dds(images_dir / "bc6h-uf16.dds");
         BCCompressedImage image = bc_compressed_image_from_dds(dds);
 
-        CHECK_EQ(image.format, BCFormat::bc6h_ufloat);
-        CHECK_EQ(image.mip_levels.size(), 9);
-        CHECK_EQ(image.mip_levels[0].width, 409);
-        CHECK_EQ(image.mip_levels[0].height, 204);
+        CHECK_EQ(image.format(), Format::bc6h_ufloat);
+        CHECK_EQ(image.mip_levels().size(), 9);
+        CHECK_EQ(image.mip_levels()[0].width(), 409);
+        CHECK_EQ(image.mip_levels()[0].height(), 204);
     }
 }
 
@@ -80,7 +80,7 @@ TEST_CASE("bc_compressed_image_to_dds_roundtrip")
 
         // Write to memory stream.
         MemoryStream stream;
-        bc_compressed_image_to_dds(image, &stream);
+        image.write_dds(&stream);
 
         // Read back as DDSFile.
         stream.seek(0);
@@ -104,7 +104,7 @@ TEST_CASE("bc_compressed_image_to_dds_roundtrip")
         BCCompressedImage image = bc_compressed_image_from_dds(original);
 
         MemoryStream stream;
-        bc_compressed_image_to_dds(image, &stream);
+        image.write_dds(&stream);
 
         stream.seek(0);
         DDSFile read_back(&stream);
@@ -124,7 +124,7 @@ TEST_CASE("bc_compressed_image_to_dds_roundtrip")
         BCCompressedImage image = bc_compressed_image_from_dds(original);
 
         MemoryStream stream;
-        bc_compressed_image_to_dds(image, &stream);
+        image.write_dds(&stream);
 
         stream.seek(0);
         DDSFile read_back(&stream);
@@ -144,7 +144,7 @@ TEST_CASE("bc_compressed_image_to_dds_roundtrip")
         BCCompressedImage image = bc_compressed_image_from_dds(original);
 
         MemoryStream stream;
-        bc_compressed_image_to_dds(image, &stream);
+        image.write_dds(&stream);
 
         stream.seek(0);
         DDSFile read_back(&stream);
@@ -162,20 +162,13 @@ TEST_CASE("bc_compressed_image_to_dds_roundtrip")
 TEST_CASE("bc_compressed_image_to_dds_from_synthetic_data")
 {
     // Create a synthetic BCCompressedImage and verify round-trip.
-    BCCompressedImage image;
-    image.format = BCFormat::bc7_unorm;
-
-    // Single 4x4 block -> 16 bytes.
-    BCCompressedMip mip;
-    mip.width = 4;
-    mip.height = 4;
-    mip.data.resize(16);
-    for (size_t i = 0; i < 16; ++i)
-        mip.data[i] = static_cast<uint8_t>(i);
-    image.mip_levels.push_back(std::move(mip));
+    std::vector<uint8_t> data(16);
+    for (size_t i = 0; i < data.size(); ++i)
+        data[i] = static_cast<uint8_t>(i);
+    BCCompressedImage image(Format::bc7_unorm, {BCCompressedMip(4, 4, std::move(data))});
 
     MemoryStream stream;
-    bc_compressed_image_to_dds(image, &stream);
+    image.write_dds(&stream);
 
     stream.seek(0);
     DDSFile dds(&stream);
@@ -189,9 +182,7 @@ TEST_CASE("bc_compressed_image_to_dds_from_synthetic_data")
 
     // Convert DXGI format back and verify it's BC7.
     Format format = get_format(DXGI_FORMAT(dds.dxgi_format()));
-    auto bc_format = format_to_bc_format(format);
-    REQUIRE(bc_format.has_value());
-    CHECK_EQ(*bc_format, BCFormat::bc7_unorm);
+    CHECK_EQ(format, Format::bc7_unorm);
 
     // Verify resource data.
     CHECK_EQ(dds.resource_size(), 16u);
@@ -200,27 +191,31 @@ TEST_CASE("bc_compressed_image_to_dds_from_synthetic_data")
 
     // Full round-trip back to BCCompressedImage.
     BCCompressedImage rt = bc_compressed_image_from_dds(dds);
-    CHECK_EQ(rt.format, BCFormat::bc7_unorm);
-    CHECK_EQ(rt.mip_levels.size(), 1);
-    CHECK_EQ(rt.mip_levels[0].width, 4u);
-    CHECK_EQ(rt.mip_levels[0].height, 4u);
-    CHECK_EQ(rt.mip_levels[0].data.size(), 16);
-    CHECK(std::memcmp(rt.mip_levels[0].data.data(), image.mip_levels[0].data.data(), 16) == 0);
+    CHECK_EQ(rt.format(), Format::bc7_unorm);
+    CHECK_EQ(rt.mip_levels().size(), 1);
+    CHECK_EQ(rt.mip_levels()[0].width(), 4u);
+    CHECK_EQ(rt.mip_levels()[0].height(), 4u);
+    CHECK_EQ(rt.mip_levels()[0].data().size(), 16);
+    CHECK(std::memcmp(rt.mip_levels()[0].data().data(), image.mip_levels()[0].data().data(), 16) == 0);
 }
 
-TEST_CASE("bc_compressed_image_to_dds_validates_mips")
+TEST_CASE("compressed_image_validates_mips")
 {
-    BCCompressedImage image;
-    image.format = BCFormat::bc1_unorm;
-    image.mip_levels.push_back({.width = 8, .height = 8, .data = std::vector<uint8_t>(32)});
-    image.mip_levels.push_back({.width = 3, .height = 4, .data = std::vector<uint8_t>(8)});
-
-    MemoryStream stream;
-    CHECK_THROWS(bc_compressed_image_to_dds(image, &stream));
-
-    image.mip_levels[1].width = 4;
-    image.mip_levels[1].data.resize(7);
-    CHECK_THROWS(bc_compressed_image_to_dds(image, &stream));
+    CHECK_THROWS(BCCompressedMip(0, 4, std::vector<uint8_t>(8)));
+    CHECK_THROWS(BCCompressedImage(Format::bc1_unorm, {}));
+    CHECK_THROWS(BCCompressedImage(Format::rgba8_unorm, {BCCompressedMip(4, 4, std::vector<uint8_t>(64))}));
+    CHECK_THROWS(BCCompressedImage(
+        Format::bc1_unorm,
+        {BCCompressedMip(8, 8, std::vector<uint8_t>(32)), BCCompressedMip(3, 4, std::vector<uint8_t>(8))}
+    ));
+    CHECK_THROWS(BCCompressedImage(
+        Format::bc1_unorm,
+        {BCCompressedMip(8, 8, std::vector<uint8_t>(32)), BCCompressedMip(4, 4, std::vector<uint8_t>(7))}
+    ));
+    CHECK_THROWS(BCCompressedImage(
+        Format::bc1_unorm,
+        {BCCompressedMip(1, 1, std::vector<uint8_t>(8)), BCCompressedMip(1, 1, std::vector<uint8_t>(8))}
+    ));
 }
 
 TEST_SUITE_END();

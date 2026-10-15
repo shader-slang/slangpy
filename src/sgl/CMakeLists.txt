@@ -17,6 +17,7 @@ target_sources(sgl PRIVATE
     core/bc_codec.h
     core/bc_dds.cpp
     core/bc_dds.h
+    core/bc_types.cpp
     core/bc_types.h
     core/bitmap.cpp
     core/bitmap.h

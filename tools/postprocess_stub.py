@@ -25,6 +25,7 @@ DESCRIPTOR_CONVERT_TYPES = {
     "AppDesc": True,
     "AppWindowDesc": True,
     "AspectBlendDesc": True,
+    "BCEncodeOptions": True,
     "BufferDesc": True,
     "BufferOffsetPair": True,
     "ClusterOperationBlasBuildParams": True,
