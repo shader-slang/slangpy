@@ -10014,6 +10014,12 @@ static const char *mkd_doc_sgl_TypeLayoutReflection_get_slang_type_layout = R"do
 
 static const char *mkd_doc_sgl_TypeLayoutReflection_is_array = R"doc()doc";
 
+static const char *mkd_doc_sgl_TypeLayoutReflection_has_category =
+R"doc(Whether this type occupies the given parameter category. Unlike
+parameter_category(), which reports a single "mixed" category for e.g.
+a struct holding both data and resources, this checks each underlying
+category, and never fails on a category value sgl does not know.)doc";
+
 static const char *mkd_doc_sgl_TypeLayoutReflection_kind = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeLayoutReflection_name = R"doc()doc";
@@ -10098,6 +10104,12 @@ static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_hit_attributes =
 
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_info = R"doc()doc";
 
+static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_metal_argument_buffer_element = R"doc()doc";
+
+static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_metal_attribute = R"doc()doc";
+
+static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_metal_payload = R"doc()doc";
+
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_mixed = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_none = R"doc()doc";
@@ -10115,6 +10127,10 @@ static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_shader_record = 
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_shader_resource = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_specialization_constant = R"doc()doc";
+
+static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_sub_element_register_space = R"doc()doc";
+
+static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_subpass = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_uniform = R"doc()doc";
 
