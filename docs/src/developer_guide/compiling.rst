@@ -267,6 +267,9 @@ The following table lists the available configuration options:
     * - ``SGL_ENABLE_HEADER_VALIDATION``
       - ``OFF``
       - Enable header validation
+    * - ``SGL_ENABLE_WGPU``
+      - ``OFF``
+      - Enable the WebGPU backend (``DeviceType.wgpu``), using a prebuilt Dawn
 
 
 Sanitizer builds
