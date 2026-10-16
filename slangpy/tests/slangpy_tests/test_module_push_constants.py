@@ -20,6 +20,11 @@ void raw_scale(uint3 dispatchThreadID, RWStructuredBuffer<float> buf, float k) {
 void raw_read(uint3 dispatchThreadID, RWStructuredBuffer<float> buf) {
     buf[dispatchThreadID.x] = float(dispatchThreadID.x) * push.scale + float(push.count);
 }
+struct Params { float k; };
+ParameterBlock<Params> params;
+void raw_block(uint3 dispatchThreadID, RWStructuredBuffer<float> buf) {
+    buf[dispatchThreadID.x] = float(dispatchThreadID.x) * params.k;
+}
 """
 
 PLAIN_UNIFORM_MODULE = PUSH_CONSTANT_MODULE.replace("[[vk::push_constant]] ", "")
@@ -32,7 +37,7 @@ struct PC { uint count; Texture2D tex; };
 float unused(float x) { return x * 2.0; }
 """
 
-ERROR = r"push constant 'push' is not supported .* plain 'uniform'"
+ERROR = r"push constant 'push' is not supported .* plain 'uniform' .* function\.set\(push=\.\.\.\)"
 
 
 def make_buffer(device: Device) -> Buffer:
@@ -88,10 +93,14 @@ def test_module_push_constant_raw_dispatch(device_type: DeviceType):
         module.raw_scale.dispatch(uint3(4, 1, 1), buf=buf, k=2.0)
         assert np.allclose(buf.to_numpy().view(np.float32), [0, 2, 4, 6])
 
-    # A kernel that only takes resources works with the module push constant on every backend.
+    # Resource-only kernels are not rejected and give correct results here.
     buf = make_buffer(device)
     module.raw_read.set(push={"count": 10, "scale": 3.0}).dispatch(uint3(4, 1, 1), buf=buf)
     assert np.allclose(buf.to_numpy().view(np.float32), [10, 13, 16, 19])
+
+    buf = make_buffer(device)
+    module.raw_block.set(params={"k": 2.0}).dispatch(uint3(4, 1, 1), buf=buf)
+    assert np.allclose(buf.to_numpy().view(np.float32), [0, 2, 4, 6])
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

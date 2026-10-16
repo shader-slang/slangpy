@@ -196,8 +196,8 @@ void {reflection.name}_entrypoint({params}) {{
                 if ep is None:
                     ep = module.entry_point(f"{reflection.name}_entrypoint", type_conformances)
 
-                # Kernels that only take resources bind no push constants of their own, so they
-                # still work alongside a module push constant.
+                # Entry-point uniforms are push constants on Vulkan and collide with the module's;
+                # resource-only parameters do not, so those kernels are not rejected.
                 uniform = TypeReflection.ParameterCategory.uniform
                 if any(uniform in p.type_layout.categories for p in ep.layout.parameters):
                     _check_no_module_push_constants(build_info)
