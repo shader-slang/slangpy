@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import platform
 import subprocess
 import sys
 
@@ -69,7 +70,11 @@ print(module.sq(grid(shape=(4,)), _result="numpy").tolist())
 """
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="Windows DLL search path")
+# Windows ARM64 Slang packages ship no slang-llvm.dll, so only x64 has one to find.
+@pytest.mark.skipif(
+    sys.platform != "win32" or platform.machine().lower() != "amd64",
+    reason="slang-llvm.dll ships with Windows x64 only",
+)
 @pytest.mark.parametrize("device_type", [DeviceType.cpu])
 def test_cpu_dispatch_without_dll_search_path(device_type: DeviceType, tmp_path: Path) -> None:
     # Drop PATH entries that would let Slang find slang-llvm on its own.
