@@ -29,6 +29,14 @@ void raw_block(uint3 dispatchThreadID, RWStructuredBuffer<float> buf) {
 
 PLAIN_UNIFORM_MODULE = PUSH_CONSTANT_MODULE.replace("[[vk::push_constant]] ", "")
 
+CONSTANT_BUFFER_MODULE = r"""
+import "slangpy";
+struct PC { uint count; float scale; };
+ConstantBuffer<PC> cb;
+float unused(float x) { return x * 2.0; }
+float read(float x) { return x * cb.scale + float(cb.count); }
+"""
+
 # A push-constant block holding a resource reflects as a "mixed" category.
 MIXED_PUSH_CONSTANT_MODULE = r"""
 import "slangpy";
@@ -84,23 +92,27 @@ def test_module_push_constant_raw_dispatch(device_type: DeviceType):
     device = helpers.get_device(device_type)
     module = helpers.create_module(device, PUSH_CONSTANT_MODULE)
 
-    # A kernel with uniform arguments has its own push constants on Vulkan.
-    buf = make_buffer(device)
-    if device_type == DeviceType.vulkan:
-        with pytest.raises(SlangPyError, match=ERROR):
-            module.raw_scale.dispatch(uint3(4, 1, 1), buf=buf, k=2.0)
-    else:
-        module.raw_scale.dispatch(uint3(4, 1, 1), buf=buf, k=2.0)
-        assert np.allclose(buf.to_numpy().view(np.float32), [0, 2, 4, 6])
-
-    # Resource-only kernels are not rejected and give correct results here.
-    buf = make_buffer(device)
-    module.raw_read.set(push={"count": 10, "scale": 3.0}).dispatch(uint3(4, 1, 1), buf=buf)
-    assert np.allclose(buf.to_numpy().view(np.float32), [10, 13, 16, 19])
-
-    buf = make_buffer(device)
-    module.raw_block.set(params={"k": 2.0}).dispatch(uint3(4, 1, 1), buf=buf)
-    assert np.allclose(buf.to_numpy().view(np.float32), [0, 2, 4, 6])
+    dispatches = [
+        (lambda buf: module.raw_scale.dispatch(uint3(4, 1, 1), buf=buf, k=2.0), [0, 2, 4, 6]),
+        (
+            lambda buf: module.raw_read.set(push={"count": 10, "scale": 3.0}).dispatch(
+                uint3(4, 1, 1), buf=buf
+            ),
+            [10, 13, 16, 19],
+        ),
+        (
+            lambda buf: module.raw_block.set(params={"k": 2.0}).dispatch(uint3(4, 1, 1), buf=buf),
+            [0, 2, 4, 6],
+        ),
+    ]
+    for dispatch, expected in dispatches:
+        buf = make_buffer(device)
+        if device_type == DeviceType.vulkan:
+            with pytest.raises(SlangPyError, match=ERROR):
+                dispatch(buf)
+        else:
+            dispatch(buf)
+            assert np.allclose(buf.to_numpy().view(np.float32), expected)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -116,6 +128,21 @@ def test_module_plain_uniform(device_type: DeviceType):
     buf = make_buffer(device)
     module.raw_scale.dispatch(uint3(4, 1, 1), buf=buf, k=2.0)
     assert np.allclose(buf.to_numpy().view(np.float32), [0, 2, 4, 6])
+
+    buf = make_buffer(device)
+    module.raw_read.set(push={"count": 10, "scale": 3.0}).dispatch(uint3(4, 1, 1), buf=buf)
+    assert np.allclose(buf.to_numpy().view(np.float32), [10, 13, 16, 19])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_module_constant_buffer(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, CONSTANT_BUFFER_MODULE)
+    x = Tensor.from_numpy(device, np.arange(4, dtype=np.float32))
+
+    assert np.allclose(module.unused(x, _result="numpy"), [0, 2, 4, 6])
+    result = module.read.set(cb={"count": 10, "scale": 3.0})(x, _result="numpy")
+    assert np.allclose(result, [10, 13, 16, 19])
 
 
 if __name__ == "__main__":

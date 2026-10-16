@@ -20,7 +20,6 @@ from slangpy import (
     uint3,
     DeviceType,
     PipelineCompilationPolicy,
-    TypeReflection,
 )
 from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.bindings.marshall import BindContext
@@ -41,6 +40,7 @@ class DispatchData:
             # Read temps from function.
             function = func
             build_info = function.calc_build_info()
+            _check_no_module_push_constants(build_info)
             type_conformances = build_info.type_conformances or []
             session = build_info.module.session
             device = session.device
@@ -195,12 +195,6 @@ void {reflection.name}_entrypoint({params}) {{
                 # Get entry point if one wasn't specified
                 if ep is None:
                     ep = module.entry_point(f"{reflection.name}_entrypoint", type_conformances)
-
-                # Entry-point uniforms are push constants on Vulkan and collide with the module's;
-                # resource-only parameters do not, so those kernels are not rejected.
-                uniform = TypeReflection.ParameterCategory.uniform
-                if any(uniform in p.type_layout.categories for p in ep.layout.parameters):
-                    _check_no_module_push_constants(build_info)
 
                 # Link the program
                 opts = SlangLinkOptions()
