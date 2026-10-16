@@ -49,7 +49,7 @@ void raw_block(uint3 dispatchThreadID, ParameterBlock<Params> params) {
 }
 """
 
-# The push constant can come from a module that is only imported, not composed or linked.
+# The push constant can come from a module that is only imported, not composed or passed via link=.
 IMPORTED_PUSH_CONSTANT_MODULE = r"""
 struct PC { uint count; float scale; };
 [[vk::push_constant]] uniform PC push;

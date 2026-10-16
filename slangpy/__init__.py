@@ -50,9 +50,6 @@ from . import bindings
 # Trigger import of built in bindings so they get setup
 from . import builtin as internal_marshalls
 
-# Errors raised by the functional API
-from .core.errors import SlangPyError
-
 # Debug options for call data gen
 from .core.calldata import (
     set_dump_generated_shaders,
@@ -62,6 +59,7 @@ from .core.calldata import (
 )
 
 # Core slangpy interface
+from .core.errors import SlangPyError
 from .core.function import Function
 from .core.struct import Struct
 from .core.module import Module
