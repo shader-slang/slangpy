@@ -51,9 +51,11 @@ matching ``export static const`` declaration to the kernel it generates for the 
 ``extern`` declaration. Every constant the called code uses must be given a value: with a missing one, the call fails and
 Slang reports ``unresolved external symbol``.
 
-Each distinct set of values is compiled once, as a kernel of its own, and reused afterwards. Changing a value
-therefore costs a compile, which suits options that select a code path (a feature switch, a sample count, a quality
-level) better than data that changes on every call; pass the latter as a normal argument.
+Each distinct set of values is compiled once, as a kernel of its own, and reused afterwards. The kernel is keyed on
+its generated source, which lists the constants in the dictionary's order, so build the dictionary the same way at
+every call site to share one kernel. Changing a value therefore costs a compile, which suits options that select a
+code path (a feature switch, a sample count, a quality level) better than data that changes on every call; pass the
+latter as a normal argument.
 
 Linking a module of constants
 -----------------------------
@@ -81,6 +83,7 @@ the generated kernel with ``prelude()``:
 
 .. code-block::
 
+    // values.slang
     interface IVal
     {
         static int get();
@@ -94,6 +97,8 @@ the generated kernel with ``prelude()``:
     }
 
 .. code-block:: python
+
+    module = spy.Module.load_from_file(device, "values.slang")
 
     val_10 = """
     struct Val10 : IVal
