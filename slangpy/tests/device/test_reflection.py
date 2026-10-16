@@ -361,22 +361,26 @@ def test_type_layout_parameter_category(test_id: str, device_type: spy.DeviceTyp
         module_name=f"module_from_source_{test_id}",
         source="""
         struct PC { uint count; float scale; };
+        struct PCR { uint count; Texture2D tex; };
         [[vk::push_constant]] uniform PC push;
+        [[vk::push_constant]] uniform PCR mixed_push;
         uniform PC plain;
         ParameterBlock<PC> block;
     """,
     )
-    categories = {p.name: p.type_layout.parameter_category for p in module.layout.parameters}
+    layouts = {p.name: p.type_layout for p in module.layout.parameters}
 
     PC = spy.TypeReflection.ParameterCategory
     if device_type == spy.DeviceType.vulkan:
-        assert categories["push"] == PC.push_constant_buffer
+        assert layouts["push"].parameter_category == PC.push_constant_buffer
+        assert layouts["push"].categories == [PC.push_constant_buffer]
+        assert layouts["mixed_push"].parameter_category == PC.mixed
+        assert PC.push_constant_buffer in layouts["mixed_push"].categories
     else:
-        assert categories["push"] != PC.push_constant_buffer
-    assert categories["plain"] == PC.uniform
-    # Must not raise even when Slang reports a category beyond the original enum range
-    # (ParameterBlock is sub_element_register_space on Vulkan).
-    assert isinstance(categories["block"], PC)
+        assert PC.push_constant_buffer not in layouts["push"].categories
+    assert layouts["plain"].parameter_category == PC.uniform
+    # Vulkan reports sub_element_register_space for ParameterBlock; reflection must expose it.
+    assert isinstance(layouts["block"].parameter_category, PC)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

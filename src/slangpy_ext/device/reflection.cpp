@@ -167,6 +167,7 @@ SGL_PY_EXPORT(device_reflection)
             &TypeLayoutReflection::parameter_category,
             D(TypeLayoutReflection, parameter_category)
         )
+        .def_prop_ro("categories", &TypeLayoutReflection::categories, D(TypeLayoutReflection, categories))
         .def_prop_ro("type", &TypeLayoutReflection::type, D(TypeLayoutReflection, type))
         .def_prop_ro("fields", &TypeLayoutReflection::fields, D(TypeLayoutReflection, fields))
         .def_prop_ro(

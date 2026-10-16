@@ -810,6 +810,17 @@ public:
         return static_cast<TypeReflection::ParameterCategory>(slang_target()->getParameterCategory());
     }
 
+    /// All parameter categories this type occupies. Unlike parameter_category(), which reports
+    /// a single "mixed" category for e.g. a struct holding both data and resources, this lists
+    /// each underlying category.
+    std::vector<TypeReflection::ParameterCategory> categories() const
+    {
+        std::vector<TypeReflection::ParameterCategory> result;
+        for (uint32_t i = 0; i < slang_target()->getCategoryCount(); ++i)
+            result.push_back(static_cast<TypeReflection::ParameterCategory>(slang_target()->getCategoryByIndex(i)));
+        return result;
+    }
+
     uint32_t get_field_binding_range_offset(uint32_t field_index) const
     {
         return narrow_cast<uint32_t>(slang_target()->getFieldBindingRangeOffset(field_index));

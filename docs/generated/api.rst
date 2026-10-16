@@ -8806,6 +8806,14 @@ Device
     .. py:property:: parameter_category
         :type: slangpy.TypeReflection.ParameterCategory
 
+    .. py:property:: categories
+        :type: list[slangpy.TypeReflection.ParameterCategory]
+
+        All parameter categories this type occupies. Unlike
+        parameter_category(), which reports a single "mixed" category for
+        e.g. a struct holding both data and resources, this lists each
+        underlying category.
+
     .. py:property:: type
         :type: slangpy.TypeReflection
 

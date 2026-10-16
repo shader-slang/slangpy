@@ -131,18 +131,20 @@ def pack_arg(arg: Any, unpacked_arg: Any):
 
 def _check_no_module_push_constants(build_info: "FunctionBuildInfo") -> None:
     """
-    Raise if the module declares a global push-constant block.
+    On Vulkan, raise if the module declares a global push-constant block.
 
-    On Vulkan the generated kernel's call data is itself a push-constant block (entry-point
-    uniforms) or a descriptor set (ParameterBlock<CallData>), and neither currently coexists
-    with a module-level ``[[vk::push_constant]]``: calls silently read the wrong bytes.
+    The generated kernel's call data is itself a push-constant block (entry-point uniforms) or a
+    descriptor set (ParameterBlock<CallData>), and neither currently coexists with a module-level
+    ``[[vk::push_constant]]``: calls silently read the wrong bytes.
     See https://github.com/shader-slang/slangpy/issues/1232.
 
     :param build_info: Function build information.
     """
+    if build_info.module.device.info.type != DeviceType.vulkan:
+        return
     push_constant = TypeReflection.ParameterCategory.push_constant_buffer
     for param in build_info.module.device_module.layout.parameters:
-        if param.type_layout.parameter_category == push_constant:
+        if push_constant in param.type_layout.categories:
             raise ValueError(
                 f"Could not call function '{build_info.function.name}': module global "
                 f"push constant '{param.name}' is not supported by the functional API on "
@@ -189,8 +191,7 @@ class CallData(NativeCallData):
             self.log_debug(f"Generating kernel for {build_info.function.name}")
             self.log_debug(f"  Module: {build_info.module.name}")
 
-            if build_info.module.device.info.type == DeviceType.vulkan:
-                _check_no_module_push_constants(build_info)
+            _check_no_module_push_constants(build_info)
 
             # Store layout and callmode from function
             self.layout = build_info.module.layout

@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from slangpy.core.generator import generate_constants
 from slangpy.core.native import CallMode, pack_arg, unpack_arg
-from slangpy.core.calldata import _DUMP_SLANG_INTERMEDIATES, _DUMP_GENERATED_SHADERS
+from slangpy.core.calldata import (
+    _DUMP_SLANG_INTERMEDIATES,
+    _DUMP_GENERATED_SHADERS,
+    _check_no_module_push_constants,
+)
 
 from slangpy import (
     CommandEncoder,
@@ -16,6 +20,7 @@ from slangpy import (
     uint3,
     DeviceType,
     PipelineCompilationPolicy,
+    TypeReflection,
 )
 from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.bindings.marshall import BindContext
@@ -190,6 +195,12 @@ void {reflection.name}_entrypoint({params}) {{
                 # Get entry point if one wasn't specified
                 if ep is None:
                     ep = module.entry_point(f"{reflection.name}_entrypoint", type_conformances)
+
+                # Kernels that only take resources bind no push constants of their own, so they
+                # still work alongside a module push constant.
+                uniform = TypeReflection.ParameterCategory.uniform
+                if any(uniform in p.type_layout.categories for p in ep.layout.parameters):
+                    _check_no_module_push_constants(build_info)
 
                 # Link the program
                 opts = SlangLinkOptions()

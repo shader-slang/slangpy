@@ -9984,6 +9984,12 @@ static const char *mkd_doc_sgl_TypeLayoutReflection_TypeLayoutReflection = R"doc
 
 static const char *mkd_doc_sgl_TypeLayoutReflection_alignment = R"doc()doc";
 
+static const char *mkd_doc_sgl_TypeLayoutReflection_categories =
+R"doc(All parameter categories this type occupies. Unlike
+parameter_category(), which reports a single "mixed" category for e.g.
+a struct holding both data and resources, this lists each underlying
+category.)doc";
+
 static const char *mkd_doc_sgl_TypeLayoutReflection_class_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeLayoutReflection_container_var_layout = R"doc()doc";
