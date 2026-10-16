@@ -822,3 +822,41 @@ def test_raytrace_closest_instance(device_type: spy.DeviceType, mode: str):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
+
+
+DISPATCH_NAMES_SOURCE = r"""
+RWStructuredBuffer<float> buffer;
+
+[shader("compute")]
+[numthreads(4, 1, 1)]
+void compute_main(uint3 tid: SV_DispatchThreadID, uniform float scale)
+{
+    buffer[tid.x] = buffer[tid.x] * scale;
+}
+"""
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_compute_dispatch_unknown_names(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source("dispatch_names", DISPATCH_NAMES_SOURCE)
+    kernel = device.create_compute_kernel(
+        device.link_program([module], [module.entry_point("compute_main")])
+    )
+    buffer = device.create_buffer(
+        element_count=4,
+        struct_size=4,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        data=np.arange(4, dtype=np.float32),
+    )
+
+    # A global passed as a keyword argument used to be skipped silently, leaving it unbound.
+    with pytest.raises(RuntimeError, match="global shader parameter, pass it in vars"):
+        kernel.dispatch(thread_count=[4, 1, 1], buffer=buffer, scale=2.0)
+    with pytest.raises(RuntimeError, match='no parameter named "scal"'):
+        kernel.dispatch(thread_count=[4, 1, 1], vars={"buffer": buffer}, scal=2.0)
+    with pytest.raises(RuntimeError, match='no global shader parameter named "bufer"'):
+        kernel.dispatch(thread_count=[4, 1, 1], vars={"bufer": buffer}, scale=2.0)
+
+    kernel.dispatch(thread_count=[4, 1, 1], vars={"buffer": buffer}, scale=2.0)
+    assert np.all(buffer.to_numpy().view(np.float32) == np.arange(4, dtype=np.float32) * 2.0)
