@@ -46,16 +46,16 @@ specializations of the same function can be kept side by side:
     print(shade_fast(x, _result="numpy"))   # [ 4.  8. 12.]
     print(shade_exact(x, _result="numpy"))  # [ 4. 16. 36.]
 
-``constants()`` takes a dictionary from constant name to a Python ``bool``, ``int`` or ``float``. SlangPy adds a
-matching ``export static const`` declaration to the kernel it generates for the call, and Slang links it against the
-``extern`` declaration. Every constant the called code uses must be given a value: with a missing one, the call fails and
-Slang reports ``unresolved external symbol``.
+``constants()`` takes a dictionary from constant name to a Python ``bool``, ``int`` or ``float``, or a SlangPy vector
+such as ``spy.float3``. SlangPy adds a matching ``export static const`` declaration to the kernel it generates for the
+call, and Slang links it against the ``extern`` declaration. Every constant the called code uses must be given a value:
+with a missing one, the call fails and Slang reports ``unresolved external symbol``.
 
-Each distinct set of values is compiled once, as a kernel of its own, and reused afterwards. The kernel is keyed on
-its generated source, which lists the constants in the dictionary's order, so build the dictionary the same way at
-every call site to share one kernel. Changing a value therefore costs a compile, which suits options that select a
-code path (a feature switch, a sample count, a quality level) better than data that changes on every call; pass the
-latter as a normal argument.
+Each distinct set of values is compiled once, as a kernel of its own, and reused afterwards. The kernel is keyed on its
+complete generated source, which depends on the call's arguments as well as the constants, and lists the constants in
+the dictionary's order: calls with the same arguments share one kernel only if they build the dictionary the same way.
+Changing a value therefore costs a compile, which suits options that select a code path (a feature switch, a sample
+count, a quality level) better than data that changes on every call; pass the latter as a normal argument.
 
 Linking a module of constants
 -----------------------------
