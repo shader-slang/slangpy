@@ -10098,6 +10098,12 @@ static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_hit_attributes =
 
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_info = R"doc()doc";
 
+static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_metal_argument_buffer_element = R"doc()doc";
+
+static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_metal_attribute = R"doc()doc";
+
+static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_metal_payload = R"doc()doc";
+
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_mixed = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_none = R"doc()doc";
@@ -10115,6 +10121,10 @@ static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_shader_record = 
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_shader_resource = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_specialization_constant = R"doc()doc";
+
+static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_sub_element_register_space = R"doc()doc";
+
+static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_subpass = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeReflection_ParameterCategory_uniform = R"doc()doc";
 

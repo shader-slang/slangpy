@@ -8803,6 +8803,9 @@ Device
     .. py:property:: alignment
         :type: int
 
+    .. py:property:: parameter_category
+        :type: slangpy.TypeReflection.ParameterCategory
+
     .. py:property:: type
         :type: slangpy.TypeReflection
 
@@ -9169,6 +9172,26 @@ Device
         .. py:attribute:: slangpy.TypeReflection.ParameterCategory.existential_object_param
             :type: ParameterCategory
             :value: ParameterCategory.existential_object_param
+
+        .. py:attribute:: slangpy.TypeReflection.ParameterCategory.sub_element_register_space
+            :type: ParameterCategory
+            :value: ParameterCategory.sub_element_register_space
+
+        .. py:attribute:: slangpy.TypeReflection.ParameterCategory.subpass
+            :type: ParameterCategory
+            :value: ParameterCategory.subpass
+
+        .. py:attribute:: slangpy.TypeReflection.ParameterCategory.metal_argument_buffer_element
+            :type: ParameterCategory
+            :value: ParameterCategory.metal_argument_buffer_element
+
+        .. py:attribute:: slangpy.TypeReflection.ParameterCategory.metal_attribute
+            :type: ParameterCategory
+            :value: ParameterCategory.metal_attribute
+
+        .. py:attribute:: slangpy.TypeReflection.ParameterCategory.metal_payload
+            :type: ParameterCategory
+            :value: ParameterCategory.metal_payload
 
     .. py:property:: kind
         :type: slangpy.TypeReflection.Kind

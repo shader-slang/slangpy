@@ -353,6 +353,33 @@ def test_list_program_layout_params_and_entry_points(test_id: str, device_type: 
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_type_layout_parameter_category(test_id: str, device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+
+    session = create_session(device)
+    module = session.load_module_from_source(
+        module_name=f"module_from_source_{test_id}",
+        source="""
+        struct PC { uint count; float scale; };
+        [[vk::push_constant]] uniform PC push;
+        uniform PC plain;
+        ParameterBlock<PC> block;
+    """,
+    )
+    categories = {p.name: p.type_layout.parameter_category for p in module.layout.parameters}
+
+    PC = spy.TypeReflection.ParameterCategory
+    if device_type == spy.DeviceType.vulkan:
+        assert categories["push"] == PC.push_constant_buffer
+    else:
+        assert categories["push"] != PC.push_constant_buffer
+    assert categories["plain"] == PC.uniform
+    # Must not raise even when Slang reports a category beyond the original enum range
+    # (ParameterBlock is sub_element_register_space on Vulkan).
+    assert isinstance(categories["block"], PC)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_function_modifier(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 

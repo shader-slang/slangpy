@@ -560,6 +560,11 @@ public:
         shader_record = SLANG_PARAMETER_CATEGORY_SHADER_RECORD,
         existential_type_param = SLANG_PARAMETER_CATEGORY_EXISTENTIAL_TYPE_PARAM,
         existential_object_param = SLANG_PARAMETER_CATEGORY_EXISTENTIAL_OBJECT_PARAM,
+        sub_element_register_space = SLANG_PARAMETER_CATEGORY_SUB_ELEMENT_REGISTER_SPACE,
+        subpass = SLANG_PARAMETER_CATEGORY_SUBPASS,
+        metal_argument_buffer_element = SLANG_PARAMETER_CATEGORY_METAL_ARGUMENT_BUFFER_ELEMENT,
+        metal_attribute = SLANG_PARAMETER_CATEGORY_METAL_ATTRIBUTE,
+        metal_payload = SLANG_PARAMETER_CATEGORY_METAL_PAYLOAD,
     };
 
     SGL_ENUM_INFO(
@@ -585,6 +590,11 @@ public:
             {ParameterCategory::shader_record, "shader_record"},
             {ParameterCategory::existential_type_param, "existential_type_param"},
             {ParameterCategory::existential_object_param, "existential_object_param"},
+            {ParameterCategory::sub_element_register_space, "sub_element_register_space"},
+            {ParameterCategory::subpass, "subpass"},
+            {ParameterCategory::metal_argument_buffer_element, "metal_argument_buffer_element"},
+            {ParameterCategory::metal_attribute, "metal_attribute"},
+            {ParameterCategory::metal_payload, "metal_payload"},
         }
     );
 

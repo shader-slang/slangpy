@@ -23,6 +23,7 @@ from slangpy import (
     DeviceType,
     PipelineCompilationPolicy,
     TypeConformance,
+    TypeReflection,
     is_torch_bridge_using_fallback,
     get_torch_bridge_fallback_reason,
 )
@@ -128,6 +129,28 @@ def pack_arg(arg: Any, unpacked_arg: Any):
     return arg
 
 
+def _check_no_module_push_constants(build_info: "FunctionBuildInfo") -> None:
+    """
+    Raise if the module declares a global push-constant block.
+
+    On Vulkan the generated kernel's call data is itself a push-constant block (entry-point
+    uniforms) or a descriptor set (ParameterBlock<CallData>), and neither currently coexists
+    with a module-level ``[[vk::push_constant]]``: calls silently read the wrong bytes.
+    See https://github.com/shader-slang/slangpy/issues/1232.
+
+    :param build_info: Function build information.
+    """
+    push_constant = TypeReflection.ParameterCategory.push_constant_buffer
+    for param in build_info.module.device_module.layout.parameters:
+        if param.type_layout.parameter_category == push_constant:
+            raise ValueError(
+                f"Could not call function '{build_info.function.name}': module global "
+                f"push constant '{param.name}' is not supported by the functional API on "
+                f"Vulkan. Declare it as a plain 'uniform' (without [[vk::push_constant]]) "
+                f"and set it with function.set({param.name}=...)."
+            )
+
+
 class CallData(NativeCallData):
     def __init__(
         self,
@@ -165,6 +188,9 @@ class CallData(NativeCallData):
 
             self.log_debug(f"Generating kernel for {build_info.function.name}")
             self.log_debug(f"  Module: {build_info.module.name}")
+
+            if build_info.module.device.info.type == DeviceType.vulkan:
+                _check_no_module_push_constants(build_info)
 
             # Store layout and callmode from function
             self.layout = build_info.module.layout
