@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from slangpy import Buffer, BufferUsage, Device, DeviceType, uint3
+from slangpy import Buffer, BufferUsage, Device, DeviceType, SlangPyError, uint3
 from slangpy.types import Tensor
 from slangpy.testing import helpers
 
@@ -56,9 +56,9 @@ def test_module_push_constant(device_type: DeviceType):
 
     if device_type == DeviceType.vulkan:
         # Even a function that never reads 'push' returned garbage on Vulkan.
-        with pytest.raises(ValueError, match=ERROR):
+        with pytest.raises(SlangPyError, match=ERROR):
             module.unused(x, _result="numpy")
-        with pytest.raises(ValueError, match=ERROR):
+        with pytest.raises(SlangPyError, match=ERROR):
             module.read.set(push={"count": 10, "scale": 3.0})(x, _result="numpy")
     else:
         assert np.allclose(module.unused(x, _result="numpy"), [0, 2, 4, 6])
@@ -73,7 +73,7 @@ def test_module_mixed_push_constant(device_type: DeviceType):
     x = Tensor.from_numpy(device, np.arange(4, dtype=np.float32))
 
     if device_type == DeviceType.vulkan:
-        with pytest.raises(ValueError, match=ERROR):
+        with pytest.raises(SlangPyError, match=ERROR):
             module.unused(x, _result="numpy")
     else:
         assert np.allclose(module.unused(x, _result="numpy"), [0, 2, 4, 6])
@@ -87,7 +87,7 @@ def test_module_push_constant_raw_dispatch(device_type: DeviceType):
     # A kernel with uniform arguments has its own push constants on Vulkan.
     buf = make_buffer(device)
     if device_type == DeviceType.vulkan:
-        with pytest.raises(ValueError, match=ERROR):
+        with pytest.raises(SlangPyError, match=ERROR):
             module.raw_scale.dispatch(uint3(4, 1, 1), buf=buf, k=2.0)
     else:
         module.raw_scale.dispatch(uint3(4, 1, 1), buf=buf, k=2.0)

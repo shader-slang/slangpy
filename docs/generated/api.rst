@@ -21016,6 +21016,19 @@ Miscellaneous
 
 ----
 
+.. py:class:: slangpy.core.calldata.SlangPyError
+
+    Base class: :py:class:`builtins.ValueError`
+
+
+        Raised for SlangPy usage the functional API rejects up front because it cannot produce a
+        correct result.
+
+
+
+
+----
+
 .. py:class:: slangpy.core.calldata.CallData
 
     Base class: :py:class:`slangpy.slangpy.NativeCallData`
@@ -26231,6 +26244,15 @@ Miscellaneous
     :canonical: slangpy.builtin.tensor.TensorMarshall
 
     Alias class: :py:class:`slangpy.builtin.tensor.TensorMarshall`
+
+
+
+----
+
+.. py:class:: slangpy.SlangPyError
+    :canonical: slangpy.core.calldata.SlangPyError
+
+    Alias class: :py:class:`slangpy.core.calldata.SlangPyError`
 
 
 

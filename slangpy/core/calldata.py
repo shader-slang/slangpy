@@ -129,6 +129,13 @@ def pack_arg(arg: Any, unpacked_arg: Any):
     return arg
 
 
+class SlangPyError(ValueError):
+    """
+    Raised for SlangPy usage the functional API rejects up front because it cannot produce a
+    correct result.
+    """
+
+
 def _check_no_module_push_constants(build_info: "FunctionBuildInfo") -> None:
     """
     On Vulkan, raise if the module declares a global push-constant block.
@@ -145,7 +152,7 @@ def _check_no_module_push_constants(build_info: "FunctionBuildInfo") -> None:
     push_constant = TypeReflection.ParameterCategory.push_constant_buffer
     for param in build_info.module.device_module.layout.parameters:
         if push_constant in param.type_layout.categories:
-            raise ValueError(
+            raise SlangPyError(
                 f"Could not call function '{build_info.function.name}': module global "
                 f"push constant '{param.name}' is not supported by the functional API on "
                 f"Vulkan. Declare it as a plain 'uniform' (without [[vk::push_constant]]) "
