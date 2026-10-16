@@ -176,7 +176,12 @@ public:
     );
     ~CommandEncoder();
 
-    virtual void _release_rhi_resources() override { m_rhi_command_encoder.setNull(); }
+    virtual void _release_rhi_resources() override
+    {
+        // Cached child shader objects retain RHI resources independently of the encoder.
+        m_root_object.reset();
+        m_rhi_command_encoder.setNull();
+    }
 
     ref<RenderPassEncoder> begin_render_pass(const RenderPassDesc& desc);
     ref<ComputePassEncoder> begin_compute_pass();
