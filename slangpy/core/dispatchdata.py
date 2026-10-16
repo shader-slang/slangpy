@@ -20,6 +20,8 @@ from slangpy import (
     uint3,
     DeviceType,
     PipelineCompilationPolicy,
+    SlangEntryPoint,
+    TypeReflection,
 )
 from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.bindings.marshall import BindContext
@@ -29,7 +31,23 @@ from slangpy.bindings.codegen import CodeGen
 from slangpy.native_refl import IOType
 
 if TYPE_CHECKING:
-    from slangpy.core.function import FunctionNode
+    from slangpy.core.function import FunctionNode, FunctionBuildInfo
+
+
+def _has_entry_point_uniforms(ep: SlangEntryPoint) -> bool:
+    uniform = TypeReflection.ParameterCategory.uniform
+    return any(uniform in p.type_layout.categories for p in ep.layout.parameters)
+
+
+def _has_global_parameter_block(build_info: "FunctionBuildInfo") -> bool:
+    block = {
+        TypeReflection.ParameterCategory.register_space,
+        TypeReflection.ParameterCategory.sub_element_register_space,
+    }
+    return any(
+        not block.isdisjoint(p.type_layout.categories)
+        for p in build_info.module.device_module.layout.parameters
+    )
 
 
 class DispatchData:
@@ -40,7 +58,6 @@ class DispatchData:
             # Read temps from function.
             function = func
             build_info = function.calc_build_info()
-            _check_no_module_push_constants(build_info)
             type_conformances = build_info.type_conformances or []
             session = build_info.module.session
             device = session.device
@@ -195,6 +212,12 @@ void {reflection.name}_entrypoint({params}) {{
                 # Get entry point if one wasn't specified
                 if ep is None:
                     ep = module.entry_point(f"{reflection.name}_entrypoint", type_conformances)
+
+                # On Vulkan a module push constant only breaks raw dispatch when the kernel also
+                # has entry-point uniforms (a second push-constant block) or the module has a global
+                # ParameterBlock (its descriptor set index shifts, slang#12349).
+                if _has_entry_point_uniforms(ep) or _has_global_parameter_block(build_info):
+                    _check_no_module_push_constants(build_info)
 
                 # Link the program
                 opts = SlangLinkOptions()
