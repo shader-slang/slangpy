@@ -15,6 +15,7 @@ from slangpy.core.native import (
     unpack_kwargs,
 )
 from slangpy.core.function import PipelineType
+from slangpy.core.errors import SlangPyError, check_no_module_push_constants
 
 from slangpy import (
     SlangCompileError,
@@ -23,7 +24,6 @@ from slangpy import (
     DeviceType,
     PipelineCompilationPolicy,
     TypeConformance,
-    TypeReflection,
     is_torch_bridge_using_fallback,
     get_torch_bridge_fallback_reason,
 )
@@ -129,37 +129,6 @@ def pack_arg(arg: Any, unpacked_arg: Any):
     return arg
 
 
-class SlangPyError(ValueError):
-    """
-    Raised for SlangPy usage the functional API rejects up front because it cannot produce a
-    correct result.
-    """
-
-
-def _check_no_module_push_constants(build_info: "FunctionBuildInfo") -> None:
-    """
-    On Vulkan, raise if the module declares a global push-constant block.
-
-    The generated kernel's call data is itself a push-constant block (entry-point uniforms) or a
-    descriptor set (ParameterBlock<CallData>), and neither currently coexists with a module-level
-    ``[[vk::push_constant]]``: calls silently read the wrong bytes.
-    See https://github.com/shader-slang/slangpy/issues/1232.
-
-    :param build_info: Function build information.
-    """
-    if build_info.module.device.info.type != DeviceType.vulkan:
-        return
-    push_constant = TypeReflection.ParameterCategory.push_constant_buffer
-    for param in build_info.module.device_module.layout.parameters:
-        if push_constant in param.type_layout.categories:
-            raise SlangPyError(
-                f"Could not call function '{build_info.function.name}': module global "
-                f"push constant '{param.name}' is not supported by the functional API on "
-                f"Vulkan. Declare it as a plain 'uniform' (without [[vk::push_constant]]) "
-                f"and set it with function.set({param.name}=...)."
-            )
-
-
 class CallData(NativeCallData):
     def __init__(
         self,
@@ -198,7 +167,13 @@ class CallData(NativeCallData):
             self.log_debug(f"Generating kernel for {build_info.function.name}")
             self.log_debug(f"  Module: {build_info.module.name}")
 
-            _check_no_module_push_constants(build_info)
+            # Checked again on the linked program, which also has globals of imported modules;
+            # this early check fails before an invalid pipeline layout is created.
+            check_no_module_push_constants(
+                build_info.module.device.info.type,
+                build_info.function.name,
+                build_info.module.device_module.layout,
+            )
 
             # Store layout and callmode from function
             self.layout = build_info.module.layout
@@ -419,7 +394,7 @@ class CallData(NativeCallData):
                 ) from e
             else:
                 raise
-        except ResolveException as e:
+        except (ResolveException, SlangPyError):
             # Triggered from within calldata, doesn't need augmenting
             raise
         except Exception as e:
@@ -556,6 +531,9 @@ class CallData(NativeCallData):
                     [ep],
                     opts,
                 )
+                check_no_module_push_constants(
+                    device.info.type, build_info.function.name, program.layout
+                )
                 self.pipeline = device.create_compute_pipeline(
                     program,
                     compilation_policy=compilation_policy,
@@ -598,6 +576,9 @@ class CallData(NativeCallData):
                     [module, build_info.module.device_module],
                     eps,
                     opts,
+                )
+                check_no_module_push_constants(
+                    device.info.type, build_info.function.name, program.layout
                 )
                 self.pipeline = device.create_ray_tracing_pipeline(
                     program,

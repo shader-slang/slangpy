@@ -38,6 +38,33 @@ void raw_block(uint3 dispatchThreadID) {
 }
 """
 
+# A ParameterBlock entry-point parameter is shifted the same way.
+ENTRY_POINT_BLOCK_MODULE = r"""
+import "slangpy";
+struct PC { uint count; float scale; };
+[[vk::push_constant]] uniform PC push;
+struct Params { float k; RWStructuredBuffer<float> out; };
+void raw_block(uint3 dispatchThreadID, ParameterBlock<Params> params) {
+    params.out[dispatchThreadID.x] = float(dispatchThreadID.x) * params.k;
+}
+"""
+
+# The push constant can come from a module that is only imported, not composed or linked.
+IMPORTED_PUSH_CONSTANT_MODULE = r"""
+struct PC { uint count; float scale; };
+[[vk::push_constant]] uniform PC push;
+public float push_value() { return push.scale + float(push.count); }
+"""
+
+IMPORTING_MODULE = r"""
+import "slangpy";
+import IMPORTED;
+float read(float x) { return x + push_value(); }
+void raw_read(uint3 dispatchThreadID, RWStructuredBuffer<float> buf, float k) {
+    buf[dispatchThreadID.x] = k + push_value();
+}
+"""
+
 PLAIN_UNIFORM_MODULE = PUSH_CONSTANT_MODULE.replace("[[vk::push_constant]] ", "")
 
 CONSTANT_BUFFER_MODULE = r"""
@@ -56,7 +83,7 @@ struct PC { uint count; Texture2D tex; };
 float unused(float x) { return x * 2.0; }
 """
 
-ERROR = r"push constant 'push' is not supported .* plain 'uniform' .* function\.set\(push=\.\.\.\)"
+ERROR = r"push constant 'push' is not supported .* Remove \[\[vk::push_constant\]\] .* function\.set\(push=\.\.\.\)"
 
 
 def make_buffer(device: Device) -> Buffer:
@@ -135,6 +162,42 @@ def test_module_push_constant_raw_dispatch_parameter_block(device_type: DeviceTy
     else:
         dispatch.dispatch(uint3(4, 1, 1))
         assert np.allclose(buf.to_numpy().view(np.float32), [0, 2, 4, 6])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_module_push_constant_raw_dispatch_entry_point_block(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, ENTRY_POINT_BLOCK_MODULE)
+
+    buf = make_buffer(device)
+    params = {"k": 2.0, "out": buf}
+    if device_type == DeviceType.vulkan:
+        with pytest.raises(SlangPyError, match=ERROR):
+            module.raw_block.dispatch(uint3(4, 1, 1), params=params)
+    else:
+        module.raw_block.dispatch(uint3(4, 1, 1), params=params)
+        assert np.allclose(buf.to_numpy().view(np.float32), [0, 2, 4, 6])
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_imported_module_push_constant(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    imported = f"imported_push_constant_{device_type.name}"
+    device.load_module_from_source(imported, IMPORTED_PUSH_CONSTANT_MODULE)
+    module = helpers.create_module(device, IMPORTING_MODULE.replace("IMPORTED", imported))
+    x = Tensor.from_numpy(device, np.arange(4, dtype=np.float32))
+    push = {"count": 10, "scale": 3.0}
+
+    buf = make_buffer(device)
+    if device_type == DeviceType.vulkan:
+        with pytest.raises(SlangPyError, match=ERROR):
+            module.read.set(push=push)(x, _result="numpy")
+        with pytest.raises(SlangPyError, match=ERROR):
+            module.raw_read.set(push=push).dispatch(uint3(4, 1, 1), buf=buf, k=2.0)
+    else:
+        assert np.allclose(module.read.set(push=push)(x, _result="numpy"), [13, 14, 15, 16])
+        module.raw_read.set(push=push).dispatch(uint3(4, 1, 1), buf=buf, k=2.0)
+        assert np.allclose(buf.to_numpy().view(np.float32), [15, 15, 15, 15])
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

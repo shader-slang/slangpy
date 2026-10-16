@@ -8806,13 +8806,12 @@ Device
     .. py:property:: parameter_category
         :type: slangpy.TypeReflection.ParameterCategory
 
-    .. py:property:: categories
-        :type: list[slangpy.TypeReflection.ParameterCategory]
+    .. py:method:: has_category(self, category: slangpy.TypeReflection.ParameterCategory) -> bool
 
-        All parameter categories this type occupies. Unlike
-        parameter_category(), which reports a single "mixed" category for
-        e.g. a struct holding both data and resources, this lists each
-        underlying category.
+        Whether this type occupies the given parameter category. Unlike
+        parameter_category(), which reports a single "mixed" category for e.g.
+        a struct holding both data and resources, this checks each underlying
+        category, and never fails on a category value sgl does not know.
 
     .. py:property:: type
         :type: slangpy.TypeReflection
@@ -20068,6 +20067,19 @@ Miscellaneous
 
 ----
 
+.. py:class:: slangpy.core.errors.SlangPyError
+
+    Base class: :py:class:`builtins.ValueError`
+
+
+        Raised for SlangPy usage the functional API rejects up front because it cannot produce a
+        correct result.
+
+
+
+
+----
+
 .. py:class:: slangpy.core.shapes.TArgShapesResult
 
     Base class: :py:class:`builtins.dict`
@@ -21011,19 +21023,6 @@ Miscellaneous
     :canonical: slangpy.native_refl.TensorType.Access
 
     Alias class: :py:class:`slangpy.native_refl.TensorType.Access`
-
-
-
-----
-
-.. py:class:: slangpy.core.calldata.SlangPyError
-
-    Base class: :py:class:`builtins.ValueError`
-
-
-        Raised for SlangPy usage the functional API rejects up front because it cannot produce a
-        correct result.
-
 
 
 
@@ -26250,9 +26249,9 @@ Miscellaneous
 ----
 
 .. py:class:: slangpy.SlangPyError
-    :canonical: slangpy.core.calldata.SlangPyError
+    :canonical: slangpy.core.errors.SlangPyError
 
-    Alias class: :py:class:`slangpy.core.calldata.SlangPyError`
+    Alias class: :py:class:`slangpy.core.errors.SlangPyError`
 
 
 

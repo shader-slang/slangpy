@@ -810,15 +810,17 @@ public:
         return static_cast<TypeReflection::ParameterCategory>(slang_target()->getParameterCategory());
     }
 
-    /// All parameter categories this type occupies. Unlike parameter_category(), which reports
-    /// a single "mixed" category for e.g. a struct holding both data and resources, this lists
-    /// each underlying category.
-    std::vector<TypeReflection::ParameterCategory> categories() const
+    /// Whether this type occupies the given parameter category. Unlike parameter_category(), which
+    /// reports a single "mixed" category for e.g. a struct holding both data and resources, this
+    /// checks each underlying category, and never fails on a category value sgl does not know.
+    bool has_category(TypeReflection::ParameterCategory category) const
     {
-        std::vector<TypeReflection::ParameterCategory> result;
-        for (uint32_t i = 0; i < slang_target()->getCategoryCount(); ++i)
-            result.push_back(static_cast<TypeReflection::ParameterCategory>(slang_target()->getCategoryByIndex(i)));
-        return result;
+        const auto target = static_cast<slang::ParameterCategory>(category);
+        const uint32_t count = slang_target()->getCategoryCount();
+        for (uint32_t i = 0; i < count; ++i)
+            if (slang_target()->getCategoryByIndex(i) == target)
+                return true;
+        return false;
     }
 
     uint32_t get_field_binding_range_offset(uint32_t field_index) const

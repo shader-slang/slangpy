@@ -9984,12 +9984,6 @@ static const char *mkd_doc_sgl_TypeLayoutReflection_TypeLayoutReflection = R"doc
 
 static const char *mkd_doc_sgl_TypeLayoutReflection_alignment = R"doc()doc";
 
-static const char *mkd_doc_sgl_TypeLayoutReflection_categories =
-R"doc(All parameter categories this type occupies. Unlike
-parameter_category(), which reports a single "mixed" category for e.g.
-a struct holding both data and resources, this lists each underlying
-category.)doc";
-
 static const char *mkd_doc_sgl_TypeLayoutReflection_class_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeLayoutReflection_container_var_layout = R"doc()doc";
@@ -10019,6 +10013,12 @@ static const char *mkd_doc_sgl_TypeLayoutReflection_get_field_by_index = R"doc()
 static const char *mkd_doc_sgl_TypeLayoutReflection_get_slang_type_layout = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeLayoutReflection_is_array = R"doc()doc";
+
+static const char *mkd_doc_sgl_TypeLayoutReflection_has_category =
+R"doc(Whether this type occupies the given parameter category. Unlike
+parameter_category(), which reports a single "mixed" category for e.g.
+a struct holding both data and resources, this checks each underlying
+category, and never fails on a category value sgl does not know.)doc";
 
 static const char *mkd_doc_sgl_TypeLayoutReflection_kind = R"doc()doc";
 

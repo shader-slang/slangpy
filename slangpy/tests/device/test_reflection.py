@@ -373,11 +373,13 @@ def test_type_layout_parameter_category(test_id: str, device_type: spy.DeviceTyp
     PC = spy.TypeReflection.ParameterCategory
     if device_type == spy.DeviceType.vulkan:
         assert layouts["push"].parameter_category == PC.push_constant_buffer
-        assert layouts["push"].categories == [PC.push_constant_buffer]
+        assert layouts["push"].has_category(PC.push_constant_buffer)
         assert layouts["mixed_push"].parameter_category == PC.mixed
-        assert PC.push_constant_buffer in layouts["mixed_push"].categories
+        assert layouts["mixed_push"].has_category(PC.push_constant_buffer)
+        assert layouts["mixed_push"].has_category(PC.descriptor_table_slot)
     else:
-        assert PC.push_constant_buffer not in layouts["push"].categories
+        assert not layouts["push"].has_category(PC.push_constant_buffer)
+    assert not layouts["plain"].has_category(PC.push_constant_buffer)
     assert layouts["plain"].parameter_category == PC.uniform
     # Vulkan reports sub_element_register_space for ParameterBlock; reflection must expose it.
     assert isinstance(layouts["block"].parameter_category, PC)
