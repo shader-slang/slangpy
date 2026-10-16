@@ -257,6 +257,117 @@ def test_numpy_to_slang_unsupported(device_type: DeviceType):
     assert result is None
 
 
+def _fake_device(paths: "list[str] | None") -> object:
+    """Stand-in exposing device.slang_session.desc.compiler_options.include_paths.
+    Passing None yields a device whose include paths cannot be read."""
+    if paths is None:
+        return object()
+    options = type("O", (), {"include_paths": paths})()
+    desc = type("D", (), {"compiler_options": options})()
+    return type("Dev", (), {"slang_session": type("S", (), {"desc": desc})()})()
+
+
+def test_slang_session_include_path_detection():
+    """_slang_session_has_include_path returns True/False when the include paths
+    are readable and None when they cannot be read, so an unreadable session is
+    treated as 'unknown' rather than 'absent'."""
+    import os
+    import slangpy as spy
+    from slangpy.reflection.lookup import _slang_session_has_include_path
+
+    assert _slang_session_has_include_path(_fake_device([]), spy.SHADER_PATH) is False
+    assert _slang_session_has_include_path(_fake_device([spy.SHADER_PATH]), spy.SHADER_PATH) is True
+    equivalent_spelling = os.path.join(spy.SHADER_PATH, ".", "")
+    assert (
+        _slang_session_has_include_path(_fake_device([equivalent_spelling]), spy.SHADER_PATH)
+        is True
+    )
+    assert _slang_session_has_include_path(_fake_device(None), spy.SHADER_PATH) is None
+
+
+def test_same_path_lexical_fallback():
+    """_same_path falls back to a lexical comparison when os.path.samefile raises
+    for a path that does not exist on disk."""
+    from slangpy.reflection.lookup import _same_path
+
+    assert _same_path("/no/such/slangpy/slang", "/no/such/slangpy/slang") is True
+    assert _same_path("/no/such/path/a", "/no/such/path/b") is False
+
+
+def test_get_lookup_module_error_paths(monkeypatch: pytest.MonkeyPatch):
+    """The builtin-load failure is replaced with the actionable, chained hint
+    only when it is the missing 'slangpy.slang' error and the shader path is
+    confirmed absent; a present/unknown path or an unrelated failure surfaces
+    the original error unchanged."""
+    import slangpy as spy
+    from slangpy.reflection import lookup
+
+    def raise_from_builtin(exc: BaseException):
+        def boom(device: object) -> None:
+            raise exc
+
+        monkeypatch.setattr(lookup, "get_builtin_layout", boom)
+
+    missing = RuntimeError("cannot open file 'slangpy.slang'")
+
+    raise_from_builtin(missing)
+    with pytest.raises(spy.SlangCompileError, match="create_device") as absent:
+        lookup._get_lookup_module(_fake_device([]))
+    assert "SHADER_PATH" in str(absent.value)
+    assert absent.value.__cause__ is missing
+
+    raise_from_builtin(missing)
+    with pytest.raises(RuntimeError) as present:
+        lookup._get_lookup_module(_fake_device([spy.SHADER_PATH]))
+    assert present.value is missing
+
+    raise_from_builtin(missing)
+    with pytest.raises(RuntimeError) as unknown:
+        lookup._get_lookup_module(_fake_device(None))
+    assert unknown.value is missing
+
+    unrelated = RuntimeError("device is closed")
+    raise_from_builtin(unrelated)
+    with pytest.raises(RuntimeError) as other:
+        lookup._get_lookup_module(_fake_device([]))
+    assert other.value is unrelated
+
+    # A real compile error inside a resolvable slangpy.slang mentions the file
+    # but is not a "cannot open file" failure, so it must not be relabelled even
+    # when the canonical shader path is absent.
+    compile_error = RuntimeError(
+        'Failed to load slang module "slangpy"\nslangpy.slang(5): error 30015: undefined identifier'
+    )
+    raise_from_builtin(compile_error)
+    with pytest.raises(RuntimeError) as compiled:
+        lookup._get_lookup_module(_fake_device([]))
+    assert compiled.value is compile_error
+
+    # A transitive include failure names a different missing file, so the
+    # slangpy.slang path is intact and the original error must be preserved.
+    transitive = RuntimeError("slangpy.slang(2): error: cannot open file 'dependency.slang'")
+    raise_from_builtin(transitive)
+    with pytest.raises(RuntimeError) as transitive_case:
+        lookup._get_lookup_module(_fake_device([]))
+    assert transitive_case.value is transitive
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_missing_shader_path_error(device_type: DeviceType):
+    """A device created without SlangPy's shader include path raises an
+    actionable error naming spy.create_device() / spy.SHADER_PATH when the
+    builtin 'slangpy' module is needed, instead of a cryptic
+    'cannot open file slangpy.slang', and chains the original compile error."""
+    import slangpy as spy
+
+    device = spy.Device(type=device_type)
+    x = np.zeros((4, 2), dtype=np.float32)
+    with pytest.raises(spy.SlangCompileError, match="create_device") as exc_info:
+        spy.Tensor.from_numpy(device, x)
+    assert "SHADER_PATH" in str(exc_info.value)
+    assert exc_info.value.__cause__ is not None
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_function_set_invalid(device_type: DeviceType):
     """FunctionNode.set() with a non-dict/non-callable arg should raise ValueError."""

@@ -209,7 +209,7 @@ float add(float a, float b) { return a + b; }
 import slangpy as spy
 import numpy as np
 
-device = spy.Device()
+device = spy.create_device()
 module = spy.Module.load_from_file(device, "myshader.slang")
 a = spy.Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
 b = spy.Tensor.from_numpy(device, np.array([4, 5, 6], dtype=np.float32))
