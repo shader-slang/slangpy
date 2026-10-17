@@ -19,6 +19,27 @@ inline void bind_python_var(ShaderCursor cursor, nb::handle var)
     write_shader_cursor(cursor, nb::cast<nb::object>(var));
 }
 
+/// Writing a dict to a cursor skips names the shader does not declare, so check them first:
+/// a global passed as a keyword argument (or a typo) would otherwise leave the resource unbound.
+inline void check_dispatch_names(const ComputeKernel* kernel, nb::dict vars, nb::kwargs kwargs)
+{
+    ref<const ProgramLayout> layout = kernel->program()->layout();
+    ReflectionCursor globals(layout->globals_type_layout().get());
+    ReflectionCursor entry_point(layout->get_entry_point_by_index(0));
+    for (auto [key, value] : kwargs) {
+        std::string name = nb::cast<std::string>(key);
+        if (entry_point.has_field(name))
+            continue;
+        if (globals.has_field(name))
+            SGL_THROW("\"{}\" is a global shader parameter, pass it in vars instead of as a keyword argument.", name);
+        SGL_THROW("Entry point has no parameter named \"{}\".", name);
+    }
+    for (auto [key, value] : vars) {
+        std::string name = nb::cast<std::string>(key);
+        SGL_CHECK(globals.has_field(name), "Program has no global shader parameter named \"{}\".", name);
+    }
+}
+
 } // namespace sgl
 
 SGL_PY_EXPORT(device_kernel)
@@ -48,6 +69,7 @@ SGL_PY_EXPORT(device_kernel)
                uint32_t query_index_after,
                nb::kwargs kwargs)
             {
+                check_dispatch_names(self, vars, kwargs);
                 auto bind_vars = [&](ShaderCursor cursor)
                 {
                     // bind locals
