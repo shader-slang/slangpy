@@ -93,7 +93,6 @@ TEST_CASE("format_byte_size")
     const size_t kB = 1024ull;
     const size_t MB = 1048576ull;
     const size_t GB = 1073741824ull;
-    const size_t TB = 1099511627776ull;
 
     CHECK_EQ(string::format_byte_size(0), "0 B");
     CHECK_EQ(string::format_byte_size(100), "100 B");
@@ -105,10 +104,13 @@ TEST_CASE("format_byte_size")
     CHECK_EQ(string::format_byte_size(10 * MB), "10.00 MB");
     CHECK_EQ(string::format_byte_size(1023 * MB), "1023.00 MB");
     CHECK_EQ(string::format_byte_size(GB), "1.00 GB");
+#if SIZE_MAX > UINT32_MAX
+    const size_t TB = 1099511627776ull;
     CHECK_EQ(string::format_byte_size(10 * GB), "10.00 GB");
     CHECK_EQ(string::format_byte_size(1023 * GB), "1023.00 GB");
     CHECK_EQ(string::format_byte_size(TB), "1.00 TB");
     CHECK_EQ(string::format_byte_size(10 * TB), "10.00 TB");
+#endif
 }
 
 TEST_CASE("format_duration")

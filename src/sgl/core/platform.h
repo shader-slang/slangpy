@@ -31,6 +31,9 @@ struct WindowHandle {
     uint32_t xwindow;
 #elif SGL_MACOS
     void* nswindow;
+#elif SGL_EMSCRIPTEN
+    /// CSS selector of the HTML canvas element (for example "#canvas").
+    const char* canvas_selector;
 #endif
 };
 
