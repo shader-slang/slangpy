@@ -94,6 +94,11 @@ option(SGL_ENABLE_HEADER_VALIDATION "Enable header validation" OFF)
 # When enabled, adds compiler timing flags (/Bt+ for MSVC, -ftime-trace for Clang, -ftime-report for GCC).
 option(SGL_ENABLE_BUILD_METRICS "Enable build metrics (compiler timing flags)" OFF)
 
+# Enable/disable the WebGPU backend.
+# When enabled, slang-rhi is built with its WebGPU backend, which downloads a prebuilt Dawn
+# and ships the Dawn shared library next to sgl.
+option(SGL_ENABLE_WGPU "Enable the WebGPU (Dawn) backend" OFF)
+
 set(SGL_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Project directory (defaults to CMAKE_CURRENT_SOURCE_DIR)")
 
 set(SGL_BINARY_DIR ${CMAKE_BINARY_DIR} CACHE STRING "Binary directory (defaults to CMAKE_BINARY_DIR)")
@@ -410,6 +415,7 @@ add_subdirectory(external)
 message(STATUS "Feature flags:")
 message(STATUS "SGL_HAS_D3D12: ${SGL_HAS_D3D12}")
 message(STATUS "SGL_HAS_VULKAN: ${SGL_HAS_VULKAN}")
+message(STATUS "SGL_ENABLE_WGPU: ${SGL_ENABLE_WGPU}")
 message(STATUS "SGL_HAS_NVAPI: ${SGL_HAS_NVAPI}")
 message(STATUS "SGL_HAS_AGILITY_SDK: ${SGL_HAS_AGILITY_SDK}")
 message(STATUS "SGL_HAS_GLFW: ${SGL_HAS_GLFW}")
