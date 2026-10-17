@@ -90,6 +90,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
     src/basics/textures
     src/basics/nested
     src/basics/typemethods
+    src/basics/linktime
     src/basics/broadcasting
     src/basics/mapping
     src/basics/index_representation
