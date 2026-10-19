@@ -860,3 +860,40 @@ def test_compute_dispatch_unknown_names(device_type: spy.DeviceType):
 
     kernel.dispatch(thread_count=[4, 1, 1], vars={"buffer": buffer}, scale=2.0)
     assert np.all(buffer.to_numpy().view(np.float32) == np.arange(4, dtype=np.float32) * 2.0)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_compute_dispatch_error_ends_pass(device_type: spy.DeviceType, capfd: Any):
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source("dispatch_names", DISPATCH_NAMES_SOURCE)
+    kernel = device.create_compute_kernel(
+        device.link_program([module], [module.entry_point("compute_main")])
+    )
+    buffer = device.create_buffer(
+        element_count=4,
+        struct_size=4,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        data=np.arange(4, dtype=np.float32),
+    )
+    capfd.readouterr()
+
+    # A dispatch that fails while binding (an unknown name or a bad value) must end its compute
+    # pass, so the caller's encoder can take the next pass. RHI validation reports a pass left open.
+    encoder = device.create_command_encoder()
+    with pytest.raises(RuntimeError, match='no parameter named "scal"'):
+        kernel.dispatch(
+            thread_count=[4, 1, 1], vars={"buffer": buffer}, scal=2.0, command_encoder=encoder
+        )
+    with pytest.raises(RuntimeError, match="buffer"):
+        kernel.dispatch(
+            thread_count=[4, 1, 1], vars={"buffer": 2.0}, scale=2.0, command_encoder=encoder
+        )
+    kernel.dispatch(
+        thread_count=[4, 1, 1], vars={"buffer": buffer}, scale=2.0, command_encoder=encoder
+    )
+    device.submit_command_buffer(encoder.finish())
+    device.wait_for_idle()
+
+    out, err = capfd.readouterr()
+    assert "must not be in a render, compute or ray-tracing pass" not in out + err
+    assert np.all(buffer.to_numpy().view(np.float32) == np.arange(4, dtype=np.float32) * 2.0)
