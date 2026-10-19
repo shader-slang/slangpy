@@ -19,24 +19,29 @@ inline void bind_python_var(ShaderCursor cursor, nb::handle var)
     write_shader_cursor(cursor, nb::cast<nb::object>(var));
 }
 
-/// Writing a dict to a cursor skips names the shader does not declare, so check them first:
-/// a global passed as a keyword argument (or a typo) would otherwise leave the resource unbound.
-inline void check_dispatch_names(const ComputeKernel* kernel, nb::dict vars, nb::kwargs kwargs)
+/// Bind each (name, value) of a dict to the field of that name under `cursor`.
+/// Writing a dict to a cursor walks the shader's fields and skips names the shader does not declare,
+/// so a global passed as a keyword argument (or a typo) would leave the resource unbound. Walking the
+/// dict instead makes an unknown name a lookup miss binding already does, so reporting it costs nothing.
+template<typename OnMiss>
+inline void bind_named_vars(const ShaderCursor& cursor, nb::dict vars, OnMiss&& on_miss)
 {
-    ref<const ProgramLayout> layout = kernel->program()->layout();
-    ReflectionCursor globals(layout->globals_type_layout().get());
-    ReflectionCursor entry_point(layout->get_entry_point_by_index(0));
-    for (auto [key, value] : kwargs) {
-        std::string name = nb::cast<std::string>(key);
-        if (entry_point.has_field(name))
-            continue;
-        if (globals.has_field(name))
-            SGL_THROW("\"{}\" is a global shader parameter, pass it in vars instead of as a keyword argument.", name);
-        SGL_THROW("Entry point has no parameter named \"{}\".", name);
-    }
     for (auto [key, value] : vars) {
-        std::string name = nb::cast<std::string>(key);
-        SGL_CHECK(globals.has_field(name), "Program has no global shader parameter named \"{}\".", name);
+        Py_ssize_t size;
+        const char* data = PyUnicode_AsUTF8AndSize(key.ptr(), &size);
+        if (!data)
+            throw nb::python_error();
+        std::string_view name(data, size);
+        ShaderCursor field = cursor.find_field(name);
+        if (!field.is_valid())
+            on_miss(name);
+        try {
+            bind_python_var(field, value);
+        } catch (const std::exception& err) {
+            // Keep the "name.path: message" form the dict writer produces.
+            std::string_view msg = err.what();
+            SGL_THROW("{}{}{}", name, msg.starts_with(':') ? "" : ".", msg);
+        }
     }
 }
 
@@ -69,14 +74,34 @@ SGL_PY_EXPORT(device_kernel)
                uint32_t query_index_after,
                nb::kwargs kwargs)
             {
-                check_dispatch_names(self, vars, kwargs);
                 auto bind_vars = [&](ShaderCursor cursor)
                 {
                     // bind locals
-                    if (kwargs.size() > 0)
-                        bind_python_var(cursor.find_entry_point(0), kwargs);
+                    if (kwargs.size() > 0) {
+                        bind_named_vars(
+                            cursor.find_entry_point(0),
+                            kwargs,
+                            [&](std::string_view name)
+                            {
+                                if (cursor.find_field(name).is_valid())
+                                    SGL_THROW(
+                                        "\"{}\" is a global shader parameter, pass it in vars instead of as a "
+                                        "keyword argument.",
+                                        name
+                                    );
+                                SGL_THROW("Entry point has no parameter named \"{}\".", name);
+                            }
+                        );
+                    }
                     // bind globals
-                    bind_python_var(cursor, vars);
+                    bind_named_vars(
+                        cursor,
+                        vars,
+                        [](std::string_view name)
+                        {
+                            SGL_THROW("Program has no global shader parameter named \"{}\".", name);
+                        }
+                    );
                 };
                 if (command_encoder) {
                     SGL_CHECK(
