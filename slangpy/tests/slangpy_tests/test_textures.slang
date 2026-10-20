@@ -43,21 +43,6 @@ T passthru<T>(T t)
     return t;
 }
 
-void copy_scalar_float(float src, out float dst)
-{
-    dst = src;
-}
-
-void copy_scalar_int(int src, out int dst)
-{
-    dst = src;
-}
-
-void copy_scalar_uint(uint src, out uint dst)
-{
-    dst = src;
-}
-
 float sample_texture_1d_broadcast(Texture1D<float> tex)
 {
     return tex[uint(2)];
