@@ -156,7 +156,8 @@ def test_runtime_loop_bwds(
     if device_type == DeviceType.vulkan:
         request.node.add_marker(
             pytest.mark.xfail(
-                strict=False, reason="https://github.com/shader-slang/slangpy/issues/1227"
+                strict=False,
+                reason=f"https://github.com/shader-slang/slangpy/issues/1227 ({device.info.adapter_name})",
             )
         )
     assert np.array_equal(
