@@ -15,6 +15,7 @@ from slangpy.core.native import (
     unpack_kwargs,
 )
 from slangpy.core.function import PipelineType
+from slangpy.core.errors import SlangPyError, check_no_module_push_constants
 
 from slangpy import (
     SlangCompileError,
@@ -165,6 +166,14 @@ class CallData(NativeCallData):
 
             self.log_debug(f"Generating kernel for {build_info.function.name}")
             self.log_debug(f"  Module: {build_info.module.name}")
+
+            # Checked again on the linked program, which also has globals of imported modules;
+            # this early check fails before an invalid pipeline layout is created.
+            check_no_module_push_constants(
+                build_info.module.device.info.type,
+                build_info.function.name,
+                build_info.module.device_module.layout,
+            )
 
             # Store layout and callmode from function
             self.layout = build_info.module.layout
@@ -385,7 +394,7 @@ class CallData(NativeCallData):
                 ) from e
             else:
                 raise
-        except ResolveException as e:
+        except (ResolveException, SlangPyError):
             # Triggered from within calldata, doesn't need augmenting
             raise
         except Exception as e:
@@ -522,6 +531,9 @@ class CallData(NativeCallData):
                     [ep],
                     opts,
                 )
+                check_no_module_push_constants(
+                    device.info.type, build_info.function.name, program.layout
+                )
                 self.pipeline = device.create_compute_pipeline(
                     program,
                     compilation_policy=compilation_policy,
@@ -564,6 +576,9 @@ class CallData(NativeCallData):
                     [module, build_info.module.device_module],
                     eps,
                     opts,
+                )
+                check_no_module_push_constants(
+                    device.info.type, build_info.function.name, program.layout
                 )
                 self.pipeline = device.create_ray_tracing_pipeline(
                     program,

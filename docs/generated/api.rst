@@ -8803,6 +8803,16 @@ Device
     .. py:property:: alignment
         :type: int
 
+    .. py:property:: parameter_category
+        :type: slangpy.TypeReflection.ParameterCategory
+
+    .. py:method:: has_category(self, category: slangpy.TypeReflection.ParameterCategory) -> bool
+
+        Whether this type occupies the given parameter category. Unlike
+        parameter_category(), which reports a single "mixed" category for e.g.
+        a struct holding both data and resources, this checks each underlying
+        category, and never fails on a category value sgl does not know.
+
     .. py:property:: type
         :type: slangpy.TypeReflection
 
@@ -9169,6 +9179,26 @@ Device
         .. py:attribute:: slangpy.TypeReflection.ParameterCategory.existential_object_param
             :type: ParameterCategory
             :value: ParameterCategory.existential_object_param
+
+        .. py:attribute:: slangpy.TypeReflection.ParameterCategory.sub_element_register_space
+            :type: ParameterCategory
+            :value: ParameterCategory.sub_element_register_space
+
+        .. py:attribute:: slangpy.TypeReflection.ParameterCategory.subpass
+            :type: ParameterCategory
+            :value: ParameterCategory.subpass
+
+        .. py:attribute:: slangpy.TypeReflection.ParameterCategory.metal_argument_buffer_element
+            :type: ParameterCategory
+            :value: ParameterCategory.metal_argument_buffer_element
+
+        .. py:attribute:: slangpy.TypeReflection.ParameterCategory.metal_attribute
+            :type: ParameterCategory
+            :value: ParameterCategory.metal_attribute
+
+        .. py:attribute:: slangpy.TypeReflection.ParameterCategory.metal_payload
+            :type: ParameterCategory
+            :value: ParameterCategory.metal_payload
 
     .. py:property:: kind
         :type: slangpy.TypeReflection.Kind
@@ -20037,6 +20067,19 @@ Miscellaneous
 
 ----
 
+.. py:class:: slangpy.core.errors.SlangPyError
+
+    Base class: :py:class:`builtins.ValueError`
+
+
+        Raised for SlangPy usage the functional API rejects up front because it cannot produce a
+        correct result.
+
+
+
+
+----
+
 .. py:class:: slangpy.core.shapes.TArgShapesResult
 
     Base class: :py:class:`builtins.dict`
@@ -26200,6 +26243,15 @@ Miscellaneous
     :canonical: slangpy.builtin.tensor.TensorMarshall
 
     Alias class: :py:class:`slangpy.builtin.tensor.TensorMarshall`
+
+
+
+----
+
+.. py:class:: slangpy.SlangPyError
+    :canonical: slangpy.core.errors.SlangPyError
+
+    Alias class: :py:class:`slangpy.core.errors.SlangPyError`
 
 
 

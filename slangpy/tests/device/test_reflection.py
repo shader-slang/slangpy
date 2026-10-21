@@ -353,6 +353,39 @@ def test_list_program_layout_params_and_entry_points(test_id: str, device_type: 
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_type_layout_parameter_category(test_id: str, device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+
+    session = create_session(device)
+    module = session.load_module_from_source(
+        module_name=f"module_from_source_{test_id}",
+        source="""
+        struct PC { uint count; float scale; };
+        struct PCR { uint count; Texture2D tex; };
+        [[vk::push_constant]] uniform PC push;
+        [[vk::push_constant]] uniform PCR mixed_push;
+        uniform PC plain;
+        ParameterBlock<PC> block;
+    """,
+    )
+    layouts = {p.name: p.type_layout for p in module.layout.parameters}
+
+    PC = spy.TypeReflection.ParameterCategory
+    if device_type == spy.DeviceType.vulkan:
+        assert layouts["push"].parameter_category == PC.push_constant_buffer
+        assert layouts["push"].has_category(PC.push_constant_buffer)
+        assert layouts["mixed_push"].parameter_category == PC.mixed
+        assert layouts["mixed_push"].has_category(PC.push_constant_buffer)
+        assert layouts["mixed_push"].has_category(PC.descriptor_table_slot)
+    else:
+        assert not layouts["push"].has_category(PC.push_constant_buffer)
+    assert not layouts["plain"].has_category(PC.push_constant_buffer)
+    assert layouts["plain"].parameter_category == PC.uniform
+    # Vulkan reports sub_element_register_space for ParameterBlock; reflection must expose it.
+    assert isinstance(layouts["block"].parameter_category, PC)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_function_modifier(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
