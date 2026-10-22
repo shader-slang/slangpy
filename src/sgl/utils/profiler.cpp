@@ -450,6 +450,9 @@ struct ProfilerImpl {
     struct GpuResult {
         StoredZone zone;
         bool missing{false};
+        // CPU time at which the zone was begun. Capture membership is decided by this value rather than by
+        // zone.start_ns, because zone.start_ns is reconstructed from the GPU clock.
+        uint64_t cpu_begin_ns{0};
     };
 
     struct CpuDrainTarget {
@@ -462,6 +465,7 @@ struct ProfilerImpl {
         uint64_t parent_correlation_id{0};
         uint32_t site_id{0};
         uint32_t frame_index{INVALID_INDEX};
+        uint64_t cpu_begin_ns{0};
         bool ended{false};
     };
 
@@ -871,14 +875,21 @@ struct ProfilerImpl {
         }
     }
 
-    void retain_zone(const StoredZone& zone)
+    /// Adds a zone to the live window and, if a capture is recording, to the capture.
+    ///
+    /// A zone belongs to a capture if it was begun on the CPU after the capture started. For CPU zones this is
+    /// zone.start_ns. A GPU zone has to be judged by the CPU time at which it was begun (capture_begin_ns), not by
+    /// its calibrated zone.start_ns: that value is reconstructed from the GPU clock and can be earlier than the
+    /// capture start by the calibration error, which would drop a zone that was recorded during the capture while
+    /// its CPU counterpart is kept.
+    void retain_zone(const StoredZone& zone, uint64_t capture_begin_ns)
     {
         live_zones.push_back(zone);
         while (live_zones.size() > desc.live_event_capacity)
             live_zones.pop_front();
 
         std::lock_guard capture_lock(capture_mutex);
-        if (capture_state == CaptureState::recording && zone.start_ns >= capture_start_ns)
+        if (capture_state == CaptureState::recording && capture_begin_ns >= capture_start_ns)
             append_capture_zone(zone);
     }
 
@@ -927,7 +938,7 @@ struct ProfilerImpl {
         zone.timeline_id = event.timeline_id;
         zone.site_id = event.site_id;
         zone.frame_index = event.frame_index;
-        retain_zone(zone);
+        retain_zone(zone, zone.start_ns);
 
         if (event.frame_index != INVALID_INDEX && event.frame_index >= frame_stats_min_index) {
             PendingFrameData& pending = pending_frames[event.frame_index];
@@ -947,7 +958,7 @@ struct ProfilerImpl {
     {
         const StoredZone& zone = result.zone;
         if (!result.missing)
-            retain_zone(zone);
+            retain_zone(zone, result.cpu_begin_ns);
         if (zone.frame_index == INVALID_INDEX || zone.frame_index < frame_stats_min_index)
             return;
         auto pending_it = pending_frames.find(zone.frame_index);
@@ -1165,6 +1176,7 @@ struct ProfilerImpl {
         slot.parent_correlation_id = parent_correlation_id;
         slot.site_id = token.site_id;
         slot.frame_index = token.frame_index;
+        slot.cpu_begin_ns = token.start_ns;
         slot.ended = false;
         encoder->write_timestamp(context->query_pool, index * 2);
         token.gpu_state = context;
@@ -1273,7 +1285,7 @@ struct ProfilerImpl {
                         zone.timeline_id = context.timeline_id;
                         zone.site_id = slot.site_id;
                         zone.frame_index = slot.frame_index;
-                        results.push_back({zone, false});
+                        results.push_back({zone, false, slot.cpu_begin_ns});
                     }
                 }
                 pending_gpu_zone_count.fetch_sub(context.recording_zone_count(recording), std::memory_order_relaxed);

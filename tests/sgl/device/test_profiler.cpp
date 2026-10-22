@@ -618,6 +618,43 @@ TEST_CASE_GPU("GPU query exhaustion preserves CPU zones")
     CHECK(std::count(sample.gpu_status.begin(), sample.gpu_status.end(), ProfilerFrameGpuStatus::incomplete) == 1);
 }
 
+TEST_CASE_GPU("GPU zones join a capture by the CPU time they were begun")
+{
+    if (!supports_gpu_timestamps(ctx.device))
+        return;
+
+    // A GPU zone belongs to a capture if its CPU zone does, no matter when the GPU executes it. The first zone is
+    // begun before the capture starts but its commands only execute after the capture has started, so a capture
+    // filter based on the GPU timestamp would keep its GPU half while dropping its CPU half. The second zone is
+    // begun after the capture starts and must be captured on both timelines.
+    ref<Profiler> profiler = make_ref<Profiler>();
+    const uint32_t before_site = Profiler::register_site(__FILE__, __LINE__, __func__, "begun before capture");
+    const uint32_t after_site = Profiler::register_site(__FILE__, __LINE__, __func__, "begun after capture");
+
+    ref<CommandEncoder> before_encoder = ctx.device->create_command_encoder();
+    ProfilerZoneToken before = profiler->begin_zone(before_site, before_encoder);
+
+    // The pause keeps the start of the capture far above the timestamp calibration error of the GPU zones.
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    profiler->start_capture();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    profiler->end_zone(before);
+    ref<CommandEncoder> after_encoder = ctx.device->create_command_encoder();
+    ProfilerZoneToken after = profiler->begin_zone(after_site, after_encoder);
+    profiler->end_zone(after);
+    ctx.device->submit_command_buffer(before_encoder->finish());
+    ctx.device->submit_command_buffer(after_encoder->finish());
+
+    ctx.device->wait();
+    CHECK(tick_until_gpu_zones_resolved(profiler.get()));
+    ref<ProfilerTrace> trace = profiler->stop_capture();
+    CHECK(trace->query_zones("begun before capture", ProfilerTimelineType::cpu)->count() == 0);
+    CHECK(trace->query_zones("begun before capture", ProfilerTimelineType::gpu)->count() == 0);
+    CHECK(trace->query_zones("begun after capture", ProfilerTimelineType::cpu)->count() == 1);
+    CHECK(trace->query_zones("begun after capture", ProfilerTimelineType::gpu)->count() == 1);
+}
+
 TEST_CASE_GPU("discarded GPU work and pending bounds complete frame statistics")
 {
     if (!supports_gpu_timestamps(ctx.device))
