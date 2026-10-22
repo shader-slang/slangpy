@@ -111,7 +111,19 @@ TEST_CASE("public task API executes tasks")
     CHECK(executed.load());
 }
 
-TEST_CASE("task group waits for all tasks before rethrowing the first exception")
+TEST_CASE("asynchronous task rethrows its exception when waited for")
+{
+    thread::TaskHandle task = thread::do_async(
+        []
+        {
+            throw std::runtime_error("task failed");
+        }
+    );
+    CHECK_THROWS_WITH_AS(thread::task_wait_and_release(task), "task failed", std::runtime_error);
+}
+
+// Emscripten builds have no threads to run tasks concurrently.
+TEST_CASE("task group waits for all tasks before rethrowing the first exception" * doctest::skip(SGL_EMSCRIPTEN))
 {
     using namespace std::chrono_literals;
 
@@ -183,7 +195,8 @@ TEST_CASE("rhi task pool executes tasks and deletes payloads")
     CHECK(delete_count.load() == 1);
 }
 
-TEST_CASE("rhi task wait includes payload deletion")
+// Emscripten builds have no threads to run tasks concurrently.
+TEST_CASE("rhi task wait includes payload deletion" * doctest::skip(SGL_EMSCRIPTEN))
 {
     using namespace std::chrono_literals;
 

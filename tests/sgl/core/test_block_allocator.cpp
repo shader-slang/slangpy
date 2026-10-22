@@ -184,7 +184,8 @@ TEST_CASE("reset")
     }
 }
 
-TEST_CASE("multithreaded_allocation")
+// Emscripten builds have no threads.
+TEST_CASE("multithreaded_allocation" * doctest::skip(SGL_EMSCRIPTEN))
 {
     BlockAllocator<TestObject> allocator(16);
     const int num_threads = 4;
