@@ -275,7 +275,7 @@ set(SLANG_RHI_BUILD_TESTS OFF)
 set(SLANG_RHI_BUILD_EXAMPLES OFF)
 set(SLANG_RHI_FETCH_SLANG OFF)
 set(SLANG_RHI_ENABLE_D3D11 OFF)
-set(SLANG_RHI_ENABLE_WGPU OFF)
+set(SLANG_RHI_ENABLE_WGPU ${SGL_ENABLE_WGPU})
 # A sanitizer-enabled SlangPy build instruments all project-owned native code,
 # including the statically linked slang-rhi implementation.
 set(SLANG_RHI_ENABLE_ASAN ${SGL_ENABLE_ASAN} CACHE BOOL "Enable AddressSanitizer in slang-rhi" FORCE)
