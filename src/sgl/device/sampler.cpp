@@ -40,7 +40,7 @@ Sampler::~Sampler() { }
 DescriptorHandle Sampler::descriptor_handle() const
 {
     rhi::DescriptorHandle rhi_handle = {};
-    m_rhi_sampler->getDescriptorHandle(&rhi_handle);
+    SLANG_RHI_CALL(m_rhi_sampler->getDescriptorHandle(&rhi_handle), m_device);
     return DescriptorHandle(rhi_handle);
 }
 
