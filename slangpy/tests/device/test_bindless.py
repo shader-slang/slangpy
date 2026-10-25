@@ -255,13 +255,20 @@ def test_descriptor_handle_without_bindless(device_type: spy.DeviceType):
         pytest.skip("Bindless supported: descriptor handles are available.")
 
     texture = device.create_texture(
-        width=1, height=1, format=spy.Format.r32_float, usage=spy.TextureUsage.shader_resource
+        width=1,
+        height=1,
+        format=spy.Format.r32_float,
+        usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
     )
     view = texture.create_view()
     sampler = device.create_sampler()
+    # The combined texture-sampler getters are not listed: whether a backend has combined handles
+    # is separate from bindless support, so they need not raise on every device without bindless.
     getters = {
         "texture.descriptor_handle_ro": lambda: texture.descriptor_handle_ro,
+        "texture.descriptor_handle_rw": lambda: texture.descriptor_handle_rw,
         "texture_view.descriptor_handle_ro": lambda: view.descriptor_handle_ro,
+        "texture_view.descriptor_handle_rw": lambda: view.descriptor_handle_rw,
         "sampler.descriptor_handle": lambda: sampler.descriptor_handle,
     }
     for name, get in getters.items():
