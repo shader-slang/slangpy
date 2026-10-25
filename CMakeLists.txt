@@ -64,6 +64,11 @@ option(SGL_BUILD_STANDALONE "Build without external dependencies" ON)
 set(SGL_ENABLE_GLFW "AUTO" CACHE STRING "Enable GLFW window support (ON, OFF, AUTO)")
 set_property(CACHE SGL_ENABLE_GLFW PROPERTY STRINGS ON OFF AUTO)
 
+# Enable/disable the WebGPU backend.
+# When enabled, slang-rhi is built with its WebGPU backend, which downloads a prebuilt Dawn
+# and ships the Dawn shared library next to sgl.
+option(SGL_ENABLE_WGPU "Enable the WebGPU (Dawn) backend" OFF)
+
 # Enable linking CUDA driver API dynamically.
 # This allows to build CUDA support without having CUDA SDK installed.
 option(SGL_USE_DYNAMIC_CUDA "Load CUDA driver API dynamically" ON)
@@ -93,11 +98,6 @@ option(SGL_ENABLE_HEADER_VALIDATION "Enable header validation" OFF)
 # Enable/disable build metrics.
 # When enabled, adds compiler timing flags (/Bt+ for MSVC, -ftime-trace for Clang, -ftime-report for GCC).
 option(SGL_ENABLE_BUILD_METRICS "Enable build metrics (compiler timing flags)" OFF)
-
-# Enable/disable the WebGPU backend.
-# When enabled, slang-rhi is built with its WebGPU backend, which downloads a prebuilt Dawn
-# and ships the Dawn shared library next to sgl.
-option(SGL_ENABLE_WGPU "Enable the WebGPU (Dawn) backend" OFF)
 
 set(SGL_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Project directory (defaults to CMAKE_CURRENT_SOURCE_DIR)")
 
