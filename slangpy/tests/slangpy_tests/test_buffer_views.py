@@ -321,7 +321,8 @@ def test_out_of_bounds_index(device_type: DeviceType):
 
 
 @pytest.mark.skipif(sys.platform == "darwin", reason="Torch tests require CUDA")
-def test_copy_from_torch_cpu_fallback():
+@pytest.mark.parametrize("device_type", [DeviceType.cuda])
+def test_copy_from_torch_cpu_fallback(device_type: DeviceType):
     """copy_from_torch with CPU tensor falls back through numpy."""
     try:
         import torch
@@ -330,7 +331,7 @@ def test_copy_from_torch_cpu_fallback():
     if not torch.cuda.is_available():
         pytest.skip("CUDA device not available")
 
-    device = helpers.get_device(DeviceType.cuda)
+    device = helpers.get_device(device_type)
     tensor = Tensor.empty(device, dtype="float", shape=(4,))
     cpu_data = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
     tensor.copy_from_torch(cpu_data)
