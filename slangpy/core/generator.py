@@ -29,9 +29,9 @@ def resolve_max_dispatch_groups_x(reported_limit: int) -> int:
     Clamp a device's reported max X dispatch-group count to the representable
     stride ceiling, treating a zero (unset) limit as unbounded.
 
-    A zero limit means the backend did not specify a bound (the CPU backend
-    leaves it unset); emitting a zero group/thread stride would collapse the
-    physical->logical group flattening, so zero maps to the ceiling instead.
+    A zero limit means the backend did not specify a bound; emitting a zero
+    group/thread stride would collapse the physical->logical group flattening,
+    so zero maps to the ceiling instead.
 
     :param reported_limit: ``max_compute_dispatch_thread_groups.x`` from the device.
     :return: A positive group count no larger than ``MAX_DISPATCH_THREAD_GROUPS_X``.

@@ -28,6 +28,14 @@ def test_zero_dispatch_group_limit_is_unbounded() -> None:
 
 
 @pytest.mark.parametrize("device_type", [DeviceType.cpu])
+def test_cpu_reports_dispatch_group_limits(device_type: DeviceType) -> None:
+    # The zero-limit dispatch fallback would mask an unset limit, so check the
+    # reported limits directly.
+    limits = helpers.get_device(device_type).info.limits.max_compute_dispatch_thread_groups
+    assert limits.x > 0 and limits.y > 0 and limits.z > 0
+
+
+@pytest.mark.parametrize("device_type", [DeviceType.cpu])
 def test_cpu_dispatch_grid(device_type: DeviceType) -> None:
     device = helpers.get_device(device_type)
     module = helpers.create_module(device, MODULE)
