@@ -51,6 +51,8 @@ enum class Feature : uint32_t {
     bindless = static_cast<uint32_t>(rhi::Feature::Bindless),
     surface = static_cast<uint32_t>(rhi::Feature::Surface),
     pipeline_cache = static_cast<uint32_t>(rhi::Feature::PipelineCache),
+    resource_heaps = static_cast<uint32_t>(rhi::Feature::ResourceHeaps),
+    resource_aliasing = static_cast<uint32_t>(rhi::Feature::ResourceAliasing),
     // Rasterization features
     rasterization = static_cast<uint32_t>(rhi::Feature::Rasterization),
     barycentrics = static_cast<uint32_t>(rhi::Feature::Barycentrics),
@@ -143,6 +145,8 @@ SGL_ENUM_INFO(
         {Feature::bindless, "bindless"},
         {Feature::surface, "surface"},
         {Feature::pipeline_cache, "pipeline_cache"},
+        {Feature::resource_heaps, "resource_heaps"},
+        {Feature::resource_aliasing, "resource_aliasing"},
         {Feature::rasterization, "rasterization"},
         {Feature::barycentrics, "barycentrics"},
         {Feature::multi_view, "multi_view"},
