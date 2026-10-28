@@ -60,7 +60,7 @@ jobs:
           - { os: macos, platform: aarch64, compiler: clang, config: Debug, flags: "unit-test,header-validation,crashpad", runs-on: macos-latest }
           - { os: macos, platform: aarch64, compiler: clang, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: macos-latest }
           # Additional builds running on GitHub hosted runners (build only)
-          - { os: linux, platform: x86_64, compiler: clang, runs-on: ubuntu-latest }
+          - { os: linux, platform: x86_64, compiler: clang, runs-on: ubuntu-24.04 }
           - { os: linux, platform: aarch64, compiler: gcc, runs-on: ubuntu-24.04-arm }
           - { os: linux, platform: aarch64, compiler: clang, runs-on: ubuntu-24.04-arm }
 
