@@ -19,8 +19,17 @@ void DescriptorHandle::write_to_cursor(const ShaderCursor& cursor, const Descrip
 void DescriptorHandle::write_to_cursor(const BufferElementCursor& cursor, const DescriptorHandle* value)
 {
     SGL_CHECK(value, "Cannot write a null descriptor handle pointer to a buffer cursor.");
-    // Buffer cursor storage preserves the raw descriptor payload layout, not the full typed wrapper.
-    cursor.set_data(&value->value, sizeof(value->value));
+    // CUDA lowers StructuredBuffer.Handle and RWStructuredBuffer.Handle to the
+    // inline two-word resource representation from slang-cuda-prelude.h:
+    // data pointer followed by element count. Other resource handles remain a
+    // single opaque word.
+    if (cursor._get_device_type() == DeviceType::cuda
+        && (value->type == DescriptorHandleType::buffer || value->type == DescriptorHandleType::rw_buffer)) {
+        const uint64_t payload[2] = {value->value, value->auxiliary};
+        cursor.set_data(payload, sizeof(payload));
+    } else {
+        cursor.set_data(&value->value, sizeof(value->value));
+    }
 }
 
 std::string DescriptorHandle::to_string() const

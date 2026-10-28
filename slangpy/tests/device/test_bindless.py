@@ -156,9 +156,6 @@ def test_bindless_buffer(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     if not device.has_feature(spy.Feature.bindless):
         pytest.skip("Bindless not supported on this device.")
-    if device_type == spy.DeviceType.cuda:
-        pytest.skip("Bindless buffers not supported with CUDA yet.")
-
     module = device.load_module("test_bindless_buffer.slang")
     program = device.link_program(
         modules=[module], entry_points=[module.entry_point("compute_main")]
@@ -172,6 +169,7 @@ def test_bindless_buffer(device_type: spy.DeviceType):
     for i in range(BUFFER_COUNT):
         buffer = device.create_buffer(
             size=4 * 4,  # 4 floats
+            struct_size=4,
             usage=spy.BufferUsage.shader_resource,
             data=np.array([i * 10, i * 10 + 1, i * 10 + 2, i * 10 + 3], dtype=np.float32),
         )
@@ -182,6 +180,7 @@ def test_bindless_buffer(device_type: spy.DeviceType):
     for i in range(BUFFER_COUNT):
         buffer = device.create_buffer(
             size=4 * 4,  # 4 floats
+            struct_size=4,
             usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
             data=np.zeros(4, dtype=np.float32),
         )
@@ -209,10 +208,16 @@ def test_bindless_buffer(device_type: spy.DeviceType):
         c[i].offset = i % 4  # access different elements in each buffer
     c.apply()
 
+    dimensions_buffer = device.create_buffer(
+        size=BUFFER_COUNT * 4 * 4,
+        usage=spy.BufferUsage.unordered_access,
+    )
+
     kernel.dispatch(
         thread_count=[BUFFER_COUNT, 1, 1],
         buffer_infos=buffer_infos_buffer,
         results=results_buffer,
+        dimensions=dimensions_buffer,
     )
 
     # read back results from the results buffer
@@ -229,6 +234,10 @@ def test_bindless_buffer(device_type: spy.DeviceType):
         dtype=np.float32,
     )
     assert np.allclose(results, expected_results)
+    np.testing.assert_array_equal(
+        dimensions_buffer.to_numpy().view(np.uint32).reshape(BUFFER_COUNT, 4),
+        np.tile([4, 4, 4, 4], (BUFFER_COUNT, 1)),
+    )
 
     # read back and verify the RW buffers were written to correctly
     for i in range(BUFFER_COUNT):
@@ -244,6 +253,53 @@ def test_bindless_buffer(device_type: spy.DeviceType):
                 assert np.isclose(
                     rw_data[j], 0.0
                 ), f"RW buffer {i} at offset {j}: expected 0.0, got {rw_data[j]}"
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_bindless_byte_address_buffer(device_type: spy.DeviceType):
+    device = helpers.get_device(device_type)
+    if not device.has_feature(spy.Feature.bindless):
+        pytest.skip("Bindless not supported on this device.")
+
+    module = device.load_module("test_bindless_byte_address_buffer.slang")
+    program = device.link_program(
+        modules=[module], entry_points=[module.entry_point("compute_main")]
+    )
+    kernel = device.create_compute_kernel(program)
+    values = np.array([1, 2, 3, 4], dtype=np.float32)
+    source = device.create_buffer(
+        size=values.nbytes,
+        usage=spy.BufferUsage.shader_resource,
+        data=values,
+    )
+    output = device.create_buffer(
+        size=values.nbytes,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        data=np.zeros_like(values),
+    )
+    gradients = device.create_buffer(
+        size=8,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        data=np.zeros(2, dtype=np.uint32),
+    )
+    dimensions = device.create_buffer(size=12, usage=spy.BufferUsage.unordered_access)
+    info_layout = module.layout.get_type_layout(
+        module.layout.find_type_by_name("StructuredBuffer<BufferInfo>")
+    ).element_type_layout
+    infos = device.create_buffer(size=info_layout.stride, usage=spy.BufferUsage.shader_resource)
+    cursor = spy.BufferCursor(info_layout, infos, load_before_write=False)
+    cursor[0].source = source.descriptor_handle_ro
+    cursor[0].output = output.descriptor_handle_rw
+    cursor[0].gradients = gradients.descriptor_handle_rw
+    cursor[0].sentinel = 1234
+    cursor.apply()
+
+    kernel.dispatch(thread_count=[64, 1, 1], infos=infos, dimensions=dimensions)
+    np.testing.assert_array_equal(output.to_numpy().view(np.float32), values + 100)
+    np.testing.assert_array_equal(dimensions.to_numpy().view(np.uint32), [16, 16, 1234])
+    gradient_data = gradients.to_numpy()
+    np.testing.assert_array_equal(gradient_data.view(np.float16)[:2], [32, 32])
+    assert gradient_data.view(np.float32)[1] == 64
 
 
 if __name__ == "__main__":

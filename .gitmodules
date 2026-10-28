@@ -22,6 +22,7 @@
 [submodule "external/slang-rhi"]
 	path = external/slang-rhi
 	url = https://github.com/shader-slang/slang-rhi.git
+	branch = codex/gns-cuda-buffer-handles
 [submodule "external/nanothread"]
 	path = external/nanothread
 	url = https://github.com/mitsuba-renderer/nanothread.git

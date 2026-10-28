@@ -241,6 +241,7 @@ SGL_ENUM_REGISTER(DescriptorHandleType);
 struct SGL_API DescriptorHandle {
     DescriptorHandleType type{DescriptorHandleType::undefined};
     uint64_t value{0};
+    uint64_t auxiliary{0};
 
     DescriptorHandle() = default;
 
@@ -248,6 +249,7 @@ struct SGL_API DescriptorHandle {
     {
         type = static_cast<DescriptorHandleType>(handle.type);
         value = handle.value;
+        auxiliary = handle.auxiliary;
     }
 
     bool is_valid() const { return type != DescriptorHandleType::undefined; }
