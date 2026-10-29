@@ -998,15 +998,15 @@ def test_specialize_interface_function(test_id: str, device_type: spy.DeviceType
     assert f1.parameters[0].name == "val"
     assert f1.parameters[0].type.name == "IFloat"
 
-    # Specialize the function with float, still expect
-    # to get back the interface type.
+    # We expect specialization with `float` to preserve the interface parameter.
+    # Slang versions differ in whether its full name includes the `dyn` prefix.
     f2 = f1.specialize_with_arg_types([module.layout.find_type_by_name("float")])
     assert f2 is not None
     assert not f2.is_overloaded
     assert len(f2.overloads) == 0
     assert len(f2.parameters) == 1
     assert f2.parameters[0].name == "val"
-    assert f2.parameters[0].type.full_name == "IFloat"
+    assert f2.parameters[0].type.full_name in ["IFloat", "dyn IFloat"]
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
