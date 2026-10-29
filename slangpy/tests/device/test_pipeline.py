@@ -820,10 +820,6 @@ def test_raytrace_closest_instance(device_type: spy.DeviceType, mode: str):
     assert np.sum(is_pixel_green) == 4096
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v", "-s"])
-
-
 DISPATCH_NAMES_SOURCE = r"""
 RWStructuredBuffer<float> buffer;
 
@@ -853,9 +849,9 @@ def test_compute_dispatch_unknown_names(device_type: spy.DeviceType):
     # A global passed as a keyword argument used to be skipped silently, leaving it unbound.
     with pytest.raises(RuntimeError, match="global shader parameter, pass it in vars"):
         kernel.dispatch(thread_count=[4, 1, 1], buffer=buffer, scale=2.0)
-    with pytest.raises(RuntimeError, match='no parameter named "scal"'):
+    with pytest.raises(RuntimeError, match='No field named "scal"'):
         kernel.dispatch(thread_count=[4, 1, 1], vars={"buffer": buffer}, scal=2.0)
-    with pytest.raises(RuntimeError, match='no global shader parameter named "bufer"'):
+    with pytest.raises(RuntimeError, match='No field named "bufer"'):
         kernel.dispatch(thread_count=[4, 1, 1], vars={"bufer": buffer}, scale=2.0)
 
     kernel.dispatch(thread_count=[4, 1, 1], vars={"buffer": buffer}, scale=2.0)
@@ -880,7 +876,7 @@ def test_compute_dispatch_error_ends_pass(device_type: spy.DeviceType, capfd: An
     # A dispatch that fails while binding (an unknown name or a bad value) must end its compute
     # pass, so the caller's encoder can take the next pass. RHI validation reports a pass left open.
     encoder = device.create_command_encoder()
-    with pytest.raises(RuntimeError, match='no parameter named "scal"'):
+    with pytest.raises(RuntimeError, match='No field named "scal"'):
         kernel.dispatch(
             thread_count=[4, 1, 1], vars={"buffer": buffer}, scal=2.0, command_encoder=encoder
         )
@@ -897,3 +893,70 @@ def test_compute_dispatch_error_ends_pass(device_type: spy.DeviceType, capfd: An
     out, err = capfd.readouterr()
     assert "must not be in a render, compute or ray-tracing pass" not in out + err
     assert np.all(buffer.to_numpy().view(np.float32) == np.arange(4, dtype=np.float32) * 2.0)
+
+
+DISPATCH_STRUCT_SOURCE = r"""
+struct Params
+{
+    float scale;
+    float offset;
+};
+RWStructuredBuffer<float> buffer;
+uniform Params params;
+
+[shader("compute")]
+[numthreads(4, 1, 1)]
+void compute_main(uint3 tid: SV_DispatchThreadID)
+{
+    buffer[tid.x] = buffer[tid.x] * params.scale + params.offset;
+}
+"""
+
+
+class ParamsWrapper:
+    """Bound through the get_this protocol, like a SlangPy instance."""
+
+    def __init__(self, params: dict[str, Any]):
+        super().__init__()
+        self.params = params
+
+    def get_this(self) -> dict[str, Any]:
+        return self.params
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_compute_dispatch_unknown_struct_field(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    module = device.load_module_from_source("dispatch_struct", DISPATCH_STRUCT_SOURCE)
+    kernel = device.create_compute_kernel(
+        device.link_program([module], [module.entry_point("compute_main")])
+    )
+    buffer = device.create_buffer(
+        element_count=4,
+        struct_size=4,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        data=np.arange(4, dtype=np.float32),
+    )
+
+    # A dict bound to a struct at any depth rejects a name the struct does not have, directly or
+    # through get_this.
+    with pytest.raises(RuntimeError, match='params: No field named "offst"'):
+        kernel.dispatch(
+            thread_count=[4, 1, 1],
+            vars={"buffer": buffer, "params": {"scale": 2.0, "offst": 1.0}},
+        )
+    with pytest.raises(RuntimeError, match='params: No field named "offst"'):
+        kernel.dispatch(
+            thread_count=[4, 1, 1],
+            vars={"buffer": buffer, "params": ParamsWrapper({"scale": 2.0, "offst": 1.0})},
+        )
+
+    kernel.dispatch(
+        thread_count=[4, 1, 1],
+        vars={"buffer": buffer, "params": ParamsWrapper({"scale": 2.0, "offset": 1.0})},
+    )
+    assert np.all(buffer.to_numpy().view(np.float32) == np.arange(4, dtype=np.float32) * 2.0 + 1.0)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])

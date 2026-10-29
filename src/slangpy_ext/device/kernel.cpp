@@ -19,32 +19,6 @@ inline void bind_python_var(ShaderCursor cursor, nb::handle var)
     write_shader_cursor(cursor, nb::cast<nb::object>(var));
 }
 
-/// Bind each (name, value) of a dict to the field of that name under `cursor`.
-/// Writing a dict to a cursor walks the shader's fields and skips names the shader does not declare,
-/// so a global passed as a keyword argument (or a typo) would leave the resource unbound. Walking the
-/// dict instead makes an unknown name a lookup miss binding already does, so reporting it costs nothing.
-template<typename OnMiss>
-inline void bind_named_vars(const ShaderCursor& cursor, nb::dict vars, OnMiss&& on_miss)
-{
-    for (auto [key, value] : vars) {
-        Py_ssize_t size;
-        const char* data = PyUnicode_AsUTF8AndSize(key.ptr(), &size);
-        if (!data)
-            throw nb::python_error();
-        std::string_view name(data, size);
-        ShaderCursor field = cursor.find_field(name);
-        if (!field.is_valid())
-            on_miss(name);
-        try {
-            bind_python_var(field, value);
-        } catch (const std::exception& err) {
-            // Keep the "name.path: message" form the dict writer produces.
-            std::string_view msg = err.what();
-            SGL_THROW("{}{}{}", name, msg.starts_with(':') ? "" : ".", msg);
-        }
-    }
-}
-
 } // namespace sgl
 
 SGL_PY_EXPORT(device_kernel)
@@ -78,30 +52,26 @@ SGL_PY_EXPORT(device_kernel)
                 {
                     // bind locals
                     if (kwargs.size() > 0) {
-                        bind_named_vars(
-                            cursor.find_entry_point(0),
-                            kwargs,
-                            [&](std::string_view name)
-                            {
-                                if (cursor.find_field(name).is_valid())
+                        ShaderCursor entry_point = cursor.find_entry_point(0);
+                        try {
+                            bind_python_var(entry_point, kwargs);
+                        } catch (const std::exception&) {
+                            // Binding fails on a name the entry point does not have. If that name is a
+                            // global, say where it belongs.
+                            for (auto [key, value] : kwargs) {
+                                std::string name = nb::cast<std::string>(key);
+                                if (!entry_point.find_field(name).is_valid() && cursor.find_field(name).is_valid())
                                     SGL_THROW(
                                         "\"{}\" is a global shader parameter, pass it in vars instead of as a "
                                         "keyword argument.",
                                         name
                                     );
-                                SGL_THROW("Entry point has no parameter named \"{}\".", name);
                             }
-                        );
+                            throw;
+                        }
                     }
                     // bind globals
-                    bind_named_vars(
-                        cursor,
-                        vars,
-                        [](std::string_view name)
-                        {
-                            SGL_THROW("Program has no global shader parameter named \"{}\".", name);
-                        }
-                    );
+                    bind_python_var(cursor, vars);
                 };
                 if (command_encoder) {
                     SGL_CHECK(

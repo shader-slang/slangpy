@@ -521,6 +521,26 @@ private:
         return writer ? invoke_native_object_writer(*writer, self, nbval) : false;
     }
 
+    // Report the keys of `dict` that name no field of the struct `type_layout`. Only called after a
+    // write used fewer entries than the dict holds, so the common path costs a counter.
+    [[noreturn]] static void throw_unknown_fields(slang::TypeLayoutReflection* type_layout, const nb::dict& dict)
+    {
+        std::vector<std::string> unknown;
+        for (auto [key, value] : dict) {
+            if (!nb::isinstance<nb::str>(key)) {
+                unknown.push_back(nb::cast<std::string>(nb::repr(key)));
+                continue;
+            }
+            std::string name = nb::cast<std::string>(key);
+            bool found = name == "_type";
+            for (uint32_t i = 0; i < type_layout->getFieldCount() && !found; i++)
+                found = name == type_layout->getFieldByIndex(i)->getName();
+            if (!found)
+                unknown.push_back(fmt::format("\"{}\"", name));
+        }
+        SGL_THROW("No field named {}.", fmt::join(unknown, ", "));
+    }
+
     // Preserve the legacy get_this wrapper path.
     bool try_unpack_and_retry(CursorType& self, nb::object obj)
     {
@@ -797,6 +817,7 @@ private:
             // Expect a dict for a slang struct.
             if (nb::isinstance<nb::dict>(nbval)) {
                 auto dict = nb::cast<nb::dict>(nbval);
+                size_t written = 0;
                 for (uint32_t i = 0; i < type_layout->getFieldCount(); i++) {
                     auto field = type_layout->getFieldByIndex(i);
                     const char* name = field->getName();
@@ -805,8 +826,14 @@ private:
                         m_stack.push_back(name);
                         write_internal(child, dict[name]);
                         m_stack.pop_back();
+                        written++;
                     }
                 }
+                // A name the struct does not have would otherwise be skipped silently, leaving the
+                // field it was meant for unwritten (e.g. a misspelled or misplaced shader parameter).
+                // "_type" names the struct type of a SlangPy instance and is not a field.
+                if (written != dict.size() && !(written + 1 == dict.size() && dict.contains("_type")))
+                    throw_unknown_fields(type_layout, dict);
                 return;
             } else {
                 if (write_registered_native_object(self, nbval))
