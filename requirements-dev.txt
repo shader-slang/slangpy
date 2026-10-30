@@ -5,6 +5,9 @@ pytest
 pytest-xdist
 pytest-cov
 pyright
+# Without node on PATH, pyright installs it with nodeenv, which before 1.11.1 crashes on
+# Node prerelease entries in the nodejs.org index (#1250).
+nodeenv >= 1.11.1
 deepdiff
 isort
 autoflake
