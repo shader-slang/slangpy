@@ -4,7 +4,7 @@ pre-commit
 pytest
 pytest-xdist
 pytest-cov
-pyright
+pyright[nodejs]
 deepdiff
 isort
 autoflake
