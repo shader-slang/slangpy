@@ -572,6 +572,7 @@ private:
             // Expect a dict for a slang struct.
             if (nb::isinstance<nb::dict>(nbval)) {
                 auto dict = nb::cast<nb::dict>(nbval);
+                size_t written = 0;
                 for (uint32_t i = 0; i < type_layout->getFieldCount(); i++) {
                     auto field = type_layout->getFieldByIndex(i);
                     const char* name = field->getName();
@@ -580,8 +581,12 @@ private:
                         m_stack.push_back(name);
                         write_from_numpy_internal(dst, child, dict[name], unchecked_copy);
                         m_stack.pop_back();
+                        written++;
                     }
                 }
+                // As in write_internal: an unknown name would leave its field unwritten.
+                if (written != dict.size() && !(written + 1 == dict.size() && dict.contains("_type")))
+                    throw_unknown_fields(type_layout, dict);
                 return;
             } else {
                 SGL_THROW("Expected dict");
