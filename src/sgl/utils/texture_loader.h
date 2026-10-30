@@ -12,13 +12,13 @@
 
 namespace sgl {
 
-/// Interpretation of stored bitmap color values; does not re-encode texels or modify bitmap metadata.
+/// Interpretation of stored image color values; does not re-encode texels or modify source metadata.
 enum class SRGBMode {
-    /// Select sRGB sampling when supported and indicated by bitmap metadata.
+    /// Follow bitmap gamma metadata or preserve the DDS-authored format.
     automatic,
-    /// Sample without sRGB decoding, regardless of bitmap metadata.
+    /// Select the linear format when supported, regardless of source metadata.
     linear,
-    /// Select sRGB sampling when supported, regardless of bitmap metadata. Alpha remains linear.
+    /// Select sRGB sampling when supported, regardless of source metadata. Alpha remains linear.
     srgb,
 };
 
@@ -88,7 +88,9 @@ public:
         bool load_as_normalized{true};
         /// Color interpretation after channel expansion. sRGB sampling is supported for 8-bit RGBA;
         /// other component types and preserved R/RG layouts retain their usual formats.
-        /// Stored texels and alpha are unchanged. DDS files retain their authored format.
+        /// DDS preserves its authored format in automatic mode; explicit modes select the corresponding
+        /// sRGB or linear variant when one exists, otherwise leaving the format unchanged.
+        /// Stored texels, alpha, and DDS mipmaps and layout are unchanged.
         SRGBMode srgb_mode{SRGBMode::automatic};
         /// Extend RGB to RGBA if the RGB texture format cannot support the requested usage.
         bool extend_alpha{true};

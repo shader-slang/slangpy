@@ -8260,17 +8260,19 @@ Args:
 )doc";
 
 static const char *mkd_doc_sgl_SRGBMode =
-R"doc(Interpretation of stored bitmap color values; does not re-encode
-texels or modify bitmap metadata.)doc";
+R"doc(Interpretation of stored image color values; does not re-encode texels
+or modify source metadata.)doc";
 
-static const char *mkd_doc_sgl_SRGBMode_automatic = R"doc(Select sRGB sampling when supported and indicated by bitmap metadata.)doc";
+static const char *mkd_doc_sgl_SRGBMode_automatic = R"doc(Follow bitmap gamma metadata or preserve the DDS-authored format.)doc";
 
 static const char *mkd_doc_sgl_SRGBMode_info = R"doc()doc";
 
-static const char *mkd_doc_sgl_SRGBMode_linear = R"doc(Sample without sRGB decoding, regardless of bitmap metadata.)doc";
+static const char *mkd_doc_sgl_SRGBMode_linear =
+R"doc(Select the linear format when supported, regardless of source
+metadata.)doc";
 
 static const char *mkd_doc_sgl_SRGBMode_srgb =
-R"doc(Select sRGB sampling when supported, regardless of bitmap metadata.
+R"doc(Select sRGB sampling when supported, regardless of source metadata.
 Alpha remains linear.)doc";
 
 static const char *mkd_doc_sgl_Sampler = R"doc()doc";
@@ -9531,8 +9533,11 @@ box-filtered halvings.)doc";
 static const char *mkd_doc_sgl_TextureLoader_Options_srgb_mode =
 R"doc(Color interpretation after channel expansion. sRGB sampling is
 supported for 8-bit RGBA; other component types and preserved R/RG
-layouts retain their usual formats. Stored texels and alpha are
-unchanged. DDS files retain their authored format.)doc";
+layouts retain their usual formats. DDS preserves its authored format
+in automatic mode; explicit modes select the corresponding sRGB or
+linear variant when one exists, otherwise leaving the format
+unchanged. Stored texels, alpha, and DDS mipmaps and layout are
+unchanged.)doc";
 
 static const char *mkd_doc_sgl_TextureLoader_Options_usage =
 R"doc(Resource usage flags for the texture. Render-target or unordered-

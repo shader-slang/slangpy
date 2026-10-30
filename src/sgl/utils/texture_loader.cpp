@@ -307,10 +307,26 @@ inline SourceImage load_source_image(Stream* stream)
     return source_image;
 }
 
-inline SourceImage load_source_image(const std::filesystem::path& path)
+inline Format apply_dds_srgb_mode(Format format, SRGBMode mode)
 {
-    FileStream stream(path, FileStream::Mode::read);
-    return load_source_image(&stream);
+    if (mode == SRGBMode::automatic)
+        return format;
+
+    // Reinterpret the stored texels without changing their encoding or layout.
+    static constexpr std::pair<Format, Format> FORMAT_PAIRS[]{
+        {Format::rgba8_unorm, Format::rgba8_unorm_srgb},
+        {Format::bgra8_unorm, Format::bgra8_unorm_srgb},
+        {Format::bgrx8_unorm, Format::bgrx8_unorm_srgb},
+        {Format::bc1_unorm, Format::bc1_unorm_srgb},
+        {Format::bc2_unorm, Format::bc2_unorm_srgb},
+        {Format::bc3_unorm, Format::bc3_unorm_srgb},
+        {Format::bc7_unorm, Format::bc7_unorm_srgb},
+    };
+    for (const auto& [linear, srgb] : FORMAT_PAIRS) {
+        if (format == linear || format == srgb)
+            return mode == SRGBMode::srgb ? srgb : linear;
+    }
+    return format;
 }
 
 inline SourceImage load_and_convert_source_image(Device* device, Stream* stream, const TextureLoader::Options& options)
@@ -318,6 +334,8 @@ inline SourceImage load_and_convert_source_image(Device* device, Stream* stream,
     SourceImage source_image = load_source_image(stream);
     if (source_image.bitmap) {
         source_image = convert_bitmap(device, std::move(source_image.bitmap), options);
+    } else if (source_image.dds_file) {
+        source_image.format = apply_dds_srgb_mode(source_image.format, options.srgb_mode);
     }
     return source_image;
 }
@@ -325,11 +343,8 @@ inline SourceImage load_and_convert_source_image(Device* device, Stream* stream,
 inline SourceImage
 load_and_convert_source_image(Device* device, const std::filesystem::path& path, const TextureLoader::Options& options)
 {
-    SourceImage source_image = load_source_image(path);
-    if (source_image.bitmap) {
-        source_image = convert_bitmap(device, std::move(source_image.bitmap), options);
-    }
-    return source_image;
+    FileStream stream(path, FileStream::Mode::read);
+    return load_and_convert_source_image(device, &stream, options);
 }
 
 inline ref<Texture> create_texture(

@@ -14552,8 +14552,11 @@ Utilities
 
             Color interpretation after channel expansion. sRGB sampling is
             supported for 8-bit RGBA; other component types and preserved R/RG
-            layouts retain their usual formats. Stored texels and alpha are
-            unchanged. DDS files retain their authored format.
+            layouts retain their usual formats. DDS preserves its authored format
+            in automatic mode; explicit modes select the corresponding sRGB or
+            linear variant when one exists, otherwise leaving the format
+            unchanged. Stored texels, alpha, and DDS mipmaps and layout are
+            unchanged.
 
         .. py:property:: extend_alpha
             :type: bool
@@ -19330,8 +19333,8 @@ Miscellaneous
 
     Base class: :py:class:`enum.Enum`
 
-    Interpretation of stored bitmap color values; does not re-encode
-    texels or modify bitmap metadata.
+    Interpretation of stored image color values; does not re-encode texels
+    or modify source metadata.
 
     .. py:attribute:: slangpy.SRGBMode.automatic
         :type: SRGBMode
