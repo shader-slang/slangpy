@@ -111,8 +111,10 @@ struct ProfilerFrame {
     uint32_t timeline_id{0};
     /// Frame start time in profiler-clock nanoseconds.
     uint64_t start_ns{0};
-    /// Frame duration in nanoseconds.
+    /// CPU elapsed scope duration in nanoseconds, including waits inside the scope.
     uint64_t duration_ns{0};
+    /// Time since the preceding accepted frame start, or zero for the first frame after enabling profiling.
+    uint64_t interval_ns{0};
 };
 
 /// Distribution of duration samples in milliseconds.
@@ -213,7 +215,7 @@ struct ProfilerFrameStatsEntry {
 struct ProfilerFrameStatsSampleView {
     /// Monotonically increasing profiler-wide frame index.
     uint32_t frame_index{0};
-    /// Completed frame duration in milliseconds.
+    /// CPU elapsed frame scope duration in milliseconds.
     double frame_time_ms{0.0};
     /// Number of occurrences for each entry.
     std::span<const uint32_t> call_count;
@@ -223,6 +225,10 @@ struct ProfilerFrameStatsSampleView {
     std::span<const double> gpu_time_ms;
     /// GPU timing availability for each entry.
     std::span<const ProfilerFrameGpuStatus> gpu_status;
+    /// CPU frame start time in profiler-clock nanoseconds.
+    uint64_t frame_start_ns{0};
+    /// Start-to-start frame interval in milliseconds, or zero when unavailable.
+    double frame_interval_ms{0.0};
 };
 
 /// Immutable structure-of-arrays storage for at most 4096 zones.
@@ -351,16 +357,23 @@ public:
     size_t entry_count() const { return m_entries.size(); }
     /// Total ended frames still waiting for GPU measurements.
     uint64_t pending_frame_count() const { return m_pending_frame_count; }
-    /// Duration of the most recently completed frame in milliseconds.
+    /// CPU elapsed scope duration of the most recently completed frame in milliseconds.
     double latest_frame_ms() const { return m_sample_frame_time_ms.empty() ? 0.0 : m_sample_frame_time_ms.back(); }
-    /// Distribution of completed frame durations.
+    /// Distribution of CPU elapsed frame scope durations, including waits inside each scope.
     const ProfilerDurationStatistics& frame_time() const { return m_frame_time; }
+    /// Distribution of start-to-start frame intervals. Unavailable (zero) intervals are excluded.
+    /// Application FPS is 1000 / mean_ms when this distribution has samples; it is not presentation FPS.
+    const ProfilerDurationStatistics& frame_interval() const { return m_frame_interval; }
     /// Hierarchical CPU-zone paths in deterministic parent-before-child preorder.
     const std::vector<ProfilerFrameStatsEntry>& entries() const { return m_entries; }
     /// Profiler-wide frame index for each retained sample.
     const std::vector<uint32_t>& sample_frame_index() const { return m_sample_frame_index; }
-    /// Completed frame duration in milliseconds for each retained sample.
+    /// CPU elapsed frame scope duration in milliseconds for each retained sample.
     const std::vector<double>& sample_frame_time_ms() const { return m_sample_frame_time_ms; }
+    /// CPU frame start time in profiler-clock nanoseconds for each retained sample.
+    const std::vector<uint64_t>& sample_frame_start_ns() const { return m_sample_frame_start_ns; }
+    /// Start-to-start frame interval in milliseconds for each sample, or zero when unavailable.
+    const std::vector<double>& sample_frame_interval_ms() const { return m_sample_frame_interval_ms; }
     /// Row-major occurrence-count matrix with shape (sample_count(), entry_count()).
     const std::vector<uint32_t>& sample_call_count() const { return m_sample_call_count; }
     /// Row-major CPU-duration matrix with shape (sample_count(), entry_count()).
@@ -380,9 +393,12 @@ public:
 private:
     uint64_t m_pending_frame_count{0};
     ProfilerDurationStatistics m_frame_time;
+    ProfilerDurationStatistics m_frame_interval;
     std::vector<ProfilerFrameStatsEntry> m_entries;
     std::vector<uint32_t> m_sample_frame_index;
     std::vector<double> m_sample_frame_time_ms;
+    std::vector<uint64_t> m_sample_frame_start_ns;
+    std::vector<double> m_sample_frame_interval_ms;
     std::vector<uint32_t> m_sample_call_count;
     std::vector<double> m_sample_cpu_time_ms;
     std::vector<double> m_sample_gpu_time_ms;
@@ -433,8 +449,8 @@ public:
 
     /// Whether manual and automatic profiling zones are recorded.
     bool enabled() const { return m_enabled.load(std::memory_order_relaxed); }
-    /// Enable or disable all zone and frame recording.
-    void set_enabled(bool value) { m_enabled.store(value, std::memory_order_relaxed); }
+    /// Enable or disable all zone and frame recording. Transitions reset the frame-interval predecessor.
+    void set_enabled(bool value);
     /// Whether SlangPy functional dispatches create automatic zones.
     bool enable_auto_zones() const { return m_enable_auto_zones.load(std::memory_order_relaxed); }
     /// Enable or disable automatic SlangPy functional dispatch zones.

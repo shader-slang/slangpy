@@ -59,6 +59,35 @@ The profiler UI must be rendered inside an active ImGui frame. It shows cached, 
 numeric statistics; rendering it does not poll GPU work or copy an active capture. Detailed
 event timelines are exported to Perfetto rather than rendered in the embedded window.
 
+The headline shows **FPS** and **CPU frame** (elapsed time inside ``profile_frame``, including
+any waits). The Mean/Latest/P95 selector beside the checkboxes applies to CPU frame time
+and the table's times and call counts; Mean is the default. FPS always uses
+``1000 / mean frame interval in milliseconds``, regardless of the selector. The interval is
+the time between consecutive frame starts.
+This measures instrumented application cadence, not display presentation rate.
+For example, image acquisition, presentation, and profiler polling outside a frame scope still
+contribute to the interval before the next frame starts. Record one frame scope per application
+iteration for this measurement to reflect application FPS.
+
+Select a zone in the table to plot its CPU or GPU duration per frame along with its descendants.
+Each frame is one stacked column, with colored bands for the selected subtree. Parents contribute
+only the duration remaining after accounting for their children, avoiding double-counting
+inclusive times. The stack expands to fit children when a parent is unmeasured or smaller than
+its descendants, so GPU work remains visible beneath CPU-only parents. The graph always shows
+individual frames from oldest to newest. CPU values are elapsed wall time, and GPU values are
+directly measured durations. Both are inclusive: parent and child rows are not additive and do not
+represent utilization. Hover a row for complete, unavailable, incomplete, and absent GPU counts.
+Missing measurements contribute no band and are indicated by gray markers below the column;
+measured descendants remain visible. Absent occurrences are valid zero samples. Hover a band
+for its zone's inclusive measurement and the displayed remainder. Because CPU hierarchy does
+not guarantee GPU containment, the GPU stack represents grouped measurements rather than total
+GPU frame time or measured exclusive time.
+
+The latest statistics frame, its age, and the number of frames awaiting GPU measurements are
+shown in Diagnostics. CPU and GPU statistics still share the same completed frame history, so a
+pending GPU measurement can delay both. Pausing the display freezes the selected snapshot,
+while its age continues to increase.
+
 .. code-block:: python
 
     spy.ui.render_profiler_window(profiler)
@@ -95,6 +124,12 @@ measurement in a capture, use this order:
 
 Otherwise unresolved GPU zones are omitted and reported by ``diagnostics.pending_gpu_zone_count``.
 
+Capture membership follows the CPU recording start of each zone. GPU work recorded before
+``start_capture()`` is excluded even if submitted or executed during the capture. Work recorded
+during capture is eligible when its GPU queries resolve before capture stops. Calibrated GPU
+timestamps determine placement on the trace, not capture membership; approximate clock alignment
+can place a captured GPU event slightly outside the capture's CPU-clock boundaries.
+
 GPU timestamp calibration is cached independently for each device queue and refreshed at most
 once every two seconds when resolved timestamp data actually needs conversion. GPU durations are
 calculated directly from timestamp differences; calibration only aligns their start times with
@@ -128,10 +163,22 @@ GPU status distinguishes absent zones, zones without requested GPU timing, compl
 and incomplete requested measurements. Call-frequency summaries likewise derive from
 ``sample_call_count`` rather than being stored redundantly on each entry.
 
+``frame_time``, ``latest_frame_ms``, and ``sample_frame_time_ms`` retain their CPU elapsed scope
+meaning. ``sample_frame_start_ns`` contains the CPU start timestamps, while
+``sample_frame_interval_ms`` contains the preceding start-to-start interval for each retained
+frame. Both are read-only arrays with shape ``(sample_count,)``. ``ProfilerFrame.interval_ns``
+exposes the same interval in traces. The first frame after creation or an enable/disable
+transition has interval zero (unavailable); ``frame_interval`` excludes these zeros from its
+duration distribution. An interval remains valid when its preceding frame leaves the rolling
+window. Clearing statistics clears the retained samples but preserves the next frame's cadence
+relative to the last recorded frame.
+
 .. code-block:: python
 
     stats = profiler.frame_stats_snapshot()
     print(stats.frame_time.mean_ms, stats.frame_time.p95_ms)
+    if stats.frame_interval.count:
+        print("FPS:", 1000.0 / stats.frame_interval.mean_ms)
     for entry in stats.entries:
         print(entry.name, entry.cpu_time_per_frame.mean_ms)
     print(stats.sample_cpu_time_ms.shape)

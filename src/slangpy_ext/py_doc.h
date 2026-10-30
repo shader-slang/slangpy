@@ -4165,6 +4165,10 @@ static const char *mkd_doc_sgl_Feature_realtime_clock = R"doc()doc";
 
 static const char *mkd_doc_sgl_Feature_residency_set = R"doc()doc";
 
+static const char *mkd_doc_sgl_Feature_resource_aliasing = R"doc()doc";
+
+static const char *mkd_doc_sgl_Feature_resource_heaps = R"doc()doc";
+
 static const char *mkd_doc_sgl_Feature_sampler_feedback = R"doc()doc";
 
 static const char *mkd_doc_sgl_Feature_shader_abort = R"doc()doc";
@@ -7170,7 +7174,13 @@ static const char *mkd_doc_sgl_ProfilerFrameStatsSampleView_cpu_time_ms = R"doc(
 
 static const char *mkd_doc_sgl_ProfilerFrameStatsSampleView_frame_index = R"doc(Monotonically increasing profiler-wide frame index.)doc";
 
-static const char *mkd_doc_sgl_ProfilerFrameStatsSampleView_frame_time_ms = R"doc(Completed frame duration in milliseconds.)doc";
+static const char *mkd_doc_sgl_ProfilerFrameStatsSampleView_frame_interval_ms =
+R"doc(Start-to-start frame interval in milliseconds, or zero when
+unavailable.)doc";
+
+static const char *mkd_doc_sgl_ProfilerFrameStatsSampleView_frame_start_ns = R"doc(CPU frame start time in profiler-clock nanoseconds.)doc";
+
+static const char *mkd_doc_sgl_ProfilerFrameStatsSampleView_frame_time_ms = R"doc(CPU elapsed frame scope duration in milliseconds.)doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStatsSampleView_gpu_status = R"doc(GPU timing availability for each entry.)doc";
 
@@ -7188,13 +7198,30 @@ preorder.
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_entry_count = R"doc(Number of hierarchical entries.)doc";
 
-static const char *mkd_doc_sgl_ProfilerFrameStats_frame_time = R"doc(Distribution of completed frame durations.)doc";
+static const char *mkd_doc_sgl_ProfilerFrameStats_frame_interval =
+R"doc(Distribution of start-to-start frame intervals. Unavailable (zero)
+intervals are excluded. Application FPS is 1000 / mean_ms when this
+distribution has samples; it is not presentation FPS.
 
-static const char *mkd_doc_sgl_ProfilerFrameStats_latest_frame_ms = R"doc(Duration of the most recently completed frame in milliseconds.)doc";
+)doc";
+
+static const char *mkd_doc_sgl_ProfilerFrameStats_frame_time =
+R"doc(Distribution of CPU elapsed frame scope durations, including waits
+inside each scope.
+
+)doc";
+
+static const char *mkd_doc_sgl_ProfilerFrameStats_latest_frame_ms =
+R"doc(CPU elapsed scope duration of the most recently completed frame in
+milliseconds.
+
+)doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_m_diagnostics = R"doc()doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_m_entries = R"doc()doc";
+
+static const char *mkd_doc_sgl_ProfilerFrameStats_m_frame_interval = R"doc()doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_m_frame_time = R"doc()doc";
 
@@ -7205,6 +7232,10 @@ static const char *mkd_doc_sgl_ProfilerFrameStats_m_sample_call_count = R"doc()d
 static const char *mkd_doc_sgl_ProfilerFrameStats_m_sample_cpu_time_ms = R"doc()doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_m_sample_frame_index = R"doc()doc";
+
+static const char *mkd_doc_sgl_ProfilerFrameStats_m_sample_frame_interval_ms = R"doc()doc";
+
+static const char *mkd_doc_sgl_ProfilerFrameStats_m_sample_frame_start_ns = R"doc()doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_m_sample_frame_time_ms = R"doc()doc";
 
@@ -7232,7 +7263,23 @@ entry_count()).
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_sample_frame_index = R"doc(Profiler-wide frame index for each retained sample.)doc";
 
-static const char *mkd_doc_sgl_ProfilerFrameStats_sample_frame_time_ms = R"doc(Completed frame duration in milliseconds for each retained sample.)doc";
+static const char *mkd_doc_sgl_ProfilerFrameStats_sample_frame_interval_ms =
+R"doc(Start-to-start frame interval in milliseconds for each sample, or zero
+when unavailable.
+
+)doc";
+
+static const char *mkd_doc_sgl_ProfilerFrameStats_sample_frame_start_ns =
+R"doc(CPU frame start time in profiler-clock nanoseconds for each retained
+sample.
+
+)doc";
+
+static const char *mkd_doc_sgl_ProfilerFrameStats_sample_frame_time_ms =
+R"doc(CPU elapsed frame scope duration in milliseconds for each retained
+sample.
+
+)doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_sample_gpu_status =
 R"doc(Row-major GPU-status matrix with shape (sample_count(),
@@ -7260,9 +7307,15 @@ static const char *mkd_doc_sgl_ProfilerFrameToken_profiler = R"doc()doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameToken_start_ns = R"doc()doc";
 
-static const char *mkd_doc_sgl_ProfilerFrame_duration_ns = R"doc(Frame duration in nanoseconds.)doc";
+static const char *mkd_doc_sgl_ProfilerFrame_duration_ns =
+R"doc(CPU elapsed scope duration in nanoseconds, including waits inside the
+scope.)doc";
 
 static const char *mkd_doc_sgl_ProfilerFrame_index = R"doc(Monotonically increasing profiler-wide frame index.)doc";
+
+static const char *mkd_doc_sgl_ProfilerFrame_interval_ns =
+R"doc(Time since the preceding accepted frame start, or zero for the first
+frame after enabling profiling.)doc";
 
 static const char *mkd_doc_sgl_ProfilerFrame_site_id = R"doc(Profiling site that names this frame.)doc";
 
@@ -7565,7 +7618,11 @@ static const char *mkd_doc_sgl_Profiler_set_enable_auto_zones = R"doc(Enable or 
 
 static const char *mkd_doc_sgl_Profiler_set_enable_debug_groups = R"doc(Enable or disable backend debug groups for command-encoder zones.)doc";
 
-static const char *mkd_doc_sgl_Profiler_set_enabled = R"doc(Enable or disable all zone and frame recording.)doc";
+static const char *mkd_doc_sgl_Profiler_set_enabled =
+R"doc(Enable or disable all zone and frame recording. Transitions reset the
+frame-interval predecessor.
+
+)doc";
 
 static const char *mkd_doc_sgl_Profiler_start_capture =
 R"doc(Start a bounded capture after flushing events completed before this

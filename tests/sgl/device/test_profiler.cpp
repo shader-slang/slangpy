@@ -618,6 +618,32 @@ TEST_CASE_GPU("GPU query exhaustion preserves CPU zones")
     CHECK(std::count(sample.gpu_status.begin(), sample.gpu_status.end(), ProfilerFrameGpuStatus::incomplete) == 1);
 }
 
+TEST_CASE_GPU("GPU capture membership follows recording rather than execution")
+{
+    if (!supports_gpu_timestamps(ctx.device))
+        return;
+
+    ref<Profiler> profiler = make_ref<Profiler>();
+    const uint32_t before_site = Profiler::register_site(__FILE__, __LINE__, __func__, "before capture");
+    const uint32_t during_site = Profiler::register_site(__FILE__, __LINE__, __func__, "during capture");
+    ref<CommandEncoder> encoder = ctx.device->create_command_encoder();
+    profiler->end_zone(profiler->begin_zone(before_site, encoder));
+    profiler->start_capture();
+    profiler->end_zone(profiler->begin_zone(during_site, encoder));
+    // Both GPU zones execute during the capture. Only one was recorded in it.
+    // The gap also keeps execution away from the approximate calibrated boundary.
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    ctx.device->submit_command_buffer(encoder->finish());
+    ctx.device->wait();
+    REQUIRE(tick_until_gpu_zones_resolved(profiler.get()));
+    ref<ProfilerTrace> trace = profiler->stop_capture();
+    for (auto domain : {ProfilerTimelineType::cpu, ProfilerTimelineType::gpu}) {
+        CHECK(trace->query_zones("before capture", domain)->count() == 0);
+        CHECK(trace->query_zones("during capture", domain)->count() == 1);
+        CHECK(profiler->live_snapshot()->query_zones("before capture", domain)->count() == 1);
+    }
+}
+
 TEST_CASE_GPU("discarded GPU work and pending bounds complete frame statistics")
 {
     if (!supports_gpu_timestamps(ctx.device))

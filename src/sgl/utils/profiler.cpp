@@ -286,6 +286,7 @@ namespace {
         enum class Type : uint8_t { zone, frame } type{Type::zone};
         uint64_t start_ns{0};
         uint64_t duration_ns{0};
+        uint64_t frame_interval_ns{0};
         uint64_t correlation_id{0};
         uint64_t parent_correlation_id{0};
         uint32_t timeline_id{0};
@@ -450,6 +451,7 @@ struct ProfilerImpl {
     struct GpuResult {
         StoredZone zone;
         bool missing{false};
+        uint64_t recording_start_ns{0};
     };
 
     struct CpuDrainTarget {
@@ -459,6 +461,7 @@ struct ProfilerImpl {
 
     struct GpuSlot {
         uint64_t correlation_id{0};
+        uint64_t recording_start_ns{0};
         uint64_t parent_correlation_id{0};
         uint32_t site_id{0};
         uint32_t frame_index{INVALID_INDEX};
@@ -648,7 +651,7 @@ struct ProfilerImpl {
         return {};
     }
 
-    bool begin_global_frame(ProfilerFrameToken& token, ThreadData* data, uint32_t site_id, uint64_t start_ns)
+    bool begin_global_frame(ProfilerFrameToken& token, ThreadData* data, uint32_t site_id)
     {
         std::lock_guard lock(global_frame_mutex);
         if (global_frame.load(std::memory_order_acquire) != uint64_t(GlobalFrameStatus::inactive))
@@ -656,12 +659,15 @@ struct ProfilerImpl {
         const std::optional<uint32_t> frame_index = allocate_frame_index();
         if (!frame_index)
             return false;
+        const uint64_t start_ns = now_ns();
         global_frame_event = {};
         global_frame_event.type = CpuEvent::Type::frame;
         global_frame_event.start_ns = start_ns;
         global_frame_event.timeline_id = data->timeline_id;
         global_frame_event.site_id = site_id;
         global_frame_event.frame_index = *frame_index;
+        global_frame_event.frame_interval_ns = previous_frame_start_ns ? start_ns - previous_frame_start_ns : 0;
+        previous_frame_start_ns = start_ns;
         global_frame.store(global_frame_state(*frame_index, GlobalFrameStatus::open), std::memory_order_release);
         token.profiler = owner;
         token.start_ns = start_ns;
@@ -871,14 +877,15 @@ struct ProfilerImpl {
         }
     }
 
-    void retain_zone(const StoredZone& zone)
+    void retain_zone(const StoredZone& zone, uint64_t recording_start_ns)
     {
         live_zones.push_back(zone);
         while (live_zones.size() > desc.live_event_capacity)
             live_zones.pop_front();
 
         std::lock_guard capture_lock(capture_mutex);
-        if (capture_state == CaptureState::recording && zone.start_ns >= capture_start_ns)
+        // Capture membership follows CPU recording time, independently of GPU clock alignment.
+        if (capture_state == CaptureState::recording && recording_start_ns >= capture_start_ns)
             append_capture_zone(zone);
     }
 
@@ -891,6 +898,7 @@ struct ProfilerImpl {
             frame.timeline_id = event.timeline_id;
             frame.start_ns = event.start_ns;
             frame.duration_ns = event.duration_ns;
+            frame.interval_ns = event.frame_interval_ns;
             live_frames.push_back(frame);
             {
                 std::lock_guard capture_lock(capture_mutex);
@@ -927,7 +935,7 @@ struct ProfilerImpl {
         zone.timeline_id = event.timeline_id;
         zone.site_id = event.site_id;
         zone.frame_index = event.frame_index;
-        retain_zone(zone);
+        retain_zone(zone, event.start_ns);
 
         if (event.frame_index != INVALID_INDEX && event.frame_index >= frame_stats_min_index) {
             PendingFrameData& pending = pending_frames[event.frame_index];
@@ -947,7 +955,7 @@ struct ProfilerImpl {
     {
         const StoredZone& zone = result.zone;
         if (!result.missing)
-            retain_zone(zone);
+            retain_zone(zone, result.recording_start_ns);
         if (zone.frame_index == INVALID_INDEX || zone.frame_index < frame_stats_min_index)
             return;
         auto pending_it = pending_frames.find(zone.frame_index);
@@ -1162,6 +1170,7 @@ struct ProfilerImpl {
         const uint32_t index = recording->current_chunk * GPU_ZONES_PER_CHUNK + recording->chunk_cursor++;
         GpuSlot& slot = context->slots[index];
         slot.correlation_id = token.correlation_id;
+        slot.recording_start_ns = token.start_ns;
         slot.parent_correlation_id = parent_correlation_id;
         slot.site_id = token.site_id;
         slot.frame_index = token.frame_index;
@@ -1273,7 +1282,7 @@ struct ProfilerImpl {
                         zone.timeline_id = context.timeline_id;
                         zone.site_id = slot.site_id;
                         zone.frame_index = slot.frame_index;
-                        results.push_back({zone, false});
+                        results.push_back({zone, false, slot.recording_start_ns});
                     }
                 }
                 pending_gpu_zone_count.fetch_sub(context.recording_zone_count(recording), std::memory_order_relaxed);
@@ -1432,15 +1441,24 @@ struct ProfilerImpl {
         result->m_pending_frame_count = frame_stats_pending_frames.size();
         const size_t frame_count = frame_stats_completed_frames.size();
         std::vector<uint64_t> frame_durations;
+        std::vector<uint64_t> frame_intervals;
         frame_durations.reserve(frame_count);
+        frame_intervals.reserve(frame_count);
         result->m_sample_frame_index.reserve(frame_count);
         result->m_sample_frame_time_ms.reserve(frame_count);
+        result->m_sample_frame_start_ns.reserve(frame_count);
+        result->m_sample_frame_interval_ms.reserve(frame_count);
         for (const FrameRecord& frame : frame_stats_completed_frames) {
             frame_durations.push_back(frame.frame.duration_ns);
             result->m_sample_frame_index.push_back(frame.frame.index);
             result->m_sample_frame_time_ms.push_back(double(frame.frame.duration_ns) * 1e-6);
+            result->m_sample_frame_start_ns.push_back(frame.frame.start_ns);
+            result->m_sample_frame_interval_ms.push_back(double(frame.frame.interval_ns) * 1e-6);
+            if (frame.frame.interval_ns != 0)
+                frame_intervals.push_back(frame.frame.interval_ns);
         }
         result->m_frame_time = calculate_statistics(std::move(frame_durations));
+        result->m_frame_interval = calculate_statistics(std::move(frame_intervals));
 
         std::vector<AggregatedNode> nodes;
         std::unordered_map<uint64_t, uint32_t> path_lookup;
@@ -1758,6 +1776,7 @@ struct ProfilerImpl {
     std::mutex global_frame_mutex;
     std::atomic<uint64_t> global_frame{0};
     CpuEvent global_frame_event;
+    uint64_t previous_frame_start_ns{0}; // Guarded by global_frame_mutex.
     std::vector<CpuEvent> sealed_frame_events;
     std::atomic<uint64_t> gpu_query_exhaustion_count{0};
     std::atomic<uint64_t> pending_gpu_zone_count{0};
@@ -1821,6 +1840,8 @@ ProfilerFrameStatsSampleView ProfilerFrameStats::sample(size_t index) const
         std::span<const double>(m_sample_cpu_time_ms).subspan(offset, entry_count()),
         std::span<const double>(m_sample_gpu_time_ms).subspan(offset, entry_count()),
         std::span<const ProfilerFrameGpuStatus>(m_sample_gpu_status).subspan(offset, entry_count()),
+        m_sample_frame_start_ns[index],
+        m_sample_frame_interval_ms[index],
     };
 }
 
@@ -1828,7 +1849,8 @@ std::string ProfilerFrameStats::to_string() const
 {
     std::ostringstream stream;
     stream << "ProfilerFrameStats(pending_frame_count=" << pending_frame_count() << ", sample_count=" << sample_count()
-           << ", latest=" << latest_frame_ms() << " ms"
+           << ", latest_cpu_scope=" << latest_frame_ms() << " ms"
+           << ", mean_frame_interval=" << m_frame_interval.mean_ms << " ms"
            << ", producer_drop_count=" << m_diagnostics.producer_drop_count
            << ", thread_event_queue_high_water_mark=" << m_diagnostics.thread_event_queue_high_water_mark
            << ", hierarchy_loss_count=" << m_diagnostics.hierarchy_loss_count
@@ -2021,6 +2043,13 @@ bool Profiler::capture_active() const
     return m_impl->capture_active();
 }
 
+void Profiler::set_enabled(bool value)
+{
+    std::lock_guard lock(m_impl->global_frame_mutex);
+    if (m_enabled.exchange(value, std::memory_order_relaxed) != value)
+        m_impl->previous_frame_start_ns = 0;
+}
+
 void Profiler::start_capture(ProfilerCaptureDesc desc)
 {
     m_impl->start_capture(desc);
@@ -2176,7 +2205,7 @@ ProfilerFrameToken Profiler::begin_frame(uint32_t site_id) noexcept
     if (!enabled())
         return token;
     ThreadData* data = m_impl->thread_data();
-    m_impl->begin_global_frame(token, data, site_id, now_ns());
+    m_impl->begin_global_frame(token, data, site_id);
     return token;
 }
 

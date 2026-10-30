@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import threading
+import time
 from pathlib import Path
 
 import numpy as np
@@ -285,6 +286,74 @@ def test_empty_frame_statistics_have_well_formed_matrices() -> None:
     assert stats.sample_cpu_time_ms.shape == (1, 0)
     assert stats.sample_gpu_time_ms.shape == (1, 0)
     assert stats.sample_gpu_status.shape == (1, 0)
+    assert stats.sample_frame_start_ns.shape == (1,)
+    assert stats.sample_frame_interval_ms.tolist() == [0.0]
+    assert stats.frame_interval.count == 0
+
+
+def test_frame_intervals_measure_cadence_and_survive_window_eviction() -> None:
+    profiler = spy.Profiler(spy.ProfilerDesc(frame_stats_window_size=2))
+    profiler.start_capture()
+    for _ in range(3):
+        with spy.profile_frame():
+            pass
+        time.sleep(0.02)
+    trace = profiler.stop_capture()
+    stats = profiler.frame_stats_snapshot()
+    frames = trace.frames
+    assert len(frames) == 3
+    assert frames[0].interval_ns == 0
+    for previous, current in zip(frames, frames[1:]):
+        assert current.interval_ns == current.start_ns - previous.start_ns
+        # The deliberate gap is outside the CPU scope, but inside the interval.
+        assert current.interval_ns - previous.duration_ns >= 15_000_000
+    expected_intervals = np.array([frame.interval_ns * 1e-6 for frame in frames[1:]])
+    np.testing.assert_allclose(stats.sample_frame_interval_ms, expected_intervals)
+    np.testing.assert_array_equal(
+        stats.sample_frame_start_ns, [frame.start_ns for frame in frames[1:]]
+    )
+    np.testing.assert_allclose(
+        stats.sample_frame_time_ms, [frame.duration_ns * 1e-6 for frame in frames[1:]]
+    )
+    assert stats.latest_frame_ms == stats.sample_frame_time_ms[-1]
+    assert stats.frame_interval.count == 2
+    assert stats.frame_interval.mean_ms == pytest.approx(np.mean(expected_intervals))
+    assert stats.frame_interval.p95_ms == pytest.approx(np.percentile(expected_intervals, 95))
+    assert stats.sample_frame_start_ns.dtype == np.uint64
+    assert stats.sample_frame_interval_ms.dtype == np.float64
+    starts = stats.sample_frame_start_ns
+    intervals = stats.sample_frame_interval_ms
+    assert not starts.flags.writeable
+    assert not intervals.flags.writeable
+    profiler.clear_frame_stats()
+    cleared = profiler.frame_stats_snapshot()
+    assert cleared.frame_interval.count == 0
+    assert cleared.sample_frame_start_ns.shape == (0,)
+    assert cleared.sample_frame_interval_ms.shape == (0,)
+    del cleared, stats, trace, profiler
+    np.testing.assert_allclose(intervals, expected_intervals)
+    assert starts.shape == (2,)
+
+
+def test_frame_intervals_restart_after_disabled_recording() -> None:
+    profiler = spy.Profiler()
+    with spy.profile_frame():
+        pass
+    profiler.enabled = False
+    with spy.profile_frame():
+        pass
+    profiler.enabled = True
+    with spy.profile_frame():
+        pass
+    profiler.enabled = True  # An unchanged setting must not reset cadence.
+    with spy.profile_frame():
+        pass
+    profiler.flush()
+    stats = profiler.frame_stats_snapshot()
+    assert stats.sample_frame_interval_ms[:2].tolist() == [0.0, 0.0]
+    assert stats.sample_frame_interval_ms[2] > 0.0
+    assert stats.frame_interval.count == 1
+    assert stats.frame_interval.mean_ms == stats.sample_frame_interval_ms[2]
 
 
 def test_capture_state_errors_and_memory_limit() -> None:
@@ -393,3 +462,91 @@ def test_manual_gpu_zone_and_automatic_functional_zone(device_type: spy.DeviceTy
             == 1
         )
         assert trace.diagnostics.pending_gpu_zone_count == 0
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("separate_encoder", [False, True])
+def test_gpu_child_history_is_visible_without_gpu_parent(
+    device_type: spy.DeviceType, separate_encoder: bool
+) -> None:
+    device = helpers.get_device(device_type)
+    required = (
+        spy.Feature.timestamp_query,
+        spy.Feature.timestamp_calibration,
+        spy.Feature.rasterization,
+    )
+    if not all(device.has_feature(feature) for feature in required):
+        pytest.skip("Requires GPU timestamps and UI rasterization")
+    profiler = spy.Profiler()
+    buffer = device.create_buffer(size=4 * 1024 * 1024, usage=spy.BufferUsage.unordered_access)
+    for _ in range(3):
+        with spy.profile_frame():
+            encoder = device.create_command_encoder()
+            child_encoder = device.create_command_encoder() if separate_encoder else encoder
+            with spy.profile_zone("CPU-only parent"):
+                with spy.profile_zone("GPU child", encoder):
+                    for _ in range(4):
+                        encoder.clear_buffer(buffer)
+                    with spy.profile_zone("GPU grandchild", child_encoder):
+                        for _ in range(256 if separate_encoder else 4):
+                            child_encoder.clear_buffer(buffer)
+            if separate_encoder:
+                device.submit_command_buffer(child_encoder.finish())
+            device.submit_command_buffer(encoder.finish())
+    device.wait()
+    deadline = time.monotonic() + 10.0
+    while True:
+        profiler.tick()
+        profiler.flush()
+        stats = profiler.frame_stats_snapshot()
+        if stats.diagnostics.pending_gpu_zone_count == 0:
+            break
+        assert time.monotonic() < deadline, "GPU profiler queries did not resolve"
+        time.sleep(0.001)
+    assert stats.entries[0].gpu_time_per_call.count == 0
+    assert stats.entries[1].parent_index == 0
+    assert stats.entries[1].gpu_time_per_frame.maximum_ms > 0.0
+    assert stats.entries[2].parent_index == 1
+    assert stats.entries[2].gpu_time_per_frame.maximum_ms > 0.0
+
+    context = spy.ui.Context(device)
+    target = device.create_texture(
+        format=spy.Format.rgba8_unorm,
+        width=1024,
+        height=900,
+        usage=spy.TextureUsage.render_target | spy.TextureUsage.shader_resource,
+    )
+    # ImGui needs a layout frame before newly created windows become visible.
+    for _ in range(3):
+        encoder = device.create_command_encoder()
+        encoder.clear_texture_float(target, clear_value=spy.float4(0, 0, 0, 1))
+        context.begin_frame(1024, 900)
+        spy.ui.render_profiler_window(profiler)
+        context.end_frame(target, encoder)
+        device.submit_command_buffer(encoder.finish())
+    pixels = target.to_numpy().reshape(900, 1024, 4)
+    # A single plot must show a contiguous stack beneath the selected CPU-only root,
+    # rather than separate lanes or children clipped to the unmeasured parent.
+    # Exclude the blue mode selector and axis labels above/beside the plot.
+    history = pixels[510:775, 180:990, :3].astype(np.int16)
+    colored = history.max(axis=2) - history.min(axis=2) > 60
+    assert np.count_nonzero(colored) > 5000
+    column = int(np.argmax(np.count_nonzero(colored, axis=0)))
+    rows = np.flatnonzero(colored[:, column])
+    assert len(rows) > 200  # The stack uses the full height of one plot.
+    assert np.all(np.diff(rows) == 1)
+    colors = history[rows, column]
+    transitions = np.flatnonzero(np.any(colors[1:] != colors[:-1], axis=1))
+    child = stats.sample_gpu_time_ms[:, 1]
+    grandchild = stats.sample_gpu_time_ms[:, 2]
+    if separate_encoder:
+        # CPU nesting does not imply GPU containment across command encoders.
+        # The larger grandchild must survive without being clipped or rescaled.
+        assert np.all(grandchild > child)
+        assert len(transitions) == 0
+    else:
+        # Only the parent's remainder is added to the nested grandchild's band.
+        assert len(transitions) == 1
+        largest = int(np.argmax(child))
+        grandchild_fraction = float(grandchild[largest] / child[largest])
+        assert (transitions[0] + 1) / len(rows) == pytest.approx(grandchild_fraction, abs=0.03)

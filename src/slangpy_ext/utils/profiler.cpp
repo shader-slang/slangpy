@@ -314,7 +314,8 @@ SGL_PY_EXPORT(utils_profiler)
         .def_ro("site_id", &ProfilerFrame::site_id, D(ProfilerFrame, site_id))
         .def_ro("timeline_id", &ProfilerFrame::timeline_id, D(ProfilerFrame, timeline_id))
         .def_ro("start_ns", &ProfilerFrame::start_ns, D(ProfilerFrame, start_ns))
-        .def_ro("duration_ns", &ProfilerFrame::duration_ns, D(ProfilerFrame, duration_ns));
+        .def_ro("duration_ns", &ProfilerFrame::duration_ns, D(ProfilerFrame, duration_ns))
+        .def_ro("interval_ns", &ProfilerFrame::interval_ns, D(ProfilerFrame, interval_ns));
 
     nb::class_<ProfilerDurationStatistics>(m, "ProfilerDurationStatistics", D(ProfilerDurationStatistics))
         .def_ro("count", &ProfilerDurationStatistics::count, D(ProfilerDurationStatistics, count))
@@ -412,6 +413,12 @@ SGL_PY_EXPORT(utils_profiler)
             D(ProfilerFrameStats, frame_time)
         )
         .def_prop_ro(
+            "frame_interval",
+            &ProfilerFrameStats::frame_interval,
+            nb::rv_policy::reference_internal,
+            D(ProfilerFrameStats, frame_interval)
+        )
+        .def_prop_ro(
             "entries",
             &ProfilerFrameStats::entries,
             nb::rv_policy::reference_internal,
@@ -432,6 +439,22 @@ SGL_PY_EXPORT(utils_profiler)
                 return readonly_array(self.sample_frame_time_ms(), nb::cast(&self, nb::rv_policy::reference));
             },
             D(ProfilerFrameStats, sample_frame_time_ms)
+        )
+        .def_prop_ro(
+            "sample_frame_start_ns",
+            [](ProfilerFrameStats& self)
+            {
+                return readonly_array(self.sample_frame_start_ns(), nb::cast(&self, nb::rv_policy::reference));
+            },
+            D(ProfilerFrameStats, sample_frame_start_ns)
+        )
+        .def_prop_ro(
+            "sample_frame_interval_ms",
+            [](ProfilerFrameStats& self)
+            {
+                return readonly_array(self.sample_frame_interval_ms(), nb::cast(&self, nb::rv_policy::reference));
+            },
+            D(ProfilerFrameStats, sample_frame_interval_ms)
         )
         .def_prop_ro(
             "sample_call_count",

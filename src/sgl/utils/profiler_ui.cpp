@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdio>
 #include <cstdint>
 #include <vector>
@@ -38,7 +39,8 @@ namespace {
         GraphMode graph_mode{GraphMode::gpu};
         bool graph_open{true};
         bool diagnostics_open{false};
-        int32_t hovered_entry{-1};
+        std::vector<uint32_t> selected_path;
+        int32_t selected_entry{-1};
     };
 
     struct SelectedValue {
@@ -74,14 +76,12 @@ namespace {
         IM_COL32(102, 166, 30, 255),
     };
 
-    constexpr ImVec2 INITIAL_WINDOW_SIZE = ImVec2(800.f, 700.f);
+    constexpr ImVec2 INITIAL_WINDOW_SIZE = ImVec2(940.f, 740.f);
 
     constexpr float TABLE_HIERARCHY_INDENT = 12.f;
     constexpr float TABLE_COLOR_SWATCH_SIZE = 12.f;
     constexpr uint32_t TABLE_MAX_HIERARCHY_DEPTH = 64;
 
-    constexpr ImU32 SHARE_BAR_BACKGROUND_COLOR = IM_COL32(70, 74, 82, 100);
-    constexpr float SHARE_BAR_ROUNDING = 2.f;
 
     constexpr float GRAPH_HEIGHT = 260.f;
     constexpr float GRAPH_LABEL_WIDTH = 80.f;
@@ -91,20 +91,17 @@ namespace {
     constexpr float GRAPH_AXIS_LABEL_OFFSET = 2.f;
     constexpr float GRAPH_AXIS_LABEL_CENTER = 0.5f;
     constexpr float GRAPH_COLUMN_INSET = 0.5f;
-    constexpr float GRAPH_OVERFLOW_MARKER_SIZE = 5.f;
     constexpr float GRAPH_INCOMPLETE_MARKER_OFFSET = 3.f;
     constexpr float GRAPH_LINE_THICKNESS = 2.f;
     constexpr uint32_t GRAPH_GRID_COUNT = 4;
     constexpr ImU32 GRAPH_BACKGROUND_COLOR = IM_COL32(22, 24, 29, 255);
     constexpr ImU32 GRAPH_GRID_COLOR = IM_COL32(120, 125, 135, 70);
     constexpr ImU32 GRAPH_LABEL_COLOR = IM_COL32(185, 188, 195, 255);
-    constexpr ImU32 GRAPH_HIGHLIGHT_COLOR = IM_COL32(255, 255, 255, 230);
-    constexpr ImU32 GRAPH_OVERFLOW_COLOR = IM_COL32(255, 90, 70, 255);
     constexpr ImU32 GRAPH_INCOMPLETE_COLOR = IM_COL32(190, 190, 195, 180);
 
     const ImVec4 DATA_LOSS_WARNING_COLOR(1.f, 0.48f, 0.35f, 1.f);
 
-    constexpr uint32_t DIAGNOSTICS_LINE_COUNT = 3;
+    constexpr uint32_t DIAGNOSTICS_LINE_COUNT = 4;
 
     UIState ui_state;
 
@@ -153,9 +150,47 @@ namespace {
         return result;
     }
 
-    uint32_t latest_calls(const ProfilerFrameStats& stats, size_t entry_index)
+    double selected_calls(const ProfilerFrameStats& stats, size_t entry_index, ValueMode mode)
     {
-        return stats.sample_count() == 0 ? 0 : stats.sample(stats.sample_count() - 1).call_count[entry_index];
+        if (stats.sample_count() == 0)
+            return 0.0;
+        if (mode == ValueMode::latest)
+            return stats.sample(stats.sample_count() - 1).call_count[entry_index];
+        if (mode == ValueMode::mean)
+            return call_summary(stats, entry_index).mean;
+        std::vector<uint32_t> counts;
+        counts.reserve(stats.sample_count());
+        for (size_t i = 0; i < stats.sample_count(); ++i)
+            counts.push_back(stats.sample(i).call_count[entry_index]);
+        std::sort(counts.begin(), counts.end());
+        const double position = 0.95 * double(counts.size() - 1);
+        const size_t lower = size_t(position);
+        const size_t upper = std::min(lower + 1, counts.size() - 1);
+        return double(counts[lower]) + (double(counts[upper]) - double(counts[lower])) * (position - double(lower));
+    }
+
+    std::vector<uint32_t> entry_path(const ProfilerFrameStats& stats, size_t index)
+    {
+        std::vector<uint32_t> path;
+        for (int32_t current = int32_t(index); current >= 0; current = stats.entries()[size_t(current)].parent_index)
+            path.push_back(stats.entries()[size_t(current)].site_id);
+        return path;
+    }
+
+    void update_selection(UIState& state)
+    {
+        state.selected_entry = -1;
+        for (size_t i = 0; i < state.stats->entry_count(); ++i) {
+            if (!state.selected_path.empty() && state.stats->entries()[i].site_id == state.selected_path.front()
+                && entry_path(*state.stats, i) == state.selected_path) {
+                state.selected_entry = int32_t(i);
+                return;
+            }
+        }
+        if (state.stats->entries().empty())
+            return;
+        state.selected_entry = 0;
+        state.selected_path = entry_path(*state.stats, 0);
     }
 
     SelectedValue selected_time(const ProfilerFrameStats& stats, size_t entry_index, ValueMode mode, bool gpu)
@@ -188,16 +223,6 @@ namespace {
             colors[index] = PALETTE[size_t(hash % PALETTE.size())];
         }
         return colors;
-    }
-
-    ImU32 muted_color(ImU32 color)
-    {
-        ImVec4 value = ImGui::ColorConvertU32ToFloat4(color);
-        value.x = value.x * 0.35f + 0.35f;
-        value.y = value.y * 0.35f + 0.35f;
-        value.z = value.z * 0.35f + 0.35f;
-        value.w = 0.55f;
-        return ImGui::ColorConvertFloat4ToU32(value);
     }
 
     void show_duration_statistics(const char* label, const ProfilerDurationStatistics& statistics)
@@ -261,6 +286,9 @@ namespace {
             static_cast<unsigned long long>(coverage.incomplete),
             static_cast<unsigned long long>(coverage.absent)
         );
+        ImGui::TextUnformatted("Times are inclusive; parent and child rows are not additive.");
+        ImGui::TextUnformatted("GPU means and percentiles exclude unavailable and incomplete frames.");
+        ImGui::TextUnformatted("Absent occurrences contribute zero. CPU time includes waits inside the scope.");
         ImGui::EndTooltip();
     }
 
@@ -272,71 +300,28 @@ namespace {
         return true;
     }
 
-    bool draw_share_bar(const char* id, double fraction, ImU32 color)
-    {
-        const ImVec2 origin = ImGui::GetCursorScreenPos();
-        const ImVec2 size(std::max(1.f, ImGui::GetContentRegionAvail().x), ImGui::GetTextLineHeight());
-        ImGui::InvisibleButton(id, size);
-        ImDrawList* draw = ImGui::GetWindowDrawList();
-        draw->AddRectFilled(
-            origin,
-            ImVec2(origin.x + size.x, origin.y + size.y),
-            SHARE_BAR_BACKGROUND_COLOR,
-            SHARE_BAR_ROUNDING
-        );
-        const float fill = float(std::clamp(fraction, 0.0, 1.0));
-        if (fill > 0.f)
-            draw->AddRectFilled(origin, ImVec2(origin.x + size.x * fill, origin.y + size.y), color, SHARE_BAR_ROUNDING);
-        if (ImGui::IsItemHovered()) {
-            ImGui::BeginTooltip();
-            ImGui::Text("%.2f%% of summed root-zone time", fraction * 100.0);
-            ImGui::EndTooltip();
-            return true;
-        }
-        return false;
-    }
-
-    void draw_table(UIState& state, float height, int32_t highlighted_entry)
+    void draw_table(UIState& state, float height)
     {
         const ProfilerFrameStats& stats = *state.stats;
-        const std::vector<ImU32>& entry_colors = state.entry_colors;
-        double cpu_root_total = 0.0;
-        double gpu_root_total = 0.0;
-        for (size_t index = 0; index < stats.entries().size(); ++index) {
-            if (stats.entries()[index].parent_index >= 0)
-                continue;
-            cpu_root_total += selected_time(stats, index, state.value_mode, false).value;
-            const SelectedValue gpu = selected_time(stats, index, state.value_mode, true);
-            if (gpu.valid)
-                gpu_root_total += gpu.value;
-        }
-
         if (!ImGui::BeginTable(
                 "profiler_frame_stats",
-                6,
+                4,
                 ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollY
                     | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp,
                 ImVec2(0.f, height)
             ))
             return;
         ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableSetupColumn("Zone", ImGuiTableColumnFlags_WidthStretch, 2.2f);
-        ImGui::TableSetupColumn("Calls/frame", ImGuiTableColumnFlags_WidthStretch, 0.85f);
-        ImGui::TableSetupColumn("CPU time", ImGuiTableColumnFlags_WidthStretch, 0.8f);
-        ImGui::TableSetupColumn("CPU share", ImGuiTableColumnFlags_WidthStretch, 0.9f);
-        ImGui::TableSetupColumn("GPU time", ImGuiTableColumnFlags_WidthStretch, 0.8f);
-        ImGui::TableSetupColumn("GPU share", ImGuiTableColumnFlags_WidthStretch, 0.9f);
+        ImGui::TableSetupColumn("Zone (select to graph)", ImGuiTableColumnFlags_WidthStretch, 2.4f);
+        ImGui::TableSetupColumn("Calls/frame", ImGuiTableColumnFlags_WidthStretch, 0.8f);
+        ImGui::TableSetupColumn("CPU ms/frame", ImGuiTableColumnFlags_WidthStretch, 1.f);
+        ImGui::TableSetupColumn("GPU ms/frame", ImGuiTableColumnFlags_WidthStretch, 1.f);
         ImGui::TableHeadersRow();
 
         for (size_t index = 0; index < stats.entries().size(); ++index) {
             const ProfilerFrameStatsEntry& entry = stats.entries()[index];
-            const ImU32 color = entry_colors[index];
             ImGui::PushID(int(index));
             ImGui::TableNextRow();
-            if (highlighted_entry == int32_t(index))
-                ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, muted_color(color));
-
-            bool row_hovered = false;
             ImGui::TableNextColumn();
             uint32_t depth = 0;
             int32_t parent = entry.parent_index;
@@ -347,229 +332,177 @@ namespace {
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + float(depth) * TABLE_HIERARCHY_INDENT);
             ImGui::ColorButton(
                 "##color",
-                ImGui::ColorConvertU32ToFloat4(color),
+                ImGui::ColorConvertU32ToFloat4(state.entry_colors[index]),
                 ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoBorder,
                 ImVec2(TABLE_COLOR_SWATCH_SIZE, TABLE_COLOR_SWATCH_SIZE)
             );
-            row_hovered |= item_hovered_with_tooltip(stats, index);
             ImGui::SameLine();
-            ImGui::TextUnformatted(entry.name.c_str());
-            row_hovered |= item_hovered_with_tooltip(stats, index);
+            if (ImGui::Selectable(entry.name.c_str(), state.selected_entry == int32_t(index))) {
+                state.selected_entry = int32_t(index);
+                state.selected_path = entry_path(stats, index);
+            }
+            item_hovered_with_tooltip(stats, index);
 
             ImGui::TableNextColumn();
-            ImGui::Text("%u", latest_calls(stats, index));
-            row_hovered |= item_hovered_with_tooltip(stats, index);
-
-            const SelectedValue cpu = selected_time(stats, index, state.value_mode, false);
+            ImGui::Text("%.2f", selected_calls(stats, index, state.value_mode));
+            item_hovered_with_tooltip(stats, index);
             ImGui::TableNextColumn();
-            ImGui::Text("%.3f ms", cpu.value);
-            row_hovered |= item_hovered_with_tooltip(stats, index);
+            ImGui::Text("%.3f", selected_time(stats, index, state.value_mode, false).value);
+            item_hovered_with_tooltip(stats, index);
             ImGui::TableNextColumn();
-            row_hovered
-                |= draw_share_bar("##cpu_share", cpu_root_total > 0.0 ? cpu.value / cpu_root_total : 0.0, color);
-
             const SelectedValue gpu = selected_time(stats, index, state.value_mode, true);
-            ImGui::TableNextColumn();
             if (gpu.valid)
-                ImGui::Text("%.3f ms", gpu.value);
+                ImGui::Text("%.3f", gpu.value);
             else
                 ImGui::TextUnformatted("n/a");
-            row_hovered |= item_hovered_with_tooltip(stats, index);
-            ImGui::TableNextColumn();
-            if (gpu.valid) {
-                row_hovered
-                    |= draw_share_bar("##gpu_share", gpu_root_total > 0.0 ? gpu.value / gpu_root_total : 0.0, color);
-            } else {
-                ImGui::TextDisabled("n/a");
-                row_hovered |= item_hovered_with_tooltip(stats, index);
-            }
-
-            if (row_hovered)
-                state.hovered_entry = int32_t(index);
+            item_hovered_with_tooltip(stats, index);
             ImGui::PopID();
         }
         ImGui::EndTable();
     }
 
-    void draw_graph(UIState& state, float height, int32_t highlighted_entry)
+    void draw_graph(UIState& state, float height)
     {
         const ProfilerFrameStats& stats = *state.stats;
-        const std::vector<ImU32>& entry_colors = state.entry_colors;
-        const bool gpu = state.graph_mode == GraphMode::gpu;
-        if (stats.sample_count() == 0) {
-            ImGui::TextUnformatted("No completed frame history");
+        if (stats.sample_count() == 0 || state.selected_entry < 0) {
+            ImGui::TextUnformatted("No completed zone history. Record zones inside profile_frame().");
             return;
         }
-        if (stats.entries().empty()) {
-            ImGui::TextUnformatted("No profiled zones in completed frame history");
-            return;
+        const size_t root = size_t(state.selected_entry);
+        const bool gpu = state.graph_mode == GraphMode::gpu;
+        // Entries are ordered parent before child. Restrict the stack to the selected subtree.
+        std::vector<size_t> entries;
+        std::vector<bool> included(stats.entry_count(), false);
+        included[root] = true;
+        for (size_t index = root; index < stats.entry_count(); ++index) {
+            const int32_t parent = stats.entries()[index].parent_index;
+            if (parent >= 0 && included[size_t(parent)])
+                included[index] = true;
+            if (included[index])
+                entries.push_back(index);
         }
 
+        // Partition inclusive durations instead of summing parents and children twice.
+        // GPU hierarchy need not imply containment: expand to fit children rather than
+        // clipping or rescaling their measurements to a missing/smaller parent.
+        std::vector<double> bands(stats.sample_count() * entries.size());
+        std::vector<double> child_totals(stats.entry_count());
+        std::vector<bool> missing(stats.sample_count(), false);
+        double maximum = 0.0;
+        for (size_t i = 0; i < stats.sample_count(); ++i) {
+            const auto sample = stats.sample(i);
+            std::fill(child_totals.begin(), child_totals.end(), 0.0);
+            for (size_t j = entries.size(); j-- > 0;) {
+                const size_t index = entries[j];
+                const bool valid = !gpu || valid_gpu_status(sample.gpu_status[index]);
+                missing[i] = missing[i] || !valid;
+                const double measured = valid ? (gpu ? sample.gpu_time_ms[index] : sample.cpu_time_ms[index]) : 0.0;
+                const double total = std::max(measured, child_totals[index]);
+                bands[i * entries.size() + j] = total - child_totals[index];
+                if (index == root)
+                    maximum = std::max(maximum, total);
+                else
+                    child_totals[size_t(stats.entries()[index].parent_index)] += total;
+            }
+        }
+        if (maximum <= 0.0)
+            maximum = 1.0;
         const ImVec2 origin = ImGui::GetCursorScreenPos();
         const ImVec2 size(std::max(1.f, ImGui::GetContentRegionAvail().x), height);
         ImGui::InvisibleButton("profiler_history", size);
         const bool graph_hovered = ImGui::IsItemHovered();
         ImDrawList* draw = ImGui::GetWindowDrawList();
         draw->AddRectFilled(origin, ImVec2(origin.x + size.x, origin.y + size.y), GRAPH_BACKGROUND_COLOR);
-
         const float plot_left = origin.x + GRAPH_LABEL_WIDTH;
         const float plot_right = origin.x + size.x - GRAPH_RIGHT_PADDING;
         const float plot_top = origin.y + GRAPH_TOP_PADDING;
         const float plot_bottom = origin.y + size.y - GRAPH_BOTTOM_PADDING;
         const float plot_width = std::max(1.f, plot_right - plot_left);
         const float plot_height = std::max(1.f, plot_bottom - plot_top);
-
-        double maximum = 0.0;
-        for (size_t sample_index = 0; sample_index < stats.sample_count(); ++sample_index) {
-            const ProfilerFrameStatsSampleView sample = stats.sample(sample_index);
-            double total = 0.0;
-            for (size_t index = 0; index < stats.entries().size(); ++index) {
-                if (stats.entries()[index].parent_index < 0)
-                    total += gpu ? sample.gpu_time_ms[index] : sample.cpu_time_ms[index];
-            }
-            maximum = std::max(maximum, total);
-        }
-        if (maximum <= 0.0)
-            maximum = 1.0;
-
         for (uint32_t grid = 0; grid <= GRAPH_GRID_COUNT; ++grid) {
             const float y = plot_bottom - plot_height * float(grid) / float(GRAPH_GRID_COUNT);
             draw->AddLine(ImVec2(plot_left, y), ImVec2(plot_right, y), GRAPH_GRID_COLOR);
             char label[32];
-            snprintf(label, sizeof(label), "%.1f ms", maximum * double(grid) / double(GRAPH_GRID_COUNT));
+            snprintf(label, sizeof(label), "%.3g ms", maximum * double(grid) / double(GRAPH_GRID_COUNT));
             draw->AddText(
                 ImVec2(origin.x + GRAPH_AXIS_LABEL_OFFSET, y - ImGui::GetTextLineHeight() * GRAPH_AXIS_LABEL_CENTER),
                 GRAPH_LABEL_COLOR,
                 label
             );
         }
-
         const float column_width = plot_width / float(stats.sample_count());
-        int32_t hovered_entry = -1;
-        size_t hovered_sample = 0;
-        bool hovered_overflow = false;
-        bool hovered_sample_incomplete = false;
-        std::vector<bool> sample_incomplete_flags(gpu ? stats.sample_count() : 0);
-        std::vector<double> band_bottom(stats.entries().size());
-        std::vector<double> band_height(stats.entries().size());
-        std::vector<double> child_used(stats.entries().size());
-        std::vector<bool> overflow(stats.entries().size());
         const ImVec2 mouse = ImGui::GetIO().MousePos;
-
-        for (size_t sample_index = 0; sample_index < stats.sample_count(); ++sample_index) {
-            const ProfilerFrameStatsSampleView sample = stats.sample(sample_index);
-            const float x0 = plot_left + column_width * float(sample_index) + GRAPH_COLUMN_INSET;
-            const float x1 = plot_left + column_width * float(sample_index + 1) - GRAPH_COLUMN_INSET;
-            std::fill(band_bottom.begin(), band_bottom.end(), 0.0);
-            std::fill(band_height.begin(), band_height.end(), 0.0);
-            std::fill(child_used.begin(), child_used.end(), 0.0);
-            std::fill(overflow.begin(), overflow.end(), false);
-
-            double root_bottom = 0.0;
-            bool sample_incomplete = false;
-            for (size_t index = 0; index < stats.entries().size(); ++index) {
-                const ProfilerFrameStatsEntry& entry = stats.entries()[index];
-                const double value = gpu ? sample.gpu_time_ms[index] : sample.cpu_time_ms[index];
-                if (gpu && !valid_gpu_status(sample.gpu_status[index]))
-                    sample_incomplete = true;
-                if (entry.parent_index < 0) {
-                    band_bottom[index] = root_bottom;
-                    band_height[index] = value;
-                    root_bottom += value;
-                } else {
-                    const size_t parent = size_t(entry.parent_index);
-                    const double available = std::max(0.0, band_height[parent] - child_used[parent]);
-                    band_bottom[index] = band_bottom[parent] + child_used[parent];
-                    band_height[index] = std::min(value, available);
-                    if (value > available + 1e-9)
-                        overflow[parent] = true;
-                    child_used[parent] += value;
-                }
-
-                if (band_height[index] <= 0.0)
+        const bool plot_hovered = graph_hovered && mouse.x >= plot_left && mouse.x <= plot_right;
+        const size_t hovered_sample
+            = plot_hovered ? std::min(stats.sample_count() - 1, size_t((mouse.x - plot_left) / column_width)) : 0;
+        size_t hovered_entry = root;
+        double hovered_band = 0.0;
+        for (size_t i = 0; i < stats.sample_count(); ++i) {
+            const float inset = std::min(GRAPH_COLUMN_INSET, column_width * 0.1f);
+            const float x0 = plot_left + column_width * float(i) + inset;
+            const float x1 = plot_left + column_width * float(i + 1) - inset;
+            double offset = 0.0;
+            for (size_t j = 0; j < entries.size(); ++j) {
+                const double band = bands[i * entries.size() + j];
+                if (band <= 0.0)
                     continue;
-                const float y0 = plot_bottom - float((band_bottom[index] + band_height[index]) / maximum) * plot_height;
-                const float y1 = plot_bottom - float(band_bottom[index] / maximum) * plot_height;
-                ImU32 color = entry_colors[index];
-                if (gpu && !valid_gpu_status(sample.gpu_status[index]))
-                    color = muted_color(color);
-                draw->AddRectFilled(ImVec2(x0, y0), ImVec2(std::max(x0 + 1.f, x1), y1), color);
-                if (highlighted_entry == int32_t(index))
-                    draw->AddRect(
-                        ImVec2(x0, y0),
-                        ImVec2(std::max(x0 + 1.f, x1), y1),
-                        GRAPH_HIGHLIGHT_COLOR,
-                        0.f,
-                        0,
-                        GRAPH_LINE_THICKNESS
-                    );
-                if (graph_hovered && mouse.x >= x0 && mouse.x <= x1 && mouse.y >= y0 && mouse.y <= y1) {
-                    hovered_entry = int32_t(index);
-                    hovered_sample = sample_index;
+                const float bottom = plot_bottom - float(offset / maximum) * plot_height;
+                offset += band;
+                const float top = plot_bottom - float(offset / maximum) * plot_height;
+                draw->AddRectFilled(ImVec2(x0, top), ImVec2(x1, bottom), state.entry_colors[entries[j]]);
+                if (plot_hovered && i == hovered_sample && mouse.y >= top && mouse.y <= bottom) {
+                    hovered_entry = entries[j];
+                    hovered_band = band;
                 }
             }
-
-            for (size_t index = 0; index < overflow.size(); ++index) {
-                if (!overflow[index])
-                    continue;
-                const float y = plot_bottom - float((band_bottom[index] + band_height[index]) / maximum) * plot_height;
-                draw->AddTriangleFilled(
-                    ImVec2(x1 - GRAPH_OVERFLOW_MARKER_SIZE, y),
-                    ImVec2(x1, y),
-                    ImVec2(x1, y + GRAPH_OVERFLOW_MARKER_SIZE),
-                    GRAPH_OVERFLOW_COLOR
-                );
-            }
-            if (hovered_entry >= 0 && hovered_sample == sample_index)
-                hovered_overflow = overflow[size_t(hovered_entry)];
-
-            if (gpu)
-                sample_incomplete_flags[sample_index] = sample_incomplete;
-            if (hovered_entry >= 0 && hovered_sample == sample_index)
-                hovered_sample_incomplete = sample_incomplete;
-            if (gpu && sample_incomplete)
+            if (missing[i]) {
                 draw->AddLine(
                     ImVec2(x0, plot_bottom + GRAPH_INCOMPLETE_MARKER_OFFSET),
                     ImVec2(x1, plot_bottom + GRAPH_INCOMPLETE_MARKER_OFFSET),
                     GRAPH_INCOMPLETE_COLOR,
                     GRAPH_LINE_THICKNESS
                 );
-        }
-
-        if (hovered_entry >= 0) {
-            state.hovered_entry = hovered_entry;
-            const ProfilerFrameStatsSampleView sample = stats.sample(hovered_sample);
-            const size_t index = size_t(hovered_entry);
-            ImGui::BeginTooltip();
-            ImGui::TextUnformatted(stats.entries()[index].name.c_str());
-            ImGui::Text(
-                "Frame %u: %.3f ms (%u calls)",
-                sample.frame_index,
-                gpu ? sample.gpu_time_ms[index] : sample.cpu_time_ms[index],
-                sample.call_count[index]
-            );
-            ImGui::Text("Frame time: %.3f ms", sample.frame_time_ms);
-            if (gpu && sample.gpu_status[index] == ProfilerFrameGpuStatus::unavailable)
-                ImGui::TextUnformatted("GPU timing was not requested; value is muted.");
-            if (gpu && sample.gpu_status[index] == ProfilerFrameGpuStatus::incomplete)
-                ImGui::TextUnformatted("GPU timing is incomplete; value is muted.");
-            if (hovered_overflow)
-                ImGui::TextUnformatted("Child totals overflow this parent and are clipped.");
-            if (gpu && hovered_sample_incomplete)
-                ImGui::TextUnformatted("This frame contains incomplete GPU samples.");
-            ImGui::EndTooltip();
-        } else if (gpu && graph_hovered && mouse.x >= plot_left && mouse.x <= plot_right) {
-            const size_t sample_index
-                = std::min(stats.sample_count() - 1, size_t(std::max(0.f, mouse.x - plot_left) / column_width));
-            if (sample_incomplete_flags[sample_index]) {
-                const ProfilerFrameStatsSampleView sample = stats.sample(sample_index);
-                ImGui::BeginTooltip();
-                ImGui::Text("Frame %u: incomplete GPU timing", sample.frame_index);
-                ImGui::Text("Frame time: %.3f ms", sample.frame_time_ms);
-                ImGui::TextUnformatted("Muted entries are unavailable or partial measurements.");
-                ImGui::EndTooltip();
             }
         }
+        if (plot_hovered) {
+            const auto sample = stats.sample(hovered_sample);
+            std::string path = stats.entries()[hovered_entry].name;
+            for (int32_t parent = stats.entries()[hovered_entry].parent_index; parent >= 0;
+                 parent = stats.entries()[size_t(parent)].parent_index)
+                path = stats.entries()[size_t(parent)].name + " / " + path;
+            ImGui::BeginTooltip();
+            ImGui::Text("Frame %u: %s", sample.frame_index, path.c_str());
+            if (gpu && !valid_gpu_status(sample.gpu_status[hovered_entry]))
+                ImGui::Text("GPU timing: %s", enum_to_string(sample.gpu_status[hovered_entry]).c_str());
+            else
+                ImGui::Text(
+                    "%s (inclusive): %.3f ms",
+                    gpu ? "GPU measured" : "CPU elapsed",
+                    gpu ? sample.gpu_time_ms[hovered_entry] : sample.cpu_time_ms[hovered_entry]
+                );
+            if (hovered_band > 0.0)
+                ImGui::Text("Band after accounting for descendants: %.3f ms", hovered_band);
+            ImGui::Text("Calls: %u; CPU frame scope: %.3f ms", sample.call_count[hovered_entry], sample.frame_time_ms);
+            ImGui::TextUnformatted("Bands partition inclusive times; missing or smaller parents do not clip children.");
+            if (gpu) {
+                ImGui::TextUnformatted(
+                    "Grouped GPU measurements, not total GPU frame time or measured exclusive time."
+                );
+                if (missing[hovered_sample])
+                    ImGui::TextUnformatted("Some GPU measurements in this subtree are unavailable or incomplete.");
+            }
+            ImGui::EndTooltip();
+        }
+    }
+
+    SelectedValue selected_frame_time(const ProfilerFrameStats& stats, ValueMode mode)
+    {
+        if (stats.sample_count() == 0)
+            return {};
+        if (mode == ValueMode::latest)
+            return {stats.sample(stats.sample_count() - 1).frame_time_ms, true};
+        const auto& distribution = stats.frame_time();
+        return {mode == ValueMode::mean ? distribution.mean_ms : distribution.p95_ms, distribution.count != 0};
     }
 
     template<typename T, size_t N>
@@ -627,10 +560,17 @@ void render_profiler_window(Profiler* profiler)
         profiler->set_enable_auto_zones(automatic);
     ImGui::SameLine();
     ImGui::Checkbox("Pause display", &state.paused);
+    ImGui::SameLine();
+    draw_value_selector(state);
 
     if (!state.paused || !state.stats) {
-        state.stats = profiler->frame_stats_snapshot();
-        state.entry_colors = state.stats ? make_entry_colors(*state.stats) : std::vector<ImU32>();
+        ref<ProfilerFrameStats> stats = profiler->frame_stats_snapshot();
+        if (stats != state.stats) {
+            state.stats = std::move(stats);
+            state.entry_colors = state.stats ? make_entry_colors(*state.stats) : std::vector<ImU32>();
+            if (state.stats)
+                update_selection(state);
+        }
     }
     if (!state.stats) {
         ImGui::TextUnformatted("No frame statistics available");
@@ -649,19 +589,30 @@ void render_profiler_window(Profiler* profiler)
     }
 
     ImGui::PushFont("monospace");
-    const double latest_frame_ms = state.stats->latest_frame_ms();
-    if (latest_frame_ms > 0.0) {
-        ImGui::Text(
-            "FPS: %.1f  Frame time: %.3f ms latest  %.3f ms mean  %.3f ms P95",
-            1000.0 / latest_frame_ms,
-            latest_frame_ms,
-            state.stats->frame_time().mean_ms,
-            state.stats->frame_time().p95_ms
-        );
-    } else {
-        ImGui::TextUnformatted("FPS: n/a  Frame time: n/a");
+    const auto& interval = state.stats->frame_interval();
+    if (interval.count != 0 && interval.mean_ms > 0.0)
+        ImGui::Text("FPS: %.1f", 1000.0 / interval.mean_ms);
+    else
+        ImGui::TextUnformatted("FPS: n/a");
+    if (ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted("FPS = 1000 / mean interval between profile_frame starts.");
+        ImGui::TextUnformatted("Includes time outside CPU frame scopes. Requires consecutive recorded frames.");
+        ImGui::TextUnformatted("Always uses the mean, regardless of the Value selector.");
+        ImGui::EndTooltip();
     }
-    draw_value_selector(state);
+    ImGui::SameLine();
+    const SelectedValue frame = selected_frame_time(*state.stats, state.value_mode);
+    if (frame.valid)
+        ImGui::Text("| CPU frame: %.3f ms", frame.value);
+    else
+        ImGui::TextUnformatted("| CPU frame: n/a");
+    if (ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted("CPU elapsed time inside profile_frame(), including waits within the scope.");
+        ImGui::TextUnformatted("Mean, Latest, or P95 follows the Value selector, as do the table values.");
+        ImGui::EndTooltip();
+    }
 
     const bool graph_has_data = state.stats->sample_count() != 0 && !state.stats->entries().empty();
     const float graph_content_height = graph_has_data ? GRAPH_HEIGHT : ImGui::GetTextLineHeight();
@@ -672,23 +623,40 @@ void render_profiler_window(Profiler* profiler)
     if (state.diagnostics_open)
         bottom_height += DIAGNOSTICS_LINE_COUNT * ImGui::GetTextLineHeightWithSpacing();
 
-    const int32_t previous_hovered = state.hovered_entry;
-    state.hovered_entry = -1;
     const float table_height = std::max(1.f, ImGui::GetContentRegionAvail().y - bottom_height);
-    draw_table(state, table_height, previous_hovered);
+    draw_table(state, table_height);
 
     ImGui::SetNextItemOpen(state.graph_open, ImGuiCond_Always);
-    state.graph_open = ImGui::CollapsingHeader("Graph");
+    state.graph_open = ImGui::CollapsingHeader("Selected zone history (oldest to newest)");
     if (state.graph_open) {
         draw_graph_selector(state);
-        draw_graph(state, GRAPH_HEIGHT, state.hovered_entry >= 0 ? state.hovered_entry : previous_hovered);
+        draw_graph(state, GRAPH_HEIGHT);
     }
 
     ImGui::SetNextItemOpen(state.diagnostics_open, ImGuiCond_Always);
     state.diagnostics_open = ImGui::CollapsingHeader("Diagnostics");
     if (state.diagnostics_open) {
+        if (state.stats->sample_count() != 0) {
+            const auto latest = state.stats->sample(state.stats->sample_count() - 1);
+            const uint64_t now = uint64_t(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()
+                )
+                    .count()
+            );
+            const double age_ms
+                = std::max(0.0, double(now - std::min(now, latest.frame_start_ns)) * 1e-6 - latest.frame_time_ms);
+            ImGui::Text(
+                "Statistics through frame %u; scope ended %.1f ms ago%s",
+                latest.frame_index,
+                age_ms,
+                state.paused ? " (display paused)" : ""
+            );
+        } else {
+            ImGui::TextUnformatted("No completed statistics");
+        }
         ImGui::Text(
-            "Pending frames: %llu  pending GPU zones: %llu",
+            "Frames awaiting GPU: %llu  pending GPU zones: %llu",
             static_cast<unsigned long long>(state.stats->pending_frame_count()),
             static_cast<unsigned long long>(diagnostics.pending_gpu_zone_count)
         );
