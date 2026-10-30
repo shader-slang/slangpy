@@ -102,7 +102,10 @@ Channel expansion is independent of encoding. Y can be replicated into RGB with
 alpha one; YA can be expanded while preserving alpha. sRGB sampling applies to
 8-bit RGBA after expansion. Other component types, preserved R/RG layouts and
 floating-point HDR inputs keep their existing formats. DDS textures retain their
-authored formats.
+authored formats in automatic mode. Explicit ``srgb`` or ``linear`` selects the
+corresponding sRGB or linear format when one exists, including for compressed
+textures (for example, BC1/DXT1). Formats without a corresponding variant remain
+unchanged. DDS texel payloads, mipmaps, and texture layout are preserved.
 
 This replaces ``load_as_srgb``: migrate ``True`` to ``SRGBMode.automatic``
 to preserve its metadata-dependent behavior, and ``False`` to
