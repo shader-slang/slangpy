@@ -64,6 +64,11 @@ option(SGL_BUILD_STANDALONE "Build without external dependencies" ON)
 set(SGL_ENABLE_GLFW "AUTO" CACHE STRING "Enable GLFW window support (ON, OFF, AUTO)")
 set_property(CACHE SGL_ENABLE_GLFW PROPERTY STRINGS ON OFF AUTO)
 
+# Enable/disable the WebGPU backend.
+# When enabled, slang-rhi is built with its WebGPU backend, which downloads a prebuilt Dawn
+# and ships the Dawn shared library next to sgl.
+option(SGL_ENABLE_WGPU "Enable the WebGPU (Dawn) backend" OFF)
+
 # Enable linking CUDA driver API dynamically.
 # This allows to build CUDA support without having CUDA SDK installed.
 option(SGL_USE_DYNAMIC_CUDA "Load CUDA driver API dynamically" ON)
