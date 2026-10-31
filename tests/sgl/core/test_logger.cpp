@@ -207,7 +207,8 @@ TEST_CASE("logging retains the output set snapshot")
     CHECK_EQ(output->m_ref_count_during_write, ref_count_before_log);
 }
 
-TEST_CASE("output snapshot keeps a removed output alive during a callback")
+// Emscripten builds have no threads.
+TEST_CASE("output snapshot keeps a removed output alive during a callback" * doctest::skip(SGL_EMSCRIPTEN))
 {
     auto logger = Logger::create(LogLevel::info, "test", false);
     auto state = std::make_shared<BlockingLoggerOutputState>();
@@ -273,7 +274,8 @@ TEST_CASE("use_same_outputs copies an immutable snapshot")
     CHECK_EQ(second->m_write_count, 1);
 }
 
-TEST_CASE("concurrent output mutations preserve all updates")
+// Emscripten builds have no threads.
+TEST_CASE("concurrent output mutations preserve all updates" * doctest::skip(SGL_EMSCRIPTEN))
 {
     auto logger = Logger::create(LogLevel::info, "test", false);
     constexpr size_t output_count = 16;
