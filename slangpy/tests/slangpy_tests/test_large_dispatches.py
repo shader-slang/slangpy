@@ -15,9 +15,8 @@ from slangpy.types.threadidarg import thread_id
 DEFAULT_GENERATED_THREAD_GROUP_SIZE = 32
 EXTRA_THREADS = 17
 
-# The CPU backend reports zero dispatch-group limits, so it exercises the
-# unbounded-limit fallback for both the native dispatch size and the generated
-# group/thread strides.
+# The CPU backend has no hardware dispatch-group limit, so its X row is bounded
+# only by the representable-stride ceiling; these tests cross that row too.
 DEVICE_TYPES = list(dict.fromkeys(helpers.DEFAULT_DEVICE_TYPES + [DeviceType.cpu]))
 
 MODULE = r"""
