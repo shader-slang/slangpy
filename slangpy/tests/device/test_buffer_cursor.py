@@ -688,6 +688,27 @@ def test_apply_changes(device_type: spy.DeviceType, seed: int):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_write_from_numpy_unknown_field(device_type: spy.DeviceType):
+    # A dict key that names no field of the struct is reported, rather than skipped with its
+    # field left unwritten.
+    tests = [("f_float", "float", "1.0", 1.0)]
+    (kernel, resource_type_layout) = make_copy_module(device_type, tests)
+    count = 4
+    buffer = kernel.device.create_buffer(
+        element_count=count,
+        resource_type_layout=resource_type_layout,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        data=np.zeros(resource_type_layout.element_type_layout.stride * count, dtype=np.uint8),
+    )
+    cursor = spy.BufferCursor(resource_type_layout.element_type_layout, buffer)
+    values = np.arange(count, dtype=np.float32)
+    with pytest.raises(RuntimeError, match='No field named "f_flaot"'):
+        cursor.write_from_numpy({"f_float": values, "f_flaot": values})
+    cursor.write_from_numpy({"f_float": values})
+    assert cursor[2]["f_float"].read() == 2.0
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("seed", RAND_SEEDS)
 def test_apply_changes_ndarray(device_type: spy.DeviceType, seed: int):
 
