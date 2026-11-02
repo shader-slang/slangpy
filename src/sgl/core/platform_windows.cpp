@@ -22,6 +22,7 @@
 #include <DbgHelp.h>
 
 #include <cstddef>
+#include <memory>
 #include <mutex>
 
 #define WINDOWS_CALL(a)                                                                                                \
@@ -577,33 +578,23 @@ StackTrace backtrace(size_t skip_frames)
 
 ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
 {
-    struct SymbolHandler {
-        std::mutex mutex;
-        HANDLE process = nullptr;
-        bool initialized = false;
+    // Serialize the entire DbgHelp session, including initialization and cleanup.
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(mutex);
 
-        SymbolHandler()
-        {
-            // Use a private session key to avoid sharing another component's symbol handler.
-            HANDLE current_process = GetCurrentProcess();
-            if (DuplicateHandle(
-                    current_process,
-                    current_process,
-                    current_process,
-                    &process,
-                    0,
-                    FALSE,
-                    DUPLICATE_SAME_ACCESS
-                ))
-                initialized = SymInitialize(process, nullptr, true);
-        }
+    // Use a private session key so cleanup cannot affect another component's symbols.
+    HANDLE current_process = GetCurrentProcess();
+    HANDLE process = nullptr;
+    bool initialized = false;
+    if (DuplicateHandle(current_process, current_process, current_process, &process, 0, FALSE, DUPLICATE_SAME_ACCESS))
+        initialized = SymInitialize(process, nullptr, true);
+    auto cleanup = [initialized](HANDLE handle)
+    {
+        if (initialized)
+            SymCleanup(handle);
+        CloseHandle(handle);
     };
-    // Intentionally retain the handler and its mutex for process lifetime: shutdown diagnostics may
-    // still need them. This also avoids DbgHelp cleanup under the loader lock during DLL teardown.
-    // Static initialization creates one symbol session; DbgHelp calls must also be serialized.
-    static SymbolHandler* const handler = new SymbolHandler;
-    std::lock_guard<std::mutex> lock(handler->mutex);
-    HANDLE process = handler->process;
+    std::unique_ptr<void, decltype(cleanup)> process_guard(process, cleanup);
 
     struct Symbol : SYMBOL_INFO {
         char name_storage[1023];
@@ -622,7 +613,7 @@ ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
         ResolvedStackFrame& resolved = resolved_trace[i];
         resolved.address = trace[i];
         resolved.offset = 0ull;
-        if (!handler->initialized)
+        if (!initialized)
             continue;
         if (SymFromAddr(process, resolved.address, &resolved.offset, &symbol))
             resolved.symbol = symbol.Name;
