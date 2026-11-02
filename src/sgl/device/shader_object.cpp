@@ -75,7 +75,7 @@ uint32_t ShaderObject::get_entry_point_count() const
 
 ref<ShaderObject> ShaderObject::get_entry_point(uint32_t index)
 {
-    ref<ShaderObject> shader_object = make_ref<ShaderObject>(m_device, m_shader_object->getEntryPoint(index));
+    ref<ShaderObject> shader_object = make_ref<ShaderObject>(m_device, m_shader_object->getEntryPoint(index), m_retain);
     // TODO(slang-rhi) this is required to keep shader object's alive (shader cursor uses weak references)
     m_objects.push_back(shader_object);
     return shader_object;
@@ -84,7 +84,7 @@ ref<ShaderObject> ShaderObject::get_entry_point(uint32_t index)
 ref<ShaderObject> ShaderObject::get_object(const ShaderOffset& offset)
 {
     ref<ShaderObject> shader_object
-        = make_ref<ShaderObject>(m_device, m_shader_object->getObject(rhi_shader_offset(offset)));
+        = make_ref<ShaderObject>(m_device, m_shader_object->getObject(rhi_shader_offset(offset)), m_retain);
     // TODO(slang-rhi) this is required to keep shader object's alive (shader cursor uses weak references)
     m_objects.push_back(shader_object);
     return shader_object;
