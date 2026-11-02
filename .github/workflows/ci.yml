@@ -11,7 +11,6 @@ on:
       - "**.md"
       - .github/workflows/wheels.yml
       - .github/workflows/ci-gcp.yml
-      - .github/workflows/ci-latest-slang.yml
   pull_request:
     branches: [main]
     paths-ignore:
@@ -20,7 +19,6 @@ on:
       - "**.md"
       - .github/workflows/wheels.yml
       - .github/workflows/ci-gcp.yml
-      - .github/workflows/ci-latest-slang.yml
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -62,7 +60,7 @@ jobs:
           - { os: macos, platform: aarch64, compiler: clang, config: Debug, flags: "unit-test,header-validation,crashpad", runs-on: macos-latest }
           - { os: macos, platform: aarch64, compiler: clang, config: Release, flags: "unit-test,test-examples,crashpad", runs-on: macos-latest }
           # Additional builds running on GitHub hosted runners (build only)
-          - { os: linux, platform: x86_64, compiler: clang, runs-on: ubuntu-latest }
+          - { os: linux, platform: x86_64, compiler: clang, runs-on: ubuntu-24.04 }
           - { os: linux, platform: aarch64, compiler: gcc, runs-on: ubuntu-24.04-arm }
           - { os: linux, platform: aarch64, compiler: clang, runs-on: ubuntu-24.04-arm }
 
@@ -74,6 +72,8 @@ jobs:
       CI_CONFIG: ${{ matrix.config }}
       CI_PYTHON: ${{ matrix.python }}
       CI_FLAGS: ${{ matrix.flags }}
+      # Limit CUDA compute capability to 90 because later versions do not work on our current driver
+      SGL_MAX_CUDA_COMPUTE_CAPABILITY: 90
 
     steps:
       # Kill processes that may hold locks on build artifacts (Windows self-hosted runners).

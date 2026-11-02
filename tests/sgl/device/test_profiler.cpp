@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <fstream>
 #include <thread>
 
@@ -35,6 +36,29 @@ void record_native_function_site()
 bool supports_gpu_timestamps(Device* device)
 {
     return device->has_feature(Feature::timestamp_query) && device->has_feature(Feature::timestamp_calibration);
+}
+
+/// Poll the profiler until every GPU zone submitted so far has been resolved and delivered to the collector.
+///
+/// Profiler::tick() only collects the query results that are available at the time of the call; it never waits for
+/// them. A single tick after Device::wait() is therefore not guaranteed to deliver the GPU zones of the work that was
+/// just submitted. On a busy machine the results can arrive a moment later, and asserting on the trace right after
+/// one tick intermittently sees zero GPU zones. The profiler reports the number of zones still waiting for results in
+/// its diagnostics, which flush() republishes, so we tick and flush until that count drops to zero. Returns false if
+/// the results are still missing after a timeout that only exists to bound a hang, so that a result which never
+/// arrives is reported as such instead of as a confusing mismatch in the zone counts.
+bool tick_until_gpu_zones_resolved(Profiler* profiler)
+{
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    for (;;) {
+        profiler->tick();
+        profiler->flush();
+        if (profiler->live_snapshot()->diagnostics().pending_gpu_zone_count == 0)
+            return true;
+        if (std::chrono::steady_clock::now() >= deadline)
+            return false;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 }
 
 } // namespace
@@ -225,6 +249,50 @@ TEST_CASE("capture collects concurrent producers without drops")
     CHECK(trace->timelines().size() == 4);
 }
 
+TEST_CASE("concurrent flush requests publish every preceding producer event")
+{
+    constexpr uint32_t thread_count = 4;
+    constexpr uint32_t zones_per_thread = 64;
+    ProfilerDesc desc;
+    desc.thread_event_capacity = 256;
+    desc.live_event_capacity = thread_count * zones_per_thread;
+    ref<Profiler> profiler = make_ref<Profiler>(desc);
+    const uint32_t site = Profiler::register_site(__FILE__, __LINE__, __func__, "before flush");
+    // Prime snapshot interest before the producer flushes. The later snapshot read must not request
+    // another collector pass that could hide an early flush acknowledgement.
+    (void)profiler->live_snapshot();
+    profiler->start_capture();
+
+    std::atomic<uint32_t> ready{0};
+    std::atomic<bool> flush_together{false};
+    std::vector<std::thread> workers;
+    for (uint32_t thread_index = 0; thread_index < thread_count; ++thread_index) {
+        workers.emplace_back(
+            [&]
+            {
+                for (uint32_t i = 0; i < zones_per_thread; ++i)
+                    profiler->end_zone(profiler->begin_zone(site));
+                ready.fetch_add(1, std::memory_order_release);
+                while (!flush_together.load(std::memory_order_acquire))
+                    std::this_thread::yield();
+                profiler->flush();
+            }
+        );
+    }
+    while (ready.load(std::memory_order_acquire) != thread_count)
+        std::this_thread::yield();
+    flush_together.store(true, std::memory_order_release);
+    for (std::thread& worker : workers)
+        worker.join();
+
+    ref<ProfilerTrace> published = profiler->live_snapshot();
+    CHECK(published->zone_count() == thread_count * zones_per_thread);
+
+    ref<ProfilerTrace> trace = profiler->stop_capture();
+    CHECK(trace->zone_count() == thread_count * zones_per_thread);
+    CHECK(trace->diagnostics().producer_drop_count == 0);
+}
+
 TEST_CASE("frame statistics align repeated and intermittent zones")
 {
     ProfilerDesc desc;
@@ -328,8 +396,7 @@ TEST_CASE("frame statistics hierarchy ordering is deterministic preorder")
     CHECK(ordered.entries()[3].parent_index == 1);
 }
 
-// TODO: Re-enable when https://github.com/shader-slang/slangpy/pull/1073 is merged.
-TEST_CASE("global frames include zones from other threads and exclude unframed zones" * doctest::skip())
+TEST_CASE("global frames include zones from other threads and exclude unframed zones")
 {
     ref<Profiler> profiler = make_ref<Profiler>();
     const uint32_t frame_a = Profiler::register_site(__FILE__, __LINE__, __func__, "frame a");
@@ -358,6 +425,12 @@ TEST_CASE("global frames include zones from other threads and exclude unframed z
     CHECK(worker_frame_rejected.load(std::memory_order_relaxed));
     profiler->end_frame(frame);
     CHECK(!profiler->begin_frame(frame_b).profiler);
+
+    // The worker's zone and the frame seal are not published yet. A flush is a collector-input
+    // barrier, not a wait for active zones or frames that have not sealed.
+    profiler->flush();
+    CHECK(profiler->frame_stats_snapshot()->sample_count() == 0);
+
     finish_worker.store(true, std::memory_order_release);
     worker.join();
 
@@ -427,14 +500,14 @@ TEST_CASE_GPU("GPU timestamps follow command recording submission")
     profiler->tick();
     ctx.device->submit_command_buffer(encoder->finish());
     ctx.device->wait();
-    profiler->tick();
+    CHECK(tick_until_gpu_zones_resolved(profiler.get()));
 
     encoder = ctx.device->create_command_encoder();
     token = profiler->begin_zone(site, encoder);
     profiler->end_zone(token);
     ctx.device->submit_command_buffer(encoder->finish());
     ctx.device->wait();
-    profiler->tick();
+    CHECK(tick_until_gpu_zones_resolved(profiler.get()));
 
     std::thread later_cpu_thread(
         [&]
@@ -489,7 +562,7 @@ TEST_CASE_GPU("GPU hierarchy is scoped to a command recording")
     ctx.device->submit_command_buffer(encoder_b->finish());
 
     ctx.device->wait();
-    profiler->tick();
+    CHECK(tick_until_gpu_zones_resolved(profiler.get()));
     ref<ProfilerTrace> trace = profiler->stop_capture();
     ref<ProfilerZoneSelection> gpu_zones = trace->query_zones({}, ProfilerTimelineType::gpu);
     REQUIRE(gpu_zones->count() == 4);
@@ -528,7 +601,7 @@ TEST_CASE_GPU("GPU query exhaustion preserves CPU zones")
     profiler->end_frame(frame);
     ctx.device->submit_command_buffer(encoder->finish());
     ctx.device->wait();
-    profiler->tick();
+    CHECK(tick_until_gpu_zones_resolved(profiler.get()));
     ref<ProfilerTrace> trace = profiler->stop_capture();
     CHECK(trace->query_zones("exhausted gpu", ProfilerTimelineType::cpu)->count() == 2);
     CHECK(trace->query_zones("exhausted gpu", ProfilerTimelineType::gpu)->count() == 1);
@@ -594,8 +667,7 @@ TEST_CASE_GPU("discarded GPU work and pending bounds complete frame statistics")
     CHECK(profiler->frame_stats_snapshot()->sample_count() == 0);
 }
 
-// TODO: Re-enable when https://github.com/shader-slang/slangpy/pull/1073 is merged.
-TEST_CASE_GPU("device close settles pending frame statistics" * doctest::skip())
+TEST_CASE_GPU("device close settles pending frame statistics")
 {
     DeviceDesc device_desc = ctx.device->desc();
     device_desc.label = "profiler-device-close";

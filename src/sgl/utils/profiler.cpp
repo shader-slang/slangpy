@@ -452,6 +452,11 @@ struct ProfilerImpl {
         bool missing{false};
     };
 
+    struct CpuDrainTarget {
+        ThreadData* thread{nullptr};
+        uint64_t write_index{0};
+    };
+
     struct GpuSlot {
         uint64_t correlation_id{0};
         uint64_t parent_correlation_id{0};
@@ -555,7 +560,7 @@ struct ProfilerImpl {
         const ThreadID thread_id = platform::current_thread_id();
         ThreadData* result = data.get();
         {
-            std::lock_guard lock(thread_mutex);
+            std::lock_guard lock(ingress_mutex);
             data->timeline_id = uint32_t(timelines.size());
             ProfilerTimeline timeline;
             timeline.type = ProfilerTimelineType::cpu;
@@ -571,7 +576,7 @@ struct ProfilerImpl {
     uint64_t producer_drop_count() const
     {
         uint64_t result = 0;
-        std::lock_guard lock(thread_mutex);
+        std::lock_guard lock(ingress_mutex);
         for (const auto& thread : threads)
             result += thread->drop_count.load(std::memory_order_relaxed)
                 + thread->stack_overflow_count.load(std::memory_order_relaxed);
@@ -581,7 +586,7 @@ struct ProfilerImpl {
     uint64_t thread_event_queue_high_water_mark() const
     {
         uint64_t result = 0;
-        std::lock_guard lock(thread_mutex);
+        std::lock_guard lock(ingress_mutex);
         for (const auto& thread : threads)
             result = std::max(result, thread->high_water_mark.load(std::memory_order_relaxed));
         return result;
@@ -728,7 +733,7 @@ struct ProfilerImpl {
             event = global_frame_event;
         }
         {
-            std::lock_guard lock(sealed_frame_mutex);
+            std::lock_guard lock(ingress_mutex);
             sealed_frame_events.push_back(event);
         }
         global_frame.store(uint64_t(GlobalFrameStatus::inactive), std::memory_order_release);
@@ -737,42 +742,47 @@ struct ProfilerImpl {
 
     bool drain()
     {
-        bool dirty = false;
+        cpu_drain_targets.clear();
         drained_cpu_events.clear();
-        {
-            std::lock_guard thread_lock(thread_mutex);
-            for (const auto& thread : threads) {
-                uint64_t read = thread->read_index.value.load(std::memory_order_relaxed);
-                const uint64_t write = thread->write_index.value.load(std::memory_order_acquire);
-                while (read < write) {
-                    drained_cpu_events.push_back(thread->events[read & thread->mask]);
-                    ++read;
-                }
-                thread->read_index.value.store(read, std::memory_order_release);
-            }
-        }
-        for (const CpuEvent& event : drained_cpu_events) {
-            consume(event);
-            dirty = true;
-        }
         std::vector<CpuEvent> frame_events;
-        {
-            std::lock_guard lock(sealed_frame_mutex);
-            frame_events.swap(sealed_frame_events);
-        }
-        for (const CpuEvent& event : frame_events) {
-            consume(event);
-            dirty = true;
-        }
         std::vector<GpuResult> gpu_results;
         {
-            std::lock_guard lock(gpu_result_mutex);
+            // Take one ingress cut for every completion channel and every CPU producer. Frame seals
+            // and, under the supported command-recording lifecycle, GPU results are queued under
+            // this mutex after their prerequisite CPU events are published. A captured completion
+            // therefore cannot overtake its CPU event.
+            std::lock_guard lock(ingress_mutex);
+            cpu_drain_targets.reserve(threads.size());
+            for (const auto& thread : threads) {
+                cpu_drain_targets.push_back({thread.get(), thread->write_index.value.load(std::memory_order_acquire)});
+            }
+            frame_events.swap(sealed_frame_events);
             gpu_results.swap(pending_gpu_results);
         }
-        for (const GpuResult& result : gpu_results) {
-            consume_gpu(result);
-            dirty = true;
+
+        // ThreadData objects live until profiler shutdown. Copy outside ingress_mutex so producer
+        // registration and reliable completion publication are blocked only for the short cut.
+        for (const CpuDrainTarget& target : cpu_drain_targets) {
+            uint64_t read = target.thread->read_index.value.load(std::memory_order_relaxed);
+            while (read < target.write_index) {
+                drained_cpu_events.push_back(target.thread->events[read & target.thread->mask]);
+                ++read;
+            }
+            target.thread->read_index.value.store(read, std::memory_order_release);
         }
+
+        // Apply prerequisites before completions, then settle the batch once. This makes frame
+        // completion a property of the ingress cut rather than of incidental consumer call order.
+        for (const CpuEvent& event : drained_cpu_events)
+            consume(event);
+        for (const GpuResult& result : gpu_results)
+            consume_gpu(result);
+        for (const CpuEvent& event : frame_events)
+            consume(event);
+
+        const bool dirty = !drained_cpu_events.empty() || !gpu_results.empty() || !frame_events.empty();
+        if (dirty)
+            settle_frames();
         return dirty;
     }
 
@@ -844,20 +854,21 @@ struct ProfilerImpl {
         }
     }
 
-    void bound_pending_frames()
+    void settle_frames()
     {
-        if (frame_stats_pending_frames.size() <= desc.frame_stats_window_size)
-            return;
-        auto pending_it = pending_frames.find(frame_stats_pending_frames.front());
-        if (pending_it != pending_frames.end()) {
-            for (auto& [correlation_id, zone] : pending_it->second.zones) {
-                SGL_UNUSED(correlation_id);
-                if (zone.gpu_timing_status == GpuTimingStatus::pending)
-                    zone.gpu_timing_status = GpuTimingStatus::missing;
-            }
-            pending_it->second.pending_gpu_count = 0;
-        }
         finalize_ready_frames();
+        while (frame_stats_pending_frames.size() > desc.frame_stats_window_size) {
+            auto pending_it = pending_frames.find(frame_stats_pending_frames.front());
+            if (pending_it != pending_frames.end()) {
+                for (auto& [correlation_id, zone] : pending_it->second.zones) {
+                    SGL_UNUSED(correlation_id);
+                    if (zone.gpu_timing_status == GpuTimingStatus::pending)
+                        zone.gpu_timing_status = GpuTimingStatus::missing;
+                }
+                pending_it->second.pending_gpu_count = 0;
+            }
+            finalize_ready_frames();
+        }
     }
 
     void retain_zone(const StoredZone& zone)
@@ -904,8 +915,6 @@ struct ProfilerImpl {
                 pending.frame = frame;
                 pending.ended = true;
                 frame_stats_pending_frames.push_back(event.frame_index);
-                finalize_ready_frames();
-                bound_pending_frames();
             }
             return;
         }
@@ -954,9 +963,6 @@ struct ProfilerImpl {
         pending_zone.gpu_duration_ns = zone.duration_ns;
         if (pending_it->second.pending_gpu_count > 0)
             --pending_it->second.pending_gpu_count;
-        if (pending_it->second.ended) {
-            finalize_ready_frames();
-        }
     }
 
     uint64_t capture_storage_bytes() const
@@ -1033,7 +1039,7 @@ struct ProfilerImpl {
             }
         }
         if (!results.empty()) {
-            std::lock_guard result_lock(gpu_result_mutex);
+            std::lock_guard result_lock(ingress_mutex);
             pending_gpu_results.insert(pending_gpu_results.end(), results.begin(), results.end());
         }
     }
@@ -1059,7 +1065,7 @@ struct ProfilerImpl {
         for (uint32_t i = chunk_count; i > 0; --i)
             context->free_chunks.push_back(i - 1);
         {
-            std::lock_guard lock(thread_mutex);
+            std::lock_guard lock(ingress_mutex);
             context->timeline_id = uint32_t(timelines.size());
             timelines.push_back({
                 ProfilerTimelineType::gpu,
@@ -1276,7 +1282,7 @@ struct ProfilerImpl {
             }
         }
         if (!results.empty()) {
-            std::lock_guard result_lock(gpu_result_mutex);
+            std::lock_guard result_lock(ingress_mutex);
             pending_gpu_results.insert(pending_gpu_results.end(), results.begin(), results.end());
         }
     }
@@ -1314,7 +1320,7 @@ struct ProfilerImpl {
         trace->m_diagnostics = make_diagnostics();
         trace->m_sites = site_snapshot();
         {
-            std::lock_guard lock(thread_mutex);
+            std::lock_guard lock(ingress_mutex);
             trace->m_timelines = timelines;
         }
         trace->m_frames = frames;
@@ -1604,20 +1610,6 @@ struct ProfilerImpl {
         }
     }
 
-    bool flush_targets_satisfied() const
-    {
-        if (!flush_pending)
-            return false;
-        std::lock_guard lock(thread_mutex);
-        if (flush_targets.size() > threads.size())
-            return false;
-        for (size_t i = 0; i < flush_targets.size(); ++i) {
-            if (threads[i]->read_index.value.load(std::memory_order_acquire) < flush_targets[i])
-                return false;
-        }
-        return true;
-    }
-
     void worker_main()
     {
         platform::set_current_thread_name("Profiler");
@@ -1625,6 +1617,11 @@ struct ProfilerImpl {
         bool live_dirty = false;
         bool frame_stats_dirty = false;
         for (;;) {
+            uint64_t batch_flush_generation;
+            uint64_t batch_clear_generation;
+            bool service_flush;
+            bool service_clear;
+            bool stop_after_batch;
             {
                 std::unique_lock lock(control_mutex);
                 control_cv.wait_for(
@@ -1632,11 +1629,17 @@ struct ProfilerImpl {
                     std::chrono::milliseconds(1),
                     [&]
                     {
-                        return stopping || flush_pending || clear_frame_stats_requested != clear_frame_stats_completed
+                        return stopping || flush_completed < flush_requested
+                            || clear_frame_stats_completed < clear_frame_stats_requested
                             || live_snapshot_refresh_requested.load(std::memory_order_relaxed)
                             || frame_stats_snapshot_refresh_requested.load(std::memory_order_relaxed);
                     }
                 );
+                batch_flush_generation = flush_requested;
+                batch_clear_generation = clear_frame_stats_requested;
+                service_flush = flush_completed < batch_flush_generation;
+                service_clear = clear_frame_stats_completed < batch_clear_generation;
+                stop_after_batch = stopping;
             }
             if (drain()) {
                 live_dirty = true;
@@ -1644,10 +1647,12 @@ struct ProfilerImpl {
             }
             const auto now = std::chrono::steady_clock::now();
             const bool interval_elapsed = now - last_publish >= std::chrono::milliseconds(16);
-            const bool publish_live = live_snapshot_refresh_requested.exchange(false, std::memory_order_relaxed)
+            const bool refresh_live = live_snapshot_refresh_requested.exchange(false, std::memory_order_relaxed);
+            const bool refresh_frame_stats
+                = frame_stats_snapshot_refresh_requested.exchange(false, std::memory_order_relaxed);
+            const bool publish_live = service_flush || refresh_live
                 || (live_dirty && live_snapshot_interest.load(std::memory_order_relaxed) && interval_elapsed);
-            const bool publish_frame_stats
-                = frame_stats_snapshot_refresh_requested.exchange(false, std::memory_order_relaxed)
+            const bool publish_frame_stats = service_flush || refresh_frame_stats
                 || (frame_stats_dirty && frame_stats_snapshot_interest.load(std::memory_order_relaxed)
                     && interval_elapsed);
             if (publish_live || publish_frame_stats) {
@@ -1658,25 +1663,21 @@ struct ProfilerImpl {
             }
             {
                 std::lock_guard lock(control_mutex);
-                if (flush_targets_satisfied()) {
-                    publish(true, true);
-                    live_dirty = false;
-                    frame_stats_dirty = false;
-                    flush_completed = flush_requested;
-                    flush_pending = false;
+                if (service_flush) {
+                    flush_completed = std::max(flush_completed, batch_flush_generation);
                     control_cv.notify_all();
                 }
-                if (clear_frame_stats_requested != clear_frame_stats_completed) {
+                if (service_clear) {
                     frame_stats_pending_frames.clear();
                     frame_stats_completed_frames.clear();
                     pending_frames.clear();
                     frame_stats_min_index = next_frame_index.load(std::memory_order_relaxed);
                     publish(false, true);
                     frame_stats_dirty = false;
-                    clear_frame_stats_completed = clear_frame_stats_requested;
+                    clear_frame_stats_completed = std::max(clear_frame_stats_completed, batch_clear_generation);
                     control_cv.notify_all();
                 }
-                if (stopping) {
+                if (stop_after_batch) {
                     const bool final_live = live_dirty && live_snapshot_interest.load(std::memory_order_relaxed);
                     const bool final_frame_stats
                         = frame_stats_dirty && frame_stats_snapshot_interest.load(std::memory_order_relaxed);
@@ -1691,16 +1692,7 @@ struct ProfilerImpl {
     void flush()
     {
         std::unique_lock control_lock(control_mutex);
-        ++flush_requested;
-        const uint64_t request = flush_requested;
-        {
-            std::lock_guard thread_lock(thread_mutex);
-            flush_targets.clear();
-            flush_targets.reserve(threads.size());
-            for (const auto& thread : threads)
-                flush_targets.push_back(thread->write_index.value.load(std::memory_order_acquire));
-        }
-        flush_pending = true;
+        const uint64_t request = ++flush_requested;
         control_cv.notify_all();
         control_cv.wait(
             control_lock,
@@ -1715,19 +1707,20 @@ struct ProfilerImpl {
     ProfilerDesc desc;
     uint64_t instance_id;
     std::shared_ptr<void> lifetime{std::make_shared<uint8_t>(uint8_t{0})};
-    mutable std::mutex thread_mutex;
+    // Guards producer registration and reliable completion inboxes. The collector captures all of
+    // them together so a frame or GPU completion cannot overtake its prerequisite CPU event.
+    mutable std::mutex ingress_mutex;
     std::vector<std::unique_ptr<ThreadData>> threads;
     std::vector<ProfilerTimeline> timelines;
+    std::vector<CpuDrainTarget> cpu_drain_targets;
     std::vector<CpuEvent> drained_cpu_events;
 
     std::thread worker;
     mutable std::mutex control_mutex;
     std::condition_variable control_cv;
     bool stopping{false};
-    bool flush_pending{false};
     uint64_t flush_requested{0};
     uint64_t flush_completed{0};
-    std::vector<uint64_t> flush_targets;
     uint64_t clear_frame_stats_requested{0};
     uint64_t clear_frame_stats_completed{0};
 
@@ -1765,13 +1758,11 @@ struct ProfilerImpl {
     std::mutex global_frame_mutex;
     std::atomic<uint64_t> global_frame{0};
     CpuEvent global_frame_event;
-    std::mutex sealed_frame_mutex;
     std::vector<CpuEvent> sealed_frame_events;
     std::atomic<uint64_t> gpu_query_exhaustion_count{0};
     std::atomic<uint64_t> pending_gpu_zone_count{0};
     std::mutex gpu_mutex;
     std::vector<std::unique_ptr<GpuContext>> gpu_contexts;
-    std::mutex gpu_result_mutex;
     std::vector<GpuResult> pending_gpu_results;
 };
 

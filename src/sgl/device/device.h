@@ -23,6 +23,7 @@
 
 #include <array>
 #include <atomic>
+#include <exception>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -307,7 +308,6 @@ using CommandRecordingDiscardedCallback = std::function<void(const CommandRecord
 class SGL_API Device : public Object {
     SGL_OBJECT(Device)
 public:
-    Device(const DeviceDesc& desc = DeviceDesc{});
     ~Device();
 
     /// Release all underlying slang-rhi resources.
@@ -315,7 +315,8 @@ public:
     /// when slangpy fails to clean up properly due to reference cycles introduced in Python.
     void _release_rhi_resources();
 
-    static ref<Device> create(const DeviceDesc& desc = DeviceDesc{}) { return make_ref<Device>(desc); }
+    /// Create and initialize a device. Failed initialization releases all acquired resources.
+    static ref<Device> create(const DeviceDesc& desc = DeviceDesc{});
 
     const DeviceDesc& desc() const { return m_desc; }
 
@@ -327,9 +328,6 @@ public:
 
     /// Shader cache statistics.
     ShaderCacheStats shader_cache_stats() const;
-
-    /// The highest shader model supported by the device.
-    ShaderModel supported_shader_model() const { return m_supported_shader_model; }
 
     /// List of features supported by the device.
     const std::vector<Feature>& features() const { return m_features; }
@@ -360,6 +358,8 @@ public:
      * resources, removing all cyclic references that might prevent the device
      * from being destroyed. After closing the device, no new resources must be
      * created and no new work must be submitted.
+     * All close callbacks and cleanup run even if a callback throws. The first
+     * error is rethrown after cleanup. Reentrant and repeated close calls are no-ops.
      *
      * \note The Python extension will automatically close all open devices
      * when the interpreter is terminated through an `atexit` handler. If a
@@ -368,7 +368,7 @@ public:
     void close();
 
     /// Check if the device is closed.
-    bool is_closed() const { return m_closed; }
+    bool is_closed() const { return m_state == State::closed; }
 
     /// Close all open devices.
     static void close_all_devices();
@@ -518,6 +518,15 @@ public:
 
     /// Create a new acceleration structure instance list.
     ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size);
+
+    /// Query the device for buffer sizes required for a micromap build.
+    MicromapSizes get_micromap_sizes(const MicromapBuildDesc& desc);
+
+    /// Create a new micromap.
+    ref<Micromap> create_micromap(MicromapDesc desc);
+
+    /// Query the device for buffer sizes required for a cluster operation.
+    ClusterOperationSizes get_cluster_operation_sizes(const ClusterOperationParams& params);
 
     /// Create a new shader table.
     ref<ShaderTable> create_shader_table(ShaderTableDesc desc);
@@ -869,6 +878,8 @@ public:
     void unregister_command_recording_submitted_callback(DeviceCallbackID id);
 
     /// Register a callback to be called when a command recording is discarded (not submitted).
+    /// Called from command encoder/buffer destructors. Callbacks must not throw:
+    /// an escaping exception invokes std::terminate, including for Python callbacks.
     DeviceCallbackID register_command_recording_discarded_callback(CommandRecordingDiscardedCallback callback);
     /// Unregister a command recording discarded callback.
     void unregister_command_recording_discarded_callback(DeviceCallbackID id);
@@ -878,6 +889,8 @@ public:
     std::string to_string() const override;
 
     const std::vector<SlangCapabilityID>& _slang_capabilities() const { return m_slang_capabilities; }
+
+    const std::vector<int>& _nvrtc_supported_architectures() const { return m_nvrtc_supported_architectures; }
 
     Blitter* _blitter();
     HotReload* _hot_reload() { return m_hot_reload; }
@@ -892,25 +905,46 @@ public:
     DeviceCallbackID _allocate_callback_id();
     CommandRecordingID _allocate_command_recording_id();
     void _notify_command_recording_submitted(CommandRecordingID id, CommandBuffer* command_buffer, uint64_t submit_id);
-    void _notify_command_recording_discarded(CommandRecordingID id);
+    void _notify_command_recording_discarded(CommandRecordingID id) noexcept;
 
 private:
+    explicit Device(const DeviceDesc& desc);
+    void init();
+    void publish();
+    std::exception_ptr shutdown(bool notify_callbacks) noexcept;
+
     ref<refl::Layout> reload_builtin_layout();
+
+    enum class State { initializing, ready, closed };
 
     DeviceDesc m_desc;
     DeviceInfo m_info;
-    ShaderModel m_supported_shader_model{ShaderModel::unknown};
 
-    bool m_closed{false};
+    State m_state{State::initializing};
+
+    // Child destructors unregister themselves, so these must outlive owned children.
+    std::mutex m_device_children_mutex;
+    std::unordered_set<DeviceChild*> m_device_children;
 
     std::filesystem::path m_module_cache_path;
     std::filesystem::path m_shader_cache_path;
     ref<CacheWriter> m_cache_writer;
     ref<PersistentCache> m_persistent_cache;
 
+    // RHI retains a raw pointer to its debug callback.
+    std::unique_ptr<DebugLogger> m_debug_logger;
     Slang::ComPtr<rhi::IDevice> m_rhi_device;
     Slang::ComPtr<rhi::ICommandQueue> m_rhi_graphics_queue;
+
+    ref<Fence> m_global_fence;
+
+    // Imported buffers and the semaphore must be released before the CUDA context.
+    bool m_supports_cuda_interop{false};
+    ref<cuda::Device> m_cuda_device;
+    ref<cuda::ExternalSemaphore> m_cuda_semaphore;
+
     Slang::ComPtr<slang::IGlobalSession> m_global_session;
+    ref<HotReload> m_hot_reload;
 
     ref<SlangSession> m_slang_session;
     ref<refl::Layout> m_builtin_layout;
@@ -918,10 +952,9 @@ private:
     std::vector<Feature> m_features;
     std::vector<std::string> m_capabilities;
     std::vector<SlangCapabilityID> m_slang_capabilities;
+    std::vector<int> m_nvrtc_supported_architectures;
 
-    ref<Fence> m_global_fence;
-
-    std::unique_ptr<DebugLogger> m_debug_logger;
+    ref<Blitter> m_blitter;
     std::unique_ptr<DebugPrinter> m_debug_printer;
 
     std::atomic<DeviceCallbackID> m_next_callback_id{1};
@@ -930,16 +963,6 @@ private:
     CallbackList<DeviceCallbackID, ShaderHotReloadCallback> m_shader_hot_reload_callbacks;
     CallbackList<DeviceCallbackID, CommandRecordingSubmittedCallback> m_command_recording_submitted_callbacks;
     CallbackList<DeviceCallbackID, CommandRecordingDiscardedCallback> m_command_recording_discarded_callbacks;
-
-    ref<Blitter> m_blitter;
-    ref<HotReload> m_hot_reload;
-
-    bool m_supports_cuda_interop{false};
-    ref<cuda::Device> m_cuda_device;
-    ref<cuda::ExternalSemaphore> m_cuda_semaphore;
-
-    std::mutex m_device_children_mutex;
-    std::unordered_set<DeviceChild*> m_device_children;
 };
 
 /// Gets the device and context handles for the current CUDA context. Use
@@ -953,13 +976,14 @@ SGL_API std::array<NativeHandle, 3> get_cuda_current_context_native_handles();
 
 /// Push a device onto the thread-local current device stack.
 ///
-/// Stores a raw pointer in the thread-local stack. The caller must ensure
-/// that the device (and any devices below it on the stack) outlive their
-/// corresponding pop_current_device() calls. Device::close() only auto-pops if the
-/// device is on top of the stack; a closed device lower in the stack remains
-/// as a stale pointer - calling current_device() or pop_current_device() on that
-/// entry is undefined behavior unless the device is kept alive (refcount > 0)
-/// until popped.
+/// Stores a raw pointer in the thread-local stack. Device::close() only auto-pops
+/// if the device is on top of the stack; a closed device lower in the stack stays
+/// on the stack (it is still a valid object, as long as it is alive). The Device
+/// destructor removes any remaining entries for that device from the stack of the
+/// thread it is destroyed on, so a destroyed device is never returned by
+/// current_device() or pop_current_device(). A device destroyed on a different
+/// thread than the one that pushed it is not removed from the pushing thread's
+/// stack; callers must pop it there before releasing the last reference.
 ///
 /// \param device Device to push (must not be null).
 SGL_API void push_current_device(Device* device);
@@ -1134,6 +1158,15 @@ SGL_API ref<AccelerationStructure> create_acceleration_structure(AccelerationStr
 
 /// Create a new acceleration structure instance list.
 SGL_API ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size);
+
+/// Query the current device for buffer sizes required for a micromap build.
+SGL_API MicromapSizes get_micromap_sizes(const MicromapBuildDesc& desc);
+
+/// Create a new micromap on the current device.
+SGL_API ref<Micromap> create_micromap(MicromapDesc desc);
+
+/// Query the current device for buffer sizes required for a cluster operation.
+SGL_API ClusterOperationSizes get_cluster_operation_sizes(const ClusterOperationParams& params);
 
 /// Create a new shader table.
 SGL_API ref<ShaderTable> create_shader_table(ShaderTableDesc desc);

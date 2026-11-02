@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import TypedDict, Any
-import json
 from datetime import datetime
+import json
 from pathlib import Path
+from typing import Any, TypedDict
 
-from .utils import get_project_info, get_machine_info, get_commit_info, to_json, from_json
+from .utils import from_json, get_commit_info, get_machine_info, get_project_info, to_json
 
 
 class BenchmarkReport(TypedDict):
@@ -34,6 +34,8 @@ class Report(TypedDict):
 
 
 def generate_report(timestamp: datetime, run_id: str, benchmarks: list[BenchmarkReport]) -> Report:
+    """Collect local project, machine, commit, and benchmark data into a legacy report."""
+
     return {
         "timestamp": timestamp,
         "run_id": run_id,
@@ -45,6 +47,8 @@ def generate_report(timestamp: datetime, run_id: str, benchmarks: list[Benchmark
 
 
 def generate_run_id(report: Report) -> str:
+    """Derive a readable local report ID from its timestamp and commit state."""
+
     timestamp = report["timestamp"].strftime("%Y%m%d-%H%M%S")
     commit_id = report["commit_info"].get("id", "unknown")
     commit_dirty = "dirty" if report["commit_info"].get("dirty", False) else "clean"
@@ -52,6 +56,8 @@ def generate_run_id(report: Report) -> str:
 
 
 def strip_benchmark_data(report: Report) -> Report:
+    """Copy a local report while removing its raw benchmark sample arrays."""
+
     stripped_benchmarks = []
     for benchmark in report["benchmarks"]:
         stripped_benchmark = benchmark.copy()
@@ -63,6 +69,8 @@ def strip_benchmark_data(report: Report) -> Report:
 
 
 def write_report(report: Report, path: Path, strip_data: bool = False) -> None:
+    """Serialize a legacy local report, optionally omitting its raw samples."""
+
     if strip_data:
         report = strip_benchmark_data(report)
     with open(path, "w") as f:
@@ -70,22 +78,16 @@ def write_report(report: Report, path: Path, strip_data: bool = False) -> None:
 
 
 def load_report(path: Path) -> Report:
+    """Load a legacy local report from a JSON file."""
+
     with open(path, "r") as f:
         return from_json(json.load(f))
 
 
 def list_report_ids(dir: Path) -> list[str]:
+    """List saved local report IDs from newest to oldest."""
+
     files = list(dir.iterdir())
-    # sort by file date (descending)
+    # Sort reports by file date in descending order.
     files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-    # get ids
-    ids = [f.stem for f in files if f.suffix == ".json"]
-    return ids
-
-
-def upload_report(report: Report, connection_string: str, database_name: str):
-    from pymongo import MongoClient
-
-    client = MongoClient(connection_string)
-    db = client[database_name]
-    db["benchmark"].insert_one(report)
+    return [f.stem for f in files if f.suffix == ".json"]

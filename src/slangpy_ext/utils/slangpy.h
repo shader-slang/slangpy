@@ -611,14 +611,15 @@ public:
 /// - name(msg)
 /// - name(fmt, ...)
 #define SGL_LOG_FUNC_FAMILY(name, level)                                                                               \
-    inline void name(const std::string_view msg)                                                                       \
+    inline void name(const std::string_view msg) noexcept                                                              \
     {                                                                                                                  \
         log(level, msg, LogFrequency::always);                                                                         \
     }                                                                                                                  \
     template<typename... Args>                                                                                         \
-    inline void name(fmt::format_string<Args...> fmt, Args&&... args)                                                  \
+    inline void name(fmt::format_string<Args...> fmt, Args&&... args) noexcept                                         \
     {                                                                                                                  \
-        log(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::always);                               \
+        if (is_log_enabled(level))                                                                                     \
+            log(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::always);                           \
     }
 
 struct CallShapeInfo {
@@ -795,7 +796,7 @@ public:
     append_to(NativeCallRuntimeOptions& opts, CommandEncoder* command_encoder, nb::args args, nb::kwargs kwargs);
 
     /// Log a message, using either the provided logger or the default logger.
-    void log(LogLevel level, const std::string_view msg, LogFrequency frequency = LogFrequency::always)
+    void log(LogLevel level, const std::string_view msg, LogFrequency frequency = LogFrequency::always) noexcept
     {
         if (m_logger)
             m_logger->log(level, msg, frequency);
@@ -804,7 +805,7 @@ public:
     }
 
     /// Check if log level is enabled. Used to avoid generating strings native side that would be thrown away.
-    bool is_log_enabled(LogLevel level) const
+    bool is_log_enabled(LogLevel level) const noexcept
     {
         LogLevel curr_level;
         if (m_logger)

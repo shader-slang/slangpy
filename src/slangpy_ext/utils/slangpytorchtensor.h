@@ -28,7 +28,7 @@ namespace sgl::slangpy {
 ///   - grad: tensor to receive computed gradients (written by kernel)
 ///
 /// For outputs in backwards pass:
-///   - primal: can be None (not needed)
+///   - primal: the original output tensor value (read or rewritten by the backward replay)
 ///   - grad: the upstream gradient from autograd (read by kernel)
 ///
 /// The index and is_input fields are used by the autograd hook to track
@@ -45,7 +45,7 @@ public:
     {
     }
 
-    /// The primal (value) tensor. May be None for output gradients in backwards.
+    /// The primal (value) tensor. Required because Slang's backward pass replays the forward pass.
     nb::object primal;
 
     /// The gradient tensor. For inputs: written by kernel. For outputs: read by kernel.

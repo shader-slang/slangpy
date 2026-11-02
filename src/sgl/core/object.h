@@ -620,37 +620,6 @@ private:
     T* m_weak_ref = nullptr;
 };
 
-/**
- * \brief Helper class to protect objects from being deleted before the constructor has finished.
- *
- * When objects are constructed, they have a reference count of zero.
- * If during the constructor, a reference to the object is taken and later released,
- * the object will be deleted before the constructor has finished.
- *
- * This helper class will take the initial reference to the object during construction,
- * and avoid any other references to the object from deallocating it before the constructor
- * has finished.
- *
- * \tparam T Object type.
- */
-template<typename T>
-class ConstructorRefGuard {
-public:
-    SGL_NON_COPYABLE_AND_MOVABLE(ConstructorRefGuard);
-
-    explicit ConstructorRefGuard(T* obj)
-        : m_obj(obj)
-    {
-        m_obj->inc_ref();
-    }
-
-    ~ConstructorRefGuard() { m_obj->dec_ref(false); }
-
-private:
-    T* m_obj;
-};
-
-
 } // namespace sgl
 
 template<typename T>

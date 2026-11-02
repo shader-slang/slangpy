@@ -32,7 +32,6 @@ private:
     TensorView m_tensor_view;
     bool m_is_uav;
     ref<sgl::Buffer> m_buffer;
-    ref<cuda::ExternalMemory> m_external_memory;
 };
 
 } // namespace sgl::cuda

@@ -133,7 +133,7 @@ def test_convert_passthrough(param: TSupportedType):
     check_conversion(ss, "@" + param[0] * len(values), "@" + param[0] * len(values), values)
 
 
-@pytest.mark.parametrize("param", itertools.product(supported_types, repeat=2))
+@pytest.mark.parametrize("param", list(itertools.product(supported_types, repeat=2)))
 def test_convert_types(param: tuple[TSupportedType, TSupportedType]):
     p1, p2 = param
     values = list(range(10))

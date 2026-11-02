@@ -6,10 +6,12 @@
 #include "sgl/core/object.h"
 #include "sgl/core/format.h"
 
-#include <mutex>
-#include <string_view>
-#include <set>
+#include <atomic>
 #include <filesystem>
+#include <memory>
+#include <mutex>
+#include <set>
+#include <string_view>
 
 namespace sgl {
 
@@ -36,6 +38,8 @@ enum class LogFrequency {
 ///
 /// Implementations must be thread-safe. A LoggerOutput can be shared by multiple loggers, and
 /// write() may be called concurrently from multiple threads.
+/// Outputs may throw; Logger suppresses each output's exception and continues with the remaining outputs.
+/// Direct calls to write() are not covered by Logger's nonthrowing guarantee.
 class SGL_API LoggerOutput : public Object {
     SGL_OBJECT(LoggerOutput)
 public:
@@ -59,8 +63,8 @@ public:
 
     std::string to_string() const override;
 
-    // pytest's stdout/stderr capturing sometimes leads to bad file descriptor exceptions
-    // when logging in sgl. By setting IGNORE_PRINT_EXCEPTION, we ignore those exceptions.
+    // Suppress runtime_error from direct write() calls (for example, pytest capture failures).
+    // Logger already suppresses output exceptions regardless of this flag.
     // Configure this flag before concurrent logging starts; concurrent mutation is not supported.
     static bool IGNORE_PRINT_EXCEPTION;
 
@@ -101,28 +105,34 @@ public:
 /// - name(fmt, ...)
 /// - name_once(msg)
 /// - name_once(fmt, ...)
-/// The once variants only log the message once per program run.
-#define SGL_LOG_FUNC_FAMILY(name, level, log_func)                                                                     \
-    inline void name(const std::string_view msg)                                                                       \
+/// The once variants attempt delivery once per distinct message per Logger instance.
+#define SGL_LOG_FUNC_FAMILY(name, level)                                                                               \
+    inline void name(const std::string_view msg) noexcept                                                              \
     {                                                                                                                  \
-        log_func(level, msg, LogFrequency::always);                                                                    \
+        log(level, msg, LogFrequency::always);                                                                         \
     }                                                                                                                  \
     template<typename... Args>                                                                                         \
-    inline void name(fmt::format_string<Args...> fmt, Args&&... args)                                                  \
+    inline void name(fmt::format_string<Args...> fmt, Args&&... args) noexcept                                         \
     {                                                                                                                  \
-        log_func(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::always);                          \
+        if (should_log(level))                                                                                         \
+            log(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::always);                           \
     }                                                                                                                  \
-    inline void name##_once(const std::string_view msg)                                                                \
+    inline void name##_once(const std::string_view msg) noexcept                                                       \
     {                                                                                                                  \
-        log_func(level, msg, LogFrequency::once);                                                                      \
+        log(level, msg, LogFrequency::once);                                                                           \
     }                                                                                                                  \
     template<typename... Args>                                                                                         \
-    inline void name##_once(fmt::format_string<Args...> fmt, Args&&... args)                                           \
+    inline void name##_once(fmt::format_string<Args...> fmt, Args&&... args) noexcept                                  \
     {                                                                                                                  \
-        log_func(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::once);                            \
+        if (should_log(level))                                                                                         \
+            log(level, fmt::format(fmt, std::forward<Args>(args)...), LogFrequency::once);                             \
     }
 
 
+/// Diagnostic logger. Emission is noexcept: output exceptions are suppressed, while formatting
+/// and other internal exceptions invoke std::terminate with the active exception available to a handler.
+/// Configuration operations may throw. Exceptions while evaluating arguments before a logging call
+/// are the caller's responsibility.
 class SGL_API Logger : public Object {
     SGL_OBJECT(Logger)
 public:
@@ -175,50 +185,116 @@ public:
     LogLevel level() const;
     void set_level(LogLevel level);
 
-    /// Log a message.
+    /// Log a message without propagating exceptions. Output exceptions are suppressed so the remaining
+    /// outputs are still attempted. Other internal exceptions invoke std::terminate.
+    /// Output failures are not logged recursively.
+    /// Once messages are recorded before delivery and are not retried if an output fails.
     /// \param level The log level.
     /// \param msg The message.
     /// \param frequency The log frequency.
-    void log(LogLevel level, const std::string_view msg, LogFrequency frequency = LogFrequency::always);
+    void log(LogLevel level, const std::string_view msg, LogFrequency frequency = LogFrequency::always) noexcept;
 
     // Define logging functions.
-    SGL_LOG_FUNC_FAMILY(debug, LogLevel::debug, log)
-    SGL_LOG_FUNC_FAMILY(info, LogLevel::info, log)
-    SGL_LOG_FUNC_FAMILY(warn, LogLevel::warn, log)
-    SGL_LOG_FUNC_FAMILY(error, LogLevel::error, log)
-    SGL_LOG_FUNC_FAMILY(fatal, LogLevel::fatal, log)
+    SGL_LOG_FUNC_FAMILY(debug, LogLevel::debug)
+    SGL_LOG_FUNC_FAMILY(info, LogLevel::info)
+    SGL_LOG_FUNC_FAMILY(warn, LogLevel::warn)
+    SGL_LOG_FUNC_FAMILY(error, LogLevel::error)
+    SGL_LOG_FUNC_FAMILY(fatal, LogLevel::fatal)
 
-    /// Returns the global logger instance.
-    static Logger& get();
+    /// Returns the lazily initialized global logger instance.
+    /// Initialization failure or a call after static_shutdown() begins invokes std::terminate.
+    /// The active exception can be inspected by an application-installed termination handler.
+    /// Concurrent first use is supported; shutdown must be synchronized with all logger users.
+    static Logger& get() noexcept;
 
     static void static_init();
     static void static_shutdown();
 
 private:
+    using OutputSet = std::set<ref<LoggerOutput>>;
+    using OutputSnapshot = std::shared_ptr<const OutputSet>;
+
+    /// Returns the current immutable output set.
+    OutputSnapshot output_snapshot() const;
+
+    /// Publishes an immutable output set and retires the previous set after unlocking.
+    void publish_outputs(OutputSnapshot outputs);
+
+    /// Applies a copy-on-write mutation without copying or destroying output references while locked.
+    /// The mutator returns true if the copied set changed and may be called again after a publication race.
+    template<typename Mutator>
+    void mutate_outputs(Mutator&& mutator);
+
+    /// Returns true if a message at the given level should be logged.
+    bool should_log(LogLevel level) const noexcept
+    {
+        return level == LogLevel::none || level >= m_level.load(std::memory_order_relaxed);
+    }
+
     /// Checks if the given message has already been logged.
     bool is_duplicate(const std::string_view msg);
 
-    LogLevel m_level{LogLevel::info};
+    std::atomic<LogLevel> m_level{LogLevel::info};
     std::string m_name;
 
-    // Access to the output registry is protected by m_mutex. log() takes a snapshot and calls
-    // LoggerOutput::write() after releasing the mutex, so output implementations must be thread-safe.
-    std::set<ref<LoggerOutput>> m_outputs;
+    // Published output sets are immutable. log() retains one shared snapshot while holding m_mutex,
+    // then calls LoggerOutput::write() after releasing the mutex. An output removed concurrently may
+    // therefore receive a call already in progress. Output implementations must be thread-safe.
+    OutputSnapshot m_outputs;
     std::set<std::string, std::less<>> m_messages;
 
     mutable std::mutex m_mutex;
 };
 
-// Define global logging functions.
-SGL_LOG_FUNC_FAMILY(log_debug, LogLevel::debug, Logger::get().log)
-SGL_LOG_FUNC_FAMILY(log_info, LogLevel::info, Logger::get().log)
-SGL_LOG_FUNC_FAMILY(log_warn, LogLevel::warn, Logger::get().log)
-SGL_LOG_FUNC_FAMILY(log_error, LogLevel::error, Logger::get().log)
-SGL_LOG_FUNC_FAMILY(log_fatal, LogLevel::fatal, Logger::get().log)
+/// Log a message through the global logger. See Logger::log() for emission behavior
+/// and Logger::get() for initialization and shutdown requirements.
+/// \param level The log level.
+/// \param msg The message.
+/// \param frequency The log frequency.
+SGL_API void log(LogLevel level, std::string_view msg, LogFrequency frequency = LogFrequency::always) noexcept;
 
+// Define global logging functions that forward to the global logger. Formatted messages are
+// filtered by the Logger methods before formatting.
+#define SGL_GLOBAL_LOG_FUNC_FAMILY(name)                                                                               \
+    inline void log_##name(const std::string_view msg) noexcept                                                        \
+    {                                                                                                                  \
+        Logger::get().name(msg);                                                                                       \
+    }                                                                                                                  \
+    template<typename... Args>                                                                                         \
+    inline void log_##name(fmt::format_string<Args...> fmt, Args&&... args) noexcept                                   \
+    {                                                                                                                  \
+        Logger::get().name(fmt, std::forward<Args>(args)...);                                                          \
+    }                                                                                                                  \
+    inline void log_##name##_once(const std::string_view msg) noexcept                                                 \
+    {                                                                                                                  \
+        Logger::get().name##_once(msg);                                                                                \
+    }                                                                                                                  \
+    template<typename... Args>                                                                                         \
+    inline void log_##name##_once(fmt::format_string<Args...> fmt, Args&&... args) noexcept                            \
+    {                                                                                                                  \
+        Logger::get().name##_once(fmt, std::forward<Args>(args)...);                                                   \
+    }
+
+SGL_GLOBAL_LOG_FUNC_FAMILY(debug)
+SGL_GLOBAL_LOG_FUNC_FAMILY(info)
+SGL_GLOBAL_LOG_FUNC_FAMILY(warn)
+SGL_GLOBAL_LOG_FUNC_FAMILY(error)
+SGL_GLOBAL_LOG_FUNC_FAMILY(fatal)
+
+#undef SGL_GLOBAL_LOG_FUNC_FAMILY
 #undef SGL_LOG_FUNC_FAMILY
+
+namespace detail {
+    // Accept the stringified name directly to avoid a potentially throwing string_view conversion at the call site.
+    // Keep formatting inside the noexcept boundary, just like the level-specific helpers.
+    template<typename T>
+    void log_print(const char* name, T&& value) noexcept
+    {
+        Logger::get().log(LogLevel::none, fmt::format("{} = {}", name, std::forward<T>(value)));
+    }
+} // namespace detail
 
 } // namespace sgl
 
-/// Prints the given variable name and value.
-#define SGL_PRINT(var) ::sgl::Logger::get().log(::sgl::LogLevel::none, ::fmt::format("{} = {}", #var, var))
+/// Prints the given variable name and value. Formatting exceptions invoke std::terminate.
+#define SGL_PRINT(var) ::sgl::detail::log_print(#var, var)

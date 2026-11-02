@@ -10,17 +10,25 @@ import platform
 import argparse
 import subprocess
 import json
+import time
 from pathlib import Path
 from typing import Any, Optional, Union
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 PYTEST_BASE_TEMP_DIR = PROJECT_DIR / ".temp" / "pytest"
+SLANG_DIR = PROJECT_DIR / "slang"
+
+# Network operations against github.com fail transiently (TLS resets, HTTP 403/5xx), and a failure
+# while fetching Slang otherwise discards a CI job that has already spent minutes on setup.
+# We retry with exponential backoff: 10s, 30s, 90s between the four attempts.
+NETWORK_RETRY_ATTEMPTS = 4
+NETWORK_RETRY_INITIAL_DELAY_SECONDS = 10
 
 
 def pytest_command(test_path: str, *args: str) -> list[str]:
     # Pytest clears --basetemp on startup, so keep it in a dedicated repo-local directory.
     PYTEST_BASE_TEMP_DIR.parent.mkdir(exist_ok=True)
-    return ["pytest", test_path, *args, f"--basetemp={PYTEST_BASE_TEMP_DIR}"]
+    return [sys.executable, "-m", "pytest", test_path, *args, f"--basetemp={PYTEST_BASE_TEMP_DIR}"]
 
 
 def get_os():
@@ -66,7 +74,10 @@ def get_default_compiler():
 
 
 def run_command(
-    command: Union[str, list[str]], shell: bool = True, env: Optional[dict[str, str]] = None
+    command: Union[str, list[str]],
+    shell: bool = True,
+    env: Optional[dict[str, str]] = None,
+    cwd: Optional[Path] = None,
 ):
     if isinstance(command, str):
         command = [command]
@@ -90,6 +101,7 @@ def run_command(
         universal_newlines=True,
         shell=shell,
         env=env,
+        cwd=cwd,
     )
     assert process.stdout is not None
 
@@ -109,9 +121,36 @@ def run_command(
     return out
 
 
-def get_python_env():
+def run_command_with_retry(
+    command: Union[str, list[str]],
+    attempts: int = NETWORK_RETRY_ATTEMPTS,
+    initial_delay_seconds: float = NETWORK_RETRY_INITIAL_DELAY_SECONDS,
+    **kwargs: Any,
+):
+    """
+    Run a command like run_command, but retry with exponential backoff if it fails.
+
+    This is meant for commands whose failures are usually transient network errors, such as
+    cloning or fetching from github.com. The last failure is raised once all attempts are used.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            return run_command(command, **kwargs)
+        except RuntimeError:
+            if attempt == attempts:
+                raise
+            delay = initial_delay_seconds * 3 ** (attempt - 1)
+            print(f"Attempt {attempt}/{attempts} failed, retrying in {delay:g}s ...")
+            sys.stdout.flush()
+            time.sleep(delay)
+
+
+def get_python_env(preset: Optional[str] = None) -> dict[str, str]:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(PROJECT_DIR)
+    if preset:
+        slang_bin_dir = PROJECT_DIR / "build" / preset / "_deps" / "slang-src" / "bin"
+        env["PATH"] = os.pathsep.join((str(slang_bin_dir), env.get("PATH", "")))
     return env
 
 
@@ -120,6 +159,52 @@ def setup(args: Any):
         run_command("./setup.bat")
     else:
         run_command("./setup.sh")
+
+
+def checkout_slang(args: Any):
+    """
+    Clone Slang into ./slang and check out the revision that SlangPy is built and tested against.
+
+    The revision comes from the slang_checkout_mode argument: "branch" checks out slang_branch,
+    "pr" checks out the head of the pull request slang_pr_number, and "ref" checks out slang_ref
+    from the repository slang_repo. Every step that talks to the network is retried, because a
+    transient github.com failure here would otherwise fail the whole job. Git runs without a shell
+    so that revision names coming from workflow inputs are never interpreted by one.
+    """
+    mode = args.slang_checkout_mode
+    revisions = {
+        "branch": args.slang_branch,
+        "pr": args.slang_pr_number,
+        "ref": args.slang_ref,
+    }
+    if mode not in revisions:
+        raise ValueError(f'Unknown Slang checkout mode "{mode}" (expected branch, pr or ref)')
+    if revisions[mode] == "":
+        raise ValueError(
+            f'Slang checkout mode "{mode}" needs a branch, PR number or ref to check out'
+        )
+
+    if mode == "branch":
+        repo, fetch_ref, target = "shader-slang/slang", None, args.slang_branch
+    elif mode == "pr":
+        repo, fetch_ref, target = (
+            "shader-slang/slang",
+            f"pull/{args.slang_pr_number}/head",
+            "FETCH_HEAD",
+        )
+    else:
+        repo, fetch_ref, target = args.slang_repo, args.slang_ref, "FETCH_HEAD"
+
+    # A failed clone removes the directory it created, so each retry starts from scratch.
+    run_command_with_retry(
+        ["git", "clone", f"https://github.com/{repo}.git", str(SLANG_DIR)], shell=False
+    )
+    if fetch_ref is not None:
+        run_command_with_retry(["git", "fetch", "origin", fetch_ref], shell=False, cwd=SLANG_DIR)
+    run_command(["git", "checkout", target], shell=False, cwd=SLANG_DIR)
+    run_command_with_retry(
+        ["git", "submodule", "update", "--init", "--recursive"], shell=False, cwd=SLANG_DIR
+    )
 
 
 def configure(args: Any):
@@ -140,7 +225,10 @@ def build(args: Any):
 
 
 def unit_test_cpp(args: Any):
-    run_command([f"{args.bin_dir}/sgl_tests"])
+    cmd = [f"{args.bin_dir}/sgl_tests"]
+    if args.skip_device_tests:
+        cmd.append("-skip-device-tests")
+    run_command(cmd)
 
 
 def typing_check_python(args: Any):
@@ -149,20 +237,22 @@ def typing_check_python(args: Any):
 
 
 def unit_test_python(args: Any):
-    env = get_python_env()
+    env = get_python_env(args.preset)
+    if args.disable_torch:
+        env["SLANGPY_TEST_DISABLE_TORCH"] = "1"
     os.makedirs("reports", exist_ok=True)
     cmd = pytest_command("slangpy/tests", "-vra")
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
-    run_command(cmd, env=env)
+    run_command(cmd, shell=False, env=env)
 
 
 def test_examples(args: Any):
-    env = get_python_env()
+    env = get_python_env(args.preset)
     cmd = pytest_command("samples/tests", "-vra")
     if args.parallel:
         cmd += ["-n", "auto", "--maxprocesses=4"]
-    run_command(cmd, env=env)
+    run_command(cmd, shell=False, env=env)
 
 
 def benchmark_python(args: Any):
@@ -192,12 +282,12 @@ def benchmark_python(args: Any):
         # Run for all device types plus nodevice tests
         device_types = device_types + ["nodevice"]
 
+    api_url = args.api_url if args.api_url is not None else os.environ.get("BENCHVIEW_API_URL")
+    failed_devices: list[str] = []
     try:
         # Lock GPU clocks
         if args.lock_gpu_clocks:
             cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "lock", "--ratio", "0.7"]
-            if os_name == "linux":
-                cmd = ["sudo"] + cmd
             run_command(cmd)
 
         # Run benchmarks for each device type
@@ -205,25 +295,26 @@ def benchmark_python(args: Any):
             print(f"Running benchmarks for device type: {device_type}")
 
             cmd = pytest_command("slangpy/benchmarks", "-ra", "--device-types", device_type)
-            if args.mongodb_connection_string:
-                cmd += ["--benchmark-upload", args.run_id]
-                cmd += ["--benchmark-mongodb-connection-string", args.mongodb_connection_string]
-                if args.mongodb_database_name:
-                    cmd += ["--benchmark-mongodb-database-name", args.mongodb_database_name]
+            if api_url is not None:
+                cmd += ["--benchmark-submit", args.run_id]
+                cmd += ["--benchmark-api-url", api_url]
 
             try:
-                run_command(cmd, env=env)
+                run_command(cmd, shell=False, env=env)
             except Exception as e:
                 print(f"Benchmarks failed for device type {device_type}: {e}")
                 if args.device_type:  # If specific device requested, fail hard
                     raise
-                # Otherwise, continue with other devices
+                # Otherwise, track failure and continue with other devices
+                failed_devices.append(device_type)
+
+        # Fail if any device types had errors
+        if failed_devices:
+            raise RuntimeError(f"Benchmarks failed for device type(s): {'; '.join(failed_devices)}")
     finally:
         # Unlock GPU clocks
         if args.lock_gpu_clocks:
             cmd = ["python", str(PROJECT_DIR / "tools/gpu_clock.py"), "unlock"]
-            if os_name == "linux":
-                cmd = ["sudo"] + cmd
             run_command(cmd)
 
 
@@ -283,11 +374,20 @@ def main():
 
     parser_setup = commands.add_parser("setup", help="run setup.bat or setup.sh")
 
+    parser_checkout_slang = commands.add_parser(
+        "checkout-slang",
+        help="clone and check out Slang into ./slang, retrying transient network failures "
+        "(selected with the CI_SLANG_* environment variables)",
+    )
+
     parser_configure = commands.add_parser("configure", help="run cmake configure")
 
     parser_build = commands.add_parser("build", help="run cmake build")
 
     parser_test_cpp = commands.add_parser("unit-test-cpp", help="run unit tests (c++)")
+    parser_test_cpp.add_argument(
+        "--skip-device-tests", action="store_true", help="skip tests that require a device"
+    )
 
     parser_typing_check_python = commands.add_parser(
         "typing-check-python", help="run pyright typing checks (python)"
@@ -296,6 +396,11 @@ def main():
     parser_test_python = commands.add_parser("unit-test-python", help="run unit tests (python)")
     parser_test_python.add_argument(
         "-p", "--parallel", action="store_true", help="run tests in parallel"
+    )
+    parser_test_python.add_argument(
+        "--disable-torch",
+        action="store_true",
+        help="make torch and slangpy_torch unavailable to the test process",
     )
 
     parser_test_examples = commands.add_parser("test-examples", help="run examples tests")
@@ -306,12 +411,14 @@ def main():
     parser_benchmark_python = commands.add_parser(
         "benchmark-python", help="run benchmarks (python)"
     )
-    parser_benchmark_python.add_argument("-r", "--run-id", type=str, required=True, help="Run ID")
     parser_benchmark_python.add_argument(
-        "-c", "--mongodb-connection-string", type=str, help="MongoDB connection string"
+        "-r", "--run-id", type=str, required=True, help="Traceable BenchView request ID"
     )
     parser_benchmark_python.add_argument(
-        "-d", "--mongodb-database-name", type=str, help="MongoDB database name"
+        "-u",
+        "--api-url",
+        type=str,
+        help="BenchView base URL; defaults to BENCHVIEW_API_URL and uses BENCHVIEW_API_KEY",
     )
     parser_benchmark_python.add_argument(
         "--device-type",
@@ -341,6 +448,11 @@ def main():
         ("python", "CI_PYTHON", "3.9"),
         ("flags", "CI_FLAGS", ""),
         ("cmake_args", "CI_CMAKE_ARGS", ""),
+        ("slang_checkout_mode", "CI_SLANG_CHECKOUT_MODE", ""),
+        ("slang_branch", "CI_SLANG_BRANCH", "master"),
+        ("slang_pr_number", "CI_SLANG_PR_NUMBER", ""),
+        ("slang_ref", "CI_SLANG_REF", ""),
+        ("slang_repo", "CI_SLANG_REPO", "shader-slang/slang"),
     ]
 
     for var, env_var, default_value in VARS:
@@ -379,6 +491,7 @@ def main():
 
     {
         "setup": setup,
+        "checkout-slang": checkout_slang,
         "configure": configure,
         "build": build,
         "unit-test-cpp": unit_test_cpp,

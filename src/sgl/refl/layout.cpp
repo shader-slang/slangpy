@@ -251,6 +251,24 @@ void Layout::on_hot_reload(ref<const sgl::ProgramLayout> low_level_layout)
     ++m_generation;
 }
 
+void Layout::clear_caches()
+{
+    for (const auto& [name, type] : m_types_by_name) {
+        SGL_UNUSED(name);
+        if (type)
+            type->clear_caches();
+    }
+    for (const auto& [name, function] : m_functions_by_name) {
+        SGL_UNUSED(name);
+        if (function)
+            function->clear_caches();
+    }
+    m_functions_by_reflection.clear();
+    m_functions_by_name.clear();
+    m_types_by_reflection.clear();
+    m_types_by_name.clear();
+}
+
 std::string Layout::to_string() const
 {
     return fmt::format("refl::Layout(generation={}, valid={})", m_generation, is_valid());

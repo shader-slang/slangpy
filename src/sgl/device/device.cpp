@@ -9,6 +9,7 @@
 #include "sgl/device/query.h"
 #include "sgl/device/input_layout.h"
 #include "sgl/device/shader.h"
+#include "sgl/device/compiler_target.h"
 #include "sgl/device/shader_object.h"
 #include "sgl/device/pipeline.h"
 #include "sgl/device/kernel.h"
@@ -64,9 +65,27 @@ inline AdapterLUID from_rhi(const rhi::AdapterLUID& rhi_luid)
 Device::Device(const DeviceDesc& desc)
     : m_desc(desc)
 {
-    ConstructorRefGuard ref_guard(this);
+}
 
-    if (desc.enable_debug_layers)
+ref<Device> Device::create(const DeviceDesc& desc)
+{
+    // Establish ownership before initialization creates children that retain the device.
+    ref<Device> device(new Device(desc));
+    try {
+        device->init();
+        device->publish();
+    } catch (...) {
+        // Releasing just the factory reference would leave device/child ownership cycles.
+        // Preserve the initialization error even if draining pending work fails.
+        device->shutdown(false);
+        throw;
+    }
+    return device;
+}
+
+void Device::init()
+{
+    if (m_desc.enable_debug_layers)
         rhi::getRHI()->enableDebugLayers();
 
     // Create hot reload system before creating any sessions.
@@ -152,7 +171,6 @@ Device::Device(const DeviceDesc& desc)
     // is provided. If so, we will attempt to identify the same device for use with SlangPy.
     if (m_desc.enable_cuda_interop) {
         if (!rhiCudaDriverApiInit()) {
-            close();
             SGL_THROW("Failed to initialize CUDA driver API.");
         }
 
@@ -215,7 +233,6 @@ Device::Device(const DeviceDesc& desc)
         }
 
         if (!found) {
-            close();
             SGL_THROW("Unable to find matching adapter LUID or name for the provided CUDA device.");
         }
     }
@@ -349,29 +366,6 @@ Device::Device(const DeviceDesc& desc)
         break;
     }
 
-    // Get supported shader model.
-    const std::vector<std::pair<ShaderModel, const char*>> available_shader_models = {
-        {ShaderModel::sm_6_7, "sm_6_7"},
-        {ShaderModel::sm_6_6, "sm_6_6"},
-        {ShaderModel::sm_6_5, "sm_6_5"},
-        {ShaderModel::sm_6_4, "sm_6_4"},
-        {ShaderModel::sm_6_3, "sm_6_3"},
-        {ShaderModel::sm_6_2, "sm_6_2"},
-        {ShaderModel::sm_6_1, "sm_6_1"},
-        {ShaderModel::sm_6_0, "sm_6_0"},
-    };
-    for (const auto& [sm, sm_str] : available_shader_models) {
-        if (m_rhi_device->hasFeature(sm_str)) {
-            m_supported_shader_model = sm;
-            break;
-        }
-    }
-    if (m_supported_shader_model == ShaderModel::unknown) {
-        m_supported_shader_model = ShaderModel::sm_6_0;
-        log_warn("No supported shader model found, pretending to support {}.", m_supported_shader_model);
-    }
-    log_debug("Supported shader model: {}", m_supported_shader_model);
-
     // Query features.
     std::vector<std::string> feature_names;
     for (uint32_t i = 0; i < uint32_t(rhi::Feature::_Count); ++i) {
@@ -396,6 +390,10 @@ Device::Device(const DeviceDesc& desc)
             m_capabilities.push_back(std::move(capability_name));
         }
     }
+
+    // Cache support from the NVRTC library selected by this device's Slang global session.
+    if (m_desc.type == DeviceType::cuda)
+        m_nvrtc_supported_architectures = query_nvrtc_architectures(*this);
 
     // Create graphics queue.
     SLANG_RHI_CALL(m_rhi_device->getQueue(rhi::QueueType::Graphics, m_rhi_graphics_queue.writeRef()), this);
@@ -430,19 +428,19 @@ Device::Device(const DeviceDesc& desc)
         .add_default_include_paths = true,
         .cache_path = !m_module_cache_path.empty() ? std::optional(m_module_cache_path) : std::nullopt,
     });
+}
 
-    // Set CUDA context current for standalone SlangPy (no-op for non-CUDA devices).
-    // Redundant but harmless when using PyTorch interop.
-    set_cuda_context_current();
-
-    // Add device to global device list.
-    {
-        std::lock_guard lock(s_devices_mutex);
-        s_devices.push_back(this);
-    }
-
-    // Auto-push device onto thread-local current device stack.
-    push_current_device(this);
+void Device::publish()
+{
+    // Prepare all allocations before changing current-device state. Enumeration is
+    // blocked until both registries contain the fully initialized device.
+    std::lock_guard lock(s_devices_mutex);
+    s_devices.reserve(s_devices.size() + 1);
+    s_tls_current_device_stack.reserve(s_tls_current_device_stack.size() + 1);
+    SLANG_RHI_CALL(m_rhi_device->setCudaContextCurrent(), this);
+    s_tls_current_device_stack.push_back(this);
+    s_devices.push_back(this);
+    m_state = State::ready;
 }
 
 Device::~Device()
@@ -453,7 +451,18 @@ Device::~Device()
         s_devices.erase(std::remove(s_devices.begin(), s_devices.end(), this), s_devices.end());
     }
 
-    SGL_CHECK(m_closed, "Device is not close. Call close() before destroying the device.");
+    // Also tolerate destruction of a minimally constructed device. This path never
+    // takes a new reference to an object whose reference count has reached zero.
+    shutdown(false);
+
+    // The current-device stack holds raw pointers, and publish() pushes every device onto it.
+    // close() only pops a device that is on top, so a device that was closed while buried
+    // below newer ones is still on the stack here. Erasing every remaining entry ensures
+    // that no later current_device()/pop_current_device() call can return a dangling pointer.
+    std::erase(s_tls_current_device_stack, this);
+
+    // Surviving buffers need the CUDA context to destroy their imports after close().
+    m_cuda_device.reset();
 
     m_rhi_graphics_queue.setNull();
     m_rhi_device.setNull();
@@ -501,31 +510,59 @@ FormatSupport Device::get_format_support(Format format) const
 
 void Device::close()
 {
-    if (m_closed)
+    if (is_closed())
         return;
 
     // Keep the device alive while callbacks and resource teardown may release
     // the last external owner.
     ref<Device> keep_alive(this);
 
-    // Pop device from thread-local current device stack if it's the current device.
-    if (!s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
-        pop_current_device();
+    if (auto error = shutdown(true))
+        std::rethrow_exception(error);
+}
 
-    log_debug("Closing device {}", fmt::ptr(this));
+std::exception_ptr Device::shutdown(bool notify_callbacks) noexcept
+{
+    if (is_closed())
+        return {};
+    const bool was_ready = m_state == State::ready;
+    // Mark closed before cleanup so reentrant close() calls are no-ops.
+    m_state = State::closed;
 
-    wait();
+    if (was_ready && !s_tls_current_device_stack.empty() && s_tls_current_device_stack.back() == this)
+        s_tls_current_device_stack.pop_back();
 
-    // Flush cache writer to ensure all pending writes are completed.
-    if (m_cache_writer)
-        m_cache_writer->flush();
+    std::exception_ptr error;
+    auto attempt = [&](auto&& operation) noexcept
+    {
+        try {
+            operation();
+        } catch (...) {
+            if (!error)
+                error = std::current_exception();
+        }
+    };
 
-    // Mark the device closed before notifying callbacks so reentrant close()
-    // calls from callbacks are no-ops.
-    m_closed = true;
+    // Initialization may have submitted debug-printer commands before failing.
+    attempt(
+        [&]
+        {
+            wait();
+        }
+    );
+    attempt(
+        [&]
+        {
+            if (m_cache_writer)
+                m_cache_writer->flush();
+        }
+    );
 
-    // Handle device close callbacks.
-    m_device_close_callbacks.notify(this);
+    if (notify_callbacks && was_ready) {
+        auto callback_error = m_device_close_callbacks.notify_no_throw(this);
+        if (!error)
+            error = callback_error;
+    }
 
     m_device_close_callbacks.clear();
     m_shader_hot_reload_callbacks.clear();
@@ -535,27 +572,39 @@ void Device::close()
     m_blitter.reset();
     m_debug_printer.reset();
 
+    // The semaphore refers to the fence, and its destructor manages its CUDA context.
+    m_cuda_semaphore.reset();
     m_global_fence.reset();
 
     // Cached reflection layouts can own shader objects strongly; break those cycles before releasing Slang state.
-    detail::invalidate_reflection_data(this);
+    attempt(
+        [&]
+        {
+            detail::invalidate_reflection_data(this);
+        }
+    );
 
     m_builtin_layout.reset();
     m_slang_session.reset();
     m_hot_reload.reset();
 
-    if (m_cuda_device) {
-        SGL_CU_SCOPE(this);
-        m_cuda_semaphore.reset();
-    }
-    m_cuda_device.reset();
+    return error;
 }
 
 void Device::close_all_devices()
 {
     std::vector<ref<Device>> devices = get_created_devices();
-    for (auto it = devices.rbegin(); it != devices.rend(); ++it)
-        (*it)->close();
+    std::exception_ptr error;
+    for (auto it = devices.rbegin(); it != devices.rend(); ++it) {
+        try {
+            (*it)->close();
+        } catch (...) {
+            if (!error)
+                error = std::current_exception();
+        }
+    }
+    if (error)
+        std::rethrow_exception(error);
 }
 
 void Device::_release_all_rhi_resources()
@@ -644,6 +693,32 @@ ref<AccelerationStructure> Device::create_acceleration_structure(AccelerationStr
 ref<AccelerationStructureInstanceList> Device::create_acceleration_structure_instance_list(size_t size)
 {
     return make_ref<AccelerationStructureInstanceList>(ref<Device>(this), size);
+}
+
+MicromapSizes Device::get_micromap_sizes(const MicromapBuildDesc& desc)
+{
+    MicromapBuildDescConverter converter(desc);
+    rhi::MicromapSizes rhi_sizes;
+    SLANG_RHI_CALL(m_rhi_device->getMicromapSizes(converter.rhi_desc, &rhi_sizes), this);
+    return {
+        .micromap_size = rhi_sizes.micromapSize,
+        .scratch_size = rhi_sizes.scratchSize,
+    };
+}
+
+ref<Micromap> Device::create_micromap(MicromapDesc desc)
+{
+    return make_ref<Micromap>(ref<Device>(this), std::move(desc));
+}
+
+ClusterOperationSizes Device::get_cluster_operation_sizes(const ClusterOperationParams& params)
+{
+    rhi::ClusterOperationSizes rhi_sizes;
+    SLANG_RHI_CALL(m_rhi_device->getClusterOperationSizes(detail::to_rhi(params), &rhi_sizes), this);
+    return {
+        .result_size = rhi_sizes.resultSize,
+        .scratch_size = rhi_sizes.scratchSize,
+    };
 }
 
 ref<ShaderTable> Device::create_shader_table(ShaderTableDesc desc)
@@ -757,7 +832,9 @@ void Device::convert_coop_vec_matrix(
 
 ref<SlangSession> Device::create_slang_session(SlangSessionDesc desc)
 {
-    return make_ref<SlangSession>(ref<Device>(this), std::move(desc));
+    ref<SlangSession> session(new SlangSession(ref<Device>(this), std::move(desc)));
+    session->init();
+    return session;
 }
 
 void Device::reload_all_programs()
@@ -1049,7 +1126,7 @@ void Device::wait_for_idle(CommandQueueType queue)
 {
     if (m_rhi_graphics_queue) {
         SGL_CHECK(queue == CommandQueueType::graphics, "Only graphics queue is supported.");
-        m_rhi_graphics_queue->waitOnHost();
+        SLANG_RHI_CALL(m_rhi_graphics_queue->waitOnHost(), this);
     }
 }
 
@@ -1371,7 +1448,6 @@ std::string Device::to_string() const
         "  enable_hot_reload = {},\n"
         "  enable_compilation_reports = {},\n"
         "  pipeline_compilation_mode = {},\n"
-        "  supported_shader_model = {},\n"
         "  module_cache_path = \"{}\",\n"
         "  shader_cache_path = \"{}\"\n"
         ")",
@@ -1387,7 +1463,6 @@ std::string Device::to_string() const
         m_desc.enable_hot_reload,
         m_desc.enable_compilation_reports,
         m_desc.pipeline_compilation_mode,
-        m_supported_shader_model,
         m_module_cache_path,
         m_shader_cache_path
     );
@@ -1486,12 +1561,13 @@ void Device::_notify_command_recording_submitted(
     m_command_recording_submitted_callbacks.notify(event);
 }
 
-void Device::_notify_command_recording_discarded(CommandRecordingID id)
+void Device::_notify_command_recording_discarded(CommandRecordingID id) noexcept
 {
     CommandRecordingDiscardedEvent event{
         .device = this,
         .id = id,
     };
+    // Destructor callbacks must not throw. Escaping exceptions terminate at this noexcept boundary.
     m_command_recording_discarded_callbacks.notify(event);
 }
 
@@ -1656,6 +1732,21 @@ ref<AccelerationStructure> create_acceleration_structure(AccelerationStructureDe
 ref<AccelerationStructureInstanceList> create_acceleration_structure_instance_list(size_t size)
 {
     return current_device()->create_acceleration_structure_instance_list(size);
+}
+
+MicromapSizes get_micromap_sizes(const MicromapBuildDesc& desc)
+{
+    return current_device()->get_micromap_sizes(desc);
+}
+
+ref<Micromap> create_micromap(MicromapDesc desc)
+{
+    return current_device()->create_micromap(std::move(desc));
+}
+
+ClusterOperationSizes get_cluster_operation_sizes(const ClusterOperationParams& params)
+{
+    return current_device()->get_cluster_operation_sizes(params);
 }
 
 ref<ShaderTable> create_shader_table(ShaderTableDesc desc)

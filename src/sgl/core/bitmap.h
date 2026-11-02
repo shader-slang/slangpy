@@ -53,6 +53,7 @@ derivative works thereof, in binary and source code form.
 #include "sgl/core/data_struct.h"
 #include "sgl/core/rfilter.h"
 
+#include <cstdlib>
 #include <filesystem>
 #include <future>
 #include <memory>
@@ -126,6 +127,20 @@ public:
 
     using ComponentType = DataStruct::Type;
 
+    /// Decoded image layout, obtained without loading pixels.
+    struct Info {
+        /// Width in pixels.
+        uint32_t width;
+        /// Height in pixels.
+        uint32_t height;
+        /// Decoded pixel format.
+        PixelFormat pixel_format;
+        /// Decoded component type.
+        ComponentType component_type;
+        /// Number of channels per pixel.
+        uint32_t channel_count;
+    };
+
     Bitmap(
         PixelFormat pixel_format,
         ComponentType component_type,
@@ -146,9 +161,6 @@ public:
 
     /// Move constructor.
     Bitmap(Bitmap&& other);
-
-    /// Destructor.
-    ~Bitmap();
 
     /// Load a list of bitmaps from multiple paths. Uses multi-threading to load bitmaps in parallel.
     static std::vector<ref<Bitmap>>
@@ -186,6 +198,9 @@ public:
     /// True if the bitmap is in sRGB gamma space.
     bool srgb_gamma() const { return m_srgb_gamma; }
 
+    /// Whether this build can read PNG transfer metadata through libpng.
+    static bool supports_png_metadata();
+
     /// Set the sRGB gamma flag.
     /// Note that this does not convert the pixel values, it only sets the flag and adjusts the pixel struct.
     void set_srgb_gamma(bool srgb_gamma);
@@ -200,22 +215,22 @@ public:
     size_t buffer_size() const { return pixel_count() * bytes_per_pixel(); }
 
     /// The raw image data.
-    void* data() { return m_data.get(); }
-    const void* data() const { return m_data.get(); }
+    void* data() { return m_data; }
+    const void* data() const { return m_data; }
 
     /// The raw image data as uint8_t.
-    uint8_t* uint8_data() { return m_data.get(); }
-    const uint8_t* uint8_data() const { return m_data.get(); }
+    uint8_t* uint8_data() { return m_data; }
+    const uint8_t* uint8_data() const { return m_data; }
 
     template<typename T>
     T* data_as()
     {
-        return reinterpret_cast<T*>(m_data.get());
+        return reinterpret_cast<T*>(m_data);
     }
     template<typename T>
     const T* data_as() const
     {
-        return reinterpret_cast<const T*>(m_data.get());
+        return reinterpret_cast<const T*>(m_data);
     }
 
     /// True if bitmap is empty.
@@ -294,10 +309,25 @@ public:
 
     static FileFormat detect_file_format(Stream* stream);
 
+    /// Read image layout without decoding pixels. Supports all bitmap formats except DDS.
+    /// @param path Image file path.
+    /// @param format File format, or auto_ to detect it.
+    /// @return Decoded image layout.
+    static Info read_info(const std::filesystem::path& path, FileFormat format = FileFormat::auto_);
+
+    /// Read image layout without decoding pixels. Supports all bitmap formats except DDS.
+    /// Preserves the readable, seekable stream's position on success and failure.
+    /// @param stream Image stream, positioned at the image start.
+    /// @param format File format, or auto_ to detect it.
+    /// @return Decoded image layout.
+    static Info read_info(Stream* stream, FileFormat format = FileFormat::auto_);
+
     static void static_init();
     static void static_shutdown();
 
 private:
+    void allocate_data(size_t size);
+
     void rebuild_pixel_struct(uint32_t channel_count = 0, const std::vector<std::string>& channel_names = {});
 
     void read(Stream* stream, FileFormat format);
@@ -336,8 +366,9 @@ private:
     uint32_t m_width;
     uint32_t m_height;
     bool m_srgb_gamma;
-    std::unique_ptr<uint8_t[]> m_data;
-    bool m_owns_data;
+    using OwnedData = std::unique_ptr<uint8_t, decltype(&std::free)>;
+    OwnedData m_owned_data{nullptr, &std::free};
+    uint8_t* m_data{nullptr};
 };
 
 SGL_ENUM_REGISTER(Bitmap::FileFormat);

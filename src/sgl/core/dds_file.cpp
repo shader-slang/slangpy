@@ -825,26 +825,20 @@ using namespace detail;
 
 DDSFile::DDSFile(Stream* stream)
 {
-    m_size = stream->size();
-    if (m_size < MIN_HEADER_SIZE)
+    const size_t size = stream->size();
+    if (size < MIN_HEADER_SIZE)
         SGL_THROW("DDS file is too small");
 
-    m_data = new uint8_t[m_size];
-    stream->read(m_data, m_size);
+    m_data.resize(size);
+    stream->read(m_data.data(), m_data.size());
 
-    if (!decode_header(m_data, m_size))
+    if (!decode_header(m_data.data(), m_data.size()))
         SGL_THROW("DDS file has invalid header");
 }
 
 DDSFile::DDSFile(const std::filesystem::path& path)
     : DDSFile(ref(new FileStream(path, FileStream::Mode::read)))
 {
-}
-
-DDSFile::~DDSFile()
-{
-    if (m_data)
-        delete[] m_data;
 }
 
 const uint8_t* DDSFile::get_subresource_data(uint32_t mip, uint32_t slice) const

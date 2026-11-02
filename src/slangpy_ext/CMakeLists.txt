@@ -6,6 +6,7 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     slangpy_ext.cpp
     app/app.cpp
     core/bitmap.cpp
+    core/bc_codec.cpp
     core/crypto.cpp
     core/data_struct.cpp
     core/data_type.cpp
@@ -72,6 +73,8 @@ nanobind_add_module(slangpy_ext NB_STATIC LTO
     utils/torch_bridge.cpp
 )
 
+sgl_enable_sanitizers(slangpy_ext)
+
 if(SGL_ENABLE_PCH)
     target_precompile_headers(slangpy_ext
         PRIVATE
@@ -128,44 +131,59 @@ function(postprocess_stub stub_file args)
     )
 endfunction()
 
-# Generate main stub file.
-nanobind_add_stub(
-    slangpy_stub
-    MODULE slangpy
-    PYTHON_PATH ${SLANGPY_PACKAGE_DIR}/..
-    OUTPUT ${SLANGPY_PACKAGE_DIR}/__init__.pyi
-    DEPENDS slangpy_ext ${SLANGPY_PACKAGE_DIR}/__init__.py
-    INCLUDE_PRIVATE # allow us to have functions/variables that start with _
-    PATTERN_FILE ${CMAKE_CURRENT_LIST_DIR}/slangpy_stub_patterns.nb
-)
-
-# Post-process the main stub file.
-postprocess_stub(${SLANGPY_PACKAGE_DIR}/__init__.pyi "")
-
-# Install the main stub file.
-install(FILES ${SLANGPY_PACKAGE_DIR}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-# Generate submodule stub files.
-foreach(submodule IN ITEMS platform thread math ui tev crashpad renderdoc slangpy native_refl native_func)
-    string(REPLACE "." "/" submodule_path ${submodule})
+# Stub generation imports the extension into an unsanitized Python host. The
+# required sanitizer runtime preload is not portable across the Clang runtime
+# layouts used by our CI platforms, so retain the checked-in stubs instead.
+if(NOT SGL_ENABLE_ASAN AND NOT SGL_ENABLE_UBSAN)
+    # Generate main stub file.
     nanobind_add_stub(
-        slangpy_${submodule}_stub
-        MODULE slangpy.${submodule}
+        slangpy_stub
+        MODULE slangpy
         PYTHON_PATH ${SLANGPY_PACKAGE_DIR}/..
-        OUTPUT ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi
-        DEPENDS slangpy_ext ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.py
+        OUTPUT ${SLANGPY_PACKAGE_DIR}/__init__.pyi
+        DEPENDS slangpy_ext ${SLANGPY_PACKAGE_DIR}/__init__.py
         INCLUDE_PRIVATE # allow us to have functions/variables that start with _
+        PATTERN_FILE ${CMAKE_CURRENT_LIST_DIR}/slangpy_stub_patterns.nb
     )
 
-    # Post-process the submodule stub file.
-    postprocess_stub(${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi "--submodule")
+    # Post-process the main stub file.
+    postprocess_stub(${SLANGPY_PACKAGE_DIR}/__init__.pyi "")
 
-    # Install the submodule stub file.
-    install(FILES ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR}/${submodule_path})
+    # Install the main stub file.
+    install(FILES ${SLANGPY_PACKAGE_DIR}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-endforeach()
+    set(SLANGPY_STUB_TARGETS slangpy_stub)
+
+    # Generate submodule stub files.
+    foreach(submodule IN ITEMS platform thread math ui tev crashpad renderdoc slangpy native_refl native_func)
+        string(REPLACE "." "/" submodule_path ${submodule})
+        nanobind_add_stub(
+            slangpy_${submodule}_stub
+            MODULE slangpy.${submodule}
+            PYTHON_PATH ${SLANGPY_PACKAGE_DIR}/..
+            OUTPUT ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi
+            DEPENDS slangpy_ext ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.py
+            INCLUDE_PRIVATE # allow us to have functions/variables that start with _
+        )
+
+        # Post-process the submodule stub file.
+        postprocess_stub(${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi "--submodule")
+
+        # Install the submodule stub file.
+        install(FILES ${SLANGPY_PACKAGE_DIR}/${submodule_path}/__init__.pyi DESTINATION ${CMAKE_INSTALL_BINDIR}/${submodule_path})
+
+        list(APPEND SLANGPY_STUB_TARGETS slangpy_${submodule}_stub)
+    endforeach()
+
+    add_custom_target(slangpy_stubs ALL
+        DEPENDS ${SLANGPY_STUB_TARGETS}
+    )
+endif()
 
 set(MKDOC_ARGS "")
+if(APPLE)
+    list(APPEND MKDOC_ARGS -stdlib=libc++)
+endif()
 
 # Add system include directories.
 foreach(value ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
@@ -223,22 +241,14 @@ foreach(sgl_dir IN ITEMS ${SGL_HEADER_DIRS})
     list(APPEND SGL_HEADER_FILES ${FOUND_HEADERS})
 endforeach()
 
-# Note: Older versions of python packages pybind11_mkdoc and clang
-# may not support C++20. If you see the following error:
-#   ValueError: Unknown template argument kind 604
-# Upgrade to:
-#   pybind_mkdoc >= 2.6.2
-#   clang >= 20.1.5
-# Or manually change the cindex.py file in your
-# clang python package to add the following lines:
-# > # A concept declaration
-# > CursorKind.CONCEPT_DECL = CursorKind(604)
-add_custom_target(slangpy_pydoc USES_TERMINAL COMMAND
-    COMMAND ${Python_EXECUTABLE} -m pybind11_mkdoc -std=c++20 -stdlib=libc++
+# Use the vendored generator; only the Clang Python bindings and libclang are external.
+add_custom_target(slangpy_pydoc USES_TERMINAL
+    COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_pydoc.py -std=c++20
     ${MKDOC_ARGS}
     -I${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
     ${SGL_HEADER_FILES}
     -o ${CMAKE_CURRENT_SOURCE_DIR}/py_doc.h
+    VERBATIM
 )
 
 # Install binaries.

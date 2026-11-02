@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import hashlib
+import os
 import sys
 from pathlib import Path
 from typing import Any, Optional, Sequence, Union, cast
@@ -84,6 +85,12 @@ DEVICE_CACHE: dict[
 USED_TORCH_DEVICES: bool = False
 METAL_PARAMETER_BLOCK_SUPPORT: Optional[bool] = None
 
+# Only the backfill workflow sets this. Every device and library API the harness
+# uses exists at the supported floor, so nothing here varies with the target; it
+# remains only so the benchmark plugin can name the target it is measuring.
+BACKFILL_TARGET_SHA: str = os.environ.get("BACKFILL_TARGET_SHA", "")
+
+
 # Always dump stuff when testing
 spy.set_dump_generated_shaders(True)
 # spy.set_dump_slang_intermediates(True)
@@ -110,6 +117,8 @@ def close_all_devices():
     for device in Device.get_created_devices():
         print(f"Closing device on shutdown {device.desc.label}")
         device.close()
+
+    DEVICE_CACHE.clear()
 
 
 def close_leaked_devices():
@@ -214,24 +223,27 @@ def get_device(
 
     if use_cache and cache_key in DEVICE_CACHE:
         device = DEVICE_CACHE[cache_key]
-        device.set_cuda_context_current()  # Ensure CUDA context is current for cached devices
+        # Ensure CUDA context is current for cached devices.
+        device.set_cuda_context_current()
         return device
 
-    device = Device(
-        type=type,
-        adapter_luid=selected_adaptor_luid,
-        enable_debug_layers=not is_benchmark,
-        enable_rhi_validation=not is_benchmark,
-        compiler_options=SlangCompilerOptions(
+    device_kwargs: dict[str, Any] = {
+        "type": type,
+        "adapter_luid": selected_adaptor_luid,
+        "enable_debug_layers": not is_benchmark,
+        "compiler_options": SlangCompilerOptions(
             {
                 "include_paths": include_paths,
                 "debug_info": SlangDebugInfoLevel.standard,
             }
         ),
-        enable_cuda_interop=cuda_interop,
-        existing_device_handles=existing_device_handles,
-        label=label,
-    )
+        "enable_cuda_interop": cuda_interop,
+        "existing_device_handles": existing_device_handles,
+        "label": label,
+        "enable_rhi_validation": not is_benchmark,
+    }
+
+    device = Device(**device_kwargs)
 
     # slangpy dependens on parameter block support which is not available on all Metal devices
     if type == DeviceType.metal:
@@ -383,17 +395,9 @@ def dispatch_compute(
     textures: dict[str, Texture] = {},
     defines: dict[str, str] = {},
     compiler_options: "spy.SlangCompilerOptionsDict" = {},
-    shader_model: spy.ShaderModel = spy.ShaderModel.sm_6_6,
 ) -> Context:
-    # TODO(slang-rhi): Metal and CUDA don't support shader models.
-    # we should move away from this concept and check features instead.
-    if device.info.type == spy.DeviceType.metal or device.info.type == spy.DeviceType.cuda:
-        shader_model = spy.ShaderModel.sm_6_0
-    if shader_model > device.supported_shader_model:
-        pytest.skip(f"Shader model {str(shader_model)} not supported")
-
+    compiler_options = compiler_options.copy()
     compiler_options["include_paths"] = device.slang_session.desc.compiler_options.include_paths
-    compiler_options["shader_model"] = shader_model
     compiler_options["defines"] = defines
     compiler_options["debug_info"] = spy.SlangDebugInfoLevel.standard
 

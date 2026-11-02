@@ -10,6 +10,7 @@
 
 #include <array>
 #include <iostream>
+#include <stdexcept>
 
 #if SGL_WINDOWS
 #ifndef WIN32_LEAN_AND_MEAN
@@ -179,6 +180,7 @@ std::string DebugConsoleLoggerOutput::to_string() const
 Logger::Logger(LogLevel log_level, const std::string_view name, bool use_default_outputs)
     : m_level(log_level)
     , m_name(name)
+    , m_outputs(std::make_shared<OutputSet>())
 {
     if (use_default_outputs) {
         add_output(make_ref<ConsoleLoggerOutput>());
@@ -208,29 +210,88 @@ ref<LoggerOutput> Logger::add_debug_console_output()
     return output;
 }
 
+// LoggerOutput uses intrusive reference counting. For outputs implemented in Python, copying or destroying a
+// ref<LoggerOutput> acquires the GIL. To avoid a lock-order inversion between the GIL and m_mutex, the mutex only
+// protects native shared_ptr handles to immutable output sets. Output sets themselves are copied and destroyed after
+// releasing the mutex.
+Logger::OutputSnapshot Logger::output_snapshot() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_outputs;
+}
+
+void Logger::publish_outputs(OutputSnapshot outputs)
+{
+    OutputSnapshot previous_outputs;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_outputs == outputs)
+            return;
+
+        // Move the previous snapshot into a local so its output references are released after unlocking.
+        previous_outputs = std::move(m_outputs);
+        m_outputs = std::move(outputs);
+    }
+}
+
+template<typename Mutator>
+void Logger::mutate_outputs(Mutator&& mutator)
+{
+    while (true) {
+        OutputSnapshot outputs = output_snapshot();
+
+        // Copying and modifying the set can retain or release Python-backed outputs, so do both without m_mutex.
+        auto next_outputs = std::make_shared<OutputSet>(*outputs);
+        if (!mutator(*next_outputs))
+            return;
+
+        OutputSnapshot previous_outputs;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+
+            // Another writer published while the set was being copied. Retry against its snapshot to avoid losing
+            // updates or resurrecting outputs replaced by remove_all_outputs() or use_same_outputs().
+            if (m_outputs != outputs)
+                continue;
+
+            // Keep the replaced snapshot alive until after m_mutex is released.
+            previous_outputs = std::move(m_outputs);
+            m_outputs = std::move(next_outputs);
+        }
+        return;
+    }
+}
+
 void Logger::use_same_outputs(const Logger& other)
 {
-    remove_all_outputs();
-    for (auto& output : other.m_outputs)
-        add_output(output);
+    if (&other == this)
+        return;
+    publish_outputs(other.output_snapshot());
 }
 
 void Logger::add_output(ref<LoggerOutput> output)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_outputs.insert(output);
+    mutate_outputs(
+        [&](OutputSet& outputs)
+        {
+            return outputs.insert(output).second;
+        }
+    );
 }
 
 void Logger::remove_output(ref<LoggerOutput> output)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_outputs.erase(output);
+    mutate_outputs(
+        [&](OutputSet& outputs)
+        {
+            return outputs.erase(output) != 0;
+        }
+    );
 }
 
 void Logger::remove_all_outputs()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_outputs.clear();
+    publish_outputs(std::make_shared<OutputSet>());
 }
 
 std::string Logger::name() const
@@ -247,44 +308,64 @@ void Logger::set_name(std::string_view name)
 
 LogLevel Logger::level() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_level;
+    return m_level.load(std::memory_order_relaxed);
 }
 
 void Logger::set_level(LogLevel level)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_level = level;
+    m_level.store(level, std::memory_order_relaxed);
 }
 
-void Logger::log(LogLevel level, const std::string_view msg, LogFrequency frequency)
+void Logger::log(LogLevel level, const std::string_view msg, LogFrequency frequency) noexcept
 {
-    std::set<ref<LoggerOutput>> outputs;
+    if (!should_log(level))
+        return;
+
+    OutputSnapshot outputs;
     std::string name;
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
 
-        if (level != LogLevel::none && level < m_level)
-            return;
-
         if (frequency == LogFrequency::once && is_duplicate(msg))
             return;
 
-        // Outputs may re-enter the logger or call into another runtime such as Python.
+        // Retaining the outer shared_ptr does not touch the intrusive references stored in the immutable set.
         outputs = m_outputs;
         name = m_name;
     }
 
-    for (const auto& output : outputs)
-        output->write(level, name, msg);
+    // Outputs may re-enter the logger or call into another runtime such as Python.
+    for (const auto& output : *outputs) {
+        try {
+            output->write(level, name, msg);
+        } catch (...) {
+            // A failing output must not interrupt delivery to the remaining outputs.
+        }
+    }
+}
+
+void log(LogLevel level, std::string_view msg, LogFrequency frequency) noexcept
+{
+    Logger::get().log(level, msg, frequency);
 }
 
 static ref<Logger> s_logger;
 static std::once_flag s_logger_init_flag;
+// Shutdown is externally synchronized with all global logger users.
+static bool s_logger_shutdown{false};
 
-Logger& Logger::get()
+// Keep the throwing diagnostic separate from the noexcept accessor. SGL_THROW would
+// recursively access the logger, and a direct throw in get() triggers compiler warnings.
+static void check_logger_lifetime()
 {
+    if (s_logger_shutdown)
+        throw std::runtime_error("The global logger has been shut down.");
+}
+
+Logger& Logger::get() noexcept
+{
+    check_logger_lifetime();
     std::call_once(
         s_logger_init_flag,
         []()
@@ -302,6 +383,8 @@ void Logger::static_init()
 
 void Logger::static_shutdown()
 {
+    // Mark shutdown before releasing outputs: their destructors may attempt to log.
+    s_logger_shutdown = true;
     s_logger.reset();
 }
 

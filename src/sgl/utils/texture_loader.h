@@ -12,15 +12,57 @@
 
 namespace sgl {
 
+/// Interpretation of stored image color values; does not re-encode texels or modify source metadata.
+enum class SRGBMode {
+    /// Follow bitmap gamma metadata or preserve the DDS-authored format.
+    automatic,
+    /// Select the linear format when supported, regardless of source metadata.
+    linear,
+    /// Select sRGB sampling when supported, regardless of source metadata. Alpha remains linear.
+    srgb,
+};
+
+SGL_ENUM_INFO(
+    SRGBMode,
+    {
+        {SRGBMode::automatic, "automatic"},
+        {SRGBMode::linear, "linear"},
+        {SRGBMode::srgb, "srgb"},
+    }
+);
+SGL_ENUM_REGISTER(SRGBMode);
+
+/// Strategy for handling Y (greyscale) bitmaps during texture loading.
+enum class YHandling {
+    /// Replicate luminance into RGB and set alpha to one.
+    expand_to_rgba,
+    /// Preserve luminance as a single red channel (the default).
+    preserve_as_r,
+};
+
+SGL_ENUM_INFO(
+    YHandling,
+    {
+        {YHandling::expand_to_rgba, "expand_to_rgba"},
+        {YHandling::preserve_as_r, "preserve_as_r"},
+    }
+);
+SGL_ENUM_REGISTER(YHandling);
+
 /// Strategy for handling YA (greyscale + alpha) bitmaps during texture loading.
 enum class YAHandling {
+    /// Replicate luminance into RGB and preserve alpha (the default).
     expand_to_rgba,
+    /// Preserve luminance and alpha as red and green channels.
     preserve_as_rg,
 };
 
 SGL_ENUM_INFO(
     YAHandling,
-    {{YAHandling::expand_to_rgba, "expand_to_rgba"}, {YAHandling::preserve_as_rg, "preserve_as_rg"}}
+    {
+        {YAHandling::expand_to_rgba, "expand_to_rgba"},
+        {YAHandling::preserve_as_rg, "preserve_as_rg"},
+    }
 );
 SGL_ENUM_REGISTER(YAHandling);
 
@@ -30,22 +72,42 @@ SGL_ENUM_REGISTER(YAHandling);
 class SGL_API TextureLoader : public sgl::Object {
     SGL_OBJECT(TextureLoader)
 public:
-    TextureLoader(ref<Device> device);
+    /// Default temporary CPU memory budget in bytes.
+    static constexpr uint64_t DEFAULT_MEMORY_BUDGET = 32ull * 1024 * 1024 * 1024;
+
+    /// Create a texture loader.
+    /// @param device Device receiving the textures.
+    /// @param memory_budget Positive, best-effort temporary CPU memory budget in bytes per bulk call.
+    /// Defaults to 32 GiB. Estimates include decoding, conversion and upload storage. A single image
+    /// exceeding the budget is loaded alone. Caller-owned bitmaps and final GPU textures are excluded.
+    TextureLoader(ref<Device> device, uint64_t memory_budget = DEFAULT_MEMORY_BUDGET);
     ~TextureLoader();
 
     struct SGL_API Options {
         /// Load 8/16-bit integer data as normalized resource format.
         bool load_as_normalized{true};
-        /// Use \c Format::rgba8_unorm_srgb format if bitmap is 8-bit RGBA with sRGB gamma.
-        bool load_as_srgb{true};
+        /// Color interpretation after channel expansion. sRGB sampling is supported for 8-bit RGBA;
+        /// other component types and preserved R/RG layouts retain their usual formats.
+        /// DDS preserves its authored format in automatic mode; explicit modes select the corresponding
+        /// sRGB or linear variant when one exists, otherwise leaving the format unchanged.
+        /// Stored texels, alpha, and DDS mipmaps and layout are unchanged.
+        SRGBMode srgb_mode{SRGBMode::automatic};
         /// Extend RGB to RGBA if the RGB texture format cannot support the requested usage.
         bool extend_alpha{true};
+        /// Strategy for handling Y (greyscale) bitmaps, independent of sRGB interpretation.
+        /// Expansion preserves component type and gamma encoding; explicit R/RG bitmaps are unchanged.
+        YHandling y_handling{YHandling::preserve_as_r};
         /// Strategy for handling YA (greyscale + alpha) bitmaps.
         YAHandling ya_handling{YAHandling::expand_to_rgba};
         /// Allocate mip levels for the texture.
         bool allocate_mips{false};
         /// Generate mip levels for the texture.
         bool generate_mips{false};
+        /// Limit the full mip count implied by the texture dimensions; zero means unrestricted.
+        /// For power-of-two textures, 13 allows up to 4096. Non-power-of-two dimensions use floor(log2(size)) + 1.
+        /// DDS selects authored mips by their dimensions, or warns and uses the smallest mip if none fits.
+        /// Other images are reduced before upload using successive box-filtered halvings.
+        uint32_t max_mip_count{0};
         /// Resource usage flags for the texture.
         /// Render-target or unordered-access usage will be added automatically if \c generate_mips is true.
         TextureUsage usage{TextureUsage::shader_resource};
@@ -140,6 +202,7 @@ public:
 
 private:
     ref<Device> m_device;
+    uint64_t m_memory_budget;
     ref<Blitter> m_blitter;
 };
 

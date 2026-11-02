@@ -65,7 +65,7 @@ line-length = 100
 
 [tool.pyright]
 include = ["./src", "./tools", "./examples"]
-extraPaths = ["./src/sgl/device/tests"]
+extraPaths = ["./src/sgl/device/tests", "./external"]
 ignore = [
     "./tools/host",
     "./tools/download",

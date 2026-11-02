@@ -1,0 +1,4 @@
+# bcdec reads packed BC blocks from byte-aligned input. Restrict the exception
+# to its vendored implementation; SlangPy's codec wrapper remains checked.
+[alignment]
+src:*bcdec.h

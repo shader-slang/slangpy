@@ -8,6 +8,7 @@
 
 #include <array>
 #include <fstream>
+#include <stdexcept>
 
 using namespace sgl;
 
@@ -50,6 +51,9 @@ void check_execute_callback_native_handle(Device* device, NativeHandle callback_
 
 TEST_CASE("enumerate_adapters")
 {
+    if (!testing::device_tests_enabled())
+        SKIP("device tests disabled by -skip-device-tests");
+
     std::vector<AdapterInfo> adapters = Device::enumerate_adapters();
     CHECK(!adapters.empty());
 }
@@ -57,6 +61,32 @@ TEST_CASE("enumerate_adapters")
 TEST_CASE_GPU("init")
 {
     CHECK(ctx.device);
+}
+
+TEST_CASE_GPU("failed_device_initialization_is_not_published")
+{
+    const auto devices = Device::get_created_devices();
+    Device* previous = current_device();
+    DeviceDesc desc = ctx.device->desc();
+    desc.enable_print = true;
+    desc.enable_hot_reload = true;
+    // Fail default-session initialization after the fence and debug-printer
+    // upload have been created.
+    desc.compiler_options.profile = "not_a_slang_profile";
+    for (int i = 0; i < 2; ++i) {
+        CHECK_THROWS_WITH_AS(Device::create(desc), doctest::Contains("Unknown Slang profile"), std::runtime_error);
+        CHECK(Device::get_created_devices() == devices);
+        CHECK(current_device() == previous);
+    }
+
+    auto device = Device::create(ctx.device->desc());
+    const uint32_t data = 42;
+    auto buffer = device->create_buffer({.size = sizeof(data), .data = &data, .data_size = sizeof(data)});
+    uint32_t result = 0;
+    buffer->get_data(&result, sizeof(result));
+    CHECK(result == data);
+    device->close();
+    CHECK(current_device() == previous);
 }
 
 TEST_CASE_GPU("invalid_shader_cache_is_disabled_without_deleting_cache")

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 import pytest
 import os
+import slangpy as spy
 from slangpy import (
     Logger,
     LoggerOutput,
@@ -129,6 +130,87 @@ def test_file_output(tmpdir: Path):
     assert lines[3].startswith("[WARN] (test) warn message")
     assert lines[4].startswith("[ERROR] (test) error message")
     assert lines[5].startswith("[FATAL] (test) fatal message")
+
+
+class RaisingLoggerOutput(LoggerOutput):
+    def __init__(self, exception_type: type[Exception]) -> None:
+        super().__init__()
+        self.exception_type = exception_type
+        self.calls = 0
+
+    def write(self, level: LogLevel, name: str, msg: str) -> None:
+        self.calls += 1
+        raise self.exception_type("output failed")
+
+
+@pytest.mark.parametrize("use_global", [False, True])
+@pytest.mark.parametrize(
+    "method",
+    ["log", "debug", "info", "warn", "error", "fatal"]
+    + [f"{level}_once" for level in ["debug", "info", "warn", "error", "fatal"]],
+)
+def test_output_failure_isolation(use_global: bool, method: str) -> None:
+    logger = Logger.get() if use_global else Logger(use_default_outputs=False)
+    saved = Logger(level=logger.level, use_default_outputs=False)
+    saved.use_same_outputs(logger)
+    logger.remove_all_outputs()
+    logger.level = LogLevel.debug
+    first = RaisingLoggerOutput(ValueError)
+    second = RaisingLoggerOutput(RuntimeError)
+    healthy = CustomLoggerOutput()
+    try:
+        logger.add_output(first)
+        logger.add_output(second)
+        logger.add_output(healthy)
+        emit = (
+            getattr(spy, "log" if method == "log" else f"log_{method}")
+            if use_global
+            else getattr(logger, method)
+        )
+        message = f"output failure isolation {use_global} {method}"
+        for _ in range(2):
+            if method == "log":
+                emit(LogLevel.info, message)
+            else:
+                emit(message)
+        expected_calls = 1 if method.endswith("_once") else 2
+        # Two failing outputs establish that dispatch continues regardless of output ordering.
+        assert first.calls == expected_calls
+        assert second.calls == expected_calls
+        assert len(healthy.messages) == expected_calls
+        assert all(entry[2] == message for entry in healthy.messages)
+
+        logger.remove_output(first)
+        logger.remove_output(second)
+        logger.info("still usable")
+        assert healthy.messages[-1][2] == "still usable"
+
+        # Direct output calls retain their throwing contract.
+        with pytest.raises(ValueError, match="output failed"):
+            first.write(LogLevel.info, "", "direct")
+    finally:
+        logger.use_same_outputs(saved)
+        logger.level = saved.level
+
+
+def test_calldata_logging_isolates_output_failures() -> None:
+    from slangpy.slangpy import NativeCallData
+
+    logger = Logger(level=LogLevel.debug, use_default_outputs=False)
+    first = RaisingLoggerOutput(ValueError)
+    second = RaisingLoggerOutput(RuntimeError)
+    healthy = CustomLoggerOutput()
+    logger.add_output(first)
+    logger.add_output(second)
+    logger.add_output(healthy)
+    call = NativeCallData()
+    call.logger = logger
+    call.log(LogLevel.info, "plain")
+    for level in ["debug", "info", "warn", "error", "fatal"]:
+        getattr(call, f"log_{level}")(level)
+    assert first.calls == 6
+    assert second.calls == 6
+    assert len(healthy.messages) == 6
 
 
 if __name__ == "__main__":

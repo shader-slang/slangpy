@@ -6,6 +6,12 @@
 #include <slang-rhi.h>
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <future>
+#include <mutex>
+#include <stdexcept>
+#include <thread>
 
 using namespace sgl;
 
@@ -18,6 +24,46 @@ struct RecursiveTaskPayload {
     std::atomic<uint32_t>* delete_count;
     uint32_t depth;
 };
+
+struct BlockingDeletePayload {
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool callback_entered{false};
+    bool allow_callback_return{false};
+    bool deleter_entered{false};
+    bool allow_deleter_return{false};
+    bool wait_returned{false};
+};
+
+void execute_blocking_delete_task(void* data)
+{
+    auto* payload = static_cast<BlockingDeletePayload*>(data);
+    std::unique_lock lock(payload->mutex);
+    payload->callback_entered = true;
+    payload->condition.notify_all();
+    payload->condition.wait(
+        lock,
+        [&]
+        {
+            return payload->allow_callback_return;
+        }
+    );
+}
+
+void delete_blocking_task_payload(void* data)
+{
+    auto* payload = static_cast<BlockingDeletePayload*>(data);
+    std::unique_lock lock(payload->mutex);
+    payload->deleter_entered = true;
+    payload->condition.notify_all();
+    payload->condition.wait(
+        lock,
+        [&]
+        {
+            return payload->allow_deleter_return;
+        }
+    );
+}
 
 void delete_recursive_task_payload(void* data)
 {
@@ -65,6 +111,47 @@ TEST_CASE("public task API executes tasks")
     CHECK(executed.load());
 }
 
+TEST_CASE("task group waits for all tasks before rethrowing the first exception")
+{
+    using namespace std::chrono_literals;
+
+    thread::TaskGroup group;
+    auto first = group.do_async(
+        []
+        {
+            throw std::runtime_error("first task failed");
+        }
+    );
+    // Complete the first task before submitting the blocked task so this wait cannot execute it.
+    CHECK_THROWS_WITH_AS(thread::task_wait(first), "first task failed", std::runtime_error);
+
+    std::promise<void> release_second;
+    auto gate = release_second.get_future();
+    auto second = group.do_async(
+        [&]
+        {
+            gate.wait();
+            throw std::runtime_error("second task failed");
+        }
+    );
+    // Keep a handle for cleanup even if the group incorrectly returns before the second task finishes.
+    thread::task_retain(second);
+
+    auto waiter = std::async(
+        std::launch::async,
+        [&]
+        {
+            group.wait();
+        }
+    );
+    CHECK(waiter.wait_for(100ms) == std::future_status::timeout);
+    release_second.set_value();
+    CHECK_THROWS_WITH_AS(waiter.get(), "first task failed", std::runtime_error);
+    CHECK(thread::task_query(second));
+    CHECK_NOTHROW(group.wait());
+    CHECK_THROWS_WITH_AS(thread::task_wait_and_release(second), "second task failed", std::runtime_error);
+}
+
 TEST_CASE("rhi task pool executes tasks and deletes payloads")
 {
     struct Payload {
@@ -94,6 +181,62 @@ TEST_CASE("rhi task pool executes tasks and deletes payloads")
 
     CHECK(execute_count.load() == 1);
     CHECK(delete_count.load() == 1);
+}
+
+TEST_CASE("rhi task wait includes payload deletion")
+{
+    using namespace std::chrono_literals;
+
+    BlockingDeletePayload payload;
+    rhi::ITaskPool* pool = thread::rhi_task_pool();
+    auto task = pool->submitTask(execute_blocking_delete_task, &payload, delete_blocking_task_payload);
+
+    {
+        std::unique_lock lock(payload.mutex);
+        payload.condition.wait(
+            lock,
+            [&]
+            {
+                return payload.callback_entered;
+            }
+        );
+    }
+
+    std::thread waiter(
+        [&]
+        {
+            pool->waitAndReleaseTask(task);
+            std::lock_guard lock(payload.mutex);
+            payload.wait_returned = true;
+            payload.condition.notify_all();
+        }
+    );
+
+    {
+        std::unique_lock lock(payload.mutex);
+        payload.allow_callback_return = true;
+        payload.condition.notify_all();
+        payload.condition.wait(
+            lock,
+            [&]
+            {
+                return payload.deleter_entered;
+            }
+        );
+        CHECK_FALSE(payload.condition.wait_for(
+            lock,
+            100ms,
+            [&]
+            {
+                return payload.wait_returned;
+            }
+        ));
+        payload.allow_deleter_return = true;
+        payload.condition.notify_all();
+    }
+
+    waiter.join();
+    CHECK(payload.wait_returned);
 }
 
 TEST_CASE("rhi task groups include tasks spawned by callbacks")

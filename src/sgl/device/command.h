@@ -363,6 +363,8 @@ public:
         std::span<AccelerationStructureQueryDesc> queries = std::span<AccelerationStructureQueryDesc>()
     );
 
+    void build_micromap(const MicromapBuildDesc& desc, Micromap* dst, BufferOffsetPair scratch_buffer);
+
     void copy_acceleration_structure(
         AccelerationStructure* dst,
         AccelerationStructure* src,
@@ -373,6 +375,9 @@ public:
         std::span<AccelerationStructure*> acceleration_structures,
         std::span<AccelerationStructureQueryDesc> queries
     );
+
+    /// Execute an indirect cluster acceleration structure operation.
+    void execute_cluster_operation(const ClusterOperationDesc& desc);
 
     void convert_coop_vec_matrices(
         Buffer* dst,
@@ -411,7 +416,7 @@ public:
 
     /**
      * \brief Insert a global barrier that ensures all previous writes are visible to subsequent reads.
-     * Note: This is not necessary for typical bindings, as state management is automatic, however
+     * \note This is not necessary for typical bindings, as state management is automatic, however
      * global barriers are useful for cross-api synchronization (eg 2 slangpy devices constructed from
      * the same native handle), or as brute force tools for synchronizing pointer/bindless operations.
      */
