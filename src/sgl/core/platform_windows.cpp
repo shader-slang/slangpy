@@ -584,7 +584,7 @@ ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
 
         SymbolHandler()
         {
-            // Use a private session key so cleanup cannot affect another component's symbols.
+            // Use a private session key to avoid sharing another component's symbol handler.
             HANDLE current_process = GetCurrentProcess();
             if (DuplicateHandle(
                     current_process,
@@ -597,19 +597,13 @@ ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
                 ))
                 initialized = SymInitialize(process, nullptr, true);
         }
-
-        ~SymbolHandler()
-        {
-            if (initialized)
-                SymCleanup(process);
-            if (process)
-                CloseHandle(process);
-        }
     };
+    // Intentionally retain the handler and its mutex for process lifetime: shutdown diagnostics may
+    // still need them. This also avoids DbgHelp cleanup under the loader lock during DLL teardown.
     // Static initialization creates one symbol session; DbgHelp calls must also be serialized.
-    static SymbolHandler handler;
-    std::lock_guard<std::mutex> lock(handler.mutex);
-    HANDLE process = handler.process;
+    static SymbolHandler* const handler = new SymbolHandler;
+    std::lock_guard<std::mutex> lock(handler->mutex);
+    HANDLE process = handler->process;
 
     struct Symbol : SYMBOL_INFO {
         char name_storage[1023];
@@ -628,7 +622,7 @@ ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
         ResolvedStackFrame& resolved = resolved_trace[i];
         resolved.address = trace[i];
         resolved.offset = 0ull;
-        if (!handler.initialized)
+        if (!handler->initialized)
             continue;
         if (SymFromAddr(process, resolved.address, &resolved.offset, &symbol))
             resolved.symbol = symbol.Name;
