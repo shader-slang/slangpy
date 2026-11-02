@@ -20,6 +20,8 @@
 
 #include "sgl/core/window.h"
 
+#include <algorithm>
+
 namespace sgl {
 
 /// Helper class for Python context manager support.
@@ -71,6 +73,7 @@ SGL_DICT_TO_DESC_FIELD(compiler_options, SlangCompilerOptions)
 SGL_DICT_TO_DESC_FIELD(module_cache_path, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(shader_cache_path, std::filesystem::path)
 SGL_DICT_TO_DESC_FIELD(shader_cache_size, size_t)
+SGL_DICT_TO_DESC_FIELD_CUSTOM(existing_device_handles, (nb::cast<std::array<NativeHandle, 3>>(v)))
 SGL_DICT_TO_DESC_FIELD(label, std::string)
 SGL_DICT_TO_DESC_FIELD(bindless_options, BindlessDesc)
 SGL_DICT_TO_DESC_FIELD(additional_vulkan_instance_extensions, std::vector<std::string>)
@@ -273,6 +276,31 @@ static ref<Texture> create_texture_from_kwargs(
 
 } // namespace sgl
 
+namespace {
+std::vector<std::filesystem::path> g_default_slang_include_paths;
+
+/// Prepend the registered default slangpy include paths (deduped, defaults first) so that
+/// `import slangpy;` resolves without callers manually adding SHADER_PATH. Registered once from
+/// slangpy/__init__.py and applied unconditionally (independent of add_default_include_paths) at
+/// the two `Device` constructors and `Device.create_slang_session`.
+void prepend_default_slang_include_paths(sgl::SlangCompilerOptions& options)
+{
+    if (g_default_slang_include_paths.empty())
+        return;
+    std::vector<std::filesystem::path> merged;
+    merged.reserve(g_default_slang_include_paths.size() + options.include_paths.size());
+    auto add_unique = [&merged](const std::vector<std::filesystem::path>& paths)
+    {
+        for (const std::filesystem::path& path : paths)
+            if (std::find(merged.begin(), merged.end(), path) == merged.end())
+                merged.push_back(path);
+    };
+    add_unique(g_default_slang_include_paths);
+    add_unique(options.include_paths);
+    options.include_paths = std::move(merged);
+}
+} // namespace
+
 SGL_PY_EXPORT(device_device)
 {
     using namespace sgl;
@@ -323,6 +351,7 @@ SGL_PY_EXPORT(device_device)
 
     nb::class_<DeviceDesc>(m, "DeviceDesc", D(DeviceDesc))
         .def(nb::init<>())
+        .def(nb::init<const DeviceDesc&>(), "desc"_a)
         .def(
             "__init__",
             [](DeviceDesc* self, nb::dict dict)
@@ -492,7 +521,7 @@ SGL_PY_EXPORT(device_device)
         .def("__enter__", &CudaContextScope::enter, nb::rv_policy::reference)
         .def("__exit__", &CudaContextScope::exit, "exc_type"_a.none(), "exc_val"_a.none(), "exc_tb"_a.none());
 
-    nb::class_<Device, Object> device(m, "Device", nb::is_weak_referenceable(), D(Device));
+    nb::class_<Device, Object> device(m, "Device", nb::is_final(), nb::is_weak_referenceable(), D(Device));
 
     nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
 
@@ -511,62 +540,64 @@ SGL_PY_EXPORT(device_device)
         .def_ro("id", &CommandRecordingDiscardedEvent::id, D(CommandRecordingDiscardedEvent, id));
 
     device.def(
-        "__init__",
-        [](Device* self,
-           DeviceType type,
-           bool enable_debug_layers,
-           LogLevel debug_layers_log_level,
-           bool enable_rhi_validation,
-           LogLevel rhi_validation_log_level,
-           bool enable_ray_tracing_validation,
-           bool enable_aftermath,
-           bool enable_cuda_interop,
-           bool enable_print,
-           bool enable_hot_reload,
-           bool enable_compilation_reports,
-           PipelineCompilationMode pipeline_compilation_mode,
-           std::optional<AdapterLUID> adapter_luid,
-           std::optional<SlangCompilerOptions> compiler_options,
-           std::optional<std::filesystem::path> module_cache_path,
-           std::optional<std::filesystem::path> shader_cache_path,
-           size_t shader_cache_size,
-           std::optional<std::array<NativeHandle, 3>> existing_device_handles,
-           std::optional<BindlessDesc> bindless_options,
-           std::optional<std::vector<std::string>> additional_vulkan_instance_extensions,
-           std::optional<std::vector<std::string>> additional_vulkan_device_extensions,
-           bool enable_cuda_launch_from_gfx,
-           bool enable_ray_tracing,
-           std::string label)
-        {
-            new (self) Device(
-                {.type = type,
-                 .enable_debug_layers = enable_debug_layers,
-                 .debug_layers_log_level = debug_layers_log_level,
-                 .enable_rhi_validation = enable_rhi_validation,
-                 .rhi_validation_log_level = rhi_validation_log_level,
-                 .enable_ray_tracing_validation = enable_ray_tracing_validation,
-                 .enable_aftermath = enable_aftermath,
-                 .enable_cuda_interop = enable_cuda_interop,
-                 .enable_cuda_launch_from_gfx = enable_cuda_launch_from_gfx,
-                 .enable_ray_tracing = enable_ray_tracing,
-                 .enable_print = enable_print,
-                 .enable_hot_reload = enable_hot_reload,
-                 .enable_compilation_reports = enable_compilation_reports,
-                 .pipeline_compilation_mode = pipeline_compilation_mode,
-                 .adapter_luid = adapter_luid,
-                 .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
-                 .bindless_options = bindless_options.value_or(BindlessDesc{}),
-                 .module_cache_path = module_cache_path,
-                 .shader_cache_path = shader_cache_path,
-                 .shader_cache_size = shader_cache_size,
-                 .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
-                 .additional_vulkan_instance_extensions
-                 = additional_vulkan_instance_extensions.value_or(std::vector<std::string>{}),
-                 .additional_vulkan_device_extensions
-                 = additional_vulkan_device_extensions.value_or(std::vector<std::string>{}),
-                 .label = label}
-            );
-        },
+        nb::new_(
+            [](DeviceType type,
+               bool enable_debug_layers,
+               LogLevel debug_layers_log_level,
+               bool enable_rhi_validation,
+               LogLevel rhi_validation_log_level,
+               bool enable_ray_tracing_validation,
+               bool enable_aftermath,
+               bool enable_cuda_interop,
+               bool enable_print,
+               bool enable_hot_reload,
+               bool enable_compilation_reports,
+               PipelineCompilationMode pipeline_compilation_mode,
+               std::optional<AdapterLUID> adapter_luid,
+               std::optional<SlangCompilerOptions> compiler_options,
+               std::optional<std::filesystem::path> module_cache_path,
+               std::optional<std::filesystem::path> shader_cache_path,
+               size_t shader_cache_size,
+               std::optional<std::array<NativeHandle, 3>> existing_device_handles,
+               std::optional<BindlessDesc> bindless_options,
+               std::optional<std::vector<std::string>> additional_vulkan_instance_extensions,
+               std::optional<std::vector<std::string>> additional_vulkan_device_extensions,
+               bool enable_cuda_launch_from_gfx,
+               bool enable_ray_tracing,
+               std::string label)
+            {
+                SlangCompilerOptions _compiler_options = compiler_options.value_or(SlangCompilerOptions{});
+                prepend_default_slang_include_paths(_compiler_options);
+                return Device::create({
+                    .type = type,
+                    .enable_debug_layers = enable_debug_layers,
+                    .debug_layers_log_level = debug_layers_log_level,
+                    .enable_rhi_validation = enable_rhi_validation,
+                    .rhi_validation_log_level = rhi_validation_log_level,
+                    .enable_ray_tracing_validation = enable_ray_tracing_validation,
+                    .enable_aftermath = enable_aftermath,
+                    .enable_cuda_interop = enable_cuda_interop,
+                    .enable_cuda_launch_from_gfx = enable_cuda_launch_from_gfx,
+                    .enable_ray_tracing = enable_ray_tracing,
+                    .enable_print = enable_print,
+                    .enable_hot_reload = enable_hot_reload,
+                    .enable_compilation_reports = enable_compilation_reports,
+                    .pipeline_compilation_mode = pipeline_compilation_mode,
+                    .adapter_luid = adapter_luid,
+                    .compiler_options = std::move(_compiler_options),
+                    .bindless_options = bindless_options.value_or(BindlessDesc{}),
+                    .module_cache_path = module_cache_path,
+                    .shader_cache_path = shader_cache_path,
+                    .shader_cache_size = shader_cache_size,
+                    .existing_device_handles = existing_device_handles.value_or(std::array<NativeHandle, 3>()),
+                    .additional_vulkan_instance_extensions
+                    = additional_vulkan_instance_extensions.value_or(std::vector<std::string>{}),
+                    .additional_vulkan_device_extensions
+                    = additional_vulkan_device_extensions.value_or(std::vector<std::string>{}),
+                    .label = label,
+                });
+            }
+        ),
         "type"_a = DeviceDesc().type,
         "enable_debug_layers"_a = DeviceDesc().enable_debug_layers,
         "debug_layers_log_level"_a = DeviceDesc().debug_layers_log_level,
@@ -593,11 +624,20 @@ SGL_PY_EXPORT(device_device)
         "label"_a = DeviceDesc().label,
         D(Device, Device)
     );
-    device.def(nb::init<DeviceDesc>(), "desc"_a, D(Device, Device));
+    device.def(
+        nb::new_(
+            [](DeviceDesc desc)
+            {
+                prepend_default_slang_include_paths(desc.compiler_options);
+                return Device::create(desc);
+            }
+        ),
+        "desc"_a,
+        D(Device, Device)
+    );
     device.def_prop_ro("desc", &Device::desc, D(Device, desc));
     device.def_prop_ro("info", &Device::info, D(Device, info));
     device.def_prop_ro("shader_cache_stats", &Device::shader_cache_stats, D(Device, shader_cache_stats));
-    device.def_prop_ro("supported_shader_model", &Device::supported_shader_model, D(Device, supported_shader_model));
     device.def_prop_ro("features", &Device::features, D(Device, features));
     device.def_prop_ro("capabilities", &Device::capabilities, D(Device, capabilities));
     device.def_prop_ro("supports_cuda_interop", &Device::supports_cuda_interop, D(Device, supports_cuda_interop));
@@ -1073,9 +1113,11 @@ SGL_PY_EXPORT(device_device)
            bool add_default_include_paths,
            std::optional<std::filesystem::path> cache_path)
         {
+            SlangCompilerOptions options = compiler_options.value_or(SlangCompilerOptions{});
+            prepend_default_slang_include_paths(options);
             return self->create_slang_session(
                 SlangSessionDesc{
-                    .compiler_options = compiler_options.value_or(SlangCompilerOptions{}),
+                    .compiler_options = std::move(options),
                     .add_default_include_paths = add_default_include_paths,
                     .cache_path = cache_path,
                 }
@@ -1085,6 +1127,18 @@ SGL_PY_EXPORT(device_device)
         "add_default_include_paths"_a = SlangSessionDesc().add_default_include_paths,
         "cache_path"_a.none() = nb::none(),
         D(Device, create_slang_session)
+    );
+    m.def(
+        "_set_default_slang_include_paths",
+        [](std::vector<std::filesystem::path> paths)
+        {
+            g_default_slang_include_paths = std::move(paths);
+        },
+        "paths"_a,
+        "Replace the default slangpy Slang include paths prepended by every Device constructor and "
+        "Device.create_slang_session. slangpy sets this once at import to [SHADER_PATH]. Advanced "
+        "escape hatch: call before creating any device or session to point `import slangpy;` at a "
+        "different location (e.g. a local slangpy checkout); pass [] to disable the default."
     );
     device.def("reload_all_programs", &Device::reload_all_programs, D(Device, reload_all_programs));
     device.def("load_module", &Device::load_module, "module_name"_a, D(Device, load_module));

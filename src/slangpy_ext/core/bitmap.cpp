@@ -18,6 +18,13 @@ SGL_PY_EXPORT(core_bitmap)
     bitmap.attr("ComponentType") = m.attr("DataStruct").attr("Type");
     nb::sgl_enum<Bitmap::FileFormat>(bitmap, "FileFormat", D(Bitmap, FileFormat));
 
+    nb::class_<Bitmap::Info>(bitmap, "Info", D(Bitmap, Info))
+        .def_ro("width", &Bitmap::Info::width, D(Bitmap, Info, width))
+        .def_ro("height", &Bitmap::Info::height, D(Bitmap, Info, height))
+        .def_ro("pixel_format", &Bitmap::Info::pixel_format, D(Bitmap, Info, pixel_format))
+        .def_ro("component_type", &Bitmap::Info::component_type, D(Bitmap, Info, component_type))
+        .def_ro("channel_count", &Bitmap::Info::channel_count, D(Bitmap, Info, channel_count));
+
     bitmap //
         .def(
             "__init__",
@@ -96,7 +103,7 @@ SGL_PY_EXPORT(core_bitmap)
                 uint32_t height = narrow_cast<uint32_t>(data.shape(0));
                 std::vector channel_names = channel_names_.value_or(std::vector<std::string>{});
 
-                new (self) Bitmap(
+                Bitmap value(
                     pixel_format,
                     component_type,
                     width,
@@ -107,7 +114,11 @@ SGL_PY_EXPORT(core_bitmap)
                     srgb_gamma
                 );
 
-                SGL_ASSERT(self->buffer_size() == data.nbytes());
+                SGL_CHECK(
+                    value.buffer_size() == data.nbytes(),
+                    "Pixel format does not match the array's channel count."
+                );
+                new (self) Bitmap(std::move(value));
 
                 if (is_ndarray_contiguous(data)) {
                     std::memcpy(self->data(), data.data(), self->buffer_size());
@@ -195,6 +206,7 @@ SGL_PY_EXPORT(core_bitmap)
         .def_prop_ro("channel_count", &Bitmap::channel_count, D(Bitmap, channel_count))
         .def_prop_ro("channel_names", &Bitmap::channel_names, D(Bitmap, channel_names))
         .def_prop_rw("srgb_gamma", &Bitmap::srgb_gamma, &Bitmap::set_srgb_gamma, D(Bitmap, srgb_gamma))
+        .def_static("supports_png_metadata", &Bitmap::supports_png_metadata, D(Bitmap, supports_png_metadata))
         .def("has_alpha", &Bitmap::has_alpha, D(Bitmap, has_alpha))
         .def_prop_ro("bytes_per_pixel", &Bitmap::bytes_per_pixel, D(Bitmap, bytes_per_pixel))
         .def_prop_ro("buffer_size", &Bitmap::buffer_size, D(Bitmap, buffer_size))
@@ -336,4 +348,12 @@ SGL_PY_EXPORT(core_bitmap)
                 return nb::str(html.c_str());
             }
         );
+
+    bitmap.def_static(
+        "read_info",
+        nb::overload_cast<const std::filesystem::path&, Bitmap::FileFormat>(&Bitmap::read_info),
+        "path"_a,
+        "format"_a = Bitmap::FileFormat::auto_,
+        D(Bitmap, read_info)
+    );
 }

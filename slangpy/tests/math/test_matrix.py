@@ -10,6 +10,41 @@ import pytest
 import slangpy as spy
 
 
+@pytest.mark.parametrize("aspect", [0.0, -0.0, -1.0, float("nan"), float("inf"), -float("inf")])
+def test_perspective_invalid_aspect(aspect: float) -> None:
+    with pytest.raises(RuntimeError, match="aspect ratio must be finite and positive"):
+        spy.math.perspective(1.0, aspect, 0.1, 100.0)
+
+
+@pytest.mark.parametrize("aspect", [float(np.finfo(np.float32).eps), 1.0, 16.0 / 9.0])
+def test_perspective_valid_aspect(aspect: float) -> None:
+    matrix = spy.math.perspective(1.0, aspect, 0.1, 100.0)
+    assert matrix[0, 0] == pytest.approx(1.0 / (aspect * np.tan(0.5)))
+
+
+def test_index_validation() -> None:
+    matrix = spy.float2x3()
+    for index in [-3, 2, 3]:
+        with pytest.raises(IndexError):
+            matrix[index] = spy.float3(1, 2, 3)
+    for index in [(-3, 0), (2, 0), (0, -4), (0, 3)]:
+        with pytest.raises(IndexError):
+            matrix[index] = 1
+    for index in [-1, 2, 3]:
+        with pytest.raises(IndexError):
+            matrix.get_row(index)
+        with pytest.raises(IndexError):
+            matrix.set_row(index, spy.float3(1, 2, 3))
+    for index in [-1, 3, 4]:
+        with pytest.raises(IndexError):
+            matrix.get_col(index)
+        with pytest.raises(IndexError):
+            matrix.set_col(index, spy.float2(1, 2))
+    matrix[-1] = spy.float3(1, 2, 3)
+    matrix[-1, -1] = 9
+    assert matrix[1, 2] == 9
+
+
 def test_shape_and_element_types():
     for rows in range(2, 5):
         for cols in range(2, 5):
@@ -275,6 +310,86 @@ class TestMatrixMulValues:
         # (2x3) @ (3x4) @ (4x2) = (2x4) @ (4x2) = (2x2)
         result = a @ b @ c
         assert result.shape == (2, 2)
+
+
+@pytest.mark.parametrize("scales", [[1, 1, 1], [-2, 3, 4], [1e-30, 1, 1e30]])
+def test_decompose_trs(scales: list[float]) -> None:
+    # Imported rotation with tiny residuals that can underflow a general skew output.
+    values = np.array(
+        [
+            [2.220446049250313e-16, 1, 2.465190328815662e-32, 2],
+            [-5.053215392444312e-16, 7.395570986446986e-32, 1, -3],
+            [1, -2.220446049250313e-16, 5.053215392444312e-16, 4],
+            [0, 0, 0, 1],
+        ],
+        dtype=np.float32,
+    )
+    values[:3, :3] *= np.asarray(scales, dtype=np.float32)
+    scale, translation = spy.float3(), spy.float3()
+    orientation = spy.quatf(0, 0, 0, 1)
+    assert spy.math.decompose_trs(spy.float4x4(values), scale, orientation, translation)
+    rotation = spy.math.matrix_from_quat(orientation)
+    actual = np.array([[rotation[i, j] * scale[j] for j in range(3)] for i in range(3)])
+    np.testing.assert_allclose(
+        actual / np.abs(scales), values[:3, :3] / np.abs(scales), atol=1e-6, rtol=1e-6
+    )
+    np.testing.assert_array_equal([translation.x, translation.y, translation.z], values[:3, 3])
+
+
+@pytest.mark.parametrize(
+    "entry,value", [((0, 0), 0.0), ((3, 0), 0.1), ((3, 3), 2.0), ((1, 3), np.nan)]
+)
+def test_decompose_trs_failure_preserves_outputs(entry: tuple[int, int], value: float) -> None:
+    matrix = spy.float4x4.identity()
+    matrix[entry] = value
+    scale, translation = spy.float3(7), spy.float3(8)
+    orientation = spy.quatf(1, 2, 3, 4)
+    assert not spy.math.decompose_trs(matrix, scale, orientation, translation)
+    assert scale == spy.float3(7)
+    assert translation == spy.float3(8)
+    assert orientation == spy.quatf(1, 2, 3, 4)
+
+
+def test_decompose_trs_matrix_output_preserves_axis_rotation() -> None:
+    values = np.array([[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]], dtype=np.float32)
+    scale, translation = spy.float3(), spy.float3()
+    orientation = spy.quatf(0, 0, 0, 1)
+    rotation = spy.float3x3()
+    assert spy.math.decompose_trs(spy.float4x4(values), scale, orientation, translation, rotation)
+    assert rotation == spy.float3x3(values[:3, :3].copy())
+
+
+def test_decompose_trs_matrix_output_corrects_axes_and_preserves_failed_outputs() -> None:
+    values = np.eye(4, dtype=np.float32)
+    values[0, 1] = 4 * np.finfo(np.float32).eps
+    scale, translation = spy.float3(), spy.float3()
+    orientation = spy.quatf(0, 0, 0, 1)
+    rotation = spy.float3x3()
+    assert spy.math.decompose_trs(spy.float4x4(values), scale, orientation, translation, rotation)
+    assert rotation == spy.float3x3.identity()
+    values[:, 1] = values[:, 0]
+    rotation = spy.float3x3(np.eye(3, dtype=np.float32) * 9.0)
+    assert not spy.math.decompose_trs(
+        spy.float4x4(values), scale, orientation, translation, rotation
+    )
+    assert rotation == spy.float3x3(np.eye(3, dtype=np.float32) * 9.0)
+
+
+@pytest.mark.parametrize("matrix_output", [False, True])
+def test_decompose_trs_removes_shear(matrix_output: bool) -> None:
+    values = np.array([[2, 1.5, -2, 5], [0, 3, 1, 6], [0, 0, 4, 7], [0, 0, 0, 1]], dtype=np.float32)
+    scale, translation = spy.float3(), spy.float3()
+    orientation = spy.quatf(0, 0, 0, 1)
+    rotation = spy.float3x3()
+    args = [spy.float4x4(values), scale, orientation, translation]
+    if matrix_output:
+        args.append(rotation)
+    assert spy.math.decompose_trs(*args)
+    np.testing.assert_allclose([scale.x, scale.y, scale.z], [2, 3, 4], atol=1e-6)
+    assert translation == spy.float3(5, 6, 7)
+    assert orientation == spy.quatf(0, 0, 0, 1)
+    if matrix_output:
+        assert rotation == spy.float3x3.identity()
 
 
 if __name__ == "__main__":

@@ -549,7 +549,7 @@ void* get_proc_address(SharedLibraryHandle library, const char* proc_name)
 // Debugger
 // -------------------------------------------------------------------------------------------------
 
-bool is_debugger_present()
+bool is_debugger_present() noexcept
 {
     return ::IsDebuggerPresent() == TRUE;
 }

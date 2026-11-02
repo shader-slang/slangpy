@@ -36,6 +36,36 @@ def test_create_device(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_device_constructor_invalid_profile(device_type: spy.DeviceType) -> None:
+    device = spy.Device(type=device_type)
+    try:
+        devices = spy.Device.get_created_devices()
+        for _ in range(2):
+            with pytest.raises(RuntimeError, match="Unknown Slang profile"):
+                spy.Device(
+                    type=device_type,
+                    enable_print=True,
+                    enable_hot_reload=True,
+                    enable_rhi_validation=True,
+                    compiler_options={"profile": "not_a_slang_profile"},
+                )
+            assert spy.Device.get_created_devices() == devices
+            assert spy.current_device() is device
+
+        # Failure must not prevent subsequent device creation or resource use.
+        next_device = spy.Device(type=device_type)
+        try:
+            data = np.array([7], dtype=np.uint32)
+            buffer = next_device.create_buffer(data=data, usage=spy.BufferUsage.shader_resource)
+            assert np.array_equal(buffer.to_numpy().view(np.uint32), data)
+        finally:
+            next_device.close()
+        assert spy.current_device() is device
+    finally:
+        device.close()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_parallel_pipeline_compilation(test_id: str, device_type: spy.DeviceType):
     device = spy.create_device(
         type=device_type,

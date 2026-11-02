@@ -4,7 +4,8 @@
 #include "sgl/core/logger.h"
 #include "sgl/core/platform.h"
 
-#include <thread>
+#include <cstdio>
+#include <cstdlib>
 
 namespace sgl {
 
@@ -36,23 +37,39 @@ void throw_exception(const SourceLocation& loc, std::string_view msg)
     throw std::runtime_error(error_msg.c_str());
 }
 
-void report_assertion(const SourceLocation& loc, std::string_view cond)
+void report_assertion(const SourceLocation& loc, std::string_view cond) noexcept
 {
-    std::string error_msg = fmt::format("Assertion failed: {}\n", cond);
-    error_msg += fmt::format("{}:{} in function {}", loc.file_name, loc.line, loc.function_name);
+    // Deliver the basic diagnostic before stack tracing, which may fail without throwing.
+    // Do not depend on logger initialization, outputs, or Python exception translation.
+    std::fputs("Assertion failed: ", stderr);
+    if (!cond.empty())
+        std::fwrite(cond.data(), 1, cond.size(), stderr);
+    std::fprintf(
+        stderr,
+        "\n%s:%u in function %s\n",
+        loc.file_name ? loc.file_name : "<unknown>",
+        static_cast<unsigned int>(loc.line),
+        loc.function_name ? loc.function_name : "<unknown>"
+    );
+    std::fflush(stderr);
 
     bool debugger_present = platform::is_debugger_present();
-    bool python_active = platform::is_python_active();
-    if (!debugger_present && !python_active)
-        error_msg += "\nStack trace:\n" + platform::format_stacktrace(platform::backtrace(), 10);
-
-    if (!python_active)
-        log_fatal(error_msg);
+    if (!debugger_present) {
+        std::fputs("Stack trace:\n", stderr);
+        try {
+            std::string stack_trace = platform::format_stacktrace(platform::backtrace(), 10);
+            std::fwrite(stack_trace.data(), 1, stack_trace.size(), stderr);
+            std::fputc('\n', stderr);
+        } catch (...) {
+            std::fputs("Not available.\n", stderr);
+        }
+    }
+    std::fflush(stderr);
 
     if (debugger_present)
         platform::debug_break();
 
-    throw std::runtime_error(error_msg.c_str());
+    std::abort();
 }
 
 } // namespace sgl

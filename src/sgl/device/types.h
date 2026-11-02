@@ -51,6 +51,8 @@ enum class Feature : uint32_t {
     bindless = static_cast<uint32_t>(rhi::Feature::Bindless),
     surface = static_cast<uint32_t>(rhi::Feature::Surface),
     pipeline_cache = static_cast<uint32_t>(rhi::Feature::PipelineCache),
+    resource_heaps = static_cast<uint32_t>(rhi::Feature::ResourceHeaps),
+    resource_aliasing = static_cast<uint32_t>(rhi::Feature::ResourceAliasing),
     // Rasterization features
     rasterization = static_cast<uint32_t>(rhi::Feature::Rasterization),
     barycentrics = static_cast<uint32_t>(rhi::Feature::Barycentrics),
@@ -113,6 +115,13 @@ enum class Feature : uint32_t {
     // Vulkan specific features
     shader_resource_min_lod = static_cast<uint32_t>(rhi::Feature::ShaderResourceMinLod),
     shader_abort = static_cast<uint32_t>(rhi::Feature::ShaderAbort),
+    // VK_NV_cooperative_matrix2 subfeatures (reported independently)
+    cooperative_matrix_reductions = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixReductions),
+    cooperative_matrix_conversions = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixConversions),
+    cooperative_matrix_per_element_operations
+    = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixPerElementOperations),
+    cooperative_matrix_tensor_addressing = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixTensorAddressing),
+    cooperative_matrix_block_loads = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixBlockLoads),
     // Metal specific features
     argument_buffer_tier2 = static_cast<uint32_t>(rhi::Feature::ArgumentBufferTier2),
     residency_set = static_cast<uint32_t>(rhi::Feature::ResidencySet),
@@ -136,6 +145,8 @@ SGL_ENUM_INFO(
         {Feature::bindless, "bindless"},
         {Feature::surface, "surface"},
         {Feature::pipeline_cache, "pipeline_cache"},
+        {Feature::resource_heaps, "resource_heaps"},
+        {Feature::resource_aliasing, "resource_aliasing"},
         {Feature::rasterization, "rasterization"},
         {Feature::barycentrics, "barycentrics"},
         {Feature::multi_view, "multi_view"},
@@ -192,6 +203,11 @@ SGL_ENUM_INFO(
         {Feature::programmable_sample_positions2, "programmable_sample_positions2"},
         {Feature::shader_resource_min_lod, "shader_resource_min_lod"},
         {Feature::shader_abort, "shader_abort"},
+        {Feature::cooperative_matrix_reductions, "cooperative_matrix_reductions"},
+        {Feature::cooperative_matrix_conversions, "cooperative_matrix_conversions"},
+        {Feature::cooperative_matrix_per_element_operations, "cooperative_matrix_per_element_operations"},
+        {Feature::cooperative_matrix_tensor_addressing, "cooperative_matrix_tensor_addressing"},
+        {Feature::cooperative_matrix_block_loads, "cooperative_matrix_block_loads"},
         {Feature::argument_buffer_tier2, "argument_buffer_tier2"},
         {Feature::residency_set, "residency_set"},
         {Feature::atomic_bfloat16, "atomic_bfloat16"},
@@ -249,44 +265,6 @@ struct SGL_API DescriptorHandle {
 
     std::string to_string() const;
 };
-
-enum class ShaderModel : uint32_t {
-    unknown = 0,
-    sm_6_0 = 60,
-    sm_6_1 = 61,
-    sm_6_2 = 62,
-    sm_6_3 = 63,
-    sm_6_4 = 64,
-    sm_6_5 = 65,
-    sm_6_6 = 66,
-    sm_6_7 = 67,
-};
-
-SGL_ENUM_INFO(
-    ShaderModel,
-    {
-        {ShaderModel::unknown, "unknown"},
-        {ShaderModel::sm_6_0, "sm_6_0"},
-        {ShaderModel::sm_6_1, "sm_6_1"},
-        {ShaderModel::sm_6_2, "sm_6_2"},
-        {ShaderModel::sm_6_3, "sm_6_3"},
-        {ShaderModel::sm_6_4, "sm_6_4"},
-        {ShaderModel::sm_6_5, "sm_6_5"},
-        {ShaderModel::sm_6_6, "sm_6_6"},
-        {ShaderModel::sm_6_7, "sm_6_7"},
-    }
-);
-SGL_ENUM_REGISTER(ShaderModel);
-
-inline uint32_t get_shader_model_major_version(ShaderModel sm)
-{
-    return static_cast<uint32_t>(sm) / 10;
-}
-
-inline uint32_t get_shader_model_minor_version(ShaderModel sm)
-{
-    return static_cast<uint32_t>(sm) % 10;
-}
 
 enum class ShaderStage : uint32_t {
     none = SLANG_STAGE_NONE,

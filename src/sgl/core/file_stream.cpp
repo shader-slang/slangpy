@@ -18,7 +18,7 @@ inline std::ios::openmode get_openmode(FileStream::Mode mode)
     case FileStream::Mode::read_write:
         return std::ios::in | std::ios::out | std::ios::binary;
     default:
-        SGL_UNREACHABLE();
+        SGL_THROW("Invalid file stream mode: {}.", static_cast<int>(mode));
     }
 }
 

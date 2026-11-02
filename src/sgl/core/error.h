@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 
 /**
  * \file error.h
@@ -18,11 +19,11 @@
  * - SGL_THROW(msg, ...)
  * - SGL_CHECK(cond, msg, ...)
  * - SGL_UNIMPLEMENTED()
- * - SGL_UNREACHABLE()
  *
  * Assertions:
  * - SGL_ASSERT(cond)
  * - SGL_ASSERT_OP(a, b, op)
+ * - SGL_UNREACHABLE() (always enabled)
  *
  */
 
@@ -44,7 +45,7 @@ struct SourceLocation {
 #else
         uint32_t column = 0
 #endif
-    )
+    ) noexcept
     {
         return SourceLocation{file_name, function_name, line, column};
     }
@@ -115,43 +116,84 @@ namespace detail {
 /// Helper for marking unimplemented functions.
 #define SGL_UNIMPLEMENTED() SGL_THROW("Unimplemented")
 
-/// Helper for marking unreachable code.
-#define SGL_UNREACHABLE() SGL_THROW("Unreachable")
-
 // -------------------------------------------------------------------------------------------------
 // Assertions
 // -------------------------------------------------------------------------------------------------
 
 namespace sgl {
 
-/// Report a failed assertion.
-[[noreturn]] SGL_API void report_assertion(const SourceLocation& loc, std::string_view cond);
+/// Report a failed assertion to stderr and abort, including when Python is active.
+/// Diagnostic failures fall back to a minimal message before aborting.
+[[noreturn]] SGL_API void report_assertion(const SourceLocation& loc, std::string_view cond) noexcept;
+
+namespace detail {
+    template<typename... Args>
+    [[noreturn]] inline void report_assertion(
+        const SourceLocation& loc,
+        std::string_view cond,
+        fmt::format_string<Args...> fmt,
+        Args&&... args
+    ) noexcept
+    {
+        // Formatting happens before the noexcept reporter is called and may throw.
+        // If it fails, report the plain condition without operand values.
+        try {
+            ::sgl::report_assertion(loc, fmt::format(fmt, std::forward<Args>(args)...));
+        } catch (...) {
+            ::sgl::report_assertion(loc, cond);
+        }
+    }
+} // namespace detail
 
 } // namespace sgl
 
+/// Report an impossible code path and abort, even when assertions are disabled.
+/// Use SGL_CHECK or SGL_THROW for invalid input and unsupported operations.
+#define SGL_UNREACHABLE()                                                                                              \
+    ::sgl::report_assertion(                                                                                           \
+        SourceLocation::current(),                                                                                     \
+        std::string_view{"Unreachable code reached", sizeof("Unreachable code reached") - 1}                           \
+    )
+
+// Assertions check internal invariants and abort on failure. Use SGL_CHECK for public input validation.
+// Disabled assertions do not evaluate their arguments, so expressions must not perform required work.
+// Comparison operands are evaluated once and bound by reference; avoid side effects in expressions.
+// Only reporting is noexcept. Evaluating conditions, operands, or comparisons may still throw.
 #if SGL_ENABLE_ASSERTS
 
 #define SGL_ASSERT(cond)                                                                                               \
-    if (!(cond)) {                                                                                                     \
-        ::sgl::report_assertion(SourceLocation::current(), #cond);                                                     \
-    }
+    do {                                                                                                               \
+        if (!(cond))                                                                                                   \
+            ::sgl::report_assertion(SourceLocation::current(), #cond);                                                 \
+    } while (false)
 
 #define SGL_ASSERT_OP(a, b, op)                                                                                        \
-    if (!((a)op(b))) {                                                                                                 \
-        ::sgl::report_assertion(                                                                                       \
-            SourceLocation::current(),                                                                                 \
-            fmt::format("{} {} {} ({} {} {})", #a, #op, #b, a, #op, b)                                                 \
-        );                                                                                                             \
-    }
+    do {                                                                                                               \
+        const auto& sgl_assert_lhs_ = (a);                                                                             \
+        const auto& sgl_assert_rhs_ = (b);                                                                             \
+        if (!(sgl_assert_lhs_ op sgl_assert_rhs_)) {                                                                   \
+            ::sgl::detail::report_assertion(                                                                           \
+                SourceLocation::current(),                                                                             \
+                #a " " #op " " #b,                                                                                     \
+                "{} {} {} ({} {} {})",                                                                                 \
+                #a,                                                                                                    \
+                #op,                                                                                                   \
+                #b,                                                                                                    \
+                sgl_assert_lhs_,                                                                                       \
+                #op,                                                                                                   \
+                sgl_assert_rhs_                                                                                        \
+            );                                                                                                         \
+        }                                                                                                              \
+    } while (false)
 
 #else // SGL_ENABLE_ASSERTS
 
 #define SGL_ASSERT(a)                                                                                                  \
-    {                                                                                                                  \
-    }
+    do {                                                                                                               \
+    } while (false)
 #define SGL_ASSERT_OP(a, b, op)                                                                                        \
-    {                                                                                                                  \
-    }
+    do {                                                                                                               \
+    } while (false)
 
 #endif // SGL_ENABLE_ASSERTS
 

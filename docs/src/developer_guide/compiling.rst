@@ -147,6 +147,20 @@ compiler.
 * Ninja 1.11.1
 
 
+Building without GLFW
+---------------------
+
+``SGL_ENABLE_GLFW`` defaults to ``AUTO``, enabling window support when its build
+dependencies are available. Set it to ``ON`` to require GLFW support or ``OFF``
+to omit it, for example::
+
+    cmake --preset linux-gcc -DSGL_ENABLE_GLFW=OFF
+    cmake --build --preset linux-gcc-debug
+
+Compute and offscreen rendering remain available, but creating a ``Window``
+raises an error. On Linux, this avoids the need for X11 development headers.
+
+
 macOS
 -----
 
@@ -332,12 +346,19 @@ packages are not installed.
 Updating the API Reference
 --------------------------
 
-SlangPy uses ``pybind11_mkdoc`` to extract documentation strings from the C++
-source code. These comments are then used by ``nanobind`` to generate Python
-documentation comments, which are in turn used when building the API Reference
+SlangPy uses a vendored copy of ``pybind11_mkdoc`` to extract documentation
+strings from the C++ source code. These comments are then used by ``nanobind``
+to generate Python documentation comments, which are in turn used when building the API Reference
 document.
 
-To run ``pybind11_mkdoc``, specify the ``pydoc`` target when invoking cmake:
+The generator lives in ``external/pybind11_mkdoc``; its
+``README.slangpy.md`` records the upstream revision and local changes. It is
+invoked through ``tools/generate_pydoc.py`` and does not use an installed
+``pybind11_mkdoc`` package. Install LLVM/libclang and matching Python Clang
+bindings (version 20.1.5 or later). If libclang cannot be located, set
+``LIBCLANG_PATH`` to the library file.
+
+To regenerate docstrings, specify the ``slangpy_pydoc`` target when invoking cmake:
 
 .. code-block:: bash
 
@@ -347,17 +368,28 @@ To run ``pybind11_mkdoc``, specify the ``pydoc`` target when invoking cmake:
     # Install Python documentation build prerequisites
     pip install -r docs/requirements.txt
 
-    # Install pybind11_mkdoc
-    pip install pybind11_mkdoc
+    # Install Python bindings matching the installed LLVM/libclang version
+    pip install "clang>=20.1.5"
 
     # Configure
     cmake --preset windows-msvc
 
-    # Build with pydoc target
-    cmake --build --preset windows-msvc-release --target pydoc
+    # Regenerate the docstring header and rebuild the Python extension
+    cmake --build --preset windows-msvc-release --target slangpy_pydoc
+    cmake --build --preset windows-msvc-release
 
 The generated API Reference page can then be updated by invoking the html build
 of the SlangPy docs. (It's regenerated as part of running ``sphinx-build``.)
+The API generator converts Google-style sections such as ``Args:`` into
+reStructuredText using Sphinx's bundled Napoleon parser. Existing
+reStructuredText docstrings are supported as well.
+
+Install the Pandoc executable and make it available on ``PATH`` for the notebook
+tutorials, then build the complete HTML documentation:
+
+.. code-block:: bash
+
+    python -m sphinx -b html docs build/docs/html
 
 **Tested on:**
 

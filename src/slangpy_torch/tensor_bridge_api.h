@@ -32,6 +32,12 @@ extern "C" {
 #define TENSOR_BRIDGE_SIGNATURE_BASE_SIZE 64
 #define TENSOR_BRIDGE_SIGNATURE_BUFFER_SIZE 128
 
+// Maximum tensor rank the signature cache supports. Ranks above this are
+// rejected up front (TENSOR_BRIDGE_ERROR_RANK_TOO_HIGH) rather than left to fail
+// as an opaque buffer-size error. TENSOR_BRIDGE_SIGNATURE_BUFFER_SIZE is sized to
+// hold any signature up to this rank.
+#define TENSOR_BRIDGE_MAX_TENSOR_RANK 64
+
 // Device type codes (matching c10::DeviceType)
 #define TENSOR_BRIDGE_DEVICE_CPU 0
 #define TENSOR_BRIDGE_DEVICE_CUDA 1
@@ -63,6 +69,7 @@ typedef enum TensorBridgeResult {
     TENSOR_BRIDGE_ERROR_BUFFER_TOO_SMALL = -5, // Destination/source buffer too small
     TENSOR_BRIDGE_ERROR_EXCEPTION = -6,        // C++ exception occurred
     TENSOR_BRIDGE_ERROR_UNKNOWN = -7,          // Unknown error occurred
+    TENSOR_BRIDGE_ERROR_RANK_TOO_HIGH = -8,    // Tensor rank exceeds TENSOR_BRIDGE_MAX_TENSOR_RANK
 } TensorBridgeResult;
 
 // The C-compatible struct containing all tensor metadata
@@ -146,7 +153,9 @@ typedef int (*TensorBridge_IsTensorFn)(void* py_tensor_obj);
 //   buffer: Output buffer for signature string
 //   buffer_size: Size of output buffer in bytes. Must be at least
 //                TENSOR_BRIDGE_SIGNATURE_BASE_SIZE + tensor rank.
-// Returns: TENSOR_BRIDGE_SUCCESS (0) on success, or a negative TensorBridgeResult on error
+// Returns: TENSOR_BRIDGE_SUCCESS (0) on success, or a negative TensorBridgeResult on error.
+//          Tensors with rank > TENSOR_BRIDGE_MAX_TENSOR_RANK return
+//          TENSOR_BRIDGE_ERROR_RANK_TOO_HIGH (checked before the buffer-size check).
 // Format: "[Dn,Sm,V...]" where n=ndim, m=scalar_type, and V contains one
 // shape compatibility character per dimension: '1' through '4' for those
 // exact extents, or 'x' for zero and extents greater than four.
@@ -198,7 +207,11 @@ typedef void* (*TensorBridge_CreateZerosLikeFn)(void* py_tensor_obj);
 // ============================================================================
 // Version info for ABI compatibility checking
 // ============================================================================
-#define TENSOR_BRIDGE_API_VERSION 8
+// Consumers accept a native bridge only on an exact api_version match, and the
+// struct layout alone cannot distinguish two different get_signature result-code
+// contracts. Increment this whenever get_signature's set of result codes changes
+// - not only when the signature format changes.
+#define TENSOR_BRIDGE_API_VERSION 9
 
 typedef struct TensorBridgeAPI {
     int api_version;

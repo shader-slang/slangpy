@@ -10,6 +10,7 @@
 
 #include <array>
 #include <iostream>
+#include <stdexcept>
 
 #if SGL_WINDOWS
 #ifndef WIN32_LEAN_AND_MEAN
@@ -315,7 +316,7 @@ void Logger::set_level(LogLevel level)
     m_level.store(level, std::memory_order_relaxed);
 }
 
-void Logger::log(LogLevel level, const std::string_view msg, LogFrequency frequency)
+void Logger::log(LogLevel level, const std::string_view msg, LogFrequency frequency) noexcept
 {
     if (!should_log(level))
         return;
@@ -335,15 +336,36 @@ void Logger::log(LogLevel level, const std::string_view msg, LogFrequency freque
     }
 
     // Outputs may re-enter the logger or call into another runtime such as Python.
-    for (const auto& output : *outputs)
-        output->write(level, name, msg);
+    for (const auto& output : *outputs) {
+        try {
+            output->write(level, name, msg);
+        } catch (...) {
+            // A failing output must not interrupt delivery to the remaining outputs.
+        }
+    }
+}
+
+void log(LogLevel level, std::string_view msg, LogFrequency frequency) noexcept
+{
+    Logger::get().log(level, msg, frequency);
 }
 
 static ref<Logger> s_logger;
 static std::once_flag s_logger_init_flag;
+// Shutdown is externally synchronized with all global logger users.
+static bool s_logger_shutdown{false};
 
-Logger& Logger::get()
+// Keep the throwing diagnostic separate from the noexcept accessor. SGL_THROW would
+// recursively access the logger, and a direct throw in get() triggers compiler warnings.
+static void check_logger_lifetime()
 {
+    if (s_logger_shutdown)
+        throw std::runtime_error("The global logger has been shut down.");
+}
+
+Logger& Logger::get() noexcept
+{
+    check_logger_lifetime();
     std::call_once(
         s_logger_init_flag,
         []()
@@ -361,6 +383,8 @@ void Logger::static_init()
 
 void Logger::static_shutdown()
 {
+    // Mark shutdown before releasing outputs: their destructors may attempt to log.
+    s_logger_shutdown = true;
     s_logger.reset();
 }
 

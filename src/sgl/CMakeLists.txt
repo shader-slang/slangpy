@@ -17,6 +17,7 @@ target_sources(sgl PRIVATE
     core/bc_codec.h
     core/bc_dds.cpp
     core/bc_dds.h
+    core/bc_types.cpp
     core/bc_types.h
     core/bitmap.cpp
     core/bitmap.h
@@ -86,6 +87,8 @@ target_sources(sgl PRIVATE
     device/callback_list.h
     device/command.cpp
     device/command.h
+    device/compiler_target.cpp
+    device/compiler_target.h
     device/cuda_interop.cpp
     device/cuda_interop.h
     device/cuda_utils.cpp
@@ -373,6 +376,7 @@ file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${SGL_BUILD_TYPE}/include/sgl/c
 #define SGL_HAS_NVAPI $<BOOL:${SGL_HAS_NVAPI}>
 #define SGL_HAS_AGILITY_SDK $<BOOL:${SGL_HAS_AGILITY_SDK}>
 
+#define SGL_HAS_GLFW $<BOOL:${SGL_HAS_GLFW}>
 #define SGL_HAS_LIBJPEG $<BOOL:${SGL_HAS_LIBJPEG}>
 #define SGL_HAS_LIBPNG $<BOOL:${SGL_HAS_LIBPNG}>
 #define SGL_HAS_OPENEXR $<BOOL:${SGL_HAS_OPENEXR}>
@@ -396,9 +400,9 @@ target_link_libraries(sgl
         nanothread
         bc7enc
         git_version
-        glfw
         tevclient
         lmdb
+        $<$<BOOL:${SGL_HAS_GLFW}>:glfw>
         $<$<BOOL:${SGL_HAS_D3D12}>:d3d12>
         $<$<BOOL:${SGL_HAS_LIBPNG}>:PNG::PNG>
         $<$<BOOL:${SGL_HAS_LIBJPEG}>:JPEG::JPEG>

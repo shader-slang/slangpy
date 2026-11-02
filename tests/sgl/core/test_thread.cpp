@@ -8,7 +8,9 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <future>
 #include <mutex>
+#include <stdexcept>
 #include <thread>
 
 using namespace sgl;
@@ -107,6 +109,47 @@ TEST_CASE("public task API executes tasks")
     thread::task_wait_and_release(task);
 
     CHECK(executed.load());
+}
+
+TEST_CASE("task group waits for all tasks before rethrowing the first exception")
+{
+    using namespace std::chrono_literals;
+
+    thread::TaskGroup group;
+    auto first = group.do_async(
+        []
+        {
+            throw std::runtime_error("first task failed");
+        }
+    );
+    // Complete the first task before submitting the blocked task so this wait cannot execute it.
+    CHECK_THROWS_WITH_AS(thread::task_wait(first), "first task failed", std::runtime_error);
+
+    std::promise<void> release_second;
+    auto gate = release_second.get_future();
+    auto second = group.do_async(
+        [&]
+        {
+            gate.wait();
+            throw std::runtime_error("second task failed");
+        }
+    );
+    // Keep a handle for cleanup even if the group incorrectly returns before the second task finishes.
+    thread::task_retain(second);
+
+    auto waiter = std::async(
+        std::launch::async,
+        [&]
+        {
+            group.wait();
+        }
+    );
+    CHECK(waiter.wait_for(100ms) == std::future_status::timeout);
+    release_second.set_value();
+    CHECK_THROWS_WITH_AS(waiter.get(), "first task failed", std::runtime_error);
+    CHECK(thread::task_query(second));
+    CHECK_NOTHROW(group.wait());
+    CHECK_THROWS_WITH_AS(thread::task_wait_and_release(second), "second task failed", std::runtime_error);
 }
 
 TEST_CASE("rhi task pool executes tasks and deletes payloads")

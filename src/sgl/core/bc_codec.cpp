@@ -114,27 +114,27 @@ static uint32_t quality_to_bc7_partitions(BCEncodeQuality q)
     }
 }
 
-/// True if the BCFormat is a BC6H variant.
-static bool is_bc6h(BCFormat f)
+/// True if the Format is a BC6H variant.
+static bool is_bc6h(Format f)
 {
-    return f == BCFormat::bc6h_ufloat || f == BCFormat::bc6h_sfloat;
+    return f == Format::bc6h_ufloat || f == Format::bc6h_sfloat;
 }
 
 /// True if the BC format stores signed-normalized values.
-static bool is_snorm(BCFormat f)
+static bool is_snorm(Format f)
 {
-    return f == BCFormat::bc4_snorm || f == BCFormat::bc5_snorm;
+    return f == Format::bc4_snorm || f == Format::bc5_snorm;
 }
 
 /// True if the BC format stores sRGB-encoded color values.
-static bool is_srgb(BCFormat f)
+static bool is_srgb(Format f)
 {
-    return f == BCFormat::bc1_unorm_srgb || f == BCFormat::bc2_unorm_srgb || f == BCFormat::bc3_unorm_srgb
-        || f == BCFormat::bc7_unorm_srgb;
+    return f == Format::bc1_unorm_srgb || f == Format::bc2_unorm_srgb || f == Format::bc3_unorm_srgb
+        || f == Format::bc7_unorm_srgb;
 }
 
 /// True if the value names a supported BC format.
-static bool is_valid_bc_format(BCFormat f)
+static bool is_valid_bc_format(Format f)
 {
     return bc_format_bytes_per_block(f) != 0;
 }
@@ -508,28 +508,28 @@ static void copy_block_to_dst(
 // NVTT3 format / quality mappings
 //
 
-static NvttFormat bc_format_to_nvtt(BCFormat f)
+static NvttFormat bc_format_to_nvtt(Format f)
 {
     switch (f) {
-    case BCFormat::bc1_unorm:
-    case BCFormat::bc1_unorm_srgb:
+    case Format::bc1_unorm:
+    case Format::bc1_unorm_srgb:
         return NVTT_Format_BC1;
-    case BCFormat::bc2_unorm:
-    case BCFormat::bc2_unorm_srgb:
+    case Format::bc2_unorm:
+    case Format::bc2_unorm_srgb:
         return NVTT_Format_BC2;
-    case BCFormat::bc3_unorm:
-    case BCFormat::bc3_unorm_srgb:
+    case Format::bc3_unorm:
+    case Format::bc3_unorm_srgb:
         return NVTT_Format_BC3;
-    case BCFormat::bc4_unorm:
+    case Format::bc4_unorm:
         return NVTT_Format_BC4;
-    case BCFormat::bc5_unorm:
+    case Format::bc5_unorm:
         return NVTT_Format_BC5;
-    case BCFormat::bc6h_ufloat:
+    case Format::bc6h_ufloat:
         return NVTT_Format_BC6U;
-    case BCFormat::bc6h_sfloat:
+    case Format::bc6h_sfloat:
         return NVTT_Format_BC6S;
-    case BCFormat::bc7_unorm:
-    case BCFormat::bc7_unorm_srgb:
+    case Format::bc7_unorm:
+    case Format::bc7_unorm_srgb:
         return NVTT_Format_BC7;
     default:
         SGL_THROW("NVTT3: unsupported BC format");
@@ -611,7 +611,7 @@ static bool nvtt_build_next_mipmap(nvtt::Surface& surface, const BCMipFilter& fi
 static void nvtt_encode_surface(
     const nvtt::Surface& surface,
     bool use_gpu,
-    BCFormat format,
+    Format format,
     const BCEncodeOptions& options,
     std::vector<uint8_t>& out_data
 )
@@ -700,7 +700,7 @@ struct PreparedMip {
     ref<Bitmap> owned_bitmap;
 };
 
-static std::vector<PreparedMip> prepare_mips(const BCImage& src, BCFormat format, const BCEncodeOptions& options)
+static std::vector<PreparedMip> prepare_mips(const BCImage& src, Format format, const BCEncodeOptions& options)
 {
     std::vector<PreparedMip> levels;
     levels.push_back({src, nullptr});
@@ -777,37 +777,33 @@ static std::vector<PreparedMip> prepare_mips(const BCImage& src, BCFormat format
 
 struct BCEncoderImpl {
     virtual ~BCEncoderImpl() = default;
-    virtual bool can_encode(BCFormat format) const = 0;
-    virtual BCCompressedImage encode(const BCImage& src, BCFormat format, const BCEncodeOptions& options) = 0;
+    virtual bool can_encode(Format format) const = 0;
+    virtual BCCompressedImage encode(const BCImage& src, Format format, const BCEncodeOptions& options) = 0;
 };
 
 /// Software encoder using rgbcx (BC1-5) and bc7enc (BC7).
 struct BCEncoderSWImpl : BCEncoderImpl {
     BCEncoderSWImpl() { ensure_sw_init(); }
 
-    bool can_encode(BCFormat format) const override
+    bool can_encode(Format format) const override
     {
         return is_valid_bc_format(format) && !is_bc6h(format) && !is_snorm(format);
     }
 
-    BCCompressedImage encode(const BCImage& src, BCFormat format, const BCEncodeOptions& options) override
+    BCCompressedImage encode(const BCImage& src, Format format, const BCEncodeOptions& options) override
     {
         std::vector<PreparedMip> levels = prepare_mips(src, format, options);
-        BCCompressedImage result;
-        result.format = format;
-        result.mip_levels.reserve(levels.size());
+        std::vector<BCCompressedMip> mips;
+        mips.reserve(levels.size());
         for (const PreparedMip& level : levels) {
-            BCCompressedMip mip;
-            mip.width = level.image.width;
-            mip.height = level.image.height;
-            mip.data.resize(bc_compressed_size(mip.width, mip.height, format));
-            encode_mip(level.image, format, options, mip.data);
-            result.mip_levels.push_back(std::move(mip));
+            std::vector<uint8_t> data(bc_compressed_size(level.image.width, level.image.height, format));
+            encode_mip(level.image, format, options, data);
+            mips.emplace_back(level.image.width, level.image.height, std::move(data));
         }
-        return result;
+        return BCCompressedImage(format, std::move(mips));
     }
 
-    void encode_mip(const BCImage& src, BCFormat format, const BCEncodeOptions& options, std::vector<uint8_t>& output)
+    void encode_mip(const BCImage& src, Format format, const BCEncodeOptions& options, std::vector<uint8_t>& output)
     {
         if (is_bc6h(format))
             SGL_THROW("BCEncoderSW::encode: BC6H encoding requires NVTT3");
@@ -815,28 +811,28 @@ struct BCEncoderSWImpl : BCEncoderImpl {
             SGL_THROW("BCEncoderSW::encode: BC4/BC5 SNORM encoding is not implemented");
 
         switch (format) {
-        case BCFormat::bc1_unorm:
-        case BCFormat::bc1_unorm_srgb:
+        case Format::bc1_unorm:
+        case Format::bc1_unorm_srgb:
             encode_image_bc1(src, output.data(), options.quality);
             break;
-        case BCFormat::bc2_unorm:
-        case BCFormat::bc2_unorm_srgb:
+        case Format::bc2_unorm:
+        case Format::bc2_unorm_srgb:
             encode_image_bc2(src, output.data(), options.quality);
             break;
-        case BCFormat::bc3_unorm:
-        case BCFormat::bc3_unorm_srgb:
+        case Format::bc3_unorm:
+        case Format::bc3_unorm_srgb:
             encode_image_bc3(src, output.data(), options.quality);
             break;
-        case BCFormat::bc4_unorm:
-        case BCFormat::bc4_snorm:
+        case Format::bc4_unorm:
+        case Format::bc4_snorm:
             encode_image_bc4(src, output.data());
             break;
-        case BCFormat::bc5_unorm:
-        case BCFormat::bc5_snorm:
+        case Format::bc5_unorm:
+        case Format::bc5_snorm:
             encode_image_bc5(src, output.data());
             break;
-        case BCFormat::bc7_unorm:
-        case BCFormat::bc7_unorm_srgb:
+        case Format::bc7_unorm:
+        case Format::bc7_unorm_srgb:
             encode_image_bc7(src, output.data(), options);
             break;
         default:
@@ -854,9 +850,9 @@ struct BCEncoderNVTTImpl : BCEncoderImpl {
     {
     }
 
-    bool can_encode(BCFormat format) const override { return is_valid_bc_format(format) && !is_snorm(format); }
+    bool can_encode(Format format) const override { return is_valid_bc_format(format) && !is_snorm(format); }
 
-    BCCompressedImage encode(const BCImage& src, BCFormat format, const BCEncodeOptions& options) override
+    BCCompressedImage encode(const BCImage& src, Format format, const BCEncodeOptions& options) override
     {
         // The NVTT Surface pipeline supplies planar float input, which does not
         // produce valid BC4S/BC5S output. Do not expose those formats until signed
@@ -890,17 +886,18 @@ struct BCEncoderNVTTImpl : BCEncoderImpl {
             SGL_CHECK(current.gpuData() != nullptr, "NVTT3: failed to move source surface to the GPU");
         }
 
-        BCCompressedImage result;
-        result.format = format;
-        result.mip_levels.reserve(options.generate_mipmaps ? bc_mip_count(src.width, src.height) : 1);
+        std::vector<BCCompressedMip> mips;
+        mips.reserve(options.generate_mipmaps ? bc_mip_count(src.width, src.height) : 1);
 
         auto append_mip = [&](const nvtt::Surface& surface)
         {
-            BCCompressedMip mip;
-            mip.width = static_cast<uint32_t>(surface.width());
-            mip.height = static_cast<uint32_t>(surface.height());
-            nvtt_encode_surface(surface, m_use_gpu, format, options, mip.data);
-            result.mip_levels.push_back(std::move(mip));
+            std::vector<uint8_t> data;
+            nvtt_encode_surface(surface, m_use_gpu, format, options, data);
+            mips.emplace_back(
+                static_cast<uint32_t>(surface.width()),
+                static_cast<uint32_t>(surface.height()),
+                std::move(data)
+            );
         };
 
         // Preserve the source transfer function for level zero.
@@ -922,7 +919,7 @@ struct BCEncoderNVTTImpl : BCEncoderImpl {
             }
         }
 
-        return result;
+        return BCCompressedImage(format, std::move(mips));
     }
 
 private:
@@ -991,13 +988,61 @@ bool BCEncoder::is_backend_available(BCEncoderBackend backend)
     }
 }
 
-bool BCEncoder::can_encode(BCFormat format) const
+bool BCEncoder::can_encode(Format format) const
 {
     return m_impl->can_encode(format);
 }
 
-BCCompressedImage BCEncoder::encode(const BCImage& src, BCFormat format, const BCEncodeOptions& options)
+BCCompressedImage BCEncoder::encode(const Bitmap* bitmap, Format format, const BCEncodeOptions& options)
 {
+    SGL_CHECK(bitmap != nullptr, "BCEncoder::encode: bitmap is null");
+    SGL_CHECK(can_encode(format), "BCEncoder::encode: selected backend cannot encode the requested format");
+    SGL_CHECK(
+        bitmap->channel_count() >= 1 && bitmap->channel_count() <= 4,
+        "BCEncoder::encode: channel_count must be 1-4"
+    );
+
+    // Bitmap conversion only normalizes 8- and 16-bit integers. Normalize wider
+    // integers explicitly so color conversion and mip generation use the same
+    // component values as the raw BCImage encoder.
+    ref<Bitmap> normalized;
+    auto component_type = bitmap->component_type();
+    uint32_t component_size = component_byte_size(component_type);
+    if (DataStruct::is_integer(component_type) && component_size > 2) {
+        normalized = make_ref<Bitmap>(
+            bitmap->pixel_format(),
+            Bitmap::ComponentType::float32,
+            bitmap->width(),
+            bitmap->height(),
+            bitmap->channel_count(),
+            bitmap->channel_names(),
+            nullptr,
+            bitmap->srgb_gamma()
+        );
+        auto* dst = normalized->data_as<float>();
+        size_t component_count = bitmap->pixel_count() * bitmap->channel_count();
+        for (size_t i = 0; i < component_count; ++i)
+            dst[i] = read_component_as_float(bitmap->uint8_data() + i * component_size, 0, component_type);
+        bitmap = normalized.get();
+    }
+
+    auto pixel_format = bitmap->pixel_format();
+    if (pixel_format == Bitmap::PixelFormat::y)
+        pixel_format = Bitmap::PixelFormat::rgb;
+    else if (pixel_format == Bitmap::PixelFormat::ya)
+        pixel_format = Bitmap::PixelFormat::rgba;
+
+    if (pixel_format != Bitmap::PixelFormat::multi_channel
+        && (pixel_format != bitmap->pixel_format() || bitmap->srgb_gamma() != is_srgb(format))) {
+        auto converted = bitmap->convert(pixel_format, Bitmap::ComponentType::float32, is_srgb(format));
+        return encode(bc_image_from_bitmap(*converted), format, options);
+    }
+    return encode(bc_image_from_bitmap(*bitmap), format, options);
+}
+
+BCCompressedImage BCEncoder::encode(const BCImage& src, Format format, const BCEncodeOptions& options)
+{
+    std::lock_guard lock(m_mutex);
     SGL_CHECK(src.data != nullptr, "BCEncoder::encode: source data is null");
     SGL_CHECK(src.width > 0 && src.height > 0, "BCEncoder::encode: invalid source dimensions");
     SGL_CHECK(src.channel_count >= 1 && src.channel_count <= 4, "BCEncoder::encode: channel_count must be 1-4");
@@ -1017,14 +1062,7 @@ BCCompressedImage BCEncoder::encode(const BCImage& src, BCFormat format, const B
 // Stateless bcdec decoder
 //
 
-void decode_bc(
-    const void* data,
-    size_t size,
-    BCFormat format,
-    uint32_t width,
-    uint32_t height,
-    const BCMutableImage& dst
-)
+void decode_bc(const void* data, size_t size, Format format, uint32_t width, uint32_t height, const BCMutableImage& dst)
 {
     SGL_CHECK(data != nullptr, "decode_bc: source data is null");
     SGL_CHECK(dst.data != nullptr, "decode_bc: destination data is null");
@@ -1055,55 +1093,55 @@ void decode_bc(
             const uint8_t* block = src + (static_cast<size_t>(by) * blocks_x + bx) * bpb;
 
             switch (format) {
-            case BCFormat::bc1_unorm:
-            case BCFormat::bc1_unorm_srgb: {
+            case Format::bc1_unorm:
+            case Format::bc1_unorm_srgb: {
                 // Output: RGBA uint8 (4 bytes per pixel), 4x4 block.
                 uint8_t decoded[BLOCK_DIM * BLOCK_DIM * 4];
                 bcdec_bc1(block, decoded, BLOCK_DIM * 4);
                 copy_block_to_dst(clipped_dst, bx, by, decoded, BLOCK_DIM * 4, 4, BCComponentType::uint8);
                 break;
             }
-            case BCFormat::bc2_unorm:
-            case BCFormat::bc2_unorm_srgb: {
+            case Format::bc2_unorm:
+            case Format::bc2_unorm_srgb: {
                 uint8_t decoded[BLOCK_DIM * BLOCK_DIM * 4];
                 bcdec_bc2(block, decoded, BLOCK_DIM * 4);
                 copy_block_to_dst(clipped_dst, bx, by, decoded, BLOCK_DIM * 4, 4, BCComponentType::uint8);
                 break;
             }
-            case BCFormat::bc3_unorm:
-            case BCFormat::bc3_unorm_srgb: {
+            case Format::bc3_unorm:
+            case Format::bc3_unorm_srgb: {
                 uint8_t decoded[BLOCK_DIM * BLOCK_DIM * 4];
                 bcdec_bc3(block, decoded, BLOCK_DIM * 4);
                 copy_block_to_dst(clipped_dst, bx, by, decoded, BLOCK_DIM * 4, 4, BCComponentType::uint8);
                 break;
             }
-            case BCFormat::bc4_unorm: {
+            case Format::bc4_unorm: {
                 // Output: R uint8 (1 byte per pixel).
                 uint8_t decoded[BLOCK_DIM * BLOCK_DIM];
                 bcdec_bc4(block, decoded, BLOCK_DIM, 0);
                 copy_block_to_dst(clipped_dst, bx, by, decoded, BLOCK_DIM, 1, BCComponentType::uint8);
                 break;
             }
-            case BCFormat::bc4_snorm: {
+            case Format::bc4_snorm: {
                 int8_t decoded[BLOCK_DIM * BLOCK_DIM];
                 bcdec_bc4(block, decoded, BLOCK_DIM, 1);
                 copy_block_to_dst(clipped_dst, bx, by, decoded, BLOCK_DIM, 1, BCComponentType::int8);
                 break;
             }
-            case BCFormat::bc5_unorm: {
+            case Format::bc5_unorm: {
                 // Output: RG uint8 (2 bytes per pixel).
                 uint8_t decoded[BLOCK_DIM * BLOCK_DIM * 2];
                 bcdec_bc5(block, decoded, BLOCK_DIM * 2, 0);
                 copy_block_to_dst(clipped_dst, bx, by, decoded, BLOCK_DIM * 2, 2, BCComponentType::uint8);
                 break;
             }
-            case BCFormat::bc5_snorm: {
+            case Format::bc5_snorm: {
                 int8_t decoded[BLOCK_DIM * BLOCK_DIM * 2];
                 bcdec_bc5(block, decoded, BLOCK_DIM * 2, 1);
                 copy_block_to_dst(clipped_dst, bx, by, decoded, BLOCK_DIM * 2, 2, BCComponentType::int8);
                 break;
             }
-            case BCFormat::bc6h_ufloat: {
+            case Format::bc6h_ufloat: {
                 // Output: RGB float16 (6 bytes per pixel) - lossless via bcdec_bc6h_half().
                 // NOTE: bcdec_bc6h_half uses unsigned short* internally, so destinationPitch is in elements, not bytes.
                 uint16_t decoded[BLOCK_DIM * BLOCK_DIM * 3];
@@ -1119,7 +1157,7 @@ void decode_bc(
                 );
                 break;
             }
-            case BCFormat::bc6h_sfloat: {
+            case Format::bc6h_sfloat: {
                 uint16_t decoded[BLOCK_DIM * BLOCK_DIM * 3];
                 bcdec_bc6h_half(block, decoded, BLOCK_DIM * 3, 1);
                 copy_block_to_dst(
@@ -1133,8 +1171,8 @@ void decode_bc(
                 );
                 break;
             }
-            case BCFormat::bc7_unorm:
-            case BCFormat::bc7_unorm_srgb: {
+            case Format::bc7_unorm:
+            case Format::bc7_unorm_srgb: {
                 uint8_t decoded[BLOCK_DIM * BLOCK_DIM * 4];
                 bcdec_bc7(block, decoded, BLOCK_DIM * 4);
                 copy_block_to_dst(clipped_dst, bx, by, decoded, BLOCK_DIM * 4, 4, BCComponentType::uint8);

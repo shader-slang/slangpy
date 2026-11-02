@@ -90,6 +90,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
     src/basics/textures
     src/basics/nested
     src/basics/typemethods
+    src/basics/linktime
     src/basics/broadcasting
     src/basics/mapping
     src/basics/index_representation
@@ -120,6 +121,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
     Ids <src/generators/generator_ids>
     Random Numbers <src/generators/generator_random>
     Grid <src/generators/generator_grid>
+    Call Group Shape <src/generators/generator_call_groups>
 
 .. toctree::
     :maxdepth: 1
@@ -134,8 +136,9 @@ If you use SlangPy in a research project leading to a publication, please cite t
     :caption: Guides
     :hidden:
 
-    src/developer_guide
+    src/compiler_targets
     src/profiling
+    src/developer_guide
 
 .. toctree::
     :maxdepth: 1

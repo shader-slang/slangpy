@@ -75,7 +75,8 @@ nb::object extract_torch_tensor_info(nb::handle tensor)
 /// Extract PyTorch tensor signature string.
 /// @param tensor PyTorch tensor to get signature from.
 /// @return Signature string in format "[Dn,Sm,V...]" with bounded shape compatibility.
-/// @throws std::runtime_error if torch bridge is not available.
+/// @throws std::runtime_error if torch bridge is not available, or if the tensor
+///         rank exceeds TENSOR_BRIDGE_MAX_TENSOR_RANK.
 /// @throws std::invalid_argument if object is not a PyTorch tensor.
 std::string extract_torch_tensor_signature(nb::handle tensor)
 {
@@ -92,6 +93,9 @@ std::string extract_torch_tensor_signature(nb::handle tensor)
 
     char buffer[TENSOR_BRIDGE_SIGNATURE_BUFFER_SIZE];
     int result = bridge.get_signature(tensor, buffer, sizeof(buffer));
+    if (result == TENSOR_BRIDGE_ERROR_RANK_TOO_HIGH) {
+        throw std::runtime_error(torch_tensor_rank_error_message(nb::cast<int64_t>(tensor.attr("ndim"))));
+    }
     if (result != 0) {
         throw std::runtime_error(std::string("get_signature failed: ") + tensor_bridge_result_to_string(result));
     }
