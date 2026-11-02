@@ -7,20 +7,20 @@ public struct GridArg<let N : int> {
     int[N] stride;
 
     // Array load
-    public void __slangpy_load<let N : int, T : __BuiltinIntegerType>(ContextND<N> context, out Array<T, N> value) {
+    public void __slangpy_load<let D : int, T : __BuiltinIntegerType>(ContextND<D> context, out Array<T, D> value) {
         var t = context.call_id;
         [ForceUnroll]
-        for (int i = 0; i < N; i++) {
+        for (int i = 0; i < D; i++) {
             value[i] = (T)(offset[i] + t[i] * stride[i]);
         }
     }
 
     // Vector load (transpose of array load)
-    public void __slangpy_load<let N : int, T : __BuiltinIntegerType>(ContextND<N> context, out vector<T, N> value) {
+    public void __slangpy_load<let D : int, T : __BuiltinIntegerType>(ContextND<D> context, out vector<T, D> value) {
         var t = context.call_id;
-        int end = N - 1;
+        int end = D - 1;
         [ForceUnroll]
-        for (int i = 0; i < N; i++) {
+        for (int i = 0; i < D; i++) {
             value[end - i] = (T)(offset[i] + t[i] * stride[i]);
         }
     }
