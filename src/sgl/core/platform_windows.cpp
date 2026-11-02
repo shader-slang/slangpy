@@ -577,8 +577,39 @@ StackTrace backtrace(size_t skip_frames)
 
 ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
 {
-    HANDLE process = GetCurrentProcess();
-    SymInitialize(process, nullptr, true);
+    struct SymbolHandler {
+        std::mutex mutex;
+        HANDLE process = nullptr;
+        bool initialized = false;
+
+        SymbolHandler()
+        {
+            // Use a private session key so cleanup cannot affect another component's symbols.
+            HANDLE current_process = GetCurrentProcess();
+            if (DuplicateHandle(
+                    current_process,
+                    current_process,
+                    current_process,
+                    &process,
+                    0,
+                    FALSE,
+                    DUPLICATE_SAME_ACCESS
+                ))
+                initialized = SymInitialize(process, nullptr, true);
+        }
+
+        ~SymbolHandler()
+        {
+            if (initialized)
+                SymCleanup(process);
+            if (process)
+                CloseHandle(process);
+        }
+    };
+    // Static initialization creates one symbol session; DbgHelp calls must also be serialized.
+    static SymbolHandler handler;
+    std::lock_guard<std::mutex> lock(handler.mutex);
+    HANDLE process = handler.process;
 
     struct Symbol : SYMBOL_INFO {
         char name_storage[1023];
@@ -597,6 +628,8 @@ ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
         ResolvedStackFrame& resolved = resolved_trace[i];
         resolved.address = trace[i];
         resolved.offset = 0ull;
+        if (!handler.initialized)
+            continue;
         if (SymFromAddr(process, resolved.address, &resolved.offset, &symbol))
             resolved.symbol = symbol.Name;
         if (SymGetModuleInfo64(process, symbol.ModBase, &module))
