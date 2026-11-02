@@ -22,7 +22,6 @@
 #include <DbgHelp.h>
 
 #include <cstddef>
-#include <memory>
 #include <mutex>
 
 #define WINDOWS_CALL(a)                                                                                                \
@@ -578,23 +577,31 @@ StackTrace backtrace(size_t skip_frames)
 
 ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
 {
-    // Serialize the entire DbgHelp session, including initialization and cleanup.
+    // DbgHelp requires initialization and symbol lookups to be serialized.
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
 
-    // Use a private session key so cleanup cannot affect another component's symbols.
-    HANDLE current_process = GetCurrentProcess();
-    HANDLE process = nullptr;
-    bool initialized = false;
-    if (DuplicateHandle(current_process, current_process, current_process, &process, 0, FALSE, DUPLICATE_SAME_ACCESS))
-        initialized = SymInitialize(process, nullptr, true);
-    auto cleanup = [initialized](HANDLE handle)
+    // Initialize a private symbol session once and retain it and its handle until process exit.
+    static const HANDLE process = []() -> HANDLE
     {
-        if (initialized)
-            SymCleanup(handle);
-        CloseHandle(handle);
-    };
-    std::unique_ptr<void, decltype(cleanup)> process_guard(process, cleanup);
+        HANDLE current_process = GetCurrentProcess();
+        HANDLE handle = nullptr;
+        if (!DuplicateHandle(
+                current_process,
+                current_process,
+                current_process,
+                &handle,
+                0,
+                FALSE,
+                DUPLICATE_SAME_ACCESS
+            ))
+            return nullptr;
+        if (!SymInitialize(handle, nullptr, true)) {
+            CloseHandle(handle);
+            return nullptr;
+        }
+        return handle;
+    }();
 
     struct Symbol : SYMBOL_INFO {
         char name_storage[1023];
@@ -613,7 +620,7 @@ ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
         ResolvedStackFrame& resolved = resolved_trace[i];
         resolved.address = trace[i];
         resolved.offset = 0ull;
-        if (!initialized)
+        if (!process)
             continue;
         if (SymFromAddr(process, resolved.address, &resolved.offset, &symbol))
             resolved.symbol = symbol.Name;
