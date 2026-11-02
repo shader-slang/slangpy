@@ -603,6 +603,10 @@ ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
         return handle;
     }();
 
+    // Include DLLs loaded since the symbol session was initialized.
+    if (process)
+        SymRefreshModuleList(process);
+
     struct Symbol : SYMBOL_INFO {
         char name_storage[1023];
     } symbol{};
