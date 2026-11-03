@@ -10,6 +10,7 @@ from slangpy.testing import helpers
 from typing import Any
 
 MODULE = r"""
+public module;
 import "slangpy";
 
 void func_noparams() {
@@ -250,6 +251,7 @@ def test_dispatch_cache_hit(device_type: DeviceType):
 
 
 TORCH_DISPATCH_SRC = r"""
+public module;
 import "slangpy";
 
 void copy_vals(uint3 dispatchThreadID, RWTensor<float,1> output, Tensor<float,1> input) {

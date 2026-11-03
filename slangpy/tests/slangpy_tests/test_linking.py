@@ -8,6 +8,7 @@ from slangpy.testing import helpers
 from typing import Any
 
 BASE_MODULE = r"""
+public module;
 import "slangpy";
 extern static const bool BOOL;
 extern static const int INT;
@@ -22,6 +23,7 @@ export static const float FLOAT = 42.0;
 """
 
 LINK_TYPE_BASE_MODULE = r"""
+public module;
 interface IVal
 {
     static int get();

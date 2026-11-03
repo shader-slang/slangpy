@@ -20,6 +20,7 @@ from slangpy.types import Tensor
 
 
 MODULE = r"""
+public module;
 import "slangpy";
 
 struct TrainingSample {

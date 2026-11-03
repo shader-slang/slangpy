@@ -67,6 +67,7 @@ static void write_module(const WriteModuleDesc& desc)
 
     std::string formatted = fmt::format(
         R"SHADER(
+public module;
 {0}
 int {1}()
 {{
@@ -355,7 +356,7 @@ TEST_CASE_GPU("change_program_with_basic_additional_source")
 
     // Write a teeny 'config' file that predeclares the constant in additional source
     std::ofstream config_module(testing::get_case_temp_directory() / "addsourcebasicconfig.slang");
-    config_module << "extern static const uint SOMENUMBER;\n";
+    config_module << "public module; extern static const uint SOMENUMBER;\n";
     config_module.close();
 
     // Build the additional source code that actually sets the number

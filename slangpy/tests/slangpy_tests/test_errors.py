@@ -9,6 +9,7 @@ from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 MODULE = """
+public module;
 import "slangpy";
 float foo(float a) { return a; }
 float foo2(float a, float b) { return a+b; }
@@ -144,7 +145,7 @@ def test_invalid_broadcast_during_dispatch(device_type: DeviceType):
 def test_missing_function(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
-    module = helpers.create_module(device, """void hello() {}""")
+    module = helpers.create_module(device, """public module; void hello() {}""")
 
     with pytest.raises(AttributeError, match=r"has no function or type named"):
         func = module.foo
@@ -157,6 +158,7 @@ def test_missing_child_function(device_type: DeviceType):
     module = helpers.create_module(
         device,
         """
+                                   public module;
                                    struct Foo {}
                                    void hello() {}""",
     )

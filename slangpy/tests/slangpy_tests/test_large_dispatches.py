@@ -21,6 +21,7 @@ EXTRA_THREADS = 17
 DEVICE_TYPES = list(dict.fromkeys(helpers.DEFAULT_DEVICE_TYPES + [DeviceType.cpu]))
 
 MODULE = r"""
+public module;
 import "slangpy";
 
 void record_call_id(int index, RWStructuredBuffer<uint> markers, uint row_stride, uint count)

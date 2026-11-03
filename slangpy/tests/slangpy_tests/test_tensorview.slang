@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+public module;
 
 void copy_tensorview(TensorView<float> input, TensorView<float> output)
 {

@@ -24,6 +24,7 @@ if sys.platform == "darwin":
     pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
 
 MODULE = r"""
+public module;
 struct RGB {
     float x;
     float y;

@@ -129,6 +129,7 @@ def test_vectorize_type(device_type: spy.DeviceType):
     module = helpers.create_module(
         device,
         """
+public module;
 import slangpy;
 
 struct SimpleStruct {}
@@ -239,6 +240,7 @@ def test_no_parameters(device_type: spy.DeviceType):
     module = helpers.create_module(
         device,
         """
+public module;
 void test_func() {}
 """,
     )
@@ -255,6 +257,7 @@ def test_simple_value(device_type: spy.DeviceType, param_count: int):
     module = helpers.create_module(
         device,
         f"""
+public module;
 void test_func({params}) {{}}
 """,
     )
@@ -272,6 +275,7 @@ def test_generic_value(device_type: spy.DeviceType, param_count: int):
     module = helpers.create_module(
         device,
         f"""
+public module;
 void test_func<T>({params}) {{}}
 """,
     )
@@ -289,6 +293,7 @@ def test_simple_vector_value(device_type: spy.DeviceType, param_count: int):
     module = helpers.create_module(
         device,
         f"""
+public module;
 void test_func({params}) {{}}
 """,
     )
@@ -324,6 +329,7 @@ def test_vector_value(
     module = helpers.create_module(
         device,
         f"""
+public module;
 void test_func{sig_generic}({params}) {{}}
 """,
     )
@@ -343,6 +349,7 @@ def test_tensor_none_vectorize(device_type: spy.DeviceType, param_count: int, ge
     sig_param_type = "int" if not generic else "T"
     sig_params = ", ".join([f"Tensor<{sig_param_type},1> p{i}" for i in range(param_count)])
     code = f"""
+public module;
 import slangpy;
 void test_func{sig_generic}({sig_params}) {{}}
 """
@@ -364,6 +371,7 @@ def test_tensor_structured_buffer(device_type: spy.DeviceType, param_count: int,
     sig_param_type = "int" if not generic else "T"
     sig_params = ", ".join([f"StructuredBuffer<{sig_param_type}> p{i}" for i in range(param_count)])
     code = f"""
+public module;
 import slangpy;
 void test_func{sig_generic}({sig_params}) {{}}
 """
@@ -385,6 +393,7 @@ def test_tensor_vectorize(device_type: spy.DeviceType, param_count: int, generic
     sig_param_type = "int" if not generic else "T"
     sig_params = ", ".join([f"{sig_param_type} p{i}" for i in range(param_count)])
     code = f"""
+public module;
 import slangpy;
 void test_func{sig_generic}({sig_params}) {{}}
 """
@@ -406,6 +415,7 @@ def test_tensor_vectorize_vectortype(device_type: spy.DeviceType, param_count: i
     sig_param_type = "vector<int,1>" if not generic else "vector<T,1>"
     sig_params = ", ".join([f"{sig_param_type} p{i}" for i in range(param_count)])
     code = f"""
+public module;
 import slangpy;
 void test_func{sig_generic}({sig_params}) {{}}
 """
@@ -427,6 +437,7 @@ def test_tensor_vectorize_arraytype(device_type: spy.DeviceType, param_count: in
     sig_param_type = "int[1]" if not generic else "T[1]"
     sig_params = ", ".join([f"{sig_param_type} p{i}" for i in range(param_count)])
     code = f"""
+public module;
 import slangpy;
 void test_func{sig_generic}({sig_params}) {{}}
 """
@@ -450,6 +461,7 @@ def test_tensorarray_vectorize_arraytype(
     sig_param_type = "int[1]" if not generic else "T[1]"
     sig_params = ", ".join([f"{sig_param_type} p{i}" for i in range(param_count)])
     code = f"""
+public module;
 import slangpy;
 void test_func{sig_generic}({sig_params}) {{}}
 """
@@ -475,6 +487,7 @@ def test_tensorarray_vectorize_arraytype2(
     sig_param_type = "int[1]" if not generic else "T[1]"
     sig_params = ", ".join([f"{sig_param_type} p{i}" for i in range(param_count)])
     code = f"""
+public module;
 import slangpy;
 void test_func{sig_generic}({sig_params}) {{}}
 """
@@ -493,6 +506,7 @@ def test_typedef(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     code = f"""
+public module;
 import slangpy;
 typedef int Foo;
 void test_func(Foo x) {{}}
@@ -511,6 +525,7 @@ def test_interface(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type, use_cache=False)
 
     code = f"""
+public module;
 import slangpy;
 
 interface IFoo {{}}
@@ -533,6 +548,7 @@ def test_interface_generic(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type, use_cache=False)
 
     code = f"""
+public module;
 import slangpy;
 
 interface IFoo {{}}
@@ -554,6 +570,7 @@ def test_tensorarray_generic_struct(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 
     code = f"""
+public module;
 import slangpy;
 
 struct Foo<T> {{ T value; }}

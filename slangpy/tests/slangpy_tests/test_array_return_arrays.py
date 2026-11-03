@@ -10,6 +10,7 @@ from slangpy.types import Tensor
 
 
 MODULE = r"""
+public module;
 import "slangpy";
 
 half[NumChannels] tensor_test_channels<let NumChannels : int>(half[NumChannels] data)
@@ -87,6 +88,7 @@ def test_tensor_coercion_trailing_dim_into_array_element(device_type: DeviceType
 
 
 VECTOR_ARRAY_MODULE = r"""
+public module;
 import "slangpy";
 
 [Differentiable]

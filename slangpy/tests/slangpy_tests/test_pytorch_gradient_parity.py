@@ -60,6 +60,7 @@ def compare_gradients(
 
 # All activation functions in one module for convenience
 SLANG_ACTIVATIONS = """
+public module;
 [Differentiable]
 float slang_relu(float x) {
     return max(0.0f, x);
@@ -125,6 +126,7 @@ float slang_min_half(float x) {
 # Separate module for tensor parameter tests
 # These test the copy-back path for WTensor/RWTensor parameters
 SLANG_TENSOR_OPS = """
+public module;
 import slangpy;
 
 // Copy with transformation - tests RWTensor write-back
@@ -325,6 +327,7 @@ def run_gradient_parity_test(
 # =============================================================================
 
 SLANG_MSE_LOSS = """
+public module;
 [Differentiable]
 float mse_element(float prediction, float target) {
     float diff = prediction - target;
@@ -690,6 +693,7 @@ def test_strided_slice_different_ops(device_type: DeviceType):
 
 
 SLANG_ARRAY_DOT = """
+public module;
 [Differentiable]
 float dot3(float[3] a, float[3] b) {
     float result = 0.0f;
@@ -749,6 +753,7 @@ def test_sliced_tensor_array_gradient_parity(
 
 
 SLANG_VECTOR_DOT = """
+public module;
 [Differentiable]
 float dot_vectors(float3 a, float3 b) {
     return dot(a, b);
@@ -1168,6 +1173,7 @@ def test_gradient_copyback_single_op(device_type: DeviceType):
 
 
 SLANG_WEIGHTED_SUM = """
+public module;
 [Differentiable]
 float weighted_sum(float a, float b, float weight) {
     return a * weight + b * (1.0f - weight);

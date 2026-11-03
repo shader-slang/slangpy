@@ -44,6 +44,7 @@ def test_thread_id(device_type: DeviceType, dimensions: int, signed: bool):
         device,
         "thread_ids",
         f"""
+public module;
 {type_name} thread_ids({type_name} input) {{
     return input;
 }}
@@ -103,6 +104,7 @@ def test_call_id(device_type: DeviceType, dimensions: int, signed: bool, array: 
         device,
         "call_ids",
         f"""
+public module;
 {type_name} call_ids({type_name} input) {{
     return input;
 }}
@@ -153,6 +155,7 @@ def test_wang_hash(device_type: DeviceType, warmup: int, hash_seed: bool, seed: 
         device,
         "wang_hashes",
         """
+public module;
 uint3 wang_hashes(uint3 input) {
     return input;
 }
@@ -199,6 +202,7 @@ def test_wang_hash_scalar(device_type: DeviceType, warmup: int, hash_seed: bool,
         device,
         "wang_hashes",
         """
+public module;
 uint wang_hashes(uint input) {
     return input;
 }
@@ -246,6 +250,7 @@ def test_wang_seq_seeds(device_type: DeviceType):
         device,
         "wang_hashes",
         """
+public module;
 uint wang_hashes(uint input) {
     return input;
 }
@@ -305,6 +310,7 @@ def test_rand_float(device_type: DeviceType, warmup: int, hash_seed: bool, seed:
         device,
         "rand_float",
         """
+public module;
 float3 rand_float(float3 input) {
     return input;
 }
@@ -353,6 +359,7 @@ def test_rand_float_uniformity(device_type: DeviceType):
         device,
         "add_to_bucket",
         f"""
+public module;
 void add_to_bucket(int id, RWByteAddressBuffer bucket, float value) {{
     int idx = int(value * ( {bucket_size - 1}));
     bucket.InterlockedAdd(idx * 4, 1);
@@ -390,6 +397,7 @@ def test_rand_soa(device_type: DeviceType):
         device,
         "rand_float_soa",
         """
+public module;
 struct Particle {
     float3 pos;
     float3 vel;
@@ -438,6 +446,7 @@ def test_range(device_type: DeviceType):
         device,
         "range_test",
         """
+public module;
 int range_test(int input) {
     return input;
 }

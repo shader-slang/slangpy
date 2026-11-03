@@ -6,6 +6,7 @@ from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 MODULE = r"""
+public module;
 struct Foo {
     int x;
 }
@@ -116,6 +117,7 @@ def test_slangtype_reflection_to_string(device_type: DeviceType):
 
 
 MODULE_IDENTITY = r"""
+public module;
 int identity(int x) { return x; }
 """
 

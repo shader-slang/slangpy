@@ -42,14 +42,17 @@ if not CUDA_TYPES:
 # ============================================================================
 
 RETURN_BOOL_SHADER = r"""
+public module;
 bool is_positive(float x) { return x > 0.0; }
 """
 
 RETURN_INT2_SHADER = r"""
+public module;
 int2 make_int2(int a, int b) { return int2(a, b); }
 """
 
 RETURN_UINT2_SHADER = r"""
+public module;
 uint2 make_uint2(uint a, uint b) { return uint2(a, b); }
 """
 
@@ -58,28 +61,33 @@ float2 make_float2(float a, float b) { return float2(a, b); }
 """
 
 RETURN_FLOAT2X2_SHADER = r"""
+public module;
 float2x2 make_mat(float a, float b, float c, float d) {
     return float2x2(a, b, c, d);
 }
 """
 
 SCALE_VECTOR_SHADER = r"""
+public module;
 void scale_vec(float2 v, float factor, out float2 result) {
     result = v * factor;
 }
 """
 
 ADD_SCALAR_SHADER = r"""
+public module;
 void add_scalar(float a, float b, out float result) { result = a + b; }
 """
 
 TORCH_TENSOR_PLUS_SCALAR = r"""
+public module;
 void add_to_tensor(float tensor_val, float scalar, out float result) {
     result = tensor_val + scalar;
 }
 """
 
 READ_FIRST_SHADER = r"""
+public module;
 float read_first(Tensor<float, 1> buf) { return buf[0]; }
 """
 

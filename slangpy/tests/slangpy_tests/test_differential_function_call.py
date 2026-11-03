@@ -17,6 +17,7 @@ void polynomial(float a, float b, out float result) {
 """
 
 POLYNOMIAL_WITH_RETURN_VALUE_DOT_SLANG = r"""
+public module;
 [Differentiable]
 float polynomial(float a, float b) {
     return a * a + b + 1;
@@ -24,12 +25,14 @@ float polynomial(float a, float b) {
 """
 
 POLYNOMIAL_RETURN_VALUE_ND = r"""
+public module;
 float polynomial(float a, float b) {
     return a * a + b + 1;
 }
 """
 
 POLYNOMIAL_V3 = r"""
+public module;
 [Differentiable]
 float3 polynomial(float3 a, float3 b) {
     return a * a + b + 1;

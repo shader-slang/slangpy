@@ -117,7 +117,7 @@ def test_scalar_direct_bind(device_type: spy.DeviceType):
     """
     device = helpers.get_device(device_type)
     code, bindings = generate_code_and_bindings(
-        device, "add", "int add(int a, int b) { return a + b; }", 1, 2
+        device, "add", "public module; int add(int a, int b) { return a + b; }", 1, 2
     )
 
     # --- codegen assertions ---
@@ -151,7 +151,7 @@ def test_vector_direct_bind(device_type: spy.DeviceType):
     code, bindings = generate_code_and_bindings(
         device,
         "scale",
-        "float3 scale(float3 v, float s) { return v * s; }",
+        "public module; float3 scale(float3 v, float s) { return v * s; }",
         spy.math.float3(1, 2, 3),
         1.0,
     )
@@ -173,7 +173,7 @@ def test_matrix_direct_bind(device_type: spy.DeviceType):
     code, bindings = generate_code_and_bindings(
         device,
         "ident",
-        "float4x4 ident(float4x4 m) { return m; }",
+        "public module; float4x4 ident(float4x4 m) { return m; }",
         spy.math.float4x4.identity(),
     )
 
@@ -193,7 +193,7 @@ def test_array_direct_bind(device_type: spy.DeviceType):
     code, bindings = generate_code_and_bindings(
         device,
         "process",
-        "void process(float a[4]) { }",
+        "public module; void process(float a[4]) { }",
         [1.0, 2.0, 3.0, 4.0],
     )
 
@@ -212,7 +212,7 @@ def test_valueref_read_direct_bind(device_type: spy.DeviceType):
     code, bindings = generate_code_and_bindings(
         device,
         "read_val",
-        "float read_val(float v) { return v; }",
+        "public module; float read_val(float v) { return v; }",
         ValueRef(1.0),
     )
 
@@ -230,7 +230,9 @@ def test_valueref_read_direct_bind(device_type: spy.DeviceType):
 def test_writable_valueref_not_direct_bind(device_type: spy.DeviceType):
     """Writable ValueRef (inout) must not be direct-bind - needs buffer read/write."""
     device = helpers.get_device(device_type)
-    func = helpers.create_function_from_module(device, "inc", "void inc(inout int v) { v += 1; }")
+    func = helpers.create_function_from_module(
+        device, "inc", "public module; void inc(inout int v) { v += 1; }"
+    )
     cd = func.debug_build_call_data(ValueRef(5))
     code, bindings = cd.code, cd.debug_only_bindings
 
@@ -250,6 +252,7 @@ def test_struct_all_scalar_direct_bind(device_type: spy.DeviceType):
     """
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct S {
     float x;
     float y;
@@ -285,6 +288,7 @@ def test_struct_composite_fields_direct_bind(device_type: spy.DeviceType, varian
 
     if variant == "vector_field":
         src = """
+public module;
 struct S {
     float3 pos;
     float scale;
@@ -296,6 +300,7 @@ float3 apply(S s) { return s.pos * s.scale; }
         child_name = "pos"
     elif variant == "array_field":
         src = """
+public module;
 struct Foo {
     int vals[4];
 };
@@ -312,6 +317,7 @@ int sum_inner(Foo foo) {
         child_name = "vals"
     else:
         src = """
+public module;
 struct S {
     float4x4 m;
     float scale;
@@ -345,6 +351,7 @@ def test_deeply_nested_struct_direct_bind(device_type: spy.DeviceType):
     """
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct Bot {
     float v;
 };
@@ -390,6 +397,7 @@ def test_struct_mixed_fields(device_type: spy.DeviceType):
     """
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct S {
     float x;
     float y;
@@ -436,6 +444,7 @@ def test_nested_struct_with_tensor_child(device_type: spy.DeviceType):
     """
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct Inner {
     float x;
     float y;
@@ -483,6 +492,7 @@ def test_struct_return_not_direct_bind(device_type: spy.DeviceType):
     """
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct S {
     int x;
     int y;
@@ -509,6 +519,7 @@ def test_struct_vectorized_2d_child(device_type: spy.DeviceType):
     """S{float3 v (2D tensor->float3), float s (scalar)} - struct NOT direct-bind."""
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct S {
     float3 v;
     float s;
@@ -540,7 +551,7 @@ def test_mixed_scalar_and_tensor(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     tensor = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
     code, bindings = generate_code_and_bindings(
-        device, "add", "float add(float a, float b) { return a + b; }", 1.0, tensor
+        device, "add", "public module; float add(float a, float b) { return a + b; }", 1.0, tensor
     )
 
     # 'a' direct-bind
@@ -567,6 +578,7 @@ def test_tensor_dim0_direct_bind(device_type: spy.DeviceType):
     """
     device = helpers.get_device(device_type)
     src = """
+public module;
 float tensor_read(Tensor<float,1> t) {
     return t[0];
 }
@@ -594,7 +606,11 @@ def test_2d_tensor_to_vector(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     tensor = Tensor.from_numpy(device, np.ones((10, 3), dtype=np.float32))
     code, bindings = generate_code_and_bindings(
-        device, "scale", "float3 scale(float3 v, float s) { return v * s; }", tensor, 2.0
+        device,
+        "scale",
+        "public module; float3 scale(float3 v, float s) { return v * s; }",
+        tensor,
+        2.0,
     )
 
     assert_contains(code, "__slangpy_load")
@@ -622,7 +638,7 @@ def test_3d_tensor_to_vector(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     tensor = Tensor.from_numpy(device, np.ones((2, 5, 3), dtype=np.float32))
     code, bindings = generate_code_and_bindings(
-        device, "negate", "float3 negate(float3 v) { return -v; }", tensor
+        device, "negate", "public module; float3 negate(float3 v) { return -v; }", tensor
     )
 
     assert_contains(code, "__slangpy_load")
@@ -644,7 +660,7 @@ def test_2d_tensor_to_scalar(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     tensor = Tensor.from_numpy(device, np.ones((4, 5), dtype=np.float32))
     code, bindings = generate_code_and_bindings(
-        device, "square", "float square(float x) { return x * x; }", tensor
+        device, "square", "public module; float square(float x) { return x * x; }", tensor
     )
 
     assert_contains(code, "__slangpy_load")
@@ -665,6 +681,7 @@ def test_2d_tensor_to_array(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     tensor = Tensor.from_numpy(device, np.ones((4, 8), dtype=np.float16))
     src = r"""
+public module;
 half[NumChannels] tensor_test_channels<let NumChannels : int>(half[NumChannels] data)
 {
     [ForceUnroll]
@@ -695,6 +712,7 @@ def test_mixed_vectorized_dim0_tensor(device_type: spy.DeviceType):
     """
     device = helpers.get_device(device_type)
     src = """
+public module;
 float dot_lookup(float3 v, Tensor<float,1> weights) {
     return v.x * weights[0] + v.y * weights[1] + v.z * weights[2];
 }
@@ -741,6 +759,7 @@ def test_long_type_name_typealias(device_type: spy.DeviceType):
 
     # --- Long name -> typealias emitted ---
     long_src = f"""
+public module;
 struct {_LONG_STRUCT_NAME} {{
     float x;
     float y;
@@ -758,6 +777,7 @@ float sum({_LONG_STRUCT_NAME} s) {{ return s.x + s.y; }}
 
     # --- Short name -> no typealias ---
     short_src = f"""
+public module;
 struct {_SHORT_STRUCT_NAME} {{
     float x;
     float y;
@@ -772,6 +792,7 @@ float sum({_SHORT_STRUCT_NAME} s) {{ return s.x + s.y; }}
 
     # --- Long wrapper name for _result ---
     identity_src = f"""
+public module;
 struct {_LONG_STRUCT_NAME} {{
     float x;
     float y;
@@ -803,7 +824,7 @@ def test_wanghasharg_not_direct_bind(device_type: spy.DeviceType):
 
     # --- Standalone WangHashArg ---
     code_s, bindings_s = generate_code_and_bindings(
-        device, "rng", "uint3 rng(uint3 input) { return input; }", WangHashArg(3)
+        device, "rng", "public module; uint3 rng(uint3 input) { return input; }", WangHashArg(3)
     )
     assert_contains(code_s, "WangHashArg<")
     assert_contains(code_s, "input")
@@ -812,6 +833,7 @@ def test_wanghasharg_not_direct_bind(device_type: spy.DeviceType):
 
     # --- As struct child ---
     struct_src = """
+public module;
 struct S { uint3 seed; float scale; };
 float apply(S s) { return float(s.seed.x) * s.scale; }
 """
@@ -833,7 +855,7 @@ def test_vectorized_scalar_keeps_wrapper(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     tensor = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
     code, _ = generate_code_and_bindings(
-        device, "square", "float square(float x) { return x * x; }", tensor
+        device, "square", "public module; float square(float x) { return x * x; }", tensor
     )
     assert_contains(code, "__slangpy_load")
 
@@ -844,6 +866,7 @@ def test_vectorized_dict_keeps_wrapper(device_type: spy.DeviceType):
     """Dict with tensor children: vectorized, keeps __slangpy_load."""
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct S {
     float x;
     float y;
@@ -877,6 +900,7 @@ def test_bwds_direct_bind(device_type: spy.DeviceType):
     """
     device = helpers.get_device(device_type)
     src = """
+public module;
 [Differentiable]
 float polynomial(float a, float b) {
     return a * a + b + 1;
@@ -909,7 +933,7 @@ def test_dispatch_mixed_scalar_tensor(device_type: spy.DeviceType):
     """Dispatch mixed scalar + tensor and verify GPU result."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(
-        device, "add", "float add(float a, float b) { return a + b; }"
+        device, "add", "public module; float add(float a, float b) { return a + b; }"
     )
     tensor = Tensor.from_numpy(device, np.array([10, 20, 30], dtype=np.float32))
     result = func(5.0, tensor)
@@ -923,6 +947,7 @@ def test_dispatch_struct_mixed_fields(device_type: spy.DeviceType):
     """Dispatch struct with mixed tensor+scalar fields and verify GPU result."""
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct S {
     float x;
     float y;
@@ -942,6 +967,7 @@ def test_dispatch_tensor_dim0(device_type: spy.DeviceType):
     """Dispatch whole tensor at dim-0 and verify GPU result."""
     device = helpers.get_device(device_type)
     src = """
+public module;
 float tensor_read(Tensor<float,1> t) {
     return t[0];
 }
@@ -958,7 +984,7 @@ def test_dispatch_2d_tensor_to_vector(device_type: spy.DeviceType):
     """Dispatch 2D tensor -> float3 and verify GPU result."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(
-        device, "scale", "float3 scale(float3 v, float s) { return v * s; }"
+        device, "scale", "public module; float3 scale(float3 v, float s) { return v * s; }"
     )
     data = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32)
     tensor = Tensor.from_numpy(device, data)
@@ -976,6 +1002,7 @@ def test_dispatch_2d_tensor_to_array(device_type: spy.DeviceType):
         device,
         "tensor_test_channels<8>",
         r"""
+public module;
 half[NumChannels] tensor_test_channels<let NumChannels : int>(half[NumChannels] data)
 {
     [ForceUnroll]
@@ -1004,6 +1031,7 @@ def test_dispatch_mixed_vectorized_dim0_tensor(device_type: spy.DeviceType):
     """Dispatch vectorized float3 + dim-0 Tensor<float,1> and verify GPU result."""
     device = helpers.get_device(device_type)
     src = """
+public module;
 float dot_lookup(float3 v, Tensor<float,1> weights) {
     return v.x * weights[0] + v.y * weights[1] + v.z * weights[2];
 }
@@ -1025,6 +1053,7 @@ def test_dispatch_nested_struct_with_tensor(device_type: spy.DeviceType):
     """Dispatch nested struct with tensor leaf and verify GPU result."""
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct Inner {
     float x;
     float y;
@@ -1050,6 +1079,7 @@ def test_dispatch_struct_vectorized_2d_child(device_type: spy.DeviceType):
     """Dispatch struct with 2D tensor->float3 child and verify GPU result."""
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct S {
     float3 v;
     float s;
@@ -1070,6 +1100,7 @@ def test_dispatch_struct_array_of_structs(device_type: spy.DeviceType):
     """Dispatch struct with array-of-structs field and verify GPU result."""
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct Inner {
     int x;
 };
@@ -1121,7 +1152,7 @@ def test_entrypoint_params_scalar_dim0(device_type: spy.DeviceType):
         pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
     code, bindings, cd = build_call_data_full(
-        device, "add", "int add(int a, int b) { return a + b; }", 1, 2
+        device, "add", "public module; int add(int a, int b) { return a + b; }", 1, 2
     )
 
     # --- fast path flag ---
@@ -1159,7 +1190,7 @@ def test_entrypoint_params_vectorized(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
     tensor = Tensor.from_numpy(device, np.array([1, 2, 3], dtype=np.float32))
     code, bindings, cd = build_call_data_full(
-        device, "add", "float add(float a, float b) { return a + b; }", 1.0, tensor
+        device, "add", "public module; float add(float a, float b) { return a + b; }", 1.0, tensor
     )
 
     # --- fast path ---
@@ -1197,7 +1228,7 @@ def test_entrypoint_params_non_direct_bind(device_type: spy.DeviceType):
         pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
     code, bindings, cd = build_call_data_full(
-        device, "rng", "uint3 rng(uint3 input) { return input; }", WangHashArg(3)
+        device, "rng", "public module; uint3 rng(uint3 input) { return input; }", WangHashArg(3)
     )
 
     # --- fast path despite non-direct-bind ---
@@ -1229,6 +1260,7 @@ def test_bwds_entrypoint_no_diff_params(device_type: spy.DeviceType):
         pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
     src = """
+public module;
 [Differentiable]
 float polynomial(float a, float b) {
     return a * a + b + 1;
@@ -1276,6 +1308,7 @@ def test_fallback_calldata_large_params(device_type: spy.DeviceType):
     """
     device = helpers.get_device(device_type)
     src = """
+public module;
 float4x4 sum8(float4x4 a, float4x4 b, float4x4 c, float4x4 d,
               float4x4 e, float4x4 f, float4x4 g, float4x4 h) {
     return a + b + c + d + e + f + g + h;
@@ -1322,7 +1355,7 @@ def test_prim_no_trampoline(device_type: spy.DeviceType):
     """Prim mode: no _trampoline function, call inlined in compute_main."""
     device = helpers.get_device(device_type)
     code, _ = generate_code_and_bindings(
-        device, "add", "int add(int a, int b) { return a + b; }", 1, 2
+        device, "add", "public module; int add(int a, int b) { return a + b; }", 1, 2
     )
     # No trampoline function generated
     assert_not_contains(code, "void _trampoline(")
@@ -1339,6 +1372,7 @@ def test_struct_array_of_structs_codegen(device_type: spy.DeviceType):
     """Struct with array-of-structs field: Outer{Inner items[4]} - all dim-0, direct-bind."""
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct Inner {
     int x;
 };
@@ -1399,7 +1433,7 @@ def test_vector_uses_entrypoint_args(device_type: spy.DeviceType):
     _, _, cd = build_call_data_full(
         device,
         "scale",
-        "float3 scale(float3 v, float s) { return v * s; }",
+        "public module; float3 scale(float3 v, float s) { return v * s; }",
         spy.math.float3(1, 2, 3),
         2.0,
     )
@@ -1414,6 +1448,7 @@ def test_struct_uses_entrypoint_args(device_type: spy.DeviceType):
         pytest.skip("Metal doesn't support entry point params.")
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct S { float x; float y; };
 float sum(S s) { return s.x + s.y; }
 """
@@ -1432,7 +1467,7 @@ def test_tensor_uses_entrypoint_args(device_type: spy.DeviceType):
     _, _, cd = build_call_data_full(
         device,
         "sum_all",
-        "float sum_all(float x) { return x; }",
+        "public module; float sum_all(float x) { return x; }",
         tensor,
     )
     assert cd.use_entrypoint_args is True
@@ -1449,7 +1484,7 @@ def test_dispatch_valueref_read(device_type: spy.DeviceType):
     """Dispatch with a read-only ValueRef input - direct-bind pipeline end-to-end."""
     device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(
-        device, "double_it", "float double_it(float v) { return v * 2; }"
+        device, "double_it", "public module; float double_it(float v) { return v * 2; }"
     )
     result = func(ValueRef(7.0))
     assert abs(result - 14.0) < 1e-5
@@ -1461,6 +1496,7 @@ def test_dispatch_struct_return(device_type: spy.DeviceType):
     """Dispatch struct return and verify result is dict with correct values."""
     device = helpers.get_device(device_type)
     src = """
+public module;
 struct S {
     int x;
     int y;
@@ -1480,6 +1516,7 @@ def test_dispatch_long_struct_name(device_type: spy.DeviceType):
     """End-to-end dispatch with a struct whose name exceeds 60 chars."""
     device = helpers.get_device(device_type)
     src = f"""
+public module;
 struct {_LONG_STRUCT_NAME} {{
     float x;
     float y;

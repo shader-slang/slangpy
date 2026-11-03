@@ -163,7 +163,9 @@ def test_soa_particles(device_type: DeviceType):
 def test_load_from_source(device_type: DeviceType):
     """Module.load_from_source should create a working module from a source string."""
     device = helpers.get_device(device_type)
-    m = Module.load_from_source(device, "test_inline", "float add1(float x) { return x + 1; }")
+    m = Module.load_from_source(
+        device, "test_inline", "public module; float add1(float x) { return x + 1; }"
+    )
     result = m.add1(2.0)
     assert abs(float(result) - 3.0) < 1e-5
 

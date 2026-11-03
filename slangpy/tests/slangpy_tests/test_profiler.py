@@ -367,7 +367,7 @@ def test_manual_gpu_zone_and_automatic_functional_zone(device_type: spy.DeviceTy
     module = spy.Module(
         device.load_module_from_source(
             "test_profiler_functional",
-            "int add(int a, int b) { return a + b; }",
+            "public module; int add(int a, int b) { return a + b; }",
         )
     )
     assert module.add(1, 2) == 3

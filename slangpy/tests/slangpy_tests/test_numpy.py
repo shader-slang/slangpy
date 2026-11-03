@@ -8,6 +8,7 @@ from slangpy.testing import helpers
 
 
 NUMPY_MODULE = r"""
+public module;
 import "slangpy";
 
 float add_floats(float a, float b) {

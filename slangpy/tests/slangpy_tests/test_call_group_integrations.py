@@ -89,6 +89,7 @@ def get_tensor_autodiff_test_module(device: Device):
         Compiled SlangPy module ready for testing
     """
     kernel_source = """
+public module;
 import "slangpy";
 
 [Differentiable]
@@ -159,6 +160,7 @@ def get_tensor_test_module(device: Device):
         Compiled SlangPy module ready for testing
     """
     kernel_source = """
+public module;
 import "slangpy";
 
 float tensor_process_with_groups(
@@ -243,6 +245,7 @@ def get_texture_test_module(device: Device):
         Compiled SlangPy module ready for testing
     """
     kernel_source = """
+public module;
 import "slangpy";
 
 float4 texture_sample_with_groups(
@@ -324,7 +327,7 @@ def get_transforms_test_module(device: Device):
         with open(path, "r") as f:
             base_source = f.read()
     else:
-        base_source = ""
+        base_source = "public module; "
 
     additional_source = """
 import "slangpy";

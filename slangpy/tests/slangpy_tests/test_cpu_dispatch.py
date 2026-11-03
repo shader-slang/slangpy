@@ -12,6 +12,7 @@ from slangpy.experimental.gridarg import grid
 from slangpy.testing import helpers
 
 MODULE = r"""
+public module;
 float sq(int i) { return float(i * i); }
 """
 

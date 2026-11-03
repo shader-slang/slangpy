@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+public module;
 import "slangpy";
 
 struct Material : IDifferentiable, IAtomicAddable {

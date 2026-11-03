@@ -10,6 +10,7 @@ from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 TEST_MODULE = r"""
+public module;
 import "slangpy";
 
 struct Params {

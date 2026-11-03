@@ -15,6 +15,7 @@ def test_scalar_to_field_conversion(device_type: DeviceType):
         device,
         "scalar_to_field_test",
         f"""
+public module;
 struct Uniform {{
     float x;
 }}
@@ -37,6 +38,7 @@ def test_scalar_to_parameter_conversion(device_type: DeviceType):
         device,
         "scalar_to_parameter_test",
         f"""
+public module;
 int scalar_to_parameter_test(float x) {{
     return int(x);
 }}
@@ -55,6 +57,7 @@ def test_array_conversion(device_type: DeviceType):
         device,
         "array_test",
         f"""
+public module;
 int array_test(Array<float, 5> x) {{
     return int(x[0] + x[1] + x[2] + x[3] + x[4]);
 }}

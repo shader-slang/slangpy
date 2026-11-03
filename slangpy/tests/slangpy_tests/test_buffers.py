@@ -7,6 +7,7 @@ from slangpy import DeviceType
 from slangpy.testing import helpers
 
 MODULE = r"""
+public module;
 float read_only(StructuredBuffer<float> buffer) {
     return buffer[0];
 }
@@ -45,6 +46,7 @@ def test_buffer_usage_error(device_type: DeviceType):
 
 
 MODULE_BA = r"""
+public module;
 uint read_byte_buffer(ByteAddressBuffer buffer) {
     return buffer.Load(0);
 }

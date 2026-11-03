@@ -85,6 +85,7 @@ def run_tensor_race_condition_tests(
         device,
         "copy_buffers",
         r"""
+public module;
 void copy_buffers(int call_id, float* in_buffer, float* out_buffer) {
     out_buffer[call_id] = in_buffer[call_id];
 }

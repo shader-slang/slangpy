@@ -17,6 +17,7 @@ if sys.platform == "darwin":
     pytest.skip("PyTorch requires CUDA, that is not available on macOS", allow_module_level=True)
 
 TEST_CODE = """
+public module;
 [Differentiable]
 float square(float x) {
     return x * x;

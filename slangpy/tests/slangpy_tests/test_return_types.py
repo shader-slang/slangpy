@@ -57,6 +57,7 @@ def test_returnvalue(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
+public module;
 int add_numbers(int a, int b) {
     return a+b;
 }
@@ -77,6 +78,7 @@ def test_return_struct_as_dict(device_type: DeviceType):
         device,
         "make_struct",
         r"""
+public module;
 struct MyStruct {
     int x;
     int y;
@@ -102,6 +104,7 @@ def test_return_nested_struct_as_dict(device_type: DeviceType):
         device,
         "make_struct",
         r"""
+public module;
 struct MyStruct {
     int x;
     int y;
@@ -133,6 +136,7 @@ def test_inout_struct_as_dict(device_type: DeviceType):
         device,
         "make_struct",
         r"""
+public module;
 struct MyStruct {
     int x;
     int y;
@@ -161,6 +165,7 @@ def test_inout_scalar_valueref(device_type: DeviceType):
         device,
         "increment",
         r"""
+public module;
 void increment(inout int x) {
     x += 1;
 }
@@ -181,6 +186,7 @@ def test_inout_vector_valueref(device_type: DeviceType):
         device,
         "double_vec",
         r"""
+public module;
 void double_vec(inout float3 v) {
     v *= 2.0;
 }
@@ -204,6 +210,7 @@ def test_inout_matrix_valueref(device_type: DeviceType):
         device,
         "modify_mat",
         r"""
+public module;
 void modify_mat(inout float3x3 m) {
     m[0][0] += 10.0;
 }

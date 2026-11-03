@@ -6,6 +6,7 @@ from slangpy import DeviceType, TypeConformance
 from slangpy.testing import helpers
 
 CONFORMING_MODULE = r"""
+public module;
 import "slangpy";
 
 interface IVal {

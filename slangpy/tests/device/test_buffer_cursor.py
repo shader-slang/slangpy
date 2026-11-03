@@ -344,6 +344,7 @@ def make_copy_module(device_type: spy.DeviceType, tests: list[Any]):
 
 def make_pointer_cursor_layout(device_type: spy.DeviceType):
     code = """
+    public module;
     struct PointerInfo {
         int* _ptr;
         __init(int* ptr) {

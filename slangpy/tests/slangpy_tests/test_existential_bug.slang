@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+public module;
 
 // Reproduce for incorrect report that function can't be specialized
 

@@ -15,6 +15,7 @@ def test_simple_array(device_type: DeviceType):
         device,
         "sum",
         r"""
+public module;
 int sum(int[4] data) {
     int sum = 0;
     for (int i = 0; i < 4; i++) {
@@ -41,6 +42,7 @@ def test_untyped_struct_array(device_type: DeviceType):
         device,
         "sum",
         r"""
+public module;
 struct Val {
     int x;
 }
@@ -69,6 +71,7 @@ def test_typed_struct_array(device_type: DeviceType):
         device,
         "sum",
         r"""
+public module;
 struct Val {
     int x;
 }
@@ -103,6 +106,7 @@ def test_vectorize_array(device_type: DeviceType):
         device,
         "inc",
         r"""
+public module;
 int inc(int val) {
     return val+1;
 }
@@ -125,6 +129,7 @@ def test_vectorize_float_array(device_type: DeviceType):
         device,
         "double_it",
         r"""
+public module;
 float double_it(float x) {
     return x * 2.0;
 }
@@ -146,6 +151,7 @@ def test_vectorize_struct_array(device_type: DeviceType):
         device,
         "inc",
         r"""
+public module;
 struct Val {
     int x;
 }
@@ -178,6 +184,7 @@ def test_vectorize_struct_with_resource_array(device_type: DeviceType):
         device,
         "inc",
         r"""
+public module;
 struct Val {
     StructuredBuffer<int> x;
 }
@@ -216,6 +223,7 @@ def test_vectorize_struct_with_tensor_array(device_type: DeviceType):
         device,
         "inc",
         r"""
+public module;
 struct Val {
     Tensor<float,1> x;
 }
@@ -250,6 +258,7 @@ def test_2d_mapped_vectorize_struct_with_tensor_array(device_type: DeviceType):
         device,
         "add",
         r"""
+public module;
 struct Val {
     Tensor<float,1> x;
 }
@@ -290,6 +299,7 @@ def test_struct_with_scalar_array_field(device_type: DeviceType):
         device,
         "sum_inner",
         r"""
+public module;
 struct Foo {
     int vals[4];
 }
@@ -317,6 +327,7 @@ def test_struct_with_struct_array_field(device_type: DeviceType):
         device,
         "sum_inner",
         r"""
+public module;
 struct Inner {
     int x;
 }
@@ -358,6 +369,7 @@ def test_array_of_structured_buffers(device_type: DeviceType):
         device,
         "sum_buffers",
         r"""
+public module;
 int sum_buffers(StructuredBuffer<int> buffers[4]) {
     int s = 0;
     for (int i = 0; i < 4; i++) {
@@ -391,6 +403,7 @@ def test_nested_struct_with_array_field(device_type: DeviceType):
         device,
         "sum_nested",
         r"""
+public module;
 struct Middle {
     int vals[4];
 }
@@ -429,6 +442,7 @@ def test_broadcast_array_to_scalar(device_type: DeviceType):
         device,
         "double_val",
         r"""
+public module;
 struct Pair {
     int vals[2];
 }
@@ -463,6 +477,7 @@ def test_array_of_rw_structured_buffers(device_type: DeviceType):
         device,
         "double_buffers",
         r"""
+public module;
 void double_buffers(RWStructuredBuffer<int> buffers[4]) {
     for (int i = 0; i < 4; i++) {
         buffers[i][0] = buffers[i][0] * 2;
@@ -506,6 +521,7 @@ def test_array_of_tensors_read(device_type: DeviceType) -> None:
         device,
         "sum_tensors",
         r"""
+public module;
 float sum_tensors(Tensor<float, 1> tensors[4]) {
     float s = 0.0;
     for (int i = 0; i < 4; i++) {
@@ -544,6 +560,7 @@ def test_array_of_rwtensors_write(device_type: DeviceType) -> None:
         device,
         "double_tensors",
         r"""
+public module;
 void double_tensors(RWTensor<float, 1> tensors[4]) {
     for (int i = 0; i < 4; i++) {
         float v = tensors[i].load(int[1](0));
@@ -584,6 +601,7 @@ def test_array_of_difftensors_read(device_type: DeviceType) -> None:
         device,
         "sum_difftensors",
         r"""
+public module;
 float sum_difftensors(DiffTensor<float, 1> tensors[4]) {
     float s = 0.0;
     for (int i = 0; i < 4; i++) {
@@ -623,6 +641,7 @@ def test_array_of_rwdifftensors_write(device_type: DeviceType) -> None:
         device,
         "double_difftensors",
         r"""
+public module;
 void double_difftensors(RWDiffTensor<float, 1> tensors[4]) {
     for (int i = 0; i < 4; i++) {
         float v = tensors[i].load(int[1](0));

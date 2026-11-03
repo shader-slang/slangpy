@@ -15,6 +15,7 @@ def test_simple_int_call(device_type: DeviceType):
         device,
         "copy",
         r"""
+public module;
 int copy(int val) {
     return val;
 }
@@ -36,6 +37,7 @@ def test_simple_struct_call(device_type: DeviceType):
         device,
         "copy",
         r"""
+public module;
 struct Val
 {
     int value;
@@ -61,6 +63,7 @@ def test_vectorize_struct_array(device_type: DeviceType):
         device,
         "inc",
         r"""
+public module;
 struct Val {
     int x;
 }
@@ -99,6 +102,7 @@ def test_vectorize_struct_with_tensor_array(device_type: DeviceType):
         device,
         "inc",
         r"""
+public module;
 struct Val {
     Tensor<float,1> x;
 }

@@ -21,6 +21,7 @@ def do_generic_test(
     module = helpers.create_module(
         device,
         f"""
+public module;
 {slang_type_name} get{generic_args}({slang_type_name} input) {{
     return input;
 }}
@@ -102,6 +103,7 @@ def test_arithmetic_generic_arguments_bug(device_type: DeviceType, explicit: boo
     # When we rely on Slang to solve the generic, it currently fails.
 
     CODE = """
+public module;
 interface IModule<int N, int M>
 {
     float[M] eval(float[N] x);

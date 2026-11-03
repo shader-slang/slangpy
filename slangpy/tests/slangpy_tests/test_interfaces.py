@@ -15,6 +15,7 @@ from typing import Any
 
 
 TEST_MODULE = """
+public module;
 import slangpy;
 
 interface ITest<T, let N : int> {

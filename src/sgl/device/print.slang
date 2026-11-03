@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+public module;
 
 #ifndef SGL_ENABLE_PRINT
 #define SGL_ENABLE_PRINT 0

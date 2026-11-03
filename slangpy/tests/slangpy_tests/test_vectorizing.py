@@ -8,6 +8,7 @@ from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 SIMPLE_FUNC = """
+public module;
 import "slangpy";
 float foo(float a) { return a; }
 float intfoo(int a) { return float(a); }

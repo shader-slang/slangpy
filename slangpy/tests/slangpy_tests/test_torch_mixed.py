@@ -31,24 +31,28 @@ from slangpy import pack
 # ---------------------------------------------------------------------------
 
 ADD_SHADER = r"""
+public module;
 void add_buffers(float a, float b, out float c) {
     c = a + b;
 }
 """
 
 SCALE_SHADER = r"""
+public module;
 void scale(float a, float factor, out float result) {
     result = a * factor;
 }
 """
 
 ADD_RETURN_SHADER = r"""
+public module;
 float add_return(float a, float b) {
     return a + b;
 }
 """
 
 READ_FIRST_SHADER = r"""
+public module;
 float read_first(Tensor<float, 1> buf) {
     return buf[0];
 }

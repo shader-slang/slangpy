@@ -42,6 +42,7 @@ DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES
 
 # Polynomial and curve-fitting functions
 SLANG_CURVE_FITTING = """
+public module;
 import slangpy;
 
 // Cubic polynomial: a*x^3 + b*x^2 + c*x + d
@@ -63,6 +64,7 @@ float bezier_cubic_1d(float p0, float p1, float p2, float p3, float t) {
 
 # Multi-layer computation functions (MLP-inspired)
 SLANG_MLP = """
+public module;
 import slangpy;
 
 // Linear transform: result[r] = bias[r] + sum_c(weights[r][c] * x[c])
@@ -99,6 +101,7 @@ float dot4(float weights[4], float[4] x) {
 
 # Multi-output (vector return) functions
 SLANG_MULTI_OUTPUT = """
+public module;
 import slangpy;
 
 // Modulated sin/cos returning float2:
@@ -605,6 +608,7 @@ def test_interleaved_slangpy_pytorch_optimization(device_type: DeviceType):
 # =============================================================================
 
 SQUARE_SHADER = r"""
+public module;
 [Differentiable]
 float square(float x) { return x * x; }
 """

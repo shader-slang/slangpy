@@ -13,6 +13,7 @@ from slangpy.testing import helpers
 from typing import Any, Callable
 
 MODULE = """
+public module;
 import "slangpy";
 float foo(float a) { return a; }
 float foo2(float a, float b) { return a+b; }
@@ -183,7 +184,9 @@ int get_value(Foo foo) { return foo.value; }
     assert module.require_function_by_name("get_value") is old_function
     assert old_function.return_type is module.scalar_type(TypeReflection.ScalarType.int32)
 
-    wrapped_module = helpers.create_module(device, "float get_value(float value) { return value; }")
+    wrapped_module = helpers.create_module(
+        device, "public module; float get_value(float value) { return value; }"
+    )
     function = wrapped_module.get_value
     BaseModule.on_hot_reload(wrapped_module, module_b, module_b.layout)
     assert function._slang_func.return_type is wrapped_module.layout.scalar_type(
@@ -577,6 +580,7 @@ def test_arg_types(device_type: DeviceType, arg_type: tuple[str, Callable[[Any],
         device,
         "foo",
         f"""
+public module;
 import "slangpy";
 struct TestStruct {{
     float foo;
@@ -618,6 +622,7 @@ def test_refl_duck_typing(device_type: DeviceType):
     module = helpers.create_module(
         device,
         """
+public module;
 struct MyStruct: IDifferentiable {
     int a;
 }
@@ -655,6 +660,7 @@ def test_interface(device_type: DeviceType, runa: bool, runb: bool):
 
     # Create a module with an IFoo interface, a Foo struct implementing it, and a function taking IFoo
     code = f"""
+    public module;
     interface IFoo {{}}
     struct Foo: IFoo {{}}
     void test_func(IFoo x) {{}}
@@ -670,6 +676,7 @@ def test_interface(device_type: DeviceType, runa: bool, runb: bool):
 
     # Create a 2nd similar module with IFoo2, Foo2, and test_func2. In this case, Foo2 implements IFoo2 via an extension.
     code = f"""
+    public module;
     interface IFoo2 {{}}
     struct Foo2 {{}}
     extension Foo2: IFoo2 {{}}
