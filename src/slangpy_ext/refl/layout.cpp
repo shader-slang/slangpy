@@ -11,12 +11,12 @@
 
 #include <utility>
 
-SGL_PY_EXPORT(native_refl)
+namespace {
+
+NB_NOINLINE void bind_reflection_functions(nb::module_& native_refl)
 {
     namespace refl = sgl::refl;
     namespace func = sgl::func;
-
-    nb::module_ native_refl = nb::module_::import_("slangpy.native_refl");
 
     native_refl.def("get_builtin_layout", &refl::get_builtin_layout, "device"_a, D_NA(get_builtin_layout));
     native_refl.def("name_for_scalar_type", &refl::name_for_scalar_type, "scalar_type"_a, D_NA(name_for_scalar_type));
@@ -107,6 +107,12 @@ SGL_PY_EXPORT(native_refl)
         "element_type"_a,
         D_NA(resolve_element_type)
     );
+}
+
+NB_NOINLINE void bind_reflection_base_types(nb::module_& native_refl)
+{
+    namespace refl = sgl::refl;
+    namespace func = sgl::func;
 
     nb::class_<refl::TypeLayout, sgl::Object>(native_refl, "TypeLayout", D_NA(TypeLayout))
         .def_prop_ro(
@@ -177,6 +183,12 @@ SGL_PY_EXPORT(native_refl)
             D_NA(Type, fields)
         )
         .def("__repr__", &refl::Type::to_string, D_NA(Type, to_string));
+}
+
+NB_NOINLINE void bind_reflection_value_types(nb::module_& native_refl)
+{
+    namespace refl = sgl::refl;
+    namespace func = sgl::func;
 
     nb::class_<refl::UnknownType, refl::Type>(native_refl, "UnknownType", D_NA(UnknownType));
 
@@ -211,6 +223,12 @@ SGL_PY_EXPORT(native_refl)
     nb::class_<refl::StructType, refl::Type>(native_refl, "StructType", D_NA(StructType));
 
     nb::class_<refl::InterfaceType, refl::Type>(native_refl, "InterfaceType", D_NA(InterfaceType));
+}
+
+NB_NOINLINE void bind_reflection_resource_types(nb::module_& native_refl)
+{
+    namespace refl = sgl::refl;
+    namespace func = sgl::func;
 
     nb::class_<refl::ResourceType, refl::Type>(native_refl, "ResourceType", D_NA(ResourceType))
         .def_prop_ro("resource_shape", &refl::ResourceType::resource_shape, D_NA(ResourceType, resource_shape))
@@ -243,6 +261,12 @@ SGL_PY_EXPORT(native_refl)
     );
 
     nb::class_<refl::SamplerStateType, refl::Type>(native_refl, "SamplerStateType", D_NA(SamplerStateType));
+}
+
+NB_NOINLINE void bind_reflection_tensor_types(nb::module_& native_refl)
+{
+    namespace refl = sgl::refl;
+    namespace func = sgl::func;
 
     nb::class_<refl::TensorType, refl::Type> tensor_type(native_refl, "TensorType", D_NA(TensorType));
     nb::sgl_enum<refl::TensorType::Kind>(tensor_type, "Kind", D_NA(TensorType, Kind));
@@ -291,6 +315,12 @@ SGL_PY_EXPORT(native_refl)
         );
 
     nb::class_<refl::UnhandledType, refl::Type>(native_refl, "UnhandledType", D_NA(UnhandledType));
+}
+
+NB_NOINLINE void bind_reflection_variables(nb::module_& native_refl)
+{
+    namespace refl = sgl::refl;
+    namespace func = sgl::func;
 
     nb::class_<refl::Variable, sgl::Object>(native_refl, "Variable", D_NA(Variable))
         .def_prop_ro(
@@ -333,6 +363,12 @@ SGL_PY_EXPORT(native_refl)
     nb::class_<refl::Parameter, refl::Variable>(native_refl, "Parameter", D_NA(Parameter))
         .def_prop_ro("index", &refl::Parameter::index, D_NA(Parameter, index))
         .def_prop_ro("has_default", &refl::Parameter::has_default, D_NA(Parameter, has_default));
+}
+
+NB_NOINLINE void bind_reflection_function(nb::module_& native_refl)
+{
+    namespace refl = sgl::refl;
+    namespace func = sgl::func;
 
     nb::class_<refl::Function, sgl::Object>(native_refl, "Function", D_NA(Function))
         .def_prop_ro(
@@ -379,6 +415,12 @@ SGL_PY_EXPORT(native_refl)
             D_NA(Function, specialize_with_arg_types)
         )
         .def("__repr__", &refl::Function::to_string, D_NA(Function, to_string));
+}
+
+NB_NOINLINE void bind_reflection_layout(nb::module_& native_refl)
+{
+    namespace refl = sgl::refl;
+    namespace func = sgl::func;
 
     nb::class_<refl::Layout, sgl::Object>(native_refl, "Layout", D_NA(Layout))
         .def(
@@ -533,4 +575,19 @@ SGL_PY_EXPORT(native_refl)
             D_NA(Layout, on_hot_reload)
         )
         .def("__repr__", &refl::Layout::to_string, D_NA(Layout, to_string));
+}
+
+} // namespace
+
+SGL_PY_EXPORT(native_refl)
+{
+    nb::module_ native_refl = nb::module_::import_("slangpy.native_refl");
+    bind_reflection_functions(native_refl);
+    bind_reflection_base_types(native_refl);
+    bind_reflection_value_types(native_refl);
+    bind_reflection_resource_types(native_refl);
+    bind_reflection_tensor_types(native_refl);
+    bind_reflection_variables(native_refl);
+    bind_reflection_function(native_refl);
+    bind_reflection_layout(native_refl);
 }
