@@ -23,7 +23,7 @@ float process_element(int coord, ITensor<float, 1> x) {
 }
 
 [BackwardDerivative(simple_bwd)]
-float simple(int coord, ITensor<float, 1> x) {
+public float simple(int coord, ITensor<float, 1> x) {
     return process_element(coord, x);
 }
 

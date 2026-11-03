@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-interface IBinaryOp : IDifferentiable {
+public interface IBinaryOp : IDifferentiable {
     [Differentiable]
     static float apply(float a, float b);
 }
 
-struct AddOp : IBinaryOp {
+public struct AddOp : IBinaryOp {
     [Differentiable]
-    static float apply(float a, float b) { return a + b; }
+    public static float apply(float a, float b) { return a + b; }
 }
 
-struct SubOp : IBinaryOp {
+public struct SubOp : IBinaryOp {
     [Differentiable]
-    static float apply(float a, float b) { return a - b; }
+    public static float apply(float a, float b) { return a - b; }
 }
 
-struct MulOp : IBinaryOp {
+public struct MulOp : IBinaryOp {
     [Differentiable]
-    static float apply(float a, float b) { return a * b; }
+    public static float apply(float a, float b) { return a * b; }
 }

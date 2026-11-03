@@ -46,14 +46,14 @@ import slangpy;
 
 // Cubic polynomial: a*x^3 + b*x^2 + c*x + d
 [Differentiable]
-float cubic_poly(float a, float b, float c, float d, float x) {
+public float cubic_poly(float a, float b, float c, float d, float x) {
     return a * x * x * x + b * x * x + c * x + d;
 }
 
 // Cubic Bezier evaluation (1D) using Bernstein basis:
 // B(t) = (1-t)^3*p0 + 3*(1-t)^2*t*p1 + 3*(1-t)*t^2*p2 + t^3*p3
 [Differentiable]
-float bezier_cubic_1d(float p0, float p1, float p2, float p3, float t) {
+public float bezier_cubic_1d(float p0, float p1, float p2, float p3, float t) {
     float u = 1.0 - t;
     float uu = u * u;
     float tt = t * t;
@@ -67,7 +67,7 @@ import slangpy;
 
 // Linear transform: result[r] = bias[r] + sum_c(weights[r][c] * x[c])
 [Differentiable]
-float[4] linear_transform(float weights[4][4], float bias[4], float[4] x) {
+public float[4] linear_transform(float weights[4][4], float bias[4], float[4] x) {
     float[4] result;
     for (int r = 0; r < 4; r++) {
         float y = bias[r];
@@ -80,7 +80,7 @@ float[4] linear_transform(float weights[4][4], float bias[4], float[4] x) {
 
 // Element-wise ReLU for a 4-element vector
 [Differentiable]
-float[4] relu4(float[4] x) {
+public float[4] relu4(float[4] x) {
     float[4] result;
     for (int i = 0; i < 4; i++)
         result[i] = max(0.0, x[i]);
@@ -89,7 +89,7 @@ float[4] relu4(float[4] x) {
 
 // Dot product: scalar output from 4-element vectors
 [Differentiable]
-float dot4(float weights[4], float[4] x) {
+public float dot4(float weights[4], float[4] x) {
     float result = 0.0;
     for (int i = 0; i < 4; i++)
         result += weights[i] * x[i];
@@ -104,7 +104,7 @@ import slangpy;
 // Modulated sin/cos returning float2:
 // (amplitude * sin(phase + x), amplitude * cos(phase + x))
 [Differentiable]
-float2 sincos_modulated(float amplitude, float phase, float x) {
+public float2 sincos_modulated(float amplitude, float phase, float x) {
     float angle = phase + x;
     return float2(amplitude * sin(angle), amplitude * cos(angle));
 }
@@ -606,7 +606,7 @@ def test_interleaved_slangpy_pytorch_optimization(device_type: DeviceType):
 
 SQUARE_SHADER = r"""
 [Differentiable]
-float square(float x) { return x * x; }
+public float square(float x) { return x * x; }
 """
 
 

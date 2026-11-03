@@ -10,7 +10,7 @@ from typing import Any
 
 BASE_MODULE = r"""
 import "slangpy";
-float foo(float a, float b) {
+public float foo(float a, float b) {
     return a+b;
 }
 """

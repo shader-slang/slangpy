@@ -344,15 +344,15 @@ def make_copy_module(device_type: spy.DeviceType, tests: list[Any]):
 
 def make_pointer_cursor_layout(device_type: spy.DeviceType):
     code = """
-    struct PointerInfo {
-        int* _ptr;
-        __init(int* ptr) {
+    public struct PointerInfo {
+        public int* _ptr;
+        public __init(int* ptr) {
             _ptr = ptr;
         }
     };
 
     [shader("compute"), numthreads(1, 1, 1)]
-    void compute_main(RWStructuredBuffer<PointerInfo> infos) {
+    public void compute_main(RWStructuredBuffer<PointerInfo> infos) {
     }
     """
     mod_name = "test_buffer_cursor_PointerInfo_" + hashlib.sha256(code.encode()).hexdigest()[0:8]

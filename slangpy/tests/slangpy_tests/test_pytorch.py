@@ -18,7 +18,7 @@ if sys.platform == "darwin":
 
 TEST_CODE = """
 [Differentiable]
-float square(float x) {
+public float square(float x) {
     return x * x;
 }
 """

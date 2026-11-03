@@ -15,7 +15,7 @@ def test_simple_int_call(device_type: DeviceType):
         device,
         "copy",
         r"""
-int copy(int val) {
+public int copy(int val) {
     return val;
 }
 """,
@@ -36,11 +36,11 @@ def test_simple_struct_call(device_type: DeviceType):
         device,
         "copy",
         r"""
-struct Val
+public struct Val
 {
-    int value;
+    public int value;
 }
-int copy(Val val) {
+public int copy(Val val) {
     return val.value;
 }
 """,
@@ -61,10 +61,10 @@ def test_vectorize_struct_array(device_type: DeviceType):
         device,
         "inc",
         r"""
-struct Val {
-    int x;
+public struct Val {
+    public int x;
 }
-int inc(Val val) {
+public int inc(Val val) {
     return val.x+1;
 }
 """,
@@ -99,10 +99,10 @@ def test_vectorize_struct_with_tensor_array(device_type: DeviceType):
         device,
         "inc",
         r"""
-struct Val {
-    Tensor<float,1> x;
+public struct Val {
+    public Tensor<float,1> x;
 }
-float inc(Val val) {
+public float inc(Val val) {
     return val.x[0]+1;
 }
 """,
