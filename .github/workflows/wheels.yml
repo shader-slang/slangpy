@@ -28,6 +28,9 @@ env:
   P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
   KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
   CIBW_REPAIR_WHEEL_COMMAND_MACOS: "bash .github/scripts/sign_macos_bins.sh {wheel} {dest_dir}"
+  # cibuildwheel 4 defaults to delvewheel on Windows; the wheel already bundles sgl, Slang and
+  # D3D12 Agility SDK DLLs.
+  CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
 
 jobs:
   wheels:
@@ -38,7 +41,7 @@ jobs:
       matrix:
         os: [windows, linux, macos]
         platform: [x86_64, aarch64]
-        python: [cp39, cp310, cp311, cp312, cp313, cp314]
+        python: [cp39, cp310, cp311, cp312, cp313, cp314, cp315]
         exclude:
           - { os: windows, platform: aarch64 }
           - { os: macos, platform: x86_64 }
@@ -67,7 +70,7 @@ jobs:
             ~/.cache/cibuildwheel
             ~/Library/Caches/cibuildwheel
             ~\AppData\Local\pypa\cibuildwheel\Cache
-          key: cibuildwheel-virtualenv-20.31.2
+          key: cibuildwheel-virtualenv-21.14.5
 
       - name: Pre-download virtualenv.pyz
         shell: bash
@@ -81,10 +84,10 @@ jobs:
           else
             CACHE_DIR="$HOME/.cache/cibuildwheel"
           fi
-          VENV_FILE="$CACHE_DIR/virtualenv-20.31.2.pyz"
+          VENV_FILE="$CACHE_DIR/virtualenv-21.14.5.pyz"
           if [ ! -f "$VENV_FILE" ]; then
             echo "Downloading virtualenv.pyz to $VENV_FILE"
-            curl -fL --retry 5 --retry-delay 2 -o "$VENV_FILE" "https://raw.githubusercontent.com/pypa/get-virtualenv/20.31.2/public/virtualenv.pyz"
+            curl -fL --retry 5 --retry-delay 2 -o "$VENV_FILE" "https://github.com/pypa/get-virtualenv/releases/download/21.14.5/virtualenv.pyz"
             if [ ! -s "$VENV_FILE" ]; then
               echo "Downloaded file is empty or missing, removing"
               rm -f "$VENV_FILE"
@@ -120,7 +123,7 @@ jobs:
           fi
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==3.4.1
+        run: python -m pip install cibuildwheel==4.3.0
 
       - name: Setup MSVC
         uses: step-security/msvc-dev-cmd@v1
