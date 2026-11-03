@@ -20,29 +20,28 @@ from slangpy.types import Tensor
 
 
 MODULE = r"""
-public module;
 import "slangpy";
 
-struct TrainingSample {
-    float valid;
-    int material_id;
-    float2 uv;
-    float3 wi;
-    float3 wo;
-    int mip_level;
-    float3 target;
+public struct TrainingSample {
+    public float valid;
+    public int material_id;
+    public float2 uv;
+    public float3 wi;
+    public float3 wo;
+    public int mip_level;
+    public float3 target;
 };
 
-struct SimpleVec2 {
-    float x;
-    float y;
+public struct SimpleVec2 {
+    public float x;
+    public float y;
 };
 
-float sum_vec2(SimpleVec2 v) {
+public float sum_vec2(SimpleVec2 v) {
     return v.x + v.y;
 }
 
-void copy_training_sample(TrainingSample input, out TrainingSample output) {
+public void copy_training_sample(TrainingSample input, out TrainingSample output) {
     output = input;
 }
 """

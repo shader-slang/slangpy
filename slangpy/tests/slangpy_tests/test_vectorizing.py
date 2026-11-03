@@ -8,14 +8,13 @@ from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 SIMPLE_FUNC = """
-public module;
 import "slangpy";
-float foo(float a) { return a; }
-float intfoo(int a) { return float(a); }
-T genericfoo<T>(T a) { return a; }
-T genericconstrainedfoo<T: IFloat>(T a) { return a; }
-float3 foo3(float3 a) { return a; }
-float add(float a, float b) { return a+b; }
+public float foo(float a) { return a; }
+public float intfoo(int a) { return float(a); }
+public T genericfoo<T>(T a) { return a; }
+public T genericconstrainedfoo<T: IFloat>(T a) { return a; }
+public float3 foo3(float3 a) { return a; }
+public float add(float a, float b) { return a+b; }
 """
 
 

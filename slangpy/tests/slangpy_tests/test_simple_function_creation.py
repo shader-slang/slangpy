@@ -6,16 +6,14 @@ from slangpy import DeviceType, Module
 from slangpy.testing import helpers
 
 SIMPLE_FUNCTION_RETURN_VALUE = r"""
-public module;
-int add_numbers(int a, int b) {
+public int add_numbers(int a, int b) {
     return a + b;
 }
 """
 
 SIMPLE_FUNCTION_IN_TYPE_RETURN_VALUE = r"""
-public module;
-struct MyStruct {
-    int add_numbers(int a, int b) {
+public struct MyStruct {
+    public int add_numbers(int a, int b) {
         return a + b;
     }
 }

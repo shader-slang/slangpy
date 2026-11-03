@@ -13,28 +13,27 @@ from slangpy.testing import helpers
 from typing import Any, Callable
 
 MODULE = """
-public module;
 import "slangpy";
-float foo(float a) { return a; }
-float foo2(float a, float b) { return a+b; }
-float foo_v3(float3 a) { return a.x; }
-float foo_ol(float a) { return a; }
-float foo_ol(float a, float b) { return a+b; }
-float foo_generic<T>(T a) { return 0; }
-struct Foo
+public float foo(float a) { return a; }
+public float foo2(float a, float b) { return a+b; }
+public float foo_v3(float3 a) { return a.x; }
+public float foo_ol(float a) { return a; }
+public float foo_ol(float a, float b) { return a+b; }
+public float foo_generic<T>(T a) { return 0; }
+public struct Foo
 {
-    float3 value;
-    int bar(float a) { return 0; }
+    public float3 value;
+    public int bar(float a) { return 0; }
 }
 
-struct GenericType<A, int N> {}
-struct BoolGenericType<let Enabled: bool> {}
+public struct GenericType<A, int N> {}
+public struct BoolGenericType<let Enabled: bool> {}
 
-void update(inout float value, out float result, no_diff in float weight) {
+public void update(inout float value, out float result, no_diff in float weight) {
     result = value * weight;
 }
 
-void use_textures(Texture2D<float4> texture, RWTexture2D<float4> rw_texture) {}
+public void use_textures(Texture2D<float4> texture, RWTexture2D<float4> rw_texture) {}
 
 """
 
@@ -185,7 +184,7 @@ int get_value(Foo foo) { return foo.value; }
     assert old_function.return_type is module.scalar_type(TypeReflection.ScalarType.int32)
 
     wrapped_module = helpers.create_module(
-        device, "public module; float get_value(float value) { return value; }"
+        device, "public float get_value(float value) { return value; }"
     )
     function = wrapped_module.get_value
     BaseModule.on_hot_reload(wrapped_module, module_b, module_b.layout)
@@ -580,14 +579,13 @@ def test_arg_types(device_type: DeviceType, arg_type: tuple[str, Callable[[Any],
         device,
         "foo",
         f"""
-public module;
 import "slangpy";
-struct TestStruct {{
-    float foo;
+public struct TestStruct {{
+    public float foo;
 }}
-interface ITestInterface {{}}
+public interface ITestInterface {{}}
 
-float foo({arg_type[0]} a) {{ return 0; }}
+public float foo({arg_type[0]} a) {{ return 0; }}
 """,
     )
     layout = function.module.layout
@@ -622,9 +620,8 @@ def test_refl_duck_typing(device_type: DeviceType):
     module = helpers.create_module(
         device,
         """
-public module;
-struct MyStruct: IDifferentiable {
-    int a;
+public struct MyStruct: IDifferentiable {
+    public int a;
 }
 """,
     )
@@ -660,10 +657,9 @@ def test_interface(device_type: DeviceType, runa: bool, runb: bool):
 
     # Create a module with an IFoo interface, a Foo struct implementing it, and a function taking IFoo
     code = f"""
-    public module;
-    interface IFoo {{}}
-    struct Foo: IFoo {{}}
-    void test_func(IFoo x) {{}}
+    public interface IFoo {{}}
+    public struct Foo: IFoo {{}}
+    public void test_func(IFoo x) {{}}
     """
     module1 = helpers.create_module(device, code)
 
@@ -676,11 +672,10 @@ def test_interface(device_type: DeviceType, runa: bool, runb: bool):
 
     # Create a 2nd similar module with IFoo2, Foo2, and test_func2. In this case, Foo2 implements IFoo2 via an extension.
     code = f"""
-    public module;
-    interface IFoo2 {{}}
-    struct Foo2 {{}}
+    public interface IFoo2 {{}}
+    public struct Foo2 {{}}
     extension Foo2: IFoo2 {{}}
-    void test_func2(IFoo2 x) {{}}
+    public void test_func2(IFoo2 x) {{}}
     """
     module2 = helpers.create_module(device, code)
 

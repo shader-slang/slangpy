@@ -10,15 +10,14 @@ from slangpy.types import Tensor
 from slangpy.testing import helpers
 
 TEST_MODULE = r"""
-public module;
 import "slangpy";
 
-struct Params {
-    float k;
+public struct Params {
+    public float k;
 }
 ParameterBlock<Params> params;
 
-float add_k(float val) {
+public float add_k(float val) {
     return val + params.k.x;
 }
 

@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-public module;
 import "slangpy";
 
-struct Payload { float3 color; };
+public struct Payload { public float3 color; };
 
 [shader("miss")]
-void miss(inout Payload payload)
+public void miss(inout Payload payload)
 {
     payload.color = float3(1, 0, 1);
 }
 
 [shader("closesthit")]
-void closest_hit(inout Payload payload, BuiltInTriangleIntersectionAttributes attribs)
+public void closest_hit(inout Payload payload, BuiltInTriangleIntersectionAttributes attribs)
 {
     payload.color = float3(attribs.barycentrics, 0);
 }
 
-float3 trace(int2 tid, RaytracingAccelerationStructure tlas)
+public float3 trace(int2 tid, RaytracingAccelerationStructure tlas)
 {
     float2 uv = (float2(tid) + 0.5) / 64.0;
 

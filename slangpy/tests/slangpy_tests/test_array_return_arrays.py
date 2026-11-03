@@ -10,10 +10,9 @@ from slangpy.types import Tensor
 
 
 MODULE = r"""
-public module;
 import "slangpy";
 
-half[NumChannels] tensor_test_channels<let NumChannels : int>(half[NumChannels] data)
+public half[NumChannels] tensor_test_channels<let NumChannels : int>(half[NumChannels] data)
 {
     [ForceUnroll]
     for (int i = 0; i < NumChannels; ++i)
@@ -88,11 +87,10 @@ def test_tensor_coercion_trailing_dim_into_array_element(device_type: DeviceType
 
 
 VECTOR_ARRAY_MODULE = r"""
-public module;
 import "slangpy";
 
 [Differentiable]
-float2[6] return_vector_array(int coord) {
+public float2[6] return_vector_array(int coord) {
     float2 outputs[6];
     for (int i = 0; i < 6; ++i) {
         outputs[i] = float2(coord, coord + i);
@@ -101,7 +99,7 @@ float2[6] return_vector_array(int coord) {
 }
 
 [Differentiable]
-float2[4] scale_vector_array(float2[4] input, float scale) {
+public float2[4] scale_vector_array(float2[4] input, float scale) {
     float2 outputs[4];
     for (int i = 0; i < 4; ++i) {
         outputs[i] = input[i] * scale;

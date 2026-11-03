@@ -15,26 +15,25 @@ from typing import Any
 
 
 TEST_MODULE = """
-public module;
 import slangpy;
 
-interface ITest<T, let N : int> {
+public interface ITest<T, let N : int> {
     float sentinel();
 }
-interface IFoo {}
+public interface IFoo {}
 
-struct Test2f : ITest<float, 2> {
-    float sentinel() { return 42.0f; }
-    void __slangpy_load(Context0D ctx, out Test2f x) { x = this; }
+public struct Test2f : ITest<float, 2> {
+    public float sentinel() { return 42.0f; }
+    public void __slangpy_load(Context0D ctx, out Test2f x) { x = this; }
 }
-struct Test3i : ITest<int, 3> {
-    float sentinel() { return 0.0f; }
+public struct Test3i : ITest<int, 3> {
+    public float sentinel() { return 0.0f; }
 }
 
-float bar(IFoo x) {
+public float bar(IFoo x) {
     return 0.0f;
 }
-float foo(ITest<float, 2> x) {
+public float foo(ITest<float, 2> x) {
     return x.sentinel();
 }
 """

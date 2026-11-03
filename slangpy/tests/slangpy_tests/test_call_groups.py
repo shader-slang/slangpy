@@ -103,10 +103,9 @@ def test_1d_call_groups_with_validation(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
     kernel_source = """
-public module;
 import "slangpy";
 
-uint test_1d_groups(uint grid_cell) {
+public uint test_1d_groups(uint grid_cell) {
     CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
     CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
 
@@ -166,10 +165,9 @@ def test_call_group_math_2d_validation(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
     kernel_source = """
-public module;
 import "slangpy";
 
-uint test_call_group_math_2d(uint2 grid_cell) {
+public uint test_call_group_math_2d(uint2 grid_cell) {
     CallShapeInfo call_id = CallShapeInfo::get_call_id();
     CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
     CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
@@ -271,10 +269,9 @@ def test_call_group_math_5d_validation(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
     kernel_source = """
-public module;
 import "slangpy";
 
-uint test_5d_basic(uint[5] grid_cell) {
+public uint test_5d_basic(uint[5] grid_cell) {
     // Get call group values
     CallShapeInfo call_id = CallShapeInfo::get_call_id();
     CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
@@ -327,10 +324,9 @@ def test_call_group_math_edge_cases(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
     kernel_source = """
-public module;
 import "slangpy";
 
-uint test_edge_case_basic(uint2 grid_cell) {
+public uint test_edge_case_basic(uint2 grid_cell) {
     // Get call group functionality and pack results
     CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
     CallShapeInfo call_group_thread_id = CallShapeInfo::get_call_group_thread_id();
@@ -414,10 +410,9 @@ def test_call_group_shape_valid(
     else:
         param_type = f"uint[{dimensionality}]"
     kernel_source = f"""
-public module;
 import "slangpy";
 
-int test_call_group_math({param_type} grid_pos) {{
+public int test_call_group_math({param_type} grid_pos) {{
     // Just test that the functions can be called without error
     CallShapeInfo call_id = CallShapeInfo::get_call_id();
     CallShapeInfo call_group_id = CallShapeInfo::get_call_group_id();
@@ -467,10 +462,9 @@ def test_call_group_error_invalid(
     # Create appropriate kernel based on call_shape dimensions
     if len(call_shape) == 2:
         kernel_source = """
-public module;
 import "slangpy";
 
-float test_2d(uint2 grid_pos) {
+public float test_2d(uint2 grid_pos) {
     return 1.0f;
 }
 """
@@ -478,10 +472,9 @@ float test_2d(uint2 grid_pos) {
         test_func = module.test_2d
     else:  # len(call_shape) == 1
         kernel_source = """
-public module;
 import "slangpy";
 
-float test_1d(uint grid_pos) {
+public float test_1d(uint grid_pos) {
     return 1.0f;
 }
 """
@@ -528,12 +521,11 @@ def test_call_group_math_verified_thread_id_patterns(device_type: DeviceType):
     device = helpers.get_device(device_type)
 
     kernel_source = """
-public module;
 import "slangpy";
 
 // Returns call_id and thread_id for pattern validation
 // Note: CallShapeInfo::get_call_id().shape returns [y, x] order
-uint3 test_thread_id_patterns(uint2 grid_cell, uint3 thread_id) {
+public uint3 test_thread_id_patterns(uint2 grid_cell, uint3 thread_id) {
     CallShapeInfo call_id = CallShapeInfo::get_call_id();
     return uint3(call_id.shape[1], call_id.shape[0], thread_id.x);  // Return as [x, y, thread_id.x]
 }

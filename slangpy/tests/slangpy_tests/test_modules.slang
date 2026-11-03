@@ -1,39 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-public module;
 import "slangpy";
 
-struct Material : IDifferentiable, IAtomicAddable {
-    float3 color;
-    float3 emission;
+public struct Material : IDifferentiable, IAtomicAddable {
+    public float3 color;
+    public float3 emission;
 
     [Differentiable]
-    __init() {
+    public __init() {
         color = float3(1, 1, 1);
         emission = float3(0, 0, 0);
     }
 
-    static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value)
+    public static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value)
     {
         float3::atomicAdd(buf, addr, value.color); addr += sizeof(float3);
         float3::atomicAdd(buf, addr, value.emission);
     }
 
-    static void atomicAdd(This* buf, uint element, This value)
+    public static void atomicAdd(This* buf, uint element, This value)
     {
         float3::atomicAdd(__getAddress(buf[element].color), 0, value.color);
         float3::atomicAdd(__getAddress(buf[element].emission), 0, value.emission);
     }
 };
 
-struct Particle : IDifferentiable, IAtomicAddable {
+public struct Particle : IDifferentiable, IAtomicAddable {
 
-    float2 position;
-    float2 velocity;
-    float size;
-    Material material;
+    public float2 position;
+    public float2 velocity;
+    public float size;
+    public Material material;
 
     [Differentiable]
-    __init() {
+    public __init() {
         position = float2(0, 0);
         velocity = float2(0, 0);
         material = Material();
@@ -41,7 +40,7 @@ struct Particle : IDifferentiable, IAtomicAddable {
     }
 
     [Differentiable]
-    __init(float2 position, float2 velocity) {
+    public __init(float2 position, float2 velocity) {
         this.position = position;
         this.velocity = velocity;
         this.material = Material();
@@ -49,7 +48,7 @@ struct Particle : IDifferentiable, IAtomicAddable {
     }
 
     [mutating]
-    void reset(float2 position, float2 velocity) {
+    public void reset(float2 position, float2 velocity) {
         this.position = position;
         this.velocity = velocity;
         this.material = Material();
@@ -57,16 +56,16 @@ struct Particle : IDifferentiable, IAtomicAddable {
     }
 
     [Differentiable]
-    float2 calc_next_position(float dt) {
+    public float2 calc_next_position(float dt) {
         return position + velocity * dt;
     }
 
     [mutating]
-    void update_position(float dt) {
+    public void update_position(float dt) {
         position = calc_next_position(dt);
     }
 
-    static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value)
+    public static void atomicAdd(RWByteAddressBuffer buf, uint addr, This value)
     {
         float2::atomicAdd(buf, addr, value.position); addr += sizeof(float2);
         float2::atomicAdd(buf, addr, value.velocity); addr += sizeof(float2);
@@ -74,7 +73,7 @@ struct Particle : IDifferentiable, IAtomicAddable {
         Material::atomicAdd(buf, addr, value.material);
     }
 
-    static void atomicAdd(This* buf, uint element, This value)
+    public static void atomicAdd(This* buf, uint element, This value)
     {
         float2::atomicAdd(__getAddress(buf[element].position), 0, value.position);
         float2::atomicAdd(__getAddress(buf[element].velocity), 0, value.velocity);
@@ -83,7 +82,7 @@ struct Particle : IDifferentiable, IAtomicAddable {
     }
 }
 
-float2[4] get_particle_quad(Particle p) {
+public float2[4] get_particle_quad(Particle p) {
     var v = p.velocity;
     if(length(v) < 0.01) {
         v = float2(0, 1);
@@ -100,11 +99,11 @@ float2[4] get_particle_quad(Particle p) {
     };
 }
 
-float3 add_vectors(float3 a, float3 b) {
+public float3 add_vectors(float3 a, float3 b) {
     return a + b;
 }
 
 [Differentiable]
-float3 polynomial(float3 a, float3 b) {
+public float3 polynomial(float3 a, float3 b) {
     return a * a + b + 1;
 }

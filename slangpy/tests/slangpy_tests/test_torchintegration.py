@@ -1126,11 +1126,10 @@ def test_tensor_buffer_roundtrip(device_type: DeviceType):
 def test_null_grad_difftensor(device_type: DeviceType):
 
     src = """
-public module;
 import slangpy;
 
 [Differentiable]
-void forward(uint index, DiffTensor<float, 1> x, WDiffTensor<float, 1> y)
+public void forward(uint index, DiffTensor<float, 1> x, WDiffTensor<float, 1> y)
 {
     float x_i = x[index];
     y[index] = x_i * x_i * x_i;
@@ -1161,11 +1160,10 @@ void forward(uint index, DiffTensor<float, 1> x, WDiffTensor<float, 1> y)
 def test_null_grad_idifftensor(device_type: DeviceType):
 
     src = """
-public module;
 import slangpy;
 
 [Differentiable]
-void forward(uint index, IDiffTensor<float, 1> x, IWDiffTensor<float, 1> y)
+public void forward(uint index, IDiffTensor<float, 1> x, IWDiffTensor<float, 1> y)
 {
     float x_i = x[index];
     y[index] = x_i * x_i * x_i;
@@ -1291,8 +1289,7 @@ from slangpy.torchintegration import diff_pair
 import slangpy.torchintegration.torchtensormarshall as ttm
 
 SCALE_SHADER = r"""
-public module;
-void scale(float a, float factor, out float result) { result = a * factor; }
+public void scale(float a, float factor, out float result) { result = a * factor; }
 """
 
 
@@ -1342,9 +1339,8 @@ def test_diffpair_factory_no_grad(device_type: DeviceType):
 
 
 DIFF_SRC = r"""
-public module;
 [Differentiable]
-float square(float x) { return x * x; }
+public float square(float x) { return x * x; }
 """
 
 
@@ -1536,13 +1532,11 @@ def test_diffpair_factory_unsupported_dtype_raises(device_type: DeviceType):
 
 
 IDENTITY_SRC = r"""
-public module;
-float identity(float x) { return x; }
+public float identity(float x) { return x; }
 """
 
 VEC_SRC = r"""
-public module;
-float2 scale_vec(float2 v) { return v * 2.0; }
+public float2 scale_vec(float2 v) { return v * 2.0; }
 """
 
 

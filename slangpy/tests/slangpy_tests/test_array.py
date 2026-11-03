@@ -15,8 +15,7 @@ def test_simple_array(device_type: DeviceType):
         device,
         "sum",
         r"""
-public module;
-int sum(int[4] data) {
+public int sum(int[4] data) {
     int sum = 0;
     for (int i = 0; i < 4; i++) {
         sum += data[i];
@@ -42,12 +41,11 @@ def test_untyped_struct_array(device_type: DeviceType):
         device,
         "sum",
         r"""
-public module;
-struct Val {
-    int x;
+public struct Val {
+    public int x;
 }
 
-int sum(Val[4] vals) {
+public int sum(Val[4] vals) {
     int sum = 0;
     for (int i = 0; i < 4; i++) {
         sum += vals[i].x;
@@ -71,12 +69,11 @@ def test_typed_struct_array(device_type: DeviceType):
         device,
         "sum",
         r"""
-public module;
-struct Val {
-    int x;
+public struct Val {
+    public int x;
 }
 
-int sum(Val[4] vals) {
+public int sum(Val[4] vals) {
     int sum = 0;
     for (int i = 0; i < 4; i++) {
         sum += vals[i].x;
@@ -106,8 +103,7 @@ def test_vectorize_array(device_type: DeviceType):
         device,
         "inc",
         r"""
-public module;
-int inc(int val) {
+public int inc(int val) {
     return val+1;
 }
 """,
@@ -129,8 +125,7 @@ def test_vectorize_float_array(device_type: DeviceType):
         device,
         "double_it",
         r"""
-public module;
-float double_it(float x) {
+public float double_it(float x) {
     return x * 2.0;
 }
 """,
@@ -151,11 +146,10 @@ def test_vectorize_struct_array(device_type: DeviceType):
         device,
         "inc",
         r"""
-public module;
-struct Val {
-    int x;
+public struct Val {
+    public int x;
 }
-int inc(Val val) {
+public int inc(Val val) {
     return val.x+1;
 }
 """,
@@ -184,11 +178,10 @@ def test_vectorize_struct_with_resource_array(device_type: DeviceType):
         device,
         "inc",
         r"""
-public module;
-struct Val {
-    StructuredBuffer<int> x;
+public struct Val {
+    public StructuredBuffer<int> x;
 }
-int inc(Val val) {
+public int inc(Val val) {
     return val.x[0]+1;
 }
 """,
@@ -223,11 +216,10 @@ def test_vectorize_struct_with_tensor_array(device_type: DeviceType):
         device,
         "inc",
         r"""
-public module;
-struct Val {
-    Tensor<float,1> x;
+public struct Val {
+    public Tensor<float,1> x;
 }
-float inc(Val val) {
+public float inc(Val val) {
     return val.x[0]+1;
 }
 """,
@@ -258,11 +250,10 @@ def test_2d_mapped_vectorize_struct_with_tensor_array(device_type: DeviceType):
         device,
         "add",
         r"""
-public module;
-struct Val {
-    Tensor<float,1> x;
+public struct Val {
+    public Tensor<float,1> x;
 }
-float add(Val val, float val2) {
+public float add(Val val, float val2) {
     return val.x[0]+val2;
 }
 """,
@@ -299,12 +290,11 @@ def test_struct_with_scalar_array_field(device_type: DeviceType):
         device,
         "sum_inner",
         r"""
-public module;
-struct Foo {
-    int vals[4];
+public struct Foo {
+    public int vals[4];
 }
 
-int sum_inner(Foo foo) {
+public int sum_inner(Foo foo) {
     int s = 0;
     for (int i = 0; i < 4; i++) {
         s += foo.vals[i];
@@ -327,16 +317,15 @@ def test_struct_with_struct_array_field(device_type: DeviceType):
         device,
         "sum_inner",
         r"""
-public module;
-struct Inner {
-    int x;
+public struct Inner {
+    public int x;
 }
 
-struct Outer {
-    Inner items[4];
+public struct Outer {
+    public Inner items[4];
 }
 
-int sum_inner(Outer outer) {
+public int sum_inner(Outer outer) {
     int s = 0;
     for (int i = 0; i < 4; i++) {
         s += outer.items[i].x;
@@ -369,8 +358,7 @@ def test_array_of_structured_buffers(device_type: DeviceType):
         device,
         "sum_buffers",
         r"""
-public module;
-int sum_buffers(StructuredBuffer<int> buffers[4]) {
+public int sum_buffers(StructuredBuffer<int> buffers[4]) {
     int s = 0;
     for (int i = 0; i < 4; i++) {
         s += buffers[i][0];
@@ -403,17 +391,16 @@ def test_nested_struct_with_array_field(device_type: DeviceType):
         device,
         "sum_nested",
         r"""
-public module;
-struct Middle {
-    int vals[4];
+public struct Middle {
+    public int vals[4];
 }
 
-struct Outer {
-    Middle m;
-    int scale;
+public struct Outer {
+    public Middle m;
+    public int scale;
 }
 
-int sum_nested(Outer outer) {
+public int sum_nested(Outer outer) {
     int s = 0;
     for (int i = 0; i < 4; i++) {
         s += outer.m.vals[i];
@@ -442,12 +429,11 @@ def test_broadcast_array_to_scalar(device_type: DeviceType):
         device,
         "double_val",
         r"""
-public module;
-struct Pair {
-    int vals[2];
+public struct Pair {
+    public int vals[2];
 }
 
-int double_val(Pair p) {
+public int double_val(Pair p) {
     return p.vals[0] + p.vals[1];
 }
 """,
@@ -477,8 +463,7 @@ def test_array_of_rw_structured_buffers(device_type: DeviceType):
         device,
         "double_buffers",
         r"""
-public module;
-void double_buffers(RWStructuredBuffer<int> buffers[4]) {
+public void double_buffers(RWStructuredBuffer<int> buffers[4]) {
     for (int i = 0; i < 4; i++) {
         buffers[i][0] = buffers[i][0] * 2;
     }
@@ -521,8 +506,7 @@ def test_array_of_tensors_read(device_type: DeviceType) -> None:
         device,
         "sum_tensors",
         r"""
-public module;
-float sum_tensors(Tensor<float, 1> tensors[4]) {
+public float sum_tensors(Tensor<float, 1> tensors[4]) {
     float s = 0.0;
     for (int i = 0; i < 4; i++) {
         s += tensors[i].load(int[1](0));
@@ -560,8 +544,7 @@ def test_array_of_rwtensors_write(device_type: DeviceType) -> None:
         device,
         "double_tensors",
         r"""
-public module;
-void double_tensors(RWTensor<float, 1> tensors[4]) {
+public void double_tensors(RWTensor<float, 1> tensors[4]) {
     for (int i = 0; i < 4; i++) {
         float v = tensors[i].load(int[1](0));
         tensors[i].store(int[1](0), v * 2.0);
@@ -601,8 +584,7 @@ def test_array_of_difftensors_read(device_type: DeviceType) -> None:
         device,
         "sum_difftensors",
         r"""
-public module;
-float sum_difftensors(DiffTensor<float, 1> tensors[4]) {
+public float sum_difftensors(DiffTensor<float, 1> tensors[4]) {
     float s = 0.0;
     for (int i = 0; i < 4; i++) {
         s += tensors[i].load(int[1](0));
@@ -641,8 +623,7 @@ def test_array_of_rwdifftensors_write(device_type: DeviceType) -> None:
         device,
         "double_difftensors",
         r"""
-public module;
-void double_difftensors(RWDiffTensor<float, 1> tensors[4]) {
+public void double_difftensors(RWDiffTensor<float, 1> tensors[4]) {
     for (int i = 0; i < 4; i++) {
         float v = tensors[i].load(int[1](0));
         tensors[i].store(int[1](0), v * 2.0);

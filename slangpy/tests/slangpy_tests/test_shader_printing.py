@@ -19,8 +19,7 @@ def test_print_generated_shaders_programmatic(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-void add_numbers(int a, int b) {
+public void add_numbers(int a, int b) {
 }
 """,
     )
@@ -65,8 +64,7 @@ def test_print_generated_shaders_environment_variable(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-void add_numbers(int a, int b) {
+public void add_numbers(int a, int b) {
 }
 """,
     )

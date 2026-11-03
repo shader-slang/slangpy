@@ -46,10 +46,9 @@ def cursor_value_layout(device_type: spy.DeviceType) -> object:
     module = helpers.create_module(
         device,
         """
-public module;
-struct CursorValue
+public struct CursorValue
 {
-    uint id;
+    public uint id;
 };
 """,
     )

@@ -57,8 +57,7 @@ def test_returnvalue(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-int add_numbers(int a, int b) {
+public int add_numbers(int a, int b) {
     return a+b;
 }
 """,
@@ -78,12 +77,11 @@ def test_return_struct_as_dict(device_type: DeviceType):
         device,
         "make_struct",
         r"""
-public module;
-struct MyStruct {
-    int x;
-    int y;
+public struct MyStruct {
+    public int x;
+    public int y;
 };
-MyStruct make_struct(int a, int b) {
+public MyStruct make_struct(int a, int b) {
     return { a,b};
 }
 """,
@@ -104,16 +102,15 @@ def test_return_nested_struct_as_dict(device_type: DeviceType):
         device,
         "make_struct",
         r"""
-public module;
-struct MyStruct {
-    int x;
-    int y;
+public struct MyStruct {
+    public int x;
+    public int y;
 };
-struct MyStruct2 {
-    MyStruct a;
-    MyStruct b;
+public struct MyStruct2 {
+    public MyStruct a;
+    public MyStruct b;
 }
-MyStruct2 make_struct(int a, int b) {
+public MyStruct2 make_struct(int a, int b) {
     return { {a,b}, {b,a} };
 }
 """,
@@ -136,12 +133,11 @@ def test_inout_struct_as_dict(device_type: DeviceType):
         device,
         "make_struct",
         r"""
-public module;
-struct MyStruct {
-    int x;
-    int y;
+public struct MyStruct {
+    public int x;
+    public int y;
 };
-void make_struct(inout MyStruct v) {
+public void make_struct(inout MyStruct v) {
     v.x += 1;
     v.y -= 1;
 }
@@ -165,8 +161,7 @@ def test_inout_scalar_valueref(device_type: DeviceType):
         device,
         "increment",
         r"""
-public module;
-void increment(inout int x) {
+public void increment(inout int x) {
     x += 1;
 }
 """,
@@ -186,8 +181,7 @@ def test_inout_vector_valueref(device_type: DeviceType):
         device,
         "double_vec",
         r"""
-public module;
-void double_vec(inout float3 v) {
+public void double_vec(inout float3 v) {
     v *= 2.0;
 }
 """,
@@ -210,8 +204,7 @@ def test_inout_matrix_valueref(device_type: DeviceType):
         device,
         "modify_mat",
         r"""
-public module;
-void modify_mat(inout float3x3 m) {
+public void modify_mat(inout float3x3 m) {
     m[0][0] += 10.0;
 }
 """,

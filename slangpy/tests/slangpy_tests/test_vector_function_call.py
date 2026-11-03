@@ -16,8 +16,7 @@ def test_call_function_scalar(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-void add_numbers(float2 a, float2 b) {
+public void add_numbers(float2 a, float2 b) {
 }
 """,
     )
@@ -33,8 +32,7 @@ def test_call_function_broadcast(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-void add_numbers(float2 a, float2 b, out float2 res) {
+public void add_numbers(float2 a, float2 b, out float2 res) {
     res = a + b;
 }
 """,
@@ -65,8 +63,7 @@ def test_float_buffer_against_vector(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-void add_numbers(float2 a, float2 b, out float2 res) {
+public void add_numbers(float2 a, float2 b, out float2 res) {
     res = a + b;
 }
 """,
@@ -98,8 +95,7 @@ def test_float_buffer_against_vector_readwrite(device_type: DeviceType):
         device,
         "add_numbers_vecreadwrite",
         r"""
-public module;
-void add_numbers_vecreadwrite(float2 a, float2 b, out float2 res) {
+public void add_numbers_vecreadwrite(float2 a, float2 b, out float2 res) {
     res = a + b;
 }
 """,
@@ -131,8 +127,7 @@ def test_float_buffer_against_vector_diffpair(device_type: DeviceType):
         device,
         "add_numbers_diffpair",
         r"""
-public module;
-void add_numbers_diffpair(float2 a, float2 b, out float2 res) {
+public void add_numbers_diffpair(float2 a, float2 b, out float2 res) {
     res = a + b;
 }
 """,

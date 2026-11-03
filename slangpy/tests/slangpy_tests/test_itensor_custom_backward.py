@@ -17,14 +17,13 @@ from slangpy.testing import helpers
 # pyright: reportOptionalMemberAccess=false, reportArgumentType=false
 
 ITENSOR_CUSTOM_BACKWARD = r"""
-public module;
 [Differentiable]
 float process_element(int coord, ITensor<float, 1> x) {
     return x[coord];
 }
 
 [BackwardDerivative(simple_bwd)]
-float simple(int coord, ITensor<float, 1> x) {
+public float simple(int coord, ITensor<float, 1> x) {
     return process_element(coord, x);
 }
 

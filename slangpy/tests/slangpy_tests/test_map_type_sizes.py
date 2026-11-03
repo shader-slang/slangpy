@@ -14,8 +14,7 @@ def test_explicit_add_int64s(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-int64_t add_numbers(int64_t a, int64_t b) {
+public int64_t add_numbers(int64_t a, int64_t b) {
     return a+b;
 }
 """,
@@ -34,8 +33,7 @@ def test_implicit_add_int64s(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-int64_t add_numbers(int64_t a, int64_t b) {
+public int64_t add_numbers(int64_t a, int64_t b) {
     return a+b;
 }
 """,
@@ -54,8 +52,7 @@ def test_implicit_add_uint32s(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-uint32_t add_numbers(uint32_t a, uint32_t b) {
+public uint32_t add_numbers(uint32_t a, uint32_t b) {
     return a+b;
 }
 """,

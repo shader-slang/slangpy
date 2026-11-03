@@ -104,9 +104,8 @@ def test_fail_shared_inout_grad_buffers(device_type: DeviceType):
         device,
         "inc",
         r"""
-public module;
 [Differentiable]
-void inc(float amount, inout float val) { val += amount; }
+public void inc(float amount, inout float val) { val += amount; }
 """,
     )
 

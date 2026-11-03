@@ -8,28 +8,27 @@ from slangpy.testing import helpers
 
 
 NUMPY_MODULE = r"""
-public module;
 import "slangpy";
 
-float add_floats(float a, float b) {
+public float add_floats(float a, float b) {
     return a + b;
 }
 
-float3 add_float3s(float3 a, float3 b) {
+public float3 add_float3s(float3 a, float3 b) {
     return a + b;
 }
 
 
-matrix<float, R, C> matFunc<int R, int C>(){
+public matrix<float, R, C> matFunc<int R, int C>(){
     return matrix<float, R, C>(1);
 }
 
-struct Wrapper
+public struct Wrapper
 {
-    float[16] data;
+    public float[16] data;
 }
 
-Wrapper flattenMatrix<int R, int C>(matrix<float, R, C> mat){
+public Wrapper flattenMatrix<int R, int C>(matrix<float, R, C> mat){
     Wrapper res;
     for (int i = 0; i < R; i++) {
         for (int j = 0; j < C; j++) {
@@ -39,7 +38,7 @@ Wrapper flattenMatrix<int R, int C>(matrix<float, R, C> mat){
     return res;
 }
 
-matrix<float, R, C> matFunc1<int R, int C>(matrix<float, R, C> input){
+public matrix<float, R, C> matFunc1<int R, int C>(matrix<float, R, C> input){
     return input + 2.0f;
 }
 """

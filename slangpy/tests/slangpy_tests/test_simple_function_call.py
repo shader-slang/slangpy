@@ -19,8 +19,7 @@ def test_call_function(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-void add_numbers(int a, int b) {
+public void add_numbers(int a, int b) {
 }
 """,
     )
@@ -40,8 +39,7 @@ def test_fail_call_function(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-void add_numbers(int a, int b) {
+public void add_numbers(int a, int b) {
 }
 """,
     )
@@ -63,8 +61,7 @@ def test_returnvalue(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-int add_numbers(int a, int b) {
+public int add_numbers(int a, int b) {
     return a+b;
 }
 """,
@@ -83,8 +80,7 @@ def test_call_specialized_function(device_type: DeviceType):
         device,
         "return_number<int>",
         r"""
-public module;
-T return_number<T: IInteger>() {
+public T return_number<T: IInteger>() {
     return T(42);
 }
 """,
@@ -105,8 +101,7 @@ def test_returnvalue_with_diffpair_input(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-float add_numbers(float a, float b) {
+public float add_numbers(float a, float b) {
     return a+b;
 }
 """,
@@ -125,8 +120,7 @@ def test_scalar_outparam(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-void add_numbers(int a, int b, out int c) {
+public void add_numbers(int a, int b, out int c) {
     c = a+b;
 }
 """,
@@ -153,8 +147,7 @@ def test_scalar_inoutparam(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-void add_numbers(inout int a) {
+public void add_numbers(inout int a) {
     a += 10;
 }
 """,
@@ -174,8 +167,7 @@ def test_scalar_outparam_with_diffpair(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-void add_numbers(float a, float b, out float c) {
+public void add_numbers(float a, float b, out float c) {
     c = a+b;
 }
 """,
@@ -201,8 +193,7 @@ def buffer_pair_test(
         device,
         "add_numbers",
         r"""
-public module;
-void add_numbers(int a, int b, out int c) {
+public void add_numbers(int a, int b, out int c) {
     c = a + b;
 }
 """,
@@ -294,8 +285,7 @@ def test_remap_output(device_type: DeviceType):
         device,
         "add_numbers_remap",
         r"""
-public module;
-void add_numbers_remap(int a, int b, out int c) {
+public void add_numbers_remap(int a, int b, out int c) {
     c = a + b;
 }
 """,
@@ -333,8 +323,7 @@ def test_returnvalue_buffer(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-int add_numbers(int a, int b) {
+public int add_numbers(int a, int b) {
     return a+b;
 }
 """,
@@ -372,8 +361,7 @@ def test_pass_buffer_to_buffer(device_type: DeviceType):
         device,
         "add_numbers",
         r"""
-public module;
-int add_numbers(Tensor<int,1> a, Tensor<int,1> b) {
+public int add_numbers(Tensor<int,1> a, Tensor<int,1> b) {
     return a[0]+b[0];
 }
 """,
@@ -411,9 +399,8 @@ def test_return_struct_in_buffer(device_type: DeviceType):
     module = helpers.create_module(
         device,
         r"""
-public module;
-struct Foo { int x; }
-Foo create_foo(int x) { return { x }; }
+public struct Foo { public int x; }
+public Foo create_foo(int x) { return { x }; }
 """,
     )
 
@@ -437,7 +424,7 @@ def test_pass_float_array(device_type: DeviceType, scalar_type: str):
 
     device = helpers.get_device(device_type)
     module = helpers.create_module(
-        device, f"public module; {scalar_type} first({scalar_type} x[3]) {{ return x[0]; }}"
+        device, f"public {scalar_type} first({scalar_type} x[3]) {{ return x[0]; }}"
     )
 
     arg = [3.0, 4.0, 5.0]
@@ -456,7 +443,7 @@ def test_pass_int_array(device_type: DeviceType, scalar_type: str):
         pytest.skip("8-bit types are unsupported by DXC")
     device = helpers.get_device(device_type)
     module = helpers.create_module(
-        device, f"public module; {scalar_type} first({scalar_type} x[3]) {{ return x[0]; }}"
+        device, f"public {scalar_type} first({scalar_type} x[3]) {{ return x[0]; }}"
     )
 
     arg = [3, 4, 5]
@@ -475,9 +462,8 @@ def test_pass_float_field(device_type: DeviceType, scalar_type: str):
     module = helpers.create_module(
         device,
         f"""
-public module;
-struct Foo {{ {scalar_type} x; }}
-{scalar_type} unwrap(Foo foo) {{ return foo.x; }}
+public struct Foo {{ public {scalar_type} x; }}
+public {scalar_type} unwrap(Foo foo) {{ return foo.x; }}
 """,
     )
 
@@ -499,9 +485,8 @@ def test_pass_int_field(device_type: DeviceType, scalar_type: str):
     module = helpers.create_module(
         device,
         f"""
-public module;
-struct Foo {{ {scalar_type} x; }}
-{scalar_type} unwrap(Foo foo) {{ return foo.x; }}
+public struct Foo {{ public {scalar_type} x; }}
+public {scalar_type} unwrap(Foo foo) {{ return foo.x; }}
 """,
     )
 
@@ -521,8 +506,7 @@ def test_pass_buffer_to_structured_buffer(device_type: DeviceType):
         device,
         "copy_first",
         r"""
-public module;
-void copy_first(StructuredBuffer<int> a, RWStructuredBuffer<int> b) {
+public void copy_first(StructuredBuffer<int> a, RWStructuredBuffer<int> b) {
     b[0] = a[0];
 }
 """,

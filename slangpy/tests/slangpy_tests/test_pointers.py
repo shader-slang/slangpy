@@ -28,8 +28,7 @@ def test_copy_pointer(device_type: DeviceType):
         device,
         "test_copy_pointer",
         r"""
-public module;
-int* test_copy_pointer(int* ptr) {
+public int* test_copy_pointer(int* ptr) {
     return ptr;
 }
 """,
@@ -60,8 +59,7 @@ def test_copy_pointer_value(device_type: DeviceType, usage: BufferUsage):
         device,
         "test_copy_pointer_value",
         r"""
-public module;
-int test_copy_pointer_value(int* ptr) {
+public int test_copy_pointer_value(int* ptr) {
     return *ptr;
 }
 """,
@@ -87,8 +85,7 @@ def test_copy_pointer_subscript(device_type: DeviceType):
         device,
         "test_copy_pointer_subscript",
         r"""
-public module;
-int test_copy_pointer_subscript(int* ptr) {
+public int test_copy_pointer_subscript(int* ptr) {
     return ptr[0];
 }
 """,
@@ -114,8 +111,7 @@ def test_copy_pointer_subscript_fullbuffer(device_type: DeviceType):
         device,
         "test_copy_pointer_subscript_fullbuffer",
         r"""
-public module;
-int test_copy_pointer_subscript_fullbuffer(int idx, int* ptr) {
+public int test_copy_pointer_subscript_fullbuffer(int idx, int* ptr) {
     return ptr[idx];
 }
 """,
@@ -144,8 +140,7 @@ def test_add_numbers(device_type: DeviceType):
         device,
         "test_add_numbers",
         r"""
-public module;
-int test_add_numbers(int call_id, int* a_buffer, int* b_buffer) {
+public int test_add_numbers(int call_id, int* a_buffer, int* b_buffer) {
     int a = a_buffer[call_id];
     int b = b_buffer[call_id];
     return a + b;
@@ -178,8 +173,7 @@ def test_pass_raw_buffers(device_type: DeviceType):
         device,
         "test_pass_raw_buffers",
         r"""
-public module;
-int test_pass_raw_buffers(int call_id, int* a_buffer, int* b_buffer) {
+public int test_pass_raw_buffers(int call_id, int* a_buffer, int* b_buffer) {
     int a = a_buffer[call_id];
     int b = b_buffer[call_id];
     return a + b;
@@ -208,7 +202,7 @@ def test_raw_buffer_of_pointers(device_type: DeviceType):
         device,
         "test_raw_buffer_of_pointers",
         r"""
-int test_raw_buffer_of_pointers(int idx, StructuredBuffer<int*> buffer) {
+public int test_raw_buffer_of_pointers(int idx, StructuredBuffer<int*> buffer) {
     return *buffer[idx];
 }
 """,
@@ -254,8 +248,7 @@ def test_vectorize_buffer_of_pointers(device_type: DeviceType):
         device,
         "test_vectorize_buffer_of_pointers",
         r"""
-public module;
-int test_vectorize_buffer_of_pointers(int* buffer) {
+public int test_vectorize_buffer_of_pointers(int* buffer) {
     return *buffer;
 }
 """,
@@ -296,8 +289,7 @@ def test_write_raw_buffers(device_type: DeviceType):
         device,
         "test_write_raw_buffers",
         r"""
-public module;
-void test_write_raw_buffers(int call_id, int* in_buffer, int* out_buffer) {
+public void test_write_raw_buffers(int call_id, int* in_buffer, int* out_buffer) {
     out_buffer[call_id] = in_buffer[call_id];
 }
 """,
@@ -320,8 +312,7 @@ def test_float_tensor_storage(device_type: DeviceType):
         device,
         "test_float_tensor_storage",
         r"""
-public module;
-void test_float_tensor_storage(int call_id, float* in_buffer, float* out_buffer) {
+public void test_float_tensor_storage(int call_id, float* in_buffer, float* out_buffer) {
     out_buffer[call_id] = in_buffer[call_id];
 }
 """,
@@ -346,14 +337,13 @@ def test_copy_whole_structs(device_type: DeviceType):
         device,
         "test_copy_whole_structs",
         r"""
-public module;
-struct Test {
-    int value;
-    float value2;
-    int8_t value3;
-    float3 value4;
+public struct Test {
+    public int value;
+    public float value2;
+    public int8_t value3;
+    public float3 value4;
 }
-void test_copy_whole_structs(int call_id, Test* in_buffer, Test* out_buffer) {
+public void test_copy_whole_structs(int call_id, Test* in_buffer, Test* out_buffer) {
     out_buffer[call_id] = in_buffer[call_id];
 }
 """,
@@ -406,14 +396,13 @@ def test_copy_fields_from_structs(device_type: DeviceType):
         device,
         "test_copy_fields_from_structs",
         r"""
-public module;
-struct Test {
-    int value;
-    float value2;
-    int8_t value3;
-    float3 value4;
+public struct Test {
+    public int value;
+    public float value2;
+    public int8_t value3;
+    public float3 value4;
 }
-void test_copy_fields_from_structs(int call_id, Test* in_buffer, int* out_value1, float* out_value2, int8_t* out_value3, float3* out_value4) {
+public void test_copy_fields_from_structs(int call_id, Test* in_buffer, int* out_value1, float* out_value2, int8_t* out_value3, float3* out_value4) {
     out_value1[call_id] = in_buffer[call_id].value;
     out_value2[call_id] = in_buffer[call_id].value2;
     out_value3[call_id] = in_buffer[call_id].value3;
@@ -483,14 +472,13 @@ def test_copy_fields_by_pointer(device_type: DeviceType):
         device,
         "test_copy_fields_by_pointer",
         r"""
-public module;
-struct Test {
-    int value;
-    float value2;
-    int8_t value3;
-    float3 value4;
+public struct Test {
+    public int value;
+    public float value2;
+    public int8_t value3;
+    public float3 value4;
 }
-void test_copy_fields_by_pointer(int call_id, Test* in_buffer, int* out_value1, float* out_value2, int8_t* out_value3, float3* out_value4) {
+public void test_copy_fields_by_pointer(int call_id, Test* in_buffer, int* out_value1, float* out_value2, int8_t* out_value3, float3* out_value4) {
     Test* ptr = in_buffer + call_id;
     out_value1[call_id] = ptr.value;
     out_value2[call_id] = ptr.value2;
@@ -561,8 +549,7 @@ def test_atomic_float_access(device_type: DeviceType):
         device,
         "test_atomic_float_access",
         r"""
-public module;
-void test_atomic_float_access(int call_id, Atomic<float>* af) {
+public void test_atomic_float_access(int call_id, Atomic<float>* af) {
     af[call_id % 10].add(1.0f);
 }
 """,
@@ -586,8 +573,7 @@ def test_atomic_float_ptr_access(device_type: DeviceType):
         device,
         "test_atomic_float_ptr_access",
         r"""
-public module;
-void test_atomic_float_ptr_access(int call_id, Atomic<float>* af) {
+public void test_atomic_float_ptr_access(int call_id, Atomic<float>* af) {
     Atomic<float>* cur = af + (call_id % 10);
     cur.add(1.0f);
 }
@@ -614,13 +600,12 @@ def test_atomic_float_in_struct_access(device_type: DeviceType):
         device,
         "test_atomic_float_in_struct_access",
         r"""
-public module;
-struct Test {
-    int intvalue;
-    float value;
-    int intvalue2;
+public struct Test {
+    public int intvalue;
+    public float value;
+    public int intvalue2;
 }
-void test_atomic_float_in_struct_access(int call_id, Test* buffer) {
+public void test_atomic_float_in_struct_access(int call_id, Test* buffer) {
     Atomic<float>* cur = (Atomic<float>*) __getAddress(buffer[call_id%10].value);
     cur.add(1.0f);
 }
@@ -672,8 +657,7 @@ def test_perf(device_type: DeviceType):
         device,
         "pointers_function",
         r"""
-public module;
-void pointers_function(int call_id, int* in_buffer, int* out_buffer) {
+public void pointers_function(int call_id, int* in_buffer, int* out_buffer) {
     out_buffer[call_id] = in_buffer[call_id];
 }
 """,
@@ -683,8 +667,7 @@ void pointers_function(int call_id, int* in_buffer, int* out_buffer) {
         device,
         "bindings_function",
         r"""
-public module;
-void bindings_function(int call_id, StructuredBuffer<int> in_buffer, RWStructuredBuffer<int> out_buffer) {
+public void bindings_function(int call_id, StructuredBuffer<int> in_buffer, RWStructuredBuffer<int> out_buffer) {
     out_buffer[call_id] = in_buffer[call_id];
 }
 """,
@@ -694,8 +677,7 @@ void bindings_function(int call_id, StructuredBuffer<int> in_buffer, RWStructure
         device,
         "pointer_to_bindings_function",
         r"""
-public module;
-void pointer_to_bindings_function(int call_id, int* in_buffer, RWStructuredBuffer<int> out_buffer) {
+public void pointer_to_bindings_function(int call_id, int* in_buffer, RWStructuredBuffer<int> out_buffer) {
     out_buffer[call_id] = in_buffer[call_id];
 }
 """,
@@ -705,8 +687,7 @@ void pointer_to_bindings_function(int call_id, int* in_buffer, RWStructuredBuffe
         device,
         "bindings_to_pointer_function",
         r"""
-public module;
-void bindings_to_pointer_function(int call_id, StructuredBuffer<int> in_buffer, int* out_buffer) {
+public void bindings_to_pointer_function(int call_id, StructuredBuffer<int> in_buffer, int* out_buffer) {
     out_buffer[call_id] = in_buffer[call_id];
 }
 """,
@@ -793,8 +774,7 @@ def test_pointer_barriers(device_type: DeviceType, sync_type: str):
         device,
         "ptr_to_ptr",
         r"""
-public module;
-void ptr_to_ptr(int idx, int* src, int* dst) {
+public void ptr_to_ptr(int idx, int* src, int* dst) {
     dst[idx] = src[idx];
 }
 """,
@@ -803,8 +783,7 @@ void ptr_to_ptr(int idx, int* src, int* dst) {
         device,
         "buffer_to_buffer",
         r"""
-public module;
-void buffer_to_buffer(int idx, StructuredBuffer<int> src, RWStructuredBuffer<int> dst) {
+public void buffer_to_buffer(int idx, StructuredBuffer<int> src, RWStructuredBuffer<int> dst) {
     dst[idx] = src[idx];
 }
 """,
@@ -813,8 +792,7 @@ void buffer_to_buffer(int idx, StructuredBuffer<int> src, RWStructuredBuffer<int
         device,
         "ptr_to_buffer",
         r"""
-public module;
-void ptr_to_buffer(int idx, int* src, RWStructuredBuffer<int> dst) {
+public void ptr_to_buffer(int idx, int* src, RWStructuredBuffer<int> dst) {
     dst[idx] = src[idx];
 }
 """,
@@ -823,8 +801,7 @@ void ptr_to_buffer(int idx, int* src, RWStructuredBuffer<int> dst) {
         device,
         "buffer_to_ptr",
         r"""
-public module;
-void buffer_to_ptr(int idx, StructuredBuffer<int> src, int* dst) {
+public void buffer_to_ptr(int idx, StructuredBuffer<int> src, int* dst) {
     dst[idx] = src[idx];
 }
 """,

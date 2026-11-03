@@ -1,33 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-public module;
 
-interface IFoo {
+public interface IFoo {
     uint get();
 }
 
-struct Foo1 : IFoo {
-    uint dummy;
-    uint get() { return 1; }
+public struct Foo1 : IFoo {
+    public uint dummy;
+    public uint get() { return 1; }
 }
 
-struct Foo2 : IFoo {
-    uint dummy;
-    uint get() { return 2; }
+public struct Foo2 : IFoo {
+    public uint dummy;
+    public uint get() { return 2; }
 }
 
-struct Foo3 : IFoo {
-    uint dummy;
-    uint get() { return 3; }
+public struct Foo3 : IFoo {
+    public uint dummy;
+    public uint get() { return 3; }
 }
 
-struct Foo4 : IFoo {
-    uint dummy;
-    uint get() { return 4; }
+public struct Foo4 : IFoo {
+    public uint dummy;
+    public uint get() { return 4; }
 }
 
 [shader("compute")]
 [numthreads(1, 1, 1)]
-void compute_main(uint3 tid: SV_DispatchThreadID, RWStructuredBuffer<uint> result)
+public void compute_main(uint3 tid: SV_DispatchThreadID, RWStructuredBuffer<uint> result)
 {
     uint i = tid.x;
     uint type_id = tid.x;

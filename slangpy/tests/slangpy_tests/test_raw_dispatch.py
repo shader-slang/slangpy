@@ -10,57 +10,56 @@ from slangpy.testing import helpers
 from typing import Any
 
 MODULE = r"""
-public module;
 import "slangpy";
 
-void func_noparams() {
+public void func_noparams() {
 
 }
 
-void func_threadparam( uint3 dispatchThreadID, RWStructuredBuffer<uint3> buffer ) {
+public void func_threadparam( uint3 dispatchThreadID, RWStructuredBuffer<uint3> buffer ) {
     buffer[dispatchThreadID.x] = dispatchThreadID;
 }
 
-void tensor_threadparam( uint3 dispatchThreadID, RWTensor<uint3,1> buffer ) {
-    buffer[dispatchThreadID.x] = dispatchThreadID;
-}
-
-[shader("compute")]
-[numthreads(32, 1, 1)]
-void func_entrypoint(uint3 dispatchThreadID: SV_DispatchThreadID, RWStructuredBuffer<uint3> buffer) {
+public void tensor_threadparam( uint3 dispatchThreadID, RWTensor<uint3,1> buffer ) {
     buffer[dispatchThreadID.x] = dispatchThreadID;
 }
 
 [shader("compute")]
 [numthreads(32, 1, 1)]
-void tensor_entrypoint(uint3 dispatchThreadID: SV_DispatchThreadID, uniform RWTensor<uint3,1> buffer) {
+public void func_entrypoint(uint3 dispatchThreadID: SV_DispatchThreadID, RWStructuredBuffer<uint3> buffer) {
+    buffer[dispatchThreadID.x] = dispatchThreadID;
+}
+
+[shader("compute")]
+[numthreads(32, 1, 1)]
+public void tensor_entrypoint(uint3 dispatchThreadID: SV_DispatchThreadID, uniform RWTensor<uint3,1> buffer) {
     buffer[dispatchThreadID.x] = dispatchThreadID;
 }
 
 
-void tensor_multiply( uint3 dispatchThreadID, RWTensor<uint3,1> buffer, uint amount ) {
+public void tensor_multiply( uint3 dispatchThreadID, RWTensor<uint3,1> buffer, uint amount ) {
     buffer[dispatchThreadID.x] = dispatchThreadID * amount;
 }
 
 extern static const int VAL;
-void tensor_multiply_const( uint3 dispatchThreadID, RWTensor<uint3,1> buffer ) {
+public void tensor_multiply_const( uint3 dispatchThreadID, RWTensor<uint3,1> buffer ) {
     buffer[dispatchThreadID.x] = dispatchThreadID * VAL;
 }
 
-struct Params {
-    int k;
+public struct Params {
+    public int k;
 }
 ParameterBlock<Params> params;
 
-void tensor_multiply_uniform(uint3 dispatchThreadID, RWTensor<uint3,1> buffer) {
+public void tensor_multiply_uniform(uint3 dispatchThreadID, RWTensor<uint3,1> buffer) {
     buffer[dispatchThreadID.x] = dispatchThreadID * params.k;
 }
 
-float func_with_return(uint3 dispatchThreadID) { return 0.0; }
+public float func_with_return(uint3 dispatchThreadID) { return 0.0; }
 
-void func_with_out(uint3 dispatchThreadID, out float result) { result = 0.0; }
+public void func_with_out(uint3 dispatchThreadID, out float result) { result = 0.0; }
 
-void func_wrong_param(uint3 threadID) {}
+public void func_wrong_param(uint3 threadID) {}
 
 """
 
@@ -251,10 +250,9 @@ def test_dispatch_cache_hit(device_type: DeviceType):
 
 
 TORCH_DISPATCH_SRC = r"""
-public module;
 import "slangpy";
 
-void copy_vals(uint3 dispatchThreadID, RWTensor<float,1> output, Tensor<float,1> input) {
+public void copy_vals(uint3 dispatchThreadID, RWTensor<float,1> output, Tensor<float,1> input) {
     output[dispatchThreadID.x] = input[dispatchThreadID.x] * 2.0;
 }
 """

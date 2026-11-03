@@ -89,11 +89,10 @@ def get_tensor_autodiff_test_module(device: Device):
         Compiled SlangPy module ready for testing
     """
     kernel_source = """
-public module;
 import "slangpy";
 
 [Differentiable]
-float tensor_add_with_call_groups(
+public float tensor_add_with_call_groups(
     float a,
     float b,
     uint2 grid_cell
@@ -108,7 +107,7 @@ float tensor_add_with_call_groups(
 }
 
 [Differentiable]
-float tensor_matrix_multiply_with_groups(
+public float tensor_matrix_multiply_with_groups(
     float weight_element,
     float x_element,
     uint2 grid_cell
@@ -121,7 +120,7 @@ float tensor_matrix_multiply_with_groups(
     return weight_element * x_element * scale;
 }
 
-float tensor_aggregation_with_groups(
+public float tensor_aggregation_with_groups(
     float input_element,
     uint2 grid_cell
 ) {
@@ -160,10 +159,9 @@ def get_tensor_test_module(device: Device):
         Compiled SlangPy module ready for testing
     """
     kernel_source = """
-public module;
 import "slangpy";
 
-float tensor_process_with_groups(
+public float tensor_process_with_groups(
     float input,
     out float output,
     uint2 grid_cell
@@ -180,7 +178,7 @@ float tensor_process_with_groups(
     return input;
 }
 
-float3 tensor_vector_ops_with_groups(
+public float3 tensor_vector_ops_with_groups(
     float3 vector_input,
     uint grid_cell
 ) {
@@ -197,7 +195,7 @@ float3 tensor_vector_ops_with_groups(
     return vector_input + group_offset;
 }
 
-int tensor_reduce_with_groups(
+public int tensor_reduce_with_groups(
     int data_input,
     uint3 grid_cell
 ) {
@@ -245,10 +243,9 @@ def get_texture_test_module(device: Device):
         Compiled SlangPy module ready for testing
     """
     kernel_source = """
-public module;
 import "slangpy";
 
-float4 texture_sample_with_groups(
+public float4 texture_sample_with_groups(
     Texture2D<float4> input_tex,
     RWTexture2D<float4> output_tex,
     SamplerState samp,
@@ -275,7 +272,7 @@ float4 texture_sample_with_groups(
     return result;
 }
 
-float texture_reduce_with_groups(
+public float texture_reduce_with_groups(
     Texture2D<vector<float,1>> input_tex,
     uint2 grid_cell
 ) {
@@ -298,7 +295,7 @@ float texture_reduce_with_groups(
     return sum / float((2 * call_group_thread_id.shape[0] + 1) * (2 * call_group_thread_id.shape[1] + 1));
 }
 
-float3 texture_3d_with_groups(
+public float3 texture_3d_with_groups(
     Texture3D<float4> tex3d,
     SamplerState samp,
     uint3 grid_cell
@@ -327,12 +324,12 @@ def get_transforms_test_module(device: Device):
         with open(path, "r") as f:
             base_source = f.read()
     else:
-        base_source = "public module; "
+        base_source = ""
 
     additional_source = """
 import "slangpy";
 
-float transform_with_call_groups(
+public float transform_with_call_groups(
     float input,
     out float output,
     uint2 grid_cell
@@ -348,7 +345,7 @@ float transform_with_call_groups(
     return input;
 }
 
-float3 vector_transform_with_groups(
+public float3 vector_transform_with_groups(
     float3 vector_input,
     uint2 grid_cell
 ) {
