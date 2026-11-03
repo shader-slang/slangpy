@@ -277,5 +277,22 @@ def test_descriptor_handle_without_bindless(device_type: spy.DeviceType):
             print(f"{name} returned {handle} instead of raising")
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_sampler_descriptor_handle(device_type: spy.DeviceType):
+    device = helpers.get_device(device_type)
+    if not device.has_feature(spy.Feature.bindless):
+        pytest.skip("Bindless not supported on this device.")
+
+    handle = device.create_sampler().descriptor_handle
+    if device_type == spy.DeviceType.cuda:
+        # CUDA has no separate sampler objects: the texture view carries the sampler, so there is
+        # no sampler handle to give, and portable bindless code must not raise for asking.
+        assert handle.type == spy.DescriptorHandleType.undefined
+        assert not handle
+    else:
+        assert handle.type == spy.DescriptorHandleType.sampler
+        assert handle
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

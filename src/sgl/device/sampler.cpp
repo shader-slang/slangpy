@@ -39,6 +39,11 @@ Sampler::~Sampler() { }
 
 DescriptorHandle Sampler::descriptor_handle() const
 {
+    // CUDA has no separate sampler objects: a texture view carries its sampling state (see
+    // TextureViewDesc::sampler) and shaders ignore the sampler handle. slang-rhi has no sampler handle
+    // to give there, so return an undefined handle rather than raise on portable bindless code.
+    if (m_device->type() == DeviceType::cuda)
+        return DescriptorHandle();
     rhi::DescriptorHandle rhi_handle = {};
     SLANG_RHI_CALL(m_rhi_sampler->getDescriptorHandle(&rhi_handle), m_device);
     return DescriptorHandle(rhi_handle);

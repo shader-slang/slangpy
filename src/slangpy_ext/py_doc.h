@@ -8317,7 +8317,10 @@ static const char *mkd_doc_sgl_Sampler_class_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_Sampler_desc = R"doc()doc";
 
-static const char *mkd_doc_sgl_Sampler_descriptor_handle = R"doc()doc";
+static const char *mkd_doc_sgl_Sampler_descriptor_handle =
+R"doc(Get bindless sampler descriptor handle. On CUDA, which has no separate
+sampler objects, the handle is undefined: set the sampler on the
+texture view instead (TextureViewDesc::sampler).)doc";
 
 static const char *mkd_doc_sgl_Sampler_m_desc = R"doc()doc";
 
