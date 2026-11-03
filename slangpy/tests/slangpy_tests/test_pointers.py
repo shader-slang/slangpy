@@ -208,6 +208,7 @@ def test_raw_buffer_of_pointers(device_type: DeviceType):
         device,
         "test_raw_buffer_of_pointers",
         r"""
+public module;
 int test_raw_buffer_of_pointers(int idx, StructuredBuffer<int*> buffer) {
     return *buffer[idx];
 }

@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+public module;
 import slangpy;
 
 
@@ -44,7 +46,8 @@ void copy_itensor_vector_loadstore(int[2] idx, ITensor<float, 2> src, IWTensor<f
     dst.store(vec, src.load(vec));
 }
 
-void copy_idifftensor_each_index(int[2] idx, IDiffTensor<float, 2> src, IRWDiffTensor<float, 2> dst)
+void copy_idifftensor_each_index<Src : IDiffTensor<float, 2>, Dst : IRWDiffTensor<float, 2>>(
+    int[2] idx, Src src, Dst dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
@@ -108,7 +111,8 @@ void copy_tensor_vector_loadstore(int[2] idx, Tensor<float, 2> src, RWTensor<flo
     var vec = int2(i1, i0);
     dst.store(vec, src.load(vec));
 }
-void copy_idifftensor_each_loadstore(int[2] idx, IDiffTensor<float, 2> src, IRWDiffTensor<float, 2> dst)
+void copy_idifftensor_each_loadstore<Src : IDiffTensor<float, 2>, Dst : IRWDiffTensor<float, 2>>(
+    int[2] idx, Src src, Dst dst)
 {
     int i0 = idx[0];
     int i1 = idx[1];
@@ -279,12 +283,16 @@ float[5] matrix_vector_interfaces(ITensor<float, 2> weights, ITensor<float, 1> b
 }
 
 [Differentiable]
-float[5] matrix_vector_interfaces_diff(IDiffTensor<float, 2> weights, IDiffTensor<float, 1> biases, float[8] x)
+float[5] matrix_vector_interfaces_diff<Weights : IDiffTensor<float, 2>, Biases : IDiffTensor<float, 1>>(
+    Weights weights, Biases biases, float[8] x)
 {
     float[5] result;
+    // Keep tensor resources out of the backward pass's loop storage on D3D12.
+    [ForceUnroll]
     for (int r = 0; r < 5; ++r)
     {
         float y = biases.load(r); // Workaround for slang bug #5921: Have to avoid [] operator, or derivatives vanish
+        [ForceUnroll]
         for (int c = 0; c < 8; ++c)
             y += weights.load(r, c) * x[c];
 
@@ -311,7 +319,9 @@ float[FanOut] matrix_vector_generic<let FanIn : int, let FanOut : int>(ITensor<f
 }
 
 [Differentiable]
-float[FanOut] matrix_vector_generic_diff<let FanIn : int, let FanOut : int>( IDiffTensor<float, 2> weights, IDiffTensor<float, 1> biases, float[FanIn] x )
+float[FanOut] matrix_vector_generic_diff<let FanIn : int, let FanOut : int,
+    Weights : IDiffTensor<float, 2>, Biases : IDiffTensor<float, 1>>(
+    Weights weights, Biases biases, float[FanIn] x)
 {
     float[FanOut] result;
     [ForceUnroll]

@@ -290,6 +290,7 @@ def create_module(
     link: list[Any] = [],
     options: dict[str, Any] = {},
 ) -> Module:
+    """Load fixture source, which must explicitly export declarations used by SlangPy callers."""
     module = device.load_module_from_source(
         hashlib.sha256(module_source.encode()).hexdigest()[0:16], module_source
     )
@@ -310,7 +311,7 @@ def create_function_from_module(
     link: list[Any] = [],
     options: dict[str, Any] = {},
 ) -> Function:
-
+    """Load a fixture function whose source explicitly exports it and any referenced types."""
     if not 'import "slangpy";' in module_source:
         module_source = 'import "slangpy";\n' + module_source
 

@@ -117,6 +117,10 @@ def test_simple_copy(device_type: DeviceType, func_name: str):
 
     func = get_func(device, func_name)
 
+    if func_name in ("copy_idifftensor_each_index", "copy_idifftensor_each_loadstore"):
+        # Generic extension methods need concrete tensor types, not existential interface values.
+        func = func.map("int[2]", "PrimalTensor<float, 2>", "RWPrimalTensor<float, 2>")
+
     din = np.random.randn(1000, 3).astype(np.float32)
     tin = Tensor.from_numpy(device, din)
     tout = Tensor.empty_like(tin)
