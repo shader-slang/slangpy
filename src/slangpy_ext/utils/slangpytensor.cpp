@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <initializer_list>
 #include "nanobind.h"
+
+#include <initializer_list>
 #include <fmt/format.h>
 
 #include "sgl/device/device.h"
