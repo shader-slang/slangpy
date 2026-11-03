@@ -301,7 +301,9 @@ void prepend_default_slang_include_paths(sgl::SlangCompilerOptions& options)
 }
 } // namespace
 
-SGL_PY_EXPORT(device_device)
+namespace {
+
+NB_NOINLINE void bind_device_descriptors(nb::module_& m)
 {
     using namespace sgl;
 
@@ -344,7 +346,6 @@ SGL_PY_EXPORT(device_device)
             "sampler_count"_a = nb::none(),
             "acceleration_structure_count"_a = nb::none()
         );
-
 
     nb::sgl_enum<DeviceType>(m, "DeviceType");
     nb::sgl_enum<PipelineCompilationMode>(m, "PipelineCompilationMode");
@@ -413,6 +414,11 @@ SGL_PY_EXPORT(device_device)
         .def_rw("label", &DeviceDesc::label, D(DeviceDesc, label));
 
     nb::implicitly_convertible<nb::dict, DeviceDesc>();
+}
+
+NB_NOINLINE void bind_device_info_types(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<DeviceLimits>(m, "DeviceLimits", D(DeviceLimits))
         .def_ro(
@@ -520,8 +526,11 @@ SGL_PY_EXPORT(device_device)
     )
         .def("__enter__", &CudaContextScope::enter, nb::rv_policy::reference)
         .def("__exit__", &CudaContextScope::exit, "exc_type"_a.none(), "exc_val"_a.none(), "exc_tb"_a.none());
+}
 
-    nb::class_<Device, Object> device(m, "Device", nb::is_final(), nb::is_weak_referenceable(), D(Device));
+NB_NOINLINE void bind_device_events(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<ShaderHotReloadEvent>(m, "ShaderHotReloadEvent", D(ShaderHotReloadEvent));
 
@@ -538,6 +547,11 @@ SGL_PY_EXPORT(device_device)
     nb::class_<CommandRecordingDiscardedEvent>(m, "CommandRecordingDiscardedEvent", D(CommandRecordingDiscardedEvent))
         .def_ro("device", &CommandRecordingDiscardedEvent::device, D(CommandRecordingDiscardedEvent, device))
         .def_ro("id", &CommandRecordingDiscardedEvent::id, D(CommandRecordingDiscardedEvent, id));
+}
+
+NB_NOINLINE void bind_device_constructors(nb::class_<sgl::Device, sgl::Object>& device)
+{
+    using namespace sgl;
 
     device.def(
         nb::new_(
@@ -635,6 +649,12 @@ SGL_PY_EXPORT(device_device)
         "desc"_a,
         D(Device, Device)
     );
+}
+
+NB_NOINLINE void bind_device_properties(nb::class_<sgl::Device, sgl::Object>& device)
+{
+    using namespace sgl;
+
     device.def_prop_ro("desc", &Device::desc, D(Device, desc));
     device.def_prop_ro("info", &Device::info, D(Device, info));
     device.def_prop_ro("shader_cache_stats", &Device::shader_cache_stats, D(Device, shader_cache_stats));
@@ -692,6 +712,12 @@ SGL_PY_EXPORT(device_device)
 
     device.def_prop_ro("slang_session", &Device::slang_session, D(Device, slang_session));
     device.def("close", &Device::close, D(Device, close));
+}
+
+NB_NOINLINE void bind_device_resources(nb::class_<sgl::Device, sgl::Object>& device)
+{
+    using namespace sgl;
+
     device.def(
         "create_surface",
         [](Device* self, ref<Window> window)
@@ -907,6 +933,11 @@ SGL_PY_EXPORT(device_device)
         D(Device, create_input_layout)
     );
     device.def("create_input_layout", &Device::create_input_layout, "desc"_a, D(Device, create_input_layout));
+}
+
+NB_NOINLINE void bind_device_commands(nb::class_<sgl::Device, sgl::Object>& device)
+{
+    using namespace sgl;
 
     device.def(
         "create_command_encoder",
@@ -938,6 +969,12 @@ SGL_PY_EXPORT(device_device)
     device.def("wait_for_submit", &Device::wait_for_submit, "id"_a, D(Device, wait_for_submit));
     device
         .def("wait_for_idle", &Device::wait_for_idle, "queue"_a = CommandQueueType::graphics, D(Device, wait_for_idle));
+}
+
+NB_NOINLINE void bind_device_raytracing(nb::class_<sgl::Device, sgl::Object>& device)
+{
+    using namespace sgl;
+
     device.def(
         "get_timestamp_calibration",
         &Device::get_timestamp_calibration,
@@ -1045,6 +1082,12 @@ SGL_PY_EXPORT(device_device)
         D(Device, create_shader_table)
     );
     device.def("create_shader_table", &Device::create_shader_table, "desc"_a, D(Device, create_shader_table));
+}
+
+NB_NOINLINE void bind_device_shader_objects(nb::module_& m, nb::class_<sgl::Device, sgl::Object>& device)
+{
+    using namespace sgl;
+
     device.def(
         "get_coop_vec_matrix_size",
         &Device::get_coop_vec_matrix_size,
@@ -1222,6 +1265,12 @@ SGL_PY_EXPORT(device_device)
         "label"_a.none() = nb::none(),
         D(Device, create_compute_pipeline)
     );
+}
+
+NB_NOINLINE void bind_device_pipelines(nb::class_<sgl::Device, sgl::Object>& device)
+{
+    using namespace sgl;
+
     device
         .def("create_compute_pipeline", &Device::create_compute_pipeline, "desc"_a, D(Device, create_compute_pipeline));
 
@@ -1313,6 +1362,11 @@ SGL_PY_EXPORT(device_device)
         D(Device, create_compute_kernel)
     );
     device.def("create_compute_kernel", &Device::create_compute_kernel, "desc"_a, D(Device, create_compute_kernel));
+}
+
+NB_NOINLINE void bind_device_execution(nb::class_<sgl::Device, sgl::Object>& device)
+{
+    using namespace sgl;
 
     device.def("flush_print", &Device::flush_print, D(Device, flush_print));
     device.def("flush_print_to_string", &Device::flush_print_to_string, D(Device, flush_print_to_string));
@@ -1393,6 +1447,11 @@ SGL_PY_EXPORT(device_device)
     device.def_static("report_live_objects", &Device::report_live_objects, D(Device, report_live_objects));
 
     device.def("report_heaps", &Device::report_heaps, D(Device, report_heaps));
+}
+
+NB_NOINLINE void bind_module_device_context(nb::module_& m)
+{
+    using namespace sgl;
 
     m.def(
         "get_cuda_current_context_native_handles",
@@ -1403,6 +1462,11 @@ SGL_PY_EXPORT(device_device)
     m.def("push_current_device", &push_current_device, "device"_a, D(push_current_device));
     m.def("pop_current_device", &pop_current_device, D(pop_current_device));
     m.def("current_device", &current_device, nb::rv_policy::reference, D(current_device));
+}
+
+NB_NOINLINE void bind_module_resources(nb::module_& m)
+{
+    using namespace sgl;
 
     // Free-standing device API functions.
 
@@ -1609,6 +1673,11 @@ SGL_PY_EXPORT(device_device)
         "desc"_a,
         D(create_input_layout)
     );
+}
+
+NB_NOINLINE void bind_module_raytracing(nb::module_& m)
+{
+    using namespace sgl;
 
     m.def(
         "create_command_encoder",
@@ -1721,6 +1790,12 @@ SGL_PY_EXPORT(device_device)
         "row_col_stride"_a = 0,
         D(create_coop_vec_matrix_desc)
     );
+}
+
+NB_NOINLINE void bind_module_shader_objects(nb::module_& m)
+{
+    using namespace sgl;
+
     m.def(
         "convert_coop_vec_matrices",
         [](nb::bytearray dst,
@@ -1862,6 +1937,11 @@ SGL_PY_EXPORT(device_device)
         "desc"_a,
         D(create_compute_pipeline)
     );
+}
+
+NB_NOINLINE void bind_module_pipelines(nb::module_& m)
+{
+    using namespace sgl;
 
     m.def(
         "create_render_pipeline",
@@ -1959,4 +2039,29 @@ SGL_PY_EXPORT(device_device)
         "desc"_a,
         D(create_compute_kernel)
     );
+}
+
+} // namespace
+
+SGL_PY_EXPORT(device_device)
+{
+    using namespace sgl;
+    bind_device_descriptors(m);
+    bind_device_info_types(m);
+
+    nb::class_<Device, Object> device(m, "Device", nb::is_final(), nb::is_weak_referenceable(), D(Device));
+    bind_device_events(m);
+    bind_device_constructors(device);
+    bind_device_properties(device);
+    bind_device_resources(device);
+    bind_device_commands(device);
+    bind_device_raytracing(device);
+    bind_device_shader_objects(m, device);
+    bind_device_pipelines(device);
+    bind_device_execution(device);
+    bind_module_device_context(m);
+    bind_module_resources(m);
+    bind_module_raytracing(m);
+    bind_module_shader_objects(m);
+    bind_module_pipelines(m);
 }

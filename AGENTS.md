@@ -98,6 +98,10 @@ $env:SLANGPY_PRINT_GENERATED_SHADERS="1"; pytest slangpy/tests/slangpy_tests/tes
 ### C++
 - **Classes**: PascalCase | **Functions/variables**: snake_case | **Members**: `m_` prefix
 
+### Python Binding Registration (C++)
+
+Split large nanobind registrations into focused `NB_NOINLINE void bind_*` helpers to reduce LTO time. Preserve these boundaries (`SGL_PY_EXPORT` is also non-inlined), registration dependencies, and overload order. See `src/slangpy_ext/device/device.cpp` for the pattern.
+
 ### Python
 - **Classes**: PascalCase | **Functions/variables**: snake_case | **Public Members**: no prefix | **Private Members**: `_` prefix
 - **All arguments must have type annotations**
