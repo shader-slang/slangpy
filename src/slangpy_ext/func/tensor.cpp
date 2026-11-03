@@ -94,7 +94,7 @@ namespace {
         }
         for (size_t i = 0; i < dtype_shape.size(); ++i) {
             sizes.push_back(dtype_shape[i]);
-            strides.push_back(dtype_strides[i]);
+            strides.push_back(dtype_strides[i] * innermost_layout->stride() / innermost_size);
         }
         if (!is_scalar) {
             sizes.push_back(innermost_layout->stride());

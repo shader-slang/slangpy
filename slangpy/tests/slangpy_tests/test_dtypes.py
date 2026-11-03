@@ -49,6 +49,7 @@ TEST_DTYPES = [
     ("float[2][3]", torch.float, np.float32, (3, 2)),
     ("float3[2]", torch.float, np.float32, (2, 3)),
     ("RGB", torch.uint8, np.uint8, (12,)),
+    ("RGB[2]", torch.uint8, np.uint8, (2, 12)),
 ]
 
 
