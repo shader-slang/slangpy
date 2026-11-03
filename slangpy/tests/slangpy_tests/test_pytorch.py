@@ -106,7 +106,12 @@ def test_tensor_interfaces(device_type: DeviceType):
     module = get_module(device)
 
     weights, biases, x = get_test_tensors(device)
-    y = module.matrix_vector_interfaces_diff(weights, biases, x)
+    # Raw Torch tensors resolve to RWTensor in the primal pass; select the
+    # differentiable container required by the generic constraints explicitly.
+    func = module.matrix_vector_interfaces_diff.map(
+        "DiffTensor<float, 2>", "DiffTensor<float, 1>", "float[8]"
+    )
+    y = func(weights, biases, x)
     reference = torch.nn.functional.linear(x, weights, biases)
     compare_tensors(y, reference)
 
@@ -127,7 +132,8 @@ def test_tensor_generic(device_type: DeviceType):
 
     weights, biases, x = get_test_tensors(device)
 
-    y = module["matrix_vector_generic_diff<8, 5>"](weights, biases, x)
+    func = module["matrix_vector_generic_diff<8, 5, DiffTensor<float, 2>, DiffTensor<float, 1>>"]
+    y = func(weights, biases, x)
     reference = torch.nn.functional.linear(x, weights, biases)
     compare_tensors(y, reference)
 
