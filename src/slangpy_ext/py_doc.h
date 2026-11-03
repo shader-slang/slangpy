@@ -4165,6 +4165,10 @@ static const char *mkd_doc_sgl_Feature_realtime_clock = R"doc()doc";
 
 static const char *mkd_doc_sgl_Feature_residency_set = R"doc()doc";
 
+static const char *mkd_doc_sgl_Feature_resource_aliasing = R"doc()doc";
+
+static const char *mkd_doc_sgl_Feature_resource_heaps = R"doc()doc";
+
 static const char *mkd_doc_sgl_Feature_sampler_feedback = R"doc()doc";
 
 static const char *mkd_doc_sgl_Feature_shader_abort = R"doc()doc";
