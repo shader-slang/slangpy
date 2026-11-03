@@ -99,12 +99,30 @@ private:
     void handle_gamepad_event(const GamepadEvent& event);
     void handle_drop_files(std::span<const char*> files);
 
+    /// Reconfigure the surface against the current framebuffer size, or suspend
+    /// it when the window is minimized or has zero area. Shared by the resize
+    /// callback and the recovery path so both rebuild identically. Its configure()
+    /// surfaces a device loss (if the RHI reports one) rather than retrying it.
+    void reconfigure_surface();
+
+    /// Recover from a failed acquire/present by reconfiguring immediately. The
+    /// failure is unclassified (the RHI returns an opaque SLANG_FAIL), so this is
+    /// a best-effort probe: reconfigure surfaces a device loss synchronously if
+    /// the RHI reports one, and a bounded counter surfaces a persistent
+    /// stable-size failure as fatal.
+    void recover_surface();
+
     App* m_app;
     Device* m_device;
     ref<Window> m_window;
     ref<Surface> m_surface;
     SurfaceConfig m_surface_config;
     ref<ui::Context> m_ui_context;
+
+    /// Consecutive acquire/present failures at a stable surface size. Bounds the
+    /// recovery loop so a persistent (unresolved) failure is surfaced instead of
+    /// being retried silently forever.
+    uint32_t m_surface_recovery_failures{0};
 };
 
 } // namespace sgl

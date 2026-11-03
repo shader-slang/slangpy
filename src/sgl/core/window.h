@@ -134,6 +134,21 @@ public:
     uint2 size() const { return uint2{m_width, m_height}; }
     void set_size(uint2 size);
 
+    /// Query the current framebuffer size (in pixels) directly from the
+    /// windowing system, rather than returning the value cached from the last
+    /// resize callback. This is the correct size for the swapchain, and querying
+    /// live lets a suspended surface detect restore even if no resize callback
+    /// fired. It may still report a non-zero size while the window is minimized
+    /// on some backends, so use is_minimized() as the authoritative suspend
+    /// signal.
+    uint2 query_framebuffer_size() const;
+
+    /// True if the window is currently minimized (iconified). This is the
+    /// portable "no drawable area" signal: some backends keep the logical/
+    /// framebuffer size non-zero while iconified, so a zero-size check alone is
+    /// not sufficient to decide whether to suspend the surface.
+    bool is_minimized() const;
+
     /// Resize the window.
     /// \param width The new width of the window in pixels.
     /// \param height The new height of the window in pixels.
