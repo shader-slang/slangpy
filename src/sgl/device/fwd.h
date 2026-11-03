@@ -51,6 +51,7 @@ class Fence;
 
 // shader.h
 
+struct SlangCompilerOptions;
 struct SlangSessionDesc;
 class SlangSession;
 

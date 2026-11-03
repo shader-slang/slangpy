@@ -145,7 +145,37 @@ struct type_caster<sgl::static_vector<T, N>> : list_caster<sgl::static_vector<T,
 template<typename T, std::size_t N>
 struct type_caster<sgl::short_vector<T, N>> : list_caster<sgl::short_vector<T, N>, T> { };
 
+template<size_t Arg>
+struct keep_alive_sequence_policy {
+    template<size_t NArgs>
+    static void precall(PyObject** args, std::integral_constant<size_t, NArgs>, cleanup_list* cleanup)
+    {
+        static_assert(Arg < NArgs, "Argument index must be in [0, number of arguments)");
+        PyObject* input = args[Arg];
+        // Match the sequence types accepted by the span caster.
+        if (!PySequence_Check(input) || PyUnicode_CheckExact(input) || PyBytes_CheckExact(input))
+            return;
+
+        PyObject* snapshot = PySequence_Tuple(input);
+        if (!snapshot) {
+            // Invalid sequences must still allow other overloads to be tried.
+            PyErr_Clear();
+            throw next_overload();
+        }
+        args[Arg] = snapshot;
+        cleanup->append(snapshot);
+    }
+
+    static void postcall(PyObject**, size_t, handle) { }
+};
+
 NAMESPACE_END(detail)
+
+/// Retain a sequence argument's elements through the call, including conversion failures.
+/// Argument indices start at 0; for methods, self is argument 0.
+/// Snapshotting happens before argument conversion; cleanup happens with the GIL held.
+template<size_t Arg>
+using keep_alive_sequence = call_policy<detail::keep_alive_sequence_policy<Arg>>;
 
 template<typename T>
 class sgl_enum : public enum_<T> {
@@ -529,7 +559,7 @@ inline constexpr uint64_t const_hash(std::string_view str)
 
 
 #define SGL_PY_DECLARE(name) extern void sgl_python_export_##name(nb::module_& m)
-#define SGL_PY_EXPORT(name) void sgl_python_export_##name([[maybe_unused]] ::nb::module_& m)
+#define SGL_PY_EXPORT(name) NB_NOINLINE void sgl_python_export_##name([[maybe_unused]] ::nb::module_& m)
 #define SGL_PY_IMPORT(name) sgl_python_export_##name(m)
 
 #define D(...) DOC(sgl, __VA_ARGS__)

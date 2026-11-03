@@ -549,7 +549,7 @@ void* get_proc_address(SharedLibraryHandle library, const char* proc_name)
 // Debugger
 // -------------------------------------------------------------------------------------------------
 
-bool is_debugger_present()
+bool is_debugger_present() noexcept
 {
     return ::IsDebuggerPresent() == TRUE;
 }
@@ -577,8 +577,35 @@ StackTrace backtrace(size_t skip_frames)
 
 ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
 {
-    HANDLE process = GetCurrentProcess();
-    SymInitialize(process, nullptr, true);
+    // DbgHelp requires initialization and symbol lookups to be serialized.
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(mutex);
+
+    // Initialize a private symbol session once and retain it and its handle until process exit.
+    static const HANDLE process = []() -> HANDLE
+    {
+        HANDLE current_process = GetCurrentProcess();
+        HANDLE handle = nullptr;
+        if (!DuplicateHandle(
+                current_process,
+                current_process,
+                current_process,
+                &handle,
+                0,
+                FALSE,
+                DUPLICATE_SAME_ACCESS
+            ))
+            return nullptr;
+        if (!SymInitialize(handle, nullptr, true)) {
+            CloseHandle(handle);
+            return nullptr;
+        }
+        return handle;
+    }();
+
+    // Include DLLs loaded since the symbol session was initialized.
+    if (process)
+        SymRefreshModuleList(process);
 
     struct Symbol : SYMBOL_INFO {
         char name_storage[1023];
@@ -597,6 +624,8 @@ ResolvedStackTrace resolve_stacktrace(std::span<const StackFrame> trace)
         ResolvedStackFrame& resolved = resolved_trace[i];
         resolved.address = trace[i];
         resolved.offset = 0ull;
+        if (!process)
+            continue;
         if (SymFromAddr(process, resolved.address, &resolved.offset, &symbol))
             resolved.symbol = symbol.Name;
         if (SymGetModuleInfo64(process, symbol.ModBase, &module))

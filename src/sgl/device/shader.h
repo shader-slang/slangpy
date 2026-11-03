@@ -9,7 +9,6 @@
 
 #include "sgl/core/object.h"
 #include "sgl/core/enum.h"
-#include "sgl/core/crypto.h"
 
 #include <exception>
 #include <map>
@@ -142,9 +141,10 @@ struct SlangCompilerOptions {
     /// Specifies a list of preprocessor defines.
     std::map<std::string, std::string> defines;
 
-    /// Specifies the shader model to use.
-    /// Defaults to latest available on the device.
-    ShaderModel shader_model{ShaderModel::unknown};
+    /// Backend compilation profile, e.g. sm_6_6, spirv_1_6, or compute_75.
+    /// None selects device defaults. Explicit profiles do not inherit optional device capabilities.
+    /// Native Slang profiles can permit higher shader requirements. CUDA profiles select an exact NVRTC architecture.
+    std::optional<std::string> profile;
 
     /// Specifies the matrix layout.
     /// Defaults to row-major.
@@ -186,6 +186,7 @@ struct SlangCompilerOptions {
     /// Specifies a list of additional arguments to be passed to the downstream compiler.
     /// Only forwarded to downstream compilers that accept pass-through arguments: DXC (D3D12)
     /// and NVRTC (CUDA). Ignored for other backends.
+    /// Arguments must be compatible with the selected profile; use profile for target selection.
     std::vector<std::string> downstream_args;
 
     /// When set will dump the intermediate source output.
@@ -213,6 +214,7 @@ struct SlangLinkOptions {
     /// Specifies a list of additional arguments to be passed to the downstream compiler.
     /// Only forwarded to downstream compilers that accept pass-through arguments: DXC (D3D12)
     /// and NVRTC (CUDA). Ignored for other backends.
+    /// Arguments must be compatible with the session's selected profile; use profile for target selection.
     std::optional<std::vector<std::string>> downstream_args;
 
     /// When set will dump the intermediate source output.
@@ -258,6 +260,9 @@ struct SlangSessionData : Object {
     /// Unique session hash.
     std::string uid;
 
+    /// Whether this session requires the NVAPI declarations.
+    bool enable_nvapi{false};
+
     /// List of include paths used for resolving module/include paths.
     std::vector<std::filesystem::path> include_paths;
 
@@ -278,7 +283,6 @@ struct SlangSessionData : Object {
 class SGL_API SlangSession : public Object {
     SGL_OBJECT(SlangSession)
 public:
-    SlangSession(ref<Device> device, SlangSessionDesc desc);
     ~SlangSession();
 
     /// Fully recreates this session and any loaded modules or linked programs.
@@ -339,6 +343,9 @@ public:
     ref<SlangSessionData> _data() { return m_data; }
 
 private:
+    SlangSession(ref<Device> device, SlangSessionDesc desc);
+    void init();
+
     ref<Device> m_device;
 
     /// Descriptor containing all info required to build the session.
@@ -364,8 +371,7 @@ private:
     /// Helper to create a module, updating cache afterwards.
     ref<SlangModule> create_module(SlangModuleDesc desc);
 
-    /// Cache of module name -> source SHA1 digest to detect same-name-different-source misuse.
-    std::map<std::string, SHA1::Digest, std::less<>> m_source_module_digests;
+    friend class Device;
 };
 
 struct SlangModuleDesc {

@@ -98,7 +98,9 @@ SGL_DICT_TO_DESC_END()
 
 } // namespace sgl
 
-SGL_PY_EXPORT(device_types)
+namespace {
+
+NB_NOINLINE void bind_device_enums(nb::module_& m)
 {
     using namespace sgl;
 
@@ -113,7 +115,6 @@ SGL_PY_EXPORT(device_types)
         .def("__bool__", &DescriptorHandle::is_valid)
         .def("__repr__", &DescriptorHandle::to_string);
 
-    nb::sgl_enum<ShaderModel>(m, "ShaderModel", nb::is_arithmetic());
     nb::sgl_enum<ShaderStage>(m, "ShaderStage");
 
     nb::sgl_enum<ComparisonFunc>(m, "ComparisonFunc");
@@ -125,6 +126,11 @@ SGL_PY_EXPORT(device_types)
     nb::sgl_enum<TextureFilteringMode>(m, "TextureFilteringMode");
     nb::sgl_enum<TextureAddressingMode>(m, "TextureAddressingMode");
     nb::sgl_enum<TextureReductionOp>(m, "TextureReductionOp");
+}
+
+NB_NOINLINE void bind_draw_types(nb::module_& m)
+{
+    using namespace sgl;
 
     // ------------------------------------------------------------------------
     // Graphics
@@ -185,6 +191,11 @@ SGL_PY_EXPORT(device_types)
         .def_rw("max_y", &ScissorRect::max_y, D(ScissorRect, max_y))
         .def("__repr__", &ScissorRect::to_string);
     nb::implicitly_convertible<nb::dict, ScissorRect>();
+}
+
+NB_NOINLINE void bind_rasterization_enums(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::sgl_enum<IndexFormat>(m, "IndexFormat");
     nb::sgl_enum<PrimitiveTopology>(m, "PrimitiveTopology");
@@ -198,6 +209,11 @@ SGL_PY_EXPORT(device_types)
     nb::sgl_enum<BlendOp>(m, "BlendOp");
     nb::sgl_enum<BlendFactor>(m, "BlendFactor");
     nb::sgl_enum_flags<RenderTargetWriteMask>(m, "RenderTargetWriteMask");
+}
+
+NB_NOINLINE void bind_color_target_types(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<AspectBlendDesc>(m, "AspectBlendDesc", D(AspectBlendDesc))
         .def(nb::init<>())
@@ -249,6 +265,11 @@ SGL_PY_EXPORT(device_types)
         )
         .def_rw("alpha_to_one_enable", &MultisampleDesc::alpha_to_one_enable, D(MultisampleDesc, alpha_to_one_enable));
     nb::implicitly_convertible<nb::dict, MultisampleDesc>();
+}
+
+NB_NOINLINE void bind_depth_stencil_types(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<DepthStencilOpDesc>(m, "DepthStencilOpDesc", D(DepthStencilOpDesc))
         .def(nb::init<>())
@@ -288,6 +309,11 @@ SGL_PY_EXPORT(device_types)
         .def_rw("front_face", &DepthStencilDesc::front_face, D(DepthStencilDesc, front_face))
         .def_rw("back_face", &DepthStencilDesc::back_face, D(DepthStencilDesc, back_face));
     nb::implicitly_convertible<nb::dict, DepthStencilDesc>();
+}
+
+NB_NOINLINE void bind_rasterizer(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<RasterizerDesc>(m, "RasterizerDesc", D(RasterizerDesc))
         .def(nb::init<>())
@@ -323,6 +349,11 @@ SGL_PY_EXPORT(device_types)
         )
         .def_rw("forced_sample_count", &RasterizerDesc::forced_sample_count, D(RasterizerDesc, forced_sample_count));
     nb::implicitly_convertible<nb::dict, RasterizerDesc>();
+}
+
+NB_NOINLINE void bind_timestamp_types(nb::module_& m)
+{
+    using namespace sgl;
 
     // ------------------------------------------------------------------------
     // Queries
@@ -339,6 +370,11 @@ SGL_PY_EXPORT(device_types)
         .def_ro("gpu_timestamp", &TimestampCalibration::gpu_timestamp, D(TimestampCalibration, gpu_timestamp))
         .def_ro("gpu_frequency", &TimestampCalibration::gpu_frequency, D(TimestampCalibration, gpu_frequency))
         .def_ro("max_deviation_ns", &TimestampCalibration::max_deviation_ns, D(TimestampCalibration, max_deviation_ns));
+}
+
+NB_NOINLINE void bind_cooperative_vector_types(nb::module_& m)
+{
+    using namespace sgl;
 
     // ------------------------------------------------------------------------
     // Raytracing
@@ -370,4 +406,18 @@ SGL_PY_EXPORT(device_types)
         .def_rw("row_col_stride", &CoopVecMatrixDesc::row_col_stride, D(CoopVecMatrixDesc, row_col_stride));
 
     nb::implicitly_convertible<nb::dict, CoopVecMatrixDesc>();
+}
+
+} // namespace
+
+SGL_PY_EXPORT(device_types)
+{
+    bind_device_enums(m);
+    bind_draw_types(m);
+    bind_rasterization_enums(m);
+    bind_color_target_types(m);
+    bind_depth_stencil_types(m);
+    bind_rasterizer(m);
+    bind_timestamp_types(m);
+    bind_cooperative_vector_types(m);
 }

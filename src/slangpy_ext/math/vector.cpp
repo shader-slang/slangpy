@@ -82,11 +82,10 @@ void bind_vector_type(nb::module_& m, const char* name)
     );
     vec.def(
         "__setitem__",
-        [](T& self, int i, value_type v)
+        [](T& self, Py_ssize_t i, value_type v)
         {
-            if (i >= dimension)
-                throw nb::index_error();
-            self[i] = v;
+            i = detail::sanitize_getitem_index(i, dimension);
+            self[int(i)] = v;
         }
     );
 

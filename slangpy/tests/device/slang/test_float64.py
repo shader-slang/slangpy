@@ -9,27 +9,33 @@ from slangpy.testing import helpers
 
 ELEMENT_COUNT = 1024
 
+CASES = [
+    (spy.DeviceType.d3d12, None),
+    (spy.DeviceType.d3d12, "sm_6_0"),
+    (spy.DeviceType.d3d12, "sm_6_9"),
+    (spy.DeviceType.vulkan, None),
+    (spy.DeviceType.vulkan, "spirv_1_3"),
+    (spy.DeviceType.vulkan, "spirv_1_6"),
+    (spy.DeviceType.cuda, None),
+    (spy.DeviceType.metal, None),
+    (spy.DeviceType.cpu, None),
+    (spy.DeviceType.wgpu, None),
+    (spy.DeviceType.automatic, None),
+]
+
 
 @pytest.mark.parametrize("view", ["uav", "srv"])
 @pytest.mark.parametrize(
-    "shader_model",
-    [
-        spy.ShaderModel.sm_6_0,
-        spy.ShaderModel.sm_6_1,
-        spy.ShaderModel.sm_6_2,
-        spy.ShaderModel.sm_6_3,
-        spy.ShaderModel.sm_6_4,
-        spy.ShaderModel.sm_6_5,
-        spy.ShaderModel.sm_6_6,
-        spy.ShaderModel.sm_6_7,
-    ],
+    "device_type, profile",
+    [case for case in CASES if case[0] in helpers.DEFAULT_DEVICE_TYPES],
 )
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-def test_float64(device_type: spy.DeviceType, shader_model: spy.ShaderModel, view: str):
+def test_float64(device_type: spy.DeviceType, profile: str | None, view: str) -> None:
     if sys.platform == "darwin":
         pytest.skip("Not supported on macOS")
 
     device = helpers.get_device(device_type)
+    if profile is not None and "_" + profile not in device.capabilities:
+        pytest.skip(f"Device does not advertise {profile}")
 
     np.random.seed(123)
     data = np.random.rand(ELEMENT_COUNT).astype(np.float64)
@@ -38,7 +44,7 @@ def test_float64(device_type: spy.DeviceType, shader_model: spy.ShaderModel, vie
         device=device,
         path="test_float64.slang",
         entry_point=f"main_{view}",
-        shader_model=shader_model,
+        compiler_options={"profile": profile} if profile else {},
         thread_count=[ELEMENT_COUNT, 1, 1],
         buffers={
             "data": {"data": data},

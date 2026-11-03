@@ -12,6 +12,16 @@ DIR = Path(__file__).parent
 INDENT = "    "
 
 
+def format_docstring_for_sphinx(text: str) -> str:
+    """Convert mkdoc's Google sections while preserving reStructuredText markup."""
+    # Sphinx is only required by documentation builds, not generic API generation.
+    from sphinx.ext.napoleon import Config
+    from sphinx.ext.napoleon.docstring import GoogleDocstring
+
+    config = Config(napoleon_custom_sections=[("Template Args", "params_style")])
+    return str(GoogleDocstring(text, config=config))
+
+
 def parse_signature(signature: str):
     # print(f"old signature: {signature}")
 
@@ -418,6 +428,7 @@ def generate_api(
     # Write file if it changed.
     if skip_empty_sections:
         out = out.removesuffix("\n----\n\n")
+    out = "\n".join(line.rstrip() for line in out.splitlines()).rstrip() + "\n"
     api_path = output_path if output_path is not None else DIR / "generated" / "api.rst"
     api_path.parent.mkdir(parents=True, exist_ok=True)
     if not api_path.exists() or api_path.read_text(encoding="utf-8") != out:
@@ -430,4 +441,4 @@ if __name__ == "__main__":
 
     sys.path.append(str(DIR.parent))
 
-    generate_api()
+    generate_api(format_docstring=format_docstring_for_sphinx, skip_empty_sections=True)

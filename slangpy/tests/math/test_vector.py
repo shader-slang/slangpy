@@ -27,6 +27,15 @@ from slangpy import (
 )
 
 
+def test_assignment_bounds() -> None:
+    value = float3(1, 2, 3)
+    for index in [-4, 3, 4]:
+        with pytest.raises(IndexError):
+            value[index] = 0
+    value[-1] = 7
+    assert value[2] == 7
+
+
 def test_float4_constructor():
     assert float4() == float4(0, 0, 0, 0)
     assert float4(1) == float4(1, 1, 1, 1)

@@ -309,7 +309,7 @@ public:
 
     ~Buffer();
 
-    virtual void _release_rhi_resources() override { m_rhi_buffer.setNull(); }
+    virtual void _release_rhi_resources() override;
 
     const BufferDesc& desc() const { return m_desc; }
 
@@ -399,7 +399,7 @@ public:
     ref<BufferView> create_view(BufferViewDesc desc);
 
     /// Get the shared resource handle.
-    /// Note: Buffer must be created with the \c BufferUsage::shared usage flag.
+    /// \note Buffer must be created with the \c BufferUsage::shared usage flag.
     NativeHandle shared_handle() const;
 
     /// Get bindless descriptor handle for read access.
@@ -655,7 +655,7 @@ public:
     static void write_slangpy_signature(SignatureBuffer& signature, const Texture* value);
 
     /// Get the shared resource handle.
-    /// Note: Texture must be created with the \c TextureUsage::shared usage flag.
+    /// \note Texture must be created with the \c TextureUsage::shared usage flag.
     NativeHandle shared_handle() const;
 
     virtual rhi::IResource* rhi_resource() const override { return m_rhi_texture; }

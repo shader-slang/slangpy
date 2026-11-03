@@ -9,6 +9,13 @@ from slangpy.testing import helpers
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_zero_size_rejected(device_type: spy.DeviceType) -> None:
+    device = helpers.get_device(device_type)
+    with pytest.raises(RuntimeError, match="Buffer size must be greater than zero"):
+        device.create_buffer(size=0, usage=spy.BufferUsage.shader_resource)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_buffer_init_data(device_type: spy.DeviceType):
     device = helpers.get_device(device_type)
 

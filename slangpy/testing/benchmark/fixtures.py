@@ -8,7 +8,7 @@ from typing import Any, Callable, Optional, Union
 from time import time, sleep
 from datetime import datetime, timezone
 
-from .benchview import build_benchview_observation
+from .benchview import build_benchview_observation, build_metric
 from .report import BenchmarkReport
 
 DEFAULT_ITERATIONS = 2000
@@ -84,10 +84,8 @@ class ReportFixture:
                 function_name=function_name,
                 display_name=self.node.name,
                 parameters=params,
-                samples=samples,
                 observed_at=observed_at,
-                metric_id=metric_id,
-                metric_name=metric_name,
+                metrics=[build_metric(metric_id, metric_name, samples)],
                 adapter_name=meta.get("adapter_name"),
                 source_line=int(self.node.location[1]) + 1,
             )

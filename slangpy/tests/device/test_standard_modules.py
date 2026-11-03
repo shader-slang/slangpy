@@ -175,6 +175,38 @@ def test_import_neural_standard_module(device_type: spy.DeviceType, test_id: str
         device.close()
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_raw_device_resolves_slangpy_module(device_type: spy.DeviceType) -> None:
+    if helpers.should_skip_test_for_device(device_type):
+        pytest.skip(f"Skipping {device_type.name} device test")
+
+    device = spy.Device(type=device_type, label=f"raw-slangpy-{device_type.name}")
+    try:
+        tensor = spy.Tensor.from_numpy(device, np.zeros((4, 2), dtype=np.float32))
+        assert tensor.shape == (4, 2)
+    finally:
+        device.close()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_created_session_resolves_slangpy_include(
+    device_type: spy.DeviceType, test_id: str
+) -> None:
+    if helpers.should_skip_test_for_device(device_type):
+        pytest.skip(f"Skipping {device_type.name} device test")
+
+    device = spy.Device(type=device_type, label=f"session-slangpy-{device_type.name}")
+    try:
+        session = device.create_slang_session()
+        module = session.load_module_from_source(
+            module_name=f"import_slangpy_{test_id}",
+            source="import slangpy;",
+        )
+        assert module is not None
+    finally:
+        device.close()
+
+
 @pytest.mark.parametrize("target,extension", [("hlsl", "hlsl"), ("metal", "metal")])
 def test_import_neural_standard_module_source_targets(
     target: str, extension: str, tmp_path: Path

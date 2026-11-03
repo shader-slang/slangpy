@@ -216,7 +216,8 @@ SGL_API void* get_proc_address(SharedLibraryHandle library, const char* proc_nam
 // -------------------------------------------------------------------------------------------------
 
 /// Check if a debugger session is attached.
-[[nodiscard]] SGL_API bool is_debugger_present();
+/// Returns false if debugger detection fails.
+[[nodiscard]] SGL_API bool is_debugger_present() noexcept;
 
 /// Breaks in debugger (int 3 functionality).
 SGL_API void debug_break();

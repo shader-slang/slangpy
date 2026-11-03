@@ -269,7 +269,7 @@ namespace print_buffer {
                 log_warn("Print buffer overflow!");
                 break;
             }
-            SGL_ASSERT(ptr + msg_size <= end)
+            SGL_ASSERT(ptr + msg_size <= end);
             decode_msg(std::span(ptr, msg_size), hashed_strings, output);
             ++count;
             ptr += msg_size;

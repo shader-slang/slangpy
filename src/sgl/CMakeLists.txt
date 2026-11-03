@@ -17,6 +17,7 @@ target_sources(sgl PRIVATE
     core/bc_codec.h
     core/bc_dds.cpp
     core/bc_dds.h
+    core/bc_types.cpp
     core/bc_types.h
     core/bitmap.cpp
     core/bitmap.h
@@ -86,6 +87,8 @@ target_sources(sgl PRIVATE
     device/callback_list.h
     device/command.cpp
     device/command.h
+    device/compiler_target.cpp
+    device/compiler_target.h
     device/cuda_interop.cpp
     device/cuda_interop.h
     device/cuda_utils.cpp

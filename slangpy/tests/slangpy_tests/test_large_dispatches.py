@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from slangpy import DeviceType
-from slangpy.core.generator import MAX_DISPATCH_THREAD_GROUPS_X
+from slangpy.core.generator import resolve_max_dispatch_groups_x
 from slangpy.experimental.gridarg import grid
 from slangpy.slangpy import Shape
 from slangpy.testing import helpers
@@ -14,6 +14,11 @@ from slangpy.types.threadidarg import thread_id
 
 DEFAULT_GENERATED_THREAD_GROUP_SIZE = 32
 EXTRA_THREADS = 17
+
+# The CPU backend reports zero dispatch-group limits, so it exercises the
+# unbounded-limit fallback for both the native dispatch size and the generated
+# group/thread strides.
+DEVICE_TYPES = list(dict.fromkeys(helpers.DEFAULT_DEVICE_TYPES + [DeviceType.cpu]))
 
 MODULE = r"""
 import "slangpy";
@@ -52,10 +57,9 @@ void record_thread_id(uint tid, RWStructuredBuffer<uint> markers, uint row_strid
 
 def _large_dispatch_shape(device, thread_group_size=DEFAULT_GENERATED_THREAD_GROUP_SIZE):
     limits = device.info.limits.max_compute_dispatch_thread_groups
-    dispatch_groups_x = min(limits.x, MAX_DISPATCH_THREAD_GROUPS_X)
-    if dispatch_groups_x < 1:
-        pytest.skip("Device reports no X compute dispatch groups")
-    if limits.y < 2:
+    dispatch_groups_x = resolve_max_dispatch_groups_x(limits.x)
+    # A zero Y limit is unset (unbounded), matching the native dispatch path.
+    if limits.y != 0 and limits.y < 2:
         pytest.skip("Device cannot dispatch two rows of compute thread groups")
 
     # One physical dispatch row is the maximum usable X-group count times the
@@ -80,7 +84,7 @@ def _expected(row_stride, count):
     return np.array([1, row_stride - 1, row_stride, count - 1], dtype=np.uint32)
 
 
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_large_vectorized_grid_dispatch(device_type: DeviceType):
     device = helpers.get_device(device_type)
     row_stride, count = _large_dispatch_shape(device)
@@ -94,7 +98,7 @@ def test_large_vectorized_grid_dispatch(device_type: DeviceType):
     np.testing.assert_array_equal(_read_markers(markers), _expected(row_stride, count))
 
 
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_large_vectorized_call_group_dispatch(device_type: DeviceType):
     device = helpers.get_device(device_type)
     row_stride, count = _large_dispatch_shape(device)
@@ -110,7 +114,7 @@ def test_large_vectorized_call_group_dispatch(device_type: DeviceType):
     np.testing.assert_array_equal(_read_markers(markers), _expected(row_stride, count))
 
 
-@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
 def test_large_thread_count_dispatch(device_type: DeviceType):
     device = helpers.get_device(device_type)
     row_stride, count = _large_dispatch_shape(device)

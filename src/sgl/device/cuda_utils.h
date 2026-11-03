@@ -3,6 +3,7 @@
 #pragma once
 
 #include "sgl/core/macros.h"
+#include "sgl/core/logger.h"
 
 #include "sgl/device/fwd.h"
 #include "sgl/device/fence.h"
@@ -10,15 +11,35 @@
 
 #include <slang-rhi/cuda-driver-api.h>
 
+#include <optional>
+
 #define SGL_CU_CHECK(call)                                                                                             \
     do {                                                                                                               \
-        CUresult result = call;                                                                                        \
-        if (result != CUDA_SUCCESS) {                                                                                  \
-            const char* errorName;                                                                                     \
-            cuGetErrorName(result, &errorName);                                                                        \
-            const char* errorString;                                                                                   \
-            cuGetErrorString(result, &errorString);                                                                    \
-            SGL_THROW("CUDA call {} failed with error {} ({}).", #call, errorName, errorString);                       \
+        CUresult result_ = (call);                                                                                     \
+        if (result_ != CUDA_SUCCESS) {                                                                                 \
+            const auto error_info_ = ::sgl::cuda::get_cuda_error_info(result_);                                        \
+            SGL_THROW(                                                                                                 \
+                "CUDA call {} failed with error {} ({}): {}.",                                                         \
+                #call,                                                                                                 \
+                error_info_.name,                                                                                      \
+                int(result_),                                                                                          \
+                error_info_.description                                                                                \
+            );                                                                                                         \
+        }                                                                                                              \
+    } while (0)
+
+#define SGL_CU_WARN(call)                                                                                              \
+    do {                                                                                                               \
+        CUresult result_ = (call);                                                                                     \
+        if (result_ != CUDA_SUCCESS) {                                                                                 \
+            const auto error_info_ = ::sgl::cuda::get_cuda_error_info(result_);                                        \
+            sgl::log_warn(                                                                                             \
+                "CUDA call {} failed with error {} ({}): {}.",                                                         \
+                #call,                                                                                                 \
+                error_info_.name,                                                                                      \
+                int(result_),                                                                                          \
+                error_info_.description                                                                                \
+            );                                                                                                         \
         }                                                                                                              \
     } while (0)
 
@@ -26,6 +47,14 @@
 
 
 namespace sgl::cuda {
+
+struct ErrorInfo {
+    const char* name;
+    const char* description;
+};
+
+/// Get the CUDA error name and description, using fallback strings for unknown errors.
+SGL_API ErrorInfo get_cuda_error_info(CUresult result) noexcept;
 
 /// Get the CUDA device index from the current CUDA context.
 /// Returns 0 if no CUDA context is active.
@@ -69,9 +98,24 @@ public:
     std::string adapter_name() const;
 
 private:
+    // A member owner also releases the retained context if the enclosing constructor throws.
+    class RetainedPrimaryContext {
+    public:
+        explicit RetainedPrimaryContext(CUdevice device);
+        ~RetainedPrimaryContext() noexcept;
+
+        CUcontext context() const { return m_context; }
+
+    private:
+        CUdevice m_device;
+        CUcontext m_context{nullptr};
+
+        SGL_NON_COPYABLE_AND_MOVABLE(RetainedPrimaryContext);
+    };
+
     CUdevice m_device{-1};
     CUcontext m_context{nullptr};
-    bool m_owns_context{false};
+    std::optional<RetainedPrimaryContext> m_primary_context;
 };
 
 /// Wraps an external memory resource.
@@ -86,8 +130,8 @@ public:
     void* mapped_data() const;
 
 private:
-    /// Non-owning pointer to the resource.
-    const Resource* m_resource;
+    /// Borrowed context, kept alive by the owning resource's device.
+    CUcontext m_context;
     CUexternalMemory m_external_memory;
     size_t m_size;
     mutable void* m_mapped_data{nullptr};
@@ -104,8 +148,8 @@ public:
     void wait(uint64_t value, CUstream stream = 0);
 
 private:
-    /// Non-owning pointer to the fence.
-    Fence* m_fence;
+    /// Borrowed context, kept alive by the owning device.
+    CUcontext m_context;
     CUexternalSemaphore m_external_semaphore;
 };
 
