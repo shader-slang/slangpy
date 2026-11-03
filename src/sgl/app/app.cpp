@@ -146,7 +146,7 @@ void AppWindow::_run_frame()
     if (!texture)
         return;
 
-    m_ui_context->begin_frame(texture->width(), texture->height());
+    m_ui_context->begin_frame(texture->width(), texture->height(), m_window.get());
 
     ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
 
