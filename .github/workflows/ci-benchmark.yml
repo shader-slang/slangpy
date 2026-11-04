@@ -1,5 +1,5 @@
 name: ci-benchmark
-run-name: "DNI ci-benchmark slang#12080 master vs A vs C"
+run-name: "DNI ci-benchmark slang#13401 master vs previous C vs new head"
 
 on:
   workflow_dispatch:
@@ -23,8 +23,8 @@ jobs:
         os: [windows, linux]
         config: [Release]
         python: ["3.10"]
-        # DNI (do-not-integrate): the same benchmarks against three Slang builds, for shader-slang/slang#12080.
-        slang: [master, haaggarwal/cuda-grid-constant-fix-rebased-a, haaggarwal/cuda-grid-constant-fix-option-c]
+        # DNI (do-not-integrate): the same benchmarks against three Slang builds, for shader-slang/slang#13401.
+        slang: [master, haaggarwal/cuda-grid-constant-fix-option-c, haaggarwal/cuda-uniform-aggregate-forward]
         include:
           # Builds running on self-hosted runners
           - { os: windows, platform: x86_64, compiler: msvc, config: Release, flags: "benchmark", runs-on: { labels: [Windows, X64, nvrgfx-perf-kernelvm-bridge] } }
