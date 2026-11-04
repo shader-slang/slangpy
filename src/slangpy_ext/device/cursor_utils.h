@@ -435,7 +435,7 @@ public:
     }
 
     /// Virtual for writing none-basic value types.
-    virtual bool write_value(CursorType& self, nb::object nbval) { return write_registered_native_object(self, nbval); }
+    virtual bool write_value(CursorType& self, nb::object nbval) { return write_registered_object(self, nbval); }
 
     /// Write function inspects the slang type and uses it to try
     /// and convert a Python input to the correct c++ type. For structs
@@ -487,7 +487,7 @@ private:
     static std::string python_type_name(nb::object nbval) { return nb::cast<std::string>(nb::str(nbval.type())); }
 
     // Check whether the registry entry has a writer for this converter's cursor kind.
-    static bool has_native_object_writer(const cursor_utils::CursorWriterTypeInfo& info)
+    static bool has_object_writer(const cursor_utils::CursorWriterTypeInfo& info)
     {
         if constexpr (std::same_as<CursorType, ShaderCursor>) {
             return bool(info.write_shader_cursor);
@@ -496,11 +496,11 @@ private:
         }
     }
 
-    // Invoke the erased writer found by the cached native cursor-writer resolver.
-    bool invoke_native_object_writer(const slangpy::NativeCursorWriterValue& writer, CursorType& self, nb::object nbval)
+    // Invoke the erased writer found by the cached cursor-writer resolver.
+    bool invoke_object_writer(const slangpy::CursorWriterValue& writer, CursorType& self, nb::object nbval)
     {
         const cursor_utils::CursorWriterTypeInfo& info = *writer.info;
-        if (!has_native_object_writer(info))
+        if (!has_object_writer(info))
             return false;
 
         try {
@@ -514,11 +514,11 @@ private:
         }
     }
 
-    // Try the combined native cursor-writer registry before falling back to dict/list unpacking.
-    bool write_registered_native_object(CursorType& self, nb::object nbval)
+    // Try the combined cursor-writer registry before falling back to dict/list unpacking.
+    bool write_registered_object(CursorType& self, nb::object nbval)
     {
-        auto writer = slangpy::find_native_cursor_writer(nbval);
-        return writer ? invoke_native_object_writer(*writer, self, nbval) : false;
+        auto writer = slangpy::find_cursor_writer(nbval);
+        return writer ? invoke_object_writer(*writer, self, nbval) : false;
     }
 
     // Preserve the legacy get_this wrapper path.
@@ -720,7 +720,7 @@ private:
             try {
                 return m_write_scalar[(int)type->getScalarType()](self, nbval);
             } catch (const std::exception&) {
-                if (write_registered_native_object(self, nbval))
+                if (write_registered_object(self, nbval))
                     return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
@@ -733,7 +733,7 @@ private:
             try {
                 return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
             } catch (const std::exception&) {
-                if (write_registered_native_object(self, nbval))
+                if (write_registered_object(self, nbval))
                     return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
@@ -749,7 +749,7 @@ private:
                     nbval
                 );
             } catch (const std::exception&) {
-                if (write_registered_native_object(self, nbval))
+                if (write_registered_object(self, nbval))
                     return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
@@ -779,7 +779,7 @@ private:
                 return;
             }
 
-            if (write_registered_native_object(self, nbval))
+            if (write_registered_object(self, nbval))
                 return;
 
             if (try_unpack_and_retry(self, nbval))
@@ -809,7 +809,7 @@ private:
                 }
                 return;
             } else {
-                if (write_registered_native_object(self, nbval))
+                if (write_registered_object(self, nbval))
                     return;
                 if (try_unpack_and_retry(self, nbval))
                     return;
@@ -846,7 +846,7 @@ private:
                 m_stack.pop_back();
                 return;
             } else {
-                if (write_registered_native_object(self, nbval))
+                if (write_registered_object(self, nbval))
                     return;
                 if (try_unpack_and_retry(self, nbval))
                     return;

@@ -50,6 +50,8 @@ void static_shutdown()
     if (--s_sgl_ref_count > 0)
         return;
 
+    cursor_utils::unregister_cursor_writer_types(cursor_utils::CursorWriterTypeKeyKind::python_type);
+
     thread::wait_for_tasks();
 
     // For various reasons, we might end up with reference cycles in Python,

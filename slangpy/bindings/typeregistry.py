@@ -62,9 +62,9 @@ def get_or_create_type(
                     WriteToCursorMarshall,
                     WriteToCursorMarshallInfo,
                 )
-                from slangpy.core.native import _get_native_cursor_writer_type_info
+                from slangpy.core.native import get_cursor_writer_type_info
 
-                native_info = _get_native_cursor_writer_type_info(value)
+                native_info = get_cursor_writer_type_info(value)
                 if native_info is not None:
                     return WriteToCursorMarshall(
                         layout,
