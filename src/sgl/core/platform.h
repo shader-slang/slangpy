@@ -29,6 +29,8 @@ struct WindowHandle {
 #elif SGL_LINUX
     void* xdisplay;
     uint32_t xwindow;
+    void* wayland_display;
+    void* wayland_surface;
 #elif SGL_MACOS
     void* nswindow;
 #endif

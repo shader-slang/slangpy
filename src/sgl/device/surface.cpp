@@ -19,8 +19,9 @@ Surface::Surface(WindowHandle window_handle, ref<Device> device)
 #if SGL_WINDOWS
     rhi::WindowHandle rhi_window_handle = rhi::WindowHandle::fromHwnd(window_handle.hwnd);
 #elif SGL_LINUX
-    rhi::WindowHandle rhi_window_handle
-        = rhi::WindowHandle::fromXlibWindow(window_handle.xdisplay, window_handle.xwindow);
+    rhi::WindowHandle rhi_window_handle = window_handle.wayland_surface
+        ? rhi::WindowHandle::fromWaylandSurface(window_handle.wayland_display, window_handle.wayland_surface)
+        : rhi::WindowHandle::fromXlibWindow(window_handle.xdisplay, window_handle.xwindow);
 #elif SGL_MACOS
     rhi::WindowHandle rhi_window_handle = rhi::WindowHandle::fromNSWindow(window_handle.nswindow);
 #endif
