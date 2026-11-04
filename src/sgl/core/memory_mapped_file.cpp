@@ -23,6 +23,12 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#elif SGL_EMSCRIPTEN
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #else
 #error "Unknown OS"
 #endif
@@ -101,7 +107,7 @@ bool MemoryMappedFile::open(const std::filesystem::path& path, size_t mapped_siz
     }
     m_size = stat_info.st_size;
 
-#elif SGL_MACOS
+#elif SGL_MACOS || SGL_EMSCRIPTEN
 
     // Open file.
     m_file = ::open(path.c_str(), O_RDONLY);
@@ -135,7 +141,7 @@ void MemoryMappedFile::close()
     if (m_mapped_data) {
 #if SGL_WINDOWS
         ::UnmapViewOfFile(m_mapped_data);
-#elif SGL_LINUX || SGL_MACOS
+#elif SGL_LINUX || SGL_MACOS || SGL_EMSCRIPTEN
         ::munmap(m_mapped_data, m_mapped_size);
 #endif
         m_mapped_data = nullptr;
@@ -152,7 +158,7 @@ void MemoryMappedFile::close()
     if (m_file) {
 #if SGL_WINDOWS
         ::CloseHandle(m_file);
-#elif SGL_LINUX || SGL_MACOS
+#elif SGL_LINUX || SGL_MACOS || SGL_EMSCRIPTEN
         ::close(m_file);
 #endif
         m_file = 0;
@@ -167,7 +173,7 @@ size_t MemoryMappedFile::page_size()
     SYSTEM_INFO sysInfo;
     GetSystemInfo(&sysInfo);
     return sysInfo.dwAllocationGranularity;
-#elif SGL_LINUX || SGL_MACOS
+#elif SGL_LINUX || SGL_MACOS || SGL_EMSCRIPTEN
     return sysconf(_SC_PAGESIZE);
 #endif
 }
@@ -183,7 +189,7 @@ bool MemoryMappedFile::remap(uint64_t offset, size_t mapped_size)
     if (m_mapped_data) {
 #if SGL_WINDOWS
         ::UnmapViewOfFile(m_mapped_data);
-#elif SGL_LINUX || SGL_MACOS
+#elif SGL_LINUX || SGL_MACOS || SGL_EMSCRIPTEN
         ::munmap(m_mapped_data, m_mapped_size);
 #endif
         m_mapped_data = nullptr;
@@ -203,11 +209,11 @@ bool MemoryMappedFile::remap(uint64_t offset, size_t mapped_size)
     if (!m_mapped_data)
         m_mapped_size = 0;
     m_mapped_size = mapped_size;
-#elif SGL_LINUX || SGL_MACOS
+#elif SGL_LINUX || SGL_MACOS || SGL_EMSCRIPTEN
     // Create new mapping.
 #if SGL_LINUX
     m_mapped_data = ::mmap64(NULL, mapped_size, PROT_READ, MAP_SHARED, m_file, offset);
-#elif SGL_MACOS
+#else
     m_mapped_data = ::mmap(NULL, mapped_size, PROT_READ, MAP_SHARED, m_file, offset);
 #endif
     if (m_mapped_data == MAP_FAILED) {

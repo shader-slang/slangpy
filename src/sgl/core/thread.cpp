@@ -5,7 +5,9 @@
 #include "sgl/core/error.h"
 #include "sgl/core/short_vector.h"
 
+#if !SGL_EMSCRIPTEN
 #include <nanothread/nanothread.h>
+#endif
 #include <slang-rhi.h>
 
 #include <exception>
@@ -13,6 +15,160 @@
 #include <vector>
 
 namespace sgl::thread {
+
+#if SGL_EMSCRIPTEN
+
+// Emscripten builds have no worker threads. Tasks run to completion on the calling thread before
+// task_submit_dep() returns. As with nanothread, small synchronous tasks propagate exceptions to the
+// caller, while asynchronous tasks keep the first exception until the task is waited for. Completed
+// tasks are represented by a null handle unless they hold an exception.
+
+struct Task {
+    uint32_t ref_count{1};
+    std::exception_ptr exception;
+};
+
+namespace {
+
+    /// Adapter that executes slang-rhi tasks synchronously on the calling thread.
+    class SynchronousTaskPool : public rhi::ITaskPool {
+    public:
+        SLANG_NO_THROW SlangResult SLANG_MCALL queryInterface(const SlangUUID& uuid, void** out_object) override
+        {
+            if (uuid == ISlangUnknown::getTypeGuid() || uuid == rhi::ITaskPool::getTypeGuid()) {
+                *out_object = static_cast<rhi::ITaskPool*>(this);
+                return SLANG_OK;
+            }
+            *out_object = nullptr;
+            return SLANG_E_NO_INTERFACE;
+        }
+
+        // This adapter has process lifetime and is not reference counted.
+        SLANG_NO_THROW uint32_t SLANG_MCALL addRef() override { return 2; }
+        SLANG_NO_THROW uint32_t SLANG_MCALL release() override { return 2; }
+
+        SLANG_NO_THROW rhi::ITaskPool::TaskHandle SLANG_MCALL
+        submitTask(void (*func)(void*), void* payload, void (*payload_deleter)(void*), TaskGroupHandle group) override
+        {
+            SGL_ASSERT(func);
+            SGL_UNUSED(group);
+            func(payload);
+            if (payload_deleter)
+                payload_deleter(payload);
+            // slang-rhi treats a null handle as a failed submission.
+            return &s_completed;
+        }
+
+        SLANG_NO_THROW void SLANG_MCALL releaseTask(rhi::ITaskPool::TaskHandle task) override
+        {
+            SGL_ASSERT(task == &s_completed);
+            SGL_UNUSED(task);
+        }
+
+        SLANG_NO_THROW void SLANG_MCALL waitAndReleaseTask(rhi::ITaskPool::TaskHandle task) override
+        {
+            releaseTask(task);
+        }
+
+        SLANG_NO_THROW TaskGroupHandle SLANG_MCALL createTaskGroup() override { return &s_completed; }
+
+        SLANG_NO_THROW void SLANG_MCALL waitAndReleaseTaskGroup(TaskGroupHandle group) override
+        {
+            SGL_ASSERT(group == &s_completed);
+            SGL_UNUSED(group);
+        }
+
+    private:
+        static inline char s_completed;
+    };
+
+    SynchronousTaskPool s_rhi_task_pool;
+
+} // namespace
+
+TaskHandle task_submit_dep(
+    const TaskHandle* parents,
+    uint32_t parent_count,
+    uint32_t size,
+    TaskFunc func,
+    void* payload,
+    uint32_t payload_size,
+    TaskPayloadDeleter payload_deleter,
+    bool always_async,
+    bool profile
+)
+{
+    // Parent tasks have already completed and the payload stays valid for the duration of the call.
+    SGL_UNUSED(parents, parent_count, payload_size, profile);
+
+    std::exception_ptr exception;
+    try {
+        for (uint32_t index = 0; index < size; ++index)
+            func(index, payload);
+    } catch (...) {
+        exception = std::current_exception();
+    }
+
+    try {
+        if (payload_deleter)
+            payload_deleter(payload);
+    } catch (...) {
+        if (!exception)
+            exception = std::current_exception();
+    }
+
+    if (!exception)
+        return nullptr;
+    if (size <= 1 && !always_async)
+        std::rethrow_exception(exception);
+    return new Task{.exception = exception};
+}
+
+void task_retain(TaskHandle task)
+{
+    if (task)
+        task->ref_count++;
+}
+
+void task_release(TaskHandle task)
+{
+    if (task && --task->ref_count == 0)
+        delete task;
+}
+
+void task_wait(TaskHandle task)
+{
+    if (task && task->exception)
+        std::rethrow_exception(task->exception);
+}
+
+void task_wait_and_release(TaskHandle task)
+{
+    std::exception_ptr exception = task ? task->exception : nullptr;
+    task_release(task);
+    if (exception)
+        std::rethrow_exception(exception);
+}
+
+bool task_query(TaskHandle task)
+{
+    SGL_UNUSED(task);
+    return true;
+}
+
+double task_time(TaskHandle task)
+{
+    SGL_UNUSED(task);
+    return 0.0;
+}
+
+double task_time_rel(TaskHandle task_1, TaskHandle task_2)
+{
+    SGL_UNUSED(task_1, task_2);
+    return 0.0;
+}
+
+#else // SGL_EMSCRIPTEN
 
 namespace {
 
@@ -236,6 +392,8 @@ double task_time_rel(TaskHandle task_1, TaskHandle task_2)
 {
     return ::task_time_rel(unwrap_task(task_1), unwrap_task(task_2));
 }
+
+#endif // SGL_EMSCRIPTEN
 
 void static_init()
 {

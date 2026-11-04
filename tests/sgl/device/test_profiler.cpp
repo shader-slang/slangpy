@@ -15,7 +15,8 @@
 
 using namespace sgl;
 
-TEST_SUITE_BEGIN("profiler");
+// The profiler collects events on a worker thread, which Emscripten builds do not support.
+TEST_SUITE_BEGIN("profiler" * doctest::skip(SGL_EMSCRIPTEN));
 
 namespace {
 
