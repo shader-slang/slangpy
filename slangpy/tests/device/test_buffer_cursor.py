@@ -813,7 +813,11 @@ def test_cursor_unsupported_element_type(
         if op == "read":
             cursor[0]["a"].read()
         elif op == "write":
-            value = {"scalar": 1.0, "vector": spy.float2(1, 2), "matrix": spy.float2x2([1, 2, 3, 4])}
+            value = {
+                "scalar": 1.0,
+                "vector": spy.float2(1, 2),
+                "matrix": spy.float2x2([1, 2, 3, 4]),
+            }
             cursor[0]["a"] = value[kind]
         elif op == "write_numpy":
             cursor[0]["a"] = np.ones(shape or (1,), dtype=np.float32)
