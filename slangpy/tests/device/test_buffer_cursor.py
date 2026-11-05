@@ -789,7 +789,11 @@ UNSUPPORTED_ELEMENT_TYPES = [
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("element_type", UNSUPPORTED_ELEMENT_TYPES)
+@pytest.mark.parametrize(
+    "element_type",
+    UNSUPPORTED_ELEMENT_TYPES,
+    ids=[f"{s}-{k}" for s, k in UNSUPPORTED_ELEMENT_TYPES],
+)
 @pytest.mark.parametrize("op", ["read", "write", "write_numpy", "write_from_numpy"])
 def test_cursor_unsupported_element_type(
     device_type: spy.DeviceType, element_type: tuple[str, str], op: str
