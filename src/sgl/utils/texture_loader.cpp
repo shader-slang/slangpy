@@ -14,11 +14,13 @@
 #include "sgl/core/file_stream.h"
 #include "sgl/core/logger.h"
 #include "sgl/core/maths.h"
+#include "sgl/core/memory_stream.h"
 #include "sgl/core/timer.h"
 #include "sgl/core/thread.h"
 
 #include "sgl/stl/bit.h"
 
+#include <exception>
 #include <map>
 #include <utility>
 
@@ -332,6 +334,20 @@ load_and_convert_source_image(Device* device, const std::filesystem::path& path,
     return source_image;
 }
 
+inline SourceImage load_and_convert_source_image(
+    Device* device,
+    const TextureLoader::EncodedImageView& image,
+    const TextureLoader::Options& options
+)
+{
+    try {
+        MemoryStream stream(image.data.data(), image.data.size());
+        return load_and_convert_source_image(device, &stream, options);
+    } catch (const std::exception& e) {
+        SGL_THROW("Failed to decode image '{}': {}", image.name.empty() ? "<memory>" : image.name, e.what());
+    }
+}
+
 inline ref<Texture> create_texture(
     Device* device,
     Blitter* blitter,
@@ -428,9 +444,9 @@ inline ref<Texture> create_texture(
 
 // Estimate temporary CPU memory per texture to choose a batch size, not to predict exact process peak memory.
 // Take the largest decode/conversion working set, then conservatively add output and upload staging storage.
-// File inputs include decoding and their source bitmap; caller-owned bitmap storage and final GPU textures are
-// excluded. Format expansion, codec scratch and upload overhead are estimates rather than backend-specific allocation
-// accounting.
+// File and encoded inputs include decoding and their source bitmap; caller-owned bitmap and encoded-byte storage,
+// and final GPU textures are excluded. Format expansion, codec scratch and upload overhead are estimates rather than
+// backend-specific allocation accounting.
 inline size_t estimate_texture_load_memory(
     const Bitmap::Info& info,
     const TextureLoader::Options& options,
@@ -485,20 +501,21 @@ inline size_t estimate_source_memory(const Bitmap* bitmap, const TextureLoader::
     );
 }
 
-inline size_t estimate_source_memory(const std::filesystem::path& path, const TextureLoader::Options& options)
+inline size_t estimate_source_memory(Stream* stream, const TextureLoader::Options& options)
 {
-    FileStream stream(path, FileStream::Mode::read);
-    const size_t encoded = stream.size();
-    if (DDSFile::detect_dds_file(&stream)) {
-        // Allow file storage and an upload copy, with heuristic fixed overhead and 12.5% padding.
+    const size_t encoded = stream->size();
+    if (DDSFile::detect_dds_file(stream)) {
+        // DDSFile copies encoded data from either stream type; allow that copy and upload staging.
+        // A borrowed encoded-image source is not counted here.
         const size_t estimate = 2 * encoded + 65536;
         return estimate + div_round_up(estimate, size_t(8));
     }
-    const auto format = Bitmap::detect_file_format(&stream);
-    const auto info = Bitmap::read_info(&stream, format);
+    const auto format = Bitmap::detect_file_format(stream);
+    const auto info = Bitmap::read_info(stream, format);
     const size_t pixels = size_t(info.width) * info.height * info.channel_count;
     const size_t decoded = pixels * DataStruct::type_size(info.component_type);
-    // Cover the result plus image-sized codec scratch (including encoded input).
+    // Cover the result plus image-sized codec scratch, including a possible copy of encoded input.
+    // A borrowed encoded-image source is not counted here.
     size_t decode_peak_bytes = encoded + 2 * decoded;
 #if !SGL_HAS_OPENEXR
     if (format == Bitmap::FileFormat::exr)
@@ -508,6 +525,23 @@ inline size_t estimate_source_memory(const std::filesystem::path& path, const Te
     return estimate_texture_load_memory(info, options, decode_peak_bytes, true);
 }
 
+inline size_t estimate_source_memory(const std::filesystem::path& path, const TextureLoader::Options& options)
+{
+    FileStream stream(path, FileStream::Mode::read);
+    return estimate_source_memory(&stream, options);
+}
+
+inline size_t
+estimate_source_memory(const TextureLoader::EncodedImageView& image, const TextureLoader::Options& options)
+{
+    try {
+        MemoryStream stream(image.data.data(), image.data.size());
+        return estimate_source_memory(&stream, options);
+    } catch (const std::exception& e) {
+        SGL_THROW("Failed to inspect image '{}': {}", image.name.empty() ? "<memory>" : image.name, e.what());
+    }
+}
+
 inline SourceImage
 load_and_convert_source_image(Device* device, const Bitmap* bitmap, const TextureLoader::Options& options)
 {
@@ -515,8 +549,8 @@ load_and_convert_source_image(Device* device, const Bitmap* bitmap, const Textur
 }
 
 /// Load ordered batches within an estimated memory budget.
-/// Source is std::filesystem::path or const Bitmap*; options has one entry per source.
-/// Caller-owned bitmaps must remain alive until this function returns.
+/// Source is std::filesystem::path, const Bitmap*, or EncodedImageView; options has one entry per source.
+/// Caller-owned bitmaps and encoded bytes must remain alive until this function returns.
 /// consume(begin, images, handles) runs on the calling thread after launching each batch's tasks.
 /// begin is the batch's offset in sources; images and handles use batch-local indices.
 /// The callback clears each handle slot before waiting and releasing that task, then accesses its image.
@@ -761,6 +795,39 @@ TextureLoader::load_textures(std::span<const std::filesystem::path> paths, std::
         [&](size_t begin, auto images, auto tasks)
         {
             auto batch = create_textures(m_device, m_blitter, images, tasks, options.subspan(begin, images.size()));
+            std::move(batch.begin(), batch.end(), textures.begin() + begin);
+        }
+    );
+    return textures;
+}
+
+std::vector<ref<Texture>>
+TextureLoader::load_textures(std::span<const EncodedImageView> images, std::optional<Options> options_)
+{
+    std::vector<Options> options(images.size(), options_.value_or(Options{}));
+    return load_textures(images, options);
+}
+
+std::vector<ref<Texture>>
+TextureLoader::load_textures(std::span<const EncodedImageView> images, std::span<const Options> options)
+{
+    SGL_CHECK(images.size() == options.size(), "Number of options must be equal to the number of images");
+
+    std::vector<ref<Texture>> textures(images.size());
+    load_batches<EncodedImageView>(
+        m_device,
+        images,
+        options,
+        m_memory_budget,
+        [&](size_t begin, auto source_images, auto tasks)
+        {
+            auto batch = create_textures(
+                m_device,
+                m_blitter,
+                source_images,
+                tasks,
+                options.subspan(begin, source_images.size())
+            );
             std::move(batch.begin(), batch.end(), textures.begin() + begin);
         }
     );

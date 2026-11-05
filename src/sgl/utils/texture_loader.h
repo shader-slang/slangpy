@@ -8,7 +8,10 @@
 #include "sgl/core/fwd.h"
 #include "sgl/core/object.h"
 
+#include <cstdint>
 #include <filesystem>
+#include <span>
+#include <string_view>
 
 namespace sgl {
 
@@ -82,6 +85,12 @@ public:
     /// exceeding the budget is loaded alone. Caller-owned bitmaps and final GPU textures are excluded.
     TextureLoader(ref<Device> device, uint64_t memory_budget = DEFAULT_MEMORY_BUDGET);
     ~TextureLoader();
+
+    /// Borrowed encoded image data. The data and name must remain alive until load_textures() returns.
+    struct EncodedImageView {
+        std::span<const uint8_t> data;
+        std::string_view name;
+    };
 
     struct SGL_API Options {
         /// Load 8/16-bit integer data as normalized resource format.
@@ -175,6 +184,14 @@ public:
      */
     std::vector<ref<Texture>>
     load_textures(std::span<const std::filesystem::path> paths, std::span<const Options> options);
+
+    /// Decode encoded images on worker threads and upload their textures on the calling thread.
+    /// The input bytes and names are borrowed for the duration of the call; results retain input order.
+    std::vector<ref<Texture>>
+    load_textures(std::span<const EncodedImageView> images, std::optional<Options> options = {});
+
+    /// As above, with one set of texture options per encoded image.
+    std::vector<ref<Texture>> load_textures(std::span<const EncodedImageView> images, std::span<const Options> options);
 
     /**
      * \brief Load a texture array from a list of bitmaps.
