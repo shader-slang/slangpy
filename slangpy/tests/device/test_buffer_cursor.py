@@ -771,5 +771,56 @@ def test_apply_changes_ndarray(device_type: spy.DeviceType, seed: int):
             assert expected_value == result
 
 
+# BFloat16, FloatE4M3 and FloatE5M2 are Slang scalar types past the end of the cursor converter
+# tables; int16_t vectors are in range but have no converter.
+UNSUPPORTED_ELEMENT_TYPES = [
+    ("BFloat16", "scalar"),
+    ("BFloat16", "vector"),
+    ("BFloat16", "matrix"),
+    ("FloatE4M3", "scalar"),
+    ("FloatE4M3", "vector"),
+    ("FloatE4M3", "matrix"),
+    ("FloatE5M2", "scalar"),
+    ("FloatE5M2", "vector"),
+    ("FloatE5M2", "matrix"),
+    ("int16_t", "vector"),
+]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("element_type", UNSUPPORTED_ELEMENT_TYPES)
+@pytest.mark.parametrize("op", ["read", "write", "write_numpy", "write_from_numpy"])
+def test_cursor_unsupported_element_type(
+    device_type: spy.DeviceType, element_type: tuple[str, str], op: str
+):
+    scalar, kind = element_type
+    decl = {"scalar": scalar, "vector": f"vector<{scalar},2>", "matrix": f"matrix<{scalar},2,2>"}[
+        kind
+    ]
+    shape = {"scalar": (), "vector": (2,), "matrix": (2, 2)}[kind]
+
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, f"struct S {{ {decl} a; }};")
+    layout = module.layout.find_type_by_name("S").buffer_layout
+    buffer = device.create_buffer(
+        element_count=4,
+        struct_size=layout.reflection.size,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    cursor = spy.BufferCursor(layout.reflection, buffer, load_before_write=False)
+
+    with pytest.raises(RuntimeError, match="Unsupported element type"):
+        if op == "read":
+            cursor[0]["a"].read()
+        elif op == "write":
+            value = {"scalar": 1.0, "vector": spy.float2(1, 2), "matrix": spy.float2x2([1, 2, 3, 4])}
+            cursor[0]["a"] = value[kind]
+        elif op == "write_numpy":
+            cursor[0]["a"] = np.ones(shape or (1,), dtype=np.float32)
+        else:
+            values = np.ones((cursor.element_count, *shape), dtype=np.float32)
+            cursor.write_from_numpy({"a": values}, unchecked_copy=False)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
