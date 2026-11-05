@@ -236,21 +236,28 @@ def test_diff_pair_scalar_overload_uses_dtype_specific_call_data(
     second_dtype: torch.dtype,
 ) -> None:
     module = load_test_module(device_type)
-    if not helpers.has_half_atomic_add(module.device):
-        pytest.skip("Backward pass through a half input needs float16 atomic add")
     function = module.select_differentiable_scalar_overload.bwds
+
+    def build_call_data(value: torch.Tensor) -> Any:
+        return function.debug_build_call_data(
+            diff_pair(value, torch.zeros_like(value)),
+            _result=diff_pair(value, torch.ones_like(value)),
+        )
 
     first_value = torch.zeros((8, 8), dtype=first_dtype, device="cuda")
     second_value = torch.zeros((8, 8), dtype=second_dtype, device="cuda")
 
-    first_call_data = function.debug_build_call_data(
-        diff_pair(first_value, torch.zeros_like(first_value)),
-        _result=diff_pair(first_value, torch.ones_like(first_value)),
-    )
-    second_call_data = function.debug_build_call_data(
-        diff_pair(second_value, torch.zeros_like(second_value)),
-        _result=diff_pair(second_value, torch.ones_like(second_value)),
-    )
+    if not helpers.has_half_atomic_add(module.device):
+        for value in (first_value, second_value):
+            if value.dtype == torch.float16:
+                with pytest.raises(ValueError, match="Feature.atomic_half"):
+                    build_call_data(value)
+            else:
+                build_call_data(value)
+        return
+
+    first_call_data = build_call_data(first_value)
+    second_call_data = build_call_data(second_value)
 
     assert first_call_data != second_call_data
 

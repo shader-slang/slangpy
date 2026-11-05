@@ -424,10 +424,31 @@ def _check_half_grad_accumulation(
         return
     raise BoundVariableException(
         f"The backward pass accumulates gradients of {differential_type.full_name} with float16 "
-        f"atomic adds, which this {device.desc.type.name} device does not support "
-        f"(Feature.atomic_half). Use a float input, or a device that supports Feature.atomic_half.",
+        f"atomic adds, which this {device.desc.type.name} device does not support (it needs "
+        f"Feature.atomic_half, or SPV_EXT_shader_atomic_float16_add on Vulkan). Use float "
+        f"gradients (a float input or tensor type), or a device with float16 atomic add such as "
+        f"CUDA.",
         binding,
     )
+
+
+def check_direct_bound_half_grads(context: BindContext, binding: BoundVariable):
+    """
+    Run the half gradient check on the tensor fields of a direct-bound struct. Such a struct is
+    declared by its Slang type alone, so gen_calldata never runs for its fields.
+    """
+    assert binding.children is not None
+    for child in binding.children.values():
+        if child.children is not None:
+            check_direct_bound_half_grads(context, child)
+        elif isinstance(child.vector_type, ITensorType):
+            _check_half_grad_accumulation(
+                context,
+                child,
+                child.vector_type.element_type,
+                child.vector_type.tensor_kind,
+                child.vector_type.access,
+            )
 
 
 def gen_calldata(

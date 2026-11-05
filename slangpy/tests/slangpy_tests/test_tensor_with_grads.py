@@ -151,12 +151,14 @@ def test_half_input_grads(device_type: DeviceType, func_name: str):
             function.bwds(x, y)
 
 
-# half2 gradients use the packed fp16x2 atomic, which only Feature.atomic_half guarantees.
+# half2 gradients use the packed fp16x2 atomic, which the check does not reject. Only
+# Feature.atomic_half guarantees it, but NVIDIA Vulkan drivers also run it correctly.
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_half2_input_grads(device_type: DeviceType):
     device = helpers.get_device(device_type)
-    if not device.has_feature(Feature.atomic_half):
-        pytest.skip("Device does not report Feature.atomic_half")
+    nvidia_vulkan = device_type == DeviceType.vulkan and "NVIDIA" in device.info.adapter_name
+    if not device.has_feature(Feature.atomic_half) and not nvidia_vulkan:
+        pytest.skip("Device has no known fp16x2 atomic add support")
     function = helpers.create_function_from_module(
         device, "f", "[Differentiable] float f(half2 x) { return float(dot(x, x)); }"
     )
@@ -191,6 +193,34 @@ def test_half_difftensor_param_grads(device_type: DeviceType):
     else:
         with pytest.raises(ValueError, match="Feature.atomic_half"):
             function.bwds(t, idx, _result=y)
+
+
+# A struct whose fields all bind directly is declared by its Slang type alone, so its tensor
+# fields never go through the tensor marshall's gen_calldata.
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_half_difftensor_struct_field_grads(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "f",
+        r"""
+struct HalfGradParams { DiffTensor<half, 1> t; float scale; }
+[Differentiable] float f(HalfGradParams p, int i) { return float(p.t.load({i})) * p.scale; }
+""",
+    )
+
+    t = Tensor.from_numpy(device, np.arange(4, dtype=np.float16)).with_grads(zero=True)
+    params = {"t": t, "scale": 3.0}
+    idx = np.arange(4, dtype=np.int32)
+    y = Tensor.zeros(device, (4,), "float").with_grads()
+    y.grad.copy_from_numpy(np.ones(4, dtype=np.float32))
+
+    if helpers.has_half_atomic_add(device):
+        function.bwds(params, idx, _result=y)
+        assert np.allclose(t.grad.to_numpy(), 3.0)
+    else:
+        with pytest.raises(ValueError, match="Feature.atomic_half"):
+            function.bwds(params, idx, _result=y)
 
 
 # A half result only reads its incoming gradient, so it needs no atomics on any device.
