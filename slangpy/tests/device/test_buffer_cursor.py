@@ -771,8 +771,9 @@ def test_apply_changes_ndarray(device_type: spy.DeviceType, seed: int):
             assert expected_value == result
 
 
-# BFloat16, FloatE4M3 and FloatE5M2 are Slang scalar types past the end of the cursor converter
-# tables; int16_t vectors are in range but have no converter.
+# Element types without cursor converters. Slang can report scalar types (BFloat16, FloatE4M3,
+# FloatE5M2) beyond the ones the converter tables are sized for; int16_t vectors are in range but
+# have no converter.
 UNSUPPORTED_ELEMENT_TYPES = [
     ("BFloat16", "scalar"),
     ("BFloat16", "vector"),
