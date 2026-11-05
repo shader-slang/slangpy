@@ -1,0 +1,83 @@
+name: Metal buffer pointer residency experiment
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/metal-buffer-ptr-experiment.yml
+      - tools/metal_buffer_ptr_ci.patch
+      - slangpy/slang/bufferptr.slang
+      - slangpy/tests/device/test_buffer_ptr*
+      - src/sgl/device/buffer_ptr.*
+
+permissions:
+  contents: read
+
+concurrency:
+  group: metal-buffer-ptr-experiment-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compute-residency-emulation:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      CI_OS: macos
+      CI_PLATFORM: aarch64
+      CI_COMPILER: clang
+      CI_CONFIG: Release
+      CI_PYTHON: '3.10'
+      CI_FLAGS: unit-test
+      PYTHONPATH: ${{ github.workspace }}
+      SLANGPY_TEST_DISABLE_TORCH: '1'
+      # Exercise the per-encoder declarations even if the runner gains residency sets.
+      SLANG_RHI_METAL_NO_RESIDENCY_SET: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          lfs: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+          cache: pip
+      - name: Install development dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - uses: lukka/get-cmake@latest
+      - name: Setup
+        run: python tools/ci.py setup
+      - name: Configure vcpkg cache
+        run: |
+          echo "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}/vcpkg-cache" >> "$GITHUB_ENV"
+          mkdir -p vcpkg-cache
+      - uses: actions/cache@v5
+        with:
+          path: vcpkg-cache
+          key: vcpkg-cache-macOS-aarch64-clang-${{ hashFiles('vcpkg.json', 'external/vcpkg-triplets/**') }}
+      - name: Apply CI-only conservative buffer residency experiment
+        run: |
+          git apply --check tools/metal_buffer_ptr_ci.patch
+          git apply tools/metal_buffer_ptr_ci.patch
+          echo 'EXPERIMENT ONLY: all live buffers declared read/write before compute dispatches.'
+          echo 'Does not validate native residency sets, render passes, lifetime, or performance.'
+          git diff -- src/sgl/device/buffer_ptr.cpp
+          git -C external/slang-rhi diff --stat
+      - name: Configure
+        run: python tools/ci.py configure
+      - name: Build Release
+        run: python tools/ci.py build
+      - name: Native buffer pointer tests with emulated residency
+        id: native
+        run: build/macos-arm64-clang/Release/sgl_tests '-tc=*BufferPtr*'
+      - name: Python buffer pointer tests with emulated residency
+        if: ${{ !cancelled() && steps.native.outcome != 'skipped' }}
+        run: |
+          export PATH="$GITHUB_WORKSPACE/build/macos-arm64-clang/_deps/slang-src/bin:$PATH"
+          python -m pytest slangpy/tests/device/test_buffer_ptr.py slangpy/tests/device/test_buffer_ptr_extended.py slangpy/tests/slangpy_tests/test_pointers.py -n 4 -ra --tb=short --junitxml=reports/metal-buffer-ptr-experiment.xml
+      - name: Upload experiment results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: metal-buffer-ptr-experiment
+          path: reports/metal-buffer-ptr-experiment.xml
+          if-no-files-found: ignore

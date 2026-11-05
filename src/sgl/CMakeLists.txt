@@ -80,6 +80,8 @@ target_sources(sgl PRIVATE
     device/blit.cpp
     device/blit.h
     device/blit.slang
+    device/buffer_ptr.cpp
+    device/buffer_ptr.h
     device/buffer_cursor.cpp
     device/buffer_cursor.h
     device/cache_writer.cpp

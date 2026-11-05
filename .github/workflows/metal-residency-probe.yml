@@ -1,0 +1,22 @@
+name: Metal residency probe
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/metal-residency-probe.yml
+      - tools/metal_residency_probe.mm
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Compile standalone Metal probe
+        run: xcrun clang++ -std=c++17 -fobjc-arc -framework Foundation -framework Metal tools/metal_residency_probe.mm -o "$RUNNER_TEMP/metal-residency-probe"
+      - name: Probe native device capabilities and residency
+        run: '"$RUNNER_TEMP/metal-residency-probe"'

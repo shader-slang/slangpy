@@ -1518,6 +1518,70 @@ static const char *mkd_doc_sgl_BufferOffsetPair_buffer = R"doc()doc";
 
 static const char *mkd_doc_sgl_BufferOffsetPair_offset = R"doc()doc";
 
+static const char *mkd_doc_sgl_BufferPtr =
+R"doc(Non-owning, untyped GPU reference for the corresponding Slang
+BufferPtr. The owner must retain the buffer through GPU use and
+declare resource states and barriers. The eight-byte payload is
+backend-specific; it is not a CPU pointer. Typed/aligned shader views
+are obtained in Slang. Default construction is null. GPU allocation
+replacement invalidates existing values. Metal requires device-wide
+residency sets for indirectly referenced buffers.)doc";
+
+static const char *mkd_doc_sgl_BufferPtr_BufferPtr = R"doc()doc";
+
+static const char *mkd_doc_sgl_BufferPtr_BufferPtr_2 = R"doc()doc";
+
+static const char *mkd_doc_sgl_BufferPtr_check_cursor_type = R"doc()doc";
+
+static const char *mkd_doc_sgl_BufferPtr_data =
+R"doc(Backend-specific transport bits. On D3D12 these encode a descriptor
+and byte offset, not a device address.
+
+)doc";
+
+static const char *mkd_doc_sgl_BufferPtr_from_buffer =
+R"doc(Create a non-owning shader pointer into the buffer's current
+allocation.
+
+Args:
+    byte_offset: Displacement in bytes from the buffer start. May
+                 equal buffer size for an end pointer, which cannot be
+                 dereferenced. A null buffer requires zero and
+                 produces a null pointer.
+    alignment: Required initial address alignment in bytes (4, 8 or
+               16). Checked without rounding; this does not set the
+               shader's load_alignment, which defaults to plain
+               access.
+
+Remark:
+    Rejects unsupported backends, out-of-range offsets, encoding
+    overflow and misalignment. The caller retains the buffer and
+    provides resource states and synchronization through GPU use.
+
+)doc";
+
+static const char *mkd_doc_sgl_BufferPtr_is_valid =
+R"doc(Test for the null sentinel only; does not check resource lifetime,
+bounds or alignment.
+
+)doc";
+
+static const char *mkd_doc_sgl_BufferPtr_m_data = R"doc()doc";
+
+static const char *mkd_doc_sgl_BufferPtr_slangpy_imports = R"doc()doc";
+
+static const char *mkd_doc_sgl_BufferPtr_write_to_cursor = R"doc()doc";
+
+static const char *mkd_doc_sgl_BufferPtr_write_to_cursor_2 = R"doc()doc";
+
+static const char *mkd_doc_sgl_BufferPtr_write_to_cursor_3 =
+R"doc(Write to the matching BufferPtr<void, access, 0> shader field. Typed,
+nonzero-load_alignment and different-access destinations are rejected;
+create typed/aligned views in the shader after binding. Writing the
+value does not retain its resource.
+
+)doc";
+
 static const char *mkd_doc_sgl_BufferRange = R"doc()doc";
 
 static const char *mkd_doc_sgl_BufferRange_offset = R"doc()doc";
@@ -10632,7 +10696,7 @@ static const char *mkd_doc_sgl_breakable_ref_operator_bool = R"doc()doc";
 
 static const char *mkd_doc_sgl_breakable_ref_operator_mul = R"doc()doc";
 
-static const char *mkd_doc_sgl_breakable_ref_operator_ref = R"doc()doc";
+static const char *mkd_doc_sgl_breakable_ref_operator_sgl_ref = R"doc()doc";
 
 static const char *mkd_doc_sgl_breakable_ref_operator_sub = R"doc()doc";
 
@@ -11162,6 +11226,8 @@ static const char *mkd_doc_sgl_detail_build_slang_error_message = R"doc()doc";
 static const char *mkd_doc_sgl_detail_build_slang_rhi_error_message = R"doc()doc";
 
 static const char *mkd_doc_sgl_detail_compute_coop_vec_row_col_stride = R"doc()doc";
+
+static const char *mkd_doc_sgl_detail_encode_buffer_ptr = R"doc()doc";
 
 static const char *mkd_doc_sgl_detail_format_enum =
 R"doc(Format an enum value. First, we check for a single value and return
@@ -15112,6 +15178,18 @@ static const char *mkd_doc_sgl_thread_task_wait_and_release = R"doc(Wait for a t
 static const char *mkd_doc_sgl_thread_wait_for_tasks = R"doc(Wait for all tasks in the global task group.)doc";
 
 static const char *mkd_doc_sgl_throw_exception = R"doc(Throw an exception.)doc";
+
+static const char *mkd_doc_sgl_to_buffer_ptr =
+R"doc(Resolve a non-owning read-only shader reference. See
+BufferPtr::from_buffer.
+
+)doc";
+
+static const char *mkd_doc_sgl_to_rw_buffer_ptr =
+R"doc(Resolve a non-owning writable shader reference. See
+BufferPtr::from_buffer.
+
+)doc";
 
 static const char *mkd_doc_sgl_ui_Button = R"doc()doc";
 

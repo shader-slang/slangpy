@@ -2,6 +2,7 @@
 
 #include "sgl/device/cursor_utils.h"
 
+#include "sgl/device/buffer_ptr.h"
 #include "sgl/device/raytracing.h"
 #include "sgl/device/resource.h"
 #include "sgl/device/sampler.h"
@@ -73,6 +74,8 @@ namespace cursor_utils {
 
     void register_cursor_writers()
     {
+        register_cursor_writer<BufferPtr<>>();
+        register_cursor_writer<RWBufferPtr>();
         register_cursor_writer<Buffer>();
         register_cursor_writer<BufferView>();
         register_cursor_writer<Texture>();
