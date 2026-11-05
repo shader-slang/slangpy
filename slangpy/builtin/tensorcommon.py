@@ -1,8 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional, Protocol
-from slangpy import DeviceType
-from slangpy.bindings import BoundVariable, BindContext, CodeGenBlock, can_direct_bind_common
+from slangpy import DeviceType, Feature, TypeReflection
+from slangpy.bindings import (
+    BoundVariable,
+    BoundVariableException,
+    BindContext,
+    CodeGenBlock,
+    can_direct_bind_common,
+)
 from slangpy.core.native import CallMode, AccessType
 from slangpy.reflection import (
     SlangType,
@@ -370,10 +376,71 @@ def resolve_dimensionality(
         return self.dims + len(self.slang_element_type.shape) - len(vector_target_type.shape)
 
 
+def _is_half_element(element_type: SlangType) -> bool:
+    """
+    Return true if the innermost scalar of a scalar, vector or array element type is half.
+    """
+    while not isinstance(element_type, ScalarType):
+        element_type = element_type.element_type
+        if element_type is None:
+            return False
+    return element_type.slang_scalar_type == TypeReflection.ScalarType.float16
+
+
+def _check_half_grad_accumulation(
+    context: BindContext,
+    binding: BoundVariable,
+    element_type: SlangType,
+    tensor_kind: ITensorType.Kind,
+    access: ITensorType.Access,
+):
+    """
+    In a backward pass, DiffTensor and RWDiffTensor accumulate gradients with atomic adds, which
+    for half differentials are float16 atomic adds (see atomics.slang). Dispatching those on a
+    device that does not support them crashes the process, so raise an error before the kernel
+    is built.
+    """
+    if (
+        context.call_mode != CallMode.bwds
+        or tensor_kind != TensorType.diff_tensor
+        or access == TensorAccess.write
+    ):
+        return
+    differential_type = element_type.derivative
+    if differential_type is None or not _is_half_element(differential_type):
+        return
+    # half2 (also inside arrays) uses the packed fp16x2 atomic instead. It works on NVIDIA Vulkan
+    # although slang-rhi reports no capability for it, so it is not checked here.
+    atomic_type = differential_type
+    while isinstance(atomic_type, ArrayType):
+        atomic_type = atomic_type.element_type
+    if isinstance(atomic_type, VectorType) and atomic_type.num_elements == 2:
+        return
+    device = context.device
+    # slang-rhi reports Vulkan fp16 atomic add as a SPIR-V capability, not as Feature.atomic_half.
+    if device.has_feature(Feature.atomic_half) or device.has_capability(
+        "SPV_EXT_shader_atomic_float16_add"
+    ):
+        return
+    raise BoundVariableException(
+        f"The backward pass accumulates gradients of {differential_type.full_name} with float16 "
+        f"atomic adds, which this {device.desc.type.name} device does not support "
+        f"(Feature.atomic_half). Use a float input, or a device that supports Feature.atomic_half.",
+        binding,
+    )
+
+
 def gen_calldata(
     self: ITensorMarshall, cgb: CodeGenBlock, context: BindContext, binding: BoundVariable
 ):
     if isinstance(binding.vector_type, ITensorType):
+        _check_half_grad_accumulation(
+            context,
+            binding,
+            self.slang_element_type,
+            binding.vector_type.tensor_kind,
+            binding.vector_type.access,
+        )
         type_name = ITensorType.build_tensor_name(
             element_type=self.slang_element_type,
             dims=self.dims,
@@ -409,6 +476,9 @@ def gen_calldata(
         else:
             tensor_type = TensorType.diff_tensor
 
+        _check_half_grad_accumulation(
+            context, binding, self.slang_element_type, tensor_type, access
+        )
         type_name = ITensorType.build_tensor_name(
             element_type=self.slang_element_type,
             dims=self.dims,

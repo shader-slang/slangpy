@@ -236,6 +236,8 @@ def test_diff_pair_scalar_overload_uses_dtype_specific_call_data(
     second_dtype: torch.dtype,
 ) -> None:
     module = load_test_module(device_type)
+    if not helpers.has_half_atomic_add(module.device):
+        pytest.skip("Backward pass through a half input needs float16 atomic add")
     function = module.select_differentiable_scalar_overload.bwds
 
     first_value = torch.zeros((8, 8), dtype=first_dtype, device="cuda")

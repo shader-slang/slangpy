@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import os
 
-from slangpy import DeviceType, Device
+from slangpy import DeviceType, Device, Feature
 from slangpy.types import Tensor
 from slangpy.testing import helpers
 
@@ -149,6 +149,26 @@ def test_half_input_grads(device_type: DeviceType, func_name: str):
     else:
         with pytest.raises(ValueError, match="Feature.atomic_half"):
             function.bwds(x, y)
+
+
+# half2 gradients use the packed fp16x2 atomic, which slang-rhi reports only as Feature.atomic_half.
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_half2_input_grads(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    if not device.has_feature(Feature.atomic_half):
+        pytest.skip("Device does not report Feature.atomic_half")
+    function = helpers.create_function_from_module(
+        device, "f", "[Differentiable] float f(half2 x) { return float(dot(x, x)); }"
+    )
+
+    x_np = np.arange(1, 9, dtype=np.float16).reshape((4, 2))
+    x = Tensor.zeros(device, (4,), "half2").with_grads(zero=True)
+    x.copy_from_numpy(x_np)
+    y = Tensor.zeros(device, (4,), "float").with_grads()
+    y.grad.copy_from_numpy(np.ones(4, dtype=np.float32))
+
+    function.bwds(x, _result=y)
+    assert np.allclose(x.grad.to_numpy().reshape((4, 2)), 2 * x_np.astype(np.float32))
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
