@@ -411,6 +411,22 @@ def test_polynomial(device_type: DeviceType):
     compare_tensors(2 * a * x + b, x.grad)  # type: ignore
 
 
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_half_input_autograd(device_type: DeviceType):
+    module = load_test_module(device_type)
+
+    x = torch.arange(1, 5, dtype=torch.float16, device="cuda").requires_grad_(True)
+    res = module.select_differentiable_scalar_overload(x)
+    assert res.dtype == torch.float16
+
+    if helpers.has_half_atomic_add(module.device):
+        res.backward(torch.ones_like(res))
+        compare_tensors(torch.ones_like(x), x.grad)  # type: ignore
+    else:
+        with pytest.raises(ValueError, match="Feature.atomic_half"):
+            res.backward(torch.ones_like(res))
+
+
 # This test ensures that the PyTorch integration doesn't fail if re-using the
 # same cached call data.
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)

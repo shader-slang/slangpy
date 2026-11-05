@@ -282,6 +282,14 @@ def get_torch_device(type: DeviceType, use_cache: bool = True) -> Device:
     )
 
 
+# Returns true if the device can accumulate float16 gradients with atomic adds.
+# slang-rhi reports Vulkan fp16 atomic add as a SPIR-V capability, not as Feature.atomic_half.
+def has_half_atomic_add(device: Device) -> bool:
+    return device.has_feature(spy.Feature.atomic_half) or device.has_capability(
+        "SPV_EXT_shader_atomic_float16_add"
+    )
+
+
 # Helper that creates a module from source (if not already loaded) and returns
 # the corresponding slangpy module.
 def create_module(

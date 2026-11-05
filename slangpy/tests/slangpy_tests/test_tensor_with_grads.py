@@ -119,5 +119,76 @@ void inc(float amount, inout float val) { val += amount; }
         function.bwds(amount, val)
 
 
+# Each function has a half input whose gradient is accumulated with float16 atomic adds.
+HALF_INPUT_GRAD_FUNCS = {
+    "half_to_half": ("[Differentiable] half f(half x) { return x * x; }", ()),
+    "half_to_float": ("[Differentiable] float f(half x) { return float(x * x); }", ()),
+    "half3_to_float": (
+        "[Differentiable] float f(half3 x) { return float(dot(x, x)); }",
+        (3,),
+    ),
+}
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("func_name", HALF_INPUT_GRAD_FUNCS.keys())
+def test_half_input_grads(device_type: DeviceType, func_name: str):
+    device = helpers.get_device(device_type)
+    source, element_shape = HALF_INPUT_GRAD_FUNCS[func_name]
+    function = helpers.create_function_from_module(device, "f", source)
+
+    x_np = np.arange(1, 1 + 4 * int(np.prod(element_shape)), dtype=np.float16)
+    x_np = x_np.reshape((4,) + element_shape)
+    x = Tensor.from_numpy(device, x_np).with_grads(zero=True)
+    y = function(x).with_grads()
+    y.grad.copy_from_numpy(np.ones(4, dtype=y.to_numpy().dtype))
+
+    if helpers.has_half_atomic_add(device):
+        function.bwds(x, y)
+        assert np.allclose(x.grad.to_numpy(), 2 * x_np.astype(np.float32))
+    else:
+        with pytest.raises(ValueError, match="Feature.atomic_half"):
+            function.bwds(x, y)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_half_difftensor_param_grads(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device,
+        "f",
+        "[Differentiable] float f(IDiffTensor<half, 1> t, int i) { return float(t.load({i})) * 3.0; }",
+    )
+
+    t = Tensor.from_numpy(device, np.arange(4, dtype=np.float16)).with_grads(zero=True)
+    idx = np.arange(4, dtype=np.int32)
+    y = Tensor.zeros(device, (4,), "float").with_grads()
+    y.grad.copy_from_numpy(np.ones(4, dtype=np.float32))
+
+    if helpers.has_half_atomic_add(device):
+        function.bwds(t, idx, _result=y)
+        assert np.allclose(t.grad.to_numpy(), 3.0)
+    else:
+        with pytest.raises(ValueError, match="Feature.atomic_half"):
+            function.bwds(t, idx, _result=y)
+
+
+# A half result only reads its incoming gradient, so it needs no atomics on any device.
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_half_result_grads(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    function = helpers.create_function_from_module(
+        device, "f", "[Differentiable] half f(float x) { return half(x * x); }"
+    )
+
+    x_np = np.arange(1, 5, dtype=np.float32)
+    x = Tensor.from_numpy(device, x_np).with_grads(zero=True)
+    y = function(x).with_grads()
+    y.grad.copy_from_numpy(np.ones(4, dtype=np.float16))
+
+    function.bwds(x, y)
+    assert np.allclose(x.grad.to_numpy(), 2 * x_np)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
