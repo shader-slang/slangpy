@@ -6,7 +6,7 @@ from typing import Any, Callable, Optional
 import numpy as np
 import pytest
 
-from slangpy import DeviceType, Device, Module, diff_pair, grid
+from slangpy import DeviceType, Device, Feature, Module, diff_pair, grid
 from slangpy.core.callsignature import ResolveException
 from slangpy.core.native import (
     NativeCallDataCache,
@@ -73,6 +73,7 @@ def setup_bridge_mode(torch_bridge_mode: str):
         (torch.empty((1,), dtype=torch.float32).cuda(), "D1,S6,V1"),
         (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6,V1"),
         (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5,V1"),
+        (torch.empty((1,), dtype=torch.bfloat16).cuda(), "D1,S15,V1"),
         (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3,V1"),
         (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0,V1"),
         (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0,V111"),
@@ -1561,6 +1562,53 @@ def test_torch_cpu_tensor_rejected(device_type: DeviceType):
     cpu_tensor = torch.tensor([1.0, 2.0], dtype=torch.float32)
     with pytest.raises(Exception, match=r"[Cc][Uu][Dd][Aa]"):
         func(cpu_tensor)
+
+
+BFLOAT16_SRC = """
+import slangpy;
+
+void to_bf16(int1 pix, Tensor<float, 1> src, RWTensor<BFloat16, 1> dst)
+{
+    dst[uint1(pix.x)] = BFloat16(src[uint1(pix.x)]);
+}
+
+float from_bf16(BFloat16 x)
+{
+    return float(x);
+}
+"""
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_bfloat16_tensor_write(device_type: DeviceType):
+    """A torch.bfloat16 tensor binds to RWTensor<BFloat16, 1> (issue #1260)."""
+    device = helpers.get_torch_device(device_type)
+    if not device.has_feature(Feature.bfloat16):
+        pytest.skip("Device does not support bfloat16")
+    module = helpers.create_module(device, BFLOAT16_SRC)
+
+    # 16 points over [-2, 2] include values that bfloat16 must round.
+    src = torch.linspace(-2.0, 2.0, 16, device="cuda", dtype=torch.float32)
+    dst = torch.empty(16, device="cuda", dtype=torch.bfloat16)
+    module.to_bf16(grid((16,)), src, dst)
+
+    assert torch.equal(dst, src.to(torch.bfloat16))
+
+
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_bfloat16_tensor_read(device_type: DeviceType):
+    """A torch.bfloat16 tensor vectorizes over a BFloat16 parameter."""
+    device = helpers.get_torch_device(device_type)
+    if not device.has_feature(Feature.bfloat16):
+        pytest.skip("Device does not support bfloat16")
+    module = helpers.create_module(device, BFLOAT16_SRC)
+
+    src = torch.linspace(-2.0, 2.0, 16, device="cuda", dtype=torch.float32).to(torch.bfloat16)
+    res = module.from_bf16(src)
+
+    assert isinstance(res, torch.Tensor)
+    assert res.dtype == torch.float32
+    assert torch.equal(res, src.to(torch.float32))
 
 
 if __name__ == "__main__":

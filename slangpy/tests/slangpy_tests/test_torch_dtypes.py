@@ -97,5 +97,18 @@ def test_torch_output_rare_scalar(
         assert torch.equal(result, torch.tensor([10, 20], device="cuda", dtype=torch_dtype))
 
 
+def test_torch_output_bfloat16(device: spy.Device) -> None:
+    """Auto-create bfloat16 output tensor from Slang BFloat16 return type (issue #1260)."""
+    if not device.has_feature(spy.Feature.bfloat16):
+        pytest.skip("Device does not support bfloat16")
+    func = create_function_from_module(
+        device, "to_bf16", "BFloat16 to_bf16(float x) { return BFloat16(x); }"
+    )
+    inp = torch.linspace(-2.0, 2.0, 16, device="cuda", dtype=torch.float32)
+    result = func(inp)
+    assert result.dtype == torch.bfloat16
+    assert torch.equal(result, inp.to(torch.bfloat16))
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
