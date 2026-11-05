@@ -97,7 +97,7 @@ def test_torch_output_rare_scalar(
         assert torch.equal(result, torch.tensor([10, 20], device="cuda", dtype=torch_dtype))
 
 
-def test_torch_output_bfloat16(device: spy.Device) -> None:
+def test_torch_output_bfloat16(device: spy.Device, torch_bridge_mode: str) -> None:
     """Auto-create bfloat16 output tensor from Slang BFloat16 return type (issue #1260)."""
     if not device.has_feature(spy.Feature.bfloat16):
         pytest.skip("Device does not support bfloat16")

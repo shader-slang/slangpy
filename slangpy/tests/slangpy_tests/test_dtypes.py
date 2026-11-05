@@ -143,10 +143,7 @@ def test_to_torch(
     assert (tensor == torch_ref).all().item()
 
 
-def _create_bfloat16_tensor(device_type: DeviceType) -> tuple[Device, Tensor]:
-    device = helpers.get_torch_device(device_type)
-    if not device.has_feature(Feature.bfloat16):
-        pytest.skip("Device does not support bfloat16")
+def _create_bfloat16_tensor(device: Device) -> Tensor:
     module = helpers.create_module(device, MODULE)
     slang_type = module.layout.find_type_by_name("BFloat16")
     assert slang_type is not None
@@ -154,7 +151,7 @@ def _create_bfloat16_tensor(device_type: DeviceType) -> tuple[Device, Tensor]:
     storage = device.create_buffer(
         element_count=20, struct_size=slang_type.buffer_layout.reflection.size, usage=usage
     )
-    return device, Tensor(storage, slang_type, (5, 4))
+    return Tensor(storage, slang_type, (5, 4))
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
@@ -171,7 +168,10 @@ def test_bfloat16_reflection(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_bfloat16_to_torch(device_type: DeviceType):
-    device, buffer = _create_bfloat16_tensor(device_type)
+    device = helpers.get_torch_device(device_type)
+    if not device.has_feature(Feature.bfloat16):
+        pytest.skip("Device does not support bfloat16")
+    buffer = _create_bfloat16_tensor(device)
 
     torch_ref = torch.randn((5, 4), dtype=torch.bfloat16)
     # NumPy has no bfloat16, so upload the raw bits.
@@ -190,9 +190,9 @@ def test_bfloat16_to_torch(device_type: DeviceType):
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_bfloat16_to_numpy_raises(device_type: DeviceType):
-    _, buffer = _create_bfloat16_tensor(device_type)
+    buffer = _create_bfloat16_tensor(helpers.get_torch_device(device_type))
 
-    with pytest.raises(Exception, match=r"BFloat16.*NumPy"):
+    with pytest.raises(RuntimeError, match=r"BFloat16.*NumPy"):
         buffer.to_numpy()
 
 

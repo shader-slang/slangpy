@@ -1587,8 +1587,9 @@ def test_bfloat16_tensor_write(device_type: DeviceType):
         pytest.skip("Device does not support bfloat16")
     module = helpers.create_module(device, BFLOAT16_SRC)
 
-    # 16 points over [-2, 2] include values that bfloat16 must round.
-    src = torch.linspace(-2.0, 2.0, 16, device="cuda", dtype=torch.float32)
+    # Vulkan leaves float->bfloat16 rounding to the driver (some truncate), so use
+    # values that bfloat16 represents exactly.
+    src = torch.linspace(-2.0, 2.0, 16, device="cuda").to(torch.bfloat16).float()
     dst = torch.empty(16, device="cuda", dtype=torch.bfloat16)
     module.to_bf16(grid((16,)), src, dst)
 
