@@ -151,7 +151,7 @@ def test_half_input_grads(device_type: DeviceType, func_name: str):
             function.bwds(x, y)
 
 
-# half2 gradients use the packed fp16x2 atomic, which slang-rhi reports only as Feature.atomic_half.
+# half2 gradients use the packed fp16x2 atomic, which only Feature.atomic_half guarantees.
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_half2_input_grads(device_type: DeviceType):
     device = helpers.get_device(device_type)
