@@ -152,7 +152,8 @@ def test_half_input_grads(device_type: DeviceType, func_name: str):
 
 
 # half2 gradients use the packed fp16x2 atomic, which the check does not reject. Only
-# Feature.atomic_half guarantees it, but NVIDIA Vulkan drivers also run it correctly.
+# Feature.atomic_half guarantees it. The NVIDIA L40S Vulkan driver also runs it correctly, and
+# other NVIDIA adapters are assumed to.
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_half2_input_grads(device_type: DeviceType):
     device = helpers.get_device(device_type)
