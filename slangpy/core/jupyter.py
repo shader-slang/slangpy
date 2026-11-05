@@ -133,6 +133,7 @@ def format_scalar_type(
         TypeReflection.ScalarType.uint8: "uint8",
         TypeReflection.ScalarType.int16: "int16",
         TypeReflection.ScalarType.uint16: "uint16",
+        TypeReflection.ScalarType.bfloat16: "BFloat16",
     }
     p.text(mapping[scalar])
 
