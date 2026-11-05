@@ -7,7 +7,7 @@ import math
 
 from slangpy import Struct
 from slangpy.core.native import Shape
-from slangpy import Device, DeviceType, BufferUsage, Feature, TypeReflection
+from slangpy import DataType, Device, DeviceType, BufferUsage, Feature, TypeReflection
 from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 
@@ -182,6 +182,10 @@ def test_bfloat16_to_torch(device_type: DeviceType):
     assert tensor.dtype == torch.bfloat16
     assert tensor.shape == (5, 4)
     assert torch.equal(tensor.cpu(), torch_ref)
+
+    raw = buffer.storage.to_torch(type=DataType.bfloat16, shape=[5, 4])
+    assert raw.dtype == torch.bfloat16
+    assert torch.equal(raw.cpu(), torch_ref)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
