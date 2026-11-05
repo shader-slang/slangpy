@@ -743,6 +743,9 @@ nb::object NativeTorchTensorMarshall::create_output(CallContext* context, Native
     case TypeReflection::ScalarType::float64:
         c10_scalar_type = TENSOR_BRIDGE_SCALAR_FLOAT64;
         break;
+    case TypeReflection::ScalarType::bfloat16:
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_BFLOAT16;
+        break;
     case TypeReflection::ScalarType::bool_:
         c10_scalar_type = TENSOR_BRIDGE_SCALAR_BOOL;
         break;

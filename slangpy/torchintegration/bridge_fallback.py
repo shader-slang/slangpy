@@ -132,7 +132,9 @@ class _CudaBufferView:
         torch.float32: "<f4",
         torch.float64: "<f8",
         torch.bool: "|b1",
-        torch.bfloat16: "<V2",  # no NumPy equivalent; 2-byte opaque
+        # NumPy has no bfloat16 and torch.as_tensor() rejects opaque "V2", so the
+        # bits are exposed as int16 and callers reinterpret with .view(dtype).
+        torch.bfloat16: "<i2",
     }
 
     def __init__(
@@ -178,7 +180,7 @@ def copy_to_buffer(tensor: torch.Tensor, dest_ptr: int, dest_size: int) -> bool:
 
     # Create a zero-copy tensor view backed by the destination CUDA pointer.
     view = _CudaBufferView(dest_ptr, (tensor.numel(),), tensor.dtype)
-    dest = torch.as_tensor(view, device=tensor.device)
+    dest = torch.as_tensor(view, device=tensor.device).view(tensor.dtype)
     dest = dest.view(tensor.shape)
     with torch.no_grad():
         dest.copy_(tensor)
@@ -208,7 +210,7 @@ def copy_from_buffer(tensor: torch.Tensor, src_ptr: int, src_size: int) -> bool:
 
     # Create a zero-copy tensor view backed by the source CUDA pointer.
     view = _CudaBufferView(src_ptr, (tensor.numel(),), tensor.dtype)
-    src = torch.as_tensor(view, device=tensor.device)
+    src = torch.as_tensor(view, device=tensor.device).view(tensor.dtype)
     src = src.view(tensor.shape)
     with torch.no_grad():
         tensor.copy_(src)

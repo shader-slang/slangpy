@@ -172,6 +172,8 @@ namespace {
             return "float";
         case TypeReflection::ScalarType::float64:
             return "double";
+        case TypeReflection::ScalarType::bfloat16:
+            return "BFloat16";
         default:
             SGL_THROW("Unsupported scalar type '{}'", scalar_type);
         }
