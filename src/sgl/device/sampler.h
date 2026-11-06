@@ -45,7 +45,8 @@ public:
 
     /// Get bindless sampler descriptor handle.
     /// On CUDA, which has no separate sampler objects, the handle is undefined: set the sampler on
-    /// the texture view instead (TextureViewDesc::sampler).
+    /// the texture view instead (`TextureViewDesc::sampler` in C++, or
+    /// `texture.create_view(sampler=...)` in Python).
     DescriptorHandle descriptor_handle() const;
 
     rhi::ISampler* rhi_sampler() const { return m_rhi_sampler; }
