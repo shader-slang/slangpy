@@ -55,6 +55,18 @@ def load_test_module(device_type: DeviceType):
     return Module.load_from_file(device, "test_torchintegration.slang")
 
 
+@requires_cuda
+def test_uint32_tensor_round_trip():
+    module = load_test_module(DeviceType.cuda)
+    values = torch.tensor([0, 1, 0xFFFFFFFF], dtype=torch.uint32, device="cuda")
+    result = torch.empty_like(values)
+
+    module.copy_unsigned(values, result)
+
+    assert result.dtype == torch.uint32
+    torch.testing.assert_close(result, values)
+
+
 def compare_tensors(a: torch.Tensor, b: torch.Tensor):
     assert a.shape == b.shape, f"Tensor shape {a.shape} does not match expected shape {b.shape}"
     err = torch.max(torch.abs(a - b)).item()
@@ -74,6 +86,7 @@ def setup_bridge_mode(torch_bridge_mode: str):
         (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6,V1"),
         (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5,V1"),
         (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3,V1"),
+        (torch.empty((1,), dtype=torch.uint32).cuda(), "D1,S28,V1"),
         (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0,V1"),
         (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0,V111"),
     ],

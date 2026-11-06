@@ -28,6 +28,7 @@ _SCALAR_TYPE_MAP: Dict[torch.dtype, int] = {
     torch.complex128: 10,  # TENSOR_BRIDGE_SCALAR_COMPLEX128
     torch.bool: 11,  # TENSOR_BRIDGE_SCALAR_BOOL
     torch.bfloat16: 15,  # TENSOR_BRIDGE_SCALAR_BFLOAT16
+    torch.uint32: 28,  # c10::ScalarType::UInt32
 }
 _complex32 = getattr(torch, "complex32", None)
 if _complex32 is not None:
