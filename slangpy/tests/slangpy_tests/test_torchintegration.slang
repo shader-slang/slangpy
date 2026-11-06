@@ -6,6 +6,11 @@ float add(float a, float b) {
     return a + b;
 }
 
+void copy_unsigned(Tensor<uint, 1> source, WTensor<uint, 1> target) {
+    for (uint i = 0; i < source.shape[0]; i++)
+        target[i] = source[i];
+}
+
 [Differentiable]
 float3 add_vectors(float3 a, float3 b) {
     return a + b;
