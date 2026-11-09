@@ -399,6 +399,12 @@ Window::Window(WindowDesc desc)
     glfwSetCursorPosCallback(m_window, &EventHandlers::handle_cursor_pos);
     glfwSetScrollCallback(m_window, &EventHandlers::handle_scroll);
     glfwSetDropCallback(m_window, &EventHandlers::handle_drop);
+
+    // The window system may adjust the requested size during creation
+    int width, height;
+    glfwGetWindowSize(m_window, &width, &height);
+    m_width = static_cast<uint32_t>(width);
+    m_height = static_cast<uint32_t>(height);
 }
 
 Window::~Window()
@@ -443,9 +449,13 @@ void Window::set_size(uint2 size)
 
 void Window::resize(uint32_t width, uint32_t height)
 {
-    m_width = width;
-    m_height = height;
-    glfwSetWindowSize(m_window, m_width, m_height);
+    glfwSetWindowSize(m_window, width, height);
+
+    // The window system may limit the requested size, so query the actual size after resizing
+    int w, h;
+    glfwGetWindowSize(m_window, &w, &h);
+    m_width = static_cast<uint32_t>(w);
+    m_height = static_cast<uint32_t>(h);
 }
 
 int2 Window::position() const
