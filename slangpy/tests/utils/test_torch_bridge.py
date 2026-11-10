@@ -246,6 +246,9 @@ class TestTorchTensorExtraction:
             (torch.int32, 4),
             (torch.int64, 8),
             (torch.uint8, 1),
+            (torch.uint16, 2),
+            (torch.uint32, 4),
+            (torch.uint64, 8),
             (torch.bool, 1),
         ]
 
@@ -606,9 +609,15 @@ class TestTorchBridgeCreateEmptyTensor:
     SCALAR_FLOAT16 = 5
     SCALAR_FLOAT32 = 6
     SCALAR_FLOAT64 = 7
+    SCALAR_UINT16 = 27
+    SCALAR_UINT32 = 28
+    SCALAR_UINT64 = 29
 
     _DTYPE_PARAMS = [
         (SCALAR_UINT8, torch.uint8),
+        (SCALAR_UINT16, torch.uint16),
+        (SCALAR_UINT32, torch.uint32),
+        (SCALAR_UINT64, torch.uint64),
         (SCALAR_INT8, torch.int8),
         (SCALAR_INT16, torch.int16),
         (SCALAR_INT32, torch.int32),

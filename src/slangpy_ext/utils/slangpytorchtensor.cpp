@@ -722,6 +722,15 @@ nb::object NativeTorchTensorMarshall::create_output(CallContext* context, Native
     case TypeReflection::ScalarType::uint8:
         c10_scalar_type = TENSOR_BRIDGE_SCALAR_UINT8;
         break;
+    case TypeReflection::ScalarType::uint16:
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_UINT16;
+        break;
+    case TypeReflection::ScalarType::uint32:
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_UINT32;
+        break;
+    case TypeReflection::ScalarType::uint64:
+        c10_scalar_type = TENSOR_BRIDGE_SCALAR_UINT64;
+        break;
     case TypeReflection::ScalarType::int8:
         c10_scalar_type = TENSOR_BRIDGE_SCALAR_INT8;
         break;

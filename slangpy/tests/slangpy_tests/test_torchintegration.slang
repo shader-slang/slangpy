@@ -6,7 +6,11 @@ float add(float a, float b) {
     return a + b;
 }
 
-void copy_unsigned(Tensor<uint, 1> source, WTensor<uint, 1> target) {
+T unsigned_identity<T : IInteger>(T value) {
+    return value;
+}
+
+void copy_unsigned<T : IInteger>(Tensor<T, 1> source, WTensor<T, 1> target) {
     for (uint i = 0; i < source.shape[0]; i++)
         target[i] = source[i];
 }
