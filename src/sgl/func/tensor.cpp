@@ -411,6 +411,13 @@ void Tensor::broadcast_to_inplace(const slangpy::Shape& new_shape)
 
 void Tensor::clear(CommandEncoder* cmd)
 {
+    // Clearing is a write; on D3D12 a UAV clear of a non-UAV buffer removes the device, so reject read-only storage.
+    SGL_CHECK(
+        is_set(m_storage->desc().usage, BufferUsage::unordered_access),
+        "Cannot clear a read-only tensor: clearing is a write operation and requires "
+        "storage created with BufferUsage::unordered_access."
+    );
+
     if (cmd) {
         cmd->clear_buffer(m_storage);
     } else {
