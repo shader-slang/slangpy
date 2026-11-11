@@ -339,7 +339,6 @@ def test_tensor_empty_no_shape(device_type: DeviceType):
 def test_tensor_from_numpy_target_dtype_size_mismatch_raises(
     device_type: DeviceType, np_dtype: Any, np_shape: tuple[int, ...], slang_dtype: str
 ):
-    """from_numpy must not reinterpret plain numpy elements as a differently sized Slang type (#1271)."""
     device = helpers.get_device(device_type)
     data = np.zeros(np_shape, dtype=np_dtype)
     with pytest.raises(ValueError, match="does not match") as error:
@@ -361,7 +360,6 @@ def test_tensor_from_numpy_target_dtype_size_mismatch_raises(
 def test_tensor_from_numpy_target_dtype_same_size(
     device_type: DeviceType, np_dtype: Any, slang_dtype: str
 ):
-    """from_numpy with a same-sized target_slang_dtype keeps the shape and the bytes."""
     device = helpers.get_device(device_type)
     data = np.arange(12, dtype=np_dtype).reshape(3, 4)
     tensor = Tensor.from_numpy(device, data, target_slang_dtype=slang_dtype)
