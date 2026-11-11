@@ -467,6 +467,26 @@ namespace {
         );
     }
 
+    /// Suggest how to build a tensor of `dtype` from a plain numpy array whose itemsize differs from the
+    /// dtype's buffer stride. copy_from_numpy only pads vector elements, so it is suggested only for vectors.
+    std::string numpy_itemsize_mismatch_hint(refl::Type& dtype, size_t slang_stride)
+    {
+        switch (dtype.buffer_type_layout()->kind()) {
+        case TypeReflection::Kind::scalar:
+            return fmt::format(
+                "Convert the array to a numpy dtype with itemsize {} first, e.g. with data.astype(...).",
+                slang_stride
+            );
+        case TypeReflection::Kind::vector:
+            return "To group a trailing dimension into a vector, create the tensor with "
+                   "Tensor.empty(device, shape, dtype) and call copy_from_numpy(data) on it, or pass a structured "
+                   "view of the array whose itemsize matches the stride.";
+        default:
+            return "To group trailing dimensions into one element, pass a structured view of the array whose "
+                   "itemsize matches the stride.";
+        }
+    }
+
     ref<Tensor> tensor_from_numpy(
         Device* device,
         nb::object ndarray_obj,
@@ -534,13 +554,12 @@ namespace {
                 throw nb::value_error(
                     fmt::format(
                         "Numpy dtype {} itemsize ({}) does not match Slang type '{}' buffer stride ({}). Each numpy "
-                        "element becomes one tensor element. To group a trailing dimension into a vector type, use "
-                        "Tensor.empty(device, shape, dtype).copy_from_numpy(data), or pass a structured view of the "
-                        "array whose itemsize matches the stride.",
+                        "element becomes one tensor element. {}",
                         nb::cast<std::string>(nb::str(dtype_obj)),
                         item_size,
                         dtype->full_name(),
-                        slang_stride
+                        slang_stride,
+                        numpy_itemsize_mismatch_hint(*dtype, slang_stride)
                     )
                         .c_str()
                 );
