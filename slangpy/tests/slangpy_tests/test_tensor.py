@@ -342,8 +342,10 @@ def test_tensor_from_numpy_target_dtype_size_mismatch_raises(
     """from_numpy must not reinterpret plain numpy elements as a differently sized Slang type (#1271)."""
     device = helpers.get_device(device_type)
     data = np.zeros(np_shape, dtype=np_dtype)
-    with pytest.raises(ValueError, match="does not match"):
+    with pytest.raises(ValueError, match="does not match") as error:
         Tensor.from_numpy(device, data, target_slang_dtype=slang_dtype)
+    assert "copy_from_numpy" in str(error.value)
+    assert "structured view" in str(error.value)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

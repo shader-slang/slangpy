@@ -506,6 +506,7 @@ namespace {
             dtype = resolve_dtype(device, target_slang_dtype, program_layout);
         }
 
+        size_t slang_stride = dtype->buffer_layout()->stride();
         nb::object data_obj;
         if (is_structured) {
             if (!numpy_flag(ndarray_obj, "C_CONTIGUOUS")) {
@@ -514,7 +515,6 @@ namespace {
                     "Call numpy.ascontiguousarray(data) first."
                 );
             }
-            size_t slang_stride = dtype->buffer_layout()->stride();
             if (item_size != slang_stride) {
                 throw nb::value_error(
                     fmt::format(
@@ -530,6 +530,21 @@ namespace {
             nb::object np = nb::module_::import_("numpy");
             data_obj = np.attr("frombuffer")(ndarray_obj, "dtype"_a = np.attr("uint8"));
         } else {
+            if (item_size != slang_stride) {
+                throw nb::value_error(
+                    fmt::format(
+                        "Numpy dtype {} itemsize ({}) does not match Slang type '{}' buffer stride ({}). Each numpy "
+                        "element becomes one tensor element. To group a trailing dimension into a vector type, use "
+                        "Tensor.empty(device, shape, dtype).copy_from_numpy(data), or pass a structured view of the "
+                        "array whose itemsize matches the stride.",
+                        nb::cast<std::string>(nb::str(dtype_obj)),
+                        item_size,
+                        dtype->full_name(),
+                        slang_stride
+                    )
+                        .c_str()
+                );
+            }
             if ((nbytes % item_size) != 0)
                 throw nb::value_error("Unsupported numpy array");
             for (size_t i = 0; i < ndim; ++i) {
