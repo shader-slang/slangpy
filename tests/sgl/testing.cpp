@@ -109,6 +109,8 @@ void run_gpu_test(void (*func)(GpuTestContext&))
     std::vector<DeviceType> device_types{DeviceType::vulkan};
 #elif SGL_MACOS
     std::vector<DeviceType> device_types{DeviceType::metal};
+#elif SGL_EMSCRIPTEN
+    std::vector<DeviceType> device_types{DeviceType::wgpu};
 #endif
 
     bool use_cached_device = true;

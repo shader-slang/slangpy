@@ -4,7 +4,8 @@ SamplerState sampler;
 Texture2D texture;
 uniform float2 scale;
 uniform float2 offset;
-uniform bool is_srgb_format;
+// Stored as uint, as WGSL does not allow bool in uniform buffers.
+uniform uint is_srgb_format;
 
 struct VsIn {
     float2 pos : POSITION;
@@ -55,7 +56,7 @@ float4 fs_main(VsOut vs_out)
 {
     float4 col = vs_out.col * texture.Sample(sampler, vs_out.uv);
     // If output texture is not sRGB, convert color to sRGB manually.
-    if (!is_srgb_format)
+    if (is_srgb_format == 0)
         col = linear_to_srgb(col);
     return col;
 }

@@ -19,10 +19,34 @@
 
 #include "sgl/stl/bit.h" // Replace with <bit> when available on all platforms.
 
+#include <cstdint>
+#include <type_traits>
+
 namespace sgl {
 
 template<typename T>
 struct NativeHandleTrait { };
+
+namespace detail {
+    // Pointer handles are only 32 bits wide on wasm32.
+    template<typename T>
+    uint64_t pack_native_handle(T native)
+    {
+        if constexpr (std::is_pointer_v<T>)
+            return reinterpret_cast<uintptr_t>(native);
+        else
+            return stdx::bit_cast<uint64_t>(native);
+    }
+
+    template<typename T>
+    T unpack_native_handle(uint64_t value)
+    {
+        if constexpr (std::is_pointer_v<T>)
+            return reinterpret_cast<T>(narrow_cast<uintptr_t>(value));
+        else
+            return stdx::bit_cast<T>(value);
+    }
+} // namespace detail
 
 #define SGL_NATIVE_HANDLE(T, TYPE)                                                                                     \
     template<>                                                                                                         \
@@ -30,11 +54,11 @@ struct NativeHandleTrait { };
         static const NativeHandleType type = TYPE;                                                                     \
         static uint64_t pack(T native)                                                                                 \
         {                                                                                                              \
-            return stdx::bit_cast<uint64_t>(native);                                                                   \
+            return detail::pack_native_handle(native);                                                                 \
         }                                                                                                              \
         static T unpack(uint64_t value)                                                                                \
         {                                                                                                              \
-            return stdx::bit_cast<T>(value);                                                                           \
+            return detail::unpack_native_handle<T>(value);                                                             \
         }                                                                                                              \
     };
 

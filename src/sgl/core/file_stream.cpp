@@ -4,6 +4,7 @@
 
 #include "sgl/core/error.h"
 
+#include <cstring>
 #include <fstream>
 
 namespace sgl {
@@ -38,11 +39,12 @@ inline std::string strerror_safe(int errnum)
     // GNU strerror_r
     return strerror_r(errnum, buf, sizeof(buf));
 #endif
-#elif SGL_MACOS
+#elif SGL_MACOS || SGL_EMSCRIPTEN
+    // XSI strerror_r
     if (strerror_r(errnum, buf, sizeof(buf)) != 0)
         return "Unknown error";
     return buf;
-#elif
+#else
 #error "Unsupported platform"
 #endif
 }
