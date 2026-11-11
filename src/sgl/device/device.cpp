@@ -102,6 +102,15 @@ void Device::init()
           SLANG_PASS_THROUGH_SPIRV_DIS}) {
         m_global_session->setDownstreamCompilerPath(pass_through, platform::runtime_directory().string().c_str());
     }
+#if SGL_WINDOWS
+    // slang-llvm (CPU kernels) ships next to sgl only in Windows x64 packages. Slang does not fall back
+    // to its default lookup when the path lacks the library, so the path is set only when it is there.
+    if (std::filesystem::exists(platform::runtime_directory() / "slang-llvm.dll"))
+        m_global_session->setDownstreamCompilerPath(
+            SLANG_PASS_THROUGH_LLVM,
+            platform::runtime_directory().string().c_str()
+        );
+#endif
 
     if (m_desc.type == DeviceType::automatic) {
 #if SGL_WINDOWS
