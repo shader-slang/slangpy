@@ -23,10 +23,25 @@ SGL_PY_EXPORT(core_platform)
             "__init__",
             [](sgl::WindowHandle* self, uintptr_t xdisplay, uint32_t xwindow)
             {
-                new (self) sgl::WindowHandle{reinterpret_cast<void*>(xdisplay), xwindow};
+                new (self) sgl::WindowHandle{reinterpret_cast<void*>(xdisplay), xwindow, nullptr, nullptr};
             },
             "xdisplay"_a,
             "xwindow"_a
+        )
+        .def(
+            "__init__",
+            [](sgl::WindowHandle* self, uintptr_t wayland_display, uintptr_t wayland_surface)
+            {
+                new (self) sgl::WindowHandle{
+                    nullptr,
+                    0,
+                    reinterpret_cast<void*>(wayland_display),
+                    reinterpret_cast<void*>(wayland_surface),
+                };
+            },
+            nb::kw_only(),
+            "wayland_display"_a,
+            "wayland_surface"_a
         )
 #elif SGL_MACOS
         .def(
