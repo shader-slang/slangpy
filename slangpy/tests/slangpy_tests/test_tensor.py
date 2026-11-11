@@ -327,5 +327,69 @@ def test_tensor_empty_no_shape(device_type: DeviceType):
         Tensor.empty(device, shape=(), dtype="float")
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "np_dtype, np_shape, slang_dtype",
+    [
+        (np.float32, (4, 3), "float3"),
+        (np.float32, (4, 4), "float4"),
+        (np.float64, (4,), "float"),
+    ],
+)
+def test_tensor_from_numpy_target_dtype_size_mismatch_raises(
+    device_type: DeviceType, np_dtype: Any, np_shape: tuple[int, ...], slang_dtype: str
+):
+    """from_numpy must not reinterpret plain numpy elements as a differently sized Slang type (#1271)."""
+    device = helpers.get_device(device_type)
+    data = np.zeros(np_shape, dtype=np_dtype)
+    with pytest.raises(ValueError, match="does not match"):
+        Tensor.from_numpy(device, data, target_slang_dtype=slang_dtype)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "np_dtype, slang_dtype",
+    [
+        (np.float32, "float"),
+        (np.int32, "int"),
+        (np.int32, "uint"),
+        (np.float32, "uint"),
+    ],
+)
+def test_tensor_from_numpy_target_dtype_same_size(
+    device_type: DeviceType, np_dtype: Any, slang_dtype: str
+):
+    """from_numpy with a same-sized target_slang_dtype keeps the shape and the bytes."""
+    device = helpers.get_device(device_type)
+    data = np.arange(12, dtype=np_dtype).reshape(3, 4)
+    tensor = Tensor.from_numpy(device, data, target_slang_dtype=slang_dtype)
+    assert tuple(tensor.shape) == (3, 4)
+    assert tensor.dtype.full_name == slang_dtype
+    assert tensor.to_numpy().tobytes() == data.tobytes()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_float3_from_numpy_rows(device_type: DeviceType):
+    """The routes the from_numpy error message suggests build an (N,) float3 tensor from (N, 3) floats."""
+    device = helpers.get_device(device_type)
+    data = np.arange(12, dtype=np.float32).reshape(4, 3)
+
+    tensor = Tensor.empty(device, shape=(4,), dtype="float3")
+    tensor.copy_from_numpy(data)
+    assert tuple(tensor.shape) == (4,)
+    assert np.array_equal(tensor.to_numpy().reshape(4, 3), data)
+
+    float3_stride = tensor.dtype.buffer_layout.stride
+    rows = data.view(np.dtype([("x", np.float32), ("y", np.float32), ("z", np.float32)]))
+    rows = rows.reshape(4)
+    if rows.dtype.itemsize == float3_stride:
+        tensor = Tensor.from_numpy(device, rows, target_slang_dtype="float3")
+        assert tuple(tensor.shape) == (4,)
+        assert np.array_equal(tensor.to_numpy().reshape(4, 3), data)
+    else:
+        with pytest.raises(ValueError, match="does not match"):
+            Tensor.from_numpy(device, rows, target_slang_dtype="float3")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
