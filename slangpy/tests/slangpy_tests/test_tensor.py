@@ -339,6 +339,8 @@ float sum3(float3 v) { return v.x + v.y + v.z; }
     [
         (np.float32, (4, 3), "float3", "copy_from_numpy"),
         (np.float32, (4, 4), "float4", "copy_from_numpy"),
+        (np.float16, (4, 3), "float3", "astype"),
+        (np.float64, (4, 3), "float3", "astype"),
         (np.float32, (4, 3, 3), "float3x3", "structured view"),
         (np.float64, (4,), "float", "astype"),
     ],

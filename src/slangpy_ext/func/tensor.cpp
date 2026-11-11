@@ -468,22 +468,32 @@ namespace {
     }
 
     /// Suggest how to build a tensor of `dtype` from a plain numpy array whose itemsize differs from the
-    /// dtype's buffer stride. copy_from_numpy only pads vector elements, so it is suggested only for vectors.
-    std::string numpy_itemsize_mismatch_hint(refl::Type& dtype, size_t slang_stride)
+    /// dtype's buffer stride. copy_from_numpy copies raw bytes and pads only vector elements, so it is suggested
+    /// only for vectors whose scalar size equals the numpy itemsize.
+    std::string numpy_itemsize_mismatch_hint(refl::Type& dtype, size_t item_size, size_t slang_stride)
     {
-        switch (dtype.buffer_type_layout()->kind()) {
-        case TypeReflection::Kind::scalar:
+        auto astype_hint = [](size_t size)
+        {
             return fmt::format(
                 "Convert the array to a numpy dtype with itemsize {} first, e.g. with data.astype(...).",
-                slang_stride
+                size
             );
-        case TypeReflection::Kind::vector:
+        };
+        ref<TypeLayoutReflection> layout = dtype.buffer_type_layout();
+        switch (layout->kind()) {
+        case TypeReflection::Kind::scalar:
+            return astype_hint(slang_stride);
+        case TypeReflection::Kind::vector: {
+            size_t scalar_size = layout->element_type_layout()->size();
+            if (item_size != scalar_size)
+                return astype_hint(scalar_size);
             return "To group a trailing dimension into a vector, create the tensor with "
                    "Tensor.empty(device, shape, dtype) and call copy_from_numpy(data) on it, or pass a structured "
                    "view of the array whose itemsize matches the stride.";
+        }
         default:
             return "To group trailing dimensions into one element, pass a structured view of the array whose "
-                   "itemsize matches the stride.";
+                   "field offsets and padding match the Slang layout.";
         }
     }
 
@@ -559,7 +569,7 @@ namespace {
                         item_size,
                         dtype->full_name(),
                         slang_stride,
-                        numpy_itemsize_mismatch_hint(*dtype, slang_stride)
+                        numpy_itemsize_mismatch_hint(*dtype, item_size, slang_stride)
                     )
                         .c_str()
                 );
