@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import subprocess
+import sys
+import textwrap
 import threading
 import time
 from pathlib import Path
@@ -550,3 +553,165 @@ def test_gpu_child_history_is_visible_without_gpu_parent(
         largest = int(np.argmax(child))
         grandchild_fraction = float(grandchild[largest] / child[largest])
         assert (transitions[0] + 1) / len(rows) == pytest.approx(grandchild_fraction, abs=0.03)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_recent_frames_do_not_wait_for_gpu(device_type: spy.DeviceType) -> None:
+    device = helpers.get_device(device_type)
+    if not all(
+        device.has_feature(f)
+        for f in (spy.Feature.timestamp_query, spy.Feature.timestamp_calibration)
+    ):
+        pytest.skip("Requires GPU timestamps")
+    profiler = spy.Profiler(spy.ProfilerDesc(frame_stats_window_size=4))
+    assert profiler.frame_stats_snapshot(include_pending=True).sample_count == 0
+    with spy.profile_frame():
+        with spy.profile_zone("baseline"):
+            pass
+    profiler.flush()
+    baseline = profiler.frame_stats_snapshot()
+    assert baseline.sample_frame_index.tolist() == [0]
+
+    def record_gpu(calls: int) -> spy.CommandBuffer:
+        encoder = device.create_command_encoder()
+        with spy.profile_frame():
+            for _ in range(calls):
+                with spy.profile_zone("delayed", encoder):
+                    pass
+        return encoder.finish()
+
+    first = record_gpu(1)
+    second = record_gpu(2)
+    with spy.profile_frame():
+        with spy.profile_zone("new CPU zone"):
+            pass
+    profiler.flush()
+    recent = profiler.frame_stats_snapshot(include_pending=True)
+    completed = profiler.frame_stats_snapshot()
+    assert completed.sample_frame_index.tolist() == [0]
+    assert [entry.name for entry in completed.entries] == ["baseline"]
+    assert recent.sample_frame_index.tolist() == [0, 1, 2, 3]
+    assert recent.frame_time.count == 4
+    assert recent.frame_interval.count == 3
+    assert recent.pending_frame_count == 3
+    delayed = next(i for i, entry in enumerate(recent.entries) if entry.name == "delayed")
+    cpu_zone = next(i for i, entry in enumerate(recent.entries) if entry.name == "new CPU zone")
+    assert recent.sample_call_count[:, delayed].tolist() == [0, 1, 2, 0]
+    assert recent.sample_call_count[:, cpu_zone].tolist() == [0, 0, 0, 1]
+    pending = spy.ProfilerFrameGpuStatus.pending.value
+    complete = spy.ProfilerFrameGpuStatus.complete.value
+    absent = spy.ProfilerFrameGpuStatus.absent.value
+    assert recent.sample_gpu_status[:, delayed].tolist() == [absent, pending, pending, absent]
+    assert recent.entries[delayed].gpu_time_per_frame.count == 0
+    statuses = recent.sample_gpu_status
+    frame_ids = recent.sample_frame_index
+    assert not statuses.flags.writeable
+    assert not frame_ids.flags.writeable
+
+    # Resolve frame 2 first. Its measurement must not migrate into frame 1 or 3,
+    # and the completed table must still wait for frame 1.
+    device.submit_command_buffer(second)
+    device.wait()
+    deadline = time.monotonic() + 10.0
+    while True:
+        profiler.tick()
+        profiler.flush()
+        out_of_order = profiler.frame_stats_snapshot(include_pending=True)
+        if out_of_order.sample_gpu_status[2, delayed] == complete:
+            break
+        assert time.monotonic() < deadline, "GPU queries did not resolve"
+        time.sleep(0.001)
+    assert out_of_order.sample_gpu_status[:, delayed].tolist() == [
+        absent,
+        pending,
+        complete,
+        absent,
+    ]
+    assert out_of_order.entries[delayed].gpu_time_per_call.count == 2
+    assert profiler.frame_stats_snapshot().sample_frame_index.tolist() == [0]
+
+    device.submit_command_buffer(first)
+    device.wait()
+    while True:
+        profiler.tick()
+        profiler.flush()
+        resolved = profiler.frame_stats_snapshot()
+        if resolved.pending_frame_count == 0:
+            break
+        assert time.monotonic() < deadline, "GPU queries did not resolve"
+        time.sleep(0.001)
+    assert resolved.sample_frame_index.tolist() == [0, 1, 2, 3]
+    assert resolved.sample_gpu_status[:, delayed].tolist() == [absent, complete, complete, absent]
+    assert resolved.entries[delayed].gpu_time_per_call.count == 3
+    np.testing.assert_array_equal(resolved.sample_cpu_time_ms, recent.sample_cpu_time_ms)
+    np.testing.assert_array_equal(resolved.sample_frame_start_ns, recent.sample_frame_start_ns)
+    np.testing.assert_array_equal(
+        resolved.sample_frame_interval_ms, recent.sample_frame_interval_ms
+    )
+    # Publishing resolved results never mutates earlier Python views.
+    assert statuses[:, delayed].tolist() == [absent, pending, pending, absent]
+
+    # Both windows are bounded, and clearing rejects late results from old frames.
+    third = record_gpu(1)
+    profiler.flush()
+    assert profiler.frame_stats_snapshot(include_pending=True).sample_frame_index.tolist() == [
+        1,
+        2,
+        3,
+        4,
+    ]
+    assert profiler.frame_stats_snapshot().sample_frame_index.tolist() == [0, 1, 2, 3]
+    profiler.clear_frame_stats()
+    assert profiler.frame_stats_snapshot(include_pending=True).sample_count == 0
+    device.submit_command_buffer(third)
+    device.wait()
+    profiler.tick()
+    profiler.flush()
+    assert profiler.frame_stats_snapshot().sample_count == 0
+    assert profiler.frame_stats_snapshot(include_pending=True).sample_count == 0
+    del recent, completed, baseline, resolved, out_of_order, profiler
+    assert frame_ids.tolist() == [0, 1, 2, 3]
+    assert statuses[:, delayed].tolist() == [absent, pending, pending, absent]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_profiler_window_releases_python_snapshots_at_exit(device_type: spy.DeviceType) -> None:
+    if not helpers.get_device(device_type).has_feature(spy.Feature.rasterization):
+        pytest.skip("Requires UI rasterization")
+    # This must run in a subprocess: retaining a Python-owned snapshot in the
+    # native window cache previously crashed during interpreter finalization.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent(
+                f"""
+            import slangpy as spy
+            device = spy.Device(type=spy.DeviceType.{device_type.name})
+            profiler = spy.Profiler()
+            with spy.profile_frame():
+                with spy.profile_zone("CPU scope"):
+                    pass
+            profiler.flush()
+            context = spy.ui.Context(device)
+            target = device.create_texture(format=spy.Format.rgba8_unorm, width=1024, height=900,
+                usage=spy.TextureUsage.render_target | spy.TextureUsage.shader_resource)
+            for _ in range(3):
+                encoder = device.create_command_encoder()
+                context.begin_frame(1024, 900)
+                spy.ui.render_profiler_window(profiler)
+                context.end_frame(target, encoder)
+                device.submit_command_buffer(encoder.finish())
+            # Convert the already-cached native snapshot to Python ownership.
+            recent = profiler.frame_stats_snapshot(include_pending=True)
+            assert recent.sample_count == 1
+            device.wait()
+            device.close()
+        """
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

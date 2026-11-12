@@ -708,11 +708,12 @@ SGL_PY_EXPORT(utils_profiler)
         )
         .def(
             "frame_stats_snapshot",
-            [](Profiler* self)
+            [](Profiler* self, bool include_pending)
             {
                 self->release_retired_snapshots();
-                return self->frame_stats_snapshot();
+                return self->frame_stats_snapshot(include_pending);
             },
+            "include_pending"_a = false,
             D(Profiler, frame_stats_snapshot)
         )
         .def("clear_frame_stats", &Profiler::clear_frame_stats, D(Profiler, clear_frame_stats))

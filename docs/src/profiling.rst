@@ -83,10 +83,12 @@ for its zone's inclusive measurement and the displayed remainder. Because CPU hi
 not guarantee GPU containment, the GPU stack represents grouped measurements rather than total
 GPU frame time or measured exclusive time.
 
-The latest statistics frame, its age, and the number of frames awaiting GPU measurements are
-shown in Diagnostics. CPU and GPU statistics still share the same completed frame history, so a
-pending GPU measurement can delay both. Pausing the display freezes the selected snapshot,
-while its age continues to increase.
+The headline and history graph use the newest CPU-ended frames, even while GPU work is pending.
+In GPU mode, a frame with pending measurements in the selected subtree is a gap until those
+results arrive. The zone table keeps CPU and GPU columns aligned over completed frames, so it
+can lag behind the headline and graph. Diagnostics show the latest CPU frame, completed table
+frame and age, and the table's lag in frames. Pausing the display freezes both snapshots,
+while the displayed age continues to increase.
 
 .. code-block:: python
 
@@ -146,6 +148,17 @@ Frames with allocated GPU timestamps remain pending until those timestamps resol
 fallback reports missing GPU data rather than allowing an abandoned command buffer to stall the
 history indefinitely.
 
+Use ``frame_stats_snapshot(include_pending=True)`` for the newest CPU-ended frames without
+waiting for GPU completion. This window is independently bounded by ``frame_stats_window_size``.
+GPU results are matched by frame and zone identity; later snapshots update the correct frame,
+while previously returned snapshots remain unchanged. Unresolved measurements have GPU status
+``pending``. Both snapshot modes are published by the collector; reading them does not poll GPU
+queries or wait for the device. Continue calling ``tick()`` to collect GPU results.
+
+The two modes can have different frame windows and entry lists. Match samples using
+``sample_frame_index`` and entries using hierarchical site-ID paths, rather than matching array
+positions. The default snapshot remains the appropriate view for paired CPU/GPU comparisons.
+
 Repeated occurrences of the same hierarchical zone path are summed within each frame. A zone
 that does not run contributes zero CPU time and zero calls to that frame, so parent and child
 rows always describe the same frame window. Per-call summaries retain exact count, total,
@@ -153,15 +166,15 @@ minimum, maximum, mean, and standard deviation without retaining every call dura
 
 Per-path frame time is the sum of inclusive occurrence durations at that path. Parent and child
 rows are therefore not additive. Summed GPU duration can also exceed elapsed frame time when GPU
-work overlaps. GPU frame statistics omit unavailable and incomplete measurements. Coverage is
-derived from the entry-aligned GPU-status matrix rather than duplicated on each entry.
+work overlaps. GPU frame statistics omit pending, unavailable, and incomplete measurements.
+Coverage is derived from the entry-aligned GPU-status matrix rather than duplicated on each entry.
 
 ``ProfilerFrameStats`` exposes retained history as zero-copy, read-only NumPy arrays.
 ``sample_frame_index`` and ``sample_frame_time_ms`` have shape ``(sample_count,)``. The call-count,
 CPU-time, GPU-time, and GPU-status arrays have row-major shape ``(sample_count, entry_count)``.
 GPU status distinguishes absent zones, zones without requested GPU timing, complete measurements,
-and incomplete requested measurements. Call-frequency summaries likewise derive from
-``sample_call_count`` rather than being stored redundantly on each entry.
+pending measurements, and incomplete requested measurements. Call-frequency summaries likewise
+derive from ``sample_call_count`` rather than being stored redundantly on each entry.
 
 ``frame_time``, ``latest_frame_ms``, and ``sample_frame_time_ms`` retain their CPU elapsed scope
 meaning. ``sample_frame_start_ns`` contains the CPU start timestamps, while
@@ -175,7 +188,7 @@ relative to the last recorded frame.
 
 .. code-block:: python
 
-    stats = profiler.frame_stats_snapshot()
+    stats = profiler.frame_stats_snapshot(include_pending=True)
     print(stats.frame_time.mean_ms, stats.frame_time.p95_ms)
     if stats.frame_interval.count:
         print("FPS:", 1000.0 / stats.frame_interval.mean_ms)

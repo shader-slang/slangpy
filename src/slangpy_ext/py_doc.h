@@ -7131,6 +7131,8 @@ static const char *mkd_doc_sgl_ProfilerFrameGpuStatus_incomplete = R"doc(At leas
 
 static const char *mkd_doc_sgl_ProfilerFrameGpuStatus_info = R"doc()doc";
 
+static const char *mkd_doc_sgl_ProfilerFrameGpuStatus_pending = R"doc(At least one requested GPU timing is still awaiting resolution.)doc";
+
 static const char *mkd_doc_sgl_ProfilerFrameGpuStatus_unavailable = R"doc(The entry occurred but did not request GPU timing.)doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStats =
@@ -7138,7 +7140,7 @@ R"doc(Immutable snapshot of rolling statistics for the profiler's global
 frame stream.
 
 Sample matrices are row-major with shape (sample_count(),
-entry_count()). All columns are ordered oldest to newest.)doc";
+entry_count()). Rows are ordered oldest to newest.)doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStatsEntry =
 R"doc(Frame-aligned statistics for one hierarchical CPU zone path.
@@ -7212,7 +7214,7 @@ inside each scope.
 )doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_latest_frame_ms =
-R"doc(CPU elapsed scope duration of the most recently completed frame in
+R"doc(CPU elapsed scope duration of the most recent retained frame in
 milliseconds.
 
 )doc";
@@ -7243,7 +7245,11 @@ static const char *mkd_doc_sgl_ProfilerFrameStats_m_sample_gpu_status = R"doc()d
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_m_sample_gpu_time_ms = R"doc()doc";
 
-static const char *mkd_doc_sgl_ProfilerFrameStats_pending_frame_count = R"doc(Total ended frames still waiting for GPU measurements.)doc";
+static const char *mkd_doc_sgl_ProfilerFrameStats_pending_frame_count =
+R"doc(Total CPU-ended frames awaiting ordered GPU completion, including
+frames blocked by an older pending frame.
+
+)doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_sample = R"doc(Return a non-owning entry-aligned view of one retained sample.)doc";
 
@@ -7253,7 +7259,11 @@ entry_count()).
 
 )doc";
 
-static const char *mkd_doc_sgl_ProfilerFrameStats_sample_count = R"doc(Number of retained completed frames.)doc";
+static const char *mkd_doc_sgl_ProfilerFrameStats_sample_count =
+R"doc(Number of retained CPU-ended frames (GPU resolution depends on the
+snapshot mode).
+
+)doc";
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_sample_cpu_time_ms =
 R"doc(Row-major CPU-duration matrix with shape (sample_count(),
@@ -7289,7 +7299,8 @@ entry_count()).
 
 static const char *mkd_doc_sgl_ProfilerFrameStats_sample_gpu_time_ms =
 R"doc(Row-major GPU-duration matrix with shape (sample_count(),
-entry_count()).
+entry_count()). Check sample_gpu_status() before using partial or
+unavailable measurements.
 
 )doc";
 
@@ -7581,6 +7592,14 @@ are not published inputs and are not awaited.
 static const char *mkd_doc_sgl_Profiler_frame_stats_snapshot =
 R"doc(Return the most recently published immutable frame statistics and
 request periodic statistics publication.
+
+Args:
+    include_pending: Include recent CPU-ended frames whose GPU
+                     measurements are still pending. Defaults to false
+                     to keep CPU and GPU statistics aligned over
+                     completed frames. Recent and completed snapshots
+                     may have different windows and entries; match by
+                     frame index and zone path.
 
 )doc";
 
@@ -15771,6 +15790,13 @@ snapshots.
 Args:
     profiler: Profiler to display, or nullptr to use the current
               profiler.
+
+)doc";
+
+static const char *mkd_doc_sgl_ui_reset_profiler_window =
+R"doc(Reset window state and release cached snapshots. Call before Python
+finalization so snapshots shared with Python are released while the
+interpreter is still usable.
 
 )doc";
 

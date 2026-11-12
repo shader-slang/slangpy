@@ -497,10 +497,23 @@ TEST_CASE_GPU("GPU timestamps follow command recording submission")
     ref<ProfilerFrameStats> pending_stats = profiler->frame_stats_snapshot();
     CHECK(pending_stats->pending_frame_count() == 1);
     CHECK(pending_stats->sample_count() == 0);
+    ref<ProfilerFrameStats> recent_stats = profiler->frame_stats_snapshot(true);
+    REQUIRE(recent_stats->sample_count() == 1);
+    REQUIRE(recent_stats->entry_count() == 1);
+    CHECK(recent_stats->sample(0).gpu_status[0] == ProfilerFrameGpuStatus::pending);
+    CHECK(recent_stats->entries()[0].cpu_time_per_call.count == 1);
+    CHECK(recent_stats->entries()[0].gpu_time_per_frame.count == 0);
+    CHECK(recent_stats->sample(0).frame_index == frame.frame_index);
     profiler->tick();
     ctx.device->submit_command_buffer(encoder->finish());
     ctx.device->wait();
     CHECK(tick_until_gpu_zones_resolved(profiler.get()));
+
+    ref<ProfilerFrameStats> resolved_stats = profiler->frame_stats_snapshot(true);
+    REQUIRE(resolved_stats->sample_count() == 1);
+    CHECK(resolved_stats->sample(0).frame_index == recent_stats->sample(0).frame_index);
+    CHECK(resolved_stats->sample(0).gpu_status[0] == ProfilerFrameGpuStatus::complete);
+    CHECK(recent_stats->sample(0).gpu_status[0] == ProfilerFrameGpuStatus::pending);
 
     encoder = ctx.device->create_command_encoder();
     token = profiler->begin_zone(site, encoder);
@@ -673,6 +686,10 @@ TEST_CASE_GPU("discarded GPU work and pending bounds complete frame statistics")
     CHECK(bounded->pending_frame_count() == 1);
     REQUIRE(bounded->entries().size() == 1);
     CHECK(bounded->sample(0).gpu_status.front() == ProfilerFrameGpuStatus::incomplete);
+    ref<ProfilerFrameStats> recent = profiler->frame_stats_snapshot(true);
+    REQUIRE(recent->sample_count() == 1);
+    CHECK(recent->sample(0).frame_index == bounded->sample(0).frame_index + 1);
+    CHECK(recent->sample(0).gpu_status.front() == ProfilerFrameGpuStatus::pending);
 
     first = nullptr;
     second = nullptr;
@@ -691,6 +708,7 @@ TEST_CASE_GPU("discarded GPU work and pending bounds complete frame statistics")
     third = nullptr;
     profiler->flush();
     CHECK(profiler->frame_stats_snapshot()->sample_count() == 0);
+    CHECK(profiler->frame_stats_snapshot(true)->sample_count() == 0);
 }
 
 TEST_CASE_GPU("device close settles pending frame statistics")

@@ -3,6 +3,7 @@
 #include "nanobind.h"
 #include "sgl/core/platform.h"
 #include "sgl/core/thread.h"
+#include "sgl/utils/profiler_ui.h"
 
 #include "sgl/sgl.h"
 #include "sgl/device/device.h"
@@ -183,6 +184,9 @@ NB_MODULE(slangpy_ext, m_)
     atexit.attr("register")(nb::cpp_function(
         []()
         {
+            // The profiler window may retain snapshots that have Python ownership.
+            sgl::ui::reset_profiler_window();
+
             // Reset cached Python objects before Python finalization.
             // This must be done while the GIL is held, before Python finalizes,
             // to avoid "GIL not held" errors during static destruction.

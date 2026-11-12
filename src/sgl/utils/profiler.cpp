@@ -434,6 +434,7 @@ struct ProfilerImpl {
         CallAccumulator gpu;
         uint64_t gpu_requested_count{0};
         uint64_t missing_gpu_call_count{0};
+        uint64_t pending_gpu_call_count{0};
     };
 
     struct FrameRecord {
@@ -527,6 +528,7 @@ struct ProfilerImpl {
     {
         live_published = ref<ProfilerTrace>(new ProfilerTrace());
         frame_stats_published = ref<ProfilerFrameStats>(new ProfilerFrameStats());
+        recent_frame_stats_published = frame_stats_published;
         worker = std::thread(
             [this]
             {
@@ -792,7 +794,7 @@ struct ProfilerImpl {
         return dirty;
     }
 
-    FrameRecord build_frame_record(PendingFrameData&& pending)
+    FrameRecord build_frame_record(const PendingFrameData& pending, bool count_hierarchy_loss = true)
     {
         FrameRecord result;
         result.frame = pending.frame;
@@ -805,12 +807,12 @@ struct ProfilerImpl {
             auto zone_it = pending.zones.find(correlation_id);
             if (zone_it == pending.zones.end())
                 return -1;
-            PendingFrameZone& zone = zone_it->second;
+            const PendingFrameZone& zone = zone_it->second;
             int32_t parent_index = -1;
             if (zone.parent_correlation_id != 0) {
                 if (pending.zones.find(zone.parent_correlation_id) != pending.zones.end())
                     parent_index = self(self, zone.parent_correlation_id);
-                else
+                else if (count_hierarchy_loss)
                     ++hierarchy_loss_count;
             }
             const uint64_t path_key = (uint64_t(uint32_t(parent_index + 1)) << 32) | zone.site_id;
@@ -828,6 +830,8 @@ struct ProfilerImpl {
                 ++node.gpu_requested_count;
                 if (zone.gpu_timing_status == GpuTimingStatus::complete)
                     node.gpu.add(zone.gpu_duration_ns);
+                else if (zone.gpu_timing_status == GpuTimingStatus::pending)
+                    ++node.pending_gpu_call_count;
                 else
                     ++node.missing_gpu_call_count;
             }
@@ -852,7 +856,7 @@ struct ProfilerImpl {
             }
             if (pending_it->second.pending_gpu_count != 0)
                 break;
-            frame_stats_completed_frames.push_back(build_frame_record(std::move(pending_it->second)));
+            frame_stats_completed_frames.push_back(build_frame_record(pending_it->second));
             pending_frames.erase(pending_it);
             frame_stats_pending_frames.pop_front();
             while (frame_stats_completed_frames.size() > desc.frame_stats_window_size)
@@ -1427,8 +1431,24 @@ struct ProfilerImpl {
         clear_capture_storage();
     }
 
-    ref<ProfilerFrameStats> make_frame_stats() const
+    ref<ProfilerFrameStats> make_frame_stats(bool include_pending = false)
     {
+        // Pending records are temporary views of sealed CPU data. Count hierarchy losses
+        // only when finalizing a frame, never each time a pending snapshot is rebuilt.
+        std::vector<FrameRecord> pending_records;
+        std::vector<const FrameRecord*> frames;
+        for (const FrameRecord& frame : frame_stats_completed_frames)
+            frames.push_back(&frame);
+        if (include_pending) {
+            pending_records.reserve(frame_stats_pending_frames.size());
+            for (uint32_t index : frame_stats_pending_frames) {
+                pending_records.push_back(build_frame_record(pending_frames.at(index), false));
+                frames.push_back(&pending_records.back());
+            }
+            if (frames.size() > desc.frame_stats_window_size)
+                frames.erase(frames.begin(), frames.end() - desc.frame_stats_window_size);
+        }
+
         struct AggregatedNode {
             int32_t parent_index{-1};
             uint32_t site_id{0};
@@ -1439,7 +1459,7 @@ struct ProfilerImpl {
         ref<ProfilerFrameStats> result(new ProfilerFrameStats());
         const std::vector<ProfilerSite> sites = site_snapshot();
         result->m_pending_frame_count = frame_stats_pending_frames.size();
-        const size_t frame_count = frame_stats_completed_frames.size();
+        const size_t frame_count = frames.size();
         std::vector<uint64_t> frame_durations;
         std::vector<uint64_t> frame_intervals;
         frame_durations.reserve(frame_count);
@@ -1448,7 +1468,8 @@ struct ProfilerImpl {
         result->m_sample_frame_time_ms.reserve(frame_count);
         result->m_sample_frame_start_ns.reserve(frame_count);
         result->m_sample_frame_interval_ms.reserve(frame_count);
-        for (const FrameRecord& frame : frame_stats_completed_frames) {
+        for (const FrameRecord* frame_ptr : frames) {
+            const FrameRecord& frame = *frame_ptr;
             frame_durations.push_back(frame.frame.duration_ns);
             result->m_sample_frame_index.push_back(frame.frame.index);
             result->m_sample_frame_time_ms.push_back(double(frame.frame.duration_ns) * 1e-6);
@@ -1462,7 +1483,8 @@ struct ProfilerImpl {
 
         std::vector<AggregatedNode> nodes;
         std::unordered_map<uint64_t, uint32_t> path_lookup;
-        for (const FrameRecord& frame : frame_stats_completed_frames) {
+        for (const FrameRecord* frame_ptr : frames) {
+            const FrameRecord& frame = *frame_ptr;
             std::vector<uint32_t> local_to_global(frame.nodes.size());
             for (size_t local_index = 0; local_index < frame.nodes.size(); ++local_index) {
                 const FrameNodeData& node = frame.nodes[local_index];
@@ -1531,7 +1553,7 @@ struct ProfilerImpl {
         result->m_sample_gpu_time_ms.resize(matrix_size);
         result->m_sample_gpu_status.resize(matrix_size, ProfilerFrameGpuStatus::absent);
         for (size_t frame_index = 0; frame_index < frame_count; ++frame_index) {
-            const FrameRecord& source_frame = frame_stats_completed_frames[frame_index];
+            const FrameRecord& source_frame = *frames[frame_index];
             std::vector<uint32_t> local_to_global(source_frame.nodes.size());
             for (size_t local_index = 0; local_index < source_frame.nodes.size(); ++local_index) {
                 const FrameNodeData& node = source_frame.nodes[local_index];
@@ -1545,6 +1567,8 @@ struct ProfilerImpl {
                 result->m_sample_gpu_time_ms[offset] = double(node.gpu.total_ns) * 1e-6;
                 if (node.gpu_requested_count == 0) {
                     result->m_sample_gpu_status[offset] = ProfilerFrameGpuStatus::unavailable;
+                } else if (node.pending_gpu_call_count != 0) {
+                    result->m_sample_gpu_status[offset] = ProfilerFrameGpuStatus::pending;
                 } else if (node.missing_gpu_call_count != 0) {
                     result->m_sample_gpu_status[offset] = ProfilerFrameGpuStatus::incomplete;
                 } else {
@@ -1583,6 +1607,7 @@ struct ProfilerImpl {
                     valid_gpu_frames.push_back(result->m_sample_gpu_time_ms[offset]);
                     break;
                 case ProfilerFrameGpuStatus::incomplete:
+                case ProfilerFrameGpuStatus::pending:
                     break;
                 }
             }
@@ -1601,6 +1626,7 @@ struct ProfilerImpl {
     {
         ref<ProfilerTrace> live;
         ref<ProfilerFrameStats> frame_stats;
+        ref<ProfilerFrameStats> recent_frame_stats;
         if (publish_live) {
             const uint64_t now = now_ns();
             live = make_trace(
@@ -1613,8 +1639,10 @@ struct ProfilerImpl {
                 live_zones.size() * sizeof(StoredZone)
             );
         }
-        if (publish_frame_stats)
+        if (publish_frame_stats) {
             frame_stats = make_frame_stats();
+            recent_frame_stats = frame_stats_pending_frames.empty() ? frame_stats : make_frame_stats(true);
+        }
         std::lock_guard lock(snapshot_mutex);
         if (publish_live) {
             if (live_published && live_published->self_py())
@@ -1625,6 +1653,9 @@ struct ProfilerImpl {
             if (frame_stats_published && frame_stats_published->self_py())
                 retired_frame_stats_snapshots.push_back(std::move(frame_stats_published));
             frame_stats_published = std::move(frame_stats);
+            if (recent_frame_stats_published && recent_frame_stats_published->self_py())
+                retired_frame_stats_snapshots.push_back(std::move(recent_frame_stats_published));
+            recent_frame_stats_published = std::move(recent_frame_stats);
         }
     }
 
@@ -1745,6 +1776,7 @@ struct ProfilerImpl {
     mutable std::mutex snapshot_mutex;
     ref<ProfilerTrace> live_published;
     ref<ProfilerFrameStats> frame_stats_published;
+    ref<ProfilerFrameStats> recent_frame_stats_published;
     // Snapshot objects can transition to Python ownership after publication. The
     // collector must never increment or decrement such references without the GIL,
     // so old snapshots are moved here and released with the profiler itself.
@@ -2075,14 +2107,14 @@ ref<ProfilerTrace> Profiler::live_snapshot() const
     return m_impl->live_published;
 }
 
-ref<ProfilerFrameStats> Profiler::frame_stats_snapshot() const
+ref<ProfilerFrameStats> Profiler::frame_stats_snapshot(bool include_pending) const
 {
     if (!m_impl->frame_stats_snapshot_interest.exchange(true, std::memory_order_relaxed)) {
         m_impl->frame_stats_snapshot_refresh_requested.store(true, std::memory_order_relaxed);
         m_impl->control_cv.notify_all();
     }
     std::lock_guard lock(m_impl->snapshot_mutex);
-    return m_impl->frame_stats_published;
+    return include_pending ? m_impl->recent_frame_stats_published : m_impl->frame_stats_published;
 }
 
 void Profiler::release_retired_snapshots()

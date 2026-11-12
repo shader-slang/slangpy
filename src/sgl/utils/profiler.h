@@ -177,6 +177,7 @@ enum class ProfilerFrameGpuStatus : uint8_t {
     unavailable, ///< The entry occurred but did not request GPU timing.
     complete,    ///< All requested GPU timings resolved successfully.
     incomplete,  ///< At least one requested GPU timing could not be resolved.
+    pending,     ///< At least one requested GPU timing is still awaiting resolution.
 };
 SGL_ENUM_INFO(
     ProfilerFrameGpuStatus,
@@ -185,6 +186,7 @@ SGL_ENUM_INFO(
         {ProfilerFrameGpuStatus::unavailable, "unavailable"},
         {ProfilerFrameGpuStatus::complete, "complete"},
         {ProfilerFrameGpuStatus::incomplete, "incomplete"},
+        {ProfilerFrameGpuStatus::pending, "pending"},
     }
 );
 SGL_ENUM_REGISTER(ProfilerFrameGpuStatus);
@@ -347,17 +349,17 @@ private:
 
 /// Immutable snapshot of rolling statistics for the profiler's global frame stream.
 ///
-/// Sample matrices are row-major with shape (sample_count(), entry_count()). All columns are ordered oldest to newest.
+/// Sample matrices are row-major with shape (sample_count(), entry_count()). Rows are ordered oldest to newest.
 class SGL_API ProfilerFrameStats : public Object {
     SGL_OBJECT(ProfilerFrameStats)
 public:
-    /// Number of retained completed frames.
+    /// Number of retained CPU-ended frames (GPU resolution depends on the snapshot mode).
     size_t sample_count() const { return m_sample_frame_index.size(); }
     /// Number of hierarchical entries.
     size_t entry_count() const { return m_entries.size(); }
-    /// Total ended frames still waiting for GPU measurements.
+    /// Total CPU-ended frames awaiting ordered GPU completion, including frames blocked by an older pending frame.
     uint64_t pending_frame_count() const { return m_pending_frame_count; }
-    /// CPU elapsed scope duration of the most recently completed frame in milliseconds.
+    /// CPU elapsed scope duration of the most recent retained frame in milliseconds.
     double latest_frame_ms() const { return m_sample_frame_time_ms.empty() ? 0.0 : m_sample_frame_time_ms.back(); }
     /// Distribution of CPU elapsed frame scope durations, including waits inside each scope.
     const ProfilerDurationStatistics& frame_time() const { return m_frame_time; }
@@ -379,6 +381,7 @@ public:
     /// Row-major CPU-duration matrix with shape (sample_count(), entry_count()).
     const std::vector<double>& sample_cpu_time_ms() const { return m_sample_cpu_time_ms; }
     /// Row-major GPU-duration matrix with shape (sample_count(), entry_count()).
+    /// Check sample_gpu_status() before using partial or unavailable measurements.
     const std::vector<double>& sample_gpu_time_ms() const { return m_sample_gpu_time_ms; }
     /// Row-major GPU-status matrix with shape (sample_count(), entry_count()).
     const std::vector<ProfilerFrameGpuStatus>& sample_gpu_status() const { return m_sample_gpu_status; }
@@ -478,7 +481,10 @@ public:
     /// Return the most recently published immutable live trace and request periodic live-trace publication.
     ref<ProfilerTrace> live_snapshot() const;
     /// Return the most recently published immutable frame statistics and request periodic statistics publication.
-    ref<ProfilerFrameStats> frame_stats_snapshot() const;
+    /// @param include_pending Include recent CPU-ended frames whose GPU measurements are still pending.
+    /// Defaults to false to keep CPU and GPU statistics aligned over completed frames.
+    /// Recent and completed snapshots may have different windows and entries; match by frame index and zone path.
+    ref<ProfilerFrameStats> frame_stats_snapshot(bool include_pending = false) const;
     /// Release profiler-owned references to snapshots previously handed to Python.
     /// Python bindings call this while holding the GIL before acquiring a new snapshot.
     void release_retired_snapshots();
