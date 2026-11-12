@@ -31,6 +31,7 @@ SGL_PY_DECLARE(core_window);
 SGL_PY_DECLARE(native_func);
 SGL_PY_DECLARE(func_tensor);
 
+SGL_PY_DECLARE(device_buffer_ptr);
 SGL_PY_DECLARE(device_buffer_cursor);
 SGL_PY_DECLARE(device_child);
 SGL_PY_DECLARE(device_command);
@@ -138,6 +139,7 @@ NB_MODULE(slangpy_ext, m_)
     SGL_PY_IMPORT(device_types);
     SGL_PY_IMPORT(device_device_child);
     SGL_PY_IMPORT(device_resource);
+    SGL_PY_IMPORT(device_buffer_ptr);
     SGL_PY_IMPORT(device_sampler);
     SGL_PY_IMPORT(device_fence);
     SGL_PY_IMPORT(device_query);
