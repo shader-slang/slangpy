@@ -366,6 +366,8 @@ Window::Window(WindowDesc desc)
 {
     init_glfw();
 
+    // GLFW window hints persist across window creations.
+    glfwDefaultWindowHints();
     glfwWindowHint(GLFW_MAXIMIZED, desc.mode == WindowMode::maximized ? GLFW_TRUE : GLFW_FALSE);
 
     if (desc.mode == WindowMode::fullscreen) {
