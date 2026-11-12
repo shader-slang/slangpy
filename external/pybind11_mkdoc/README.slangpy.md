@@ -17,6 +17,14 @@ Function declarations and genuine overloads are unchanged. Comments are still
 obtained from libclang, including comments it inherits from earlier declarations.
 Forward-only opaque types do not get generated entries.
 
+`--include-docs <glob>` opts into extracting declarations from included files,
+for example `--include-docs '*.slang'` for shared C++/Slang definitions. Patterns
+are case-sensitive, match absolute paths with forward slashes, and may be repeated.
+Files are parsed through the input headers, preserving their macros and namespaces.
+Repeated declarations from the same source location are emitted once; distinct
+overloads and namespace contexts are retained. Without this option, included-file
+documentation remains excluded.
+
 ## Updating
 
 Copy the runtime package and license from a reviewed upstream commit, reapply

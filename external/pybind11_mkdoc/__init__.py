@@ -131,6 +131,16 @@ def main() -> int:
         help="Specify a compiler definition, i.e. define <macro> to <value> (or 1 if <value> omitted).",
     )
 
+    parser.add_argument(
+        "--include-docs",
+        action="append",
+        default=[],
+        metavar="<glob>",
+        help="Also extract declarations from included files matching this glob. "
+        "Matches absolute paths with forward slashes (e.g. '*.slang'); "
+        "may be repeated. Included files are excluded by default.",
+    )
+
     parser.add_argument("header", type=str, nargs="+", help="A header file to process.")
 
     parsed_args, unparsed_args = parser.parse_known_args()
@@ -158,6 +168,6 @@ def main() -> int:
 
     mkdoc_args.extend(parsed_args.header)
 
-    mkdoc(mkdoc_args, docstring_width, mkdoc_out)
+    mkdoc(mkdoc_args, docstring_width, mkdoc_out, parsed_args.include_docs)
 
     return 0
