@@ -366,6 +366,8 @@ Window::Window(WindowDesc desc)
 {
     init_glfw();
 
+    glfwWindowHint(GLFW_MAXIMIZED, desc.mode == WindowMode::maximized ? GLFW_TRUE : GLFW_FALSE);
+
     if (desc.mode == WindowMode::fullscreen) {
         glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
         auto mon = glfwGetPrimaryMonitor();

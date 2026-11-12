@@ -25,6 +25,7 @@ namespace sgl {
 enum class WindowMode {
     normal,
     minimized,
+    maximized,
     fullscreen,
 };
 
@@ -33,6 +34,7 @@ SGL_ENUM_INFO(
     {
         {WindowMode::normal, "normal"},
         {WindowMode::minimized, "minimized"},
+        {WindowMode::maximized, "maximized"},
         {WindowMode::fullscreen, "fullscreen"},
     }
 );
