@@ -15,9 +15,10 @@ import re
 import sys
 import textwrap
 from concurrent.futures import ThreadPoolExecutor
+from fnmatch import fnmatchcase
 from glob import glob
 from itertools import repeat
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Literal, TextIO, Union
 
 from clang import cindex
@@ -26,8 +27,9 @@ from clang.cindex import CursorKind
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-# (name, filename, comment) for one documented declaration
-_Doc = tuple[str, str, str]
+# (name, filename, comment, source offset) for one documented declaration.
+# The offset distinguishes overloads even when their comments are identical.
+_Doc = tuple[str, str, str, int]
 
 # The active continuation target while consuming Doxygen sections: a tag
 # plus the container (and index) that follow-up lines are appended to.
@@ -553,14 +555,19 @@ def format_function_docstring(comment: str) -> str:
     return comment + "\n\n"
 
 
-def _is_cursor_from_file(node: Any, filename: str, file_cache: dict[str, bool]) -> bool:
+def _is_cursor_from_file(
+    node: Any, filename: str, file_cache: dict[str, bool], include_docs: list[str]
+) -> bool:
     if node.location.file is None:
         return True
 
     node_filename = node.location.file.name
     # libclang often reports many cursors from the same file; avoid repeated stat calls by caching.
     if node_filename not in file_cache:
-        file_cache[node_filename] = os.path.samefile(node_filename, filename)
+        file_cache[node_filename] = os.path.samefile(node_filename, filename) or any(
+            fnmatchcase(Path(node_filename).resolve().as_posix(), pattern)
+            for pattern in include_docs
+        )
     return file_cache[node_filename]
 
 
@@ -570,8 +577,11 @@ def extract(
     prefix: str,
     output: list[_Doc],
     file_cache: dict[str, bool],
+    include_docs: list[str],
 ) -> None:
-    if not _is_cursor_from_file(node, filename, file_cache):
+    selected = _is_cursor_from_file(node, filename, file_cache, include_docs)
+    # Selected includes may be nested in a namespace from an unselected header.
+    if not selected and not include_docs:
         return
     # Forward declarations must not consume a docstring name or overload suffix.
     # Keep function declarations: their definitions are usually outside the headers.
@@ -589,8 +599,8 @@ def extract(
                 sub_prefix += "_"
             sub_prefix += node.spelling
         for i in node.get_children():
-            extract(filename, i, sub_prefix, output, file_cache)
-    if node.kind in PRINT_LIST:
+            extract(filename, i, sub_prefix, output, file_cache, include_docs)
+    if selected and node.kind in PRINT_LIST:
         comment = process_comment(node.raw_comment or "")
         if node.kind in FUNCTION_DOCSTRING_LIST:
             comment = format_function_docstring(comment)
@@ -599,7 +609,8 @@ def extract(
             sub_prefix += "_"
         if len(node.spelling) > 0:
             name = sanitize_name(sub_prefix + node.spelling)
-            output.append((name, filename, comment))
+            source = Path(node.location.file.name).resolve().as_posix()
+            output.append((name, source, comment, node.location.offset))
 
 
 def _report_diagnostics(filename: str, tu: Any) -> None:
@@ -614,13 +625,13 @@ def _report_diagnostics(filename: str, tu: Any) -> None:
         raise RuntimeError(msg)
 
 
-def _extract_file(filename: str, parameters: list[str]) -> list[_Doc]:
+def _extract_file(filename: str, parameters: list[str], include_docs: list[str]) -> list[_Doc]:
     # Diagnostics are printed by _report_diagnostics, not by libclang itself.
     index = cindex.Index(cindex.conf.lib.clang_createIndex(False, False))
     tu = index.parse(filename, parameters)
     _report_diagnostics(filename, tu)
     output: list[_Doc] = []
-    extract(filename, tu.cursor, "", output, {})
+    extract(filename, tu.cursor, "", output, {}, include_docs)
     return output
 
 
@@ -797,11 +808,16 @@ def read_args(args: list[str]) -> tuple[list[str], list[str]]:
     return parameters, filenames
 
 
-def extract_all(args: list[str]) -> list[_Doc]:
+def extract_all(args: list[str], include_docs: list[str] | None = None) -> list[_Doc]:
     parameters, filenames = read_args(args)
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-        results = executor.map(_extract_file, filenames, repeat(parameters))
-        return [comment for output in results for comment in output]
+        results = executor.map(
+            _extract_file, filenames, repeat(parameters), repeat(include_docs or [])
+        )
+        comments = [comment for output in results for comment in output]
+    # The same included declaration can be reached through multiple input headers.
+    # Preserve source order and distinct overloads or namespace contexts.
+    return list(dict.fromkeys(comments)) if include_docs else comments
 
 
 def write_header(comments: list[_Doc], out_file: TextIO = sys.stdout) -> None:
@@ -834,10 +850,10 @@ def write_header(comments: list[_Doc], out_file: TextIO = sys.stdout) -> None:
     )
 
     # A suffixed name must not collide with a real symbol of that name, or with an earlier suffixed name.
-    taken = {name for name, _, _ in comments}
+    taken = {name for name, _, _, _ in comments}
     name_ctr = 1
     name_prev: str | None = None
-    for name, _, comment in sorted(comments, key=lambda x: (x[0], x[1])):
+    for name, _, comment, _ in sorted(comments, key=lambda x: (x[0], x[1])):
         if name == name_prev:
             name_ctr += 1
             while f"{name_prev}_{name_ctr}" in taken:
@@ -860,11 +876,16 @@ def write_header(comments: list[_Doc], out_file: TextIO = sys.stdout) -> None:
     )
 
 
-def mkdoc(args: list[str], width: int | None, output: str | None = None) -> None:
+def mkdoc(
+    args: list[str],
+    width: int | None,
+    output: str | None = None,
+    include_docs: list[str] | None = None,
+) -> None:
     if width is not None:
         global docstring_width
         docstring_width = width
-    comments = extract_all(args)
+    comments = extract_all(args, include_docs)
 
     if output:
         try:
