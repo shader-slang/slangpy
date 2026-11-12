@@ -141,9 +141,19 @@ def main() -> int:
         "may be repeated. Included files are excluded by default.",
     )
 
+    parser.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        metavar="<count>",
+        help="Number of parallel header workers (default: at most 16).",
+    )
+
     parser.add_argument("header", type=str, nargs="+", help="A header file to process.")
 
     parsed_args, unparsed_args = parser.parse_known_args()
+    if parsed_args.jobs is not None and parsed_args.jobs < 1:
+        parser.error("--jobs must be positive")
 
     mkdoc_args: list[str] = []
     mkdoc_out = parsed_args.output
@@ -168,6 +178,6 @@ def main() -> int:
 
     mkdoc_args.extend(parsed_args.header)
 
-    mkdoc(mkdoc_args, docstring_width, mkdoc_out, parsed_args.include_docs)
+    mkdoc(mkdoc_args, docstring_width, mkdoc_out, parsed_args.include_docs, parsed_args.jobs)
 
     return 0

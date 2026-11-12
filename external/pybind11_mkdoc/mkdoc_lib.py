@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import ctypes.util
+import io
 import os
 import platform
 import re
@@ -19,6 +20,7 @@ from fnmatch import fnmatchcase
 from glob import glob
 from itertools import repeat
 from pathlib import Path, PurePosixPath
+from threading import Lock
 from typing import TYPE_CHECKING, Any, Literal, TextIO, Union
 
 from clang import cindex
@@ -555,8 +557,45 @@ def format_function_docstring(comment: str) -> str:
     return comment + "\n\n"
 
 
+class _SourcePaths:
+    """Canonical paths and file identities shared by workers in one extraction run."""
+
+    def __init__(self) -> None:
+        self._paths: dict[str, str] = {}
+        self._identities: dict[str, tuple[int, int]] = {}
+        self._lock = Lock()
+
+    def resolve(self, filename: str) -> str:
+        cached = self._paths.get(filename)
+        if cached is not None:
+            return cached
+        # Serialize misses as well as insertion: concurrent translation units
+        # frequently encounter the same dependency headers at the same time.
+        with self._lock:
+            if filename not in self._paths:
+                self._paths[filename] = Path(filename).resolve().as_posix()
+            return self._paths[filename]
+
+    def _identity(self, filename: str) -> tuple[int, int]:
+        cached = self._identities.get(filename)
+        if cached is not None:
+            return cached
+        with self._lock:
+            if filename not in self._identities:
+                stat = os.stat(filename)
+                self._identities[filename] = (stat.st_dev, stat.st_ino)
+            return self._identities[filename]
+
+    def samefile(self, left: str, right: str) -> bool:
+        return self._identity(left) == self._identity(right)
+
+
 def _is_cursor_from_file(
-    node: Any, filename: str, file_cache: dict[str, bool], include_docs: list[str]
+    node: Any,
+    filename: str,
+    file_cache: dict[str, bool],
+    include_docs: list[str],
+    source_cache: _SourcePaths,
 ) -> bool:
     if node.location.file is None:
         return True
@@ -564,8 +603,8 @@ def _is_cursor_from_file(
     node_filename = node.location.file.name
     # libclang often reports many cursors from the same file; avoid repeated stat calls by caching.
     if node_filename not in file_cache:
-        file_cache[node_filename] = os.path.samefile(node_filename, filename) or any(
-            fnmatchcase(Path(node_filename).resolve().as_posix(), pattern)
+        file_cache[node_filename] = source_cache.samefile(node_filename, filename) or any(
+            fnmatchcase(source_cache.resolve(node_filename), pattern)
             for pattern in include_docs
         )
     return file_cache[node_filename]
@@ -578,10 +617,13 @@ def extract(
     output: list[_Doc],
     file_cache: dict[str, bool],
     include_docs: list[str],
+    source_cache: _SourcePaths,
+    recurse_files: set[str],
 ) -> None:
-    selected = _is_cursor_from_file(node, filename, file_cache, include_docs)
-    # Selected includes may be nested in a namespace from an unselected header.
-    if not selected and not include_docs:
+    selected = _is_cursor_from_file(node, filename, file_cache, include_docs, source_cache)
+    # Only ancestors of selected includes can contain their declarations. Preserve
+    # their namespace/class context without walking unrelated dependency headers.
+    if not selected and node.location.file.name not in recurse_files:
         return
     # Forward declarations must not consume a docstring name or overload suffix.
     # Keep function declarations: their definitions are usually outside the headers.
@@ -599,7 +641,16 @@ def extract(
                 sub_prefix += "_"
             sub_prefix += node.spelling
         for i in node.get_children():
-            extract(filename, i, sub_prefix, output, file_cache, include_docs)
+            extract(
+                filename,
+                i,
+                sub_prefix,
+                output,
+                file_cache,
+                include_docs,
+                source_cache,
+                recurse_files,
+            )
     if selected and node.kind in PRINT_LIST:
         comment = process_comment(node.raw_comment or "")
         if node.kind in FUNCTION_DOCSTRING_LIST:
@@ -609,7 +660,8 @@ def extract(
             sub_prefix += "_"
         if len(node.spelling) > 0:
             name = sanitize_name(sub_prefix + node.spelling)
-            source = Path(node.location.file.name).resolve().as_posix()
+            node_filename = node.location.file.name
+            source = source_cache.resolve(node_filename)
             output.append((name, source, comment, node.location.offset))
 
 
@@ -625,13 +677,48 @@ def _report_diagnostics(filename: str, tu: Any) -> None:
         raise RuntimeError(msg)
 
 
-def _extract_file(filename: str, parameters: list[str], include_docs: list[str]) -> list[_Doc]:
+def _extract_file(
+    filename: str,
+    parameters: list[str],
+    include_docs: list[str],
+    source_cache: _SourcePaths | None = None,
+) -> list[_Doc]:
     # Diagnostics are printed by _report_diagnostics, not by libclang itself.
     index = cindex.Index(cindex.conf.lib.clang_createIndex(False, False))
-    tu = index.parse(filename, parameters)
+    # Only declarations and comments are consumed. Avoid parsing implementations
+    # in both the input header and its dependencies.
+    tu = index.parse(
+        filename, parameters, options=cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES
+    )
     _report_diagnostics(filename, tu)
     output: list[_Doc] = []
-    extract(filename, tu.cursor, "", output, {}, include_docs)
+    file_cache: dict[str, bool] = {}
+    if source_cache is None:
+        source_cache = _SourcePaths()
+    recurse_files: set[str] = set()
+    if include_docs:
+        parents: dict[str, set[str]] = {}
+        for inclusion in tu.get_includes():
+            if inclusion.source is not None:
+                parents.setdefault(inclusion.include.name, set()).add(inclusion.source.name)
+        # Select files once, then follow reverse include edges to retain every
+        # possible enclosing context, including repeated and transitive includes.
+        pending = []
+        for included in parents:
+            source = source_cache.resolve(included)
+            file_cache[included] = source_cache.samefile(included, filename) or any(
+                fnmatchcase(source, pattern) for pattern in include_docs
+            )
+            if file_cache[included]:
+                pending.append(included)
+        while pending:
+            included = pending.pop()
+            if included not in recurse_files:
+                recurse_files.add(included)
+                pending.extend(parents.get(included, ()))
+    extract(
+        filename, tu.cursor, "", output, file_cache, include_docs, source_cache, recurse_files
+    )
     return output
 
 
@@ -808,11 +895,21 @@ def read_args(args: list[str]) -> tuple[list[str], list[str]]:
     return parameters, filenames
 
 
-def extract_all(args: list[str], include_docs: list[str] | None = None) -> list[_Doc]:
+def extract_all(
+    args: list[str], include_docs: list[str] | None = None, jobs: int | None = None
+) -> list[_Doc]:
+    if jobs is not None and jobs < 1:
+        raise ValueError("jobs must be positive")
     parameters, filenames = read_args(args)
-    with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+    source_cache = _SourcePaths()
+    workers = min(jobs if jobs is not None else min(16, os.cpu_count() or 1), len(filenames))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
         results = executor.map(
-            _extract_file, filenames, repeat(parameters), repeat(include_docs or [])
+            _extract_file,
+            filenames,
+            repeat(parameters),
+            repeat(include_docs or []),
+            repeat(source_cache),
         )
         comments = [comment for output in results for comment in output]
     # The same included declaration can be reached through multiple input headers.
@@ -881,17 +978,26 @@ def mkdoc(
     width: int | None,
     output: str | None = None,
     include_docs: list[str] | None = None,
+    jobs: int | None = None,
 ) -> None:
     if width is not None:
         global docstring_width
         docstring_width = width
-    comments = extract_all(args, include_docs)
+    comments = extract_all(args, include_docs, jobs)
 
     if output:
+        rendered = io.StringIO()
+        write_header(comments, rendered)
+        content = rendered.getvalue()
+        try:
+            if Path(output).read_text(encoding="utf-8") == content:
+                return
+        except (FileNotFoundError, UnicodeDecodeError):
+            pass
         try:
             os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
-            with open(output, "w") as out_file:
-                write_header(comments, out_file)
+            with open(output, "w", encoding="utf-8") as out_file:
+                out_file.write(content)
         except:
             # In the event of an error, don't leave a partially-written
             # output file.

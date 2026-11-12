@@ -25,6 +25,24 @@ Repeated declarations from the same source location are emitted once; distinct
 overloads and namespace contexts are retained. Without this option, included-file
 documentation remains excluded.
 
+Resolved source paths and file identities are cached across workers for one
+extraction run, retaining canonical path matching and hardlink equivalence without
+repeated filesystem lookups for shared headers. Cache hits avoid taking a lock;
+misses remain synchronized across workers.
+With `--include-docs`,
+the include graph limits traversal to selected files and their including ancestors,
+preserving enclosing namespaces and classes while pruning unrelated dependencies.
+
+Parsing uses libclang's `PARSE_SKIP_FUNCTION_BODIES`: extraction consumes
+declarations and comments, not implementations. Declaration diagnostics are still
+reported; errors solely inside skipped function bodies are left to the C++ build.
+
+Extraction uses at most 16 workers by default, limited by the CPU count and number
+of input headers. `-j <count>` / `--jobs <count>` overrides the default worker
+limit; the Python entry points also accept `jobs`. Generated headers are only
+written when their contents change, preserving timestamps on unchanged output
+and avoiding unnecessary C++ binding recompilation.
+
 ## Updating
 
 Copy the runtime package and license from a reviewed upstream commit, reapply
