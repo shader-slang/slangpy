@@ -387,6 +387,8 @@ inline nb::dlpack::dtype data_type_to_dtype(DataType type)
         return nb::dtype<float>();
     case DataType::float64:
         return nb::dtype<double>();
+    case DataType::bfloat16:
+        return nb::dlpack::dtype{(uint8_t)nb::dlpack::dtype_code::Bfloat, 16, 1};
     default:
         break;
     }

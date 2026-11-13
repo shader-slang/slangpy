@@ -7,7 +7,7 @@ import math
 
 from slangpy import Struct
 from slangpy.core.native import Shape
-from slangpy import DeviceType, BufferUsage
+from slangpy import DataType, Device, DeviceType, BufferUsage, Feature, TypeReflection
 from slangpy.types import Tensor, Tensor
 from slangpy.testing import helpers
 
@@ -141,6 +141,59 @@ def test_to_torch(
     assert tensor.stride() == strides.as_tuple()
     assert tensor.dtype == torch_dtype
     assert (tensor == torch_ref).all().item()
+
+
+def _create_bfloat16_tensor(device: Device) -> Tensor:
+    module = helpers.create_module(device, MODULE)
+    slang_type = module.layout.find_type_by_name("BFloat16")
+    assert slang_type is not None
+    usage = BufferUsage.shader_resource | BufferUsage.unordered_access | BufferUsage.shared
+    storage = device.create_buffer(
+        element_count=20, struct_size=slang_type.buffer_layout.reflection.size, usage=usage
+    )
+    return Tensor(storage, slang_type, (5, 4))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_bfloat16_reflection(device_type: DeviceType):
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, MODULE)
+
+    slang_type = module.layout.find_type_by_name("BFloat16")
+    assert slang_type is not None
+    assert slang_type.type_reflection.scalar_type == TypeReflection.ScalarType.bfloat16
+    assert slang_type.slang_scalar_type == TypeReflection.ScalarType.bfloat16
+    assert module.layout.scalar_type(TypeReflection.ScalarType.bfloat16).full_name == "BFloat16"
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_bfloat16_to_torch(device_type: DeviceType):
+    device = helpers.get_torch_device(device_type)
+    if not device.has_feature(Feature.bfloat16):
+        pytest.skip("Device does not support bfloat16")
+    buffer = _create_bfloat16_tensor(device)
+
+    torch_ref = torch.randn((5, 4), dtype=torch.bfloat16)
+    # NumPy has no bfloat16, so upload the raw bits.
+    buffer.copy_from_numpy(torch_ref.view(torch.int16).numpy())
+    device.sync_to_device()
+
+    tensor = buffer.to_torch()
+    assert tensor.dtype == torch.bfloat16
+    assert tensor.shape == (5, 4)
+    assert torch.equal(tensor.cpu(), torch_ref)
+
+    raw = buffer.storage.to_torch(type=DataType.bfloat16, shape=[5, 4])
+    assert raw.dtype == torch.bfloat16
+    assert torch.equal(raw.cpu(), torch_ref)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_bfloat16_to_numpy_raises(device_type: DeviceType):
+    buffer = _create_bfloat16_tensor(helpers.get_torch_device(device_type))
+
+    with pytest.raises(RuntimeError, match=r"BFloat16.*NumPy"):
+        buffer.to_numpy()
 
 
 if __name__ == "__main__":
