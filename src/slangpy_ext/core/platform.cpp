@@ -71,6 +71,16 @@ SGL_PY_EXPORT(core_platform)
 
     platform.def("display_scale_factor", &display_scale_factor, D(platform, display_scale_factor));
 
+    nb::class_<MonitorInfo>(platform, "MonitorInfo", D(platform, MonitorInfo))
+        .def_ro("name", &MonitorInfo::name, D(platform, MonitorInfo, name))
+        .def_ro("identifier", &MonitorInfo::identifier, D(platform, MonitorInfo, identifier))
+        .def_ro("bounds", &MonitorInfo::bounds, D(platform, MonitorInfo, bounds))
+        .def_ro("work_area", &MonitorInfo::work_area, D(platform, MonitorInfo, work_area))
+        .def_ro("content_scale", &MonitorInfo::content_scale, D(platform, MonitorInfo, content_scale))
+        .def_ro("primary", &MonitorInfo::primary, D(platform, MonitorInfo, primary));
+
+    platform.def("get_monitors", &get_monitors, D(platform, get_monitors));
+
     platform.def("executable_path", &executable_path, D(platform, executable_path));
     platform.def("executable_directory", &executable_directory, D(platform, executable_directory));
     platform.def("executable_name", &executable_name, D(platform, executable_name));

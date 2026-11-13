@@ -43,4 +43,7 @@ src/slangpy_torch/build/
 
 __pycache__/
 
+# Saved state from the window placement example.
+examples/window/window_placement.json
+
 src/slangpy_torch/dist/

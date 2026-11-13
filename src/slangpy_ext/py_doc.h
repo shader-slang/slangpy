@@ -9514,6 +9514,14 @@ static const char *mkd_doc_sgl_TextureFilteringMode_point = R"doc()doc";
 
 static const char *mkd_doc_sgl_TextureLoader = R"doc(Utility class for loading textures from bitmaps and image files.)doc";
 
+static const char *mkd_doc_sgl_TextureLoader_EncodedImageView =
+R"doc(Borrowed encoded image data. The data and name must remain alive until
+load_textures() returns.)doc";
+
+static const char *mkd_doc_sgl_TextureLoader_EncodedImageView_data = R"doc()doc";
+
+static const char *mkd_doc_sgl_TextureLoader_EncodedImageView_name = R"doc()doc";
+
 static const char *mkd_doc_sgl_TextureLoader_Options = R"doc()doc";
 
 static const char *mkd_doc_sgl_TextureLoader_Options_allocate_mips = R"doc(Allocate mip levels for the texture.)doc";
@@ -9684,6 +9692,15 @@ Returns:
     List of new texture objects.
 
 )doc";
+
+static const char *mkd_doc_sgl_TextureLoader_load_textures_5 =
+R"doc(Decode encoded images on worker threads and upload their textures on
+the calling thread. The input bytes and names are borrowed for the
+duration of the call; results retain input order.
+
+)doc";
+
+static const char *mkd_doc_sgl_TextureLoader_load_textures_6 = R"doc(As above, with one set of texture options per encoded image.)doc";
 
 static const char *mkd_doc_sgl_TextureLoader_m_blitter = R"doc()doc";
 
@@ -10359,19 +10376,37 @@ static const char *mkd_doc_sgl_Window =
 R"doc(Window class.
 
 Platform independent class for managing a window and handle input
-events.)doc";
+events. Window operations and monitor queries must run on the main
+thread.)doc";
 
 static const char *mkd_doc_sgl_WindowDesc = R"doc(Window description.)doc";
 
-static const char *mkd_doc_sgl_WindowDesc_height = R"doc(Height of the window in pixels.)doc";
+static const char *mkd_doc_sgl_WindowDesc_height = R"doc(Height of the client area in screen coordinates.)doc";
 
-static const char *mkd_doc_sgl_WindowDesc_mode = R"doc(Window mode.)doc";
+static const char *mkd_doc_sgl_WindowDesc_mode = R"doc(Initial window mode. Minimized windows are shown, then minimized.)doc";
+
+static const char *mkd_doc_sgl_WindowDesc_placement =
+R"doc(Optional saved placement. Overrides width, height, position, and mode
+with its normal geometry and normal/maximized state. Cannot be
+combined with WindowMode::fullscreen. Title, resizable, and visible
+remain independent.)doc";
+
+static const char *mkd_doc_sgl_WindowDesc_position =
+R"doc(Initial client-area position in screen coordinates; omitted lets the
+OS choose. Some window systems (such as Wayland) do not support
+explicit positioning.)doc";
 
 static const char *mkd_doc_sgl_WindowDesc_resizable = R"doc(Whether the window is resizable.)doc";
 
 static const char *mkd_doc_sgl_WindowDesc_title = R"doc(Title of the window.)doc";
 
-static const char *mkd_doc_sgl_WindowDesc_width = R"doc(Width of the window in pixels.)doc";
+static const char *mkd_doc_sgl_WindowDesc_visible =
+R"doc(Whether to show the window after positioning it, then apply its
+initial mode. False creates a hidden window without applying initial
+minimization/maximization. show() does not apply the initial mode
+later.)doc";
+
+static const char *mkd_doc_sgl_WindowDesc_width = R"doc(Width of the client area in screen coordinates.)doc";
 
 static const char *mkd_doc_sgl_WindowHandle = R"doc(Native window handle.)doc";
 
@@ -10383,19 +10418,48 @@ static const char *mkd_doc_sgl_WindowMode_fullscreen = R"doc()doc";
 
 static const char *mkd_doc_sgl_WindowMode_info = R"doc()doc";
 
+static const char *mkd_doc_sgl_WindowMode_maximized = R"doc()doc";
+
 static const char *mkd_doc_sgl_WindowMode_minimized = R"doc()doc";
 
 static const char *mkd_doc_sgl_WindowMode_normal = R"doc()doc";
+
+static const char *mkd_doc_sgl_WindowPlacement =
+R"doc(Copied window placement for session restoration. Geometry describes
+the client area in screen coordinates, not framebuffer pixels.
+Minimized geometry is never returned. Fullscreen windows retain their
+initial normal placement. Pass as WindowDesc::placement to recreate
+the normal geometry and maximization state.)doc";
+
+static const char *mkd_doc_sgl_WindowPlacement_maximized =
+R"doc(Captured maximization state; for minimized windows, the last non-
+minimized state.)doc";
+
+static const char *mkd_doc_sgl_WindowPlacement_normal_position =
+R"doc(Client-area origin in virtual-desktop screen coordinates. Negative
+values are valid.)doc";
+
+static const char *mkd_doc_sgl_WindowPlacement_normal_size =
+R"doc(Client-area size before maximization or minimization, in screen
+coordinates.)doc";
 
 static const char *mkd_doc_sgl_Window_Window =
 R"doc(Constructor.
 
 Args:
-    width: Width of the window in pixels.
-    height: Height of the window in pixels.
+    width: Width of the client area in screen coordinates.
+    height: Height of the client area in screen coordinates.
     title: Title of the window.
     mode: Window mode.
     resizable: Whether the window is resizable.
+    position: Optional initial client origin in screen coordinates.
+    visible: Show after applying initial placement. False creates a
+             hidden window. Hidden windows ignore initial
+             minimization/maximization; show() does not apply it
+             later.
+    placement: Optional saved placement. Overrides width, height,
+               position, and mode. Cannot be combined with fullscreen
+               mode; title, resizable, and visible remain independent.
 
 )doc";
 
@@ -10403,13 +10467,36 @@ static const char *mkd_doc_sgl_Window_class_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_Window_close = R"doc(Close the window.)doc";
 
+static const char *mkd_doc_sgl_Window_content_scale =
+R"doc(Per-window horizontal and vertical content scale, not a framebuffer-
+size ratio.
+
+)doc";
+
 static const char *mkd_doc_sgl_Window_create = R"doc()doc";
 
 static const char *mkd_doc_sgl_Window_cursor_mode = R"doc(The mouse cursor mode.)doc";
 
 static const char *mkd_doc_sgl_Window_cursor_shape = R"doc(The mouse cursor shape.)doc";
 
+static const char *mkd_doc_sgl_Window_destroy_all_windows =
+R"doc(Destroy all native windows and cursors before GLFW shutdown. This MUST
+NOT be called by the user!
+
+)doc";
+
+static const char *mkd_doc_sgl_Window_destroy_window = R"doc()doc";
+
+static const char *mkd_doc_sgl_Window_frame_size =
+R"doc(Decoration extents (left, top, right, bottom) in screen coordinates.
+Values may be unavailable until the window manager decorates the
+window.
+
+)doc";
+
 static const char *mkd_doc_sgl_Window_get_clipboard = R"doc(Get the clipboard content.)doc";
+
+static const char *mkd_doc_sgl_Window_glfw_window = R"doc()doc";
 
 static const char *mkd_doc_sgl_Window_handle_drop_files = R"doc()doc";
 
@@ -10423,13 +10510,33 @@ static const char *mkd_doc_sgl_Window_handle_window_refresh = R"doc()doc";
 
 static const char *mkd_doc_sgl_Window_handle_window_size = R"doc()doc";
 
-static const char *mkd_doc_sgl_Window_height = R"doc(The height of the window in pixels.)doc";
+static const char *mkd_doc_sgl_Window_height = R"doc(The height of the client area in screen coordinates.)doc";
+
+static const char *mkd_doc_sgl_Window_hide = R"doc(Hide a window without minimizing it.)doc";
+
+static const char *mkd_doc_sgl_Window_is_fullscreen =
+R"doc(Whether the window uses fullscreen mode, even while minimized or
+hidden.
+
+)doc";
+
+static const char *mkd_doc_sgl_Window_is_maximized = R"doc(Whether the window is currently maximized.)doc";
+
+static const char *mkd_doc_sgl_Window_is_minimized = R"doc(Whether the window is currently minimized (iconified).)doc";
+
+static const char *mkd_doc_sgl_Window_is_visible =
+R"doc(Whether the window is visible. A minimized window can still be
+visible.
+
+)doc";
 
 static const char *mkd_doc_sgl_Window_m_cursor_cache = R"doc()doc";
 
 static const char *mkd_doc_sgl_Window_m_cursor_mode = R"doc()doc";
 
 static const char *mkd_doc_sgl_Window_m_cursor_shape = R"doc()doc";
+
+static const char *mkd_doc_sgl_Window_m_fullscreen = R"doc()doc";
 
 static const char *mkd_doc_sgl_Window_m_gamepad_id = R"doc()doc";
 
@@ -10455,6 +10562,8 @@ static const char *mkd_doc_sgl_Window_m_on_refresh = R"doc()doc";
 
 static const char *mkd_doc_sgl_Window_m_on_resize = R"doc()doc";
 
+static const char *mkd_doc_sgl_Window_m_placement = R"doc()doc";
+
 static const char *mkd_doc_sgl_Window_m_should_close = R"doc()doc";
 
 static const char *mkd_doc_sgl_Window_m_title = R"doc()doc";
@@ -10462,6 +10571,18 @@ static const char *mkd_doc_sgl_Window_m_title = R"doc()doc";
 static const char *mkd_doc_sgl_Window_m_width = R"doc()doc";
 
 static const char *mkd_doc_sgl_Window_m_window = R"doc()doc";
+
+static const char *mkd_doc_sgl_Window_maximize =
+R"doc(Maximize a window without replacing its normal placement. Does not
+show hidden windows. Not supported for WindowMode::fullscreen windows.
+
+)doc";
+
+static const char *mkd_doc_sgl_Window_minimize =
+R"doc(Minimize (iconify) a window, retaining its normal placement and
+maximized state.
+
+)doc";
 
 static const char *mkd_doc_sgl_Window_on_drop_files = R"doc(Event handler to be called when files are dropped onto the window.)doc";
 
@@ -10481,9 +10602,19 @@ refreshed.
 
 static const char *mkd_doc_sgl_Window_on_resize = R"doc(Event handler to be called when the window is resized.)doc";
 
+static const char *mkd_doc_sgl_Window_placement =
+R"doc(Normal client geometry and the last non-minimized maximization state.
+Position is best effort where the window system restricts positioning.
+
+)doc";
+
 static const char *mkd_doc_sgl_Window_poll_gamepad_input = R"doc()doc";
 
-static const char *mkd_doc_sgl_Window_position = R"doc(Position of the window on the screen in pixels.)doc";
+static const char *mkd_doc_sgl_Window_position =
+R"doc(Client-area origin in virtual-desktop screen coordinates. Negative
+values are valid.
+
+)doc";
 
 static const char *mkd_doc_sgl_Window_process_events = R"doc(Process any pending events.)doc";
 
@@ -10491,8 +10622,17 @@ static const char *mkd_doc_sgl_Window_resize =
 R"doc(Resize the window.
 
 Args:
-    width: The new width of the window in pixels.
-    height: The new height of the window in pixels.
+    width: The new client width in screen coordinates.
+    height: The new client height in screen coordinates.
+
+)doc";
+
+static const char *mkd_doc_sgl_Window_restore =
+R"doc(Ask the window system to restore a minimized or maximized window. A
+minimized maximized window may return to maximized state first. Not
+supported for WindowMode::fullscreen windows. Show hidden maximized
+windows before restoring; restoring while hidden is platform
+dependent.
 
 )doc";
 
@@ -10530,13 +10670,17 @@ static const char *mkd_doc_sgl_Window_set_width = R"doc()doc";
 
 static const char *mkd_doc_sgl_Window_should_close = R"doc(True if the window should be closed.)doc";
 
-static const char *mkd_doc_sgl_Window_size = R"doc(Size of the window in pixels.)doc";
+static const char *mkd_doc_sgl_Window_show = R"doc(Show a hidden window.)doc";
+
+static const char *mkd_doc_sgl_Window_size = R"doc(Size of the client area in screen coordinates, not framebuffer pixels.)doc";
 
 static const char *mkd_doc_sgl_Window_title = R"doc(The title of the window.)doc";
 
 static const char *mkd_doc_sgl_Window_to_string = R"doc()doc";
 
-static const char *mkd_doc_sgl_Window_width = R"doc(The width of the window in pixels.)doc";
+static const char *mkd_doc_sgl_Window_update_normal_placement = R"doc()doc";
+
+static const char *mkd_doc_sgl_Window_width = R"doc(The width of the client area in screen coordinates.)doc";
 
 static const char *mkd_doc_sgl_Window_window_handle = R"doc(The native window handle.)doc";
 
@@ -11163,6 +11307,8 @@ static const char *mkd_doc_sgl_detail_build_slang_rhi_error_message = R"doc()doc
 
 static const char *mkd_doc_sgl_detail_compute_coop_vec_row_col_stride = R"doc()doc";
 
+static const char *mkd_doc_sgl_detail_ensure_glfw_initialized = R"doc()doc";
+
 static const char *mkd_doc_sgl_detail_format_enum =
 R"doc(Format an enum value. First, we check for a single value and return
 "name::value" if it succeeds. Otherwise, we check for flags and return
@@ -11206,6 +11352,8 @@ static const char *mkd_doc_sgl_detail_profiler_frame_name = R"doc()doc";
 static const char *mkd_doc_sgl_detail_profiler_frame_name_2 = R"doc()doc";
 
 static const char *mkd_doc_sgl_detail_report_assertion = R"doc()doc";
+
+static const char *mkd_doc_sgl_detail_shutdown_glfw = R"doc()doc";
 
 static const char *mkd_doc_sgl_detail_strip_class_key = R"doc(Remove MSVC's "class " / "struct " prefix from a type name fragment.)doc";
 
@@ -13049,6 +13197,26 @@ static const char *mkd_doc_sgl_platform_MemoryStats_peak_rss = R"doc(Peak reside
 
 static const char *mkd_doc_sgl_platform_MemoryStats_rss = R"doc(Current resident/working set size in bytes.)doc";
 
+static const char *mkd_doc_sgl_platform_MonitorInfo =
+R"doc(Copied monitor information. Rectangles use (x, y, width, height) in
+screen coordinates, which are not necessarily framebuffer pixels.)doc";
+
+static const char *mkd_doc_sgl_platform_MonitorInfo_bounds = R"doc(Full monitor rectangle in virtual-desktop screen coordinates.)doc";
+
+static const char *mkd_doc_sgl_platform_MonitorInfo_content_scale =
+R"doc(Horizontal and vertical content scale relative to the platform default
+DPI.)doc";
+
+static const char *mkd_doc_sgl_platform_MonitorInfo_identifier = R"doc(Platform display identifier.)doc";
+
+static const char *mkd_doc_sgl_platform_MonitorInfo_name = R"doc(Monitor name (not necessarily unique).)doc";
+
+static const char *mkd_doc_sgl_platform_MonitorInfo_primary = R"doc(Whether this is the primary monitor.)doc";
+
+static const char *mkd_doc_sgl_platform_MonitorInfo_work_area =
+R"doc(Usable rectangle excluding taskbars and docks where supported by the
+OS.)doc";
+
 static const char *mkd_doc_sgl_platform_ResolvedStackFrame = R"doc()doc";
 
 static const char *mkd_doc_sgl_platform_ResolvedStackFrame_address = R"doc()doc";
@@ -13085,7 +13253,12 @@ static const char *mkd_doc_sgl_platform_debug_break = R"doc(Breaks in debugger (
 
 static const char *mkd_doc_sgl_platform_delete_junction = R"doc(Delete a junction (sof link).)doc";
 
-static const char *mkd_doc_sgl_platform_display_scale_factor = R"doc(The pixel scale factor of the primary display.)doc";
+static const char *mkd_doc_sgl_platform_display_scale_factor =
+R"doc(The average content scale of the primary display. Call on the main
+thread. Returns 1 if window support or a desktop connection is
+unavailable.
+
+)doc";
 
 static const char *mkd_doc_sgl_platform_executable_directory = R"doc(The current executable directory.)doc";
 
@@ -13102,6 +13275,15 @@ static const char *mkd_doc_sgl_platform_get_environment_variable = R"doc(Get the
 static const char *mkd_doc_sgl_platform_get_extension_from_path =
 R"doc(Get the file extension from a path in lower-case and without the
 leading '.' character.
+
+)doc";
+
+static const char *mkd_doc_sgl_platform_get_monitors =
+R"doc(Query connected monitors on the main thread, including before creating
+a window. Returns copied values that survive monitor disconnection and
+window destruction. Throws if GLFW support or a desktop connection is
+unavailable. Identifiers and monitor ordering must not be assumed
+stable across display reconfiguration.
 
 )doc";
 

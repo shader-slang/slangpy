@@ -37,6 +37,8 @@ target_sources(sgl PRIVATE
     core/file_system_watcher.h
     core/format.h
     core/fwd.h
+    core/glfw.cpp
+    core/glfw.h
     core/hash.h
     core/input.cpp
     core/input.h
