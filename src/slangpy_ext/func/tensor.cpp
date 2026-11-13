@@ -467,6 +467,36 @@ namespace {
         );
     }
 
+    /// Suggest how to build a tensor of `dtype` from a plain numpy array whose itemsize differs from the
+    /// dtype's buffer stride. copy_from_numpy copies raw bytes and pads only vector elements, so it is suggested
+    /// only for vectors whose scalar size equals the numpy itemsize.
+    std::string numpy_itemsize_mismatch_hint(refl::Type& dtype, size_t item_size, size_t slang_stride)
+    {
+        auto astype_hint = [](size_t size)
+        {
+            return fmt::format(
+                "Convert the array to a numpy dtype with itemsize {} first, e.g. with data.astype(...).",
+                size
+            );
+        };
+        ref<TypeLayoutReflection> layout = dtype.buffer_type_layout();
+        switch (layout->kind()) {
+        case TypeReflection::Kind::scalar:
+            return astype_hint(slang_stride);
+        case TypeReflection::Kind::vector: {
+            size_t scalar_size = layout->element_type_layout()->size();
+            if (item_size != scalar_size)
+                return astype_hint(scalar_size);
+            return "To group a trailing dimension into a vector, create the tensor with "
+                   "Tensor.empty(device, shape, dtype) and call copy_from_numpy(data) on it, or pass a structured "
+                   "view of the array whose itemsize matches the stride.";
+        }
+        default:
+            return "To group trailing dimensions into one element, pass a structured view of the array whose "
+                   "field offsets and padding match the Slang layout.";
+        }
+    }
+
     ref<Tensor> tensor_from_numpy(
         Device* device,
         nb::object ndarray_obj,
@@ -506,6 +536,7 @@ namespace {
             dtype = resolve_dtype(device, target_slang_dtype, program_layout);
         }
 
+        size_t slang_stride = dtype->buffer_layout()->stride();
         nb::object data_obj;
         if (is_structured) {
             if (!numpy_flag(ndarray_obj, "C_CONTIGUOUS")) {
@@ -514,7 +545,6 @@ namespace {
                     "Call numpy.ascontiguousarray(data) first."
                 );
             }
-            size_t slang_stride = dtype->buffer_layout()->stride();
             if (item_size != slang_stride) {
                 throw nb::value_error(
                     fmt::format(
@@ -530,6 +560,20 @@ namespace {
             nb::object np = nb::module_::import_("numpy");
             data_obj = np.attr("frombuffer")(ndarray_obj, "dtype"_a = np.attr("uint8"));
         } else {
+            if (item_size != slang_stride) {
+                throw nb::value_error(
+                    fmt::format(
+                        "Numpy dtype {} itemsize ({}) does not match Slang type '{}' buffer stride ({}). Each numpy "
+                        "element becomes one tensor element. {}",
+                        nb::cast<std::string>(nb::str(dtype_obj)),
+                        item_size,
+                        dtype->full_name(),
+                        slang_stride,
+                        numpy_itemsize_mismatch_hint(*dtype, item_size, slang_stride)
+                    )
+                        .c_str()
+                );
+            }
             if ((nbytes % item_size) != 0)
                 throw nb::value_error("Unsupported numpy array");
             for (size_t i = 0; i < ndim; ++i) {

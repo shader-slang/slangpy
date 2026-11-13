@@ -327,5 +327,99 @@ def test_tensor_empty_no_shape(device_type: DeviceType):
         Tensor.empty(device, shape=(), dtype="float")
 
 
+FROM_NUMPY_MODULE = r"""
+int bool_to_int(bool b) { return b ? 1 : 0; }
+float sum3(float3 v) { return v.x + v.y + v.z; }
+"""
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "np_dtype, np_shape, slang_dtype, hint",
+    [
+        (np.float32, (4, 3), "float3", "copy_from_numpy"),
+        (np.float32, (4, 4), "float4", "copy_from_numpy"),
+        (np.float16, (4, 3), "float3", "astype"),
+        (np.float64, (4, 3), "float3", "astype"),
+        (np.float32, (4, 3, 3), "float3x3", "structured view"),
+        (np.float64, (4,), "float", "astype"),
+    ],
+)
+def test_tensor_from_numpy_target_dtype_size_mismatch_raises(
+    device_type: DeviceType, np_dtype: Any, np_shape: tuple[int, ...], slang_dtype: str, hint: str
+):
+    device = helpers.get_device(device_type)
+    data = np.zeros(np_shape, dtype=np_dtype)
+    with pytest.raises(ValueError, match="does not match") as error:
+        Tensor.from_numpy(device, data, target_slang_dtype=slang_dtype)
+    assert hint in str(error.value)
+    if hint != "copy_from_numpy":
+        assert "copy_from_numpy" not in str(error.value)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "np_dtype, slang_dtype",
+    [
+        (np.float32, "float"),
+        (np.int32, "int"),
+        (np.int32, "uint"),
+        (np.float32, "uint"),
+    ],
+)
+def test_tensor_from_numpy_target_dtype_same_size(
+    device_type: DeviceType, np_dtype: Any, slang_dtype: str
+):
+    device = helpers.get_device(device_type)
+    data = np.arange(12, dtype=np_dtype).reshape(3, 4)
+    tensor = Tensor.from_numpy(device, data, target_slang_dtype=slang_dtype)
+    assert tuple(tensor.shape) == (3, 4)
+    assert tensor.dtype.full_name == slang_dtype
+    assert tensor.to_numpy().tobytes() == data.tobytes()
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_from_numpy_bool(device_type: DeviceType):
+    """Slang bool is 4 bytes in buffers on some backends (e.g. Vulkan) and 1 byte on others (e.g. CUDA)."""
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, FROM_NUMPY_MODULE)
+    data = np.array([True, False, True, True, False, False, True, False])
+    bool_stride = module.layout.find_type_by_name("bool").buffer_layout.stride
+    if bool_stride == data.itemsize:
+        tensor = Tensor.from_numpy(device, data, target_slang_dtype="bool")
+    else:
+        with pytest.raises(ValueError, match="astype"):
+            Tensor.from_numpy(device, data, target_slang_dtype="bool")
+        tensor = Tensor.from_numpy(
+            device, data.astype(f"u{bool_stride}"), target_slang_dtype="bool"
+        )
+    result = module.bool_to_int(tensor, _result="numpy")
+    assert np.array_equal(result, data.astype(np.int32))
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_tensor_float3_from_numpy_rows(device_type: DeviceType):
+    """The routes the from_numpy error message suggests build an (N,) float3 tensor from (N, 3) floats."""
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, FROM_NUMPY_MODULE)
+    data = np.arange(12, dtype=np.float32).reshape(4, 3)
+
+    tensor = Tensor.empty(device, shape=(4,), dtype="float3")
+    tensor.copy_from_numpy(data)
+    assert tuple(tensor.shape) == (4,)
+    assert np.array_equal(module.sum3(tensor, _result="numpy"), data.sum(axis=1))
+
+    float3_stride = tensor.dtype.buffer_layout.stride
+    rows = data.view(np.dtype([("x", np.float32), ("y", np.float32), ("z", np.float32)]))
+    rows = rows.reshape(4)
+    if rows.dtype.itemsize == float3_stride:
+        tensor = Tensor.from_numpy(device, rows, target_slang_dtype="float3")
+        assert tuple(tensor.shape) == (4,)
+        assert np.array_equal(module.sum3(tensor, _result="numpy"), data.sum(axis=1))
+    else:
+        with pytest.raises(ValueError, match="does not match"):
+            Tensor.from_numpy(device, rows, target_slang_dtype="float3")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
