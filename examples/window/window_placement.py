@@ -10,11 +10,12 @@ import argparse
 import json
 from pathlib import Path
 import time
+from typing import Optional
 
 import slangpy as spy
 
 
-def load_placement(path: Path) -> spy.WindowPlacement | None:
+def load_placement(path: Path) -> Optional[spy.WindowPlacement]:
     if not path.exists():
         return None
     try:
