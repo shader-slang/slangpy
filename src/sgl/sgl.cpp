@@ -6,6 +6,7 @@
 #include "sgl/core/platform.h"
 #include "sgl/core/bitmap.h"
 #include "sgl/core/format.h"
+#include "sgl/core/glfw.h"
 #include "sgl/core/thread.h"
 #include "sgl/device/cursor_utils.h"
 #include "sgl/device/device.h"
@@ -59,6 +60,9 @@ void static_shutdown()
     // We release all slang-rhi resources here to work around this issue.
     Device::_release_all_rhi_resources();
 
+#if SGL_HAS_GLFW
+    detail::shutdown_glfw();
+#endif
     Bitmap::static_shutdown();
     platform::static_shutdown();
     thread::static_shutdown();

@@ -4,9 +4,14 @@
 #include "sgl/core/config.h"
 #include "sgl/core/error.h"
 #include "sgl/core/format.h"
+#include "sgl/core/glfw.h"
 
 #if SGL_HAS_GLFW
 #include <GLFW/glfw3.h>
+#if SGL_WINDOWS
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+#endif
 #endif
 
 #include <algorithm>
@@ -29,14 +34,50 @@ void set_python_active(bool active)
 float display_scale_factor()
 {
 #if SGL_HAS_GLFW
-    float xscale = 1.f;
-    float yscale = 1.f;
-    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    if (monitor)
-        glfwGetMonitorContentScale(monitor, &xscale, &yscale);
-    return 0.5f * (xscale + yscale);
-#else
+    try {
+        detail::ensure_glfw_initialized();
+        float xscale = 1.f;
+        float yscale = 1.f;
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        if (monitor)
+            glfwGetMonitorContentScale(monitor, &xscale, &yscale);
+        return 0.5f * (xscale + yscale);
+    } catch (const std::exception&) {
+        // Offscreen UI contexts also use this best-effort query.
+    }
+#endif
     return 1.f;
+}
+
+std::vector<MonitorInfo> get_monitors()
+{
+#if SGL_HAS_GLFW
+    std::vector<MonitorInfo> result;
+    detail::ensure_glfw_initialized();
+    int count = 0;
+    GLFWmonitor** monitors = glfwGetMonitors(&count);
+    GLFWmonitor* primary = glfwGetPrimaryMonitor();
+    for (int i = 0; i < count; ++i) {
+        GLFWmonitor* monitor = monitors[i];
+        MonitorInfo info{};
+        info.name = glfwGetMonitorName(monitor);
+#if SGL_WINDOWS
+        if (const char* identifier = glfwGetWin32Monitor(monitor))
+            info.identifier = identifier;
+#endif
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        SGL_CHECK(mode, "Failed to query monitor video mode");
+        glfwGetMonitorPos(monitor, &info.bounds.x, &info.bounds.y);
+        info.bounds.z = mode->width;
+        info.bounds.w = mode->height;
+        glfwGetMonitorWorkarea(monitor, &info.work_area.x, &info.work_area.y, &info.work_area.z, &info.work_area.w);
+        glfwGetMonitorContentScale(monitor, &info.content_scale.x, &info.content_scale.y);
+        info.primary = monitor == primary;
+        result.push_back(std::move(info));
+    }
+    return result;
+#else
+    SGL_THROW("sgl was built without GLFW window support");
 #endif
 }
 

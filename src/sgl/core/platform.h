@@ -3,6 +3,7 @@
 #pragma once
 
 #include "sgl/core/macros.h"
+#include "sgl/math/vector_types.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -61,8 +62,32 @@ SGL_API void set_python_active(bool active);
 /// Set the window icon.
 SGL_API void set_window_icon(WindowHandle handle, const std::filesystem::path& path);
 
-/// The pixel scale factor of the primary display.
+/// The average content scale of the primary display. Call on the main thread.
+/// Returns 1 if window support or a desktop connection is unavailable.
 [[nodiscard]] SGL_API float display_scale_factor();
+
+/// Copied monitor information. Rectangles use (x, y, width, height) in screen
+/// coordinates, which are not necessarily framebuffer pixels.
+struct MonitorInfo {
+    /// Monitor name (not necessarily unique).
+    std::string name;
+    /// Platform display identifier.
+    std::optional<std::string> identifier;
+    /// Full monitor rectangle in virtual-desktop screen coordinates.
+    int4 bounds;
+    /// Usable rectangle excluding taskbars and docks where supported by the OS.
+    int4 work_area;
+    /// Horizontal and vertical content scale relative to the platform default DPI.
+    float2 content_scale;
+    /// Whether this is the primary monitor.
+    bool primary;
+};
+
+/// Query connected monitors on the main thread, including before creating a window.
+/// Returns copied values that survive monitor disconnection and window destruction.
+/// Throws if GLFW support or a desktop connection is unavailable. Identifiers and
+/// monitor ordering must not be assumed stable across display reconfiguration.
+[[nodiscard]] SGL_API std::vector<MonitorInfo> get_monitors();
 
 /// Setup a callback function to be called when Ctrl-C is detected.
 /// Use nullptr to remove handler.
