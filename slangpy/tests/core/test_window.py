@@ -24,7 +24,9 @@ def desktop() -> None:
         if "built without GLFW" in str(error):
             pytest.skip("SlangPy was built without window support")
         raise
-    assert monitors
+    # Windows CI service sessions can initialize GLFW without any attached displays.
+    if not monitors:
+        pytest.skip("Window tests require a connected monitor")
 
 
 def _position() -> spy.int2:
