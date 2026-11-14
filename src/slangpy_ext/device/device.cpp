@@ -780,9 +780,15 @@ NB_NOINLINE void bind_device_resources(nb::class_<sgl::Device, sgl::Object>& dev
 
     device.def(
         "create_buffer_from_native_handle",
-        &Device::create_buffer_from_native_handle,
+        [](Device* self, const BufferDesc& desc, NativeHandle handle, nb::object owner)
+        {
+            return self->create_buffer_from_native_handle(desc, handle);
+        },
         "desc"_a,
         "handle"_a,
+        nb::kw_only(),
+        "owner"_a.none() = nb::none(),
+        nb::keep_alive<0, 4>(),
         D(Device, create_buffer_from_native_handle)
     );
 
