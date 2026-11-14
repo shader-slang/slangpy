@@ -142,9 +142,7 @@ def test_multiply_scalar(device_type: DeviceType):
 def test_multiply_const(device_type: DeviceType):
     mod = load_test_module(device_type)
     buffer = Tensor.empty(mod.device, dtype=mod.uint3, shape=(32,))
-    mod.tensor_multiply_const.constants({"VAL": 5}).dispatch(
-        uint3(32, 1, 1), buffer=buffer, amount=10
-    )
+    mod.tensor_multiply_const.constants({"VAL": 5}).dispatch(uint3(32, 1, 1), buffer=buffer)
     data = helpers.read_tensor_from_numpy(buffer).reshape(-1, 3)
     expected = np.array([[i * 5, 0, 0] for i in range(32)])
     assert np.all(data == expected)
