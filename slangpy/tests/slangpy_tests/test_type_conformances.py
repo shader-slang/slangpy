@@ -8,24 +8,24 @@ from slangpy.testing import helpers
 CONFORMING_MODULE = r"""
 import "slangpy";
 
-interface IVal {
+public interface IVal {
     int get();
 }
 
-struct Get10 : IVal {
-    int get() {
+public struct Get10 : IVal {
+    public int get() {
         return 10;
     }
 }
 
-struct Get20 : IVal {
-    int get() {
+public struct Get20 : IVal {
+    public int get() {
         return 20;
     }
 }
 
 
-int getval() {
+public int getval() {
     IVal val = createDynamicObject<IVal>(0, 0);
     return val.get();
 }

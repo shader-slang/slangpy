@@ -131,10 +131,10 @@ def test_vectorize_type(device_type: spy.DeviceType):
         """
 import slangpy;
 
-struct SimpleStruct {}
-struct GenericStruct<T> {}
+public struct SimpleStruct {}
+public struct GenericStruct<T> {}
 
-void testfunc<T>(GenericStruct<T> gs) {}
+public void testfunc<T>(GenericStruct<T> gs) {}
 """,
     )
 
@@ -239,7 +239,7 @@ def test_no_parameters(device_type: spy.DeviceType):
     module = helpers.create_module(
         device,
         """
-void test_func() {}
+public void test_func() {}
 """,
     )
 
@@ -255,7 +255,7 @@ def test_simple_value(device_type: spy.DeviceType, param_count: int):
     module = helpers.create_module(
         device,
         f"""
-void test_func({params}) {{}}
+public void test_func({params}) {{}}
 """,
     )
     param_values = (0,) * param_count
@@ -272,7 +272,7 @@ def test_generic_value(device_type: spy.DeviceType, param_count: int):
     module = helpers.create_module(
         device,
         f"""
-void test_func<T>({params}) {{}}
+public void test_func<T>({params}) {{}}
 """,
     )
     param_values = (0,) * param_count
@@ -289,7 +289,7 @@ def test_simple_vector_value(device_type: spy.DeviceType, param_count: int):
     module = helpers.create_module(
         device,
         f"""
-void test_func({params}) {{}}
+public void test_func({params}) {{}}
 """,
     )
     param_values = (spy.int1(0),) * param_count
@@ -324,7 +324,7 @@ def test_vector_value(
     module = helpers.create_module(
         device,
         f"""
-void test_func{sig_generic}({params}) {{}}
+public void test_func{sig_generic}({params}) {{}}
 """,
     )
     param_values = (spy.int1(0),) * param_count
@@ -344,7 +344,7 @@ def test_tensor_none_vectorize(device_type: spy.DeviceType, param_count: int, ge
     sig_params = ", ".join([f"Tensor<{sig_param_type},1> p{i}" for i in range(param_count)])
     code = f"""
 import slangpy;
-void test_func{sig_generic}({sig_params}) {{}}
+public void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
@@ -365,7 +365,7 @@ def test_tensor_structured_buffer(device_type: spy.DeviceType, param_count: int,
     sig_params = ", ".join([f"StructuredBuffer<{sig_param_type}> p{i}" for i in range(param_count)])
     code = f"""
 import slangpy;
-void test_func{sig_generic}({sig_params}) {{}}
+public void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
@@ -386,7 +386,7 @@ def test_tensor_vectorize(device_type: spy.DeviceType, param_count: int, generic
     sig_params = ", ".join([f"{sig_param_type} p{i}" for i in range(param_count)])
     code = f"""
 import slangpy;
-void test_func{sig_generic}({sig_params}) {{}}
+public void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
@@ -407,7 +407,7 @@ def test_tensor_vectorize_vectortype(device_type: spy.DeviceType, param_count: i
     sig_params = ", ".join([f"{sig_param_type} p{i}" for i in range(param_count)])
     code = f"""
 import slangpy;
-void test_func{sig_generic}({sig_params}) {{}}
+public void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
@@ -428,7 +428,7 @@ def test_tensor_vectorize_arraytype(device_type: spy.DeviceType, param_count: in
     sig_params = ", ".join([f"{sig_param_type} p{i}" for i in range(param_count)])
     code = f"""
 import slangpy;
-void test_func{sig_generic}({sig_params}) {{}}
+public void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
@@ -451,7 +451,7 @@ def test_tensorarray_vectorize_arraytype(
     sig_params = ", ".join([f"{sig_param_type} p{i}" for i in range(param_count)])
     code = f"""
 import slangpy;
-void test_func{sig_generic}({sig_params}) {{}}
+public void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
@@ -476,7 +476,7 @@ def test_tensorarray_vectorize_arraytype2(
     sig_params = ", ".join([f"{sig_param_type} p{i}" for i in range(param_count)])
     code = f"""
 import slangpy;
-void test_func{sig_generic}({sig_params}) {{}}
+public void test_func{sig_generic}({sig_params}) {{}}
 """
     module = helpers.create_module(device, code)
 
@@ -494,8 +494,8 @@ def test_typedef(device_type: spy.DeviceType):
 
     code = f"""
 import slangpy;
-typedef int Foo;
-void test_func(Foo x) {{}}
+public typedef int Foo;
+public void test_func(Foo x) {{}}
 """
     module = helpers.create_module(device, code)
 
@@ -513,11 +513,11 @@ def test_interface(device_type: spy.DeviceType):
     code = f"""
 import slangpy;
 
-interface IFoo {{}}
+public interface IFoo {{}}
 
 extension int: IFoo {{}}
 
-void test_func(IFoo x) {{}}
+public void test_func(IFoo x) {{}}
 """
     module = helpers.create_module(device, code)
 
@@ -535,11 +535,11 @@ def test_interface_generic(device_type: spy.DeviceType):
     code = f"""
 import slangpy;
 
-interface IFoo {{}}
+public interface IFoo {{}}
 
 extension int: IFoo {{}}
 
-void test_func<T: IFoo>(T x) {{}}
+public void test_func<T: IFoo>(T x) {{}}
 """
     module = helpers.create_module(device, code)
 
@@ -556,9 +556,9 @@ def test_tensorarray_generic_struct(device_type: spy.DeviceType):
     code = f"""
 import slangpy;
 
-struct Foo<T> {{ T value; }}
+public struct Foo<T> {{ public T value; }}
 
-void test_func<T>(Foo<T> p0) {{}}
+public void test_func<T>(Foo<T> p0) {{}}
 """
     module = helpers.create_module(device, code)
 

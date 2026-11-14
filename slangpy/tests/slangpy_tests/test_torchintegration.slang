@@ -2,7 +2,7 @@
 import slangpy;
 
 [Differentiable]
-float add(float a, float b) {
+public float add(float a, float b) {
     return a + b;
 }
 
@@ -16,62 +16,62 @@ void copy_unsigned<T : IInteger>(Tensor<T, 1> source, WTensor<T, 1> target) {
 }
 
 [Differentiable]
-float3 add_vectors(float3 a, float3 b) {
+public float3 add_vectors(float3 a, float3 b) {
     return a + b;
 }
 
-float3 select_vector_overload(float3 value) {
+public float3 select_vector_overload(float3 value) {
     return float3(3.0);
 }
 
-float4 select_vector_overload(float4 value) {
+public float4 select_vector_overload(float4 value) {
     return float4(4.0);
 }
 
-half4 select_vector_overload(half4 value) {
+public half4 select_vector_overload(half4 value) {
     return half4(8.0h);
 }
 
 [Differentiable]
-float differentiable_identity(float value) {
+public float differentiable_identity(float value) {
     return value;
 }
 
 [Differentiable]
-float select_differentiable_scalar_overload(float value) {
+public float select_differentiable_scalar_overload(float value) {
     return value;
 }
 
 [Differentiable]
-half select_differentiable_scalar_overload(half value) {
+public half select_differentiable_scalar_overload(half value) {
     return value;
 }
 
 [Differentiable]
-float3 select_differentiable_vector_overload(float3 value) {
+public float3 select_differentiable_vector_overload(float3 value) {
     return value;
 }
 
 [Differentiable]
-float4 select_differentiable_vector_overload(float4 value) {
+public float4 select_differentiable_vector_overload(float4 value) {
     return value;
 }
 
-float2x3 select_matrix_overload(float2x3 value) {
+public float2x3 select_matrix_overload(float2x3 value) {
     return value;
 }
 
-float3x2 select_matrix_overload(float3x2 value) {
+public float3x2 select_matrix_overload(float3x2 value) {
     return value;
 }
 
 [Differentiable]
-vector<float,N> add_vectors_generic<let N:int>(vector<float,N> a, vector<float,N> b) {
+public vector<float,N> add_vectors_generic<let N:int>(vector<float,N> a, vector<float,N> b) {
     return a + b;
 }
 
 [Differentiable]
-void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, WTensor<float, 2> res) {
+public void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, WTensor<float, 2> res) {
     [MaxIters(8)]
     for (int i = 0; i < a.shape[0]; i++)
         [MaxIters(8)]
@@ -80,7 +80,7 @@ void add_tensors(Tensor<float, 2> a, Tensor<float, 2> b, WTensor<float, 2> res) 
 }
 
 [Differentiable]
-float[5] add_arrays(float[5] a, float[5] b) {
+public float[5] add_arrays(float[5] a, float[5] b) {
     float[5] res;
     for (int i = 0; i < 5; i++)
         res[i] = a[i] + b[i];
@@ -88,48 +88,48 @@ float[5] add_arrays(float[5] a, float[5] b) {
 }
 
 [Differentiable]
-void add_out(float a, float b, out float res) {
+public void add_out(float a, float b, out float res) {
     res = a + b;
 }
 
 [Differentiable]
-void add_vectors_out(float3 a, float3 b, out float3 res) {
+public void add_vectors_out(float3 a, float3 b, out float3 res) {
     res = a + b;
 }
 
 [Differentiable]
-void add_vectors_generic_out<let N : int>(vector<float, N> a, vector<float, N> b, out vector<float, N> res) {
+public void add_vectors_generic_out<let N : int>(vector<float, N> a, vector<float, N> b, out vector<float, N> res) {
     res = a + b;
 }
 
 [Differentiable]
-void add_arrays_out(float[5] a, float[5] b, out float[5] res) {
+public void add_arrays_out(float[5] a, float[5] b, out float[5] res) {
     for (int i = 0; i < 5; i++)
         res[i] = a[i] + b[i];
 }
 
 [Differentiable]
-float polynomial(float a, float b, float c, float x) {
+public float polynomial(float a, float b, float c, float x) {
     return a * x * x + b * x + c;
 }
 
 [Differentiable]
-void polynomial_out(float a, float b, float c, float x, out float res) {
+public void polynomial_out(float a, float b, float c, float x, out float res) {
     res = a * x * x + b * x + c;
 }
 
 [Differentiable]
-float3 polynomial_vectors(float a, float b, float c, float3 x) {
+public float3 polynomial_vectors(float a, float b, float c, float3 x) {
     return a * x * x + b * x + c;
 }
 
 [Differentiable]
-void polynomial_vectors_out(float a, float b, float c, float3 x, out float3 res) {
+public void polynomial_vectors_out(float a, float b, float c, float3 x, out float3 res) {
     res = a * x * x + b * x + c;
 }
 
 [Differentiable]
-float[5] polynomial_arrays(float a, float b, float c, float[5] x) {
+public float[5] polynomial_arrays(float a, float b, float c, float[5] x) {
     float[5] res;
     for (int i = 0; i < 5; i++)
         res[i] = a * x[i] * x[i] + b * x[i] + c;
@@ -137,33 +137,33 @@ float[5] polynomial_arrays(float a, float b, float c, float[5] x) {
 }
 
 [Differentiable]
-void polynomial_arrays_out(float a, float b, float c, float[5] x, out float[5] res) {
+public void polynomial_arrays_out(float a, float b, float c, float[5] x, out float[5] res) {
     for (int i = 0; i < 5; i++)
         res[i] = a * x[i] * x[i] + b * x[i] + c;
 }
 
-void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
+public void copy_tensor(Tensor<float, 1> input, RWTensor<float, 1> output) {
     for (uint i = 0; i < input.shape[0]; i++)
         output[i] = input[i];
 }
 
-struct PackedFloat2
+public struct PackedFloat2
 {
-    float x;
-    float y;
+    public float x;
+    public float y;
 };
 
-void copy_struct_tensor(Tensor<PackedFloat2, 1> input, WTensor<PackedFloat2, 1> output) {
+public void copy_struct_tensor(Tensor<PackedFloat2, 1> input, WTensor<PackedFloat2, 1> output) {
     for (uint i = 0; i < input.shape[0]; i++)
         output[i] = input[i];
 }
 
-struct Particle {
-    float3 position;
-    float3 velocity;
+public struct Particle {
+    public float3 position;
+    public float3 velocity;
 };
 
-void update_particle(Tensor<Particle, 1> particles, float dt, WTensor<Particle, 1> output) {
+public void update_particle(Tensor<Particle, 1> particles, float dt, WTensor<Particle, 1> output) {
     for (uint i = 0; i < particles.shape[0]; i++) {
         Particle p = particles[i];
         Particle result;
@@ -174,7 +174,7 @@ void update_particle(Tensor<Particle, 1> particles, float dt, WTensor<Particle, 
 }
 
 [Differentiable]
-float scaled_sum(float scale, float[3] values) {
+public float scaled_sum(float scale, float[3] values) {
     float result = 0.0f;
     for (int i = 0; i < 3; i++) {
         result += values[i] * scale;
@@ -184,6 +184,6 @@ float scaled_sum(float scale, float[3] values) {
 
 // Scalar return with a whole-tensor input: call dimensionality is 0, so torch
 // integration builds a zero-rank result tensor for it.
-float read_element(ITensor<float, 1> tex, float i) {
+public float read_element(ITensor<float, 1> tex, float i) {
     return tex[int(i)];
 }

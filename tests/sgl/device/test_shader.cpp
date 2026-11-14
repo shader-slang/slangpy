@@ -37,8 +37,8 @@ void main_a(uint3 tid : SV_DispatchThreadID, uniform Foo foo)
             std::ofstream shader(dir / "_testshader_struct.slang");
             shader << R"SHADER(
 import sgl.device.print;
-struct Foo {
-    uint a;
+public struct Foo {
+    public uint a;
 };
 )SHADER";
             shader.close();
