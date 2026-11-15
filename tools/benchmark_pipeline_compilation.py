@@ -29,8 +29,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MODES = ("serial", "command_list", "pending", "pending_dispatch")
 
 
-def get_nvrtc_info() -> dict[str, Any] | None:
-    """Identify the NVRTC DLL actually loaded by Slang on Windows."""
+def get_cuda_library_info(prefix: str, version_function: str) -> dict[str, Any] | None:
+    """Identify a loaded CUDA compiler DLL and query its public version API."""
     if sys.platform != "win32":
         return None
     import ctypes as ct
@@ -56,11 +56,12 @@ def get_nvrtc_info() -> dict[str, Any] | None:
         path = ct.create_unicode_buffer(32768)
         if not psapi.GetModuleFileNameExW(process, module, path, len(path)):
             raise ct.WinError(ct.get_last_error())
-        if Path(path.value).name.lower().startswith("nvrtc64_"):
+        if Path(path.value).name.lower().startswith(prefix):
             library = ct.CDLL(path.value)
-            library.nvrtcVersion.argtypes = [ct.POINTER(ct.c_int), ct.POINTER(ct.c_int)]
-            major, minor = ct.c_int(), ct.c_int()
-            assert library.nvrtcVersion(ct.byref(major), ct.byref(minor)) == 0
+            version = getattr(library, version_function)
+            version.argtypes = [ct.POINTER(ct.c_uint), ct.POINTER(ct.c_uint)]
+            major, minor = ct.c_uint(), ct.c_uint()
+            assert version(ct.byref(major), ct.byref(minor)) == 0
             matches.append(
                 {
                     "path": path.value,
@@ -69,7 +70,9 @@ def get_nvrtc_info() -> dict[str, Any] | None:
                 }
             )
     if len(matches) != 1:
-        raise RuntimeError(f"Expected one loaded NVRTC DLL, found: {matches}")
+        raise RuntimeError(f"Expected one loaded {prefix} DLL, found: {matches}")
+    if prefix == "nvjitlink":
+        matches[0]["fingerprint"] = hashlib.sha1(Path(matches[0]["path"]).read_bytes()).hexdigest()
     return matches[0]
 
 
@@ -82,6 +85,7 @@ def run_sample(args: argparse.Namespace) -> dict[str, Any]:
     os.environ["SLANG_RHI_CUDA_CUBIN"] = "1" if args.cubin else "0"
     os.environ["SLANG_RHI_CUDA_CUBIN_TRACE"] = "1" if args.cubin else "0"
     os.environ["SLANG_RHI_CUDA_CUBIN_OPT_LEVEL"] = str(args.cubin_opt_level)
+    os.environ["SLANG_RHI_CUDA_CUBIN_COMPILER"] = args.cubin_compiler
     sys.path.insert(0, str(ROOT))
     import numpy as np
     import slangpy as spy
@@ -103,7 +107,12 @@ def run_sample(args: argparse.Namespace) -> dict[str, Any]:
             else spy.PipelineCompilationMode.parallel
         ),
     )
-    nvrtc = get_nvrtc_info() if args.backend == "cuda" else None
+    nvrtc = get_cuda_library_info("nvrtc64_", "nvrtcVersion") if args.backend == "cuda" else None
+    nvjitlink = (
+        get_cuda_library_info("nvjitlink", "nvJitLinkVersion")
+        if args.cubin and args.cubin_compiler == "nvjitlink"
+        else None
+    )
     if args.cuda_path and nvrtc:
         assert Path(nvrtc["path"]).is_relative_to(args.cuda_path.resolve()), nvrtc
     source = Path(__file__).with_suffix(".slang").read_text()
@@ -208,6 +217,8 @@ def run_sample(args: argparse.Namespace) -> dict[str, Any]:
         "nvrtc": nvrtc,
         "nvrtc_no_cache": args.nvrtc_no_cache,
         "cubin": args.cubin,
+        "cubin_compiler": args.cubin_compiler if args.cubin else None,
+        "nvjitlink": nvjitlink,
         "cubin_opt_level": args.cubin_opt_level if args.cubin else None,
         "cache_path": str(args.cache_path.resolve()) if args.cache_path else None,
         "cached_entry_points": sum(entry["is_cached"] for entry in entries),
@@ -264,6 +275,9 @@ def main() -> None:
     )
     parser.add_argument("--cubin-opt-level", type=int, choices=range(4), default=3)
     parser.add_argument(
+        "--cubin-compiler", choices=("nvptxcompiler", "nvjitlink"), default="nvptxcompiler"
+    )
+    parser.add_argument(
         "--cache-path", type=Path, help="Enable the SGL persistent shader/pipeline cache"
     )
     parser.add_argument(
@@ -285,6 +299,8 @@ def main() -> None:
         parser.error("NVRTC options require --backend cuda")
     if args.expect_cubin_cache and not args.cubin:
         parser.error("--expect-cubin-cache requires --cubin")
+    if args.cubin_compiler != "nvptxcompiler" and not args.cubin:
+        parser.error("--cubin-compiler requires --cubin")
     if args.worker:
         result = run_sample(args)
         print("BENCHMARK_JSON=" + json.dumps(result))
@@ -323,7 +339,13 @@ def main() -> None:
             if args.wall_trace:
                 command += ["--wall-trace"]
             if args.cubin:
-                command += ["--cubin", "--cubin-opt-level", str(args.cubin_opt_level)]
+                command += [
+                    "--cubin",
+                    "--cubin-opt-level",
+                    str(args.cubin_opt_level),
+                    "--cubin-compiler",
+                    args.cubin_compiler,
+                ]
             if args.cache_path:
                 command += ["--cache-path", str(args.cache_path.resolve())]
             completed = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
@@ -343,6 +365,17 @@ def main() -> None:
                 assert all(entry["success"] for entry in cubin_trace), completed.stderr
                 assert len({entry["program_id"] for entry in cubin_trace}) == sample["kernels"]
                 assert len({entry["fingerprint"] for entry in cubin_trace}) == 1
+                assert all(entry["backend"] == args.cubin_compiler for entry in cubin_trace)
+                assert all(entry["intermediate_cache_disabled"] for entry in cubin_trace)
+                if sample["nvjitlink"]:
+                    assert all(
+                        entry["fingerprint"] == sample["nvjitlink"]["fingerprint"]
+                        for entry in cubin_trace
+                    )
+                    assert all(
+                        entry["compiler"] == ".".join(map(str, sample["nvjitlink"]["version"]))
+                        for entry in cubin_trace
+                    )
                 if args.wall_trace:
                     events = sample["wall_trace"] + cubin_trace
                     envelope = (

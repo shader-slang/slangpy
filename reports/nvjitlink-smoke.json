@@ -1,0 +1,669 @@
+{
+  "samples": [
+    {
+      "mode": "pending",
+      "backend": "cuda",
+      "nvrtc": {
+        "path": "C:\\projects\\slangpy\\.temp\\nvrtc-12.9\\nvidia\\cuda_nvrtc\\bin\\nvrtc64_120_0.dll",
+        "version": [ 12, 9 ],
+        "disable_concurrent_nvvm": null
+      },
+      "nvrtc_no_cache": true,
+      "cubin": true,
+      "cubin_compiler": "nvjitlink",
+      "nvjitlink": {
+        "path": "C:\\projects\\slangpy\\build\\windows-msvc\\Debug\\nvJitLink_120_0.dll",
+        "version": [ 12, 9 ],
+        "disable_concurrent_nvvm": null,
+        "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d"
+      },
+      "cubin_opt_level": 3,
+      "cache_path": null,
+      "cached_entry_points": 0,
+      "cuda_cache_disable": "1",
+      "adapter": "NVIDIA TITAN RTX",
+      "python": "3.12.9",
+      "slangpy_version": "0.43.0",
+      "slangpy_git_version": "commit: 04a4bd50 / branch: dev/skallweit/parallel-compilation-experiment (local changes)",
+      "cpu": "AMD64 Family 23 Model 113 Stepping 0, AuthenticAMD",
+      "logical_cpus": 24,
+      "build_dir": "C:/projects/slangpy/build/windows-msvc/Debug",
+      "kernels": 3,
+      "variants_per_function": 1,
+      "rounds": 4,
+      "elements": 32,
+      "source_sha256": "46692078ba3ead46bb0f421c97ed7ae97af2c87e2da144b76afc054765fc5d2d",
+      "setup_s": 2.422930300000189,
+      "elapsed_s": 0.6090463999998974,
+      "prepare_s": 0.08373549999942043,
+      "compile_s": 0.5253042000003916,
+      "compiled_entry_points": 3,
+      "created_pipelines": 3,
+      "output_sha256": "f9b706cd0f410e1dc7264fae11f93c766d3cdb7eb08f186b46140b9b260f4498",
+      "outputs": [
+        [
+          1.2602437734603882, 1.261473536491394,  1.2625571489334106, 1.2635102272033691, 1.2643475532531738,
+          1.2650823593139648, 1.2657266855239868, 1.2662917375564575, 1.2667872905731201, 1.2672220468521118,
+          1.2676039934158325, 1.2679399251937866, 1.2682360410690308, 1.2684975862503052, 1.268729329109192,
+          1.2689354419708252, 1.269119381904602,  1.2692840099334717, 1.2694323062896729, 1.269566535949707,
+          1.269688606262207,  1.2698001861572266, 1.2699025869369507, 1.269997477531433,  1.2700858116149902,
+          1.270168662071228,  1.2702465057373047, 1.270320177078247,  1.270390510559082,  1.2704579830169678,
+          1.2705228328704834, 1.2705856561660767
+        ],
+        [
+          0.21866612136363983, 0.2208666205406189,  0.22298064827919006, 0.22501684725284576, 0.22698314487934113,
+          0.22888699173927307, 0.23073554039001465, 0.2325354814529419,  0.23429353535175323, 0.23601628839969635,
+          0.23771052062511444, 0.2393832802772522,  0.2410421371459961,  0.24269534647464752, 0.2443523406982422,
+          0.2460239976644516,  0.2477235049009323,  0.24946725368499756, 0.2512758672237396,  0.2531769871711731,
+          0.255195289850235,   0.2573004364967346,  0.25943723320961,    0.26150980591773987, 0.26343831419944763,
+          0.26520001888275146, 0.2668181359767914,  0.26831185817718506, 0.2696971595287323,  0.27098751068115234,
+          0.2721942067146301,  0.2733268439769745
+        ],
+        [
+          1.5707151889801025, 1.5915956497192383, 1.6103764772415161, 1.6268435716629028, 1.6409580707550049,
+          1.6645996570587158, 1.686154842376709,  1.7054100036621094, 1.722199559211731,  1.736419916152954,
+          1.7480385303497314, 1.7570991516113281, 1.7637183666229248, 1.7680771350860596, 1.7704042196273804,
+          1.7709600925445557, 1.7700167894363403, 1.7678436040878296, 1.7646934986114502, 1.760796308517456,
+          1.7563526630401611, 1.751534104347229,  1.7464828491210938, 1.7413148880004883, 1.7361217737197876,
+          1.730974793434143,  1.7259278297424316, 1.721020221710205,  1.7162795066833496, 1.711723804473877,
+          1.707363486289978,  1.703202724456787
+        ]
+      ],
+      "wall_trace": [
+        {
+          "kernel_index": 0,
+          "function": "signal",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7213009798100,
+          "end_ns": 7213402233600
+        },
+        {
+          "kernel_index": 0,
+          "function": "signal",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7213531704600,
+          "end_ns": 7213534279500
+        },
+        {
+          "kernel_index": 1,
+          "function": "network",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7213009905100,
+          "end_ns": 7213143197500
+        },
+        {
+          "kernel_index": 1,
+          "function": "network",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7213531728900,
+          "end_ns": 7213534295500
+        },
+        {
+          "kernel_index": 2,
+          "function": "orbit",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7213009807700,
+          "end_ns": 7213286300300
+        },
+        {
+          "kernel_index": 2,
+          "function": "orbit",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7213531704800,
+          "end_ns": 7213534286300
+        }
+      ],
+      "serial_calls": [],
+      "cubin_trace": [
+        {
+          "program_id": 1,
+          "start_ns": 7213143202900,
+          "end_ns": 7213173961900,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        },
+        {
+          "program_id": 2,
+          "start_ns": 7213286305100,
+          "end_ns": 7213311685100,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        },
+        {
+          "program_id": 0,
+          "start_ns": 7213402239000,
+          "end_ns": 7213531452700,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        }
+      ],
+      "repeat": 0
+    },
+    {
+      "mode": "pending_dispatch",
+      "backend": "cuda",
+      "nvrtc": {
+        "path": "C:\\projects\\slangpy\\.temp\\nvrtc-12.9\\nvidia\\cuda_nvrtc\\bin\\nvrtc64_120_0.dll",
+        "version": [ 12, 9 ],
+        "disable_concurrent_nvvm": null
+      },
+      "nvrtc_no_cache": true,
+      "cubin": true,
+      "cubin_compiler": "nvjitlink",
+      "nvjitlink": {
+        "path": "C:\\projects\\slangpy\\build\\windows-msvc\\Debug\\nvJitLink_120_0.dll",
+        "version": [ 12, 9 ],
+        "disable_concurrent_nvvm": null,
+        "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d"
+      },
+      "cubin_opt_level": 3,
+      "cache_path": null,
+      "cached_entry_points": 0,
+      "cuda_cache_disable": "1",
+      "adapter": "NVIDIA TITAN RTX",
+      "python": "3.12.9",
+      "slangpy_version": "0.43.0",
+      "slangpy_git_version": "commit: 04a4bd50 / branch: dev/skallweit/parallel-compilation-experiment (local changes)",
+      "cpu": "AMD64 Family 23 Model 113 Stepping 0, AuthenticAMD",
+      "logical_cpus": 24,
+      "build_dir": "C:/projects/slangpy/build/windows-msvc/Debug",
+      "kernels": 3,
+      "variants_per_function": 1,
+      "rounds": 4,
+      "elements": 32,
+      "source_sha256": "46692078ba3ead46bb0f421c97ed7ae97af2c87e2da144b76afc054765fc5d2d",
+      "setup_s": 2.1555381999996825,
+      "elapsed_s": 0.6320824000003995,
+      "prepare_s": 0.07691929999964486,
+      "compile_s": 0.5501103000005969,
+      "dispatch_and_wait_s": 0.005049299999882351,
+      "compiled_entry_points": 3,
+      "created_pipelines": 3,
+      "output_sha256": "f9b706cd0f410e1dc7264fae11f93c766d3cdb7eb08f186b46140b9b260f4498",
+      "outputs": [
+        [
+          1.2602437734603882, 1.261473536491394,  1.2625571489334106, 1.2635102272033691, 1.2643475532531738,
+          1.2650823593139648, 1.2657266855239868, 1.2662917375564575, 1.2667872905731201, 1.2672220468521118,
+          1.2676039934158325, 1.2679399251937866, 1.2682360410690308, 1.2684975862503052, 1.268729329109192,
+          1.2689354419708252, 1.269119381904602,  1.2692840099334717, 1.2694323062896729, 1.269566535949707,
+          1.269688606262207,  1.2698001861572266, 1.2699025869369507, 1.269997477531433,  1.2700858116149902,
+          1.270168662071228,  1.2702465057373047, 1.270320177078247,  1.270390510559082,  1.2704579830169678,
+          1.2705228328704834, 1.2705856561660767
+        ],
+        [
+          0.21866612136363983, 0.2208666205406189,  0.22298064827919006, 0.22501684725284576, 0.22698314487934113,
+          0.22888699173927307, 0.23073554039001465, 0.2325354814529419,  0.23429353535175323, 0.23601628839969635,
+          0.23771052062511444, 0.2393832802772522,  0.2410421371459961,  0.24269534647464752, 0.2443523406982422,
+          0.2460239976644516,  0.2477235049009323,  0.24946725368499756, 0.2512758672237396,  0.2531769871711731,
+          0.255195289850235,   0.2573004364967346,  0.25943723320961,    0.26150980591773987, 0.26343831419944763,
+          0.26520001888275146, 0.2668181359767914,  0.26831185817718506, 0.2696971595287323,  0.27098751068115234,
+          0.2721942067146301,  0.2733268439769745
+        ],
+        [
+          1.5707151889801025, 1.5915956497192383, 1.6103764772415161, 1.6268435716629028, 1.6409580707550049,
+          1.6645996570587158, 1.686154842376709,  1.7054100036621094, 1.722199559211731,  1.736419916152954,
+          1.7480385303497314, 1.7570991516113281, 1.7637183666229248, 1.7680771350860596, 1.7704042196273804,
+          1.7709600925445557, 1.7700167894363403, 1.7678436040878296, 1.7646934986114502, 1.760796308517456,
+          1.7563526630401611, 1.751534104347229,  1.7464828491210938, 1.7413148880004883, 1.7361217737197876,
+          1.730974793434143,  1.7259278297424316, 1.721020221710205,  1.7162795066833496, 1.711723804473877,
+          1.707363486289978,  1.703202724456787
+        ]
+      ],
+      "wall_trace": [
+        {
+          "kernel_index": 0,
+          "function": "signal",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7216495753000,
+          "end_ns": 7216900309800
+        },
+        {
+          "kernel_index": 0,
+          "function": "signal",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7217042115700,
+          "end_ns": 7217045008300
+        },
+        {
+          "kernel_index": 1,
+          "function": "network",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7216495760900,
+          "end_ns": 7216626837400
+        },
+        {
+          "kernel_index": 1,
+          "function": "network",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7217042115800,
+          "end_ns": 7217044032700
+        },
+        {
+          "kernel_index": 2,
+          "function": "orbit",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7216495937300,
+          "end_ns": 7216772305500
+        },
+        {
+          "kernel_index": 2,
+          "function": "orbit",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7217042145800,
+          "end_ns": 7217045015000
+        }
+      ],
+      "serial_calls": [],
+      "cubin_trace": [
+        {
+          "program_id": 1,
+          "start_ns": 7216626843200,
+          "end_ns": 7216657000100,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        },
+        {
+          "program_id": 2,
+          "start_ns": 7216772311600,
+          "end_ns": 7216799737400,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        },
+        {
+          "program_id": 0,
+          "start_ns": 7216900315000,
+          "end_ns": 7217041840200,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        }
+      ],
+      "repeat": 0
+    },
+    {
+      "mode": "command_list",
+      "backend": "cuda",
+      "nvrtc": {
+        "path": "C:\\projects\\slangpy\\.temp\\nvrtc-12.9\\nvidia\\cuda_nvrtc\\bin\\nvrtc64_120_0.dll",
+        "version": [ 12, 9 ],
+        "disable_concurrent_nvvm": null
+      },
+      "nvrtc_no_cache": true,
+      "cubin": true,
+      "cubin_compiler": "nvjitlink",
+      "nvjitlink": {
+        "path": "C:\\projects\\slangpy\\build\\windows-msvc\\Debug\\nvJitLink_120_0.dll",
+        "version": [ 12, 9 ],
+        "disable_concurrent_nvvm": null,
+        "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d"
+      },
+      "cubin_opt_level": 3,
+      "cache_path": null,
+      "cached_entry_points": 0,
+      "cuda_cache_disable": "1",
+      "adapter": "NVIDIA TITAN RTX",
+      "python": "3.12.9",
+      "slangpy_version": "0.43.0",
+      "slangpy_git_version": "commit: 04a4bd50 / branch: dev/skallweit/parallel-compilation-experiment (local changes)",
+      "cpu": "AMD64 Family 23 Model 113 Stepping 0, AuthenticAMD",
+      "logical_cpus": 24,
+      "build_dir": "C:/projects/slangpy/build/windows-msvc/Debug",
+      "kernels": 3,
+      "variants_per_function": 1,
+      "rounds": 4,
+      "elements": 32,
+      "source_sha256": "46692078ba3ead46bb0f421c97ed7ae97af2c87e2da144b76afc054765fc5d2d",
+      "setup_s": 2.1662924999991446,
+      "elapsed_s": 0.6052780999998504,
+      "record_and_prepare_s": 0.08111240000016551,
+      "finish_compile_s": 0.5240022999996654,
+      "submit_and_wait_s": 0.00016219999997701962,
+      "compiled_entry_points": 3,
+      "created_pipelines": 3,
+      "output_sha256": "f9b706cd0f410e1dc7264fae11f93c766d3cdb7eb08f186b46140b9b260f4498",
+      "outputs": [
+        [
+          1.2602437734603882, 1.261473536491394,  1.2625571489334106, 1.2635102272033691, 1.2643475532531738,
+          1.2650823593139648, 1.2657266855239868, 1.2662917375564575, 1.2667872905731201, 1.2672220468521118,
+          1.2676039934158325, 1.2679399251937866, 1.2682360410690308, 1.2684975862503052, 1.268729329109192,
+          1.2689354419708252, 1.269119381904602,  1.2692840099334717, 1.2694323062896729, 1.269566535949707,
+          1.269688606262207,  1.2698001861572266, 1.2699025869369507, 1.269997477531433,  1.2700858116149902,
+          1.270168662071228,  1.2702465057373047, 1.270320177078247,  1.270390510559082,  1.2704579830169678,
+          1.2705228328704834, 1.2705856561660767
+        ],
+        [
+          0.21866612136363983, 0.2208666205406189,  0.22298064827919006, 0.22501684725284576, 0.22698314487934113,
+          0.22888699173927307, 0.23073554039001465, 0.2325354814529419,  0.23429353535175323, 0.23601628839969635,
+          0.23771052062511444, 0.2393832802772522,  0.2410421371459961,  0.24269534647464752, 0.2443523406982422,
+          0.2460239976644516,  0.2477235049009323,  0.24946725368499756, 0.2512758672237396,  0.2531769871711731,
+          0.255195289850235,   0.2573004364967346,  0.25943723320961,    0.26150980591773987, 0.26343831419944763,
+          0.26520001888275146, 0.2668181359767914,  0.26831185817718506, 0.2696971595287323,  0.27098751068115234,
+          0.2721942067146301,  0.2733268439769745
+        ],
+        [
+          1.5707151889801025, 1.5915956497192383, 1.6103764772415161, 1.6268435716629028, 1.6409580707550049,
+          1.6645996570587158, 1.686154842376709,  1.7054100036621094, 1.722199559211731,  1.736419916152954,
+          1.7480385303497314, 1.7570991516113281, 1.7637183666229248, 1.7680771350860596, 1.7704042196273804,
+          1.7709600925445557, 1.7700167894363403, 1.7678436040878296, 1.7646934986114502, 1.760796308517456,
+          1.7563526630401611, 1.751534104347229,  1.7464828491210938, 1.7413148880004883, 1.7361217737197876,
+          1.730974793434143,  1.7259278297424316, 1.721020221710205,  1.7162795066833496, 1.711723804473877,
+          1.707363486289978,  1.703202724456787
+        ]
+      ],
+      "wall_trace": [
+        {
+          "kernel_index": 0,
+          "function": "signal",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7220041711000,
+          "end_ns": 7220430252700
+        },
+        {
+          "kernel_index": 0,
+          "function": "signal",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7220561862700,
+          "end_ns": 7220564113200
+        },
+        {
+          "kernel_index": 1,
+          "function": "network",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7220041713900,
+          "end_ns": 7220174646100
+        },
+        {
+          "kernel_index": 1,
+          "function": "network",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7220561862800,
+          "end_ns": 7220564810200
+        },
+        {
+          "kernel_index": 2,
+          "function": "orbit",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7220041715000,
+          "end_ns": 7220313130200
+        },
+        {
+          "kernel_index": 2,
+          "function": "orbit",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7220561891800,
+          "end_ns": 7220564815500
+        }
+      ],
+      "serial_calls": [],
+      "cubin_trace": [
+        {
+          "program_id": 1,
+          "start_ns": 7220174651800,
+          "end_ns": 7220204214900,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        },
+        {
+          "program_id": 2,
+          "start_ns": 7220313138300,
+          "end_ns": 7220338882200,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        },
+        {
+          "program_id": 0,
+          "start_ns": 7220430260200,
+          "end_ns": 7220561605000,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        }
+      ],
+      "repeat": 0
+    },
+    {
+      "mode": "serial",
+      "backend": "cuda",
+      "nvrtc": {
+        "path": "C:\\projects\\slangpy\\.temp\\nvrtc-12.9\\nvidia\\cuda_nvrtc\\bin\\nvrtc64_120_0.dll",
+        "version": [ 12, 9 ],
+        "disable_concurrent_nvvm": null
+      },
+      "nvrtc_no_cache": true,
+      "cubin": true,
+      "cubin_compiler": "nvjitlink",
+      "nvjitlink": {
+        "path": "C:\\projects\\slangpy\\build\\windows-msvc\\Debug\\nvJitLink_120_0.dll",
+        "version": [ 12, 9 ],
+        "disable_concurrent_nvvm": null,
+        "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d"
+      },
+      "cubin_opt_level": 3,
+      "cache_path": null,
+      "cached_entry_points": 0,
+      "cuda_cache_disable": "1",
+      "adapter": "NVIDIA TITAN RTX",
+      "python": "3.12.9",
+      "slangpy_version": "0.43.0",
+      "slangpy_git_version": "commit: 04a4bd50 / branch: dev/skallweit/parallel-compilation-experiment (local changes)",
+      "cpu": "AMD64 Family 23 Model 113 Stepping 0, AuthenticAMD",
+      "logical_cpus": 24,
+      "build_dir": "C:/projects/slangpy/build/windows-msvc/Debug",
+      "kernels": 3,
+      "variants_per_function": 1,
+      "rounds": 4,
+      "elements": 32,
+      "source_sha256": "46692078ba3ead46bb0f421c97ed7ae97af2c87e2da144b76afc054765fc5d2d",
+      "setup_s": 2.444403799999236,
+      "elapsed_s": 0.835430300000553,
+      "compiled_entry_points": 3,
+      "created_pipelines": 3,
+      "output_sha256": "f9b706cd0f410e1dc7264fae11f93c766d3cdb7eb08f186b46140b9b260f4498",
+      "outputs": [
+        [
+          1.2602437734603882, 1.261473536491394,  1.2625571489334106, 1.2635102272033691, 1.2643475532531738,
+          1.2650823593139648, 1.2657266855239868, 1.2662917375564575, 1.2667872905731201, 1.2672220468521118,
+          1.2676039934158325, 1.2679399251937866, 1.2682360410690308, 1.2684975862503052, 1.268729329109192,
+          1.2689354419708252, 1.269119381904602,  1.2692840099334717, 1.2694323062896729, 1.269566535949707,
+          1.269688606262207,  1.2698001861572266, 1.2699025869369507, 1.269997477531433,  1.2700858116149902,
+          1.270168662071228,  1.2702465057373047, 1.270320177078247,  1.270390510559082,  1.2704579830169678,
+          1.2705228328704834, 1.2705856561660767
+        ],
+        [
+          0.21866612136363983, 0.2208666205406189,  0.22298064827919006, 0.22501684725284576, 0.22698314487934113,
+          0.22888699173927307, 0.23073554039001465, 0.2325354814529419,  0.23429353535175323, 0.23601628839969635,
+          0.23771052062511444, 0.2393832802772522,  0.2410421371459961,  0.24269534647464752, 0.2443523406982422,
+          0.2460239976644516,  0.2477235049009323,  0.24946725368499756, 0.2512758672237396,  0.2531769871711731,
+          0.255195289850235,   0.2573004364967346,  0.25943723320961,    0.26150980591773987, 0.26343831419944763,
+          0.26520001888275146, 0.2668181359767914,  0.26831185817718506, 0.2696971595287323,  0.27098751068115234,
+          0.2721942067146301,  0.2733268439769745
+        ],
+        [
+          1.5707151889801025, 1.5915956497192383, 1.6103764772415161, 1.6268435716629028, 1.6409580707550049,
+          1.6645996570587158, 1.686154842376709,  1.7054100036621094, 1.722199559211731,  1.736419916152954,
+          1.7480385303497314, 1.7570991516113281, 1.7637183666229248, 1.7680771350860596, 1.7704042196273804,
+          1.7709600925445557, 1.7700167894363403, 1.7678436040878296, 1.7646934986114502, 1.760796308517456,
+          1.7563526630401611, 1.751534104347229,  1.7464828491210938, 1.7413148880004883, 1.7361217737197876,
+          1.730974793434143,  1.7259278297424316, 1.721020221710205,  1.7162795066833496, 1.711723804473877,
+          1.707363486289978,  1.703202724456787
+        ]
+      ],
+      "wall_trace": [
+        {
+          "kernel_index": 0,
+          "function": "signal",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7223719139700,
+          "end_ns": 7224027268100
+        },
+        {
+          "kernel_index": 0,
+          "function": "signal",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7224167891400,
+          "end_ns": 7224168996900
+        },
+        {
+          "kernel_index": 1,
+          "function": "network",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7224194225800,
+          "end_ns": 7224320773700
+        },
+        {
+          "kernel_index": 1,
+          "function": "network",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7224348434200,
+          "end_ns": 7224349345000
+        },
+        {
+          "kernel_index": 2,
+          "function": "orbit",
+          "variant": 0,
+          "stage": "target",
+          "start_ns": 7224374402000,
+          "end_ns": 7224496662700
+        },
+        {
+          "kernel_index": 2,
+          "function": "orbit",
+          "variant": 0,
+          "stage": "pipeline",
+          "start_ns": 7224521962300,
+          "end_ns": 7224522895300
+        }
+      ],
+      "serial_calls": [
+        {
+          "kernel_index": 0,
+          "elapsed_s": 0.481482799999867
+        },
+        {
+          "kernel_index": 1,
+          "elapsed_s": 0.1802466999997705
+        },
+        {
+          "kernel_index": 2,
+          "elapsed_s": 0.17356789999939792
+        }
+      ],
+      "cubin_trace": [
+        {
+          "program_id": 0,
+          "start_ns": 7224027273600,
+          "end_ns": 7224167724700,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        },
+        {
+          "program_id": 1,
+          "start_ns": 7224320779300,
+          "end_ns": 7224348319400,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        },
+        {
+          "program_id": 2,
+          "start_ns": 7224496667700,
+          "end_ns": 7224521849000,
+          "cache_hit": false,
+          "success": true,
+          "compiler": "12.9",
+          "backend": "nvjitlink",
+          "intermediate_cache_disabled": true,
+          "fingerprint": "59a3fb6b2551b435d4128342319ec3bfd3de841d",
+          "arch": "-arch=sm_75",
+          "optimization": "-O3"
+        }
+      ],
+      "repeat": 0
+    }
+  ]
+}
