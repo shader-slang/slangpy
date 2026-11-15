@@ -1247,6 +1247,8 @@ NB_NOINLINE void bind_device_shader_objects(nb::module_& m, nb::class_<sgl::Devi
         D(Device, create_shader_object, 2)
     );
 
+    device.def("create_pending_pipelines", &Device::create_pending_pipelines, D(Device, create_pending_pipelines));
+
     device.def(
         "create_compute_pipeline",
         [](Device* self,

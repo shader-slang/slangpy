@@ -1,0 +1,231 @@
+[
+  {
+    "mode": "pending_dispatch",
+    "elapsed_s": 94.4455931,
+    "stages": {
+      "target": {
+        "span_s": 15.5215167,
+        "active_union_s": 15.5215167,
+        "max_concurrent_calls": 24,
+        "min_call_s": 0.4129247,
+        "median_call_s": 3.43318995,
+        "max_call_s": 15.5215167,
+        "family": {
+          "signal": {
+            "count": 8,
+            "min_s": 13.1111581,
+            "median_s": 14.68591575,
+            "max_s": 15.5215167
+          },
+          "network": {
+            "count": 8,
+            "min_s": 0.7092949,
+            "median_s": 1.6268006,
+            "max_s": 4.5433465
+          },
+          "orbit": {
+            "count": 8,
+            "min_s": 0.4129247,
+            "median_s": 2.5374698,
+            "max_s": 4.3387555
+          }
+        }
+      },
+      "pipeline": {
+        "span_s": 78.108447,
+        "active_union_s": 78.1081843,
+        "max_concurrent_calls": 13,
+        "min_call_s": 2.7230111,
+        "median_call_s": 75.3812872,
+        "max_call_s": 75.3827995,
+        "family": {
+          "signal": {
+            "count": 8,
+            "min_s": 75.3811163,
+            "median_s": 75.38150485,
+            "max_s": 75.3827819
+          },
+          "network": {
+            "count": 8,
+            "min_s": 2.7251797,
+            "median_s": 75.38149975,
+            "max_s": 75.3827995
+          },
+          "orbit": {
+            "count": 8,
+            "min_s": 2.7230111,
+            "median_s": 2.72518355,
+            "max_s": 2.7253301
+          }
+        }
+      }
+    },
+    "serial_calls": []
+  },
+  {
+    "mode": "serial",
+    "elapsed_s": 96.03074089999996,
+    "stages": {
+      "target": {
+        "span_s": 95.7727986,
+        "active_union_s": 40.3456613,
+        "max_concurrent_calls": 1,
+        "min_call_s": 0.2336074,
+        "median_call_s": 0.27465585000000003,
+        "max_call_s": 4.9800713,
+        "family": {
+          "signal": {
+            "count": 8,
+            "min_s": 4.2730357,
+            "median_s": 4.41962015,
+            "max_s": 4.9800713,
+            "total_s": 36.2532511
+          },
+          "network": {
+            "count": 8,
+            "min_s": 0.2730971,
+            "median_s": 0.27465585000000003,
+            "max_s": 0.2862243,
+            "total_s": 2.2092242
+          },
+          "orbit": {
+            "count": 8,
+            "min_s": 0.2336074,
+            "median_s": 0.23531405,
+            "max_s": 0.2372444,
+            "total_s": 1.883186
+          }
+        }
+      },
+      "pipeline": {
+        "span_s": 91.1549095,
+        "active_union_s": 55.0681261,
+        "max_concurrent_calls": 1,
+        "min_call_s": 0.2189102,
+        "median_call_s": 0.23631724999999998,
+        "max_call_s": 6.7908375,
+        "family": {
+          "signal": {
+            "count": 8,
+            "min_s": 6.0083266,
+            "median_s": 6.4117432,
+            "max_s": 6.7908375,
+            "total_s": 51.412053900000004
+          },
+          "network": {
+            "count": 8,
+            "min_s": 0.2351328,
+            "median_s": 0.23631724999999998,
+            "max_s": 0.2378854,
+            "total_s": 1.8905357
+          },
+          "orbit": {
+            "count": 8,
+            "min_s": 0.2189102,
+            "median_s": 0.21970515000000002,
+            "max_s": 0.2246365,
+            "total_s": 1.7655365
+          }
+        }
+      }
+    },
+    "serial_calls": [
+      {
+        "kernel_index": 0,
+        "elapsed_s": 11.665265500000032
+      },
+      {
+        "kernel_index": 1,
+        "elapsed_s": 11.745476399999916
+      },
+      {
+        "kernel_index": 2,
+        "elapsed_s": 10.649530099999993
+      },
+      {
+        "kernel_index": 3,
+        "elapsed_s": 10.403759799999989
+      },
+      {
+        "kernel_index": 4,
+        "elapsed_s": 11.197763500000065
+      },
+      {
+        "kernel_index": 5,
+        "elapsed_s": 10.916122900000119
+      },
+      {
+        "kernel_index": 6,
+        "elapsed_s": 10.958647700000029
+      },
+      {
+        "kernel_index": 7,
+        "elapsed_s": 10.35365109999998
+      },
+      {
+        "kernel_index": 8,
+        "elapsed_s": 0.5488147000000936
+      },
+      {
+        "kernel_index": 9,
+        "elapsed_s": 0.5348999999998796
+      },
+      {
+        "kernel_index": 10,
+        "elapsed_s": 0.5390912000000299
+      },
+      {
+        "kernel_index": 11,
+        "elapsed_s": 0.5336753999999928
+      },
+      {
+        "kernel_index": 12,
+        "elapsed_s": 0.5371530999998413
+      },
+      {
+        "kernel_index": 13,
+        "elapsed_s": 0.5326451000000816
+      },
+      {
+        "kernel_index": 14,
+        "elapsed_s": 0.5345570000001771
+      },
+      {
+        "kernel_index": 15,
+        "elapsed_s": 0.5342552999998134
+      },
+      {
+        "kernel_index": 16,
+        "elapsed_s": 0.48214539999980843
+      },
+      {
+        "kernel_index": 17,
+        "elapsed_s": 0.4858031999999639
+      },
+      {
+        "kernel_index": 18,
+        "elapsed_s": 0.47993270000006305
+      },
+      {
+        "kernel_index": 19,
+        "elapsed_s": 0.4806332000000566
+      },
+      {
+        "kernel_index": 20,
+        "elapsed_s": 0.48148879999985184
+      },
+      {
+        "kernel_index": 21,
+        "elapsed_s": 0.47764900000015587
+      },
+      {
+        "kernel_index": 22,
+        "elapsed_s": 0.4775147000000288
+      },
+      {
+        "kernel_index": 23,
+        "elapsed_s": 0.4786598000000595
+      }
+    ]
+  }
+]

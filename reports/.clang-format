@@ -1,0 +1,4 @@
+BasedOnStyle: InheritParentConfig
+IndentWidth: 2
+# Keep numeric benchmark arrays compact so reports stay within the file-size limit.
+BreakArrays: false

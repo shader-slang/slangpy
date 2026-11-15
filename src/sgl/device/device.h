@@ -634,6 +634,12 @@ public:
     /// Create a ray tracing pipeline.
     ref<RayTracingPipeline> create_ray_tracing_pipeline(RayTracingPipelineDesc desc);
 
+    /// Compile all live pending pipelines with fully specialized programs without dispatching.
+    /// Blocks until complete and uses the device's pipeline compilation mode. Pipelines requiring
+    /// specialization from bound shader objects are resolved when used in a command encoder instead.
+    /// Exclude concurrent pipeline creation/destruction and other shared Slang global-session operations.
+    void create_pending_pipelines();
+
     /// Create a compute kernel.
     ref<ComputeKernel> create_compute_kernel(ComputeKernelDesc desc);
 

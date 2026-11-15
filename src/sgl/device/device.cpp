@@ -939,6 +939,11 @@ ref<ShaderObject> Device::create_shader_object(ReflectionCursor cursor)
     return create_shader_object(cursor.type_layout().get());
 }
 
+void Device::create_pending_pipelines()
+{
+    SLANG_RHI_CALL(m_rhi_device->createPendingPipelines(), this);
+}
+
 ref<ComputePipeline> Device::create_compute_pipeline(ComputePipelineDesc desc)
 {
     return make_ref<ComputePipeline>(ref<Device>(this), std::move(desc));

@@ -260,6 +260,27 @@ class FunctionNode(NativeFunctionNode):
         """
         raise ValueError("Cannot convert a function to a struct")
 
+    def prepare(self, *args: Any, **kwargs: Any) -> "CallData":
+        """
+        Prepare and cache a call variant without dispatching or allocating its result.
+
+        Arguments and function modifiers select the same variant as a normal call.
+        With the default deferred compilation policy, call
+        ``device.create_pending_pipelines()`` after preparing several variants to
+        compile their target code and pipelines together. Parallel compilation
+        requires ``PipelineCompilationMode.parallel`` on the device.
+
+        This prepares only this call mode; autograd backward kernels are separate.
+
+        :return: The cached call data for this variant.
+        """
+        result = kwargs.get("_result")
+        if isinstance(result, (type, str)):
+            del kwargs["_result"]
+            return self.return_type(result).prepare(*args, **kwargs)
+        cache = self._find_native_root()._native_cache
+        return cast("CallData", self._native_build_call_data(cache, *args, **kwargs))
+
     def debug_build_call_data(self, *args: Any, **kwargs: Any):
         """
         Debug helper to build call data without dispatching the kernel.

@@ -1,0 +1,94 @@
+{
+  "workload": "24 kernels, 8 variants each of signal/network/orbit, 64 rounds, 32 elements",
+  "adapter": "NVIDIA TITAN RTX",
+  "nvrtc": "12.9",
+  "nvptxcompiler": "12.9.86",
+  "driver_cache_disabled": true,
+  "nvrtc_cache_disabled": true,
+  "timing": "Python elapsed wall time; setup excluded; target and pipeline raw wall intervals only",
+  "groups": [
+    {
+      "source": "pipeline-compilation-cuda-cubin-no-cache.json",
+      "mode": "pending_dispatch",
+      "samples": 3,
+      "median_s": 22.31929859999991,
+      "min_s": 22.091891800000212,
+      "max_s": 22.638803099999677
+    },
+    {
+      "source": "pipeline-compilation-cuda-cubin-no-cache.json",
+      "mode": "serial",
+      "samples": 3,
+      "median_s": 107.22535490000018,
+      "min_s": 104.18292649999967,
+      "max_s": 107.23425859999998
+    },
+    {
+      "source": "pipeline-compilation-cuda-cubin-cache-populate.json",
+      "mode": "pending_dispatch",
+      "samples": 1,
+      "median_s": 21.80367320000005,
+      "min_s": 21.80367320000005,
+      "max_s": 21.80367320000005
+    },
+    {
+      "source": "pipeline-compilation-cuda-cubin-cache-warm.json",
+      "mode": "pending",
+      "samples": 3,
+      "median_s": 0.6619884000001548,
+      "min_s": 0.6615987000004679,
+      "max_s": 0.6740208000001076
+    },
+    {
+      "source": "pipeline-compilation-cuda-cubin-cache-warm.json",
+      "mode": "pending_dispatch",
+      "samples": 3,
+      "median_s": 0.6748647999993409,
+      "min_s": 0.6676453999998557,
+      "max_s": 0.7060232000003452
+    },
+    {
+      "source": "pipeline-compilation-cuda-cubin-cache-warm.json",
+      "mode": "command_list",
+      "samples": 3,
+      "median_s": 0.6721525000002657,
+      "min_s": 0.6664795999995476,
+      "max_s": 0.6734894999999597
+    },
+    {
+      "source": "pipeline-compilation-cuda-cubin-cache-warm.json",
+      "mode": "serial",
+      "samples": 3,
+      "median_s": 0.7364869000002727,
+      "min_s": 0.7335918999997375,
+      "max_s": 0.7392104000000472
+    },
+    {
+      "source": "pipeline-compilation-cuda-driver-jit-control.json",
+      "mode": "pending_dispatch",
+      "samples": 3,
+      "median_s": 67.6652039999999,
+      "min_s": 63.682316000000355,
+      "max_s": 68.3015948000002
+    },
+    {
+      "source": "pipeline-compilation-cuda-driver-jit-serial-control.json",
+      "mode": "serial",
+      "samples": 1,
+      "median_s": 98.9284603999995,
+      "min_s": 98.9284603999995,
+      "max_s": 98.9284603999995
+    },
+    {
+      "source": "pipeline-compilation-cuda-ptx-cache-driver-jit-control.json",
+      "mode": "pending_dispatch",
+      "samples": 1,
+      "median_s": 55.14805009999964,
+      "min_s": 55.14805009999964,
+      "max_s": 55.14805009999964
+    }
+  ],
+  "verified_samples": 24,
+  "outputs_exactly_equal": true,
+  "cold_parallel_speedup": 3.031690431347165
+}
