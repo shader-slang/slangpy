@@ -70,5 +70,52 @@ def test_shader_cache(device_type: spy.DeviceType, tmpdir: str):
     device.close()
 
 
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_shader_cache_additional_source(device_type: spy.DeviceType, tmp_path: Path) -> None:
+    for cached in [False, True]:
+        device = spy.Device(
+            type=device_type,
+            enable_print=True,
+            shader_cache_path=tmp_path,
+            compiler_options={"include_paths": [Path(__file__).parent]},
+        )
+        try:
+            if cached:
+                # A different load order must still find the same cached program.
+                device.load_program(
+                    "test_shader_cache",
+                    ["compute_additional"],
+                    additional_source="export static const int VALUE = -1;",
+                )
+            program = device.load_program(
+                "test_shader_cache",
+                ["compute_additional"],
+                additional_source="export static const int VALUE = 7;",
+            )
+            kernel = device.create_compute_kernel(program)
+            kernel.dispatch(thread_count=[1, 1, 1])
+            assert device.flush_print_to_string().strip() == "7"
+            stats = device.shader_cache_stats
+            assert stats.entry_count > 0
+            if cached:
+                assert stats.hit_count > 0
+                assert stats.miss_count == 0
+                # Changed source must compile again and produce the new result.
+                program = device.load_program(
+                    "test_shader_cache",
+                    ["compute_additional"],
+                    additional_source="export static const int VALUE = 8;",
+                )
+                kernel = device.create_compute_kernel(program)
+                kernel.dispatch(thread_count=[1, 1, 1])
+                assert device.flush_print_to_string().strip() == "8"
+                assert device.shader_cache_stats.miss_count > 0
+            else:
+                assert stats.hit_count == 0
+                assert stats.miss_count > 0
+        finally:
+            device.close()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
