@@ -665,10 +665,13 @@ ref<ShaderProgram> SlangSession::load_program(
 {
     ref<SlangModule> module = load_module(module_name);
     std::vector<ref<SlangModule>> modules{module};
-    // TODO improve the way we generate unique names for additional sources
-    static uint32_t id = 0;
+    // Keep source module identities stable across processes and independent of load order,
+    // so Slang's entry point hashes can be used by the persistent shader cache.
     if (additional_source)
-        modules.push_back(load_module_from_source(fmt::format("additional_source_{}", id++), *additional_source));
+        modules.push_back(load_module_from_source(
+            fmt::format("{}_additional_source_{}", module->name(), SHA1(*additional_source).hex_digest()),
+            *additional_source
+        ));
     std::vector<ref<SlangEntryPoint>> entry_points;
     for (const auto& entry_point_name : entry_point_names)
         entry_points.push_back(module->entry_point(entry_point_name));
