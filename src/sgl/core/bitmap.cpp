@@ -1672,34 +1672,33 @@ static void exr_set_suffix(std::string& name, const std::string& suffix)
         name = suffix;
 }
 
-static std::pair<Bitmap::PixelFormat, bool> exr_pixel_format(std::span<const std::string> channels_sorted)
+static std::pair<Bitmap::PixelFormat, bool> exr_pixel_format(std::span<const std::string> channels)
 {
     // Channels from different layers never form a standard pixel format.
     bool found[exr_channels::CLASS_COUNT] = {false};
-    for (const auto& name : channels_sorted) {
-        if (exr_layer_prefix(name) != exr_layer_prefix(channels_sorted.front()))
+    for (const auto& name : channels) {
+        if (exr_layer_prefix(name) != exr_layer_prefix(channels.front()))
             return {Bitmap::PixelFormat::multi_channel, false};
         found[exr_channel_class(name)] = true;
     }
 
     Bitmap::PixelFormat pixel_format = Bitmap::PixelFormat::multi_channel;
     bool luminance_chroma_format = false;
-    if (channels_sorted.size() == 3 && found[exr_channels::R] && found[exr_channels::G] && found[exr_channels::B]) {
+    if (channels.size() == 3 && found[exr_channels::R] && found[exr_channels::G] && found[exr_channels::B]) {
         pixel_format = Bitmap::PixelFormat::rgb;
-    } else if (channels_sorted.size() == 4 && found[exr_channels::R] && found[exr_channels::G] && found[exr_channels::B]
+    } else if (channels.size() == 4 && found[exr_channels::R] && found[exr_channels::G] && found[exr_channels::B]
                && found[exr_channels::A]) {
         pixel_format = Bitmap::PixelFormat::rgba;
-    } else if (channels_sorted.size() == 3 && found[exr_channels::Y] && found[exr_channels::RY]
-               && found[exr_channels::BY]) {
+    } else if (channels.size() == 3 && found[exr_channels::Y] && found[exr_channels::RY] && found[exr_channels::BY]) {
         pixel_format = Bitmap::PixelFormat::rgb;
         luminance_chroma_format = true;
-    } else if (channels_sorted.size() == 4 && found[exr_channels::Y] && found[exr_channels::RY]
-               && found[exr_channels::BY] && found[exr_channels::A]) {
+    } else if (channels.size() == 4 && found[exr_channels::Y] && found[exr_channels::RY] && found[exr_channels::BY]
+               && found[exr_channels::A]) {
         pixel_format = Bitmap::PixelFormat::rgba;
         luminance_chroma_format = true;
-    } else if (channels_sorted.size() == 1 && found[exr_channels::Y]) {
+    } else if (channels.size() == 1 && found[exr_channels::Y]) {
         pixel_format = Bitmap::PixelFormat::y;
-    } else if (channels_sorted.size() == 2 && found[exr_channels::Y] && found[exr_channels::A]) {
+    } else if (channels.size() == 2 && found[exr_channels::Y] && found[exr_channels::A]) {
         pixel_format = Bitmap::PixelFormat::ya;
     }
 
@@ -2347,8 +2346,8 @@ static Bitmap::ComponentType exr_component_type(int pixel_type)
 /// Convert one EXR sample to the destination component type using OpenEXR's out-of-range
 /// rules, so that mixed-type files decode the same with both backends: negative and NaN
 /// values become 0, overflowing values the maximum for uint32, and uint32 values beyond
-/// the half range become +inf. Float samples just above the half maximum (65504, 65520]
-/// clamp to 65504 here instead of overflowing to infinity.
+/// the half range become +inf. Float samples between the half maximum and 65520
+/// (exclusive) clamp to 65504 here instead of overflowing to infinity.
 template<typename Dst, typename Src>
 static Dst convert_exr_sample(Src value)
 {
@@ -2499,9 +2498,9 @@ void Bitmap::read_exr(Stream* stream)
     size_t pixel_count = this->pixel_count();
     size_t row_stride = pixel_stride * m_width;
 
-    allocate_data(row_stride * m_height);
-
     try {
+        allocate_data(row_stride * m_height);
+
         // After loading, `pixel_types` holds each channel's decoded type, which can differ per channel.
         for (const auto& field : *m_pixel_struct) {
             int channel_index = find_channel_index(field.name);

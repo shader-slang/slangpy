@@ -335,6 +335,19 @@ def test_exr_mixed_component_types(tmp_path: Path, g_type: int, g_value: float):
     assert np.all(np.array(b) == [0.75, g_value, 0.25])
 
 
+def test_exr_mixed_component_types_uint_first(tmp_path: Path):
+    path = tmp_path / "mixed_uint_first.exr"
+    write_exr_channels(path, {"B": (EXR_UINT, 3), "G": (EXR_FLOAT, 1.75), "R": (EXR_FLOAT, -0.25)})
+
+    b = Bitmap(path)
+
+    assert b.pixel_format == Bitmap.PixelFormat.rgb
+    # The destination type comes from file-order channel 0 (B, UINT here), so the float
+    # channels convert into uint32: negative clamps to 0 and 1.75 truncates to 1.
+    assert b.component_type == Bitmap.ComponentType.uint32
+    assert np.all(np.array(b) == [0, 1, 3])
+
+
 BMP_LAYOUTS = [
     (50, 100, Bitmap.PixelFormat.rgb, Bitmap.ComponentType.uint8),
     (100, 200, Bitmap.PixelFormat.rgba, Bitmap.ComponentType.uint8),
