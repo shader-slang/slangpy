@@ -87,7 +87,6 @@ SGL_DIAGNOSTIC_POP
 #if SGL_HAS_OPENEXR
 #include <ImfInputFile.h>
 #include <ImfStandardAttributes.h>
-#include <ImfRgbaYca.h>
 #include <ImfOutputFile.h>
 #include <ImfChannelList.h>
 #include <ImfFrameBuffer.h>
@@ -113,6 +112,8 @@ SGL_DIAGNOSTIC_POP
 #endif
 
 #include <algorithm>
+#include <array>
+#include <cstring>
 #include <new>
 #include <numeric>
 #include <map>
@@ -1605,8 +1606,10 @@ void Bitmap::write_hdr(Stream* stream) const
 
 namespace {
     namespace exr_channels {
-        enum { unknown, R, G, B, X, Y, Z, A, RY, BY, CLASS_COUNT };
-    }
+        // The enumerator order is the channel order within a layer (see exr_channel_key).
+        // Luminance/chroma conversion relies on Y, RY and BY sorting before A.
+        enum { unknown, R, G, B, X, Y, Z, RY, BY, A, CLASS_COUNT };
+    } // namespace exr_channels
 } // namespace
 
 // Classification scheme for color channels.
@@ -1652,11 +1655,32 @@ static std::string exr_channel_key(std::string name)
     return name;
 }
 
+// Layer prefix of a channel name: everything before the last '.', or "" for plain names.
+static std::string_view exr_layer_prefix(std::string_view name)
+{
+    auto it = name.rfind(".");
+    return it != std::string_view::npos ? name.substr(0, it) : std::string_view{};
+}
+
+// Replace the suffix of a channel name, keeping its layer prefix.
+static void exr_set_suffix(std::string& name, const std::string& suffix)
+{
+    auto it = name.rfind(".");
+    if (it != std::string::npos)
+        name = name.substr(0, it) + "." + suffix;
+    else
+        name = suffix;
+}
+
 static std::pair<Bitmap::PixelFormat, bool> exr_pixel_format(std::span<const std::string> channels_sorted)
 {
+    // Channels from different layers never form a standard pixel format.
     bool found[exr_channels::CLASS_COUNT] = {false};
-    for (const auto& name : channels_sorted)
+    for (const auto& name : channels_sorted) {
+        if (exr_layer_prefix(name) != exr_layer_prefix(channels_sorted.front()))
+            return {Bitmap::PixelFormat::multi_channel, false};
         found[exr_channel_class(name)] = true;
+    }
 
     Bitmap::PixelFormat pixel_format = Bitmap::PixelFormat::multi_channel;
     bool luminance_chroma_format = false;
@@ -1680,6 +1704,109 @@ static std::pair<Bitmap::PixelFormat, bool> exr_pixel_format(std::span<const std
     }
 
     return {pixel_format, luminance_chroma_format};
+}
+
+/// Compute the luminance weights of the RGB primaries described by red, green, blue and
+/// white xy chromaticities. This mirrors Imf::RgbaYca::computeYw (the Y row of
+/// Imf::RGBtoXYZ, normalized) so both EXR backends reconstruct luminance/chroma the same way.
+static std::array<double, 3> exr_luminance_weights(std::span<const float, 8> chromaticities)
+{
+    const double red_x = chromaticities[0], red_y = chromaticities[1];
+    const double green_x = chromaticities[2], green_y = chromaticities[3];
+    const double blue_x = chromaticities[4], blue_y = chromaticities[5];
+    const double white_x = chromaticities[6], white_y = chromaticities[7];
+
+    SGL_CHECK(white_y != 0.0, "Bad EXR chromaticities: white.y cannot be zero");
+    const double white_X = white_x / white_y;
+    const double white_Z = (1.0 - white_x - white_y) / white_y;
+    const double white_XZ = white_X + white_Z;
+
+    const double d = red_x * (blue_y - green_y) + blue_x * (green_y - red_y) + green_x * (red_y - blue_y);
+    SGL_CHECK(d != 0.0, "Bad EXR chromaticities: RGB to XYZ matrix is degenerate");
+
+    const double scale_r = (white_X * (blue_y - green_y) - green_x * (blue_y - 1.0 + blue_y * white_XZ)
+                            + blue_x * (green_y - 1.0 + green_y * white_XZ))
+        / d;
+    const double scale_g = (white_X * (red_y - blue_y) + red_x * (blue_y - 1.0 + blue_y * white_XZ)
+                            - blue_x * (red_y - 1.0 + red_y * white_XZ))
+        / d;
+    const double scale_b = (white_X * (green_y - red_y) - red_x * (green_y - 1.0 + green_y * white_XZ)
+                            + green_x * (red_y - 1.0 + red_y * white_XZ))
+        / d;
+
+    const double yw_r = scale_r * red_y;
+    const double yw_g = scale_g * green_y;
+    const double yw_b = scale_b * blue_y;
+    const double sum = yw_r + yw_g + yw_b;
+    return {yw_r / sum, yw_g / sum, yw_b / sum};
+}
+
+/// Convert interleaved luminance/chroma pixels to RGB in place. The first three channels
+/// of each pixel hold Y, RY and BY (guaranteed by the channel sort order) and are renamed
+/// to R, G and B, keeping their layer prefix. A trailing alpha channel is left untouched.
+static void exr_luminance_chroma_to_rgb(
+    void* data,
+    Bitmap::ComponentType component_type,
+    size_t pixel_count,
+    size_t channel_count,
+    DataStruct& pixel_struct,
+    std::span<const float, 8> chromaticities
+)
+{
+    log_debug("Converting from Luminance-Chroma to RGB format ...");
+    const std::array<double, 3> yw = exr_luminance_weights(chromaticities);
+
+    auto convert = [&](auto* data)
+    {
+        using T = std::decay_t<decltype(*data)>;
+
+        for (size_t j = 0; j < pixel_count; ++j) {
+            double y = double(data[0]);
+            double ry = double(data[1]);
+            double by = double(data[2]);
+
+            if constexpr (!math::floating_point<T>) {
+                double scale = 1.0 / double(std::numeric_limits<T>::max());
+                y *= scale;
+                ry *= scale;
+                by *= scale;
+            }
+
+            double r = (ry + 1.0) * y;
+            double b = (by + 1.0) * y;
+            double g = ((y - r * yw[0] - b * yw[2]) / yw[1]);
+
+            if constexpr (!math::floating_point<T>) {
+                double scale = double(std::numeric_limits<T>::max());
+                r = std::clamp(r * scale + .5, 0.0, scale);
+                g = std::clamp(g * scale + .5, 0.0, scale);
+                b = std::clamp(b * scale + .5, 0.0, scale);
+            }
+
+            data[0] = T(r);
+            data[1] = T(g);
+            data[2] = T(b);
+            data += channel_count;
+        }
+    };
+
+    switch (component_type) {
+    case Bitmap::ComponentType::float16:
+        convert(reinterpret_cast<math::float16_t*>(data));
+        break;
+    case Bitmap::ComponentType::float32:
+        convert(reinterpret_cast<float*>(data));
+        break;
+    case Bitmap::ComponentType::uint32:
+        convert(reinterpret_cast<uint32_t*>(data));
+        break;
+    default:
+        SGL_THROW("Internal error!");
+    }
+
+    exr_set_suffix(pixel_struct[0].name, "R");
+    exr_set_suffix(pixel_struct[1].name, "G");
+    exr_set_suffix(pixel_struct[2].name, "B");
 }
 
 #if SGL_HAS_OPENEXR
@@ -1858,15 +1985,6 @@ void Bitmap::read_exr(Stream* stream)
     };
 #endif
 
-    auto set_suffix = [](std::string& name, const std::string& suffix)
-    {
-        auto it = name.rfind(".");
-        if (it != std::string::npos)
-            name = name.substr(0, it) + "." + suffix;
-        else
-            name = suffix;
-    };
-
     Imath::Box2i data_window = file.header().dataWindow();
     m_width = data_window.max.x - data_window.min.x + 1;
     m_height = data_window.max.y - data_window.min.y + 1;
@@ -1963,60 +2081,24 @@ void Bitmap::read_exr(Stream* stream)
 #endif
 
     if (luminance_chroma_format) {
-        log_debug("Converting from Luminance-Chroma to RGB format ...");
-        Imath::V3f yw = Imf::RgbaYca::computeYw(file_chroma);
-
-        auto convert = [&](auto* data)
-        {
-            using T = std::decay_t<decltype(*data)>;
-
-            for (size_t j = 0; j < pixel_count; ++j) {
-                double y = double(data[0]);
-                double ry = double(data[1]);
-                double by = double(data[2]);
-
-                if constexpr (!math::floating_point<T>) {
-                    double scale = 1.0 / double(std::numeric_limits<T>::max());
-                    y *= scale;
-                    ry *= scale;
-                    by *= scale;
-                }
-
-                double r = (ry + 1.0) * y;
-                double b = (by + 1.0) * y;
-                double g = ((y - r * yw.x - b * yw.z) / yw.y);
-
-                if constexpr (!math::floating_point<T>) {
-                    double scale = double(std::numeric_limits<T>::max());
-                    r = r * scale + .5f;
-                    g = g * scale + .5f;
-                    b = b * scale + .5f;
-                }
-
-                data[0] = T(exr_channels::R);
-                data[1] = T(exr_channels::G);
-                data[2] = T(exr_channels::B);
-                data += channel_count();
-            }
+        const float chromaticities[8] = {
+            file_chroma.red.x,
+            file_chroma.red.y,
+            file_chroma.green.x,
+            file_chroma.green.y,
+            file_chroma.blue.x,
+            file_chroma.blue.y,
+            file_chroma.white.x,
+            file_chroma.white.y,
         };
-
-        switch (m_component_type) {
-        case ComponentType::float16:
-            convert(reinterpret_cast<math::float16_t*>(m_data));
-            break;
-        case ComponentType::float32:
-            convert(reinterpret_cast<float*>(m_data));
-            break;
-        case ComponentType::uint32:
-            convert(reinterpret_cast<uint32_t*>(m_data));
-            break;
-        default:
-            SGL_THROW("Internal error!");
-        }
-
-        set_suffix(m_pixel_struct->operator[](0).name, "R");
-        set_suffix(m_pixel_struct->operator[](1).name, "G");
-        set_suffix(m_pixel_struct->operator[](2).name, "B");
+        exr_luminance_chroma_to_rgb(
+            m_data,
+            m_component_type,
+            pixel_count,
+            channel_count(),
+            *m_pixel_struct,
+            chromaticities
+        );
     }
 
 #if 0
@@ -2262,6 +2344,78 @@ static Bitmap::ComponentType exr_component_type(int pixel_type)
     }
 }
 
+/// Convert one EXR sample to the destination component type using OpenEXR's out-of-range
+/// rules, so that mixed-type files decode the same with both backends: negative and NaN
+/// values become 0, overflowing values the maximum for uint32, and uint32 values beyond
+/// the half range become +inf. Float samples just above the half maximum (65504, 65520]
+/// clamp to 65504 here instead of overflowing to infinity.
+template<typename Dst, typename Src>
+static Dst convert_exr_sample(Src value)
+{
+    if constexpr (std::is_same_v<Dst, Src>) {
+        return value;
+    } else if constexpr (std::is_same_v<Dst, uint32_t>) {
+        float f = float(value);
+        if (!(f >= 0.f))
+            return 0;
+        if (f >= float(std::numeric_limits<uint32_t>::max()))
+            return std::numeric_limits<uint32_t>::max();
+        return uint32_t(f);
+    } else if constexpr (std::is_same_v<Dst, math::float16_t>) {
+        if constexpr (std::is_same_v<Src, uint32_t>) {
+            if (value > 65504)
+                return math::float16_t(std::numeric_limits<float>::infinity());
+        }
+        return math::float16_t(float(value));
+    } else {
+        static_assert(std::is_same_v<Dst, float>);
+        return float(value);
+    }
+}
+
+/// Copy one planar TinyEXR channel of type `src_type` into an interleaved destination.
+static void exr_convert_channel(
+    const uint8_t* src,
+    int src_type,
+    uint8_t* dst,
+    Bitmap::ComponentType dst_type,
+    size_t dst_stride,
+    size_t count
+)
+{
+    auto convert = [&](const auto* typed_src, auto dst_tag)
+    {
+        using Dst = decltype(dst_tag);
+        for (size_t j = 0; j < count; ++j) {
+            Dst value = convert_exr_sample<Dst>(typed_src[j]);
+            std::memcpy(dst + j * dst_stride, &value, sizeof(Dst));
+        }
+    };
+    auto convert_to_dst_type = [&](const auto* typed_src)
+    {
+        switch (dst_type) {
+        case Bitmap::ComponentType::uint32:
+            return convert(typed_src, uint32_t{});
+        case Bitmap::ComponentType::float16:
+            return convert(typed_src, math::float16_t{});
+        case Bitmap::ComponentType::float32:
+            return convert(typed_src, float{});
+        default:
+            SGL_THROW("Unsupported component type!");
+        }
+    };
+    switch (src_type) {
+    case TINYEXR_PIXELTYPE_UINT:
+        return convert_to_dst_type(reinterpret_cast<const uint32_t*>(src));
+    case TINYEXR_PIXELTYPE_HALF:
+        return convert_to_dst_type(reinterpret_cast<const math::float16_t*>(src));
+    case TINYEXR_PIXELTYPE_FLOAT:
+        return convert_to_dst_type(reinterpret_cast<const float*>(src));
+    default:
+        SGL_THROW("EXR image contains invalid component type (must be float16, float32 or uint32)");
+    }
+}
+
 void Bitmap::read_exr(Stream* stream)
 {
     size_t size = stream->size();
@@ -2306,7 +2460,8 @@ void Bitmap::read_exr(Stream* stream)
     }
 
     // Try to detect common pixel formats.
-    m_pixel_format = exr_pixel_format(channels_sorted).first;
+    const auto [pixel_format, luminance_chroma_format] = exr_pixel_format(channels_sorted);
+    m_pixel_format = pixel_format;
 
     m_srgb_gamma = false;
 
@@ -2340,32 +2495,48 @@ void Bitmap::read_exr(Stream* stream)
     m_width = header.data_window.max_x - header.data_window.min_x + 1;
     m_height = header.data_window.max_y - header.data_window.min_y + 1;
 
-    size_t component_size = DataStruct::type_size(m_component_type);
     size_t pixel_stride = this->bytes_per_pixel();
     size_t pixel_count = this->pixel_count();
     size_t row_stride = pixel_stride * m_width;
 
     allocate_data(row_stride * m_height);
 
-    for (const auto& field : *m_pixel_struct) {
-        int channel_index = find_channel_index(field.name);
-        const uint8_t* src = image.images[channel_index];
-        uint8_t* dst = uint8_data() + field.offset;
-        if (component_size == 2) {
-            for (size_t j = 0; j < m_width * m_height; ++j) {
-                std::memcpy(dst, src, 2);
-                src += 2;
-                dst += pixel_stride;
-            }
-        } else if (component_size == 4) {
-            for (size_t j = 0; j < m_width * m_height; ++j) {
-                std::memcpy(dst, src, 4);
-                src += 4;
-                dst += pixel_stride;
-            }
-        } else {
-            SGL_THROW("Unsupported component size!");
+    try {
+        // After loading, `pixel_types` holds each channel's decoded type, which can differ per channel.
+        for (const auto& field : *m_pixel_struct) {
+            int channel_index = find_channel_index(field.name);
+            exr_convert_channel(
+                image.images[channel_index],
+                header.pixel_types[channel_index],
+                uint8_data() + field.offset,
+                m_component_type,
+                pixel_stride,
+                pixel_count
+            );
         }
+
+        if (luminance_chroma_format) {
+            // Rec. 709 primaries and D65 white point, the EXR default without a chromaticities attribute.
+            float chromaticities[8] = {0.64f, 0.33f, 0.30f, 0.60f, 0.15f, 0.06f, 0.3127f, 0.3290f};
+            for (int i = 0; i < header.num_custom_attributes; ++i) {
+                const EXRAttribute& attribute = header.custom_attributes[i];
+                if (std::strcmp(attribute.name, "chromaticities") == 0
+                    && std::strcmp(attribute.type, "chromaticities") == 0 && attribute.size == sizeof(chromaticities))
+                    std::memcpy(chromaticities, attribute.value, sizeof(chromaticities));
+            }
+            exr_luminance_chroma_to_rgb(
+                m_data,
+                m_component_type,
+                pixel_count,
+                channel_count(),
+                *m_pixel_struct,
+                chromaticities
+            );
+        }
+    } catch (...) {
+        FreeEXRImage(&image);
+        FreeEXRHeader(&header);
+        throw;
     }
 
     FreeEXRImage(&image);
