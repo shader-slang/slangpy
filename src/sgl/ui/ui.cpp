@@ -22,6 +22,7 @@
 #include "sgl/device/pipeline.h"
 
 #include <imgui.h>
+#include <imgui_internal.h>
 #if ENABLE_IMGUI_DEMO_WINDOW
 #include <imgui_demo.cpp>
 #endif
@@ -374,6 +375,22 @@ ImFont* Context::get_font(const char* name)
 {
     auto it = m_fonts.find(name);
     return it == m_fonts.end() ? nullptr : it->second;
+}
+
+void Context::load_ini_settings(std::string_view ini)
+{
+    ImGui::SetCurrentContext(m_imgui_context);
+    SGL_CHECK(!m_imgui_context->WithinFrameScope, "Cannot load ImGui settings during an active frame");
+    ImGui::LoadIniSettingsFromMemory(ini.empty() ? "" : ini.data(), ini.size());
+}
+
+std::string Context::save_ini_settings()
+{
+    ImGui::SetCurrentContext(m_imgui_context);
+    SGL_CHECK(!m_imgui_context->WithinFrameScope, "Cannot save ImGui settings during an active frame");
+    size_t size = 0;
+    const char* ini = ImGui::SaveIniSettingsToMemory(&size);
+    return std::string(ini, size);
 }
 
 void Context::begin_frame(uint32_t width, uint32_t height, sgl::Window* window)
