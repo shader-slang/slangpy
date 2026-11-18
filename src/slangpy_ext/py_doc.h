@@ -15419,6 +15419,17 @@ static const char *mkd_doc_sgl_ui_Context_init_rasterizer = R"doc()doc";
 
 static const char *mkd_doc_sgl_ui_Context_init_sw_rasterizer = R"doc()doc";
 
+static const char *mkd_doc_sgl_ui_Context_load_ini_settings =
+R"doc(Apply ImGui INI settings from memory, using ImGui's merge/override
+semantics. Call before the first frame to restore saved window,
+docking, and table settings. Must be called outside this context's
+frame, on the UI thread.
+
+Args:
+    ini: ImGui INI text, typically returned by save_ini_settings().
+
+)doc";
+
 static const char *mkd_doc_sgl_ui_Context_m_bbox_buffer = R"doc()doc";
 
 static const char *mkd_doc_sgl_ui_Context_m_device = R"doc()doc";
@@ -15474,6 +15485,17 @@ Args:
     draw_data: Dear ImGui draw data.
     texture: Texture to render to.
     command_encoder: Command encoder used to record the render pass.
+
+)doc";
+
+static const char *mkd_doc_sgl_ui_Context_save_ini_settings =
+R"doc(Serialize ImGui settings to an owned INI string for application-
+managed storage. Must be called outside this context's frame, on the
+UI thread.
+
+Returns:
+    ImGui INI text describing this context's window, docking, and
+    table settings.
 
 )doc";
 
