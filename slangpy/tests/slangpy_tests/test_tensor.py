@@ -327,5 +327,45 @@ def test_tensor_empty_no_shape(device_type: DeviceType):
         Tensor.empty(device, shape=(), dtype="float")
 
 
+ARRAY_OF_STRUCT_MODULE = r"""
+struct RGB { float r; float g; float b; };
+struct P { float x; float y; float z; float w; };
+"""
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize(
+    "dtype_name,struct_name,dtype_shape",
+    [
+        ("RGB", "RGB", ()),
+        ("RGB[2]", "RGB", (2,)),
+        ("P[2]", "P", (2,)),
+        ("P[2][3]", "P", (3, 2)),
+    ],
+)
+def test_tensor_to_numpy_array_of_struct(
+    device_type: DeviceType, dtype_name: str, struct_name: str, dtype_shape: tuple[int, ...]
+):
+    """Tensor.to_numpy() on an array-of-struct dtype returns struct bytes with byte strides (#163)."""
+    device = helpers.get_device(device_type)
+    module = helpers.create_module(device, ARRAY_OF_STRUCT_MODULE)
+    struct_size = module[struct_name].struct.buffer_layout.reflection.size
+    num_fields = struct_size // 4
+
+    shape = (5,)
+    ref = np.arange(np.prod(shape + dtype_shape) * num_fields, dtype=np.float32)
+    ref = ref.reshape(shape + dtype_shape + (num_fields,))
+
+    tensor = Tensor.zeros(device, dtype=module[dtype_name], shape=shape)
+    tensor.copy_from_numpy(ref)
+    result = tensor.to_numpy()
+
+    expected_shape = shape + dtype_shape + (struct_size,)
+    assert result.dtype == np.uint8
+    assert result.shape == expected_shape
+    assert result.strides == np.empty(expected_shape, np.uint8).strides
+    assert (result.view(np.float32).reshape(ref.shape) == ref).all()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
