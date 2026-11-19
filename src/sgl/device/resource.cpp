@@ -595,21 +595,27 @@ ref<TextureView> Texture::create_view(TextureViewDesc desc)
 DescriptorHandle Texture::descriptor_handle_ro() const
 {
     rhi::DescriptorHandle rhi_handle = {};
-    m_rhi_texture->getDefaultView()->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, &rhi_handle);
+    SLANG_RHI_CALL(
+        m_rhi_texture->getDefaultView()->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, &rhi_handle),
+        m_device
+    );
     return DescriptorHandle(rhi_handle);
 }
 
 DescriptorHandle Texture::descriptor_handle_rw() const
 {
     rhi::DescriptorHandle rhi_handle = {};
-    m_rhi_texture->getDefaultView()->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, &rhi_handle);
+    SLANG_RHI_CALL(
+        m_rhi_texture->getDefaultView()->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, &rhi_handle),
+        m_device
+    );
     return DescriptorHandle(rhi_handle);
 }
 
 DescriptorHandle Texture::descriptor_handle_combined() const
 {
     rhi::DescriptorHandle rhi_handle = {};
-    m_rhi_texture->getDefaultView()->getCombinedTextureSamplerDescriptorHandle(&rhi_handle);
+    SLANG_RHI_CALL(m_rhi_texture->getDefaultView()->getCombinedTextureSamplerDescriptorHandle(&rhi_handle), m_device);
     return DescriptorHandle(rhi_handle);
 }
 
@@ -851,21 +857,24 @@ TextureView::TextureView(ref<Device> device, ref<Texture> texture, TextureViewDe
 DescriptorHandle TextureView::descriptor_handle_ro() const
 {
     rhi::DescriptorHandle rhi_handle = {};
-    m_rhi_texture_view->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, &rhi_handle);
+    SLANG_RHI_CALL(m_rhi_texture_view->getDescriptorHandle(rhi::DescriptorHandleAccess::Read, &rhi_handle), m_device);
     return DescriptorHandle(rhi_handle);
 }
 
 DescriptorHandle TextureView::descriptor_handle_rw() const
 {
     rhi::DescriptorHandle rhi_handle = {};
-    m_rhi_texture_view->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, &rhi_handle);
+    SLANG_RHI_CALL(
+        m_rhi_texture_view->getDescriptorHandle(rhi::DescriptorHandleAccess::ReadWrite, &rhi_handle),
+        m_device
+    );
     return DescriptorHandle(rhi_handle);
 }
 
 DescriptorHandle TextureView::descriptor_handle_combined() const
 {
     rhi::DescriptorHandle rhi_handle = {};
-    m_rhi_texture_view->getCombinedTextureSamplerDescriptorHandle(&rhi_handle);
+    SLANG_RHI_CALL(m_rhi_texture_view->getCombinedTextureSamplerDescriptorHandle(&rhi_handle), m_device);
     return DescriptorHandle(rhi_handle);
 }
 
