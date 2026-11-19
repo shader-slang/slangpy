@@ -440,6 +440,7 @@ public:
         uint16 = SLANG_SCALAR_TYPE_UINT16,
         intptr = SLANG_SCALAR_TYPE_INTPTR,
         uintptr = SLANG_SCALAR_TYPE_UINTPTR,
+        bfloat16 = SLANG_SCALAR_TYPE_BFLOAT16,
         COUNT,
     };
 
@@ -460,6 +461,7 @@ public:
             {ScalarType::uint8, "uint8"},
             {ScalarType::int16, "int16"},
             {ScalarType::uint16, "uint16"},
+            {ScalarType::bfloat16, "bfloat16"},
         }
     );
 

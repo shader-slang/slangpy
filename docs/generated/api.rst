@@ -67,6 +67,10 @@ Core
         :type: DataType
         :value: DataType.float8_e5m2
 
+    .. py:attribute:: slangpy.DataType.bfloat16
+        :type: DataType
+        :value: DataType.bfloat16
+
 
 
 ----
@@ -8971,6 +8975,10 @@ Device
         .. py:attribute:: slangpy.TypeReflection.ScalarType.uint16
             :type: ScalarType
             :value: ScalarType.uint16
+
+        .. py:attribute:: slangpy.TypeReflection.ScalarType.bfloat16
+            :type: ScalarType
+            :value: ScalarType.bfloat16
 
     .. py:class:: slangpy.TypeReflection.ResourceShape
 

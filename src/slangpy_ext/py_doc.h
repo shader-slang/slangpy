@@ -2833,6 +2833,8 @@ static const char *mkd_doc_sgl_DataStruct_type_size = R"doc(Get the size of a ty
 
 static const char *mkd_doc_sgl_DataType = R"doc()doc";
 
+static const char *mkd_doc_sgl_DataType_bfloat16 = R"doc()doc";
+
 static const char *mkd_doc_sgl_DataType_bool = R"doc()doc";
 
 static const char *mkd_doc_sgl_DataType_float16 = R"doc()doc";
@@ -10215,6 +10217,8 @@ static const char *mkd_doc_sgl_TypeReflection_ResourceShape_unknown = R"doc()doc
 static const char *mkd_doc_sgl_TypeReflection_ScalarType = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeReflection_ScalarType_COUNT = R"doc()doc";
+
+static const char *mkd_doc_sgl_TypeReflection_ScalarType_bfloat16 = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeReflection_ScalarType_bool = R"doc()doc";
 

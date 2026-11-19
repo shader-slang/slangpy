@@ -50,6 +50,8 @@ namespace {
             return nb::dlpack::dtype{(uint8_t)nb::dlpack::dtype_code::Int, sizeof(intptr_t) * 8, 1};
         case TypeReflection::ScalarType::uintptr:
             return nb::dlpack::dtype{(uint8_t)nb::dlpack::dtype_code::UInt, sizeof(uintptr_t) * 8, 1};
+        case TypeReflection::ScalarType::bfloat16:
+            return nb::dlpack::dtype{(uint8_t)nb::dlpack::dtype_code::Bfloat, 16, 1};
         default:
             return {};
         }
@@ -84,6 +86,12 @@ namespace {
             = is_scalar ? innermost_layout->type()->scalar_type() : TypeReflection::ScalarType::uint8;
         auto dlpack_type = scalartype_to_dtype(scalar_type);
         SGL_CHECK(dlpack_type.has_value(), "Unsupported tensor element scalar type");
+        if constexpr (Framework::value == nb::numpy::value) {
+            SGL_CHECK(
+                scalar_type != TypeReflection::ScalarType::bfloat16,
+                "BFloat16 tensors cannot be converted to NumPy, which has no bfloat16 type; use to_torch() instead"
+            );
+        }
 
         std::vector<size_t> sizes;
         std::vector<int64_t> strides;

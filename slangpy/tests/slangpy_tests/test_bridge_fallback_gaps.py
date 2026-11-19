@@ -101,6 +101,13 @@ class TestCopyToBuffer:
         bf.copy_to_buffer(src, dest.data_ptr(), dest.numel() * dest.element_size())
         assert torch.allclose(src, dest)
 
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    def test_copy_round_trip_bfloat16(self):
+        src = torch.tensor([1.0, -2.5, 0.15625], device="cuda", dtype=torch.bfloat16)
+        dest = torch.zeros(3, device="cuda", dtype=torch.bfloat16)
+        bf.copy_to_buffer(src, dest.data_ptr(), dest.numel() * dest.element_size())
+        assert torch.equal(src, dest)
+
 
 class TestCopyFromBuffer:
     def test_non_cuda_raises(self):
@@ -121,6 +128,13 @@ class TestCopyFromBuffer:
         dest = torch.zeros(3, device="cuda", dtype=torch.float32)
         bf.copy_from_buffer(dest, src.data_ptr(), src.numel() * src.element_size())
         assert torch.allclose(src, dest)
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    def test_copy_round_trip_bfloat16(self):
+        src = torch.tensor([4.0, -5.5, 0.15625], device="cuda", dtype=torch.bfloat16)
+        dest = torch.zeros(3, device="cuda", dtype=torch.bfloat16)
+        bf.copy_from_buffer(dest, src.data_ptr(), src.numel() * src.element_size())
+        assert torch.equal(src, dest)
 
 
 class TestCreateEmptyTensor:
