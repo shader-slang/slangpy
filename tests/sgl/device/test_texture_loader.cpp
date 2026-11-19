@@ -10,6 +10,7 @@
 #include "sgl/device/resource.h"
 #include "sgl/utils/texture_loader.h"
 
+#include <array>
 #include <cstring>
 #include <fstream>
 #include <vector>
@@ -235,6 +236,68 @@ TEST_CASE_GPU("texture_loader_dds_srgb_layout")
             check_dds_srgb_modes(ctx.device, path, format, Format::rgba8_unorm, Format::rgba8_unorm_srgb, item.type);
         }
     }
+}
+
+TEST_CASE_GPU("texture_loader_encoded_images")
+{
+    const std::filesystem::path image_dir = platform::project_directory() / "data" / "test_images";
+    const std::array paths{
+        image_dir / "albert.jpg",
+        image_dir / "png" / "uint8-4ch.png",
+        image_dir / "dds" / "bc1-unorm.dds",
+    };
+
+    std::vector<std::vector<uint8_t>> bytes;
+    std::vector<std::string> names;
+    bytes.reserve(paths.size());
+    names.reserve(paths.size());
+    for (const auto& path : paths) {
+        bytes.push_back(read_file(path));
+        names.push_back(path.filename().string());
+    }
+
+    std::vector<TextureLoader::EncodedImageView> images;
+    for (size_t i = 0; i < paths.size(); ++i)
+        images.push_back({.data = std::span<const uint8_t>(bytes[i]), .name = names[i]});
+
+    std::vector<TextureLoader::Options> options(paths.size());
+    options[0].srgb_mode = SRGBMode::srgb;
+    options[0].generate_mips = true;
+    options[1].srgb_mode = SRGBMode::linear;
+    options[1].max_mip_count = 2;
+    options[2].max_mip_count = 1;
+
+    TextureLoader loader{ref<Device>(ctx.device)};
+    std::vector<ref<Texture>> expected;
+    for (size_t i = 0; i < images.size(); ++i) {
+        MemoryStream stream(bytes[i].data(), bytes[i].size());
+        expected.push_back(loader.load_texture(&stream, options[i]));
+    }
+
+    for (uint64_t budget : {TextureLoader::DEFAULT_MEMORY_BUDGET, uint64_t(1)}) {
+        TextureLoader bulk_loader{ref<Device>(ctx.device), budget};
+        const auto actual = bulk_loader.load_textures(images, options);
+        REQUIRE(actual.size() == expected.size());
+        for (size_t i = 0; i < actual.size(); ++i)
+            check_textures_match(actual[i], expected[i]);
+    }
+
+    TextureLoader::Options uniform_options{.srgb_mode = SRGBMode::linear};
+    const std::array repeated_images{images[1], images[1]};
+    const auto uniform_actual = loader.load_textures(repeated_images, uniform_options);
+    REQUIRE(uniform_actual.size() == repeated_images.size());
+    check_textures_match(uniform_actual[0], uniform_actual[1]);
+}
+
+TEST_CASE_GPU("texture_loader_encoded_image_error_name")
+{
+    const std::array<uint8_t, 4> invalid_bytes{0, 1, 2, 3};
+    const std::array images{TextureLoader::EncodedImageView{
+        .data = std::span<const uint8_t>(invalid_bytes),
+        .name = "embedded://broken.png"
+    }};
+    TextureLoader loader{ref<Device>(ctx.device)};
+    CHECK_THROWS_WITH_AS(loader.load_textures(images), doctest::Contains("embedded://broken.png"), std::runtime_error);
 }
 
 TEST_CASE_GPU("texture_loader_batched_uploads")

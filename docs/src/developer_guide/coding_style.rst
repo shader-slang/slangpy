@@ -60,3 +60,19 @@ You write the same in Python as:
 
     value = object.property
     object.property = value
+
+Predicate methods and boolean properties
+---------------------------------------
+
+Names beginning with ``is_`` or ``has_`` denote predicate methods that return a
+boolean. Expose them as methods in Python, including when they take no arguments.
+Use nanobind's ``def`` rather than ``def_prop_ro`` for these methods:
+
+.. code-block:: python
+
+    if window.is_visible():
+        window.hide()
+
+Boolean properties use names without ``is_`` or ``has_``, such as ``visible``,
+``enabled``, or ``writable``. This convention applies to both native bindings and
+Python-defined APIs.

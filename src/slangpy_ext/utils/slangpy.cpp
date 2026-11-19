@@ -1340,12 +1340,12 @@ std::string get_value_signature(nb::handle o)
 
 } // namespace sgl::slangpy
 
-SGL_PY_EXPORT(utils_slangpy)
+namespace {
+
+NB_NOINLINE void bind_call_arguments(nb::module_& slangpy)
 {
     using namespace sgl;
     using namespace sgl::slangpy;
-
-    nb::module_ slangpy = nb::module_::import_("slangpy.slangpy");
 
     nb::sgl_enum<AccessType>(slangpy, "AccessType");
     nb::sgl_enum<CallMode>(slangpy, "CallMode");
@@ -1427,6 +1427,12 @@ SGL_PY_EXPORT(utils_slangpy)
         "value"_a,
         "Returns native cursor-writer SlangPy metadata for a Python-visible native object."
     );
+}
+
+NB_NOINLINE void bind_native_marshall(nb::module_& slangpy)
+{
+    using namespace sgl;
+    using namespace sgl::slangpy;
 
     nb::class_<NativeObject, PyNativeObject, Object>(slangpy, "NativeObject") //
         .def(
@@ -1537,6 +1543,12 @@ SGL_PY_EXPORT(utils_slangpy)
             "data"_a,
             D_NA(NativeMarshall, build_shader_object)
         );
+}
+
+NB_NOINLINE void bind_bound_call_runtime(nb::module_& slangpy)
+{
+    using namespace sgl;
+    using namespace sgl::slangpy;
 
     nb::class_<NativeBoundVariableRuntime, Object>(slangpy, "NativeBoundVariableRuntime") //
         .def(nb::init<>(), D_NA(NativeBoundVariableRuntime, NativeBoundVariableRuntime))
@@ -1680,6 +1692,12 @@ SGL_PY_EXPORT(utils_slangpy)
             },
             D_NA(NativeCallRuntimeOptions, thread_count)
         );
+}
+
+NB_NOINLINE void bind_call_data(nb::module_& slangpy)
+{
+    using namespace sgl;
+    using namespace sgl::slangpy;
 
     // clang-format off
 #define DEF_LOG_METHOD(name) def(#name, [](NativeCallData& self, const std::string_view msg) { self.name(msg); }, "msg"_a)
@@ -1894,7 +1912,12 @@ SGL_PY_EXPORT(utils_slangpy)
             "o"_a,
             D_NA(NativeCallDataCache, lookup_value_signature)
         );
+}
 
+NB_NOINLINE void bind_call_shape(nb::module_& slangpy)
+{
+    using namespace sgl;
+    using namespace sgl::slangpy;
 
     nb::class_<Shape>(slangpy, "Shape") //
         .def(nb::init_implicit<std::vector<int>>(), "shape"_a, D_NA(Shape, Shape))
@@ -2013,4 +2036,16 @@ SGL_PY_EXPORT(utils_slangpy)
             D_NA(CallContext, call_shape)
         )
         .def_prop_ro("call_mode", &CallContext::call_mode, D_NA(CallContext, call_mode));
+}
+
+} // namespace
+
+SGL_PY_EXPORT(utils_slangpy)
+{
+    nb::module_ slangpy = nb::module_::import_("slangpy.slangpy");
+    bind_call_arguments(slangpy);
+    bind_native_marshall(slangpy);
+    bind_bound_call_runtime(slangpy);
+    bind_call_data(slangpy);
+    bind_call_shape(slangpy);
 }

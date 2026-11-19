@@ -559,7 +559,7 @@ inline constexpr uint64_t const_hash(std::string_view str)
 
 
 #define SGL_PY_DECLARE(name) extern void sgl_python_export_##name(nb::module_& m)
-#define SGL_PY_EXPORT(name) void sgl_python_export_##name([[maybe_unused]] ::nb::module_& m)
+#define SGL_PY_EXPORT(name) NB_NOINLINE void sgl_python_export_##name([[maybe_unused]] ::nb::module_& m)
 #define SGL_PY_IMPORT(name) sgl_python_export_##name(m)
 
 #define D(...) DOC(sgl, __VA_ARGS__)

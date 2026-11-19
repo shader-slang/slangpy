@@ -260,7 +260,9 @@ nb::ndarray<nb::numpy, const uint8_t> readonly_gpu_status_matrix(
 
 } // namespace
 
-SGL_PY_EXPORT(utils_profiler)
+namespace {
+
+NB_NOINLINE void bind_profiler_descriptors(nb::module_& m)
 {
     using namespace sgl;
 
@@ -294,6 +296,11 @@ SGL_PY_EXPORT(utils_profiler)
     nb::class_<ProfilerCaptureDesc>(m, "ProfilerCaptureDesc", D(ProfilerCaptureDesc))
         .def(nb::init<uint64_t>(), "max_memory_bytes"_a = 256ull * 1024ull * 1024ull)
         .def_rw("max_memory_bytes", &ProfilerCaptureDesc::max_memory_bytes, D(ProfilerCaptureDesc, max_memory_bytes));
+}
+
+NB_NOINLINE void bind_profiler_statistics(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<ProfilerSite>(m, "ProfilerSite", D(ProfilerSite))
         .def_ro("id", &ProfilerSite::id, D(ProfilerSite, id))
@@ -395,6 +402,11 @@ SGL_PY_EXPORT(utils_profiler)
             &ProfilerFrameStatsEntry::gpu_time_per_call,
             D(ProfilerFrameStatsEntry, gpu_time_per_call)
         );
+}
+
+NB_NOINLINE void bind_profiler_frame_stats(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<ProfilerFrameStats, Object>(m, "ProfilerFrameStats", D(ProfilerFrameStats))
         .def_prop_ro("sample_count", &ProfilerFrameStats::sample_count, D(ProfilerFrameStats, sample_count))
@@ -492,6 +504,11 @@ SGL_PY_EXPORT(utils_profiler)
             D(ProfilerFrameStats, diagnostics)
         )
         .def("__str__", &ProfilerFrameStats::to_string, D(ProfilerFrameStats, to_string));
+}
+
+NB_NOINLINE void bind_profiler_zones(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<ProfilerZoneChunk, Object>(m, "ProfilerZoneChunk", D(ProfilerZoneChunk))
         .def_prop_ro("count", &ProfilerZoneChunk::size, D(ProfilerZoneChunk, size))
@@ -563,6 +580,11 @@ SGL_PY_EXPORT(utils_profiler)
             D(ProfilerZoneSelection, indices)
         )
         .def("statistics", &ProfilerZoneSelection::statistics, D(ProfilerZoneSelection, statistics));
+}
+
+NB_NOINLINE void bind_profiler_trace(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<ProfilerTrace, Object>(m, "ProfilerTrace", D(ProfilerTrace))
         .def_prop_ro("start_ns", &ProfilerTrace::start_ns, D(ProfilerTrace, start_ns))
@@ -603,6 +625,11 @@ SGL_PY_EXPORT(utils_profiler)
             D(ProfilerTrace, query_zones)
         )
         .def("write_to_json", &ProfilerTrace::write_to_json, "path"_a, D(ProfilerTrace, write_to_json));
+}
+
+NB_NOINLINE void bind_profiler_scopes(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<PyProfilerZoneScope>(m, "ProfilerZoneScope", D_NA(ProfilerZoneScope))
         .def("__enter__", &PyProfilerZoneScope::enter, nb::rv_policy::reference, D_NA(ProfilerZoneScope, enter))
@@ -624,6 +651,11 @@ SGL_PY_EXPORT(utils_profiler)
             "exc_tb"_a.none(),
             D_NA(ProfilerFrameScope, exit)
         );
+}
+
+NB_NOINLINE void bind_profiler(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<Profiler, Object>(m, "Profiler", D(Profiler))
         .def(nb::init<ProfilerDesc>(), "desc"_a = ProfilerDesc())
@@ -695,6 +727,11 @@ SGL_PY_EXPORT(utils_profiler)
         .def("clear_frame_stats", &Profiler::clear_frame_stats, D(Profiler, clear_frame_stats))
         .def("tick", &Profiler::tick, D(Profiler, tick))
         .def("flush", &Profiler::flush, D(Profiler, flush));
+}
+
+NB_NOINLINE void bind_profiler_functions(nb::module_& m)
+{
+    using namespace sgl;
 
     m.def("current_profiler", &current_profiler, nb::rv_policy::reference, D(current_profiler));
     m.def(
@@ -752,4 +789,18 @@ SGL_PY_EXPORT(utils_profiler)
         "name"_a = "frame",
         "Record a named frame boundary using the current profiler."
     );
+}
+
+} // namespace
+
+SGL_PY_EXPORT(utils_profiler)
+{
+    bind_profiler_descriptors(m);
+    bind_profiler_statistics(m);
+    bind_profiler_frame_stats(m);
+    bind_profiler_zones(m);
+    bind_profiler_trace(m);
+    bind_profiler_scopes(m);
+    bind_profiler(m);
+    bind_profiler_functions(m);
 }

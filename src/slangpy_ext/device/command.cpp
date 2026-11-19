@@ -151,7 +151,9 @@ void upload_texture_data(CommandEncoder* self, Texture* texture, std::span<nb::n
 
 } // namespace sgl
 
-SGL_PY_EXPORT(device_command)
+namespace {
+
+NB_NOINLINE void bind_render_pass_descriptors(nb::module_& m)
 {
     using namespace sgl;
 
@@ -266,6 +268,11 @@ SGL_PY_EXPORT(device_command)
             D(RenderPassDesc, depth_stencil_attachment)
         );
     nb::implicitly_convertible<nb::dict, RenderPassDesc>();
+}
+
+NB_NOINLINE void bind_command_encoder(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<CommandEncoder, DeviceChild>(m, "CommandEncoder", D(CommandEncoder))
         .def("begin_render_pass", &CommandEncoder::begin_render_pass, "desc"_a, D(CommandEncoder, begin_render_pass))
@@ -586,6 +593,11 @@ SGL_PY_EXPORT(device_command)
         .def_prop_ro("queue", &CommandEncoder::queue, D(CommandEncoder, queue))
         .def_prop_ro("recording_id", &CommandEncoder::recording_id, D(CommandEncoder, recording_id))
         .def_prop_ro("native_handle", &CommandEncoder::native_handle, D(CommandEncoder, native_handle));
+}
+
+NB_NOINLINE void bind_pass_encoder(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<PassEncoder, Object>(m, "PassEncoder", D(PassEncoder))
         .def("end", &PassEncoder::end, D(PassEncoder, end))
@@ -605,6 +617,11 @@ SGL_PY_EXPORT(device_command)
             "index"_a,
             D(PassEncoder, write_timestamp)
         );
+}
+
+NB_NOINLINE void bind_render_pass_encoder(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<RenderPassEncoder, PassEncoder>(m, "RenderPassEncoder", D(RenderPassEncoder))
         .def(
@@ -667,7 +684,11 @@ SGL_PY_EXPORT(device_command)
             "dimensions"_a,
             D(RenderPassEncoder, draw_mesh_tasks)
         );
+}
 
+NB_NOINLINE void bind_compute_pass_encoder(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<ComputePassEncoder, PassEncoder>(m, "ComputePassEncoder", D(ComputePassEncoder))
         .def(
@@ -713,6 +734,11 @@ SGL_PY_EXPORT(device_command)
             "arg_buffer"_a,
             D(ComputePassEncoder, dispatch_compute_indirect)
         );
+}
+
+NB_NOINLINE void bind_ray_tracing_pass_encoder(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<RayTracingPassEncoder, PassEncoder>(m, "RayTracingPassEncoder", D(RayTracingPassEncoder))
         .def(
@@ -754,8 +780,26 @@ SGL_PY_EXPORT(device_command)
             "dimensions"_a,
             D(RayTracingPassEncoder, dispatch_rays)
         );
+}
+
+NB_NOINLINE void bind_command_buffer(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<CommandBuffer, DeviceChild>(m, "CommandBuffer", D(CommandBuffer))
         .def_prop_ro("queue", &CommandBuffer::queue, D(CommandBuffer, queue))
         .def_prop_ro("recording_id", &CommandBuffer::recording_id, D(CommandBuffer, recording_id));
+}
+
+} // namespace
+
+SGL_PY_EXPORT(device_command)
+{
+    bind_render_pass_descriptors(m);
+    bind_command_encoder(m);
+    bind_pass_encoder(m);
+    bind_render_pass_encoder(m);
+    bind_compute_pass_encoder(m);
+    bind_ray_tracing_pass_encoder(m);
+    bind_command_buffer(m);
 }

@@ -220,6 +220,8 @@ SGL_PY_EXPORT(ui)
 
     nb::class_<ui::Context, Object>(ui, "Context", gc_helper_type_slots<ui::Context>(), D(Context))
         .def(nb::init<ref<Device>>(), "device"_a)
+        .def("load_ini_settings", &ui::Context::load_ini_settings, "ini"_a, D(Context, load_ini_settings))
+        .def("save_ini_settings", &ui::Context::save_ini_settings, D(Context, save_ini_settings))
         .def(
             "begin_frame",
             &ui::Context::begin_frame,

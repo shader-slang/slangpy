@@ -351,7 +351,9 @@ inline void texture_from_numpy(Texture* self, nb::ndarray<nb::numpy> data, uint3
 
 } // namespace sgl
 
-SGL_PY_EXPORT(device_resource)
+namespace {
+
+NB_NOINLINE void bind_resource_types(nb::module_& m)
 {
     using namespace sgl;
 
@@ -368,6 +370,11 @@ SGL_PY_EXPORT(device_resource)
         .def_prop_ro("native_handle", &Resource::native_handle, D(Resource, native_handle));
 
     nb::sgl_enum<TextureAspect>(m, "TextureAspect");
+}
+
+NB_NOINLINE void bind_buffer_types(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<BufferRange>(m, "BufferRange", D(BufferRange))
         .def(nb::init<>())
@@ -443,6 +450,11 @@ SGL_PY_EXPORT(device_resource)
         .def_rw("offset", &BufferOffsetPair::offset, D(BufferOffsetPair, offset));
     nb::implicitly_convertible<nb::dict, BufferOffsetPair>();
     nb::implicitly_convertible<Buffer, BufferOffsetPair>();
+}
+
+NB_NOINLINE void bind_texture_descriptors(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<TextureDesc>(m, "TextureDesc", D(TextureDesc))
         .def(nb::init<>())
@@ -493,6 +505,11 @@ SGL_PY_EXPORT(device_resource)
         .def_rw("block_width", &SubresourceLayout::block_width, D(SubresourceLayout, block_width))
         .def_rw("block_height", &SubresourceLayout::block_height, D(SubresourceLayout, block_height))
         .def_rw("row_count", &SubresourceLayout::row_count, D(SubresourceLayout, row_count));
+}
+
+NB_NOINLINE void bind_texture(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<Texture, Resource>(m, "Texture", D(Texture))
         .def_prop_ro("desc", &Texture::desc, D(Texture, desc))
@@ -572,6 +589,11 @@ SGL_PY_EXPORT(device_resource)
         .def("to_bitmap", &Texture::to_bitmap, "layer"_a = 0, "mip"_a = 0, D(Texture, to_bitmap))
         .def("to_numpy", &texture_to_numpy, "layer"_a = 0, "mip"_a = 0, D(texture_to_numpy))
         .def("copy_from_numpy", &texture_from_numpy, "data"_a, "layer"_a = 0, "mip"_a = 0, D(texture_from_numpy));
+}
+
+NB_NOINLINE void bind_texture_view(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<TextureView, DeviceChild>(m, "TextureView", D(TextureView))
         .def_prop_ro("texture", &TextureView::texture, D(TextureView, texture))
@@ -589,4 +611,15 @@ SGL_PY_EXPORT(device_resource)
         )
         .def_prop_ro("native_handle", &TextureView::native_handle, D(TextureView, native_handle))
         .def("__repr__", &TextureView::to_string, D(TextureView, to_string));
+}
+
+} // namespace
+
+SGL_PY_EXPORT(device_resource)
+{
+    bind_resource_types(m);
+    bind_buffer_types(m);
+    bind_texture_descriptors(m);
+    bind_texture(m);
+    bind_texture_view(m);
 }

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import struct
 from typing import Any, Optional, Sequence
@@ -435,6 +436,27 @@ def test_dds_write_rejected_before_open(tmp_path: Path):
         bmp.write(path, format=Bitmap.FileFormat.dds)
 
     assert path.read_bytes() == original
+
+
+def test_threaded_writes_roundtrip_and_report_errors(tmp_path: Path) -> None:
+    png_data = np.arange(16 * 16 * 4, dtype=np.uint8).reshape(16, 16, 4)
+    exr_data = np.arange(16 * 16 * 4, dtype=np.float32).reshape(16, 16, 4) / 10
+    png = Bitmap(png_data)
+    exr = Bitmap(exr_data)
+    png_path = tmp_path / "threaded.png"
+    exr_path = tmp_path / "threaded.exr"
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        png_write = pool.submit(png.write, png_path)
+        exr_write = pool.submit(exr.write, exr_path)
+        bad_write = pool.submit(png.write, tmp_path / "unsupported.dds")
+        png_write.result()
+        exr_write.result()
+        with pytest.raises(RuntimeError, match="writing DDS files is not supported"):
+            bad_write.result()
+
+    np.testing.assert_array_equal(np.asarray(Bitmap(png_path)), png_data)
+    np.testing.assert_array_equal(np.asarray(Bitmap(exr_path)), exr_data)
 
 
 if __name__ == "__main__":

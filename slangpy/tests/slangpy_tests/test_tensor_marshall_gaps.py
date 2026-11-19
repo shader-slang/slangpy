@@ -36,11 +36,12 @@ DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES
 # ============================================================================
 
 
-def test_is_nested_array():
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_is_nested_array(device_type: DeviceType):
     """Directly test is_nested_array with various SlangType instances."""
     from slangpy.builtin.tensor import is_nested_array
 
-    device = helpers.get_device(DEVICE_TYPES[0])
+    device = helpers.get_device(device_type)
     func = helpers.create_function_from_module(device, "read_first", SIMPLE_READ_SHADER)
     layout = func.module.layout
 

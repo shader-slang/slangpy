@@ -185,7 +185,9 @@ SGL_DICT_TO_DESC_END()
 
 } // namespace sgl
 
-SGL_PY_EXPORT(device_raytracing)
+namespace {
+
+NB_NOINLINE void bind_raytracing_handles(nb::module_& m)
 {
     using namespace sgl;
 
@@ -204,6 +206,11 @@ SGL_PY_EXPORT(device_raytracing)
 
     nb::sgl_enum_flags<AccelerationStructureGeometryFlags>(m, "AccelerationStructureGeometryFlags");
     nb::sgl_enum_flags<AccelerationStructureInstanceFlags>(m, "AccelerationStructureInstanceFlags");
+}
+
+NB_NOINLINE void bind_micromaps(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::sgl_enum<MicromapType>(m, "MicromapType");
     nb::sgl_enum<OpacityMicromapFormat>(m, "OpacityMicromapFormat");
@@ -265,6 +272,11 @@ SGL_PY_EXPORT(device_raytracing)
     nb::class_<Micromap, Resource>(m, "Micromap", D(Micromap))
         .def_prop_ro("desc", &Micromap::desc, D(Micromap, desc))
         .def_prop_ro("device_address", &Micromap::device_address, D(Micromap, device_address));
+}
+
+NB_NOINLINE void bind_raytracing_instances(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<AccelerationStructureOpacityMicromapDesc>(
         m,
@@ -397,6 +409,11 @@ SGL_PY_EXPORT(device_raytracing)
             }
         );
     nb::implicitly_convertible<nb::dict, AccelerationStructureInstanceDesc>();
+}
+
+NB_NOINLINE void bind_raytracing_geometry(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<AccelerationStructureBuildInputInstances>(
         m,
@@ -548,6 +565,11 @@ SGL_PY_EXPORT(device_raytracing)
         .def_rw("time_start", &AccelerationStructureBuildInputMotionOptions::time_start)
         .def_rw("time_end", &AccelerationStructureBuildInputMotionOptions::time_end);
     nb::implicitly_convertible<nb::dict, AccelerationStructureBuildInputMotionOptions>();
+}
+
+NB_NOINLINE void bind_acceleration_structures(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::sgl_enum<AccelerationStructureBuildMode>(m, "AccelerationStructureBuildMode");
     nb::sgl_enum_flags<AccelerationStructureBuildFlags>(m, "AccelerationStructureBuildFlags");
@@ -673,6 +695,11 @@ SGL_PY_EXPORT(device_raytracing)
             &AccelerationStructureInstanceList::build_input_instances,
             D(AccelerationStructureInstanceList, build_input_instances)
         );
+}
+
+NB_NOINLINE void bind_cluster_inputs(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::sgl_enum<ClusterOperationType>(m, "ClusterOperationType");
     nb::sgl_enum<ClusterOperationMode>(m, "ClusterOperationMode");
@@ -771,6 +798,11 @@ SGL_PY_EXPORT(device_raytracing)
             D(ClusterOperationBlasBuildParams, max_total_clas_count)
         );
     nb::implicitly_convertible<nb::dict, ClusterOperationBlasBuildParams>();
+}
+
+NB_NOINLINE void bind_cluster_operations(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<ClusterOperationParams>(m, "ClusterOperationParams", D(ClusterOperationParams))
         .def(nb::init<>())
@@ -832,6 +864,11 @@ SGL_PY_EXPORT(device_raytracing)
     m.attr("CLUSTER_MAX_GEOMETRY_INDEX") = CLUSTER_MAX_GEOMETRY_INDEX;
     m.attr("CLUSTER_DEFAULT_HANDLE_STRIDE") = CLUSTER_DEFAULT_HANDLE_STRIDE;
     m.attr("CLUSTER_OUTPUT_ALIGNMENT") = CLUSTER_OUTPUT_ALIGNMENT;
+}
+
+NB_NOINLINE void bind_shader_tables(nb::module_& m)
+{
+    using namespace sgl;
 
     nb::class_<ShaderTableDesc>(m, "ShaderTableDesc", D(ShaderTableDesc))
         .def(nb::init<>())
@@ -858,4 +895,18 @@ SGL_PY_EXPORT(device_raytracing)
     nb::implicitly_convertible<nb::dict, ShaderTableDesc>();
 
     nb::class_<ShaderTable, DeviceChild>(m, "ShaderTable", D(ShaderTable));
+}
+
+} // namespace
+
+SGL_PY_EXPORT(device_raytracing)
+{
+    bind_raytracing_handles(m);
+    bind_micromaps(m);
+    bind_raytracing_instances(m);
+    bind_raytracing_geometry(m);
+    bind_acceleration_structures(m);
+    bind_cluster_inputs(m);
+    bind_cluster_operations(m);
+    bind_shader_tables(m);
 }

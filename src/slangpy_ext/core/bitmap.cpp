@@ -266,6 +266,7 @@ SGL_PY_EXPORT(core_bitmap)
             "path"_a,
             "format"_a = Bitmap::FileFormat::auto_,
             "quality"_a = -1,
+            nb::call_guard<nb::gil_scoped_release>(),
             D(Bitmap, write)
         )
         .def(

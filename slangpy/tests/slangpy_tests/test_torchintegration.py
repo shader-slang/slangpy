@@ -55,6 +55,29 @@ def load_test_module(device_type: DeviceType):
     return Module.load_from_file(device, "test_torchintegration.slang")
 
 
+@requires_cuda
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+@pytest.mark.parametrize("dtype", [torch.uint8, torch.uint16, torch.uint32, torch.uint64])
+def test_unsigned_tensor_round_trip(device_type: DeviceType, dtype: torch.dtype) -> None:
+    if device_type == DeviceType.d3d12 and dtype == torch.uint8:
+        pytest.skip("DXC does not support uint8_t structured buffers")
+    module = load_test_module(device_type)
+    bits = torch.iinfo(dtype).bits
+    values = torch.tensor([0, 1, 1 << (bits - 1), (1 << bits) - 1], dtype=dtype, device="cuda")
+    result = torch.empty_like(values)
+
+    module.copy_unsigned(values, result)
+
+    assert result.dtype == dtype
+    torch.testing.assert_close(result, values)
+
+    allocated = module.unsigned_identity(values)
+    assert isinstance(allocated, torch.Tensor)
+    assert allocated.dtype == dtype
+    assert allocated.shape == values.shape
+    torch.testing.assert_close(allocated, values)
+
+
 def compare_tensors(a: torch.Tensor, b: torch.Tensor):
     assert a.shape == b.shape, f"Tensor shape {a.shape} does not match expected shape {b.shape}"
     err = torch.max(torch.abs(a - b)).item()
@@ -74,6 +97,9 @@ def setup_bridge_mode(torch_bridge_mode: str):
         (torch.empty((1,), dtype=torch.float32, requires_grad=True).cuda(), "D1,S6,V1"),
         (torch.empty((1,), dtype=torch.float16).cuda(), "D1,S5,V1"),
         (torch.empty((1,), dtype=torch.int32).cuda(), "D1,S3,V1"),
+        (torch.empty((1,), dtype=torch.uint16).cuda(), "D1,S27,V1"),
+        (torch.empty((1,), dtype=torch.uint32).cuda(), "D1,S28,V1"),
+        (torch.empty((1,), dtype=torch.uint64).cuda(), "D1,S29,V1"),
         (torch.empty((1,), dtype=torch.uint8).cuda(), "D1,S0,V1"),
         (torch.empty((1, 1, 1), dtype=torch.uint8).cuda(), "D3,S0,V111"),
     ],
