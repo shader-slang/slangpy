@@ -2,11 +2,11 @@
 
 #pragma once
 
+#include "nanobind.h"
+
 #include <vector>
 #include <map>
 #include <optional>
-
-#include "nanobind.h"
 
 #include "sgl/core/macros.h"
 #include "sgl/core/fwd.h"
