@@ -51,8 +51,15 @@ void ComputeKernel::dispatch(
     {
         auto pass_encoder = command_encoder->begin_compute_pass();
         ShaderObject* shader_object = pass_encoder->bind_pipeline(pipeline());
-        if (bind_vars)
-            bind_vars(ShaderCursor(shader_object));
+        if (bind_vars) {
+            // End the pass if binding throws, so the caller's command encoder is left usable.
+            try {
+                bind_vars(ShaderCursor(shader_object));
+            } catch (...) {
+                pass_encoder->end();
+                throw;
+            }
+        }
         if (query_pool) {
             pass_encoder->write_timestamp(query_pool, query_index_before);
             pass_encoder->dispatch(thread_count);

@@ -51,8 +51,25 @@ SGL_PY_EXPORT(device_kernel)
                 auto bind_vars = [&](ShaderCursor cursor)
                 {
                     // bind locals
-                    if (kwargs.size() > 0)
-                        bind_python_var(cursor.find_entry_point(0), kwargs);
+                    if (kwargs.size() > 0) {
+                        ShaderCursor entry_point = cursor.find_entry_point(0);
+                        try {
+                            bind_python_var(entry_point, kwargs);
+                        } catch (const std::exception&) {
+                            // Binding fails on a name the entry point does not have. If that name is a
+                            // global, say where it belongs.
+                            for (auto [key, value] : kwargs) {
+                                std::string name = nb::cast<std::string>(key);
+                                if (!entry_point.find_field(name).is_valid() && cursor.find_field(name).is_valid())
+                                    SGL_THROW(
+                                        "\"{}\" is a global shader parameter, pass it in vars instead of as a "
+                                        "keyword argument.",
+                                        name
+                                    );
+                            }
+                            throw;
+                        }
+                    }
                     // bind globals
                     bind_python_var(cursor, vars);
                 };
