@@ -302,6 +302,10 @@ def _emit_type_and_struct(
 
         if binding.direct_bind:
             assert binding.vector_type is not None
+            # Local import: tensorcommon imports slangpy.bindings, which imports this module.
+            from slangpy.builtin.tensorcommon import check_direct_bound_half_grads
+
+            check_direct_bound_half_grads(context, binding)
             gen_calldata_type_name(binding, cgb, binding.vector_type.full_name)
         else:
             struct_name = f"_t_{binding.variable_name}"
