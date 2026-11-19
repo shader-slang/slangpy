@@ -38,32 +38,62 @@ if(NOT SGL_ENABLE_GLFW MATCHES "^(ON|OFF|AUTO)$")
 endif()
 
 set(SGL_HAS_GLFW OFF)
-if(SGL_ENABLE_GLFW STREQUAL "ON")
-    set(SGL_HAS_GLFW ON)
-elseif(SGL_ENABLE_GLFW STREQUAL "AUTO")
+set(SGL_HAS_GLFW_X11 OFF)
+set(SGL_HAS_GLFW_WAYLAND OFF)
+if(NOT SGL_ENABLE_GLFW STREQUAL "OFF")
     if(WIN32 OR APPLE)
         set(SGL_HAS_GLFW ON)
     elseif(UNIX)
-        # Match the X11 dependencies checked by the bundled GLFW. Extension
-        # libraries are loaded at runtime, so only their headers are required.
+        # GLFW builds every Linux backend whose development dependencies are
+        # available and selects one at runtime, preferring Wayland when the
+        # session provides it. Backend libraries are loaded at runtime, so only
+        # headers (and wayland-scanner) are required at build time.
         find_package(X11 QUIET)
         if(X11_FOUND AND X11_Xrandr_INCLUDE_PATH AND X11_Xinerama_INCLUDE_PATH
-            AND X11_Xkb_INCLUDE_PATH AND X11_Xcursor_INCLUDE_PATH AND X11_Xi_INCLUDE_PATH)
-            set(SGL_HAS_GLFW ON)
-        else()
-            message(STATUS "GLFW disabled: X11 development dependencies are missing (SGL_ENABLE_GLFW=AUTO)")
+            AND X11_Xkb_INCLUDE_PATH AND X11_Xcursor_INCLUDE_PATH AND X11_Xi_INCLUDE_PATH
+            AND X11_Xshape_INCLUDE_PATH)
+            set(SGL_HAS_GLFW_X11 ON)
         endif()
+        # Match the Wayland dependencies checked by the bundled GLFW.
+        find_package(PkgConfig QUIET)
+        find_program(WAYLAND_SCANNER_EXECUTABLE NAMES wayland-scanner)
+        if(PKG_CONFIG_FOUND AND WAYLAND_SCANNER_EXECUTABLE)
+            pkg_check_modules(SGL_WAYLAND QUIET
+                wayland-client>=0.2.7
+                wayland-cursor>=0.2.7
+                wayland-egl>=0.2.7
+                xkbcommon>=0.5.0)
+            if(SGL_WAYLAND_FOUND)
+                set(SGL_HAS_GLFW_WAYLAND ON)
+            endif()
+        endif()
+        if(SGL_HAS_GLFW_X11 OR SGL_HAS_GLFW_WAYLAND)
+            set(SGL_HAS_GLFW ON)
+            message(STATUS "GLFW backends: X11=${SGL_HAS_GLFW_X11}, Wayland=${SGL_HAS_GLFW_WAYLAND}")
+        elseif(SGL_ENABLE_GLFW STREQUAL "ON")
+            message(FATAL_ERROR "GLFW requires X11 or Wayland development dependencies (SGL_ENABLE_GLFW=ON)")
+        else()
+            message(STATUS "GLFW disabled: X11 and Wayland development dependencies are missing (SGL_ENABLE_GLFW=AUTO)")
+        endif()
+    elseif(SGL_ENABLE_GLFW STREQUAL "ON")
+        set(SGL_HAS_GLFW ON)
     else()
         message(STATUS "GLFW disabled: unsupported platform (SGL_ENABLE_GLFW=AUTO)")
     endif()
 endif()
 set(SGL_HAS_GLFW ${SGL_HAS_GLFW} PARENT_SCOPE)
+set(SGL_HAS_GLFW_X11 ${SGL_HAS_GLFW_X11} PARENT_SCOPE)
+set(SGL_HAS_GLFW_WAYLAND ${SGL_HAS_GLFW_WAYLAND} PARENT_SCOPE)
 
 if(SGL_HAS_GLFW)
     set(GLFW_BUILD_EXAMPLES OFF)
     set(GLFW_BUILD_TESTS OFF)
     set(GLFW_BUILD_DOCS OFF)
     set(GLFW_INSTALL OFF)
+    if(UNIX AND NOT APPLE)
+        set(GLFW_BUILD_X11 ${SGL_HAS_GLFW_X11} CACHE BOOL "Build support for X11" FORCE)
+        set(GLFW_BUILD_WAYLAND ${SGL_HAS_GLFW_WAYLAND} CACHE BOOL "Build support for Wayland" FORCE)
+    endif()
     add_subdirectory(glfw)
 endif()
 
