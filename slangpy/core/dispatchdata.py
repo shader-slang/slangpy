@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from slangpy.core.generator import generate_constants
 from slangpy.core.native import CallMode, pack_arg, unpack_arg
 from slangpy.core.calldata import _DUMP_SLANG_INTERMEDIATES, _DUMP_GENERATED_SHADERS
+from slangpy.core.errors import check_no_module_push_constants
 
 from slangpy import (
     CommandEncoder,
@@ -16,6 +17,9 @@ from slangpy import (
     uint3,
     DeviceType,
     PipelineCompilationPolicy,
+    ProgramLayout,
+    SlangEntryPoint,
+    TypeReflection,
 )
 from slangpy.core.native import NativeCallRuntimeOptions
 from slangpy.bindings.marshall import BindContext
@@ -26,6 +30,30 @@ from slangpy.native_refl import IOType
 
 if TYPE_CHECKING:
     from slangpy.core.function import FunctionNode
+
+
+def _has_push_constant_conflicts(
+    ep: SlangEntryPoint, program: ProgramLayout, generated: set[str]
+) -> bool:
+    """
+    Whether a raw-dispatch kernel has bindings that break next to a module push constant on
+    Vulkan: an entry-point uniform (a second push-constant block) or a ParameterBlock, as an
+    entry-point parameter or a global (its descriptor set index shifts, slang#12349).
+
+    :param ep: Entry point being dispatched.
+    :param program: Layout of the linked program.
+    :param generated: Names of globals of the generated module (ParameterBlock<CallData>), which
+        are skipped because every raw dispatch has them.
+    """
+    PC = TypeReflection.ParameterCategory
+    block = (PC.register_space, PC.sub_element_register_space)
+    for p in ep.layout.parameters:
+        if any(p.type_layout.has_category(c) for c in (PC.uniform,) + block):
+            return True
+    return any(
+        p.name not in generated and any(p.type_layout.has_category(c) for c in block)
+        for p in program.parameters
+    )
 
 
 class DispatchData:
@@ -191,6 +219,18 @@ void {reflection.name}_entrypoint({params}) {{
                 if ep is None:
                     ep = module.entry_point(f"{reflection.name}_entrypoint", type_conformances)
 
+                generated = {p.name for p in module.layout.parameters}
+
+                def check_push_constants(layout: ProgramLayout) -> None:
+                    if _has_push_constant_conflicts(ep, layout, generated):
+                        check_no_module_push_constants(
+                            device.info.type, build_info.function.name, layout
+                        )
+
+                # The linked program also has globals of imported modules; checking the module
+                # first fails before an invalid pipeline layout is created.
+                check_push_constants(build_info.module.device_module.layout)
+
                 # Link the program
                 opts = SlangLinkOptions()
                 opts.dump_intermediates = _DUMP_SLANG_INTERMEDIATES
@@ -200,6 +240,7 @@ void {reflection.name}_entrypoint({params}) {{
                     [ep],
                     opts,
                 )
+                check_push_constants(program.layout)
                 compilation_policy = build_info.options.get(
                     "pipeline_compilation_policy", PipelineCompilationPolicy.deferred
                 )

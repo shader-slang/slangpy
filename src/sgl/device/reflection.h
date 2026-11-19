@@ -560,6 +560,11 @@ public:
         shader_record = SLANG_PARAMETER_CATEGORY_SHADER_RECORD,
         existential_type_param = SLANG_PARAMETER_CATEGORY_EXISTENTIAL_TYPE_PARAM,
         existential_object_param = SLANG_PARAMETER_CATEGORY_EXISTENTIAL_OBJECT_PARAM,
+        sub_element_register_space = SLANG_PARAMETER_CATEGORY_SUB_ELEMENT_REGISTER_SPACE,
+        subpass = SLANG_PARAMETER_CATEGORY_SUBPASS,
+        metal_argument_buffer_element = SLANG_PARAMETER_CATEGORY_METAL_ARGUMENT_BUFFER_ELEMENT,
+        metal_attribute = SLANG_PARAMETER_CATEGORY_METAL_ATTRIBUTE,
+        metal_payload = SLANG_PARAMETER_CATEGORY_METAL_PAYLOAD,
     };
 
     SGL_ENUM_INFO(
@@ -585,6 +590,11 @@ public:
             {ParameterCategory::shader_record, "shader_record"},
             {ParameterCategory::existential_type_param, "existential_type_param"},
             {ParameterCategory::existential_object_param, "existential_object_param"},
+            {ParameterCategory::sub_element_register_space, "sub_element_register_space"},
+            {ParameterCategory::subpass, "subpass"},
+            {ParameterCategory::metal_argument_buffer_element, "metal_argument_buffer_element"},
+            {ParameterCategory::metal_attribute, "metal_attribute"},
+            {ParameterCategory::metal_payload, "metal_payload"},
         }
     );
 
@@ -798,6 +808,19 @@ public:
     TypeReflection::ParameterCategory parameter_category() const
     {
         return static_cast<TypeReflection::ParameterCategory>(slang_target()->getParameterCategory());
+    }
+
+    /// Whether this type occupies the given parameter category. Unlike parameter_category(), which
+    /// reports a single "mixed" category for e.g. a struct holding both data and resources, this
+    /// checks each underlying category, and never fails on a category value sgl does not know.
+    bool has_category(TypeReflection::ParameterCategory category) const
+    {
+        const auto target = static_cast<slang::ParameterCategory>(category);
+        const uint32_t count = slang_target()->getCategoryCount();
+        for (uint32_t i = 0; i < count; ++i)
+            if (slang_target()->getCategoryByIndex(i) == target)
+                return true;
+        return false;
     }
 
     uint32_t get_field_binding_range_offset(uint32_t field_index) const
