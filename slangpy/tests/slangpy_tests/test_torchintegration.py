@@ -532,7 +532,6 @@ def test_polynomial_outparam(device_type: DeviceType):
     compare_tensors(2 * a * x + b, x.grad)  # type: ignore
 
 
-# Enable the vectors+arrays tests to reproduce compiler bugs
 POLYNOMIAL_TESTS = [
     ("polynomial", ()),
     ("polynomial_vectors", (3,)),
