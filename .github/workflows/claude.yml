@@ -83,7 +83,7 @@ jobs:
             git submodule foreach --recursive git reset --hard
 
             # Setup Linux dependencies (matches ci.yml Setup Linux step)
-            sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
+            sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev libwayland-dev libxkbcommon-dev pkg-config
 
             # Setup Python environment (matches ci.yml Setup Python environment step)
             python -m pip install -r requirements-dev.txt

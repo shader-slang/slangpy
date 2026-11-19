@@ -16,15 +16,28 @@ Surface::Surface(WindowHandle window_handle, ref<Device> device)
 {
     SGL_ASSERT(m_device);
 
+    rhi::WindowHandle rhi_window_handle;
+    switch (window_handle.type) {
 #if SGL_WINDOWS
-    rhi::WindowHandle rhi_window_handle = rhi::WindowHandle::fromHwnd(window_handle.hwnd);
-#elif SGL_LINUX
-    rhi::WindowHandle rhi_window_handle = window_handle.wayland_surface
-        ? rhi::WindowHandle::fromWaylandSurface(window_handle.wayland_display, window_handle.wayland_surface)
-        : rhi::WindowHandle::fromXlibWindow(window_handle.xdisplay, window_handle.xwindow);
+    case WindowHandleType::hwnd:
+        rhi_window_handle = rhi::WindowHandle::fromHwnd(window_handle.hwnd);
+        break;
 #elif SGL_MACOS
-    rhi::WindowHandle rhi_window_handle = rhi::WindowHandle::fromNSWindow(window_handle.nswindow);
+    case WindowHandleType::nswindow:
+        rhi_window_handle = rhi::WindowHandle::fromNSWindow(window_handle.nswindow);
+        break;
+#elif SGL_LINUX
+    case WindowHandleType::xlib_window:
+        rhi_window_handle = rhi::WindowHandle::fromXlibWindow(window_handle.xlib.display, window_handle.xlib.window);
+        break;
+    case WindowHandleType::wayland_surface:
+        rhi_window_handle
+            = rhi::WindowHandle::fromWaylandSurface(window_handle.wayland.display, window_handle.wayland.surface);
+        break;
 #endif
+    default:
+        SGL_THROW("Unsupported window handle type \"{}\"", window_handle.type);
+    }
 
     SLANG_RHI_CALL(m_device->rhi_device()->createSurface(rhi_window_handle, m_rhi_surface.writeRef()), m_device);
 

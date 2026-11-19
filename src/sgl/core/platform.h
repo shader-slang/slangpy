@@ -3,6 +3,7 @@
 #pragma once
 
 #include "sgl/core/macros.h"
+#include "sgl/core/enum.h"
 #include "sgl/math/vector_types.h"
 
 #include <cstdint>
@@ -23,17 +24,85 @@ SGL_DECLARE_HANDLE(HWND);
 #endif
 
 namespace sgl {
-/// Native window handle.
+/// Native window handle type.
+enum class WindowHandleType {
+    none,
+    hwnd,
+    nswindow,
+    xlib_window,
+    wayland_surface,
+};
+
+SGL_ENUM_INFO(
+    WindowHandleType,
+    {
+        {WindowHandleType::none, "none"},
+        {WindowHandleType::hwnd, "hwnd"},
+        {WindowHandleType::nswindow, "nswindow"},
+        {WindowHandleType::xlib_window, "xlib_window"},
+        {WindowHandleType::wayland_surface, "wayland_surface"},
+    }
+);
+SGL_ENUM_REGISTER(WindowHandleType);
+
+/// Native window handle. Create with one of the from_* functions; `type`
+/// selects the active member of the union.
 struct WindowHandle {
+    WindowHandleType type{WindowHandleType::none};
+    union {
 #if SGL_WINDOWS
-    HWND hwnd;
-#elif SGL_LINUX
-    void* xdisplay;
-    uint32_t xwindow;
-    void* wayland_display;
-    void* wayland_surface;
+        HWND hwnd;
 #elif SGL_MACOS
-    void* nswindow;
+        void* nswindow;
+#elif SGL_LINUX
+        struct {
+            void* display;
+            uint32_t window;
+        } xlib;
+        struct {
+            void* display;
+            void* surface;
+        } wayland;
+#endif
+        void* _reserved[2]{};
+    };
+
+#if SGL_WINDOWS
+    /// Create a handle from a Win32 window.
+    static WindowHandle from_hwnd(HWND hwnd)
+    {
+        WindowHandle handle;
+        handle.type = WindowHandleType::hwnd;
+        handle.hwnd = hwnd;
+        return handle;
+    }
+#elif SGL_MACOS
+    /// Create a handle from a Cocoa window.
+    static WindowHandle from_nswindow(void* nswindow)
+    {
+        WindowHandle handle;
+        handle.type = WindowHandleType::nswindow;
+        handle.nswindow = nswindow;
+        return handle;
+    }
+#elif SGL_LINUX
+    /// Create a handle from an Xlib display and window.
+    static WindowHandle from_xlib_window(void* display, uint32_t window)
+    {
+        WindowHandle handle;
+        handle.type = WindowHandleType::xlib_window;
+        handle.xlib = {display, window};
+        return handle;
+    }
+
+    /// Create a handle from a Wayland display and surface.
+    static WindowHandle from_wayland_surface(void* display, void* surface)
+    {
+        WindowHandle handle;
+        handle.type = WindowHandleType::wayland_surface;
+        handle.wayland = {display, surface};
+        return handle;
+    }
 #endif
 };
 

@@ -143,6 +143,7 @@ SGL_PY_EXPORT(core_window)
     window.def("resize", &Window::resize, "width"_a, "height"_a, D(Window, resize));
     window.def_prop_ro("frame_size", &Window::frame_size, D(Window, frame_size));
     window.def_prop_ro("content_scale", &Window::content_scale, D(Window, content_scale));
+    window.def_prop_ro("window_handle", &Window::window_handle, D(Window, window_handle));
 
     window.def_prop_ro("placement", &Window::placement, D(Window, placement));
     window.def("is_minimized", &Window::is_minimized, D(Window, is_minimized));

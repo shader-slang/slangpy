@@ -8,52 +8,84 @@ SGL_PY_EXPORT(core_platform)
 {
     using namespace sgl::platform;
 
+    nb::sgl_enum<sgl::WindowHandleType>(m, "WindowHandleType", D(WindowHandleType));
+
     nb::class_<sgl::WindowHandle>(m, "WindowHandle", D(WindowHandle))
 #if SGL_WINDOWS
+        // Positional constructor kept for compatibility; equivalent to from_hwnd.
         .def(
             "__init__",
             [](sgl::WindowHandle* self, uintptr_t hwnd)
             {
-                new (self) sgl::WindowHandle{reinterpret_cast<HWND>(hwnd)};
+                new (self) sgl::WindowHandle{sgl::WindowHandle::from_hwnd(reinterpret_cast<HWND>(hwnd))};
             },
             "hwnd"_a
         )
+        .def_static(
+            "from_hwnd",
+            [](uintptr_t hwnd)
+            {
+                return sgl::WindowHandle::from_hwnd(reinterpret_cast<HWND>(hwnd));
+            },
+            "hwnd"_a,
+            D(WindowHandle, from_hwnd)
+        )
 #elif SGL_LINUX
+        // Positional constructor kept for compatibility; equivalent to from_xlib_window.
         .def(
             "__init__",
             [](sgl::WindowHandle* self, uintptr_t xdisplay, uint32_t xwindow)
             {
-                new (self) sgl::WindowHandle{reinterpret_cast<void*>(xdisplay), xwindow, nullptr, nullptr};
+                new (self)
+                    sgl::WindowHandle{sgl::WindowHandle::from_xlib_window(reinterpret_cast<void*>(xdisplay), xwindow)};
             },
             "xdisplay"_a,
             "xwindow"_a
         )
-        .def(
-            "__init__",
-            [](sgl::WindowHandle* self, uintptr_t wayland_display, uintptr_t wayland_surface)
+        .def_static(
+            "from_xlib_window",
+            [](uintptr_t display, uint32_t window)
             {
-                new (self) sgl::WindowHandle{
-                    nullptr,
-                    0,
-                    reinterpret_cast<void*>(wayland_display),
-                    reinterpret_cast<void*>(wayland_surface),
-                };
+                return sgl::WindowHandle::from_xlib_window(reinterpret_cast<void*>(display), window);
             },
-            nb::kw_only(),
-            "wayland_display"_a,
-            "wayland_surface"_a
+            "display"_a,
+            "window"_a,
+            D(WindowHandle, from_xlib_window)
+        )
+        .def_static(
+            "from_wayland_surface",
+            [](uintptr_t display, uintptr_t surface)
+            {
+                return sgl::WindowHandle::from_wayland_surface(
+                    reinterpret_cast<void*>(display),
+                    reinterpret_cast<void*>(surface)
+                );
+            },
+            "display"_a,
+            "surface"_a,
+            D(WindowHandle, from_wayland_surface)
         )
 #elif SGL_MACOS
+        // Positional constructor kept for compatibility; equivalent to from_nswindow.
         .def(
             "__init__",
             [](sgl::WindowHandle* self, uintptr_t nswindow)
             {
-                new (self) sgl::WindowHandle{reinterpret_cast<void*>(nswindow)};
+                new (self) sgl::WindowHandle{sgl::WindowHandle::from_nswindow(reinterpret_cast<void*>(nswindow))};
             },
             "nswindow"_a
         )
+        .def_static(
+            "from_nswindow",
+            [](uintptr_t nswindow)
+            {
+                return sgl::WindowHandle::from_nswindow(reinterpret_cast<void*>(nswindow));
+            },
+            "nswindow"_a,
+            D(WindowHandle, from_nswindow)
+        )
 #endif
-        ;
+        .def_ro("type", &sgl::WindowHandle::type, D(WindowHandle, type));
 
     nb::module_ platform = nb::module_::import_("slangpy.platform");
 
