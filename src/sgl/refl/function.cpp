@@ -222,8 +222,14 @@ const std::vector<ref<Function>>& Function::overloads() const
         overloads.reserve(reflected_overloads.size());
         for (uint32_t i = 0; i < reflected_overloads.size(); ++i) {
             ref<const FunctionReflection> reflection = reflected_overloads[i];
-            if (reflection)
-                overloads.push_back(make_ref<Function>(m_layout, std::move(reflection), m_this_type, m_full_name));
+            if (reflection) {
+                ref<Function> overload = make_ref<Function>(m_layout, std::move(reflection), m_this_type, m_full_name);
+                std::vector<std::string> type_names;
+                for (const ref<const VariableReflection>& parameter : overload->reflection()->parameters())
+                    type_names.push_back(parameter->type()->full_name());
+                add_derived_function(overload, DerivationKind::overload, std::move(type_names));
+                overloads.push_back(overload);
+            }
         }
         m_cached_overloads = std::move(overloads);
     }
@@ -238,10 +244,13 @@ bool Function::is_constructor() const
 ref<Function> Function::specialize_with_arg_types(const std::vector<ref<Type>>& types) const
 {
     std::vector<ref<TypeReflection>> reflections;
+    std::vector<std::string> type_names;
     reflections.reserve(types.size());
+    type_names.reserve(types.size());
     for (const ref<Type>& type : types) {
         SGL_CHECK(type, "Cannot specialize function '{}' with null argument type", m_full_name);
         reflections.emplace_back(ref(const_cast<TypeReflection*>(type->reflection())));
+        type_names.push_back(type->full_name());
     }
 
     ref<const FunctionReflection> reflection = m_reflection->specialize_with_arg_types(reflections);
@@ -251,7 +260,73 @@ ref<Function> Function::specialize_with_arg_types(const std::vector<ref<Type>>& 
     // Do not cache this result by name. The input types are concrete call argument
     // types, not the canonical generic argument list, so deriving a full name here
     // can pollute Layout's named-function cache with non-canonical spellings.
-    return make_ref<Function>(m_layout, std::move(reflection), m_this_type);
+    ref<Function> function = make_ref<Function>(m_layout, std::move(reflection), m_this_type);
+    add_derived_function(function, DerivationKind::specialization, std::move(type_names));
+    return function;
+}
+
+void Function::add_derived_function(
+    ref<Function> function,
+    DerivationKind kind,
+    std::vector<std::string> type_names
+) const
+{
+    m_derived_functions.push_back(
+        DerivedFunction{
+            .function = std::move(function),
+            .kind = kind,
+            .type_names = std::move(type_names),
+        }
+    );
+}
+
+void Function::refresh_derived_functions()
+{
+    sgl::ProgramLayout* low_level_layout = const_cast<sgl::ProgramLayout*>(m_layout->low_level_layout());
+    for (const DerivedFunction& derived : m_derived_functions) {
+        ref<const FunctionReflection> reflection;
+        switch (derived.kind) {
+        case DerivationKind::overload: {
+            auto overloads = m_reflection->overloads();
+            reflection = nullptr;
+            for (const ref<const FunctionReflection>& overload : overloads) {
+                auto parameters = overload->parameters();
+                if (parameters.size() != derived.type_names.size())
+                    continue;
+
+                bool matches = true;
+                for (uint32_t i = 0; i < parameters.size(); ++i) {
+                    if (parameters[i]->type()->full_name() != derived.type_names[i]) {
+                        matches = false;
+                        break;
+                    }
+                }
+                if (matches) {
+                    reflection = overload;
+                    break;
+                }
+            }
+            break;
+        }
+        case DerivationKind::specialization: {
+            std::vector<ref<TypeReflection>> types;
+            types.reserve(derived.type_names.size());
+            for (const std::string& type_name : derived.type_names) {
+                ref<const TypeReflection> type = low_level_layout->find_type_by_name(type_name.c_str());
+                if (!type) {
+                    types.clear();
+                    break;
+                }
+                types.emplace_back(ref(const_cast<TypeReflection*>(type.get())));
+            }
+            if (types.size() == derived.type_names.size())
+                reflection = m_reflection->specialize_with_arg_types(types);
+            break;
+        }
+        }
+        if (reflection)
+            derived.function->on_hot_reload(std::move(reflection));
+    }
 }
 
 void Function::on_hot_reload(ref<const FunctionReflection> reflection)
@@ -266,6 +341,7 @@ void Function::clear_caches()
     m_cached_return_type.reset();
     m_cached_parameters.reset();
     m_cached_overloads.reset();
+    refresh_derived_functions();
 }
 
 std::string Function::to_string() const
