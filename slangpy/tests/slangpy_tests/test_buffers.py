@@ -7,10 +7,10 @@ from slangpy import DeviceType
 from slangpy.testing import helpers
 
 MODULE = r"""
-float read_only(StructuredBuffer<float> buffer) {
+public float read_only(StructuredBuffer<float> buffer) {
     return buffer[0];
 }
-void write_only(RWStructuredBuffer<float> buffer) {
+public void write_only(RWStructuredBuffer<float> buffer) {
     buffer[0] = 0.0f;
 }
 """
@@ -45,10 +45,10 @@ def test_buffer_usage_error(device_type: DeviceType):
 
 
 MODULE_BA = r"""
-uint read_byte_buffer(ByteAddressBuffer buffer) {
+public uint read_byte_buffer(ByteAddressBuffer buffer) {
     return buffer.Load(0);
 }
-void write_byte_buffer(RWByteAddressBuffer buffer, uint val) {
+public void write_byte_buffer(RWByteAddressBuffer buffer, uint val) {
     buffer.Store(0, val);
 }
 """

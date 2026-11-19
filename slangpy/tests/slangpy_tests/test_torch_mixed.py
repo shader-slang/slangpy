@@ -31,25 +31,25 @@ from slangpy import pack
 # ---------------------------------------------------------------------------
 
 ADD_SHADER = r"""
-void add_buffers(float a, float b, out float c) {
+public void add_buffers(float a, float b, out float c) {
     c = a + b;
 }
 """
 
 SCALE_SHADER = r"""
-void scale(float a, float factor, out float result) {
+public void scale(float a, float factor, out float result) {
     result = a * factor;
 }
 """
 
 ADD_RETURN_SHADER = r"""
-float add_return(float a, float b) {
+public float add_return(float a, float b) {
     return a + b;
 }
 """
 
 READ_FIRST_SHADER = r"""
-float read_first(Tensor<float, 1> buf) {
+public float read_first(Tensor<float, 1> buf) {
     return buf[0];
 }
 """

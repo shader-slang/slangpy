@@ -19,13 +19,13 @@ from slangpy import pack, BufferUsage
 
 DIFF_POLY_SHADER = r"""
 [Differentiable]
-float polynomial(float a, float b) {
+public float polynomial(float a, float b) {
     return a * a + b;
 }
 """
 
 SIMPLE_READ_SHADER = r"""
-float read_first(Tensor<float, 1> buf) { return buf[0]; }
+public float read_first(Tensor<float, 1> buf) { return buf[0]; }
 """
 
 DEVICE_TYPES = helpers.DEFAULT_DEVICE_TYPES

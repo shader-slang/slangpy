@@ -42,7 +42,7 @@ def grid_test(
     module = helpers.create_module(
         device,
         f"""
-{slangtypename} get{gen_args}({slangtypename} input) {{
+public {slangtypename} get{gen_args}({slangtypename} input) {{
     return input;
 }}
 """,
@@ -116,7 +116,7 @@ def test_grid_error_pass_to_bad_vector_size(device_type: DeviceType, stride: int
     module = helpers.create_module(
         device,
         f"""
-int3 get(int3 input) {{
+public int3 get(int3 input) {{
     return input;
 }}
 """,
@@ -132,7 +132,7 @@ def test_grid_error_pass_to_bad_array_size(device_type: DeviceType, stride: int)
     module = helpers.create_module(
         device,
         f"""
-int3 get(int[3] input) {{
+public int3 get(int[3] input) {{
     return 0;
 }}
 """,

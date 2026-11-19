@@ -94,11 +94,11 @@ def test_function_call_does_not_keep_closed_device_alive(device_type: spy.Device
         device,
         "module_with_reflection_caches",
         """
-        struct Pair {
-            float left;
-            float right;
+        public struct Pair {
+            public float left;
+            public float right;
         };
-        float add_pair(Pair value) { return value.left + value.right; }
+        public float add_pair(Pair value) { return value.left + value.right; }
         """,
     )
 

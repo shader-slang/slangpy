@@ -10,12 +10,12 @@ from slangpy.testing import helpers
 
 MODULE = """
 import "slangpy";
-float foo(float a) { return a; }
-float foo2(float a, float b) { return a+b; }
-float foo_v3(float3 a) { return a.x; }
-float foo_ol(float a) { return a; }
-float foo_ol(float a, float b) { return a+b; }
-float foo_generic<T>(T a) { return 0; }
+public float foo(float a) { return a; }
+public float foo2(float a, float b) { return a+b; }
+public float foo_v3(float3 a) { return a.x; }
+public float foo_ol(float a) { return a; }
+public float foo_ol(float a, float b) { return a+b; }
+public float foo_generic<T>(T a) { return 0; }
 
 """
 
@@ -144,7 +144,7 @@ def test_invalid_broadcast_during_dispatch(device_type: DeviceType):
 def test_missing_function(device_type: DeviceType):
 
     device = helpers.get_device(device_type)
-    module = helpers.create_module(device, """void hello() {}""")
+    module = helpers.create_module(device, """public void hello() {}""")
 
     with pytest.raises(AttributeError, match=r"has no function or type named"):
         func = module.foo
@@ -157,8 +157,8 @@ def test_missing_child_function(device_type: DeviceType):
     module = helpers.create_module(
         device,
         """
-                                   struct Foo {}
-                                   void hello() {}""",
+                                   public struct Foo {}
+                                   public void hello() {}""",
     )
 
     with pytest.raises(AttributeError, match=r"has no method or sub-type named"):

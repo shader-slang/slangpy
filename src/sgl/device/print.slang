@@ -8,11 +8,11 @@
 // cannot be realibly passed out of functions. The work-around is to use
 // result of `getStringHash` instead of the actual String literal and pass that instead.
 // PrintableString wraps the hash so it is strongly typed and can be extended.
-struct PrintableString {
-    uint hash;
+public struct PrintableString {
+    public uint hash;
 
-    __init() { hash = getStringHash(""); }
-    __implicit_conversion(1) __init(String str) { hash = getStringHash(str); }
+    public __init() { hash = getStringHash(""); }
+    __implicit_conversion(1) public __init(String str) { hash = getStringHash(str); }
 }
 
 namespace detail {
@@ -21,14 +21,14 @@ namespace detail {
 static bool s_print_enabled = true;
 #endif
 
-enum class Kind {
+public enum class Kind {
     scalar,
     vector,
     matrix,
 };
 
 /// Printable primitive types.
-enum class Type {
+public enum class Type {
     boolean,
     int8,
     int16,
@@ -44,11 +44,11 @@ enum class Type {
     printable_string,
 };
 
-struct Layout {
-    Kind kind;
-    Type type;
-    uint rows;
-    uint cols;
+public struct Layout {
+    public Kind kind;
+    public Type type;
+    public uint rows;
+    public uint cols;
 };
 
 /// Interface to print output.
@@ -67,7 +67,7 @@ interface IPrintOutput {
 };
 
 /// Interface for printable types.
-interface IPrintable {
+public interface IPrintable {
     [ForceInline]
     static Layout printable_layout();
 
@@ -82,128 +82,128 @@ interface IPrintable {
 };
 
 // clang-format off
-extension bool : IPrintable {
+public extension bool : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::boolean, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::boolean, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 1; }
+    public static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return asuint(this); }
+    public uint get_printable_data(uint index) { return asuint(this); }
 };
 
-extension PrintableString : IPrintable {
+public extension PrintableString : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::printable_string, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::printable_string, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 1; }
+    public static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return this.hash; }
+    public uint get_printable_data(uint index) { return this.hash; }
 };
 
-extension int8_t : IPrintable {
+public extension int8_t : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::int8, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::int8, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 1; }
+    public static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return asuint(this); }
+    public uint get_printable_data(uint index) { return asuint(this); }
 };
 
-extension int16_t : IPrintable {
+public extension int16_t : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::int16, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::int16, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 1; }
+    public static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return asuint(this); }
+    public uint get_printable_data(uint index) { return asuint(this); }
 };
 
-extension int32_t : IPrintable {
+public extension int32_t : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::int32, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::int32, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 1; }
+    public static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return asuint(this); }
+    public uint get_printable_data(uint index) { return asuint(this); }
 };
 
-extension int64_t : IPrintable {
+public extension int64_t : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::int64, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::int64, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 2; }
+    public static uint printable_data_count() { return 2; }
     [ForceInline]
-    uint get_printable_data(uint index) { return index == 0 ? uint(this & 0xffffffff) : uint(this >> 32); }
+    public uint get_printable_data(uint index) { return index == 0 ? uint(this & 0xffffffff) : uint(this >> 32); }
 };
 
-extension uint8_t : IPrintable {
+public extension uint8_t : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::uint8, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::uint8, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 1; }
+    public static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return this; }
+    public uint get_printable_data(uint index) { return this; }
 };
 
-extension uint16_t : IPrintable {
+public extension uint16_t : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::uint16, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::uint16, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 1; }
+    public static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return this; }
+    public uint get_printable_data(uint index) { return this; }
 };
 
-extension uint32_t : IPrintable {
+public extension uint32_t : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::uint32, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::uint32, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 1; }
+    public static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return this; }
+    public uint get_printable_data(uint index) { return this; }
 };
 
-extension uint64_t : IPrintable {
+public extension uint64_t : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::uint64, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::uint64, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 2; }
+    public static uint printable_data_count() { return 2; }
     [ForceInline]
-    uint get_printable_data(uint index) { return index == 0 ? uint(this & 0xffffffffu) : uint(this >> 32); }
+    public uint get_printable_data(uint index) { return index == 0 ? uint(this & 0xffffffffu) : uint(this >> 32); }
 };
 
-extension float16_t : IPrintable {
+public extension float16_t : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::float16, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::float16, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 1; }
+    public static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return asuint16(this); }
+    public uint get_printable_data(uint index) { return asuint16(this); }
 }
 
-extension float : IPrintable {
+public extension float : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::float32, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::float32, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 1; }
+    public static uint printable_data_count() { return 1; }
     [ForceInline]
-    uint get_printable_data(uint index) { return asuint(this); }
+    public uint get_printable_data(uint index) { return asuint(this); }
 }
 
-extension double : IPrintable {
+public extension double : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::scalar, Type::float64, 0, 0); }
+    public static Layout printable_layout() { return Layout(Kind::scalar, Type::float64, 0, 0); }
     [ForceInline]
-    static uint printable_data_count() { return 2; }
+    public static uint printable_data_count() { return 2; }
     [ForceInline]
-    uint get_printable_data(uint index) { uint2 data; asuint(this, data.x, data.y); return data[index]; }
+    public uint get_printable_data(uint index) { uint2 data; asuint(this, data.x, data.y); return data[index]; }
 }
 
 /// Enum values use the printable representation of their underlying type.
 /// Work around https://github.com/shader-slang/slang/issues/12540: forwarding directly to T.__Tag is incorrectly
 /// diagnosed as recursion when the conformance is invoked through an IPrintable interface value.
 __generic<T : __EnumType>
-extension T : detail::IPrintable
+public extension T : detail::IPrintable
     where T.__Tag : detail::IPrintable
 {
     // TODO: Replace the workaround below with this implementation when the Slang issue is fixed:
@@ -236,34 +236,34 @@ extension T : detail::IPrintable
         return detail::Layout(detail::Kind::scalar, detail::Type::uint32, 0, 0);
     }
 
-    static uint printable_data_count()
+    public static uint printable_data_count()
     {
         return __type_equals<T.__Tag, int64_t>() || __type_equals<T.__Tag, uint64_t>() ? 2 : 1;
     }
 
-    uint get_printable_data(uint index)
+    public uint get_printable_data(uint index)
     {
         return uint(__slang_noop_cast<uint64_t>(this) >> (index * 32));
     }
 }
 
 __generic<T : IPrintable, let N : int>
-extension vector<T, N> : IPrintable {
+public extension vector<T, N> : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::vector, T::printable_layout().type, N, 0); }
+    public static Layout printable_layout() { return Layout(Kind::vector, T::printable_layout().type, N, 0); }
     [ForceInline]
-    static uint printable_data_count() { return N * T::printable_data_count(); }
+    public static uint printable_data_count() { return N * T::printable_data_count(); }
     [ForceInline]
-    uint get_printable_data(uint index) { return this[index / T::printable_data_count()].get_printable_data(index % T::printable_data_count()); }
+    public uint get_printable_data(uint index) { return this[index / T::printable_data_count()].get_printable_data(index % T::printable_data_count()); }
 };
 
 __generic<T : IPrintable, let R : int, let C : int, let L : MatrixLayoutMode>
-extension matrix<T, R, C, L> : IPrintable {
+public extension matrix<T, R, C, L> : IPrintable {
     [ForceInline]
-    static Layout printable_layout() { return Layout(Kind::matrix, T::printable_layout().type, R, C); }
-    static uint printable_data_count() { return R * C * T::printable_data_count(); }
+    public static Layout printable_layout() { return Layout(Kind::matrix, T::printable_layout().type, R, C); }
+    public static uint printable_data_count() { return R * C * T::printable_data_count(); }
     [ForceInline]
-    uint get_printable_data(uint index) {
+    public uint get_printable_data(uint index) {
         uint element_index = index / T::printable_data_count();
         uint row = element_index / C;
         uint col = element_index % C;
@@ -355,14 +355,14 @@ detail::DebugPrinter g_debug_printer;
 
 // Allows enabling/disabling print on a per-thread basis.
 [ForceInline]
-void set_print_enabled(bool enabled)
+public void set_print_enabled(bool enabled)
 {
     detail::s_print_enabled = enabled;
 }
 
 
 [ForceInline]
-void print<each T : detail::IPrintable>(String fmt, expand each T args)
+public void print<each T : detail::IPrintable>(String fmt, expand each T args)
 {
     if (detail::s_print_enabled)
         detail::print(g_debug_printer, fmt, args);
@@ -371,10 +371,10 @@ void print<each T : detail::IPrintable>(String fmt, expand each T args)
 #else // SGL_ENABLE_PRINT
 
 [ForceInline]
-void print<each T : detail::IPrintable>(String fmt, expand each T args) { }
+public void print<each T : detail::IPrintable>(String fmt, expand each T args) { }
 
 [ForceInline]
-void set_print_enabled(bool enabled) { }
+public void set_print_enabled(bool enabled) { }
 
 
 #endif // SGL_ENABLE_PRINT

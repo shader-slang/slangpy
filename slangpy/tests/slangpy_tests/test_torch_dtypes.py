@@ -27,7 +27,7 @@ def device() -> spy.Device:
 def test_torch_output_int32(device: spy.Device) -> None:
     """Auto-create int32 output tensor from Slang int return type."""
     func = create_function_from_module(
-        device, "double_it", "int double_it(int x) { return x * 2; }"
+        device, "double_it", "public int double_it(int x) { return x * 2; }"
     )
     inp = torch.tensor([3, 7, 11], device="cuda", dtype=torch.int32)
     result = func(inp)
@@ -38,7 +38,7 @@ def test_torch_output_int32(device: spy.Device) -> None:
 def test_torch_output_int64(device: spy.Device) -> None:
     """Auto-create int64 output tensor from Slang int64_t return type."""
     func = create_function_from_module(
-        device, "add64", "int64_t add64(int64_t x, int64_t y) { return x + y; }"
+        device, "add64", "public int64_t add64(int64_t x, int64_t y) { return x + y; }"
     )
     a = torch.tensor([100, 200], device="cuda", dtype=torch.int64)
     b = torch.tensor([300, 400], device="cuda", dtype=torch.int64)
@@ -50,7 +50,7 @@ def test_torch_output_int64(device: spy.Device) -> None:
 def test_torch_output_float64(device: spy.Device) -> None:
     """Auto-create float64 output tensor from Slang double return type."""
     func = create_function_from_module(
-        device, "add_d", "double add_d(double a, double b) { return a + b; }"
+        device, "add_d", "public double add_d(double a, double b) { return a + b; }"
     )
     a = torch.tensor([1.5, 3.0], device="cuda", dtype=torch.float64)
     b = torch.tensor([2.5, 4.0], device="cuda", dtype=torch.float64)
@@ -62,10 +62,10 @@ def test_torch_output_float64(device: spy.Device) -> None:
 @pytest.mark.parametrize(
     "slang_func,torch_dtype",
     [
-        ("uint8_t inc(uint8_t x) { return x + uint8_t(1); }", torch.uint8),
-        ("int8_t neg(int8_t x) { return -x; }", torch.int8),
-        ("int16_t dbl(int16_t x) { return x * int16_t(2); }", torch.int16),
-        ("bool flip(bool x) { return !x; }", torch.bool),
+        ("public uint8_t inc(uint8_t x) { return x + uint8_t(1); }", torch.uint8),
+        ("public int8_t neg(int8_t x) { return -x; }", torch.int8),
+        ("public int16_t dbl(int16_t x) { return x * int16_t(2); }", torch.int16),
+        ("public bool flip(bool x) { return !x; }", torch.bool),
     ],
     ids=["uint8", "int8", "int16", "bool"],
 )

@@ -21,7 +21,7 @@ def do_generic_test(
     module = helpers.create_module(
         device,
         f"""
-{slang_type_name} get{generic_args}({slang_type_name} input) {{
+public {slang_type_name} get{generic_args}({slang_type_name} input) {{
     return input;
 }}
 """,
@@ -102,14 +102,14 @@ def test_arithmetic_generic_arguments_bug(device_type: DeviceType, explicit: boo
     # When we rely on Slang to solve the generic, it currently fails.
 
     CODE = """
-interface IModule<int N, int M>
+public interface IModule<int N, int M>
 {
     float[M] eval(float[N] x);
 }
 
-struct LinearLayer<int N, int M> : IModule<N, M>
+public struct LinearLayer<int N, int M> : IModule<N, M>
 {
-    float[M] eval(float[N] x)
+    public float[M] eval(float[N] x)
     {
         float[M] result;
         [ForceUnroll]
@@ -118,7 +118,7 @@ struct LinearLayer<int N, int M> : IModule<N, M>
     }
 };
 
-float trainMaterial<
+public float trainMaterial<
     int numLatents,
     Encoder : IModule<12, numLatents>,
     Decoder : IModule<numLatents+6, 3> // <---- here!
