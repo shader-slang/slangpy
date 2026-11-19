@@ -96,6 +96,22 @@ concept IsSpecializationOfMatrix = requires {
     typename T::value_type;
 };
 
+/// True if a Slang scalar type has an entry in the converter tables. Slang reports scalar types
+/// that TypeReflection::ScalarType does not list (for example FloatE4M3), and the tables have only
+/// COUNT entries.
+inline bool has_converter_entry(int scalar_type)
+{
+    return scalar_type >= 0 && scalar_type < (int)TypeReflection::ScalarType::COUNT;
+}
+
+/// Return the converter-table index of a Slang scalar type, rejecting types without an entry the
+/// same way as types without a converter.
+inline int converter_index(int scalar_type)
+{
+    SGL_CHECK(has_converter_entry(scalar_type), "Unsupported element type");
+    return scalar_type;
+}
+
 #define scalar_case(c_type, scalar_type)                                                                               \
     m_read_scalar[(int)TypeReflection::ScalarType::scalar_type] = [](const CursorType& self)                           \
     {                                                                                                                  \
@@ -218,13 +234,15 @@ private:
         if (type) {
             switch (type->kind()) {
             case TypeReflection::Kind::scalar: {
-                return m_read_scalar[(int)type->scalar_type()](self);
+                return m_read_scalar[converter_index((int)type->scalar_type())](self);
             }
             case TypeReflection::Kind::vector: {
-                return m_read_vector[(int)type->scalar_type()][type->col_count()](self);
+                return m_read_vector[converter_index((int)type->scalar_type())][type->col_count()](self);
             }
             case TypeReflection::Kind::matrix: {
-                return m_read_matrix[(int)type->scalar_type()][type->row_count()][type->col_count()](self);
+                return m_read_matrix[converter_index((int)type->scalar_type())][type->row_count()][type->col_count()](
+                    self
+                );
             }
             case TypeReflection::Kind::struct_: {
                 nb::dict res;
@@ -350,12 +368,19 @@ public:
         {
             SGL_THROW("Unsupported element type");
         };
+        auto write_from_numpy_err_func = [](CursorType&, const nb::ndarray<nb::numpy, nb::ro>&)
+        {
+            SGL_THROW("Unsupported element type");
+        };
         for (int i = 0; i < (int)TypeReflection::ScalarType::COUNT; i++) {
             m_write_scalar[i] = write_err_func;
+            m_write_scalar_from_numpy[i] = write_from_numpy_err_func;
             for (int j = 0; j < 5; ++j) {
                 m_write_vector[i][j] = write_err_func;
+                m_write_vector_from_numpy[i][j] = write_from_numpy_err_func;
                 for (int k = 0; k < 5; ++k) {
                     m_write_matrix[i][j][k] = write_err_func;
+                    m_write_matrix_from_numpy[i][j][k] = write_from_numpy_err_func;
                 }
             }
         }
@@ -420,7 +445,7 @@ public:
             return {};
         auto kind = (TypeReflection::Kind)type_layout->getKind();
         auto type = type_layout->getType();
-        if (!type)
+        if (!type || !has_converter_entry((int)type->getScalarType()))
             return {};
         switch (kind) {
         case TypeReflection::Kind::scalar:
@@ -631,7 +656,7 @@ private:
             auto type = type_layout->getType();
             SGL_ASSERT(type);
             for (size_t index = 0; index < dst.element_count(); ++index, data += element_byte_stride) {
-                m_write_scalar_from_numpy[(int)type->getScalarType()](self, get_subarray());
+                m_write_scalar_from_numpy[converter_index((int)type->getScalarType())](self, get_subarray());
                 self._set_offset(self.offset() + dst.element_type_layout()->stride());
             }
             break;
@@ -640,7 +665,10 @@ private:
             auto type = type_layout->getType();
             SGL_ASSERT(type);
             for (size_t index = 0; index < dst.element_count(); ++index, data += element_byte_stride) {
-                m_write_vector_from_numpy[(int)type->getScalarType()][type->getColumnCount()](self, get_subarray());
+                m_write_vector_from_numpy[converter_index((int)type->getScalarType())][type->getColumnCount()](
+                    self,
+                    get_subarray()
+                );
                 self._set_offset(self.offset() + dst.element_type_layout()->stride());
             }
             break;
@@ -649,10 +677,8 @@ private:
             auto type = type_layout->getType();
             SGL_ASSERT(type);
             for (size_t index = 0; index < dst.element_count(); ++index, data += element_byte_stride) {
-                m_write_matrix_from_numpy[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](
-                    self,
-                    get_subarray()
-                );
+                m_write_matrix_from_numpy[converter_index((int)type->getScalarType())][type->getRowCount()]
+                                         [type->getColumnCount()](self, get_subarray());
                 self._set_offset(self.offset() + dst.element_type_layout()->stride());
             }
             break;
@@ -718,7 +744,7 @@ private:
             auto type = type_layout->getType();
             SGL_ASSERT(type);
             try {
-                return m_write_scalar[(int)type->getScalarType()](self, nbval);
+                return m_write_scalar[converter_index((int)type->getScalarType())](self, nbval);
             } catch (const std::exception&) {
                 if (write_registered_native_object(self, nbval))
                     return;
@@ -731,7 +757,7 @@ private:
             auto type = type_layout->getType();
             SGL_ASSERT(type);
             try {
-                return m_write_vector[(int)type->getScalarType()][type->getColumnCount()](self, nbval);
+                return m_write_vector[converter_index((int)type->getScalarType())][type->getColumnCount()](self, nbval);
             } catch (const std::exception&) {
                 if (write_registered_native_object(self, nbval))
                     return;
@@ -744,10 +770,8 @@ private:
             auto type = type_layout->getType();
             SGL_ASSERT(type);
             try {
-                return m_write_matrix[(int)type->getScalarType()][type->getRowCount()][type->getColumnCount()](
-                    self,
-                    nbval
-                );
+                return m_write_matrix[converter_index((int)type->getScalarType())][type->getRowCount()]
+                                     [type->getColumnCount()](self, nbval);
             } catch (const std::exception&) {
                 if (write_registered_native_object(self, nbval))
                     return;
