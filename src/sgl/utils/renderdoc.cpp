@@ -65,7 +65,7 @@ public:
         }
 
         RENDERDOC_DevicePointer device_handle;
-        RENDERDOC_WindowHandle window_handle;
+        RENDERDOC_WindowHandle window_handle{nullptr};
 
         switch (device->type()) {
 #if SGL_HAS_D3D12
@@ -83,10 +83,26 @@ public:
             return false;
         }
 
+#if SGL_WINDOWS || SGL_LINUX
+        if (window) {
+            WindowHandle handle = window->window_handle();
+            switch (handle.type) {
 #if SGL_WINDOWS
-        window_handle = window ? window->window_handle().hwnd : nullptr;
+            case WindowHandleType::hwnd:
+                window_handle = handle.hwnd;
+                break;
 #elif SGL_LINUX
-        window_handle = window ? (void*)uintptr_t(window->window_handle().xwindow) : nullptr;
+            case WindowHandleType::xlib_window:
+                window_handle = (void*)uintptr_t(handle.xlib.window);
+                break;
+            case WindowHandleType::wayland_surface:
+                window_handle = handle.wayland.surface;
+                break;
+#endif
+            default:
+                break;
+            }
+        }
 #else
         return false;
 #endif

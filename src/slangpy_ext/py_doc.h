@@ -10408,9 +10408,33 @@ later.)doc";
 
 static const char *mkd_doc_sgl_WindowDesc_width = R"doc(Width of the client area in screen coordinates.)doc";
 
-static const char *mkd_doc_sgl_WindowHandle = R"doc(Native window handle.)doc";
+static const char *mkd_doc_sgl_WindowHandle =
+R"doc(Native window handle. Create with one of the from_* functions; `type`
+selects the active member of the union.)doc";
+
+static const char *mkd_doc_sgl_WindowHandleType = R"doc(Native window handle type.)doc";
+
+static const char *mkd_doc_sgl_WindowHandleType_hwnd = R"doc()doc";
+
+static const char *mkd_doc_sgl_WindowHandleType_none = R"doc()doc";
+
+static const char *mkd_doc_sgl_WindowHandleType_nswindow = R"doc()doc";
+
+static const char *mkd_doc_sgl_WindowHandleType_wayland_surface = R"doc()doc";
+
+static const char *mkd_doc_sgl_WindowHandleType_xlib_window = R"doc()doc";
+
+static const char *mkd_doc_sgl_WindowHandle_from_hwnd = R"doc(Create a handle from a Win32 window.)doc";
+
+static const char *mkd_doc_sgl_WindowHandle_from_nswindow = R"doc(Create a handle from a Cocoa window.)doc";
+
+static const char *mkd_doc_sgl_WindowHandle_from_wayland_surface = R"doc(Create a handle from a Wayland display and surface.)doc";
+
+static const char *mkd_doc_sgl_WindowHandle_from_xlib_window = R"doc(Create a handle from an Xlib display and window.)doc";
 
 static const char *mkd_doc_sgl_WindowHandle_hwnd = R"doc()doc";
+
+static const char *mkd_doc_sgl_WindowHandle_type = R"doc()doc";
 
 static const char *mkd_doc_sgl_WindowMode = R"doc(Window modes.)doc";
 
