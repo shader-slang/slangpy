@@ -195,6 +195,159 @@ def test_exr_io(tmp_path: Path, layout: Sequence[Any]):
     write_read_test(tmp_path, "exr", layout[0], layout[1], layout[2], layout[3], **extra)
 
 
+EXR_UINT, EXR_HALF, EXR_FLOAT = 0, 1, 2
+
+# Rec. 709 primaries and D65 white point (red, green, blue, white xy), the EXR default.
+EXR_REC709_CHROMATICITIES = (0.64, 0.33, 0.30, 0.60, 0.15, 0.06, 0.3127, 0.3290)
+EXR_REC2020_CHROMATICITIES = (0.708, 0.292, 0.170, 0.797, 0.131, 0.046, 0.3127, 0.3290)
+
+
+def write_exr_channels(
+    path: Path,
+    channels: dict[str, tuple[int, float]],
+    chromaticities: Optional[Sequence[float]] = None,
+):
+    """
+    Write a 2x2 uncompressed scanline EXR in which every channel holds a constant value.
+
+    The file is assembled by hand so that decoder tests do not depend on ``Bitmap.write``.
+
+    :param path: Output path.
+    :param channels: Map from channel name to (EXR pixel type, value).
+    :param chromaticities: Optional red, green, blue and white xy coordinates.
+    """
+
+    def attribute(name: str, kind: str, data: bytes) -> bytes:
+        return name.encode() + b"\0" + kind.encode() + b"\0" + struct.pack("<I", len(data)) + data
+
+    channels = dict(sorted(channels.items()))
+    chlist = b"".join(
+        name.encode() + b"\0" + struct.pack("<iB3xii", kind, 0, 1, 1)
+        for name, (kind, _) in channels.items()
+    )
+    box = struct.pack("<4i", 0, 0, 1, 1)
+    header = struct.pack("<II", 20000630, 2)
+    header += attribute("channels", "chlist", chlist + b"\0")
+    if chromaticities is not None:
+        header += attribute("chromaticities", "chromaticities", struct.pack("<8f", *chromaticities))
+    header += attribute("compression", "compression", b"\0")
+    header += attribute("dataWindow", "box2i", box)
+    header += attribute("displayWindow", "box2i", box)
+    header += attribute("lineOrder", "lineOrder", b"\0")
+    header += attribute("pixelAspectRatio", "float", struct.pack("<f", 1))
+    header += attribute("screenWindowCenter", "v2f", struct.pack("<2f", 0, 0))
+    header += attribute("screenWindowWidth", "float", struct.pack("<f", 1))
+    header += b"\0"
+    row = b"".join(
+        struct.pack("<2" + "Ief"[kind], *([int(value) if kind == EXR_UINT else value] * 2))
+        for kind, value in channels.values()
+    )
+    chunks = [struct.pack("<iI", y, len(row)) + row for y in range(2)]
+    offset = len(header) + 8 * len(chunks)
+    offsets = b""
+    for chunk in chunks:
+        offsets += struct.pack("<Q", offset)
+        offset += len(chunk)
+    path.write_bytes(header + offsets + b"".join(chunks))
+
+
+def luminance_chroma_to_rgb(
+    y: float, ry: float, by: float, chromaticities: Sequence[float]
+) -> list[float]:
+    xy = np.array(chromaticities, dtype=np.float64).reshape(4, 2)
+    xyz = np.column_stack([xy[:, 0], xy[:, 1], 1 - xy[:, 0] - xy[:, 1]])
+    white = xyz[3] / xyz[3, 1]
+    scale = np.linalg.solve(xyz[:3].T, white)
+    weights = scale * xyz[:3, 1]
+    r = (ry + 1) * y
+    b = (by + 1) * y
+    g = (y - r * weights[0] - b * weights[2]) / weights[1]
+    return [r, g, b]
+
+
+@pytest.mark.parametrize("prefix", ["", "layer."])
+@pytest.mark.parametrize("alpha", [False, True])
+@pytest.mark.parametrize(
+    "chromaticities", [None, EXR_REC2020_CHROMATICITIES], ids=["default", "rec2020"]
+)
+def test_exr_luminance_chroma(
+    tmp_path: Path, prefix: str, alpha: bool, chromaticities: Optional[Sequence[float]]
+):
+    channels = {
+        prefix + "Y": (EXR_FLOAT, 0.5),
+        prefix + "RY": (EXR_FLOAT, 0.5),
+        prefix + "BY": (EXR_FLOAT, -0.5),
+    }
+    if alpha:
+        channels[prefix + "A"] = (EXR_FLOAT, 0.25)
+    path = tmp_path / "yc.exr"
+    write_exr_channels(path, channels, chromaticities)
+
+    b = Bitmap(path)
+
+    expected = luminance_chroma_to_rgb(
+        0.5, 0.5, -0.5, chromaticities or EXR_REC709_CHROMATICITIES
+    ) + ([0.25] if alpha else [])
+    assert b.pixel_format == (Bitmap.PixelFormat.rgba if alpha else Bitmap.PixelFormat.rgb)
+    assert b.channel_names == [prefix + name for name in "RGBA"[: len(expected)]]
+    assert np.allclose(np.array(b), expected, rtol=1e-5, atol=1e-6)
+    assert Bitmap.read_info(path).pixel_format == b.pixel_format
+
+
+@pytest.mark.parametrize(
+    "channels,pixel_format",
+    [
+        ({"a.R": 0.75, "a.G": 0.5, "a.B": 0.25}, Bitmap.PixelFormat.rgb),
+        ({"a.B": 0.25, "b.R": 0.75, "c.G": 0.5}, Bitmap.PixelFormat.multi_channel),
+        ({"A": 1.0, "a.R": 0.75, "a.G": 0.5, "a.B": 0.25}, Bitmap.PixelFormat.multi_channel),
+    ],
+    ids=["coherent", "mixed", "bare_alpha"],
+)
+def test_exr_layer_prefixes(
+    tmp_path: Path, channels: dict[str, float], pixel_format: Bitmap.PixelFormat
+):
+    path = tmp_path / "layers.exr"
+    write_exr_channels(path, {name: (EXR_FLOAT, value) for name, value in channels.items()})
+
+    b = Bitmap(path)
+
+    assert b.pixel_format == pixel_format
+    if pixel_format == Bitmap.PixelFormat.rgb:
+        assert b.channel_names == ["a.R", "a.G", "a.B"]
+    assert sorted(b.channel_names) == sorted(channels)
+    pixels = np.array(b)
+    for i, name in enumerate(b.channel_names):
+        assert np.all(pixels[..., i] == channels[name]), name
+    assert Bitmap.read_info(path).pixel_format == pixel_format
+
+
+@pytest.mark.parametrize("g_type,g_value", [(EXR_UINT, 1), (EXR_HALF, 0.5)], ids=["uint", "half"])
+def test_exr_mixed_component_types(tmp_path: Path, g_type: int, g_value: float):
+    path = tmp_path / "mixed.exr"
+    write_exr_channels(
+        path, {"R": (EXR_FLOAT, 0.75), "G": (g_type, g_value), "B": (EXR_FLOAT, 0.25)}
+    )
+
+    b = Bitmap(path)
+
+    assert b.pixel_format == Bitmap.PixelFormat.rgb
+    assert b.component_type == Bitmap.ComponentType.float32
+    assert np.all(np.array(b) == [0.75, g_value, 0.25])
+
+
+def test_exr_mixed_component_types_uint_first(tmp_path: Path):
+    path = tmp_path / "mixed_uint_first.exr"
+    write_exr_channels(path, {"B": (EXR_UINT, 3), "G": (EXR_FLOAT, 1.75), "R": (EXR_FLOAT, -0.25)})
+
+    b = Bitmap(path)
+
+    assert b.pixel_format == Bitmap.PixelFormat.rgb
+    # The destination type comes from file-order channel 0 (B, UINT here), so the float
+    # channels convert into uint32: negative clamps to 0 and 1.75 truncates to 1.
+    assert b.component_type == Bitmap.ComponentType.uint32
+    assert np.all(np.array(b) == [0, 1, 3])
+
+
 BMP_LAYOUTS = [
     (50, 100, Bitmap.PixelFormat.rgb, Bitmap.ComponentType.uint8),
     (100, 200, Bitmap.PixelFormat.rgba, Bitmap.ComponentType.uint8),
