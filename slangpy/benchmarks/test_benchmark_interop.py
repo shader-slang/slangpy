@@ -18,6 +18,9 @@ float add_floats(float a, float b) {
 }
 """
 
+# Stay under the 65,535-group limit and fill whole groups at 1, 4, and 16 elements per thread.
+COMPUTE_ADDITION_SIZE = 65_520 * 32
+
 ADD_COMPUTE = """
 [shader("compute")]
 [numthreads(32, 1, 1)]
@@ -233,10 +236,9 @@ def test_compute_addition_noalloc_gpu(
 ):
     device = helpers.get_device(device_type)
 
-    BUFFER_SIZE = 65535 * 32
-    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
 
     module = device.load_module_from_source("test_compute_addition_noalloc_gpu", ADD_COMPUTE)
     program = device.link_program([module], [module.entry_point("compute_main")])
@@ -245,7 +247,7 @@ def test_compute_addition_noalloc_gpu(
     benchmark_compute_kernel(
         device,
         kernel,
-        spy.uint3(BUFFER_SIZE, 1, 1),
+        spy.uint3(COMPUTE_ADDITION_SIZE, 1, 1),
         a=buffer0.storage,
         b=buffer1.storage,
         res=resbuffer.storage,
@@ -258,10 +260,9 @@ def test_compute_addition_4x_noalloc_gpu(
 ):
     device = helpers.get_device(device_type)
 
-    BUFFER_SIZE = 65535 * 32
-    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
 
     module = device.load_module_from_source("test_compute_addition_noalloc_gpu_4x", ADD_COMPUTE_4X)
     program = device.link_program([module], [module.entry_point("compute_main")])
@@ -270,7 +271,7 @@ def test_compute_addition_4x_noalloc_gpu(
     benchmark_compute_kernel(
         device,
         kernel,
-        spy.uint3(int(BUFFER_SIZE / 4), 1, 1),
+        spy.uint3(COMPUTE_ADDITION_SIZE // 4, 1, 1),
         a=buffer0.storage,
         b=buffer1.storage,
         res=resbuffer.storage,
@@ -283,10 +284,9 @@ def test_compute_addition_16x_noalloc_gpu(
 ):
     device = helpers.get_device(device_type)
 
-    BUFFER_SIZE = 65535 * 32
-    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
 
     module = device.load_module_from_source(
         "test_compute_addition_noalloc_gpu_16x", ADD_COMPUTE_16X
@@ -297,7 +297,7 @@ def test_compute_addition_16x_noalloc_gpu(
     benchmark_compute_kernel(
         device,
         kernel,
-        spy.uint3(int(BUFFER_SIZE / 16), 1, 1),
+        spy.uint3(COMPUTE_ADDITION_SIZE // 16, 1, 1),
         a=buffer0.storage,
         b=buffer1.storage,
         res=resbuffer.storage,
@@ -310,10 +310,9 @@ def test_compute_addition_16xloop_noalloc_gpu(
 ):
     device = helpers.get_device(device_type)
 
-    BUFFER_SIZE = 65535 * 32
-    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
 
     module = device.load_module_from_source(
         "test_compute_addition_16xloop_noalloc_gpu", ADD_COMPUTE_16X_LOOP
@@ -324,7 +323,7 @@ def test_compute_addition_16xloop_noalloc_gpu(
     benchmark_compute_kernel(
         device,
         kernel,
-        spy.uint3(int(BUFFER_SIZE / 16), 1, 1),
+        spy.uint3(COMPUTE_ADDITION_SIZE // 16, 1, 1),
         a=buffer0.storage,
         b=buffer1.storage,
         res=resbuffer.storage,
@@ -337,10 +336,9 @@ def test_compute_addition_16xunroll_noalloc_gpu(
 ):
     device = helpers.get_device(device_type)
 
-    BUFFER_SIZE = 65535 * 32
-    buffer0 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    buffer1 = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
-    resbuffer = spy.Tensor.empty(device, shape=(BUFFER_SIZE,), dtype=float)
+    buffer0 = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
+    buffer1 = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
+    resbuffer = spy.Tensor.empty(device, shape=(COMPUTE_ADDITION_SIZE,), dtype=float)
 
     module = device.load_module_from_source(
         "test_compute_addition_16xunroll_noalloc_gpu", ADD_COMPUTE_16X_UNROLL
@@ -351,7 +349,7 @@ def test_compute_addition_16xunroll_noalloc_gpu(
     benchmark_compute_kernel(
         device,
         kernel,
-        spy.uint3(int(BUFFER_SIZE / 16), 1, 1),
+        spy.uint3(COMPUTE_ADDITION_SIZE // 16, 1, 1),
         a=buffer0.storage,
         b=buffer1.storage,
         res=resbuffer.storage,

@@ -728,6 +728,47 @@ class RayContext:
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_raygen_reads_updated_buffer(device_type: spy.DeviceType) -> None:
+    device = helpers.get_device(device_type)
+    if not device.has_feature(spy.Feature.ray_tracing):
+        pytest.skip("Requires ray tracing")
+
+    module = device.load_module_from_source(
+        "raygen_buffer_update",
+        """
+        StructuredBuffer<uint> values;
+        RWStructuredBuffer<uint> result;
+        [shader("raygeneration")]
+        void rayGen() { result[0] = values[4]; }
+        """,
+    )
+    program = device.link_program([module], [module.entry_point("rayGen")])
+    pipeline = device.create_ray_tracing_pipeline(program=program, hit_groups=[], max_recursion=1)
+    table = device.create_shader_table(program=program, ray_gen_entry_points=["rayGen"])
+    values = device.create_buffer(
+        element_count=5, struct_size=4, usage=spy.BufferUsage.shader_resource
+    )
+    result = device.create_buffer(
+        element_count=1, struct_size=4, usage=spy.BufferUsage.unordered_access
+    )
+    data = np.zeros(5, dtype=np.uint32)
+    for expected in (0x100, 0x101, 0):
+        data[4] = expected
+        values.copy_from_numpy(data)
+        result.copy_from_numpy(np.array([0xDEADBEEF], dtype=np.uint32))
+        assert values.to_numpy().view(np.uint32)[4] == expected
+
+        encoder = device.create_command_encoder()
+        with encoder.begin_ray_tracing_pass() as ray_pass:
+            cursor = spy.ShaderCursor(ray_pass.bind_pipeline(pipeline, table))
+            cursor.values = values
+            cursor.result = result
+            ray_pass.dispatch_rays(0, [1, 1, 1])
+        device.submit_command_buffer(encoder.finish())
+        assert result.to_numpy().view(np.uint32)[0] == expected
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 @pytest.mark.parametrize("mode", ["compute", "ray"])
 def test_raytrace_simple(device_type: spy.DeviceType, mode: str):
     ctx = PipelineTestContext(device_type)
