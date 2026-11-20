@@ -14,6 +14,7 @@
 
 #include <slang.h>
 
+#include <atomic>
 #include <map>
 #include <string>
 #include <vector>
@@ -26,6 +27,7 @@ namespace detail {
     SGL_API ref<const TypeReflection> from_slang(ref<const Object> owner, slang::TypeReflection* type_reflection);
     SGL_API ref<const TypeLayoutReflection>
     from_slang(ref<const Object> owner, slang::TypeLayoutReflection* type_layout_reflection);
+    ref<const TypeLayoutReflection> from_transient_shader_object(const ShaderObject* object);
     SGL_API ref<const FunctionReflection>
     from_slang(ref<const Object> owner, slang::FunctionReflection* variable_reflection);
     SGL_API ref<const VariableReflection>
@@ -722,6 +724,18 @@ public:
 
     slang::TypeLayoutReflection* get_slang_type_layout() const { return slang_target(); }
 
+    slang::IComponentType* slang_component_type() const
+    {
+        auto* component = m_slang_component_type.load(std::memory_order_relaxed);
+        return component ? component : resolve_slang_component_type();
+    }
+
+    void _hot_reload_invalidate() override
+    {
+        m_slang_component_type.store(nullptr, std::memory_order_relaxed);
+        BaseReflectionObjectImpl::_hot_reload_invalidate();
+    }
+
     ref<const TypeReflection> type() const { return detail::from_slang(m_owner, slang_target()->getType()); }
 
     TypeReflection::Kind kind() const { return static_cast<TypeReflection::Kind>(slang_target()->getKind()); }
@@ -806,6 +820,11 @@ public:
     }
 
     std::string to_string() const override;
+
+private:
+    slang::IComponentType* resolve_slang_component_type() const;
+    // Borrowed from m_owner until hot reload invalidates the reflection.
+    mutable std::atomic<slang::IComponentType*> m_slang_component_type{nullptr};
 };
 
 /// TypeLayoutReflection lazy field list evaluation.

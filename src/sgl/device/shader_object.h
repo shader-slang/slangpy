@@ -24,6 +24,7 @@ class SGL_API ShaderObject : public Object {
     SGL_DECLARE_BLOCK_ALLOCATED(ShaderObject)
 public:
     ShaderObject(ref<Device> device, rhi::IShaderObject* shader_object, bool retain = true);
+    ShaderObject(ref<Device> device, Slang::ComPtr<rhi::IShaderObject>&& shader_object);
     virtual ~ShaderObject();
 
     static void write_to_cursor(const ShaderCursor& cursor, const ShaderObject* value);
@@ -75,7 +76,11 @@ protected:
     rhi::IShaderObject* m_shader_object;
     bool m_retain;
     short_vector<ref<cuda::InteropBuffer>, 8> m_cuda_interop_buffers;
+    // Cursors borrow child wrappers. Keep them alive for the lifetime of the parent.
     short_vector<ref<ShaderObject>, 8> m_objects;
+
+private:
+    ref<ShaderObject> get_child(Slang::ComPtr<rhi::IShaderObject>&& child);
 };
 
 } // namespace sgl

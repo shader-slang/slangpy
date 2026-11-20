@@ -2,6 +2,8 @@
 
 #include "testing.h"
 #include "sgl/device/device.h"
+#include "sgl/device/command.h"
+#include "sgl/device/pipeline.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/buffer_cursor.h"
 #include "sgl/device/raytracing.h"
@@ -681,6 +683,83 @@ void compute_main(StructuredBuffer<uint> buffer)
 
     ref<Buffer> buffer;
     CHECK_NOTHROW(entry_point["buffer"].set(buffer));
+}
+
+TEST_CASE_GPU("shader_object_preserves_layout_owner")
+{
+    ref<ShaderObject> copy;
+    {
+        auto session = ctx.device->create_slang_session({});
+        auto module = session->load_module_from_source("layout_owner", R"(
+struct Params { uint value; }
+ParameterBlock<Params> params;
+RWStructuredBuffer<uint> output;
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void compute_main() { output[0] = params.value; }
+)");
+        auto program = session->link_program({module}, {module->entry_point("compute_main")});
+        auto root = ctx.device->create_root_shader_object(program);
+        auto params = ShaderCursor(root)["params"];
+        auto child = root->get_object(params.offset());
+        REQUIRE(child);
+        auto implicit_copy = ctx.device->create_shader_object(child->element_type_layout());
+        CHECK(
+            implicit_copy->rhi_shader_object()->getSlangComponentType()
+            == program->rhi_shader_program()->getSlangComponentType()
+        );
+
+        auto layout = module->layout();
+        auto replacement
+            = ctx.device->create_shader_object(layout->get_type_layout(layout->find_type_by_name("Params")));
+        params.set_object(replacement);
+        auto rebound = root->get_object(params.offset());
+        REQUIRE(rebound);
+        auto saved_value = params["value"];
+        params.set_object(child);
+        params["value"] = uint32_t(17);
+        saved_value = uint32_t(23);
+        CHECK(*static_cast<const uint32_t*>(child->rhi_shader_object()->getRawData()) == 17);
+        CHECK(*static_cast<const uint32_t*>(replacement->rhi_shader_object()->getRawData()) == 23);
+        copy = ctx.device->create_shader_object(rebound->element_type_layout());
+        CHECK(copy->rhi_shader_object()->getSlangComponentType() == module->slang_component_type());
+
+        auto entry_point = root->get_entry_point(0);
+        REQUIRE(entry_point);
+        root.reset();
+        CHECK(*static_cast<const uint32_t*>(child->rhi_shader_object()->getRawData()) == 17);
+        CHECK(
+            entry_point->rhi_shader_object()->getSlangComponentType()
+            == program->rhi_shader_program()->getSlangComponentType()
+        );
+
+        auto pipeline = ctx.device->create_compute_pipeline({.program = program});
+        auto encoder = ctx.device->create_command_encoder();
+        auto pass = encoder->begin_compute_pass();
+        auto reflected_root = pass->bind_pipeline(pipeline)->element_type_layout();
+        auto other_module = session->load_module_from_source("other_layout_owner", R"(
+[shader("compute")] [numthreads(1, 1, 1)] void other_main() {}
+)");
+        auto other_program = session->link_program({other_module}, {other_module->entry_point("other_main")});
+        auto other_pipeline = ctx.device->create_compute_pipeline({.program = other_program});
+        pass->bind_pipeline(other_pipeline);
+        pass->end();
+        // Resolve a derived layout only after the encoder has replaced its transient root.
+        auto params_field = reflected_root->find_field_by_name("params");
+        REQUIRE(params_field);
+        auto old_params = params_field->type_layout()->element_type_layout();
+        auto old_copy = ctx.device->create_shader_object(old_params);
+        CHECK(
+            old_copy->rhi_shader_object()->getSlangComponentType()
+            == program->rhi_shader_program()->getSlangComponentType()
+        );
+        ctx.device->reload_all_programs();
+        CHECK(old_params->slang_component_type() == nullptr);
+        CHECK_THROWS(ctx.device->create_shader_object(old_params));
+    }
+    ShaderCursor cursor(copy);
+    cursor["value"] = uint32_t(42);
+    CHECK(*static_cast<const uint32_t*>(copy->rhi_shader_object()->getRawData()) == 42);
 }
 
 TEST_SUITE_END();

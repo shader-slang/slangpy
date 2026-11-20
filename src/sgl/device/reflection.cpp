@@ -19,6 +19,18 @@ namespace detail {
 
     static std::map<void*, const BaseReflectionObject*> g_slang_reflection_to_sgl_reflection;
 
+    // A pass encoder can recycle its root on the next bind. Root and derived reflections
+    // share this owner so they retain the component they were reflected from.
+    struct TransientLayoutOwner : Object {
+        TransientLayoutOwner(Device* device, slang::IComponentType* component)
+            : device(device)
+            , component(component)
+        {
+        }
+        ref<Device> device;
+        Slang::ComPtr<slang::IComponentType> component;
+    };
+
     /// Extract device from an owner object.
     /// The possible owner types are known so we can query the device.
     static Device* get_device_from_owner(const Object* owner)
@@ -38,19 +50,22 @@ namespace detail {
         if (auto* shader_object = dynamic_cast<const ShaderObject*>(owner))
             return shader_object->device();
 
+        if (auto* transient = dynamic_cast<const TransientLayoutOwner*>(owner))
+            return transient->device.get();
+
         // Unknown owner type indicates a bug!
         SGL_THROW("Unknown reflection owner type");
     }
 
-    template<typename SGLType, typename SlangType>
-    ref<const SGLType> create_reflection_type_from_slang_type(ref<const Object> owner, SlangType* slang_reflection)
+    template<typename SGLType, typename SlangType, typename GetOwner>
+    ref<const SGLType> create_reflection_type_from_slang_type(SlangType* slang_reflection, GetOwner get_owner)
     {
         if (slang_reflection) {
             auto it = g_slang_reflection_to_sgl_reflection.find(slang_reflection);
             if (it != g_slang_reflection_to_sgl_reflection.end()) {
                 return ref((const SGLType*)it->second);
             } else {
-                auto res = make_ref<const SGLType>(std::move(owner), slang_reflection);
+                auto res = make_ref<const SGLType>(get_owner(), slang_reflection);
                 g_slang_reflection_to_sgl_reflection[slang_reflection] = res.get();
                 return res;
             }
@@ -61,7 +76,13 @@ namespace detail {
 #define SGL_FROM_SLANG(type_name)                                                                                      \
     ref<const type_name> from_slang(ref<const Object> owner, slang::type_name* slang_reflection)                       \
     {                                                                                                                  \
-        return create_reflection_type_from_slang_type<type_name, slang::type_name>(owner, slang_reflection);           \
+        return create_reflection_type_from_slang_type<type_name>(                                                      \
+            slang_reflection,                                                                                          \
+            [&]                                                                                                        \
+            {                                                                                                          \
+                return std::move(owner);                                                                               \
+            }                                                                                                          \
+        );                                                                                                             \
     }
 
     SGL_FROM_SLANG(DeclReflection);
@@ -75,6 +96,20 @@ namespace detail {
     SGL_FROM_SLANG(Attribute);
 
 #undef SGL_FROM_SLANG
+
+    ref<const TypeLayoutReflection> from_transient_shader_object(const ShaderObject* object)
+    {
+        return create_reflection_type_from_slang_type<TypeLayoutReflection>(
+            object->slang_element_type_layout(),
+            [&]
+            {
+                return make_ref<TransientLayoutOwner>(
+                    object->device(),
+                    object->rhi_shader_object()->getSlangComponentType()
+                );
+            }
+        );
+    }
 
     void on_slang_wrapper_destroyed(void* slang_reflection)
     {
@@ -266,6 +301,24 @@ std::string TypeReflection::to_string() const
     // str += fmt::format("  col_count={},\n", col_count());
     str += ")";
     return str;
+}
+
+slang::IComponentType* TypeLayoutReflection::resolve_slang_component_type() const
+{
+    const Object* owner = m_owner.get();
+    slang::IComponentType* component = nullptr;
+    if (auto* module = dynamic_cast<const SlangModule*>(owner))
+        component = module->slang_component_type();
+    else if (auto* entry_point = dynamic_cast<const SlangEntryPoint*>(owner))
+        component = entry_point->slang_entry_point();
+    else if (auto* program = dynamic_cast<const ShaderProgram*>(owner))
+        component = program->rhi_shader_program()->getSlangComponentType();
+    else if (auto* object = dynamic_cast<const ShaderObject*>(owner))
+        component = object->rhi_shader_object()->getSlangComponentType();
+    else if (auto* transient = dynamic_cast<const detail::TransientLayoutOwner*>(owner))
+        component = transient->component.get();
+    m_slang_component_type.store(component, std::memory_order_relaxed);
+    return component;
 }
 
 TypeLayoutReflectionFieldList TypeLayoutReflection::fields() const

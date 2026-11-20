@@ -34,6 +34,9 @@ def test_create_device(device_type: spy.DeviceType):
     }
     assert device.info.api_name == API_NAMES[device_type]
 
+    for feature in (spy.Feature.viewport_array_index, spy.Feature.subgroup_partitioned_ext):
+        assert device.has_feature(feature) == (feature in device.features)
+
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_device_constructor_invalid_profile(device_type: spy.DeviceType) -> None:

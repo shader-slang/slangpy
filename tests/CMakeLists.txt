@@ -66,4 +66,8 @@ if(SGL_BUILD_TESTS)
 
     add_test(NAME sgl_tests COMMAND $<TARGET_FILE:sgl_tests>)
 
+    add_executable(sgl_shader_object_benchmark EXCLUDE_FROM_ALL sgl/benchmarks/shader_object.cpp)
+    target_link_libraries(sgl_shader_object_benchmark PRIVATE sgl)
+    set_target_properties(sgl_shader_object_benchmark PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${SGL_RUNTIME_OUTPUT_DIRECTORY})
+
 endif(SGL_BUILD_TESTS)
