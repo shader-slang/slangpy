@@ -10,6 +10,18 @@ The Slang regression reads a word at byte offset 16 from a `StructuredBuffer<uin
 
 SlangPy's `test_raygen_reads_updated_buffer` reuses the pipeline, shader table, and device buffers. It writes 0x100, 0x101, then zero to the same word, verifies each upload by host readback, and checks the shader result after each launch. Both compiler builds passed on the local Windows RTX 5090. The generated-code regression distinguishes the two builds on this machine. Verification on the affected RTX 4090 and the Falcor2 render are follow-up work.
 
+## OptiX ray-generation timing
+
+On a Windows RTX 5090 with driver 616.56, an OptiX raygen program added 16 pairs of floats per launch index and wrote 16 results. Separate pipelines used identical hand-written PTX except for the input load opcode. A fourth pipeline used ordinary loads and moved the stores after all input reads. The programs used distinct input and output allocations and launched without traversal. The fixed-address case read the same 16 floats from the first input across all rays, with the second input and output indexed per ray.
+
+| Access pattern and total allocation size | `ld.global.nc` | Ordinary `ld.global` | `ld.global.ca` | Ordinary, reads before stores |
+| --- | ---: | ---: | ---: | ---: |
+| Both inputs indexed per ray, 24 MiB | 35.45 µs | 35.57 µs | 35.44 µs | 32.40 µs |
+| Both inputs indexed per ray, 192 MiB | 213.75 µs | 213.50 µs | 213.72 µs | 174.33 µs |
+| First input fixed across rays, 24 MiB | 32.14 µs | 32.50 µs | 32.13 µs | 31.55 µs |
+
+Times are medians of three process medians. Each process rotated the variant order and took 36 CUDA-event measurements per variant in batches of 32 direct OptiX launches. All outputs were checked, including after three uploads to the reused allocation in the fixed-address case. Substituting ordinary loads changed the median by at most 1.1% in these cases. These timings isolate the PTX load opcode on one driver. Application timings and measurements on the affected Linux configuration remain open.
+
 ## CUDA kernel execution time
 
 Measured on 2026-11-20 on a GeForce RTX 5090, Windows 11, driver 616.56, CUDA toolkit 12.9, target `sm_120`. SlangPy was based on `4fa16180` and used a Release compiler built from Slang `6492e91c4` plus the OptiX fix. The compute experiment toggled only the call to `lowerImmutableBufferLoadForCUDA` in the same compiler binary. GPU clocks were unlocked.
