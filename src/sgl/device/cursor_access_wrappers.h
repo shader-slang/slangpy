@@ -110,8 +110,8 @@ class SGL_API CursorWriteWrappers {
 
         SGL_CHECK(
             cpu_element_size == 1 && element_size == 4 && cpu_scalar_type == TypeReflection::ScalarType::bool_,
-            "We only support bool conversion from CPU size of 1B to GPU size of 4B, not converting \"{}\" from {} to "
-            "{}. Slang layout: {}",
+            "Cannot write {} ({} bytes) to a field with {} bytes of uniform storage per element (Slang type {}). "
+            "Only a 1-byte CPU bool stored in 4 bytes on the GPU supports size conversion.",
             cpu_scalar_type,
             cpu_element_size,
             element_size,
@@ -290,8 +290,8 @@ class SGL_API CursorReadWrappers {
 
         SGL_CHECK(
             cpu_element_size == 1 && element_size == 4 && cpu_scalar_type == TypeReflection::ScalarType::bool_,
-            "We only support bool conversion from CPU size of 1B to GPU size of 4B, not converting \"{}\" from {} to "
-            "{}.",
+            "Cannot read {} ({} bytes) from a field with {} bytes of uniform storage per element. "
+            "Only a 1-byte CPU bool stored in 4 bytes on the GPU supports size conversion.",
             cpu_scalar_type,
             cpu_element_size,
             element_size

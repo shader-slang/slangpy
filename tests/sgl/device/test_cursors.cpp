@@ -806,12 +806,14 @@ void compute_main() { output[0] = params.value; }
         // Resolve a derived layout only after the encoder has replaced its transient root.
         auto params_field = reflected_root->find_field_by_name("params");
         REQUIRE(params_field);
-        auto old_params = params_field->type_layout()->element_type_layout();
+        auto old_params = params_field->type_layout();
         auto old_copy = ctx.device->create_shader_object(old_params);
         CHECK(
             old_copy->rhi_shader_object()->getSlangComponentType()
             == program->rhi_shader_program()->getSlangComponentType()
         );
+        ShaderCursor{old_copy}["value"] = uint32_t(42);
+        CHECK(*static_cast<const uint32_t*>(old_copy->rhi_shader_object()->getRawData()) == 42);
         ctx.device->reload_all_programs();
         CHECK(old_params->slang_component_type() == nullptr);
         CHECK_THROWS(ctx.device->create_shader_object(old_params));
