@@ -845,7 +845,8 @@ void compute_main() { output[0] = params.value; }
         auto root_layout = pass->bind_pipeline(pipeline)->element_type_layout();
         auto params = root_layout->find_field_by_name("params");
         REQUIRE(params);
-        saved_layout = params->type_layout()->element_type_layout();
+        // Metal uses the parameter-block container to select its argument-buffer layout.
+        saved_layout = params->type_layout();
         REQUIRE(saved_layout);
         REQUIRE(saved_layout->slang_component_type());
         CHECK(saved_layout->slang_component_type()->getSession() == session->get_slang_session());
