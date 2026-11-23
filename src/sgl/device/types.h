@@ -57,6 +57,7 @@ enum class Feature : uint32_t {
     rasterization = static_cast<uint32_t>(rhi::Feature::Rasterization),
     barycentrics = static_cast<uint32_t>(rhi::Feature::Barycentrics),
     multi_view = static_cast<uint32_t>(rhi::Feature::MultiView),
+    viewport_array_index = static_cast<uint32_t>(rhi::Feature::ViewportArrayIndex),
     rasterizer_ordered_views = static_cast<uint32_t>(rhi::Feature::RasterizerOrderedViews),
     conservative_rasterization = static_cast<uint32_t>(rhi::Feature::ConservativeRasterization),
     custom_border_color = static_cast<uint32_t>(rhi::Feature::CustomBorderColor),
@@ -115,6 +116,7 @@ enum class Feature : uint32_t {
     // Vulkan specific features
     shader_resource_min_lod = static_cast<uint32_t>(rhi::Feature::ShaderResourceMinLod),
     shader_abort = static_cast<uint32_t>(rhi::Feature::ShaderAbort),
+    subgroup_partitioned_ext = static_cast<uint32_t>(rhi::Feature::SubgroupPartitionedEXT),
     // VK_NV_cooperative_matrix2 subfeatures (reported independently)
     cooperative_matrix_reductions = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixReductions),
     cooperative_matrix_conversions = static_cast<uint32_t>(rhi::Feature::CooperativeMatrixConversions),
@@ -150,6 +152,7 @@ SGL_ENUM_INFO(
         {Feature::rasterization, "rasterization"},
         {Feature::barycentrics, "barycentrics"},
         {Feature::multi_view, "multi_view"},
+        {Feature::viewport_array_index, "viewport_array_index"},
         {Feature::rasterizer_ordered_views, "rasterizer_ordered_views"},
         {Feature::conservative_rasterization, "conservative_rasterization"},
         {Feature::custom_border_color, "custom_border_color"},
@@ -203,6 +206,7 @@ SGL_ENUM_INFO(
         {Feature::programmable_sample_positions2, "programmable_sample_positions2"},
         {Feature::shader_resource_min_lod, "shader_resource_min_lod"},
         {Feature::shader_abort, "shader_abort"},
+        {Feature::subgroup_partitioned_ext, "subgroup_partitioned_ext"},
         {Feature::cooperative_matrix_reductions, "cooperative_matrix_reductions"},
         {Feature::cooperative_matrix_conversions, "cooperative_matrix_conversions"},
         {Feature::cooperative_matrix_per_element_operations, "cooperative_matrix_per_element_operations"},

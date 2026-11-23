@@ -924,11 +924,17 @@ ref<ShaderObject> Device::create_root_shader_object(const ShaderProgram* shader_
 ref<ShaderObject> Device::create_shader_object(const TypeLayoutReflection* type_layout)
 {
     Slang::ComPtr<rhi::IShaderObject> rhi_shader_object;
+    // Keep the layout-only overload until SGL reflection supplies its originating component.
+    SGL_DIAGNOSTIC_PUSH
+    SGL_DISABLE_MSVC_WARNING(4996)
+    SGL_DISABLE_CLANG_WARNING("-Wdeprecated-declarations")
+    SGL_DISABLE_GCC_WARNING("-Wdeprecated-declarations")
     SLANG_RHI_CALL(
         m_rhi_device
             ->createShaderObjectFromTypeLayout(type_layout->get_slang_type_layout(), rhi_shader_object.writeRef()),
         this
     );
+    SGL_DIAGNOSTIC_POP
 
     return make_ref<ShaderObject>(ref<Device>(this), rhi_shader_object);
 }
