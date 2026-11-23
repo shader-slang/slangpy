@@ -394,14 +394,32 @@ struct SlangModuleDesc {
     bool is_composed() const { return !source_modules.empty(); }
 };
 
-struct SlangModuleData : Object {
+/// Backing storage for one compilation. Slang components borrow their session.
+struct SlangComponentData : detail::ReflectionOwner {
+    SlangComponentData(Device* device, slang::ISession* session, slang::IComponentType* component = nullptr)
+        : m_device(device)
+        , session(session)
+        , component(component)
+    {
+    }
+
+    Device* device() const override { return m_device.get(); }
+    slang::IComponentType* slang_component_type() const override { return component.get(); }
+
+private:
+    ref<Device> m_device;
+
+public:
+    Slang::ComPtr<slang::ISession> session;
+    Slang::ComPtr<slang::IComponentType> component;
+};
+
+struct SlangModuleData : SlangComponentData {
     SGL_OBJECT(SlangModuleData)
+    using SlangComponentData::SlangComponentData;
 
     /// The underlying slang module (null for composed modules).
     slang::IModule* slang_module = nullptr;
-
-    /// The underlying slang component type (for composed modules only).
-    Slang::ComPtr<slang::IComponentType> slang_component_type;
 
     std::string name;
     std::filesystem::path path;
@@ -475,6 +493,7 @@ public:
     void _register_entry_point(SlangEntryPoint* entry_point) const;
     void _unregister_entry_point(SlangEntryPoint* entry_point) const;
     ref<SlangModuleData> _data() { return m_data; }
+    const SlangModuleData* _data() const { return m_data.get(); }
 
 private:
     /// Create a new entry point with optional type conformances, using full build context.
@@ -544,10 +563,10 @@ struct SlangEntryPointDesc {
     /// When entry point is from a composed module, this contains the composed module.
     ref<SlangModule> type_lookup_module;
 };
-struct SlangEntryPointData : Object {
+struct SlangEntryPointData : SlangComponentData {
     SGL_OBJECT(SlangEntryPointData)
+    using SlangComponentData::SlangComponentData;
 
-    Slang::ComPtr<slang::IComponentType> slang_entry_point;
     std::string name;
     ShaderStage stage;
 };
@@ -582,7 +601,8 @@ public:
     /// \param specialization_args The specialization arguments for generic parameters.
     ref<SlangEntryPoint> specialize(std::span<const SpecializationArg> specialization_args) const;
 
-    slang::IComponentType* slang_entry_point() const { return m_data->slang_entry_point.get(); }
+    const SlangEntryPointData* _data() const { return m_data.get(); }
+    slang::IComponentType* slang_entry_point() const { return m_data->component.get(); }
 
     virtual std::string to_string() const override;
 
@@ -601,9 +621,9 @@ struct ShaderProgramDesc {
     std::optional<SlangLinkOptions> link_options;
     std::string label;
 };
-struct ShaderProgramData : Object {
+struct ShaderProgramData : SlangComponentData {
     SGL_OBJECT(ShaderProgramData)
-    Slang::ComPtr<slang::IComponentType> linked_program;
+    using SlangComponentData::SlangComponentData;
     Slang::ComPtr<rhi::IShaderProgram> rhi_shader_program;
 };
 class SGL_API ShaderProgram : public DeviceChild {
@@ -629,13 +649,11 @@ public:
 
     const ShaderProgramDesc& desc() const { return m_desc; }
 
-    ref<const ProgramLayout> layout() const
-    {
-        return ProgramLayout::from_slang(ref(this), m_data->linked_program->getLayout());
-    }
+    ref<const ProgramLayout> layout() const { return detail::from_slang(m_data, m_data->component->getLayout()); }
 
     ReflectionCursor reflection() const { return ReflectionCursor(this); }
 
+    const ShaderProgramData* _data() const { return m_data.get(); }
     rhi::IShaderProgram* rhi_shader_program() const { return m_data->rhi_shader_program; }
 
     virtual std::string to_string() const override;

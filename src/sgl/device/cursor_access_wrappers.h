@@ -108,8 +108,6 @@ class SGL_API CursorWriteWrappers {
         size_t cpu_element_size = cursor_utils::get_scalar_type_cpu_size(cpu_scalar_type);
         size_t element_size = element_type_layout->getSize();
 
-        auto sgl_type = sgl::TypeReflection({}, _get_slang_type_layout()->getType());
-
         SGL_CHECK(
             cpu_element_size == 1 && element_size == 4 && cpu_scalar_type == TypeReflection::ScalarType::bool_,
             "We only support bool conversion from CPU size of 1B to GPU size of 4B, not converting \"{}\" from {} to "
@@ -117,7 +115,7 @@ class SGL_API CursorWriteWrappers {
             cpu_scalar_type,
             cpu_element_size,
             element_size,
-            sgl_type.full_name()
+            TypeReflection(nullptr, _get_slang_type_layout()->getType()).full_name()
         );
     }
 

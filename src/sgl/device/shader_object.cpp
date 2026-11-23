@@ -41,10 +41,16 @@ ShaderObject::ShaderObject(ref<Device> device, rhi::IShaderObject* shader_object
     : m_device(std::move(device))
     , m_shader_object(shader_object)
     , m_retain(retain)
-
 {
     if (m_retain)
         m_shader_object->addRef();
+}
+
+ShaderObject::ShaderObject(ref<Device> device, Slang::ComPtr<rhi::IShaderObject>&& shader_object)
+    : m_device(std::move(device))
+    , m_shader_object(shader_object.detach())
+    , m_retain(true)
+{
 }
 
 ShaderObject::~ShaderObject()
@@ -60,7 +66,17 @@ void ShaderObject::write_to_cursor(const ShaderCursor& cursor, const ShaderObjec
 
 ref<const TypeLayoutReflection> ShaderObject::element_type_layout() const
 {
-    return TypeLayoutReflection::from_slang(ref(this), slang_element_type_layout());
+    return detail::from_slang(this, slang_element_type_layout());
+}
+
+ref<const detail::ReflectionOwner> ShaderObject::retain_for_reflection() const
+{
+    if (m_retain)
+        return ref(this);
+    // The encoder may reuse its root on the next bind. Pin the current compilation.
+    auto* component = slang_component_type();
+    SGL_CHECK(component, "Pass encoder root has no owning Slang component");
+    return make_ref<SlangComponentData>(device(), component->getSession(), component);
 }
 
 slang::TypeLayoutReflection* ShaderObject::slang_element_type_layout() const
@@ -73,21 +89,22 @@ uint32_t ShaderObject::get_entry_point_count() const
     return m_shader_object->getEntryPointCount();
 }
 
+ref<ShaderObject> ShaderObject::get_child(Slang::ComPtr<rhi::IShaderObject>&& child)
+{
+    if (!child)
+        return nullptr;
+
+    return m_objects.emplace_back(make_ref<ShaderObject>(m_device, std::move(child)));
+}
+
 ref<ShaderObject> ShaderObject::get_entry_point(uint32_t index)
 {
-    ref<ShaderObject> shader_object = make_ref<ShaderObject>(m_device, m_shader_object->getEntryPoint(index), m_retain);
-    // TODO(slang-rhi) this is required to keep shader object's alive (shader cursor uses weak references)
-    m_objects.push_back(shader_object);
-    return shader_object;
+    return get_child(m_shader_object->getEntryPoint(index));
 }
 
 ref<ShaderObject> ShaderObject::get_object(const ShaderOffset& offset)
 {
-    ref<ShaderObject> shader_object
-        = make_ref<ShaderObject>(m_device, m_shader_object->getObject(rhi_shader_offset(offset)), m_retain);
-    // TODO(slang-rhi) this is required to keep shader object's alive (shader cursor uses weak references)
-    m_objects.push_back(shader_object);
-    return shader_object;
+    return get_child(m_shader_object->getObject(rhi_shader_offset(offset)));
 }
 
 void ShaderObject::set_object(const ShaderOffset& offset, const ref<const ShaderObject>& object)

@@ -11,6 +11,7 @@
 #include "sgl/device/fwd.h"
 #include "sgl/device/shader_offset.h"
 #include "sgl/device/resource.h"
+#include "sgl/device/reflection.h"
 
 #include <slang-rhi.h>
 
@@ -19,16 +20,18 @@
 
 namespace sgl {
 
-class SGL_API ShaderObject : public Object {
+class SGL_API ShaderObject : public detail::ReflectionOwner {
     SGL_OBJECT(ShaderObject)
     SGL_DECLARE_BLOCK_ALLOCATED(ShaderObject)
 public:
     ShaderObject(ref<Device> device, rhi::IShaderObject* shader_object, bool retain = true);
+    ShaderObject(ref<Device> device, Slang::ComPtr<rhi::IShaderObject>&& shader_object);
     virtual ~ShaderObject();
 
     static void write_to_cursor(const ShaderCursor& cursor, const ShaderObject* value);
 
-    Device* device() const { return m_device.get(); }
+    slang::IComponentType* slang_component_type() const override { return m_shader_object->getSlangComponentType(); }
+    Device* device() const override { return m_device.get(); }
 
     virtual ref<const TypeLayoutReflection> element_type_layout() const;
 
@@ -75,7 +78,12 @@ protected:
     rhi::IShaderObject* m_shader_object;
     bool m_retain;
     short_vector<ref<cuda::InteropBuffer>, 8> m_cuda_interop_buffers;
+    // Cursors borrow child wrappers. Keep them alive for the lifetime of the parent.
     short_vector<ref<ShaderObject>, 8> m_objects;
+
+private:
+    ref<const detail::ReflectionOwner> retain_for_reflection() const override;
+    ref<ShaderObject> get_child(Slang::ComPtr<rhi::IShaderObject>&& child);
 };
 
 } // namespace sgl
