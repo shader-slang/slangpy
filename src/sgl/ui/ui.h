@@ -13,6 +13,8 @@
 #include "sgl/math/vector_types.h"
 
 #include <map>
+#include <string>
+#include <string_view>
 
 struct ImGuiContext;
 struct ImDrawData;
@@ -32,6 +34,17 @@ public:
     ref<Screen> screen() const { return m_screen; }
 
     ImFont* get_font(const char* name);
+
+    /// Apply ImGui INI settings from memory, using ImGui's merge/override semantics.
+    /// Call before the first frame to restore saved window, docking, and table settings.
+    /// Must be called outside this context's frame, on the UI thread.
+    /// \param ini ImGui INI text, typically returned by save_ini_settings().
+    void load_ini_settings(std::string_view ini);
+
+    /// Serialize ImGui settings to an owned INI string for application-managed storage.
+    /// Must be called outside this context's frame, on the UI thread.
+    /// \return ImGui INI text describing this context's window, docking, and table settings.
+    std::string save_ini_settings();
 
     /// Begin a new ImGui frame and renders the main screen widget.
     /// ImGui widget calls are generally only valid between `begin_frame` and `end_frame`.

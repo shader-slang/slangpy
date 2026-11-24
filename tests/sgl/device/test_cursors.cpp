@@ -2,6 +2,8 @@
 
 #include "testing.h"
 #include "sgl/device/device.h"
+#include "sgl/device/command.h"
+#include "sgl/device/pipeline.h"
 #include "sgl/device/shader.h"
 #include "sgl/device/buffer_cursor.h"
 #include "sgl/device/raytracing.h"
@@ -681,6 +683,184 @@ void compute_main(StructuredBuffer<uint> buffer)
 
     ref<Buffer> buffer;
     CHECK_NOTHROW(entry_point["buffer"].set(buffer));
+}
+
+TEST_CASE_GPU("shader_object_layout_cache_preserves_component")
+{
+    auto module = ctx.device->load_module_from_source("layout_cache_component", R"(
+struct Params { uint value; }
+[shader("compute")] [numthreads(1, 1, 1)] void compute_main() {}
+)");
+    auto program = ctx.device->link_program({module}, {module->entry_point("compute_main")});
+    auto module_layout = module->layout();
+    auto program_layout = program->layout();
+    auto* module_component = module->slang_component_type();
+    auto* program_component = program->rhi_shader_program()->getSlangComponentType();
+    REQUIRE(module_component != program_component);
+
+    auto lookup = [](const ProgramLayout* layout)
+    {
+        return layout->get_type_layout(layout->find_type_by_name("Params"));
+    };
+    auto check_order = [&](const ProgramLayout* first_program, const ProgramLayout* second_program)
+    {
+        auto first = lookup(first_program);
+        auto second = lookup(second_program);
+        auto first_object = ctx.device->create_shader_object(first);
+        auto second_object = ctx.device->create_shader_object(second);
+        CHECK(first_object->rhi_shader_object()->getSlangComponentType() == first_program->slang_component_type());
+        CHECK(second_object->rhi_shader_object()->getSlangComponentType() == second_program->slang_component_type());
+        // Releasing one wrapper must leave the other's cache entry intact.
+        first.reset();
+        CHECK(lookup(second_program) == second);
+    };
+    REQUIRE(module_layout->slang_component_type() == module_component);
+    REQUIRE(program_layout->slang_component_type() == program_component);
+    check_order(module_layout, program_layout);
+    check_order(program_layout, module_layout);
+}
+
+TEST_CASE_GPU("public_reflection_factory_invalidates_on_reload")
+{
+    auto module = ctx.device->load_module_from_source("public_reflection_owner", "struct Params { uint value; };");
+    auto* component = module->slang_component_type();
+    auto layout = ProgramLayout::from_slang(module, component->getLayout());
+    REQUIRE(layout == module->layout());
+    auto params = layout->find_type_by_name("Params");
+    REQUIRE(params);
+
+    ctx.device->reload_all_programs();
+    CHECK_FALSE(layout->is_valid());
+    CHECK_FALSE(params->is_valid());
+    CHECK_THROWS(layout->find_type_by_name("Params"));
+    CHECK(module->layout()->find_type_by_name("Params"));
+}
+
+TEST_CASE_GPU("shader_object_preserves_layout_owner")
+{
+    ref<ShaderObject> copy;
+    {
+        auto session = ctx.device->create_slang_session({});
+        auto module = session->load_module_from_source("layout_owner", R"(
+struct Params { uint value; }
+ParameterBlock<Params> params;
+RWStructuredBuffer<uint> output;
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void compute_main() { output[0] = params.value; }
+)");
+        auto program = session->link_program({module}, {module->entry_point("compute_main")});
+        auto root = ctx.device->create_root_shader_object(program);
+        auto params = ShaderCursor(root)["params"];
+        auto child = root->get_object(params.offset());
+        REQUIRE(child);
+        auto implicit_copy = ctx.device->create_shader_object(child->element_type_layout());
+        CHECK(
+            implicit_copy->rhi_shader_object()->getSlangComponentType()
+            == program->rhi_shader_program()->getSlangComponentType()
+        );
+
+        auto layout = module->layout();
+        auto replacement
+            = ctx.device->create_shader_object(layout->get_type_layout(layout->find_type_by_name("Params")));
+        params.set_object(replacement);
+        auto rebound = root->get_object(params.offset());
+        REQUIRE(rebound);
+        if (ctx.device->type() == DeviceType::metal) {
+            auto* expected = session->get_slang_session()->getTypeLayout(
+                params.slang_type_layout()->getElementTypeLayout()->getType(),
+                0,
+                slang::LayoutRules::MetalArgumentBufferTier2
+            );
+            CHECK(params.dereference().slang_type_layout() == expected);
+        }
+        auto saved_value = params["value"];
+        params.set_object(child);
+        params["value"] = uint32_t(17);
+        saved_value = uint32_t(23);
+        CHECK(*static_cast<const uint32_t*>(child->rhi_shader_object()->getRawData()) == 17);
+        CHECK(*static_cast<const uint32_t*>(replacement->rhi_shader_object()->getRawData()) == 23);
+        copy = ctx.device->create_shader_object(rebound->element_type_layout());
+        CHECK(copy->rhi_shader_object()->getSlangComponentType() == module->slang_component_type());
+
+        auto entry_point = root->get_entry_point(0);
+        REQUIRE(entry_point);
+        root.reset();
+        CHECK(*static_cast<const uint32_t*>(child->rhi_shader_object()->getRawData()) == 17);
+        CHECK(
+            entry_point->rhi_shader_object()->getSlangComponentType()
+            == program->rhi_shader_program()->getSlangComponentType()
+        );
+
+        auto pipeline = ctx.device->create_compute_pipeline({.program = program});
+        auto encoder = ctx.device->create_command_encoder();
+        auto pass = encoder->begin_compute_pass();
+        auto reflected_root = pass->bind_pipeline(pipeline)->element_type_layout();
+        auto other_module = session->load_module_from_source("other_layout_owner", R"(
+[shader("compute")] [numthreads(1, 1, 1)] void other_main() {}
+)");
+        auto other_program = session->link_program({other_module}, {other_module->entry_point("other_main")});
+        auto other_pipeline = ctx.device->create_compute_pipeline({.program = other_program});
+        pass->bind_pipeline(other_pipeline);
+        pass->end();
+        // Resolve a derived layout only after the encoder has replaced its transient root.
+        auto params_field = reflected_root->find_field_by_name("params");
+        REQUIRE(params_field);
+        auto old_params = params_field->type_layout();
+        auto old_copy = ctx.device->create_shader_object(old_params);
+        CHECK(
+            old_copy->rhi_shader_object()->getSlangComponentType()
+            == program->rhi_shader_program()->getSlangComponentType()
+        );
+        ShaderCursor{old_copy}["value"] = uint32_t(42);
+        CHECK(*static_cast<const uint32_t*>(old_copy->rhi_shader_object()->getRawData()) == 42);
+        ctx.device->reload_all_programs();
+        CHECK(old_params->slang_component_type() == nullptr);
+        CHECK_THROWS(ctx.device->create_shader_object(old_params));
+    }
+    ShaderCursor cursor(copy);
+    cursor["value"] = uint32_t(42);
+    CHECK(*static_cast<const uint32_t*>(copy->rhi_shader_object()->getRawData()) == 42);
+}
+
+TEST_CASE_GPU("derived_layout_outlives_custom_session")
+{
+    ref<const TypeLayoutReflection> saved_layout;
+    {
+        auto session = ctx.device->create_slang_session({});
+        auto module = session->load_module_from_source("saved_layout", R"(
+struct Params { uint value; }
+ParameterBlock<Params> params;
+RWStructuredBuffer<uint> output;
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void compute_main() { output[0] = params.value; }
+)");
+        const auto module_refs = module->ref_count();
+        REQUIRE(module->layout());
+        CHECK(module->ref_count() == module_refs);
+
+        auto program = session->link_program({module}, {module->entry_point("compute_main")});
+        auto pipeline = ctx.device->create_compute_pipeline({.program = program});
+        auto encoder = ctx.device->create_command_encoder();
+        auto pass = encoder->begin_compute_pass();
+        auto root_layout = pass->bind_pipeline(pipeline)->element_type_layout();
+        auto params = root_layout->find_field_by_name("params");
+        REQUIRE(params);
+        // Metal uses the parameter-block container to select its argument-buffer layout.
+        saved_layout = params->type_layout();
+        REQUIRE(saved_layout);
+        REQUIRE(saved_layout->slang_component_type());
+        CHECK(saved_layout->slang_component_type()->getSession() == session->get_slang_session());
+        pass->end();
+    }
+
+    // Only the derived reflection and device survive the custom session's scope.
+    auto object = ctx.device->create_shader_object(saved_layout);
+    saved_layout.reset();
+    ShaderCursor cursor(object);
+    cursor["value"] = uint32_t(42);
+    CHECK(*static_cast<const uint32_t*>(object->rhi_shader_object()->getRawData()) == 42);
 }
 
 TEST_SUITE_END();

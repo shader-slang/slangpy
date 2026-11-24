@@ -40,18 +40,42 @@ SGL_ENUM_INFO(
 );
 SGL_ENUM_REGISTER(WindowMode);
 
+/// Copied window placement for session restoration. Geometry describes the client
+/// area in screen coordinates, not framebuffer pixels. Minimized geometry is never
+/// returned. Fullscreen windows retain their initial normal placement.
+/// Pass as WindowDesc::placement to recreate the normal geometry and maximization state.
+struct WindowPlacement {
+    /// Client-area origin in virtual-desktop screen coordinates. Negative values are valid.
+    int2 normal_position{0, 0};
+    /// Client-area size before maximization or minimization, in screen coordinates.
+    uint2 normal_size{0, 0};
+    /// Captured maximization state; for minimized windows, the last non-minimized state.
+    bool maximized{false};
+};
+
 /// Window description.
 struct WindowDesc {
-    /// Width of the window in pixels.
+    /// Width of the client area in screen coordinates.
     uint32_t width;
-    /// Height of the window in pixels.
+    /// Height of the client area in screen coordinates.
     uint32_t height;
     /// Title of the window.
     std::string title;
-    /// Window mode.
+    /// Initial window mode. Minimized windows are shown, then minimized.
     WindowMode mode{WindowMode::normal};
     /// Whether the window is resizable.
     bool resizable{true};
+    /// Initial client-area position in screen coordinates; omitted lets the OS choose.
+    /// Some window systems (such as Wayland) do not support explicit positioning.
+    std::optional<int2> position;
+    /// Whether to show the window after positioning it, then apply its initial mode.
+    /// False creates a hidden window without applying initial minimization/maximization.
+    /// show() does not apply the initial mode later.
+    bool visible{true};
+    /// Optional saved placement. Overrides width, height, position, and mode with
+    /// its normal geometry and normal/maximized state. Cannot be combined with
+    /// WindowMode::fullscreen. Title, resizable, and visible remain independent.
+    std::optional<WindowPlacement> placement;
 };
 
 /// Mouse cursor modes.
@@ -107,49 +131,91 @@ SGL_ENUM_REGISTER(CursorShape);
  * \brief Window class.
  *
  * Platform independent class for managing a window and handle input events.
+ * Window operations and monitor queries must run on the main thread.
  */
 class SGL_API Window : public Object {
     SGL_OBJECT(Window)
 public:
     /// Constructor.
-    /// \param width Width of the window in pixels.
-    /// \param height Height of the window in pixels.
+    /// \param width Width of the client area in screen coordinates.
+    /// \param height Height of the client area in screen coordinates.
     /// \param title Title of the window.
     /// \param mode Window mode.
     /// \param resizable Whether the window is resizable.
+    /// \param position Optional initial client origin in screen coordinates.
+    /// \param visible Show after applying initial placement. False creates a hidden window.
+    /// Hidden windows ignore initial minimization/maximization; show() does not apply it later.
+    /// \param placement Optional saved placement. Overrides width, height, position, and mode.
+    /// Cannot be combined with fullscreen mode; title, resizable, and visible remain independent.
     Window(WindowDesc desc);
     ~Window();
 
     static ref<Window> create(WindowDesc desc) { return make_ref<Window>(desc); }
 
-    /// The native window handle.
-    WindowHandle window_handle() const;
-
-    /// The width of the window in pixels.
-    uint32_t width() const { return m_width; }
-    void set_width(uint32_t width);
-    /// The height of the window in pixels.
-    uint32_t height() const { return m_height; }
-    void set_height(uint32_t height);
-
-    /// Size of the window in pixels.
-    uint2 size() const { return uint2{m_width, m_height}; }
-    void set_size(uint2 size);
-
-    /// Resize the window.
-    /// \param width The new width of the window in pixels.
-    /// \param height The new height of the window in pixels.
-    void resize(uint32_t width, uint32_t height);
-
-    /// Position of the window on the screen in pixels.
-    int2 position() const;
-    void set_position(int2 position);
-
     /// The title of the window.
     const std::string& title() const { return m_title; }
     void set_title(std::string title);
 
+    /// The native window handle.
+    WindowHandle window_handle() const;
+
     void set_icon(const std::filesystem::path& path);
+
+    /// Client-area origin in virtual-desktop screen coordinates. Negative values are valid.
+    int2 position() const;
+    void set_position(int2 position);
+
+    /// The width of the client area in screen coordinates.
+    uint32_t width() const { return m_width; }
+    void set_width(uint32_t width);
+
+    /// The height of the client area in screen coordinates.
+    uint32_t height() const { return m_height; }
+    void set_height(uint32_t height);
+
+    /// Size of the client area in screen coordinates, not framebuffer pixels.
+    uint2 size() const { return uint2{m_width, m_height}; }
+    void set_size(uint2 size);
+
+    /// Resize the window.
+    /// \param width The new client width in screen coordinates.
+    /// \param height The new client height in screen coordinates.
+    void resize(uint32_t width, uint32_t height);
+
+    /// Decoration extents (left, top, right, bottom) in screen coordinates.
+    /// Values may be unavailable until the window manager decorates the window.
+    int4 frame_size() const;
+
+    /// Per-window horizontal and vertical content scale, not a framebuffer-size ratio.
+    float2 content_scale() const;
+
+    /// Normal client geometry and the last non-minimized maximization state.
+    /// Position is best effort where the window system restricts positioning.
+    WindowPlacement placement() const;
+
+    /// Whether the window is currently minimized (iconified).
+    bool is_minimized() const;
+    /// Whether the window is currently maximized.
+    bool is_maximized() const;
+    /// Whether the window uses fullscreen mode, even while minimized or hidden.
+    bool is_fullscreen() const { return m_fullscreen; }
+    /// Whether the window is visible. A minimized window can still be visible.
+    bool is_visible() const;
+
+    /// Minimize (iconify) a window, retaining its normal placement and maximized state.
+    void minimize();
+    /// Maximize a window without replacing its normal placement. Does not show hidden windows.
+    /// Not supported for WindowMode::fullscreen windows.
+    void maximize();
+    /// Ask the window system to restore a minimized or maximized window.
+    /// A minimized maximized window may return to maximized state first.
+    /// Not supported for WindowMode::fullscreen windows.
+    /// Show hidden maximized windows before restoring; restoring while hidden is platform dependent.
+    void restore();
+    /// Show a hidden window.
+    void show();
+    /// Hide a window without minimizing it.
+    void hide();
 
     /// Close the window.
     void close();
@@ -160,12 +226,6 @@ public:
     /// Process any pending events.
     void process_events();
 
-    /// Set the clipboard content.
-    void set_clipboard(const std::string& text);
-
-    /// Get the clipboard content.
-    std::optional<std::string> get_clipboard() const;
-
     /// The mouse cursor mode.
     CursorMode cursor_mode() const { return m_cursor_mode; }
     void set_cursor_mode(CursorMode mode);
@@ -173,6 +233,11 @@ public:
     /// The mouse cursor shape.
     CursorShape cursor_shape() const { return m_cursor_shape; }
     void set_cursor_shape(CursorShape shape);
+
+    /// Get the clipboard content.
+    std::optional<std::string> get_clipboard() const;
+    /// Set the clipboard content.
+    void set_clipboard(const std::string& text);
 
     // events
 
@@ -223,7 +288,15 @@ public:
 
     std::string to_string() const override;
 
+    /// Destroy all native windows and cursors before GLFW shutdown.
+    /// This MUST NOT be called by the user!
+    static void _destroy_all_windows();
+
 private:
+    GLFWwindow* glfw_window() const;
+    void destroy_window();
+
+    void update_normal_placement();
     void poll_gamepad_input();
 
     void handle_window_size(uint32_t width, uint32_t height);
@@ -236,7 +309,9 @@ private:
     uint32_t m_width;
     uint32_t m_height;
     std::string m_title;
-    GLFWwindow* m_window;
+    GLFWwindow* m_window{nullptr};
+    WindowPlacement m_placement;
+    bool m_fullscreen{false};
 
     bool m_should_close{false};
 

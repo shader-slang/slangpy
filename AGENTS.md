@@ -105,6 +105,9 @@ Split large nanobind registrations into focused `NB_NOINLINE void bind_*` helper
 ### Python
 - **Classes**: PascalCase | **Functions/variables**: snake_case | **Public Members**: no prefix | **Private Members**: `_` prefix
 - **All arguments must have type annotations**
+- **Predicates**: Bind `is_*` and `has_*` as methods, not properties.
+
+See `docs/src/developer_guide/coding_style.rst` for more information.
 
 ## Documentation Style
 

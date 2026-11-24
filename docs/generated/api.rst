@@ -4442,7 +4442,9 @@ Device
 
     .. py:method:: create_shader_object(self, type_layout: slangpy.TypeLayoutReflection) -> slangpy.ShaderObject
 
-        Create a shader object from a type layout.
+        Create a shader object from a type layout. For a reflected parameter
+        block, pass the field's type layout, including the container, so the
+        backend can select the block's storage layout.
 
     .. py:method:: create_shader_object(self, cursor: slangpy.ReflectionCursor) -> slangpy.ShaderObject
         :no-index:
@@ -17290,7 +17292,9 @@ Miscellaneous
 
 .. py:function:: slangpy.create_shader_object(type_layout: slangpy.TypeLayoutReflection) -> slangpy.ShaderObject
 
-    Create a shader object from a type layout.
+    Create a shader object from a type layout. For a reflected parameter
+    block, pass the field's type layout, including the container, so the
+    backend can select the block's storage layout.
 
 .. py:function:: slangpy.create_shader_object(cursor: slangpy.ReflectionCursor) -> slangpy.ShaderObject
     :no-index:

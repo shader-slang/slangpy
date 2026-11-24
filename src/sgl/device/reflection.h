@@ -4,6 +4,7 @@
 
 #include "sgl/device/types.h"
 #include "sgl/device/fwd.h"
+#include "sgl/core/object.h"
 
 #include "sgl/core/macros.h"
 #include "sgl/core/enum.h"
@@ -20,24 +21,33 @@
 
 namespace sgl {
 
+class BaseReflectionObject;
+
 namespace detail {
 
-    SGL_API ref<const DeclReflection> from_slang(ref<const Object> owner, slang::DeclReflection* decl_reflection);
-    SGL_API ref<const TypeReflection> from_slang(ref<const Object> owner, slang::TypeReflection* type_reflection);
-    SGL_API ref<const TypeLayoutReflection>
-    from_slang(ref<const Object> owner, slang::TypeLayoutReflection* type_layout_reflection);
-    SGL_API ref<const FunctionReflection>
-    from_slang(ref<const Object> owner, slang::FunctionReflection* variable_reflection);
-    SGL_API ref<const VariableReflection>
-    from_slang(ref<const Object> owner, slang::VariableReflection* variable_reflection);
-    SGL_API ref<const VariableLayoutReflection>
-    from_slang(ref<const Object> owner, slang::VariableLayoutReflection* variable_layout_reflection);
-    SGL_API ref<const EntryPointLayout>
-    from_slang(ref<const Object> owner, slang::EntryPointLayout* entry_point_reflection);
-    SGL_API ref<const ProgramLayout> from_slang(ref<const Object> owner, slang::ProgramLayout* program_layout);
-    SGL_API ref<const Attribute> from_slang(ref<const Object> owner, slang::Attribute* attribute);
+    /// Backing object that can keep one compilation alive for a reflection wrapper.
+    class SGL_API ReflectionOwner : public Object {
+    public:
+        virtual Device* device() const = 0;
+        virtual slang::IComponentType* slang_component_type() const = 0;
+        virtual ref<const ReflectionOwner> retain_for_reflection() const { return ref(this); }
+    };
 
-    SGL_API void on_slang_wrapper_destroyed(void* slang_reflection);
+    SGL_API const ReflectionOwner* reflection_owner(const Object* owner);
+
+    SGL_API ref<const DeclReflection> from_slang(const ReflectionOwner* owner, slang::DeclReflection* target);
+    SGL_API ref<const TypeReflection> from_slang(const ReflectionOwner* owner, slang::TypeReflection* target);
+    SGL_API ref<const TypeLayoutReflection>
+    from_slang(const ReflectionOwner* owner, slang::TypeLayoutReflection* target);
+    SGL_API ref<const FunctionReflection> from_slang(const ReflectionOwner* owner, slang::FunctionReflection* target);
+    SGL_API ref<const VariableReflection> from_slang(const ReflectionOwner* owner, slang::VariableReflection* target);
+    SGL_API ref<const VariableLayoutReflection>
+    from_slang(const ReflectionOwner* owner, slang::VariableLayoutReflection* target);
+    SGL_API ref<const EntryPointLayout> from_slang(const ReflectionOwner* owner, slang::EntryPointLayout* target);
+    SGL_API ref<const ProgramLayout> from_slang(const ReflectionOwner* owner, slang::ProgramLayout* target);
+    SGL_API ref<const Attribute> from_slang(const ReflectionOwner* owner, slang::Attribute* target);
+
+    SGL_API void on_slang_wrapper_destroyed(const BaseReflectionObject* wrapper, void* slang_reflection);
 
     /// Invalidate reflection data. If device is set, only reflection data owned by that device is invalidated.
     SGL_API void invalidate_reflection_data(Device* device = nullptr);
@@ -191,30 +201,46 @@ private:
 class SGL_API BaseReflectionObject : public Object {
     SGL_OBJECT(BaseReflectionObject)
 public:
-    BaseReflectionObject(ref<const Object> owner)
-        : m_owner(std::move(owner))
+    explicit BaseReflectionObject(const detail::ReflectionOwner* owner)
+        : m_owner(owner ? owner->retain_for_reflection() : nullptr)
     {
     }
 
-    virtual void _hot_reload_invalidate() { m_owner = nullptr; }
+    virtual void _hot_reload_invalidate() { m_owner.reset(); }
 
     bool is_valid() const { return m_owner != nullptr; }
 
-    const Object* owner() const { return m_owner.get(); }
+    const detail::ReflectionOwner* owner() const { return m_owner.get(); }
+    slang::IComponentType* slang_component_type() const { return m_owner ? m_owner->slang_component_type() : nullptr; }
 
 protected:
-    ref<const Object> m_owner;
+    template<typename SlangType>
+    auto wrap_reflection(SlangType* target) const
+    {
+        return detail::from_slang(m_owner.get(), target);
+    }
+
+private:
+    ref<const detail::ReflectionOwner> m_owner;
 };
 
 template<class SlangType>
 class SGL_API BaseReflectionObjectImpl : public BaseReflectionObject {
 public:
-    BaseReflectionObjectImpl(ref<const Object> owner, SlangType* target)
-        : BaseReflectionObject(std::move(owner))
+    BaseReflectionObjectImpl(const detail::ReflectionOwner* owner, SlangType* target)
+        : BaseReflectionObject(owner)
         , m_target(target)
     {
     }
-    ~BaseReflectionObjectImpl() { detail::on_slang_wrapper_destroyed(m_target); }
+    BaseReflectionObjectImpl(ref<const Object> owner, SlangType* target)
+        : BaseReflectionObjectImpl(detail::reflection_owner(owner.get()), target)
+    {
+    }
+    ~BaseReflectionObjectImpl()
+    {
+        if (m_target)
+            detail::on_slang_wrapper_destroyed(this, m_target);
+    }
 
     SlangType* slang_target() const
     {
@@ -236,10 +262,7 @@ class SGL_API DeclReflection : public BaseReflectionObjectImpl<slang::DeclReflec
     SGL_OBJECT(DeclReflection)
 
 public:
-    DeclReflection(ref<const Object> owner, slang::DeclReflection* target)
-        : BaseReflectionObjectImpl(std::move(owner), target)
-    {
-    }
+    using BaseReflectionObjectImpl::BaseReflectionObjectImpl;
 
 
     /// Different kinds of decl slang can return.
@@ -277,7 +300,7 @@ public:
     {
         if (index > child_count())
             SGL_THROW("Child index out of range: {}", index);
-        return detail::from_slang(m_owner, slang_target()->getChild(index));
+        return wrap_reflection(slang_target()->getChild(index));
     }
 
     /// Get the name of this decl (if it is of a kind that has a name).
@@ -290,7 +313,7 @@ public:
     /// Index operator to get nth child.
     ref<const DeclReflection> operator[](uint32_t index) const
     {
-        return detail::from_slang(m_owner, slang_target()->getChild(index));
+        return wrap_reflection(slang_target()->getChild(index));
     }
 
     /// Description as string.
@@ -300,16 +323,10 @@ public:
     ref<const TypeReflection> as_type() const;
 
     /// Get variable corresponding to this decl ref.
-    ref<const VariableReflection> as_variable() const
-    {
-        return detail::from_slang(m_owner, slang_target()->asVariable());
-    }
+    ref<const VariableReflection> as_variable() const { return wrap_reflection(slang_target()->asVariable()); }
 
     /// Get function corresponding to this decl ref.
-    ref<const FunctionReflection> as_function() const
-    {
-        return detail::from_slang(m_owner, slang_target()->asFunction());
-    }
+    ref<const FunctionReflection> as_function() const { return wrap_reflection(slang_target()->asFunction()); }
 
     /// Finds all children of a specific kind with a given name.
     /// Note: Only supported for types, functions and variables.
@@ -352,10 +369,7 @@ protected:
 
 class SGL_API Attribute : public BaseReflectionObjectImpl<slang::Attribute> {
 public:
-    Attribute(ref<const Object> owner, slang::Attribute* target)
-        : BaseReflectionObjectImpl(std::move(owner), target)
-    {
-    }
+    using BaseReflectionObjectImpl::BaseReflectionObjectImpl;
 
     std::string name() const { return slang_target()->getName(); }
 
@@ -363,7 +377,7 @@ public:
 
     ref<const TypeReflection> argument_type(uint32_t index) const
     {
-        return detail::from_slang(m_owner, slang_target()->getArgumentType(index));
+        return wrap_reflection(slang_target()->getArgumentType(index));
     }
 
     int argument_value_int(uint32_t index) const;
@@ -588,10 +602,7 @@ public:
         }
     );
 
-    TypeReflection(ref<const Object> owner, slang::TypeReflection* target)
-        : BaseReflectionObjectImpl(std::move(owner), target)
-    {
-    }
+    using BaseReflectionObjectImpl::BaseReflectionObjectImpl;
 
     Kind kind() const { return static_cast<Kind>(slang_target()->getKind()); }
 
@@ -610,7 +621,7 @@ public:
     ref<const VariableReflection> get_field_by_index(uint32_t index) const
     {
         SGL_CHECK(is_struct(), "Type is not a struct");
-        return detail::from_slang(m_owner, slang_target()->getFieldByIndex(index));
+        return wrap_reflection(slang_target()->getFieldByIndex(index));
     }
 
     TypeReflectionFieldList fields() const;
@@ -638,7 +649,7 @@ public:
     ref<const TypeReflection> element_type() const
     {
         SGL_CHECK(is_array(), "Type is not an array");
-        return detail::from_slang(m_owner, slang_target()->getElementType());
+        return wrap_reflection(slang_target()->getElementType());
     }
 
     ref<const TypeReflection> unwrap_array() const
@@ -658,7 +669,7 @@ public:
 
     ref<const TypeReflection> resource_result_type() const
     {
-        return detail::from_slang(m_owner, slang_target()->getResourceResultType());
+        return wrap_reflection(slang_target()->getResourceResultType());
     }
 
     ResourceShape resource_shape() const { return static_cast<ResourceShape>(slang_target()->getResourceShape()); }
@@ -669,12 +680,12 @@ public:
 
     ref<const Attribute> get_user_attribute_by_index(uint32_t index) const
     {
-        return detail::from_slang(m_owner, slang_target()->getUserAttributeByIndex(index));
+        return wrap_reflection(slang_target()->getUserAttributeByIndex(index));
     }
 
     ref<const Attribute> find_user_attribute_by_name(const char* name) const
     {
-        return detail::from_slang(m_owner, slang_target()->findUserAttributeByName(name));
+        return wrap_reflection(slang_target()->findUserAttributeByName(name));
     }
 
     std::string to_string() const override;
@@ -710,19 +721,16 @@ class SGL_API TypeLayoutReflection : public BaseReflectionObjectImpl<slang::Type
     SGL_OBJECT(TypeLayoutReflection)
 public:
     static ref<const TypeLayoutReflection>
-    from_slang(ref<const Object> owner, slang::TypeLayoutReflection* type_layout_reflection)
+    from_slang(const Object* owner, slang::TypeLayoutReflection* type_layout_reflection)
     {
-        return detail::from_slang(std::move(owner), type_layout_reflection);
+        return detail::from_slang(detail::reflection_owner(owner), type_layout_reflection);
     }
 
-    TypeLayoutReflection(ref<const Object> owner, slang::TypeLayoutReflection* target)
-        : BaseReflectionObjectImpl(std::move(owner), target)
-    {
-    }
+    using BaseReflectionObjectImpl::BaseReflectionObjectImpl;
 
     slang::TypeLayoutReflection* get_slang_type_layout() const { return slang_target(); }
 
-    ref<const TypeReflection> type() const { return detail::from_slang(m_owner, slang_target()->getType()); }
+    ref<const TypeReflection> type() const { return wrap_reflection(slang_target()->getType()); }
 
     TypeReflection::Kind kind() const { return static_cast<TypeReflection::Kind>(slang_target()->getKind()); }
 
@@ -744,7 +752,7 @@ public:
     {
         // TODO field_count() does not always return the right number of fields
         // SGL_CHECK(index < field_count(), "Field index out of range");
-        return detail::from_slang(m_owner, slang_target()->getFieldByIndex(index));
+        return wrap_reflection(slang_target()->getFieldByIndex(index));
     }
 
     int32_t find_field_index_by_name(const char* name_begin, const char* name_end = nullptr) const
@@ -755,7 +763,7 @@ public:
     ref<const VariableLayoutReflection> find_field_by_name(const char* name_begin, const char* name_end = nullptr) const
     {
         if (auto index = slang_target()->findFieldIndexByName(name_begin, name_end); index >= 0)
-            return detail::from_slang(m_owner, slang_target()->getFieldByIndex(narrow_cast<unsigned int>(index)));
+            return wrap_reflection(slang_target()->getFieldByIndex(narrow_cast<unsigned int>(index)));
         return nullptr;
     }
 
@@ -781,17 +789,17 @@ public:
 
     ref<const TypeLayoutReflection> element_type_layout() const
     {
-        return detail::from_slang(m_owner, slang_target()->getElementTypeLayout());
+        return wrap_reflection(slang_target()->getElementTypeLayout());
     }
 
     ref<const VariableLayoutReflection> element_var_layout() const
     {
-        return detail::from_slang(m_owner, slang_target()->getElementVarLayout());
+        return wrap_reflection(slang_target()->getElementVarLayout());
     }
 
     ref<const VariableLayoutReflection> container_var_layout() const
     {
-        return detail::from_slang(m_owner, slang_target()->getContainerVarLayout());
+        return wrap_reflection(slang_target()->getContainerVarLayout());
     }
 
     // How is this type supposed to be bound?
@@ -832,16 +840,13 @@ protected:
 class SGL_API FunctionReflection : public BaseReflectionObjectImpl<slang::FunctionReflection> {
     SGL_OBJECT(FunctionReflection)
 public:
-    FunctionReflection(ref<const Object> owner, slang::FunctionReflection* target)
-        : BaseReflectionObjectImpl(std::move(owner), target)
-    {
-    }
+    using BaseReflectionObjectImpl::BaseReflectionObjectImpl;
 
     /// Function name.
     const char* name() const { return slang_target()->getName(); }
 
     /// Function return type.
-    ref<const TypeReflection> return_type() { return detail::from_slang(m_owner, slang_target()->getReturnType()); }
+    ref<const TypeReflection> return_type() { return wrap_reflection(slang_target()->getReturnType()); }
 
     /// Number of function parameters.
     uint32_t parameter_count() const { return slang_target()->getParameterCount(); }
@@ -850,7 +855,7 @@ public:
     ref<const VariableReflection> get_parameter_by_index(uint32_t index) const
     {
         SGL_CHECK(index < parameter_count(), "Parameter index out of range");
-        return detail::from_slang(m_owner, slang_target()->getParameterByIndex(index));
+        return wrap_reflection(slang_target()->getParameterByIndex(index));
     }
 
     /// List of all function parameters.
@@ -860,7 +865,7 @@ public:
 
     ref<const Attribute> get_user_attribute_by_index(uint32_t index) const
     {
-        return detail::from_slang(m_owner, slang_target()->getUserAttributeByIndex(index));
+        return wrap_reflection(slang_target()->getUserAttributeByIndex(index));
     }
 
     ref<const Attribute> find_user_attribute_by_name(const char* name) const;
@@ -882,7 +887,7 @@ public:
     ref<const FunctionReflection> specialize_with_arg_types(const std::vector<ref<TypeReflection>>& types) const
     {
         if (types.empty()) {
-            return detail::from_slang(m_owner, slang_target()->specializeWithArgTypes(0, nullptr));
+            return wrap_reflection(slang_target()->specializeWithArgTypes(0, nullptr));
         } else {
             std::vector<slang::TypeReflection*> slang_types;
             slang_types.reserve(types.size());
@@ -891,8 +896,7 @@ public:
                 slang_types.push_back(type->slang_target());
             }
 
-            return detail::from_slang(
-                m_owner,
+            return wrap_reflection(
                 slang_target()->specializeWithArgTypes((uint32_t)slang_types.size(), &slang_types[0])
             );
         }
@@ -908,7 +912,7 @@ public:
     /// Get a given overload of this function.
     ref<const FunctionReflection> get_overload_by_index(uint32_t index) const
     {
-        return detail::from_slang(m_owner, slang_target()->getOverload(index));
+        return wrap_reflection(slang_target()->getOverload(index));
     }
 
     /// List of all overloads of this function.
@@ -958,22 +962,18 @@ protected:
 class SGL_API VariableReflection : public BaseReflectionObjectImpl<slang::VariableReflection> {
     SGL_OBJECT(VariableReflection)
 public:
-    static ref<const VariableReflection>
-    from_slang(ref<const Object> owner, slang::VariableReflection* variable_reflection)
+    static ref<const VariableReflection> from_slang(const Object* owner, slang::VariableReflection* variable_reflection)
     {
-        return detail::from_slang(std::move(owner), variable_reflection);
+        return detail::from_slang(detail::reflection_owner(owner), variable_reflection);
     }
 
-    VariableReflection(ref<const Object> owner, slang::VariableReflection* target)
-        : BaseReflectionObjectImpl(std::move(owner), target)
-    {
-    }
+    using BaseReflectionObjectImpl::BaseReflectionObjectImpl;
 
     /// Variable name.
     const char* name() const { return slang_target()->getName(); }
 
     /// Variable type reflection.
-    ref<const TypeReflection> type() const { return detail::from_slang(m_owner, slang_target()->getType()); }
+    ref<const TypeReflection> type() const { return wrap_reflection(slang_target()->getType()); }
 
     /// Check if variable has a given modifier (e.g. 'inout').
     bool has_modifier(ModifierID modifier) const
@@ -984,22 +984,13 @@ public:
 
 class SGL_API VariableLayoutReflection : public BaseReflectionObjectImpl<slang::VariableLayoutReflection> {
 public:
-    VariableLayoutReflection(ref<const Object> owner, slang::VariableLayoutReflection* target)
-        : BaseReflectionObjectImpl(std::move(owner), target)
-    {
-    }
+    using BaseReflectionObjectImpl::BaseReflectionObjectImpl;
 
-    ref<const VariableReflection> variable() const
-    {
-        return detail::from_slang(m_owner, slang_target()->getVariable());
-    }
+    ref<const VariableReflection> variable() const { return wrap_reflection(slang_target()->getVariable()); }
 
     const char* name() const { return slang_target()->getName(); }
 
-    ref<const TypeLayoutReflection> type_layout() const
-    {
-        return detail::from_slang(m_owner, slang_target()->getTypeLayout());
-    }
+    ref<const TypeLayoutReflection> type_layout() const { return wrap_reflection(slang_target()->getTypeLayout()); }
 
     size_t offset() const
     {
@@ -1012,16 +1003,12 @@ public:
 class SGL_API EntryPointLayout : public BaseReflectionObjectImpl<slang::EntryPointLayout> {
     SGL_OBJECT(EntryPointLayout)
 public:
-    static ref<const EntryPointLayout>
-    from_slang(ref<const Object> owner, slang::EntryPointLayout* entry_point_reflection)
+    static ref<const EntryPointLayout> from_slang(const Object* owner, slang::EntryPointLayout* entry_point_reflection)
     {
-        return detail::from_slang(std::move(owner), entry_point_reflection);
+        return detail::from_slang(detail::reflection_owner(owner), entry_point_reflection);
     }
 
-    EntryPointLayout(ref<const Object> owner, slang::EntryPointLayout* target)
-        : BaseReflectionObjectImpl(std::move(owner), target)
-    {
-    }
+    using BaseReflectionObjectImpl::BaseReflectionObjectImpl;
 
     const char* name() const { return slang_target()->getName(); }
 
@@ -1034,7 +1021,7 @@ public:
     ref<const VariableLayoutReflection> get_parameter_by_index(uint32_t index) const
     {
         SGL_CHECK(index < parameter_count(), "Parameter index out of range");
-        return detail::from_slang(m_owner, slang_target()->getParameterByIndex(index));
+        return wrap_reflection(slang_target()->getParameterByIndex(index));
     }
 
     EntryPointLayoutParameterList parameters() const;
@@ -1076,24 +1063,21 @@ protected:
 class SGL_API ProgramLayout : public BaseReflectionObjectImpl<slang::ProgramLayout> {
     SGL_OBJECT(ProgramLayout)
 public:
-    static ref<const ProgramLayout> from_slang(ref<const Object> owner, slang::ProgramLayout* program_layout)
+    static ref<const ProgramLayout> from_slang(const Object* owner, slang::ProgramLayout* program_layout)
     {
-        return detail::from_slang(owner, program_layout);
+        return detail::from_slang(detail::reflection_owner(owner), program_layout);
     }
 
-    ProgramLayout(ref<const Object> owner, slang::ProgramLayout* target)
-        : BaseReflectionObjectImpl(std::move(owner), target)
-    {
-    }
+    using BaseReflectionObjectImpl::BaseReflectionObjectImpl;
 
     ref<const TypeLayoutReflection> globals_type_layout() const
     {
-        return detail::from_slang(m_owner, slang_target()->getGlobalParamsTypeLayout());
+        return wrap_reflection(slang_target()->getGlobalParamsTypeLayout());
     }
 
     ref<const VariableLayoutReflection> globals_variable_layout() const
     {
-        return detail::from_slang(m_owner, slang_target()->getGlobalParamsVarLayout());
+        return wrap_reflection(slang_target()->getGlobalParamsVarLayout());
     }
 
     uint32_t parameter_count() const { return slang_target()->getParameterCount(); }
@@ -1101,7 +1085,7 @@ public:
     ref<const VariableLayoutReflection> get_parameter_by_index(uint32_t index) const
     {
         SGL_CHECK(index < parameter_count(), "Parameter index out of range");
-        return detail::from_slang(m_owner, slang_target()->getParameterByIndex(index));
+        return wrap_reflection(slang_target()->getParameterByIndex(index));
     }
 
     ProgramLayoutParameterList parameters() const;
@@ -1113,12 +1097,12 @@ public:
     ref<const EntryPointLayout> get_entry_point_by_index(uint32_t index) const
     {
         SGL_CHECK(index < entry_point_count(), "Entry point index out of range");
-        return detail::from_slang(m_owner, slang_target()->getEntryPointByIndex(index));
+        return wrap_reflection(slang_target()->getEntryPointByIndex(index));
     }
 
     ref<const EntryPointLayout> get_entry_point_by_name(const char* name) const
     {
-        return detail::from_slang(m_owner, slang_target()->findEntryPointByName(name));
+        return wrap_reflection(slang_target()->findEntryPointByName(name));
     }
 
     ref<const EntryPointLayout> get_entry_point_by_name(std::string_view name) const
@@ -1130,7 +1114,7 @@ public:
     ref<const EntryPointLayout> find_entry_point_by_name(const char* name) const
     {
         if (auto entry_point = slang_target()->findEntryPointByName(name)) {
-            return detail::from_slang(m_owner, entry_point);
+            return wrap_reflection(entry_point);
         }
         return nullptr;
     }
@@ -1147,21 +1131,21 @@ public:
     /// variable values are provided.
     ref<const TypeReflection> find_type_by_name(const char* name) const
     {
-        return detail::from_slang(m_owner, slang_target()->findTypeByName(name));
+        return wrap_reflection(slang_target()->findTypeByName(name));
     }
 
     /// Find a given function by name. Handles generic specilization if generic
     /// variable values are provided.
     ref<const FunctionReflection> find_function_by_name(const char* name)
     {
-        return detail::from_slang(m_owner, slang_target()->findFunctionByName(name));
+        return wrap_reflection(slang_target()->findFunctionByName(name));
     }
 
     /// Find a given function in a type by name. Handles generic specilization if generic
     /// variable values are provided.
     ref<const FunctionReflection> find_function_by_name_in_type(const TypeReflection* type, const char* name)
     {
-        return detail::from_slang(m_owner, slang_target()->findFunctionByNameInType(type->slang_target(), name));
+        return wrap_reflection(slang_target()->findFunctionByNameInType(type->slang_target(), name));
     }
 
     /// Test whether a type is a sub type of another type. Handles both
@@ -1175,10 +1159,7 @@ public:
     ref<const TypeLayoutReflection> get_type_layout(const TypeReflection* type) const
     {
         // TODO: Once device is available via session reference, pass metal layout rules for metal target
-        return detail::from_slang(
-            m_owner,
-            slang_target()->getTypeLayout(type->slang_target(), slang::LayoutRules::Default)
-        );
+        return wrap_reflection(slang_target()->getTypeLayout(type->slang_target(), slang::LayoutRules::Default));
     }
 
     uint32_t hashed_string_count() const { return narrow_cast<uint32_t>(slang_target()->getHashedStringCount()); }

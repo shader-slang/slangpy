@@ -55,12 +55,10 @@ ShaderCursor::ShaderCursor(
     SGL_ASSERT(m_shader_object);
     SGL_ASSERT(m_offset.is_valid());
 
-    if (need_dereference) {
-        Device* device = m_shader_object->device();
-
-        if (device->type() == DeviceType::metal) {
-            slang::ISession* session = device->slang_session()->get_slang_session();
-            m_type_layout = session->getTypeLayout(
+    if (need_dereference && m_shader_object->device()->type() == DeviceType::metal) {
+        // Component-less RHI objects expose their native layout but have no session to query.
+        if (auto* component = m_shader_object->slang_component_type()) {
+            m_type_layout = component->getSession()->getTypeLayout(
                 parent_type_layout->getElementTypeLayout()->getType(),
                 0,
                 slang::LayoutRules::MetalArgumentBufferTier2

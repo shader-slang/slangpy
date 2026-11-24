@@ -3,6 +3,11 @@
 #include "window.h"
 #include "sgl/core/config.h"
 #include "sgl/core/error.h"
+#include "sgl/core/glfw.h"
+
+#include <limits>
+#include <memory>
+#include <unordered_set>
 
 #if SGL_HAS_GLFW
 
@@ -29,36 +34,11 @@ using id = void*;
 #define GLFW_NATIVE_INCLUDE_NONE
 #include <GLFW/glfw3native.h>
 
-#include <atomic>
-
 namespace sgl {
 
 namespace {
-    std::atomic<uint32_t> glfw_ref_count{0};
-
-    inline void init_glfw()
-    {
-        if (glfw_ref_count.fetch_add(1) == 0) {
-            if (glfwInit() != GLFW_TRUE)
-                SGL_THROW("Failed to initialize GLFW");
-
-            // Register mappings for NV controllers.
-            // clang-format off
-            static char nvPadMapping[] =
-                "03000000550900001472000000000000,NVIDIA Controller v01.04,a:b11,b:b10,back:b13,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b12,leftshoulder:b7,leftstick:b5,lefttrigger:a4,leftx:a0,lefty:a1,rightshoulder:b6,rightstick:b4,righttrigger:a5,rightx:a3,righty:a6,start:b3,x:b9,y:b8,platform:Windows,\n"
-                "03000000550900001072000000000000,NVIDIA Shield,a:b9,b:b8,back:b11,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,leftshoulder:b5,leftstick:b3,lefttrigger:a3,leftx:a0,lefty:a1,rightshoulder:b4,rightstick:b2,righttrigger:a4,rightx:a2,righty:a5,start:b0,x:b7,y:b6,platform:Windows,\n"
-                "030000005509000000b4000000000000,NVIDIA Virtual Gamepad,a:b0,b:b1,back:b6,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,leftshoulder:b4,leftstick:b8,lefttrigger:+a2,leftx:a0,lefty:a1,rightshoulder:b5,rightstick:b9,righttrigger:-a2,rightx:a3,righty:a4,start:b7,x:b2,y:b3,platform:Windows,";
-            // clang-format on
-            glfwUpdateGamepadMappings(nvPadMapping);
-        }
-    }
-
-    inline void terminate_glfw()
-    {
-        SGL_ASSERT(glfw_ref_count > 0);
-        if (glfw_ref_count.fetch_sub(1) == 1)
-            glfwTerminate();
-    }
+    // Non-owning registry. All window operations run on the main thread.
+    std::unordered_set<Window*> s_windows;
 
     inline KeyCode get_key_code(int glfw_key)
     {
@@ -221,6 +201,19 @@ namespace {
 } // namespace
 
 struct EventHandlers {
+    static void handle_window_pos(GLFWwindow* glfw_window, int, int)
+    {
+        auto window = static_cast<Window*>(glfwGetWindowUserPointer(glfw_window));
+        window->update_normal_placement();
+    }
+
+    static void handle_window_maximize(GLFWwindow* glfw_window, int maximized)
+    {
+        auto window = static_cast<Window*>(glfwGetWindowUserPointer(glfw_window));
+        if (!window->is_minimized())
+            window->m_placement.maximized = maximized == GLFW_TRUE;
+    }
+
     static void handle_error(int error_code, const char* description)
     {
         log_error("GLFW error {}: {}", error_code, description);
@@ -360,15 +353,30 @@ struct EventHandlers {
 
 
 Window::Window(WindowDesc desc)
-    : m_width(desc.width)
-    , m_height(desc.height)
-    , m_title(desc.title)
+    : m_title(desc.title)
 {
-    init_glfw();
+    if (desc.placement) {
+        SGL_CHECK(desc.mode != WindowMode::fullscreen, "Cannot combine window placement with fullscreen mode");
+        desc.width = desc.placement->normal_size.x;
+        desc.height = desc.placement->normal_size.y;
+        desc.position = desc.placement->normal_position;
+        desc.mode = desc.placement->maximized ? WindowMode::maximized : WindowMode::normal;
+    }
+    SGL_CHECK(
+        desc.width > 0 && desc.height > 0 && desc.width <= uint32_t(std::numeric_limits<int>::max())
+            && desc.height <= uint32_t(std::numeric_limits<int>::max()),
+        "Window dimensions must be positive and fit in a signed integer"
+    );
+    m_width = desc.width;
+    m_height = desc.height;
+    detail::ensure_glfw_initialized();
+    m_fullscreen = desc.mode == WindowMode::fullscreen;
+    m_placement.normal_size = {desc.width, desc.height};
 
     // GLFW window hints persist across window creations.
     glfwDefaultWindowHints();
-    glfwWindowHint(GLFW_MAXIMIZED, desc.mode == WindowMode::maximized ? GLFW_TRUE : GLFW_FALSE);
+    // Establish the normal geometry before maximizing or showing the window.
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
     if (desc.mode == WindowMode::fullscreen) {
         glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
@@ -377,10 +385,8 @@ Window::Window(WindowDesc desc)
         m_width = mod->width;
         m_height = mod->height;
     } else if (desc.mode == WindowMode::minimized) {
-        // Start with window being invisible
-        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        // Avoid focusing a window that will immediately be minimized.
         glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
-        glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
     }
 
     if (desc.resizable == false) {
@@ -392,10 +398,17 @@ Window::Window(WindowDesc desc)
     m_window = glfwCreateWindow(m_width, m_height, m_title.c_str(), NULL, NULL);
     if (!m_window)
         SGL_THROW("Failed to create GLFW window");
+    std::unique_ptr<GLFWwindow, decltype(&glfwDestroyWindow)> guard(m_window, &glfwDestroyWindow);
+
+    if (desc.position)
+        glfwSetWindowPos(m_window, desc.position->x, desc.position->y);
+    m_placement.normal_position = position();
 
     glfwSetWindowUserPointer(m_window, this);
     glfwSetErrorCallback(&EventHandlers::handle_error);
     glfwSetWindowSizeCallback(m_window, &EventHandlers::handle_window_size);
+    glfwSetWindowPosCallback(m_window, &EventHandlers::handle_window_pos);
+    glfwSetWindowMaximizeCallback(m_window, &EventHandlers::handle_window_maximize);
     glfwSetWindowRefreshCallback(m_window, &EventHandlers::handle_window_refresh);
     glfwSetKeyCallback(m_window, &EventHandlers::handle_key);
     glfwSetCharCallback(m_window, &EventHandlers::handle_char);
@@ -404,36 +417,68 @@ Window::Window(WindowDesc desc)
     glfwSetScrollCallback(m_window, &EventHandlers::handle_scroll);
     glfwSetDropCallback(m_window, &EventHandlers::handle_drop);
 
+    update_normal_placement();
+    if (desc.visible) {
+        show();
+        if (desc.mode == WindowMode::maximized)
+            maximize();
+        else if (desc.mode == WindowMode::minimized)
+            minimize();
+    }
+
     // The window system may adjust the requested size during creation
     int width, height;
     glfwGetWindowSize(m_window, &width, &height);
     m_width = static_cast<uint32_t>(width);
     m_height = static_cast<uint32_t>(height);
+    s_windows.insert(this);
+    guard.release();
 }
 
 Window::~Window()
 {
-    for (GLFWcursor* cursor : m_cursor_cache)
-        if (cursor)
-            glfwDestroyCursor(cursor);
+    s_windows.erase(this);
+    destroy_window();
+}
 
-    glfwDestroyWindow(m_window);
-
-    terminate_glfw();
+void Window::set_title(std::string title)
+{
+    m_title = std::move(title);
+    glfwSetWindowTitle(glfw_window(), m_title.c_str());
 }
 
 WindowHandle Window::window_handle() const
 {
+    GLFWwindow* window = glfw_window();
     WindowHandle handle{};
 #if SGL_WINDOWS
-    handle.hwnd = glfwGetWin32Window(m_window);
+    handle.hwnd = glfwGetWin32Window(window);
 #elif SGL_LINUX
     handle.xdisplay = glfwGetX11Display();
-    handle.xwindow = glfwGetX11Window(m_window);
+    handle.xwindow = glfwGetX11Window(window);
 #elif SGL_MACOS
-    handle.nswindow = glfwGetCocoaWindow(m_window);
+    handle.nswindow = glfwGetCocoaWindow(window);
 #endif
     return handle;
+}
+
+void Window::set_icon(const std::filesystem::path& path)
+{
+    SGL_UNUSED(path);
+    SGL_UNIMPLEMENTED();
+}
+
+int2 Window::position() const
+{
+    int xpos, ypos;
+    glfwGetWindowPos(glfw_window(), &xpos, &ypos);
+    return int2{xpos, ypos};
+}
+
+void Window::set_position(int2 position)
+{
+    glfwSetWindowPos(glfw_window(), position.x, position.y);
+    update_normal_placement();
 }
 
 void Window::set_width(uint32_t width)
@@ -453,37 +498,95 @@ void Window::set_size(uint2 size)
 
 void Window::resize(uint32_t width, uint32_t height)
 {
-    glfwSetWindowSize(m_window, width, height);
+    SGL_CHECK(
+        width > 0 && height > 0 && width <= uint32_t(std::numeric_limits<int>::max())
+            && height <= uint32_t(std::numeric_limits<int>::max()),
+        "Window dimensions must be positive and fit in a signed integer"
+    );
+    glfwSetWindowSize(glfw_window(), width, height);
 
     // The window system may limit the requested size, so query the actual size after resizing
     int w, h;
-    glfwGetWindowSize(m_window, &w, &h);
+    glfwGetWindowSize(glfw_window(), &w, &h);
     m_width = static_cast<uint32_t>(w);
     m_height = static_cast<uint32_t>(h);
+    update_normal_placement();
 }
 
-int2 Window::position() const
+int4 Window::frame_size() const
 {
-    int xpos, ypos;
-    glfwGetWindowPos(m_window, &xpos, &ypos);
-    return int2{xpos, ypos};
+    int4 frame;
+    glfwGetWindowFrameSize(glfw_window(), &frame.x, &frame.y, &frame.z, &frame.w);
+    return frame;
 }
 
-void Window::set_position(int2 position)
+float2 Window::content_scale() const
 {
-    glfwSetWindowPos(m_window, position.x, position.y);
+    float2 scale;
+    glfwGetWindowContentScale(glfw_window(), &scale.x, &scale.y);
+    return scale;
 }
 
-void Window::set_title(std::string title)
+WindowPlacement Window::placement() const
 {
-    m_title = std::move(title);
-    glfwSetWindowTitle(m_window, m_title.c_str());
+    WindowPlacement result = m_placement;
+    if (m_fullscreen)
+        return result;
+    if (!is_minimized())
+        result.maximized = is_maximized();
+    if (!is_minimized() && !is_maximized()) {
+        result.normal_position = position();
+        int width, height;
+        glfwGetWindowSize(glfw_window(), &width, &height);
+        result.normal_size = {uint32_t(width), uint32_t(height)};
+    }
+    return result;
 }
 
-void Window::set_icon(const std::filesystem::path& path)
+bool Window::is_minimized() const
 {
-    SGL_UNUSED(path);
-    SGL_UNIMPLEMENTED();
+    return glfwGetWindowAttrib(glfw_window(), GLFW_ICONIFIED) == GLFW_TRUE;
+}
+
+bool Window::is_maximized() const
+{
+    return glfwGetWindowAttrib(glfw_window(), GLFW_MAXIMIZED) == GLFW_TRUE;
+}
+
+bool Window::is_visible() const
+{
+    return glfwGetWindowAttrib(glfw_window(), GLFW_VISIBLE) == GLFW_TRUE;
+}
+
+void Window::minimize()
+{
+    update_normal_placement();
+    if (!is_minimized())
+        m_placement.maximized = is_maximized();
+    glfwIconifyWindow(glfw_window());
+}
+
+void Window::maximize()
+{
+    SGL_CHECK(!m_fullscreen, "Cannot maximize a fullscreen window");
+    update_normal_placement();
+    glfwMaximizeWindow(glfw_window());
+}
+
+void Window::restore()
+{
+    SGL_CHECK(!m_fullscreen, "Cannot restore a fullscreen window");
+    glfwRestoreWindow(glfw_window());
+}
+
+void Window::show()
+{
+    glfwShowWindow(glfw_window());
+}
+
+void Window::hide()
+{
+    glfwHideWindow(glfw_window());
 }
 
 void Window::close()
@@ -493,24 +596,15 @@ void Window::close()
 
 bool Window::should_close() const
 {
-    return m_should_close || glfwWindowShouldClose(m_window);
+    return m_should_close || glfwWindowShouldClose(glfw_window());
 }
 
 void Window::process_events()
 {
+    glfw_window();
     glfwPollEvents();
+    update_normal_placement();
     poll_gamepad_input();
-}
-
-void Window::set_clipboard(const std::string& text)
-{
-    glfwSetClipboardString(m_window, text.c_str());
-}
-
-std::optional<std::string> Window::get_clipboard() const
-{
-    const char* text = glfwGetClipboardString(m_window);
-    return text ? std::optional<std::string>(text) : std::nullopt;
 }
 
 void Window::set_cursor_mode(CursorMode mode)
@@ -518,13 +612,13 @@ void Window::set_cursor_mode(CursorMode mode)
     if (mode != m_cursor_mode) {
         switch (mode) {
         case CursorMode::normal:
-            glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            glfwSetInputMode(glfw_window(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             break;
         case CursorMode::hidden:
-            glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+            glfwSetInputMode(glfw_window(), GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
             break;
         case CursorMode::disabled:
-            glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            glfwSetInputMode(glfw_window(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             break;
         default:
             SGL_THROW("Invalid cursor mode: {}.", static_cast<uint32_t>(mode));
@@ -535,6 +629,7 @@ void Window::set_cursor_mode(CursorMode mode)
 
 void Window::set_cursor_shape(CursorShape shape)
 {
+    glfw_window();
     if (shape != m_cursor_shape) {
         uint32_t index = static_cast<uint32_t>(shape);
         SGL_CHECK(index < m_cursor_cache.size(), "Invalid cursor shape: {}.", index);
@@ -564,9 +659,20 @@ void Window::set_cursor_shape(CursorShape shape)
             }
             m_cursor_cache[index] = glfwCreateStandardCursor(glfw_shape);
         }
-        glfwSetCursor(m_window, m_cursor_cache[index]);
+        glfwSetCursor(glfw_window(), m_cursor_cache[index]);
         m_cursor_shape = shape;
     }
+}
+
+std::optional<std::string> Window::get_clipboard() const
+{
+    const char* text = glfwGetClipboardString(glfw_window());
+    return text ? std::optional<std::string>(text) : std::nullopt;
+}
+
+void Window::set_clipboard(const std::string& text)
+{
+    glfwSetClipboardString(glfw_window(), text.c_str());
 }
 
 std::string Window::to_string() const
@@ -581,6 +687,46 @@ std::string Window::to_string() const
         m_height,
         m_title
     );
+}
+
+GLFWwindow* Window::glfw_window() const
+{
+    SGL_CHECK(m_window, "Window has been destroyed during shutdown");
+    return m_window;
+}
+
+void Window::destroy_window()
+{
+    for (GLFWcursor*& cursor : m_cursor_cache) {
+        if (cursor) {
+            glfwDestroyCursor(cursor);
+            cursor = nullptr;
+        }
+    }
+
+    if (m_window) {
+        glfwDestroyWindow(m_window);
+        m_window = nullptr;
+    }
+    m_should_close = true;
+}
+
+void Window::_destroy_all_windows()
+{
+    for (Window* window : s_windows)
+        window->destroy_window();
+}
+
+void Window::update_normal_placement()
+{
+    if (m_fullscreen || is_minimized() || is_maximized())
+        return;
+    int width, height;
+    glfwGetWindowSize(glfw_window(), &width, &height);
+    if (width > 0 && height > 0) {
+        m_placement.normal_position = position();
+        m_placement.normal_size = {uint32_t(width), uint32_t(height)};
+    }
 }
 
 void Window::poll_gamepad_input()
@@ -675,6 +821,7 @@ void Window::handle_window_size(uint32_t width, uint32_t height)
 {
     m_width = width;
     m_height = height;
+    update_normal_placement();
     if (m_on_resize)
         m_on_resize(m_width, m_height);
 }
@@ -734,7 +881,29 @@ Window::Window(WindowDesc)
 
 Window::~Window() = default;
 
+void Window::_destroy_all_windows() { }
+
+void Window::set_title(std::string)
+{
+    window_support_disabled();
+}
+
 WindowHandle Window::window_handle() const
+{
+    window_support_disabled();
+}
+
+void Window::set_icon(const std::filesystem::path&)
+{
+    window_support_disabled();
+}
+
+int2 Window::position() const
+{
+    window_support_disabled();
+}
+
+void Window::set_position(int2)
 {
     window_support_disabled();
 }
@@ -759,22 +928,57 @@ void Window::resize(uint32_t, uint32_t)
     window_support_disabled();
 }
 
-int2 Window::position() const
+int4 Window::frame_size() const
 {
     window_support_disabled();
 }
 
-void Window::set_position(int2)
+float2 Window::content_scale() const
 {
     window_support_disabled();
 }
 
-void Window::set_title(std::string)
+WindowPlacement Window::placement() const
 {
     window_support_disabled();
 }
 
-void Window::set_icon(const std::filesystem::path&)
+bool Window::is_minimized() const
+{
+    window_support_disabled();
+}
+
+bool Window::is_maximized() const
+{
+    window_support_disabled();
+}
+
+bool Window::is_visible() const
+{
+    window_support_disabled();
+}
+
+void Window::minimize()
+{
+    window_support_disabled();
+}
+
+void Window::maximize()
+{
+    window_support_disabled();
+}
+
+void Window::restore()
+{
+    window_support_disabled();
+}
+
+void Window::show()
+{
+    window_support_disabled();
+}
+
+void Window::hide()
 {
     window_support_disabled();
 }
@@ -794,7 +998,12 @@ void Window::process_events()
     window_support_disabled();
 }
 
-void Window::set_clipboard(const std::string&)
+void Window::set_cursor_mode(CursorMode)
+{
+    window_support_disabled();
+}
+
+void Window::set_cursor_shape(CursorShape)
 {
     window_support_disabled();
 }
@@ -804,12 +1013,7 @@ std::optional<std::string> Window::get_clipboard() const
     window_support_disabled();
 }
 
-void Window::set_cursor_mode(CursorMode)
-{
-    window_support_disabled();
-}
-
-void Window::set_cursor_shape(CursorShape)
+void Window::set_clipboard(const std::string&)
 {
     window_support_disabled();
 }

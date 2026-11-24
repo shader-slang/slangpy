@@ -401,8 +401,6 @@ def test_add_values_fail(
 @pytest.mark.parametrize("device_type", DEVICE_TYPES)
 @pytest.mark.parametrize("extra_dims", [0, 1, 3])
 def test_add_vectors_generic_explicit(device_type: DeviceType, extra_dims: int):
-    pytest.skip("Crashes due to Slang compiler bug (#940)")
-
     module = load_test_module(device_type)
 
     extra_shape = (5,) * extra_dims
@@ -534,7 +532,6 @@ def test_polynomial_outparam(device_type: DeviceType):
     compare_tensors(2 * a * x + b, x.grad)  # type: ignore
 
 
-# Enable the vectors+arrays tests to reproduce compiler bugs
 POLYNOMIAL_TESTS = [
     ("polynomial", ()),
     ("polynomial_vectors", (3,)),
@@ -562,9 +559,6 @@ def test_polynomials(
     func_name = func_and_shape[0]
     val_shape = func_and_shape[1]
     extra_shape = (5,) * extra_dims
-
-    if func_name == "polynomial_vectors":
-        pytest.skip("Slang compiler bug: vector polynomial derivatives return 0 (#940)")
 
     if len(extra_shape + val_shape) == 0:
         pytest.skip("No shape to test")

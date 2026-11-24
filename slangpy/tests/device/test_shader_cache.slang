@@ -8,3 +8,12 @@ void compute_main()
 {
     print("Hello shader cache!");
 }
+
+extern static const int VALUE;
+
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void compute_additional()
+{
+    print("{}", VALUE);
+}
