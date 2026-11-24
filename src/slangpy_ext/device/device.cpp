@@ -972,7 +972,7 @@ NB_NOINLINE void bind_device_commands(nb::class_<sgl::Device, sgl::Object>& devi
     );
     device
         .def("end_retain_command_buffers", &Device::end_retain_command_buffers, D(Device, end_retain_command_buffers));
-    device.def_prop_ro(
+    device.def(
         "is_retaining_command_buffers",
         &Device::is_retaining_command_buffers,
         D(Device, is_retaining_command_buffers)
