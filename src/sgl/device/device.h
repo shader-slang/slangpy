@@ -691,6 +691,30 @@ public:
     );
 
     /**
+     * \brief Start keeping every command buffer submitted to this device alive.
+     *
+     * Until the matching call to \c end_retain_command_buffers, the device holds a reference to each
+     * command buffer passed to \c submit_command_buffers. Calls may be nested; a command buffer
+     * submitted in an inner scope is also retained by the enclosing scopes.
+     *
+     * This exists for work that is recorded for later execution, with no completion the device can
+     * track. The case in mind is a submission to a CUDA stream that is being captured into a CUDA
+     * graph: the graph's nodes point into the command buffers' memory, so they must outlive the graph.
+     */
+    void begin_retain_command_buffers();
+
+    /**
+     * \brief Stop the innermost retain scope started with \c begin_retain_command_buffers.
+     *
+     * \return The command buffers submitted since the matching begin call, in submission order. The
+     * caller now owns the references the device was holding for this scope.
+     */
+    std::vector<ref<CommandBuffer>> end_retain_command_buffers();
+
+    /// True if a retain scope started with \c begin_retain_command_buffers is open.
+    bool is_retaining_command_buffers() const { return !m_retained_command_buffers.empty(); }
+
+    /**
      * \brief Check if a submission is finished executing.
      *
      * \param id Submission ID.
@@ -937,6 +961,9 @@ private:
     Slang::ComPtr<rhi::ICommandQueue> m_rhi_graphics_queue;
 
     ref<Fence> m_global_fence;
+
+    /// One list per open retain scope (see begin_retain_command_buffers), innermost last.
+    std::vector<std::vector<ref<CommandBuffer>>> m_retained_command_buffers;
 
     // Imported buffers and the semaphore must be released before the CUDA context.
     bool m_supports_cuda_interop{false};

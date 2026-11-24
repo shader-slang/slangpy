@@ -3307,6 +3307,20 @@ static const char *mkd_doc_sgl_Device_allocate_callback_id = R"doc()doc";
 
 static const char *mkd_doc_sgl_Device_allocate_command_recording_id = R"doc()doc";
 
+static const char *mkd_doc_sgl_Device_begin_retain_command_buffers =
+R"doc(Start keeping every command buffer submitted to this device alive.
+
+Until the matching call to ``end_retain_command_buffers``, the device
+holds a reference to each command buffer passed to
+``submit_command_buffers``. Calls may be nested; a command buffer
+submitted in an inner scope is also retained by the enclosing scopes.
+
+This exists for work that is recorded for later execution, with no
+completion the device can track. The case in mind is a submission to a
+CUDA stream that is being captured into a CUDA graph: the graph's
+nodes point into the command buffers' memory, so they must outlive the
+graph.)doc";
+
 static const char *mkd_doc_sgl_Device_blitter = R"doc()doc";
 
 static const char *mkd_doc_sgl_Device_builtin_layout = R"doc(Return the cached reflection layout for the built-in support module.)doc";
@@ -3571,6 +3585,17 @@ Returns:
 
 )doc";
 
+static const char *mkd_doc_sgl_Device_end_retain_command_buffers =
+R"doc(Stop the innermost retain scope started with
+``begin_retain_command_buffers``.
+
+Returns:
+    The command buffers submitted since the matching begin call, in
+    submission order. The caller now owns the references the device
+    was holding for this scope.
+
+)doc";
+
 static const char *mkd_doc_sgl_Device_enumerate_adapters = R"doc(Enumerates all available adapters of a given device type.)doc";
 
 static const char *mkd_doc_sgl_Device_features = R"doc(List of features supported by the device.)doc";
@@ -3634,6 +3659,10 @@ static const char *mkd_doc_sgl_Device_info = R"doc(Device information.)doc";
 static const char *mkd_doc_sgl_Device_init = R"doc()doc";
 
 static const char *mkd_doc_sgl_Device_is_closed = R"doc(Check if the device is closed.)doc";
+
+static const char *mkd_doc_sgl_Device_is_retaining_command_buffers =
+R"doc(True if a retain scope started with ``begin_retain_command_buffers``
+is open.)doc";
 
 static const char *mkd_doc_sgl_Device_is_submit_finished =
 R"doc(Check if a submission is finished executing.
