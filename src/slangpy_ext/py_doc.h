@@ -3476,7 +3476,12 @@ Returns:
 
 )doc";
 
-static const char *mkd_doc_sgl_Device_create_shader_object = R"doc(Create a shader object from a type layout.)doc";
+static const char *mkd_doc_sgl_Device_create_shader_object =
+R"doc(Create a shader object from a type layout. For a reflected parameter
+block, pass the field's type layout, including the container, so the
+backend can select the block's storage layout.
+
+)doc";
 
 static const char *mkd_doc_sgl_Device_create_shader_object_2 = R"doc(Create a shader object from a reflection cursor.)doc";
 
@@ -10917,7 +10922,12 @@ Returns:
 
 )doc";
 
-static const char *mkd_doc_sgl_create_shader_object = R"doc(Create a shader object from a type layout.)doc";
+static const char *mkd_doc_sgl_create_shader_object =
+R"doc(Create a shader object from a type layout. For a reflected parameter
+block, pass the field's type layout, including the container, so the
+backend can select the block's storage layout.
+
+)doc";
 
 static const char *mkd_doc_sgl_create_shader_object_2 = R"doc(Create a shader object from a reflection cursor.)doc";
 

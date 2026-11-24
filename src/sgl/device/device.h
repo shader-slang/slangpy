@@ -620,6 +620,8 @@ public:
     ref<ShaderObject> create_root_shader_object(const ShaderProgram* shader_program);
 
     /// Create a shader object from a type layout.
+    /// For a reflected parameter block, pass the field's type layout, including the container,
+    /// so the backend can select the block's storage layout.
     ref<ShaderObject> create_shader_object(const TypeLayoutReflection* type_layout);
 
     /// Create a shader object from a reflection cursor.
@@ -1254,6 +1256,8 @@ SGL_API ref<ShaderProgram> load_program(
 SGL_API ref<ShaderObject> create_root_shader_object(const ShaderProgram* shader_program);
 
 /// Create a shader object from a type layout.
+/// For a reflected parameter block, pass the field's type layout, including the container,
+/// so the backend can select the block's storage layout.
 SGL_API ref<ShaderObject> create_shader_object(const TypeLayoutReflection* type_layout);
 
 /// Create a shader object from a reflection cursor.

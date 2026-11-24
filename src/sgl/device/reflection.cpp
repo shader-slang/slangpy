@@ -5,7 +5,6 @@
 #include "sgl/device/device.h"
 #include "sgl/device/helpers.h"
 #include "sgl/device/shader.h"
-#include "sgl/device/shader_object.h"
 
 #include "sgl/core/string.h"
 
@@ -17,51 +16,50 @@ namespace sgl {
 
 namespace detail {
 
-    static std::map<void*, const BaseReflectionObject*> g_slang_reflection_to_sgl_reflection;
+    using ReflectionKey = std::pair<const void*, const void*>;
+    static std::map<ReflectionKey, const BaseReflectionObject*> g_slang_reflection_to_sgl_reflection;
 
-    /// Extract device from an owner object.
-    /// The possible owner types are known so we can query the device.
-    static Device* get_device_from_owner(const Object* owner)
+    const ReflectionOwner* reflection_owner(const Object* owner)
     {
         if (!owner)
             return nullptr;
-
+        if (auto* backing = dynamic_cast<const ReflectionOwner*>(owner))
+            return backing;
         if (auto* module = dynamic_cast<const SlangModule*>(owner))
-            return module->session()->device();
-
+            return module->_data();
         if (auto* entry_point = dynamic_cast<const SlangEntryPoint*>(owner))
-            return entry_point->module()->session()->device();
-
+            return entry_point->_data();
         if (auto* program = dynamic_cast<const ShaderProgram*>(owner))
-            return program->device();
-
-        if (auto* shader_object = dynamic_cast<const ShaderObject*>(owner))
-            return shader_object->device();
-
-        // Unknown owner type indicates a bug!
+            return program->_data();
         SGL_THROW("Unknown reflection owner type");
     }
 
-    template<typename SGLType, typename SlangType>
-    ref<const SGLType> create_reflection_type_from_slang_type(ref<const Object> owner, SlangType* slang_reflection)
+    static ReflectionKey reflection_key(const ReflectionOwner* owner, const void* target)
     {
-        if (slang_reflection) {
-            auto it = g_slang_reflection_to_sgl_reflection.find(slang_reflection);
-            if (it != g_slang_reflection_to_sgl_reflection.end()) {
-                return ref((const SGLType*)it->second);
-            } else {
-                auto res = make_ref<const SGLType>(std::move(owner), slang_reflection);
-                g_slang_reflection_to_sgl_reflection[slang_reflection] = res.get();
-                return res;
-            }
-        } else
+        auto* component = owner ? owner->slang_component_type() : nullptr;
+        // Slang can share a reflected pointer across components. Legacy RHI objects may have no component.
+        return {component ? static_cast<const void*>(component) : static_cast<const void*>(owner), target};
+    }
+
+    template<typename SGLType, typename SlangType>
+    ref<const SGLType> get_or_create_reflection(const ReflectionOwner* owner, SlangType* target)
+    {
+        if (!target)
             return nullptr;
+        SGL_CHECK_NOT_NULL(owner);
+        auto key = reflection_key(owner, target);
+        auto it = g_slang_reflection_to_sgl_reflection.find(key);
+        if (it != g_slang_reflection_to_sgl_reflection.end())
+            return ref(static_cast<const SGLType*>(it->second));
+        auto wrapper = make_ref<const SGLType>(owner, target);
+        g_slang_reflection_to_sgl_reflection.emplace(key, wrapper.get());
+        return wrapper;
     }
 
 #define SGL_FROM_SLANG(type_name)                                                                                      \
-    ref<const type_name> from_slang(ref<const Object> owner, slang::type_name* slang_reflection)                       \
+    ref<const type_name> from_slang(const ReflectionOwner* owner, slang::type_name* target)                            \
     {                                                                                                                  \
-        return create_reflection_type_from_slang_type<type_name, slang::type_name>(owner, slang_reflection);           \
+        return get_or_create_reflection<type_name>(owner, target);                                                     \
     }
 
     SGL_FROM_SLANG(DeclReflection);
@@ -76,9 +74,11 @@ namespace detail {
 
 #undef SGL_FROM_SLANG
 
-    void on_slang_wrapper_destroyed(void* slang_reflection)
+    void on_slang_wrapper_destroyed(const BaseReflectionObject* wrapper, void* slang_reflection)
     {
-        g_slang_reflection_to_sgl_reflection.erase(slang_reflection);
+        auto it = g_slang_reflection_to_sgl_reflection.find(reflection_key(wrapper->owner(), slang_reflection));
+        if (it != g_slang_reflection_to_sgl_reflection.end() && it->second == wrapper)
+            g_slang_reflection_to_sgl_reflection.erase(it);
     }
 
     void invalidate_reflection_data(Device* device)
@@ -86,13 +86,12 @@ namespace detail {
         for (auto it = g_slang_reflection_to_sgl_reflection.begin();
              it != g_slang_reflection_to_sgl_reflection.end();) {
             const BaseReflectionObject* reflection = it->second;
-            Device* owning_device = get_device_from_owner(reflection->owner());
-            bool invalidate = (device == nullptr) || (owning_device != nullptr && owning_device == device);
+            bool invalidate = !device || reflection->owner()->device() == device;
             if (invalidate) {
                 // Invalidation is also used during shutdown: do not allocate a list
                 // of owners that could fail to break cycles under memory pressure.
                 ref<const BaseReflectionObject> keep_alive(reflection);
-                void* key = it->first;
+                auto key = it->first;
                 g_slang_reflection_to_sgl_reflection.erase(it);
                 const_cast<BaseReflectionObject*>(reflection)->_hot_reload_invalidate();
                 // Releasing an owner may also erase other reflection objects. Do not
@@ -143,7 +142,7 @@ std::string DeclReflection::to_string() const
 
 ref<const TypeReflection> DeclReflection::as_type() const
 {
-    return detail::from_slang(m_owner, slang_target()->getType());
+    return wrap_reflection(slang_target()->getType());
 }
 
 std::string DeclReflection::name() const
@@ -195,7 +194,7 @@ ref<const DeclReflection> DeclReflection::find_first_child_of_kind(Kind kind, st
     int32_t count = child_count();
     res.reserve(count);
     for (int32_t i = 0; i < count; i++) {
-        ref<const DeclReflection> child = detail::from_slang(m_owner, slang_target()->getChild(i));
+        ref<const DeclReflection> child = wrap_reflection(slang_target()->getChild(i));
         if (child->kind() == kind && child->name() == child_name) {
             return child;
         }
@@ -350,9 +349,15 @@ FunctionReflectionParameterList FunctionReflection::parameters() const
 
 ref<const Attribute> FunctionReflection::find_user_attribute_by_name(const char* name) const
 {
-    Device* device = detail::get_device_from_owner(m_owner.get());
-    SGL_CHECK(device, "Cannot resolve Slang global session for reflection owner.");
-    return detail::from_slang(m_owner, slang_target()->findUserAttributeByName(device->global_session(), name));
+    auto* target = slang_target();
+    auto* component = slang_component_type();
+    auto* global_session = component ? component->getSession()->getGlobalSession() : nullptr;
+    if (!global_session) {
+        auto* device = owner() ? owner()->device() : nullptr;
+        SGL_CHECK(device, "Cannot resolve Slang global session for reflection owner.");
+        global_session = device->global_session();
+    }
+    return wrap_reflection(target->findUserAttributeByName(global_session, name));
 }
 
 FunctionReflectionOverloadList FunctionReflection::overloads() const
