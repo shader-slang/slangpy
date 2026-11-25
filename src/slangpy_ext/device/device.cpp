@@ -965,6 +965,18 @@ NB_NOINLINE void bind_device_commands(nb::class_<sgl::Device, sgl::Object>& devi
         "cuda_stream"_a = NativeHandle(),
         D(Device, submit_command_buffer)
     );
+    device.def(
+        "begin_retain_command_buffers",
+        &Device::begin_retain_command_buffers,
+        D(Device, begin_retain_command_buffers)
+    );
+    device
+        .def("end_retain_command_buffers", &Device::end_retain_command_buffers, D(Device, end_retain_command_buffers));
+    device.def(
+        "is_retaining_command_buffers",
+        &Device::is_retaining_command_buffers,
+        D(Device, is_retaining_command_buffers)
+    );
     device.def("is_submit_finished", &Device::is_submit_finished, "id"_a, D(Device, is_submit_finished));
     device.def("wait_for_submit", &Device::wait_for_submit, "id"_a, D(Device, wait_for_submit));
     device

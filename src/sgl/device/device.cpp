@@ -1095,6 +1095,13 @@ uint64_t Device::submit_command_buffers(
     for (CommandBuffer* command_buffer : command_buffers)
         command_buffer->_notify_submitted(submit_id);
 
+    // Keep the command buffers alive if a retain scope is open.
+    if (!m_retained_command_buffers.empty()) {
+        auto& retained = m_retained_command_buffers.back();
+        for (CommandBuffer* command_buffer : command_buffers)
+            retained.push_back(ref<CommandBuffer>(command_buffer));
+    }
+
     // Handle CUDA interop.
     if (m_supports_cuda_interop && needs_cuda_sync) {
         sync_to_device(cuda_stream_ptr);
@@ -1114,6 +1121,27 @@ uint64_t Device::submit_command_buffer(CommandBuffer* command_buffer, CommandQue
 {
     CommandBuffer* command_buffers[] = {command_buffer};
     return submit_command_buffers(command_buffers, {}, {}, {}, {}, queue, cuda_stream);
+}
+
+void Device::begin_retain_command_buffers()
+{
+    m_retained_command_buffers.emplace_back();
+}
+
+std::vector<ref<CommandBuffer>> Device::end_retain_command_buffers()
+{
+    SGL_CHECK(
+        !m_retained_command_buffers.empty(),
+        "end_retain_command_buffers called without a matching begin_retain_command_buffers."
+    );
+    std::vector<ref<CommandBuffer>> retained = std::move(m_retained_command_buffers.back());
+    m_retained_command_buffers.pop_back();
+    // An enclosing scope retains what its inner scopes retained.
+    if (!m_retained_command_buffers.empty()) {
+        auto& outer = m_retained_command_buffers.back();
+        outer.insert(outer.end(), retained.begin(), retained.end());
+    }
+    return retained;
 }
 
 bool Device::is_submit_finished(uint64_t id)

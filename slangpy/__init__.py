@@ -67,6 +67,7 @@ from .core.packedarg import pack
 
 # Py torch integration
 from .torchintegration import *
+from .torchintegration.graphcapture import capture_torch_graph
 
 # Get shader include path for slangpy
 SHADER_PATH = str(pathlib.Path(__file__).parent.absolute() / "slang")
