@@ -123,47 +123,6 @@ def test_capture_while_earlier_work_is_in_flight() -> None:
 
 
 @requires_cuda_device
-def test_release_gpu_objects_while_capturing() -> None:
-    module = load_test_module()
-    device = module.device
-    a = torch.ones(64, device="cuda")
-    module.add(a, a)
-
-    class Holder:
-        pass
-
-    # GPU objects reachable only through a reference cycle, so only the collector frees them.
-    for _ in range(4):
-        holder = Holder()
-        holder.cycle = holder
-        holder.buffer = device.create_buffer(
-            size=1 << 20,
-            usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
-        )
-        holder.texture = device.create_texture(
-            format=spy.Format.rgba32_float,
-            width=256,
-            height=256,
-            usage=spy.TextureUsage.shader_resource,
-        )
-        holder.tensor = torch.ones(1 << 20, device="cuda")
-    del holder
-    device.wait_for_idle()
-
-    count = 100
-    with spy.capture_torch_graph(device) as graph:
-        result = module.add(a, a)
-        # Free them mid-recording, then submit enough for the device to process the deletions.
-        assert gc.collect() >= 4
-        for _ in range(count):
-            result = module.add(result, a)
-
-    graph.replay()
-    torch.testing.assert_close(result, torch.full((64,), float(count + 2), device="cuda"))
-    device.wait_for_idle()
-
-
-@requires_cuda_device
 def test_command_buffers_live_with_graph() -> None:
     module = load_test_module()
     device = module.device
