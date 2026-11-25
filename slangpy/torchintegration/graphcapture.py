@@ -106,6 +106,11 @@ def capture_torch_graph(
         with torch.cuda.graph(graph, **graph_args):
             yield graph
     finally:
-        # Acquire the retained buffers and associate with the torch stream
+        # Acquire the retained buffers and associate them with the graph. If the graph already
+        # holds retained buffers, keep those alive too: its earlier nodes still point into them.
         command_buffers = device.end_retain_command_buffers()
-        setattr(graph, _GRAPH_ATTRIBUTE, _RetainedCommandBuffers(device, command_buffers))
+        retained = getattr(graph, _GRAPH_ATTRIBUTE, None)
+        if isinstance(retained, _RetainedCommandBuffers) and retained.device is device:
+            retained.command_buffers.extend(command_buffers)
+        else:
+            setattr(graph, _GRAPH_ATTRIBUTE, _RetainedCommandBuffers(device, command_buffers))

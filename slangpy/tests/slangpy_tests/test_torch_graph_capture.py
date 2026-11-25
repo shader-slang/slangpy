@@ -9,6 +9,7 @@ import pytest
 import slangpy as spy
 from slangpy import DeviceType, Module
 from slangpy.testing import helpers
+from slangpy.torchintegration.graphcapture import _RetainedCommandBuffers
 
 try:
     import torch
@@ -181,6 +182,30 @@ def test_capture_into_existing_graph_with_arguments() -> None:
         result = module.add(a, a)
     graph.replay()
     torch.testing.assert_close(result, a * 2.0)
+
+
+@requires_cuda_device
+def test_retained_command_buffers_are_appended() -> None:
+    module = load_test_module()
+    device = module.device
+    a = torch.ones(64, device="cuda")
+    module.add(a, a)
+
+    # Command buffers already attached to the graph must survive a later recording into it.
+    graph = torch.cuda.CUDAGraph()
+    earlier = device.create_command_encoder().finish()
+    setattr(graph, "_slangpy_command_buffers", _RetainedCommandBuffers(device, [earlier]))
+    retained = getattr(graph, "_slangpy_command_buffers")
+
+    with spy.capture_torch_graph(device, graph):
+        result = module.add(module.add(a, a), a)
+    graph.replay()
+    torch.testing.assert_close(result, torch.full((64,), 3.0, device="cuda"))
+
+    assert getattr(graph, "_slangpy_command_buffers") is retained
+    assert len(retained.command_buffers) == 3
+    assert retained.command_buffers[0] is earlier
+    device.wait_for_idle()
 
 
 @requires_cuda_device
