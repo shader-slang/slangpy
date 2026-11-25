@@ -102,6 +102,7 @@ If you use SlangPy in a research project leading to a publication, please cite t
 
     src/autodiff/autodiff
     src/autodiff/pytorch
+    src/autodiff/cudagraphs
 
 .. toctree::
     :hidden:

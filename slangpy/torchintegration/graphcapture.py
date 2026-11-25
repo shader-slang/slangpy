@@ -29,18 +29,18 @@ class _RetainedCommandBuffers:
     def __del__(self):
         if not self.command_buffers:
             return
-        import torch
-
         # Outside a recording, a launch of the graph may still be running, so wait for it. During
         # a recording that wait is not possible, and not needed: capture_torch_graph waited for
         # the device before the recording started, and nothing has run since.
-        if not torch.cuda.is_current_stream_capturing():
-            try:
+        try:
+            import torch
+
+            if not torch.cuda.is_current_stream_capturing():
                 self.device.wait_for_idle()
-            except Exception:
-                # The device may already be closed, for example at interpreter exit. Its memory is
-                # gone with it, so there is nothing left to wait for.
-                pass
+        except Exception:
+            # At interpreter exit torch can no longer be imported and the device may already be
+            # closed. Its memory is gone with it, so there is nothing left to wait for.
+            pass
         self.command_buffers.clear()
 
 
@@ -65,8 +65,8 @@ def capture_torch_graph(
     the graph and released together with it.
 
     Only SlangPy calls that take a torch tensor are recorded: those run on PyTorch's current CUDA
-    stream, which is the stream being captured. Everything a recorded call needs must already
-    exist, so run the same calls once before recording to compile kernels and warm caches.
+    stream, which is the stream being captured. A call made for the first time inside the block
+    has its kernel generated and compiled there, which costs time while recording only.
 
     The graph is recorded in CUDA's relaxed capture mode, so objects that own GPU memory,
     including earlier graphs, may be released inside the block. Pass ``capture_error_mode`` to
