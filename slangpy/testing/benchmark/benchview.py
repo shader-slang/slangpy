@@ -7,7 +7,7 @@ from http.client import HTTPException
 import json
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePath
 import re
 from time import sleep
 from typing import Any, Optional, Union
@@ -137,9 +137,13 @@ def _sanitize_test_id(test_id: str) -> str:
 
 
 def _normalize_dimension(name: str, value: Any) -> str:
-    """Preserve legacy string dimensions while shortening device enum text."""
+    """Preserve legacy string dimensions while shortening device enum text.
 
-    normalized = str(value)
+    Path values use forward slashes, so one workload keeps one case identity on every
+    operating system. Plain strings are left alone, whatever they contain.
+    """
+
+    normalized = value.as_posix() if isinstance(value, PurePath) else str(value)
     if name == "device_type":
         enum_name = getattr(value, "name", None)
         if normalized.startswith("DeviceType."):
