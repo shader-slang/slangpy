@@ -555,7 +555,10 @@ struct SGL_API SpecializationArg {
 };
 
 struct SlangEntryPointDesc {
+    /// Name of the entry point as declared in its module.
     std::string name;
+    /// Name to expose the entry point under, if renamed. Empty to keep the declared name.
+    std::string new_name;
     std::vector<TypeConformance> type_conformances;
     /// Specialization arguments for generic entrypoints.
     std::vector<SpecializationArg> specialization_args;
@@ -568,7 +571,9 @@ struct SlangEntryPointData : SlangComponentData {
     using SlangComponentData::SlangComponentData;
 
     std::string name;
-    ShaderStage stage;
+    /// Layout of the entry point, owned by component. Computed on first use because it is expensive
+    /// for large modules and not needed to link a program.
+    slang::EntryPointLayout* layout{nullptr};
 };
 class SGL_API SlangEntryPoint : public Object {
     SGL_OBJECT(SlangEntryPoint)
@@ -589,7 +594,7 @@ public:
 
     const std::string& name() const { return m_data->name; }
     const SlangEntryPointDesc& desc() const { return m_desc; }
-    ShaderStage stage() const { return m_data->stage; }
+    ShaderStage stage() const;
     ref<const EntryPointLayout> layout() const;
 
     ref<SlangEntryPoint> rename(const std::string& new_name);
@@ -603,6 +608,9 @@ public:
 
     const SlangEntryPointData* _data() const { return m_data.get(); }
     slang::IComponentType* slang_entry_point() const { return m_data->component.get(); }
+
+    /// Slang layout of the entry point, computed on first use.
+    slang::EntryPointLayout* slang_layout() const;
 
     virtual std::string to_string() const override;
 
