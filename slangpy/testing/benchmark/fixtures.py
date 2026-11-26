@@ -34,7 +34,7 @@ class ReportFixture:
         """Generate and store a benchmark report with the given data."""
 
         params = (
-            {k: str(v) for k, v in self.node.callspec.params.items()}
+            dict(self.node.callspec.params)
             if hasattr(self.node, "callspec") and self.node.callspec
             else {}
         )
@@ -61,11 +61,14 @@ class ReportFixture:
             metric_id = "cpu_time" if "_cpu" in function_name else "gpu_time"
         if metric_name is None:
             metric_name = "CPU time" if metric_id == "cpu_time" else "GPU time"
+        # BenchView normalizes values itself (for example path separators), so it gets
+        # the original parameters; the local report keeps their plain string form.
+        str_params = {k: str(v) for k, v in params.items()}
         report: BenchmarkReport = {
             "name": self.node.name,
             "filename": filename,
             "function": function_name,
-            "params": params,
+            "params": str_params,
             "meta": meta,
             "timestamp": observed_at,
             "cpu_time": cpu_time,
