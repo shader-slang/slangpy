@@ -33,11 +33,14 @@ class ReportFixture:
     ) -> None:
         """Generate and store a benchmark report with the given data."""
 
-        params = (
-            {k: str(v) for k, v in self.node.callspec.params.items()}
+        # BenchView normalizes values itself (for example path separators), so it gets
+        # the original parameters; the local report keeps their plain string form.
+        raw_params = (
+            dict(self.node.callspec.params)
             if hasattr(self.node, "callspec") and self.node.callspec
             else {}
         )
+        params = {k: str(v) for k, v in raw_params.items()}
 
         meta = {}
 
@@ -83,7 +86,7 @@ class ReportFixture:
                 filename=filename,
                 function_name=function_name,
                 display_name=self.node.name,
-                parameters=params,
+                parameters=raw_params,
                 observed_at=observed_at,
                 metrics=[build_metric(metric_id, metric_name, samples)],
                 adapter_name=meta.get("adapter_name"),
