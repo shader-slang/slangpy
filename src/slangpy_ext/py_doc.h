@@ -8873,15 +8873,22 @@ static const char *mkd_doc_sgl_SlangEntryPointData = R"doc()doc";
 
 static const char *mkd_doc_sgl_SlangEntryPointData_class_name = R"doc()doc";
 
+static const char *mkd_doc_sgl_SlangEntryPointData_layout =
+R"doc(Layout of the entry point, owned by component. Computed on first use
+because it is expensive for large modules and not needed to link a
+program.)doc";
+
 static const char *mkd_doc_sgl_SlangEntryPointData_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_SlangEntryPointData_slang_entry_point = R"doc()doc";
 
-static const char *mkd_doc_sgl_SlangEntryPointData_stage = R"doc()doc";
-
 static const char *mkd_doc_sgl_SlangEntryPointDesc = R"doc()doc";
 
-static const char *mkd_doc_sgl_SlangEntryPointDesc_name = R"doc()doc";
+static const char *mkd_doc_sgl_SlangEntryPointDesc_name = R"doc(Name of the entry point as declared in its module.)doc";
+
+static const char *mkd_doc_sgl_SlangEntryPointDesc_new_name =
+R"doc(Name to expose the entry point under, if renamed. Empty to keep the
+declared name.)doc";
 
 static const char *mkd_doc_sgl_SlangEntryPointDesc_specialization_args = R"doc(Specialization arguments for generic entrypoints.)doc";
 
@@ -8923,6 +8930,8 @@ static const char *mkd_doc_sgl_SlangEntryPoint_populate_build_data = R"doc(Repop
 static const char *mkd_doc_sgl_SlangEntryPoint_rename = R"doc()doc";
 
 static const char *mkd_doc_sgl_SlangEntryPoint_slang_entry_point = R"doc()doc";
+
+static const char *mkd_doc_sgl_SlangEntryPoint_slang_layout = R"doc(Slang layout of the entry point, computed on first use.)doc";
 
 static const char *mkd_doc_sgl_SlangEntryPoint_specialize =
 R"doc(Returns a specialized version of a generic entry point.

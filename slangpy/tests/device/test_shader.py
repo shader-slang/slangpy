@@ -48,6 +48,30 @@ def test_load_module(device_type: spy.DeviceType):
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_rename_entry_point(device_type: spy.DeviceType):
+    device = helpers.get_device(type=device_type)
+    module = device.load_module("test_shader_foo.slang")
+    main_b = module.entry_point("main_b")
+
+    renamed = main_b.rename("renamed_b")
+    assert renamed.name == "renamed_b"
+    assert renamed.stage == spy.ShaderStage.compute
+    assert renamed.layout.compute_thread_group_size == [16, 8, 1]
+
+    copied = main_b.with_name("copied_b")
+    assert copied.name == "copied_b"
+    assert copied.stage == spy.ShaderStage.compute
+
+    # Renaming returns a new entry point and keeps the original.
+    assert main_b.name == "main_b"
+
+    # A renamed entry point links under its new name.
+    program = device.slang_session.link_program(modules=[module], entry_points=[renamed])
+    assert program.layout.entry_points[0].name_override == "renamed_b"
+    assert program.layout.entry_points[0].compute_thread_group_size == [16, 8, 1]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_load_module_from_source(test_id: str, device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
 

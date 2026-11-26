@@ -1100,9 +1100,11 @@ std::vector<ref<SlangEntryPoint>> SlangModule::entry_points() const
                 m_data->slang_module->getDefinedEntryPoint(i, slang_entry_point.writeRef());
             );
 
-            slang::EntryPointLayout* ep_layout;
-            SGL_CATCH_INTERNAL_SLANG_ERROR(ep_layout = slang_entry_point->getLayout()->getEntryPointByIndex(0););
-            std::string name = ep_layout->getNameOverride() ? ep_layout->getNameOverride() : ep_layout->getName();
+            // Read the name from function reflection: computing the entry point's layout just to list
+            // its name is expensive for large modules.
+            slang::FunctionReflection* function;
+            SGL_CATCH_INTERNAL_SLANG_ERROR(function = slang_entry_point->getFunctionReflection(););
+            std::string name = function->getName();
 
             if (seen_names.insert(name).second)
                 result.push_back(create_entry_point(name));
@@ -1416,11 +1418,15 @@ void SlangEntryPoint::init(SlangSessionBuild& build_data) const
         data->component = std::move(specialized_entry_point);
     }
 
-    // Read name and stage from the entry point.
-    slang::EntryPointLayout* layout;
-    SGL_CATCH_INTERNAL_SLANG_ERROR(layout = data->component->getLayout()->getEntryPointByIndex(0););
-    data->name = layout->getNameOverride() ? layout->getNameOverride() : layout->getName();
-    data->stage = static_cast<ShaderStage>(layout->getStage());
+    // Expose the entry point under its new name, if it was renamed.
+    if (!desc.new_name.empty()) {
+        Slang::ComPtr<slang::IComponentType> renamed_entry_point;
+        SLANG_CALL(data->component->renameEntryPoint(desc.new_name.c_str(), renamed_entry_point.writeRef()));
+        data->component = std::move(renamed_entry_point);
+        data->name = desc.new_name;
+    } else {
+        data->name = desc.name;
+    }
 
     // Output the built entry point.
     build_data.entry_points[this] = data;
@@ -1449,27 +1455,14 @@ SlangSessionBuild SlangEntryPoint::create_build_context() const
 
 ref<SlangEntryPoint> SlangEntryPoint::rename(const std::string& new_name)
 {
-    Slang::ComPtr<slang::IComponentType> renamed_entry_point;
-    SLANG_CALL(m_data->component->renameEntryPoint(new_name.c_str(), renamed_entry_point.writeRef()));
-
-    SlangEntryPointDesc desc = m_desc;
-    desc.name = new_name;
-    auto ep = make_ref<SlangEntryPoint>(m_module, desc);
-
-    auto build_data = create_build_context();
-    ep->init(build_data);
-    ep->store_built_data(build_data);
-
-    return ep;
+    return with_name(new_name);
 }
 
 ref<SlangEntryPoint> SlangEntryPoint::with_name(const std::string& name) const
 {
-    Slang::ComPtr<slang::IComponentType> new_entry_point;
-    SLANG_CALL(m_data->component->renameEntryPoint(name.c_str(), new_entry_point.writeRef()));
-
+    // Keep the declared name for looking up the entry point; init() applies the new name, also on hot reload.
     SlangEntryPointDesc desc = m_desc;
-    desc.name = name;
+    desc.new_name = name;
     auto ep = make_ref<SlangEntryPoint>(m_module, desc);
 
     auto build_data = create_build_context();
@@ -1493,16 +1486,30 @@ ref<SlangEntryPoint> SlangEntryPoint::specialize(std::span<const SpecializationA
     return ep;
 }
 
+ShaderStage SlangEntryPoint::stage() const
+{
+    return static_cast<ShaderStage>(slang_layout()->getStage());
+}
+
 ref<const EntryPointLayout> SlangEntryPoint::layout() const
 {
-    slang::EntryPointLayout* ep_layout;
-    SGL_CATCH_INTERNAL_SLANG_ERROR(ep_layout = m_data->component->getLayout()->getEntryPointByIndex(0););
-    return detail::from_slang(m_data, ep_layout);
+    return detail::from_slang(m_data, slang_layout());
+}
+
+slang::EntryPointLayout* SlangEntryPoint::slang_layout() const
+{
+    if (!m_data->layout) {
+        slang::ProgramLayout* program_layout;
+        SGL_CATCH_INTERNAL_SLANG_ERROR(program_layout = m_data->component->getLayout(););
+        SGL_CHECK(program_layout, "Entry point \"{}\" has no layout.", m_data->name);
+        m_data->layout = program_layout->getEntryPointByIndex(0);
+    }
+    return m_data->layout;
 }
 
 std::string SlangEntryPoint::to_string() const
 {
-    return fmt::format("SlangEntryPoint(name=\"{}\", stage={})", m_data->name, m_data->stage);
+    return fmt::format("SlangEntryPoint(name=\"{}\", stage={})", m_data->name, stage());
 }
 
 ShaderProgram::ShaderProgram(ref<Device> device, ref<SlangSession> session, const ShaderProgramDesc& desc)
