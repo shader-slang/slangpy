@@ -23,14 +23,20 @@
 #include "sgl/stl/bit.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <exception>
+#include <functional>
 #include <map>
 #include <mutex>
+#include <numeric>
+#include <optional>
+#include <thread>
 #include <utility>
 
 namespace sgl {
@@ -38,12 +44,12 @@ namespace sgl {
 
 // TEMP: stage timing instrumentation (not for commit).
 struct LoaderTiming {
-    std::atomic<uint64_t> estimate{0}, decode[4]{}, decode_count[4]{}, convert{0}, wait{0}, create{0}, upload{0},
-        mips{0}, submit{0};
+    std::atomic<uint64_t> estimate{0}, decode[4]{}, decode_count[4]{}, convert{0}, stage{0}, pool{0}, wait{0},
+        create{0}, upload{0}, mips{0}, submit{0};
     static uint64_t now() { return uint64_t(std::chrono::steady_clock::now().time_since_epoch().count()); }
     void reset()
     {
-        for (auto* a : {&estimate, &convert, &wait, &create, &upload, &mips, &submit})
+        for (auto* a : {&estimate, &convert, &stage, &pool, &wait, &create, &upload, &mips, &submit})
             *a = 0;
         for (int i = 0; i < 4; ++i)
             decode[i] = decode_count[i] = 0;
@@ -58,7 +64,8 @@ struct LoaderTiming {
         };
         log_info(
             "TIMING wall {:.1f} ms | estimate {:.1f} | decode cpu jpg {:.1f} ({}) png {:.1f} ({}) exr {:.1f} ({}) "
-            "other {:.1f} ({}) | convert cpu {:.1f} | main: wait {:.1f} create {:.1f} upload {:.1f} mips {:.1f} "
+            "other {:.1f} ({}) | convert cpu {:.1f} | stage cpu {:.1f} | main: pool {:.1f} wait {:.1f} create {:.1f} "
+            "upload {:.1f} mips {:.1f} "
             "submit+wait {:.1f}",
             ms(wall),
             ms(estimate),
@@ -71,6 +78,8 @@ struct LoaderTiming {
             ms(decode[3]),
             decode_count[3].load(),
             ms(convert),
+            ms(stage),
+            ms(pool),
             ms(wait),
             ms(create),
             ms(upload),
@@ -86,13 +95,281 @@ struct ScopedTime {
     ~ScopedTime() { acc += LoaderTiming::now() - start; }
 };
 
+/// Upload memory that decode workers copy converted images into, so the thread recording uploads only records
+/// buffer-to-texture copies instead of copying pixel data itself.
+///
+/// Pages are persistently mapped upload buffers created by the recording thread. Workers bump-allocate under a
+/// mutex. While no page has room, a worker waits and reports this through the starved callback; the recording
+/// thread then submits recorded copies or waits for the GPU and recycles pages, which wakes the worker. A page is
+/// reused once every allocation from it was recorded and the submissions containing those copies have finished.
+/// Images larger than a page, and all images after abort(), stay in CPU memory and are uploaded by the recording
+/// thread with CommandEncoder::upload_texture_data instead.
+class StagingPool {
+public:
+    /// Smallest page size in bytes.
+    static constexpr size_t MIN_PAGE_SIZE = 64ull * 1024 * 1024;
+    /// Largest page size in bytes; larger images are uploaded from CPU memory.
+    static constexpr size_t MAX_PAGE_SIZE = 512ull * 1024 * 1024;
+    /// Largest total capacity in bytes, unless one page is larger. Creating upload memory costs about 0.2 s per GB;
+    /// with workers waiting for recycled pages, 128 MB and 256 MB performed alike, and 512 MB was slower.
+    static constexpr size_t MAX_CAPACITY = 128ull * 1024 * 1024;
+
+    struct Allocation {
+        uint32_t page;
+        size_t offset;
+        uint8_t* data;
+    };
+
+    /// Create a pool sized for a load.
+    /// @param total_bytes Staging bytes of all images in the load, which caps the capacity.
+    /// @param max_bytes Staging bytes of the largest image, which sets the page size.
+    StagingPool(Device* device, size_t total_bytes, size_t max_bytes)
+        : m_device(device)
+        , m_recording_thread(std::this_thread::get_id())
+    {
+        ScopedTime t{g_timing.pool};
+        constexpr size_t granularity = 1024 * 1024;
+        m_page_size = std::clamp(align_to(granularity, max_bytes), MIN_PAGE_SIZE, MAX_PAGE_SIZE);
+        // Small loads need no more than their total, plus slack for allocation alignment.
+        m_page_size = std::min(m_page_size, align_to(granularity, total_bytes + total_bytes / 16 + 65536));
+        const size_t capacity = std::min(total_bytes, std::max(MAX_CAPACITY, m_page_size));
+        const size_t page_count = std::max(size_t(1), div_round_up(capacity, m_page_size));
+        m_pages.resize(page_count);
+        for (Page& page : m_pages) {
+            page.buffer = device->create_buffer({
+                .size = m_page_size,
+                .memory_type = MemoryType::upload,
+                .usage = BufferUsage::copy_source,
+                .label = "TextureLoader staging",
+            });
+            page.data = page.buffer->map<uint8_t>();
+        }
+    }
+
+    ~StagingPool()
+    {
+        ScopedTime t{g_timing.pool};
+        for (Page& page : m_pages) {
+            page.buffer->unmap();
+            page.buffer = nullptr;
+        }
+    }
+
+    StagingPool(const StagingPool&) = delete;
+    StagingPool& operator=(const StagingPool&) = delete;
+
+    Device* device() const { return m_device; }
+
+    /// Set the function called, without locks held, when a worker starts waiting for staging memory.
+    void set_on_starved(std::function<void()> on_starved)
+    {
+        std::lock_guard lock(m_mutex);
+        m_on_starved = std::move(on_starved);
+    }
+
+    /// Allocate staging memory, waiting while all pages are in use. Thread-safe.
+    /// Returns nothing if the allocation can never fit a page or the pool was aborted.
+    std::optional<Allocation> allocate(size_t size, size_t alignment)
+    {
+        if (size + alignment > m_page_size)
+            return {};
+        std::unique_lock lock(m_mutex);
+        while (true) {
+            if (std::optional<Allocation> allocation = try_allocate(size, alignment))
+                return allocation;
+            // Only the recording thread frees staging memory, so it must not wait for it. This happens if a wait
+            // on that thread runs a decode task; the image is then uploaded from CPU memory.
+            if (m_aborted || std::this_thread::get_id() == m_recording_thread)
+                return {};
+            const uint64_t generation = m_generation;
+            m_waiting++;
+            std::function<void()> on_starved = m_on_starved;
+            lock.unlock();
+            if (on_starved)
+                on_starved();
+            lock.lock();
+            m_condition.wait(
+                lock,
+                [&]
+                {
+                    return m_generation != generation || m_aborted;
+                }
+            );
+            m_waiting--;
+        }
+    }
+
+    /// True if a worker waits for staging memory.
+    bool waiting()
+    {
+        std::lock_guard lock(m_mutex);
+        return m_waiting > 0;
+    }
+
+    /// Stop waiting allocations and make later ones fail, so workers finish after an error.
+    void abort()
+    {
+        {
+            std::lock_guard lock(m_mutex);
+            m_aborted = true;
+        }
+        m_condition.notify_all();
+    }
+
+    Buffer* buffer(const Allocation& allocation) const { return m_pages[allocation.page].buffer; }
+
+    /// Mark an allocation as recorded into the current, not yet submitted, command encoder.
+    void recorded(const Allocation& allocation)
+    {
+        std::lock_guard lock(m_mutex);
+        Page& page = m_pages[allocation.page];
+        SGL_ASSERT(page.outstanding > 0);
+        page.outstanding--;
+        page.unsubmitted = true;
+    }
+
+    /// Associate recorded allocations with the submission that contains them.
+    void submitted(uint64_t submit_id)
+    {
+        std::lock_guard lock(m_mutex);
+        for (Page& page : m_pages) {
+            if (page.unsubmitted) {
+                page.last_submit = submit_id;
+                page.unsubmitted = false;
+            }
+        }
+    }
+
+    /// Reset pages whose allocations were all recorded and whose submissions finished, and wake waiting workers.
+    /// Returns true if a page was reset.
+    bool recycle()
+    {
+        bool reset = false;
+        {
+            std::lock_guard lock(m_mutex);
+            for (Page& page : m_pages) {
+                if (page.offset == 0 || page.outstanding > 0 || page.unsubmitted)
+                    continue;
+                if (page.last_submit != 0 && !m_device->is_submit_finished(page.last_submit))
+                    continue;
+                page.offset = 0;
+                page.last_submit = 0;
+                reset = true;
+            }
+            if (reset)
+                m_generation++;
+        }
+        if (reset)
+            m_condition.notify_all();
+        return reset;
+    }
+
+private:
+    std::optional<Allocation> try_allocate(size_t size, size_t alignment)
+    {
+        const uint32_t page_count = narrow_cast<uint32_t>(m_pages.size());
+        for (uint32_t k = 0; k < page_count; ++k) {
+            const uint32_t index = (m_current + k) % page_count;
+            Page& page = m_pages[index];
+            const size_t offset = align_to(alignment, page.offset);
+            if (offset + size > m_page_size)
+                continue;
+            page.offset = offset + size;
+            page.outstanding++;
+            m_current = index;
+            return Allocation{index, offset, page.data + offset};
+        }
+        return {};
+    }
+
+    struct Page {
+        ref<Buffer> buffer;
+        uint8_t* data{nullptr};
+        /// Offset of the first free byte.
+        size_t offset{0};
+        /// Allocations not yet recorded.
+        uint32_t outstanding{0};
+        /// True if recorded allocations are not yet submitted.
+        bool unsubmitted{false};
+        /// Submission containing the last recorded allocation.
+        uint64_t last_submit{0};
+    };
+
+    Device* m_device;
+    std::thread::id m_recording_thread;
+    size_t m_page_size{0};
+    std::mutex m_mutex;
+    std::condition_variable m_condition;
+    std::vector<Page> m_pages;
+    uint32_t m_current{0};
+    /// Incremented when pages are recycled; waiting workers retry when it changes.
+    uint64_t m_generation{0};
+    uint32_t m_waiting{0};
+    bool m_aborted{false};
+    std::function<void()> m_on_starved;
+};
+
+/// Image data copied into staging memory, ready for a buffer-to-texture copy.
+struct StagedImage {
+    StagingPool* pool{nullptr};
+    StagingPool::Allocation allocation;
+    size_t size{0};
+    size_t row_pitch{0};
+    uint32_t width{0};
+    uint32_t height{0};
+};
+
 /// Holds a source image to be uploaded to a texture.
-/// Data can either be a bitmap or a DDS file.
+/// Data is either a bitmap, a DDS file, or a bitmap already copied to staging memory.
 struct SourceImage {
     ref<Bitmap> bitmap;
     ref<DDSFile> dds_file;
+    std::optional<StagedImage> staged;
     Format format{Format::undefined};
 };
+
+/// Copy a converted bitmap into staging memory and release the bitmap.
+/// May wait for staging memory. Leaves the image unchanged if it cannot be staged.
+inline void stage_source_image(StagingPool& pool, SourceImage& source_image)
+{
+    if (!source_image.bitmap)
+        return;
+    ScopedTime t{g_timing.stage};
+    const Bitmap* bitmap = source_image.bitmap;
+    const size_t bytes_per_pixel = bitmap->bytes_per_pixel();
+    const size_t row_size = bitmap->width() * bytes_per_pixel;
+    // Row alignment is backend and format specific. Offsets must be multiples of 512 bytes on D3D12 and of the
+    // texel size elsewhere.
+    rhi::Size row_alignment = 1;
+    if (SLANG_FAILED(pool.device()->rhi_device()->getTextureRowAlignment(
+            static_cast<rhi::Format>(source_image.format),
+            &row_alignment
+        )))
+        return;
+    const size_t row_pitch = align_to(size_t(row_alignment), row_size);
+    const size_t size = row_pitch * bitmap->height();
+    const size_t offset_alignment = std::lcm(size_t(512), bytes_per_pixel);
+    std::optional<StagingPool::Allocation> allocation = pool.allocate(size, offset_alignment);
+    if (!allocation)
+        return;
+
+    const uint8_t* src = bitmap->uint8_data();
+    if (row_pitch == row_size) {
+        std::memcpy(allocation->data, src, size);
+    } else {
+        for (uint32_t y = 0; y < bitmap->height(); ++y)
+            std::memcpy(allocation->data + y * row_pitch, src + y * row_size, row_size);
+    }
+    source_image.staged = StagedImage{
+        .pool = &pool,
+        .allocation = *allocation,
+        .size = size,
+        .row_pitch = row_pitch,
+        .width = bitmap->width(),
+        .height = bitmap->height(),
+    };
+    source_image.bitmap = nullptr;
+}
 
 inline ref<Bitmap> convert_ya_to_rg(const Bitmap* ya_bitmap)
 {
@@ -502,7 +779,41 @@ inline ref<Texture> create_texture(
     const TextureLoader::Options& options
 )
 {
-    if (source_image.bitmap) {
+    if (source_image.staged) {
+        const StagedImage& staged = *source_image.staged;
+        bool allocate_mips = options.allocate_mips || options.generate_mips;
+
+        uint64_t t0 = LoaderTiming::now();
+        ref<Texture> texture = device->create_texture({
+            .type = TextureType::texture_2d,
+            .format = source_image.format,
+            .width = staged.width,
+            .height = staged.height,
+            .mip_count = allocate_mips ? ALL_MIPS : 1u,
+            .usage = get_effective_texture_usage(device, options),
+        });
+        g_timing.create += LoaderTiming::now() - t0;
+        {
+            ScopedTime t{g_timing.upload};
+            command_encoder->copy_buffer_to_texture(
+                texture,
+                0,
+                0,
+                uint3(0),
+                staged.pool->buffer(staged.allocation),
+                staged.allocation.offset,
+                staged.size,
+                staged.row_pitch
+            );
+            staged.pool->recorded(staged.allocation);
+        }
+        if (options.generate_mips) {
+            ScopedTime t{g_timing.mips};
+            blitter->generate_mips(command_encoder, texture);
+        }
+
+        return texture;
+    } else if (source_image.bitmap) {
         const Bitmap* bitmap = source_image.bitmap;
         bool allocate_mips = options.allocate_mips || options.generate_mips;
 
@@ -598,7 +909,15 @@ inline ref<Texture> create_texture(
 // File and encoded inputs include decoding and their source bitmap; caller-owned bitmap and encoded-byte storage,
 // and final GPU textures are excluded. Format expansion, codec scratch and upload overhead are estimates rather than
 // backend-specific allocation accounting.
-inline size_t estimate_texture_load_memory(
+/// Estimated resources for loading one source image.
+struct SourceEstimate {
+    /// Temporary CPU memory in bytes, used to choose batch sizes.
+    size_t memory{0};
+    /// Bytes of upload staging memory, including row alignment; zero for sources that are not staged.
+    size_t staging{0};
+};
+
+inline SourceEstimate estimate_texture_load_memory(
     const Bitmap::Info& info,
     const TextureLoader::Options& options,
     size_t decode_peak_bytes,
@@ -639,10 +958,10 @@ inline size_t estimate_texture_load_memory(
     const size_t staging = align_to(size_t(256), size_t(width) * pixel_bytes) * height;
     // Fixed overhead and 12.5% padding are heuristic allowances for uncounted allocations.
     const size_t estimate = peak + output + staging + 32768;
-    return estimate + div_round_up(estimate, size_t(8));
+    return {.memory = estimate + div_round_up(estimate, size_t(8)), .staging = staging};
 }
 
-inline size_t estimate_source_memory(const Bitmap* bitmap, const TextureLoader::Options& options)
+inline SourceEstimate estimate_source_memory(const Bitmap* bitmap, const TextureLoader::Options& options)
 {
     return estimate_texture_load_memory(
         {bitmap->width(), bitmap->height(), bitmap->pixel_format(), bitmap->component_type(), bitmap->channel_count()},
@@ -652,14 +971,14 @@ inline size_t estimate_source_memory(const Bitmap* bitmap, const TextureLoader::
     );
 }
 
-inline size_t estimate_source_memory(Stream* stream, const TextureLoader::Options& options)
+inline SourceEstimate estimate_source_memory(Stream* stream, const TextureLoader::Options& options)
 {
     const size_t encoded = stream->size();
     if (DDSFile::detect_dds_file(stream)) {
         // DDSFile copies encoded data from either stream type; allow that copy and upload staging.
         // A borrowed encoded-image source is not counted here.
         const size_t estimate = 2 * encoded + 65536;
-        return estimate + div_round_up(estimate, size_t(8));
+        return {.memory = estimate + div_round_up(estimate, size_t(8))};
     }
     const auto format = Bitmap::detect_file_format(stream);
     const auto info = Bitmap::read_info(stream, format);
@@ -676,13 +995,13 @@ inline size_t estimate_source_memory(Stream* stream, const TextureLoader::Option
     return estimate_texture_load_memory(info, options, decode_peak_bytes, true);
 }
 
-inline size_t estimate_source_memory(const std::filesystem::path& path, const TextureLoader::Options& options)
+inline SourceEstimate estimate_source_memory(const std::filesystem::path& path, const TextureLoader::Options& options)
 {
     FileStream stream(path, FileStream::Mode::read);
     return estimate_source_memory(&stream, options);
 }
 
-inline size_t
+inline SourceEstimate
 estimate_source_memory(const TextureLoader::EncodedImageView& image, const TextureLoader::Options& options)
 {
     try {
@@ -753,6 +1072,58 @@ public:
         return index;
     }
 
+    /// Release and return the batch-local index of a finished task, if any.
+    /// Rethrows the exception of a failed task.
+    std::optional<size_t> try_next()
+    {
+        size_t index;
+        {
+            std::lock_guard lock(m_mutex);
+            if (m_finished.empty())
+                return {};
+            index = m_finished.front();
+            m_finished.pop_front();
+        }
+        // The task queued its index as its last action and completes momentarily. Waiting for an incomplete task
+        // would let nanothread run other queued tasks on this thread, and a decode task waiting for staging memory
+        // that only this thread can free would never return.
+        thread::TaskHandle handle = std::exchange(m_handles[index], nullptr);
+        while (!thread::task_query(handle))
+            std::this_thread::yield();
+        thread::task_wait_and_release(handle);
+        return index;
+    }
+
+    /// Number of wake() calls so far.
+    uint64_t wake_count()
+    {
+        std::lock_guard lock(m_mutex);
+        return m_wake_count;
+    }
+
+    /// Wake a thread blocked in wait_for_change(). Thread-safe.
+    void wake()
+    {
+        {
+            std::lock_guard lock(m_mutex);
+            m_wake_count++;
+        }
+        m_condition.notify_one();
+    }
+
+    /// Block until a task has finished or wake() was called since wake_count() returned `observed_wake_count`.
+    void wait_for_change(uint64_t observed_wake_count)
+    {
+        std::unique_lock lock(m_mutex);
+        m_condition.wait(
+            lock,
+            [&]
+            {
+                return !m_finished.empty() || m_wake_count != observed_wake_count;
+            }
+        );
+    }
+
     /// Wait for and release all remaining tasks, discarding their exceptions.
     void drain() noexcept
     {
@@ -780,6 +1151,7 @@ private:
     std::mutex m_mutex;
     std::condition_variable m_condition;
     std::deque<size_t> m_finished;
+    uint64_t m_wake_count{0};
 };
 
 /// Records texture uploads and submits them in chunks.
@@ -795,8 +1167,10 @@ public:
     /// Maximum number of submissions the GPU may still be processing when recording continues.
     static constexpr size_t MAX_IN_FLIGHT = 2;
 
-    explicit UploadThrottle(Device* device)
+    /// @param staging_pool Pool whose pages are recycled as submissions finish (optional).
+    explicit UploadThrottle(Device* device, StagingPool* staging_pool = nullptr)
         : m_device(device)
+        , m_staging_pool(staging_pool)
         , m_command_encoder(device->create_command_encoder())
     {
     }
@@ -810,6 +1184,28 @@ public:
         m_staged_bytes += staged_bytes;
         if (m_staged_bytes >= SUBMIT_BYTES)
             submit();
+        if (m_staging_pool)
+            m_staging_pool->recycle();
+    }
+
+    /// Make progress towards freeing staging memory: submit recorded uploads, recycle staging pages, or wait for
+    /// the oldest submission. Returns false if there is nothing to do.
+    bool advance()
+    {
+        if (m_recorded) {
+            submit();
+            return true;
+        }
+        if (m_staging_pool && m_staging_pool->recycle())
+            return true;
+        if (!m_in_flight.empty()) {
+            ScopedTime t{g_timing.submit};
+            wait_oldest();
+            if (m_staging_pool)
+                m_staging_pool->recycle();
+            return true;
+        }
+        return false;
     }
 
     /// Submit remaining uploads and wait until the GPU has processed all submissions.
@@ -818,27 +1214,41 @@ public:
         if (m_recorded)
             submit();
         ScopedTime t{g_timing.submit};
-        while (!m_in_flight.empty()) {
-            m_device->wait_for_submit(m_in_flight.front());
-            m_in_flight.pop_front();
-        }
+        while (!m_in_flight.empty())
+            wait_oldest();
     }
 
 private:
     void submit()
     {
         ScopedTime t{g_timing.submit};
-        m_in_flight.push_back(m_device->submit_command_buffer(m_command_encoder->finish()));
+        const uint64_t submit_id = m_device->submit_command_buffer(m_command_encoder->finish());
+        m_in_flight.push_back(submit_id);
+        if (m_staging_pool)
+            m_staging_pool->submitted(submit_id);
         m_command_encoder = m_device->create_command_encoder();
         m_staged_bytes = 0;
         m_recorded = false;
-        while (m_in_flight.size() > MAX_IN_FLIGHT) {
-            m_device->wait_for_submit(m_in_flight.front());
-            m_in_flight.pop_front();
+        while (m_in_flight.size() > MAX_IN_FLIGHT)
+            wait_oldest();
+    }
+
+    /// Wait for the oldest submission in flight.
+    void wait_oldest()
+    {
+        // slang-rhi's CUDA queue signals submission fences when work is submitted, not when it completes, so wait
+        // for the whole queue there.
+        if (m_device->type() == DeviceType::cuda) {
+            m_device->wait();
+            m_in_flight.clear();
+            return;
         }
+        m_device->wait_for_submit(m_in_flight.front());
+        m_in_flight.pop_front();
     }
 
     Device* m_device;
+    StagingPool* m_staging_pool;
     ref<CommandEncoder> m_command_encoder;
     size_t m_staged_bytes{0};
     bool m_recorded{false};
@@ -848,6 +1258,8 @@ private:
 /// Bytes staged for uploading a source image.
 inline size_t staged_size(const SourceImage& source_image)
 {
+    if (source_image.staged)
+        return source_image.staged->size;
     if (source_image.bitmap)
         return source_image.bitmap->buffer_size();
     if (source_image.dds_file)
@@ -858,7 +1270,8 @@ inline size_t staged_size(const SourceImage& source_image)
 /// Load ordered batches within an estimated memory budget.
 /// Source is std::filesystem::path, const Bitmap*, or EncodedImageView; options has one entry per source.
 /// Caller-owned bitmaps and encoded bytes must remain alive until this function returns.
-/// consume(begin, images, tasks) runs on the calling thread after launching each batch's tasks.
+/// If use_staging_pool is set, workers copy converted bitmaps into a StagingPool, which is passed to consume.
+/// consume(begin, images, tasks, staging_pool) runs on the calling thread after launching each batch's tasks.
 /// begin is the batch's offset in sources; images and tasks use batch-local indices.
 /// The callback calls tasks.wait_next() once per image and accesses only the image it returns.
 /// It consumes/releases the images and finishes their GPU uploads before returning normally.
@@ -869,11 +1282,12 @@ void load_batches(
     std::span<const Source> sources,
     std::span<const TextureLoader::Options> options,
     uint64_t memory_budget,
+    bool use_staging_pool,
     Consume&& consume
 )
 {
     // Inspect all sources in parallel before choosing batches; pixel loading still reopens each file.
-    std::vector<size_t> estimates(sources.size());
+    std::vector<SourceEstimate> estimates(sources.size());
     g_timing.reset();
     const uint64_t t_wall = LoaderTiming::now();
     {
@@ -892,11 +1306,26 @@ void load_batches(
         ~Report() { g_timing.report(LoaderTiming::now() - start); }
     } report{t_wall};
 
+    // The pool outlives the decode tasks of every batch, which copy into it.
+    std::optional<StagingPool> staging_pool;
+    // slang-rhi's CUDA queue signals submission fences when work is submitted, not when the stream completes it,
+    // so is_submit_finished() cannot tell when staging pages are free again. CUDA uploads from CPU memory instead.
+    if (use_staging_pool && device->type() != DeviceType::cuda) {
+        size_t total_staging = 0;
+        size_t max_staging = 0;
+        for (const SourceEstimate& estimate : estimates) {
+            total_staging += estimate.staging;
+            max_staging = std::max(max_staging, estimate.staging);
+        }
+        if (total_staging > 0)
+            staging_pool.emplace(device, total_staging, max_staging);
+    }
+
     for (size_t begin = 0; begin < sources.size();) {
         size_t end = begin;
         uint64_t remaining = memory_budget;
         while (end < sources.size() && remaining) {
-            const uint64_t estimate = estimates[end];
+            const uint64_t estimate = estimates[end].memory;
             if (end > begin && estimate > remaining)
                 break;
             remaining -= std::min(estimate, remaining); // An oversized image is admitted alone.
@@ -904,6 +1333,13 @@ void load_batches(
         }
         std::vector<SourceImage> images(end - begin);
         DecodeTasks tasks(images.size());
+        if (staging_pool)
+            staging_pool->set_on_starved(
+                [&tasks]
+                {
+                    tasks.wake();
+                }
+            );
         try {
             for (size_t i = 0; i < images.size(); ++i)
                 tasks.launch(
@@ -911,14 +1347,21 @@ void load_batches(
                     [&, i]
                     {
                         images[i] = load_and_convert_source_image(device, sources[begin + i], options[begin + i]);
+                        if (staging_pool)
+                            stage_source_image(*staging_pool, images[i]);
                     }
                 );
-            consume(begin, std::span(images), tasks);
+            consume(begin, std::span(images), tasks, staging_pool ? &*staging_pool : nullptr);
         } catch (...) {
-            // Workers borrow batch storage; drain them before propagating the original failure.
+            // Workers borrow batch storage; drain them before propagating the original failure. Workers waiting
+            // for staging memory would wait forever, so abort the pool first.
+            if (staging_pool)
+                staging_pool->abort();
             tasks.drain();
             throw;
         }
+        if (staging_pool)
+            staging_pool->set_on_starved({});
         begin = end;
     }
 }
@@ -928,19 +1371,28 @@ inline std::vector<ref<Texture>> create_textures(
     Blitter* blitter,
     std::span<SourceImage> source_images,
     DecodeTasks& source_image_tasks,
-    std::span<const TextureLoader::Options> options
+    std::span<const TextureLoader::Options> options,
+    StagingPool* staging_pool
 )
 {
     SGL_ASSERT(source_images.size() == source_image_tasks.size());
     SGL_ASSERT(source_images.size() == options.size());
     std::vector<ref<Texture>> textures(source_images.size());
-    UploadThrottle throttle(device);
-    for (size_t n = 0; n < source_images.size(); ++n) {
-        size_t i;
-        {
+    UploadThrottle throttle(device, staging_pool);
+    for (size_t n = 0; n < source_images.size();) {
+        // Read the wake count first so that a worker starting to wait during the checks below is not missed.
+        const uint64_t wake_count = source_image_tasks.wake_count();
+        std::optional<size_t> next = source_image_tasks.try_next();
+        if (!next) {
+            // Workers waiting for staging memory need recorded uploads to be submitted and finished.
+            if (staging_pool && staging_pool->waiting() && throttle.advance())
+                continue;
             ScopedTime t{g_timing.wait};
-            i = source_image_tasks.wait_next();
+            source_image_tasks.wait_for_change(wake_count);
+            continue;
         }
+        const size_t i = *next;
+        ++n;
         const size_t staged_bytes = staged_size(source_images[i]);
         textures[i]
             = create_texture(device, blitter, throttle.command_encoder(), std::move(source_images[i]), options[i]);
@@ -1072,9 +1524,17 @@ TextureLoader::load_textures(std::span<const Bitmap*> bitmaps, std::span<const O
         bitmaps,
         options,
         m_memory_budget,
-        [&](size_t begin, auto images, auto& tasks)
+        true,
+        [&](size_t begin, auto images, auto& tasks, StagingPool* staging_pool)
         {
-            auto batch = create_textures(m_device, m_blitter, images, tasks, options.subspan(begin, images.size()));
+            auto batch = create_textures(
+                m_device,
+                m_blitter,
+                images,
+                tasks,
+                options.subspan(begin, images.size()),
+                staging_pool
+            );
             std::move(batch.begin(), batch.end(), textures.begin() + begin);
         }
     );
@@ -1099,9 +1559,17 @@ TextureLoader::load_textures(std::span<const std::filesystem::path> paths, std::
         paths,
         options,
         m_memory_budget,
-        [&](size_t begin, auto images, auto& tasks)
+        true,
+        [&](size_t begin, auto images, auto& tasks, StagingPool* staging_pool)
         {
-            auto batch = create_textures(m_device, m_blitter, images, tasks, options.subspan(begin, images.size()));
+            auto batch = create_textures(
+                m_device,
+                m_blitter,
+                images,
+                tasks,
+                options.subspan(begin, images.size()),
+                staging_pool
+            );
             std::move(batch.begin(), batch.end(), textures.begin() + begin);
         }
     );
@@ -1126,14 +1594,16 @@ TextureLoader::load_textures(std::span<const EncodedImageView> images, std::span
         images,
         options,
         m_memory_budget,
-        [&](size_t begin, auto source_images, auto& tasks)
+        true,
+        [&](size_t begin, auto source_images, auto& tasks, StagingPool* staging_pool)
         {
             auto batch = create_textures(
                 m_device,
                 m_blitter,
                 source_images,
                 tasks,
-                options.subspan(begin, source_images.size())
+                options.subspan(begin, source_images.size()),
+                staging_pool
             );
             std::move(batch.begin(), batch.end(), textures.begin() + begin);
         }
@@ -1155,7 +1625,8 @@ ref<Texture> TextureLoader::load_texture_array(std::span<const Bitmap*> bitmaps,
         bitmaps,
         per_image_options,
         m_memory_budget,
-        [&](size_t begin, auto images, auto& tasks)
+        false,
+        [&](size_t begin, auto images, auto& tasks, StagingPool*)
         {
             texture = create_texture_array(
                 m_device,
@@ -1187,7 +1658,8 @@ TextureLoader::load_texture_array(std::span<const std::filesystem::path> paths, 
         paths,
         per_image_options,
         m_memory_budget,
-        [&](size_t begin, auto images, auto& tasks)
+        false,
+        [&](size_t begin, auto images, auto& tasks, StagingPool*)
         {
             texture = create_texture_array(
                 m_device,

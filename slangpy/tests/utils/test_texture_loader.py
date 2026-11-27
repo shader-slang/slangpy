@@ -401,10 +401,11 @@ def make_random_rgba_images(sizes: list[int], seed: int) -> list[npt.NDArray[np.
 def test_load_textures_matches_sources(
     device_type: spy.DeviceType, from_bitmap: bool, tmp_path: Path
 ):
-    # Decode finishes out of order (the large images come first) and the uploads exceed one submission chunk
-    # (about 100 MB staged); every texture must still hold the data of its own source.
+    # Decode finishes out of order (the large images come first), and the uploads (about 180 MB) exceed both one
+    # submission chunk and the staging pool capacity, so decode workers wait for recycled staging memory. Every
+    # texture must still hold the data of its own source.
     device = helpers.get_device(type=device_type)
-    sizes = [2048, 1024] + [64, 1024, 128, 2048, 32] * 4
+    sizes = [2048, 1024] + [64, 1024, 128, 2048, 32] * 8
     images = make_random_rgba_images(sizes, seed=1)
     bitmaps = [Bitmap(image) for image in images]
     if from_bitmap:
@@ -413,7 +414,8 @@ def test_load_textures_matches_sources(
         sources = []
         for i, bitmap in enumerate(bitmaps):
             path = tmp_path / f"image_{i}.png"
-            bitmap.write(path)
+            # Fast compression keeps writing the incompressible test images quick.
+            bitmap.write(path, Bitmap.FileFormat.png, 1)
             sources.append(path)
 
     loader = TextureLoader(device)
