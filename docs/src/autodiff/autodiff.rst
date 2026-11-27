@@ -62,6 +62,34 @@ Now we'll attach gradients to the result and set them to 1, then run back propag
 That's the lot! The call to ``bwds`` generates a kernel that calls ``bwds_diff(polynomial)`` in Slang, and automatically
 deals with passing in/out the correct data.
 
+.. note::
+
+    **Loops in differentiable functions should start at a compile-time constant.** A
+    ``[Differentiable]`` function whose body contains a loop whose *start value is a runtime
+    (non-constant) expression* — for example ``for (int dx = -radius; dx <= radius; ++dx)``
+    where ``radius`` is a runtime value — can crash during the backward pass
+    (`slangpy#1051 <https://github.com/shader-slang/slangpy/issues/1051>`_, tracked upstream as
+    `slang#12070 <https://github.com/shader-slang/slang/issues/12070>`_). It is the loop start
+    being *non-constant* that triggers the bug, not its being negative: a constant start such as
+    ``for (int dx = -2; dx <= 2; ++dx)`` differentiates fine. This originates in the Slang
+    compiler's reverse-mode auto-diff, not in SlangPy, which hands the function body unchanged to
+    ``bwd_diff``. The forward pass is unaffected. Until the upstream fix lands, rewrite such loops
+    so the start is a constant (typically zero) and offset the index, which is mathematically
+    identical and differentiates correctly:
+
+    .. code-block:: slang
+
+        // Avoid: runtime (non-constant) loop start crashes bwds()
+        for (int dx = -radius; dx <= radius; ++dx)
+            acc += src[clamp(base + dx, 0, width - 1)];
+
+        // Prefer: constant (zero) start with an offset index
+        for (int i = 0; i < 2 * radius + 1; ++i)
+        {
+            int dx = i - radius;
+            acc += src[clamp(base + dx, 0, width - 1)];
+        }
+
 It is worth noting that SlangPy currently **always accumulates** gradients, so you will need to ensure gradient buffers
 are zeroed. In the demo above, we used ``zero=True`` when creating the tensor to do so.
 
