@@ -222,6 +222,15 @@ void NativeTorchTensorMarshall::ensure_binding_info_cached(
 {
     if (!m_cached_binding_info.primal.is_valid) {
         ShaderCursor field = cursor[binding->variable_name()];
+        // See TensorMarshall::ensure_binding_info_cached: the cached-offset writer
+        // requires the field's offsets to be relative to `cursor.shader_object()`,
+        // which a reference-typed (parameter-group sub-object) field violates.
+        SGL_CHECK(
+            !field.is_reference(),
+            "Torch tensor binding '{}' is reference-typed (a parameter-group sub-object); "
+            "the cached-offset writer does not support this shape",
+            binding->variable_name()
+        );
         m_cached_binding_info = TensorMarshall::extract_binding_info(field);
 
         // Determine copy-back flags from the Slang uniform type name.
