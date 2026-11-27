@@ -23,6 +23,7 @@ enum class DataType {
     float64,
     float8_e4m3,
     float8_e5m2,
+    bfloat16,
 };
 
 SGL_ENUM_INFO(
@@ -43,6 +44,7 @@ SGL_ENUM_INFO(
         {DataType::float64, "float64"},
         {DataType::float8_e4m3, "float8_e4m3"},
         {DataType::float8_e5m2, "float8_e5m2"},
+        {DataType::bfloat16, "bfloat16"},
     }
 );
 SGL_ENUM_REGISTER(DataType);
@@ -60,6 +62,7 @@ inline size_t data_type_size(sgl::DataType type)
     case DataType::int16:
     case DataType::uint16:
     case DataType::float16:
+    case DataType::bfloat16:
         return 2;
     case DataType::int32:
     case DataType::uint32:
