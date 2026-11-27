@@ -391,6 +391,84 @@ def test_load_texture_array(device_type: spy.DeviceType, from_bitmap: bool):
     assert texture.array_length == 2
 
 
+def make_random_rgba_images(sizes: list[int], seed: int) -> list[npt.NDArray[np.uint8]]:
+    rng = np.random.default_rng(seed)
+    return [rng.integers(0, 256, (size, size, 4), dtype=np.uint8) for size in sizes]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("from_bitmap", [False, True])
+def test_load_textures_matches_sources(
+    device_type: spy.DeviceType, from_bitmap: bool, tmp_path: Path
+):
+    # Decode finishes out of order (the large images come first) and the uploads exceed one submission chunk
+    # (about 100 MB staged); every texture must still hold the data of its own source.
+    device = helpers.get_device(type=device_type)
+    sizes = [2048, 1024] + [64, 1024, 128, 2048, 32] * 4
+    images = make_random_rgba_images(sizes, seed=1)
+    bitmaps = [Bitmap(image) for image in images]
+    if from_bitmap:
+        sources: list[Any] = bitmaps
+    else:
+        sources = []
+        for i, bitmap in enumerate(bitmaps):
+            path = tmp_path / f"image_{i}.png"
+            bitmap.write(path)
+            sources.append(path)
+
+    loader = TextureLoader(device)
+    textures = loader.load_textures(sources)
+    assert len(textures) == len(images)
+    for texture, image in zip(textures, images):
+        assert texture.width == image.shape[1]
+        assert np.array_equal(texture.to_numpy(), image)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_load_texture_array_matches_sources(device_type: spy.DeviceType, tmp_path: Path):
+    device = helpers.get_device(type=device_type)
+    images = make_random_rgba_images([256] * 12, seed=2)
+    # Mix incompressible noise with constant layers so PNG decoding times differ between layers.
+    for i in range(0, len(images), 3):
+        images[i][:] = i
+    paths = []
+    for i, image in enumerate(images):
+        path = tmp_path / f"layer_{i}.png"
+        Bitmap(image).write(path)
+        paths.append(path)
+
+    loader = TextureLoader(device)
+    texture = loader.load_texture_array(paths)
+    assert texture.array_length == len(images)
+    for layer, image in enumerate(images):
+        assert np.array_equal(texture.to_numpy(layer=layer), image)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_load_textures_propagates_decode_failure(device_type: spy.DeviceType, tmp_path: Path):
+    device = helpers.get_device(type=device_type)
+    images = make_random_rgba_images([256] * 8, seed=3)
+    paths = []
+    for i, image in enumerate(images):
+        path = tmp_path / f"image_{i}.png"
+        Bitmap(image).write(path)
+        paths.append(path)
+    # A PNG signature followed by garbage passes format detection but fails decoding.
+    corrupt = tmp_path / "corrupt.png"
+    corrupt.write_bytes(b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 16)
+    paths.insert(4, corrupt)
+
+    loader = TextureLoader(device)
+    with pytest.raises(Exception):
+        loader.load_textures(paths)
+
+    # The loader remains usable after a failed batch.
+    paths.remove(corrupt)
+    textures = loader.load_textures(paths)
+    for texture, image in zip(textures, images):
+        assert np.array_equal(texture.to_numpy(), image)
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_ya_handling_default_expands_to_rgba(device_type: spy.DeviceType):
     """Test that default YA handling expands to RGBA (Y to RGB, A to A)."""

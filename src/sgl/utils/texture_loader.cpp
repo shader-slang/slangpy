@@ -25,14 +25,16 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdlib>
+#include <deque>
 #include <exception>
 #include <map>
+#include <mutex>
 #include <utility>
 
 namespace sgl {
 
-static constexpr size_t BATCH_SIZE = 32;
 
 // TEMP: stage timing instrumentation (not for commit).
 struct LoaderTiming {
@@ -697,14 +699,170 @@ load_and_convert_source_image(Device* device, const Bitmap* bitmap, const Textur
     return convert_bitmap(device, ref(const_cast<Bitmap*>(bitmap)), options);
 }
 
+/// Decode tasks of one batch, consumed in completion order.
+/// Each task queues its batch-local index when it finishes, successfully or not, so the consumer can process
+/// whichever image is ready instead of waiting for them in submission order.
+class DecodeTasks {
+public:
+    explicit DecodeTasks(size_t count)
+        : m_handles(count)
+    {
+    }
+
+    DecodeTasks(const DecodeTasks&) = delete;
+    DecodeTasks& operator=(const DecodeTasks&) = delete;
+
+    size_t size() const { return m_handles.size(); }
+
+    /// Launch the task for batch-local index `index`.
+    template<typename Func>
+    void launch(size_t index, Func&& func)
+    {
+        m_handles[index] = thread::do_async(
+            [this, index, func = std::forward<Func>(func)]
+            {
+                // Queue the index on failure too; wait_next() rethrows the task's exception.
+                struct Notify {
+                    DecodeTasks* tasks;
+                    size_t index;
+                    ~Notify() { tasks->notify(index); }
+                } notify{this, index};
+                func();
+            }
+        );
+    }
+
+    /// Wait for the next finished task, release it and return its batch-local index.
+    /// Rethrows the exception of a failed task.
+    size_t wait_next()
+    {
+        size_t index;
+        {
+            std::unique_lock lock(m_mutex);
+            m_condition.wait(
+                lock,
+                [this]
+                {
+                    return !m_finished.empty();
+                }
+            );
+            index = m_finished.front();
+            m_finished.pop_front();
+        }
+        thread::task_wait_and_release(std::exchange(m_handles[index], nullptr));
+        return index;
+    }
+
+    /// Wait for and release all remaining tasks, discarding their exceptions.
+    void drain() noexcept
+    {
+        for (thread::TaskHandle& handle : m_handles) {
+            if (handle) {
+                try {
+                    thread::task_wait_and_release(std::exchange(handle, nullptr));
+                } catch (...) {
+                }
+            }
+        }
+    }
+
+private:
+    void notify(size_t index)
+    {
+        {
+            std::lock_guard lock(m_mutex);
+            m_finished.push_back(index);
+        }
+        m_condition.notify_one();
+    }
+
+    std::vector<thread::TaskHandle> m_handles;
+    std::mutex m_mutex;
+    std::condition_variable m_condition;
+    std::deque<size_t> m_finished;
+};
+
+/// Records texture uploads and submits them in chunks.
+/// Submitting once enough data is staged, and waiting only for submissions older than the last few, lets the GPU
+/// process uploads while the CPU decodes and records more, and bounds the staging memory in use.
+class UploadThrottle {
+public:
+    /// Staged bytes after which recorded uploads are submitted.
+    /// The staging memory of MAX_IN_FLIGHT + 1 chunks stays below slang-rhi's default staging retain size
+    /// (256 MB), so staging pages are reused instead of newly allocated and first touched; 256 MB chunks were
+    /// measured to make recording uploads about 30% slower.
+    static constexpr size_t SUBMIT_BYTES = 64ull * 1024 * 1024;
+    /// Maximum number of submissions the GPU may still be processing when recording continues.
+    static constexpr size_t MAX_IN_FLIGHT = 2;
+
+    explicit UploadThrottle(Device* device)
+        : m_device(device)
+        , m_command_encoder(device->create_command_encoder())
+    {
+    }
+
+    CommandEncoder* command_encoder() const { return m_command_encoder; }
+
+    /// Account for uploads recorded since the last call; submits once enough data is staged.
+    void add(size_t staged_bytes)
+    {
+        m_recorded = true;
+        m_staged_bytes += staged_bytes;
+        if (m_staged_bytes >= SUBMIT_BYTES)
+            submit();
+    }
+
+    /// Submit remaining uploads and wait until the GPU has processed all submissions.
+    void finish()
+    {
+        if (m_recorded)
+            submit();
+        ScopedTime t{g_timing.submit};
+        while (!m_in_flight.empty()) {
+            m_device->wait_for_submit(m_in_flight.front());
+            m_in_flight.pop_front();
+        }
+    }
+
+private:
+    void submit()
+    {
+        ScopedTime t{g_timing.submit};
+        m_in_flight.push_back(m_device->submit_command_buffer(m_command_encoder->finish()));
+        m_command_encoder = m_device->create_command_encoder();
+        m_staged_bytes = 0;
+        m_recorded = false;
+        while (m_in_flight.size() > MAX_IN_FLIGHT) {
+            m_device->wait_for_submit(m_in_flight.front());
+            m_in_flight.pop_front();
+        }
+    }
+
+    Device* m_device;
+    ref<CommandEncoder> m_command_encoder;
+    size_t m_staged_bytes{0};
+    bool m_recorded{false};
+    std::deque<uint64_t> m_in_flight;
+};
+
+/// Bytes staged for uploading a source image.
+inline size_t staged_size(const SourceImage& source_image)
+{
+    if (source_image.bitmap)
+        return source_image.bitmap->buffer_size();
+    if (source_image.dds_file)
+        return source_image.dds_file->resource_size();
+    return 0;
+}
+
 /// Load ordered batches within an estimated memory budget.
 /// Source is std::filesystem::path, const Bitmap*, or EncodedImageView; options has one entry per source.
 /// Caller-owned bitmaps and encoded bytes must remain alive until this function returns.
-/// consume(begin, images, handles) runs on the calling thread after launching each batch's tasks.
-/// begin is the batch's offset in sources; images and handles use batch-local indices.
-/// The callback clears each handle slot before waiting and releasing that task, then accesses its image.
+/// consume(begin, images, tasks) runs on the calling thread after launching each batch's tasks.
+/// begin is the batch's offset in sources; images and tasks use batch-local indices.
+/// The callback calls tasks.wait_next() once per image and accesses only the image it returns.
 /// It consumes/releases the images and finishes their GPU uploads before returning normally.
-/// Both spans are borrowed for the callback only; this helper drains remaining handles on failure.
+/// Both are borrowed for the callback only; this helper drains remaining tasks on failure.
 template<typename Source, typename Consume>
 void load_batches(
     Device* device,
@@ -745,26 +903,20 @@ void load_batches(
             ++end;
         }
         std::vector<SourceImage> images(end - begin);
-        std::vector<thread::TaskHandle> handles(images.size());
+        DecodeTasks tasks(images.size());
         try {
             for (size_t i = 0; i < images.size(); ++i)
-                handles[i] = thread::do_async(
+                tasks.launch(
+                    i,
                     [&, i]
                     {
                         images[i] = load_and_convert_source_image(device, sources[begin + i], options[begin + i]);
                     }
                 );
-            consume(begin, std::span(images), std::span(handles));
+            consume(begin, std::span(images), tasks);
         } catch (...) {
             // Workers borrow batch storage; drain them before propagating the original failure.
-            for (thread::TaskHandle handle : handles) {
-                if (handle) {
-                    try {
-                        thread::task_wait_and_release(handle);
-                    } catch (...) {
-                    }
-                }
-            }
+            tasks.drain();
             throw;
         }
         begin = end;
@@ -775,32 +927,26 @@ inline std::vector<ref<Texture>> create_textures(
     Device* device,
     Blitter* blitter,
     std::span<SourceImage> source_images,
-    std::span<thread::TaskHandle> source_image_tasks,
+    DecodeTasks& source_image_tasks,
     std::span<const TextureLoader::Options> options
 )
 {
     SGL_ASSERT(source_images.size() == source_image_tasks.size());
     SGL_ASSERT(source_images.size() == options.size());
     std::vector<ref<Texture>> textures(source_images.size());
-    ref<CommandEncoder> command_encoder = device->create_command_encoder();
-    for (size_t i = 0; i < source_images.size(); ++i) {
+    UploadThrottle throttle(device);
+    for (size_t n = 0; n < source_images.size(); ++n) {
+        size_t i;
         {
             ScopedTime t{g_timing.wait};
-            thread::task_wait_and_release(std::exchange(source_image_tasks[i], nullptr));
+            i = source_image_tasks.wait_next();
         }
-        textures[i] = create_texture(device, blitter, command_encoder, std::move(source_images[i]), options[i]);
-        if ((i + 1) % BATCH_SIZE == 0 && (i + 1) < source_images.size()) {
-            ScopedTime t{g_timing.submit};
-            device->submit_command_buffer(command_encoder->finish());
-            device->wait();
-            command_encoder = device->create_command_encoder();
-        }
+        const size_t staged_bytes = staged_size(source_images[i]);
+        textures[i]
+            = create_texture(device, blitter, throttle.command_encoder(), std::move(source_images[i]), options[i]);
+        throttle.add(staged_bytes);
     }
-    {
-        ScopedTime t{g_timing.submit};
-        device->submit_command_buffer(command_encoder->finish());
-        device->wait();
-    }
+    throttle.finish();
 
     return textures;
 }
@@ -809,7 +955,7 @@ inline ref<Texture> create_texture_array(
     Device* device,
     Blitter* blitter,
     std::span<SourceImage> source_images,
-    std::span<thread::TaskHandle> source_image_tasks,
+    DecodeTasks& source_image_tasks,
     const TextureLoader::Options& options,
     ref<Texture> texture,
     uint32_t first_layer,
@@ -823,10 +969,10 @@ inline ref<Texture> create_texture_array(
 
     TextureUsage usage = get_effective_texture_usage(device, options);
 
-    ref<CommandEncoder> command_encoder = device->create_command_encoder();
+    UploadThrottle throttle(device);
 
-    for (size_t i = 0; i < source_images.size(); ++i) {
-        thread::task_wait_and_release(std::exchange(source_image_tasks[i], nullptr));
+    for (size_t n = 0; n < source_images.size(); ++n) {
+        const size_t i = source_image_tasks.wait_next();
         SourceImage source_image = std::move(source_images[i]);
         const Bitmap* bitmap = source_image.bitmap;
         if (!bitmap)
@@ -848,26 +994,22 @@ inline ref<Texture> create_texture_array(
                 SGL_THROW("Texture array requires all bitmaps to have the same dimensions and format");
         }
 
-        if (i && (i % BATCH_SIZE == 0)) {
-            device->submit_command_buffer(command_encoder->finish());
-            device->wait();
-            command_encoder = device->create_command_encoder();
-        }
-
         SubresourceData subresource_data{
             .data = bitmap->data(),
             .size = bitmap->buffer_size(),
             .row_pitch = bitmap->width() * bitmap->bytes_per_pixel(),
         };
+        CommandEncoder* command_encoder = throttle.command_encoder();
         command_encoder->upload_texture_data(texture, first_layer + narrow_cast<uint32_t>(i), 0, subresource_data);
+        const size_t staged_bytes = bitmap->buffer_size();
         /// Release bitmap to free CPU memory
         source_image.bitmap = nullptr;
 
         if (options.generate_mips)
             blitter->generate_mips(command_encoder, texture, first_layer + narrow_cast<uint32_t>(i));
+        throttle.add(staged_bytes);
     }
-    device->submit_command_buffer(command_encoder->finish());
-    device->wait();
+    throttle.finish();
 
     return texture;
 }
@@ -930,7 +1072,7 @@ TextureLoader::load_textures(std::span<const Bitmap*> bitmaps, std::span<const O
         bitmaps,
         options,
         m_memory_budget,
-        [&](size_t begin, auto images, auto tasks)
+        [&](size_t begin, auto images, auto& tasks)
         {
             auto batch = create_textures(m_device, m_blitter, images, tasks, options.subspan(begin, images.size()));
             std::move(batch.begin(), batch.end(), textures.begin() + begin);
@@ -957,7 +1099,7 @@ TextureLoader::load_textures(std::span<const std::filesystem::path> paths, std::
         paths,
         options,
         m_memory_budget,
-        [&](size_t begin, auto images, auto tasks)
+        [&](size_t begin, auto images, auto& tasks)
         {
             auto batch = create_textures(m_device, m_blitter, images, tasks, options.subspan(begin, images.size()));
             std::move(batch.begin(), batch.end(), textures.begin() + begin);
@@ -984,7 +1126,7 @@ TextureLoader::load_textures(std::span<const EncodedImageView> images, std::span
         images,
         options,
         m_memory_budget,
-        [&](size_t begin, auto source_images, auto tasks)
+        [&](size_t begin, auto source_images, auto& tasks)
         {
             auto batch = create_textures(
                 m_device,
@@ -1013,7 +1155,7 @@ ref<Texture> TextureLoader::load_texture_array(std::span<const Bitmap*> bitmaps,
         bitmaps,
         per_image_options,
         m_memory_budget,
-        [&](size_t begin, auto images, auto tasks)
+        [&](size_t begin, auto images, auto& tasks)
         {
             texture = create_texture_array(
                 m_device,
@@ -1045,7 +1187,7 @@ TextureLoader::load_texture_array(std::span<const std::filesystem::path> paths, 
         paths,
         per_image_options,
         m_memory_budget,
-        [&](size_t begin, auto images, auto tasks)
+        [&](size_t begin, auto images, auto& tasks)
         {
             texture = create_texture_array(
                 m_device,
