@@ -2,11 +2,11 @@
 
 #pragma once
 
+#include "nanobind.h"
+
 #include <vector>
 #include <map>
 #include <functional>
-
-#include "nanobind.h"
 
 #include "utils/slangpy.h"
 

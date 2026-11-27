@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include <optional>
-
 #include "nanobind.h"
+
+#include <optional>
 
 #include "sgl/device/reflection.h"
 #include "sgl/device/cursor_utils.h"
