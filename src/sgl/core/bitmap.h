@@ -139,6 +139,11 @@ public:
         ComponentType component_type;
         /// Number of channels per pixel.
         uint32_t channel_count;
+        /// True if the decoded bitmap is sRGB encoded, matching `Bitmap::srgb_gamma` after loading.
+        /// PNG uses its sRGB or gAMA tags when present (an unrecognized ICC profile is treated as linear).
+        /// Untagged 8-bit RGB/RGBA PNGs, RGB JPGs, and RGB/RGBA BMP and TGA images are assumed to be sRGB.
+        /// Grayscale and 16-bit untagged images, HDR and EXR are linear. DDS reports whether the format is sRGB.
+        bool srgb_gamma{false};
     };
 
     Bitmap(
@@ -338,7 +343,7 @@ private:
         std::vector<Bitmap::ComponentType> allowed_component_types
     ) const;
 
-    void read_stb(Stream* stream, const char* format, bool is_srgb, bool is_hdr);
+    void read_stb(Stream* stream, const char* format, bool is_hdr);
 
     void read_png(Stream* stream);
     void write_png(Stream* stream, int compression) const;

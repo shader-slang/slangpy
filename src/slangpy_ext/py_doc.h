@@ -500,8 +500,6 @@ static const char *mkd_doc_sgl_AspectBlendDesc_src_factor = R"doc()doc";
 
 static const char *mkd_doc_sgl_Attribute = R"doc()doc";
 
-static const char *mkd_doc_sgl_Attribute_Attribute = R"doc()doc";
-
 static const char *mkd_doc_sgl_Attribute_argument_count = R"doc()doc";
 
 static const char *mkd_doc_sgl_Attribute_argument_type = R"doc()doc";
@@ -772,6 +770,8 @@ static const char *mkd_doc_sgl_BaseReflectionObjectImpl = R"doc()doc";
 
 static const char *mkd_doc_sgl_BaseReflectionObjectImpl_BaseReflectionObjectImpl = R"doc()doc";
 
+static const char *mkd_doc_sgl_BaseReflectionObjectImpl_BaseReflectionObjectImpl_2 = R"doc()doc";
+
 static const char *mkd_doc_sgl_BaseReflectionObjectImpl_hot_reload_invalidate = R"doc()doc";
 
 static const char *mkd_doc_sgl_BaseReflectionObjectImpl_m_target = R"doc()doc";
@@ -789,6 +789,10 @@ static const char *mkd_doc_sgl_BaseReflectionObject_is_valid = R"doc()doc";
 static const char *mkd_doc_sgl_BaseReflectionObject_m_owner = R"doc()doc";
 
 static const char *mkd_doc_sgl_BaseReflectionObject_owner = R"doc()doc";
+
+static const char *mkd_doc_sgl_BaseReflectionObject_slang_component_type = R"doc()doc";
+
+static const char *mkd_doc_sgl_BaseReflectionObject_wrap_reflection = R"doc()doc";
 
 static const char *mkd_doc_sgl_BindlessDesc = R"doc()doc";
 
@@ -843,6 +847,14 @@ static const char *mkd_doc_sgl_Bitmap_Info_component_type = R"doc(Decoded compon
 static const char *mkd_doc_sgl_Bitmap_Info_height = R"doc(Height in pixels.)doc";
 
 static const char *mkd_doc_sgl_Bitmap_Info_pixel_format = R"doc(Decoded pixel format.)doc";
+
+static const char *mkd_doc_sgl_Bitmap_Info_srgb_gamma =
+R"doc(True if the decoded bitmap is sRGB encoded, matching
+`Bitmap::srgb_gamma` after loading. PNG uses its sRGB or gAMA tags
+when present (an unrecognized ICC profile is treated as linear).
+Untagged 8-bit RGB/RGBA PNGs, RGB JPGs, and RGB/RGBA BMP and TGA
+images are assumed to be sRGB. Grayscale and 16-bit untagged images,
+HDR and EXR are linear. DDS reports whether the format is sRGB.)doc";
 
 static const char *mkd_doc_sgl_Bitmap_Info_width = R"doc(Width in pixels.)doc";
 
@@ -2504,9 +2516,35 @@ static const char *mkd_doc_sgl_DDSFile_DDSFile = R"doc()doc";
 
 static const char *mkd_doc_sgl_DDSFile_DDSFile_2 = R"doc()doc";
 
-static const char *mkd_doc_sgl_DDSFile_DDSFile_3 = R"doc()doc";
+static const char *mkd_doc_sgl_DDSFile_DDSFile_3 =
+R"doc(Read a DDS file extending from the current stream position to the end
+of the stream.
+
+)doc";
 
 static const char *mkd_doc_sgl_DDSFile_DDSFile_4 = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_DDSFile_5 = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_Info = R"doc(DDS properties decoded from the file header.)doc";
+
+static const char *mkd_doc_sgl_DDSFile_Info_array_size = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_Info_compressed = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_Info_depth = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_Info_dxgi_format = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_Info_height = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_Info_mip_count = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_Info_srgb = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_Info_type = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_Info_width = R"doc()doc";
 
 static const char *mkd_doc_sgl_DDSFile_TextureType = R"doc()doc";
 
@@ -2534,7 +2572,11 @@ static const char *mkd_doc_sgl_DDSFile_compressed = R"doc()doc";
 
 static const char *mkd_doc_sgl_DDSFile_data = R"doc()doc";
 
-static const char *mkd_doc_sgl_DDSFile_decode_header = R"doc()doc";
+static const char *mkd_doc_sgl_DDSFile_decode_header =
+R"doc(Decode the header from the first data_size bytes and validate it
+against the total file_size.
+
+)doc";
 
 static const char *mkd_doc_sgl_DDSFile_depth = R"doc()doc";
 
@@ -2563,6 +2605,8 @@ static const char *mkd_doc_sgl_DDSFile_get_subresource_offset = R"doc()doc";
 static const char *mkd_doc_sgl_DDSFile_get_subresource_pitch = R"doc()doc";
 
 static const char *mkd_doc_sgl_DDSFile_height = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_info = R"doc(Properties of this file.)doc";
 
 static const char *mkd_doc_sgl_DDSFile_m_array_size = R"doc()doc";
 
@@ -2601,6 +2645,13 @@ static const char *mkd_doc_sgl_DDSFile_mip_count = R"doc()doc";
 static const char *mkd_doc_sgl_DDSFile_operator_assign = R"doc()doc";
 
 static const char *mkd_doc_sgl_DDSFile_operator_assign_2 = R"doc()doc";
+
+static const char *mkd_doc_sgl_DDSFile_read_info =
+R"doc(Read DDS properties from the header without loading the resource data.
+Validates the header and the file size like the constructor. The
+stream position is restored.
+
+)doc";
 
 static const char *mkd_doc_sgl_DDSFile_resource_data = R"doc()doc";
 
@@ -2939,8 +2990,6 @@ static const char *mkd_doc_sgl_DeclReflectionIndexedChildList = R"doc(DeclReflec
 static const char *mkd_doc_sgl_DeclReflectionIndexedChildList_DeclReflectionIndexedChildList = R"doc()doc";
 
 static const char *mkd_doc_sgl_DeclReflectionIndexedChildList_evaluate = R"doc(Get a specific search result.)doc";
-
-static const char *mkd_doc_sgl_DeclReflection_DeclReflection = R"doc()doc";
 
 static const char *mkd_doc_sgl_DeclReflection_Kind = R"doc(Different kinds of decl slang can return.)doc";
 
@@ -3310,16 +3359,18 @@ static const char *mkd_doc_sgl_Device_allocate_command_recording_id = R"doc()doc
 static const char *mkd_doc_sgl_Device_begin_retain_command_buffers =
 R"doc(Start keeping every command buffer submitted to this device alive.
 
-Until the matching call to ``end_retain_command_buffers``, the device
+Until the matching call to ``end_retain_command_buffers,`` the device
 holds a reference to each command buffer passed to
-``submit_command_buffers``. Calls may be nested; a command buffer
+``submit_command_buffers.`` Calls may be nested; a command buffer
 submitted in an inner scope is also retained by the enclosing scopes.
 
 This exists for work that is recorded for later execution, with no
 completion the device can track. The case in mind is a submission to a
-CUDA stream that is being captured into a CUDA graph: the graph's
-nodes point into the command buffers' memory, so they must outlive the
-graph.)doc";
+CUDA stream that is being captured into a CUDA
+graph: the graph's nodes point into the command buffers' memory, so
+       they must outlive the graph.
+
+)doc";
 
 static const char *mkd_doc_sgl_Device_blitter = R"doc()doc";
 
@@ -3592,7 +3643,7 @@ Returns:
 
 static const char *mkd_doc_sgl_Device_end_retain_command_buffers =
 R"doc(Stop the innermost retain scope started with
-``begin_retain_command_buffers``.
+``begin_retain_command_buffers.``
 
 Returns:
     The command buffers submitted since the matching begin call, in
@@ -3667,7 +3718,9 @@ static const char *mkd_doc_sgl_Device_is_closed = R"doc(Check if the device is c
 
 static const char *mkd_doc_sgl_Device_is_retaining_command_buffers =
 R"doc(True if a retain scope started with ``begin_retain_command_buffers``
-is open.)doc";
+is open.
+
+)doc";
 
 static const char *mkd_doc_sgl_Device_is_submit_finished =
 R"doc(Check if a submission is finished executing.
@@ -3733,6 +3786,10 @@ static const char *mkd_doc_sgl_Device_m_next_callback_id = R"doc()doc";
 static const char *mkd_doc_sgl_Device_m_nvrtc_supported_architectures = R"doc()doc";
 
 static const char *mkd_doc_sgl_Device_m_persistent_cache = R"doc()doc";
+
+static const char *mkd_doc_sgl_Device_m_retained_command_buffers =
+R"doc(One list per open retain scope (see begin_retain_command_buffers),
+innermost last.)doc";
 
 static const char *mkd_doc_sgl_Device_m_rhi_device = R"doc()doc";
 
@@ -4047,8 +4104,6 @@ static const char *mkd_doc_sgl_EntryPointLayoutParameterList_evaluate = R"doc(Ge
 
 static const char *mkd_doc_sgl_EntryPointLayoutParameterList_size = R"doc(Number of entries in list.)doc";
 
-static const char *mkd_doc_sgl_EntryPointLayout_EntryPointLayout = R"doc()doc";
-
 static const char *mkd_doc_sgl_EntryPointLayout_class_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_EntryPointLayout_compute_thread_group_size = R"doc()doc";
@@ -4237,11 +4292,15 @@ static const char *mkd_doc_sgl_Feature_sm_6_9 = R"doc()doc";
 
 static const char *mkd_doc_sgl_Feature_software_device = R"doc()doc";
 
+static const char *mkd_doc_sgl_Feature_subgroup_partitioned_ext = R"doc()doc";
+
 static const char *mkd_doc_sgl_Feature_surface = R"doc()doc";
 
 static const char *mkd_doc_sgl_Feature_timestamp_calibration = R"doc()doc";
 
 static const char *mkd_doc_sgl_Feature_timestamp_query = R"doc()doc";
+
+static const char *mkd_doc_sgl_Feature_viewport_array_index = R"doc()doc";
 
 static const char *mkd_doc_sgl_Feature_wave_ops = R"doc()doc";
 
@@ -4809,8 +4868,6 @@ static const char *mkd_doc_sgl_FunctionReflectionParameterList_FunctionReflectio
 static const char *mkd_doc_sgl_FunctionReflectionParameterList_evaluate = R"doc(Get a specific child.)doc";
 
 static const char *mkd_doc_sgl_FunctionReflectionParameterList_size = R"doc(Number of entries in list.)doc";
-
-static const char *mkd_doc_sgl_FunctionReflection_FunctionReflection = R"doc()doc";
 
 static const char *mkd_doc_sgl_FunctionReflection_class_name = R"doc()doc";
 
@@ -7659,8 +7716,6 @@ static const char *mkd_doc_sgl_ProgramLayout_HashedString_hash = R"doc()doc";
 
 static const char *mkd_doc_sgl_ProgramLayout_HashedString_string = R"doc()doc";
 
-static const char *mkd_doc_sgl_ProgramLayout_ProgramLayout = R"doc()doc";
-
 static const char *mkd_doc_sgl_ProgramLayout_class_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_ProgramLayout_entry_point_count = R"doc()doc";
@@ -8517,11 +8572,15 @@ static const char *mkd_doc_sgl_ShaderObject = R"doc()doc";
 
 static const char *mkd_doc_sgl_ShaderObject_ShaderObject = R"doc()doc";
 
+static const char *mkd_doc_sgl_ShaderObject_ShaderObject_2 = R"doc()doc";
+
 static const char *mkd_doc_sgl_ShaderObject_class_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_ShaderObject_device = R"doc()doc";
 
 static const char *mkd_doc_sgl_ShaderObject_element_type_layout = R"doc()doc";
+
+static const char *mkd_doc_sgl_ShaderObject_get_child = R"doc()doc";
 
 static const char *mkd_doc_sgl_ShaderObject_get_cuda_interop_buffers = R"doc()doc";
 
@@ -8559,6 +8618,8 @@ unless absolutely necessary.
 
 )doc";
 
+static const char *mkd_doc_sgl_ShaderObject_retain_for_reflection = R"doc()doc";
+
 static const char *mkd_doc_sgl_ShaderObject_rhi_shader_object = R"doc()doc";
 
 static const char *mkd_doc_sgl_ShaderObject_set_acceleration_structure = R"doc()doc";
@@ -8584,6 +8645,8 @@ static const char *mkd_doc_sgl_ShaderObject_set_sampler = R"doc()doc";
 static const char *mkd_doc_sgl_ShaderObject_set_texture = R"doc()doc";
 
 static const char *mkd_doc_sgl_ShaderObject_set_texture_view = R"doc()doc";
+
+static const char *mkd_doc_sgl_ShaderObject_slang_component_type = R"doc()doc";
 
 static const char *mkd_doc_sgl_ShaderObject_slang_element_type_layout = R"doc()doc";
 
@@ -8634,8 +8697,6 @@ static const char *mkd_doc_sgl_ShaderProgramData = R"doc()doc";
 
 static const char *mkd_doc_sgl_ShaderProgramData_class_name = R"doc()doc";
 
-static const char *mkd_doc_sgl_ShaderProgramData_linked_program = R"doc()doc";
-
 static const char *mkd_doc_sgl_ShaderProgramData_rhi_shader_program = R"doc()doc";
 
 static const char *mkd_doc_sgl_ShaderProgramDesc = R"doc()doc";
@@ -8655,6 +8716,8 @@ static const char *mkd_doc_sgl_ShaderProgram_ShaderProgram_2 = R"doc()doc";
 static const char *mkd_doc_sgl_ShaderProgram_ShaderProgram_3 = R"doc()doc";
 
 static const char *mkd_doc_sgl_ShaderProgram_class_name = R"doc()doc";
+
+static const char *mkd_doc_sgl_ShaderProgram_data = R"doc()doc";
 
 static const char *mkd_doc_sgl_ShaderProgram_desc = R"doc()doc";
 
@@ -8851,6 +8914,22 @@ static const char *mkd_doc_sgl_SlangCompilerOptions_warnings_as_errors =
 R"doc(Specifies a list of warnings to be treated as errors (warning codes or
 names, or "all" to indicate all warnings).)doc";
 
+static const char *mkd_doc_sgl_SlangComponentData =
+R"doc(Backing storage for one compilation. Slang components borrow their
+session.)doc";
+
+static const char *mkd_doc_sgl_SlangComponentData_SlangComponentData = R"doc()doc";
+
+static const char *mkd_doc_sgl_SlangComponentData_component = R"doc()doc";
+
+static const char *mkd_doc_sgl_SlangComponentData_device = R"doc()doc";
+
+static const char *mkd_doc_sgl_SlangComponentData_m_device = R"doc()doc";
+
+static const char *mkd_doc_sgl_SlangComponentData_session = R"doc()doc";
+
+static const char *mkd_doc_sgl_SlangComponentData_slang_component_type = R"doc()doc";
+
 static const char *mkd_doc_sgl_SlangDebugInfoLevel = R"doc(Slang debug info levels.)doc";
 
 static const char *mkd_doc_sgl_SlangDebugInfoLevel_info = R"doc()doc";
@@ -8880,8 +8959,6 @@ program.)doc";
 
 static const char *mkd_doc_sgl_SlangEntryPointData_name = R"doc()doc";
 
-static const char *mkd_doc_sgl_SlangEntryPointData_slang_entry_point = R"doc()doc";
-
 static const char *mkd_doc_sgl_SlangEntryPointDesc = R"doc()doc";
 
 static const char *mkd_doc_sgl_SlangEntryPointDesc_name = R"doc(Name of the entry point as declared in its module.)doc";
@@ -8904,6 +8981,8 @@ static const char *mkd_doc_sgl_SlangEntryPoint_SlangEntryPoint = R"doc()doc";
 static const char *mkd_doc_sgl_SlangEntryPoint_class_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_SlangEntryPoint_create_build_context = R"doc(Helper to create a build context for entry point operations.)doc";
+
+static const char *mkd_doc_sgl_SlangEntryPoint_data = R"doc()doc";
 
 static const char *mkd_doc_sgl_SlangEntryPoint_desc = R"doc()doc";
 
@@ -9005,8 +9084,6 @@ static const char *mkd_doc_sgl_SlangModuleData_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_SlangModuleData_path = R"doc()doc";
 
-static const char *mkd_doc_sgl_SlangModuleData_slang_component_type = R"doc(The underlying slang component type (for composed modules only).)doc";
-
 static const char *mkd_doc_sgl_SlangModuleData_slang_module = R"doc(The underlying slang module (null for composed modules).)doc";
 
 static const char *mkd_doc_sgl_SlangModuleDesc = R"doc()doc";
@@ -9048,6 +9125,8 @@ build context.
 )doc";
 
 static const char *mkd_doc_sgl_SlangModule_data = R"doc()doc";
+
+static const char *mkd_doc_sgl_SlangModule_data_2 = R"doc()doc";
 
 static const char *mkd_doc_sgl_SlangModule_desc = R"doc(Descriptor that holds all data required to create this module.)doc";
 
@@ -10049,8 +10128,6 @@ static const char *mkd_doc_sgl_TypeLayoutReflectionFieldList_evaluate = R"doc(Ge
 
 static const char *mkd_doc_sgl_TypeLayoutReflectionFieldList_size = R"doc(Number of entries in list.)doc";
 
-static const char *mkd_doc_sgl_TypeLayoutReflection_TypeLayoutReflection = R"doc()doc";
-
 static const char *mkd_doc_sgl_TypeLayoutReflection_alignment = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeLayoutReflection_class_name = R"doc()doc";
@@ -10293,8 +10370,6 @@ static const char *mkd_doc_sgl_TypeReflection_ScalarType_uintptr = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeReflection_ScalarType_void = R"doc()doc";
 
-static const char *mkd_doc_sgl_TypeReflection_TypeReflection = R"doc()doc";
-
 static const char *mkd_doc_sgl_TypeReflection_class_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_TypeReflection_col_count = R"doc()doc";
@@ -10363,8 +10438,6 @@ static const char *mkd_doc_sgl_UnownedSlangBlob_release = R"doc()doc";
 
 static const char *mkd_doc_sgl_VariableLayoutReflection = R"doc()doc";
 
-static const char *mkd_doc_sgl_VariableLayoutReflection_VariableLayoutReflection = R"doc()doc";
-
 static const char *mkd_doc_sgl_VariableLayoutReflection_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_VariableLayoutReflection_offset = R"doc()doc";
@@ -10376,8 +10449,6 @@ static const char *mkd_doc_sgl_VariableLayoutReflection_type_layout = R"doc()doc
 static const char *mkd_doc_sgl_VariableLayoutReflection_variable = R"doc()doc";
 
 static const char *mkd_doc_sgl_VariableReflection = R"doc()doc";
-
-static const char *mkd_doc_sgl_VariableReflection_VariableReflection = R"doc()doc";
 
 static const char *mkd_doc_sgl_VariableReflection_class_name = R"doc()doc";
 
@@ -11349,6 +11420,16 @@ static const char *mkd_doc_sgl_detail_ProfilerZoneGuard_operator_assign = R"doc(
 
 static const char *mkd_doc_sgl_detail_ProfilerZoneGuard_operator_assign_2 = R"doc()doc";
 
+static const char *mkd_doc_sgl_detail_ReflectionOwner =
+R"doc(Backing object that can keep one compilation alive for a reflection
+wrapper.)doc";
+
+static const char *mkd_doc_sgl_detail_ReflectionOwner_device = R"doc()doc";
+
+static const char *mkd_doc_sgl_detail_ReflectionOwner_retain_for_reflection = R"doc()doc";
+
+static const char *mkd_doc_sgl_detail_ReflectionOwner_slang_component_type = R"doc()doc";
+
 static const char *mkd_doc_sgl_detail_build_slang_error_message = R"doc()doc";
 
 static const char *mkd_doc_sgl_detail_build_slang_rhi_error_message = R"doc()doc";
@@ -11398,6 +11479,8 @@ static const char *mkd_doc_sgl_detail_on_slang_wrapper_destroyed = R"doc()doc";
 static const char *mkd_doc_sgl_detail_profiler_frame_name = R"doc()doc";
 
 static const char *mkd_doc_sgl_detail_profiler_frame_name_2 = R"doc()doc";
+
+static const char *mkd_doc_sgl_detail_reflection_owner = R"doc()doc";
 
 static const char *mkd_doc_sgl_detail_report_assertion = R"doc()doc";
 

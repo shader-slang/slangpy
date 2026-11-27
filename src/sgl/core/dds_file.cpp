@@ -360,6 +360,8 @@ namespace detail {
 
     /// Minimum possible size of the header.
     static constexpr size_t MIN_HEADER_SIZE = sizeof(DDS_MAGIC) + sizeof(Header);
+    /// Maximum possible size of the header (with the DX10 extension).
+    static constexpr size_t MAX_HEADER_SIZE = MIN_HEADER_SIZE + sizeof(HeaderDXT10);
 
     inline constexpr bool is_dxt10(const Header& header)
     {
@@ -825,20 +827,55 @@ using namespace detail;
 
 DDSFile::DDSFile(Stream* stream)
 {
-    const size_t size = stream->size();
+    // The file extends from the current position to the end of the stream.
+    const size_t size = stream->size() - stream->tell();
     if (size < MIN_HEADER_SIZE)
         SGL_THROW("DDS file is too small");
 
     m_data.resize(size);
     stream->read(m_data.data(), m_data.size());
 
-    if (!decode_header(m_data.data(), m_data.size()))
+    if (!decode_header(m_data.data(), m_data.size(), m_data.size()))
         SGL_THROW("DDS file has invalid header");
 }
 
 DDSFile::DDSFile(const std::filesystem::path& path)
     : DDSFile(ref(new FileStream(path, FileStream::Mode::read)))
 {
+}
+
+DDSFile::Info DDSFile::read_info(Stream* stream)
+{
+    // The file extends from the current position to the end of the stream.
+    const size_t position = stream->tell();
+    const size_t size = stream->size() - position;
+    if (size < MIN_HEADER_SIZE)
+        SGL_THROW("DDS file is too small");
+
+    uint8_t header[MAX_HEADER_SIZE];
+    const size_t header_size = std::min(size, MAX_HEADER_SIZE);
+    stream->read(header, header_size);
+    stream->seek(position);
+
+    DDSFile dds;
+    if (!dds.decode_header(header, header_size, size))
+        SGL_THROW("DDS file has invalid header");
+    return dds.info();
+}
+
+DDSFile::Info DDSFile::info() const
+{
+    return {
+        .dxgi_format = m_dxgi_format,
+        .type = m_type,
+        .width = m_width,
+        .height = m_height,
+        .depth = m_depth,
+        .mip_count = m_mip_count,
+        .array_size = m_array_size,
+        .compressed = m_compressed,
+        .srgb = m_srgb,
+    };
 }
 
 const uint8_t* DDSFile::get_subresource_data(uint32_t mip, uint32_t slice) const
@@ -1041,7 +1078,7 @@ void DDSFile::write_dds(
     write_dds(&stream, dxgi_format, type, width, height, depth, mip_count, array_size, resource_data, resource_size);
 }
 
-bool DDSFile::decode_header(const uint8_t* data, size_t size)
+bool DDSFile::decode_header(const uint8_t* data, size_t data_size, size_t file_size)
 {
     // First 4 bytes are the magic DDS number
     uint32_t magic;
@@ -1053,7 +1090,7 @@ bool DDSFile::decode_header(const uint8_t* data, size_t size)
     std::memcpy(&header, data + sizeof(DDS_MAGIC), sizeof(header));
     const PixelFormat& ddspf = header.ddspf;
     bool dxt10 = is_dxt10(header);
-    if (dxt10 && size < sizeof(DDS_MAGIC) + sizeof(Header) + sizeof(HeaderDXT10))
+    if (dxt10 && data_size < MAX_HEADER_SIZE)
         return false;
     HeaderDXT10 dxt10_header{};
     if (dxt10)
@@ -1315,8 +1352,8 @@ bool DDSFile::decode_header(const uint8_t* data, size_t size)
     m_header_size = sizeof(DDS_MAGIC) + sizeof(Header) + (dxt10 ? sizeof(HeaderDXT10) : 0);
 
     size_t required_resource_size;
-    if (m_header_size > size || !get_required_resource_size(&required_resource_size)
-        || required_resource_size > size - m_header_size)
+    if (m_header_size > file_size || !get_required_resource_size(&required_resource_size)
+        || required_resource_size > file_size - m_header_size)
         return false;
 
     return true;

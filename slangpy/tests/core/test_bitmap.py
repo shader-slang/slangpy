@@ -98,6 +98,7 @@ def write_read_test(
     assert info.pixel_format == b2.pixel_format
     assert info.component_type == b2.component_type
     assert info.channel_count == b2.channel_count
+    assert info.srgb_gamma == b2.srgb_gamma
 
     assert b1.pixel_format == b2.pixel_format
     assert b1.component_type == b2.component_type
@@ -282,6 +283,7 @@ def test_png_transfer_metadata(
     assert bitmap.srgb_gamma is (
         (bit_depth == 8 and channels in (3, 4)) if expected is None else expected
     )
+    assert Bitmap.read_info(path).srgb_gamma is bitmap.srgb_gamma
     assert np.asarray(bitmap).dtype == (np.uint8 if bit_depth == 8 else np.uint16)
     np.testing.assert_array_equal(np.asarray(bitmap).reshape(-1), [value] * channels)
     # Transfer tags affect color fields, never the alpha channel or stored samples.
@@ -342,6 +344,8 @@ def test_png_read_bit_depth(bit_depth: int, channels: int, from_memory: bool):
     assert bitmap.width == 4
     assert bitmap.height == 2
     assert bitmap.channel_count == channels
+    if not from_memory:
+        assert Bitmap.read_info(path).srgb_gamma is bitmap.srgb_gamma
     actual = np.array(bitmap, copy=False)
     assert actual.dtype == dtype
     np.testing.assert_array_equal(actual, expected[:, :, 0] if channels == 1 else expected)
@@ -403,6 +407,14 @@ def test_dds_read(item: tuple[str, int, int, Bitmap.PixelFormat, Bitmap.Componen
     assert bmp.pixel_format == pixel_format
     assert bmp.component_type == component_type
     assert bmp.srgb_gamma == srgb
+
+    info = Bitmap.read_info(dds_dir / filename)
+    assert info.width == width
+    assert info.height == height
+    assert info.pixel_format == pixel_format
+    assert info.component_type == component_type
+    assert info.channel_count == bmp.channel_count
+    assert info.srgb_gamma == srgb
     assert not bmp.empty()
     assert bmp.buffer_size > 0
 
