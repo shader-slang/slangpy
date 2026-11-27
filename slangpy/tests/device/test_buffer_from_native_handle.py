@@ -2,6 +2,8 @@
 
 import pytest
 import numpy as np
+import gc
+import weakref
 
 import slangpy as spy
 from slangpy.testing import helpers
@@ -84,6 +86,34 @@ def test_native_handle_from_cuda_device_ptr(device_type: spy.DeviceType):
     handle = spy.NativeHandle.from_cuda_device_ptr(buffer.device_address)
     assert handle.type == spy.NativeHandleType.CUdeviceptr
     assert handle == buffer.native_handle
+
+
+@pytest.mark.parametrize("device_type", [spy.DeviceType.cuda, spy.DeviceType.vulkan])
+def test_import_owner_survives_tensor_views(device_type: spy.DeviceType):
+    device = helpers.get_device(device_type)
+
+    class AllocationOwner:
+        def __init__(self, buffer: spy.Buffer):
+            self.buffer = buffer
+
+    expected = np.arange(12, dtype=np.float32).reshape(4, 3)
+    allocation = device.create_buffer(usage=BUFFER_USAGE, data=expected)
+    owner = AllocationOwner(allocation)
+    owner_ref = weakref.ref(owner)
+    imported = device.create_buffer_from_native_handle(
+        {"size": allocation.size, "usage": BUFFER_USAGE}, allocation.native_handle, owner=owner
+    )
+    dtype = spy.Tensor.empty(device, (1,), dtype="float").dtype
+    tensor = spy.Tensor(imported, dtype, (4, 3))
+    view = tensor[1:]
+    del owner, allocation, imported, tensor
+    gc.collect()
+    assert owner_ref() is not None
+    np.testing.assert_array_equal(view.to_numpy(), expected[1:])
+    del view
+    device.wait()
+    gc.collect()
+    assert owner_ref() is None
 
 
 if __name__ == "__main__":
