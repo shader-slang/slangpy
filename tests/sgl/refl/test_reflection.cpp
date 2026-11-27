@@ -256,6 +256,9 @@ struct Foo {
     float value;
 };
 float get_value(Foo foo) { return foo.value; }
+float overloaded(float value) { return value; }
+int overloaded(int value) { return value; }
+float generic_value<T>(T value) { return 0.0; }
 )"
     );
     REQUIRE(module_a);
@@ -267,6 +270,9 @@ struct Foo {
     int value;
 };
 int get_value(Foo foo) { return foo.value; }
+int overloaded(int value) { return value; }
+int overloaded(float value) { return int(value); }
+int generic_value<T>(T value) { return 0; }
 )"
     );
     REQUIRE(module_b);
@@ -274,6 +280,22 @@ int get_value(Foo foo) { return foo.value; }
     ref<refl::Layout> layout = make_ref<refl::Layout>(module_a->layout());
     ref<refl::Type> old_foo_type = layout->require_type_by_name("Foo");
     ref<refl::Function> old_function = layout->require_function_by_name("get_value");
+    ref<refl::Type> float_type = layout->scalar_type(TypeReflection::ScalarType::float32);
+    ref<refl::Function> overloaded = layout->require_function_by_name("overloaded");
+    ref<refl::Function> old_overload;
+    for (const ref<refl::Function>& overload : overloaded->overloads()) {
+        if (overload->parameters().at(0)->type() == float_type)
+            old_overload = overload;
+    }
+    REQUIRE(old_overload);
+    CHECK(old_overload->return_type() == float_type);
+    ref<refl::Function> old_nested_specialization = old_overload->specialize_with_arg_types({float_type});
+    REQUIRE(old_nested_specialization);
+    CHECK(old_nested_specialization->return_type() == float_type);
+    ref<refl::Function> generic = layout->require_function_by_name("generic_value");
+    ref<refl::Function> old_specialization = generic->specialize_with_arg_types({float_type});
+    REQUIRE(old_specialization);
+    CHECK(old_specialization->return_type() == float_type);
     uint64_t generation = layout->generation();
 
     layout->on_hot_reload(module_b->layout());
@@ -291,6 +313,9 @@ int get_value(Foo foo) { return foo.value; }
     CHECK(new_function.get() == old_function.get());
     CHECK(old_function->return_type() == layout->scalar_type(TypeReflection::ScalarType::int32));
     CHECK(new_function->return_type() == layout->scalar_type(TypeReflection::ScalarType::int32));
+    CHECK(old_overload->return_type() == layout->scalar_type(TypeReflection::ScalarType::int32));
+    CHECK(old_nested_specialization->return_type() == layout->scalar_type(TypeReflection::ScalarType::int32));
+    CHECK(old_specialization->return_type() == layout->scalar_type(TypeReflection::ScalarType::int32));
 }
 
 TEST_SUITE_END();
