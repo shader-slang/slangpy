@@ -11436,6 +11436,12 @@ static const char *mkd_doc_sgl_detail_build_slang_rhi_error_message = R"doc()doc
 
 static const char *mkd_doc_sgl_detail_compute_coop_vec_row_col_stride = R"doc()doc";
 
+static const char *mkd_doc_sgl_detail_downsample_2x_box_unorm8_scalar =
+R"doc(Scalar-only variant of `downsample_2x_box_unorm8`, kept as a reference
+for testing the SIMD paths.
+
+)doc";
+
 static const char *mkd_doc_sgl_detail_ensure_glfw_initialized = R"doc()doc";
 
 static const char *mkd_doc_sgl_detail_format_enum =
@@ -11511,6 +11517,69 @@ static const char *mkd_doc_sgl_detail_unused = R"doc()doc";
 static const char *mkd_doc_sgl_detail_wrapped_type_name = R"doc(Return the compiler-specific spelling that contains T's name.)doc";
 
 static const char *mkd_doc_sgl_div_round_up = R"doc(Divide a by b and round up to the next integer.)doc";
+
+static const char *mkd_doc_sgl_downsample_2x_box =
+R"doc(Downsample an interleaved float image by exactly 2x in each dimension
+using a 2x2 box filter.
+
+The source image is `2 * dst_width` by `2 * dst_height` pixels.
+Results match `Bitmap::resample` with a `BoxFilter` for the same
+dimensions. Rows may be padded and any row range can be processed
+independently, which allows callers to split the work across threads.
+
+Args:
+    src: Source pixels.
+    src_row_pitch: Distance between source rows in bytes.
+    dst: Destination pixels.
+    dst_row_pitch: Distance between destination rows in bytes.
+    dst_width: Destination width in pixels.
+    dst_height: Destination height in pixels.
+    channel_count: Number of interleaved channels per pixel.
+
+)doc";
+
+static const char *mkd_doc_sgl_downsample_2x_box_unorm16 =
+R"doc(Downsample an interleaved 16-bit unorm image by exactly 2x in each
+dimension using a 2x2 box filter.
+
+All channels are averaged as linear values, computing `(a + b + c + d
++ 2) >> 2`. This is within one unit of decoding to float, resampling
+with a `BoxFilter` and re-encoding with `Bitmap::convert`. sRGB-
+encoded 16-bit data is not supported.
+
+Args:
+    src: Source pixels, `2 * dst_width` by `2 * dst_height`.
+    src_row_pitch: Distance between source rows in bytes.
+    dst: Destination pixels.
+    dst_row_pitch: Distance between destination rows in bytes.
+    dst_width: Destination width in pixels.
+    dst_height: Destination height in pixels.
+    channel_count: Number of interleaved channels per pixel.
+
+)doc";
+
+static const char *mkd_doc_sgl_downsample_2x_box_unorm8 =
+R"doc(Downsample an interleaved 8-bit unorm image by exactly 2x in each
+dimension using a 2x2 box filter.
+
+Filtering happens in linear light: with `srgb` set, every channel
+except the alpha channel is decoded from sRGB before averaging and
+encoded back afterwards. Results are within one unit of decoding to
+float, resampling with a `BoxFilter` and re-encoding with
+`Bitmap::convert`, without allocating float intermediates.
+
+Args:
+    src: Source pixels, `2 * dst_width` by `2 * dst_height`.
+    src_row_pitch: Distance between source rows in bytes.
+    dst: Destination pixels.
+    dst_row_pitch: Distance between destination rows in bytes.
+    dst_width: Destination width in pixels.
+    dst_height: Destination height in pixels.
+    channel_count: Number of interleaved channels per pixel.
+    srgb: Whether color channels are sRGB encoded.
+    has_alpha: Whether the last channel is a linear alpha channel.
+
+)doc";
 
 static const char *mkd_doc_sgl_dynamic_ref_cast = R"doc()doc";
 

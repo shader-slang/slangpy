@@ -6,6 +6,7 @@ import numpy.typing as npt
 import enum
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import slangpy as spy
 from slangpy import TextureLoader, Bitmap, Format, DataStruct, FormatSupport
@@ -611,6 +612,73 @@ def test_max_mip_count_bitmap(device_type: spy.DeviceType, srgb: bool, tmp_path:
         np.testing.assert_allclose(texture.to_numpy(), expected, atol=1, rtol=0)
     np.testing.assert_array_equal(np.asarray(bitmap), data)
     assert bitmap.srgb_gamma
+
+
+def reference_reduce(
+    bitmap: Bitmap,
+    srgb: bool,
+    max_mip_count: int,
+    component_type: ComponentType = ComponentType.uint8,
+) -> npt.NDArray[Any]:
+    """Reduce like the generic loader path: decode to float, 2x box resample, re-quantize per halving."""
+    while max(bitmap.width, bitmap.height).bit_length() > max_mip_count:
+        bitmap.srgb_gamma = srgb
+        source = bitmap.convert(component_type=ComponentType.float32, srgb_gamma=False)
+        target = Bitmap(
+            source.pixel_format,
+            ComponentType.float32,
+            max(1, source.width // 2),
+            max(1, source.height // 2),
+        )
+        source.resample(target)
+        bitmap = target.convert(component_type=component_type, srgb_gamma=srgb)
+    return np.asarray(bitmap)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("srgb", [False, True])
+@pytest.mark.parametrize("channels", [3, 4])
+def test_max_mip_count_uint8_matches_reference(
+    device_type: spy.DeviceType, srgb: bool, channels: int
+) -> None:
+    # 48x40 halves exactly to 24x20 and 12x10, then 6x5 has an odd height and reaches 3x2 via the generic path.
+    loader = TextureLoader(helpers.get_device(type=device_type))
+    data = np.random.default_rng(7).integers(0, 256, size=(40, 48, channels), dtype=np.uint8)
+    options = TextureLoader.Options(
+        {
+            "max_mip_count": 2,
+            "srgb_mode": spy.SRGBMode.srgb if srgb else spy.SRGBMode.linear,
+            "generate_mips": False,
+        }
+    )
+    texture = loader.load_texture(Bitmap(data, srgb_gamma=srgb), options)
+    expected = reference_reduce(Bitmap(data, srgb_gamma=srgb), srgb, 2)
+    assert (texture.width, texture.height) == (3, 2)
+    # The 8-bit fast path filters with 16-bit linear intermediates, so allow one unit of rounding difference.
+    # RGB sources are reduced before being expanded to RGBA, which must not change the result.
+    actual = texture.to_numpy()
+    diff = np.abs(actual[..., :channels].astype(np.int32) - expected.astype(np.int32))
+    assert diff.max() <= 1
+    if channels == 3:
+        assert np.all(actual[..., 3] == 255)
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+def test_max_mip_count_uint16_matches_reference(device_type: spy.DeviceType) -> None:
+    # Same reduction chain as the uint8 test; 16-bit textures always reduce in linear space. Kernel accuracy for all
+    # channel counts is covered by the C++ tests, RGB also checks the expansion to RGBA after reducing.
+    channels = 3
+    loader = TextureLoader(helpers.get_device(type=device_type))
+    data = np.random.default_rng(8).integers(0, 65536, size=(40, 48, channels), dtype=np.uint16)
+    options = TextureLoader.Options({"max_mip_count": 2, "generate_mips": False})
+    texture = loader.load_texture(Bitmap(data, srgb_gamma=False), options)
+    expected = reference_reduce(Bitmap(data, srgb_gamma=False), False, 2, ComponentType.uint16)
+    assert (texture.width, texture.height) == (3, 2)
+    actual = texture.to_numpy()
+    # Integer averaging may differ from the float reference by one unit at rounding ties.
+    diff = np.abs(actual[..., :channels].astype(np.int32) - expected.astype(np.int32))
+    assert diff.max() <= 1
+    assert np.all(actual[..., 3] == 65535)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)

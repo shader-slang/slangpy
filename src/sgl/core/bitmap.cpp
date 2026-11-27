@@ -55,6 +55,7 @@ derivative works thereof, in binary and source code form.
 #include "sgl/core/thread.h"
 #include "sgl/core/type_utils.h"
 #include "sgl/core/dds_file.h"
+#include "sgl/core/downsample.h"
 #include "sgl/core/bc_codec.h"
 #include "sgl/core/bc_types.h"
 #include "sgl/device/native_formats.h"
@@ -150,6 +151,34 @@ namespace {
                 return false;
         }
         return info.bytes_per_block == info.channel_count * (channel_bits / 8);
+    }
+
+    /// Expand RGB pixels to RGBA with a constant alpha value.
+    template<typename T>
+    void append_opaque_alpha(const T* src, T* dst, size_t pixel_count, T alpha)
+    {
+        if constexpr (sizeof(T) == 1) {
+            // Move whole 4-byte words; the last pixel is copied separately to avoid reading past the source.
+            const uint32_t alpha_bits = uint32_t(alpha) << 24;
+            for (size_t i = 0; i + 1 < pixel_count; ++i) {
+                uint32_t rgbx;
+                std::memcpy(&rgbx, src + 3 * i, 4);
+                rgbx = (rgbx & 0x00ffffffu) | alpha_bits;
+                std::memcpy(dst + 4 * i, &rgbx, 4);
+            }
+            if (pixel_count > 0) {
+                const size_t i = pixel_count - 1;
+                std::memcpy(dst + 4 * i, src + 3 * i, 3);
+                dst[4 * i + 3] = alpha;
+            }
+        } else {
+            for (size_t i = 0; i < pixel_count; ++i) {
+                dst[4 * i + 0] = src[3 * i + 0];
+                dst[4 * i + 1] = src[3 * i + 1];
+                dst[4 * i + 2] = src[3 * i + 2];
+                dst[4 * i + 3] = alpha;
+            }
+        }
     }
 
 } // namespace
@@ -516,6 +545,33 @@ void Bitmap::convert(Bitmap* target) const
             continue;
         }
         SGL_THROW("Unable to convert bitmap: cannot determine how to derive field \"{}\" in target image!", field.name);
+    }
+
+    // Fast path: RGB -> RGBA without changing component type or encoding only appends an opaque alpha channel.
+    if (m_pixel_format == PixelFormat::rgb && target->pixel_format() == PixelFormat::rgba
+        && m_component_type == target->component_type() && m_srgb_gamma == target->srgb_gamma()) {
+        switch (m_component_type) {
+        case ComponentType::uint8:
+            return append_opaque_alpha(data_as<uint8_t>(), target->data_as<uint8_t>(), pixel_count(), uint8_t(255));
+        case ComponentType::uint16:
+            return append_opaque_alpha(
+                data_as<uint16_t>(),
+                target->data_as<uint16_t>(),
+                pixel_count(),
+                uint16_t(65535)
+            );
+        case ComponentType::float16:
+            return append_opaque_alpha(
+                data_as<math::float16_t>(),
+                target->data_as<math::float16_t>(),
+                pixel_count(),
+                math::float16_t(1.f)
+            );
+        case ComponentType::float32:
+            return append_opaque_alpha(data_as<float>(), target->data_as<float>(), pixel_count(), 1.f);
+        default:
+            break;
+        }
     }
 
     ref<DataStructConverter> converter = make_ref<DataStructConverter>(src_struct, dst_struct);
@@ -2613,6 +2669,45 @@ void Bitmap::resample(
         src_ptr = src_float_storage.data();
     } else {
         src_ptr = data_as<float>();
+    }
+
+    // Fast path: exact 2x box downsampling (e.g. mip generation) needs no per-call filter weights or intermediate.
+    if (std::holds_alternative<BoxFilter>(filter) && src_w == 2 * dst_width && src_h == 2 * dst_height) {
+        std::vector<float> dst_float_storage;
+        float* dst_ptr = target->data_as<float>();
+        if (is_float16) {
+            dst_float_storage.resize(total_dst);
+            dst_ptr = dst_float_storage.data();
+        }
+        const size_t src_row_pitch = size_t(src_w) * channels * sizeof(float);
+        const size_t dst_row_pitch = size_t(dst_width) * channels * sizeof(float);
+        const uint32_t rows_per_block = std::max(1u, 65536u / (dst_width * channels));
+        thread::parallel_for(
+            thread::blocked_range<uint32_t>(0, dst_height, rows_per_block),
+            [&](const thread::blocked_range<uint32_t>& range)
+            {
+                const uint32_t y = *range.begin();
+                downsample_2x_box(
+                    reinterpret_cast<const float*>(reinterpret_cast<const uint8_t*>(src_ptr) + 2 * y * src_row_pitch),
+                    src_row_pitch,
+                    reinterpret_cast<float*>(reinterpret_cast<uint8_t*>(dst_ptr) + y * dst_row_pitch),
+                    dst_row_pitch,
+                    dst_width,
+                    *range.end() - y,
+                    channels
+                );
+            }
+        );
+        if (clamp.first > -std::numeric_limits<float>::infinity()
+            || clamp.second < std::numeric_limits<float>::infinity())
+            for (size_t i = 0; i < total_dst; ++i)
+                dst_ptr[i] = std::clamp(dst_ptr[i], clamp.first, clamp.second);
+        if (is_float16) {
+            math::float16_t* dst = target->data_as<math::float16_t>();
+            for (size_t i = 0; i < total_dst; ++i)
+                dst[i] = math::float16_t(dst_ptr[i]);
+        }
+        return;
     }
 
     const bool needs_h = (src_w != dst_width);
