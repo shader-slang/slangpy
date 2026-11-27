@@ -112,6 +112,10 @@ namespace cursor_utils {
 
         constexpr bool allow_conversion(TypeReflection::ScalarType from, TypeReflection::ScalarType to) const
         {
+            // Slang reports scalar types past COUNT (for example FloatE4M3), which have no table entry.
+            if (uint32_t(from) >= uint32_t(TypeReflection::ScalarType::COUNT)
+                || uint32_t(to) >= uint32_t(TypeReflection::ScalarType::COUNT))
+                return false;
             return (table[uint32_t(from)] & (1 << uint32_t(to))) != 0;
         }
 
