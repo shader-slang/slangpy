@@ -168,6 +168,8 @@ def test_texture_add_f32(device_type: spy.DeviceType, dimension: int):
         spy.TextureType.texture_3d,
     ]
 
+    # The shader accumulates into the texture, so it must start out zeroed.
+    # Texture memory is not zero-initialized when created without initial data.
     texture = device.create_texture(
         format=spy.Format.r32_float,
         type=types[dimension - 1],
@@ -175,6 +177,7 @@ def test_texture_add_f32(device_type: spy.DeviceType, dimension: int):
         height=2 if dimension > 1 else 1,
         depth=2 if dimension > 2 else 1,
         usage=spy.TextureUsage.unordered_access,
+        data=np.zeros([2] * dimension, dtype=np.float32),
     )
 
     ctx = helpers.dispatch_compute(
