@@ -19,12 +19,18 @@
 #if SGL_WINDOWS
 #define GLFW_EXPOSE_NATIVE_WIN32
 #elif SGL_LINUX
+#if SGL_HAS_GLFW_X11
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
 #define GLFW_EXPOSE_NATIVE_X11
 // Xrandr defines some macros that conflict with our code, so undefine them.
 #ifdef CursorShape
 #undef CursorShape
+#endif
+#endif
+#if SGL_HAS_GLFW_WAYLAND
+// Only opaque wl_display/wl_surface pointers are used, so no Wayland headers are needed.
+#define GLFW_EXPOSE_NATIVE_WAYLAND
 #endif
 #elif SGL_MACOS
 #define GLFW_EXPOSE_NATIVE_COCOA
@@ -39,6 +45,16 @@ namespace sgl {
 namespace {
     // Non-owning registry. All window operations run on the main thread.
     std::unordered_set<Window*> s_windows;
+
+    /// Whether GLFW runs on Wayland, chosen at glfwInit() when both backends are built.
+    inline bool is_wayland()
+    {
+#if SGL_HAS_GLFW_WAYLAND
+        return glfwGetPlatform() == GLFW_PLATFORM_WAYLAND;
+#else
+        return false;
+#endif
+    }
 
     inline KeyCode get_key_code(int glfw_key)
     {
@@ -400,7 +416,8 @@ Window::Window(WindowDesc desc)
         SGL_THROW("Failed to create GLFW window");
     std::unique_ptr<GLFWwindow, decltype(&glfwDestroyWindow)> guard(m_window, &glfwDestroyWindow);
 
-    if (desc.position)
+    // Wayland does not allow clients to position windows.
+    if (desc.position && !is_wayland())
         glfwSetWindowPos(m_window, desc.position->x, desc.position->y);
     m_placement.normal_position = position();
 
@@ -450,16 +467,26 @@ void Window::set_title(std::string title)
 WindowHandle Window::window_handle() const
 {
     GLFWwindow* window = glfw_window();
-    WindowHandle handle{};
 #if SGL_WINDOWS
-    handle.hwnd = glfwGetWin32Window(window);
+    return WindowHandle::from_hwnd(glfwGetWin32Window(window));
 #elif SGL_LINUX
-    handle.xdisplay = glfwGetX11Display();
-    handle.xwindow = glfwGetX11Window(window);
-#elif SGL_MACOS
-    handle.nswindow = glfwGetCocoaWindow(window);
+    switch (glfwGetPlatform()) {
+#if SGL_HAS_GLFW_WAYLAND
+    case GLFW_PLATFORM_WAYLAND:
+        return WindowHandle::from_wayland_surface(glfwGetWaylandDisplay(), glfwGetWaylandWindow(window));
 #endif
-    return handle;
+#if SGL_HAS_GLFW_X11
+    case GLFW_PLATFORM_X11:
+        return WindowHandle::from_xlib_window(glfwGetX11Display(), static_cast<uint32_t>(glfwGetX11Window(window)));
+#endif
+    default:
+        SGL_THROW("Unsupported GLFW platform {}", glfwGetPlatform());
+    }
+#elif SGL_MACOS
+    return WindowHandle::from_nswindow(glfwGetCocoaWindow(window));
+#else
+    return WindowHandle{};
+#endif
 }
 
 void Window::set_icon(const std::filesystem::path& path)
@@ -470,6 +497,9 @@ void Window::set_icon(const std::filesystem::path& path)
 
 int2 Window::position() const
 {
+    // Wayland clients cannot query their position; avoid a GLFW error per call.
+    if (is_wayland())
+        return int2{0, 0};
     int xpos, ypos;
     glfwGetWindowPos(glfw_window(), &xpos, &ypos);
     return int2{xpos, ypos};
@@ -477,7 +507,8 @@ int2 Window::position() const
 
 void Window::set_position(int2 position)
 {
-    glfwSetWindowPos(glfw_window(), position.x, position.y);
+    if (!is_wayland())
+        glfwSetWindowPos(glfw_window(), position.x, position.y);
     update_normal_placement();
 }
 

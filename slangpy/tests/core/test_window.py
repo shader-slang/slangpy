@@ -14,10 +14,23 @@ import pytest
 import slangpy as spy
 
 
+def _is_wayland() -> bool:
+    """Whether GLFW is expected to pick Wayland, mirroring its platform selection."""
+    if not sys.platform.startswith("linux"):
+        return False
+    if os.environ.get("XDG_SESSION_TYPE") == "x11" and os.environ.get("DISPLAY"):
+        return False
+    # Like wl_display_connect: WAYLAND_DISPLAY (default wayland-0) in XDG_RUNTIME_DIR.
+    display = os.environ.get("WAYLAND_DISPLAY") or "wayland-0"
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "")
+    socket = Path(display) if Path(display).is_absolute() else Path(runtime_dir) / display
+    return bool(runtime_dir or socket.is_absolute()) and socket.exists()
+
+
 @pytest.fixture(scope="module")
 def desktop() -> None:
-    if sys.platform.startswith("linux") and not os.environ.get("DISPLAY"):
-        pytest.skip("Window tests require an X11 desktop")
+    if sys.platform.startswith("linux") and not os.environ.get("DISPLAY") and not _is_wayland():
+        pytest.skip("Window tests require an X11 or Wayland desktop")
     try:
         monitors = spy.platform.get_monitors()
     except RuntimeError as error:
@@ -27,6 +40,22 @@ def desktop() -> None:
     # Windows CI service sessions can initialize GLFW without any attached displays.
     if not monitors:
         pytest.skip("Window tests require a connected monitor")
+
+
+@pytest.fixture(scope="module")
+def placement(desktop: None) -> None:
+    # Ask the initialized GLFW platform; the environment cannot tell in Wayland-only builds.
+    window = spy.Window(width=64, height=64, visible=False)
+    try:
+        handle_type = window.window_handle.type
+    finally:
+        window.close()
+    # Wayland clients can neither query nor set their position or query whether they are minimized.
+    if handle_type == spy.WindowHandleType.wayland_surface:
+        pytest.skip("Wayland does not expose window position or minimized state")
+
+
+requires_placement = pytest.mark.usefixtures("placement")
 
 
 def _position() -> spy.int2:
@@ -131,6 +160,7 @@ def test_glfw_shutdown(desktop: None, mode: str) -> None:
     assert "Exception ignored" not in output, output
 
 
+@requires_placement
 def test_hidden_placement_and_window_metrics(window: spy.Window) -> None:
     assert not window.is_visible()
     assert not window.is_minimized()
@@ -154,6 +184,14 @@ def test_hidden_placement_and_window_metrics(window: spy.Window) -> None:
     assert placement.normal_size == spy.uint2(400, 300)
 
 
+def test_window_handle(window: spy.Window) -> None:
+    expected = {
+        "win32": [spy.WindowHandleType.hwnd],
+        "darwin": [spy.WindowHandleType.nswindow],
+    }.get(sys.platform, [spy.WindowHandleType.xlib_window, spy.WindowHandleType.wayland_surface])
+    assert window.window_handle.type in expected
+
+
 def test_show_hide(window: spy.Window) -> None:
     window.show()
     _wait(window, lambda: window.is_visible())
@@ -162,6 +200,7 @@ def test_show_hide(window: spy.Window) -> None:
     assert not window.is_minimized()
 
 
+@requires_placement
 @pytest.mark.parametrize("visible", [False, True])
 @pytest.mark.parametrize(
     "mode",
@@ -203,6 +242,7 @@ def test_initial_window_state(desktop: None, mode: spy.WindowMode, visible: bool
         window.close()
 
 
+@requires_placement
 def test_maximize_minimize_restore(window: spy.Window) -> None:
     window.show()
     _wait(window, lambda: window.is_visible())
@@ -222,6 +262,7 @@ def test_maximize_minimize_restore(window: spy.Window) -> None:
     assert window.placement.to_dict() == original
 
 
+@requires_placement
 @pytest.mark.parametrize("maximized", [False, True])
 def test_reopen_placement(window: spy.Window, maximized: bool) -> None:
     window.position = _position() + spy.int2(40, 60)
@@ -250,6 +291,7 @@ def test_reopen_placement(window: spy.Window, maximized: bool) -> None:
         reopened.close()
 
 
+@requires_placement
 def test_hidden_placement(desktop: None) -> None:
     saved = spy.WindowPlacement(_position(), [480, 320], maximized=True).to_dict()
     window = spy.Window(placement=saved, visible=False)

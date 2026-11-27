@@ -220,6 +220,7 @@
         "slangpy.VariableReflection",
         "slangpy.VertexStreamDesc",
         "slangpy.Viewport",
+        "slangpy.WindowHandleType",
         "slangpy.WindowHandle"
     ],
     "Application": [

@@ -82,7 +82,7 @@ jobs:
       - name: Setup Linux
         if: startsWith(matrix.os, 'linux') && contains(matrix.runs-on, 'ubuntu-')
         run: |
-          sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
+          sudo apt update && sudo apt install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev libwayland-dev libxkbcommon-dev pkg-config
 
       # Setup Python.
       - name: Setup Python ${{ matrix.python }}
