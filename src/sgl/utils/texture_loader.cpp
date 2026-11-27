@@ -16,12 +16,16 @@
 #include "sgl/core/logger.h"
 #include "sgl/core/maths.h"
 #include "sgl/core/memory_stream.h"
+#include "sgl/core/platform.h"
 #include "sgl/core/timer.h"
 #include "sgl/core/thread.h"
 
 #include "sgl/stl/bit.h"
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstdlib>
 #include <exception>
 #include <map>
 #include <utility>
@@ -29,6 +33,56 @@
 namespace sgl {
 
 static constexpr size_t BATCH_SIZE = 32;
+
+// TEMP: stage timing instrumentation (not for commit).
+struct LoaderTiming {
+    std::atomic<uint64_t> estimate{0}, decode[4]{}, decode_count[4]{}, convert{0}, wait{0}, create{0}, upload{0},
+        mips{0}, submit{0};
+    static uint64_t now() { return uint64_t(std::chrono::steady_clock::now().time_since_epoch().count()); }
+    void reset()
+    {
+        for (auto* a : {&estimate, &convert, &wait, &create, &upload, &mips, &submit})
+            *a = 0;
+        for (int i = 0; i < 4; ++i)
+            decode[i] = decode_count[i] = 0;
+    }
+    void report(uint64_t wall)
+    {
+        if (!platform::get_environment_variable("SGL_TEXTURE_LOADER_TIMING"))
+            return;
+        auto ms = [](uint64_t ns)
+        {
+            return double(ns) * 1e-6;
+        };
+        log_info(
+            "TIMING wall {:.1f} ms | estimate {:.1f} | decode cpu jpg {:.1f} ({}) png {:.1f} ({}) exr {:.1f} ({}) "
+            "other {:.1f} ({}) | convert cpu {:.1f} | main: wait {:.1f} create {:.1f} upload {:.1f} mips {:.1f} "
+            "submit+wait {:.1f}",
+            ms(wall),
+            ms(estimate),
+            ms(decode[0]),
+            decode_count[0].load(),
+            ms(decode[1]),
+            decode_count[1].load(),
+            ms(decode[2]),
+            decode_count[2].load(),
+            ms(decode[3]),
+            decode_count[3].load(),
+            ms(convert),
+            ms(wait),
+            ms(create),
+            ms(upload),
+            ms(mips),
+            ms(submit)
+        );
+    }
+};
+static LoaderTiming g_timing;
+struct ScopedTime {
+    std::atomic<uint64_t>& acc;
+    uint64_t start{LoaderTiming::now()};
+    ~ScopedTime() { acc += LoaderTiming::now() - start; }
+};
 
 /// Holds a source image to be uploaded to a texture.
 /// Data can either be a bitmap or a DDS file.
@@ -360,7 +414,13 @@ inline SourceImage load_source_image(Stream* stream)
     if (DDSFile::detect_dds_file(stream)) {
         source_image.dds_file = ref(new DDSFile(stream));
         source_image.format = get_format(DXGI_FORMAT(source_image.dds_file->dxgi_format()));
-    } else if (Bitmap::detect_file_format(stream) != Bitmap::FileFormat::unknown) {
+    } else if (auto file_format = Bitmap::detect_file_format(stream); file_format != Bitmap::FileFormat::unknown) {
+        int index = file_format == Bitmap::FileFormat::jpg ? 0
+            : file_format == Bitmap::FileFormat::png       ? 1
+            : file_format == Bitmap::FileFormat::exr       ? 2
+                                                           : 3;
+        ScopedTime t{g_timing.decode[index]};
+        g_timing.decode_count[index]++;
         source_image.bitmap = ref(new Bitmap(stream));
     }
     return source_image;
@@ -396,6 +456,7 @@ inline SourceImage load_source_image(const std::filesystem::path& path)
 
 inline SourceImage convert_source_image(Device* device, SourceImage source_image, const TextureLoader::Options& options)
 {
+    ScopedTime t{g_timing.convert};
     if (source_image.bitmap)
         return convert_bitmap(device, std::move(source_image.bitmap), options);
     if (source_image.dds_file)
@@ -445,6 +506,7 @@ inline ref<Texture> create_texture(
 
         TextureUsage usage = get_effective_texture_usage(device, options);
 
+        uint64_t t0 = LoaderTiming::now();
         ref<Texture> texture = device->create_texture({
             .type = TextureType::texture_2d,
             .format = source_image.format,
@@ -453,14 +515,18 @@ inline ref<Texture> create_texture(
             .mip_count = allocate_mips ? ALL_MIPS : 1u,
             .usage = usage,
         });
-
+        g_timing.create += LoaderTiming::now() - t0;
         SubresourceData subresource_data{
             .data = bitmap->data(),
             .row_pitch = bitmap->width() * bitmap->bytes_per_pixel(),
         };
 
-        command_encoder->upload_texture_data(texture, 0, 0, subresource_data);
+        {
+            ScopedTime t{g_timing.upload};
+            command_encoder->upload_texture_data(texture, 0, 0, subresource_data);
+        }
         if (options.generate_mips) {
+            ScopedTime t{g_timing.mips};
             blitter->generate_mips(command_encoder, texture);
         }
 
@@ -650,14 +716,23 @@ void load_batches(
 {
     // Inspect all sources in parallel before choosing batches; pixel loading still reopens each file.
     std::vector<size_t> estimates(sources.size());
-    thread::parallel_for(
-        thread::blocked_range<size_t>(0, sources.size()),
-        [&](const thread::blocked_range<size_t>& range)
-        {
-            for (size_t i : range)
-                estimates[i] = estimate_source_memory(sources[i], options[i]);
-        }
-    );
+    g_timing.reset();
+    const uint64_t t_wall = LoaderTiming::now();
+    {
+        ScopedTime t_estimate{g_timing.estimate};
+        thread::parallel_for(
+            thread::blocked_range<size_t>(0, sources.size()),
+            [&](const thread::blocked_range<size_t>& range)
+            {
+                for (size_t i : range)
+                    estimates[i] = estimate_source_memory(sources[i], options[i]);
+            }
+        );
+    }
+    struct Report {
+        uint64_t start;
+        ~Report() { g_timing.report(LoaderTiming::now() - start); }
+    } report{t_wall};
 
     for (size_t begin = 0; begin < sources.size();) {
         size_t end = begin;
@@ -709,16 +784,23 @@ inline std::vector<ref<Texture>> create_textures(
     std::vector<ref<Texture>> textures(source_images.size());
     ref<CommandEncoder> command_encoder = device->create_command_encoder();
     for (size_t i = 0; i < source_images.size(); ++i) {
-        thread::task_wait_and_release(std::exchange(source_image_tasks[i], nullptr));
+        {
+            ScopedTime t{g_timing.wait};
+            thread::task_wait_and_release(std::exchange(source_image_tasks[i], nullptr));
+        }
         textures[i] = create_texture(device, blitter, command_encoder, std::move(source_images[i]), options[i]);
         if ((i + 1) % BATCH_SIZE == 0 && (i + 1) < source_images.size()) {
+            ScopedTime t{g_timing.submit};
             device->submit_command_buffer(command_encoder->finish());
             device->wait();
             command_encoder = device->create_command_encoder();
         }
     }
-    device->submit_command_buffer(command_encoder->finish());
-    device->wait();
+    {
+        ScopedTime t{g_timing.submit};
+        device->submit_command_buffer(command_encoder->finish());
+        device->wait();
+    }
 
     return textures;
 }
