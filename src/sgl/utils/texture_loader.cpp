@@ -331,22 +331,33 @@ inline Format apply_dds_srgb_mode(Format format, SRGBMode mode)
     return format;
 }
 
+inline SourceImage load_source_image(const std::filesystem::path& path)
+{
+    FileStream stream(path, FileStream::Mode::read);
+    return load_source_image(&stream);
+}
+
+inline SourceImage convert_source_image(Device* device, SourceImage source_image, const TextureLoader::Options& options)
+{
+    if (source_image.bitmap)
+        return convert_bitmap(device, std::move(source_image.bitmap), options);
+    if (source_image.dds_file)
+        source_image.format = apply_dds_srgb_mode(source_image.format, options.srgb_mode);
+    return source_image;
+}
+
 inline SourceImage load_and_convert_source_image(Device* device, Stream* stream, const TextureLoader::Options& options)
 {
-    SourceImage source_image = load_source_image(stream);
-    if (source_image.bitmap) {
-        source_image = convert_bitmap(device, std::move(source_image.bitmap), options);
-    } else if (source_image.dds_file) {
-        source_image.format = apply_dds_srgb_mode(source_image.format, options.srgb_mode);
-    }
-    return source_image;
+    return convert_source_image(device, load_source_image(stream), options);
 }
 
 inline SourceImage
 load_and_convert_source_image(Device* device, const std::filesystem::path& path, const TextureLoader::Options& options)
 {
-    FileStream stream(path, FileStream::Mode::read);
-    return load_and_convert_source_image(device, &stream, options);
+    // Decode and close the file before converting. Conversion may wait on nested pool work (resampling), and the
+    // waiting worker runs other queued loads meanwhile; holding the file open would nest one open handle per queued
+    // load and can exhaust the open file limit for large batches.
+    return convert_source_image(device, load_source_image(path), options);
 }
 
 inline SourceImage load_and_convert_source_image(
