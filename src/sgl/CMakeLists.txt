@@ -28,6 +28,8 @@ target_sources(sgl PRIVATE
     core/data_type.h
     core/dds_file.cpp
     core/dds_file.h
+    core/downsample.cpp
+    core/downsample.h
     core/enum.h
     core/error.cpp
     core/error.h

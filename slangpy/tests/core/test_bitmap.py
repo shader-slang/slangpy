@@ -158,6 +158,29 @@ def test_bitmap_vflip():
     assert np.all(a == np.flip(img, 0))
 
 
+@pytest.mark.parametrize(
+    "dtype,alpha",
+    [(np.uint8, 255), (np.uint16, 65535), (np.float16, 1.0), (np.float32, 1.0)],
+)
+@pytest.mark.parametrize("srgb", [False, True])
+@pytest.mark.parametrize("size", [(1, 1), (7, 5), (64, 3)])
+def test_convert_rgb_to_rgba_appends_opaque_alpha(
+    dtype: type, alpha: float, srgb: bool, size: tuple[int, int]
+) -> None:
+    rng = np.random.default_rng(5)
+    shape = (size[1], size[0], 3)
+    if np.issubdtype(dtype, np.integer):
+        data = rng.integers(0, np.iinfo(dtype).max, shape, endpoint=True).astype(dtype)
+    else:
+        data = rng.random(shape).astype(dtype)
+    bitmap = Bitmap(data, Bitmap.PixelFormat.rgb, srgb_gamma=srgb)
+    result = bitmap.convert(Bitmap.PixelFormat.rgba, bitmap.component_type, srgb)
+    out = np.asarray(result)
+    assert result.srgb_gamma == srgb
+    np.testing.assert_array_equal(out[..., :3], data)
+    np.testing.assert_array_equal(out[..., 3], np.full(shape[:2], alpha, dtype))
+
+
 def test_bitmap_from_non_contiguous_array():
     a = create_test_array(100, 100, 4, np.float32, (0.0, 1.0))
     # Strided 2-dimensional array

@@ -484,6 +484,32 @@ def test_box_filter_downscale():
     np.testing.assert_allclose(out, ref, atol=1e-5)
 
 
+@pytest.mark.parametrize("channels", [1, 2, 3, 4, 5])
+@pytest.mark.parametrize("dtype", [np.float32, np.float16])
+def test_box_filter_exact_halving(channels: int, dtype: type) -> None:
+    """Exact 2x box downscale (fast path) should equal the mean of each 2x2 block, for any channel count."""
+    data = np.random.default_rng(3).random((10, 14, channels)).astype(dtype)
+    if channels == 5:
+        bmp = Bitmap(data, pixel_format=Bitmap.PixelFormat.multi_channel)
+    else:
+        bmp = make_float32_bitmap(14, 10, channels=channels)
+        bmp = Bitmap(data, pixel_format=bmp.pixel_format)
+    result = bmp.resample(7, 5)
+    out = np.array(result, copy=False).reshape(5, 7, channels)
+    ref = data.astype(np.float32).reshape(5, 2, 7, 2, channels).mean(axis=(1, 3))
+    np.testing.assert_allclose(
+        out.astype(np.float32), ref, atol=1e-3 if dtype == np.float16 else 1e-6
+    )
+
+
+def test_box_filter_exact_halving_clamp() -> None:
+    data = np.random.default_rng(4).random((8, 8, 4)).astype(np.float32) * 2.0
+    bmp = Bitmap(data, pixel_format=Bitmap.PixelFormat.rgba)
+    out = np.array(bmp.resample(4, 4, BoxFilter(), clamp=(0.25, 0.75)), copy=False)
+    ref = np.clip(data.reshape(4, 2, 4, 2, 4).mean(axis=(1, 3)), 0.25, 0.75)
+    np.testing.assert_allclose(out, ref, atol=1e-6)
+
+
 def test_tent_filter_upscale():
     """Tent filter 2x upscale should match the numpy reference."""
     rng = np.random.RandomState(11)

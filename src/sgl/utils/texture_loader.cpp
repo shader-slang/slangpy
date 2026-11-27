@@ -11,6 +11,7 @@
 #include "sgl/core/bitmap.h"
 #include "sgl/core/config.h"
 #include "sgl/core/dds_file.h"
+#include "sgl/core/downsample.h"
 #include "sgl/core/file_stream.h"
 #include "sgl/core/logger.h"
 #include "sgl/core/maths.h"
@@ -20,6 +21,7 @@
 
 #include "sgl/stl/bit.h"
 
+#include <algorithm>
 #include <exception>
 #include <map>
 #include <utility>
@@ -256,6 +258,53 @@ inline std::pair<TextureType, uint32_t> get_texture_type_and_layer_count(DDSFile
     }
 }
 
+/// Halve an 8-bit or 16-bit unorm y/ya/rgb/rgba bitmap with even dimensions using a 2x2 box filter in linear light.
+/// Runs single-threaded, since textures are already loaded in parallel. Returns nullptr when the fast path does not
+/// apply.
+inline ref<Bitmap> halve_unorm_bitmap(const Bitmap& bitmap, bool srgb)
+{
+    using PF = Bitmap::PixelFormat;
+    using CT = Bitmap::ComponentType;
+    const PF pixel_format = bitmap.pixel_format();
+    const CT component_type = bitmap.component_type();
+    // 16-bit sRGB data is not supported by the kernels (and no 16-bit sRGB texture formats exist).
+    const bool supported_type = component_type == CT::uint8 || (component_type == CT::uint16 && !srgb);
+    if (!supported_type
+        || (pixel_format != PF::y && pixel_format != PF::ya && pixel_format != PF::rgb && pixel_format != PF::rgba)
+        || bitmap.width() % 2 != 0 || bitmap.height() % 2 != 0)
+        return nullptr;
+
+    const uint32_t channels = bitmap.channel_count();
+    const bool has_alpha = pixel_format == PF::ya || pixel_format == PF::rgba;
+    ref<Bitmap> result = make_ref<Bitmap>(pixel_format, component_type, bitmap.width() / 2, bitmap.height() / 2);
+    const size_t src_row_pitch = size_t(bitmap.width()) * bitmap.bytes_per_pixel();
+    const size_t dst_row_pitch = size_t(result->width()) * result->bytes_per_pixel();
+    if (component_type == CT::uint8) {
+        downsample_2x_box_unorm8(
+            bitmap.data_as<uint8_t>(),
+            src_row_pitch,
+            result->data_as<uint8_t>(),
+            dst_row_pitch,
+            result->width(),
+            result->height(),
+            channels,
+            srgb,
+            has_alpha
+        );
+    } else {
+        downsample_2x_box_unorm16(
+            bitmap.data_as<uint16_t>(),
+            src_row_pitch,
+            result->data_as<uint16_t>(),
+            dst_row_pitch,
+            result->width(),
+            result->height(),
+            channels
+        );
+    }
+    return result;
+}
+
 // Reduce in linear light, quantizing to the texture format after each halving.
 inline ref<Bitmap> reduce_bitmap(ref<Bitmap> bitmap, Format format, uint32_t max_mip_count)
 {
@@ -267,6 +316,10 @@ inline ref<Bitmap> reduce_bitmap(ref<Bitmap> bitmap, Format format, uint32_t max
     const auto component_type = bitmap->component_type();
     const bool source_gamma = bitmap->srgb_gamma();
     while (uint32_t(stdx::bit_width(std::max(bitmap->width(), bitmap->height()))) > max_mip_count) {
+        if (ref<Bitmap> halved = halve_unorm_bitmap(*bitmap, srgb)) {
+            bitmap = std::move(halved);
+            continue;
+        }
         // A borrowed view changes interpretation without mutating the caller's bitmap.
         Bitmap source(pixel_format, component_type, bitmap->width(), bitmap->height(), 0, {}, bitmap->data(), srgb);
         bitmap = source.convert(pixel_format, Bitmap::ComponentType::float32, false);
@@ -285,6 +338,10 @@ inline SourceImage convert_bitmap(Device* device, ref<Bitmap> bitmap, const Text
 
     auto [format, convert_to_rgba] = determine_texture_format(device, bitmap, options);
 
+    // Reduce before expanding channels: replicated luminance and the opaque alpha that conversion adds reduce to
+    // the same values, so this gives identical results while converting fewer pixels.
+    bitmap = reduce_bitmap(std::move(bitmap), format, options.max_mip_count);
+
     if (bitmap->pixel_format() == PixelFormat::ya && options.ya_handling == YAHandling::preserve_as_rg) {
         bitmap = convert_ya_to_rg(bitmap);
     } else if (convert_to_rgba) {
@@ -292,7 +349,7 @@ inline SourceImage convert_bitmap(Device* device, ref<Bitmap> bitmap, const Text
     }
 
     return SourceImage{
-        .bitmap = reduce_bitmap(std::move(bitmap), format, options.max_mip_count),
+        .bitmap = std::move(bitmap),
         .format = format,
     };
 }
