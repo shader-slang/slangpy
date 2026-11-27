@@ -23,7 +23,7 @@ DEVICE_TYPES = list(dict.fromkeys(helpers.DEFAULT_DEVICE_TYPES + [DeviceType.cpu
 MODULE = r"""
 import "slangpy";
 
-void record_call_id(int index, RWStructuredBuffer<uint> markers, uint row_stride, uint count)
+public void record_call_id(int index, RWStructuredBuffer<uint> markers, uint row_stride, uint count)
 {
     // Mark sentinel logical IDs around the old single-row dispatch limit. If
     // physical dispatch Y is not flattened correctly, the row_stride entries
@@ -39,7 +39,7 @@ void record_call_id(int index, RWStructuredBuffer<uint> markers, uint row_stride
         markers[3] = tid;
 }
 
-void record_thread_id(uint tid, RWStructuredBuffer<uint> markers, uint row_stride, uint count)
+public void record_thread_id(uint tid, RWStructuredBuffer<uint> markers, uint row_stride, uint count)
 {
     // Same sentinels as record_call_id, but fed by slangpy.thread_id() and
     // _thread_count instead of a vectorized grid argument.

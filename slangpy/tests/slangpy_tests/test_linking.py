@@ -12,7 +12,7 @@ import "slangpy";
 extern static const bool BOOL;
 extern static const int INT;
 extern static const float FLOAT;
-float foo() { return BOOL ? float(INT) * FLOAT : 0.0; }
+public float foo() { return BOOL ? float(INT) * FLOAT : 0.0; }
 """
 
 IMPORT_MODULE = r"""
@@ -22,14 +22,14 @@ export static const float FLOAT = 42.0;
 """
 
 LINK_TYPE_BASE_MODULE = r"""
-interface IVal
+public interface IVal
 {
     static int get();
 }
 
-extern struct VAL : IVal;
+public extern struct VAL : IVal;
 
-int get_value()
+public int get_value()
 {
     return VAL::get();
 }

@@ -61,34 +61,34 @@ def compare_gradients(
 # All activation functions in one module for convenience
 SLANG_ACTIVATIONS = """
 [Differentiable]
-float slang_relu(float x) {
+public float slang_relu(float x) {
     return max(0.0f, x);
 }
 
 [Differentiable]
-float slang_leaky_relu(float x) {
+public float slang_leaky_relu(float x) {
     float alpha = 0.01f;  // Standard leaky ReLU slope
     return x > 0.0f ? x : alpha * x;
 }
 
 [Differentiable]
-float slang_sigmoid(float x) {
+public float slang_sigmoid(float x) {
     return 1.0f / (1.0f + exp(-x));
 }
 
 [Differentiable]
-float slang_tanh(float x) {
+public float slang_tanh(float x) {
     return tanh(x);
 }
 
 [Differentiable]
-float slang_silu(float x) {
+public float slang_silu(float x) {
     // SiLU/Swish: x * sigmoid(x)
     return x / (1.0f + exp(-x));
 }
 
 [Differentiable]
-float slang_softplus(float x) {
+public float slang_softplus(float x) {
     // Softplus: log(1 + exp(x))
     // Use numerically stable version for large x
     if (x > 20.0f) {
@@ -99,25 +99,25 @@ float slang_softplus(float x) {
 
 // Hardtanh: clamp(x, -1, 1) - tests both min and max
 [Differentiable]
-float slang_hardtanh(float x) {
+public float slang_hardtanh(float x) {
     return max(min(x, 1.0f), -1.0f);
 }
 
 // ReLU6: clamp(x, 0, 6) - common in mobile networks, tests both min and max
 [Differentiable]
-float slang_relu6(float x) {
+public float slang_relu6(float x) {
     return min(max(x, 0.0f), 6.0f);
 }
 
 // Element-wise maximum with a constant (used in strided slice test)
 [Differentiable]
-float slang_max_half(float x) {
+public float slang_max_half(float x) {
     return max(x, 0.5f);
 }
 
 // Element-wise minimum with a constant (used in strided slice test)
 [Differentiable]
-float slang_min_half(float x) {
+public float slang_min_half(float x) {
     return min(x, 0.5f);
 }
 """
@@ -129,13 +129,13 @@ import slangpy;
 
 // Copy with transformation - tests RWTensor write-back
 // Input is read-only Tensor, output is writable RWTensor
-void scale_tensor(Tensor<float, 1> input, float scale, RWTensor<float, 1> output) {
+public void scale_tensor(Tensor<float, 1> input, float scale, RWTensor<float, 1> output) {
     for (uint i = 0; i < input.shape[0]; i++)
         output[i] = input[i] * scale;
 }
 
 // In-place scale - tests RWTensor read AND write
-void scale_inplace(float scale, RWTensor<float, 1> data) {
+public void scale_inplace(float scale, RWTensor<float, 1> data) {
     for (uint i = 0; i < data.shape[0]; i++)
         data[i] = data[i] * scale;
 }
@@ -326,7 +326,7 @@ def run_gradient_parity_test(
 
 SLANG_MSE_LOSS = """
 [Differentiable]
-float mse_element(float prediction, float target) {
+public float mse_element(float prediction, float target) {
     float diff = prediction - target;
     return diff * diff;
 }
@@ -691,7 +691,7 @@ def test_strided_slice_different_ops(device_type: DeviceType):
 
 SLANG_ARRAY_DOT = """
 [Differentiable]
-float dot3(float[3] a, float[3] b) {
+public float dot3(float[3] a, float[3] b) {
     float result = 0.0f;
     for (int i = 0; i < 3; i++) {
         result += a[i] * b[i];
@@ -750,7 +750,7 @@ def test_sliced_tensor_array_gradient_parity(
 
 SLANG_VECTOR_DOT = """
 [Differentiable]
-float dot_vectors(float3 a, float3 b) {
+public float dot_vectors(float3 a, float3 b) {
     return dot(a, b);
 }
 """
@@ -1169,7 +1169,7 @@ def test_gradient_copyback_single_op(device_type: DeviceType):
 
 SLANG_WEIGHTED_SUM = """
 [Differentiable]
-float weighted_sum(float a, float b, float weight) {
+public float weighted_sum(float a, float b, float weight) {
     return a * weight + b * (1.0f - weight);
 }
 """

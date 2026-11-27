@@ -55,7 +55,7 @@ def dot_product(
     function = helpers.create_function_from_module(
         device,
         "add_numbers",
-        r"float add_numbers(float3 a, float3 b) { return dot(a,b);}",
+        "public float add_numbers(float3 a, float3 b) { return dot(a,b);}",
     )
 
     if transforms is not None:
@@ -91,7 +91,7 @@ def read_slice(
     function = helpers.create_function_from_module(
         device,
         "read_slice",
-        r"""import "slangpy"; float read_slice(int2 index, Tensor<float,2> texture) { return texture[index.x,index.y]; }""",
+        r"""import "slangpy"; public float read_slice(int2 index, Tensor<float,2> texture) { return texture[index.x,index.y]; }""",
     )
 
     if transforms is not None:
@@ -127,7 +127,7 @@ def copy_at_index(
     function = helpers.create_function_from_module(
         device,
         "copy_at_index",
-        r"void copy_at_index(int index, StructuredBuffer<float4> fr, RWStructuredBuffer<float4> to) { to[index] = fr[index]; }",
+        "public void copy_at_index(int index, StructuredBuffer<float4> fr, RWStructuredBuffer<float4> to) { to[index] = fr[index]; }",
     )
 
     if transforms is not None:

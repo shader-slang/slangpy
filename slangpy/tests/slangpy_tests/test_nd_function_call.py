@@ -16,7 +16,7 @@ def test_basic_3d_call(device_type: DeviceType):
         device,
         "add_numbers_nd",
         r"""
-void add_numbers_nd(float a, float b, out float c) {
+public void add_numbers_nd(float a, float b, out float c) {
     c = a + b;
 }
 """,
