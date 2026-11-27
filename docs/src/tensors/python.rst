@@ -71,6 +71,18 @@ The ``Tensor`` class provides several factory methods for creating tensors:
     # The tensor will have the same shape and dtype as the numpy array
     print(tensor.shape)  # Shape(100, 100)
 
+    # target_slang_dtype sets the Slang element type. Each numpy element becomes
+    # one tensor element, so the Slang type must be the same size as the numpy itemsize.
+    indices = spy.Tensor.from_numpy(device, np.arange(16, dtype=np.int32), target_slang_dtype="uint")
+
+A structured numpy array (a dtype with named fields) needs ``target_slang_dtype`` set to a Slang
+type with the same layout, for example a struct: ``target_slang_dtype=module.MyStruct``.
+
+``from_numpy`` does not group a trailing dimension into a vector type. A float32 array of shape
+``(N, 3)`` with ``target_slang_dtype="float3"`` raises ``ValueError``, because each float would
+become one ``float3``. :ref:`Element Type vs. Dimension Considerations <tensors_python_vector_dtype>`
+shows how to make a ``float3`` tensor from that data.
+
 **empty_like / zeros_like** - Create tensors matching another tensor:
 
 .. code-block:: python
@@ -503,16 +515,32 @@ These are different tensors that are NOT automatically interchangeable:
 - ``Tensor<float, 3>`` with shape ``(10, 10, 3)`` - Each element is a single ``float``
 - ``Tensor<float3, 2>`` with shape ``(10, 10)`` - Each element is a ``float3``
 
-This restriction greatly simplifies internal dimension remapping and enables better performance. If you need to reinterpret data between these layouts, you can use Python-side view operations to explicitly create a view with a different storage type:
+This restriction greatly simplifies internal dimension remapping and enables better performance.
+
+.. _tensors_python_vector_dtype:
+
+``Tensor.view`` cannot change the dtype. To use float data with a trailing dimension of 3 as ``float3``, use one of these:
 
 .. code-block:: python
 
-    # Create a tensor of floats with shape (10, 10, 3)
-    float_tensor = spy.Tensor.empty(device, shape=(10, 10, 3), dtype=float)
+    data = np.random.rand(10, 10, 3).astype(np.float32)
 
-    # View as float3 tensor with shape (10, 10)
-    # Note: This creates a view, not a copy
-    float3_tensor = float_tensor.view(shape=(10, 10), dtype="float3")
+    # 1. Keep a float tensor and pass it to a float3 parameter.
+    #    The trailing dimension maps to float3, so this dispatches 10x10 threads.
+    # float3 process_color(float3 c) { ... }
+    float_tensor = spy.Tensor.from_numpy(device, data)  # Shape(10, 10, 3), dtype float
+    result = module.process_color(float_tensor)
+
+    # 2. Use this when the tensor itself must have dtype float3.
+    #    copy_from_numpy adds any padding that the device's float3 layout needs.
+    float3_tensor = spy.Tensor.empty(device, shape=(10, 10), dtype="float3")
+    float3_tensor.copy_from_numpy(data)
+
+    # 3. Treat each group of 3 floats as one numpy struct, then pass target_slang_dtype.
+    #    This works only if the device stores float3 in 12 bytes. If not, from_numpy raises ValueError.
+    xyz = np.dtype([("x", np.float32), ("y", np.float32), ("z", np.float32)])
+    rows = data.view(xyz).reshape(10, 10)
+    float3_tensor = spy.Tensor.from_numpy(device, rows, target_slang_dtype="float3")
 
 **Performance considerations:**
 
