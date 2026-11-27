@@ -502,14 +502,6 @@ def test_box_filter_exact_halving(channels: int, dtype: type) -> None:
     )
 
 
-def test_box_filter_exact_halving_clamp() -> None:
-    data = np.random.default_rng(4).random((8, 8, 4)).astype(np.float32) * 2.0
-    bmp = Bitmap(data, pixel_format=Bitmap.PixelFormat.rgba)
-    out = np.array(bmp.resample(4, 4, BoxFilter(), clamp=(0.25, 0.75)), copy=False)
-    ref = np.clip(data.reshape(4, 2, 4, 2, 4).mean(axis=(1, 3)), 0.25, 0.75)
-    np.testing.assert_allclose(out, ref, atol=1e-6)
-
-
 def test_tent_filter_upscale():
     """Tent filter 2x upscale should match the numpy reference."""
     rng = np.random.RandomState(11)

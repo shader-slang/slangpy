@@ -664,22 +664,21 @@ def test_max_mip_count_uint8_matches_reference(
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
-@pytest.mark.parametrize("channels", [1, 3, 4])
-def test_max_mip_count_uint16_matches_reference(device_type: spy.DeviceType, channels: int) -> None:
-    # Same reduction chain as the uint8 test; 16-bit textures always reduce in linear space.
+def test_max_mip_count_uint16_matches_reference(device_type: spy.DeviceType) -> None:
+    # Same reduction chain as the uint8 test; 16-bit textures always reduce in linear space. Kernel accuracy for all
+    # channel counts is covered by the C++ tests, RGB also checks the expansion to RGBA after reducing.
+    channels = 3
     loader = TextureLoader(helpers.get_device(type=device_type))
     data = np.random.default_rng(8).integers(0, 65536, size=(40, 48, channels), dtype=np.uint16)
     options = TextureLoader.Options({"max_mip_count": 2, "generate_mips": False})
     texture = loader.load_texture(Bitmap(data, srgb_gamma=False), options)
     expected = reference_reduce(Bitmap(data, srgb_gamma=False), False, 2, ComponentType.uint16)
     assert (texture.width, texture.height) == (3, 2)
-    actual = texture.to_numpy().reshape(2, 3, -1)
-    expected = expected.reshape(2, 3, channels)
+    actual = texture.to_numpy()
     # Integer averaging may differ from the float reference by one unit at rounding ties.
     diff = np.abs(actual[..., :channels].astype(np.int32) - expected.astype(np.int32))
     assert diff.max() <= 1
-    if channels == 3:
-        assert np.all(actual[..., 3] == 65535)
+    assert np.all(actual[..., 3] == 65535)
 
 
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
