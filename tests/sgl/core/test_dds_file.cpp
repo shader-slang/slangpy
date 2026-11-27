@@ -447,6 +447,70 @@ TEST_CASE("formats")
     }
 }
 
+TEST_CASE("read_info")
+{
+    std::filesystem::path images_dir = platform::project_directory() / "data" / "test_images" / "dds";
+
+    for (const TestItem& item : TEST_ITEMS) {
+        CAPTURE(item.path);
+        FileStream stream(images_dir / item.path, FileStream::Mode::read);
+        const DDSFile::Info info = DDSFile::read_info(&stream);
+        CHECK_EQ(stream.tell(), 0);
+        CHECK_EQ(info.dxgi_format, item.dxgi_format);
+        CHECK_EQ(info.type, item.type);
+        CHECK_EQ(info.width, item.width);
+        CHECK_EQ(info.height, item.height);
+        CHECK_EQ(info.depth, item.depth);
+        CHECK_EQ(info.mip_count, item.mip_count);
+        CHECK_EQ(info.array_size, item.array_size);
+        CHECK_EQ(info.compressed, item.compressed);
+        CHECK_EQ(info.srgb, item.srgb);
+    }
+}
+
+TEST_CASE("read_info_invalid")
+{
+    std::filesystem::path images_dir = platform::project_directory() / "data" / "test_images" / "dds";
+
+    DDSFile file(images_dir / "bc7-unorm.dds");
+
+    std::vector<uint8_t> broken_data(file.data(), file.data() + file.size());
+    broken_data[0] ^= 0xff; // Corrupt the magic number.
+    MemoryStream broken(broken_data.data(), broken_data.size());
+    CHECK_THROWS(DDSFile::read_info(&broken));
+
+    // A truncated file is rejected from the header alone, like the constructor.
+    MemoryStream truncated(file.data(), file.size() - 1);
+    CHECK_THROWS(DDSFile::read_info(&truncated));
+    CHECK_EQ(truncated.tell(), 0);
+}
+
+TEST_CASE("stream_offset")
+{
+    std::filesystem::path images_dir = platform::project_directory() / "data" / "test_images" / "dds";
+
+    DDSFile file(images_dir / "bc7-unorm.dds");
+
+    // The DDS file starts after a prefix; it extends from the stream position to the end of the stream.
+    const size_t prefix_size = 16;
+    std::vector<uint8_t> data(prefix_size, 0);
+    data.insert(data.end(), file.data(), file.data() + file.size());
+    MemoryStream stream(data.data(), data.size());
+
+    stream.seek(prefix_size);
+    const DDSFile::Info info = DDSFile::read_info(&stream);
+    CHECK_EQ(stream.tell(), prefix_size);
+    CHECK_EQ(info.width, file.width());
+    CHECK_EQ(info.height, file.height());
+    CHECK_EQ(info.dxgi_format, file.dxgi_format());
+
+    DDSFile offset_file(&stream);
+    CHECK_EQ(offset_file.size(), file.size());
+    CHECK_EQ(offset_file.width(), file.width());
+    CHECK_EQ(offset_file.height(), file.height());
+    CHECK(std::equal(file.data(), file.data() + file.size(), offset_file.data()));
+}
+
 TEST_CASE("detect_dds_file")
 {
     const uint32_t VALID_MAGIC = 0x20534444;

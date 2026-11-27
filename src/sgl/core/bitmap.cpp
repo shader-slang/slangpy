@@ -810,6 +810,8 @@ static Bitmap::Info read_stb_header(StreamReader& reader, const char* format, bo
     info.component_type = is_hdr ? Bitmap::ComponentType::float32
                                  : (is_16_bit ? Bitmap::ComponentType::uint16 : Bitmap::ComponentType::uint8);
     info.channel_count = c;
+    // 8-bit color images are assumed to be sRGB, matching libpng's untagged fallback; HDR and 16-bit data is linear.
+    info.srgb_gamma = info.component_type == Bitmap::ComponentType::uint8 && (c == 3 || c == 4);
     return info;
 }
 
@@ -819,7 +821,7 @@ static Bitmap::Info read_stb_info(Stream* stream, Bitmap::FileFormat format)
     return read_stb_header(reader, enum_to_string(format).c_str(), format == Bitmap::FileFormat::hdr);
 }
 
-void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_hdr)
+void Bitmap::read_stb(Stream* stream, const char* format, bool is_hdr)
 {
     StreamReader reader(stream);
 
@@ -829,7 +831,7 @@ void Bitmap::read_stb(Stream* stream, const char* format, bool is_srgb, bool is_
     m_pixel_format = info.pixel_format;
     m_component_type = info.component_type;
     int w, h, c = int(info.channel_count);
-    m_srgb_gamma = is_srgb && (c == 3 || c == 4);
+    m_srgb_gamma = info.srgb_gamma;
 
     rebuild_pixel_struct();
 
@@ -982,6 +984,22 @@ static Bitmap::Info read_png_header(png_structp png_ptr, png_infop info_ptr)
     }
 
     info.channel_count = png_get_channels(png_ptr, info_ptr);
+
+    // Color metadata precedes the image data, so it is available from the header alone.
+    // Metadata takes precedence over the 8-bit RGB/RGBA fallback for untagged PNGs.
+    // libpng also reports known sRGB ICC profiles through PNG_INFO_sRGB.
+    int srgb_intent = 0;
+    png_fixed_point gamma = 0;
+    if (png_get_sRGB(png_ptr, info_ptr, &srgb_intent))
+        info.srgb_gamma = true;
+    else if (png_get_valid(png_ptr, info_ptr, PNG_INFO_iCCP))
+        info.srgb_gamma = false; // No conversion for profiles libpng cannot identify as sRGB.
+    else if (png_get_gAMA_fixed(png_ptr, info_ptr, &gamma))
+        // PNG records gamma * 100000; allow rounding of the sRGB 1/2.2 approximation.
+        info.srgb_gamma = gamma >= 45454 && gamma <= 45455;
+    else
+        info.srgb_gamma = info.component_type == Bitmap::ComponentType::uint8
+            && (info.pixel_format == Bitmap::PixelFormat::rgb || info.pixel_format == Bitmap::PixelFormat::rgba);
     return info;
 }
 
@@ -1029,21 +1047,7 @@ void Bitmap::read_png(Stream* stream)
     m_height = info.height;
     m_pixel_format = info.pixel_format;
     m_component_type = info.component_type;
-
-    // Metadata takes precedence over the 8-bit RGB/RGBA fallback for untagged PNGs.
-    // libpng also reports known sRGB ICC profiles through PNG_INFO_sRGB.
-    int srgb_intent = 0;
-    png_fixed_point gamma = 0;
-    if (png_get_sRGB(png_ptr, info_ptr, &srgb_intent))
-        m_srgb_gamma = true;
-    else if (png_get_valid(png_ptr, info_ptr, PNG_INFO_iCCP))
-        m_srgb_gamma = false; // No conversion for profiles libpng cannot identify as sRGB.
-    else if (png_get_gAMA_fixed(png_ptr, info_ptr, &gamma))
-        // PNG records gamma * 100000; allow rounding of the sRGB 1/2.2 approximation.
-        m_srgb_gamma = gamma >= 45454 && gamma <= 45455;
-    else
-        m_srgb_gamma = info.component_type == ComponentType::uint8
-            && (info.pixel_format == PixelFormat::rgb || info.pixel_format == PixelFormat::rgba);
+    m_srgb_gamma = info.srgb_gamma;
 
     rebuild_pixel_struct();
 
@@ -1214,7 +1218,7 @@ static Bitmap::Info read_png_info(Stream* stream)
 
 void Bitmap::read_png(Stream* stream)
 {
-    read_stb(stream, "PNG", true, false);
+    read_stb(stream, "PNG", false);
 }
 
 void Bitmap::write_png(Stream* stream, int compression) const
@@ -1386,6 +1390,7 @@ static Bitmap::Info read_jpeg_header(jpeg_decompress_struct& cinfo)
     default:
         SGL_THROW("Unsupported number of components!");
     }
+    info.srgb_gamma = info.channel_count == 3;
 
     return info;
 }
@@ -1421,7 +1426,7 @@ void Bitmap::read_jpg(Stream* stream)
     m_width = cinfo.output_width;
     m_height = cinfo.output_height;
     m_component_type = ComponentType::uint8;
-    m_srgb_gamma = cinfo.output_components == 3;
+    m_srgb_gamma = info.srgb_gamma;
     m_pixel_format = info.pixel_format;
 
     rebuild_pixel_struct();
@@ -1528,7 +1533,7 @@ static Bitmap::Info read_jpg_info(Stream* stream)
 
 void Bitmap::read_jpg(Stream* stream)
 {
-    read_stb(stream, "JPEG", true, false);
+    read_stb(stream, "JPEG", false);
 }
 
 void Bitmap::write_jpg(Stream* stream, int quality) const
@@ -1547,7 +1552,7 @@ void Bitmap::write_jpg(Stream* stream, int quality) const
 
 void Bitmap::read_bmp(Stream* stream)
 {
-    read_stb(stream, "BMP", true, false);
+    read_stb(stream, "BMP", false);
 }
 
 void Bitmap::write_bmp(Stream* stream) const
@@ -1564,7 +1569,7 @@ void Bitmap::write_bmp(Stream* stream) const
 
 void Bitmap::read_tga(Stream* stream)
 {
-    read_stb(stream, "TGA", true, false);
+    read_stb(stream, "TGA", false);
 }
 
 void Bitmap::write_tga(Stream* stream) const
@@ -1581,7 +1586,7 @@ void Bitmap::write_tga(Stream* stream) const
 
 void Bitmap::read_hdr(Stream* stream)
 {
-    read_stb(stream, "HDR", false, true);
+    read_stb(stream, "HDR", true);
 }
 
 void Bitmap::write_hdr(Stream* stream) const
@@ -2711,6 +2716,146 @@ ref<Bitmap> Bitmap::resample(
 }
 
 // ----------------------------------------------------------------------------
+// DDS layout
+// ----------------------------------------------------------------------------
+
+namespace {
+
+    /// Bitmap layout that Bitmap::read_dds produces for a DDS file.
+    struct DDSBitmapLayout {
+        Bitmap::Info info;
+        Format format;
+    };
+
+    DDSBitmapLayout get_dds_bitmap_layout(const DDSFile::Info& dds)
+    {
+        using PixelFormat = Bitmap::PixelFormat;
+        using ComponentType = Bitmap::ComponentType;
+
+        SGL_CHECK(
+            dds.type == DDSFile::TextureType::texture_2d,
+            "DDS: only 2D textures are supported (got {}).",
+            dds.type
+        );
+        SGL_CHECK(dds.array_size == 1, "DDS: array textures are not supported.");
+
+        Format format = get_format(DXGI_FORMAT(dds.dxgi_format));
+        SGL_CHECK(format != Format::undefined, "DDS: unsupported DXGI format {}.", dds.dxgi_format);
+
+        const FormatInfo& format_info = get_format_info(format);
+
+        Bitmap::Info info{.width = dds.width, .height = dds.height};
+
+        if (format_info.is_compressed) {
+            SGL_CHECK(bc_format_bytes_per_block(format) != 0, "DDS: unsupported compressed format {}.", format);
+
+            // BC formats decode mip level 0 to these layouts.
+            switch (format) {
+            case Format::bc4_unorm:
+                info.pixel_format = PixelFormat::r;
+                info.channel_count = 1;
+                info.component_type = ComponentType::uint8;
+                break;
+            case Format::bc4_snorm:
+                info.pixel_format = PixelFormat::r;
+                info.channel_count = 1;
+                info.component_type = ComponentType::int8;
+                break;
+            case Format::bc5_unorm:
+                info.pixel_format = PixelFormat::rg;
+                info.channel_count = 2;
+                info.component_type = ComponentType::uint8;
+                break;
+            case Format::bc5_snorm:
+                info.pixel_format = PixelFormat::rg;
+                info.channel_count = 2;
+                info.component_type = ComponentType::int8;
+                break;
+            case Format::bc6h_ufloat:
+            case Format::bc6h_sfloat:
+                info.pixel_format = PixelFormat::rgb;
+                info.channel_count = 3;
+                info.component_type = ComponentType::float16;
+                break;
+            default:
+                // BC1, BC2, BC3, BC7 all decode to RGBA uint8.
+                info.pixel_format = PixelFormat::rgba;
+                info.channel_count = 4;
+                info.component_type = ComponentType::uint8;
+                break;
+            }
+            info.srgb_gamma = dds.srgb;
+        } else {
+            // Only formats with a homogeneous, tightly packed R/RG/RGB/RGBA layout can be represented directly.
+            SGL_CHECK(
+                is_direct_bitmap_format(format, format_info),
+                "DDS: uncompressed format {} is not directly representable as a Bitmap.",
+                format
+            );
+
+            info.channel_count = format_info.channel_count;
+            switch (format_info.channel_count) {
+            case 1:
+                info.pixel_format = PixelFormat::r;
+                break;
+            case 2:
+                info.pixel_format = PixelFormat::rg;
+                break;
+            case 3:
+                info.pixel_format = PixelFormat::rgb;
+                break;
+            case 4:
+                info.pixel_format = PixelFormat::rgba;
+                break;
+            default:
+                SGL_THROW("DDS: unsupported channel count {} for format {}.", format_info.channel_count, format);
+            }
+
+            const uint32_t bits = format_info.channel_bit_count[0];
+            switch (format_info.type) {
+            case FormatType::float_:
+                info.component_type = (bits == 16) ? ComponentType::float16 : ComponentType::float32;
+                break;
+            case FormatType::unorm:
+            case FormatType::unorm_srgb:
+                info.component_type = (bits <= 8) ? ComponentType::uint8 : ComponentType::uint16;
+                break;
+            case FormatType::snorm:
+                info.component_type = (bits <= 8) ? ComponentType::int8 : ComponentType::int16;
+                break;
+            case FormatType::uint:
+                if (bits <= 8)
+                    info.component_type = ComponentType::uint8;
+                else if (bits <= 16)
+                    info.component_type = ComponentType::uint16;
+                else
+                    info.component_type = ComponentType::uint32;
+                break;
+            case FormatType::sint:
+                if (bits <= 8)
+                    info.component_type = ComponentType::int8;
+                else if (bits <= 16)
+                    info.component_type = ComponentType::int16;
+                else
+                    info.component_type = ComponentType::int32;
+                break;
+            default:
+                SGL_THROW("DDS: unsupported format type for {}.", format);
+            }
+            info.srgb_gamma = format_info.type == FormatType::unorm_srgb;
+        }
+
+        return {info, format};
+    }
+
+    Bitmap::Info read_dds_info(Stream* stream)
+    {
+        return get_dds_bitmap_layout(DDSFile::read_info(stream)).info;
+    }
+
+} // namespace
+
+// ----------------------------------------------------------------------------
 // Metadata inspection
 // ----------------------------------------------------------------------------
 
@@ -2729,6 +2874,8 @@ namespace {
         case Bitmap::FileFormat::tga:
         case Bitmap::FileFormat::hdr:
             return read_stb_info(stream, format);
+        case Bitmap::FileFormat::dds:
+            return read_dds_info(stream);
         default:
             SGL_THROW("Unsupported bitmap metadata format {}", format);
         }
@@ -2765,168 +2912,37 @@ Bitmap::Info Bitmap::read_info(Stream* stream, FileFormat format)
 void Bitmap::read_dds(Stream* stream)
 {
     DDSFile dds(stream);
+    const auto [info, format] = get_dds_bitmap_layout(dds.info());
 
-    SGL_CHECK(
-        dds.type() == DDSFile::TextureType::texture_2d,
-        "Bitmap::read_dds: only 2D textures are supported (got {}).",
-        dds.type()
-    );
-    SGL_CHECK(dds.array_size() == 1, "Bitmap::read_dds: array textures are not supported.");
+    m_pixel_format = info.pixel_format;
+    m_component_type = info.component_type;
+    m_width = info.width;
+    m_height = info.height;
+    m_srgb_gamma = info.srgb_gamma;
 
-    Format format = get_format(DXGI_FORMAT(dds.dxgi_format()));
-    SGL_CHECK(format != Format::undefined, "Bitmap::read_dds: unsupported DXGI format {}.", dds.dxgi_format());
+    rebuild_pixel_struct();
 
-    const FormatInfo& info = get_format_info(format);
+    const size_t buf_size = buffer_size();
+    allocate_data(buf_size);
 
-    if (info.is_compressed) {
-        // BC compressed format - decode mip level 0.
-        SGL_CHECK(
-            bc_format_bytes_per_block(format) != 0,
-            "Bitmap::read_dds: unsupported compressed format {}.",
-            format
-        );
+    uint32_t row_pitch, slice_pitch;
+    dds.get_subresource_pitch(0, &row_pitch, &slice_pitch);
+    const uint8_t* src = dds.get_subresource_data(0, 0);
+    const uint32_t dst_row_pitch = static_cast<uint32_t>(m_width * bytes_per_pixel());
 
-        // Determine output pixel format and component type from BC format.
-        PixelFormat pixel_format;
-        ComponentType component_type;
-        uint32_t channel_count;
-        switch (format) {
-        case Format::bc4_unorm:
-            pixel_format = PixelFormat::r;
-            component_type = ComponentType::uint8;
-            channel_count = 1;
-            break;
-        case Format::bc4_snorm:
-            pixel_format = PixelFormat::r;
-            component_type = ComponentType::int8;
-            channel_count = 1;
-            break;
-        case Format::bc5_unorm:
-            pixel_format = PixelFormat::rg;
-            component_type = ComponentType::uint8;
-            channel_count = 2;
-            break;
-        case Format::bc5_snorm:
-            pixel_format = PixelFormat::rg;
-            component_type = ComponentType::int8;
-            channel_count = 2;
-            break;
-        case Format::bc6h_ufloat:
-        case Format::bc6h_sfloat:
-            pixel_format = PixelFormat::rgb;
-            component_type = ComponentType::float16;
-            channel_count = 3;
-            break;
-        default:
-            // BC1, BC2, BC3, BC7 all decode to RGBA uint8.
-            pixel_format = PixelFormat::rgba;
-            component_type = ComponentType::uint8;
-            channel_count = 4;
-            break;
-        }
-
-        m_pixel_format = pixel_format;
-        m_component_type = component_type;
-        m_width = dds.width();
-        m_height = dds.height();
-        m_srgb_gamma = dds.srgb();
-
-        rebuild_pixel_struct();
-
-        uint32_t bpp = static_cast<uint32_t>(bytes_per_pixel());
-        size_t buf_size = buffer_size();
-        allocate_data(buf_size);
-
+    if (get_format_info(format).is_compressed) {
         BCMutableImage dst{
             .data = m_data,
             .width = m_width,
             .height = m_height,
-            .row_pitch = m_width * bpp,
-            .channel_count = channel_count,
-            .component_type = component_type,
+            .row_pitch = dst_row_pitch,
+            .channel_count = info.channel_count,
+            .component_type = info.component_type,
         };
-
-        uint32_t row_pitch, slice_pitch;
-        dds.get_subresource_pitch(0, &row_pitch, &slice_pitch);
-
-        decode_bc(dds.get_subresource_data(0, 0), slice_pitch, format, m_width, m_height, dst);
+        decode_bc(src, slice_pitch, format, m_width, m_height, dst);
     } else {
-        // Only formats with a homogeneous, tightly packed R/RG/RGB/RGBA layout can be represented directly.
-        SGL_CHECK(
-            is_direct_bitmap_format(format, info),
-            "Bitmap::read_dds: uncompressed format {} is not directly representable as a Bitmap.",
-            format
-        );
-        uint32_t channel_count = info.channel_count;
-
-        PixelFormat pixel_format;
-        switch (channel_count) {
-        case 1:
-            pixel_format = PixelFormat::r;
-            break;
-        case 2:
-            pixel_format = PixelFormat::rg;
-            break;
-        case 3:
-            pixel_format = PixelFormat::rgb;
-            break;
-        case 4:
-            pixel_format = PixelFormat::rgba;
-            break;
-        default:
-            SGL_THROW("Bitmap::read_dds: unsupported channel count {} for format {}.", channel_count, format);
-        }
-
-        ComponentType component_type;
-        uint32_t bits = info.channel_bit_count[0];
-        switch (info.type) {
-        case FormatType::float_:
-            component_type = (bits == 16) ? ComponentType::float16 : ComponentType::float32;
-            break;
-        case FormatType::unorm:
-        case FormatType::unorm_srgb:
-            component_type = (bits <= 8) ? ComponentType::uint8 : ComponentType::uint16;
-            break;
-        case FormatType::snorm:
-            component_type = (bits <= 8) ? ComponentType::int8 : ComponentType::int16;
-            break;
-        case FormatType::uint:
-            if (bits <= 8)
-                component_type = ComponentType::uint8;
-            else if (bits <= 16)
-                component_type = ComponentType::uint16;
-            else
-                component_type = ComponentType::uint32;
-            break;
-        case FormatType::sint:
-            if (bits <= 8)
-                component_type = ComponentType::int8;
-            else if (bits <= 16)
-                component_type = ComponentType::int16;
-            else
-                component_type = ComponentType::int32;
-            break;
-        default:
-            SGL_THROW("Bitmap::read_dds: unsupported format type for {}.", format);
-        }
-
-        m_pixel_format = pixel_format;
-        m_component_type = component_type;
-        m_width = dds.width();
-        m_height = dds.height();
-        m_srgb_gamma = (info.type == FormatType::unorm_srgb);
-
-        rebuild_pixel_struct();
-
-        size_t buf_size = buffer_size();
-        allocate_data(buf_size);
-
         // Copy mip level 0 data. Only tightly packed rows are supported.
-        uint32_t row_pitch, slice_pitch;
-        dds.get_subresource_pitch(0, &row_pitch, &slice_pitch);
-        uint32_t dst_row_pitch = static_cast<uint32_t>(m_width * bytes_per_pixel());
-        const uint8_t* src = dds.get_subresource_data(0, 0);
-        SGL_CHECK(row_pitch == dst_row_pitch, "Bitmap::read_dds: unsupported row pitch for format {}.", format);
+        SGL_CHECK(row_pitch == dst_row_pitch, "DDS: unsupported row pitch for format {}.", format);
         std::memcpy(m_data, src, buf_size);
     }
 }

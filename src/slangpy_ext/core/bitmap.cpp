@@ -23,7 +23,8 @@ SGL_PY_EXPORT(core_bitmap)
         .def_ro("height", &Bitmap::Info::height, D(Bitmap, Info, height))
         .def_ro("pixel_format", &Bitmap::Info::pixel_format, D(Bitmap, Info, pixel_format))
         .def_ro("component_type", &Bitmap::Info::component_type, D(Bitmap, Info, component_type))
-        .def_ro("channel_count", &Bitmap::Info::channel_count, D(Bitmap, Info, channel_count));
+        .def_ro("channel_count", &Bitmap::Info::channel_count, D(Bitmap, Info, channel_count))
+        .def_ro("srgb_gamma", &Bitmap::Info::srgb_gamma, D(Bitmap, Info, srgb_gamma));
 
     bitmap //
         .def(
