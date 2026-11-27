@@ -162,6 +162,12 @@ SGL_PY_EXPORT(device_reflection)
         .def_prop_ro("size", &TypeLayoutReflection::size, D(TypeLayoutReflection, size))
         .def_prop_ro("stride", &TypeLayoutReflection::stride, D(TypeLayoutReflection, stride))
         .def_prop_ro("alignment", &TypeLayoutReflection::alignment, D(TypeLayoutReflection, alignment))
+        .def_prop_ro(
+            "parameter_category",
+            &TypeLayoutReflection::parameter_category,
+            D(TypeLayoutReflection, parameter_category)
+        )
+        .def("has_category", &TypeLayoutReflection::has_category, "category"_a, D(TypeLayoutReflection, has_category))
         .def_prop_ro("type", &TypeLayoutReflection::type, D(TypeLayoutReflection, type))
         .def_prop_ro("fields", &TypeLayoutReflection::fields, D(TypeLayoutReflection, fields))
         .def_prop_ro(
