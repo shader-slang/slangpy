@@ -7,8 +7,10 @@
 #include "sgl/device/shader.h"
 
 #include <array>
+#include <cstring>
 #include <fstream>
 #include <stdexcept>
+#include <vector>
 
 using namespace sgl;
 
@@ -56,6 +58,49 @@ TEST_CASE("enumerate_adapters")
 
     std::vector<AdapterInfo> adapters = Device::enumerate_adapters();
     CHECK(!adapters.empty());
+}
+
+TEST_CASE_GPU("create_texture_init_data_for_all_subresources")
+{
+    // Init data without pitches for every mip and layer; each subresource uses the layout of its own mip.
+    constexpr uint32_t SIZE = 8;
+    constexpr uint32_t MIP_COUNT = 4;
+    constexpr uint32_t LAYER_COUNT = 2;
+    std::vector<std::vector<uint8_t>> storage;
+    for (uint32_t layer = 0; layer < LAYER_COUNT; ++layer) {
+        for (uint32_t mip = 0; mip < MIP_COUNT; ++mip) {
+            const uint32_t size = SIZE >> mip;
+            std::vector<uint8_t>& bytes = storage.emplace_back(size_t(size) * size * 4);
+            for (size_t i = 0; i < bytes.size(); ++i)
+                bytes[i] = static_cast<uint8_t>(i * 7 + mip * 31 + layer * 101);
+        }
+    }
+    std::vector<SubresourceData> data;
+    for (const std::vector<uint8_t>& bytes : storage)
+        data.push_back({.data = bytes.data(), .size = bytes.size()});
+
+    ref<Texture> texture = ctx.device->create_texture({
+        .type = TextureType::texture_2d_array,
+        .format = Format::rgba8_unorm,
+        .width = SIZE,
+        .height = SIZE,
+        .array_length = LAYER_COUNT,
+        .mip_count = MIP_COUNT,
+        .usage = TextureUsage::shader_resource,
+        .data = data,
+    });
+
+    for (uint32_t layer = 0; layer < LAYER_COUNT; ++layer) {
+        for (uint32_t mip = 0; mip < MIP_COUNT; ++mip) {
+            const std::vector<uint8_t>& expected = storage[layer * MIP_COUNT + mip];
+            const OwnedSubresourceData actual = texture->get_subresource_data(layer, mip);
+            const size_t row_size = size_t(SIZE >> mip) * 4;
+            for (uint32_t row = 0; row < (SIZE >> mip); ++row) {
+                const auto* actual_row = static_cast<const uint8_t*>(actual.data) + row * actual.row_pitch;
+                CHECK(std::memcmp(actual_row, expected.data() + row * row_size, row_size) == 0);
+            }
+        }
+    }
 }
 
 TEST_CASE_GPU("init")

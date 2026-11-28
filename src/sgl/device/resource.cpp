@@ -524,13 +524,15 @@ Texture::Texture(ref<Device> device, TextureDesc desc)
 
     // Upload init data.
     if (!m_desc.data.empty()) {
+        // Record all subresource uploads into one command buffer.
+        ref<CommandEncoder> command_encoder = m_device->create_command_encoder();
         for (uint32_t subresource = 0; subresource < m_desc.data.size(); ++subresource) {
             uint32_t layer = subresource / m_desc.mip_count;
             uint32_t mip = subresource % m_desc.mip_count;
 
             SubresourceData subresource_data = m_desc.data[subresource];
             if (subresource_data.row_pitch == 0 && subresource_data.slice_pitch == 0) {
-                SubresourceLayout subresource_layout = get_subresource_layout(0, 1);
+                SubresourceLayout subresource_layout = get_subresource_layout(mip, 1);
                 subresource_data.row_pitch = subresource_layout.row_pitch;
                 subresource_data.slice_pitch = subresource_layout.slice_pitch;
                 SGL_CHECK_EQ(subresource_data.size, subresource_layout.size_in_bytes);
@@ -539,8 +541,10 @@ Texture::Texture(ref<Device> device, TextureDesc desc)
             SGL_CHECK(subresource_data.slice_pitch > 0, "Invalid slice pitch.");
             SGL_CHECK(subresource_data.size > 0, "Invalid size.");
 
-            set_subresource_data(layer, mip, subresource_data);
+            SGL_CHECK_LT(layer, layer_count());
+            command_encoder->upload_texture_data(this, layer, mip, subresource_data);
         }
+        m_device->submit_command_buffer(command_encoder->finish());
         if (m_desc.mip_count > 1) {
             // TODO generate mip maps
         }

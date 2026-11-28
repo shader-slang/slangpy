@@ -929,17 +929,27 @@ inline ref<Texture> create_texture(
             }
         }
 
-        return device->create_texture({
+        const uint32_t mip_count = dds_file->mip_count() - first_mip;
+        ref<Texture> texture = device->create_texture({
             .type = texture_type,
             .format = source_image.format,
             .width = width,
             .height = height,
             .depth = depth,
             .array_length = dds_file->array_size(),
-            .mip_count = dds_file->mip_count() - first_mip,
+            .mip_count = mip_count,
             .usage = options.usage,
-            .data = subresource_data,
         });
+        // Upload all layers and mips with one staging allocation on the batch's command encoder. Subresource data
+        // is ordered by layer, then mip, as upload_texture_data expects.
+        command_encoder->upload_texture_data(
+            texture,
+            SubresourceRange{.layer = 0, .layer_count = layer_count, .mip = 0, .mip_count = mip_count},
+            uint3(0),
+            uint3(-1),
+            subresource_data
+        );
+        return texture;
     } else {
         SGL_THROW("Unsupported source image type");
     }
