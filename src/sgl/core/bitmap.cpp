@@ -103,6 +103,7 @@ SGL_DIAGNOSTIC_POP
 #include <ImfIO.h>
 #include <ImathBox.h>
 #include <IlmThreadPool.h>
+#include <ImfThreading.h>
 #else
 SGL_DIAGNOSTIC_PUSH
 SGL_DISABLE_MSVC_WARNING(4245 4706 4702)
@@ -118,6 +119,7 @@ SGL_DIAGNOSTIC_POP
 #include <numeric>
 #include <map>
 #include <mutex>
+#include <thread>
 
 SGL_DISABLE_MSVC_WARNING(4611)
 
@@ -1840,8 +1842,26 @@ static Bitmap::ComponentType exr_component_type(Imf::PixelType pixel_type)
     }
 }
 
+/// Let OpenEXR decompress line blocks in parallel on its own thread pool, created on first use.
+/// The pool is separate from sgl's task pool on purpose: an OpenEXR read waits for its block tasks on a semaphore,
+/// so running those tasks on sgl's pool would deadlock once every worker is reading an EXR. Half the hardware threads
+/// measured best when loading many images at once on sgl's pool (24 threads: about 15% faster EXR and mixed batches
+/// than no OpenEXR threads, and slightly faster than using all 24).
+static void init_exr_threads()
+{
+    static std::once_flag flag;
+    std::call_once(
+        flag,
+        []
+        {
+            Imf::setGlobalThreadCount(int(std::max(1u, std::thread::hardware_concurrency() / 2)));
+        }
+    );
+}
+
 void Bitmap::read_exr(Stream* stream, const ReadOptions& options)
 {
+    init_exr_threads();
     EXRIStream is(stream);
     Imf::InputFile file(is);
 
