@@ -9,10 +9,12 @@ Build a dataset once from a directory of images, then run the benchmark against 
     python tools/texture_loader_benchmark.py run --dataset <dataset dir> --label baseline --json base.json
     python tools/texture_loader_benchmark.py compare base.json new.json
 
-The dataset contains JPG and PNG files copied from the source, and EXR files copied from the source
-or converted from its HDR and largest 8-bit PNG images (PIZ and DWAB compression). Each run loads
-every set with one load_textures() call, waits for the GPU and reports the median over repeats.
-Repeats after the first read warm OS file caches; the first repeat is reported separately.
+The dataset contains JPG and PNG files copied from the source, EXR files copied from the source
+or converted from its HDR and largest 8-bit PNG images (PIZ and DWAB compression), and DDS files
+encoded from the JPG images as BC7 with full mip chains. Each run loads every set with one
+load_textures() call, waits for the GPU and reports the median over repeats. Repeats after the first
+read warm OS file caches; the first repeat is reported separately. The mixed set combines the JPG, PNG
+and EXR sets.
 """
 
 from __future__ import annotations
@@ -27,12 +29,14 @@ import statistics
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable
 
 import slangpy as spy
 
-SETS = ["jpg", "png", "exr", "mixed"]
+SETS = ["jpg", "png", "exr", "dds", "mixed"]
+FILE_SETS = ["jpg", "png", "exr", "dds"]
 
 # Number of largest 8-bit PNG images converted to EXR.
 PNG_TO_EXR_COUNT = 8
@@ -79,7 +83,7 @@ def make_dataset(args: argparse.Namespace) -> None:
         if not args.force:
             sys.exit(f"Output directory {out} exists; pass --force to replace it.")
         shutil.rmtree(out)
-    for name in ("jpg", "png", "exr"):
+    for name in FILE_SETS:
         (out / name).mkdir(parents=True)
 
     def copy(path: Path, set_name: str) -> None:
@@ -118,11 +122,43 @@ def make_dataset(args: argparse.Namespace) -> None:
         write_exr(bitmap, out / "exr" / f"{stem}_piz.exr", -1)
         write_exr(bitmap, out / "exr" / f"{stem}_dwab.exr", DWAB_QUALITY)
 
+    # Encode the JPG images as BC7 DDS files with mip chains, typical for production scenes. Encoding
+    # releases the GIL, so files are encoded in parallel.
+    encoder = spy.BCEncoder()
+    encode_options = spy.BCEncodeOptions()
+    encode_options.quality = spy.BCEncodeQuality.fastest
+    encode_options.generate_mipmaps = True
+    dds_sizes: dict[str, tuple[int, int]] = {}
+
+    def encode_dds(path: Path) -> None:
+        bitmap = spy.Bitmap(path)
+        name = f"{file_hash(path)[:8]}_{path.stem}.dds"
+        encoder.encode(bitmap, spy.Format.bc7_unorm_srgb, encode_options).write_dds(
+            out / "dds" / name
+        )
+        dds_sizes[name] = (bitmap.width, bitmap.height)
+
+    with ThreadPoolExecutor() as pool:
+        list(pool.map(encode_dds, jpgs))
+
     manifest: dict[str, Any] = {"source": str(source), "sets": {}}
-    for name in ("jpg", "png", "exr"):
+    for name in FILE_SETS:
         files = sorted((out / name).iterdir())
         entries = []
         for path in files:
+            if name == "dds":
+                width, height = dds_sizes[path.name]
+                entries.append(
+                    {
+                        "file": f"{name}/{path.name}",
+                        "bytes": path.stat().st_size,
+                        "width": width,
+                        "height": height,
+                        "pixel_format": "bc7",
+                        "component_type": "bc7",
+                    }
+                )
+                continue
             info = spy.Bitmap.read_info(path)
             entries.append(
                 {
@@ -172,6 +208,11 @@ def run(args: argparse.Namespace) -> None:
     manifest = json.loads((dataset / "manifest.json").read_text())
     sets: dict[str, list[dict[str, Any]]] = dict(manifest["sets"])
     sets["mixed"] = [e for name in ("jpg", "png", "exr") for e in manifest["sets"][name]]
+    missing = [name for name in args.sets if name not in sets]
+    if missing:
+        print(
+            f"Dataset has no {', '.join(missing)} set; rebuild it with make-dataset to include it."
+        )
 
     device = spy.Device(type=spy.DeviceType[args.device_type])
     loader = spy.TextureLoader(device)
@@ -188,6 +229,8 @@ def run(args: argparse.Namespace) -> None:
 
     results: dict[str, Any] = {}
     for name in args.sets:
+        if name not in sets:
+            continue
         entries = sets[name]
         paths = [dataset / e["file"] for e in entries]
         encoded_bytes = sum(e["bytes"] for e in entries)
