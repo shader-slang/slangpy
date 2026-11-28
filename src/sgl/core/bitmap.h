@@ -157,7 +157,18 @@ public:
         std::optional<bool> srgb_gamma = std::nullopt
     );
 
+    /// Options for reading images.
+    struct ReadOptions {
+        /// Decode Y, YA and RGB images directly to RGBA where the decoder supports it: PNG (Y, YA, RGB), JPEG
+        /// (Y, RGB) and OpenEXR (RGB channels without layer prefix). Luminance is replicated to RGB and a missing
+        /// alpha channel is set to one (the maximum value for integer components), as convert() does. Other images
+        /// are read unchanged.
+        bool expand_to_rgba{false};
+    };
+
     Bitmap(Stream* stream, FileFormat format = FileFormat::auto_);
+
+    Bitmap(Stream* stream, FileFormat format, const ReadOptions& options);
 
     Bitmap(const std::filesystem::path& path, FileFormat format = FileFormat::auto_);
 
@@ -335,7 +346,7 @@ private:
 
     void rebuild_pixel_struct(uint32_t channel_count = 0, const std::vector<std::string>& channel_names = {});
 
-    void read(Stream* stream, FileFormat format);
+    void read(Stream* stream, FileFormat format, const ReadOptions& options);
 
     void check_required_format(
         std::string_view file_format,
@@ -345,10 +356,10 @@ private:
 
     void read_stb(Stream* stream, const char* format, bool is_hdr);
 
-    void read_png(Stream* stream);
+    void read_png(Stream* stream, const ReadOptions& options);
     void write_png(Stream* stream, int compression) const;
 
-    void read_jpg(Stream* stream);
+    void read_jpg(Stream* stream, const ReadOptions& options);
     void write_jpg(Stream* stream, int quality) const;
 
     void read_bmp(Stream* stream);
@@ -360,7 +371,7 @@ private:
     void read_hdr(Stream* stream);
     void write_hdr(Stream* stream) const;
 
-    void read_exr(Stream* stream);
+    void read_exr(Stream* stream, const ReadOptions& options);
     void write_exr(Stream* stream, int quality) const;
 
     void read_dds(Stream* stream);

@@ -243,13 +243,18 @@ Bitmap::Bitmap(Bitmap&& other)
 
 Bitmap::Bitmap(Stream* stream, FileFormat format)
 {
-    read(stream, format);
+    read(stream, format, {});
+}
+
+Bitmap::Bitmap(Stream* stream, FileFormat format, const ReadOptions& options)
+{
+    read(stream, format, options);
 }
 
 Bitmap::Bitmap(const std::filesystem::path& path, FileFormat format)
 {
     FileStream stream(path, FileStream::Mode::read);
-    read(&stream, format);
+    read(&stream, format, {});
 }
 
 std::vector<ref<Bitmap>> Bitmap::read_multiple(std::span<std::filesystem::path> paths, FileFormat format)
@@ -725,17 +730,17 @@ void Bitmap::rebuild_pixel_struct(uint32_t channel_count, const std::vector<std:
     }
 }
 
-void Bitmap::read(Stream* stream, FileFormat format)
+void Bitmap::read(Stream* stream, FileFormat format, const ReadOptions& options)
 {
     if (format == FileFormat::auto_)
         format = detect_file_format(stream);
 
     switch (format) {
     case FileFormat::png:
-        read_png(stream);
+        read_png(stream, options);
         break;
     case FileFormat::jpg:
-        read_jpg(stream);
+        read_jpg(stream, options);
         break;
     case FileFormat::bmp:
         read_bmp(stream);
@@ -747,7 +752,7 @@ void Bitmap::read(Stream* stream, FileFormat format)
         read_hdr(stream);
         break;
     case FileFormat::exr:
-        read_exr(stream);
+        read_exr(stream, options);
         break;
     case FileFormat::dds:
         read_dds(stream);
@@ -959,7 +964,7 @@ static void png_warn_func(png_structp, png_const_charp msg)
     log_warn("libpng warning: {}\n", msg);
 }
 
-static Bitmap::Info read_png_header(png_structp png_ptr, png_infop info_ptr)
+static Bitmap::Info read_png_header(png_structp png_ptr, png_infop info_ptr, bool expand_to_rgba)
 {
     Bitmap::Info info;
     int bit_depth, color_type, interlace_type, compression_type, filter_type;
@@ -993,6 +998,13 @@ static Bitmap::Info read_png_header(png_structp png_ptr, png_infop info_ptr)
     if constexpr (stdx::endian::native == stdx::endian::little) {
         if (bit_depth == 16)
             png_set_swap(png_ptr);
+    }
+
+    // Replicate luminance to RGB and add an opaque alpha channel to images without one.
+    if (expand_to_rgba) {
+        if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+            png_set_gray_to_rgb(png_ptr);
+        png_set_add_alpha(png_ptr, bit_depth == 16 ? 0xffff : 0xff, PNG_FILLER_AFTER);
     }
 
     // Update the information based on the transformations.
@@ -1067,7 +1079,7 @@ static Bitmap::Info read_png_info(Stream* stream)
     try {
         SGL_CHECK(info_ptr, "Failed to create PNG information");
         png_set_read_fn(png_ptr, stream, png_read_data);
-        const Bitmap::Info result = read_png_header(png_ptr, info_ptr);
+        const Bitmap::Info result = read_png_header(png_ptr, info_ptr, false);
         png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
         return result;
     } catch (...) {
@@ -1076,7 +1088,7 @@ static Bitmap::Info read_png_info(Stream* stream)
     }
 }
 
-void Bitmap::read_png(Stream* stream)
+void Bitmap::read_png(Stream* stream, const ReadOptions& options)
 {
     // Create buffers.
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, &png_error_func, &png_warn_func);
@@ -1098,7 +1110,7 @@ void Bitmap::read_png(Stream* stream)
     // Setup read callback.
     png_set_read_fn(png_ptr, stream, (png_rw_ptr)png_read_data);
 
-    const Info info = read_png_header(png_ptr, info_ptr);
+    const Info info = read_png_header(png_ptr, info_ptr, options.expand_to_rgba);
     m_width = info.width;
     m_height = info.height;
     m_pixel_format = info.pixel_format;
@@ -1272,8 +1284,9 @@ static Bitmap::Info read_png_info(Stream* stream)
     return read_stb_info(stream, Bitmap::FileFormat::png);
 }
 
-void Bitmap::read_png(Stream* stream)
+void Bitmap::read_png(Stream* stream, const ReadOptions& options)
 {
+    SGL_UNUSED(options);
     read_stb(stream, "PNG", false);
 }
 
@@ -1469,14 +1482,23 @@ static Bitmap::Info read_jpg_info(Stream* stream)
     }
 }
 
-void Bitmap::read_jpg(Stream* stream)
+void Bitmap::read_jpg(Stream* stream, const ReadOptions& options)
 {
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
     jbuf_in_t jbuf;
 
     initialize_jpeg_reader(cinfo, jerr, jbuf, stream);
-    const Info info = read_jpeg_header(cinfo);
+    Info info = read_jpeg_header(cinfo);
+#ifdef JCS_EXTENSIONS
+    // libjpeg-turbo converts luminance and color to RGBA with opaque alpha while decoding.
+    if (options.expand_to_rgba) {
+        cinfo.out_color_space = JCS_EXT_RGBA;
+        info.pixel_format = PixelFormat::rgba;
+    }
+#else
+    SGL_UNUSED(options);
+#endif
     jpeg_start_decompress(&cinfo);
 
     m_width = cinfo.output_width;
@@ -1587,8 +1609,9 @@ static Bitmap::Info read_jpg_info(Stream* stream)
     return read_stb_info(stream, Bitmap::FileFormat::jpg);
 }
 
-void Bitmap::read_jpg(Stream* stream)
+void Bitmap::read_jpg(Stream* stream, const ReadOptions& options)
 {
+    SGL_UNUSED(options);
     read_stb(stream, "JPEG", false);
 }
 
@@ -1817,7 +1840,7 @@ static Bitmap::ComponentType exr_component_type(Imf::PixelType pixel_type)
     }
 }
 
-void Bitmap::read_exr(Stream* stream)
+void Bitmap::read_exr(Stream* stream, const ReadOptions& options)
 {
     EXRIStream is(stream);
     Imf::InputFile file(is);
@@ -1903,6 +1926,14 @@ void Bitmap::read_exr(Stream* stream)
     const auto [pixel_format, luminance_chroma_format] = exr_pixel_format(channels_sorted);
     m_pixel_format = pixel_format;
 
+    // Add an alpha channel that OpenEXR fills while decoding, since the file has no such channel.
+    const bool add_alpha = options.expand_to_rgba && pixel_format == PixelFormat::rgb && !luminance_chroma_format
+        && channels_sorted == std::vector<std::string>{"R", "G", "B"};
+    if (add_alpha) {
+        m_pixel_struct->append("A", m_component_type);
+        m_pixel_format = PixelFormat::rgba;
+    }
+
     m_srgb_gamma = false;
 
     // Check if there is a chromaticity header entry.
@@ -1948,6 +1979,15 @@ void Bitmap::read_exr(Stream* stream)
     // Tell OpenEXR where the image data should be put.
     Imf::FrameBuffer framebuffer;
     for (const auto& field : *m_pixel_struct) {
+        if (add_alpha && field.name == "A") {
+            // Missing channels are filled with the slice's fill value: one, or the maximum value for uint32.
+            const double one = pixel_type == Imf::UINT ? double(std::numeric_limits<uint32_t>::max()) : 1.0;
+            framebuffer.insert(
+                field.name,
+                Imf::Slice(pixel_type, (char*)(ptr + field.offset), pixel_stride, row_stride, 1, 1, one)
+            );
+            continue;
+        }
         const Imf::Channel& channel = channels[field.name];
         int x_sampling = channel.xSampling;
         int y_sampling = channel.ySampling;
@@ -2323,8 +2363,9 @@ static Bitmap::ComponentType exr_component_type(int pixel_type)
     }
 }
 
-void Bitmap::read_exr(Stream* stream)
+void Bitmap::read_exr(Stream* stream, const ReadOptions& options)
 {
+    SGL_UNUSED(options);
     size_t size = stream->size();
     std::unique_ptr<uint8_t[]> memory(new uint8_t[size]);
     stream->read(memory.get(), size);

@@ -427,15 +427,13 @@ inline bool has_format_support(Device* device, Format format, FormatSupport requ
  * - \c Options::load_as_normalized
  *   8/16-bit integer bitmap will be determined as normalized resource format.
  *
- * \param bitmap Bitmap to determine format for.
+ * \param info Pixel format, component type and sRGB gamma of the bitmap to determine the format for.
  * \param options Texture loading options.
  * \return A pair containing the determined format and flag if the bitmap needs to be converted to RGBA to match the format.
  */
 inline std::pair<Format, bool>
-determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoader::Options& options)
+determine_texture_format(Device* device, const Bitmap::Info& info, const TextureLoader::Options& options)
 {
-    SGL_ASSERT(bitmap != nullptr);
-
     using PixelFormat = Bitmap::PixelFormat;
     using ComponentType = Bitmap::ComponentType;
 
@@ -505,8 +503,8 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
         {make_key(PixelFormat::rgba, ComponentType::float32), Format::rgba32_float},
     };
 
-    ComponentType component_type = bitmap->component_type();
-    PixelFormat pixel_format = bitmap->pixel_format();
+    ComponentType component_type = info.component_type;
+    PixelFormat pixel_format = info.pixel_format;
     bool convert_to_rgba = false;
     if (pixel_format == PixelFormat::y) {
         if (options.y_handling == YHandling::expand_to_rgba) {
@@ -557,7 +555,7 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
 
     // Use sRGB format if requested and supported.
     const bool srgb
-        = options.srgb_mode == SRGBMode::srgb || (options.srgb_mode == SRGBMode::automatic && bitmap->srgb_gamma());
+        = options.srgb_mode == SRGBMode::srgb || (options.srgb_mode == SRGBMode::automatic && info.srgb_gamma);
     if (srgb && pixel_format == PixelFormat::rgba && component_type == ComponentType::uint8)
         format_flags = FormatFlags::srgb;
 
@@ -567,6 +565,24 @@ determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoad
         SGL_THROW("Unsupported bitmap format: {} {}", pixel_format, component_type);
 
     return {it->second, convert_to_rgba};
+}
+
+inline std::pair<Format, bool>
+determine_texture_format(Device* device, const Bitmap* bitmap, const TextureLoader::Options& options)
+{
+    SGL_ASSERT(bitmap != nullptr);
+    return determine_texture_format(
+        device,
+        Bitmap::Info{
+            .width = bitmap->width(),
+            .height = bitmap->height(),
+            .pixel_format = bitmap->pixel_format(),
+            .component_type = bitmap->component_type(),
+            .channel_count = bitmap->channel_count(),
+            .srgb_gamma = bitmap->srgb_gamma(),
+        },
+        options
+    );
 }
 
 inline std::pair<TextureType, uint32_t> get_texture_type_and_layer_count(DDSFile::TextureType type, uint32_t array_size)
@@ -687,7 +703,30 @@ inline SourceImage convert_bitmap(Device* device, ref<Bitmap> bitmap, const Text
     };
 }
 
-inline SourceImage load_source_image(Stream* stream)
+/// Read the image header and return read options that let the decoder produce the pixel layout the texture needs,
+/// so no separate conversion pass is required.
+inline Bitmap::ReadOptions get_bitmap_read_options(
+    Device* device,
+    Stream* stream,
+    Bitmap::FileFormat file_format,
+    const TextureLoader::Options& options
+)
+{
+    using PixelFormat = Bitmap::PixelFormat;
+    if (file_format != Bitmap::FileFormat::png && file_format != Bitmap::FileFormat::jpg
+        && file_format != Bitmap::FileFormat::exr)
+        return {};
+    const size_t position = stream->tell();
+    const Bitmap::Info info = Bitmap::read_info(stream, file_format);
+    stream->seek(position);
+    if (info.pixel_format != PixelFormat::y && info.pixel_format != PixelFormat::ya
+        && info.pixel_format != PixelFormat::rgb)
+        return {};
+    const bool convert_to_rgba = determine_texture_format(device, info, options).second;
+    return {.expand_to_rgba = convert_to_rgba};
+}
+
+inline SourceImage load_source_image(Device* device, Stream* stream, const TextureLoader::Options& options)
 {
     SourceImage source_image;
     if (DDSFile::detect_dds_file(stream)) {
@@ -700,7 +739,8 @@ inline SourceImage load_source_image(Stream* stream)
                                                            : 3;
         ScopedTime t{g_timing.decode[index]};
         g_timing.decode_count[index]++;
-        source_image.bitmap = ref(new Bitmap(stream));
+        const Bitmap::ReadOptions read_options = get_bitmap_read_options(device, stream, file_format, options);
+        source_image.bitmap = ref(new Bitmap(stream, file_format, read_options));
     }
     return source_image;
 }
@@ -727,10 +767,11 @@ inline Format apply_dds_srgb_mode(Format format, SRGBMode mode)
     return format;
 }
 
-inline SourceImage load_source_image(const std::filesystem::path& path)
+inline SourceImage
+load_source_image(Device* device, const std::filesystem::path& path, const TextureLoader::Options& options)
 {
     FileStream stream(path, FileStream::Mode::read);
-    return load_source_image(&stream);
+    return load_source_image(device, &stream, options);
 }
 
 inline SourceImage convert_source_image(Device* device, SourceImage source_image, const TextureLoader::Options& options)
@@ -745,7 +786,7 @@ inline SourceImage convert_source_image(Device* device, SourceImage source_image
 
 inline SourceImage load_and_convert_source_image(Device* device, Stream* stream, const TextureLoader::Options& options)
 {
-    return convert_source_image(device, load_source_image(stream), options);
+    return convert_source_image(device, load_source_image(device, stream, options), options);
 }
 
 inline SourceImage
@@ -754,7 +795,7 @@ load_and_convert_source_image(Device* device, const std::filesystem::path& path,
     // Decode and close the file before converting. Conversion may wait on nested pool work (resampling), and the
     // waiting worker runs other queued loads meanwhile; holding the file open would nest one open handle per queued
     // load and can exhaust the open file limit for large batches.
-    return convert_source_image(device, load_source_image(path), options);
+    return convert_source_image(device, load_source_image(device, path, options), options);
 }
 
 inline SourceImage load_and_convert_source_image(

@@ -812,9 +812,11 @@ static const char *mkd_doc_sgl_Bitmap_Bitmap_2 = R"doc()doc";
 
 static const char *mkd_doc_sgl_Bitmap_Bitmap_3 = R"doc()doc";
 
-static const char *mkd_doc_sgl_Bitmap_Bitmap_4 = R"doc(Copy constructor.)doc";
+static const char *mkd_doc_sgl_Bitmap_Bitmap_4 = R"doc()doc";
 
-static const char *mkd_doc_sgl_Bitmap_Bitmap_5 = R"doc(Move constructor.)doc";
+static const char *mkd_doc_sgl_Bitmap_Bitmap_5 = R"doc(Copy constructor.)doc";
+
+static const char *mkd_doc_sgl_Bitmap_Bitmap_6 = R"doc(Move constructor.)doc";
 
 static const char *mkd_doc_sgl_Bitmap_FileFormat = R"doc()doc";
 
@@ -875,6 +877,15 @@ static const char *mkd_doc_sgl_Bitmap_PixelFormat_rgba = R"doc(RGB + alpha.)doc"
 static const char *mkd_doc_sgl_Bitmap_PixelFormat_y = R"doc(Luminance only.)doc";
 
 static const char *mkd_doc_sgl_Bitmap_PixelFormat_ya = R"doc(Luminance + alpha.)doc";
+
+static const char *mkd_doc_sgl_Bitmap_ReadOptions = R"doc(Options for reading images.)doc";
+
+static const char *mkd_doc_sgl_Bitmap_ReadOptions_expand_to_rgba =
+R"doc(Decode Y, YA and RGB images directly to RGBA where the decoder
+supports it: PNG (Y, YA, RGB), JPEG (Y, RGB) and OpenEXR (RGB channels
+without layer prefix). Luminance is replicated to RGB and a missing
+alpha channel is set to one (the maximum value for integer
+components), as convert() does. Other images are read unchanged.)doc";
 
 static const char *mkd_doc_sgl_Bitmap_allocate_data = R"doc()doc";
 

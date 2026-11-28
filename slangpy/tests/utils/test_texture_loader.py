@@ -295,6 +295,61 @@ def test_expand_luminance_to_rgba(
         np.testing.assert_array_equal(scalar.to_numpy(), values)
 
 
+DECODE_TO_RGBA_CASES = [
+    ("png", PixelFormat.y, np.uint8),
+    ("png", PixelFormat.ya, np.uint8),
+    ("png", PixelFormat.rgb, np.uint8),
+    ("png", PixelFormat.y, np.uint16),
+    ("png", PixelFormat.ya, np.uint16),
+    ("png", PixelFormat.rgb, np.uint16),
+    ("jpg", PixelFormat.y, np.uint8),
+    ("jpg", PixelFormat.rgb, np.uint8),
+    ("exr", PixelFormat.rgb, np.float16),
+    ("exr", PixelFormat.rgb, np.float32),
+]
+
+
+@pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
+@pytest.mark.parametrize("extension,pixel_format,dtype", DECODE_TO_RGBA_CASES)
+def test_decode_to_rgba_matches_conversion(
+    tmp_path: Path,
+    device_type: spy.DeviceType,
+    extension: str,
+    pixel_format: PixelFormat,
+    dtype: Any,
+) -> None:
+    # Files that need RGBA textures are decoded directly to RGBA where the decoder supports it. The result must
+    # equal the plain decode expanded the way Bitmap.convert does: luminance replicated, missing alpha set to one.
+    device = helpers.get_device(type=device_type)
+    channels = {PixelFormat.y: 1, PixelFormat.ya: 2, PixelFormat.rgb: 3}[pixel_format]
+    rng = np.random.default_rng(4)
+    if np.issubdtype(dtype, np.integer):
+        one = np.iinfo(dtype).max
+        data = rng.integers(0, int(one) + 1, (17, 23, channels), dtype=dtype)
+    else:
+        one = dtype(1)
+        data = rng.random((17, 23, channels)).astype(dtype)
+    path = tmp_path / f"image.{extension}"
+    Bitmap(data if channels > 1 else data[:, :, 0], pixel_format=pixel_format).write(path)
+
+    decoded = np.asarray(Bitmap(path)).reshape(17, 23, channels)
+    luminance = decoded[:, :, :1]
+    rgb = np.repeat(luminance, 3, axis=2) if channels < 3 else decoded
+    alpha = decoded[:, :, 1:2] if channels == 2 else np.full((17, 23, 1), one, dtype=decoded.dtype)
+    expected = np.concatenate([rgb, alpha], axis=2)
+
+    loader = TextureLoader(device)
+    options = TextureLoader.Options(
+        {"srgb_mode": spy.SRGBMode.linear, "y_handling": spy.YHandling.expand_to_rgba}
+    )
+    for texture in (loader.load_texture(path, options), loader.load_textures([path], options)[0]):
+        if texture.format == Format.rgb32_float:
+            # The device samples RGB float textures directly; no expansion happens.
+            np.testing.assert_array_equal(texture.to_numpy(), decoded)
+        else:
+            np.testing.assert_array_equal(texture.to_numpy(), expected)
+
+
 @pytest.mark.parametrize("device_type", helpers.DEFAULT_DEVICE_TYPES)
 def test_load_rgb_float_texture_with_generated_mips_extends_to_rgba(device_type: spy.DeviceType):
     device = helpers.get_device(type=device_type)
